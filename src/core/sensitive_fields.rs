@@ -125,9 +125,7 @@ impl SensitiveFields {
     ///
     /// Iterator over canonical field names and their levels.
     pub fn iter(&self) -> impl Iterator<Item = (&str, SensitivityLevel)> {
-        self.fields
-            .iter()
-            .map(|(field, level)| (field.as_str(), *level))
+        self.fields.iter().map(|(field, level)| (field.as_str(), *level))
     }
 }
 

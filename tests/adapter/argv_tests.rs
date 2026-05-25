@@ -31,10 +31,7 @@ fn test_argv_sanitizer_field_sanitizer_accessors() {
         .field_sanitizer_mut()
         .insert_sensitive_field("custom_flag", SensitivityLevel::High);
     assert_eq!(
-        sanitizer.sanitize_argv(
-            ["cmd", "--custom-flag", "secret"],
-            NameMatchMode::ExactOrSuffix
-        ),
+        sanitizer.sanitize_argv(["cmd", "--custom-flag", "secret"], NameMatchMode::ExactOrSuffix),
         ["cmd", "--custom-flag", "****"],
     );
 }
@@ -45,24 +42,10 @@ fn test_argv_sanitizer_masks_sensitive_option_next_value() {
 
     assert_eq!(
         sanitizer.sanitize_argv(
-            [
-                "docker",
-                "login",
-                "--password",
-                "secret",
-                "--username",
-                "alice"
-            ],
+            ["docker", "login", "--password", "secret", "--username", "alice"],
             NameMatchMode::ExactOrSuffix
         ),
-        [
-            "docker",
-            "login",
-            "--password",
-            "<redacted>",
-            "--username",
-            "alice"
-        ],
+        ["docker", "login", "--password", "<redacted>", "--username", "alice"],
     );
 }
 
@@ -94,10 +77,7 @@ fn test_argv_sanitizer_keeps_nonsensitive_inline_option_value() {
     let sanitizer = ArgvSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_argv(
-            ["client", "--not-sensitive=abcdef"],
-            NameMatchMode::ExactOrSuffix
-        ),
+        sanitizer.sanitize_argv(["client", "--not-sensitive=abcdef"], NameMatchMode::ExactOrSuffix),
         ["client", "--not-sensitive=abcdef"],
     );
 }
@@ -130,10 +110,7 @@ fn test_argv_sanitizer_keeps_shell_payload_unparsed() {
     let sanitizer = ArgvSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_argv(
-            ["sh", "-c", "echo $OPENAI_API_KEY"],
-            NameMatchMode::ExactOrSuffix
-        ),
+        sanitizer.sanitize_argv(["sh", "-c", "echo $OPENAI_API_KEY"], NameMatchMode::ExactOrSuffix),
         ["sh", "-c", "echo $OPENAI_API_KEY"],
     );
 }
@@ -143,10 +120,7 @@ fn test_argv_sanitizer_formats_display_string() {
     let sanitizer = ArgvSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_argv_display(
-            ["cmd", "--client-secret", "abcdef"],
-            NameMatchMode::ExactOrSuffix
-        ),
+        sanitizer.sanitize_argv_display(["cmd", "--client-secret", "abcdef"], NameMatchMode::ExactOrSuffix),
         r#"["cmd", "--client-secret", "<redacted>"]"#,
     );
 }
@@ -156,10 +130,7 @@ fn test_argv_sanitizer_stops_option_parsing_at_double_dash() {
     let sanitizer = ArgvSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_argv(
-            ["cmd", "--", "--password", "secret"],
-            NameMatchMode::ExactOrSuffix
-        ),
+        sanitizer.sanitize_argv(["cmd", "--", "--password", "secret"], NameMatchMode::ExactOrSuffix),
         ["cmd", "--", "--password", "secret"],
     );
 }

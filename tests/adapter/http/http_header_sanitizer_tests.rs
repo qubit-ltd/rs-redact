@@ -78,10 +78,7 @@ fn test_http_header_sanitizer_exact_mode_keeps_prefixed_header_name() {
     let name = HeaderName::from_static("x-openai-api-key");
     let value = HeaderValue::from_static("abcdef");
 
-    assert_eq!(
-        sanitizer.sanitize_value(&name, &value, NameMatchMode::Exact),
-        "abcdef",
-    );
+    assert_eq!(sanitizer.sanitize_value(&name, &value, NameMatchMode::Exact), "abcdef",);
 }
 
 #[test]
@@ -140,15 +137,11 @@ fn test_http_header_sanitizer_sanitize_headers_groups_values() {
     let sanitized = sanitizer.sanitize_headers(&headers, NameMatchMode::ExactOrSuffix);
 
     assert_eq!(
-        sanitized
-            .get("content-type")
-            .expect("content-type should be present"),
+        sanitized.get("content-type").expect("content-type should be present"),
         &vec!["application/json".to_string()],
     );
     assert_eq!(
-        sanitized
-            .get("set-cookie")
-            .expect("set-cookie should be present"),
+        sanitized.get("set-cookie").expect("set-cookie should be present"),
         &vec!["****".to_string(), "****".to_string()],
     );
 }

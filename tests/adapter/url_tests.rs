@@ -30,8 +30,7 @@ fn test_url_sanitizer_field_sanitizer_accessors() {
     sanitizer
         .field_sanitizer_mut()
         .insert_sensitive_field("custom_query", qubit_sanitize::SensitivityLevel::High);
-    let url = Url::parse("https://example.com/?custom_query=abcdef&mode=debug")
-        .expect("test URL should parse");
+    let url = Url::parse("https://example.com/?custom_query=abcdef&mode=debug").expect("test URL should parse");
 
     assert_eq!(
         sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
@@ -42,10 +41,8 @@ fn test_url_sanitizer_field_sanitizer_accessors() {
 #[test]
 fn test_url_sanitizer_sanitize_url_masks_sensitive_components() {
     let sanitizer = UrlSanitizer::default();
-    let url = Url::parse(
-        "https://alice:secret@example.com/path?access_token=abcdef&mode=debug#session-fragment",
-    )
-    .expect("test URL should parse");
+    let url = Url::parse("https://alice:secret@example.com/path?access_token=abcdef&mode=debug#session-fragment")
+        .expect("test URL should parse");
 
     assert_eq!(
         sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
@@ -97,8 +94,7 @@ fn test_url_sanitizer_sanitize_url_str_reports_parse_error() {
 #[test]
 fn test_url_sanitizer_sanitize_url_without_query() {
     let sanitizer = UrlSanitizer::default();
-    let url = Url::parse("https://alice:secret@example.com/path#session-fragment")
-        .expect("test URL should parse");
+    let url = Url::parse("https://alice:secret@example.com/path#session-fragment").expect("test URL should parse");
 
     assert_eq!(
         sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
@@ -109,8 +105,7 @@ fn test_url_sanitizer_sanitize_url_without_query() {
 #[test]
 fn test_url_sanitizer_constructed_from_field_sanitizer() {
     let sanitizer = UrlSanitizer::new(FieldSanitizer::default());
-    let url =
-        Url::parse("https://example.com/?access_token=abcdef").expect("test URL should parse");
+    let url = Url::parse("https://example.com/?access_token=abcdef").expect("test URL should parse");
 
     assert_eq!(
         sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),

@@ -63,11 +63,7 @@ pub(super) fn sanitize_multipart(
 /// # Returns
 ///
 /// Log-safe `name=value` line, or `None` when part headers are malformed.
-fn sanitize_multipart_part(
-    sanitizer: &HttpBodySanitizer,
-    segment: &str,
-    match_mode: NameMatchMode,
-) -> Option<String> {
+fn sanitize_multipart_part(sanitizer: &HttpBodySanitizer, segment: &str, match_mode: NameMatchMode) -> Option<String> {
     let (headers, body) = split_multipart_headers_and_body(segment)?;
     let mut content_disposition = None;
     let mut content_type = None;
@@ -83,8 +79,7 @@ fn sanitize_multipart_part(
     }
     let name = content_disposition.and_then(|value| content_type::parameter(value, "name"));
     let filename = content_disposition.and_then(|value| {
-        content_type::parameter(value, "filename")
-            .or_else(|| content_type::parameter(value, "filename*"))
+        content_type::parameter(value, "filename").or_else(|| content_type::parameter(value, "filename*"))
     });
     let field_name = name.as_deref().unwrap_or(MULTIPART_UNNAMED_FIELD);
     let value = sanitize_multipart_part_value(

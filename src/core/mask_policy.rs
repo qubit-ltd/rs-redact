@@ -94,11 +94,7 @@ impl MaskPolicy {
     /// # Returns
     ///
     /// A mask policy that keeps only the selected trailing characters.
-    pub fn preserve_suffix(
-        suffix_chars: usize,
-        replacement: &str,
-        full_mask_below_or_equal: usize,
-    ) -> Self {
+    pub fn preserve_suffix(suffix_chars: usize, replacement: &str, full_mask_below_or_equal: usize) -> Self {
         Self::PreserveSuffix {
             suffix_chars,
             replacement: replacement.to_string(),
@@ -149,9 +145,7 @@ impl MaskPolicy {
                 suffix_chars,
                 replacement,
                 full_mask_below_or_equal,
-            } => {
-                mask_preserving_suffix(value, *suffix_chars, replacement, *full_mask_below_or_equal)
-            }
+            } => mask_preserving_suffix(value, *suffix_chars, replacement, *full_mask_below_or_equal),
             Self::Empty => Cow::Owned(String::new()),
         }
     }
@@ -182,10 +176,7 @@ fn mask_preserving_edges<'a>(
         return Cow::Owned(replacement.to_string());
     }
     let prefix = chars.iter().take(prefix_chars).collect::<String>();
-    let suffix = chars
-        .iter()
-        .skip(chars.len() - suffix_chars)
-        .collect::<String>();
+    let suffix = chars.iter().skip(chars.len() - suffix_chars).collect::<String>();
     Cow::Owned(format!("{prefix}{replacement}{suffix}"))
 }
 
@@ -211,9 +202,6 @@ fn mask_preserving_suffix<'a>(
     if chars.len() <= full_mask_below_or_equal || chars.len() <= suffix_chars {
         return Cow::Owned(replacement.to_string());
     }
-    let suffix = chars
-        .iter()
-        .skip(chars.len() - suffix_chars)
-        .collect::<String>();
+    let suffix = chars.iter().skip(chars.len() - suffix_chars).collect::<String>();
     Cow::Owned(format!("{replacement}{suffix}"))
 }

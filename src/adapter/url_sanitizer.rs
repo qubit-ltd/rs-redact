@@ -92,9 +92,9 @@ impl UrlSanitizer {
 
         let mut serializer = form_urlencoded::Serializer::new(String::new());
         for (key, value) in url.query_pairs() {
-            let sanitized_value =
-                self.field_sanitizer
-                    .sanitize_value(key.as_ref(), value.as_ref(), match_mode);
+            let sanitized_value = self
+                .field_sanitizer
+                .sanitize_value(key.as_ref(), value.as_ref(), match_mode);
             serializer.append_pair(key.as_ref(), sanitized_value.as_ref());
         }
         sanitized.set_query(Some(&serializer.finish()));
@@ -115,11 +115,7 @@ impl UrlSanitizer {
     /// # Errors
     ///
     /// Returns [`ParseError`] when `url` is not parseable by [`Url::parse`].
-    pub fn sanitize_url_str(
-        &self,
-        url: &str,
-        match_mode: NameMatchMode,
-    ) -> Result<String, ParseError> {
+    pub fn sanitize_url_str(&self, url: &str, match_mode: NameMatchMode) -> Result<String, ParseError> {
         Url::parse(url).map(|url| self.sanitize_url(&url, match_mode))
     }
 }

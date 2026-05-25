@@ -107,10 +107,7 @@ fn test_env_sanitizer_sanitize_assignments() {
     let sanitizer = EnvSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_assignments(
-            ["PASSWORD=secret", "MODE=debug"],
-            NameMatchMode::ExactOrSuffix
-        ),
+        sanitizer.sanitize_assignments(["PASSWORD=secret", "MODE=debug"], NameMatchMode::ExactOrSuffix),
         ["PASSWORD=<redacted>", "MODE=debug"],
     );
 }

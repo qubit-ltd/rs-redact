@@ -99,11 +99,9 @@ impl ArgvSanitizer {
                     sanitized.push(value);
                     continue;
                 }
-                if let Some(name) = option_name(&arg).filter(|name| {
-                    self.field_sanitizer
-                        .sensitivity_for_name(name, match_mode)
-                        .is_some()
-                }) {
+                if let Some(name) = option_name(&arg)
+                    .filter(|name| self.field_sanitizer.sensitivity_for_name(name, match_mode).is_some())
+                {
                     pending_sensitive_name = Some(name.to_string());
                 }
             }
@@ -166,12 +164,7 @@ impl ArgvSanitizer {
     /// # Returns
     ///
     /// Sanitized value according to the sensitivity level resolved from `name`.
-    fn sanitize_sensitive_value(
-        &self,
-        name: &str,
-        value: &str,
-        match_mode: NameMatchMode,
-    ) -> String {
+    fn sanitize_sensitive_value(&self, name: &str, value: &str, match_mode: NameMatchMode) -> String {
         self.field_sanitizer
             .sanitize_value(name, value, match_mode)
             .into_owned()
@@ -194,8 +187,7 @@ impl ArgvSanitizer {
         }
         let (left, value) = arg.split_once('=')?;
         let name = option_name(left)?;
-        self.field_sanitizer
-            .sensitivity_for_name(name, match_mode)?;
+        self.field_sanitizer.sensitivity_for_name(name, match_mode)?;
         let sanitized_value = self.sanitize_sensitive_value(name, value, match_mode);
         Some(format!("{left}={sanitized_value}"))
     }

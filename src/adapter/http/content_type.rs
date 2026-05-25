@@ -23,9 +23,7 @@ const MAX_MULTIPART_BOUNDARY_LEN: usize = 70;
 ///
 /// `Some(Ok(text))` for valid UTF-8 header values, `Some(Err(_))` for present
 /// but invalid values, and `None` when no header value is provided.
-pub(super) fn content_type_to_str(
-    value: Option<&HeaderValue>,
-) -> Option<Result<&str, http::header::ToStrError>> {
+pub(super) fn content_type_to_str(value: Option<&HeaderValue>) -> Option<Result<&str, http::header::ToStrError>> {
     value.map(HeaderValue::to_str)
 }
 
@@ -39,11 +37,7 @@ pub(super) fn content_type_to_str(
 ///
 /// Trimmed text before the first semicolon.
 fn media_type(content_type: &str) -> &str {
-    content_type
-        .split(';')
-        .next()
-        .map(str::trim)
-        .unwrap_or_default()
+    content_type.split(';').next().map(str::trim).unwrap_or_default()
 }
 
 /// Returns whether a content type has the expected media type.
@@ -72,9 +66,7 @@ fn has_media_type(content_type: &str, expected: &str) -> bool {
 /// structured suffixes ending with `+json`.
 pub(super) fn is_json(content_type: &str) -> bool {
     let media_type = media_type(content_type).to_ascii_lowercase();
-    media_type == "application/json"
-        || media_type.ends_with("+json")
-        || media_type.ends_with("/json")
+    media_type == "application/json" || media_type.ends_with("+json") || media_type.ends_with("/json")
 }
 
 /// Returns whether a content type declares newline-delimited JSON.
@@ -88,8 +80,7 @@ pub(super) fn is_json(content_type: &str) -> bool {
 /// `true` for `application/x-ndjson` and `application/ndjson`.
 pub(super) fn is_ndjson(content_type: &str) -> bool {
     let media_type = media_type(content_type);
-    media_type.eq_ignore_ascii_case("application/x-ndjson")
-        || media_type.eq_ignore_ascii_case("application/ndjson")
+    media_type.eq_ignore_ascii_case("application/x-ndjson") || media_type.eq_ignore_ascii_case("application/ndjson")
 }
 
 /// Returns whether a content type declares URL-encoded form data.
@@ -115,9 +106,7 @@ pub(super) fn is_form_urlencoded(content_type: &str) -> bool {
 ///
 /// `true` for any `multipart/*` media type.
 pub(super) fn is_multipart(content_type: &str) -> bool {
-    media_type(content_type)
-        .to_ascii_lowercase()
-        .starts_with("multipart/")
+    media_type(content_type).to_ascii_lowercase().starts_with("multipart/")
 }
 
 /// Returns whether a content type declares textual data.
@@ -130,9 +119,7 @@ pub(super) fn is_multipart(content_type: &str) -> bool {
 ///
 /// `true` for any `text/*` media type.
 pub(super) fn is_text(content_type: &str) -> bool {
-    media_type(content_type)
-        .to_ascii_lowercase()
-        .starts_with("text/")
+    media_type(content_type).to_ascii_lowercase().starts_with("text/")
 }
 
 /// Extracts a validated multipart boundary.
@@ -167,8 +154,7 @@ pub(super) fn multipart_boundary(content_type: &str) -> Option<String> {
 /// `true` when the value uses conservative RFC-compatible ASCII bytes.
 fn is_valid_multipart_boundary(boundary: &str) -> bool {
     let len = boundary.len();
-    (1..=MAX_MULTIPART_BOUNDARY_LEN).contains(&len)
-        && boundary.bytes().all(is_valid_multipart_boundary_byte)
+    (1..=MAX_MULTIPART_BOUNDARY_LEN).contains(&len) && boundary.bytes().all(is_valid_multipart_boundary_byte)
 }
 
 /// Returns whether one byte is valid in a multipart boundary.

@@ -173,10 +173,7 @@ fn test_field_sanitizer_policy_mut_customizes_masking() {
 #[test]
 fn test_field_sanitizer_extend_sensitive_fields_adds_multiple_fields() {
     let mut sanitizer = FieldSanitizer::new(FieldSanitizePolicy::empty());
-    sanitizer.extend_sensitive_fields(
-        ["primary_secret", "secondary_secret"],
-        SensitivityLevel::High,
-    );
+    sanitizer.extend_sensitive_fields(["primary_secret", "secondary_secret"], SensitivityLevel::High);
 
     assert_eq!(
         sanitizer.sanitize_value("primary-secret", "abcdef", NameMatchMode::Exact),
@@ -212,10 +209,7 @@ fn test_field_sanitizer_sanitize_map_returns_sanitized_copy() {
 
     let output = sanitizer.sanitize_map(&input, NameMatchMode::Exact);
 
-    assert_eq!(
-        output.get("password").map(String::as_str),
-        Some("<redacted>")
-    );
+    assert_eq!(output.get("password").map(String::as_str), Some("<redacted>"));
     assert_eq!(output.get("name").map(String::as_str), Some("alice"));
     assert_eq!(input.get("password").map(String::as_str), Some("secret"));
 }
@@ -242,10 +236,7 @@ fn test_field_sanitizer_sanitize_map_masks_suffix_keys() {
 
     let output = sanitizer.sanitize_map(&input, NameMatchMode::ExactOrSuffix);
 
-    assert_eq!(
-        output.get("OPENAI_API_KEY").map(String::as_str),
-        Some("****")
-    );
+    assert_eq!(output.get("OPENAI_API_KEY").map(String::as_str), Some("****"));
     assert_eq!(output.get("mode").map(String::as_str), Some("debug"));
 }
 
@@ -258,10 +249,7 @@ fn test_field_sanitizer_sanitize_map_in_place_masks_suffix_keys() {
 
     sanitizer.sanitize_map_in_place(&mut input, NameMatchMode::ExactOrSuffix);
 
-    assert_eq!(
-        input.get("OPENAI_API_KEY").map(String::as_str),
-        Some("****")
-    );
+    assert_eq!(input.get("OPENAI_API_KEY").map(String::as_str), Some("****"));
     assert_eq!(input.get("mode").map(String::as_str), Some("debug"));
 }
 
@@ -274,10 +262,7 @@ fn test_field_sanitizer_sanitize_hash_map_returns_sanitized_copy() {
 
     let output = sanitizer.sanitize_map(&input, NameMatchMode::Exact);
 
-    assert_eq!(
-        output.get("password").map(String::as_str),
-        Some("<redacted>")
-    );
+    assert_eq!(output.get("password").map(String::as_str), Some("<redacted>"));
     assert_eq!(output.get("name").map(String::as_str), Some("alice"));
     assert_eq!(input.get("password").map(String::as_str), Some("secret"));
 }

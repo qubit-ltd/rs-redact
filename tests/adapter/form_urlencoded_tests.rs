@@ -31,10 +31,7 @@ fn test_form_urlencoded_sanitizer_field_sanitizer_accessors() {
         .field_sanitizer_mut()
         .insert_sensitive_field("custom_field", SensitivityLevel::High);
     assert_eq!(
-        sanitizer.sanitize_str(
-            "custom_field=abcdef&mode=debug",
-            NameMatchMode::ExactOrSuffix
-        ),
+        sanitizer.sanitize_str("custom_field=abcdef&mode=debug", NameMatchMode::ExactOrSuffix),
         "custom_field=****&mode=debug",
     );
 }
@@ -67,10 +64,7 @@ fn test_form_urlencoded_sanitizer_preserves_duplicate_fields() {
     let sanitizer = FormUrlEncodedSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_str(
-            "token=first&token=second&mode=debug",
-            NameMatchMode::ExactOrSuffix
-        ),
+        sanitizer.sanitize_str("token=first&token=second&mode=debug", NameMatchMode::ExactOrSuffix),
         "token=****&token=****&mode=debug",
     );
 }

@@ -104,11 +104,7 @@ impl FieldSanitizer {
     /// # Returns
     ///
     /// `Some(level)` when the name is sensitive, otherwise `None`.
-    pub fn sensitivity_for_name(
-        &self,
-        name: &str,
-        match_mode: NameMatchMode,
-    ) -> Option<SensitivityLevel> {
+    pub fn sensitivity_for_name(&self, name: &str, match_mode: NameMatchMode) -> Option<SensitivityLevel> {
         let fields = &self.policy.sensitive_fields;
         if let Some(level) = fields.level_for(name) {
             return Some(level);
@@ -147,12 +143,7 @@ impl FieldSanitizer {
     ///
     /// Borrowed `value` when `field` is not sensitive, otherwise an owned masked
     /// value according to the resolved sensitivity level.
-    pub fn sanitize_value<'a>(
-        &self,
-        field: &str,
-        value: &'a str,
-        match_mode: NameMatchMode,
-    ) -> Cow<'a, str> {
+    pub fn sanitize_value<'a>(&self, field: &str, value: &'a str, match_mode: NameMatchMode) -> Cow<'a, str> {
         let Some(level) = self.sensitivity_for_name(field, match_mode) else {
             return Cow::Borrowed(value);
         };
@@ -182,8 +173,7 @@ impl FieldSanitizer {
             .map(|(field, value)| {
                 (
                     field.clone(),
-                    self.sanitize_value(field, value.as_str(), match_mode)
-                        .into_owned(),
+                    self.sanitize_value(field, value.as_str(), match_mode).into_owned(),
                 )
             })
             .collect()

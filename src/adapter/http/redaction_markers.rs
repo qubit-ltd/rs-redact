@@ -16,8 +16,7 @@ pub(super) const INVALID_OR_TRUNCATED_JSON_REDACTED: &str = "<redacted: invalid 
 /// Redaction marker for invalid complete NDJSON bodies.
 pub(super) const INVALID_NDJSON_REDACTED: &str = "<redacted: invalid NDJSON>";
 /// Redaction marker for invalid or truncated NDJSON previews.
-pub(super) const INVALID_OR_TRUNCATED_NDJSON_REDACTED: &str =
-    "<redacted: invalid or truncated NDJSON>";
+pub(super) const INVALID_OR_TRUNCATED_NDJSON_REDACTED: &str = "<redacted: invalid or truncated NDJSON>";
 /// Redaction marker for bodies whose Content-Type cannot be interpreted.
 pub(super) const INVALID_CONTENT_TYPE_REDACTED: &str = "<redacted: invalid content type body>";
 /// Redaction marker for UTF-8 bodies without a supported structured or text media type.
