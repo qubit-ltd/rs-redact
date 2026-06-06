@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::collections::BTreeMap;
 
 use super::{
@@ -125,7 +123,9 @@ impl SensitiveFields {
     ///
     /// Iterator over canonical field names and their levels.
     pub fn iter(&self) -> impl Iterator<Item = (&str, SensitivityLevel)> {
-        self.fields.iter().map(|(field, level)| (field.as_str(), *level))
+        self.fields
+            .iter()
+            .map(|(field, level)| (field.as_str(), *level))
     }
 }
 

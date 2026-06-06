@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 //! Tests for [`SensitiveFields`](qubit_sanitize::SensitiveFields).
 
 use qubit_sanitize::{
@@ -30,8 +28,14 @@ fn test_sensitive_fields_default_contains_common_secret_fields() {
     let fields = SensitiveFields::default();
 
     assert_eq!(fields.level_for("password"), Some(SensitivityLevel::Secret));
-    assert_eq!(fields.level_for("access-token"), Some(SensitivityLevel::High));
-    assert_eq!(fields.level_for("authorization"), Some(SensitivityLevel::High));
+    assert_eq!(
+        fields.level_for("access-token"),
+        Some(SensitivityLevel::High)
+    );
+    assert_eq!(
+        fields.level_for("authorization"),
+        Some(SensitivityLevel::High)
+    );
 }
 
 #[test]
@@ -39,7 +43,10 @@ fn test_sensitive_fields_insert_adds_custom_field() {
     let mut fields = SensitiveFields::new();
     fields.insert("license_key", SensitivityLevel::Medium);
 
-    assert_eq!(fields.level_for("license-key"), Some(SensitivityLevel::Medium),);
+    assert_eq!(
+        fields.level_for("license-key"),
+        Some(SensitivityLevel::Medium),
+    );
 }
 
 #[test]
@@ -71,8 +78,14 @@ fn test_sensitive_fields_extend_adds_multiple_custom_fields() {
 
     fields.extend(["first_secret", "second_secret"], SensitivityLevel::Secret);
 
-    assert_eq!(fields.level_for("first-secret"), Some(SensitivityLevel::Secret),);
-    assert_eq!(fields.level_for("second.secret"), Some(SensitivityLevel::Secret),);
+    assert_eq!(
+        fields.level_for("first-secret"),
+        Some(SensitivityLevel::Secret),
+    );
+    assert_eq!(
+        fields.level_for("second.secret"),
+        Some(SensitivityLevel::Secret),
+    );
 }
 
 #[test]
@@ -81,7 +94,10 @@ fn test_sensitive_fields_extend_preset_adds_related_names() {
     fields.extend_preset(SensitiveFieldPreset::Http);
 
     assert_eq!(fields.level_for("set_cookie"), Some(SensitivityLevel::High));
-    assert_eq!(fields.level_for("proxy-authorization"), Some(SensitivityLevel::High),);
+    assert_eq!(
+        fields.level_for("proxy-authorization"),
+        Some(SensitivityLevel::High),
+    );
 }
 
 #[test]
@@ -92,11 +108,23 @@ fn test_sensitive_fields_extend_preset_covers_all_groups() {
     fields.extend_preset(SensitiveFieldPreset::AuthTokens);
     fields.extend_preset(SensitiveFieldPreset::Session);
 
-    assert_eq!(fields.level_for("client-secret"), Some(SensitivityLevel::Secret),);
-    assert_eq!(fields.level_for("refresh-token"), Some(SensitivityLevel::High),);
+    assert_eq!(
+        fields.level_for("client-secret"),
+        Some(SensitivityLevel::Secret),
+    );
+    assert_eq!(
+        fields.level_for("refresh-token"),
+        Some(SensitivityLevel::High),
+    );
     assert_eq!(fields.level_for("jwt-token"), Some(SensitivityLevel::High));
-    assert_eq!(fields.level_for("session-id"), Some(SensitivityLevel::Medium));
-    assert_eq!(fields.level_for("session-token"), Some(SensitivityLevel::High),);
+    assert_eq!(
+        fields.level_for("session-id"),
+        Some(SensitivityLevel::Medium)
+    );
+    assert_eq!(
+        fields.level_for("session-token"),
+        Some(SensitivityLevel::High),
+    );
 }
 
 #[test]

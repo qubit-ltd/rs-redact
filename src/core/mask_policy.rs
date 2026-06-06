@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::borrow::Cow;
 
 /// Strategy used to mask one sensitive field value.
@@ -64,7 +62,8 @@ impl MaskPolicy {
     /// * `prefix_chars` - Number of leading characters to retain.
     /// * `suffix_chars` - Number of trailing characters to retain.
     /// * `replacement` - Replacement inserted between retained edges.
-    /// * `full_mask_below_or_equal` - Character length threshold for full masks.
+    /// * `full_mask_below_or_equal` - Character length threshold for full
+    ///   masks.
     ///
     /// # Returns
     ///
@@ -89,12 +88,17 @@ impl MaskPolicy {
     ///
     /// * `suffix_chars` - Number of trailing characters to retain.
     /// * `replacement` - Replacement inserted before the suffix.
-    /// * `full_mask_below_or_equal` - Character length threshold for full masks.
+    /// * `full_mask_below_or_equal` - Character length threshold for full
+    ///   masks.
     ///
     /// # Returns
     ///
     /// A mask policy that keeps only the selected trailing characters.
-    pub fn preserve_suffix(suffix_chars: usize, replacement: &str, full_mask_below_or_equal: usize) -> Self {
+    pub fn preserve_suffix(
+        suffix_chars: usize,
+        replacement: &str,
+        full_mask_below_or_equal: usize,
+    ) -> Self {
         Self::PreserveSuffix {
             suffix_chars,
             replacement: replacement.to_string(),
@@ -145,7 +149,12 @@ impl MaskPolicy {
                 suffix_chars,
                 replacement,
                 full_mask_below_or_equal,
-            } => mask_preserving_suffix(value, *suffix_chars, replacement, *full_mask_below_or_equal),
+            } => mask_preserving_suffix(
+                value,
+                *suffix_chars,
+                replacement,
+                *full_mask_below_or_equal,
+            ),
             Self::Empty => Cow::Owned(String::new()),
         }
     }
@@ -172,11 +181,16 @@ fn mask_preserving_edges<'a>(
     full_mask_below_or_equal: usize,
 ) -> Cow<'a, str> {
     let chars = value.chars().collect::<Vec<_>>();
-    if chars.len() <= full_mask_below_or_equal || chars.len() <= prefix_chars + suffix_chars {
+    if chars.len() <= full_mask_below_or_equal
+        || chars.len() <= prefix_chars + suffix_chars
+    {
         return Cow::Owned(replacement.to_string());
     }
     let prefix = chars.iter().take(prefix_chars).collect::<String>();
-    let suffix = chars.iter().skip(chars.len() - suffix_chars).collect::<String>();
+    let suffix = chars
+        .iter()
+        .skip(chars.len() - suffix_chars)
+        .collect::<String>();
     Cow::Owned(format!("{prefix}{replacement}{suffix}"))
 }
 
@@ -202,6 +216,9 @@ fn mask_preserving_suffix<'a>(
     if chars.len() <= full_mask_below_or_equal || chars.len() <= suffix_chars {
         return Cow::Owned(replacement.to_string());
     }
-    let suffix = chars.iter().skip(chars.len() - suffix_chars).collect::<String>();
+    let suffix = chars
+        .iter()
+        .skip(chars.len() - suffix_chars)
+        .collect::<String>();
     Cow::Owned(format!("{replacement}{suffix}"))
 }

@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::borrow::Cow;
 
 use super::{
@@ -62,7 +60,11 @@ impl FieldSanitizer {
     ///
     /// * `field` - Field name to mark sensitive.
     /// * `level` - Sensitivity level assigned to the field.
-    pub fn insert_sensitive_field(&mut self, field: &str, level: SensitivityLevel) {
+    pub fn insert_sensitive_field(
+        &mut self,
+        field: &str,
+        level: SensitivityLevel,
+    ) {
         self.policy.sensitive_fields.insert(field, level);
     }
 
@@ -72,8 +74,11 @@ impl FieldSanitizer {
     ///
     /// * `fields` - Field names to add.
     /// * `level` - Sensitivity level assigned to every field.
-    pub fn extend_sensitive_fields<I, S>(&mut self, fields: I, level: SensitivityLevel)
-    where
+    pub fn extend_sensitive_fields<I, S>(
+        &mut self,
+        fields: I,
+        level: SensitivityLevel,
+    ) where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
@@ -104,7 +109,11 @@ impl FieldSanitizer {
     /// # Returns
     ///
     /// `Some(level)` when the name is sensitive, otherwise `None`.
-    pub fn sensitivity_for_name(&self, name: &str, match_mode: NameMatchMode) -> Option<SensitivityLevel> {
+    pub fn sensitivity_for_name(
+        &self,
+        name: &str,
+        match_mode: NameMatchMode,
+    ) -> Option<SensitivityLevel> {
         let fields = &self.policy.sensitive_fields;
         if let Some(level) = fields.level_for(name) {
             return Some(level);
@@ -141,9 +150,14 @@ impl FieldSanitizer {
     ///
     /// # Returns
     ///
-    /// Borrowed `value` when `field` is not sensitive, otherwise an owned masked
-    /// value according to the resolved sensitivity level.
-    pub fn sanitize_value<'a>(&self, field: &str, value: &'a str, match_mode: NameMatchMode) -> Cow<'a, str> {
+    /// Borrowed `value` when `field` is not sensitive, otherwise an owned
+    /// masked value according to the resolved sensitivity level.
+    pub fn sanitize_value<'a>(
+        &self,
+        field: &str,
+        value: &'a str,
+        match_mode: NameMatchMode,
+    ) -> Cow<'a, str> {
         let Some(level) = self.sensitivity_for_name(field, match_mode) else {
             return Cow::Borrowed(value);
         };
@@ -161,8 +175,8 @@ impl FieldSanitizer {
     ///
     /// New map preserving keys and sanitizing sensitive values.
     ///
-    /// This supports any standard map type that iterates as `(&String, &String)`
-    /// and can be rebuilt from `(String, String)` items, such as
+    /// This supports any standard map type that iterates as `(&String,
+    /// &String)` and can be rebuilt from `(String, String)` items, such as
     /// `std::collections::BTreeMap` and `std::collections::HashMap`.
     pub fn sanitize_map<M>(&self, map: &M, match_mode: NameMatchMode) -> M
     where
@@ -173,7 +187,8 @@ impl FieldSanitizer {
             .map(|(field, value)| {
                 (
                     field.clone(),
-                    self.sanitize_value(field, value.as_str(), match_mode).into_owned(),
+                    self.sanitize_value(field, value.as_str(), match_mode)
+                        .into_owned(),
                 )
             })
             .collect()
@@ -185,12 +200,16 @@ impl FieldSanitizer {
     ///
     /// * `map` - Mutable map whose keys are treated as field names.
     /// * `match_mode` - Field-name matching mode.
-    pub fn sanitize_map_in_place<M>(&self, map: &mut M, match_mode: NameMatchMode)
-    where
+    pub fn sanitize_map_in_place<M>(
+        &self,
+        map: &mut M,
+        match_mode: NameMatchMode,
+    ) where
         for<'a> &'a mut M: IntoIterator<Item = (&'a String, &'a mut String)>,
     {
         for (field, value) in map {
-            let sanitized = self.sanitize_value(field, value.as_str(), match_mode);
+            let sanitized =
+                self.sanitize_value(field, value.as_str(), match_mode);
             if let Cow::Owned(sanitized) = sanitized {
                 *value = sanitized;
             }

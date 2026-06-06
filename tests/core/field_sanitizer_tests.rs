@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 //! Tests for [`FieldSanitizer`](qubit_sanitize::FieldSanitizer).
 
 use std::borrow::Cow;
@@ -71,7 +69,10 @@ fn test_field_sanitizer_sensitivity_for_name_resolves_suffix() {
     let sanitizer = FieldSanitizer::default();
 
     assert_eq!(
-        sanitizer.sensitivity_for_name("OPENAI_API_KEY", NameMatchMode::ExactOrSuffix,),
+        sanitizer.sensitivity_for_name(
+            "OPENAI_API_KEY",
+            NameMatchMode::ExactOrSuffix,
+        ),
         Some(SensitivityLevel::High),
     );
 }
@@ -87,7 +88,10 @@ fn test_field_sanitizer_sensitivity_for_name_resolves_longest_suffix() {
     });
 
     assert_eq!(
-        sanitizer.sensitivity_for_name("VENDOR_API_KEY", NameMatchMode::ExactOrSuffix,),
+        sanitizer.sensitivity_for_name(
+            "VENDOR_API_KEY",
+            NameMatchMode::ExactOrSuffix,
+        ),
         Some(SensitivityLevel::High),
     );
 }
@@ -133,7 +137,11 @@ fn test_field_sanitizer_sanitize_value_masks_suffix_name() {
     let sanitizer = FieldSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_value("OPENAI_API_KEY", "abcdef", NameMatchMode::ExactOrSuffix,),
+        sanitizer.sanitize_value(
+            "OPENAI_API_KEY",
+            "abcdef",
+            NameMatchMode::ExactOrSuffix,
+        ),
         "****",
     );
 }
@@ -162,7 +170,8 @@ fn test_field_sanitizer_policy_returns_current_policy() {
 #[test]
 fn test_field_sanitizer_policy_mut_customizes_masking() {
     let mut sanitizer = FieldSanitizer::default();
-    sanitizer.policy_mut().mask_policies.high = MaskPolicy::preserve_edges(1, 1, "****", 2);
+    sanitizer.policy_mut().mask_policies.high =
+        MaskPolicy::preserve_edges(1, 1, "****", 2);
 
     assert_eq!(
         sanitizer.sanitize_value("api-key", "abcdef", NameMatchMode::Exact),
@@ -173,14 +182,25 @@ fn test_field_sanitizer_policy_mut_customizes_masking() {
 #[test]
 fn test_field_sanitizer_extend_sensitive_fields_adds_multiple_fields() {
     let mut sanitizer = FieldSanitizer::new(FieldSanitizePolicy::empty());
-    sanitizer.extend_sensitive_fields(["primary_secret", "secondary_secret"], SensitivityLevel::High);
+    sanitizer.extend_sensitive_fields(
+        ["primary_secret", "secondary_secret"],
+        SensitivityLevel::High,
+    );
 
     assert_eq!(
-        sanitizer.sanitize_value("primary-secret", "abcdef", NameMatchMode::Exact),
+        sanitizer.sanitize_value(
+            "primary-secret",
+            "abcdef",
+            NameMatchMode::Exact
+        ),
         "****"
     );
     assert_eq!(
-        sanitizer.sanitize_value("secondary.secret", "abcdef", NameMatchMode::Exact),
+        sanitizer.sanitize_value(
+            "secondary.secret",
+            "abcdef",
+            NameMatchMode::Exact
+        ),
         "****"
     );
 }
@@ -195,7 +215,11 @@ fn test_field_sanitizer_extend_preset_adds_group_fields() {
         "****f"
     );
     assert_eq!(
-        sanitizer.sanitize_value("session-token", "abcdef", NameMatchMode::Exact),
+        sanitizer.sanitize_value(
+            "session-token",
+            "abcdef",
+            NameMatchMode::Exact
+        ),
         "****"
     );
 }
@@ -209,7 +233,10 @@ fn test_field_sanitizer_sanitize_map_returns_sanitized_copy() {
 
     let output = sanitizer.sanitize_map(&input, NameMatchMode::Exact);
 
-    assert_eq!(output.get("password").map(String::as_str), Some("<redacted>"));
+    assert_eq!(
+        output.get("password").map(String::as_str),
+        Some("<redacted>")
+    );
     assert_eq!(output.get("name").map(String::as_str), Some("alice"));
     assert_eq!(input.get("password").map(String::as_str), Some("secret"));
 }
@@ -236,7 +263,10 @@ fn test_field_sanitizer_sanitize_map_masks_suffix_keys() {
 
     let output = sanitizer.sanitize_map(&input, NameMatchMode::ExactOrSuffix);
 
-    assert_eq!(output.get("OPENAI_API_KEY").map(String::as_str), Some("****"));
+    assert_eq!(
+        output.get("OPENAI_API_KEY").map(String::as_str),
+        Some("****")
+    );
     assert_eq!(output.get("mode").map(String::as_str), Some("debug"));
 }
 
@@ -249,7 +279,10 @@ fn test_field_sanitizer_sanitize_map_in_place_masks_suffix_keys() {
 
     sanitizer.sanitize_map_in_place(&mut input, NameMatchMode::ExactOrSuffix);
 
-    assert_eq!(input.get("OPENAI_API_KEY").map(String::as_str), Some("****"));
+    assert_eq!(
+        input.get("OPENAI_API_KEY").map(String::as_str),
+        Some("****")
+    );
     assert_eq!(input.get("mode").map(String::as_str), Some("debug"));
 }
 
@@ -262,7 +295,10 @@ fn test_field_sanitizer_sanitize_hash_map_returns_sanitized_copy() {
 
     let output = sanitizer.sanitize_map(&input, NameMatchMode::Exact);
 
-    assert_eq!(output.get("password").map(String::as_str), Some("<redacted>"));
+    assert_eq!(
+        output.get("password").map(String::as_str),
+        Some("<redacted>")
+    );
     assert_eq!(output.get("name").map(String::as_str), Some("alice"));
     assert_eq!(input.get("password").map(String::as_str), Some("secret"));
 }
