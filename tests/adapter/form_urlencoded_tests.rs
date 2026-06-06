@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 //! Tests for [`FormUrlEncodedSanitizer`](qubit_sanitize::FormUrlEncodedSanitizer).
 
 use qubit_sanitize::{
@@ -31,7 +29,10 @@ fn test_form_urlencoded_sanitizer_field_sanitizer_accessors() {
         .field_sanitizer_mut()
         .insert_sensitive_field("custom_field", SensitivityLevel::High);
     assert_eq!(
-        sanitizer.sanitize_str("custom_field=abcdef&mode=debug", NameMatchMode::ExactOrSuffix),
+        sanitizer.sanitize_str(
+            "custom_field=abcdef&mode=debug",
+            NameMatchMode::ExactOrSuffix
+        ),
         "custom_field=****&mode=debug",
     );
 }
@@ -64,7 +65,10 @@ fn test_form_urlencoded_sanitizer_preserves_duplicate_fields() {
     let sanitizer = FormUrlEncodedSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_str("token=first&token=second&mode=debug", NameMatchMode::ExactOrSuffix),
+        sanitizer.sanitize_str(
+            "token=first&token=second&mode=debug",
+            NameMatchMode::ExactOrSuffix
+        ),
         "token=****&token=****&mode=debug",
     );
 }
@@ -74,7 +78,10 @@ fn test_form_urlencoded_sanitizer_sanitize_bytes() {
     let sanitizer = FormUrlEncodedSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_bytes(b"password=secret&mode=debug", NameMatchMode::ExactOrSuffix),
+        sanitizer.sanitize_bytes(
+            b"password=secret&mode=debug",
+            NameMatchMode::ExactOrSuffix
+        ),
         "password=%3Credacted%3E&mode=debug",
     );
 }

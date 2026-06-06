@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 //! Multipart body parsing and log-safe summary rendering.
 
 use crate::NameMatchMode;
@@ -63,7 +61,11 @@ pub(super) fn sanitize_multipart(
 /// # Returns
 ///
 /// Log-safe `name=value` line, or `None` when part headers are malformed.
-fn sanitize_multipart_part(sanitizer: &HttpBodySanitizer, segment: &str, match_mode: NameMatchMode) -> Option<String> {
+fn sanitize_multipart_part(
+    sanitizer: &HttpBodySanitizer,
+    segment: &str,
+    match_mode: NameMatchMode,
+) -> Option<String> {
     let (headers, body) = split_multipart_headers_and_body(segment)?;
     let mut content_disposition = None;
     let mut content_type = None;
@@ -77,9 +79,11 @@ fn sanitize_multipart_part(sanitizer: &HttpBodySanitizer, segment: &str, match_m
             content_type = Some(header_value);
         }
     }
-    let name = content_disposition.and_then(|value| content_type::parameter(value, "name"));
+    let name = content_disposition
+        .and_then(|value| content_type::parameter(value, "name"));
     let filename = content_disposition.and_then(|value| {
-        content_type::parameter(value, "filename").or_else(|| content_type::parameter(value, "filename*"))
+        content_type::parameter(value, "filename")
+            .or_else(|| content_type::parameter(value, "filename*"))
     });
     let field_name = name.as_deref().unwrap_or(MULTIPART_UNNAMED_FIELD);
     let value = sanitize_multipart_part_value(
@@ -173,19 +177,24 @@ enum MultipartDelimiter {
 ///
 /// Raw part segments without boundary delimiter lines, or `None` for malformed
 /// multipart bodies.
-fn multipart_part_segments<'a>(text: &'a str, boundary: &str) -> Option<Vec<&'a str>> {
+fn multipart_part_segments<'a>(
+    text: &'a str,
+    boundary: &str,
+) -> Option<Vec<&'a str>> {
     let mut current_start = None;
     let mut segments = Vec::new();
     let mut position = 0;
     while position < text.len() {
-        let (line_start, line_end, next_position) = next_line_bounds(text, position);
+        let (line_start, line_end, next_position) =
+            next_line_bounds(text, position);
         let line = &text[line_start..line_end];
         let Some(delimiter) = multipart_delimiter(line, boundary) else {
             position = next_position;
             continue;
         };
         if let Some(start) = current_start {
-            let segment = strip_one_trailing_line_ending(&text[start..line_start]);
+            let segment =
+                strip_one_trailing_line_ending(&text[start..line_start]);
             if !segment.trim().is_empty() {
                 segments.push(segment);
             }
@@ -234,7 +243,10 @@ fn next_line_bounds(text: &str, position: usize) -> (usize, usize, usize) {
 /// # Returns
 ///
 /// Delimiter kind for exact delimiter lines.
-fn multipart_delimiter(line: &str, boundary: &str) -> Option<MultipartDelimiter> {
+fn multipart_delimiter(
+    line: &str,
+    boundary: &str,
+) -> Option<MultipartDelimiter> {
     let delimiter = format!("--{boundary}");
     if line == delimiter {
         Some(MultipartDelimiter::Part)

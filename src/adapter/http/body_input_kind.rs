@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use super::redaction_markers::{
     INVALID_JSON_REDACTED,
     INVALID_NDJSON_REDACTED,
@@ -36,7 +34,9 @@ impl BodyInputKind {
     pub(super) fn empty_output(self, source_len: usize) -> String {
         match self {
             Self::Complete => String::new(),
-            Self::Preview => format!("<empty>{}", self.truncation_suffix(0, source_len)),
+            Self::Preview => {
+                format!("<empty>{}", self.truncation_suffix(0, source_len))
+            }
         }
     }
 
@@ -50,7 +50,11 @@ impl BodyInputKind {
     /// # Returns
     ///
     /// `true` only for previews whose source is longer than the prefix.
-    pub(super) fn is_truncated(self, bytes_len: usize, source_len: usize) -> bool {
+    pub(super) fn is_truncated(
+        self,
+        bytes_len: usize,
+        source_len: usize,
+    ) -> bool {
         self == Self::Preview && source_len > bytes_len
     }
 
@@ -65,7 +69,11 @@ impl BodyInputKind {
     ///
     /// Empty string for complete bodies and untruncated previews, otherwise a
     /// byte-count truncation marker.
-    pub(super) fn truncation_suffix(self, bytes_len: usize, source_len: usize) -> String {
+    pub(super) fn truncation_suffix(
+        self,
+        bytes_len: usize,
+        source_len: usize,
+    ) -> String {
         if !self.is_truncated(bytes_len, source_len) {
             return String::new();
         }

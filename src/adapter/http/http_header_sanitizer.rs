@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::collections::BTreeMap;
 
 use http::{
@@ -73,7 +71,12 @@ impl HttpHeaderSanitizer {
     /// # Returns
     ///
     /// Log-safe header value.
-    pub fn sanitize_value(&self, name: &HeaderName, value: &HeaderValue, match_mode: NameMatchMode) -> String {
+    pub fn sanitize_value(
+        &self,
+        name: &HeaderName,
+        value: &HeaderValue,
+        match_mode: NameMatchMode,
+    ) -> String {
         let value = value.to_str().unwrap_or("<non-utf8>");
         self.field_sanitizer
             .sanitize_value(name.as_str(), value, match_mode)
@@ -92,8 +95,16 @@ impl HttpHeaderSanitizer {
     ///
     /// Owned string pair preserving the header name and sanitizing the value
     /// when needed.
-    pub fn sanitize_pair(&self, name: &HeaderName, value: &HeaderValue, match_mode: NameMatchMode) -> (String, String) {
-        (name.to_string(), self.sanitize_value(name, value, match_mode))
+    pub fn sanitize_pair(
+        &self,
+        name: &HeaderName,
+        value: &HeaderValue,
+        match_mode: NameMatchMode,
+    ) -> (String, String) {
+        (
+            name.to_string(),
+            self.sanitize_value(name, value, match_mode),
+        )
     }
 
     /// Sanitizes an HTTP header map.
@@ -110,7 +121,11 @@ impl HttpHeaderSanitizer {
     /// # Returns
     ///
     /// Log-safe header names and values.
-    pub fn sanitize_headers(&self, headers: &HeaderMap, match_mode: NameMatchMode) -> BTreeMap<String, Vec<String>> {
+    pub fn sanitize_headers(
+        &self,
+        headers: &HeaderMap,
+        match_mode: NameMatchMode,
+    ) -> BTreeMap<String, Vec<String>> {
         let mut result = BTreeMap::<String, Vec<String>>::new();
         for (name, value) in headers {
             result

@@ -1,12 +1,10 @@
-/*******************************************************************************
- *
- *    Copyright (c) 2026 Haixing Hu.
- *
- *    SPDX-License-Identifier: Apache-2.0
- *
- *    Licensed under the Apache License, Version 2.0.
- *
- ******************************************************************************/
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 use std::{
     borrow::Cow,
     ffi::OsStr,
@@ -68,7 +66,12 @@ impl EnvSanitizer {
     ///
     /// Borrowed `value` when `key` is not sensitive, otherwise an owned masked
     /// value.
-    pub fn sanitize_value<'a>(&self, key: &str, value: &'a str, match_mode: NameMatchMode) -> Cow<'a, str> {
+    pub fn sanitize_value<'a>(
+        &self,
+        key: &str,
+        value: &'a str,
+        match_mode: NameMatchMode,
+    ) -> Cow<'a, str> {
         self.field_sanitizer.sanitize_value(key, value, match_mode)
     }
 
@@ -83,7 +86,12 @@ impl EnvSanitizer {
     /// # Returns
     ///
     /// Owned pair preserving the key and sanitizing the value when needed.
-    pub fn sanitize_pair(&self, key: &str, value: &str, match_mode: NameMatchMode) -> (String, String) {
+    pub fn sanitize_pair(
+        &self,
+        key: &str,
+        value: &str,
+        match_mode: NameMatchMode,
+    ) -> (String, String) {
         (
             key.to_string(),
             self.sanitize_value(key, value, match_mode).into_owned(),
@@ -103,7 +111,12 @@ impl EnvSanitizer {
     /// # Returns
     ///
     /// Owned string pair suitable for logs and errors.
-    pub fn sanitize_os_pair<K, V>(&self, key: K, value: V, match_mode: NameMatchMode) -> (String, String)
+    pub fn sanitize_os_pair<K, V>(
+        &self,
+        key: K,
+        value: V,
+        match_mode: NameMatchMode,
+    ) -> (String, String)
     where
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
@@ -129,7 +142,11 @@ impl EnvSanitizer {
     /// # Returns
     ///
     /// Sanitized assignment text.
-    pub fn sanitize_assignment(&self, assignment: &str, match_mode: NameMatchMode) -> String {
+    pub fn sanitize_assignment(
+        &self,
+        assignment: &str,
+        match_mode: NameMatchMode,
+    ) -> String {
         let Some((key, value)) = assignment.split_once('=') else {
             return assignment.to_string();
         };
@@ -147,14 +164,20 @@ impl EnvSanitizer {
     /// # Returns
     ///
     /// Sanitized assignment strings in input order.
-    pub fn sanitize_assignments<I, S>(&self, assignments: I, match_mode: NameMatchMode) -> Vec<String>
+    pub fn sanitize_assignments<I, S>(
+        &self,
+        assignments: I,
+        match_mode: NameMatchMode,
+    ) -> Vec<String>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
         assignments
             .into_iter()
-            .map(|assignment| self.sanitize_assignment(assignment.as_ref(), match_mode))
+            .map(|assignment| {
+                self.sanitize_assignment(assignment.as_ref(), match_mode)
+            })
             .collect()
     }
 }
