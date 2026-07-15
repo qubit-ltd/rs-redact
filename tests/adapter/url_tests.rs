@@ -7,6 +7,11 @@
 // =============================================================================
 //! Tests for [`UrlSanitizer`](qubit_sanitize::UrlSanitizer).
 
+use proptest::prelude::{
+    prop_assert,
+    proptest,
+};
+
 use qubit_sanitize::{
     FieldSanitizer,
     NameMatchMode,
@@ -114,4 +119,35 @@ fn test_url_sanitizer_constructed_from_field_sanitizer() {
         sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
         "https://example.com/?access_token=****",
     );
+}
+
+#[test]
+fn test_url_sanitizer_preserves_vendor_specific_secret_path() {
+    let sanitizer = UrlSanitizer::default();
+    let url = Url::parse(
+        "https://hooks.example.com/services/T001/B001/path-secret?access_token=query-secret",
+    )
+    .expect("test URL should parse");
+
+    assert_eq!(
+        sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
+        "https://hooks.example.com/services/T001/B001/path-secret?access_token=****",
+    );
+}
+
+proptest! {
+    #[test]
+    fn test_url_sanitizer_proptest_never_leaks_sensitive_query_value(
+        secret in "[A-Za-z0-9]{8,64}",
+    ) {
+        let sanitizer = UrlSanitizer::default();
+        let url = Url::parse(&format!(
+            "https://example.com/callback?access_token={secret}",
+        ))
+        .expect("generated test URL should parse");
+        let sanitized =
+            sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix);
+
+        prop_assert!(!sanitized.contains(&secret));
+    }
 }

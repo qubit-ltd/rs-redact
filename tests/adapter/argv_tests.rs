@@ -7,6 +7,11 @@
 // =============================================================================
 //! Tests for [`ArgvSanitizer`](qubit_sanitize::ArgvSanitizer).
 
+use proptest::prelude::{
+    prop_assert,
+    proptest,
+};
+
 use qubit_sanitize::{
     ArgvSanitizer,
     FieldSanitizer,
@@ -229,4 +234,19 @@ fn test_argv_sanitizer_constructed_from_field_sanitizer() {
         ),
         ["cmd", "--token", "****"],
     );
+}
+
+proptest! {
+    #[test]
+    fn test_argv_sanitizer_proptest_never_leaks_sensitive_value(
+        secret in "[A-Za-z0-9]{8,64}",
+    ) {
+        let sanitizer = ArgvSanitizer::default();
+        let sanitized = sanitizer.sanitize_argv(
+            ["client", "--password", secret.as_str()],
+            NameMatchMode::ExactOrSuffix,
+        );
+
+        prop_assert!(!sanitized.iter().any(|arg| arg.contains(&secret)));
+    }
 }

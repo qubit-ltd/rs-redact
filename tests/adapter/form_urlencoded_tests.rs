@@ -7,6 +7,11 @@
 // =============================================================================
 //! Tests for [`FormUrlEncodedSanitizer`](qubit_sanitize::FormUrlEncodedSanitizer).
 
+use proptest::prelude::{
+    prop_assert,
+    proptest,
+};
+
 use qubit_sanitize::{
     FieldSanitizer,
     FormUrlEncodedSanitizer,
@@ -94,4 +99,20 @@ fn test_form_urlencoded_sanitizer_constructed_from_field_sanitizer() {
         sanitizer.sanitize_str("password=secret", NameMatchMode::ExactOrSuffix),
         "password=%3Credacted%3E",
     );
+}
+
+proptest! {
+    #[test]
+    fn test_form_urlencoded_sanitizer_proptest_never_leaks_sensitive_value(
+        secret in "[A-Za-z0-9]{8,64}",
+    ) {
+        let sanitizer = FormUrlEncodedSanitizer::default();
+        let form = format!("password={secret}");
+        let sanitized = sanitizer.sanitize_str(
+            &form,
+            NameMatchMode::ExactOrSuffix,
+        );
+
+        prop_assert!(!sanitized.contains(&secret));
+    }
 }

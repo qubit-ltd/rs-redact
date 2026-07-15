@@ -16,6 +16,10 @@ use http::header::{
     HeaderValue,
     SET_COOKIE,
 };
+use proptest::prelude::{
+    prop_assert,
+    proptest,
+};
 
 use qubit_sanitize::{
     FieldSanitizer,
@@ -174,4 +178,22 @@ fn test_http_header_sanitizer_constructed_from_field_sanitizer() {
         ),
         "****",
     );
+}
+
+proptest! {
+    #[test]
+    fn test_http_header_sanitizer_proptest_never_leaks_sensitive_value(
+        secret in "[A-Za-z0-9]{8,64}",
+    ) {
+        let sanitizer = HttpHeaderSanitizer::default();
+        let value = HeaderValue::from_bytes(secret.as_bytes())
+            .expect("generated header value should be valid");
+        let sanitized = sanitizer.sanitize_value(
+            &AUTHORIZATION,
+            &value,
+            NameMatchMode::ExactOrSuffix,
+        );
+
+        prop_assert!(!sanitized.contains(&secret));
+    }
 }

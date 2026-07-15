@@ -9,6 +9,11 @@
 
 use std::borrow::Cow;
 
+use proptest::prelude::{
+    prop_assert,
+    proptest,
+};
+
 use qubit_sanitize::{
     EnvSanitizer,
     FieldSanitizePolicy,
@@ -191,4 +196,20 @@ fn test_env_sanitizer_constructed_from_field_sanitizer() {
         ),
         "<redacted>"
     );
+}
+
+proptest! {
+    #[test]
+    fn test_env_sanitizer_proptest_never_leaks_sensitive_value(
+        secret in "[A-Za-z0-9]{8,64}",
+    ) {
+        let sanitizer = EnvSanitizer::default();
+        let assignment = format!("OPENAI_API_KEY={secret}");
+        let sanitized = sanitizer.sanitize_assignment(
+            &assignment,
+            NameMatchMode::ExactOrSuffix,
+        );
+
+        prop_assert!(!sanitized.contains(&secret));
+    }
 }

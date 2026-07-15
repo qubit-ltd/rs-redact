@@ -12,6 +12,7 @@ use proptest::{
     collection,
     prelude::{
         any,
+        prop_assert,
         proptest,
     },
 };
@@ -776,6 +777,46 @@ fn test_http_body_sanitizer_sanitize_body_renders_binary_body() {
 }
 
 proptest! {
+    #[test]
+    fn test_http_body_sanitizer_proptest_never_leaks_structured_sensitive_value(
+        secret in "[A-Za-z0-9]{8,64}",
+    ) {
+        let sanitizer = HttpBodySanitizer::default();
+        let cases = [
+            (
+                format!(r#"{{"password":"{secret}"}}"#),
+                HeaderValue::from_static("application/json"),
+            ),
+            (
+                format!("{{\"password\":\"{secret}\"}}\n"),
+                HeaderValue::from_static("application/x-ndjson"),
+            ),
+            (
+                format!("password={secret}"),
+                HeaderValue::from_static(
+                    "application/x-www-form-urlencoded",
+                ),
+            ),
+            (
+                format!(
+                    "--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\n{secret}\r\n--boundary--\r\n",
+                ),
+                HeaderValue::from_static(
+                    "multipart/form-data; boundary=boundary",
+                ),
+            ),
+        ];
+
+        for (body, content_type) in cases {
+            let sanitized = sanitizer.sanitize_body(
+                body.as_bytes(),
+                Some(&content_type),
+                NameMatchMode::ExactOrSuffix,
+            );
+            prop_assert!(!sanitized.contains(&secret));
+        }
+    }
+
     #[test]
     fn test_http_body_sanitizer_proptest_handles_arbitrary_body(
         body in collection::vec(any::<u8>(), 0..512),
