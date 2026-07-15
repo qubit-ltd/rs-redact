@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Multipart body parsing and log-safe summary rendering.
+//! Multipart body parsing and sanitized diagnostic summary rendering.
 
 use crate::NameMatchMode;
 
@@ -62,7 +62,7 @@ pub(super) fn sanitize_multipart(
 ///
 /// # Returns
 ///
-/// Log-safe `name=value` line, or `None` when part headers are malformed.
+/// Sanitized `name=value` line, or `None` when part headers are malformed.
 fn sanitize_multipart_part(
     sanitizer: &HttpBodySanitizer,
     segment: &str,
@@ -112,7 +112,7 @@ fn sanitize_multipart_part(
 ///
 /// # Returns
 ///
-/// Log-safe part value.
+/// Sanitized part value for diagnostic output.
 fn sanitize_multipart_part_value(
     sanitizer: &HttpBodySanitizer,
     field_name: &str,

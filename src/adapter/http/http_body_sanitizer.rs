@@ -227,7 +227,7 @@ impl HttpBodySanitizer {
     ///
     /// # Returns
     ///
-    /// Log-safe body text.
+    /// Sanitized body text for diagnostic output.
     fn sanitize_body_inner(
         &self,
         bytes: &[u8],

@@ -70,7 +70,7 @@ impl HttpHeaderSanitizer {
     ///
     /// # Returns
     ///
-    /// Log-safe header value.
+    /// Sanitized header value for diagnostic output.
     pub fn sanitize_value(
         &self,
         name: &HeaderName,
@@ -120,7 +120,7 @@ impl HttpHeaderSanitizer {
     ///
     /// # Returns
     ///
-    /// Log-safe header names and values.
+    /// Sanitized header names and values for diagnostic output.
     pub fn sanitize_headers(
         &self,
         headers: &HeaderMap,

@@ -11,11 +11,11 @@ Reusable sanitization utilities for Rust.
 
 ## Overview
 
-Qubit Sanitize provides reusable tools for masking sensitive data in logs,
-diagnostics, and structured debug output. The core layer handles the common
+Qubit Sanitize provides reusable tools for masking known sensitive data in
+logs, diagnostics, and structured debug output. The core layer handles the common
 field-value problem shared by HTTP clients, command runners, configuration
 objects, and other crates: given a `(field, value)` pair, decide whether the
-field is sensitive and return the safe value to display.
+field name is configured as sensitive and return a masked value to display.
 
 The adapter layer builds on that core policy for common structured inputs such
 as URLs, URL-encoded forms, HTTP headers, HTTP bodies, argv vectors, and
@@ -39,20 +39,21 @@ handled by caller crates that have the full context.
 
 ## Cargo Features
 
-The default feature selection keeps the complete current API. Consumers that
-only need core field matching can disable defaults to avoid HTTP, JSON, and URL
-dependencies.
+The core field-matching API plus argv and environment adapters are always
+available and have no external dependencies. The default feature selection
+also enables the complete web and HTTP adapter API. Consumers that only need
+the dependency-free surface can disable defaults.
 
 | Feature | Includes | Optional dependencies |
 | --- | --- | --- |
-| `core` | Field policies, masking, argv, and environment adapters | None |
-| `web` | `core`, URL and URL-encoded form adapters | `url`, `form_urlencoded` |
-| `http` | `core`, HTTP header and body adapters | `http`, `serde_json`, `form_urlencoded` |
+| Always compiled | Field policies, masking, argv, and environment adapters | None |
+| `web` | URL and URL-encoded form adapters | `url`, `form_urlencoded` |
+| `http` | HTTP header and body adapters | `http`, `serde_json`, `form_urlencoded` |
 
 For example, a command runner can depend only on the core surface:
 
 ```toml
-qubit-sanitize = { version = "0.2", default-features = false, features = ["core"] }
+qubit-sanitize = { version = "0.3", default-features = false }
 ```
 
 ## Quick Start
@@ -113,7 +114,8 @@ are present but intentionally blank.
 
 ## Sensitive Fields
 
-`SensitiveFields::default()` contains common sensitive names such as:
+`SensitiveFields::default()` contains a starter set of common sensitive names
+such as:
 
 - `password`, `passwd`, `secret`, `client_secret`, `private_key`
 - `api_key`, `x_api_key`
@@ -121,8 +123,10 @@ are present but intentionally blank.
 - `authorization`, `proxy_authorization`, `cookie`, `set_cookie`
 - `session`, `session_id`, `session_token`
 
-Field names are canonicalized before lookup. Separators such as `_`, `-`, `.`,
-and whitespace are ignored, and names are lowercased:
+The default list is not an exhaustive secret detector. Applications should add
+their own protocol and business field names. Field names are canonicalized
+before lookup. Separators such as `_`, `-`, `.`, and whitespace are ignored,
+and names are lowercased:
 
 ```rust
 use qubit_sanitize::canonicalize_field_name;
@@ -138,7 +142,9 @@ Core methods such as `sanitize_value` and `sanitize_map` require callers to
 choose a field-name matching mode. Use `NameMatchMode::Exact` for exact
 canonical field-name matching. For contextual names where callers want
 `OPENAI_API_KEY` to match the configured field `api_key`, use
-`NameMatchMode::ExactOrSuffix`.
+`NameMatchMode::ExactOrSuffix`. Suffix matching observes separator and camel-case
+token boundaries: `openaiApiKey` and `OPENAI_API_KEY` can match `api_key`, while
+an unrelated single token such as `notapikey` does not.
 
 ```rust
 use qubit_sanitize::{
@@ -279,6 +285,12 @@ assert_eq!(argv, r#"["docker", "login", "--password", "<redacted>"]"#);
 Adapter methods require an explicit `NameMatchMode`, just like the core
 `FieldSanitizer` methods. Use `NameMatchMode::ExactOrSuffix` when contextual
 names such as `OPENAI_API_KEY` should match the configured field `api_key`.
+
+`UrlSanitizer` masks userinfo, passwords, fragments, and configured query
+parameters. It deliberately leaves the URL path unchanged: path segment
+semantics are application-specific, including vendor-specific webhook or token
+segments. Callers that know such a route must redact or replace its path before
+logging it.
 
 ## Integration Guidance
 

@@ -11,9 +11,9 @@ Rust 通用脱敏工具。
 
 ## 概览
 
-Qubit Sanitize 提供一组可复用的脱敏工具，面向日志、诊断信息和结构化 Debug
+Qubit Sanitize 提供一组用于遮盖已知敏感数据的可复用工具，面向日志、诊断信息和结构化 Debug
 输出。core 层解决多个 crate 都会重复遇到的共性问题：给定一个 `(field, value)`
-字段名和值，判断这个字段是否敏感，并返回适合展示的安全值。
+字段名和值，判断字段名是否被配置为敏感字段，并返回适合展示的掩码值。
 
 adapter 层在 core 策略之上处理常见结构化输入，例如 URL、URL-encoded form、
 HTTP header、HTTP body、argv 向量和环境变量。adapter 只解析自己明确建模的格式；
@@ -32,19 +32,20 @@ shell 命令字符串和其他业务协议 payload 仍应由掌握完整上下�
 
 ## Cargo Feature
 
-默认 feature 保持当前完整 API。只需要通用字段匹配的调用方可以关闭默认 feature，避免
-引入 HTTP、JSON 和 URL 依赖。
+core 字段匹配 API、argv 和环境变量 adapter 始终可用，并且没有外部依赖。默认 feature
+还会启用完整的 web 和 HTTP adapter API。只需要无依赖能力的调用方可以关闭默认
+feature。
 
 | Feature | 包含内容 | 可选依赖 |
 | --- | --- | --- |
-| `core` | 字段策略、掩码、argv 和环境变量 adapter | 无 |
-| `web` | `core`、URL 和 URL-encoded form adapter | `url`、`form_urlencoded` |
-| `http` | `core`、HTTP header 和 body adapter | `http`、`serde_json`、`form_urlencoded` |
+| 始终编译 | 字段策略、掩码、argv 和环境变量 adapter | 无 |
+| `web` | URL 和 URL-encoded form adapter | `url`、`form_urlencoded` |
+| `http` | HTTP header 和 body adapter | `http`、`serde_json`、`form_urlencoded` |
 
 例如，命令执行 crate 只依赖 core 能力：
 
 ```toml
-qubit-sanitize = { version = "0.2", default-features = false, features = ["core"] }
+qubit-sanitize = { version = "0.3", default-features = false }
 ```
 
 ## 快速开始
@@ -104,7 +105,7 @@ assert_eq!(fixed.mask("secret"), "****");
 
 ## 敏感字段
 
-`SensitiveFields::default()` 内置了一组常见敏感字段，例如：
+`SensitiveFields::default()` 内置了一组常见敏感字段作为起点，例如：
 
 - `password`、`passwd`、`secret`、`client_secret`、`private_key`
 - `api_key`、`x_api_key`
@@ -112,7 +113,8 @@ assert_eq!(fixed.mask("secret"), "****");
 - `authorization`、`proxy_authorization`、`cookie`、`set_cookie`
 - `session`、`session_id`、`session_token`
 
-字段名在匹配前会先规范化：去掉 `_`、`-`、`.`、空白字符并转小写。因此下面这些
+默认列表并不是穷尽式的秘密检测器，应用应补充自身协议和业务中的敏感字段名。字段名在
+匹配前会先规范化：去掉 `_`、`-`、`.`、空白字符并转小写。因此下面这些
 名字会匹配到同一个字段：
 
 ```rust
@@ -128,7 +130,9 @@ assert_eq!(canonicalize_field_name("access.token"), "accesstoken");
 `sanitize_value`、`sanitize_map` 等 core 方法要求调用方显式选择字段名匹配模式。
 如果需要规范化后的精确字段名匹配，使用 `NameMatchMode::Exact`；如果希望
 `OPENAI_API_KEY` 这类带上下文前缀的名字命中已配置的 `api_key`，使用
-`NameMatchMode::ExactOrSuffix`。
+`NameMatchMode::ExactOrSuffix`。后缀匹配遵循分隔符和驼峰词元边界：
+`openaiApiKey`、`OPENAI_API_KEY` 可以命中 `api_key`，而无关的单一词元
+`notapikey` 不会命中。
 
 ```rust
 use qubit_sanitize::{
@@ -268,6 +272,10 @@ assert_eq!(argv, r#"["docker", "login", "--password", "<redacted>"]"#);
 adapter 方法也和 core 的 `FieldSanitizer` 一样要求显式传入 `NameMatchMode`。如果
 希望 `OPENAI_API_KEY` 这类上下文字段名命中已配置的 `api_key`，使用
 `NameMatchMode::ExactOrSuffix`。
+
+`UrlSanitizer` 会遮盖 userinfo、password、fragment 和已配置的 query parameter，
+但会有意保留 URL path。path segment 的语义属于具体应用，其中也包括供应商自定义的
+webhook 或 token 路径。掌握这类路由语义的调用方必须在记录日志前自行遮盖或替换 path。
 
 ## 集成建议
 

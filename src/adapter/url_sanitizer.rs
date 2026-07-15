@@ -61,7 +61,8 @@ impl UrlSanitizer {
     ///
     /// Userinfo, password, and fragment values are masked with the configured
     /// high-sensitivity mask. Query parameter values are sanitized by parameter
-    /// name, preserving parameter order and duplicates.
+    /// name, preserving parameter order and duplicates. URL paths are kept
+    /// unchanged because path-segment semantics are application-specific.
     ///
     /// # Parameters
     ///
@@ -70,7 +71,7 @@ impl UrlSanitizer {
     ///
     /// # Returns
     ///
-    /// Log-safe URL string.
+    /// Sanitized URL string for diagnostic output.
     pub fn sanitize_url(&self, url: &Url, match_mode: NameMatchMode) -> String {
         let mut sanitized = url.clone();
         if !sanitized.username().is_empty() {
