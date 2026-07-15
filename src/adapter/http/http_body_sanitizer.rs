@@ -15,9 +15,12 @@ use crate::{
 };
 
 use super::{
+    BodyRedactionReason,
+    BodySanitization,
+    BodySanitizationStatus,
     body_bytes::trim_ascii_whitespace,
-    body_input_kind::BodyInputKind,
     content_type,
+    internal::BodyInputKind,
     multipart,
     redaction_markers::{
         INVALID_CONTENT_TYPE_REDACTED,
@@ -54,6 +57,7 @@ impl HttpBodySanitizer {
     /// # Returns
     ///
     /// New HTTP body sanitizer.
+    #[inline(always)]
     pub const fn new(field_sanitizer: FieldSanitizer) -> Self {
         Self {
             field_sanitizer,
@@ -66,6 +70,7 @@ impl HttpBodySanitizer {
     /// # Returns
     ///
     /// Borrowed core field sanitizer.
+    #[inline(always)]
     pub const fn field_sanitizer(&self) -> &FieldSanitizer {
         &self.field_sanitizer
     }
@@ -75,6 +80,7 @@ impl HttpBodySanitizer {
     /// # Returns
     ///
     /// Mutable core field sanitizer.
+    #[inline(always)]
     pub fn field_sanitizer_mut(&mut self) -> &mut FieldSanitizer {
         &mut self.field_sanitizer
     }
@@ -85,6 +91,7 @@ impl HttpBodySanitizer {
     ///
     /// The current text body policy. The default is
     /// [`TextBodyPolicy::Redact`].
+    #[inline(always)]
     pub const fn text_body_policy(&self) -> TextBodyPolicy {
         self.text_body_policy
     }
@@ -95,6 +102,7 @@ impl HttpBodySanitizer {
     ///
     /// * `text_body_policy` - New policy for declared `text/*` bodies and
     ///   non-sensitive multipart text parts.
+    #[inline(always)]
     pub fn set_text_body_policy(&mut self, text_body_policy: TextBodyPolicy) {
         self.text_body_policy = text_body_policy;
     }
@@ -109,6 +117,7 @@ impl HttpBodySanitizer {
     /// # Returns
     ///
     /// The updated sanitizer.
+    #[inline(always)]
     pub const fn with_text_body_policy(
         mut self,
         text_body_policy: TextBodyPolicy,
@@ -129,10 +138,10 @@ impl HttpBodySanitizer {
     /// conservative for structured formats that cannot be parsed safely from a
     /// truncated prefix.
     ///
-    /// The returned string is a diagnostic rendering, not a replayable HTTP
-    /// body. Structured outputs may be compacted and may not preserve the
-    /// original field order, whitespace, or JSON value types for redacted
-    /// fields.
+    /// The returned result contains diagnostic content and source-length
+    /// metadata. Its rendered form is not a replayable HTTP body. Structured
+    /// outputs may be compacted and may not preserve the original field order,
+    /// whitespace, or JSON value types for redacted fields.
     ///
     /// # Parameters
     ///
@@ -143,18 +152,18 @@ impl HttpBodySanitizer {
     ///
     /// # Returns
     ///
-    /// Diagnostic body text. Declared `text/*` bodies are redacted unless
-    /// callers explicitly select [`TextBodyPolicy::PassThrough`]. Unsupported
-    /// UTF-8 bodies are redacted. Binary bodies are rendered as a byte-count
-    /// marker. Bodies with a present but non-UTF-8 `Content-Type` are fully
-    /// redacted because the structured parser cannot choose a safe media-type
-    /// rule.
+    /// Structured body sanitization result. Declared `text/*` bodies are
+    /// redacted unless callers explicitly select
+    /// [`TextBodyPolicy::PassThrough`]. Unsupported UTF-8 bodies are redacted.
+    /// Binary bodies are represented by a byte-count marker. Bodies with a
+    /// present but non-UTF-8 `Content-Type` are fully redacted because the
+    /// structured parser cannot choose a safe media-type rule.
     pub fn sanitize_body(
         &self,
         body: &[u8],
         content_type: Option<&HeaderValue>,
         match_mode: NameMatchMode,
-    ) -> String {
+    ) -> BodySanitization {
         self.sanitize_body_inner(
             body,
             body.len(),
@@ -178,10 +187,10 @@ impl HttpBodySanitizer {
     /// URL-encoded forms and declared `text/*` bodies render the available
     /// prefix with a truncation marker when needed.
     ///
-    /// The returned string is a diagnostic rendering, not a replayable HTTP
-    /// body. Structured outputs may be compacted and may not preserve the
-    /// original field order, whitespace, or JSON value types for redacted
-    /// fields.
+    /// The returned result contains diagnostic content and source-length
+    /// metadata. Its rendered form is not a replayable HTTP body. Structured
+    /// outputs may be compacted and may not preserve the original field order,
+    /// whitespace, or JSON value types for redacted fields.
     ///
     /// # Parameters
     ///
@@ -193,19 +202,20 @@ impl HttpBodySanitizer {
     ///
     /// # Returns
     ///
-    /// Diagnostic preview text with a truncation marker when `source_len`
-    /// exceeds `body_prefix.len()`. Declared `text/*` previews are redacted
-    /// unless callers explicitly select [`TextBodyPolicy::PassThrough`].
-    /// Unsupported UTF-8 previews are redacted. Bodies with a present but
-    /// non-UTF-8 `Content-Type` are fully redacted because the structured
-    /// parser cannot choose a safe media-type rule.
+    /// Structured preview sanitization result. Rendering it adds a truncation
+    /// marker when `source_len` exceeds `body_prefix.len()`. Declared `text/*`
+    /// previews are redacted unless callers explicitly select
+    /// [`TextBodyPolicy::PassThrough`]. Unsupported UTF-8 previews are
+    /// redacted. Bodies with a present but non-UTF-8 `Content-Type` are fully
+    /// redacted because the structured parser cannot choose a safe media-type
+    /// rule.
     pub fn sanitize_body_preview(
         &self,
         body_prefix: &[u8],
         source_len: usize,
         content_type: Option<&HeaderValue>,
         match_mode: NameMatchMode,
-    ) -> String {
+    ) -> BodySanitization {
         self.sanitize_body_inner(
             body_prefix,
             source_len.max(body_prefix.len()),
@@ -227,7 +237,7 @@ impl HttpBodySanitizer {
     ///
     /// # Returns
     ///
-    /// Sanitized body text for diagnostic output.
+    /// Structured sanitized body result for diagnostic output.
     fn sanitize_body_inner(
         &self,
         bytes: &[u8],
@@ -235,24 +245,39 @@ impl HttpBodySanitizer {
         content_type: Option<&HeaderValue>,
         input_kind: BodyInputKind,
         match_mode: NameMatchMode,
-    ) -> String {
+    ) -> BodySanitization {
+        let result = |content, status| {
+            BodySanitization::new(content, status, bytes.len(), source_len)
+        };
         if bytes.is_empty() {
-            return input_kind.empty_output(source_len);
+            return result(
+                input_kind.empty_content(),
+                BodySanitizationStatus::Empty,
+            );
         }
 
-        let suffix = input_kind.truncation_suffix(bytes.len(), source_len);
         let content_type = match content_type::content_type_to_str(content_type)
         {
             Some(Ok(content_type)) => Some(content_type),
             Some(Err(_)) => {
-                return format!("{INVALID_CONTENT_TYPE_REDACTED}{suffix}");
+                return result(
+                    INVALID_CONTENT_TYPE_REDACTED.to_string(),
+                    BodySanitizationStatus::Redacted(
+                        BodyRedactionReason::InvalidContentType,
+                    ),
+                );
             }
             None => None,
         };
 
         if content_type.is_some_and(content_type::is_multipart) {
             if input_kind.is_truncated(bytes.len(), source_len) {
-                return format!("{MULTIPART_BODY_REDACTED}{suffix}");
+                return result(
+                    MULTIPART_BODY_REDACTED.to_string(),
+                    BodySanitizationStatus::Redacted(
+                        BodyRedactionReason::TruncatedMultipart,
+                    ),
+                );
             }
             if let Some(text) = multipart::sanitize_multipart(
                 self,
@@ -260,38 +285,65 @@ impl HttpBodySanitizer {
                 bytes,
                 match_mode,
             ) {
-                return text;
+                return result(text, BodySanitizationStatus::Sanitized);
             }
-            return MULTIPART_BODY_REDACTED.to_string();
+            return result(
+                MULTIPART_BODY_REDACTED.to_string(),
+                BodySanitizationStatus::Redacted(
+                    BodyRedactionReason::InvalidMultipart,
+                ),
+            );
         }
         if content_type.is_some_and(content_type::is_ndjson) {
             if let Some(text) = self.sanitize_ndjson(bytes, match_mode) {
-                return format!("{text}{suffix}");
+                return result(text, BodySanitizationStatus::Sanitized);
             }
-            return format!("{}{suffix}", input_kind.invalid_ndjson_marker());
+            return result(
+                input_kind.invalid_ndjson_marker().to_string(),
+                BodySanitizationStatus::Redacted(
+                    input_kind.invalid_ndjson_reason(),
+                ),
+            );
         }
         if self.is_json_body(content_type, bytes) {
             if let Some(text) = self.sanitize_json(bytes, match_mode) {
-                return format!("{text}{suffix}");
+                return result(text, BodySanitizationStatus::Sanitized);
             }
-            return format!("{}{suffix}", input_kind.invalid_json_marker());
+            return result(
+                input_kind.invalid_json_marker().to_string(),
+                BodySanitizationStatus::Redacted(
+                    input_kind.invalid_json_reason(),
+                ),
+            );
         }
         if content_type.is_some_and(content_type::is_form_urlencoded) {
-            return format!(
-                "{}{}",
+            return result(
                 self.sanitize_form(bytes, match_mode),
-                suffix
+                BodySanitizationStatus::Sanitized,
             );
         }
 
         match std::str::from_utf8(bytes) {
             Ok(text) if content_type.is_some_and(content_type::is_text) => {
-                format!("{}{suffix}", self.sanitize_text_body(text))
+                let status = match self.text_body_policy {
+                    TextBodyPolicy::Redact => BodySanitizationStatus::Redacted(
+                        BodyRedactionReason::OpaqueText,
+                    ),
+                    TextBodyPolicy::PassThrough => {
+                        BodySanitizationStatus::Sanitized
+                    }
+                };
+                result(self.sanitize_text_body(text), status)
             }
-            Ok(_) => format!("{UNSUPPORTED_BODY_REDACTED}{suffix}"),
-            Err(_) => format!(
-                "<binary {} bytes>{suffix}",
-                source_len.max(bytes.len())
+            Ok(_) => result(
+                UNSUPPORTED_BODY_REDACTED.to_string(),
+                BodySanitizationStatus::Redacted(
+                    BodyRedactionReason::UnsupportedMediaType,
+                ),
+            ),
+            Err(_) => result(
+                format!("<binary {} bytes>", source_len.max(bytes.len())),
+                BodySanitizationStatus::Binary,
             ),
         }
     }
@@ -447,7 +499,7 @@ impl HttpBodySanitizer {
         Some(
             self.field_sanitizer
                 .policy()
-                .mask_policies
+                .mask_policies()
                 .for_level(level)
                 .mask(value)
                 .into_owned(),

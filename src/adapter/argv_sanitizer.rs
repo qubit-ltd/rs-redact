@@ -29,6 +29,7 @@ impl ArgvSanitizer {
     /// # Returns
     ///
     /// New argv sanitizer.
+    #[inline(always)]
     pub const fn new(field_sanitizer: FieldSanitizer) -> Self {
         Self { field_sanitizer }
     }
@@ -38,6 +39,7 @@ impl ArgvSanitizer {
     /// # Returns
     ///
     /// Borrowed core field sanitizer.
+    #[inline(always)]
     pub const fn field_sanitizer(&self) -> &FieldSanitizer {
         &self.field_sanitizer
     }
@@ -47,6 +49,7 @@ impl ArgvSanitizer {
     /// # Returns
     ///
     /// Mutable core field sanitizer.
+    #[inline(always)]
     pub fn field_sanitizer_mut(&mut self) -> &mut FieldSanitizer {
         &mut self.field_sanitizer
     }
@@ -183,6 +186,7 @@ impl ArgvSanitizer {
     /// # Returns
     ///
     /// Sanitized value according to the sensitivity level resolved from `name`.
+    #[inline(always)]
     fn sanitize_sensitive_value(
         &self,
         name: &str,

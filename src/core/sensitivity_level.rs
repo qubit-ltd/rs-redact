@@ -8,7 +8,8 @@
 /// Sensitivity level associated with a field name.
 ///
 /// Levels let callers use different masking policies for low-risk identifiers,
-/// operational secrets, and values that should be fully redacted.
+/// operational secrets, and values that should be fully redacted. Their
+/// strength order is `Low < Medium < High < Secret`.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SensitivityLevel {

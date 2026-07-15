@@ -38,11 +38,13 @@ fn test_http_body_sanitizer_redacts_declared_text_body_by_default() {
     let content_type = HeaderValue::from_static("text/plain");
 
     assert_eq!(
-        sanitizer.sanitize_body(
-            b"plain text secret",
-            Some(&content_type),
-            NameMatchMode::Exact,
-        ),
+        sanitizer
+            .sanitize_body(
+                b"plain text secret",
+                Some(&content_type),
+                NameMatchMode::Exact,
+            )
+            .into_rendered(),
         "<redacted: text body>",
     );
 }
@@ -54,11 +56,13 @@ fn test_http_body_sanitizer_passes_through_declared_text_body_when_enabled() {
     let content_type = HeaderValue::from_static("text/plain");
 
     assert_eq!(
-        sanitizer.sanitize_body(
-            b"plain text secret",
-            Some(&content_type),
-            NameMatchMode::Exact,
-        ),
+        sanitizer
+            .sanitize_body(
+                b"plain text secret",
+                Some(&content_type),
+                NameMatchMode::Exact,
+            )
+            .into_rendered(),
         "plain text secret",
     );
 }
@@ -81,6 +85,7 @@ plain text value\r\n\
         Some(&content_type),
         NameMatchMode::Exact,
     );
+    let sanitized = sanitized.into_rendered();
 
     assert!(sanitized.contains("description=plain text value"));
 }

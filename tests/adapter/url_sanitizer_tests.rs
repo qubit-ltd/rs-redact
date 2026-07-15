@@ -13,8 +13,12 @@ use proptest::prelude::{
 };
 
 use qubit_sanitize::{
+    FieldSanitizePolicy,
     FieldSanitizer,
+    MaskPolicies,
+    MaskPolicy,
     NameMatchMode,
+    SensitivityLevel,
     UrlSanitizer,
 };
 use url::Url;
@@ -27,7 +31,7 @@ fn test_url_sanitizer_field_sanitizer_accessors() {
         sanitizer
             .field_sanitizer()
             .policy()
-            .sensitive_fields
+            .sensitive_fields()
             .contains("access_token")
     );
     sanitizer.field_sanitizer_mut().insert_sensitive_field(
@@ -46,13 +50,41 @@ fn test_url_sanitizer_field_sanitizer_accessors() {
 #[test]
 fn test_url_sanitizer_sanitize_url_masks_sensitive_components() {
     let sanitizer = UrlSanitizer::default();
-    let url = Url::parse("https://alice:secret@example.com/path?access_token=abcdef&mode=debug#session-fragment")
-        .expect("test URL should parse");
+    let url = Url::parse(
+        "https://alice:secret@example.com/path?access_token=abcdef&mode=debug#session-fragment",
+    )
+    .expect("test URL should parse");
 
     assert_eq!(
         sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
-        "https://****:****@example.com/path?access_token=****&mode=debug#****",
+        "https://****:%3Credacted%3E@example.com/path?access_token=****&mode=debug#****",
     );
+}
+
+#[test]
+fn test_url_sanitizer_uses_secret_policy_for_password() {
+    let mut policies = MaskPolicies::default();
+    policies.set(
+        SensitivityLevel::High,
+        MaskPolicy::preserve_edges(1, 1, "****", 0),
+    );
+    policies.set(SensitivityLevel::Secret, MaskPolicy::fixed("SECRET_MASK"));
+    let sanitizer = UrlSanitizer::new(FieldSanitizer::new(
+        FieldSanitizePolicy::default().with_mask_policies(policies),
+    ));
+
+    let sanitized = sanitizer
+        .sanitize_url_str(
+            "https://alice:password@example.test/path#fragment",
+            NameMatchMode::Exact,
+        )
+        .expect("URL should parse");
+
+    let sanitized = Url::parse(&sanitized).expect("sanitized URL should parse");
+    assert_eq!(sanitized.username(), "a****e");
+    assert_eq!(sanitized.password(), Some("SECRET_MASK"));
+    assert_eq!(sanitized.fragment(), Some("f****t"));
+    assert!(!sanitized.as_str().contains("password"));
 }
 
 #[test]
@@ -105,7 +137,7 @@ fn test_url_sanitizer_sanitize_url_without_query() {
 
     assert_eq!(
         sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
-        "https://****:****@example.com/path#****",
+        "https://****:%3Credacted%3E@example.com/path#****",
     );
 }
 

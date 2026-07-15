@@ -12,6 +12,10 @@ use crate::NameMatchMode;
 use super::{
     content_type,
     http_body_sanitizer::HttpBodySanitizer,
+    internal::{
+        HeaderParameter,
+        MultipartDelimiter,
+    },
     redaction_markers::{
         MULTIPART_FILE_PART_REDACTED,
         MULTIPART_PART_REDACTED,
@@ -76,17 +80,33 @@ fn sanitize_multipart_part(
         let header_name = header_name.trim();
         let header_value = header_value.trim();
         if header_name.eq_ignore_ascii_case("content-disposition") {
-            content_disposition = Some(header_value);
-        } else if header_name.eq_ignore_ascii_case("content-type") {
-            content_type = Some(header_value);
+            if content_disposition.replace(header_value).is_some() {
+                return None;
+            }
+        } else if header_name.eq_ignore_ascii_case("content-type")
+            && content_type.replace(header_value).is_some()
+        {
+            return None;
         }
     }
-    let name = content_disposition
-        .and_then(|value| content_type::parameter(value, "name"));
-    let filename = content_disposition.and_then(|value| {
-        content_type::parameter(value, "filename")
-            .or_else(|| content_type::parameter(value, "filename*"))
-    });
+    let disposition = content_disposition.unwrap_or_default();
+    let name = match HeaderParameter::parse(disposition, "name") {
+        HeaderParameter::Absent => None,
+        HeaderParameter::Value(name) => Some(name),
+        HeaderParameter::Invalid => return None,
+    };
+    let filename = match HeaderParameter::parse(disposition, "filename") {
+        HeaderParameter::Absent => None,
+        HeaderParameter::Value(filename) => Some(filename),
+        HeaderParameter::Invalid => return None,
+    };
+    let extended_filename =
+        match HeaderParameter::parse(disposition, "filename*") {
+            HeaderParameter::Absent => None,
+            HeaderParameter::Value(filename) => Some(filename),
+            HeaderParameter::Invalid => return None,
+        };
+    let filename = filename.or(extended_filename);
     let field_name = name.as_deref().unwrap_or(MULTIPART_UNNAMED_FIELD);
     let value = sanitize_multipart_part_value(
         sanitizer,
@@ -177,15 +197,6 @@ fn sanitize_text_part(sanitizer: &HttpBodySanitizer, body: &str) -> String {
     }
 }
 
-/// Kind of multipart delimiter line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MultipartDelimiter {
-    /// Delimiter before a regular part.
-    Part,
-    /// Final closing delimiter.
-    Closing,
-}
-
 /// Splits a complete multipart body into part segments.
 ///
 /// # Parameters
@@ -208,7 +219,8 @@ fn multipart_part_segments<'a>(
         let (line_start, line_end, next_position) =
             next_line_bounds(text, position);
         let line = &text[line_start..line_end];
-        let Some(delimiter) = multipart_delimiter(line, boundary) else {
+        let Some(delimiter) = MultipartDelimiter::classify(line, boundary)
+        else {
             position = next_position;
             continue;
         };
@@ -251,30 +263,6 @@ fn next_line_bounds(text: &str, position: usize) -> (usize, usize, usize) {
         return (position, trimmed_end, line_end + 1);
     }
     (position, text.len(), text.len())
-}
-
-/// Classifies a multipart delimiter line.
-///
-/// # Parameters
-///
-/// * `line` - Logical line without trailing line ending.
-/// * `boundary` - Boundary parameter without the leading `--`.
-///
-/// # Returns
-///
-/// Delimiter kind for exact delimiter lines.
-fn multipart_delimiter(
-    line: &str,
-    boundary: &str,
-) -> Option<MultipartDelimiter> {
-    let delimiter = format!("--{boundary}");
-    if line == delimiter {
-        Some(MultipartDelimiter::Part)
-    } else if line == format!("{delimiter}--") {
-        Some(MultipartDelimiter::Closing)
-    } else {
-        None
-    }
 }
 
 /// Splits multipart part headers from the part body.

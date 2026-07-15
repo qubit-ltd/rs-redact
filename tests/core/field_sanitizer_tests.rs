@@ -101,10 +101,10 @@ fn test_field_sanitizer_sensitivity_for_name_resolves_longest_suffix() {
     let mut fields = SensitiveFields::new();
     fields.insert("key", SensitivityLevel::Low);
     fields.insert("api_key", SensitivityLevel::High);
-    let sanitizer = FieldSanitizer::new(FieldSanitizePolicy {
-        sensitive_fields: fields,
-        mask_policies: MaskPolicies::default(),
-    });
+    let sanitizer = FieldSanitizer::new(FieldSanitizePolicy::new(
+        fields,
+        MaskPolicies::default(),
+    ));
 
     assert_eq!(
         sanitizer.sensitivity_for_name(
@@ -120,10 +120,10 @@ fn test_field_sanitizer_sensitivity_for_name_rejects_unbounded_suffix() {
     let mut fields = SensitiveFields::new();
     fields.insert("key", SensitivityLevel::Low);
     fields.insert("api_key", SensitivityLevel::High);
-    let sanitizer = FieldSanitizer::new(FieldSanitizePolicy {
-        sensitive_fields: fields,
-        mask_policies: MaskPolicies::default(),
-    });
+    let sanitizer = FieldSanitizer::new(FieldSanitizePolicy::new(
+        fields,
+        MaskPolicies::default(),
+    ));
 
     assert_eq!(
         sanitizer
@@ -143,15 +143,15 @@ fn test_field_sanitizer_sanitize_value_uses_level_specific_policy() {
     fields.insert("license_key", SensitivityLevel::Medium);
     fields.insert("api_key", SensitivityLevel::High);
     fields.insert("private_key", SensitivityLevel::Secret);
-    let policy = FieldSanitizePolicy {
-        sensitive_fields: fields,
-        mask_policies: MaskPolicies {
-            low: MaskPolicy::preserve_edges(2, 2, "****", 4),
-            medium: MaskPolicy::preserve_suffix(3, "****", 3),
-            high: MaskPolicy::fixed("****"),
-            secret: MaskPolicy::fixed("<secret>"),
-        },
-    };
+    let policy = FieldSanitizePolicy::new(
+        fields,
+        MaskPolicies::new(
+            MaskPolicy::preserve_edges(2, 2, "****", 4),
+            MaskPolicy::preserve_suffix(3, "****", 3),
+            MaskPolicy::fixed("****"),
+            MaskPolicy::fixed("<secret>"),
+        ),
+    );
     let sanitizer = FieldSanitizer::new(policy);
 
     assert_eq!(
@@ -198,11 +198,45 @@ fn test_field_sanitizer_insert_sensitive_field_extends_policy() {
 }
 
 #[test]
+fn test_field_sanitizer_add_and_set_have_distinct_level_semantics() {
+    let mut sanitizer = FieldSanitizer::default();
+
+    sanitizer.insert_sensitive_field("password", SensitivityLevel::Low);
+    assert_eq!(
+        sanitizer.sensitivity_for_name("password", NameMatchMode::Exact),
+        Some(SensitivityLevel::Secret),
+    );
+
+    sanitizer.set_sensitive_field_level("password", SensitivityLevel::Low);
+    assert_eq!(
+        sanitizer.sensitivity_for_name("password", NameMatchMode::Exact),
+        Some(SensitivityLevel::Low),
+    );
+}
+
+#[test]
+fn test_field_sanitizer_extend_sensitive_fields_keeps_stronger_levels() {
+    let mut sanitizer = FieldSanitizer::default();
+
+    sanitizer
+        .extend_sensitive_fields(["password", "custom"], SensitivityLevel::Low);
+
+    assert_eq!(
+        sanitizer.sensitivity_for_name("password", NameMatchMode::Exact),
+        Some(SensitivityLevel::Secret),
+    );
+    assert_eq!(
+        sanitizer.sensitivity_for_name("custom", NameMatchMode::Exact),
+        Some(SensitivityLevel::Low),
+    );
+}
+
+#[test]
 fn test_field_sanitizer_policy_returns_current_policy() {
     let sanitizer = FieldSanitizer::default();
 
     assert_eq!(
-        sanitizer.policy().sensitive_fields.level_for("password"),
+        sanitizer.policy().sensitive_fields().level_for("password"),
         Some(SensitivityLevel::Secret),
     );
 }
@@ -210,8 +244,10 @@ fn test_field_sanitizer_policy_returns_current_policy() {
 #[test]
 fn test_field_sanitizer_policy_mut_customizes_masking() {
     let mut sanitizer = FieldSanitizer::default();
-    sanitizer.policy_mut().mask_policies.high =
-        MaskPolicy::preserve_edges(1, 1, "****", 2);
+    sanitizer.policy_mut().mask_policies_mut().set(
+        SensitivityLevel::High,
+        MaskPolicy::preserve_edges(1, 1, "****", 2),
+    );
 
     assert_eq!(
         sanitizer.sanitize_value("api-key", "abcdef", NameMatchMode::Exact),

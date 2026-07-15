@@ -35,6 +35,7 @@ impl UrlSanitizer {
     /// # Returns
     ///
     /// New URL sanitizer.
+    #[inline(always)]
     pub const fn new(field_sanitizer: FieldSanitizer) -> Self {
         Self { field_sanitizer }
     }
@@ -44,6 +45,7 @@ impl UrlSanitizer {
     /// # Returns
     ///
     /// Borrowed core field sanitizer.
+    #[inline(always)]
     pub const fn field_sanitizer(&self) -> &FieldSanitizer {
         &self.field_sanitizer
     }
@@ -53,16 +55,18 @@ impl UrlSanitizer {
     /// # Returns
     ///
     /// Mutable core field sanitizer.
+    #[inline(always)]
     pub fn field_sanitizer_mut(&mut self) -> &mut FieldSanitizer {
         &mut self.field_sanitizer
     }
 
     /// Returns a sanitized URL string.
     ///
-    /// Userinfo, password, and fragment values are masked with the configured
-    /// high-sensitivity mask. Query parameter values are sanitized by parameter
-    /// name, preserving parameter order and duplicates. URL paths are kept
-    /// unchanged because path-segment semantics are application-specific.
+    /// Userinfo and fragment values are masked with the configured
+    /// high-sensitivity mask. Passwords use the secret-sensitivity mask. Query
+    /// parameter values are sanitized by parameter name, preserving parameter
+    /// order and duplicates. URL paths are kept unchanged because path-segment
+    /// semantics are application-specific.
     ///
     /// # Parameters
     ///
@@ -75,16 +79,27 @@ impl UrlSanitizer {
     pub fn sanitize_url(&self, url: &Url, match_mode: NameMatchMode) -> String {
         let mut sanitized = url.clone();
         if !sanitized.username().is_empty() {
-            let username =
-                mask_url_component(&self.field_sanitizer, sanitized.username());
+            let username = mask_url_component(
+                &self.field_sanitizer,
+                sanitized.username(),
+                SensitivityLevel::High,
+            );
             let _ = sanitized.set_username(&username);
         }
         if let Some(password) = sanitized.password() {
-            let password = mask_url_component(&self.field_sanitizer, password);
+            let password = mask_url_component(
+                &self.field_sanitizer,
+                password,
+                SensitivityLevel::Secret,
+            );
             let _ = sanitized.set_password(Some(&password));
         }
         if let Some(fragment) = sanitized.fragment() {
-            let fragment = mask_url_component(&self.field_sanitizer, fragment);
+            let fragment = mask_url_component(
+                &self.field_sanitizer,
+                fragment,
+                SensitivityLevel::High,
+            );
             sanitized.set_fragment(Some(&fragment));
         }
         let Some(_) = sanitized.query() else {
@@ -140,15 +155,20 @@ impl Default for UrlSanitizer {
 ///
 /// * `sanitizer` - Core sanitizer containing mask policies.
 /// * `value` - Component value to mask.
+/// * `level` - Sensitivity level that selects the mask policy.
 ///
 /// # Returns
 ///
 /// Masked component value.
-fn mask_url_component(sanitizer: &FieldSanitizer, value: &str) -> String {
+fn mask_url_component(
+    sanitizer: &FieldSanitizer,
+    value: &str,
+    level: SensitivityLevel,
+) -> String {
     sanitizer
         .policy()
-        .mask_policies
-        .for_level(SensitivityLevel::High)
+        .mask_policies()
+        .for_level(level)
         .mask(value)
         .into_owned()
 }

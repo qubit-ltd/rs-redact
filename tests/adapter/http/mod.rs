@@ -7,6 +7,7 @@
 // =============================================================================
 //! Tests for HTTP-specific sanitization adapters.
 
+mod body_sanitization_tests;
 mod http_body_sanitizer_tests;
 mod http_header_sanitizer_tests;
 mod text_body_policy_tests;

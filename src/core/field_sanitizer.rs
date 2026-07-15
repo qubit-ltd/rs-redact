@@ -32,6 +32,7 @@ impl FieldSanitizer {
     /// # Returns
     ///
     /// New field sanitizer.
+    #[inline(always)]
     pub const fn new(policy: FieldSanitizePolicy) -> Self {
         Self { policy }
     }
@@ -41,6 +42,7 @@ impl FieldSanitizer {
     /// # Returns
     ///
     /// Borrowed sanitization policy.
+    #[inline(always)]
     pub const fn policy(&self) -> &FieldSanitizePolicy {
         &self.policy
     }
@@ -50,6 +52,7 @@ impl FieldSanitizer {
     /// # Returns
     ///
     /// Mutable sanitization policy for advanced customization.
+    #[inline(always)]
     pub fn policy_mut(&mut self) -> &mut FieldSanitizePolicy {
         &mut self.policy
     }
@@ -65,7 +68,23 @@ impl FieldSanitizer {
         field: &str,
         level: SensitivityLevel,
     ) {
-        self.policy.sensitive_fields.insert(field, level);
+        self.policy
+            .sensitive_fields_mut()
+            .insert_strongest(field, level);
+    }
+
+    /// Explicitly replaces the sensitivity level for one field.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Field name whose level should be replaced.
+    /// * `level` - Replacement sensitivity level, even when weaker.
+    pub fn set_sensitive_field_level(
+        &mut self,
+        field: &str,
+        level: SensitivityLevel,
+    ) {
+        self.policy.sensitive_fields_mut().insert(field, level);
     }
 
     /// Adds each field with the same sensitivity level.
@@ -82,7 +101,9 @@ impl FieldSanitizer {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        self.policy.sensitive_fields.extend(fields, level);
+        self.policy
+            .sensitive_fields_mut()
+            .extend_strongest(fields, level);
     }
 
     /// Adds one predefined field group.
@@ -91,7 +112,7 @@ impl FieldSanitizer {
     ///
     /// * `preset` - Predefined group to insert.
     pub fn extend_preset(&mut self, preset: SensitiveFieldPreset) {
-        self.policy.sensitive_fields.extend_preset(preset);
+        self.policy.sensitive_fields_mut().extend_preset(preset);
     }
 
     /// Returns the sensitivity level for a field name.
@@ -115,7 +136,7 @@ impl FieldSanitizer {
         name: &str,
         match_mode: NameMatchMode,
     ) -> Option<SensitivityLevel> {
-        let fields = &self.policy.sensitive_fields;
+        let fields = self.policy.sensitive_fields();
         if let Some(level) = fields.level_for(name) {
             return Some(level);
         }
@@ -162,7 +183,7 @@ impl FieldSanitizer {
         let Some(level) = self.sensitivity_for_name(field, match_mode) else {
             return Cow::Borrowed(value);
         };
-        self.policy.mask_policies.for_level(level).mask(value)
+        self.policy.mask_policies().for_level(level).mask(value)
     }
 
     /// Returns a sanitized copy of a string map.

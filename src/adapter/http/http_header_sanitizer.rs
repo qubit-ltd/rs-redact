@@ -35,6 +35,7 @@ impl HttpHeaderSanitizer {
     /// # Returns
     ///
     /// New HTTP header sanitizer.
+    #[inline(always)]
     pub const fn new(field_sanitizer: FieldSanitizer) -> Self {
         Self { field_sanitizer }
     }
@@ -44,6 +45,7 @@ impl HttpHeaderSanitizer {
     /// # Returns
     ///
     /// Borrowed core field sanitizer.
+    #[inline(always)]
     pub const fn field_sanitizer(&self) -> &FieldSanitizer {
         &self.field_sanitizer
     }
@@ -53,6 +55,7 @@ impl HttpHeaderSanitizer {
     /// # Returns
     ///
     /// Mutable core field sanitizer.
+    #[inline(always)]
     pub fn field_sanitizer_mut(&mut self) -> &mut FieldSanitizer {
         &mut self.field_sanitizer
     }

@@ -32,7 +32,7 @@ fn test_env_sanitizer_field_sanitizer_accessors() {
         sanitizer
             .field_sanitizer()
             .policy()
-            .sensitive_fields
+            .sensitive_fields()
             .contains("password")
     );
     sanitizer
@@ -168,11 +168,9 @@ fn test_env_sanitizer_resolves_longest_suffix_match() {
     let mut fields = SensitiveFields::new();
     fields.insert("key", SensitivityLevel::Low);
     fields.insert("api_key", SensitivityLevel::High);
-    let sanitizer =
-        EnvSanitizer::new(FieldSanitizer::new(FieldSanitizePolicy {
-            sensitive_fields: fields,
-            mask_policies: MaskPolicies::default(),
-        }));
+    let sanitizer = EnvSanitizer::new(FieldSanitizer::new(
+        FieldSanitizePolicy::new(fields, MaskPolicies::default()),
+    ));
 
     assert_eq!(
         sanitizer.sanitize_value(

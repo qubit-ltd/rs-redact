@@ -27,6 +27,7 @@ impl SensitiveFields {
     /// # Returns
     ///
     /// Empty field set without built-in names.
+    #[inline(always)]
     pub fn new() -> Self {
         Self {
             fields: BTreeMap::new(),
@@ -39,11 +40,30 @@ impl SensitiveFields {
     ///
     /// * `field` - Field name to mark sensitive.
     /// * `level` - Sensitivity level assigned to the field.
+    ///
+    /// An existing canonical field is replaced even when `level` is weaker.
     pub fn insert(&mut self, field: &str, level: SensitivityLevel) {
         let field = canonicalize_field_name(field);
         if !field.is_empty() {
             self.fields.insert(field, level);
         }
+    }
+
+    /// Inserts one field without lowering an existing sensitivity level.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Field name to mark sensitive.
+    /// * `level` - Minimum sensitivity level assigned to the field.
+    pub fn insert_strongest(&mut self, field: &str, level: SensitivityLevel) {
+        let field = canonicalize_field_name(field);
+        if field.is_empty() {
+            return;
+        }
+        self.fields
+            .entry(field)
+            .and_modify(|current| *current = (*current).max(level))
+            .or_insert(level);
     }
 
     /// Removes one sensitive field name.
@@ -66,6 +86,7 @@ impl SensitiveFields {
     }
 
     /// Removes all configured sensitive fields.
+    #[inline(always)]
     pub fn clear(&mut self) {
         self.fields.clear();
     }
@@ -80,10 +101,7 @@ impl SensitiveFields {
     /// present only in `other` are inserted unchanged.
     pub fn merge_strongest(&mut self, other: &Self) {
         for (field, level) in other.iter() {
-            self.fields
-                .entry(field.to_string())
-                .and_modify(|current| *current = (*current).max(level))
-                .or_insert(level);
+            self.insert_strongest(field, level);
         }
     }
 
@@ -93,6 +111,8 @@ impl SensitiveFields {
     ///
     /// * `fields` - Field names to add.
     /// * `level` - Sensitivity level assigned to every field.
+    ///
+    /// Existing canonical fields are replaced even when `level` is weaker.
     pub fn extend<I, S>(&mut self, fields: I, level: SensitivityLevel)
     where
         I: IntoIterator<Item = S>,
@@ -100,6 +120,22 @@ impl SensitiveFields {
     {
         for field in fields {
             self.insert(field.as_ref(), level);
+        }
+    }
+
+    /// Inserts fields without lowering their existing sensitivity levels.
+    ///
+    /// # Parameters
+    ///
+    /// * `fields` - Field names to add.
+    /// * `level` - Minimum sensitivity level assigned to every field.
+    pub fn extend_strongest<I, S>(&mut self, fields: I, level: SensitivityLevel)
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        for field in fields {
+            self.insert_strongest(field.as_ref(), level);
         }
     }
 
@@ -145,6 +181,7 @@ impl SensitiveFields {
     /// # Returns
     ///
     /// Field count.
+    #[inline(always)]
     pub fn len(&self) -> usize {
         self.fields.len()
     }
@@ -154,6 +191,7 @@ impl SensitiveFields {
     /// # Returns
     ///
     /// `true` when the set is empty.
+    #[inline(always)]
     pub fn is_empty(&self) -> bool {
         self.fields.is_empty()
     }
@@ -163,6 +201,7 @@ impl SensitiveFields {
     /// # Returns
     ///
     /// Iterator over canonical field names and their levels.
+    #[inline(always)]
     pub fn iter(&self) -> impl Iterator<Item = (&str, SensitivityLevel)> {
         self.fields
             .iter()

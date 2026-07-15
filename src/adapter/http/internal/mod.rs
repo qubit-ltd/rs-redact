@@ -5,13 +5,12 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for structured object sanitization adapters.
+//! Private HTTP parsing types.
 
-mod argv_sanitizer_tests;
-mod env_sanitizer_tests;
-#[cfg(feature = "web")]
-mod form_url_encoded_sanitizer_tests;
-#[cfg(feature = "http")]
-mod http;
-#[cfg(feature = "web")]
-mod url_sanitizer_tests;
+pub(super) mod body_input_kind;
+pub(super) mod header_parameter;
+pub(super) mod multipart_delimiter;
+
+pub(super) use body_input_kind::BodyInputKind;
+pub(super) use header_parameter::HeaderParameter;
+pub(super) use multipart_delimiter::MultipartDelimiter;

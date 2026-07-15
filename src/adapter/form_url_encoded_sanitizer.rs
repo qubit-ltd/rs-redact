@@ -29,6 +29,7 @@ impl FormUrlEncodedSanitizer {
     /// # Returns
     ///
     /// New form sanitizer.
+    #[inline(always)]
     pub const fn new(field_sanitizer: FieldSanitizer) -> Self {
         Self { field_sanitizer }
     }
@@ -38,6 +39,7 @@ impl FormUrlEncodedSanitizer {
     /// # Returns
     ///
     /// Borrowed core field sanitizer.
+    #[inline(always)]
     pub const fn field_sanitizer(&self) -> &FieldSanitizer {
         &self.field_sanitizer
     }
@@ -47,6 +49,7 @@ impl FormUrlEncodedSanitizer {
     /// # Returns
     ///
     /// Mutable core field sanitizer.
+    #[inline(always)]
     pub fn field_sanitizer_mut(&mut self) -> &mut FieldSanitizer {
         &mut self.field_sanitizer
     }
@@ -64,6 +67,7 @@ impl FormUrlEncodedSanitizer {
     /// # Returns
     ///
     /// Sanitized URL-encoded form string.
+    #[inline(always)]
     pub fn sanitize_bytes(
         &self,
         form: &[u8],
@@ -82,6 +86,7 @@ impl FormUrlEncodedSanitizer {
     /// # Returns
     ///
     /// Sanitized URL-encoded form string.
+    #[inline(always)]
     pub fn sanitize_str(
         &self,
         form: &str,

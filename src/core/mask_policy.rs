@@ -112,6 +112,7 @@ impl MaskPolicy {
     /// # Returns
     ///
     /// A mask policy that returns an empty value for every non-empty input.
+    #[inline(always)]
     pub const fn empty() -> Self {
         Self::Empty
     }

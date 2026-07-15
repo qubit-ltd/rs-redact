@@ -74,16 +74,19 @@ pub use adapter::{
     ArgvSanitizer,
     EnvSanitizer,
 };
+#[cfg(feature = "http")]
+pub use adapter::{
+    BodyRedactionReason,
+    BodySanitization,
+    BodySanitizationStatus,
+    HttpBodySanitizer,
+    HttpHeaderSanitizer,
+    TextBodyPolicy,
+};
 #[cfg(feature = "web")]
 pub use adapter::{
     FormUrlEncodedSanitizer,
     UrlSanitizer,
-};
-#[cfg(feature = "http")]
-pub use adapter::{
-    HttpBodySanitizer,
-    HttpHeaderSanitizer,
-    TextBodyPolicy,
 };
 pub use core::{
     DEFAULT_EXTRA_FIELDS,
@@ -92,8 +95,10 @@ pub use core::{
     MaskPolicies,
     MaskPolicy,
     NameMatchMode,
+    RedactedDebug,
     SensitiveFieldPreset,
     SensitiveFields,
     SensitivityLevel,
     canonicalize_field_name,
+    redacted_debug,
 };

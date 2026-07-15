@@ -14,6 +14,7 @@ mod field_sanitizer;
 mod mask_policies;
 mod mask_policy;
 mod name_match_mode;
+mod redacted_debug;
 mod sensitive_field_preset;
 mod sensitive_fields;
 mod sensitivity_level;
@@ -25,6 +26,10 @@ pub use field_sanitizer::FieldSanitizer;
 pub use mask_policies::MaskPolicies;
 pub use mask_policy::MaskPolicy;
 pub use name_match_mode::NameMatchMode;
+pub use redacted_debug::{
+    RedactedDebug,
+    redacted_debug,
+};
 pub use sensitive_field_preset::SensitiveFieldPreset;
 pub use sensitive_fields::SensitiveFields;
 pub use sensitivity_level::SensitivityLevel;

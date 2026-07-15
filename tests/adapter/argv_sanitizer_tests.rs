@@ -27,7 +27,7 @@ fn test_argv_sanitizer_field_sanitizer_accessors() {
         sanitizer
             .field_sanitizer()
             .policy()
-            .sensitive_fields
+            .sensitive_fields()
             .contains("password")
     );
     sanitizer

@@ -50,6 +50,27 @@ fn test_sensitive_fields_insert_adds_custom_field() {
 }
 
 #[test]
+fn test_sensitive_fields_insert_strongest_never_lowers_existing_level() {
+    let mut fields = SensitiveFields::new();
+    fields.insert("password", SensitivityLevel::Secret);
+
+    fields.insert_strongest("Password", SensitivityLevel::Low);
+
+    assert_eq!(fields.level_for("password"), Some(SensitivityLevel::Secret),);
+}
+
+#[test]
+fn test_sensitive_fields_extend_strongest_merges_each_field() {
+    let mut fields = SensitiveFields::new();
+    fields.insert("first", SensitivityLevel::High);
+
+    fields.extend_strongest(["First", "second"], SensitivityLevel::Medium);
+
+    assert_eq!(fields.level_for("first"), Some(SensitivityLevel::High));
+    assert_eq!(fields.level_for("second"), Some(SensitivityLevel::Medium),);
+}
+
+#[test]
 fn test_sensitive_fields_remove_uses_canonical_name() {
     let mut fields = SensitiveFields::new();
     fields.insert("api_key", SensitivityLevel::High);

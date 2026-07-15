@@ -36,7 +36,7 @@ fn test_http_header_sanitizer_field_sanitizer_accessors() {
         sanitizer
             .field_sanitizer()
             .policy()
-            .sensitive_fields
+            .sensitive_fields()
             .contains("authorization")
     );
     sanitizer

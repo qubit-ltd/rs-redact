@@ -18,9 +18,20 @@ use qubit_sanitize::{
 fn test_sensitive_field_preset_credentials_fields() {
     let fields = SensitiveFieldPreset::Credentials.fields();
 
-    assert_eq!(fields.len(), 5);
+    assert_eq!(fields.len(), 6);
     assert_eq!(fields[0], ("password", SensitivityLevel::Secret));
     assert_eq!(fields[4], ("private_key", SensitivityLevel::Secret));
+    assert_eq!(fields[5], ("security_key", SensitivityLevel::Secret));
+}
+
+#[test]
+fn test_credentials_preset_contains_security_key_as_secret() {
+    let fields = SensitiveFields::default();
+
+    assert_eq!(
+        fields.level_for("security_key"),
+        Some(SensitivityLevel::Secret),
+    );
 }
 
 #[test]

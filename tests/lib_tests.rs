@@ -16,20 +16,25 @@ use qubit_sanitize::{
     MaskPolicies,
     MaskPolicy,
     NameMatchMode,
+    RedactedDebug,
     SensitiveFieldPreset,
     SensitiveFields,
     SensitivityLevel,
+    redacted_debug,
+};
+#[cfg(feature = "http")]
+use qubit_sanitize::{
+    BodyRedactionReason,
+    BodySanitization,
+    BodySanitizationStatus,
+    HttpBodySanitizer,
+    HttpHeaderSanitizer,
+    TextBodyPolicy,
 };
 #[cfg(feature = "web")]
 use qubit_sanitize::{
     FormUrlEncodedSanitizer,
     UrlSanitizer,
-};
-#[cfg(feature = "http")]
-use qubit_sanitize::{
-    HttpBodySanitizer,
-    HttpHeaderSanitizer,
-    TextBodyPolicy,
 };
 
 #[test]
@@ -42,6 +47,7 @@ fn test_lib_exports_public_api() {
     let _ = MaskPolicies::default();
     let _ = MaskPolicy::fixed("****");
     let _ = NameMatchMode::Exact;
+    let _: RedactedDebug<'_, str> = redacted_debug("secret");
     let _ = SensitiveFieldPreset::Credentials;
     let _ = SensitiveFields::default();
     let _ = SensitivityLevel::High;
@@ -52,6 +58,9 @@ fn test_lib_exports_public_api() {
     }
     #[cfg(feature = "http")]
     {
+        let _: Option<BodySanitization> = None;
+        let _ =
+            BodySanitizationStatus::Redacted(BodyRedactionReason::InvalidJson);
         let _ = HttpBodySanitizer::default();
         let _ = HttpHeaderSanitizer::default();
         let _ = TextBodyPolicy::default();

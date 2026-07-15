@@ -9,6 +9,8 @@
 
 use http::HeaderValue;
 
+use super::internal::HeaderParameter;
+
 const MAX_MULTIPART_BOUNDARY_LEN: usize = 70;
 
 /// Converts an optional header value to UTF-8 text.
@@ -146,11 +148,15 @@ pub(super) fn multipart_boundary(content_type: &str) -> Option<String> {
     if !is_multipart(content_type) {
         return None;
     }
-    let boundary = parameter(content_type, "boundary")?;
-    if is_valid_multipart_boundary(&boundary) {
-        Some(boundary)
-    } else {
-        None
+    match HeaderParameter::parse(content_type, "boundary") {
+        HeaderParameter::Value(boundary)
+            if is_valid_multipart_boundary(&boundary) =>
+        {
+            Some(boundary)
+        }
+        HeaderParameter::Absent
+        | HeaderParameter::Value(_)
+        | HeaderParameter::Invalid => None,
     }
 }
 
@@ -197,94 +203,4 @@ fn is_valid_multipart_boundary_byte(byte: u8) -> bool {
             | b'='
             | b'?'
     )
-}
-
-/// Extracts a semicolon-separated header parameter.
-///
-/// # Parameters
-///
-/// * `value` - Header value containing parameters.
-/// * `parameter_name` - Parameter name to extract.
-///
-/// # Returns
-///
-/// Decoded parameter value, or `None` when absent or malformed.
-pub(super) fn parameter(value: &str, parameter_name: &str) -> Option<String> {
-    for segment in header_parameter_segments(value)?.into_iter().skip(1) {
-        let Some((name, raw_value)) = segment.split_once('=') else {
-            continue;
-        };
-        if !name.trim().eq_ignore_ascii_case(parameter_name) {
-            continue;
-        }
-        return decode_header_parameter(raw_value.trim());
-    }
-    None
-}
-
-/// Splits header parameters while respecting quoted semicolons.
-///
-/// # Parameters
-///
-/// * `value` - Header value containing parameters.
-///
-/// # Returns
-///
-/// Parameter segments, or `None` when quoting is malformed.
-fn header_parameter_segments(value: &str) -> Option<Vec<&str>> {
-    let mut segments = Vec::new();
-    let mut start = 0;
-    let mut in_quote = false;
-    let mut escaped = false;
-    for (index, ch) in value.char_indices() {
-        if escaped {
-            escaped = false;
-            continue;
-        }
-        if in_quote && ch == '\\' {
-            escaped = true;
-            continue;
-        }
-        if ch == '"' {
-            in_quote = !in_quote;
-            continue;
-        }
-        if ch == ';' && !in_quote {
-            segments.push(value[start..index].trim());
-            start = index + ch.len_utf8();
-        }
-    }
-    if in_quote || escaped {
-        return None;
-    }
-    segments.push(value[start..].trim());
-    Some(segments)
-}
-
-/// Decodes a simple HTTP header parameter value.
-///
-/// # Parameters
-///
-/// * `value` - Raw parameter value.
-///
-/// # Returns
-///
-/// Unquoted value, or `None` for malformed quoted strings.
-fn decode_header_parameter(value: &str) -> Option<String> {
-    if !value.starts_with('"') {
-        return Some(value.trim().to_string());
-    }
-    if !value.ends_with('"') || value.len() < 2 {
-        return None;
-    }
-    let mut result = String::new();
-    let mut chars = value[1..value.len() - 1].chars();
-    while let Some(ch) = chars.next() {
-        let value = if ch == '\\' { chars.next()? } else { ch };
-        if value == '\r' || value == '\n' {
-            return None;
-        }
-        result.push(value);
-    }
-    Some(result)
 }

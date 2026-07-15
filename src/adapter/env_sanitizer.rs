@@ -32,6 +32,7 @@ impl EnvSanitizer {
     /// # Returns
     ///
     /// New environment sanitizer.
+    #[inline(always)]
     pub const fn new(field_sanitizer: FieldSanitizer) -> Self {
         Self { field_sanitizer }
     }
@@ -41,6 +42,7 @@ impl EnvSanitizer {
     /// # Returns
     ///
     /// Borrowed core field sanitizer.
+    #[inline(always)]
     pub const fn field_sanitizer(&self) -> &FieldSanitizer {
         &self.field_sanitizer
     }
@@ -50,6 +52,7 @@ impl EnvSanitizer {
     /// # Returns
     ///
     /// Mutable core field sanitizer.
+    #[inline(always)]
     pub fn field_sanitizer_mut(&mut self) -> &mut FieldSanitizer {
         &mut self.field_sanitizer
     }
@@ -66,6 +69,7 @@ impl EnvSanitizer {
     ///
     /// Borrowed `value` when `key` is not sensitive, otherwise an owned masked
     /// value.
+    #[inline(always)]
     pub fn sanitize_value<'a>(
         &self,
         key: &str,
