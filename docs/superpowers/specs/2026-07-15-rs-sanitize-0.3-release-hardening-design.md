@@ -23,6 +23,9 @@ HTTP body 结果建模、下游版本一致性和代码组织问题。直接下�
   安全 Debug wrapper、默认字段、multipart 歧义处理、测试、文档和内部文件组织；
 - `rs-http`：迁移结构化 body 结果和私有化 policy API，删除展示字符串解析；
 - `rs-command`：版本升级和安全 `CommandOutput::Debug`；
+- `rs-value`：将 `qubit-datatype` 固定为同仓库相对路径依赖，避免下游同时解析本地与
+  registry 的同版本类型；
+- `rs-config`：验证其 `qubit-datatype`/`qubit-value` 本地依赖图保持单一类型身份；
 - `rs-mime`：版本升级、切换本地 `qubit-command 0.5`、更新锁文件；
 - `rs-magika`：更新经 `rs-mime` 形成的锁文件依赖图。
 
@@ -35,6 +38,8 @@ HTTP body 结果建模、下游版本一致性和代码组织问题。直接下�
 - `qubit-http` 保持尚未发布的 `0.10.0`，直接迁移最终 0.3 API；
 - `qubit-command` 从 `0.4.2` 升到 `0.5.0`。它公开重导出
   `qubit_sanitize::SensitivityLevel`，依赖类型身份变化属于 0.x 下的破坏性变化；
+- `qubit-value` 保持 `0.10.0`，仅补齐已发布版本约束旁的本地 path；
+- `qubit-config` 保持 `0.14.0`，其现有本地 path 依赖不改变；
 - `qubit-mime` 从 `0.9.0` 升到 `0.9.1`，其公共 API 不暴露 `qubit-command` 类型，
   依赖升级按 patch 版本发布；
 - `qubit-magika` 保持 `0.8.0`，只更新锁文件中经本地 `qubit-mime` 形成的依赖图。
@@ -59,6 +64,13 @@ qubit-sanitize = {
 
 # rs-mime
 qubit-command = { version = "0.5", path = "../rs-command" }
+
+# rs-value
+qubit-datatype = {
+    version = "0.6",
+    path = "../rs-datatype",
+    default-features = false,
+}
 ```
 
 `rs-mime` 和 `rs-magika` 的锁文件最终都必须解析到本地 `qubit-command 0.5.0` 与
@@ -160,6 +172,11 @@ pub fn sanitize_body_preview(...) -> BodySanitization;
 字节数。
 
 ### rs-http 迁移
+
+`rs-sanitize::HttpBodySanitizer` 的通用默认继续是 `TextBodyPolicy::Redact`。
+`rs-http::LogSanitizer` 的 body 记录由调用方日志策略显式启用，因此构造内部 sanitizer
+时明确选择 `TextBodyPolicy::PassThrough`，保持既有 HTTP 日志契约；结构化字段仍按
+policy 脱敏。
 
 `rs-http::LogSanitizer::sanitize_body_preview` 直接读取 `BodySanitization`：
 

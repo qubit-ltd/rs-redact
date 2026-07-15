@@ -12,6 +12,8 @@
 
 - 设计规格：`docs/superpowers/specs/2026-07-15-rs-sanitize-0.3-release-hardening-design.md`。
 - `qubit-sanitize` 保持 `0.3.0`；`qubit-http` 保持 `0.10.0`；`qubit-command` 升到 `0.5.0`；`qubit-mime` 升到 `0.9.1`；`qubit-magika` 保持 `0.8.0`。
+- `qubit-value` 保持 `0.10.0`，为 `qubit-datatype` 补同仓库 path；`qubit-config`
+  保持 `0.14.0` 并验证本地依赖类型身份唯一。
 - Rust MSRV 保持 `1.94`；不新增第三方依赖。
 - 不修改 `rs-platform` 和存在用户改动的 `rs-llmsdk-core`。
 - 不扫描任意文本、任意 JSON value 或 URL path；不改变真实业务值和请求值。
@@ -324,7 +326,7 @@ cargo test --locked --test core_tests
 
 Expected: 全部 core tests PASS。
 
-### Task 3: 新增 BodySanitization 结构化结果类型
+### Task 3: 新增 BodySanitization 结构化结果类型骨架
 
 **Files:**
 - Create: `rs-sanitize/src/adapter/http/body_redaction_reason.rs`
@@ -338,9 +340,9 @@ Expected: 全部 core tests PASS。
 
 **Interfaces:**
 - Produces: `BodyRedactionReason`, `BodySanitizationStatus`, `BodySanitization`
-- Produces: standard rendering via `Display`, `rendered`, `into_rendered`
+- Produces: 设计规格中的三个公开类型；构造与行为在 Task 4 通过 sanitizer 公共 API 驱动实现
 
-- [ ] **Step 1: 写公开类型与渲染失败测试**
+- [ ] **Step 1: 写公开类型失败测试**
 
 ```rust
 use qubit_sanitize::{
@@ -350,40 +352,19 @@ use qubit_sanitize::{
 };
 
 #[test]
-fn test_body_sanitization_reports_metadata_and_renders_suffix() {
-    let result = BodySanitization::new_for_test(
-        "<redacted: invalid or truncated JSON>".to_string(),
+fn test_body_sanitization_types_are_public() {
+    let status = BodySanitizationStatus::Redacted(
+        BodyRedactionReason::InvalidOrTruncatedJson,
+    );
+    assert_eq!(
+        status,
         BodySanitizationStatus::Redacted(
             BodyRedactionReason::InvalidOrTruncatedJson,
         ),
-        20,
-        53,
     );
-
-    assert_eq!(result.content(), "<redacted: invalid or truncated JSON>");
-    assert_eq!(result.captured_len(), 20);
-    assert_eq!(result.source_len(), 53);
-    assert_eq!(result.truncated_bytes(), 33);
-    assert!(result.is_truncated());
-    assert_eq!(
-        result.to_string(),
-        "<redacted: invalid or truncated JSON>...<truncated 33 bytes>",
-    );
+    let _: Option<BodySanitization> = None;
 }
 ```
-
-为避免生产 API 暴露测试构造器，实际测试改为通过下面的 public constructor：
-
-```rust
-let result = BodySanitization::new(
-    "content".to_string(),
-    BodySanitizationStatus::Sanitized,
-    3,
-    5,
-);
-```
-
-因此 `BodySanitization::new` 是 public，文档明确它用于自定义 adapter 构造诊断结果。
 
 - [ ] **Step 2: 运行测试并确认 RED**
 
@@ -393,9 +374,9 @@ cargo test --locked --features http --test adapter_tests body_sanitization
 
 Expected: 编译失败，公开类型尚不存在。
 
-- [ ] **Step 3: 实现三个公开类型**
+- [ ] **Step 3: 实现三个公开类型骨架**
 
-`BodyRedactionReason` 和 `BodySanitizationStatus` 按设计规格定义。核心 struct 实现：
+`BodyRedactionReason`、`BodySanitizationStatus` 和核心 struct 按设计规格定义：
 
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -405,75 +386,10 @@ pub struct BodySanitization {
     captured_len: usize,
     source_len: usize,
 }
-
-impl BodySanitization {
-    pub fn new(
-        content: String,
-        status: BodySanitizationStatus,
-        captured_len: usize,
-        source_len: usize,
-    ) -> Self {
-        Self {
-            content,
-            status,
-            captured_len,
-            source_len: source_len.max(captured_len),
-        }
-    }
-
-    #[inline]
-    pub fn content(&self) -> &str { &self.content }
-
-    #[inline]
-    pub fn into_content(self) -> String { self.content }
-
-    #[inline]
-    pub const fn status(&self) -> BodySanitizationStatus { self.status }
-
-    #[inline]
-    pub const fn captured_len(&self) -> usize { self.captured_len }
-
-    #[inline]
-    pub const fn source_len(&self) -> usize { self.source_len }
-
-    #[inline]
-    pub const fn truncated_bytes(&self) -> usize {
-        self.source_len.saturating_sub(self.captured_len)
-    }
-
-    #[inline]
-    pub const fn is_truncated(&self) -> bool {
-        self.truncated_bytes() != 0
-    }
-
-    pub fn rendered(&self) -> String {
-        self.to_string()
-    }
-
-    pub fn into_rendered(mut self) -> String {
-        let truncated = self.truncated_bytes();
-        if truncated != 0 {
-            use std::fmt::Write;
-            write!(self.content, "...<truncated {truncated} bytes>")
-                .expect("writing to String cannot fail");
-        }
-        self.content
-    }
-}
-
-impl std::fmt::Display for BodySanitization {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&self.content)?;
-        let truncated = self.truncated_bytes();
-        if truncated != 0 {
-            write!(formatter, "...<truncated {truncated} bytes>")?;
-        }
-        Ok(())
-    }
-}
 ```
 
-每个公开类型和方法补齐英文 Rustdoc，沿用 `# Parameters`。
+每个公开类型、variant 和字段补齐英文 Rustdoc。此阶段不增加设计规格之外的 public
+constructor，也不提前实现 accessor/渲染行为。
 
 - [ ] **Step 4: 导出类型并确认 GREEN**
 
@@ -487,12 +403,13 @@ cargo test --locked --features http --test lib_tests
 
 Expected: 新测试 PASS。
 
-### Task 4: 迁移 HttpBodySanitizer 到结构化结果
+### Task 4: 实现 BodySanitization 行为并迁移 HttpBodySanitizer
 
 **Files:**
 - Modify: `rs-sanitize/src/adapter/http/http_body_sanitizer.rs`
 - Modify: `rs-sanitize/src/adapter/http/body_input_kind.rs`（随后在 Task 7 移动）
 - Modify: `rs-sanitize/tests/adapter/http/http_body_sanitizer_tests.rs`
+- Modify: `rs-sanitize/tests/adapter/http/body_sanitization_tests.rs`
 - Modify: `rs-sanitize/tests/adapter/http/text_body_policy_tests.rs`
 - Modify: `rs-sanitize/README.md`
 - Modify: `rs-sanitize/README.zh_CN.md`
@@ -501,7 +418,7 @@ Expected: 新测试 PASS。
 - Consumes: Task 3 的 `BodySanitization` 类型
 - Produces: `sanitize_body`、`sanitize_body_preview` 返回 `BodySanitization`
 
-- [ ] **Step 1: 写 sanitizer metadata 失败测试**
+- [ ] **Step 1: 写 sanitizer metadata 与渲染失败测试**
 
 ```rust
 #[test]
@@ -527,6 +444,14 @@ fn test_http_body_sanitizer_preview_returns_structured_redaction_metadata() {
     assert_eq!(result.source_len(), 40);
     assert_eq!(result.truncated_bytes(), 40 - prefix.len());
     assert!(!result.content().contains("secret"));
+    assert_eq!(
+        result.to_string(),
+        format!(
+            "<redacted: invalid or truncated JSON>...<truncated {} bytes>",
+            40 - prefix.len(),
+        ),
+    );
+    assert_eq!(result.rendered(), result.to_string());
 }
 ```
 
@@ -536,22 +461,30 @@ fn test_http_body_sanitizer_preview_returns_structured_redaction_metadata() {
 cargo test --locked --features http --test adapter_tests preview_returns_structured
 ```
 
-Expected: 当前返回 `String`，没有 metadata methods。
+Expected: 当前返回 `String`，没有 metadata methods；结构化类型也尚未实现这些方法。
 
 - [ ] **Step 3: 改造 HttpBodySanitizer 返回类型**
 
-`sanitize_body_inner` 的每条 return 都通过：
+先为 `BodySanitization` 实现设计规格中的 accessors、`Display`、`rendered` 和
+`into_rendered`。内部构造器保持 `pub(super)`，不扩大公开 API：
 
 ```rust
-fn result(
+pub(super) fn new(
     content: String,
     status: BodySanitizationStatus,
     captured_len: usize,
     source_len: usize,
-) -> BodySanitization {
-    BodySanitization::new(content, status, captured_len, source_len)
+) -> Self {
+    Self {
+        content,
+        status,
+        captured_len,
+        source_len: source_len.max(captured_len),
+    }
 }
 ```
+
+`sanitize_body_inner` 的每条 return 都通过该内部构造器生成结果。
 
 状态映射必须是：
 
@@ -635,7 +568,7 @@ fn test_url_sanitizer_uses_secret_policy_for_password() {
     );
     policies.set(
         SensitivityLevel::Secret,
-        MaskPolicy::fixed("<secret>"),
+        MaskPolicy::fixed("SECRET_MASK"),
     );
     let sanitizer = UrlSanitizer::new(FieldSanitizer::new(
         FieldSanitizePolicy::default().with_mask_policies(policies),
@@ -648,9 +581,11 @@ fn test_url_sanitizer_uses_secret_policy_for_password() {
         )
         .expect("URL should parse");
 
-    assert!(sanitized.contains("alice"));
-    assert!(sanitized.contains("<secret>"));
-    assert!(!sanitized.contains("password"));
+    let sanitized = Url::parse(&sanitized).expect("sanitized URL should parse");
+    assert_eq!(sanitized.username(), "a****e");
+    assert_eq!(sanitized.password(), Some("SECRET_MASK"));
+    assert_eq!(sanitized.fragment(), Some("f****t"));
+    assert!(!sanitized.as_str().contains("password"));
 }
 
 #[test]
@@ -920,6 +855,7 @@ SensitiveFieldPreset::fields
 - [ ] **Step 4: 格式化并验证组织调整**
 
 ```bash
+cargo fmt --all
 cargo fmt --all -- --check
 cargo test --locked --no-default-features
 cargo test --locked --all-features
@@ -991,7 +927,8 @@ Expected: 新领域方法和 root reexport 尚不存在。
 - [ ] **Step 3: 实现 LogSanitizePolicy facade**
 
 字段设为 private。`default` 建三个 `SensitiveFields::default()`；`empty` 建三个
-`SensitiveFields::new()`。九组 public 方法按设计规格实现：
+`SensitiveFields::new()`。header/query/body 三个 domain 的 insert/extend/set/remove/query
+public 方法按设计规格实现：
 
 ```rust
 pub fn insert_sensitive_header(&mut self, name: &str, level: SensitivityLevel) {
@@ -1070,15 +1007,37 @@ Expected: `rg` 只剩内部 accessor 实现或配置 input 字段；相关 tests
 
 **Interfaces:**
 - Consumes: Task 4 的 `BodySanitization`
+- Preserves: `rs-http` 显式启用 body 日志时的 text pass-through 契约
 - Removes: `normalize_error_truncation_suffix` 与 counted marker parsing
 
-- [ ] **Step 1: 保留并强化含 marker 正文的回归测试**
+- [ ] **Step 1: 用既有失败测试锁定 text 日志契约**
+
+基线已稳定复现以下测试失败，实际值为 `<redacted: text body>`，而既有契约要求记录
+已显式启用的 text body：
+
+```bash
+cargo test --locked --test mod client::http_logger_policy_tests::test_log_request_text_body -- --exact
+cargo test --locked --test mod sanitize::log_sanitizer_tests::test_log_sanitizer_sanitize_body_preview_keeps_multipart_text_part -- --exact
+```
+
+在 `LogSanitizer::new` 构造 `HttpBodySanitizer` 时显式设置
+`TextBodyPolicy::PassThrough`。`HttpBodySanitizer::default()` 的通用安全默认仍为
+`Redact`。
+
+- [ ] **Step 2: 确认既有 text/multipart 日志回归恢复 GREEN**
+
+```bash
+cargo test --locked --test mod client::http_logger_policy_tests::test_log_request_text_body -- --exact
+cargo test --locked --test mod sanitize::log_sanitizer_tests::test_log_sanitizer_sanitize_body_preview_keeps_multipart_text_part -- --exact
+```
+
+- [ ] **Step 3: 保留并强化含 marker 正文的回归测试**
 
 使用既有 `test_log_sanitizer_error_response_truncation_normalizes_suffix_only`，追加断言
 输出只有一个末尾 `...<truncated>`，正文中的
 `...<truncated 2 bytes>` 保持原样。
 
-- [ ] **Step 2: 在尚未迁移的 rs-http 上确认 RED**
+- [ ] **Step 4: 在尚未迁移的 rs-http 上确认 RED**
 
 Task 4 改变了返回类型，此时运行：
 
@@ -1088,7 +1047,7 @@ cargo test --locked --test mod error_response_truncation_normalizes_suffix_only
 
 Expected: `LogSanitizer` 仍把 `BodySanitization` 当作 `String`，编译失败。
 
-- [ ] **Step 3: 用 metadata 渲染 context-specific suffix**
+- [ ] **Step 5: 用 metadata 渲染 context-specific suffix**
 
 ```rust
 let result = self.body_sanitizer.sanitize_body_preview(
@@ -1107,7 +1066,7 @@ if preview.context == BodyLogContext::ErrorResponse && result.is_truncated() {
 删除 `normalize_error_truncation_suffix` 及其精确 marker 构造代码。invalid local
 Content-Type 的 rs-http marker 路径保持现状。
 
-- [ ] **Step 4: 验证不再解析 marker**
+- [ ] **Step 6: 验证不再解析 marker**
 
 ```bash
 rg -n 'strip_suffix|truncated \{\} bytes|normalize_error_truncation_suffix' src/sanitize tests/sanitize
@@ -1141,16 +1100,18 @@ Expected: `rg` 无旧 parser；测试 PASS，历史 error-response suffix 保持
 #[test]
 fn test_command_output_debug_redacts_captured_streams() {
     let output = CommandRunner::new()
-        .max_stdout_bytes(6)
-        .max_stderr_bytes(5)
         .run(Command::shell(
             "printf stdout-secret; printf stderr-secret >&2",
         ))
         .expect("command should run successfully");
 
     let debug = format!("{output:?}");
+    let stdout_debug = format!("{:?}", b"stdout-secret".to_vec());
+    let stderr_debug = format!("{:?}", b"stderr-secret".to_vec());
     assert!(!debug.contains("stdout-secret"));
     assert!(!debug.contains("stderr-secret"));
+    assert!(!debug.contains(&stdout_debug));
+    assert!(!debug.contains(&stderr_debug));
     assert!(debug.contains("stdout_len"));
     assert!(debug.contains("stderr_len"));
     assert!(debug.contains("<redacted>"));
@@ -1165,8 +1126,12 @@ fn test_command_error_debug_does_not_expose_captured_streams() {
         .expect_err("command should fail");
 
     let debug = format!("{error:?}");
+    let stdout_debug = format!("{:?}", b"stdout-secret".to_vec());
+    let stderr_debug = format!("{:?}", b"stderr-secret".to_vec());
     assert!(!debug.contains("stdout-secret"));
     assert!(!debug.contains("stderr-secret"));
+    assert!(!debug.contains(&stdout_debug));
+    assert!(!debug.contains(&stderr_debug));
 }
 ```
 
@@ -1229,6 +1194,10 @@ Expected: `Cargo.lock` 的本地 package 为 `qubit-command 0.5.0`，完整测�
 ### Task 11: 同步 rs-mime 与 rs-magika 依赖图
 
 **Files:**
+- Modify: `rs-value/Cargo.toml`
+- Modify: `rs-value/Cargo.lock`
+- Verify: `rs-config/Cargo.toml`
+- Modify if re-resolved: `rs-config/Cargo.lock`
 - Modify: `rs-mime/Cargo.toml`
 - Modify: `rs-mime/Cargo.lock`
 - Modify: `rs-mime/README.md`
@@ -1236,10 +1205,50 @@ Expected: `Cargo.lock` 的本地 package 为 `qubit-command 0.5.0`，完整测�
 - Modify: `rs-magika/Cargo.lock`
 
 **Interfaces:**
+- Produces: `rs-value -> local qubit-datatype 0.6.0`
+- Verifies: `rs-config` 依赖图只有一个 `qubit-datatype` package identity
 - Consumes: `qubit-command 0.5.0` → `qubit-sanitize 0.3.0`
 - Produces: 锁文件中不再包含 `qubit-sanitize 0.2.2`
 
-- [ ] **Step 1: 修改 rs-mime manifest**
+- [ ] **Step 1: 修复 rs-value 的本地 datatype identity**
+
+将：
+
+```toml
+qubit-datatype = { version = "0.6", default-features = false }
+```
+
+改为：
+
+```toml
+qubit-datatype = {
+    path = "../rs-datatype",
+    version = "0.6",
+    default-features = false,
+}
+```
+
+这是 manifest/lock 修复，用已经复现的下游编译错误作为 RED。运行：
+
+```bash
+cargo check --locked
+cargo check
+cargo test --locked
+```
+
+Expected: 第一条因 lock source 改变而失败；更新后 rs-value tests PASS。
+
+- [ ] **Step 2: 验证 rs-config 的类型身份唯一**
+
+```bash
+cargo tree --locked -d
+cargo test --locked
+```
+
+Expected: 不出现两份 `qubit-datatype 0.6.0`，tests PASS；若 Cargo 因 rs-value
+manifest identity 更新而调整 lock，只接受该机械更新。
+
+- [ ] **Step 3: 修改 rs-mime manifest**
 
 ```toml
 [package]
@@ -1252,7 +1261,7 @@ qubit-command = { version = "0.5", path = "../rs-command" }
 README 依赖示例保持兼容范围 `qubit-mime = "0.9"`，发布说明文字如出现精确
 `0.9.0` 则改为 `0.9.1`。
 
-- [ ] **Step 2: 用 locked check 证明旧锁不匹配**
+- [ ] **Step 4: 用 locked check 证明旧锁不匹配**
 
 ```bash
 cargo check --locked
@@ -1261,7 +1270,7 @@ cargo check --locked
 Expected: Cargo 报告 lock file 需要更新，或旧 registry command 无法满足新的 path
 dependency identity。
 
-- [ ] **Step 3: 由 Cargo 生成 rs-mime lock 更新**
+- [ ] **Step 5: 由 Cargo 生成 rs-mime lock 更新**
 
 ```bash
 cargo check
@@ -1271,7 +1280,7 @@ cargo test --locked
 Expected: tests PASS；lock 中包含 path `qubit-command 0.5.0`、path
 `qubit-sanitize 0.3.0`。
 
-- [ ] **Step 4: 更新 rs-magika transitive lock**
+- [ ] **Step 6: 更新 rs-magika transitive lock**
 
 Run from `rs-magika`:
 
@@ -1283,7 +1292,7 @@ cargo test --locked --no-default-features
 Expected: lock 更新到本地 `qubit-mime 0.9.1`、`qubit-command 0.5.0`、
 `qubit-sanitize 0.3.0`；不触发 bundled ONNX runtime 下载。
 
-- [ ] **Step 5: 验证旧依赖完全消失**
+- [ ] **Step 7: 验证旧依赖完全消失且 datatype identity 唯一**
 
 ```bash
 rg -n 'name = "qubit-(mime|command|sanitize)"|version = "0\.(9\.1|5\.0|3\.0|2\.2|4\.2)"' \
@@ -1292,7 +1301,7 @@ rg -n 'name = "qubit-(mime|command|sanitize)"|version = "0\.(9\.1|5\.0|3\.0|2\.2
 ```
 
 Expected: 目标 packages 只出现 0.9.1/0.5.0/0.3.0，不出现 sanitizer 0.2.2 或
-command 0.4.2。
+command 0.4.2；`cargo tree --locked -d` 不再报告两份 `qubit-datatype 0.6.0`。
 
 ### Task 12: 文档迁移与分层最终验证
 
@@ -1304,6 +1313,7 @@ command 0.4.2。
 - Modify: `rs-http/README.zh_CN.md`
 - Modify: `rs-http/doc/user_guide.en.md`
 - Modify: `rs-http/doc/user_guide.zh_CN.md`
+- Verify: `rs-value` and `rs-config` changes from Task 11
 - Verify: all files changed by Tasks 1–11
 
 **Interfaces:**
@@ -1358,9 +1368,9 @@ Expected: 前四项无遗留不合规调用；最后一项无输出，继续使�
 
 ```bash
 cd /home/starfish/working/qubit/rust-common/rs-sanitize
-cargo fmt --all -- --check
 ./align-ci.sh
 ./ci-check.sh
+# 仅当 ci-check.sh 报告 coverage 低于阈值时运行：
 ./coverage.sh json
 ```
 
@@ -1370,15 +1380,15 @@ Expected: 全部 exit 0；feature matrix 覆盖 core/web/http/all。
 
 ```bash
 cd /home/starfish/working/qubit/rust-common/rs-command
-cargo fmt --all -- --check
 ./align-ci.sh
 ./ci-check.sh
+# 仅当 ci-check.sh 报告 coverage 低于阈值时运行：
 ./coverage.sh json
 
 cd /home/starfish/working/qubit/rust-common/rs-http
-cargo fmt --all -- --check
 ./align-ci.sh
 ./ci-check.sh
+# 仅当 ci-check.sh 报告 coverage 低于阈值时运行：
 ./coverage.sh json
 ```
 
@@ -1398,9 +1408,24 @@ cargo test --locked --no-default-features
 
 Expected: exit 0；依赖图保持 0.9.1 → 0.5.0 → 0.3.0。
 
-- [ ] **Step 7: 分仓库审查最终 diff**
+- [ ] **Step 7: 运行 rs-value 与 rs-config 验证**
 
-对 `rs-sanitize`、`rs-http`、`rs-command`、`rs-mime`、`rs-magika` 分别运行：
+```bash
+cd /home/starfish/working/qubit/rust-common/rs-value
+./align-ci.sh
+./ci-check.sh
+
+cd /home/starfish/working/qubit/rust-common/rs-config
+./align-ci.sh
+./ci-check.sh
+```
+
+仅在相应 CI 报告 coverage 低于阈值时运行 `./coverage.sh json`。
+
+- [ ] **Step 8: 分仓库审查最终 diff**
+
+对 `rs-sanitize`、`rs-http`、`rs-command`、`rs-value`、`rs-config`、`rs-mime`、
+`rs-magika` 分别运行：
 
 ```bash
 git status --short
