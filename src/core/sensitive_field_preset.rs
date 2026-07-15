@@ -8,6 +8,7 @@
 use super::SensitivityLevel;
 
 /// Predefined groups of sensitive field names.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SensitiveFieldPreset {
     /// Passwords, client secrets, private keys, and secret-like names.

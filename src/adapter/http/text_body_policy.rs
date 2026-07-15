@@ -16,6 +16,7 @@
 /// text does not contain application secrets or unsafe log content. Neither
 /// variant scans arbitrary text or detects secrets stored in non-sensitive
 /// structured fields.
+#[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum TextBodyPolicy {
     /// Replaces opaque text with a redaction marker.

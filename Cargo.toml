@@ -1,6 +1,6 @@
 [package]
 name = "qubit-sanitize"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
@@ -31,10 +31,9 @@ name = "qubit_sanitize"
 doctest = true
 
 [features]
-default = ["core", "web", "http"]
-core = []
-web = ["core", "dep:form_urlencoded", "dep:url"]
-http = ["core", "dep:form_urlencoded", "dep:http", "dep:serde_json"]
+default = ["web", "http"]
+web = ["dep:form_urlencoded", "dep:url"]
+http = ["dep:form_urlencoded", "dep:http", "dep:serde_json"]
 
 [dependencies]
 form_urlencoded = { version = "1.2", optional = true }

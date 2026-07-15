@@ -7,8 +7,6 @@
 // =============================================================================
 //! Tests for crate-level exports.
 
-#![cfg(feature = "core")]
-
 use qubit_sanitize::{
     ArgvSanitizer,
     DEFAULT_EXTRA_FIELDS,

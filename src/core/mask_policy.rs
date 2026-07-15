@@ -8,6 +8,7 @@
 use std::borrow::Cow;
 
 /// Strategy used to mask one sensitive field value.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MaskPolicy {
     /// Replaces non-empty values with a fixed replacement string.

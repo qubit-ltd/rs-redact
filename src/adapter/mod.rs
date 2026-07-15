@@ -7,9 +7,7 @@
 // =============================================================================
 //! Adapters for sanitizing structured objects with core masking policies.
 
-#[cfg(feature = "core")]
 mod argv_sanitizer;
-#[cfg(feature = "core")]
 mod env_sanitizer;
 #[cfg(any(feature = "web", feature = "http"))]
 pub(crate) mod form_url_encoded;
@@ -20,9 +18,7 @@ mod http;
 #[cfg(feature = "web")]
 mod url_sanitizer;
 
-#[cfg(feature = "core")]
 pub use argv_sanitizer::ArgvSanitizer;
-#[cfg(feature = "core")]
 pub use env_sanitizer::EnvSanitizer;
 #[cfg(feature = "web")]
 pub use form_url_encoded_sanitizer::FormUrlEncodedSanitizer;

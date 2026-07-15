@@ -9,6 +9,7 @@
 ///
 /// Levels let callers use different masking policies for low-risk identifiers,
 /// operational secrets, and values that should be fully redacted.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SensitivityLevel {
     /// Low-risk value where keeping a small prefix and suffix is usually safe.

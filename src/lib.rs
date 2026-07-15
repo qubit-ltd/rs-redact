@@ -7,8 +7,8 @@
 // =============================================================================
 //! # Qubit Sanitize
 //!
-//! Provides reusable sanitization utilities for logs, diagnostics, and
-//! structured debug output.
+//! Provides reusable utilities for masking configured sensitive fields in
+//! logs, diagnostics, and structured debug output.
 //!
 //! The core API sanitizes one `(field, value)` pair at a time and requires the
 //! caller to choose a [`NameMatchMode`].
@@ -40,6 +40,8 @@
 //! ```
 //!
 //! Adapter APIs apply the same explicit matching mode to structured inputs.
+//! They only inspect formats and field names they explicitly model; callers
+//! remain responsible for application-specific secrets and protocols.
 //!
 //! ```
 //! # #[cfg(feature = "http")]
@@ -65,12 +67,9 @@
 //! # fn main() {}
 //! ```
 
-#[cfg(feature = "core")]
 pub mod adapter;
-#[cfg(feature = "core")]
 pub mod core;
 
-#[cfg(feature = "core")]
 pub use adapter::{
     ArgvSanitizer,
     EnvSanitizer,
@@ -86,7 +85,6 @@ pub use adapter::{
     HttpHeaderSanitizer,
     TextBodyPolicy,
 };
-#[cfg(feature = "core")]
 pub use core::{
     DEFAULT_EXTRA_FIELDS,
     FieldSanitizePolicy,
