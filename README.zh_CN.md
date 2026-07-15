@@ -107,7 +107,7 @@ assert_eq!(fixed.mask("secret"), "****");
 
 `SensitiveFields::default()` 内置了一组常见敏感字段作为起点，例如：
 
-- `password`、`passwd`、`secret`、`client_secret`、`private_key`
+- `password`、`passwd`、`secret`、`client_secret`、`private_key`、`security_key`
 - `api_key`、`x_api_key`
 - `token`、`access_token`、`refresh_token`、`id_token`
 - `authorization`、`proxy_authorization`、`cookie`、`set_cookie`
@@ -159,6 +159,11 @@ assert_eq!(
     "****",
 );
 ```
+
+`FieldSanitizer::insert_sensitive_field` 和 `extend_sensitive_fields` 使用最强等级
+语义：添加较弱等级不会降低已有字段。只有明确需要覆盖（包括降级）时才使用
+`set_sensitive_field_level`。更底层的 `SensitiveFields::insert` 和 `extend` 保留
+map 风格的覆盖语义；`insert_strongest` 和 `extend_strongest` 则保证不降级。
 
 ## 自定义字段
 
@@ -216,6 +221,18 @@ assert_eq!(values["password"], "secret");
 如果需要直接修改已有结构，可以使用 `sanitize_map_in_place`，并显式传入
 `NameMatchMode`。
 
+## Debug 字段脱敏
+
+自定义 `Debug` 实现如果需要展示对象结构、但不能格式化某个敏感字段，可以使用
+`redacted_debug`。该 wrapper 不会调用被包装值的 `Debug` 实现：
+
+```rust
+use qubit_sanitize::redacted_debug;
+
+let captured_bytes = b"secret output";
+assert_eq!(format!("{:?}", redacted_debug(captured_bytes)), "<redacted>");
+```
+
 ## Adapter 脱敏
 
 ```rust
@@ -238,7 +255,7 @@ let url = UrlSanitizer::default()
     .expect("sample URL should parse");
 assert_eq!(
     url,
-    "https://****:****@example.com/path?access_token=****#****",
+    "https://****:%3Credacted%3E@example.com/path?access_token=****#****",
 );
 
 let form = FormUrlEncodedSanitizer::default()
@@ -259,7 +276,10 @@ let body = HttpBodySanitizer::default().sanitize_body(
     Some(&body_content_type),
     NameMatchMode::ExactOrSuffix,
 );
-assert_eq!(body, r#"{"password":"<redacted>","user":"alice"}"#);
+assert_eq!(
+    body.to_string(),
+    r#"{"password":"<redacted>","user":"alice"}"#,
+);
 
 let argv = ArgvSanitizer::default()
     .sanitize_argv_display(
@@ -273,9 +293,10 @@ adapter 方法也和 core 的 `FieldSanitizer` 一样要求显式传入 `NameMat
 希望 `OPENAI_API_KEY` 这类上下文字段名命中已配置的 `api_key`，使用
 `NameMatchMode::ExactOrSuffix`。
 
-`UrlSanitizer` 会遮盖 userinfo、password、fragment 和已配置的 query parameter，
-但会有意保留 URL path。path segment 的语义属于具体应用，其中也包括供应商自定义的
-webhook 或 token 路径。掌握这类路由语义的调用方必须在记录日志前自行遮盖或替换 path。
+`UrlSanitizer` 使用 `High` 策略遮盖 userinfo 和 fragment，使用 `Secret` 策略遮盖
+password，并按已解析出的字段等级遮盖 query parameter；它会有意保留 URL path。
+path segment 的语义属于具体应用，其中也包括供应商自定义的 webhook 或 token 路径。
+掌握这类路由语义的调用方必须在记录日志前自行遮盖或替换 path。
 
 ## 集成建议
 
@@ -292,11 +313,34 @@ webhook 或 token 路径。掌握这类路由语义的调用方必须在记录�
 字节和可选 `Content-Type` header 时，可以用 `HttpBodySanitizer`；它支持 JSON、
 NDJSON、URL-encoded form、multipart body、显式声明的 `text/*` body 以及二进制
 fallback marker。不支持的 UTF-8 media type 会被整体 redaction，而不是原样透传。
-body 脱敏返回值是用于日志和诊断的渲染结果，不是可回放的 HTTP body：结构化输出可能
-会被压缩，也不保证保留原始空白、字段顺序，或已脱敏 JSON 字段的原始 value 类型。
-调用方仍然负责 body 捕获上限、解压、流式边界和业务自定义解析。命令执行 crate 可以
-用 `ArgvSanitizer` 处理结构化 argv，用 `EnvSanitizer` 处理显式环境变量覆盖，但不应
-宣称可以安全解析任意 shell 脚本。
+返回的 `BodySanitization` 提供脱敏后的 `content`、结构化 `status`，以及已捕获/来源
+字节数。它的 `Display` 和 `into_rendered` 会追加标准的计数截断后缀；
+`into_content` 则不追加，便于调用方使用自己的上下文后缀。诊断内容不是可回放的
+HTTP body：结构化输出可能会被压缩，也不保证保留原始空白、字段顺序，或已脱敏 JSON
+字段的原始 value 类型。调用方仍然负责 body 捕获上限、解压、流式边界和业务自定义
+解析。
+
+```rust
+use http::HeaderValue;
+use qubit_sanitize::{HttpBodySanitizer, NameMatchMode};
+
+let prefix = br#"{"password":"secret"#;
+let source_len = 40;
+let content_type = HeaderValue::from_static("application/json");
+let result = HttpBodySanitizer::default().sanitize_body_preview(
+    prefix,
+    source_len,
+    Some(&content_type),
+    NameMatchMode::ExactOrSuffix,
+);
+
+assert_eq!(result.truncated_bytes(), source_len - prefix.len());
+assert!(!result.content().contains("secret"));
+println!("{result}");
+```
+
+命令执行 crate 可以用 `ArgvSanitizer` 处理结构化 argv，用 `EnvSanitizer` 处理显式
+环境变量覆盖，但不应宣称可以安全解析任意 shell 脚本。
 
 ### 不透明文本 body
 

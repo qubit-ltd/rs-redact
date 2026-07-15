@@ -117,7 +117,7 @@ are present but intentionally blank.
 `SensitiveFields::default()` contains a starter set of common sensitive names
 such as:
 
-- `password`, `passwd`, `secret`, `client_secret`, `private_key`
+- `password`, `passwd`, `secret`, `client_secret`, `private_key`, `security_key`
 - `api_key`, `x_api_key`
 - `token`, `access_token`, `refresh_token`, `id_token`
 - `authorization`, `proxy_authorization`, `cookie`, `set_cookie`
@@ -190,6 +190,13 @@ assert_eq!(
 );
 ```
 
+`FieldSanitizer::insert_sensitive_field` and `extend_sensitive_fields` use
+strongest-level semantics: adding a weaker level never downgrades an existing
+field. Use `set_sensitive_field_level` only when an explicit replacement,
+including a downgrade, is intended. At the lower-level `SensitiveFields` API,
+`insert` and `extend` retain map-style replacement semantics, while
+`insert_strongest` and `extend_strongest` prevent downgrades.
+
 You can also start from an empty policy when you do not want built-in field
 names:
 
@@ -229,6 +236,19 @@ assert_eq!(values["password"], "secret");
 For mutable structured data, use `sanitize_map_in_place` with an explicit
 `NameMatchMode`.
 
+## Redacted Debug Fields
+
+Use `redacted_debug` when a custom `Debug` implementation must expose object
+structure without formatting a sensitive field. The wrapper never calls the
+wrapped value's `Debug` implementation:
+
+```rust
+use qubit_sanitize::redacted_debug;
+
+let captured_bytes = b"secret output";
+assert_eq!(format!("{:?}", redacted_debug(captured_bytes)), "<redacted>");
+```
+
 ## Adapter Sanitization
 
 ```rust
@@ -251,7 +271,7 @@ let url = UrlSanitizer::default()
     .expect("sample URL should parse");
 assert_eq!(
     url,
-    "https://****:****@example.com/path?access_token=****#****",
+    "https://****:%3Credacted%3E@example.com/path?access_token=****#****",
 );
 
 let form = FormUrlEncodedSanitizer::default()
@@ -272,7 +292,10 @@ let body = HttpBodySanitizer::default().sanitize_body(
     Some(&body_content_type),
     NameMatchMode::ExactOrSuffix,
 );
-assert_eq!(body, r#"{"password":"<redacted>","user":"alice"}"#);
+assert_eq!(
+    body.to_string(),
+    r#"{"password":"<redacted>","user":"alice"}"#,
+);
 
 let argv = ArgvSanitizer::default()
     .sanitize_argv_display(
@@ -286,8 +309,9 @@ Adapter methods require an explicit `NameMatchMode`, just like the core
 `FieldSanitizer` methods. Use `NameMatchMode::ExactOrSuffix` when contextual
 names such as `OPENAI_API_KEY` should match the configured field `api_key`.
 
-`UrlSanitizer` masks userinfo, passwords, fragments, and configured query
-parameters. It deliberately leaves the URL path unchanged: path segment
+`UrlSanitizer` masks userinfo and fragments with the `High` policy, passwords
+with the `Secret` policy, and configured query parameters by their resolved
+field level. It deliberately leaves the URL path unchanged: path segment
 semantics are application-specific, including vendor-specific webhook or token
 segments. Callers that know such a route must redact or replace its path before
 logging it.
@@ -310,13 +334,37 @@ can use `HttpBodySanitizer` when it has body bytes plus an optional
 `Content-Type` header; the adapter supports JSON, NDJSON, URL-encoded forms,
 multipart bodies, declared `text/*` bodies, and binary fallback markers.
 Unsupported UTF-8 media types are redacted rather than passed through. The
-returned body string is for logs and diagnostics, not a replayable HTTP body:
-structured output may be compacted and may not preserve original whitespace,
-field order, or JSON value types for redacted fields. The caller still owns
-capture limits, decompression, streaming boundaries, and any
-application-specific parsing. A command runner can use `ArgvSanitizer` for
-structured argv and `EnvSanitizer` for explicit environment overrides, but
-should not claim to safely parse arbitrary shell scripts.
+returned `BodySanitization` exposes sanitized `content`, a structured `status`,
+and captured/source byte lengths. Its `Display` implementation and
+`into_rendered` add the standard counted truncation suffix; `into_content`
+omits that suffix for callers with context-specific rendering. The diagnostic
+content is not a replayable HTTP body: structured output may be compacted and
+may not preserve original whitespace, field order, or JSON value types for
+redacted fields. The caller still owns capture limits, decompression, streaming
+boundaries, and any application-specific parsing.
+
+```rust
+use http::HeaderValue;
+use qubit_sanitize::{HttpBodySanitizer, NameMatchMode};
+
+let prefix = br#"{"password":"secret"#;
+let source_len = 40;
+let content_type = HeaderValue::from_static("application/json");
+let result = HttpBodySanitizer::default().sanitize_body_preview(
+    prefix,
+    source_len,
+    Some(&content_type),
+    NameMatchMode::ExactOrSuffix,
+);
+
+assert_eq!(result.truncated_bytes(), source_len - prefix.len());
+assert!(!result.content().contains("secret"));
+println!("{result}");
+```
+
+A command runner can use `ArgvSanitizer` for structured argv and
+`EnvSanitizer` for explicit environment overrides, but should not claim to
+safely parse arbitrary shell scripts.
 
 ### Opaque Text Bodies
 
