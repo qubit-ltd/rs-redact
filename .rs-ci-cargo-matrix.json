@@ -5,7 +5,7 @@
       "name": "core",
       "commands": ["check", "test", "doc"],
       "defaultFeatures": false,
-      "features": ["core"]
+      "features": []
     },
     {
       "name": "web",
@@ -22,8 +22,7 @@
     {
       "name": "all",
       "commands": ["check", "test", "doc", "clippy"],
-      "defaultFeatures": false,
-      "features": ["core", "web", "http"]
+      "allFeatures": true
     }
   ]
 }
