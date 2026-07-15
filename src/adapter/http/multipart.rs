@@ -15,8 +15,10 @@ use super::{
     redaction_markers::{
         MULTIPART_FILE_PART_REDACTED,
         MULTIPART_PART_REDACTED,
+        MULTIPART_TEXT_PART_REDACTED,
         MULTIPART_UNNAMED_FIELD,
     },
+    text_body_policy::TextBodyPolicy,
 };
 
 /// Sanitizes a complete multipart body into a log summary.
@@ -136,7 +138,7 @@ fn sanitize_multipart_part_value(
         return MULTIPART_PART_REDACTED.to_string();
     }
     let Some(content_type) = content_type else {
-        return body.to_string();
+        return sanitize_text_part(sanitizer, body);
     };
     if content_type::is_json(content_type) {
         return sanitizer
@@ -152,9 +154,27 @@ fn sanitize_multipart_part_value(
         return sanitizer.sanitize_form(body.as_bytes(), match_mode);
     }
     if content_type::is_text(content_type) {
-        return body.to_string();
+        return sanitize_text_part(sanitizer, body);
     }
     MULTIPART_PART_REDACTED.to_string()
+}
+
+/// Sanitizes a multipart text part according to the body text policy.
+///
+/// # Parameters
+///
+/// * `sanitizer` - HTTP body sanitizer that owns the text policy.
+/// * `body` - UTF-8 text part without structured field names.
+///
+/// # Returns
+///
+/// A text-part redaction marker by default, or `body` unchanged when callers
+/// explicitly choose [`TextBodyPolicy::PassThrough`].
+fn sanitize_text_part(sanitizer: &HttpBodySanitizer, body: &str) -> String {
+    match sanitizer.text_body_policy() {
+        TextBodyPolicy::Redact => MULTIPART_TEXT_PART_REDACTED.to_string(),
+        TextBodyPolicy::PassThrough => body.to_string(),
+    }
 }
 
 /// Kind of multipart delimiter line.

@@ -5,12 +5,12 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use ::url::form_urlencoded;
-
 use crate::{
     FieldSanitizer,
     NameMatchMode,
 };
+
+use super::form_url_encoded::sanitize_form_urlencoded;
 
 /// Sanitizes `application/x-www-form-urlencoded` payloads.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,16 +69,7 @@ impl FormUrlEncodedSanitizer {
         form: &[u8],
         match_mode: NameMatchMode,
     ) -> String {
-        let mut serializer = form_urlencoded::Serializer::new(String::new());
-        for (key, value) in form_urlencoded::parse(form) {
-            let sanitized_value = self.field_sanitizer.sanitize_value(
-                key.as_ref(),
-                value.as_ref(),
-                match_mode,
-            );
-            serializer.append_pair(key.as_ref(), sanitized_value.as_ref());
-        }
-        serializer.finish()
+        sanitize_form_urlencoded(&self.field_sanitizer, form, match_mode)
     }
 
     /// Sanitizes a URL-encoded form string.

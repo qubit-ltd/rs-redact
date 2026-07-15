@@ -42,6 +42,8 @@
 //! Adapter APIs apply the same explicit matching mode to structured inputs.
 //!
 //! ```
+//! # #[cfg(feature = "http")]
+//! # fn main() {
 //! use http::header::{
 //!     AUTHORIZATION,
 //!     HeaderValue,
@@ -58,19 +60,33 @@
 //!     sanitizer.sanitize_value(&AUTHORIZATION, &value, NameMatchMode::ExactOrSuffix),
 //!     "****",
 //! );
+//! # }
+//! # #[cfg(not(feature = "http"))]
+//! # fn main() {}
 //! ```
 
+#[cfg(feature = "core")]
 pub mod adapter;
+#[cfg(feature = "core")]
 pub mod core;
 
+#[cfg(feature = "core")]
 pub use adapter::{
     ArgvSanitizer,
     EnvSanitizer,
+};
+#[cfg(feature = "web")]
+pub use adapter::{
     FormUrlEncodedSanitizer,
-    HttpBodySanitizer,
-    HttpHeaderSanitizer,
     UrlSanitizer,
 };
+#[cfg(feature = "http")]
+pub use adapter::{
+    HttpBodySanitizer,
+    HttpHeaderSanitizer,
+    TextBodyPolicy,
+};
+#[cfg(feature = "core")]
 pub use core::{
     DEFAULT_EXTRA_FIELDS,
     FieldSanitizePolicy,

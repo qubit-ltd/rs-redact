@@ -7,11 +7,11 @@
 // =============================================================================
 use http::HeaderValue;
 use serde_json::Value;
-use url::form_urlencoded;
 
 use crate::{
     FieldSanitizer,
     NameMatchMode,
+    adapter::form_url_encoded::sanitize_form_urlencoded,
 };
 
 use super::{
@@ -22,15 +22,26 @@ use super::{
     redaction_markers::{
         INVALID_CONTENT_TYPE_REDACTED,
         MULTIPART_BODY_REDACTED,
+        TEXT_BODY_REDACTED,
         UNSUPPORTED_BODY_REDACTED,
     },
+    text_body_policy::TextBodyPolicy,
 };
 
 /// Sanitizes HTTP body bytes for logs and diagnostics.
+///
+/// Structured formats are sanitized by field name. Declared opaque `text/*`
+/// bodies and non-sensitive multipart text parts use
+/// [`TextBodyPolicy::Redact`] by default because they do not expose field names
+/// that can be matched safely. Callers can explicitly select
+/// [`TextBodyPolicy::PassThrough`] when they accept responsibility for the
+/// original text's diagnostic and logging risks.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HttpBodySanitizer {
     /// Core sanitizer used for body field values.
     field_sanitizer: FieldSanitizer,
+    /// Rendering policy for opaque text bodies.
+    text_body_policy: TextBodyPolicy,
 }
 
 impl HttpBodySanitizer {
@@ -44,7 +55,10 @@ impl HttpBodySanitizer {
     ///
     /// New HTTP body sanitizer.
     pub const fn new(field_sanitizer: FieldSanitizer) -> Self {
-        Self { field_sanitizer }
+        Self {
+            field_sanitizer,
+            text_body_policy: TextBodyPolicy::Redact,
+        }
     }
 
     /// Returns the underlying core field sanitizer.
@@ -63,6 +77,44 @@ impl HttpBodySanitizer {
     /// Mutable core field sanitizer.
     pub fn field_sanitizer_mut(&mut self) -> &mut FieldSanitizer {
         &mut self.field_sanitizer
+    }
+
+    /// Returns the policy used for opaque HTTP text bodies.
+    ///
+    /// # Returns
+    ///
+    /// The current text body policy. The default is
+    /// [`TextBodyPolicy::Redact`].
+    pub const fn text_body_policy(&self) -> TextBodyPolicy {
+        self.text_body_policy
+    }
+
+    /// Replaces the policy used for opaque HTTP text bodies.
+    ///
+    /// # Parameters
+    ///
+    /// * `text_body_policy` - New policy for declared `text/*` bodies and
+    ///   non-sensitive multipart text parts.
+    pub fn set_text_body_policy(&mut self, text_body_policy: TextBodyPolicy) {
+        self.text_body_policy = text_body_policy;
+    }
+
+    /// Returns this sanitizer with a replacement opaque-text policy.
+    ///
+    /// # Parameters
+    ///
+    /// * `text_body_policy` - New policy for declared `text/*` bodies and
+    ///   non-sensitive multipart text parts.
+    ///
+    /// # Returns
+    ///
+    /// The updated sanitizer.
+    pub const fn with_text_body_policy(
+        mut self,
+        text_body_policy: TextBodyPolicy,
+    ) -> Self {
+        self.text_body_policy = text_body_policy;
+        self
     }
 
     /// Sanitizes a complete HTTP body.
@@ -91,10 +143,12 @@ impl HttpBodySanitizer {
     ///
     /// # Returns
     ///
-    /// Log-safe body text. Unsupported UTF-8 bodies are redacted. Binary bodies
-    /// are rendered as a byte-count marker. Bodies with a present but non-UTF-8
-    /// `Content-Type` are fully redacted because the structured parser cannot
-    /// choose a safe media-type rule.
+    /// Diagnostic body text. Declared `text/*` bodies are redacted unless
+    /// callers explicitly select [`TextBodyPolicy::PassThrough`]. Unsupported
+    /// UTF-8 bodies are redacted. Binary bodies are rendered as a byte-count
+    /// marker. Bodies with a present but non-UTF-8 `Content-Type` are fully
+    /// redacted because the structured parser cannot choose a safe media-type
+    /// rule.
     pub fn sanitize_body(
         &self,
         body: &[u8],
@@ -139,10 +193,12 @@ impl HttpBodySanitizer {
     ///
     /// # Returns
     ///
-    /// Log-safe preview text with a truncation marker when `source_len` exceeds
-    /// `body_prefix.len()`. Unsupported UTF-8 previews are redacted. Bodies
-    /// with a present but non-UTF-8 `Content-Type` are fully redacted
-    /// because the structured parser cannot choose a safe media-type rule.
+    /// Diagnostic preview text with a truncation marker when `source_len`
+    /// exceeds `body_prefix.len()`. Declared `text/*` previews are redacted
+    /// unless callers explicitly select [`TextBodyPolicy::PassThrough`].
+    /// Unsupported UTF-8 previews are redacted. Bodies with a present but
+    /// non-UTF-8 `Content-Type` are fully redacted because the structured
+    /// parser cannot choose a safe media-type rule.
     pub fn sanitize_body_preview(
         &self,
         body_prefix: &[u8],
@@ -230,13 +286,30 @@ impl HttpBodySanitizer {
 
         match std::str::from_utf8(bytes) {
             Ok(text) if content_type.is_some_and(content_type::is_text) => {
-                format!("{text}{suffix}")
+                format!("{}{suffix}", self.sanitize_text_body(text))
             }
             Ok(_) => format!("{UNSUPPORTED_BODY_REDACTED}{suffix}"),
             Err(_) => format!(
                 "<binary {} bytes>{suffix}",
                 source_len.max(bytes.len())
             ),
+        }
+    }
+
+    /// Sanitizes an opaque top-level text body according to the text policy.
+    ///
+    /// # Parameters
+    ///
+    /// * `text` - UTF-8 text body whose content has no structured field names.
+    ///
+    /// # Returns
+    ///
+    /// A redaction marker by default, or `text` unchanged when callers choose
+    /// [`TextBodyPolicy::PassThrough`].
+    fn sanitize_text_body(&self, text: &str) -> String {
+        match self.text_body_policy {
+            TextBodyPolicy::Redact => TEXT_BODY_REDACTED.to_string(),
+            TextBodyPolicy::PassThrough => text.to_string(),
         }
     }
 
@@ -251,8 +324,8 @@ impl HttpBodySanitizer {
     ///
     /// `true` when the content type declares JSON or the bytes look like JSON.
     fn is_json_body(&self, content_type: Option<&str>, bytes: &[u8]) -> bool {
-        if content_type.is_some_and(content_type::is_json) {
-            return true;
+        if let Some(content_type) = content_type {
+            return content_type::is_json(content_type);
         }
         let trimmed = trim_ascii_whitespace(bytes);
         matches!(trimmed.first(), Some(b'{') | Some(b'['))
@@ -396,16 +469,7 @@ impl HttpBodySanitizer {
         bytes: &[u8],
         match_mode: NameMatchMode,
     ) -> String {
-        let mut serializer = form_urlencoded::Serializer::new(String::new());
-        for (key, value) in form_urlencoded::parse(bytes) {
-            let sanitized_value = self.field_sanitizer.sanitize_value(
-                key.as_ref(),
-                value.as_ref(),
-                match_mode,
-            );
-            serializer.append_pair(key.as_ref(), sanitized_value.as_ref());
-        }
-        serializer.finish()
+        sanitize_form_urlencoded(&self.field_sanitizer, bytes, match_mode)
     }
 }
 

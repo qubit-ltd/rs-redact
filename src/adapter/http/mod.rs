@@ -14,6 +14,8 @@ mod http_body_sanitizer;
 mod http_header_sanitizer;
 mod multipart;
 mod redaction_markers;
+mod text_body_policy;
 
 pub use http_body_sanitizer::HttpBodySanitizer;
 pub use http_header_sanitizer::HttpHeaderSanitizer;
+pub use text_body_policy::TextBodyPolicy;

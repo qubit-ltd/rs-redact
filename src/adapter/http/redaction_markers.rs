@@ -24,10 +24,15 @@ pub(super) const INVALID_CONTENT_TYPE_REDACTED: &str =
 /// media type.
 pub(super) const UNSUPPORTED_BODY_REDACTED: &str =
     "<redacted: unsupported HTTP body>";
+/// Redaction marker for declared top-level text bodies.
+pub(super) const TEXT_BODY_REDACTED: &str = "<redacted: text body>";
 /// Redaction marker for multipart bodies that cannot be safely summarized.
 pub(super) const MULTIPART_BODY_REDACTED: &str = "<redacted: multipart body>";
 /// Redaction marker for multipart parts that cannot be safely rendered.
 pub(super) const MULTIPART_PART_REDACTED: &str = "<redacted: multipart part>";
+/// Redaction marker for non-sensitive multipart text parts.
+pub(super) const MULTIPART_TEXT_PART_REDACTED: &str =
+    "<redacted: multipart text part>";
 /// Redaction marker for multipart file parts.
 pub(super) const MULTIPART_FILE_PART_REDACTED: &str = "<redacted: file part>";
 /// Placeholder field name used for unnamed multipart parts.

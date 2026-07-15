@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "checks": [
+    {
+      "name": "core",
+      "commands": ["check", "test", "doc"],
+      "defaultFeatures": false,
+      "features": ["core"]
+    },
+    {
+      "name": "web",
+      "commands": ["check", "test", "doc"],
+      "defaultFeatures": false,
+      "features": ["web"]
+    },
+    {
+      "name": "http",
+      "commands": ["check", "test", "doc"],
+      "defaultFeatures": false,
+      "features": ["http"]
+    },
+    {
+      "name": "all",
+      "commands": ["check", "test", "doc", "clippy"],
+      "defaultFeatures": false,
+      "features": ["core", "web", "http"]
+    }
+  ]
+}
