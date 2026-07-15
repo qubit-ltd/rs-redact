@@ -50,6 +50,75 @@ fn test_sensitive_fields_insert_adds_custom_field() {
 }
 
 #[test]
+fn test_sensitive_fields_remove_uses_canonical_name() {
+    let mut fields = SensitiveFields::new();
+    fields.insert("api_key", SensitivityLevel::High);
+
+    assert_eq!(fields.remove(" API-Key "), Some(SensitivityLevel::High),);
+    assert!(fields.is_empty());
+    assert_eq!(fields.remove(" -_. "), None);
+}
+
+#[test]
+fn test_sensitive_fields_clear_removes_all_fields() {
+    let mut fields = SensitiveFields::new();
+    fields.insert("api_key", SensitivityLevel::High);
+    fields.insert("password", SensitivityLevel::Secret);
+
+    fields.clear();
+
+    assert!(fields.is_empty());
+    assert_eq!(fields.len(), 0);
+}
+
+#[test]
+fn test_sensitive_fields_merge_strongest_keeps_highest_level() {
+    let mut target = SensitiveFields::new();
+    target.insert("authorization", SensitivityLevel::High);
+    target.insert("session_id", SensitivityLevel::Medium);
+    let mut source = SensitiveFields::new();
+    source.insert("Authorization", SensitivityLevel::Low);
+    source.insert("session-id", SensitivityLevel::High);
+    source.insert("password", SensitivityLevel::Secret);
+
+    target.merge_strongest(&source);
+
+    assert_eq!(
+        target.level_for("authorization"),
+        Some(SensitivityLevel::High),
+    );
+    assert_eq!(target.level_for("session_id"), Some(SensitivityLevel::High),);
+    assert_eq!(target.level_for("password"), Some(SensitivityLevel::Secret),);
+}
+
+#[test]
+fn test_sensitive_fields_from_iterator_normalizes_and_overwrites_duplicates() {
+    let fields = [
+        ("api-key", SensitivityLevel::Low),
+        ("api_key", SensitivityLevel::High),
+        ("password", SensitivityLevel::Secret),
+    ]
+    .into_iter()
+    .collect::<SensitiveFields>();
+
+    assert_eq!(fields.len(), 2);
+    assert_eq!(fields.level_for("api.key"), Some(SensitivityLevel::High));
+    assert_eq!(fields.level_for("password"), Some(SensitivityLevel::Secret));
+}
+
+#[test]
+fn test_sensitive_fields_from_iterator_accepts_owned_names() {
+    let fields = vec![("client_secret".to_string(), SensitivityLevel::Secret)]
+        .into_iter()
+        .collect::<SensitiveFields>();
+
+    assert_eq!(
+        fields.level_for("client-secret"),
+        Some(SensitivityLevel::Secret),
+    );
+}
+
+#[test]
 fn test_sensitive_fields_ignores_empty_field_name() {
     let mut fields = SensitiveFields::new();
     fields.insert(" -_. ", SensitivityLevel::Secret);

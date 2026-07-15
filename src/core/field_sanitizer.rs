@@ -12,7 +12,7 @@ use super::{
     NameMatchMode,
     SensitiveFieldPreset,
     SensitivityLevel,
-    canonicalize_field_name,
+    field_name::canonicalize_field_name_suffixes,
 };
 
 /// Sanitizes values by looking up their field names in a configurable policy.
@@ -97,9 +97,10 @@ impl FieldSanitizer {
     /// Returns the sensitivity level for a field name.
     ///
     /// [`NameMatchMode::ExactOrSuffix`] first tries exact canonical matching.
-    /// If that fails, it treats configured field names as canonical suffixes of
-    /// contextual names such as `OPENAI_API_KEY`. When multiple suffixes match,
-    /// the longest field name wins.
+    /// If that fails, it treats configured field names as canonical suffixes
+    /// that start at separator or camel-case token boundaries in contextual
+    /// names such as `OPENAI_API_KEY`. When multiple suffixes match, the
+    /// longest field name wins.
     ///
     /// # Parameters
     ///
@@ -122,15 +123,15 @@ impl FieldSanitizer {
             return None;
         }
 
-        let canonical_name = canonicalize_field_name(name);
-        if canonical_name.is_empty() {
+        let suffixes = canonicalize_field_name_suffixes(name);
+        if suffixes.is_empty() {
             return None;
         }
 
         fields
             .iter()
             .filter_map(|(field, level)| {
-                if canonical_name != field && canonical_name.ends_with(field) {
+                if suffixes.iter().any(|suffix| suffix == field) {
                     Some((field.len(), level))
                 } else {
                     None

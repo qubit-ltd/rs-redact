@@ -78,6 +78,25 @@ fn test_field_sanitizer_sensitivity_for_name_resolves_suffix() {
 }
 
 #[test]
+fn test_field_sanitizer_sensitivity_for_name_resolves_token_boundaries() {
+    let sanitizer = FieldSanitizer::default();
+
+    for name in [
+        "OPENAI_API_KEY",
+        "openaiApiKey",
+        "openaiAPIKey",
+        "openai-api-key",
+        "apiKey",
+    ] {
+        assert_eq!(
+            sanitizer.sensitivity_for_name(name, NameMatchMode::ExactOrSuffix),
+            Some(SensitivityLevel::High),
+            "expected {name:?} to match api_key",
+        );
+    }
+}
+
+#[test]
 fn test_field_sanitizer_sensitivity_for_name_resolves_longest_suffix() {
     let mut fields = SensitiveFields::new();
     fields.insert("key", SensitivityLevel::Low);
@@ -93,6 +112,27 @@ fn test_field_sanitizer_sensitivity_for_name_resolves_longest_suffix() {
             NameMatchMode::ExactOrSuffix,
         ),
         Some(SensitivityLevel::High),
+    );
+}
+
+#[test]
+fn test_field_sanitizer_sensitivity_for_name_rejects_unbounded_suffix() {
+    let mut fields = SensitiveFields::new();
+    fields.insert("key", SensitivityLevel::Low);
+    fields.insert("api_key", SensitivityLevel::High);
+    let sanitizer = FieldSanitizer::new(FieldSanitizePolicy {
+        sensitive_fields: fields,
+        mask_policies: MaskPolicies::default(),
+    });
+
+    assert_eq!(
+        sanitizer
+            .sensitivity_for_name("notapikey", NameMatchMode::ExactOrSuffix,),
+        None,
+    );
+    assert_eq!(
+        sanitizer.sensitivity_for_name("monkey", NameMatchMode::ExactOrSuffix),
+        None,
     );
 }
 

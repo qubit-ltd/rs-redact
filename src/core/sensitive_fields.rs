@@ -46,6 +46,47 @@ impl SensitiveFields {
         }
     }
 
+    /// Removes one sensitive field name.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Field name to remove after canonicalization.
+    ///
+    /// # Returns
+    ///
+    /// The removed sensitivity level, or `None` when the canonical field name
+    /// is empty or not configured.
+    pub fn remove(&mut self, field: &str) -> Option<SensitivityLevel> {
+        let field = canonicalize_field_name(field);
+        if field.is_empty() {
+            None
+        } else {
+            self.fields.remove(&field)
+        }
+    }
+
+    /// Removes all configured sensitive fields.
+    pub fn clear(&mut self) {
+        self.fields.clear();
+    }
+
+    /// Merges another field set without lowering existing sensitivity levels.
+    ///
+    /// # Parameters
+    ///
+    /// * `other` - Field set whose entries should be merged.
+    ///
+    /// Existing canonical fields keep the stronger of the two levels. Fields
+    /// present only in `other` are inserted unchanged.
+    pub fn merge_strongest(&mut self, other: &Self) {
+        for (field, level) in other.iter() {
+            self.fields
+                .entry(field.to_string())
+                .and_modify(|current| *current = (*current).max(level))
+                .or_insert(level);
+        }
+    }
+
     /// Inserts each field with the same sensitivity level.
     ///
     /// # Parameters
@@ -143,6 +184,25 @@ impl Default for SensitiveFields {
         }
         for (field, level) in DEFAULT_EXTRA_FIELDS {
             fields.insert(field, level);
+        }
+        fields
+    }
+}
+
+impl<S> FromIterator<(S, SensitivityLevel)> for SensitiveFields
+where
+    S: AsRef<str>,
+{
+    /// Collects field-level pairs using [`SensitiveFields::insert`] semantics.
+    ///
+    /// Later entries overwrite earlier entries with the same canonical name.
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = (S, SensitivityLevel)>,
+    {
+        let mut fields = Self::new();
+        for (field, level) in iter {
+            fields.insert(field.as_ref(), level);
         }
         fields
     }
