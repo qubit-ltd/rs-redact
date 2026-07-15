@@ -7,6 +7,14 @@
 // =============================================================================
 //! Tests for [`MaskPolicy`](qubit_sanitize::MaskPolicy).
 
+use proptest::prelude::{
+    Just,
+    any,
+    prop_assert_ne,
+    prop_oneof,
+    proptest,
+};
+
 use qubit_sanitize::MaskPolicy;
 
 #[test]
@@ -38,6 +46,15 @@ fn test_mask_policy_preserve_edges_keeps_unicode_edges() {
 }
 
 #[test]
+fn test_mask_policy_preserve_edges_masks_when_edge_lengths_overflow() {
+    let policy = MaskPolicy::preserve_edges(usize::MAX, 1, "****", 0);
+    let sanitized = policy.mask("secret-token");
+
+    assert_eq!(sanitized, "****");
+    assert!(!sanitized.contains("secret-token"));
+}
+
+#[test]
 fn test_mask_policy_preserve_suffix_keeps_only_tail() {
     let policy = MaskPolicy::preserve_suffix(4, "****", 4);
 
@@ -56,4 +73,23 @@ fn test_mask_policy_empty_removes_value() {
     let policy = MaskPolicy::empty();
 
     assert_eq!(policy.mask("secret-token"), "");
+}
+
+proptest! {
+    #[test]
+    fn test_mask_policy_preserve_edges_proptest_never_returns_raw_value(
+        prefix_chars in prop_oneof![Just(usize::MAX), any::<usize>()],
+        suffix_chars in prop_oneof![Just(usize::MAX), any::<usize>()],
+        value in "[A-Za-z0-9]{1,64}",
+    ) {
+        let policy = MaskPolicy::preserve_edges(
+            prefix_chars,
+            suffix_chars,
+            "****",
+            0,
+        );
+        let sanitized = policy.mask(&value);
+
+        prop_assert_ne!(sanitized.as_ref(), value.as_str());
+    }
 }

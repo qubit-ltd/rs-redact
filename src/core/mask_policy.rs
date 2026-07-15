@@ -182,7 +182,7 @@ fn mask_preserving_edges<'a>(
 ) -> Cow<'a, str> {
     let chars = value.chars().collect::<Vec<_>>();
     if chars.len() <= full_mask_below_or_equal
-        || chars.len() <= prefix_chars + suffix_chars
+        || chars.len() <= prefix_chars.saturating_add(suffix_chars)
     {
         return Cow::Owned(replacement.to_string());
     }
