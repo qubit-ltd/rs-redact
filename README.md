@@ -37,6 +37,24 @@ handled by caller crates that have the full context.
 - Adapters for URLs, URL-encoded forms, HTTP headers, HTTP bodies, argv
   vectors, and environment variables
 
+## Cargo Features
+
+The default feature selection keeps the complete current API. Consumers that
+only need core field matching can disable defaults to avoid HTTP, JSON, and URL
+dependencies.
+
+| Feature | Includes | Optional dependencies |
+| --- | --- | --- |
+| `core` | Field policies, masking, argv, and environment adapters | None |
+| `web` | `core`, URL and URL-encoded form adapters | `url`, `form_urlencoded` |
+| `http` | `core`, HTTP header and body adapters | `http`, `serde_json`, `form_urlencoded` |
+
+For example, a command runner can depend only on the core surface:
+
+```toml
+qubit-sanitize = { version = "0.2", default-features = false, features = ["core"] }
+```
+
 ## Quick Start
 
 ```rust
@@ -287,6 +305,28 @@ capture limits, decompression, streaming boundaries, and any
 application-specific parsing. A command runner can use `ArgvSanitizer` for
 structured argv and `EnvSanitizer` for explicit environment overrides, but
 should not claim to safely parse arbitrary shell scripts.
+
+### Opaque Text Bodies
+
+`HttpBodySanitizer` redacts declared `text/*` bodies and non-sensitive
+multipart text parts by default. They do not contain reliable field structure,
+so field-name matching cannot determine whether a value is secret. Select
+`TextBodyPolicy::PassThrough` only when the caller accepts responsibility for
+the original text, including application secrets and log-control content:
+
+```rust
+use qubit_sanitize::{
+    HttpBodySanitizer,
+    TextBodyPolicy,
+};
+
+let sanitizer = HttpBodySanitizer::default()
+    .with_text_body_policy(TextBodyPolicy::PassThrough);
+```
+
+Neither policy scans arbitrary text. Similarly, a business secret stored inside
+a non-sensitive structured field is outside the guarantee of field-name-based
+sanitization.
 
 ## Testing
 

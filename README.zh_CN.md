@@ -30,6 +30,23 @@ shell 命令字符串和其他业务协议 payload 仍应由掌握完整上下�
 - 提供 `BTreeMap<String, String>` 的复制式和原地脱敏便捷方法
 - 提供 URL、URL-encoded form、HTTP header、HTTP body、argv 向量和环境变量 adapter
 
+## Cargo Feature
+
+默认 feature 保持当前完整 API。只需要通用字段匹配的调用方可以关闭默认 feature，避免
+引入 HTTP、JSON 和 URL 依赖。
+
+| Feature | 包含内容 | 可选依赖 |
+| --- | --- | --- |
+| `core` | 字段策略、掩码、argv 和环境变量 adapter | 无 |
+| `web` | `core`、URL 和 URL-encoded form adapter | `url`、`form_urlencoded` |
+| `http` | `core`、HTTP header 和 body adapter | `http`、`serde_json`、`form_urlencoded` |
+
+例如，命令执行 crate 只依赖 core 能力：
+
+```toml
+qubit-sanitize = { version = "0.2", default-features = false, features = ["core"] }
+```
+
 ## 快速开始
 
 ```rust
@@ -272,6 +289,26 @@ body 脱敏返回值是用于日志和诊断的渲染结果，不是可回放的
 调用方仍然负责 body 捕获上限、解压、流式边界和业务自定义解析。命令执行 crate 可以
 用 `ArgvSanitizer` 处理结构化 argv，用 `EnvSanitizer` 处理显式环境变量覆盖，但不应
 宣称可以安全解析任意 shell 脚本。
+
+### 不透明文本 body
+
+`HttpBodySanitizer` 默认会脱敏显式声明的 `text/*` body，以及 multipart 中
+非敏感的文本 part。它们没有可靠的字段结构，因此无法使用字段名匹配判断 value 是否
+包含秘密。只有当调用方愿意自行承担原文中的业务秘密和日志控制字符风险时，才应显式
+选择 `TextBodyPolicy::PassThrough`：
+
+```rust
+use qubit_sanitize::{
+    HttpBodySanitizer,
+    TextBodyPolicy,
+};
+
+let sanitizer = HttpBodySanitizer::default()
+    .with_text_body_policy(TextBodyPolicy::PassThrough);
+```
+
+两种策略都不会扫描任意文本。同样地，藏在非敏感结构化字段 value 中的业务秘密，不在
+基于字段名脱敏的保证范围内。
 
 ## 测试
 
