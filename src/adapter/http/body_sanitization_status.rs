@@ -15,10 +15,16 @@ use super::BodyRedactionReason;
 pub enum BodySanitizationStatus {
     /// The available body bytes were empty.
     Empty,
-    /// The body was sanitized structurally or passed through by policy.
+    /// The body was sanitized structurally.
     Sanitized,
+    /// The output contains opaque text that policy explicitly allowed
+    /// unchanged.
+    PassedThrough,
     /// The body was fully redacted for the supplied reason.
-    Redacted(BodyRedactionReason),
+    Redacted(
+        /// The reason the body could not be represented safely.
+        BodyRedactionReason,
+    ),
     /// The body was non-UTF-8 binary data represented by a size marker.
     Binary,
 }

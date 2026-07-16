@@ -15,6 +15,7 @@ use qubit_sanitize::{
     BodySanitizationStatus,
     HttpBodySanitizer,
     NameMatchMode,
+    TextBodyPolicy,
 };
 
 #[test]
@@ -92,6 +93,58 @@ fn test_body_sanitization_complete_result_has_no_truncation_suffix() {
         NameMatchMode::ExactOrSuffix,
     );
     assert_eq!(consumed.into_rendered(), r#"{"password":"<redacted>"}"#);
+}
+
+#[test]
+fn test_http_body_sanitizer_reports_top_level_text_as_passed_through() {
+    let sanitizer = HttpBodySanitizer::default()
+        .with_text_body_policy(TextBodyPolicy::PassThrough);
+    let content_type = HeaderValue::from_static("text/plain");
+
+    let result = sanitizer.sanitize_body(
+        b"visible text",
+        Some(&content_type),
+        NameMatchMode::Exact,
+    );
+
+    assert_eq!(result.status(), BodySanitizationStatus::PassedThrough);
+}
+
+#[test]
+fn test_http_body_sanitizer_reports_multipart_text_as_passed_through() {
+    let sanitizer = HttpBodySanitizer::default()
+        .with_text_body_policy(TextBodyPolicy::PassThrough);
+    let content_type =
+        HeaderValue::from_static("multipart/form-data; boundary=b");
+    let body = b"--b\r\nContent-Disposition: form-data; name=\"note\"\r\nContent-Type: text/plain\r\n\r\nvisible text\r\n--b--\r\n";
+
+    let result = sanitizer.sanitize_body(
+        body,
+        Some(&content_type),
+        NameMatchMode::Exact,
+    );
+
+    assert_eq!(result.status(), BodySanitizationStatus::PassedThrough);
+}
+
+#[test]
+fn test_http_body_sanitizer_reports_mixed_multipart_as_passed_through() {
+    let sanitizer = HttpBodySanitizer::default()
+        .with_text_body_policy(TextBodyPolicy::PassThrough);
+    let content_type =
+        HeaderValue::from_static("multipart/form-data; boundary=b");
+    let body = b"--b\r\nContent-Disposition: form-data; name=\"note\"\r\nContent-Type: text/plain\r\n\r\nvisible text\r\n--b\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nsecret value\r\n--b--\r\n";
+
+    let result = sanitizer.sanitize_body(
+        body,
+        Some(&content_type),
+        NameMatchMode::Exact,
+    );
+
+    assert_eq!(result.status(), BodySanitizationStatus::PassedThrough);
+    assert!(result.content().contains("note=visible text"));
+    assert!(result.content().contains("password=<redacted>"));
+    assert!(!result.content().contains("secret value"));
 }
 
 #[test]

@@ -13,8 +13,9 @@ use super::{
     content_type,
     http_body_sanitizer::HttpBodySanitizer,
     internal::{
-        HeaderParameter,
         MultipartDelimiter,
+        MultipartPartMetadata,
+        MultipartSanitization,
     },
     redaction_markers::{
         MULTIPART_FILE_PART_REDACTED,
@@ -42,18 +43,27 @@ pub(super) fn sanitize_multipart(
     content_type: Option<&str>,
     bytes: &[u8],
     match_mode: NameMatchMode,
-) -> Option<String> {
+) -> Option<MultipartSanitization> {
     let boundary = content_type::multipart_boundary(content_type?)?;
     let text = std::str::from_utf8(bytes).ok()?;
     let segments = multipart_part_segments(text, &boundary)?;
     let mut lines = Vec::with_capacity(segments.len());
+    let mut contains_passed_through_text = false;
     for segment in segments {
-        lines.push(sanitize_multipart_part(sanitizer, segment, match_mode)?);
+        let part = sanitize_multipart_part(sanitizer, segment, match_mode)?;
+        contains_passed_through_text |= part.contains_passed_through_text();
+        lines.push(part.into_content());
     }
     if lines.is_empty() {
-        return Some("<multipart>\n</multipart>".to_string());
+        return Some(MultipartSanitization::new(
+            "<multipart>\n</multipart>".to_string(),
+            false,
+        ));
     }
-    Some(format!("<multipart>\n{}\n</multipart>", lines.join("\n")))
+    Some(MultipartSanitization::new(
+        format!("<multipart>\n{}\n</multipart>", lines.join("\n")),
+        contains_passed_through_text,
+    ))
 }
 
 /// Sanitizes one multipart part into a summary line.
@@ -71,7 +81,7 @@ fn sanitize_multipart_part(
     sanitizer: &HttpBodySanitizer,
     segment: &str,
     match_mode: NameMatchMode,
-) -> Option<String> {
+) -> Option<MultipartSanitization> {
     let (headers, body) = split_multipart_headers_and_body(segment)?;
     let mut content_disposition = None;
     let mut content_type = None;
@@ -89,34 +99,25 @@ fn sanitize_multipart_part(
             return None;
         }
     }
-    let disposition = content_disposition.unwrap_or_default();
-    let name = match HeaderParameter::parse(disposition, "name") {
-        HeaderParameter::Absent => None,
-        HeaderParameter::Value(name) => Some(name),
-        HeaderParameter::Invalid => return None,
-    };
-    let filename = match HeaderParameter::parse(disposition, "filename") {
-        HeaderParameter::Absent => None,
-        HeaderParameter::Value(filename) => Some(filename),
-        HeaderParameter::Invalid => return None,
-    };
-    let extended_filename =
-        match HeaderParameter::parse(disposition, "filename*") {
-            HeaderParameter::Absent => None,
-            HeaderParameter::Value(filename) => Some(filename),
-            HeaderParameter::Invalid => return None,
-        };
-    let filename = filename.or(extended_filename);
-    let field_name = name.as_deref().unwrap_or(MULTIPART_UNNAMED_FIELD);
+    let metadata = MultipartPartMetadata::parse(
+        content_disposition.unwrap_or_default(),
+        content_type,
+    )?;
+    let field_name = metadata.name().unwrap_or(MULTIPART_UNNAMED_FIELD);
     let value = sanitize_multipart_part_value(
         sanitizer,
         field_name,
-        filename.as_deref(),
-        content_type,
+        metadata.filename(),
+        metadata.content_type(),
         body,
         match_mode,
     );
-    Some(format!("{field_name}={value}"))
+    let displayed_field_name = field_name.escape_debug().collect::<String>();
+    let contains_passed_through_text = value.contains_passed_through_text();
+    Some(MultipartSanitization::new(
+        format!("{displayed_field_name}={}", value.content()),
+        contains_passed_through_text,
+    ))
 }
 
 /// Sanitizes one multipart part value.
@@ -140,43 +141,65 @@ fn sanitize_multipart_part_value(
     content_type: Option<&str>,
     body: &str,
     match_mode: NameMatchMode,
-) -> String {
+) -> MultipartSanitization {
+    if filename.is_some() {
+        return sanitized_part(MULTIPART_FILE_PART_REDACTED.to_string());
+    }
     if sanitizer
         .field_sanitizer()
         .sensitivity_for_name(field_name, match_mode)
         .is_some()
     {
-        return sanitizer
-            .field_sanitizer()
-            .sanitize_value(field_name, body, match_mode)
-            .into_owned();
-    }
-    if filename.is_some() {
-        return MULTIPART_FILE_PART_REDACTED.to_string();
+        return sanitized_part(
+            sanitizer
+                .field_sanitizer()
+                .sanitize_value(field_name, body, match_mode)
+                .into_owned(),
+        );
     }
     if field_name == MULTIPART_UNNAMED_FIELD {
-        return MULTIPART_PART_REDACTED.to_string();
+        return sanitized_part(MULTIPART_PART_REDACTED.to_string());
     }
     let Some(content_type) = content_type else {
         return sanitize_text_part(sanitizer, body);
     };
     if content_type::is_json(content_type) {
-        return sanitizer
-            .sanitize_json(body.as_bytes(), match_mode)
-            .unwrap_or_else(|| MULTIPART_PART_REDACTED.to_string());
+        return sanitized_part(
+            sanitizer
+                .sanitize_json(body.as_bytes(), match_mode)
+                .unwrap_or_else(|| MULTIPART_PART_REDACTED.to_string()),
+        );
     }
     if content_type::is_ndjson(content_type) {
-        return sanitizer
-            .sanitize_ndjson(body.as_bytes(), match_mode)
-            .unwrap_or_else(|| MULTIPART_PART_REDACTED.to_string());
+        return sanitized_part(
+            sanitizer
+                .sanitize_ndjson(body.as_bytes(), match_mode)
+                .unwrap_or_else(|| MULTIPART_PART_REDACTED.to_string()),
+        );
     }
     if content_type::is_form_urlencoded(content_type) {
-        return sanitizer.sanitize_form(body.as_bytes(), match_mode);
+        return sanitized_part(
+            sanitizer.sanitize_form(body.as_bytes(), match_mode),
+        );
     }
     if content_type::is_text(content_type) {
         return sanitize_text_part(sanitizer, body);
     }
-    MULTIPART_PART_REDACTED.to_string()
+    sanitized_part(MULTIPART_PART_REDACTED.to_string())
+}
+
+/// Wraps content that contains no passed-through opaque text.
+///
+/// # Parameters
+///
+/// * `content` - Sanitized or redacted multipart part content.
+///
+/// # Returns
+///
+/// Multipart result with opaque-text exposure set to `false`.
+#[inline(always)]
+fn sanitized_part(content: String) -> MultipartSanitization {
+    MultipartSanitization::new(content, false)
 }
 
 /// Sanitizes a multipart text part according to the body text policy.
@@ -190,10 +213,18 @@ fn sanitize_multipart_part_value(
 ///
 /// A text-part redaction marker by default, or `body` unchanged when callers
 /// explicitly choose [`TextBodyPolicy::PassThrough`].
-fn sanitize_text_part(sanitizer: &HttpBodySanitizer, body: &str) -> String {
+#[inline]
+fn sanitize_text_part(
+    sanitizer: &HttpBodySanitizer,
+    body: &str,
+) -> MultipartSanitization {
     match sanitizer.text_body_policy() {
-        TextBodyPolicy::Redact => MULTIPART_TEXT_PART_REDACTED.to_string(),
-        TextBodyPolicy::PassThrough => body.to_string(),
+        TextBodyPolicy::Redact => {
+            sanitized_part(MULTIPART_TEXT_PART_REDACTED.to_string())
+        }
+        TextBodyPolicy::PassThrough => {
+            MultipartSanitization::new(body.to_string(), true)
+        }
     }
 }
 
@@ -253,6 +284,11 @@ fn multipart_part_segments<'a>(
 /// # Returns
 ///
 /// `(line_start, line_end_without_line_ending, next_position)`.
+///
+/// # Panics
+///
+/// Panics when `position` exceeds `text.len()` or is not a UTF-8 character
+/// boundary.
 fn next_line_bounds(text: &str, position: usize) -> (usize, usize, usize) {
     if let Some(relative_end) = text[position..].find('\n') {
         let line_end = position + relative_end;

@@ -10,7 +10,11 @@
 pub(super) mod body_input_kind;
 pub(super) mod header_parameter;
 pub(super) mod multipart_delimiter;
+pub(super) mod multipart_part_metadata;
+pub(super) mod multipart_sanitization;
 
 pub(super) use body_input_kind::BodyInputKind;
 pub(super) use header_parameter::HeaderParameter;
 pub(super) use multipart_delimiter::MultipartDelimiter;
+pub(super) use multipart_part_metadata::MultipartPartMetadata;
+pub(super) use multipart_sanitization::MultipartSanitization;

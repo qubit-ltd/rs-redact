@@ -65,6 +65,25 @@ impl HttpBodySanitizer {
         }
     }
 
+    /// Returns this sanitizer with a replacement opaque-text policy.
+    ///
+    /// # Parameters
+    ///
+    /// * `text_body_policy` - New policy for declared `text/*` bodies and
+    ///   non-sensitive multipart text parts.
+    ///
+    /// # Returns
+    ///
+    /// The updated sanitizer.
+    #[inline]
+    pub const fn with_text_body_policy(
+        mut self,
+        text_body_policy: TextBodyPolicy,
+    ) -> Self {
+        self.text_body_policy = text_body_policy;
+        self
+    }
+
     /// Returns the underlying core field sanitizer.
     ///
     /// # Returns
@@ -107,25 +126,6 @@ impl HttpBodySanitizer {
         self.text_body_policy = text_body_policy;
     }
 
-    /// Returns this sanitizer with a replacement opaque-text policy.
-    ///
-    /// # Parameters
-    ///
-    /// * `text_body_policy` - New policy for declared `text/*` bodies and
-    ///   non-sensitive multipart text parts.
-    ///
-    /// # Returns
-    ///
-    /// The updated sanitizer.
-    #[inline(always)]
-    pub const fn with_text_body_policy(
-        mut self,
-        text_body_policy: TextBodyPolicy,
-    ) -> Self {
-        self.text_body_policy = text_body_policy;
-        self
-    }
-
     /// Sanitizes a complete HTTP body.
     ///
     /// Use this method when `body` contains the complete source bytes. The
@@ -158,6 +158,7 @@ impl HttpBodySanitizer {
     /// Binary bodies are represented by a byte-count marker. Bodies with a
     /// present but non-UTF-8 `Content-Type` are fully redacted because the
     /// structured parser cannot choose a safe media-type rule.
+    #[inline(always)]
     pub fn sanitize_body(
         &self,
         body: &[u8],
@@ -209,6 +210,7 @@ impl HttpBodySanitizer {
     /// redacted. Bodies with a present but non-UTF-8 `Content-Type` are fully
     /// redacted because the structured parser cannot choose a safe media-type
     /// rule.
+    #[inline(always)]
     pub fn sanitize_body_preview(
         &self,
         body_prefix: &[u8],
@@ -223,164 +225,6 @@ impl HttpBodySanitizer {
             BodyInputKind::Preview,
             match_mode,
         )
-    }
-
-    /// Sanitizes complete or preview body bytes.
-    ///
-    /// # Parameters
-    ///
-    /// * `bytes` - Body bytes to render.
-    /// * `source_len` - Full source length used for preview and binary markers.
-    /// * `content_type` - Optional `Content-Type` header.
-    /// * `input_kind` - Whether `bytes` are complete or a preview prefix.
-    /// * `match_mode` - Field-name matching mode for structured body fields.
-    ///
-    /// # Returns
-    ///
-    /// Structured sanitized body result for diagnostic output.
-    fn sanitize_body_inner(
-        &self,
-        bytes: &[u8],
-        source_len: usize,
-        content_type: Option<&HeaderValue>,
-        input_kind: BodyInputKind,
-        match_mode: NameMatchMode,
-    ) -> BodySanitization {
-        let result = |content, status| {
-            BodySanitization::new(content, status, bytes.len(), source_len)
-        };
-        if bytes.is_empty() {
-            return result(
-                input_kind.empty_content(),
-                BodySanitizationStatus::Empty,
-            );
-        }
-
-        let content_type = match content_type::content_type_to_str(content_type)
-        {
-            Some(Ok(content_type)) => Some(content_type),
-            Some(Err(_)) => {
-                return result(
-                    INVALID_CONTENT_TYPE_REDACTED.to_string(),
-                    BodySanitizationStatus::Redacted(
-                        BodyRedactionReason::InvalidContentType,
-                    ),
-                );
-            }
-            None => None,
-        };
-
-        if content_type.is_some_and(content_type::is_multipart) {
-            if input_kind.is_truncated(bytes.len(), source_len) {
-                return result(
-                    MULTIPART_BODY_REDACTED.to_string(),
-                    BodySanitizationStatus::Redacted(
-                        BodyRedactionReason::TruncatedMultipart,
-                    ),
-                );
-            }
-            if let Some(text) = multipart::sanitize_multipart(
-                self,
-                content_type,
-                bytes,
-                match_mode,
-            ) {
-                return result(text, BodySanitizationStatus::Sanitized);
-            }
-            return result(
-                MULTIPART_BODY_REDACTED.to_string(),
-                BodySanitizationStatus::Redacted(
-                    BodyRedactionReason::InvalidMultipart,
-                ),
-            );
-        }
-        if content_type.is_some_and(content_type::is_ndjson) {
-            if let Some(text) = self.sanitize_ndjson(bytes, match_mode) {
-                return result(text, BodySanitizationStatus::Sanitized);
-            }
-            return result(
-                input_kind.invalid_ndjson_marker().to_string(),
-                BodySanitizationStatus::Redacted(
-                    input_kind.invalid_ndjson_reason(),
-                ),
-            );
-        }
-        if self.is_json_body(content_type, bytes) {
-            if let Some(text) = self.sanitize_json(bytes, match_mode) {
-                return result(text, BodySanitizationStatus::Sanitized);
-            }
-            return result(
-                input_kind.invalid_json_marker().to_string(),
-                BodySanitizationStatus::Redacted(
-                    input_kind.invalid_json_reason(),
-                ),
-            );
-        }
-        if content_type.is_some_and(content_type::is_form_urlencoded) {
-            return result(
-                self.sanitize_form(bytes, match_mode),
-                BodySanitizationStatus::Sanitized,
-            );
-        }
-
-        match std::str::from_utf8(bytes) {
-            Ok(text) if content_type.is_some_and(content_type::is_text) => {
-                let status = match self.text_body_policy {
-                    TextBodyPolicy::Redact => BodySanitizationStatus::Redacted(
-                        BodyRedactionReason::OpaqueText,
-                    ),
-                    TextBodyPolicy::PassThrough => {
-                        BodySanitizationStatus::Sanitized
-                    }
-                };
-                result(self.sanitize_text_body(text), status)
-            }
-            Ok(_) => result(
-                UNSUPPORTED_BODY_REDACTED.to_string(),
-                BodySanitizationStatus::Redacted(
-                    BodyRedactionReason::UnsupportedMediaType,
-                ),
-            ),
-            Err(_) => result(
-                format!("<binary {} bytes>", source_len.max(bytes.len())),
-                BodySanitizationStatus::Binary,
-            ),
-        }
-    }
-
-    /// Sanitizes an opaque top-level text body according to the text policy.
-    ///
-    /// # Parameters
-    ///
-    /// * `text` - UTF-8 text body whose content has no structured field names.
-    ///
-    /// # Returns
-    ///
-    /// A redaction marker by default, or `text` unchanged when callers choose
-    /// [`TextBodyPolicy::PassThrough`].
-    fn sanitize_text_body(&self, text: &str) -> String {
-        match self.text_body_policy {
-            TextBodyPolicy::Redact => TEXT_BODY_REDACTED.to_string(),
-            TextBodyPolicy::PassThrough => text.to_string(),
-        }
-    }
-
-    /// Returns whether body bytes should be treated as JSON.
-    ///
-    /// # Parameters
-    ///
-    /// * `content_type` - Optional content type text.
-    /// * `bytes` - Body bytes to inspect when no content type is present.
-    ///
-    /// # Returns
-    ///
-    /// `true` when the content type declares JSON or the bytes look like JSON.
-    fn is_json_body(&self, content_type: Option<&str>, bytes: &[u8]) -> bool {
-        if let Some(content_type) = content_type {
-            return content_type::is_json(content_type);
-        }
-        let trimmed = trim_ascii_whitespace(bytes);
-        matches!(trimmed.first(), Some(b'{') | Some(b'['))
     }
 
     /// Sanitizes one JSON document.
@@ -435,6 +279,338 @@ impl HttpBodySanitizer {
             result.push('\n');
         }
         Some(result)
+    }
+
+    /// Sanitizes URL-encoded form body bytes.
+    ///
+    /// # Parameters
+    ///
+    /// * `bytes` - URL-encoded form body bytes.
+    /// * `match_mode` - Field-name matching mode for form keys.
+    ///
+    /// # Returns
+    ///
+    /// Sanitized URL-encoded form text.
+    #[inline(always)]
+    pub(super) fn sanitize_form(
+        &self,
+        bytes: &[u8],
+        match_mode: NameMatchMode,
+    ) -> String {
+        sanitize_form_urlencoded(&self.field_sanitizer, bytes, match_mode)
+    }
+
+    /// Sanitizes complete or preview body bytes.
+    ///
+    /// # Parameters
+    ///
+    /// * `bytes` - Body bytes to render.
+    /// * `source_len` - Full source length used for preview and binary markers.
+    /// * `content_type` - Optional `Content-Type` header.
+    /// * `input_kind` - Whether `bytes` are complete or a preview prefix.
+    /// * `match_mode` - Field-name matching mode for structured body fields.
+    ///
+    /// # Returns
+    ///
+    /// Structured sanitized body result for diagnostic output.
+    fn sanitize_body_inner(
+        &self,
+        bytes: &[u8],
+        source_len: usize,
+        content_type: Option<&HeaderValue>,
+        input_kind: BodyInputKind,
+        match_mode: NameMatchMode,
+    ) -> BodySanitization {
+        let result = |content, status| {
+            BodySanitization::new(content, status, bytes.len(), source_len)
+        };
+        if bytes.is_empty() {
+            return result(
+                input_kind.empty_content(),
+                BodySanitizationStatus::Empty,
+            );
+        }
+
+        let content_type = match content_type::content_type_to_str(content_type)
+        {
+            Some(Ok(content_type)) => Some(content_type),
+            Some(Err(_)) => {
+                return result(
+                    INVALID_CONTENT_TYPE_REDACTED.to_string(),
+                    BodySanitizationStatus::Redacted(
+                        BodyRedactionReason::InvalidContentType,
+                    ),
+                );
+            }
+            None => None,
+        };
+
+        if let Some(content_type) =
+            content_type.filter(|value| content_type::is_multipart(value))
+        {
+            return self.sanitize_multipart_body(
+                bytes,
+                source_len,
+                content_type,
+                input_kind,
+                match_mode,
+            );
+        }
+        if content_type.is_some_and(content_type::is_ndjson) {
+            return self.sanitize_ndjson_body(
+                bytes, source_len, input_kind, match_mode,
+            );
+        }
+        if self.is_json_body(content_type, bytes) {
+            return self
+                .sanitize_json_body(bytes, source_len, input_kind, match_mode);
+        }
+        if content_type.is_some_and(content_type::is_form_urlencoded) {
+            return self.sanitize_form_body(bytes, source_len, match_mode);
+        }
+
+        self.sanitize_fallback_body(bytes, source_len, content_type)
+    }
+
+    /// Sanitizes a body declared as multipart.
+    ///
+    /// # Parameters
+    ///
+    /// * `bytes` - Complete body bytes or the captured preview prefix.
+    /// * `source_len` - Full source length used for result metadata.
+    /// * `content_type` - Declared multipart content type.
+    /// * `input_kind` - Whether `bytes` are complete or a preview prefix.
+    /// * `match_mode` - Field-name matching mode for multipart fields.
+    ///
+    /// # Returns
+    ///
+    /// A sanitized multipart result, or a redacted result when the preview is
+    /// truncated or the multipart body is invalid.
+    fn sanitize_multipart_body(
+        &self,
+        bytes: &[u8],
+        source_len: usize,
+        content_type: &str,
+        input_kind: BodyInputKind,
+        match_mode: NameMatchMode,
+    ) -> BodySanitization {
+        let result = |content, status| {
+            BodySanitization::new(content, status, bytes.len(), source_len)
+        };
+        if input_kind.is_truncated(bytes.len(), source_len) {
+            return result(
+                MULTIPART_BODY_REDACTED.to_string(),
+                BodySanitizationStatus::Redacted(
+                    BodyRedactionReason::TruncatedMultipart,
+                ),
+            );
+        }
+        if let Some(multipart) = multipart::sanitize_multipart(
+            self,
+            Some(content_type),
+            bytes,
+            match_mode,
+        ) {
+            let status = if multipart.contains_passed_through_text() {
+                BodySanitizationStatus::PassedThrough
+            } else {
+                BodySanitizationStatus::Sanitized
+            };
+            return result(multipart.into_content(), status);
+        }
+        result(
+            MULTIPART_BODY_REDACTED.to_string(),
+            BodySanitizationStatus::Redacted(
+                BodyRedactionReason::InvalidMultipart,
+            ),
+        )
+    }
+
+    /// Sanitizes a body declared as newline-delimited JSON.
+    ///
+    /// # Parameters
+    ///
+    /// * `bytes` - Complete body bytes or the captured preview prefix.
+    /// * `source_len` - Full source length used for result metadata.
+    /// * `input_kind` - Whether `bytes` are complete or a preview prefix.
+    /// * `match_mode` - Field-name matching mode for JSON object keys.
+    ///
+    /// # Returns
+    ///
+    /// A sanitized NDJSON result, or a redacted result with the marker and
+    /// reason appropriate for complete or preview input when parsing fails.
+    fn sanitize_ndjson_body(
+        &self,
+        bytes: &[u8],
+        source_len: usize,
+        input_kind: BodyInputKind,
+        match_mode: NameMatchMode,
+    ) -> BodySanitization {
+        if let Some(text) = self.sanitize_ndjson(bytes, match_mode) {
+            return BodySanitization::new(
+                text,
+                BodySanitizationStatus::Sanitized,
+                bytes.len(),
+                source_len,
+            );
+        }
+        BodySanitization::new(
+            input_kind.invalid_ndjson_marker().to_string(),
+            BodySanitizationStatus::Redacted(
+                input_kind.invalid_ndjson_reason(),
+            ),
+            bytes.len(),
+            source_len,
+        )
+    }
+
+    /// Sanitizes a body selected as JSON by declaration or sniffing.
+    ///
+    /// # Parameters
+    ///
+    /// * `bytes` - Complete body bytes or the captured preview prefix.
+    /// * `source_len` - Full source length used for result metadata.
+    /// * `input_kind` - Whether `bytes` are complete or a preview prefix.
+    /// * `match_mode` - Field-name matching mode for JSON object keys.
+    ///
+    /// # Returns
+    ///
+    /// A sanitized JSON result, or a redacted result with the marker and
+    /// reason appropriate for complete or preview input when parsing fails.
+    fn sanitize_json_body(
+        &self,
+        bytes: &[u8],
+        source_len: usize,
+        input_kind: BodyInputKind,
+        match_mode: NameMatchMode,
+    ) -> BodySanitization {
+        if let Some(text) = self.sanitize_json(bytes, match_mode) {
+            return BodySanitization::new(
+                text,
+                BodySanitizationStatus::Sanitized,
+                bytes.len(),
+                source_len,
+            );
+        }
+        BodySanitization::new(
+            input_kind.invalid_json_marker().to_string(),
+            BodySanitizationStatus::Redacted(input_kind.invalid_json_reason()),
+            bytes.len(),
+            source_len,
+        )
+    }
+
+    /// Sanitizes a body declared as URL-encoded form data.
+    ///
+    /// # Parameters
+    ///
+    /// * `bytes` - Complete body bytes or the captured preview prefix.
+    /// * `source_len` - Full source length used for result metadata.
+    /// * `match_mode` - Field-name matching mode for form keys.
+    ///
+    /// # Returns
+    ///
+    /// A sanitized URL-encoded form result containing the captured and source
+    /// lengths.
+    #[inline(always)]
+    fn sanitize_form_body(
+        &self,
+        bytes: &[u8],
+        source_len: usize,
+        match_mode: NameMatchMode,
+    ) -> BodySanitization {
+        BodySanitization::new(
+            self.sanitize_form(bytes, match_mode),
+            BodySanitizationStatus::Sanitized,
+            bytes.len(),
+            source_len,
+        )
+    }
+
+    /// Sanitizes a body not handled by a structured media-type branch.
+    ///
+    /// # Parameters
+    ///
+    /// * `bytes` - Complete body bytes or the captured preview prefix.
+    /// * `source_len` - Full source length used for result metadata and binary
+    ///   byte-count markers.
+    /// * `content_type` - Optional declared content type used to recognize
+    ///   opaque text bodies.
+    ///
+    /// # Returns
+    ///
+    /// A policy-controlled text result for declared UTF-8 text, an unsupported
+    /// media-type redaction for other UTF-8 bodies, or a binary byte-count
+    /// result for non-UTF-8 bodies.
+    fn sanitize_fallback_body(
+        &self,
+        bytes: &[u8],
+        source_len: usize,
+        content_type: Option<&str>,
+    ) -> BodySanitization {
+        let result = |content, status| {
+            BodySanitization::new(content, status, bytes.len(), source_len)
+        };
+        match std::str::from_utf8(bytes) {
+            Ok(text) if content_type.is_some_and(content_type::is_text) => {
+                let status = match self.text_body_policy {
+                    TextBodyPolicy::Redact => BodySanitizationStatus::Redacted(
+                        BodyRedactionReason::OpaqueText,
+                    ),
+                    TextBodyPolicy::PassThrough => {
+                        BodySanitizationStatus::PassedThrough
+                    }
+                };
+                result(self.sanitize_text_body(text), status)
+            }
+            Ok(_) => result(
+                UNSUPPORTED_BODY_REDACTED.to_string(),
+                BodySanitizationStatus::Redacted(
+                    BodyRedactionReason::UnsupportedMediaType,
+                ),
+            ),
+            Err(_) => result(
+                format!("<binary {} bytes>", source_len.max(bytes.len())),
+                BodySanitizationStatus::Binary,
+            ),
+        }
+    }
+
+    /// Sanitizes an opaque top-level text body according to the text policy.
+    ///
+    /// # Parameters
+    ///
+    /// * `text` - UTF-8 text body whose content has no structured field names.
+    ///
+    /// # Returns
+    ///
+    /// A redaction marker by default, or `text` unchanged when callers choose
+    /// [`TextBodyPolicy::PassThrough`].
+    #[inline]
+    fn sanitize_text_body(&self, text: &str) -> String {
+        match self.text_body_policy {
+            TextBodyPolicy::Redact => TEXT_BODY_REDACTED.to_string(),
+            TextBodyPolicy::PassThrough => text.to_string(),
+        }
+    }
+
+    /// Returns whether body bytes should be treated as JSON.
+    ///
+    /// # Parameters
+    ///
+    /// * `content_type` - Optional content type text.
+    /// * `bytes` - Body bytes to inspect when no content type is present.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the content type declares JSON or the bytes look like JSON.
+    #[inline]
+    fn is_json_body(&self, content_type: Option<&str>, bytes: &[u8]) -> bool {
+        if let Some(content_type) = content_type {
+            return content_type::is_json(content_type);
+        }
+        let trimmed = trim_ascii_whitespace(bytes);
+        matches!(trimmed.first(), Some(b'{') | Some(b'['))
     }
 
     /// Redacts sensitive object fields in a JSON value.
@@ -505,28 +681,16 @@ impl HttpBodySanitizer {
                 .into_owned(),
         )
     }
-
-    /// Sanitizes URL-encoded form body bytes.
-    ///
-    /// # Parameters
-    ///
-    /// * `bytes` - URL-encoded form body bytes.
-    /// * `match_mode` - Field-name matching mode for form keys.
-    ///
-    /// # Returns
-    ///
-    /// Sanitized URL-encoded form text.
-    pub(super) fn sanitize_form(
-        &self,
-        bytes: &[u8],
-        match_mode: NameMatchMode,
-    ) -> String {
-        sanitize_form_urlencoded(&self.field_sanitizer, bytes, match_mode)
-    }
 }
 
 impl Default for HttpBodySanitizer {
     /// Creates an HTTP body sanitizer using [`FieldSanitizer::default`].
+    ///
+    /// # Returns
+    ///
+    /// An HTTP body sanitizer with default sensitive fields and opaque-text
+    /// redaction.
+    #[inline(always)]
     fn default() -> Self {
         Self::new(FieldSanitizer::default())
     }
