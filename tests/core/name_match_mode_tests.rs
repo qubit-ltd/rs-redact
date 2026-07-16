@@ -5,6 +5,11 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Integration test entry point for core sanitization primitives.
+//! Tests for [`NameMatchMode`](qubit_sanitize::NameMatchMode).
 
-mod core;
+use qubit_sanitize::NameMatchMode;
+
+#[test]
+fn test_name_match_modes_are_distinct() {
+    assert_ne!(NameMatchMode::Exact, NameMatchMode::ExactOrSuffix);
+}

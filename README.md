@@ -121,7 +121,7 @@ such as:
 - `private_key`, `security_key`, `mysql_pwd`, `rediscli_auth`
 - `database_url`, `database_uri`, `connection_string`
 - `api_key`, `x_api_key`
-- `token`, `access_token`, `refresh_token`, `id_token`
+- `token`, `access_token`, `refresh_token`, `id_token`, `sig`, `signature`
 - `authorization`, `proxy_authorization`, `cookie`, `set_cookie`
 - `session`, `session_id`, `session_token`
 
@@ -198,6 +198,22 @@ field. Use `set_sensitive_field_level` only when an explicit replacement,
 including a downgrade, is intended. At the lower-level `SensitiveFields` API,
 `insert` and `extend` retain map-style replacement semantics, while
 `insert_strongest` and `extend_strongest` prevent downgrades.
+
+Built-in names can be removed when an application has verified a false
+positive. Removing a default is an explicit disclosure decision: matching
+values are returned unchanged afterward.
+
+```rust
+use qubit_sanitize::{FieldSanitizer, NameMatchMode};
+
+let mut sanitizer = FieldSanitizer::default();
+sanitizer.remove_sensitive_field("sig");
+
+assert_eq!(
+    sanitizer.sanitize_value("sig", "known-safe", NameMatchMode::Exact),
+    "known-safe",
+);
+```
 
 You can also start from an empty policy when you do not want built-in field
 names:
@@ -318,6 +334,10 @@ semantics are application-specific, including vendor-specific webhook or token
 segments. Callers that know such a route must redact or replace its path before
 logging it.
 
+Malformed percent escapes or percent-decoded non-UTF-8 in URL queries and
+URL-encoded forms are redacted as a whole. This fail-closed behavior prevents
+ambiguous decoding from bypassing field-name matching.
+
 ## Integration Guidance
 
 The crate has two layers:
@@ -392,44 +412,35 @@ sanitization.
 
 ## Testing
 
-A minimal local run:
-
 ```bash
-cargo test
-cargo clippy --all-targets --all-features -- -D warnings
+# Core API with the default empty feature set
+cargo test --no-default-features
+
+# Core API plus regex validation
+cargo test --all-features
+
+# Project CI checks
+./ci-check.sh
+
+# Check code coverage
+./coverage.sh
 ```
-
-To mirror what continuous integration enforces, run the repository scripts from
-the project root: `./align-ci.sh` brings local tooling and configuration in line
-with CI, then `./ci-check.sh` runs the same checks the pipeline uses. For test
-coverage, use `./coverage.sh` to generate or open reports.
-
-## Contributing
-
-Issues and pull requests are welcome.
-
-- Keep the core focused on reusable field-value sanitization primitives.
-- Keep adapters scoped to formats with clear, bounded parsing rules.
-- Add or update tests when changing matching or masking behavior.
-- Update this README and public rustdoc when user-visible behavior changes.
-- Before submitting, run `./align-ci.sh` and then `./ci-check.sh`.
-
-By contributing, you agree to license your contributions under the
-[Apache License, Version 2.0](LICENSE), the same license as this project.
 
 ## License
 
-Copyright © 2026 Haixing Hu, Qubit Co. Ltd.
+Copyright (c) 2025 - 2026. Haixing Hu. All rights reserved.
 
-This project is licensed under the [Apache License, Version 2.0](LICENSE). See
-the `LICENSE` file in the repository for the full text.
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the
+full license text.
+
+## Contributing
+
+Contributions are welcome. Please follow the Rust API guidelines, keep public
+API documentation and tests current, and run `./align-ci.sh` to format code and
+`./ci-check.sh` to satisfy CI requirements before submitting a pull request.
 
 ## Author
 
-**Haixing Hu** — Qubit Co. Ltd.
+**Haixing Hu** - *Qubit Co. Ltd.*
 
-| | |
-| --- | --- |
-| **Repository** | [github.com/qubit-ltd/rs-sanitize](https://github.com/qubit-ltd/rs-sanitize) |
-| **Documentation** | [docs.rs/qubit-sanitize](https://docs.rs/qubit-sanitize) |
-| **Crate** | [crates.io/crates/qubit-sanitize](https://crates.io/crates/qubit-sanitize) |
+Repository: [https://github.com/qubit-ltd/rs-sanitize](https://github.com/qubit-ltd/rs-sanitize)

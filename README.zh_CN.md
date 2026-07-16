@@ -5,7 +5,7 @@
 [![Crates.io](https://img.shields.io/crates/v/qubit-sanitize.svg?color=blue)](https://crates.io/crates/qubit-sanitize)
 [![Rust](https://img.shields.io/badge/rust-1.94+-blue.svg?logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![English](https://img.shields.io/badge/docs-English-blue.svg)](README.md)
+[![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
 
 Rust 通用脱敏工具。
 
@@ -109,7 +109,7 @@ assert_eq!(fixed.mask("secret"), "****");
 
 - `password`、`passwd`、`secret`、`client_secret`、`private_key`、`security_key`
 - `api_key`、`x_api_key`
-- `token`、`access_token`、`refresh_token`、`id_token`
+- `token`、`access_token`、`refresh_token`、`id_token`、`sig`、`signature`
 - `authorization`、`proxy_authorization`、`cookie`、`set_cookie`
 - `session`、`session_id`、`session_token`
 
@@ -164,6 +164,21 @@ assert_eq!(
 语义：添加较弱等级不会降低已有字段。只有明确需要覆盖（包括降级）时才使用
 `set_sensitive_field_level`。更底层的 `SensitiveFields::insert` 和 `extend` 保留
 map 风格的覆盖语义；`insert_strongest` 和 `extend_strongest` 则保证不降级。
+
+应用确认某个默认字段属于误报后，可以将其删除。删除默认项是一项显式的信息披露
+决策：此后匹配值会保持原样。
+
+```rust
+use qubit_sanitize::{FieldSanitizer, NameMatchMode};
+
+let mut sanitizer = FieldSanitizer::default();
+sanitizer.remove_sensitive_field("sig");
+
+assert_eq!(
+    sanitizer.sanitize_value("sig", "known-safe", NameMatchMode::Exact),
+    "known-safe",
+);
+```
 
 ## 自定义字段
 
@@ -298,6 +313,9 @@ password，并按已解析出的字段等级遮盖 query parameter；它会有�
 path segment 的语义属于具体应用，其中也包括供应商自定义的 webhook 或 token 路径。
 掌握这类路由语义的调用方必须在记录日志前自行遮盖或替换 path。
 
+URL query 和 URL-encoded form 中，如果百分号转义格式错误，或解码后不是 UTF-8，
+会整体脱敏。这个 fail-closed 行为可以防止歧义解码绕过字段名匹配。
+
 ## 集成建议
 
 这个 crate 分为两层：
@@ -364,43 +382,34 @@ let sanitizer = HttpBodySanitizer::default()
 
 ## 测试
 
-最小本地验证：
-
 ```bash
-cargo test
-cargo clippy --all-targets --all-features -- -D warnings
+# 使用默认的空 feature 集测试核心 API
+cargo test --no-default-features
+
+# 测试核心 API 和正则校验
+cargo test --all-features
+
+# 运行项目 CI 检查
+./ci-check.sh
+
+# 检查代码覆盖率
+./coverage.sh
 ```
-
-如需和 CI 保持一致，请在项目根目录运行：`./align-ci.sh` 会对齐本地工具和配置，
-然后 `./ci-check.sh` 执行与流水线一致的完整检查。覆盖率报告可通过
-`./coverage.sh` 生成或查看。
-
-## 贡献
-
-欢迎提交 issue 和 pull request。
-
-- 请保持 core 聚焦在通用字段值脱敏原语。
-- adapter 只覆盖解析边界清楚、行为可测试的格式。
-- 修改匹配或脱敏行为时必须增加或更新测试。
-- 用户可见行为变化时同步更新 README 和公开 rustdoc。
-- 提交前请运行 `./align-ci.sh` 和 `./ci-check.sh`。
-
-贡献代码即表示你同意将贡献内容按本项目相同的
-[Apache License, Version 2.0](LICENSE) 授权。
 
 ## 许可证
 
-Copyright © 2026 Haixing Hu, Qubit Co. Ltd.
+Copyright (c) 2025 - 2026. Haixing Hu. All rights reserved.
 
-本项目基于 [Apache License, Version 2.0](LICENSE) 开源。完整许可证文本见
-`LICENSE` 文件。
+本项目基于 Apache License 2.0 授权。完整许可证文本请参阅
+[LICENSE](LICENSE)。
+
+## 贡献
+
+欢迎贡献。请遵循 Rust API 指南，及时更新公共 API 文档与测试，并在提交
+Pull Request 前运行 `./align-ci.sh`格式化代码，运行`./ci-check.sh`对齐CI要求。
 
 ## 作者
 
-**Haixing Hu** — Qubit Co. Ltd.
+**Haixing Hu** - *Qubit Co. Ltd.*
 
-| | |
-| --- | --- |
-| **Repository** | [github.com/qubit-ltd/rs-sanitize](https://github.com/qubit-ltd/rs-sanitize) |
-| **Documentation** | [docs.rs/qubit-sanitize](https://docs.rs/qubit-sanitize) |
-| **Crate** | [crates.io/crates/qubit-sanitize](https://crates.io/crates/qubit-sanitize) |
+仓库地址：[https://github.com/qubit-ltd/rs-sanitize](https://github.com/qubit-ltd/rs-sanitize)
