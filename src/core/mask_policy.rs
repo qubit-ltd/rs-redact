@@ -173,6 +173,7 @@ impl MaskPolicy {
     ///
     /// `Some(mask)` for fixed and empty policies, otherwise `None` when the
     /// input value must be inspected to preserve selected characters.
+    #[cfg(feature = "http")]
     #[inline]
     pub(crate) fn value_independent_non_empty_mask(&self) -> Option<&str> {
         match self {

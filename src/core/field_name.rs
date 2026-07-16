@@ -20,33 +20,41 @@
 /// Canonical field name used as the lookup key.
 #[must_use]
 pub fn canonicalize_field_name(name: &str) -> String {
-    name.trim()
-        .chars()
-        .filter(|ch| !is_field_separator(*ch))
-        .flat_map(char::to_lowercase)
-        .collect()
+    let name = name.trim();
+    let mut canonical = String::with_capacity(name.len());
+    canonical.extend(
+        name.chars()
+            .filter(|ch| !is_field_separator(*ch))
+            .flat_map(char::to_lowercase),
+    );
+    canonical
 }
 
-/// Canonicalizes a field name and records semantic token starts.
+/// Finds the first matching canonical form at a semantic token boundary.
 ///
 /// Boundaries include common separators, camel-case transitions, and the
-/// transition from an uppercase acronym to a capitalized word. Each returned
-/// byte offset is a valid start of a canonical suffix, ordered from the full
-/// canonical name to its shortest token suffix.
+/// transition from an uppercase acronym to a capitalized word. Candidates are
+/// visited from the complete name through suffixes ordered from
+/// longest to shortest.
 ///
 /// # Parameters
 ///
 /// * `name` - Raw field name.
+/// * `find` - Resolver invoked for each eligible canonical candidate.
 ///
 /// # Returns
 ///
-/// The canonical field name and byte offsets of eligible suffix starts.
+/// The first resolved value, or `None` when no suffix matches.
 #[must_use]
-pub(crate) fn canonicalize_field_name_with_token_starts(
+pub(crate) fn find_canonical_field_match<T>(
     name: &str,
-) -> (String, Vec<usize>) {
-    let mut canonical = String::new();
-    let mut token_starts = Vec::new();
+    mut find: impl FnMut(&str) -> Option<T>,
+) -> Option<T> {
+    let canonical = canonicalize_field_name(name);
+    if let Some(value) = find(&canonical) {
+        return Some(value);
+    }
+    let mut canonical_offset = 0;
     let mut previous = None;
     let mut in_token = false;
     let mut chars = name.trim().chars().peekable();
@@ -57,16 +65,20 @@ pub(crate) fn canonicalize_field_name_with_token_starts(
             previous = Some(ch);
             continue;
         }
-        if !in_token || starts_camel_token(previous, ch, chars.peek().copied())
+        if (!in_token
+            || starts_camel_token(previous, ch, chars.peek().copied()))
+            && canonical_offset > 0
+            && let Some(value) = find(&canonical[canonical_offset..])
         {
-            token_starts.push(canonical.len());
+            return Some(value);
         }
-        canonical.extend(ch.to_lowercase());
+        canonical_offset +=
+            ch.to_lowercase().map(char::len_utf8).sum::<usize>();
         in_token = true;
         previous = Some(ch);
     }
 
-    (canonical, token_starts)
+    None
 }
 
 /// Returns whether a character separates field-name tokens.

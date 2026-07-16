@@ -12,7 +12,7 @@ use super::{
     NameMatchMode,
     SensitiveFieldPreset,
     SensitivityLevel,
-    field_name::canonicalize_field_name_with_token_starts,
+    field_name::find_canonical_field_match,
 };
 
 /// Sanitizes values by looking up their field names in a configurable policy.
@@ -146,11 +146,9 @@ impl FieldSanitizer {
             return fields.level_for(name);
         }
 
-        let (canonical, token_starts) =
-            canonicalize_field_name_with_token_starts(name);
-        token_starts
-            .into_iter()
-            .find_map(|start| fields.level_for_canonical(&canonical[start..]))
+        find_canonical_field_match(name, |canonical| {
+            fields.level_for_canonical(canonical)
+        })
     }
 
     /// Sanitizes one field-value pair.
@@ -189,6 +187,26 @@ impl FieldSanitizer {
         let Some(level) = self.sensitivity_for_name(field, match_mode) else {
             return Cow::Borrowed(value);
         };
+        self.mask_value_at_level(value, level)
+    }
+
+    /// Masks a value whose sensitivity level has already been resolved.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Value to mask.
+    /// * `level` - Previously resolved sensitivity level.
+    ///
+    /// # Returns
+    ///
+    /// Masked value according to the policy for `level`.
+    #[must_use = "use the returned masked value instead of the original value"]
+    #[inline(always)]
+    pub(crate) fn mask_value_at_level<'a>(
+        &self,
+        value: &'a str,
+        level: SensitivityLevel,
+    ) -> Cow<'a, str> {
         self.policy.mask_policies().for_level(level).mask(value)
     }
 

@@ -5,6 +5,11 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+use std::sync::{
+    Arc,
+    LazyLock,
+};
+
 use super::{
     MaskPolicy,
     SensitivityLevel,
@@ -14,15 +19,13 @@ use super::{
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaskPolicies {
-    /// Policy for [`SensitivityLevel::Low`].
-    low: MaskPolicy,
-    /// Policy for [`SensitivityLevel::Medium`].
-    medium: MaskPolicy,
-    /// Policy for [`SensitivityLevel::High`].
-    high: MaskPolicy,
-    /// Policy for [`SensitivityLevel::Secret`].
-    secret: MaskPolicy,
+    /// Shared policies ordered by [`SensitivityLevel`].
+    policies: Arc<[MaskPolicy; 4]>,
 }
+
+/// Shared default policy collection cloned by [`MaskPolicies::default`].
+static DEFAULT_MASK_POLICIES: LazyLock<MaskPolicies> =
+    LazyLock::new(MaskPolicies::new_default);
 
 impl MaskPolicies {
     /// Creates policies for all supported sensitivity levels.
@@ -38,17 +41,14 @@ impl MaskPolicies {
     ///
     /// A policy collection containing the supplied level policies.
     #[inline(always)]
-    pub const fn new(
+    pub fn new(
         low: MaskPolicy,
         medium: MaskPolicy,
         high: MaskPolicy,
         secret: MaskPolicy,
     ) -> Self {
         Self {
-            low,
-            medium,
-            high,
-            secret,
+            policies: Arc::new([low, medium, high, secret]),
         }
     }
 
@@ -82,13 +82,8 @@ impl MaskPolicies {
     ///
     /// Borrowed mask policy configured for `level`.
     #[inline(always)]
-    pub const fn for_level(&self, level: SensitivityLevel) -> &MaskPolicy {
-        match level {
-            SensitivityLevel::Low => &self.low,
-            SensitivityLevel::Medium => &self.medium,
-            SensitivityLevel::High => &self.high,
-            SensitivityLevel::Secret => &self.secret,
-        }
+    pub fn for_level(&self, level: SensitivityLevel) -> &MaskPolicy {
+        &self.policies[level_index(level)]
     }
 
     /// Returns the policy for one sensitivity level mutably.
@@ -105,12 +100,7 @@ impl MaskPolicies {
         &mut self,
         level: SensitivityLevel,
     ) -> &mut MaskPolicy {
-        match level {
-            SensitivityLevel::Low => &mut self.low,
-            SensitivityLevel::Medium => &mut self.medium,
-            SensitivityLevel::High => &mut self.high,
-            SensitivityLevel::Secret => &mut self.secret,
-        }
+        &mut Arc::make_mut(&mut self.policies)[level_index(level)]
     }
 
     /// Replaces the policy for one sensitivity level.
@@ -123,17 +113,47 @@ impl MaskPolicies {
     pub fn set(&mut self, level: SensitivityLevel, policy: MaskPolicy) {
         *self.for_level_mut(level) = policy;
     }
-}
 
-impl Default for MaskPolicies {
-    /// Creates conservative default mask policies.
+    /// Creates the conservative default policy collection.
+    ///
+    /// # Returns
+    ///
+    /// Default mask policies for all sensitivity levels.
     #[inline]
-    fn default() -> Self {
+    fn new_default() -> Self {
         Self::new(
             MaskPolicy::preserve_edges(2, 2, "****", 4),
             MaskPolicy::preserve_suffix(1, "****", 1),
             MaskPolicy::fixed("****"),
             MaskPolicy::fixed("<redacted>"),
         )
+    }
+}
+
+impl Default for MaskPolicies {
+    /// Creates conservative default mask policies.
+    #[inline(always)]
+    fn default() -> Self {
+        DEFAULT_MASK_POLICIES.clone()
+    }
+}
+
+/// Returns the stable array index for a sensitivity level.
+///
+/// # Parameters
+///
+/// * `level` - Sensitivity level to index.
+///
+/// # Returns
+///
+/// Index into the low, medium, high, and secret policy array.
+#[must_use]
+#[inline(always)]
+const fn level_index(level: SensitivityLevel) -> usize {
+    match level {
+        SensitivityLevel::Low => 0,
+        SensitivityLevel::Medium => 1,
+        SensitivityLevel::High => 2,
+        SensitivityLevel::Secret => 3,
     }
 }

@@ -61,3 +61,32 @@ fn test_mask_policies_set_and_with_policy_update_requested_level() {
         "<secret>",
     );
 }
+
+#[test]
+fn test_mask_policies_clone_shares_until_mutated() {
+    let original = MaskPolicies::default();
+    let mut cloned = original.clone();
+
+    assert!(std::ptr::eq(
+        original.for_level(SensitivityLevel::Secret),
+        cloned.for_level(SensitivityLevel::Secret),
+    ));
+
+    cloned.set(
+        SensitivityLevel::Secret,
+        MaskPolicy::fixed("<custom-secret>"),
+    );
+
+    assert_eq!(
+        original.for_level(SensitivityLevel::Secret).mask("value"),
+        "<redacted>",
+    );
+    assert_eq!(
+        cloned.for_level(SensitivityLevel::Secret).mask("value"),
+        "<custom-secret>",
+    );
+    assert!(!std::ptr::eq(
+        original.for_level(SensitivityLevel::Secret),
+        cloned.for_level(SensitivityLevel::Secret),
+    ));
+}

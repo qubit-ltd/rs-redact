@@ -145,15 +145,14 @@ fn sanitize_multipart_part_value(
     if filename.is_some() {
         return sanitized_part(MULTIPART_FILE_PART_REDACTED.to_string());
     }
-    if sanitizer
+    if let Some(level) = sanitizer
         .field_sanitizer()
         .sensitivity_for_name(field_name, match_mode)
-        .is_some()
     {
         return sanitized_part(
             sanitizer
                 .field_sanitizer()
-                .sanitize_value(field_name, body, match_mode)
+                .mask_value_at_level(body, level)
                 .into_owned(),
         );
     }
@@ -293,6 +292,7 @@ fn multipart_part_segments<'a>(
 /// Panics when `position` exceeds `text.len()` or is not a UTF-8 character
 /// boundary.
 #[must_use]
+#[inline]
 fn next_line_bounds(text: &str, position: usize) -> (usize, usize, usize) {
     if let Some(relative_end) = text[position..].find('\n') {
         let line_end = position + relative_end;
@@ -314,6 +314,7 @@ fn next_line_bounds(text: &str, position: usize) -> (usize, usize, usize) {
 /// # Returns
 ///
 /// Header text and body text.
+#[inline]
 fn split_multipart_headers_and_body(segment: &str) -> Option<(&str, &str)> {
     if let Some(index) = segment.find("\r\n\r\n") {
         return Some((&segment[..index], &segment[index + 4..]));
