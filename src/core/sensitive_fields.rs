@@ -5,18 +5,24 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 use super::{
-    SensitiveFieldPreset, SensitivityLevel, canonicalize_field_name,
+    SensitiveFieldPreset,
+    SensitivityLevel,
+    canonicalize_field_name,
     default_sensitive_fields::DEFAULT_EXTRA_FIELDS,
 };
 
 /// Set of sensitive field names and their sensitivity levels.
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SensitiveFields {
-    /// Canonical field names mapped to sensitivity levels.
-    fields: BTreeMap<String, SensitivityLevel>,
+    /// Shared canonical field names mapped to sensitivity levels.
+    fields: Arc<BTreeMap<String, SensitivityLevel>>,
 }
 
 impl SensitiveFields {
@@ -28,7 +34,7 @@ impl SensitiveFields {
     #[inline(always)]
     pub fn new() -> Self {
         Self {
-            fields: BTreeMap::new(),
+            fields: Arc::new(BTreeMap::new()),
         }
     }
 
@@ -43,7 +49,7 @@ impl SensitiveFields {
     pub fn insert(&mut self, field: &str, level: SensitivityLevel) {
         let field = canonicalize_field_name(field);
         if !field.is_empty() {
-            self.fields.insert(field, level);
+            Arc::make_mut(&mut self.fields).insert(field, level);
         }
     }
 
@@ -58,7 +64,7 @@ impl SensitiveFields {
         if field.is_empty() {
             return;
         }
-        self.fields
+        Arc::make_mut(&mut self.fields)
             .entry(field)
             .and_modify(|current| *current = (*current).max(level))
             .or_insert(level);
@@ -79,14 +85,14 @@ impl SensitiveFields {
         if field.is_empty() {
             None
         } else {
-            self.fields.remove(&field)
+            Arc::make_mut(&mut self.fields).remove(&field)
         }
     }
 
     /// Removes all configured sensitive fields.
     #[inline(always)]
     pub fn clear(&mut self) {
-        self.fields.clear();
+        self.fields = Arc::new(BTreeMap::new());
     }
 
     /// Merges another field set without lowering existing sensitivity levels.
@@ -159,6 +165,7 @@ impl SensitiveFields {
     /// # Returns
     ///
     /// `true` when `field` has a configured sensitivity level.
+    #[must_use]
     #[inline(always)]
     pub fn contains(&self, field: &str) -> bool {
         self.level_for(field).is_some()
@@ -175,7 +182,8 @@ impl SensitiveFields {
     /// `Some(level)` when the field is sensitive, otherwise `None`.
     #[inline]
     pub fn level_for(&self, field: &str) -> Option<SensitivityLevel> {
-        self.fields.get(&canonicalize_field_name(field)).copied()
+        let field = canonicalize_field_name(field);
+        self.level_for_canonical(&field)
     }
 
     /// Returns the number of configured sensitive fields.
@@ -183,6 +191,7 @@ impl SensitiveFields {
     /// # Returns
     ///
     /// Field count.
+    #[must_use]
     #[inline(always)]
     pub fn len(&self) -> usize {
         self.fields.len()
@@ -193,6 +202,7 @@ impl SensitiveFields {
     /// # Returns
     ///
     /// `true` when the set is empty.
+    #[must_use]
     #[inline(always)]
     pub fn is_empty(&self) -> bool {
         self.fields.is_empty()
@@ -208,6 +218,24 @@ impl SensitiveFields {
         self.fields
             .iter()
             .map(|(field, level)| (field.as_str(), *level))
+    }
+
+    /// Returns the sensitivity level for an already canonicalized field name.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Canonical field name to look up directly.
+    ///
+    /// # Returns
+    ///
+    /// `Some(level)` when the canonical field is configured, otherwise
+    /// `None`.
+    #[inline(always)]
+    pub(super) fn level_for_canonical(
+        &self,
+        field: &str,
+    ) -> Option<SensitivityLevel> {
+        self.fields.get(field).copied()
     }
 }
 

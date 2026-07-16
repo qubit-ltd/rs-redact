@@ -8,7 +8,10 @@
 //! Tests for [`SensitiveFields`](qubit_sanitize::SensitiveFields).
 
 use qubit_sanitize::{
-    SensitiveFieldPreset, SensitiveFields, SensitivityLevel, canonicalize_field_name,
+    SensitiveFieldPreset,
+    SensitiveFields,
+    SensitivityLevel,
+    canonicalize_field_name,
 };
 
 #[test]
@@ -96,6 +99,29 @@ fn test_sensitive_fields_clear_removes_all_fields() {
 
     assert!(fields.is_empty());
     assert_eq!(fields.len(), 0);
+}
+
+#[test]
+fn test_sensitive_fields_clone_mutations_leave_original_unchanged() {
+    let original = SensitiveFields::default();
+    let mut modified = original.clone();
+
+    modified.insert("custom_secret", SensitivityLevel::Secret);
+    modified.remove("password");
+
+    assert!(!original.contains("custom_secret"));
+    assert_eq!(
+        original.level_for("password"),
+        Some(SensitivityLevel::Secret),
+    );
+    assert!(modified.contains("custom_secret"));
+    assert!(!modified.contains("password"));
+
+    let mut cleared = original.clone();
+    cleared.clear();
+
+    assert!(cleared.is_empty());
+    assert!(!original.is_empty());
 }
 
 #[test]
