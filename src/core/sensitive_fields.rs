@@ -144,9 +144,11 @@ impl SensitiveFields {
     /// # Parameters
     ///
     /// * `preset` - Predefined group to insert.
+    ///
+    /// Existing canonical fields keep the stronger sensitivity level.
     pub fn extend_preset(&mut self, preset: SensitiveFieldPreset) {
-        for (field, level) in preset.fields() {
-            self.insert(field, *level);
+        for &(field, level) in preset.fields() {
+            self.insert_strongest(field, level);
         }
     }
 
@@ -159,6 +161,7 @@ impl SensitiveFields {
     /// # Returns
     ///
     /// `true` when `field` has a configured sensitivity level.
+    #[inline(always)]
     pub fn contains(&self, field: &str) -> bool {
         self.level_for(field).is_some()
     }
@@ -172,6 +175,7 @@ impl SensitiveFields {
     /// # Returns
     ///
     /// `Some(level)` when the field is sensitive, otherwise `None`.
+    #[inline]
     pub fn level_for(&self, field: &str) -> Option<SensitivityLevel> {
         self.fields.get(&canonicalize_field_name(field)).copied()
     }
@@ -211,6 +215,10 @@ impl SensitiveFields {
 
 impl Default for SensitiveFields {
     /// Creates a set containing built-in sensitive fields.
+    ///
+    /// # Returns
+    ///
+    /// A field set containing every built-in preset and extra field.
     fn default() -> Self {
         let mut fields = Self::new();
         for preset in [
@@ -221,8 +229,8 @@ impl Default for SensitiveFields {
         ] {
             fields.extend_preset(preset);
         }
-        for (field, level) in DEFAULT_EXTRA_FIELDS {
-            fields.insert(field, level);
+        for &(field, level) in DEFAULT_EXTRA_FIELDS {
+            fields.insert_strongest(field, level);
         }
         fields
     }
@@ -235,6 +243,14 @@ where
     /// Collects field-level pairs using [`SensitiveFields::insert`] semantics.
     ///
     /// Later entries overwrite earlier entries with the same canonical name.
+    ///
+    /// # Parameters
+    ///
+    /// * `iter` - Field-name and sensitivity-level pairs to collect.
+    ///
+    /// # Returns
+    ///
+    /// A sensitive-field set containing the collected canonical names.
     fn from_iter<I>(iter: I) -> Self
     where
         I: IntoIterator<Item = (S, SensitivityLevel)>,

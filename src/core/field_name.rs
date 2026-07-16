@@ -21,7 +21,7 @@
 pub fn canonicalize_field_name(name: &str) -> String {
     name.trim()
         .chars()
-        .filter(|ch| !matches!(ch, '_' | '-' | '.') && !ch.is_whitespace())
+        .filter(|ch| !is_field_separator(*ch))
         .flat_map(char::to_lowercase)
         .collect()
 }
@@ -79,8 +79,9 @@ pub(crate) fn canonicalize_field_name_suffixes(name: &str) -> Vec<String> {
 /// # Returns
 ///
 /// `true` for a supported punctuation separator or Unicode whitespace.
+#[inline]
 fn is_field_separator(ch: char) -> bool {
-    matches!(ch, '_' | '-' | '.') || ch.is_whitespace()
+    matches!(ch, '_' | '-' | '.' | '[' | ']') || ch.is_whitespace()
 }
 
 /// Returns whether a character starts a new camel-case token.
@@ -95,6 +96,7 @@ fn is_field_separator(ch: char) -> bool {
 ///
 /// `true` at lower-or-number to uppercase transitions and before the final
 /// uppercase character of an acronym followed by a lowercase word tail.
+#[inline]
 fn starts_camel_token(
     previous: Option<char>,
     current: char,
@@ -117,6 +119,7 @@ fn starts_camel_token(
 ///
 /// * `tokens` - Completed canonical tokens.
 /// * `token` - Current token buffer, cleared after insertion.
+#[inline]
 fn push_token(tokens: &mut Vec<String>, token: &mut String) {
     if !token.is_empty() {
         tokens.push(std::mem::take(token));

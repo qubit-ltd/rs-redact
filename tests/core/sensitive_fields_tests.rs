@@ -24,6 +24,15 @@ fn test_canonicalize_field_name_normalizes_common_separators() {
 }
 
 #[test]
+fn test_canonicalize_field_name_normalizes_bracket_separators() {
+    assert_eq!(canonicalize_field_name("user[password]"), "userpassword");
+    assert_eq!(
+        canonicalize_field_name("credentials[api_key]"),
+        "credentialsapikey",
+    );
+}
+
+#[test]
 fn test_sensitive_fields_default_contains_common_secret_fields() {
     let fields = SensitiveFields::default();
 
@@ -187,6 +196,19 @@ fn test_sensitive_fields_extend_preset_adds_related_names() {
     assert_eq!(
         fields.level_for("proxy-authorization"),
         Some(SensitivityLevel::High),
+    );
+}
+
+#[test]
+fn test_sensitive_fields_extend_preset_does_not_downgrade_existing_level() {
+    let mut fields = SensitiveFields::new();
+    fields.insert("authorization", SensitivityLevel::Secret);
+
+    fields.extend_preset(SensitiveFieldPreset::Http);
+
+    assert_eq!(
+        fields.level_for("authorization"),
+        Some(SensitivityLevel::Secret),
     );
 }
 

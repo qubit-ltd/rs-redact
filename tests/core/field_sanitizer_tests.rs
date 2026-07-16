@@ -97,6 +97,31 @@ fn test_field_sanitizer_sensitivity_for_name_resolves_token_boundaries() {
 }
 
 #[test]
+fn test_sensitive_fields_exact_or_suffix_matches_bracketed_paths() {
+    let sanitizer = FieldSanitizer::default();
+
+    assert_eq!(
+        sanitizer.sensitivity_for_name(
+            "user[password]",
+            NameMatchMode::ExactOrSuffix,
+        ),
+        Some(SensitivityLevel::Secret),
+    );
+    assert_eq!(
+        sanitizer.sensitivity_for_name(
+            "credentials[api_key]",
+            NameMatchMode::ExactOrSuffix,
+        ),
+        Some(SensitivityLevel::High),
+    );
+    assert_eq!(
+        sanitizer
+            .sensitivity_for_name("notpassword", NameMatchMode::ExactOrSuffix,),
+        None,
+    );
+}
+
+#[test]
 fn test_field_sanitizer_sensitivity_for_name_resolves_longest_suffix() {
     let mut fields = SensitiveFields::new();
     fields.insert("key", SensitivityLevel::Low);
@@ -183,6 +208,51 @@ fn test_field_sanitizer_sanitize_value_masks_suffix_name() {
             NameMatchMode::ExactOrSuffix,
         ),
         "****",
+    );
+}
+
+#[test]
+fn test_field_sanitizer_credentials_preset_masks_environment_names() {
+    let sanitizer = FieldSanitizer::default();
+
+    assert_eq!(
+        sanitizer.sanitize_value(
+            "SECRET_KEY",
+            "abcdef",
+            NameMatchMode::ExactOrSuffix,
+        ),
+        "<redacted>",
+    );
+    assert_eq!(
+        sanitizer.sanitize_value(
+            "AWS_SECRET_ACCESS_KEY",
+            "abcdef",
+            NameMatchMode::ExactOrSuffix,
+        ),
+        "<redacted>",
+    );
+    assert_eq!(
+        sanitizer.sensitivity_for_name(
+            "AWS_ACCESS_KEY",
+            NameMatchMode::ExactOrSuffix,
+        ),
+        Some(SensitivityLevel::High),
+    );
+    assert_eq!(
+        sanitizer.sanitize_value(
+            "AWS_ACCESS_KEY",
+            "abcdef",
+            NameMatchMode::ExactOrSuffix,
+        ),
+        "****",
+    );
+    assert_eq!(
+        sanitizer.sanitize_value(
+            "AWS_ACCESS_KEY_ID",
+            "AKIA12345678",
+            NameMatchMode::ExactOrSuffix,
+        ),
+        "****8",
     );
 }
 
@@ -297,6 +367,20 @@ fn test_field_sanitizer_extend_preset_adds_group_fields() {
             NameMatchMode::Exact
         ),
         "****"
+    );
+}
+
+#[test]
+fn test_field_sanitizer_extend_preset_does_not_downgrade_existing_level() {
+    let mut sanitizer = FieldSanitizer::new(FieldSanitizePolicy::empty());
+    sanitizer
+        .set_sensitive_field_level("authorization", SensitivityLevel::Secret);
+
+    sanitizer.extend_preset(qubit_sanitize::SensitiveFieldPreset::Http);
+
+    assert_eq!(
+        sanitizer.sensitivity_for_name("authorization", NameMatchMode::Exact),
+        Some(SensitivityLevel::Secret),
     );
 }
 

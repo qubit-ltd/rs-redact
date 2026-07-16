@@ -11,7 +11,7 @@ use super::SensitivityLevel;
 /// [`super::SensitiveFieldPreset`].
 ///
 /// Used by [`crate::SensitiveFields::default`] together with all presets.
-pub const DEFAULT_EXTRA_FIELDS: [(&str, SensitivityLevel); 3] = [
+pub const DEFAULT_EXTRA_FIELDS: &[(&str, SensitivityLevel)] = &[
     ("auth_app_token", SensitivityLevel::High),
     ("auth_user_token", SensitivityLevel::High),
     ("license_key", SensitivityLevel::Medium),

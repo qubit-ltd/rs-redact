@@ -16,12 +16,25 @@ use qubit_sanitize::{
 
 #[test]
 fn test_sensitive_field_preset_credentials_fields() {
-    let fields = SensitiveFieldPreset::Credentials.fields();
+    let preset_fields = SensitiveFieldPreset::Credentials.fields();
+    let mut fields = SensitiveFields::new();
+    fields.extend_preset(SensitiveFieldPreset::Credentials);
 
-    assert_eq!(fields.len(), 6);
-    assert_eq!(fields[0], ("password", SensitivityLevel::Secret));
-    assert_eq!(fields[4], ("private_key", SensitivityLevel::Secret));
-    assert_eq!(fields[5], ("security_key", SensitivityLevel::Secret));
+    assert_eq!(preset_fields.len(), 10);
+    assert_eq!(preset_fields[0], ("password", SensitivityLevel::Secret));
+    assert_eq!(
+        fields.level_for("secret_key"),
+        Some(SensitivityLevel::Secret),
+    );
+    assert_eq!(
+        fields.level_for("secret_access_key"),
+        Some(SensitivityLevel::Secret),
+    );
+    assert_eq!(fields.level_for("access_key"), Some(SensitivityLevel::High),);
+    assert_eq!(
+        fields.level_for("access_key_id"),
+        Some(SensitivityLevel::Medium),
+    );
 }
 
 #[test]
@@ -73,8 +86,8 @@ fn test_sensitive_fields_default_matches_presets_plus_extras() {
     ] {
         from_presets.extend_preset(preset);
     }
-    for (field, level) in DEFAULT_EXTRA_FIELDS {
-        from_presets.insert(field, level);
+    for &(field, level) in DEFAULT_EXTRA_FIELDS {
+        from_presets.insert_strongest(field, level);
     }
 
     assert_eq!(from_presets, SensitiveFields::default());

@@ -22,13 +22,17 @@ pub enum SensitiveFieldPreset {
 }
 
 /// Field names for [`SensitiveFieldPreset::Credentials`].
-pub const CREDENTIALS_FIELDS: [(&str, SensitivityLevel); 6] = [
+pub const CREDENTIALS_FIELDS: [(&str, SensitivityLevel); 10] = [
     ("password", SensitivityLevel::Secret),
     ("passwd", SensitivityLevel::Secret),
     ("secret", SensitivityLevel::Secret),
     ("client_secret", SensitivityLevel::Secret),
     ("private_key", SensitivityLevel::Secret),
     ("security_key", SensitivityLevel::Secret),
+    ("secret_key", SensitivityLevel::Secret),
+    ("secret_access_key", SensitivityLevel::Secret),
+    ("access_key", SensitivityLevel::High),
+    ("access_key_id", SensitivityLevel::Medium),
 ];
 
 /// Field names for [`SensitiveFieldPreset::AuthTokens`].
@@ -61,6 +65,10 @@ pub const SESSION_FIELDS: [(&str, SensitivityLevel); 3] = [
 
 impl SensitiveFieldPreset {
     /// Returns the canonical field names and levels for this preset.
+    ///
+    /// # Returns
+    ///
+    /// The static field-name and sensitivity-level pairs in the preset.
     #[inline(always)]
     pub const fn fields(self) -> &'static [(&'static str, SensitivityLevel)] {
         match self {

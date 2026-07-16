@@ -39,7 +39,9 @@ use qubit_sanitize::{
 
 #[test]
 fn test_lib_exports_public_api() {
-    let _ = DEFAULT_EXTRA_FIELDS;
+    let fields: &'static [(&'static str, SensitivityLevel)] =
+        DEFAULT_EXTRA_FIELDS;
+    assert!(!fields.is_empty());
     let _ = ArgvSanitizer::default();
     let _ = EnvSanitizer::default();
     let _ = FieldSanitizePolicy::default();
