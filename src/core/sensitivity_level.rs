@@ -10,6 +10,14 @@
 /// Levels let callers use different masking policies for low-risk identifiers,
 /// operational secrets, and values that should be fully redacted. Their
 /// strength order is `Low < Medium < High < Secret`.
+///
+/// ```compile_fail
+/// #![deny(unused_must_use)]
+/// use qubit_sanitize::SensitivityLevel;
+///
+/// SensitivityLevel::Secret;
+/// ```
+#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SensitivityLevel {

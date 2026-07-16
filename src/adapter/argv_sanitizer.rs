@@ -265,7 +265,8 @@ impl ArgvSanitizer {
         }
         let (left, value) = arg.split_once('=')?;
         let name = option_name(left)?;
-        self.field_sanitizer
+        let _level = self
+            .field_sanitizer
             .sensitivity_for_name(name, match_mode)?;
         let sanitized_value =
             self.sanitize_sensitive_value(name, value, match_mode);

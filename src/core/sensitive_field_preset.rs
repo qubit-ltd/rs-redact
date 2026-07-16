@@ -71,7 +71,6 @@ impl SensitiveFieldPreset {
     /// # Returns
     ///
     /// The static field-name and sensitivity-level pairs in the preset.
-    #[must_use]
     #[inline(always)]
     pub const fn fields(self) -> &'static [(&'static str, SensitivityLevel)] {
         match self {
