@@ -24,8 +24,12 @@ pub use env_sanitizer::EnvSanitizer;
 pub use form_url_encoded_sanitizer::FormUrlEncodedSanitizer;
 #[cfg(feature = "http")]
 pub use http::{
-    BodyRedactionReason, BodySanitization, BodySanitizationStatus, HttpBodySanitizer,
-    HttpHeaderSanitizer, TextBodyPolicy,
+    BodyRedactionReason,
+    BodySanitization,
+    BodySanitizationStatus,
+    HttpBodySanitizer,
+    HttpHeaderSanitizer,
+    TextBodyPolicy,
 };
 #[cfg(feature = "web")]
 pub use url_sanitizer::UrlSanitizer;

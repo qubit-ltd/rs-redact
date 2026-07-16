@@ -8,15 +8,19 @@
 //! Tests for [`FieldSanitizePolicy`](qubit_sanitize::FieldSanitizePolicy).
 
 use qubit_sanitize::{
-    FieldSanitizePolicy, MaskPolicies, MaskPolicy, SensitiveFields, SensitivityLevel,
+    FieldSanitizePolicy,
+    MaskPolicies,
+    MaskPolicy,
+    SensitiveFields,
+    SensitivityLevel,
 };
 
 #[test]
 fn test_field_sanitize_policy_new_and_accessors_expose_owned_components() {
     let mut fields = SensitiveFields::new();
     fields.insert("custom", SensitivityLevel::Low);
-    let policies =
-        MaskPolicies::default().with_policy(SensitivityLevel::Low, MaskPolicy::fixed("low"));
+    let policies = MaskPolicies::default()
+        .with_policy(SensitivityLevel::Low, MaskPolicy::fixed("low"));
     let mut policy = FieldSanitizePolicy::new(fields, policies);
 
     assert_eq!(
@@ -54,8 +58,8 @@ fn test_field_sanitize_policy_new_and_accessors_expose_owned_components() {
 fn test_field_sanitize_policy_builders_replace_owned_components() {
     let mut fields = SensitiveFields::new();
     fields.insert("replacement", SensitivityLevel::Secret);
-    let policies =
-        MaskPolicies::default().with_policy(SensitivityLevel::Secret, MaskPolicy::fixed("secret"));
+    let policies = MaskPolicies::default()
+        .with_policy(SensitivityLevel::Secret, MaskPolicy::fixed("secret"));
 
     let policy = FieldSanitizePolicy::empty()
         .with_sensitive_fields(fields)

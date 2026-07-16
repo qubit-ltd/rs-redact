@@ -9,11 +9,19 @@
 
 use std::borrow::Cow;
 
-use proptest::prelude::{prop_assert, proptest};
+use proptest::prelude::{
+    prop_assert,
+    proptest,
+};
 
 use qubit_sanitize::{
-    EnvSanitizer, FieldSanitizePolicy, FieldSanitizer, MaskPolicies, NameMatchMode,
-    SensitiveFields, SensitivityLevel,
+    EnvSanitizer,
+    FieldSanitizePolicy,
+    FieldSanitizer,
+    MaskPolicies,
+    NameMatchMode,
+    SensitiveFields,
+    SensitivityLevel,
 };
 
 #[test]
@@ -31,7 +39,11 @@ fn test_env_sanitizer_field_sanitizer_accessors() {
         .field_sanitizer_mut()
         .insert_sensitive_field("custom_env", SensitivityLevel::High);
     assert_eq!(
-        sanitizer.sanitize_value("custom_env", "secret", NameMatchMode::ExactOrSuffix),
+        sanitizer.sanitize_value(
+            "custom_env",
+            "secret",
+            NameMatchMode::ExactOrSuffix
+        ),
         "****"
     );
 }
@@ -41,7 +53,11 @@ fn test_env_sanitizer_masks_prefixed_sensitive_key() {
     let sanitizer = EnvSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_value("OPENAI_API_KEY", "abcdef", NameMatchMode::ExactOrSuffix),
+        sanitizer.sanitize_value(
+            "OPENAI_API_KEY",
+            "abcdef",
+            NameMatchMode::ExactOrSuffix
+        ),
         "****"
     );
 }
@@ -62,7 +78,10 @@ fn test_env_sanitizer_sanitize_assignment_masks_secret() {
     let sanitizer = EnvSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_assignment("PASSWORD=secret", NameMatchMode::ExactOrSuffix),
+        sanitizer.sanitize_assignment(
+            "PASSWORD=secret",
+            NameMatchMode::ExactOrSuffix
+        ),
         "PASSWORD=<redacted>",
     );
 }
@@ -82,7 +101,11 @@ fn test_env_sanitizer_sanitize_os_pair_renders_lossy_pair() {
     let sanitizer = EnvSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_os_pair("SERVICE_TOKEN", "abcdef", NameMatchMode::ExactOrSuffix),
+        sanitizer.sanitize_os_pair(
+            "SERVICE_TOKEN",
+            "abcdef",
+            NameMatchMode::ExactOrSuffix
+        ),
         ("SERVICE_TOKEN".to_string(), "****".to_string()),
     );
 }
@@ -92,7 +115,11 @@ fn test_env_sanitizer_sanitize_pair_preserves_key() {
     let sanitizer = EnvSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_pair("OPENAI_API_KEY", "abcdef", NameMatchMode::ExactOrSuffix),
+        sanitizer.sanitize_pair(
+            "OPENAI_API_KEY",
+            "abcdef",
+            NameMatchMode::ExactOrSuffix
+        ),
         ("OPENAI_API_KEY".to_string(), "****".to_string()),
     );
 }
@@ -116,7 +143,11 @@ fn test_env_sanitizer_keeps_non_sensitive_key_borrowed() {
     let value = "debug";
 
     assert_eq!(
-        sanitizer.sanitize_value("LOG_LEVEL", value, NameMatchMode::ExactOrSuffix),
+        sanitizer.sanitize_value(
+            "LOG_LEVEL",
+            value,
+            NameMatchMode::ExactOrSuffix
+        ),
         Cow::Borrowed(value),
     );
 }
@@ -137,13 +168,16 @@ fn test_env_sanitizer_resolves_longest_suffix_match() {
     let mut fields = SensitiveFields::new();
     fields.insert("key", SensitivityLevel::Low);
     fields.insert("api_key", SensitivityLevel::High);
-    let sanitizer = EnvSanitizer::new(FieldSanitizer::new(FieldSanitizePolicy::new(
-        fields,
-        MaskPolicies::default(),
-    )));
+    let sanitizer = EnvSanitizer::new(FieldSanitizer::new(
+        FieldSanitizePolicy::new(fields, MaskPolicies::default()),
+    ));
 
     assert_eq!(
-        sanitizer.sanitize_value("VENDOR_API_KEY", "abcdef", NameMatchMode::ExactOrSuffix),
+        sanitizer.sanitize_value(
+            "VENDOR_API_KEY",
+            "abcdef",
+            NameMatchMode::ExactOrSuffix
+        ),
         "****"
     );
 }
@@ -153,7 +187,11 @@ fn test_env_sanitizer_constructed_from_field_sanitizer() {
     let sanitizer = EnvSanitizer::new(FieldSanitizer::default());
 
     assert_eq!(
-        sanitizer.sanitize_value("PASSWORD", "secret", NameMatchMode::ExactOrSuffix),
+        sanitizer.sanitize_value(
+            "PASSWORD",
+            "secret",
+            NameMatchMode::ExactOrSuffix
+        ),
         "<redacted>"
     );
 }

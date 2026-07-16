@@ -8,10 +8,25 @@
 //! Tests for [`HttpHeaderSanitizer`](qubit_sanitize::HttpHeaderSanitizer).
 
 use http::HeaderMap;
-use http::header::{AUTHORIZATION, CONTENT_TYPE, COOKIE, HeaderName, HeaderValue, SET_COOKIE};
-use proptest::prelude::{prop_assert, proptest};
+use http::header::{
+    AUTHORIZATION,
+    CONTENT_TYPE,
+    COOKIE,
+    HeaderName,
+    HeaderValue,
+    SET_COOKIE,
+};
+use proptest::prelude::{
+    prop_assert,
+    proptest,
+};
 
-use qubit_sanitize::{FieldSanitizer, HttpHeaderSanitizer, NameMatchMode, SensitivityLevel};
+use qubit_sanitize::{
+    FieldSanitizer,
+    HttpHeaderSanitizer,
+    NameMatchMode,
+    SensitivityLevel,
+};
 
 #[test]
 fn test_http_header_sanitizer_field_sanitizer_accessors() {
@@ -77,7 +92,11 @@ fn test_http_header_sanitizer_keeps_non_sensitive_header_value() {
     let value = HeaderValue::from_static("application/json");
 
     assert_eq!(
-        sanitizer.sanitize_value(&CONTENT_TYPE, &value, NameMatchMode::ExactOrSuffix),
+        sanitizer.sanitize_value(
+            &CONTENT_TYPE,
+            &value,
+            NameMatchMode::ExactOrSuffix
+        ),
         "application/json"
     );
 }
@@ -86,7 +105,8 @@ fn test_http_header_sanitizer_keeps_non_sensitive_header_value() {
 fn test_http_header_sanitizer_renders_non_utf8_header_value() {
     let sanitizer = HttpHeaderSanitizer::default();
     let name = HeaderName::from_static("x-binary");
-    let value = HeaderValue::from_bytes(b"\xff").expect("raw header bytes should be accepted");
+    let value = HeaderValue::from_bytes(b"\xff")
+        .expect("raw header bytes should be accepted");
 
     assert_eq!(
         sanitizer.sanitize_value(&name, &value, NameMatchMode::ExactOrSuffix),
@@ -97,10 +117,15 @@ fn test_http_header_sanitizer_renders_non_utf8_header_value() {
 #[test]
 fn test_http_header_sanitizer_masks_sensitive_non_utf8_header_value() {
     let sanitizer = HttpHeaderSanitizer::default();
-    let value = HeaderValue::from_bytes(b"\xff").expect("raw header bytes should be accepted");
+    let value = HeaderValue::from_bytes(b"\xff")
+        .expect("raw header bytes should be accepted");
 
     assert_eq!(
-        sanitizer.sanitize_value(&AUTHORIZATION, &value, NameMatchMode::ExactOrSuffix),
+        sanitizer.sanitize_value(
+            &AUTHORIZATION,
+            &value,
+            NameMatchMode::ExactOrSuffix
+        ),
         "****",
     );
 }
@@ -124,7 +149,8 @@ fn test_http_header_sanitizer_sanitize_headers_groups_values() {
     headers.append(SET_COOKIE, HeaderValue::from_static("sid=abcdef"));
     headers.append(SET_COOKIE, HeaderValue::from_static("theme=light"));
 
-    let sanitized = sanitizer.sanitize_headers(&headers, NameMatchMode::ExactOrSuffix);
+    let sanitized =
+        sanitizer.sanitize_headers(&headers, NameMatchMode::ExactOrSuffix);
 
     assert_eq!(
         sanitized

@@ -7,9 +7,17 @@
 // =============================================================================
 //! Tests for [`FormUrlEncodedSanitizer`](qubit_sanitize::FormUrlEncodedSanitizer).
 
-use proptest::prelude::{prop_assert, proptest};
+use proptest::prelude::{
+    prop_assert,
+    proptest,
+};
 
-use qubit_sanitize::{FieldSanitizer, FormUrlEncodedSanitizer, NameMatchMode, SensitivityLevel};
+use qubit_sanitize::{
+    FieldSanitizer,
+    FormUrlEncodedSanitizer,
+    NameMatchMode,
+    SensitivityLevel,
+};
 
 #[test]
 fn test_form_urlencoded_sanitizer_field_sanitizer_accessors() {
@@ -75,7 +83,10 @@ fn test_form_urlencoded_sanitizer_sanitize_bytes() {
     let sanitizer = FormUrlEncodedSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_bytes(b"password=secret&mode=debug", NameMatchMode::ExactOrSuffix),
+        sanitizer.sanitize_bytes(
+            b"password=secret&mode=debug",
+            NameMatchMode::ExactOrSuffix
+        ),
         "password=%3Credacted%3E&mode=debug",
     );
 }

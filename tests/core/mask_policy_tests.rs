@@ -7,7 +7,13 @@
 // =============================================================================
 //! Tests for [`MaskPolicy`](qubit_sanitize::MaskPolicy).
 
-use proptest::prelude::{Just, any, prop_assert_ne, prop_oneof, proptest};
+use proptest::prelude::{
+    Just,
+    any,
+    prop_assert_ne,
+    prop_oneof,
+    proptest,
+};
 
 use qubit_sanitize::MaskPolicy;
 
