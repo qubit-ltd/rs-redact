@@ -204,6 +204,9 @@ impl ArgvSanitizer {
         arg: &str,
         match_mode: NameMatchMode,
     ) -> Option<String> {
+        if arg.starts_with('-') {
+            return None;
+        }
         let (key, value) = arg.split_once('=')?;
         if key.is_empty() {
             return None;

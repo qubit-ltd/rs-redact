@@ -187,6 +187,19 @@ fn test_argv_sanitizer_stops_option_parsing_at_double_dash() {
 }
 
 #[test]
+fn test_argv_sanitizer_keeps_inline_option_after_double_dash() {
+    let sanitizer = ArgvSanitizer::default();
+
+    assert_eq!(
+        sanitizer.sanitize_argv(
+            ["cmd", "--", "--password=secret"],
+            NameMatchMode::ExactOrSuffix
+        ),
+        ["cmd", "--", "--password=secret"],
+    );
+}
+
+#[test]
 fn test_argv_sanitizer_keeps_single_dash_token() {
     let sanitizer = ArgvSanitizer::default();
 
