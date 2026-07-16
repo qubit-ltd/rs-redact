@@ -8,7 +8,10 @@
 //! Tests for [`SensitiveFieldPreset`](qubit_sanitize::SensitiveFieldPreset).
 
 use qubit_sanitize::{
-    DEFAULT_EXTRA_FIELDS, SensitiveFieldPreset, SensitiveFields, SensitivityLevel,
+    DEFAULT_EXTRA_FIELDS,
+    SensitiveFieldPreset,
+    SensitiveFields,
+    SensitivityLevel,
 };
 
 #[test]
@@ -17,7 +20,7 @@ fn test_sensitive_field_preset_credentials_fields() {
     let mut fields = SensitiveFields::new();
     fields.extend_preset(SensitiveFieldPreset::Credentials);
 
-    assert_eq!(preset_fields.len(), 10);
+    assert_eq!(preset_fields.len(), 11);
     assert_eq!(preset_fields[0], ("password", SensitivityLevel::Secret));
     assert_eq!(
         fields.level_for("secret_key"),

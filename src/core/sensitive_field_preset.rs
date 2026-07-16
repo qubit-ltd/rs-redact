@@ -8,6 +8,7 @@
 use super::SensitivityLevel;
 
 /// Predefined groups of sensitive field names.
+#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SensitiveFieldPreset {
@@ -22,8 +23,9 @@ pub enum SensitiveFieldPreset {
 }
 
 /// Field names for [`SensitiveFieldPreset::Credentials`].
-pub const CREDENTIALS_FIELDS: [(&str, SensitivityLevel); 10] = [
+pub const CREDENTIALS_FIELDS: [(&str, SensitivityLevel); 11] = [
     ("password", SensitivityLevel::Secret),
+    ("password_confirmation", SensitivityLevel::Secret),
     ("passwd", SensitivityLevel::Secret),
     ("secret", SensitivityLevel::Secret),
     ("client_secret", SensitivityLevel::Secret),
@@ -69,6 +71,7 @@ impl SensitiveFieldPreset {
     /// # Returns
     ///
     /// The static field-name and sensitivity-level pairs in the preset.
+    #[must_use]
     #[inline(always)]
     pub const fn fields(self) -> &'static [(&'static str, SensitivityLevel)] {
         match self {
