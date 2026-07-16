@@ -33,10 +33,7 @@ impl HeaderParameter {
     /// # Returns
     ///
     /// Parsed parameter state.
-    pub(in crate::adapter::http) fn parse(
-        value: &str,
-        parameter_name: &str,
-    ) -> Self {
+    pub(in crate::adapter::http) fn parse(value: &str, parameter_name: &str) -> Self {
         if value.contains(['\r', '\n']) {
             return Self::Invalid;
         }
@@ -54,8 +51,7 @@ impl HeaderParameter {
             if result != Self::Absent {
                 return Self::Invalid;
             }
-            let Some(decoded) = decode_header_parameter(raw_value.trim())
-            else {
+            let Some(decoded) = decode_header_parameter(raw_value.trim()) else {
                 return Self::Invalid;
             };
             result = Self::Value(decoded);

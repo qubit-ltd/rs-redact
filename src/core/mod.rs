@@ -26,10 +26,7 @@ pub use field_sanitizer::FieldSanitizer;
 pub use mask_policies::MaskPolicies;
 pub use mask_policy::MaskPolicy;
 pub use name_match_mode::NameMatchMode;
-pub use redacted_debug::{
-    RedactedDebug,
-    redacted_debug,
-};
+pub use redacted_debug::{RedactedDebug, redacted_debug};
 pub use sensitive_field_preset::SensitiveFieldPreset;
 pub use sensitive_fields::SensitiveFields;
 pub use sensitivity_level::SensitivityLevel;

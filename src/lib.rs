@@ -70,35 +70,16 @@
 pub mod adapter;
 pub mod core;
 
-pub use adapter::{
-    ArgvSanitizer,
-    EnvSanitizer,
-};
+pub use adapter::{ArgvSanitizer, EnvSanitizer};
 #[cfg(feature = "http")]
 pub use adapter::{
-    BodyRedactionReason,
-    BodySanitization,
-    BodySanitizationStatus,
-    HttpBodySanitizer,
-    HttpHeaderSanitizer,
-    TextBodyPolicy,
+    BodyRedactionReason, BodySanitization, BodySanitizationStatus, HttpBodySanitizer,
+    HttpHeaderSanitizer, TextBodyPolicy,
 };
 #[cfg(feature = "web")]
-pub use adapter::{
-    FormUrlEncodedSanitizer,
-    UrlSanitizer,
-};
+pub use adapter::{FormUrlEncodedSanitizer, UrlSanitizer};
 pub use core::{
-    DEFAULT_EXTRA_FIELDS,
-    FieldSanitizePolicy,
-    FieldSanitizer,
-    MaskPolicies,
-    MaskPolicy,
-    NameMatchMode,
-    RedactedDebug,
-    SensitiveFieldPreset,
-    SensitiveFields,
-    SensitivityLevel,
-    canonicalize_field_name,
-    redacted_debug,
+    DEFAULT_EXTRA_FIELDS, FieldSanitizePolicy, FieldSanitizer, MaskPolicies, MaskPolicy,
+    NameMatchMode, RedactedDebug, SensitiveFieldPreset, SensitiveFields, SensitivityLevel,
+    canonicalize_field_name, redacted_debug,
 };

@@ -7,10 +7,7 @@
 // =============================================================================
 use std::ffi::OsStr;
 
-use crate::{
-    FieldSanitizer,
-    NameMatchMode,
-};
+use crate::{FieldSanitizer, NameMatchMode};
 
 /// Sanitizes structured argv vectors for logs and diagnostics.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,11 +65,7 @@ impl ArgvSanitizer {
     /// # Returns
     ///
     /// Sanitized argv tokens in input order.
-    pub fn sanitize_argv<I, S>(
-        &self,
-        argv: I,
-        match_mode: NameMatchMode,
-    ) -> Vec<String>
+    pub fn sanitize_argv<I, S>(&self, argv: I, match_mode: NameMatchMode) -> Vec<String>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
@@ -84,9 +77,7 @@ impl ArgvSanitizer {
         for arg in argv {
             let arg = arg.as_ref().to_string_lossy().into_owned();
             if let Some(name) = pending_sensitive_name.take() {
-                sanitized.push(
-                    self.sanitize_sensitive_value(&name, &arg, match_mode),
-                );
+                sanitized.push(self.sanitize_sensitive_value(&name, &arg, match_mode));
                 continue;
             }
 
@@ -96,16 +87,13 @@ impl ArgvSanitizer {
                 continue;
             }
 
-            if let Some(value) = self.sanitize_assignment_arg(&arg, match_mode)
-            {
+            if let Some(value) = self.sanitize_assignment_arg(&arg, match_mode) {
                 sanitized.push(value);
                 continue;
             }
 
             if parse_options {
-                if let Some(value) =
-                    self.sanitize_inline_option_arg(&arg, match_mode)
-                {
+                if let Some(value) = self.sanitize_inline_option_arg(&arg, match_mode) {
                     sanitized.push(value);
                     continue;
                 }
@@ -135,11 +123,7 @@ impl ArgvSanitizer {
     ///
     /// Debug-style sanitized argv string, for example
     /// `["cmd", "--token", "****"]`.
-    pub fn sanitize_argv_display<I, S>(
-        &self,
-        argv: I,
-        match_mode: NameMatchMode,
-    ) -> String
+    pub fn sanitize_argv_display<I, S>(&self, argv: I, match_mode: NameMatchMode) -> String
     where
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
@@ -157,17 +141,12 @@ impl ArgvSanitizer {
     /// # Returns
     ///
     /// `Some(sanitized)` for assignment-like arguments, otherwise `None`.
-    fn sanitize_assignment_arg(
-        &self,
-        arg: &str,
-        match_mode: NameMatchMode,
-    ) -> Option<String> {
+    fn sanitize_assignment_arg(&self, arg: &str, match_mode: NameMatchMode) -> Option<String> {
         let (key, value) = arg.split_once('=')?;
         if key.is_empty() {
             return None;
         }
-        let sanitized_value =
-            self.field_sanitizer.sanitize_value(key, value, match_mode);
+        let sanitized_value = self.field_sanitizer.sanitize_value(key, value, match_mode);
         if matches!(sanitized_value, std::borrow::Cow::Borrowed(_)) {
             return None;
         }
@@ -209,11 +188,7 @@ impl ArgvSanitizer {
     ///
     /// `Some(sanitized)` when `arg` is a sensitive inline option, otherwise
     /// `None`.
-    fn sanitize_inline_option_arg(
-        &self,
-        arg: &str,
-        match_mode: NameMatchMode,
-    ) -> Option<String> {
+    fn sanitize_inline_option_arg(&self, arg: &str, match_mode: NameMatchMode) -> Option<String> {
         if !arg.starts_with('-') || arg == "-" {
             return None;
         }
@@ -221,8 +196,7 @@ impl ArgvSanitizer {
         let name = option_name(left)?;
         self.field_sanitizer
             .sensitivity_for_name(name, match_mode)?;
-        let sanitized_value =
-            self.sanitize_sensitive_value(name, value, match_mode);
+        let sanitized_value = self.sanitize_sensitive_value(name, value, match_mode);
         Some(format!("{left}={sanitized_value}"))
     }
 }

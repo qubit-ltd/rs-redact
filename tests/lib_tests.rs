@@ -8,39 +8,21 @@
 //! Tests for crate-level exports.
 
 use qubit_sanitize::{
-    ArgvSanitizer,
-    DEFAULT_EXTRA_FIELDS,
-    EnvSanitizer,
-    FieldSanitizePolicy,
-    FieldSanitizer,
-    MaskPolicies,
-    MaskPolicy,
-    NameMatchMode,
-    RedactedDebug,
-    SensitiveFieldPreset,
-    SensitiveFields,
-    SensitivityLevel,
-    redacted_debug,
+    ArgvSanitizer, DEFAULT_EXTRA_FIELDS, EnvSanitizer, FieldSanitizePolicy, FieldSanitizer,
+    MaskPolicies, MaskPolicy, NameMatchMode, RedactedDebug, SensitiveFieldPreset, SensitiveFields,
+    SensitivityLevel, redacted_debug,
 };
 #[cfg(feature = "http")]
 use qubit_sanitize::{
-    BodyRedactionReason,
-    BodySanitization,
-    BodySanitizationStatus,
-    HttpBodySanitizer,
-    HttpHeaderSanitizer,
-    TextBodyPolicy,
+    BodyRedactionReason, BodySanitization, BodySanitizationStatus, HttpBodySanitizer,
+    HttpHeaderSanitizer, TextBodyPolicy,
 };
 #[cfg(feature = "web")]
-use qubit_sanitize::{
-    FormUrlEncodedSanitizer,
-    UrlSanitizer,
-};
+use qubit_sanitize::{FormUrlEncodedSanitizer, UrlSanitizer};
 
 #[test]
 fn test_lib_exports_public_api() {
-    let fields: &'static [(&'static str, SensitivityLevel)] =
-        DEFAULT_EXTRA_FIELDS;
+    let fields: &'static [(&'static str, SensitivityLevel)] = DEFAULT_EXTRA_FIELDS;
     assert!(!fields.is_empty());
     let _ = ArgvSanitizer::default();
     let _ = EnvSanitizer::default();
@@ -61,8 +43,7 @@ fn test_lib_exports_public_api() {
     #[cfg(feature = "http")]
     {
         let _: Option<BodySanitization> = None;
-        let _ =
-            BodySanitizationStatus::Redacted(BodyRedactionReason::InvalidJson);
+        let _ = BodySanitizationStatus::Redacted(BodyRedactionReason::InvalidJson);
         let _ = HttpBodySanitizer::default();
         let _ = HttpHeaderSanitizer::default();
         let _ = TextBodyPolicy::default();

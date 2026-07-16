@@ -8,10 +8,7 @@
 //! Tests for [`SensitiveFields`](qubit_sanitize::SensitiveFields).
 
 use qubit_sanitize::{
-    SensitiveFieldPreset,
-    SensitiveFields,
-    SensitivityLevel,
-    canonicalize_field_name,
+    SensitiveFieldPreset, SensitiveFields, SensitivityLevel, canonicalize_field_name,
 };
 
 #[test]

@@ -151,12 +151,9 @@ impl MaskPolicy {
                 suffix_chars,
                 replacement,
                 full_mask_below_or_equal,
-            } => mask_preserving_suffix(
-                value,
-                *suffix_chars,
-                replacement,
-                *full_mask_below_or_equal,
-            ),
+            } => {
+                mask_preserving_suffix(value, *suffix_chars, replacement, *full_mask_below_or_equal)
+            }
             Self::Empty => Cow::Owned(String::new()),
         }
     }

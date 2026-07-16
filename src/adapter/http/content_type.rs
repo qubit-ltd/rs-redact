@@ -149,14 +149,10 @@ pub(super) fn multipart_boundary(content_type: &str) -> Option<String> {
         return None;
     }
     match HeaderParameter::parse(content_type, "boundary") {
-        HeaderParameter::Value(boundary)
-            if is_valid_multipart_boundary(&boundary) =>
-        {
+        HeaderParameter::Value(boundary) if is_valid_multipart_boundary(&boundary) => {
             Some(boundary)
         }
-        HeaderParameter::Absent
-        | HeaderParameter::Value(_)
-        | HeaderParameter::Invalid => None,
+        HeaderParameter::Absent | HeaderParameter::Value(_) | HeaderParameter::Invalid => None,
     }
 }
 

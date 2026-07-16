@@ -64,9 +64,7 @@ impl MultipartSanitization {
     ///
     /// `true` when at least one opaque text body was passed through.
     #[inline(always)]
-    pub(in crate::adapter::http) const fn contains_passed_through_text(
-        &self,
-    ) -> bool {
+    pub(in crate::adapter::http) const fn contains_passed_through_text(&self) -> bool {
         self.contains_passed_through_text
     }
 }

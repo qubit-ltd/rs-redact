@@ -9,10 +9,7 @@
 
 use form_urlencoded::Serializer;
 
-use crate::{
-    FieldSanitizer,
-    NameMatchMode,
-};
+use crate::{FieldSanitizer, NameMatchMode};
 
 /// Sanitizes URL-encoded form bytes with a field sanitizer.
 ///
@@ -35,11 +32,8 @@ pub(crate) fn sanitize_form_urlencoded(
 ) -> String {
     let mut serializer = Serializer::new(String::new());
     for (key, value) in form_urlencoded::parse(form) {
-        let sanitized_value = field_sanitizer.sanitize_value(
-            key.as_ref(),
-            value.as_ref(),
-            match_mode,
-        );
+        let sanitized_value =
+            field_sanitizer.sanitize_value(key.as_ref(), value.as_ref(), match_mode);
         serializer.append_pair(key.as_ref(), sanitized_value.as_ref());
     }
     serializer.finish()

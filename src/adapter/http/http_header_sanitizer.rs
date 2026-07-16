@@ -7,16 +7,9 @@
 // =============================================================================
 use std::collections::BTreeMap;
 
-use http::{
-    HeaderMap,
-    HeaderName,
-    HeaderValue,
-};
+use http::{HeaderMap, HeaderName, HeaderValue};
 
-use crate::{
-    FieldSanitizer,
-    NameMatchMode,
-};
+use crate::{FieldSanitizer, NameMatchMode};
 
 /// Sanitizes HTTP header values for logs and diagnostics.
 #[derive(Debug, Clone, PartialEq, Eq)]

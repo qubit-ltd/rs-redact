@@ -8,10 +8,7 @@
 use std::borrow::Cow;
 
 use super::{
-    FieldSanitizePolicy,
-    NameMatchMode,
-    SensitiveFieldPreset,
-    SensitivityLevel,
+    FieldSanitizePolicy, NameMatchMode, SensitiveFieldPreset, SensitivityLevel,
     field_name::canonicalize_field_name_suffixes,
 };
 
@@ -63,11 +60,7 @@ impl FieldSanitizer {
     ///
     /// * `field` - Field name to mark sensitive.
     /// * `level` - Sensitivity level assigned to the field.
-    pub fn insert_sensitive_field(
-        &mut self,
-        field: &str,
-        level: SensitivityLevel,
-    ) {
+    pub fn insert_sensitive_field(&mut self, field: &str, level: SensitivityLevel) {
         self.policy
             .sensitive_fields_mut()
             .insert_strongest(field, level);
@@ -79,11 +72,7 @@ impl FieldSanitizer {
     ///
     /// * `field` - Field name whose level should be replaced.
     /// * `level` - Replacement sensitivity level, even when weaker.
-    pub fn set_sensitive_field_level(
-        &mut self,
-        field: &str,
-        level: SensitivityLevel,
-    ) {
+    pub fn set_sensitive_field_level(&mut self, field: &str, level: SensitivityLevel) {
         self.policy.sensitive_fields_mut().insert(field, level);
     }
 
@@ -93,11 +82,8 @@ impl FieldSanitizer {
     ///
     /// * `fields` - Field names to add.
     /// * `level` - Sensitivity level assigned to every field.
-    pub fn extend_sensitive_fields<I, S>(
-        &mut self,
-        fields: I,
-        level: SensitivityLevel,
-    ) where
+    pub fn extend_sensitive_fields<I, S>(&mut self, fields: I, level: SensitivityLevel)
+    where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
@@ -222,16 +208,12 @@ impl FieldSanitizer {
     ///
     /// * `map` - Mutable map whose keys are treated as field names.
     /// * `match_mode` - Field-name matching mode.
-    pub fn sanitize_map_in_place<M>(
-        &self,
-        map: &mut M,
-        match_mode: NameMatchMode,
-    ) where
+    pub fn sanitize_map_in_place<M>(&self, map: &mut M, match_mode: NameMatchMode)
+    where
         for<'a> &'a mut M: IntoIterator<Item = (&'a String, &'a mut String)>,
     {
         for (field, value) in map {
-            let sanitized =
-                self.sanitize_value(field, value.as_str(), match_mode);
+            let sanitized = self.sanitize_value(field, value.as_str(), match_mode);
             if let Cow::Owned(sanitized) = sanitized {
                 *value = sanitized;
             }

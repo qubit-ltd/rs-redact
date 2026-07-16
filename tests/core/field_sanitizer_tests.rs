@@ -8,18 +8,10 @@
 //! Tests for [`FieldSanitizer`](qubit_sanitize::FieldSanitizer).
 
 use std::borrow::Cow;
-use std::collections::{
-    BTreeMap,
-    HashMap,
-};
+use std::collections::{BTreeMap, HashMap};
 
 use qubit_sanitize::{
-    FieldSanitizePolicy,
-    FieldSanitizer,
-    MaskPolicies,
-    MaskPolicy,
-    NameMatchMode,
-    SensitiveFields,
+    FieldSanitizePolicy, FieldSanitizer, MaskPolicies, MaskPolicy, NameMatchMode, SensitiveFields,
     SensitivityLevel,
 };
 
@@ -69,10 +61,7 @@ fn test_field_sanitizer_sensitivity_for_name_resolves_suffix() {
     let sanitizer = FieldSanitizer::default();
 
     assert_eq!(
-        sanitizer.sensitivity_for_name(
-            "OPENAI_API_KEY",
-            NameMatchMode::ExactOrSuffix,
-        ),
+        sanitizer.sensitivity_for_name("OPENAI_API_KEY", NameMatchMode::ExactOrSuffix,),
         Some(SensitivityLevel::High),
     );
 }
@@ -101,22 +90,15 @@ fn test_sensitive_fields_exact_or_suffix_matches_bracketed_paths() {
     let sanitizer = FieldSanitizer::default();
 
     assert_eq!(
-        sanitizer.sensitivity_for_name(
-            "user[password]",
-            NameMatchMode::ExactOrSuffix,
-        ),
+        sanitizer.sensitivity_for_name("user[password]", NameMatchMode::ExactOrSuffix,),
         Some(SensitivityLevel::Secret),
     );
     assert_eq!(
-        sanitizer.sensitivity_for_name(
-            "credentials[api_key]",
-            NameMatchMode::ExactOrSuffix,
-        ),
+        sanitizer.sensitivity_for_name("credentials[api_key]", NameMatchMode::ExactOrSuffix,),
         Some(SensitivityLevel::High),
     );
     assert_eq!(
-        sanitizer
-            .sensitivity_for_name("notpassword", NameMatchMode::ExactOrSuffix,),
+        sanitizer.sensitivity_for_name("notpassword", NameMatchMode::ExactOrSuffix,),
         None,
     );
 }
@@ -126,16 +108,10 @@ fn test_field_sanitizer_sensitivity_for_name_resolves_longest_suffix() {
     let mut fields = SensitiveFields::new();
     fields.insert("key", SensitivityLevel::Low);
     fields.insert("api_key", SensitivityLevel::High);
-    let sanitizer = FieldSanitizer::new(FieldSanitizePolicy::new(
-        fields,
-        MaskPolicies::default(),
-    ));
+    let sanitizer = FieldSanitizer::new(FieldSanitizePolicy::new(fields, MaskPolicies::default()));
 
     assert_eq!(
-        sanitizer.sensitivity_for_name(
-            "VENDOR_API_KEY",
-            NameMatchMode::ExactOrSuffix,
-        ),
+        sanitizer.sensitivity_for_name("VENDOR_API_KEY", NameMatchMode::ExactOrSuffix,),
         Some(SensitivityLevel::High),
     );
 }
@@ -145,14 +121,10 @@ fn test_field_sanitizer_sensitivity_for_name_rejects_unbounded_suffix() {
     let mut fields = SensitiveFields::new();
     fields.insert("key", SensitivityLevel::Low);
     fields.insert("api_key", SensitivityLevel::High);
-    let sanitizer = FieldSanitizer::new(FieldSanitizePolicy::new(
-        fields,
-        MaskPolicies::default(),
-    ));
+    let sanitizer = FieldSanitizer::new(FieldSanitizePolicy::new(fields, MaskPolicies::default()));
 
     assert_eq!(
-        sanitizer
-            .sensitivity_for_name("notapikey", NameMatchMode::ExactOrSuffix,),
+        sanitizer.sensitivity_for_name("notapikey", NameMatchMode::ExactOrSuffix,),
         None,
     );
     assert_eq!(
@@ -202,11 +174,7 @@ fn test_field_sanitizer_sanitize_value_masks_suffix_name() {
     let sanitizer = FieldSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_value(
-            "OPENAI_API_KEY",
-            "abcdef",
-            NameMatchMode::ExactOrSuffix,
-        ),
+        sanitizer.sanitize_value("OPENAI_API_KEY", "abcdef", NameMatchMode::ExactOrSuffix,),
         "****",
     );
 }
@@ -216,11 +184,7 @@ fn test_field_sanitizer_credentials_preset_masks_environment_names() {
     let sanitizer = FieldSanitizer::default();
 
     assert_eq!(
-        sanitizer.sanitize_value(
-            "SECRET_KEY",
-            "abcdef",
-            NameMatchMode::ExactOrSuffix,
-        ),
+        sanitizer.sanitize_value("SECRET_KEY", "abcdef", NameMatchMode::ExactOrSuffix,),
         "<redacted>",
     );
     assert_eq!(
@@ -232,18 +196,11 @@ fn test_field_sanitizer_credentials_preset_masks_environment_names() {
         "<redacted>",
     );
     assert_eq!(
-        sanitizer.sensitivity_for_name(
-            "AWS_ACCESS_KEY",
-            NameMatchMode::ExactOrSuffix,
-        ),
+        sanitizer.sensitivity_for_name("AWS_ACCESS_KEY", NameMatchMode::ExactOrSuffix,),
         Some(SensitivityLevel::High),
     );
     assert_eq!(
-        sanitizer.sanitize_value(
-            "AWS_ACCESS_KEY",
-            "abcdef",
-            NameMatchMode::ExactOrSuffix,
-        ),
+        sanitizer.sanitize_value("AWS_ACCESS_KEY", "abcdef", NameMatchMode::ExactOrSuffix,),
         "****",
     );
     assert_eq!(
@@ -288,8 +245,7 @@ fn test_field_sanitizer_add_and_set_have_distinct_level_semantics() {
 fn test_field_sanitizer_extend_sensitive_fields_keeps_stronger_levels() {
     let mut sanitizer = FieldSanitizer::default();
 
-    sanitizer
-        .extend_sensitive_fields(["password", "custom"], SensitivityLevel::Low);
+    sanitizer.extend_sensitive_fields(["password", "custom"], SensitivityLevel::Low);
 
     assert_eq!(
         sanitizer.sensitivity_for_name("password", NameMatchMode::Exact),
@@ -334,19 +290,11 @@ fn test_field_sanitizer_extend_sensitive_fields_adds_multiple_fields() {
     );
 
     assert_eq!(
-        sanitizer.sanitize_value(
-            "primary-secret",
-            "abcdef",
-            NameMatchMode::Exact
-        ),
+        sanitizer.sanitize_value("primary-secret", "abcdef", NameMatchMode::Exact),
         "****"
     );
     assert_eq!(
-        sanitizer.sanitize_value(
-            "secondary.secret",
-            "abcdef",
-            NameMatchMode::Exact
-        ),
+        sanitizer.sanitize_value("secondary.secret", "abcdef", NameMatchMode::Exact),
         "****"
     );
 }
@@ -361,11 +309,7 @@ fn test_field_sanitizer_extend_preset_adds_group_fields() {
         "****f"
     );
     assert_eq!(
-        sanitizer.sanitize_value(
-            "session-token",
-            "abcdef",
-            NameMatchMode::Exact
-        ),
+        sanitizer.sanitize_value("session-token", "abcdef", NameMatchMode::Exact),
         "****"
     );
 }
@@ -373,8 +317,7 @@ fn test_field_sanitizer_extend_preset_adds_group_fields() {
 #[test]
 fn test_field_sanitizer_extend_preset_does_not_downgrade_existing_level() {
     let mut sanitizer = FieldSanitizer::new(FieldSanitizePolicy::empty());
-    sanitizer
-        .set_sensitive_field_level("authorization", SensitivityLevel::Secret);
+    sanitizer.set_sensitive_field_level("authorization", SensitivityLevel::Secret);
 
     sanitizer.extend_preset(qubit_sanitize::SensitiveFieldPreset::Http);
 

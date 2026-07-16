@@ -97,19 +97,14 @@ fn is_field_separator(ch: char) -> bool {
 /// `true` at lower-or-number to uppercase transitions and before the final
 /// uppercase character of an acronym followed by a lowercase word tail.
 #[inline]
-fn starts_camel_token(
-    previous: Option<char>,
-    current: char,
-    next: Option<char>,
-) -> bool {
+fn starts_camel_token(previous: Option<char>, current: char, next: Option<char>) -> bool {
     if !current.is_uppercase() {
         return false;
     }
-    let follows_lower_or_number = previous.is_some_and(|previous| {
-        previous.is_lowercase() || previous.is_numeric()
-    });
-    let starts_word_after_acronym = previous.is_some_and(char::is_uppercase)
-        && next.is_some_and(char::is_lowercase);
+    let follows_lower_or_number =
+        previous.is_some_and(|previous| previous.is_lowercase() || previous.is_numeric());
+    let starts_word_after_acronym =
+        previous.is_some_and(char::is_uppercase) && next.is_some_and(char::is_lowercase);
     follows_lower_or_number || starts_word_after_acronym
 }
 

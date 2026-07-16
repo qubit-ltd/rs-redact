@@ -5,10 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use super::{
-    MaskPolicy,
-    SensitivityLevel,
-};
+use super::{MaskPolicy, SensitivityLevel};
 
 /// Mask policies assigned to all supported sensitivity levels.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,11 +59,7 @@ impl MaskPolicies {
     ///
     /// The updated policy collection.
     #[inline(always)]
-    pub fn with_policy(
-        mut self,
-        level: SensitivityLevel,
-        policy: MaskPolicy,
-    ) -> Self {
+    pub fn with_policy(mut self, level: SensitivityLevel, policy: MaskPolicy) -> Self {
         self.set(level, policy);
         self
     }
@@ -100,10 +93,7 @@ impl MaskPolicies {
     ///
     /// Mutable mask policy configured for `level`.
     #[inline(always)]
-    pub fn for_level_mut(
-        &mut self,
-        level: SensitivityLevel,
-    ) -> &mut MaskPolicy {
+    pub fn for_level_mut(&mut self, level: SensitivityLevel) -> &mut MaskPolicy {
         match level {
             SensitivityLevel::Low => &mut self.low,
             SensitivityLevel::Medium => &mut self.medium,

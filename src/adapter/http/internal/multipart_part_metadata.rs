@@ -36,10 +36,8 @@ impl<'a> MultipartPartMetadata<'a> {
         content_type: Option<&'a str>,
     ) -> Option<Self> {
         let name = parse_optional_parameter(content_disposition, "name")?;
-        let filename =
-            parse_optional_parameter(content_disposition, "filename")?;
-        let extended_filename =
-            parse_optional_parameter(content_disposition, "filename*")?;
+        let filename = parse_optional_parameter(content_disposition, "filename")?;
+        let extended_filename = parse_optional_parameter(content_disposition, "filename*")?;
         Some(Self {
             name,
             filename: filename.or(extended_filename),
@@ -73,9 +71,7 @@ impl<'a> MultipartPartMetadata<'a> {
     ///
     /// Borrowed content type text, or `None` when the header was absent.
     #[inline(always)]
-    pub(in crate::adapter::http) const fn content_type(
-        &self,
-    ) -> Option<&'a str> {
+    pub(in crate::adapter::http) const fn content_type(&self) -> Option<&'a str> {
         self.content_type
     }
 }

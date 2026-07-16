@@ -8,9 +8,7 @@
 use super::super::{
     BodyRedactionReason,
     redaction_markers::{
-        INVALID_JSON_REDACTED,
-        INVALID_NDJSON_REDACTED,
-        INVALID_OR_TRUNCATED_JSON_REDACTED,
+        INVALID_JSON_REDACTED, INVALID_NDJSON_REDACTED, INVALID_OR_TRUNCATED_JSON_REDACTED,
         INVALID_OR_TRUNCATED_NDJSON_REDACTED,
     },
 };
@@ -72,9 +70,7 @@ impl BodyInputKind {
     /// # Returns
     ///
     /// JSON redaction reason.
-    pub(in crate::adapter::http) const fn invalid_json_reason(
-        self,
-    ) -> BodyRedactionReason {
+    pub(in crate::adapter::http) const fn invalid_json_reason(self) -> BodyRedactionReason {
         match self {
             Self::Complete => BodyRedactionReason::InvalidJson,
             Self::Preview => BodyRedactionReason::InvalidOrTruncatedJson,
@@ -86,9 +82,7 @@ impl BodyInputKind {
     /// # Returns
     ///
     /// NDJSON redaction marker.
-    pub(in crate::adapter::http) fn invalid_ndjson_marker(
-        self,
-    ) -> &'static str {
+    pub(in crate::adapter::http) fn invalid_ndjson_marker(self) -> &'static str {
         match self {
             Self::Complete => INVALID_NDJSON_REDACTED,
             Self::Preview => INVALID_OR_TRUNCATED_NDJSON_REDACTED,
@@ -100,9 +94,7 @@ impl BodyInputKind {
     /// # Returns
     ///
     /// NDJSON redaction reason.
-    pub(in crate::adapter::http) const fn invalid_ndjson_reason(
-        self,
-    ) -> BodyRedactionReason {
+    pub(in crate::adapter::http) const fn invalid_ndjson_reason(self) -> BodyRedactionReason {
         match self {
             Self::Complete => BodyRedactionReason::InvalidNdjson,
             Self::Preview => BodyRedactionReason::InvalidOrTruncatedNdjson,

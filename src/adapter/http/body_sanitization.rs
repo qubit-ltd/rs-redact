@@ -7,12 +7,7 @@
 // =============================================================================
 //! Structured result of sanitizing an HTTP body.
 
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
-    Write,
-};
+use std::fmt::{self, Display, Formatter, Write};
 
 use super::BodySanitizationStatus;
 

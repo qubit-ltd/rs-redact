@@ -8,9 +8,7 @@
 use std::collections::BTreeMap;
 
 use super::{
-    SensitiveFieldPreset,
-    SensitivityLevel,
-    canonicalize_field_name,
+    SensitiveFieldPreset, SensitivityLevel, canonicalize_field_name,
     default_sensitive_fields::DEFAULT_EXTRA_FIELDS,
 };
 

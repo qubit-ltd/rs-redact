@@ -7,11 +7,7 @@
 // =============================================================================
 //! Tests for [`MaskPolicies`](qubit_sanitize::MaskPolicies).
 
-use qubit_sanitize::{
-    MaskPolicies,
-    MaskPolicy,
-    SensitivityLevel,
-};
+use qubit_sanitize::{MaskPolicies, MaskPolicy, SensitivityLevel};
 
 #[test]
 fn test_mask_policies_new_and_level_accessors_select_requested_policy() {
@@ -54,8 +50,7 @@ fn test_mask_policies_set_and_with_policy_update_requested_level() {
         "<high>",
     );
 
-    let policies = policies
-        .with_policy(SensitivityLevel::Secret, MaskPolicy::fixed("<secret>"));
+    let policies = policies.with_policy(SensitivityLevel::Secret, MaskPolicy::fixed("<secret>"));
     assert_eq!(
         policies.for_level(SensitivityLevel::Secret).mask("secret"),
         "<secret>",

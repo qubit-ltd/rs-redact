@@ -7,11 +7,7 @@
 // =============================================================================
 //! Debug wrapper that never formats the wrapped value.
 
-use std::fmt::{
-    self,
-    Debug,
-    Formatter,
-};
+use std::fmt::{self, Debug, Formatter};
 
 /// Formats any borrowed value as a fixed redaction marker.
 ///

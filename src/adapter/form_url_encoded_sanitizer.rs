@@ -5,10 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use crate::{
-    FieldSanitizer,
-    NameMatchMode,
-};
+use crate::{FieldSanitizer, NameMatchMode};
 
 use super::form_url_encoded::sanitize_form_urlencoded;
 
@@ -68,11 +65,7 @@ impl FormUrlEncodedSanitizer {
     ///
     /// Sanitized URL-encoded form string.
     #[inline(always)]
-    pub fn sanitize_bytes(
-        &self,
-        form: &[u8],
-        match_mode: NameMatchMode,
-    ) -> String {
+    pub fn sanitize_bytes(&self, form: &[u8], match_mode: NameMatchMode) -> String {
         sanitize_form_urlencoded(&self.field_sanitizer, form, match_mode)
     }
 
@@ -87,11 +80,7 @@ impl FormUrlEncodedSanitizer {
     ///
     /// Sanitized URL-encoded form string.
     #[inline(always)]
-    pub fn sanitize_str(
-        &self,
-        form: &str,
-        match_mode: NameMatchMode,
-    ) -> String {
+    pub fn sanitize_str(&self, form: &str, match_mode: NameMatchMode) -> String {
         self.sanitize_bytes(form.as_bytes(), match_mode)
     }
 }

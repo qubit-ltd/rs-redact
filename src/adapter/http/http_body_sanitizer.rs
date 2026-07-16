@@ -8,24 +8,16 @@
 use http::HeaderValue;
 use serde_json::Value;
 
-use crate::{
-    FieldSanitizer,
-    NameMatchMode,
-    adapter::form_url_encoded::sanitize_form_urlencoded,
-};
+use crate::{FieldSanitizer, NameMatchMode, adapter::form_url_encoded::sanitize_form_urlencoded};
 
 use super::{
-    BodyRedactionReason,
-    BodySanitization,
-    BodySanitizationStatus,
+    BodyRedactionReason, BodySanitization, BodySanitizationStatus,
     body_bytes::trim_ascii_whitespace,
     content_type,
     internal::BodyInputKind,
     multipart,
     redaction_markers::{
-        INVALID_CONTENT_TYPE_REDACTED,
-        MULTIPART_BODY_REDACTED,
-        TEXT_BODY_REDACTED,
+        INVALID_CONTENT_TYPE_REDACTED, MULTIPART_BODY_REDACTED, TEXT_BODY_REDACTED,
         UNSUPPORTED_BODY_REDACTED,
     },
     text_body_policy::TextBodyPolicy,
@@ -76,10 +68,7 @@ impl HttpBodySanitizer {
     ///
     /// The updated sanitizer.
     #[inline]
-    pub const fn with_text_body_policy(
-        mut self,
-        text_body_policy: TextBodyPolicy,
-    ) -> Self {
+    pub const fn with_text_body_policy(mut self, text_body_policy: TextBodyPolicy) -> Self {
         self.text_body_policy = text_body_policy;
         self
     }
@@ -237,11 +226,7 @@ impl HttpBodySanitizer {
     /// # Returns
     ///
     /// Sanitized compact JSON text, or `None` when parsing or rendering fails.
-    pub(super) fn sanitize_json(
-        &self,
-        bytes: &[u8],
-        match_mode: NameMatchMode,
-    ) -> Option<String> {
+    pub(super) fn sanitize_json(&self, bytes: &[u8], match_mode: NameMatchMode) -> Option<String> {
         let mut value = serde_json::from_slice::<Value>(bytes).ok()?;
         self.redact_json_value(&mut value, match_mode);
         serde_json::to_string(&value).ok()
@@ -292,11 +277,7 @@ impl HttpBodySanitizer {
     ///
     /// Sanitized URL-encoded form text.
     #[inline(always)]
-    pub(super) fn sanitize_form(
-        &self,
-        bytes: &[u8],
-        match_mode: NameMatchMode,
-    ) -> String {
+    pub(super) fn sanitize_form(&self, bytes: &[u8], match_mode: NameMatchMode) -> String {
         sanitize_form_urlencoded(&self.field_sanitizer, bytes, match_mode)
     }
 
@@ -321,33 +302,24 @@ impl HttpBodySanitizer {
         input_kind: BodyInputKind,
         match_mode: NameMatchMode,
     ) -> BodySanitization {
-        let result = |content, status| {
-            BodySanitization::new(content, status, bytes.len(), source_len)
-        };
+        let result =
+            |content, status| BodySanitization::new(content, status, bytes.len(), source_len);
         if bytes.is_empty() {
-            return result(
-                input_kind.empty_content(),
-                BodySanitizationStatus::Empty,
-            );
+            return result(input_kind.empty_content(), BodySanitizationStatus::Empty);
         }
 
-        let content_type = match content_type::content_type_to_str(content_type)
-        {
+        let content_type = match content_type::content_type_to_str(content_type) {
             Some(Ok(content_type)) => Some(content_type),
             Some(Err(_)) => {
                 return result(
                     INVALID_CONTENT_TYPE_REDACTED.to_string(),
-                    BodySanitizationStatus::Redacted(
-                        BodyRedactionReason::InvalidContentType,
-                    ),
+                    BodySanitizationStatus::Redacted(BodyRedactionReason::InvalidContentType),
                 );
             }
             None => None,
         };
 
-        if let Some(content_type) =
-            content_type.filter(|value| content_type::is_multipart(value))
-        {
+        if let Some(content_type) = content_type.filter(|value| content_type::is_multipart(value)) {
             return self.sanitize_multipart_body(
                 bytes,
                 source_len,
@@ -357,13 +329,10 @@ impl HttpBodySanitizer {
             );
         }
         if content_type.is_some_and(content_type::is_ndjson) {
-            return self.sanitize_ndjson_body(
-                bytes, source_len, input_kind, match_mode,
-            );
+            return self.sanitize_ndjson_body(bytes, source_len, input_kind, match_mode);
         }
         if self.is_json_body(content_type, bytes) {
-            return self
-                .sanitize_json_body(bytes, source_len, input_kind, match_mode);
+            return self.sanitize_json_body(bytes, source_len, input_kind, match_mode);
         }
         if content_type.is_some_and(content_type::is_form_urlencoded) {
             return self.sanitize_form_body(bytes, source_len, match_mode);
@@ -394,23 +363,17 @@ impl HttpBodySanitizer {
         input_kind: BodyInputKind,
         match_mode: NameMatchMode,
     ) -> BodySanitization {
-        let result = |content, status| {
-            BodySanitization::new(content, status, bytes.len(), source_len)
-        };
+        let result =
+            |content, status| BodySanitization::new(content, status, bytes.len(), source_len);
         if input_kind.is_truncated(bytes.len(), source_len) {
             return result(
                 MULTIPART_BODY_REDACTED.to_string(),
-                BodySanitizationStatus::Redacted(
-                    BodyRedactionReason::TruncatedMultipart,
-                ),
+                BodySanitizationStatus::Redacted(BodyRedactionReason::TruncatedMultipart),
             );
         }
-        if let Some(multipart) = multipart::sanitize_multipart(
-            self,
-            Some(content_type),
-            bytes,
-            match_mode,
-        ) {
+        if let Some(multipart) =
+            multipart::sanitize_multipart(self, Some(content_type), bytes, match_mode)
+        {
             let status = if multipart.contains_passed_through_text() {
                 BodySanitizationStatus::PassedThrough
             } else {
@@ -420,9 +383,7 @@ impl HttpBodySanitizer {
         }
         result(
             MULTIPART_BODY_REDACTED.to_string(),
-            BodySanitizationStatus::Redacted(
-                BodyRedactionReason::InvalidMultipart,
-            ),
+            BodySanitizationStatus::Redacted(BodyRedactionReason::InvalidMultipart),
         )
     }
 
@@ -456,9 +417,7 @@ impl HttpBodySanitizer {
         }
         BodySanitization::new(
             input_kind.invalid_ndjson_marker().to_string(),
-            BodySanitizationStatus::Redacted(
-                input_kind.invalid_ndjson_reason(),
-            ),
+            BodySanitizationStatus::Redacted(input_kind.invalid_ndjson_reason()),
             bytes.len(),
             source_len,
         )
@@ -548,26 +507,21 @@ impl HttpBodySanitizer {
         source_len: usize,
         content_type: Option<&str>,
     ) -> BodySanitization {
-        let result = |content, status| {
-            BodySanitization::new(content, status, bytes.len(), source_len)
-        };
+        let result =
+            |content, status| BodySanitization::new(content, status, bytes.len(), source_len);
         match std::str::from_utf8(bytes) {
             Ok(text) if content_type.is_some_and(content_type::is_text) => {
                 let status = match self.text_body_policy {
-                    TextBodyPolicy::Redact => BodySanitizationStatus::Redacted(
-                        BodyRedactionReason::OpaqueText,
-                    ),
-                    TextBodyPolicy::PassThrough => {
-                        BodySanitizationStatus::PassedThrough
+                    TextBodyPolicy::Redact => {
+                        BodySanitizationStatus::Redacted(BodyRedactionReason::OpaqueText)
                     }
+                    TextBodyPolicy::PassThrough => BodySanitizationStatus::PassedThrough,
                 };
                 result(self.sanitize_text_body(text), status)
             }
             Ok(_) => result(
                 UNSUPPORTED_BODY_REDACTED.to_string(),
-                BodySanitizationStatus::Redacted(
-                    BodyRedactionReason::UnsupportedMediaType,
-                ),
+                BodySanitizationStatus::Redacted(BodyRedactionReason::UnsupportedMediaType),
             ),
             Err(_) => result(
                 format!("<binary {} bytes>", source_len.max(bytes.len())),
@@ -623,9 +577,7 @@ impl HttpBodySanitizer {
         match value {
             Value::Object(map) => {
                 for (key, value) in map.iter_mut() {
-                    if let Some(masked) =
-                        self.mask_json_field_value(key, value, match_mode)
-                    {
+                    if let Some(masked) = self.mask_json_field_value(key, value, match_mode) {
                         *value = Value::String(masked);
                     } else {
                         self.redact_json_value(value, match_mode);
@@ -637,10 +589,7 @@ impl HttpBodySanitizer {
                     self.redact_json_value(item, match_mode);
                 }
             }
-            Value::Null
-            | Value::Bool(_)
-            | Value::Number(_)
-            | Value::String(_) => {}
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
         }
     }
 

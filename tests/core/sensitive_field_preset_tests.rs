@@ -8,10 +8,7 @@
 //! Tests for [`SensitiveFieldPreset`](qubit_sanitize::SensitiveFieldPreset).
 
 use qubit_sanitize::{
-    DEFAULT_EXTRA_FIELDS,
-    SensitiveFieldPreset,
-    SensitiveFields,
-    SensitivityLevel,
+    DEFAULT_EXTRA_FIELDS, SensitiveFieldPreset, SensitiveFields, SensitivityLevel,
 };
 
 #[test]

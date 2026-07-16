@@ -10,19 +10,11 @@
 use http::HeaderValue;
 use proptest::{
     collection,
-    prelude::{
-        any,
-        prop_assert,
-        proptest,
-    },
+    prelude::{any, prop_assert, proptest},
 };
 
 use qubit_sanitize::{
-    FieldSanitizePolicy,
-    FieldSanitizer,
-    HttpBodySanitizer,
-    NameMatchMode,
-    SensitivityLevel,
+    FieldSanitizePolicy, FieldSanitizer, HttpBodySanitizer, NameMatchMode, SensitivityLevel,
 };
 
 #[test]
@@ -75,8 +67,7 @@ fn test_http_body_sanitizer_sanitize_body_redacts_json_fields() {
 fn test_http_body_sanitizer_sanitize_body_keeps_empty_body_empty() {
     let sanitizer = HttpBodySanitizer::default();
 
-    let sanitized =
-        sanitizer.sanitize_body(b"", None, NameMatchMode::ExactOrSuffix);
+    let sanitized = sanitizer.sanitize_body(b"", None, NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert_eq!(sanitized, "");
@@ -136,29 +127,22 @@ fn test_http_body_sanitizer_sanitize_body_sniffs_json_without_content_type() {
 }
 
 #[test]
-fn test_http_body_sanitizer_sanitize_body_respects_explicit_text_content_type()
-{
+fn test_http_body_sanitizer_sanitize_body_respects_explicit_text_content_type() {
     let sanitizer = HttpBodySanitizer::default();
     let content_type = HeaderValue::from_static("text/plain");
 
     assert_eq!(
         sanitizer
-            .sanitize_body(
-                b"{not json}",
-                Some(&content_type),
-                NameMatchMode::Exact,
-            )
+            .sanitize_body(b"{not json}", Some(&content_type), NameMatchMode::Exact,)
             .into_rendered(),
         "<redacted: text body>",
     );
 }
 
 #[test]
-fn test_http_body_sanitizer_sanitize_body_respects_explicit_form_content_type()
-{
+fn test_http_body_sanitizer_sanitize_body_respects_explicit_form_content_type() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("application/x-www-form-urlencoded");
+    let content_type = HeaderValue::from_static("application/x-www-form-urlencoded");
 
     assert_eq!(
         sanitizer
@@ -221,10 +205,7 @@ fn test_http_body_sanitizer_sanitize_body_preview_redacts_truncated_json() {
     );
     let sanitized = sanitized.into_rendered();
 
-    assert!(
-        sanitized
-            .starts_with("<redacted: invalid or truncated JSON>...<truncated ")
-    );
+    assert!(sanitized.starts_with("<redacted: invalid or truncated JSON>...<truncated "));
     assert!(!sanitized.contains("secret"));
 }
 
@@ -261,19 +242,14 @@ fn test_http_body_sanitizer_sanitize_body_preview_redacts_truncated_ndjson() {
     );
     let sanitized = sanitized.into_rendered();
 
-    assert!(
-        sanitized.starts_with(
-            "<redacted: invalid or truncated NDJSON>...<truncated "
-        )
-    );
+    assert!(sanitized.starts_with("<redacted: invalid or truncated NDJSON>...<truncated "));
     assert!(!sanitized.contains("abc"));
 }
 
 #[test]
 fn test_http_body_sanitizer_sanitize_body_redacts_form_fields() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("application/x-www-form-urlencoded");
+    let content_type = HeaderValue::from_static("application/x-www-form-urlencoded");
 
     let sanitized = sanitizer.sanitize_body(
         b"username=alice&password=secret&city=Shanghai",
@@ -292,8 +268,7 @@ fn test_http_body_sanitizer_sanitize_body_redacts_form_fields() {
 #[test]
 fn test_http_body_sanitizer_sanitize_body_redacts_multipart_fields() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body = b"--boundary\r\n\
 Content-Disposition: form-data; name=\"username\"\r\n\
 \r\n\
@@ -304,11 +279,8 @@ Content-Disposition: form-data; name=\"password\"\r\n\
 secret-password\r\n\
 --boundary--\r\n";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert!(sanitized.contains("username=<redacted: multipart text part>"));
@@ -320,8 +292,7 @@ secret-password\r\n\
 #[test]
 fn test_http_body_sanitizer_redacts_duplicate_multipart_headers() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     for body in [
         "--boundary\r\nContent-Disposition: form-data; name=note\r\nContent-Disposition: form-data; name=password\r\n\r\nsecret\r\n--boundary--\r\n",
         "--boundary\r\nContent-Disposition: form-data; name=note\r\nContent-Type: text/plain\r\nContent-Type: application/json\r\n\r\nsecret\r\n--boundary--\r\n",
@@ -339,8 +310,7 @@ fn test_http_body_sanitizer_redacts_duplicate_multipart_headers() {
 #[test]
 fn test_http_body_sanitizer_redacts_duplicate_multipart_parameters() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let bodies = [
         "--boundary\r\nContent-Disposition: form-data; name=note; name=password\r\n\r\nsecret\r\n--boundary--\r\n",
         "--boundary\r\nContent-Disposition: form-data; name=upload; filename=public.txt; filename=secret.txt\r\n\r\nsecret\r\n--boundary--\r\n",
@@ -361,16 +331,11 @@ fn test_http_body_sanitizer_redacts_duplicate_multipart_parameters() {
 #[test]
 fn test_http_body_sanitizer_redacts_duplicate_multipart_boundaries() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type = HeaderValue::from_static(
-        "multipart/form-data; boundary=boundary; boundary=other",
-    );
+    let content_type =
+        HeaderValue::from_static("multipart/form-data; boundary=boundary; boundary=other");
     let body = b"--boundary\r\n\r\n\r\n--boundary--\r\n";
 
-    let result = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let result = sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
 
     assert_eq!(result.to_string(), "<redacted: multipart body>");
 }
@@ -378,19 +343,15 @@ fn test_http_body_sanitizer_redacts_duplicate_multipart_boundaries() {
 #[test]
 fn test_http_body_sanitizer_sanitize_body_redacts_multipart_mixed_fields() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/mixed; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/mixed; boundary=boundary");
     let body = b"--boundary\r\n\
 Content-Disposition: form-data; name=\"password\"\r\n\
 \r\n\
 secret-password\r\n\
 --boundary--\r\n";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert!(sanitized.contains("password=<redacted>"));
@@ -399,8 +360,7 @@ secret-password\r\n\
 }
 
 #[test]
-fn test_http_body_sanitizer_sanitize_body_redacts_multipart_mixed_without_boundary()
- {
+fn test_http_body_sanitizer_sanitize_body_redacts_multipart_mixed_without_boundary() {
     let sanitizer = HttpBodySanitizer::default();
     let content_type = HeaderValue::from_static("multipart/mixed");
     let body = b"--boundary\r\n\
@@ -409,11 +369,8 @@ Content-Disposition: form-data; name=\"password\"\r\n\
 secret-password\r\n\
 --boundary--\r\n";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert_eq!(sanitized, "<redacted: multipart body>");
@@ -422,23 +379,17 @@ secret-password\r\n\
 }
 
 #[test]
-fn test_http_body_sanitizer_sanitize_body_accepts_boundary_after_malformed_parameter()
- {
+fn test_http_body_sanitizer_sanitize_body_accepts_boundary_after_malformed_parameter() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type = HeaderValue::from_static(
-        "multipart/form-data; charset; boundary=boundary",
-    );
+    let content_type = HeaderValue::from_static("multipart/form-data; charset; boundary=boundary");
     let body = b"--boundary\r\n\
 Content-Disposition: form-data; name=\"username\"\r\n\
 \r\n\
 alice\r\n\
 --boundary--\r\n";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert!(sanitized.contains("username=<redacted: multipart text part>"));
@@ -447,8 +398,7 @@ alice\r\n\
 #[test]
 fn test_http_body_sanitizer_sanitize_body_redacts_multipart_json_part() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body = br#"--boundary
 Content-Disposition: form-data; name="metadata"
 Content-Type: application/json
@@ -457,11 +407,8 @@ Content-Type: application/json
 --boundary--
 "#;
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert!(sanitized.contains(r#"metadata={"token":"****","visible":"ok"}"#));
@@ -472,8 +419,7 @@ Content-Type: application/json
 #[test]
 fn test_http_body_sanitizer_sanitize_body_redacts_multipart_text_part() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body = b"--boundary\r\n\
 Content-Disposition: form-data; name=\"description\"\r\n\
 Content-Type: text/plain\r\n\
@@ -481,11 +427,8 @@ Content-Type: text/plain\r\n\
 plain text value\r\n\
 --boundary--\r\n";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert!(sanitized.contains("description=<redacted: multipart text part>"));
@@ -494,11 +437,9 @@ plain text value\r\n\
 }
 
 #[test]
-fn test_http_body_sanitizer_sanitize_body_redacts_multipart_text_containing_boundary_text()
- {
+fn test_http_body_sanitizer_sanitize_body_redacts_multipart_text_containing_boundary_text() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body = b"--boundary\r\n\
 Content-Disposition: form-data; name=\"description\"\r\n\
 Content-Type: text/plain\r\n\
@@ -506,26 +447,19 @@ Content-Type: text/plain\r\n\
 plain text mentions --boundary inside the value\r\n\
 --boundary--\r\n";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert!(sanitized.contains("description=<redacted: multipart text part>"));
-    assert!(
-        !sanitized.contains("plain text mentions --boundary inside the value")
-    );
+    assert!(!sanitized.contains("plain text mentions --boundary inside the value"));
     assert!(!sanitized.contains("<redacted: multipart body>"));
 }
 
 #[test]
-fn test_http_body_sanitizer_sanitize_body_redacts_invalid_multipart_json_part()
-{
+fn test_http_body_sanitizer_sanitize_body_redacts_invalid_multipart_json_part() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body = b"--boundary\r\n\
 Content-Disposition: form-data; name=\"metadata\"\r\n\
 Content-Type: application/json\r\n\
@@ -533,11 +467,8 @@ Content-Type: application/json\r\n\
 {\"token\":\"secret-token\"\r\n\
 --boundary--\r\n";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert!(sanitized.contains("metadata=<redacted: multipart part>"));
@@ -545,11 +476,9 @@ Content-Type: application/json\r\n\
 }
 
 #[test]
-fn test_http_body_sanitizer_sanitize_body_redacts_invalid_multipart_ndjson_part()
- {
+fn test_http_body_sanitizer_sanitize_body_redacts_invalid_multipart_ndjson_part() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body = b"--boundary\r\n\
 Content-Disposition: form-data; name=\"events\"\r\n\
 Content-Type: application/x-ndjson\r\n\
@@ -557,11 +486,8 @@ Content-Type: application/x-ndjson\r\n\
 {\"token\":\"secret-token\"\n\
 --boundary--\r\n";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert!(sanitized.contains("events=<redacted: multipart part>"));
@@ -571,8 +497,7 @@ Content-Type: application/x-ndjson\r\n\
 #[test]
 fn test_http_body_sanitizer_sanitize_body_redacts_multipart_form_part() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body = b"--boundary\r\n\
 Content-Disposition: form-data; name=\"payload\"\r\n\
 Content-Type: application/x-www-form-urlencoded\r\n\
@@ -580,25 +505,18 @@ Content-Type: application/x-www-form-urlencoded\r\n\
 username=alice&password=secret-password\r\n\
 --boundary--\r\n";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
-    assert!(
-        sanitized.contains("payload=username=alice&password=%3Credacted%3E")
-    );
+    assert!(sanitized.contains("payload=username=alice&password=%3Credacted%3E"));
     assert!(!sanitized.contains("secret-password"));
 }
 
 #[test]
-fn test_http_body_sanitizer_sanitize_body_redacts_unknown_multipart_part_content_type()
- {
+fn test_http_body_sanitizer_sanitize_body_redacts_unknown_multipart_part_content_type() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body = b"--boundary\r\n\
 Content-Disposition: form-data; name=\"payload\"\r\n\
 Content-Type: application/octet-stream\r\n\
@@ -606,11 +524,8 @@ Content-Type: application/octet-stream\r\n\
 secret-binary-looking-content\r\n\
 --boundary--\r\n";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert!(sanitized.contains("payload=<redacted: multipart part>"));
@@ -620,8 +535,7 @@ secret-binary-looking-content\r\n\
 #[test]
 fn test_http_body_sanitizer_sanitize_body_redacts_multipart_file_part() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body = b"--boundary\r\n\
 Content-Disposition: form-data; name=\"upload\"; filename=\"alice\\\";private-report.txt\"\r\n\
 Content-Type: text/plain\r\n\
@@ -629,11 +543,8 @@ Content-Type: text/plain\r\n\
 password=secret-in-file\r\n\
 --boundary--\r\n";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert!(sanitized.contains("upload=<redacted: file part>"));
@@ -649,14 +560,9 @@ fn test_http_body_sanitizer_redacts_file_part_before_field_policy() {
         .field_sanitizer_mut()
         .insert_sensitive_field("attachment", SensitivityLevel::Low);
     let body = b"--b\r\nContent-Disposition: form-data; name=\"attachment\"; filename=\"secret.txt\"\r\nContent-Type: text/plain\r\n\r\nraw-file-secret\r\n--b--\r\n";
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=b");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=b");
 
-    let result = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let result = sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
 
     assert!(result.content().contains("<redacted: file part>"));
     assert!(!result.content().contains("raw-file-secret"));
@@ -666,14 +572,9 @@ fn test_http_body_sanitizer_redacts_file_part_before_field_policy() {
 fn test_http_body_sanitizer_redacts_extended_filename_part() {
     let sanitizer = HttpBodySanitizer::default();
     let body = b"--b\r\nContent-Disposition: form-data; name=\"attachment\"; filename*=UTF-8''secret.txt\r\nContent-Type: text/plain\r\n\r\nraw-file-secret\r\n--b--\r\n";
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=b");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=b");
 
-    let result = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let result = sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
 
     assert!(result.content().contains("<redacted: file part>"));
     assert!(!result.content().contains("raw-file-secret"));
@@ -687,14 +588,9 @@ fn test_http_body_sanitizer_escapes_multipart_field_name_controls() {
         .insert_sensitive_field("note\u{1b}[31m", SensitivityLevel::High);
     let body =
         b"--b\r\nContent-Disposition: form-data; name=\"note\x1b[31m\"\r\n\r\nsecret\r\n--b--\r\n";
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=b");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=b");
 
-    let result = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let result = sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
 
     assert!(result.content().contains(r#"note\u{1b}[31m="#));
     assert!(!result.content().contains('\u{1b}'));
@@ -704,15 +600,11 @@ fn test_http_body_sanitizer_escapes_multipart_field_name_controls() {
 #[test]
 fn test_http_body_sanitizer_sanitize_body_handles_empty_multipart_body() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body = b"--boundary\r\n\r\n\r\n--boundary--\r\n";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert_eq!(sanitized, "<multipart>\n</multipart>");
@@ -721,16 +613,12 @@ fn test_http_body_sanitizer_sanitize_body_handles_empty_multipart_body() {
 #[test]
 fn test_http_body_sanitizer_sanitize_body_redacts_non_utf8_multipart() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body =
         b"--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nsecret-\xff\r\n--boundary--\r\n";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert_eq!(sanitized, "<redacted: multipart body>");
@@ -774,14 +662,11 @@ fn test_http_body_sanitizer_sanitize_body_redacts_malformed_multipart() {
     ];
 
     for (label, body, content_type) in cases {
-        let content_type = HeaderValue::from_bytes(content_type.as_bytes())
-            .expect("content type should parse");
+        let content_type =
+            HeaderValue::from_bytes(content_type.as_bytes()).expect("content type should parse");
 
-        let sanitized = sanitizer.sanitize_body(
-            body,
-            Some(&content_type),
-            NameMatchMode::ExactOrSuffix,
-        );
+        let sanitized =
+            sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
         let sanitized = sanitized.into_rendered();
 
         assert_eq!(sanitized, "<redacted: multipart body>", "{label}");
@@ -790,19 +675,14 @@ fn test_http_body_sanitizer_sanitize_body_redacts_malformed_multipart() {
 }
 
 #[test]
-fn test_http_body_sanitizer_sanitize_body_redacts_invalid_content_type_header()
-{
+fn test_http_body_sanitizer_sanitize_body_redacts_invalid_content_type_header() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_bytes(b"multipart/form-data; boundary=boundary\xff")
-            .expect("header value with obs-text should be accepted");
+    let content_type = HeaderValue::from_bytes(b"multipart/form-data; boundary=boundary\xff")
+        .expect("header value with obs-text should be accepted");
     let body = b"--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nsecret\r\n--boundary--";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert_eq!(sanitized, "<redacted: invalid content type body>");
@@ -811,11 +691,9 @@ fn test_http_body_sanitizer_sanitize_body_redacts_invalid_content_type_header()
 }
 
 #[test]
-fn test_http_body_sanitizer_sanitize_body_preview_redacts_truncated_multipart()
-{
+fn test_http_body_sanitizer_sanitize_body_preview_redacts_truncated_multipart() {
     let sanitizer = HttpBodySanitizer::default();
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body = b"--boundary\r\n\
 Content-Disposition: form-data; name=\"password\"\r\n\
 \r\n\
@@ -842,11 +720,8 @@ fn test_http_body_sanitizer_sanitize_body_redacts_multipart_without_boundary() {
     let content_type = HeaderValue::from_static("multipart/form-data");
     let body = b"--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nsecret\r\n--boundary--";
 
-    let sanitized = sanitizer.sanitize_body(
-        body,
-        Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized =
+        sanitizer.sanitize_body(body, Some(&content_type), NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert_eq!(sanitized, "<redacted: multipart body>");
@@ -855,8 +730,7 @@ fn test_http_body_sanitizer_sanitize_body_redacts_multipart_without_boundary() {
 }
 
 #[test]
-fn test_http_body_sanitizer_sanitize_body_prefers_multipart_over_json_sniffing()
-{
+fn test_http_body_sanitizer_sanitize_body_prefers_multipart_over_json_sniffing() {
     let sanitizer = HttpBodySanitizer::default();
     let content_type = HeaderValue::from_static("multipart/mixed");
 
@@ -891,8 +765,7 @@ fn test_http_body_sanitizer_sanitize_body_uses_custom_policy() {
 }
 
 #[test]
-fn test_http_body_sanitizer_sanitize_body_preview_adds_text_truncation_suffix()
-{
+fn test_http_body_sanitizer_sanitize_body_preview_adds_text_truncation_suffix() {
     let sanitizer = HttpBodySanitizer::default();
     let content_type = HeaderValue::from_static("text/plain");
     let body = b"hello world";
@@ -1008,15 +881,10 @@ fn test_http_body_sanitizer_sanitize_body_redacts_unsupported_utf8_body() {
 }
 
 #[test]
-fn test_http_body_sanitizer_sanitize_body_redacts_utf8_body_without_content_type()
- {
+fn test_http_body_sanitizer_sanitize_body_redacts_utf8_body_without_content_type() {
     let sanitizer = HttpBodySanitizer::default();
 
-    let sanitized = sanitizer.sanitize_body(
-        b"password=secret",
-        None,
-        NameMatchMode::ExactOrSuffix,
-    );
+    let sanitized = sanitizer.sanitize_body(b"password=secret", None, NameMatchMode::ExactOrSuffix);
     let sanitized = sanitized.into_rendered();
 
     assert_eq!(sanitized, "<redacted: unsupported HTTP body>");

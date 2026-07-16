@@ -5,15 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{
-    borrow::Cow,
-    ffi::OsStr,
-};
+use std::{borrow::Cow, ffi::OsStr};
 
-use crate::{
-    FieldSanitizer,
-    NameMatchMode,
-};
+use crate::{FieldSanitizer, NameMatchMode};
 
 /// Sanitizes environment variable values.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -146,11 +140,7 @@ impl EnvSanitizer {
     /// # Returns
     ///
     /// Sanitized assignment text.
-    pub fn sanitize_assignment(
-        &self,
-        assignment: &str,
-        match_mode: NameMatchMode,
-    ) -> String {
+    pub fn sanitize_assignment(&self, assignment: &str, match_mode: NameMatchMode) -> String {
         let Some((key, value)) = assignment.split_once('=') else {
             return assignment.to_string();
         };
@@ -179,9 +169,7 @@ impl EnvSanitizer {
     {
         assignments
             .into_iter()
-            .map(|assignment| {
-                self.sanitize_assignment(assignment.as_ref(), match_mode)
-            })
+            .map(|assignment| self.sanitize_assignment(assignment.as_ref(), match_mode))
             .collect()
     }
 }
