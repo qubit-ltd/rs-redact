@@ -62,6 +62,13 @@ fn test_mask_policy_preserve_suffix_keeps_only_tail() {
 }
 
 #[test]
+fn test_mask_policy_preserve_suffix_keeps_unicode_tail() {
+    let policy = MaskPolicy::preserve_suffix(2, "****", 2);
+
+    assert_eq!(policy.mask("甲乙丙丁戊"), "****丁戊");
+}
+
+#[test]
 fn test_mask_policy_preserve_suffix_masks_short_value() {
     let policy = MaskPolicy::preserve_suffix(4, "****", 4);
 

@@ -142,24 +142,40 @@ impl MaskPolicy {
                 suffix_chars,
                 replacement,
                 full_mask_below_or_equal,
-            } => mask_preserving_edges(
+            } => Cow::Owned(mask_preserving_edges(
                 value,
                 *prefix_chars,
                 *suffix_chars,
                 replacement,
                 *full_mask_below_or_equal,
-            ),
+            )),
             Self::PreserveSuffix {
                 suffix_chars,
                 replacement,
                 full_mask_below_or_equal,
-            } => mask_preserving_suffix(
+            } => Cow::Owned(mask_preserving_suffix(
                 value,
                 *suffix_chars,
                 replacement,
                 *full_mask_below_or_equal,
-            ),
+            )),
             Self::Empty => Cow::Owned(String::new()),
+        }
+    }
+
+    /// Returns the mask for a non-empty value when it does not depend on that
+    /// value's contents.
+    ///
+    /// # Returns
+    ///
+    /// `Some(mask)` for fixed and empty policies, otherwise `None` when the
+    /// input value must be inspected to preserve selected characters.
+    #[inline]
+    pub(crate) fn value_independent_non_empty_mask(&self) -> Option<&str> {
+        match self {
+            Self::Fixed { replacement } => Some(replacement),
+            Self::Empty => Some(""),
+            Self::PreserveEdges { .. } | Self::PreserveSuffix { .. } => None,
         }
     }
 }
@@ -178,25 +194,34 @@ impl MaskPolicy {
 ///
 /// Owned masked value.
 #[must_use = "use the returned masked value instead of the original value"]
-fn mask_preserving_edges<'a>(
+fn mask_preserving_edges(
     value: &str,
     prefix_chars: usize,
     suffix_chars: usize,
     replacement: &str,
     full_mask_below_or_equal: usize,
-) -> Cow<'a, str> {
-    let chars = value.chars().collect::<Vec<_>>();
-    if chars.len() <= full_mask_below_or_equal
-        || chars.len() <= prefix_chars.saturating_add(suffix_chars)
+) -> String {
+    let char_count = value.chars().count();
+    if char_count <= full_mask_below_or_equal
+        || char_count <= prefix_chars.saturating_add(suffix_chars)
     {
-        return Cow::Owned(replacement.to_string());
+        return replacement.to_string();
     }
-    let prefix = chars.iter().take(prefix_chars).collect::<String>();
-    let suffix = chars
-        .iter()
-        .skip(chars.len() - suffix_chars)
-        .collect::<String>();
-    Cow::Owned(format!("{prefix}{replacement}{suffix}"))
+    let prefix_end = value
+        .char_indices()
+        .nth(prefix_chars)
+        .map_or(value.len(), |(index, _)| index);
+    let suffix_start = value
+        .char_indices()
+        .nth(char_count - suffix_chars)
+        .map_or(value.len(), |(index, _)| index);
+    let mut masked = String::with_capacity(
+        prefix_end + replacement.len() + value.len() - suffix_start,
+    );
+    masked.push_str(&value[..prefix_end]);
+    masked.push_str(replacement);
+    masked.push_str(&value[suffix_start..]);
+    masked
 }
 
 /// Masks a value while preserving only a suffix.
@@ -212,19 +237,23 @@ fn mask_preserving_edges<'a>(
 ///
 /// Owned masked value.
 #[must_use = "use the returned masked value instead of the original value"]
-fn mask_preserving_suffix<'a>(
+fn mask_preserving_suffix(
     value: &str,
     suffix_chars: usize,
     replacement: &str,
     full_mask_below_or_equal: usize,
-) -> Cow<'a, str> {
-    let chars = value.chars().collect::<Vec<_>>();
-    if chars.len() <= full_mask_below_or_equal || chars.len() <= suffix_chars {
-        return Cow::Owned(replacement.to_string());
+) -> String {
+    let char_count = value.chars().count();
+    if char_count <= full_mask_below_or_equal || char_count <= suffix_chars {
+        return replacement.to_string();
     }
-    let suffix = chars
-        .iter()
-        .skip(chars.len() - suffix_chars)
-        .collect::<String>();
-    Cow::Owned(format!("{replacement}{suffix}"))
+    let suffix_start = value
+        .char_indices()
+        .nth(char_count - suffix_chars)
+        .map_or(value.len(), |(index, _)| index);
+    let mut masked =
+        String::with_capacity(replacement.len() + value.len() - suffix_start);
+    masked.push_str(replacement);
+    masked.push_str(&value[suffix_start..]);
+    masked
 }

@@ -668,22 +668,19 @@ impl HttpBodySanitizer {
         let level = self
             .field_sanitizer
             .sensitivity_for_name(field, match_mode)?;
-        let serialized;
-        let value = match value {
-            Value::String(value) => value.as_str(),
-            _ => {
-                serialized = value.to_string();
-                serialized.as_str()
-            }
-        };
-        Some(
-            self.field_sanitizer
-                .policy()
-                .mask_policies()
-                .for_level(level)
-                .mask(value)
-                .into_owned(),
-        )
+        let policy = self
+            .field_sanitizer
+            .policy()
+            .mask_policies()
+            .for_level(level);
+        if let Value::String(value) = value {
+            return Some(policy.mask(value).into_owned());
+        }
+        if let Some(masked) = policy.value_independent_non_empty_mask() {
+            return Some(masked.to_owned());
+        }
+        let serialized = value.to_string();
+        Some(policy.mask(&serialized).into_owned())
     }
 }
 

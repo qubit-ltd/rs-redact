@@ -21,6 +21,7 @@ use qubit_sanitize::{
     FieldSanitizePolicy,
     FieldSanitizer,
     HttpBodySanitizer,
+    MaskPolicy,
     NameMatchMode,
     SensitivityLevel,
 };
@@ -69,6 +70,55 @@ fn test_http_body_sanitizer_sanitize_body_redacts_json_fields() {
     );
     assert!(!sanitized.contains("secret"));
     assert!(!sanitized.contains("abc"));
+}
+
+#[test]
+fn test_http_body_sanitizer_fixed_policy_masks_non_string_json_values() {
+    let mut policy = FieldSanitizePolicy::empty();
+    policy.sensitive_fields_mut().extend(
+        ["numeric", "boolean", "array", "object", "nothing"],
+        SensitivityLevel::High,
+    );
+    let sanitizer = HttpBodySanitizer::new(FieldSanitizer::new(policy));
+    let content_type = HeaderValue::from_static("application/json");
+
+    let sanitized = sanitizer
+        .sanitize_body(
+            br#"{"numeric":123,"boolean":true,"array":["leak"],"object":{"leak":"secret"},"nothing":null}"#,
+            Some(&content_type),
+            NameMatchMode::Exact,
+        )
+        .into_rendered();
+
+    assert_eq!(
+        sanitized,
+        r#"{"array":"****","boolean":"****","nothing":"****","numeric":"****","object":"****"}"#,
+    );
+    assert!(!sanitized.contains("leak"));
+    assert!(!sanitized.contains("secret"));
+}
+
+#[test]
+fn test_http_body_sanitizer_empty_policy_masks_non_string_json_value() {
+    let mut policy = FieldSanitizePolicy::empty();
+    policy
+        .sensitive_fields_mut()
+        .insert("payload", SensitivityLevel::High);
+    policy
+        .mask_policies_mut()
+        .set(SensitivityLevel::High, MaskPolicy::empty());
+    let sanitizer = HttpBodySanitizer::new(FieldSanitizer::new(policy));
+    let content_type = HeaderValue::from_static("application/json");
+
+    let sanitized = sanitizer
+        .sanitize_body(
+            br#"{"payload":{"leak":"secret"}}"#,
+            Some(&content_type),
+            NameMatchMode::Exact,
+        )
+        .into_rendered();
+
+    assert_eq!(sanitized, r#"{"payload":""}"#);
 }
 
 #[test]
