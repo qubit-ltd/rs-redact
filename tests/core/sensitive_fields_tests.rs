@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -45,6 +45,11 @@ fn test_sensitive_fields_default_contains_common_secret_fields() {
         fields.level_for("authorization"),
         Some(SensitivityLevel::High)
     );
+    assert_eq!(
+        fields.level_for("signature"),
+        Some(SensitivityLevel::Secret)
+    );
+    assert_eq!(fields.level_for("sig"), Some(SensitivityLevel::Secret));
 }
 
 #[test]

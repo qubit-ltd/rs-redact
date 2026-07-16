@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -20,4 +20,6 @@ pub const DEFAULT_EXTRA_FIELDS: &[(&str, SensitivityLevel)] = &[
     ("license_key", SensitivityLevel::Medium),
     ("mysql_pwd", SensitivityLevel::Secret),
     ("rediscli_auth", SensitivityLevel::Secret),
+    ("sig", SensitivityLevel::Secret),
+    ("signature", SensitivityLevel::Secret),
 ];

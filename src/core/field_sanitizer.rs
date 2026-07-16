@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -73,6 +73,28 @@ impl FieldSanitizer {
         self.policy
             .sensitive_fields_mut()
             .insert_strongest(field, level);
+    }
+
+    /// Removes one sensitive field from this sanitizer.
+    ///
+    /// This can remove built-in defaults. Callers should do so only after
+    /// deciding that exposing the matching value is acceptable for their
+    /// logging or diagnostic context.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Field name to remove after canonicalization.
+    ///
+    /// # Returns
+    ///
+    /// The removed sensitivity level, or `None` when the field was not
+    /// configured.
+    #[inline(always)]
+    pub fn remove_sensitive_field(
+        &mut self,
+        field: &str,
+    ) -> Option<SensitivityLevel> {
+        self.policy.sensitive_fields_mut().remove(field)
     }
 
     /// Explicitly replaces the sensitivity level for one field.

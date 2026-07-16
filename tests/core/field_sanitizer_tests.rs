@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -31,6 +31,21 @@ fn test_field_sanitizer_sanitize_value_masks_default_sensitive_field() {
         sanitizer.sanitize_value("password", "secret", NameMatchMode::Exact),
         "<redacted>"
     );
+}
+
+#[test]
+fn test_field_sanitizer_can_remove_default_sensitive_field() {
+    let mut sanitizer = FieldSanitizer::default();
+
+    assert_eq!(
+        sanitizer.remove_sensitive_field("SIG"),
+        Some(SensitivityLevel::Secret),
+    );
+    assert_eq!(
+        sanitizer.sanitize_value("sig", "false-positive", NameMatchMode::Exact),
+        "false-positive",
+    );
+    assert_eq!(sanitizer.remove_sensitive_field("sig"), None);
 }
 
 #[test]
