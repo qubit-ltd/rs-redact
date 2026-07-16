@@ -117,7 +117,9 @@ are present but intentionally blank.
 `SensitiveFields::default()` contains a starter set of common sensitive names
 such as:
 
-- `password`, `passwd`, `secret`, `client_secret`, `private_key`, `security_key`
+- `password`, `passwd`, `passphrase`, `pgpassword`, `secret`, `client_secret`
+- `private_key`, `security_key`, `mysql_pwd`, `rediscli_auth`
+- `database_url`, `database_uri`, `connection_string`
 - `api_key`, `x_api_key`
 - `token`, `access_token`, `refresh_token`, `id_token`
 - `authorization`, `proxy_authorization`, `cookie`, `set_cookie`

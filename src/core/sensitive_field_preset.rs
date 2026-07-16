@@ -23,10 +23,12 @@ pub enum SensitiveFieldPreset {
 }
 
 /// Field names for [`SensitiveFieldPreset::Credentials`].
-pub const CREDENTIALS_FIELDS: [(&str, SensitivityLevel); 11] = [
+pub const CREDENTIALS_FIELDS: [(&str, SensitivityLevel); 13] = [
     ("password", SensitivityLevel::Secret),
     ("password_confirmation", SensitivityLevel::Secret),
     ("passwd", SensitivityLevel::Secret),
+    ("passphrase", SensitivityLevel::Secret),
+    ("pgpassword", SensitivityLevel::Secret),
     ("secret", SensitivityLevel::Secret),
     ("client_secret", SensitivityLevel::Secret),
     ("private_key", SensitivityLevel::Secret),

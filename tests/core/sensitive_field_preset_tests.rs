@@ -20,7 +20,7 @@ fn test_sensitive_field_preset_credentials_fields() {
     let mut fields = SensitiveFields::new();
     fields.extend_preset(SensitiveFieldPreset::Credentials);
 
-    assert_eq!(preset_fields.len(), 11);
+    assert_eq!(preset_fields.len(), 13);
     assert_eq!(preset_fields[0], ("password", SensitivityLevel::Secret));
     assert_eq!(
         fields.level_for("secret_key"),
@@ -35,6 +35,33 @@ fn test_sensitive_field_preset_credentials_fields() {
         fields.level_for("access_key_id"),
         Some(SensitivityLevel::Medium),
     );
+    assert_eq!(
+        fields.level_for("passphrase"),
+        Some(SensitivityLevel::Secret),
+    );
+    assert_eq!(
+        fields.level_for("pgpassword"),
+        Some(SensitivityLevel::Secret),
+    );
+}
+
+#[test]
+fn test_sensitive_fields_default_contains_targeted_environment_credentials() {
+    let fields = SensitiveFields::default();
+
+    for field in [
+        "mysql_pwd",
+        "rediscli_auth",
+        "database_url",
+        "database_uri",
+        "connection_string",
+    ] {
+        assert_eq!(
+            fields.level_for(field),
+            Some(SensitivityLevel::Secret),
+            "expected {field:?} to be secret by default",
+        );
+    }
 }
 
 #[test]

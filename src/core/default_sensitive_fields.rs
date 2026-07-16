@@ -14,5 +14,10 @@ use super::SensitivityLevel;
 pub const DEFAULT_EXTRA_FIELDS: &[(&str, SensitivityLevel)] = &[
     ("auth_app_token", SensitivityLevel::High),
     ("auth_user_token", SensitivityLevel::High),
+    ("connection_string", SensitivityLevel::Secret),
+    ("database_uri", SensitivityLevel::Secret),
+    ("database_url", SensitivityLevel::Secret),
     ("license_key", SensitivityLevel::Medium),
+    ("mysql_pwd", SensitivityLevel::Secret),
+    ("rediscli_auth", SensitivityLevel::Secret),
 ];
