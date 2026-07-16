@@ -93,6 +93,7 @@ impl EnvSanitizer {
     ///
     /// Owned pair preserving the key and sanitizing the value when needed.
     #[must_use = "use the returned sanitized pair instead of the original pair"]
+    #[inline(always)]
     pub fn sanitize_pair(
         &self,
         key: &str,
@@ -119,6 +120,7 @@ impl EnvSanitizer {
     ///
     /// Owned string pair suitable for logs and errors.
     #[must_use = "use the returned sanitized pair instead of the original pair"]
+    #[inline]
     pub fn sanitize_os_pair<K, V>(
         &self,
         key: K,
@@ -151,6 +153,7 @@ impl EnvSanitizer {
     ///
     /// Sanitized assignment text.
     #[must_use = "use the returned sanitized assignment instead of the original assignment"]
+    #[inline]
     pub fn sanitize_assignment(
         &self,
         assignment: &str,
@@ -194,6 +197,7 @@ impl EnvSanitizer {
 
 impl Default for EnvSanitizer {
     /// Creates an environment sanitizer using [`FieldSanitizer::default`].
+    #[inline(always)]
     fn default() -> Self {
         Self::new(FieldSanitizer::default())
     }

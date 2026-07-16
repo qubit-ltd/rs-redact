@@ -49,6 +49,7 @@ impl<'a, T: ?Sized> RedactedDebug<'a, T> {
 
 impl<T: ?Sized> Debug for RedactedDebug<'_, T> {
     /// Writes a fixed marker without formatting the wrapped value.
+    #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let _ = self.value;
         formatter.write_str("<redacted>")

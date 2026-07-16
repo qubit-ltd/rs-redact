@@ -32,6 +32,7 @@ impl BodyInputKind {
     ///
     /// Empty complete-body text or an explicit preview marker.
     #[must_use]
+    #[inline]
     pub(in crate::adapter::http) fn empty_content(self) -> String {
         match self {
             Self::Complete => String::new(),
@@ -50,6 +51,7 @@ impl BodyInputKind {
     ///
     /// `true` only for previews whose source is longer than the prefix.
     #[must_use]
+    #[inline]
     pub(in crate::adapter::http) fn is_truncated(
         self,
         bytes_len: usize,
@@ -64,6 +66,7 @@ impl BodyInputKind {
     ///
     /// JSON redaction marker.
     #[must_use]
+    #[inline]
     pub(in crate::adapter::http) fn invalid_json_marker(self) -> &'static str {
         match self {
             Self::Complete => INVALID_JSON_REDACTED,
@@ -76,6 +79,7 @@ impl BodyInputKind {
     /// # Returns
     ///
     /// JSON redaction reason.
+    #[inline]
     pub(in crate::adapter::http) const fn invalid_json_reason(
         self,
     ) -> BodyRedactionReason {
@@ -91,6 +95,7 @@ impl BodyInputKind {
     ///
     /// NDJSON redaction marker.
     #[must_use]
+    #[inline]
     pub(in crate::adapter::http) fn invalid_ndjson_marker(
         self,
     ) -> &'static str {
@@ -105,6 +110,7 @@ impl BodyInputKind {
     /// # Returns
     ///
     /// NDJSON redaction reason.
+    #[inline]
     pub(in crate::adapter::http) const fn invalid_ndjson_reason(
         self,
     ) -> BodyRedactionReason {

@@ -154,6 +154,7 @@ impl ArgvSanitizer {
     /// Debug-style sanitized argv string, for example
     /// `["cmd", "--token", "****"]`.
     #[must_use = "use the returned sanitized display instead of the original argv"]
+    #[inline(always)]
     pub fn sanitize_argv_display<I, S>(
         &self,
         argv: I,
@@ -177,6 +178,7 @@ impl ArgvSanitizer {
     ///
     /// `Some(name)` when `arg` is a configured sensitive option, otherwise
     /// `None`.
+    #[inline]
     fn sensitive_option_name<'a>(
         &self,
         arg: &'a str,
@@ -255,6 +257,7 @@ impl ArgvSanitizer {
     ///
     /// `Some(sanitized)` when `arg` is a sensitive inline option, otherwise
     /// `None`.
+    #[inline]
     fn sanitize_inline_option_arg(
         &self,
         arg: &str,
@@ -276,6 +279,7 @@ impl ArgvSanitizer {
 
 impl Default for ArgvSanitizer {
     /// Creates an argv sanitizer using [`FieldSanitizer::default`].
+    #[inline(always)]
     fn default() -> Self {
         Self::new(FieldSanitizer::default())
     }
@@ -290,6 +294,7 @@ impl Default for ArgvSanitizer {
 /// # Returns
 ///
 /// `Some(name)` for option-looking arguments, otherwise `None`.
+#[inline]
 fn option_name(arg: &str) -> Option<&str> {
     if !arg.starts_with('-') || arg == "-" {
         return None;

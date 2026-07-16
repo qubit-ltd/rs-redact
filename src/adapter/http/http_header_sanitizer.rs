@@ -76,6 +76,7 @@ impl HttpHeaderSanitizer {
     ///
     /// Sanitized header value for diagnostic output.
     #[must_use = "use the returned sanitized header value instead of the original value"]
+    #[inline(always)]
     pub fn sanitize_value(
         &self,
         name: &HeaderName,
@@ -101,6 +102,7 @@ impl HttpHeaderSanitizer {
     /// Owned string pair preserving the header name and sanitizing the value
     /// when needed.
     #[must_use = "use the returned sanitized header pair instead of the original pair"]
+    #[inline(always)]
     pub fn sanitize_pair(
         &self,
         name: &HeaderName,
@@ -146,6 +148,7 @@ impl HttpHeaderSanitizer {
 
 impl Default for HttpHeaderSanitizer {
     /// Creates an HTTP header sanitizer using [`FieldSanitizer::default`].
+    #[inline(always)]
     fn default() -> Self {
         Self::new(FieldSanitizer::default())
     }

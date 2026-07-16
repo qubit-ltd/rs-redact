@@ -23,6 +23,7 @@ const MAX_MULTIPART_BOUNDARY_LEN: usize = 70;
 ///
 /// `Some(Ok(text))` for valid UTF-8 header values, `Some(Err(_))` for present
 /// but invalid values, and `None` when no header value is provided.
+#[inline(always)]
 pub(super) fn content_type_to_str(
     value: Option<&HeaderValue>,
 ) -> Option<Result<&str, http::header::ToStrError>> {
@@ -39,6 +40,7 @@ pub(super) fn content_type_to_str(
 ///
 /// Trimmed text before the first semicolon.
 #[must_use]
+#[inline]
 fn media_type(content_type: &str) -> &str {
     content_type
         .split(';')
@@ -58,6 +60,7 @@ fn media_type(content_type: &str) -> &str {
 ///
 /// `true` when media types match ignoring ASCII case.
 #[must_use]
+#[inline]
 fn has_media_type(content_type: &str, expected: &str) -> bool {
     media_type(content_type).eq_ignore_ascii_case(expected)
 }
@@ -73,6 +76,7 @@ fn has_media_type(content_type: &str, expected: &str) -> bool {
 /// `true` for `application/json`, subtype aliases ending with `/json`, and
 /// structured suffixes ending with `+json`.
 #[must_use]
+#[inline]
 pub(super) fn is_json(content_type: &str) -> bool {
     let media_type = media_type(content_type).to_ascii_lowercase();
     media_type == "application/json"
@@ -90,6 +94,7 @@ pub(super) fn is_json(content_type: &str) -> bool {
 ///
 /// `true` for `application/x-ndjson` and `application/ndjson`.
 #[must_use]
+#[inline]
 pub(super) fn is_ndjson(content_type: &str) -> bool {
     let media_type = media_type(content_type);
     media_type.eq_ignore_ascii_case("application/x-ndjson")
@@ -106,6 +111,7 @@ pub(super) fn is_ndjson(content_type: &str) -> bool {
 ///
 /// `true` for `application/x-www-form-urlencoded`.
 #[must_use]
+#[inline(always)]
 pub(super) fn is_form_urlencoded(content_type: &str) -> bool {
     has_media_type(content_type, "application/x-www-form-urlencoded")
 }
@@ -120,6 +126,7 @@ pub(super) fn is_form_urlencoded(content_type: &str) -> bool {
 ///
 /// `true` for any `multipart/*` media type.
 #[must_use]
+#[inline]
 pub(super) fn is_multipart(content_type: &str) -> bool {
     media_type(content_type)
         .to_ascii_lowercase()
@@ -136,6 +143,7 @@ pub(super) fn is_multipart(content_type: &str) -> bool {
 ///
 /// `true` for any `text/*` media type.
 #[must_use]
+#[inline]
 pub(super) fn is_text(content_type: &str) -> bool {
     media_type(content_type)
         .to_ascii_lowercase()
@@ -193,6 +201,7 @@ fn is_valid_multipart_boundary(boundary: &str) -> bool {
 ///
 /// `true` for alphanumeric bytes and conservative punctuation.
 #[must_use]
+#[inline]
 fn is_valid_multipart_boundary_byte(byte: u8) -> bool {
     matches!(
         byte,

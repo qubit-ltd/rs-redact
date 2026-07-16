@@ -47,7 +47,7 @@ impl FieldSanitizePolicy {
     /// # Returns
     ///
     /// Empty sensitive field policy with default mask policies.
-    #[inline(always)]
+    #[inline]
     pub fn empty() -> Self {
         Self::new(SensitiveFields::new(), MaskPolicies::default())
     }
@@ -125,6 +125,7 @@ impl FieldSanitizePolicy {
 
 impl Default for FieldSanitizePolicy {
     /// Creates a policy with built-in sensitive fields and default masks.
+    #[inline]
     fn default() -> Self {
         Self::new(SensitiveFields::default(), MaskPolicies::default())
     }

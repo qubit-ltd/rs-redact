@@ -51,6 +51,7 @@ impl MaskPolicy {
     /// # Returns
     ///
     /// A mask policy that replaces non-empty values with `replacement`.
+    #[inline]
     pub fn fixed(replacement: &str) -> Self {
         Self::Fixed {
             replacement: replacement.to_string(),
@@ -70,6 +71,7 @@ impl MaskPolicy {
     /// # Returns
     ///
     /// A mask policy that keeps selected value edges for long values.
+    #[inline]
     pub fn preserve_edges(
         prefix_chars: usize,
         suffix_chars: usize,
@@ -96,6 +98,7 @@ impl MaskPolicy {
     /// # Returns
     ///
     /// A mask policy that keeps only the selected trailing characters.
+    #[inline]
     pub fn preserve_suffix(
         suffix_chars: usize,
         replacement: &str,

@@ -28,7 +28,7 @@ impl MultipartSanitization {
     /// # Returns
     ///
     /// A result containing the supplied content and exposure state.
-    #[inline]
+    #[inline(always)]
     pub(in crate::adapter::http) fn new(
         content: String,
         contains_passed_through_text: bool,

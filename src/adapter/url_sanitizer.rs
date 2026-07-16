@@ -135,6 +135,7 @@ impl UrlSanitizer {
     /// # Errors
     ///
     /// Returns [`ParseError`] when `url` is not parseable by [`Url::parse`].
+    #[inline(always)]
     pub fn sanitize_url_str(
         &self,
         url: &str,
@@ -146,6 +147,7 @@ impl UrlSanitizer {
 
 impl Default for UrlSanitizer {
     /// Creates a URL sanitizer using [`FieldSanitizer::default`].
+    #[inline(always)]
     fn default() -> Self {
         Self::new(FieldSanitizer::default())
     }
@@ -163,6 +165,7 @@ impl Default for UrlSanitizer {
 ///
 /// Masked component value.
 #[must_use = "use the returned masked component instead of the original component"]
+#[inline(always)]
 fn mask_url_component(
     sanitizer: &FieldSanitizer,
     value: &str,

@@ -64,6 +64,7 @@ impl FieldSanitizer {
     ///
     /// * `field` - Field name to mark sensitive.
     /// * `level` - Sensitivity level assigned to the field.
+    #[inline(always)]
     pub fn insert_sensitive_field(
         &mut self,
         field: &str,
@@ -80,6 +81,7 @@ impl FieldSanitizer {
     ///
     /// * `field` - Field name whose level should be replaced.
     /// * `level` - Replacement sensitivity level, even when weaker.
+    #[inline(always)]
     pub fn set_sensitive_field_level(
         &mut self,
         field: &str,
@@ -94,6 +96,7 @@ impl FieldSanitizer {
     ///
     /// * `fields` - Field names to add.
     /// * `level` - Sensitivity level assigned to every field.
+    #[inline(always)]
     pub fn extend_sensitive_fields<I, S>(
         &mut self,
         fields: I,
@@ -112,6 +115,7 @@ impl FieldSanitizer {
     /// # Parameters
     ///
     /// * `preset` - Predefined group to insert.
+    #[inline(always)]
     pub fn extend_preset(&mut self, preset: SensitiveFieldPreset) {
         self.policy.sensitive_fields_mut().extend_preset(preset);
     }
@@ -175,6 +179,7 @@ impl FieldSanitizer {
     /// sanitizer.sanitize_value("password", "secret", NameMatchMode::Exact);
     /// ```
     #[must_use = "use the returned sanitized value instead of the original value"]
+    #[inline]
     pub fn sanitize_value<'a>(
         &self,
         field: &str,
@@ -243,6 +248,7 @@ impl FieldSanitizer {
 
 impl Default for FieldSanitizer {
     /// Creates a sanitizer with [`FieldSanitizePolicy::default`].
+    #[inline(always)]
     fn default() -> Self {
         Self::new(FieldSanitizePolicy::default())
     }

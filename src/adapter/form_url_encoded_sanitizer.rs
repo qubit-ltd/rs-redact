@@ -101,6 +101,7 @@ impl FormUrlEncodedSanitizer {
 
 impl Default for FormUrlEncodedSanitizer {
     /// Creates a form sanitizer using [`FieldSanitizer::default`].
+    #[inline(always)]
     fn default() -> Self {
         Self::new(FieldSanitizer::default())
     }

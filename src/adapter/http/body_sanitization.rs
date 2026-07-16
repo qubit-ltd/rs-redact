@@ -149,6 +149,7 @@ impl BodySanitization {
     ///
     /// Owned diagnostic rendering.
     #[must_use = "use the sanitized rendering instead of discarding it"]
+    #[inline(always)]
     pub fn rendered(&self) -> String {
         self.to_string()
     }
@@ -159,6 +160,7 @@ impl BodySanitization {
     ///
     /// Owned diagnostic rendering with a truncation suffix when needed.
     #[must_use = "use the sanitized rendering instead of discarding it"]
+    #[inline]
     pub fn into_rendered(self) -> String {
         let truncated_bytes = self.truncated_bytes();
         let mut content = self.content;
@@ -171,6 +173,7 @@ impl BodySanitization {
 
 impl Display for BodySanitization {
     /// Renders diagnostic content with a truncation suffix when needed.
+    #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.content)?;
         let truncated_bytes = self.truncated_bytes();

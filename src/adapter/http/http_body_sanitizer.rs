@@ -76,7 +76,7 @@ impl HttpBodySanitizer {
     /// # Returns
     ///
     /// The updated sanitizer.
-    #[inline]
+    #[inline(always)]
     pub const fn with_text_body_policy(
         mut self,
         text_body_policy: TextBodyPolicy,
@@ -659,6 +659,7 @@ impl HttpBodySanitizer {
     /// # Returns
     ///
     /// `Some(masked)` when `field` is sensitive, otherwise `None`.
+    #[inline]
     fn mask_json_field_value(
         &self,
         field: &str,

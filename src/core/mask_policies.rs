@@ -127,6 +127,7 @@ impl MaskPolicies {
 
 impl Default for MaskPolicies {
     /// Creates conservative default mask policies.
+    #[inline]
     fn default() -> Self {
         Self::new(
             MaskPolicy::preserve_edges(2, 2, "****", 4),
