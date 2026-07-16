@@ -27,11 +27,12 @@ pub fn canonicalize_field_name(name: &str) -> String {
         .collect()
 }
 
-/// Returns canonical suffixes that start at semantic field-name boundaries.
+/// Canonicalizes a field name and records semantic token starts.
 ///
 /// Boundaries include common separators, camel-case transitions, and the
-/// transition from an uppercase acronym to a capitalized word. The returned
-/// suffixes are ordered from shortest to longest.
+/// transition from an uppercase acronym to a capitalized word. Each returned
+/// byte offset is a valid start of a canonical suffix, ordered from the full
+/// canonical name to its shortest token suffix.
 ///
 /// # Parameters
 ///
@@ -39,37 +40,33 @@ pub fn canonicalize_field_name(name: &str) -> String {
 ///
 /// # Returns
 ///
-/// Canonical token suffixes eligible for contextual sensitivity matching.
+/// The canonical field name and byte offsets of eligible suffix starts.
 #[must_use]
-pub(crate) fn canonicalize_field_name_suffixes(name: &str) -> Vec<String> {
-    let chars = name.trim().chars().collect::<Vec<_>>();
-    let mut tokens = Vec::<String>::new();
-    let mut token = String::new();
+pub(crate) fn canonicalize_field_name_with_token_starts(
+    name: &str,
+) -> (String, Vec<usize>) {
+    let mut canonical = String::new();
+    let mut token_starts = Vec::new();
+    let mut previous = None;
+    let mut in_token = false;
+    let mut chars = name.trim().chars().peekable();
 
-    for (index, ch) in chars.iter().copied().enumerate() {
+    while let Some(ch) = chars.next() {
         if is_field_separator(ch) {
-            push_token(&mut tokens, &mut token);
+            in_token = false;
+            previous = Some(ch);
             continue;
         }
-        let previous = index
-            .checked_sub(1)
-            .and_then(|previous| chars.get(previous))
-            .copied();
-        let next = chars.get(index + 1).copied();
-        if !token.is_empty() && starts_camel_token(previous, ch, next) {
-            push_token(&mut tokens, &mut token);
+        if !in_token || starts_camel_token(previous, ch, chars.peek().copied())
+        {
+            token_starts.push(canonical.len());
         }
-        token.extend(ch.to_lowercase());
+        canonical.extend(ch.to_lowercase());
+        in_token = true;
+        previous = Some(ch);
     }
-    push_token(&mut tokens, &mut token);
 
-    let mut suffixes = Vec::with_capacity(tokens.len());
-    let mut suffix = String::new();
-    for token in tokens.into_iter().rev() {
-        suffix.insert_str(0, &token);
-        suffixes.push(suffix.clone());
-    }
-    suffixes
+    (canonical, token_starts)
 }
 
 /// Returns whether a character separates field-name tokens.
@@ -115,17 +112,4 @@ fn starts_camel_token(
     let starts_word_after_acronym = previous.is_some_and(char::is_uppercase)
         && next.is_some_and(char::is_lowercase);
     follows_lower_or_number || starts_word_after_acronym
-}
-
-/// Moves a non-empty token into the token list.
-///
-/// # Parameters
-///
-/// * `tokens` - Completed canonical tokens.
-/// * `token` - Current token buffer, cleared after insertion.
-#[inline]
-fn push_token(tokens: &mut Vec<String>, token: &mut String) {
-    if !token.is_empty() {
-        tokens.push(std::mem::take(token));
-    }
 }

@@ -12,7 +12,7 @@ use super::{
     NameMatchMode,
     SensitiveFieldPreset,
     SensitivityLevel,
-    field_name::canonicalize_field_name_suffixes,
+    field_name::canonicalize_field_name_with_token_starts,
 };
 
 /// Sanitizes values by looking up their field names in a configurable policy.
@@ -142,10 +142,11 @@ impl FieldSanitizer {
             return fields.level_for(name);
         }
 
-        canonicalize_field_name_suffixes(name)
+        let (canonical, token_starts) =
+            canonicalize_field_name_with_token_starts(name);
+        token_starts
             .into_iter()
-            .rev()
-            .find_map(|suffix| fields.level_for_canonical(&suffix))
+            .find_map(|start| fields.level_for_canonical(&canonical[start..]))
     }
 
     /// Sanitizes one field-value pair.

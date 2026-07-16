@@ -125,6 +125,23 @@ fn test_sensitive_fields_clone_mutations_leave_original_unchanged() {
 }
 
 #[test]
+fn test_sensitive_fields_no_op_mutations_preserve_contents() {
+    let original = SensitiveFields::default();
+    let mut fields = original.clone();
+
+    fields.insert("password", SensitivityLevel::Secret);
+    fields.insert_strongest("password", SensitivityLevel::Low);
+    assert_eq!(fields.remove("missing"), None);
+    fields.merge_strongest(&original);
+
+    assert_eq!(fields, original);
+
+    let mut empty = SensitiveFields::new();
+    empty.clear();
+    assert!(empty.is_empty());
+}
+
+#[test]
 fn test_sensitive_fields_merge_strongest_keeps_highest_level() {
     let mut target = SensitiveFields::new();
     target.insert("authorization", SensitivityLevel::High);

@@ -7,7 +7,10 @@
 // =============================================================================
 use std::{
     collections::BTreeMap,
-    sync::Arc,
+    sync::{
+        Arc,
+        LazyLock,
+    },
 };
 
 use super::{
@@ -25,13 +28,32 @@ pub struct SensitiveFields {
     fields: Arc<BTreeMap<String, SensitivityLevel>>,
 }
 
+/// Shared immutable map cloned by every default sensitive-field set.
+static DEFAULT_SENSITIVE_FIELDS: LazyLock<
+    Arc<BTreeMap<String, SensitivityLevel>>,
+> = LazyLock::new(|| {
+    let mut fields = SensitiveFields::new();
+    for preset in [
+        SensitiveFieldPreset::Credentials,
+        SensitiveFieldPreset::AuthTokens,
+        SensitiveFieldPreset::Http,
+        SensitiveFieldPreset::Session,
+    ] {
+        fields.extend_preset(preset);
+    }
+    for &(field, level) in DEFAULT_EXTRA_FIELDS {
+        fields.insert_strongest(field, level);
+    }
+    fields.fields
+});
+
 impl SensitiveFields {
     /// Creates an empty sensitive field set.
     ///
     /// # Returns
     ///
     /// Empty field set without built-in names.
-    #[inline(always)]
+    #[inline]
     pub fn new() -> Self {
         Self {
             fields: Arc::new(BTreeMap::new()),
@@ -46,11 +68,13 @@ impl SensitiveFields {
     /// * `level` - Sensitivity level assigned to the field.
     ///
     /// An existing canonical field is replaced even when `level` is weaker.
+    #[inline]
     pub fn insert(&mut self, field: &str, level: SensitivityLevel) {
         let field = canonicalize_field_name(field);
-        if !field.is_empty() {
-            Arc::make_mut(&mut self.fields).insert(field, level);
+        if field.is_empty() || self.fields.get(&field).copied() == Some(level) {
+            return;
         }
+        Arc::make_mut(&mut self.fields).insert(field, level);
     }
 
     /// Inserts one field without lowering an existing sensitivity level.
@@ -59,15 +83,20 @@ impl SensitiveFields {
     ///
     /// * `field` - Field name to mark sensitive.
     /// * `level` - Minimum sensitivity level assigned to the field.
+    #[inline]
     pub fn insert_strongest(&mut self, field: &str, level: SensitivityLevel) {
         let field = canonicalize_field_name(field);
         if field.is_empty() {
             return;
         }
-        Arc::make_mut(&mut self.fields)
-            .entry(field)
-            .and_modify(|current| *current = (*current).max(level))
-            .or_insert(level);
+        if self
+            .fields
+            .get(&field)
+            .is_some_and(|current| *current >= level)
+        {
+            return;
+        }
+        Arc::make_mut(&mut self.fields).insert(field, level);
     }
 
     /// Removes one sensitive field name.
@@ -80,19 +109,25 @@ impl SensitiveFields {
     ///
     /// The removed sensitivity level, or `None` when the canonical field name
     /// is empty or not configured.
+    #[inline]
     pub fn remove(&mut self, field: &str) -> Option<SensitivityLevel> {
         let field = canonicalize_field_name(field);
-        if field.is_empty() {
-            None
-        } else {
-            Arc::make_mut(&mut self.fields).remove(&field)
-        }
+        let level = self.fields.get(&field).copied()?;
+        Arc::make_mut(&mut self.fields).remove(&field);
+        Some(level)
     }
 
     /// Removes all configured sensitive fields.
-    #[inline(always)]
+    #[inline]
     pub fn clear(&mut self) {
-        self.fields = Arc::new(BTreeMap::new());
+        if self.fields.is_empty() {
+            return;
+        }
+        if let Some(fields) = Arc::get_mut(&mut self.fields) {
+            fields.clear();
+        } else {
+            self.fields = Arc::new(BTreeMap::new());
+        }
     }
 
     /// Merges another field set without lowering existing sensitivity levels.
@@ -104,8 +139,18 @@ impl SensitiveFields {
     /// Existing canonical fields keep the stronger of the two levels. Fields
     /// present only in `other` are inserted unchanged.
     pub fn merge_strongest(&mut self, other: &Self) {
-        for (field, level) in other.iter() {
-            self.insert_strongest(field, level);
+        if Arc::ptr_eq(&self.fields, &other.fields)
+            || !other.fields.iter().any(|(field, level)| {
+                self.fields.get(field).is_none_or(|current| current < level)
+            })
+        {
+            return;
+        }
+        let fields = Arc::make_mut(&mut self.fields);
+        for (field, level) in other.fields.iter() {
+            if fields.get(field).is_none_or(|current| current < level) {
+                fields.insert(field.clone(), *level);
+            }
         }
     }
 
@@ -245,20 +290,11 @@ impl Default for SensitiveFields {
     /// # Returns
     ///
     /// A field set containing every built-in preset and extra field.
+    #[inline(always)]
     fn default() -> Self {
-        let mut fields = Self::new();
-        for preset in [
-            SensitiveFieldPreset::Credentials,
-            SensitiveFieldPreset::AuthTokens,
-            SensitiveFieldPreset::Http,
-            SensitiveFieldPreset::Session,
-        ] {
-            fields.extend_preset(preset);
+        Self {
+            fields: Arc::clone(&DEFAULT_SENSITIVE_FIELDS),
         }
-        for &(field, level) in DEFAULT_EXTRA_FIELDS {
-            fields.insert_strongest(field, level);
-        }
-        fields
     }
 }
 

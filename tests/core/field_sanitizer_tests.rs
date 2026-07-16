@@ -118,6 +118,19 @@ fn test_field_sanitizer_sensitivity_for_name_resolves_token_boundaries() {
 }
 
 #[test]
+fn test_field_sanitizer_sensitivity_for_name_handles_many_token_boundaries() {
+    let sanitizer = FieldSanitizer::default();
+
+    assert_eq!(
+        sanitizer.sensitivity_for_name(
+            "region.tenantOpenaiApiKey",
+            NameMatchMode::ExactOrSuffix,
+        ),
+        Some(SensitivityLevel::High),
+    );
+}
+
+#[test]
 fn test_sensitive_fields_exact_or_suffix_matches_bracketed_paths() {
     let sanitizer = FieldSanitizer::default();
 
