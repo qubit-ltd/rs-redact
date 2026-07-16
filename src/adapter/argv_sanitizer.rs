@@ -10,6 +10,7 @@ use std::ffi::OsStr;
 use crate::{
     FieldSanitizer,
     NameMatchMode,
+    SensitivityLevel,
 };
 
 /// Sanitizes structured argv vectors for logs and diagnostics.
@@ -91,22 +92,43 @@ impl ArgvSanitizer {
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let mut sanitized = Vec::new();
-        let mut pending_sensitive_name: Option<String> = None;
+        let argv = argv.into_iter();
+        let mut sanitized = Vec::with_capacity(argv.size_hint().0);
+        let mut pending_sensitive_level = None;
         let mut parse_options = true;
 
         for arg in argv {
-            let arg = arg.as_ref().to_string_lossy().into_owned();
-            let sensitive_option_name = parse_options
-                .then(|| self.sensitive_option_name(&arg, match_mode))
+            let arg = arg.as_ref();
+            let Some(arg) = arg.to_str() else {
+                let encoded = arg.as_encoded_bytes();
+                let may_take_separate_value = parse_options
+                    && encoded.starts_with(b"-")
+                    && !encoded.contains(&b'=');
+                let rendered = arg.to_string_lossy();
+                sanitized.push(
+                    self.field_sanitizer
+                        .mask_value_at_level(
+                            rendered.as_ref(),
+                            SensitivityLevel::Secret,
+                        )
+                        .into_owned(),
+                );
+                pending_sensitive_level =
+                    may_take_separate_value.then_some(SensitivityLevel::Secret);
+                continue;
+            };
+            let sensitive_option_level = parse_options
+                .then(|| self.sensitive_option_level(arg, match_mode))
                 .flatten();
-            if let Some(name) = pending_sensitive_name.take() {
-                if let Some(name) = sensitive_option_name {
-                    pending_sensitive_name = Some(name.to_string());
-                    sanitized.push(arg);
+            if let Some(level) = pending_sensitive_level.take() {
+                if let Some(level) = sensitive_option_level {
+                    pending_sensitive_level = Some(level);
+                    sanitized.push(arg.to_string());
                 } else {
                     sanitized.push(
-                        self.sanitize_sensitive_value(&name, &arg, match_mode),
+                        self.field_sanitizer
+                            .mask_value_at_level(arg, level)
+                            .into_owned(),
                     );
                 }
                 continue;
@@ -114,29 +136,28 @@ impl ArgvSanitizer {
 
             if arg == "--" {
                 parse_options = false;
-                sanitized.push(arg);
+                sanitized.push(arg.to_string());
                 continue;
             }
 
-            if let Some(value) = self.sanitize_assignment_arg(&arg, match_mode)
-            {
+            if let Some(value) = self.sanitize_assignment_arg(arg, match_mode) {
                 sanitized.push(value);
                 continue;
             }
 
             if parse_options {
                 if let Some(value) =
-                    self.sanitize_inline_option_arg(&arg, match_mode)
+                    self.sanitize_inline_option_arg(arg, match_mode)
                 {
                     sanitized.push(value);
                     continue;
                 }
-                if let Some(name) = sensitive_option_name {
-                    pending_sensitive_name = Some(name.to_string());
+                if let Some(level) = sensitive_option_level {
+                    pending_sensitive_level = Some(level);
                 }
             }
 
-            sanitized.push(arg);
+            sanitized.push(arg.to_string());
         }
 
         sanitized
@@ -167,7 +188,7 @@ impl ArgvSanitizer {
         format!("{:?}", self.sanitize_argv(argv, match_mode))
     }
 
-    /// Returns the sensitive field name represented by a bare option token.
+    /// Returns the sensitivity level represented by a bare option token.
     ///
     /// # Parameters
     ///
@@ -176,19 +197,16 @@ impl ArgvSanitizer {
     ///
     /// # Returns
     ///
-    /// `Some(name)` when `arg` is a configured sensitive option, otherwise
+    /// `Some(level)` when `arg` is a configured sensitive option, otherwise
     /// `None`.
     #[inline]
-    fn sensitive_option_name<'a>(
+    fn sensitive_option_level(
         &self,
-        arg: &'a str,
+        arg: &str,
         match_mode: NameMatchMode,
-    ) -> Option<&'a str> {
-        option_name(arg).filter(|name| {
-            self.field_sanitizer
-                .sensitivity_for_name(name, match_mode)
-                .is_some()
-        })
+    ) -> Option<SensitivityLevel> {
+        let name = option_name(arg)?;
+        self.field_sanitizer.sensitivity_for_name(name, match_mode)
     }
 
     /// Sanitizes one `KEY=value` argv token when the key is sensitive.
@@ -221,31 +239,6 @@ impl ArgvSanitizer {
         Some(format!("{key}={sanitized_value}"))
     }
 
-    /// Sanitizes one value whose option or assignment name is already
-    /// sensitive.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Sensitive option or assignment name.
-    /// * `value` - Value to sanitize.
-    /// * `match_mode` - Field-name matching mode for `name`.
-    ///
-    /// # Returns
-    ///
-    /// Sanitized value according to the sensitivity level resolved from `name`.
-    #[must_use = "use the returned sanitized value instead of the original value"]
-    #[inline(always)]
-    fn sanitize_sensitive_value(
-        &self,
-        name: &str,
-        value: &str,
-        match_mode: NameMatchMode,
-    ) -> String {
-        self.field_sanitizer
-            .sanitize_value(name, value, match_mode)
-            .into_owned()
-    }
-
     /// Sanitizes one `--key=value` option token when the key is sensitive.
     ///
     /// # Parameters
@@ -268,11 +261,11 @@ impl ArgvSanitizer {
         }
         let (left, value) = arg.split_once('=')?;
         let name = option_name(left)?;
-        let _level = self
+        let level = self
             .field_sanitizer
             .sensitivity_for_name(name, match_mode)?;
         let sanitized_value =
-            self.sanitize_sensitive_value(name, value, match_mode);
+            self.field_sanitizer.mask_value_at_level(value, level);
         Some(format!("{left}={sanitized_value}"))
     }
 }

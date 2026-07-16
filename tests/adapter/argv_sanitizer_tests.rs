@@ -11,6 +11,10 @@ use proptest::prelude::{
     prop_assert,
     proptest,
 };
+#[cfg(unix)]
+use std::ffi::OsString;
+#[cfg(unix)]
+use std::os::unix::ffi::OsStringExt;
 
 use qubit_sanitize::{
     ArgvSanitizer,
@@ -173,6 +177,55 @@ fn test_argv_sanitizer_formats_display_string() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn test_argv_sanitizer_redacts_non_utf8_token() {
+    let sanitizer = ArgvSanitizer::default();
+    let opaque = OsString::from_vec(b"prefix-secret-\xFF-suffix".to_vec());
+
+    assert_eq!(
+        sanitizer.sanitize_argv(
+            [OsString::from("cmd"), opaque],
+            NameMatchMode::ExactOrSuffix,
+        ),
+        ["cmd", "<redacted>"],
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn test_argv_sanitizer_redacts_non_utf8_pending_value_in_display() {
+    let sanitizer = ArgvSanitizer::default();
+    let opaque = OsString::from_vec(b"prefix-secret-\xFF-suffix".to_vec());
+
+    assert_eq!(
+        sanitizer.sanitize_argv_display(
+            [OsString::from("cmd"), OsString::from("--password"), opaque,],
+            NameMatchMode::ExactOrSuffix,
+        ),
+        r#"["cmd", "--password", "<redacted>"]"#,
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn test_argv_sanitizer_redacts_value_after_non_utf8_option() {
+    let sanitizer = ArgvSanitizer::default();
+    let opaque_option = OsString::from_vec(b"--passw\xFFrd".to_vec());
+
+    assert_eq!(
+        sanitizer.sanitize_argv(
+            [
+                OsString::from("cmd"),
+                opaque_option,
+                OsString::from("secret-value"),
+            ],
+            NameMatchMode::ExactOrSuffix,
+        ),
+        ["cmd", "<redacted>", "<redacted>"],
+    );
+}
+
 #[test]
 fn test_argv_sanitizer_stops_option_parsing_at_double_dash() {
     let sanitizer = ArgvSanitizer::default();
@@ -246,6 +299,17 @@ fn test_argv_sanitizer_keeps_option_name_only_dashes() {
             NameMatchMode::ExactOrSuffix
         ),
         ["cmd", "---", "value"]
+    );
+}
+
+#[test]
+fn test_argv_sanitizer_keeps_inline_option_name_only_dashes() {
+    let sanitizer = ArgvSanitizer::default();
+
+    assert_eq!(
+        sanitizer
+            .sanitize_argv(["cmd", "---=value"], NameMatchMode::ExactOrSuffix,),
+        ["cmd", "---=value"],
     );
 }
 

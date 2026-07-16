@@ -8,6 +8,10 @@
 //! Tests for [`EnvSanitizer`](qubit_sanitize::EnvSanitizer).
 
 use std::borrow::Cow;
+#[cfg(unix)]
+use std::ffi::OsString;
+#[cfg(unix)]
+use std::os::unix::ffi::OsStringExt;
 
 use proptest::prelude::{
     prop_assert,
@@ -110,6 +114,49 @@ fn test_env_sanitizer_sanitize_os_pair_renders_lossy_pair() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn test_env_sanitizer_sanitize_os_pair_redacts_non_utf8_key_value() {
+    let sanitizer = EnvSanitizer::default();
+    let key = OsString::from_vec(b"CUSTOM_\xFF_KEY".to_vec());
+    let value = OsString::from_vec(b"prefix-secret-\xFF-suffix".to_vec());
+
+    let (rendered_key, sanitized_value) =
+        sanitizer.sanitize_os_pair(key, value, NameMatchMode::ExactOrSuffix);
+
+    assert_eq!(rendered_key, "CUSTOM_�_KEY");
+    assert_eq!(sanitized_value, "<redacted>");
+}
+
+#[cfg(unix)]
+#[test]
+fn test_env_sanitizer_sanitize_os_pair_redacts_non_utf8_key() {
+    let sanitizer = EnvSanitizer::default();
+    let key = OsString::from_vec(b"CUSTOM_\xFF_KEY".to_vec());
+
+    assert_eq!(
+        sanitizer.sanitize_os_pair(
+            key,
+            "plain-secret",
+            NameMatchMode::ExactOrSuffix,
+        ),
+        ("CUSTOM_�_KEY".to_string(), "<redacted>".to_string()),
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn test_env_sanitizer_sanitize_os_pair_redacts_non_utf8_value() {
+    let sanitizer = EnvSanitizer::default();
+    let value = OsString::from_vec(b"prefix-secret-\xFF-suffix".to_vec());
+
+    assert_eq!(
+        sanitizer
+            .sanitize_os_pair("MODE", value, NameMatchMode::ExactOrSuffix,),
+        ("MODE".to_string(), "<redacted>".to_string()),
+    );
+}
+
 #[test]
 fn test_env_sanitizer_sanitize_pair_preserves_key() {
     let sanitizer = EnvSanitizer::default();
@@ -134,6 +181,19 @@ fn test_env_sanitizer_sanitize_assignments() {
             NameMatchMode::ExactOrSuffix
         ),
         ["PASSWORD=<redacted>", "MODE=debug"],
+    );
+}
+
+#[test]
+fn test_env_sanitizer_sanitize_assignments_display_escapes_controls() {
+    let sanitizer = EnvSanitizer::default();
+
+    assert_eq!(
+        sanitizer.sanitize_assignments_display(
+            ["MODE=debug\nforged", "PASSWORD=secret"],
+            NameMatchMode::ExactOrSuffix,
+        ),
+        r#"["MODE=debug\nforged", "PASSWORD=<redacted>"]"#,
     );
 }
 

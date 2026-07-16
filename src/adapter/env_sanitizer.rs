@@ -13,6 +13,7 @@ use std::{
 use crate::{
     FieldSanitizer,
     NameMatchMode,
+    SensitivityLevel,
 };
 
 /// Sanitizes environment variable values.
@@ -108,7 +109,9 @@ impl EnvSanitizer {
 
     /// Sanitizes one environment variable pair that may not be UTF-8.
     ///
-    /// Non-UTF-8 keys and values are rendered lossily for diagnostics.
+    /// Non-UTF-8 keys are rendered lossily. If either component is not UTF-8,
+    /// the complete value is redacted because the key cannot be classified
+    /// reliably or the value cannot be rendered faithfully.
     ///
     /// # Parameters
     ///
@@ -118,7 +121,9 @@ impl EnvSanitizer {
     ///
     /// # Returns
     ///
-    /// Owned string pair suitable for logs and errors.
+    /// Owned string pair with a sanitized value. The strings are not escaped;
+    /// render them with `Debug` formatting before writing untrusted control
+    /// characters to a single-line log.
     #[must_use = "use the returned sanitized pair instead of the original pair"]
     #[inline]
     pub fn sanitize_os_pair<K, V>(
@@ -131,13 +136,23 @@ impl EnvSanitizer {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        let key = key.as_ref().to_string_lossy();
-        let value = value.as_ref().to_string_lossy();
-        (
-            key.to_string(),
-            self.sanitize_value(key.as_ref(), value.as_ref(), match_mode)
+        let key = key.as_ref();
+        let value = value.as_ref();
+        let rendered_key = key.to_string_lossy();
+        let rendered_value = value.to_string_lossy();
+        let sanitized_value = match (key.to_str(), value.to_str()) {
+            (Some(key), Some(value)) => {
+                self.sanitize_value(key, value, match_mode).into_owned()
+            }
+            _ => self
+                .field_sanitizer
+                .mask_value_at_level(
+                    rendered_value.as_ref(),
+                    SensitivityLevel::Secret,
+                )
                 .into_owned(),
-        )
+        };
+        (rendered_key.into_owned(), sanitized_value)
     }
 
     /// Sanitizes one `KEY=value` assignment.
@@ -192,6 +207,31 @@ impl EnvSanitizer {
                 self.sanitize_assignment(assignment.as_ref(), match_mode)
             })
             .collect()
+    }
+
+    /// Sanitizes assignments and formats them in escaped debug style.
+    ///
+    /// # Parameters
+    ///
+    /// * `assignments` - Assignment strings to sanitize and render.
+    /// * `match_mode` - Field-name matching mode for assignment keys.
+    ///
+    /// # Returns
+    ///
+    /// Debug-style sanitized assignment list with control characters escaped,
+    /// for example `["PASSWORD=<redacted>", "MODE=debug\\nnext"]`.
+    #[must_use = "use the returned sanitized display instead of the original assignments"]
+    #[inline(always)]
+    pub fn sanitize_assignments_display<I, S>(
+        &self,
+        assignments: I,
+        match_mode: NameMatchMode,
+    ) -> String
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        format!("{:?}", self.sanitize_assignments(assignments, match_mode))
     }
 }
 
