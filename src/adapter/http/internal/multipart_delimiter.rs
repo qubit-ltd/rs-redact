@@ -8,6 +8,7 @@
 //! Multipart delimiter classification.
 
 /// Kind of multipart delimiter line.
+#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::adapter::http) enum MultipartDelimiter {
     /// Delimiter before a regular part.
@@ -27,7 +28,10 @@ impl MultipartDelimiter {
     /// # Returns
     ///
     /// Delimiter kind for an exact delimiter line.
-    pub(in crate::adapter::http) fn classify(line: &str, boundary: &str) -> Option<Self> {
+    pub(in crate::adapter::http) fn classify(
+        line: &str,
+        boundary: &str,
+    ) -> Option<Self> {
         let delimiter = format!("--{boundary}");
         if line == delimiter {
             Some(Self::Part)

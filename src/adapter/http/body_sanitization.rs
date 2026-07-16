@@ -7,11 +7,25 @@
 // =============================================================================
 //! Structured result of sanitizing an HTTP body.
 
-use std::fmt::{self, Display, Formatter, Write};
+use std::fmt::{
+    self,
+    Display,
+    Formatter,
+    Write,
+};
 
 use super::BodySanitizationStatus;
 
 /// Stores sanitized diagnostic content and source-length metadata.
+///
+/// ```compile_fail
+/// #![deny(unused_must_use)]
+/// use qubit_sanitize::{HttpBodySanitizer, NameMatchMode};
+///
+/// let sanitizer = HttpBodySanitizer::default();
+/// sanitizer.sanitize_body(b"secret", None, NameMatchMode::Exact);
+/// ```
+#[must_use = "inspect or render the sanitized body instead of discarding it"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BodySanitization {
     /// Diagnostic content without the standard truncation suffix.
@@ -58,6 +72,7 @@ impl BodySanitization {
     /// # Returns
     ///
     /// Borrowed diagnostic content.
+    #[must_use]
     #[inline(always)]
     pub fn content(&self) -> &str {
         &self.content
@@ -68,6 +83,7 @@ impl BodySanitization {
     /// # Returns
     ///
     /// Owned diagnostic content.
+    #[must_use = "use the sanitized content instead of discarding it"]
     #[inline(always)]
     pub fn into_content(self) -> String {
         self.content
@@ -88,6 +104,7 @@ impl BodySanitization {
     /// # Returns
     ///
     /// Captured source byte count.
+    #[must_use]
     #[inline(always)]
     pub const fn captured_len(&self) -> usize {
         self.captured_len
@@ -98,6 +115,7 @@ impl BodySanitization {
     /// # Returns
     ///
     /// Total source byte count, always at least [`Self::captured_len`].
+    #[must_use]
     #[inline(always)]
     pub const fn source_len(&self) -> usize {
         self.source_len
@@ -108,6 +126,7 @@ impl BodySanitization {
     /// # Returns
     ///
     /// Truncated source byte count.
+    #[must_use]
     #[inline(always)]
     pub const fn truncated_bytes(&self) -> usize {
         self.source_len.saturating_sub(self.captured_len)
@@ -118,6 +137,7 @@ impl BodySanitization {
     /// # Returns
     ///
     /// `true` when [`Self::source_len`] exceeds [`Self::captured_len`].
+    #[must_use]
     #[inline(always)]
     pub const fn is_truncated(&self) -> bool {
         self.source_len > self.captured_len
@@ -128,6 +148,7 @@ impl BodySanitization {
     /// # Returns
     ///
     /// Owned diagnostic rendering.
+    #[must_use = "use the sanitized rendering instead of discarding it"]
     pub fn rendered(&self) -> String {
         self.to_string()
     }
@@ -137,6 +158,7 @@ impl BodySanitization {
     /// # Returns
     ///
     /// Owned diagnostic rendering with a truncation suffix when needed.
+    #[must_use = "use the sanitized rendering instead of discarding it"]
     pub fn into_rendered(self) -> String {
         let truncated_bytes = self.truncated_bytes();
         let mut content = self.content;

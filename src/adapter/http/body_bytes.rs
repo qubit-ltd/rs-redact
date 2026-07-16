@@ -16,6 +16,7 @@
 /// # Returns
 ///
 /// Borrowed trimmed slice.
+#[must_use]
 pub(super) fn trim_ascii_whitespace(bytes: &[u8]) -> &[u8] {
     let start = bytes
         .iter()

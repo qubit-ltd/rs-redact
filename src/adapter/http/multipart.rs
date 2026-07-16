@@ -12,9 +12,15 @@ use crate::NameMatchMode;
 use super::{
     content_type,
     http_body_sanitizer::HttpBodySanitizer,
-    internal::{MultipartDelimiter, MultipartPartMetadata, MultipartSanitization},
+    internal::{
+        MultipartDelimiter,
+        MultipartPartMetadata,
+        MultipartSanitization,
+    },
     redaction_markers::{
-        MULTIPART_FILE_PART_REDACTED, MULTIPART_PART_REDACTED, MULTIPART_TEXT_PART_REDACTED,
+        MULTIPART_FILE_PART_REDACTED,
+        MULTIPART_PART_REDACTED,
+        MULTIPART_TEXT_PART_REDACTED,
         MULTIPART_UNNAMED_FIELD,
     },
     text_body_policy::TextBodyPolicy,
@@ -93,8 +99,10 @@ fn sanitize_multipart_part(
             return None;
         }
     }
-    let metadata =
-        MultipartPartMetadata::parse(content_disposition.unwrap_or_default(), content_type)?;
+    let metadata = MultipartPartMetadata::parse(
+        content_disposition.unwrap_or_default(),
+        content_type,
+    )?;
     let field_name = metadata.name().unwrap_or(MULTIPART_UNNAMED_FIELD);
     let value = sanitize_multipart_part_value(
         sanitizer,
@@ -170,7 +178,9 @@ fn sanitize_multipart_part_value(
         );
     }
     if content_type::is_form_urlencoded(content_type) {
-        return sanitized_part(sanitizer.sanitize_form(body.as_bytes(), match_mode));
+        return sanitized_part(
+            sanitizer.sanitize_form(body.as_bytes(), match_mode),
+        );
     }
     if content_type::is_text(content_type) {
         return sanitize_text_part(sanitizer, body);
@@ -204,10 +214,17 @@ fn sanitized_part(content: String) -> MultipartSanitization {
 /// A text-part redaction marker by default, or `body` unchanged when callers
 /// explicitly choose [`TextBodyPolicy::PassThrough`].
 #[inline]
-fn sanitize_text_part(sanitizer: &HttpBodySanitizer, body: &str) -> MultipartSanitization {
+fn sanitize_text_part(
+    sanitizer: &HttpBodySanitizer,
+    body: &str,
+) -> MultipartSanitization {
     match sanitizer.text_body_policy() {
-        TextBodyPolicy::Redact => sanitized_part(MULTIPART_TEXT_PART_REDACTED.to_string()),
-        TextBodyPolicy::PassThrough => MultipartSanitization::new(body.to_string(), true),
+        TextBodyPolicy::Redact => {
+            sanitized_part(MULTIPART_TEXT_PART_REDACTED.to_string())
+        }
+        TextBodyPolicy::PassThrough => {
+            MultipartSanitization::new(body.to_string(), true)
+        }
     }
 }
 
@@ -222,19 +239,25 @@ fn sanitize_text_part(sanitizer: &HttpBodySanitizer, body: &str) -> MultipartSan
 ///
 /// Raw part segments without boundary delimiter lines, or `None` for malformed
 /// multipart bodies.
-fn multipart_part_segments<'a>(text: &'a str, boundary: &str) -> Option<Vec<&'a str>> {
+fn multipart_part_segments<'a>(
+    text: &'a str,
+    boundary: &str,
+) -> Option<Vec<&'a str>> {
     let mut current_start = None;
     let mut segments = Vec::new();
     let mut position = 0;
     while position < text.len() {
-        let (line_start, line_end, next_position) = next_line_bounds(text, position);
+        let (line_start, line_end, next_position) =
+            next_line_bounds(text, position);
         let line = &text[line_start..line_end];
-        let Some(delimiter) = MultipartDelimiter::classify(line, boundary) else {
+        let Some(delimiter) = MultipartDelimiter::classify(line, boundary)
+        else {
             position = next_position;
             continue;
         };
         if let Some(start) = current_start {
-            let segment = strip_one_trailing_line_ending(&text[start..line_start]);
+            let segment =
+                strip_one_trailing_line_ending(&text[start..line_start]);
             if !segment.trim().is_empty() {
                 segments.push(segment);
             }
@@ -266,6 +289,7 @@ fn multipart_part_segments<'a>(text: &'a str, boundary: &str) -> Option<Vec<&'a 
 ///
 /// Panics when `position` exceeds `text.len()` or is not a UTF-8 character
 /// boundary.
+#[must_use]
 fn next_line_bounds(text: &str, position: usize) -> (usize, usize, usize) {
     if let Some(relative_end) = text[position..].find('\n') {
         let line_end = position + relative_end;
@@ -306,6 +330,7 @@ fn split_multipart_headers_and_body(segment: &str) -> Option<(&str, &str)> {
 /// # Returns
 ///
 /// Text without one trailing line ending.
+#[must_use]
 fn strip_one_trailing_line_ending(value: &str) -> &str {
     value
         .strip_suffix("\r\n")

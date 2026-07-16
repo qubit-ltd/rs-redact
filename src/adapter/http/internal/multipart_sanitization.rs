@@ -8,6 +8,7 @@
 //! Internal multipart sanitization result.
 
 /// Sanitized multipart content and its opaque-text exposure state.
+#[must_use = "inspect the multipart sanitization result instead of discarding it"]
 pub(in crate::adapter::http) struct MultipartSanitization {
     /// Sanitized diagnostic content.
     content: String,
@@ -43,6 +44,7 @@ impl MultipartSanitization {
     /// # Returns
     ///
     /// Borrowed sanitized content.
+    #[must_use]
     #[inline(always)]
     pub(in crate::adapter::http) fn content(&self) -> &str {
         &self.content
@@ -53,6 +55,7 @@ impl MultipartSanitization {
     /// # Returns
     ///
     /// Owned sanitized content.
+    #[must_use = "use the sanitized multipart content instead of discarding it"]
     #[inline(always)]
     pub(in crate::adapter::http) fn into_content(self) -> String {
         self.content
@@ -63,8 +66,11 @@ impl MultipartSanitization {
     /// # Returns
     ///
     /// `true` when at least one opaque text body was passed through.
+    #[must_use]
     #[inline(always)]
-    pub(in crate::adapter::http) const fn contains_passed_through_text(&self) -> bool {
+    pub(in crate::adapter::http) const fn contains_passed_through_text(
+        &self,
+    ) -> bool {
         self.contains_passed_through_text
     }
 }

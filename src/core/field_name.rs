@@ -18,6 +18,7 @@
 /// # Returns
 ///
 /// Canonical field name used as the lookup key.
+#[must_use]
 pub fn canonicalize_field_name(name: &str) -> String {
     name.trim()
         .chars()
@@ -39,6 +40,7 @@ pub fn canonicalize_field_name(name: &str) -> String {
 /// # Returns
 ///
 /// Canonical token suffixes eligible for contextual sensitivity matching.
+#[must_use]
 pub(crate) fn canonicalize_field_name_suffixes(name: &str) -> Vec<String> {
     let chars = name.trim().chars().collect::<Vec<_>>();
     let mut tokens = Vec::<String>::new();
@@ -79,6 +81,7 @@ pub(crate) fn canonicalize_field_name_suffixes(name: &str) -> Vec<String> {
 /// # Returns
 ///
 /// `true` for a supported punctuation separator or Unicode whitespace.
+#[must_use]
 #[inline]
 fn is_field_separator(ch: char) -> bool {
     matches!(ch, '_' | '-' | '.' | '[' | ']') || ch.is_whitespace()
@@ -96,15 +99,21 @@ fn is_field_separator(ch: char) -> bool {
 ///
 /// `true` at lower-or-number to uppercase transitions and before the final
 /// uppercase character of an acronym followed by a lowercase word tail.
+#[must_use]
 #[inline]
-fn starts_camel_token(previous: Option<char>, current: char, next: Option<char>) -> bool {
+fn starts_camel_token(
+    previous: Option<char>,
+    current: char,
+    next: Option<char>,
+) -> bool {
     if !current.is_uppercase() {
         return false;
     }
-    let follows_lower_or_number =
-        previous.is_some_and(|previous| previous.is_lowercase() || previous.is_numeric());
-    let starts_word_after_acronym =
-        previous.is_some_and(char::is_uppercase) && next.is_some_and(char::is_lowercase);
+    let follows_lower_or_number = previous.is_some_and(|previous| {
+        previous.is_lowercase() || previous.is_numeric()
+    });
+    let starts_word_after_acronym = previous.is_some_and(char::is_uppercase)
+        && next.is_some_and(char::is_lowercase);
     follows_lower_or_number || starts_word_after_acronym
 }
 

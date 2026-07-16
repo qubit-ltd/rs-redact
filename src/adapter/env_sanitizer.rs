@@ -5,11 +5,18 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use std::{borrow::Cow, ffi::OsStr};
+use std::{
+    borrow::Cow,
+    ffi::OsStr,
+};
 
-use crate::{FieldSanitizer, NameMatchMode};
+use crate::{
+    FieldSanitizer,
+    NameMatchMode,
+};
 
 /// Sanitizes environment variable values.
+#[must_use = "the sanitizer must be used to produce sanitized environment values"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnvSanitizer {
     /// Core sanitizer used for environment variable values.
@@ -63,6 +70,7 @@ impl EnvSanitizer {
     ///
     /// Borrowed `value` when `key` is not sensitive, otherwise an owned masked
     /// value.
+    #[must_use = "use the returned sanitized value instead of the original value"]
     #[inline(always)]
     pub fn sanitize_value<'a>(
         &self,
@@ -84,6 +92,7 @@ impl EnvSanitizer {
     /// # Returns
     ///
     /// Owned pair preserving the key and sanitizing the value when needed.
+    #[must_use = "use the returned sanitized pair instead of the original pair"]
     pub fn sanitize_pair(
         &self,
         key: &str,
@@ -109,6 +118,7 @@ impl EnvSanitizer {
     /// # Returns
     ///
     /// Owned string pair suitable for logs and errors.
+    #[must_use = "use the returned sanitized pair instead of the original pair"]
     pub fn sanitize_os_pair<K, V>(
         &self,
         key: K,
@@ -140,7 +150,12 @@ impl EnvSanitizer {
     /// # Returns
     ///
     /// Sanitized assignment text.
-    pub fn sanitize_assignment(&self, assignment: &str, match_mode: NameMatchMode) -> String {
+    #[must_use = "use the returned sanitized assignment instead of the original assignment"]
+    pub fn sanitize_assignment(
+        &self,
+        assignment: &str,
+        match_mode: NameMatchMode,
+    ) -> String {
         let Some((key, value)) = assignment.split_once('=') else {
             return assignment.to_string();
         };
@@ -158,6 +173,7 @@ impl EnvSanitizer {
     /// # Returns
     ///
     /// Sanitized assignment strings in input order.
+    #[must_use = "use the returned sanitized assignments instead of the originals"]
     pub fn sanitize_assignments<I, S>(
         &self,
         assignments: I,
@@ -169,7 +185,9 @@ impl EnvSanitizer {
     {
         assignments
             .into_iter()
-            .map(|assignment| self.sanitize_assignment(assignment.as_ref(), match_mode))
+            .map(|assignment| {
+                self.sanitize_assignment(assignment.as_ref(), match_mode)
+            })
             .collect()
     }
 }

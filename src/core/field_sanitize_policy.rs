@@ -5,9 +5,13 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use super::{MaskPolicies, SensitiveFields};
+use super::{
+    MaskPolicies,
+    SensitiveFields,
+};
 
 /// Policy used by [`crate::FieldSanitizer`] for field-value sanitization.
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldSanitizePolicy {
     /// Sensitive fields and their sensitivity levels.
@@ -28,7 +32,10 @@ impl FieldSanitizePolicy {
     ///
     /// A policy containing the supplied components.
     #[inline(always)]
-    pub const fn new(sensitive_fields: SensitiveFields, mask_policies: MaskPolicies) -> Self {
+    pub const fn new(
+        sensitive_fields: SensitiveFields,
+        mask_policies: MaskPolicies,
+    ) -> Self {
         Self {
             sensitive_fields,
             mask_policies,

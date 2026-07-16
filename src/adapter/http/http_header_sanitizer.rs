@@ -7,11 +7,19 @@
 // =============================================================================
 use std::collections::BTreeMap;
 
-use http::{HeaderMap, HeaderName, HeaderValue};
+use http::{
+    HeaderMap,
+    HeaderName,
+    HeaderValue,
+};
 
-use crate::{FieldSanitizer, NameMatchMode};
+use crate::{
+    FieldSanitizer,
+    NameMatchMode,
+};
 
 /// Sanitizes HTTP header values for logs and diagnostics.
+#[must_use = "the sanitizer must be used to produce sanitized headers"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HttpHeaderSanitizer {
     /// Core sanitizer used for HTTP header values.
@@ -67,6 +75,7 @@ impl HttpHeaderSanitizer {
     /// # Returns
     ///
     /// Sanitized header value for diagnostic output.
+    #[must_use = "use the returned sanitized header value instead of the original value"]
     pub fn sanitize_value(
         &self,
         name: &HeaderName,
@@ -91,6 +100,7 @@ impl HttpHeaderSanitizer {
     ///
     /// Owned string pair preserving the header name and sanitizing the value
     /// when needed.
+    #[must_use = "use the returned sanitized header pair instead of the original pair"]
     pub fn sanitize_pair(
         &self,
         name: &HeaderName,
@@ -117,6 +127,7 @@ impl HttpHeaderSanitizer {
     /// # Returns
     ///
     /// Sanitized header names and values for diagnostic output.
+    #[must_use = "use the returned sanitized headers instead of the original headers"]
     pub fn sanitize_headers(
         &self,
         headers: &HeaderMap,

@@ -38,6 +38,7 @@ pub(super) fn content_type_to_str(
 /// # Returns
 ///
 /// Trimmed text before the first semicolon.
+#[must_use]
 fn media_type(content_type: &str) -> &str {
     content_type
         .split(';')
@@ -56,6 +57,7 @@ fn media_type(content_type: &str) -> &str {
 /// # Returns
 ///
 /// `true` when media types match ignoring ASCII case.
+#[must_use]
 fn has_media_type(content_type: &str, expected: &str) -> bool {
     media_type(content_type).eq_ignore_ascii_case(expected)
 }
@@ -70,6 +72,7 @@ fn has_media_type(content_type: &str, expected: &str) -> bool {
 ///
 /// `true` for `application/json`, subtype aliases ending with `/json`, and
 /// structured suffixes ending with `+json`.
+#[must_use]
 pub(super) fn is_json(content_type: &str) -> bool {
     let media_type = media_type(content_type).to_ascii_lowercase();
     media_type == "application/json"
@@ -86,6 +89,7 @@ pub(super) fn is_json(content_type: &str) -> bool {
 /// # Returns
 ///
 /// `true` for `application/x-ndjson` and `application/ndjson`.
+#[must_use]
 pub(super) fn is_ndjson(content_type: &str) -> bool {
     let media_type = media_type(content_type);
     media_type.eq_ignore_ascii_case("application/x-ndjson")
@@ -101,6 +105,7 @@ pub(super) fn is_ndjson(content_type: &str) -> bool {
 /// # Returns
 ///
 /// `true` for `application/x-www-form-urlencoded`.
+#[must_use]
 pub(super) fn is_form_urlencoded(content_type: &str) -> bool {
     has_media_type(content_type, "application/x-www-form-urlencoded")
 }
@@ -114,6 +119,7 @@ pub(super) fn is_form_urlencoded(content_type: &str) -> bool {
 /// # Returns
 ///
 /// `true` for any `multipart/*` media type.
+#[must_use]
 pub(super) fn is_multipart(content_type: &str) -> bool {
     media_type(content_type)
         .to_ascii_lowercase()
@@ -129,6 +135,7 @@ pub(super) fn is_multipart(content_type: &str) -> bool {
 /// # Returns
 ///
 /// `true` for any `text/*` media type.
+#[must_use]
 pub(super) fn is_text(content_type: &str) -> bool {
     media_type(content_type)
         .to_ascii_lowercase()
@@ -149,10 +156,14 @@ pub(super) fn multipart_boundary(content_type: &str) -> Option<String> {
         return None;
     }
     match HeaderParameter::parse(content_type, "boundary") {
-        HeaderParameter::Value(boundary) if is_valid_multipart_boundary(&boundary) => {
+        HeaderParameter::Value(boundary)
+            if is_valid_multipart_boundary(&boundary) =>
+        {
             Some(boundary)
         }
-        HeaderParameter::Absent | HeaderParameter::Value(_) | HeaderParameter::Invalid => None,
+        HeaderParameter::Absent
+        | HeaderParameter::Value(_)
+        | HeaderParameter::Invalid => None,
     }
 }
 
@@ -165,6 +176,7 @@ pub(super) fn multipart_boundary(content_type: &str) -> Option<String> {
 /// # Returns
 ///
 /// `true` when the value uses conservative RFC-compatible ASCII bytes.
+#[must_use]
 fn is_valid_multipart_boundary(boundary: &str) -> bool {
     let len = boundary.len();
     (1..=MAX_MULTIPART_BOUNDARY_LEN).contains(&len)
@@ -180,6 +192,7 @@ fn is_valid_multipart_boundary(boundary: &str) -> bool {
 /// # Returns
 ///
 /// `true` for alphanumeric bytes and conservative punctuation.
+#[must_use]
 fn is_valid_multipart_boundary_byte(byte: u8) -> bool {
     matches!(
         byte,

@@ -8,12 +8,15 @@
 use super::super::{
     BodyRedactionReason,
     redaction_markers::{
-        INVALID_JSON_REDACTED, INVALID_NDJSON_REDACTED, INVALID_OR_TRUNCATED_JSON_REDACTED,
+        INVALID_JSON_REDACTED,
+        INVALID_NDJSON_REDACTED,
+        INVALID_OR_TRUNCATED_JSON_REDACTED,
         INVALID_OR_TRUNCATED_NDJSON_REDACTED,
     },
 };
 
 /// Body input kind used to select complete-body or preview rendering behavior.
+#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::adapter::http) enum BodyInputKind {
     /// Complete body bytes.
@@ -28,6 +31,7 @@ impl BodyInputKind {
     /// # Returns
     ///
     /// Empty complete-body text or an explicit preview marker.
+    #[must_use]
     pub(in crate::adapter::http) fn empty_content(self) -> String {
         match self {
             Self::Complete => String::new(),
@@ -45,6 +49,7 @@ impl BodyInputKind {
     /// # Returns
     ///
     /// `true` only for previews whose source is longer than the prefix.
+    #[must_use]
     pub(in crate::adapter::http) fn is_truncated(
         self,
         bytes_len: usize,
@@ -58,6 +63,7 @@ impl BodyInputKind {
     /// # Returns
     ///
     /// JSON redaction marker.
+    #[must_use]
     pub(in crate::adapter::http) fn invalid_json_marker(self) -> &'static str {
         match self {
             Self::Complete => INVALID_JSON_REDACTED,
@@ -70,7 +76,9 @@ impl BodyInputKind {
     /// # Returns
     ///
     /// JSON redaction reason.
-    pub(in crate::adapter::http) const fn invalid_json_reason(self) -> BodyRedactionReason {
+    pub(in crate::adapter::http) const fn invalid_json_reason(
+        self,
+    ) -> BodyRedactionReason {
         match self {
             Self::Complete => BodyRedactionReason::InvalidJson,
             Self::Preview => BodyRedactionReason::InvalidOrTruncatedJson,
@@ -82,7 +90,10 @@ impl BodyInputKind {
     /// # Returns
     ///
     /// NDJSON redaction marker.
-    pub(in crate::adapter::http) fn invalid_ndjson_marker(self) -> &'static str {
+    #[must_use]
+    pub(in crate::adapter::http) fn invalid_ndjson_marker(
+        self,
+    ) -> &'static str {
         match self {
             Self::Complete => INVALID_NDJSON_REDACTED,
             Self::Preview => INVALID_OR_TRUNCATED_NDJSON_REDACTED,
@@ -94,7 +105,9 @@ impl BodyInputKind {
     /// # Returns
     ///
     /// NDJSON redaction reason.
-    pub(in crate::adapter::http) const fn invalid_ndjson_reason(self) -> BodyRedactionReason {
+    pub(in crate::adapter::http) const fn invalid_ndjson_reason(
+        self,
+    ) -> BodyRedactionReason {
         match self {
             Self::Complete => BodyRedactionReason::InvalidNdjson,
             Self::Preview => BodyRedactionReason::InvalidOrTruncatedNdjson,

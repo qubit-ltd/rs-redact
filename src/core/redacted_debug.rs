@@ -7,12 +7,25 @@
 // =============================================================================
 //! Debug wrapper that never formats the wrapped value.
 
-use std::fmt::{self, Debug, Formatter};
+use std::fmt::{
+    self,
+    Debug,
+    Formatter,
+};
 
 /// Formats any borrowed value as a fixed redaction marker.
 ///
 /// This wrapper deliberately does not require or invoke the wrapped value's
 /// [`Debug`] implementation.
+///
+/// ```compile_fail
+/// #![deny(unused_must_use)]
+/// use qubit_sanitize::redacted_debug;
+///
+/// let secret = "secret";
+/// redacted_debug(&secret);
+/// ```
+#[must_use = "format the wrapper instead of discarding the redacted representation"]
 pub struct RedactedDebug<'a, T: ?Sized> {
     /// Borrowed value retained only to bind the wrapper's lifetime.
     value: &'a T,

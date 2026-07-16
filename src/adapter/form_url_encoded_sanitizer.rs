@@ -5,11 +5,15 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use crate::{FieldSanitizer, NameMatchMode};
+use crate::{
+    FieldSanitizer,
+    NameMatchMode,
+};
 
 use super::form_url_encoded::sanitize_form_urlencoded;
 
 /// Sanitizes `application/x-www-form-urlencoded` payloads.
+#[must_use = "the sanitizer must be used to produce sanitized form data"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormUrlEncodedSanitizer {
     /// Core sanitizer used for form field values.
@@ -64,8 +68,13 @@ impl FormUrlEncodedSanitizer {
     /// # Returns
     ///
     /// Sanitized URL-encoded form string.
+    #[must_use = "use the returned sanitized form instead of the original form"]
     #[inline(always)]
-    pub fn sanitize_bytes(&self, form: &[u8], match_mode: NameMatchMode) -> String {
+    pub fn sanitize_bytes(
+        &self,
+        form: &[u8],
+        match_mode: NameMatchMode,
+    ) -> String {
         sanitize_form_urlencoded(&self.field_sanitizer, form, match_mode)
     }
 
@@ -79,8 +88,13 @@ impl FormUrlEncodedSanitizer {
     /// # Returns
     ///
     /// Sanitized URL-encoded form string.
+    #[must_use = "use the returned sanitized form instead of the original form"]
     #[inline(always)]
-    pub fn sanitize_str(&self, form: &str, match_mode: NameMatchMode) -> String {
+    pub fn sanitize_str(
+        &self,
+        form: &str,
+        match_mode: NameMatchMode,
+    ) -> String {
         self.sanitize_bytes(form.as_bytes(), match_mode)
     }
 }

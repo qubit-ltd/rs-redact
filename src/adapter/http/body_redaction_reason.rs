@@ -8,6 +8,7 @@
 //! Reasons why an HTTP body was fully redacted.
 
 /// Identifies why an HTTP body could not be sanitized structurally.
+#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BodyRedactionReason {

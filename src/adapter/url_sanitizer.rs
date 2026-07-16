@@ -5,11 +5,20 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use ::url::{ParseError, Url, form_urlencoded};
+use ::url::{
+    ParseError,
+    Url,
+    form_urlencoded,
+};
 
-use crate::{FieldSanitizer, NameMatchMode, SensitivityLevel};
+use crate::{
+    FieldSanitizer,
+    NameMatchMode,
+    SensitivityLevel,
+};
 
 /// Sanitizes URLs for logs and diagnostics.
+#[must_use = "the sanitizer must be used to produce sanitized URLs"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UrlSanitizer {
     /// Core sanitizer used for query parameter values and masks.
@@ -68,6 +77,7 @@ impl UrlSanitizer {
     /// # Returns
     ///
     /// Sanitized URL string for diagnostic output.
+    #[must_use = "use the returned sanitized URL instead of the original URL"]
     pub fn sanitize_url(&self, url: &Url, match_mode: NameMatchMode) -> String {
         let mut sanitized = url.clone();
         if !sanitized.username().is_empty() {
@@ -79,13 +89,19 @@ impl UrlSanitizer {
             let _ = sanitized.set_username(&username);
         }
         if let Some(password) = sanitized.password() {
-            let password =
-                mask_url_component(&self.field_sanitizer, password, SensitivityLevel::Secret);
+            let password = mask_url_component(
+                &self.field_sanitizer,
+                password,
+                SensitivityLevel::Secret,
+            );
             let _ = sanitized.set_password(Some(&password));
         }
         if let Some(fragment) = sanitized.fragment() {
-            let fragment =
-                mask_url_component(&self.field_sanitizer, fragment, SensitivityLevel::High);
+            let fragment = mask_url_component(
+                &self.field_sanitizer,
+                fragment,
+                SensitivityLevel::High,
+            );
             sanitized.set_fragment(Some(&fragment));
         }
         let Some(_) = sanitized.query() else {
@@ -94,9 +110,11 @@ impl UrlSanitizer {
 
         let mut serializer = form_urlencoded::Serializer::new(String::new());
         for (key, value) in url.query_pairs() {
-            let sanitized_value =
-                self.field_sanitizer
-                    .sanitize_value(key.as_ref(), value.as_ref(), match_mode);
+            let sanitized_value = self.field_sanitizer.sanitize_value(
+                key.as_ref(),
+                value.as_ref(),
+                match_mode,
+            );
             serializer.append_pair(key.as_ref(), sanitized_value.as_ref());
         }
         sanitized.set_query(Some(&serializer.finish()));
@@ -144,7 +162,12 @@ impl Default for UrlSanitizer {
 /// # Returns
 ///
 /// Masked component value.
-fn mask_url_component(sanitizer: &FieldSanitizer, value: &str, level: SensitivityLevel) -> String {
+#[must_use = "use the returned masked component instead of the original component"]
+fn mask_url_component(
+    sanitizer: &FieldSanitizer,
+    value: &str,
+    level: SensitivityLevel,
+) -> String {
     sanitizer
         .policy()
         .mask_policies()

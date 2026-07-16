@@ -8,6 +8,7 @@
 use std::borrow::Cow;
 
 /// Strategy used to mask one sensitive field value.
+#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MaskPolicy {
@@ -129,6 +130,7 @@ impl MaskPolicy {
     /// # Returns
     ///
     /// Borrowed `value` when it is empty, otherwise an owned masked value.
+    #[must_use = "use the returned masked value instead of the original value"]
     pub fn mask<'a>(&self, value: &'a str) -> Cow<'a, str> {
         if value.is_empty() {
             return Cow::Borrowed(value);
@@ -151,9 +153,12 @@ impl MaskPolicy {
                 suffix_chars,
                 replacement,
                 full_mask_below_or_equal,
-            } => {
-                mask_preserving_suffix(value, *suffix_chars, replacement, *full_mask_below_or_equal)
-            }
+            } => mask_preserving_suffix(
+                value,
+                *suffix_chars,
+                replacement,
+                *full_mask_below_or_equal,
+            ),
             Self::Empty => Cow::Owned(String::new()),
         }
     }
@@ -172,6 +177,7 @@ impl MaskPolicy {
 /// # Returns
 ///
 /// Owned masked value.
+#[must_use = "use the returned masked value instead of the original value"]
 fn mask_preserving_edges<'a>(
     value: &str,
     prefix_chars: usize,
@@ -205,6 +211,7 @@ fn mask_preserving_edges<'a>(
 /// # Returns
 ///
 /// Owned masked value.
+#[must_use = "use the returned masked value instead of the original value"]
 fn mask_preserving_suffix<'a>(
     value: &str,
     suffix_chars: usize,
