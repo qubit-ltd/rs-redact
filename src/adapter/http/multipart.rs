@@ -243,6 +243,8 @@ fn multipart_part_segments<'a>(
     text: &'a str,
     boundary: &str,
 ) -> Option<Vec<&'a str>> {
+    let delimiter = format!("--{boundary}");
+    let closing_delimiter = format!("{delimiter}--");
     let mut current_start = None;
     let mut segments = Vec::new();
     let mut position = 0;
@@ -250,7 +252,8 @@ fn multipart_part_segments<'a>(
         let (line_start, line_end, next_position) =
             next_line_bounds(text, position);
         let line = &text[line_start..line_end];
-        let Some(delimiter) = MultipartDelimiter::classify(line, boundary)
+        let Some(delimiter_kind) =
+            MultipartDelimiter::classify(line, &delimiter, &closing_delimiter)
         else {
             position = next_position;
             continue;
@@ -262,7 +265,7 @@ fn multipart_part_segments<'a>(
                 segments.push(segment);
             }
         }
-        if delimiter == MultipartDelimiter::Closing {
+        if delimiter_kind == MultipartDelimiter::Closing {
             if text[next_position..].trim().is_empty() {
                 return Some(segments);
             }
@@ -331,6 +334,7 @@ fn split_multipart_headers_and_body(segment: &str) -> Option<(&str, &str)> {
 ///
 /// Text without one trailing line ending.
 #[must_use]
+#[inline(always)]
 fn strip_one_trailing_line_ending(value: &str) -> &str {
     value
         .strip_suffix("\r\n")

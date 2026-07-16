@@ -7,7 +7,7 @@
 // =============================================================================
 //! Parsed metadata for one multipart body part.
 
-use super::HeaderParameter;
+use super::parse_header_parameters;
 
 /// Metadata parsed from one multipart part's headers.
 #[must_use]
@@ -32,15 +32,15 @@ impl<'a> MultipartPartMetadata<'a> {
     ///
     /// Parsed metadata, or `None` when a requested disposition parameter is
     /// malformed or duplicated.
+    #[inline(always)]
     pub(in crate::adapter::http) fn parse(
         content_disposition: &str,
         content_type: Option<&'a str>,
     ) -> Option<Self> {
-        let name = parse_optional_parameter(content_disposition, "name")?;
-        let filename =
-            parse_optional_parameter(content_disposition, "filename")?;
-        let extended_filename =
-            parse_optional_parameter(content_disposition, "filename*")?;
+        let [name, filename, extended_filename] = parse_header_parameters(
+            content_disposition,
+            ["name", "filename", "filename*"],
+        )?;
         Some(Self {
             name,
             filename: filename.or(extended_filename),
@@ -78,27 +78,5 @@ impl<'a> MultipartPartMetadata<'a> {
         &self,
     ) -> Option<&'a str> {
         self.content_type
-    }
-}
-
-/// Parses one optional disposition parameter.
-///
-/// # Parameters
-///
-/// * `content_disposition` - Part-level `Content-Disposition` text.
-/// * `parameter_name` - Parameter name to parse case-insensitively.
-///
-/// # Returns
-///
-/// `Some(Some(value))` when present, `Some(None)` when absent, and `None` when
-/// the parameter is malformed or duplicated.
-fn parse_optional_parameter(
-    content_disposition: &str,
-    parameter_name: &str,
-) -> Option<Option<String>> {
-    match HeaderParameter::parse(content_disposition, parameter_name) {
-        HeaderParameter::Absent => Some(None),
-        HeaderParameter::Value(value) => Some(Some(value)),
-        HeaderParameter::Invalid => None,
     }
 }

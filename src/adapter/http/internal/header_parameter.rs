@@ -34,35 +34,62 @@ impl HeaderParameter {
     /// # Returns
     ///
     /// Parsed parameter state.
+    #[inline]
     pub(in crate::adapter::http) fn parse(
         value: &str,
         parameter_name: &str,
     ) -> Self {
-        if value.contains(['\r', '\n']) {
-            return Self::Invalid;
-        }
-        let Some(segments) = header_parameter_segments(value) else {
+        let Some([parameter]) =
+            parse_header_parameters(value, [parameter_name])
+        else {
             return Self::Invalid;
         };
-        let mut result = Self::Absent;
-        for segment in segments.into_iter().skip(1) {
-            let Some((name, raw_value)) = segment.split_once('=') else {
-                continue;
-            };
-            if !name.trim().eq_ignore_ascii_case(parameter_name) {
-                continue;
-            }
-            if result != Self::Absent {
-                return Self::Invalid;
-            }
-            let Some(decoded) = decode_header_parameter(raw_value.trim())
-            else {
-                return Self::Invalid;
-            };
-            result = Self::Value(decoded);
+        match parameter {
+            Some(parameter) => Self::Value(parameter),
+            None => Self::Absent,
         }
-        result
     }
+}
+
+/// Parses several semicolon-separated header parameters in one pass.
+///
+/// Parameters without a value are ignored unless quoting or line breaks make
+/// the complete header malformed. A repeated requested parameter is invalid
+/// even when both values are identical.
+///
+/// # Parameters
+///
+/// * `value` - Header value containing semicolon-separated parameters.
+/// * `parameter_names` - Parameter names to find case-insensitively.
+///
+/// # Returns
+///
+/// One optional decoded value per requested name, or `None` when the header is
+/// malformed or any requested parameter is duplicated.
+pub(in crate::adapter::http) fn parse_header_parameters<const N: usize>(
+    value: &str,
+    parameter_names: [&str; N],
+) -> Option<[Option<String>; N]> {
+    if value.contains(['\r', '\n']) {
+        return None;
+    }
+    let segments = header_parameter_segments(value)?;
+    let mut result = std::array::from_fn(|_| None);
+    for segment in segments.into_iter().skip(1) {
+        let Some((name, raw_value)) = segment.split_once('=') else {
+            continue;
+        };
+        let Some(index) = parameter_names.iter().position(|parameter_name| {
+            name.trim().eq_ignore_ascii_case(parameter_name)
+        }) else {
+            continue;
+        };
+        if result[index].is_some() {
+            return None;
+        }
+        result[index] = Some(decode_header_parameter(raw_value.trim())?);
+    }
+    Some(result)
 }
 
 /// Splits header parameters while respecting quoted semicolons.

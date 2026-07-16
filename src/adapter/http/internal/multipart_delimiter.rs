@@ -23,19 +23,21 @@ impl MultipartDelimiter {
     /// # Parameters
     ///
     /// * `line` - Logical line without a trailing line ending.
-    /// * `boundary` - Boundary parameter without the leading `--`.
+    /// * `delimiter` - Precomputed delimiter including the leading `--`.
+    /// * `closing_delimiter` - Precomputed final delimiter ending in `--`.
     ///
     /// # Returns
     ///
     /// Delimiter kind for an exact delimiter line.
+    #[inline]
     pub(in crate::adapter::http) fn classify(
         line: &str,
-        boundary: &str,
+        delimiter: &str,
+        closing_delimiter: &str,
     ) -> Option<Self> {
-        let delimiter = format!("--{boundary}");
         if line == delimiter {
             Some(Self::Part)
-        } else if line == format!("{delimiter}--") {
+        } else if line == closing_delimiter {
             Some(Self::Closing)
         } else {
             None
