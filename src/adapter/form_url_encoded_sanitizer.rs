@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -57,8 +57,8 @@ impl FormUrlEncodedSanitizer {
 
     /// Sanitizes URL-encoded form bytes.
     ///
-    /// Field order and duplicate keys are preserved. The returned string is
-    /// serialized as valid URL-encoded form data.
+    /// Field order and duplicate keys are preserved. Malformed percent escapes
+    /// or percent-decoded non-UTF-8 cause fail-closed whole-form redaction.
     ///
     /// # Parameters
     ///
@@ -67,7 +67,8 @@ impl FormUrlEncodedSanitizer {
     ///
     /// # Returns
     ///
-    /// Sanitized URL-encoded form string.
+    /// Sanitized URL-encoded form string, or a fixed redaction marker for
+    /// invalid input.
     #[must_use = "use the returned sanitized form instead of the original form"]
     #[inline(always)]
     pub fn sanitize_bytes(
@@ -87,7 +88,8 @@ impl FormUrlEncodedSanitizer {
     ///
     /// # Returns
     ///
-    /// Sanitized URL-encoded form string.
+    /// Sanitized URL-encoded form string, or a fixed redaction marker for
+    /// invalid input.
     #[must_use = "use the returned sanitized form instead of the original form"]
     #[inline(always)]
     pub fn sanitize_str(

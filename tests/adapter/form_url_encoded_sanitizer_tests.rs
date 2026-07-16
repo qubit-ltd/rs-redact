@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -89,6 +89,22 @@ fn test_form_urlencoded_sanitizer_sanitize_bytes() {
         ),
         "password=%3Credacted%3E&mode=debug",
     );
+}
+
+#[test]
+fn test_form_urlencoded_sanitizer_redacts_malformed_percent_encoding() {
+    let sanitizer = FormUrlEncodedSanitizer::default();
+
+    for form in [
+        b"%FFpassword=secret".as_slice(),
+        b"%ZZpassword=secret",
+        b"password=secret%",
+    ] {
+        let sanitized =
+            sanitizer.sanitize_bytes(form, NameMatchMode::ExactOrSuffix);
+        assert_eq!(sanitized, "<redacted: invalid URL-encoded form>");
+        assert!(!sanitized.contains("secret"));
+    }
 }
 
 #[test]

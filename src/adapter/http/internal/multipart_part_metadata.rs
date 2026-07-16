@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -42,7 +42,7 @@ impl<'a> MultipartPartMetadata<'a> {
             ["name", "filename", "filename*"],
         )?;
         Some(Self {
-            name,
+            name: name.filter(|name| !name.trim().is_empty()),
             filename: filename.or(extended_filename),
             content_type,
         })
@@ -52,7 +52,8 @@ impl<'a> MultipartPartMetadata<'a> {
     ///
     /// # Returns
     ///
-    /// `Some` with the parsed name, or `None` when no name was supplied.
+    /// `Some` with a non-blank parsed name, or `None` when the name was absent,
+    /// empty, or whitespace-only.
     #[inline(always)]
     pub(in crate::adapter::http) fn name(&self) -> Option<&str> {
         self.name.as_deref()

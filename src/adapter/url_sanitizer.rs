@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -16,6 +16,11 @@ use crate::{
     NameMatchMode,
     SensitivityLevel,
 };
+
+use super::form_url_encoded::is_valid_form_urlencoded;
+
+/// Marker used when a URL query cannot be decoded without ambiguity.
+const INVALID_QUERY_REDACTED: &str = "<redacted: invalid URL-encoded query>";
 
 /// Sanitizes URLs for logs and diagnostics.
 #[must_use = "the sanitizer must be used to produce sanitized URLs"]
@@ -67,7 +72,8 @@ impl UrlSanitizer {
     /// high-sensitivity mask. Passwords use the secret-sensitivity mask. Query
     /// parameter values are sanitized by parameter name, preserving parameter
     /// order and duplicates. URL paths are kept unchanged because path-segment
-    /// semantics are application-specific.
+    /// semantics are application-specific. A query containing malformed
+    /// percent escapes or percent-decoded non-UTF-8 is redacted as a whole.
     ///
     /// # Parameters
     ///
@@ -104,9 +110,13 @@ impl UrlSanitizer {
             );
             sanitized.set_fragment(Some(&fragment));
         }
-        let Some(_) = sanitized.query() else {
+        let Some(query) = sanitized.query() else {
             return sanitized.to_string();
         };
+        if !is_valid_form_urlencoded(query.as_bytes()) {
+            sanitized.set_query(Some(INVALID_QUERY_REDACTED));
+            return sanitized.to_string();
+        }
 
         let mut serializer = form_urlencoded::Serializer::new(String::new());
         for (key, value) in url.query_pairs() {

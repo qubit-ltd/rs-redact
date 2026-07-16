@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -8,8 +8,10 @@
 use super::super::{
     BodyRedactionReason,
     redaction_markers::{
+        INVALID_FORM_URLENCODED_REDACTED,
         INVALID_JSON_REDACTED,
         INVALID_NDJSON_REDACTED,
+        INVALID_OR_TRUNCATED_FORM_URLENCODED_REDACTED,
         INVALID_OR_TRUNCATED_JSON_REDACTED,
         INVALID_OR_TRUNCATED_NDJSON_REDACTED,
     },
@@ -117,6 +119,37 @@ impl BodyInputKind {
         match self {
             Self::Complete => BodyRedactionReason::InvalidNdjson,
             Self::Preview => BodyRedactionReason::InvalidOrTruncatedNdjson,
+        }
+    }
+
+    /// Returns the URL-encoded form parse failure marker for this input kind.
+    ///
+    /// # Returns
+    ///
+    /// URL-encoded form redaction marker.
+    #[must_use]
+    #[inline]
+    pub(in crate::adapter::http) fn invalid_form_marker(self) -> &'static str {
+        match self {
+            Self::Complete => INVALID_FORM_URLENCODED_REDACTED,
+            Self::Preview => INVALID_OR_TRUNCATED_FORM_URLENCODED_REDACTED,
+        }
+    }
+
+    /// Returns the URL-encoded form parse failure reason for this input kind.
+    ///
+    /// # Returns
+    ///
+    /// URL-encoded form redaction reason.
+    #[inline]
+    pub(in crate::adapter::http) const fn invalid_form_reason(
+        self,
+    ) -> BodyRedactionReason {
+        match self {
+            Self::Complete => BodyRedactionReason::InvalidFormUrlEncoded,
+            Self::Preview => {
+                BodyRedactionReason::InvalidOrTruncatedFormUrlEncoded
+            }
         }
     }
 }

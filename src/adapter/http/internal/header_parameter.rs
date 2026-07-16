@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -22,9 +22,9 @@ pub(in crate::adapter::http) enum HeaderParameter {
 impl HeaderParameter {
     /// Parses one semicolon-separated header parameter without ambiguity.
     ///
-    /// Parameters without a value are ignored unless quoting or line breaks
-    /// make the complete header malformed. A repeated requested parameter is
-    /// invalid even when both values are identical.
+    /// Unrequested parameters without a value are ignored. A requested
+    /// parameter without `=`, malformed quoting or line breaks, and repeated
+    /// requested parameters are invalid.
     ///
     /// # Parameters
     ///
@@ -53,9 +53,9 @@ impl HeaderParameter {
 
 /// Parses several semicolon-separated header parameters in one pass.
 ///
-/// Parameters without a value are ignored unless quoting or line breaks make
-/// the complete header malformed. A repeated requested parameter is invalid
-/// even when both values are identical.
+/// Unrequested parameters without a value are ignored. A requested parameter
+/// without `=`, malformed quoting or line breaks, and repeated requested
+/// parameters are invalid.
 ///
 /// # Parameters
 ///
@@ -77,6 +77,11 @@ pub(in crate::adapter::http) fn parse_header_parameters<const N: usize>(
     let mut result = std::array::from_fn(|_| None);
     for segment in segments.into_iter().skip(1) {
         let Some((name, raw_value)) = segment.split_once('=') else {
+            if parameter_names.iter().any(|parameter_name| {
+                segment.trim().eq_ignore_ascii_case(parameter_name)
+            }) {
+                return None;
+            }
             continue;
         };
         let Some(index) = parameter_names.iter().position(|parameter_name| {

@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -18,12 +18,15 @@ use proptest::{
 };
 
 use qubit_sanitize::{
+    BodyRedactionReason,
+    BodySanitizationStatus,
     FieldSanitizePolicy,
     FieldSanitizer,
     HttpBodySanitizer,
     MaskPolicy,
     NameMatchMode,
     SensitivityLevel,
+    TextBodyPolicy,
 };
 
 #[test]
@@ -710,6 +713,68 @@ fn test_http_body_sanitizer_redacts_file_part_before_field_policy() {
 
     assert!(result.content().contains("<redacted: file part>"));
     assert!(!result.content().contains("raw-file-secret"));
+}
+
+#[test]
+fn test_http_body_sanitizer_treats_blank_multipart_name_as_unnamed() {
+    let sanitizer = HttpBodySanitizer::default()
+        .with_text_body_policy(TextBodyPolicy::PassThrough);
+    let body = b"--b\r\nContent-Disposition: form-data; name=\"   \"\r\nContent-Type: text/plain\r\n\r\nraw-secret\r\n--b--\r\n";
+    let content_type =
+        HeaderValue::from_static("multipart/form-data; boundary=b");
+
+    let result = sanitizer.sanitize_body(
+        body,
+        Some(&content_type),
+        NameMatchMode::ExactOrSuffix,
+    );
+
+    assert!(
+        result
+            .content()
+            .contains("<unnamed>=<redacted: multipart part>")
+    );
+    assert!(!result.content().contains("raw-secret"));
+}
+
+#[test]
+fn test_http_body_sanitizer_ignores_unrequested_multipart_parameter() {
+    let sanitizer = HttpBodySanitizer::default();
+    let body = b"--b\r\nContent-Disposition: form-data; name=\"password\"; size=6\r\n\r\nsecret\r\n--b--\r\n";
+    let content_type = HeaderValue::from_static(
+        "multipart/form-data; charset=utf-8; boundary=b",
+    );
+
+    let result = sanitizer.sanitize_body(
+        body,
+        Some(&content_type),
+        NameMatchMode::ExactOrSuffix,
+    );
+
+    assert!(result.content().contains("password=<redacted>"));
+    assert!(!result.content().contains("secret"));
+}
+
+#[test]
+fn test_http_body_sanitizer_rejects_valueless_requested_multipart_parameter() {
+    let sanitizer = HttpBodySanitizer::default()
+        .with_text_body_policy(TextBodyPolicy::PassThrough);
+    let body = b"--b\r\nContent-Disposition: form-data; name=\"note\"; filename\r\nContent-Type: text/plain\r\n\r\nraw-secret\r\n--b--\r\n";
+    let content_type =
+        HeaderValue::from_static("multipart/form-data; boundary=b");
+
+    let result = sanitizer.sanitize_body(
+        body,
+        Some(&content_type),
+        NameMatchMode::ExactOrSuffix,
+    );
+
+    assert_eq!(result.content(), "<redacted: multipart body>");
+    assert_eq!(
+        result.status(),
+        BodySanitizationStatus::Redacted(BodyRedactionReason::InvalidMultipart,),
+    );
+    assert!(!result.content().contains("raw-secret"));
 }
 
 #[test]

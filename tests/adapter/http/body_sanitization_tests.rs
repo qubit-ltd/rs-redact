@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -182,6 +182,60 @@ fn test_body_sanitization_empty_preview_keeps_source_metadata() {
     assert_eq!(result.captured_len(), 0);
     assert_eq!(result.source_len(), 10);
     assert_eq!(result.to_string(), "<empty>...<truncated 10 bytes>");
+}
+
+#[test]
+fn test_http_body_sanitizer_redacts_invalid_urlencoded_form() {
+    let sanitizer = HttpBodySanitizer::default();
+    let content_type =
+        HeaderValue::from_static("application/x-www-form-urlencoded");
+
+    for body in [
+        b"%FFpassword=secret".as_slice(),
+        b"%ZZpassword=secret",
+        b"password=secret%",
+    ] {
+        let result = sanitizer.sanitize_body(
+            body,
+            Some(&content_type),
+            NameMatchMode::ExactOrSuffix,
+        );
+        assert_eq!(
+            result.status(),
+            BodySanitizationStatus::Redacted(
+                BodyRedactionReason::InvalidFormUrlEncoded,
+            ),
+        );
+        assert_eq!(result.content(), "<redacted: invalid URL-encoded form>");
+        assert!(!result.content().contains("secret"));
+    }
+}
+
+#[test]
+fn test_http_body_sanitizer_redacts_invalid_or_truncated_urlencoded_preview() {
+    let sanitizer = HttpBodySanitizer::default();
+    let content_type =
+        HeaderValue::from_static("application/x-www-form-urlencoded");
+    let prefix = b"password=secret%";
+
+    let result = sanitizer.sanitize_body_preview(
+        prefix,
+        prefix.len() + 20,
+        Some(&content_type),
+        NameMatchMode::ExactOrSuffix,
+    );
+
+    assert_eq!(
+        result.status(),
+        BodySanitizationStatus::Redacted(
+            BodyRedactionReason::InvalidOrTruncatedFormUrlEncoded,
+        ),
+    );
+    assert_eq!(
+        result.content(),
+        "<redacted: invalid or truncated URL-encoded form>",
+    );
+    assert!(!result.content().contains("secret"));
 }
 
 #[test]

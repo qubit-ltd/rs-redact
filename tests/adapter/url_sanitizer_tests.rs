@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -58,6 +58,22 @@ fn test_url_sanitizer_sanitize_url_masks_sensitive_components() {
     assert_eq!(
         sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
         "https://****:%3Credacted%3E@example.com/path?access_token=****&mode=debug#****",
+    );
+}
+
+#[test]
+fn test_url_sanitizer_masks_signed_url_credentials() {
+    let sanitizer = UrlSanitizer::default();
+    let url = Url::parse(
+        "https://example.com/object?X-Amz-Signature=aws-secret&X-Goog-Signature=google-secret&sig=azure-secret",
+    )
+    .expect("signed URL should parse");
+
+    let sanitized = sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix);
+
+    assert_eq!(
+        sanitized,
+        "https://example.com/object?X-Amz-Signature=%3Credacted%3E&X-Goog-Signature=%3Credacted%3E&sig=%3Credacted%3E",
     );
 }
 
@@ -139,6 +155,29 @@ fn test_url_sanitizer_sanitize_url_without_query() {
         sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
         "https://****:%3Credacted%3E@example.com/path#****",
     );
+}
+
+#[test]
+fn test_url_sanitizer_redacts_malformed_percent_encoded_query() {
+    let sanitizer = UrlSanitizer::default();
+
+    for query in [
+        "%FFpassword=secret",
+        "%ZZpassword=secret",
+        "password=secret%",
+    ] {
+        let sanitized = sanitizer
+            .sanitize_url_str(
+                &format!("https://example.com/path?{query}"),
+                NameMatchMode::ExactOrSuffix,
+            )
+            .expect("test URL should parse");
+        assert_eq!(
+            sanitized,
+            "https://example.com/path?%3Credacted:%20invalid%20URL-encoded%20query%3E",
+        );
+        assert!(!sanitized.contains("secret"));
+    }
 }
 
 #[test]

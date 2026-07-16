@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -11,7 +11,10 @@ use serde_json::Value;
 use crate::{
     FieldSanitizer,
     NameMatchMode,
-    adapter::form_url_encoded::sanitize_form_urlencoded,
+    adapter::form_url_encoded::{
+        is_valid_form_urlencoded,
+        sanitize_form_urlencoded,
+    },
 };
 
 use super::{
@@ -291,7 +294,8 @@ impl HttpBodySanitizer {
     ///
     /// # Returns
     ///
-    /// Sanitized URL-encoded form text.
+    /// Sanitized URL-encoded form text, or a fixed redaction marker for
+    /// invalid input.
     #[must_use = "use the returned sanitized form instead of the original body"]
     #[inline(always)]
     pub(super) fn sanitize_form(
@@ -368,7 +372,8 @@ impl HttpBodySanitizer {
                 .sanitize_json_body(bytes, source_len, input_kind, match_mode);
         }
         if content_type.is_some_and(content_type::is_form_urlencoded) {
-            return self.sanitize_form_body(bytes, source_len, match_mode);
+            return self
+                .sanitize_form_body(bytes, source_len, input_kind, match_mode);
         }
 
         self.sanitize_fallback_body(bytes, source_len, content_type)
@@ -508,19 +513,31 @@ impl HttpBodySanitizer {
     ///
     /// * `bytes` - Complete body bytes or the captured preview prefix.
     /// * `source_len` - Full source length used for result metadata.
+    /// * `input_kind` - Whether `bytes` are complete or a preview prefix.
     /// * `match_mode` - Field-name matching mode for form keys.
     ///
     /// # Returns
     ///
     /// A sanitized URL-encoded form result containing the captured and source
-    /// lengths.
+    /// lengths, or a redacted result when decoding is invalid or ambiguous.
     #[inline(always)]
     fn sanitize_form_body(
         &self,
         bytes: &[u8],
         source_len: usize,
+        input_kind: BodyInputKind,
         match_mode: NameMatchMode,
     ) -> BodySanitization {
+        if !is_valid_form_urlencoded(bytes) {
+            return BodySanitization::new(
+                input_kind.invalid_form_marker().to_string(),
+                BodySanitizationStatus::Redacted(
+                    input_kind.invalid_form_reason(),
+                ),
+                bytes.len(),
+                source_len,
+            );
+        }
         BodySanitization::new(
             self.sanitize_form(bytes, match_mode),
             BodySanitizationStatus::Sanitized,

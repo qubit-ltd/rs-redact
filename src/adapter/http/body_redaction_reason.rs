@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -22,6 +22,10 @@ pub enum BodyRedactionReason {
     InvalidNdjson,
     /// A newline-delimited JSON preview was invalid or truncated.
     InvalidOrTruncatedNdjson,
+    /// A complete URL-encoded form body was invalid.
+    InvalidFormUrlEncoded,
+    /// A URL-encoded form preview was invalid or truncated.
+    InvalidOrTruncatedFormUrlEncoded,
     /// A complete multipart body was malformed or ambiguous.
     InvalidMultipart,
     /// A multipart preview was truncated and could not be parsed safely.

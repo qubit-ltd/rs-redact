@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2026 Haixing Hu.
+//    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -17,6 +17,12 @@ pub(super) const INVALID_NDJSON_REDACTED: &str = "<redacted: invalid NDJSON>";
 /// Redaction marker for invalid or truncated NDJSON previews.
 pub(super) const INVALID_OR_TRUNCATED_NDJSON_REDACTED: &str =
     "<redacted: invalid or truncated NDJSON>";
+/// Redaction marker for invalid complete URL-encoded form bodies.
+pub(super) const INVALID_FORM_URLENCODED_REDACTED: &str =
+    "<redacted: invalid URL-encoded form>";
+/// Redaction marker for invalid or truncated URL-encoded form previews.
+pub(super) const INVALID_OR_TRUNCATED_FORM_URLENCODED_REDACTED: &str =
+    "<redacted: invalid or truncated URL-encoded form>";
 /// Redaction marker for bodies whose Content-Type cannot be interpreted.
 pub(super) const INVALID_CONTENT_TYPE_REDACTED: &str =
     "<redacted: invalid content type body>";
