@@ -39,7 +39,8 @@ feature。
 | Feature | 包含内容 | 可选依赖 |
 | --- | --- | --- |
 | 始终编译 | 字段策略、掩码、argv 和环境变量 adapter | 无 |
-| `web` | URL 和 URL-encoded form adapter | `url`、`form_urlencoded` |
+| `form` | URL-encoded form adapter | `form_urlencoded` |
+| `web` | URL adapter 以及 `form` | `url`、`form_urlencoded` |
 | `http` | HTTP header 和 body adapter | `http`、`serde_json`、`form_urlencoded` |
 
 例如，命令执行 crate 只依赖 core 能力：
@@ -312,9 +313,9 @@ adapter 方法也和 core 的 `FieldSanitizer` 一样要求显式传入 `NameMat
 `NameMatchMode::ExactOrSuffix`。
 
 `UrlSanitizer` 使用 `High` 策略遮盖 userinfo 和 fragment，使用 `Secret` 策略遮盖
-password，并按已解析出的字段等级遮盖 query parameter；它会有意保留 URL path。
-path segment 的语义属于具体应用，其中也包括供应商自定义的 webhook 或 token 路径。
-掌握这类路由语义的调用方必须在记录日志前自行遮盖或替换 path。
+password，并按已解析出的字段等级遮盖 query parameter。它默认保留 URL path，因为
+path segment 的语义属于具体应用；当完整 path 可能包含供应商 webhook token 或其他
+秘密时，应选择 `UrlPathPolicy::Redact`。
 
 URL query 和 URL-encoded form 中，如果百分号转义格式错误，或解码后不是 UTF-8，
 会整体脱敏。这个 fail-closed 行为可以防止歧义解码绕过字段名匹配。
@@ -371,6 +372,16 @@ println!("{result}");
 命令执行 crate 可以用 `ArgvSanitizer` 处理结构化 argv，用 `EnvSanitizer` 处理显式
 环境变量覆盖，但不应宣称可以安全解析任意 shell 脚本。
 
+### 脱敏与日志转义
+
+脱敏只会在已建模的结构和已配置字段名将 value 识别为敏感内容时进行遮盖。非敏感
+value 可能原样返回，其中包括换行符和其他日志控制字符。因此，脱敏结果并不天然适合
+通过字符串拼接直接写入日志。
+
+最终日志边界应使用结构化日志或转义格式化。记录命令参数和环境变量赋值时，优先使用
+`sanitize_argv_display` 和 `sanitize_assignments_display`；这些 helper 使用 Debug 风格
+渲染，控制字符不会伪造新的日志行。
+
 ### 不透明文本 body
 
 `HttpBodySanitizer` 默认会脱敏显式声明的 `text/*` body，以及 multipart 中
@@ -394,10 +405,10 @@ let sanitizer = HttpBodySanitizer::default()
 ## 测试
 
 ```bash
-# 测试不启用可选 feature 的核心 API
+# 使用默认的空 feature 集测试核心 API
 cargo test --no-default-features
 
-# 测试核心 API、web 和 HTTP adapter
+# 测试核心 API 和正则校验
 cargo test --all-features
 
 # 运行项目 CI 检查

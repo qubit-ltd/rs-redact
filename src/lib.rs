@@ -42,6 +42,11 @@
 //! Adapter APIs apply the same explicit matching mode to structured inputs.
 //! They only inspect formats and field names they explicitly model; callers
 //! remain responsible for application-specific secrets and protocols.
+//! Sanitization is not log escaping: values whose field names are not
+//! classified as sensitive may be returned unchanged, including control
+//! characters. Callers should use structured logging or adapter display
+//! helpers such as [`ArgvSanitizer::sanitize_argv_display`] and
+//! [`EnvSanitizer::sanitize_assignments_display`] at untrusted text boundaries.
 //!
 //! ```
 //! # #[cfg(feature = "http")]
@@ -70,13 +75,13 @@
 pub mod adapter;
 pub mod core;
 
+#[cfg(feature = "form")]
+pub use adapter::FormUrlEncodedSanitizer;
 pub use adapter::{
     ArgvSanitizer,
     EnvSanitizer,
 };
 #[cfg(feature = "http")]
-#[cfg(feature = "form")]
-pub use adapter::FormUrlEncodedSanitizer;
 pub use adapter::{
     BodyRedactionReason,
     BodySanitization,

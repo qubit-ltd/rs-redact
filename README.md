@@ -47,7 +47,8 @@ the dependency-free surface can disable defaults.
 | Feature | Includes | Optional dependencies |
 | --- | --- | --- |
 | Always compiled | Field policies, masking, argv, and environment adapters | None |
-| `web` | URL and URL-encoded form adapters | `url`, `form_urlencoded` |
+| `form` | URL-encoded form adapter | `form_urlencoded` |
+| `web` | URL adapter plus `form` | `url`, `form_urlencoded` |
 | `http` | HTTP header and body adapters | `http`, `serde_json`, `form_urlencoded` |
 
 For example, a command runner can depend only on the core surface:
@@ -330,10 +331,9 @@ names such as `OPENAI_API_KEY` should match the configured field `api_key`.
 
 `UrlSanitizer` masks userinfo and fragments with the `High` policy, passwords
 with the `Secret` policy, and configured query parameters by their resolved
-field level. It deliberately leaves the URL path unchanged: path segment
-semantics are application-specific, including vendor-specific webhook or token
-segments. Callers that know such a route must redact or replace its path before
-logging it.
+field level. It preserves URL paths by default because path segment semantics
+are application-specific. Select `UrlPathPolicy::Redact` when a complete path
+may contain vendor-specific webhook tokens or other secrets.
 
 Malformed percent escapes or percent-decoded non-UTF-8 in URL queries and
 URL-encoded forms are redacted as a whole. This fail-closed behavior prevents
@@ -399,6 +399,18 @@ A command runner can use `ArgvSanitizer` for structured argv and
 `EnvSanitizer` for explicit environment overrides, but should not claim to
 safely parse arbitrary shell scripts.
 
+### Sanitization and Log Escaping
+
+Sanitization masks values only when a modeled structure and configured field
+name identify them as sensitive. Non-sensitive values may be returned
+unchanged, including newlines and other log-control characters. Sanitized
+output therefore is not automatically safe for raw string concatenation.
+
+Use structured logging or an escaping formatter at the final log boundary.
+For command arguments and environment assignments, prefer
+`sanitize_argv_display` and `sanitize_assignments_display`; these helpers use
+Debug-style rendering so control characters cannot create forged log lines.
+
 ### Opaque Text Bodies
 
 `HttpBodySanitizer` redacts declared `text/*` bodies and non-sensitive
@@ -424,10 +436,10 @@ sanitization.
 ## Testing
 
 ```bash
-# Core API without optional features
+# Core API with the default empty feature set
 cargo test --no-default-features
 
-# Core API plus web and HTTP adapters
+# Core API plus regex validation
 cargo test --all-features
 
 # Project CI checks
