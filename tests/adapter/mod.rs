@@ -9,11 +9,13 @@
 
 mod argv_sanitizer_tests;
 mod env_sanitizer_tests;
-#[cfg(feature = "web")]
+#[cfg(feature = "form")]
 mod form_url_encoded_sanitizer_tests;
-#[cfg(feature = "web")]
+#[cfg(feature = "form")]
 mod form_url_encoded_tests;
 #[cfg(feature = "http")]
 mod http;
+#[cfg(feature = "web")]
+mod url_path_policy_tests;
 #[cfg(feature = "web")]
 mod url_sanitizer_tests;

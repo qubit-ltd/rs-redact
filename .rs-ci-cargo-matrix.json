@@ -8,6 +8,12 @@
       "features": []
     },
     {
+      "name": "form",
+      "commands": ["check", "test", "doc"],
+      "defaultFeatures": false,
+      "features": ["form"]
+    },
+    {
       "name": "web",
       "commands": ["check", "test", "doc"],
       "defaultFeatures": false,

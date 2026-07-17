@@ -7,6 +7,10 @@
 // =============================================================================
 //! Tests for crate-level exports.
 
+#[cfg(feature = "form")]
+use qubit_sanitize::FormUrlEncodedSanitizer;
+#[cfg(feature = "web")]
+use qubit_sanitize::UrlSanitizer;
 use qubit_sanitize::{
     ArgvSanitizer,
     DEFAULT_EXTRA_FIELDS,
@@ -32,11 +36,6 @@ use qubit_sanitize::{
     HttpHeaderSanitizer,
     TextBodyPolicy,
 };
-#[cfg(feature = "web")]
-use qubit_sanitize::{
-    FormUrlEncodedSanitizer,
-    UrlSanitizer,
-};
 
 #[test]
 fn test_lib_exports_public_api() {
@@ -54,11 +53,10 @@ fn test_lib_exports_public_api() {
     let _ = SensitiveFieldPreset::Credentials;
     let _ = SensitiveFields::default();
     let _ = SensitivityLevel::High;
+    #[cfg(feature = "form")]
+    let _ = FormUrlEncodedSanitizer::default();
     #[cfg(feature = "web")]
-    {
-        let _ = FormUrlEncodedSanitizer::default();
-        let _ = UrlSanitizer::default();
-    }
+    let _ = UrlSanitizer::default();
     #[cfg(feature = "http")]
     {
         let _: Option<BodySanitization> = None;

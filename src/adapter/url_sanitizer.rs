@@ -17,6 +17,7 @@ use crate::{
     SensitivityLevel,
 };
 
+use super::UrlPathPolicy;
 use super::form_url_encoded::is_valid_form_urlencoded;
 
 /// Marker used when a URL query cannot be decoded without ambiguity.
@@ -28,6 +29,8 @@ const INVALID_QUERY_REDACTED: &str = "<redacted: invalid URL-encoded query>";
 pub struct UrlSanitizer {
     /// Core sanitizer used for query parameter values and masks.
     field_sanitizer: FieldSanitizer,
+    /// Rendering policy for the complete URL path.
+    url_path_policy: UrlPathPolicy,
 }
 
 impl UrlSanitizer {
@@ -43,7 +46,28 @@ impl UrlSanitizer {
     /// New URL sanitizer.
     #[inline(always)]
     pub const fn new(field_sanitizer: FieldSanitizer) -> Self {
-        Self { field_sanitizer }
+        Self {
+            field_sanitizer,
+            url_path_policy: UrlPathPolicy::Preserve,
+        }
+    }
+
+    /// Returns a copy that applies `url_path_policy` to complete URL paths.
+    ///
+    /// # Parameters
+    ///
+    /// * `url_path_policy` - Policy that preserves or redacts the path.
+    ///
+    /// # Returns
+    ///
+    /// Updated URL sanitizer.
+    #[inline(always)]
+    pub const fn with_url_path_policy(
+        mut self,
+        url_path_policy: UrlPathPolicy,
+    ) -> Self {
+        self.url_path_policy = url_path_policy;
+        self
     }
 
     /// Returns the underlying core field sanitizer.
@@ -66,14 +90,34 @@ impl UrlSanitizer {
         &mut self.field_sanitizer
     }
 
+    /// Returns the policy applied to complete URL paths.
+    ///
+    /// # Returns
+    ///
+    /// Configured URL path policy.
+    #[inline(always)]
+    pub const fn url_path_policy(&self) -> UrlPathPolicy {
+        self.url_path_policy
+    }
+
+    /// Sets the policy applied to complete URL paths.
+    ///
+    /// # Parameters
+    ///
+    /// * `url_path_policy` - Policy that preserves or redacts the path.
+    #[inline(always)]
+    pub fn set_url_path_policy(&mut self, url_path_policy: UrlPathPolicy) {
+        self.url_path_policy = url_path_policy;
+    }
+
     /// Returns a sanitized URL string.
     ///
     /// Userinfo and fragment values are masked with the configured
     /// high-sensitivity mask. Passwords use the secret-sensitivity mask. Query
     /// parameter values are sanitized by parameter name, preserving parameter
-    /// order and duplicates. URL paths are kept unchanged because path-segment
-    /// semantics are application-specific. A query containing malformed
-    /// percent escapes or percent-decoded non-UTF-8 is redacted as a whole.
+    /// order and duplicates. URL paths follow [`UrlPathPolicy`] and remain
+    /// unchanged by default. A query containing malformed percent escapes or
+    /// percent-decoded non-UTF-8 is redacted as a whole.
     ///
     /// # Parameters
     ///
@@ -86,6 +130,9 @@ impl UrlSanitizer {
     #[must_use = "use the returned sanitized URL instead of the original URL"]
     pub fn sanitize_url(&self, url: &Url, match_mode: NameMatchMode) -> String {
         let mut sanitized = url.clone();
+        if self.url_path_policy == UrlPathPolicy::Redact {
+            sanitized.set_path("/<redacted>");
+        }
         if !sanitized.username().is_empty() {
             let username = mask_url_component(
                 &self.field_sanitizer,

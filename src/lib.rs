@@ -75,6 +75,8 @@ pub use adapter::{
     EnvSanitizer,
 };
 #[cfg(feature = "http")]
+#[cfg(feature = "form")]
+pub use adapter::FormUrlEncodedSanitizer;
 pub use adapter::{
     BodyRedactionReason,
     BodySanitization,
@@ -86,7 +88,7 @@ pub use adapter::{
 };
 #[cfg(feature = "web")]
 pub use adapter::{
-    FormUrlEncodedSanitizer,
+    UrlPathPolicy,
     UrlSanitizer,
 };
 pub use core::{

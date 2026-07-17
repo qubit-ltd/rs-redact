@@ -19,6 +19,7 @@ use qubit_sanitize::{
     MaskPolicy,
     NameMatchMode,
     SensitivityLevel,
+    UrlPathPolicy,
     UrlSanitizer,
 };
 use url::Url;
@@ -203,6 +204,37 @@ fn test_url_sanitizer_preserves_vendor_specific_secret_path() {
     assert_eq!(
         sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
         "https://hooks.example.com/services/T001/B001/path-secret?access_token=****",
+    );
+}
+
+#[test]
+fn test_url_sanitizer_redacts_path_and_masks_other_sensitive_components() {
+    let sanitizer =
+        UrlSanitizer::default().with_url_path_policy(UrlPathPolicy::Redact);
+    let url = Url::parse(
+        "https://alice:password@example.com/tenant/secret-id?access_token=query-secret#fragment-secret",
+    )
+    .expect("test URL should parse");
+
+    assert_eq!(sanitizer.url_path_policy(), UrlPathPolicy::Redact);
+    assert_eq!(
+        sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
+        "https://****:%3Credacted%3E@example.com/%3Credacted%3E?access_token=****#****",
+    );
+}
+
+#[test]
+fn test_url_sanitizer_url_path_policy_setter() {
+    let mut sanitizer = UrlSanitizer::default();
+    let url = Url::parse("https://example.com/tenant/secret-id")
+        .expect("test URL should parse");
+
+    sanitizer.set_url_path_policy(UrlPathPolicy::Redact);
+
+    assert_eq!(sanitizer.url_path_policy(), UrlPathPolicy::Redact);
+    assert_eq!(
+        sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
+        "https://example.com/%3Credacted%3E",
     );
 }
 
