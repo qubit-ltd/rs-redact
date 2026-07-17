@@ -21,6 +21,7 @@ use super::{
     BodyRedactionReason,
     BodySanitization,
     BodySanitizationStatus,
+    BodySourceLength,
     body_bytes::trim_ascii_whitespace,
     content_type,
     internal::BodyInputKind,
@@ -142,6 +143,10 @@ impl HttpBodySanitizer {
     /// conservative for structured formats that cannot be parsed safely from a
     /// truncated prefix.
     ///
+    /// This method does not impose an internal byte limit. Callers must bound
+    /// untrusted or large bodies before passing them here, or use
+    /// [`Self::sanitize_body_preview`] with an already bounded prefix.
+    ///
     /// The returned result contains diagnostic content and source-length
     /// metadata. Its rendered form is not a replayable HTTP body. Structured
     /// outputs may be compacted and may not preserve the original field order,
@@ -171,7 +176,7 @@ impl HttpBodySanitizer {
     ) -> BodySanitization {
         self.sanitize_body_inner(
             body,
-            body.len(),
+            BodySourceLength::Known(body.len()),
             content_type,
             BodyInputKind::Complete,
             match_mode,
@@ -181,10 +186,9 @@ impl HttpBodySanitizer {
     /// Sanitizes a caller-provided HTTP body preview.
     ///
     /// Use this method when `body_prefix` is already limited by the caller, for
-    /// example before logging a large body. `source_len` is the total body
-    /// length when known; values smaller than `body_prefix.len()` are treated
-    /// as `body_prefix.len()`. When the source length is greater than the
-    /// prefix length, the rendered output includes a truncation marker.
+    /// example before logging a large body. `source_length` describes whether
+    /// the total body length is exact or unknown after truncation. Known values
+    /// smaller than `body_prefix.len()` are treated as `body_prefix.len()`.
     ///
     /// Unlike [`Self::sanitize_body`], this method must assume the bytes may be
     /// incomplete. JSON, NDJSON, and multipart previews are redacted when they
@@ -200,7 +204,7 @@ impl HttpBodySanitizer {
     /// # Parameters
     ///
     /// * `body_prefix` - Body bytes available for preview rendering.
-    /// * `source_len` - Total source body length when known.
+    /// * `source_length` - Exact or unknown-truncated source length metadata.
     /// * `content_type` - Optional `Content-Type` header used to select
     ///   structured parsing rules.
     /// * `match_mode` - Field-name matching mode for structured body fields.
@@ -208,7 +212,8 @@ impl HttpBodySanitizer {
     /// # Returns
     ///
     /// Structured preview sanitization result. Rendering it adds a truncation
-    /// marker when `source_len` exceeds `body_prefix.len()`. Declared `text/*`
+    /// marker when source bytes were omitted. Exact lengths produce a counted
+    /// marker, while unknown totals produce `...<truncated>`. Declared `text/*`
     /// previews are redacted unless callers explicitly select
     /// [`TextBodyPolicy::PassThrough`]. Unsupported UTF-8 previews are
     /// redacted. Bodies with a present but non-UTF-8 `Content-Type` are fully
@@ -218,13 +223,13 @@ impl HttpBodySanitizer {
     pub fn sanitize_body_preview(
         &self,
         body_prefix: &[u8],
-        source_len: usize,
+        source_length: BodySourceLength,
         content_type: Option<&HeaderValue>,
         match_mode: NameMatchMode,
     ) -> BodySanitization {
         self.sanitize_body_inner(
             body_prefix,
-            source_len.max(body_prefix.len()),
+            source_length,
             content_type,
             BodyInputKind::Preview,
             match_mode,
@@ -311,7 +316,7 @@ impl HttpBodySanitizer {
     /// # Parameters
     ///
     /// * `bytes` - Body bytes to render.
-    /// * `source_len` - Full source length used for preview and binary markers.
+    /// * `source_length` - Exact or unknown-truncated source length metadata.
     /// * `content_type` - Optional `Content-Type` header.
     /// * `input_kind` - Whether `bytes` are complete or a preview prefix.
     /// * `match_mode` - Field-name matching mode for structured body fields.
@@ -322,13 +327,13 @@ impl HttpBodySanitizer {
     fn sanitize_body_inner(
         &self,
         bytes: &[u8],
-        source_len: usize,
+        source_length: BodySourceLength,
         content_type: Option<&HeaderValue>,
         input_kind: BodyInputKind,
         match_mode: NameMatchMode,
     ) -> BodySanitization {
         let result = |content, status| {
-            BodySanitization::new(content, status, bytes.len(), source_len)
+            BodySanitization::new(content, status, bytes.len(), source_length)
         };
         if bytes.is_empty() {
             return result(
@@ -356,27 +361,22 @@ impl HttpBodySanitizer {
         {
             return self.sanitize_multipart_body(
                 bytes,
-                source_len,
+                source_length,
                 content_type,
-                input_kind,
                 match_mode,
             );
         }
         if content_type.is_some_and(content_type::is_ndjson) {
-            return self.sanitize_ndjson_body(
-                bytes, source_len, input_kind, match_mode,
-            );
+            return self.sanitize_ndjson_body(bytes, source_length, match_mode);
         }
         if self.is_json_body(content_type, bytes) {
-            return self
-                .sanitize_json_body(bytes, source_len, input_kind, match_mode);
+            return self.sanitize_json_body(bytes, source_length, match_mode);
         }
         if content_type.is_some_and(content_type::is_form_urlencoded) {
-            return self
-                .sanitize_form_body(bytes, source_len, input_kind, match_mode);
+            return self.sanitize_form_body(bytes, source_length, match_mode);
         }
 
-        self.sanitize_fallback_body(bytes, source_len, content_type)
+        self.sanitize_fallback_body(bytes, source_length, content_type)
     }
 
     /// Sanitizes a body declared as multipart.
@@ -384,9 +384,8 @@ impl HttpBodySanitizer {
     /// # Parameters
     ///
     /// * `bytes` - Complete body bytes or the captured preview prefix.
-    /// * `source_len` - Full source length used for result metadata.
+    /// * `source_length` - Exact or unknown-truncated source length metadata.
     /// * `content_type` - Declared multipart content type.
-    /// * `input_kind` - Whether `bytes` are complete or a preview prefix.
     /// * `match_mode` - Field-name matching mode for multipart fields.
     ///
     /// # Returns
@@ -396,15 +395,15 @@ impl HttpBodySanitizer {
     fn sanitize_multipart_body(
         &self,
         bytes: &[u8],
-        source_len: usize,
+        source_length: BodySourceLength,
         content_type: &str,
-        input_kind: BodyInputKind,
         match_mode: NameMatchMode,
     ) -> BodySanitization {
         let result = |content, status| {
-            BodySanitization::new(content, status, bytes.len(), source_len)
+            BodySanitization::new(content, status, bytes.len(), source_length)
         };
-        if input_kind.is_truncated(bytes.len(), source_len) {
+        let (_, truncated) = source_length.resolve(bytes.len());
+        if truncated {
             return result(
                 MULTIPART_BODY_REDACTED.to_string(),
                 BodySanitizationStatus::Redacted(
@@ -438,36 +437,35 @@ impl HttpBodySanitizer {
     /// # Parameters
     ///
     /// * `bytes` - Complete body bytes or the captured preview prefix.
-    /// * `source_len` - Full source length used for result metadata.
-    /// * `input_kind` - Whether `bytes` are complete or a preview prefix.
+    /// * `source_length` - Exact or unknown-truncated source length metadata.
     /// * `match_mode` - Field-name matching mode for JSON object keys.
     ///
     /// # Returns
     ///
     /// A sanitized NDJSON result, or a redacted result with the marker and
-    /// reason appropriate for complete or preview input when parsing fails.
+    /// reason appropriate for the actual truncation state when parsing fails.
     fn sanitize_ndjson_body(
         &self,
         bytes: &[u8],
-        source_len: usize,
-        input_kind: BodyInputKind,
+        source_length: BodySourceLength,
         match_mode: NameMatchMode,
     ) -> BodySanitization {
+        let (_, truncated) = source_length.resolve(bytes.len());
         if let Some(text) = self.sanitize_ndjson(bytes, match_mode) {
             return BodySanitization::new(
                 text,
                 BodySanitizationStatus::Sanitized,
                 bytes.len(),
-                source_len,
+                source_length,
             );
         }
         BodySanitization::new(
-            input_kind.invalid_ndjson_marker().to_string(),
+            BodyInputKind::invalid_ndjson_marker(truncated).to_string(),
             BodySanitizationStatus::Redacted(
-                input_kind.invalid_ndjson_reason(),
+                BodyInputKind::invalid_ndjson_reason(truncated),
             ),
             bytes.len(),
-            source_len,
+            source_length,
         )
     }
 
@@ -476,8 +474,7 @@ impl HttpBodySanitizer {
     /// # Parameters
     ///
     /// * `bytes` - Complete body bytes or the captured preview prefix.
-    /// * `source_len` - Full source length used for result metadata.
-    /// * `input_kind` - Whether `bytes` are complete or a preview prefix.
+    /// * `source_length` - Exact or unknown-truncated source length metadata.
     /// * `match_mode` - Field-name matching mode for JSON object keys.
     ///
     /// # Returns
@@ -487,23 +484,25 @@ impl HttpBodySanitizer {
     fn sanitize_json_body(
         &self,
         bytes: &[u8],
-        source_len: usize,
-        input_kind: BodyInputKind,
+        source_length: BodySourceLength,
         match_mode: NameMatchMode,
     ) -> BodySanitization {
+        let (_, truncated) = source_length.resolve(bytes.len());
         if let Some(text) = self.sanitize_json(bytes, match_mode) {
             return BodySanitization::new(
                 text,
                 BodySanitizationStatus::Sanitized,
                 bytes.len(),
-                source_len,
+                source_length,
             );
         }
         BodySanitization::new(
-            input_kind.invalid_json_marker().to_string(),
-            BodySanitizationStatus::Redacted(input_kind.invalid_json_reason()),
+            BodyInputKind::invalid_json_marker(truncated).to_string(),
+            BodySanitizationStatus::Redacted(
+                BodyInputKind::invalid_json_reason(truncated),
+            ),
             bytes.len(),
-            source_len,
+            source_length,
         )
     }
 
@@ -512,8 +511,7 @@ impl HttpBodySanitizer {
     /// # Parameters
     ///
     /// * `bytes` - Complete body bytes or the captured preview prefix.
-    /// * `source_len` - Full source length used for result metadata.
-    /// * `input_kind` - Whether `bytes` are complete or a preview prefix.
+    /// * `source_length` - Exact or unknown-truncated source length metadata.
     /// * `match_mode` - Field-name matching mode for form keys.
     ///
     /// # Returns
@@ -524,25 +522,25 @@ impl HttpBodySanitizer {
     fn sanitize_form_body(
         &self,
         bytes: &[u8],
-        source_len: usize,
-        input_kind: BodyInputKind,
+        source_length: BodySourceLength,
         match_mode: NameMatchMode,
     ) -> BodySanitization {
+        let (_, truncated) = source_length.resolve(bytes.len());
         if !is_valid_form_urlencoded(bytes) {
             return BodySanitization::new(
-                input_kind.invalid_form_marker().to_string(),
+                BodyInputKind::invalid_form_marker(truncated).to_string(),
                 BodySanitizationStatus::Redacted(
-                    input_kind.invalid_form_reason(),
+                    BodyInputKind::invalid_form_reason(truncated),
                 ),
                 bytes.len(),
-                source_len,
+                source_length,
             );
         }
         BodySanitization::new(
             self.sanitize_form(bytes, match_mode),
             BodySanitizationStatus::Sanitized,
             bytes.len(),
-            source_len,
+            source_length,
         )
     }
 
@@ -551,8 +549,8 @@ impl HttpBodySanitizer {
     /// # Parameters
     ///
     /// * `bytes` - Complete body bytes or the captured preview prefix.
-    /// * `source_len` - Full source length used for result metadata and binary
-    ///   byte-count markers.
+    /// * `source_length` - Exact or unknown-truncated source length metadata
+    ///   used for result metadata and binary byte-count markers.
     /// * `content_type` - Optional declared content type used to recognize
     ///   opaque text bodies.
     ///
@@ -564,11 +562,11 @@ impl HttpBodySanitizer {
     fn sanitize_fallback_body(
         &self,
         bytes: &[u8],
-        source_len: usize,
+        source_length: BodySourceLength,
         content_type: Option<&str>,
     ) -> BodySanitization {
         let result = |content, status| {
-            BodySanitization::new(content, status, bytes.len(), source_len)
+            BodySanitization::new(content, status, bytes.len(), source_length)
         };
         match std::str::from_utf8(bytes) {
             Ok(text) if content_type.is_some_and(content_type::is_text) => {
@@ -588,10 +586,13 @@ impl HttpBodySanitizer {
                     BodyRedactionReason::UnsupportedMediaType,
                 ),
             ),
-            Err(_) => result(
-                format!("<binary {} bytes>", source_len.max(bytes.len())),
-                BodySanitizationStatus::Binary,
-            ),
+            Err(_) => {
+                let content = match source_length.resolve(bytes.len()).0 {
+                    Some(source_len) => format!("<binary {source_len} bytes>"),
+                    None => format!("<binary more than {} bytes>", bytes.len()),
+                };
+                result(content, BodySanitizationStatus::Binary)
+            }
         }
     }
 

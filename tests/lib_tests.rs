@@ -27,6 +27,7 @@ use qubit_sanitize::{
     BodyRedactionReason,
     BodySanitization,
     BodySanitizationStatus,
+    BodySourceLength,
     HttpBodySanitizer,
     HttpHeaderSanitizer,
     TextBodyPolicy,
@@ -61,6 +62,7 @@ fn test_lib_exports_public_api() {
     #[cfg(feature = "http")]
     {
         let _: Option<BodySanitization> = None;
+        let _ = BodySourceLength::UnknownTruncated;
         let _ =
             BodySanitizationStatus::Redacted(BodyRedactionReason::InvalidJson);
         let _ = HttpBodySanitizer::default();

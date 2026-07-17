@@ -20,6 +20,7 @@ use proptest::{
 use qubit_sanitize::{
     BodyRedactionReason,
     BodySanitizationStatus,
+    BodySourceLength,
     FieldSanitizePolicy,
     FieldSanitizer,
     HttpBodySanitizer,
@@ -141,13 +142,23 @@ fn test_http_body_sanitizer_sanitize_body_preview_renders_empty_preview() {
 
     assert_eq!(
         sanitizer
-            .sanitize_body_preview(b"", 0, None, NameMatchMode::ExactOrSuffix)
+            .sanitize_body_preview(
+                b"",
+                BodySourceLength::Known(0),
+                None,
+                NameMatchMode::ExactOrSuffix,
+            )
             .into_rendered(),
         "<empty>"
     );
     assert_eq!(
         sanitizer
-            .sanitize_body_preview(b"", 10, None, NameMatchMode::ExactOrSuffix)
+            .sanitize_body_preview(
+                b"",
+                BodySourceLength::Known(10),
+                None,
+                NameMatchMode::ExactOrSuffix,
+            )
             .into_rendered(),
         "<empty>...<truncated 10 bytes>",
     );
@@ -268,7 +279,7 @@ fn test_http_body_sanitizer_sanitize_body_preview_redacts_truncated_json() {
 
     let sanitized = sanitizer.sanitize_body_preview(
         prefix,
-        body.len(),
+        BodySourceLength::Known(body.len()),
         Some(&content_type),
         NameMatchMode::ExactOrSuffix,
     );
@@ -308,7 +319,7 @@ fn test_http_body_sanitizer_sanitize_body_preview_redacts_truncated_ndjson() {
 
     let sanitized = sanitizer.sanitize_body_preview(
         prefix,
-        body.len(),
+        BodySourceLength::Known(body.len()),
         Some(&content_type),
         NameMatchMode::ExactOrSuffix,
     );
@@ -940,7 +951,7 @@ secret-password-in-truncated-body\r\n\
 
     let sanitized = sanitizer.sanitize_body_preview(
         prefix,
-        body.len(),
+        BodySourceLength::Known(body.len()),
         Some(&content_type),
         NameMatchMode::ExactOrSuffix,
     );
@@ -1015,7 +1026,7 @@ fn test_http_body_sanitizer_sanitize_body_preview_adds_text_truncation_suffix()
 
     let sanitized = sanitizer.sanitize_body_preview(
         prefix,
-        body.len(),
+        BodySourceLength::Known(body.len()),
         Some(&content_type),
         NameMatchMode::ExactOrSuffix,
     );

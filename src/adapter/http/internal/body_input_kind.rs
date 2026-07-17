@@ -42,56 +42,52 @@ impl BodyInputKind {
         }
     }
 
-    /// Returns whether the provided bytes are a truncated preview.
+    /// Returns the JSON parse failure marker for the source state.
     ///
     /// # Parameters
     ///
-    /// * `bytes_len` - Available byte count.
-    /// * `source_len` - Total source byte count.
-    ///
-    /// # Returns
-    ///
-    /// `true` only for previews whose source is longer than the prefix.
-    #[must_use]
-    #[inline]
-    pub(in crate::adapter::http) fn is_truncated(
-        self,
-        bytes_len: usize,
-        source_len: usize,
-    ) -> bool {
-        self == Self::Preview && source_len > bytes_len
-    }
-
-    /// Returns the JSON parse failure marker for this input kind.
+    /// * `truncated` - Whether source bytes were omitted.
     ///
     /// # Returns
     ///
     /// JSON redaction marker.
     #[must_use]
     #[inline]
-    pub(in crate::adapter::http) fn invalid_json_marker(self) -> &'static str {
-        match self {
-            Self::Complete => INVALID_JSON_REDACTED,
-            Self::Preview => INVALID_OR_TRUNCATED_JSON_REDACTED,
+    pub(in crate::adapter::http) const fn invalid_json_marker(
+        truncated: bool,
+    ) -> &'static str {
+        if truncated {
+            INVALID_OR_TRUNCATED_JSON_REDACTED
+        } else {
+            INVALID_JSON_REDACTED
         }
     }
 
-    /// Returns the JSON parse failure reason for this input kind.
+    /// Returns the JSON parse failure reason for the source state.
+    ///
+    /// # Parameters
+    ///
+    /// * `truncated` - Whether source bytes were omitted.
     ///
     /// # Returns
     ///
     /// JSON redaction reason.
     #[inline]
     pub(in crate::adapter::http) const fn invalid_json_reason(
-        self,
+        truncated: bool,
     ) -> BodyRedactionReason {
-        match self {
-            Self::Complete => BodyRedactionReason::InvalidJson,
-            Self::Preview => BodyRedactionReason::InvalidOrTruncatedJson,
+        if truncated {
+            BodyRedactionReason::InvalidOrTruncatedJson
+        } else {
+            BodyRedactionReason::InvalidJson
         }
     }
 
-    /// Returns the NDJSON parse failure marker for this input kind.
+    /// Returns the NDJSON parse failure marker for the source state.
+    ///
+    /// # Parameters
+    ///
+    /// * `truncated` - Whether source bytes were omitted.
     ///
     /// # Returns
     ///
@@ -99,57 +95,73 @@ impl BodyInputKind {
     #[must_use]
     #[inline]
     pub(in crate::adapter::http) fn invalid_ndjson_marker(
-        self,
+        truncated: bool,
     ) -> &'static str {
-        match self {
-            Self::Complete => INVALID_NDJSON_REDACTED,
-            Self::Preview => INVALID_OR_TRUNCATED_NDJSON_REDACTED,
+        if truncated {
+            INVALID_OR_TRUNCATED_NDJSON_REDACTED
+        } else {
+            INVALID_NDJSON_REDACTED
         }
     }
 
-    /// Returns the NDJSON parse failure reason for this input kind.
+    /// Returns the NDJSON parse failure reason for the source state.
+    ///
+    /// # Parameters
+    ///
+    /// * `truncated` - Whether source bytes were omitted.
     ///
     /// # Returns
     ///
     /// NDJSON redaction reason.
     #[inline]
     pub(in crate::adapter::http) const fn invalid_ndjson_reason(
-        self,
+        truncated: bool,
     ) -> BodyRedactionReason {
-        match self {
-            Self::Complete => BodyRedactionReason::InvalidNdjson,
-            Self::Preview => BodyRedactionReason::InvalidOrTruncatedNdjson,
+        if truncated {
+            BodyRedactionReason::InvalidOrTruncatedNdjson
+        } else {
+            BodyRedactionReason::InvalidNdjson
         }
     }
 
-    /// Returns the URL-encoded form parse failure marker for this input kind.
+    /// Returns the URL-encoded form parse failure marker for the source state.
+    ///
+    /// # Parameters
+    ///
+    /// * `truncated` - Whether source bytes were omitted.
     ///
     /// # Returns
     ///
     /// URL-encoded form redaction marker.
     #[must_use]
     #[inline]
-    pub(in crate::adapter::http) fn invalid_form_marker(self) -> &'static str {
-        match self {
-            Self::Complete => INVALID_FORM_URLENCODED_REDACTED,
-            Self::Preview => INVALID_OR_TRUNCATED_FORM_URLENCODED_REDACTED,
+    pub(in crate::adapter::http) const fn invalid_form_marker(
+        truncated: bool,
+    ) -> &'static str {
+        if truncated {
+            INVALID_OR_TRUNCATED_FORM_URLENCODED_REDACTED
+        } else {
+            INVALID_FORM_URLENCODED_REDACTED
         }
     }
 
-    /// Returns the URL-encoded form parse failure reason for this input kind.
+    /// Returns the URL-encoded form parse failure reason for the source state.
+    ///
+    /// # Parameters
+    ///
+    /// * `truncated` - Whether source bytes were omitted.
     ///
     /// # Returns
     ///
     /// URL-encoded form redaction reason.
     #[inline]
     pub(in crate::adapter::http) const fn invalid_form_reason(
-        self,
+        truncated: bool,
     ) -> BodyRedactionReason {
-        match self {
-            Self::Complete => BodyRedactionReason::InvalidFormUrlEncoded,
-            Self::Preview => {
-                BodyRedactionReason::InvalidOrTruncatedFormUrlEncoded
-            }
+        if truncated {
+            BodyRedactionReason::InvalidOrTruncatedFormUrlEncoded
+        } else {
+            BodyRedactionReason::InvalidFormUrlEncoded
         }
     }
 }

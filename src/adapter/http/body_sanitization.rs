@@ -14,7 +14,10 @@ use std::fmt::{
     Write,
 };
 
-use super::BodySanitizationStatus;
+use super::{
+    BodySanitizationStatus,
+    BodySourceLength,
+};
 
 /// Stores sanitized diagnostic content and source-length metadata.
 ///
@@ -34,8 +37,10 @@ pub struct BodySanitization {
     status: BodySanitizationStatus,
     /// Number of source bytes available to the sanitizer.
     captured_len: usize,
-    /// Total source byte length, clamped to at least `captured_len`.
-    source_len: usize,
+    /// Exact total source byte length, clamped to at least `captured_len`.
+    source_len: Option<usize>,
+    /// Whether source bytes were omitted from the capture.
+    truncated: bool,
 }
 
 impl BodySanitization {
@@ -46,24 +51,26 @@ impl BodySanitization {
     /// * `content` - Diagnostic content without a truncation suffix.
     /// * `status` - How the diagnostic content was produced.
     /// * `captured_len` - Number of source bytes inspected.
-    /// * `source_len` - Total source length when known.
+    /// * `source_length` - Exact or unknown-truncated source length metadata.
     ///
     /// # Returns
     ///
-    /// A structured sanitization result. `source_len` is clamped to at least
-    /// `captured_len`.
+    /// A structured sanitization result. Known source lengths are clamped to
+    /// at least `captured_len`.
     #[inline(always)]
     pub(super) fn new(
         content: String,
         status: BodySanitizationStatus,
         captured_len: usize,
-        source_len: usize,
+        source_length: BodySourceLength,
     ) -> Self {
+        let (source_len, truncated) = source_length.resolve(captured_len);
         Self {
             content,
             status,
             captured_len,
-            source_len: source_len.max(captured_len),
+            source_len,
+            truncated,
         }
     }
 
@@ -114,10 +121,12 @@ impl BodySanitization {
     ///
     /// # Returns
     ///
-    /// Total source byte count, always at least [`Self::captured_len`].
+    /// Exact total source byte count, always at least
+    /// [`Self::captured_len`], or `None` when the source is known to be
+    /// truncated but its total length is unknown.
     #[must_use]
     #[inline(always)]
-    pub const fn source_len(&self) -> usize {
+    pub const fn source_len(&self) -> Option<usize> {
         self.source_len
     }
 
@@ -125,22 +134,29 @@ impl BodySanitization {
     ///
     /// # Returns
     ///
-    /// Truncated source byte count.
+    /// Exact truncated source byte count, or `None` when the total source
+    /// length is unknown.
     #[must_use]
     #[inline(always)]
-    pub const fn truncated_bytes(&self) -> usize {
-        self.source_len.saturating_sub(self.captured_len)
+    pub const fn truncated_bytes(&self) -> Option<usize> {
+        match self.source_len {
+            Some(source_len) => {
+                Some(source_len.saturating_sub(self.captured_len))
+            }
+            None => None,
+        }
     }
 
     /// Returns whether source bytes were omitted from the captured body.
     ///
     /// # Returns
     ///
-    /// `true` when [`Self::source_len`] exceeds [`Self::captured_len`].
+    /// `true` when the exact source length exceeds [`Self::captured_len`] or
+    /// the caller reported an unknown truncated source.
     #[must_use]
     #[inline(always)]
     pub const fn is_truncated(&self) -> bool {
-        self.source_len > self.captured_len
+        self.truncated
     }
 
     /// Renders diagnostic content with the standard truncation suffix.
@@ -163,9 +179,15 @@ impl BodySanitization {
     #[inline]
     pub fn into_rendered(self) -> String {
         let truncated_bytes = self.truncated_bytes();
+        let truncated = self.truncated;
         let mut content = self.content;
-        if truncated_bytes > 0 {
-            let _ = write!(content, "...<truncated {truncated_bytes} bytes>",);
+        match truncated_bytes {
+            Some(truncated_bytes) if truncated_bytes > 0 => {
+                let _ =
+                    write!(content, "...<truncated {truncated_bytes} bytes>",);
+            }
+            None if truncated => content.push_str("...<truncated>"),
+            Some(_) | None => {}
         }
         content
     }
@@ -176,9 +198,12 @@ impl Display for BodySanitization {
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.content)?;
-        let truncated_bytes = self.truncated_bytes();
-        if truncated_bytes > 0 {
-            write!(formatter, "...<truncated {truncated_bytes} bytes>",)?;
+        match self.truncated_bytes() {
+            Some(truncated_bytes) if truncated_bytes > 0 => {
+                write!(formatter, "...<truncated {truncated_bytes} bytes>",)?;
+            }
+            None if self.truncated => formatter.write_str("...<truncated>")?,
+            Some(_) | None => {}
         }
         Ok(())
     }

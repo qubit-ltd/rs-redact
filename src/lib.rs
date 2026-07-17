@@ -79,6 +79,7 @@ pub use adapter::{
     BodyRedactionReason,
     BodySanitization,
     BodySanitizationStatus,
+    BodySourceLength,
     HttpBodySanitizer,
     HttpHeaderSanitizer,
     TextBodyPolicy,

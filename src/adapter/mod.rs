@@ -27,6 +27,7 @@ pub use http::{
     BodyRedactionReason,
     BodySanitization,
     BodySanitizationStatus,
+    BodySourceLength,
     HttpBodySanitizer,
     HttpHeaderSanitizer,
     TextBodyPolicy,
