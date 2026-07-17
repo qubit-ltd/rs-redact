@@ -16,9 +16,10 @@ use super::BodyRedactionReason;
 pub enum BodySanitizationStatus {
     /// The available body bytes were empty.
     Empty,
-    /// The body was sanitized structurally.
+    /// All configured structured sanitization policies were applied. This does
+    /// not claim that arbitrary secrets in non-sensitive fields were detected.
     Sanitized,
-    /// The output contains opaque text that policy explicitly allowed
+    /// The output contains at least one value that policy explicitly allowed
     /// unchanged.
     PassedThrough,
     /// The body was fully redacted for the supplied reason.

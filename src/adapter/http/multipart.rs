@@ -47,10 +47,10 @@ pub(super) fn sanitize_multipart(
     let boundary = content_type::multipart_boundary(content_type?)?;
     let segments = multipart_part_segments(bytes, &boundary)?;
     let mut lines = Vec::with_capacity(segments.len());
-    let mut contains_passed_through_text = false;
+    let mut contains_passed_through_value = false;
     for segment in segments {
         let part = sanitize_multipart_part(sanitizer, segment, match_mode)?;
-        contains_passed_through_text |= part.contains_passed_through_text();
+        contains_passed_through_value |= part.contains_passed_through_value();
         lines.push(part.into_content());
     }
     if lines.is_empty() {
@@ -61,7 +61,7 @@ pub(super) fn sanitize_multipart(
     }
     Some(MultipartSanitization::new(
         format!("<multipart>\n{}\n</multipart>", lines.join("\n")),
-        contains_passed_through_text,
+        contains_passed_through_value,
     ))
 }
 
@@ -112,10 +112,10 @@ fn sanitize_multipart_part(
         match_mode,
     )?;
     let displayed_field_name = field_name.escape_debug().collect::<String>();
-    let contains_passed_through_text = value.contains_passed_through_text();
+    let contains_passed_through_value = value.contains_passed_through_value();
     Some(MultipartSanitization::new(
         format!("{displayed_field_name}={}", value.content()),
-        contains_passed_through_text,
+        contains_passed_through_value,
     ))
 }
 
@@ -163,17 +163,21 @@ fn sanitize_multipart_part_value(
         return Some(sanitize_text_part(sanitizer, body));
     };
     if content_type::is_json(content_type) {
-        return Some(sanitized_part(
-            sanitizer
-                .sanitize_json(body.as_bytes(), match_mode)
-                .unwrap_or_else(|| MULTIPART_PART_REDACTED.to_string()),
+        let (content, contains_passed_through_value) = sanitizer
+            .sanitize_json(body.as_bytes(), match_mode)
+            .unwrap_or_else(|| (MULTIPART_PART_REDACTED.to_string(), false));
+        return Some(MultipartSanitization::new(
+            content,
+            contains_passed_through_value,
         ));
     }
     if content_type::is_ndjson(content_type) {
-        return Some(sanitized_part(
-            sanitizer
-                .sanitize_ndjson(body.as_bytes(), match_mode)
-                .unwrap_or_else(|| MULTIPART_PART_REDACTED.to_string()),
+        let (content, contains_passed_through_value) = sanitizer
+            .sanitize_ndjson(body.as_bytes(), match_mode)
+            .unwrap_or_else(|| (MULTIPART_PART_REDACTED.to_string(), false));
+        return Some(MultipartSanitization::new(
+            content,
+            contains_passed_through_value,
         ));
     }
     if content_type::is_form_urlencoded(content_type) {

@@ -18,6 +18,7 @@ use proptest::{
 };
 
 use qubit_sanitize::{
+    BodySanitizationStatus,
     BodySourceLength,
     FieldSanitizePolicy,
     FieldSanitizer,
@@ -25,6 +26,7 @@ use qubit_sanitize::{
     MaskPolicy,
     NameMatchMode,
     SensitivityLevel,
+    UnkeyedJsonValuePolicy,
 };
 
 #[test]
@@ -143,6 +145,73 @@ fn test_http_body_sanitizer_sanitize_body_redacts_json_arrays() {
 }
 
 #[test]
+fn test_http_body_sanitizer_redacts_unkeyed_json_scalars_by_default() {
+    let sanitizer = HttpBodySanitizer::default();
+    let content_type = HeaderValue::from_static("application/json");
+    let marker = "<redacted: unkeyed JSON value>";
+    let cases: &[(&[u8], &str)] = &[
+        (br#""secret""#, r#""<redacted: unkeyed JSON value>""#),
+        (b"42", r#""<redacted: unkeyed JSON value>""#),
+        (b"true", r#""<redacted: unkeyed JSON value>""#),
+        (b"null", r#""<redacted: unkeyed JSON value>""#),
+        (
+            br#"["secret",1,null]"#,
+            r#"["<redacted: unkeyed JSON value>","<redacted: unkeyed JSON value>","<redacted: unkeyed JSON value>"]"#,
+        ),
+        (
+            br#"[["secret"],{"token":"abc"}]"#,
+            r#"[["<redacted: unkeyed JSON value>"],{"token":"****"}]"#,
+        ),
+    ];
+
+    for (body, expected) in cases {
+        let result = sanitizer.sanitize_body(
+            body,
+            Some(&content_type),
+            NameMatchMode::ExactOrSuffix,
+        );
+        assert_eq!(result.content(), *expected);
+        assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
+        assert!(!result.content().contains("secret"));
+        assert!(result.content().contains(marker));
+    }
+}
+
+#[test]
+fn test_http_body_sanitizer_keeps_scalars_with_object_field_context() {
+    let sanitizer = HttpBodySanitizer::default();
+    let content_type = HeaderValue::from_static("application/json");
+
+    let result = sanitizer.sanitize_body(
+        br#"{"items":["ok",1],"message":"visible"}"#,
+        Some(&content_type),
+        NameMatchMode::Exact,
+    );
+
+    assert_eq!(
+        result.content(),
+        r#"{"items":["ok",1],"message":"visible"}"#,
+    );
+    assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
+}
+
+#[test]
+fn test_http_body_sanitizer_reports_unkeyed_json_pass_through() {
+    let sanitizer = HttpBodySanitizer::default()
+        .with_unkeyed_json_value_policy(UnkeyedJsonValuePolicy::PassThrough);
+    let content_type = HeaderValue::from_static("application/json");
+
+    let result = sanitizer.sanitize_body(
+        br#"["diagnostic",{"message":"visible"}]"#,
+        Some(&content_type),
+        NameMatchMode::Exact,
+    );
+
+    assert_eq!(result.content(), r#"["diagnostic",{"message":"visible"}]"#);
+    assert_eq!(result.status(), BodySanitizationStatus::PassedThrough);
+}
+
+#[test]
 fn test_http_body_sanitizer_exact_mode_keeps_prefixed_json_field() {
     let sanitizer = HttpBodySanitizer::default();
     let content_type = HeaderValue::from_static("application/json");
@@ -176,6 +245,25 @@ fn test_http_body_sanitizer_sanitize_body_redacts_ndjson_fields() {
 
     assert_eq!(sanitized, "{\"id\":1,\"token\":\"****\"}\n\n{\"id\":2}");
     assert!(!sanitized.contains("abc"));
+}
+
+#[test]
+fn test_http_body_sanitizer_redacts_unkeyed_ndjson_scalars_by_default() {
+    let sanitizer = HttpBodySanitizer::default();
+    let content_type = HeaderValue::from_static("application/x-ndjson");
+
+    let result = sanitizer.sanitize_body(
+        b"\"secret\"\n[\"array-secret\"]\n{\"message\":\"visible\"}\n",
+        Some(&content_type),
+        NameMatchMode::Exact,
+    );
+
+    assert_eq!(
+        result.content(),
+        "\"<redacted: unkeyed JSON value>\"\n[\"<redacted: unkeyed JSON value>\"]\n{\"message\":\"visible\"}\n",
+    );
+    assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
+    assert!(!result.content().contains("secret"));
 }
 
 #[test]

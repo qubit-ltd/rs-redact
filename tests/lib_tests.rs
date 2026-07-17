@@ -35,6 +35,7 @@ use qubit_sanitize::{
     HttpBodySanitizer,
     HttpHeaderSanitizer,
     TextBodyPolicy,
+    UnkeyedJsonValuePolicy,
 };
 
 #[test]
@@ -66,5 +67,6 @@ fn test_lib_exports_public_api() {
         let _ = HttpBodySanitizer::default();
         let _ = HttpHeaderSanitizer::default();
         let _ = TextBodyPolicy::default();
+        let _ = UnkeyedJsonValuePolicy::default();
     }
 }

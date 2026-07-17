@@ -17,6 +17,9 @@ pub(super) const INVALID_NDJSON_REDACTED: &str = "<redacted: invalid NDJSON>";
 /// Redaction marker for invalid or truncated NDJSON previews.
 pub(super) const INVALID_OR_TRUNCATED_NDJSON_REDACTED: &str =
     "<redacted: invalid or truncated NDJSON>";
+/// Redaction marker for JSON scalar values without an object-field context.
+pub(super) const UNKEYED_JSON_VALUE_REDACTED: &str =
+    "<redacted: unkeyed JSON value>";
 /// Redaction marker for invalid complete URL-encoded form bodies.
 pub(super) const INVALID_FORM_URLENCODED_REDACTED: &str =
     "<redacted: invalid URL-encoded form>";

@@ -7,13 +7,13 @@
 // =============================================================================
 //! Internal multipart sanitization result.
 
-/// Sanitized multipart content and its opaque-text exposure state.
+/// Sanitized multipart content and its passed-through value state.
 #[must_use = "inspect the multipart sanitization result instead of discarding it"]
 pub(in crate::adapter::http) struct MultipartSanitization {
     /// Sanitized diagnostic content.
     content: String,
-    /// Whether policy allowed opaque text to remain unchanged.
-    contains_passed_through_text: bool,
+    /// Whether policy allowed at least one value to remain unchanged.
+    contains_passed_through_value: bool,
 }
 
 impl MultipartSanitization {
@@ -22,8 +22,8 @@ impl MultipartSanitization {
     /// # Parameters
     ///
     /// * `content` - Sanitized diagnostic content.
-    /// * `contains_passed_through_text` - Whether opaque text remains
-    ///   unchanged.
+    /// * `contains_passed_through_value` - Whether policy allowed at least one
+    ///   value to remain unchanged.
     ///
     /// # Returns
     ///
@@ -31,11 +31,11 @@ impl MultipartSanitization {
     #[inline(always)]
     pub(in crate::adapter::http) fn new(
         content: String,
-        contains_passed_through_text: bool,
+        contains_passed_through_value: bool,
     ) -> Self {
         Self {
             content,
-            contains_passed_through_text,
+            contains_passed_through_value,
         }
     }
 
@@ -61,16 +61,16 @@ impl MultipartSanitization {
         self.content
     }
 
-    /// Reports whether opaque text remains unchanged in the content.
+    /// Reports whether policy left at least one value unchanged.
     ///
     /// # Returns
     ///
-    /// `true` when at least one opaque text body was passed through.
+    /// `true` when at least one value was passed through.
     #[must_use]
     #[inline(always)]
-    pub(in crate::adapter::http) const fn contains_passed_through_text(
+    pub(in crate::adapter::http) const fn contains_passed_through_value(
         &self,
     ) -> bool {
-        self.contains_passed_through_text
+        self.contains_passed_through_value
     }
 }

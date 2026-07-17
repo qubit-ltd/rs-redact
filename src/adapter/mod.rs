@@ -33,6 +33,7 @@ pub use http::{
     HttpBodySanitizer,
     HttpHeaderSanitizer,
     TextBodyPolicy,
+    UnkeyedJsonValuePolicy,
 };
 #[cfg(feature = "web")]
 pub use url_path_policy::UrlPathPolicy;

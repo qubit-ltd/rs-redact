@@ -10,9 +10,11 @@
 use http::HeaderValue;
 
 use qubit_sanitize::{
+    BodySanitizationStatus,
     BodySourceLength,
     HttpBodySanitizer,
     NameMatchMode,
+    UnkeyedJsonValuePolicy,
 };
 
 #[test]
@@ -89,6 +91,30 @@ Content-Type: application/json
     assert!(sanitized.contains(r#"metadata={"token":"****","visible":"ok"}"#));
     assert!(!sanitized.contains("secret-token"));
     assert!(!sanitized.contains("boundary"));
+}
+
+#[test]
+fn test_http_body_sanitizer_reports_multipart_json_pass_through() {
+    let sanitizer = HttpBodySanitizer::default()
+        .with_unkeyed_json_value_policy(UnkeyedJsonValuePolicy::PassThrough);
+    let content_type =
+        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let body = br#"--boundary
+Content-Disposition: form-data; name="metadata"
+Content-Type: application/json
+
+["diagnostic"]
+--boundary--
+"#;
+
+    let result = sanitizer.sanitize_body(
+        body,
+        Some(&content_type),
+        NameMatchMode::Exact,
+    );
+
+    assert!(result.content().contains(r#"metadata=["diagnostic"]"#));
+    assert_eq!(result.status(), BodySanitizationStatus::PassedThrough);
 }
 
 #[test]

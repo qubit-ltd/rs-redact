@@ -19,3 +19,4 @@ mod internal;
 mod multipart_tests;
 mod redaction_markers_tests;
 mod text_body_policy_tests;
+mod unkeyed_json_value_policy_tests;

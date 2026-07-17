@@ -90,6 +90,7 @@ pub use adapter::{
     HttpBodySanitizer,
     HttpHeaderSanitizer,
     TextBodyPolicy,
+    UnkeyedJsonValuePolicy,
 };
 #[cfg(feature = "web")]
 pub use adapter::{
