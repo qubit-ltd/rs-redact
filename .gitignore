@@ -1,5 +1,7 @@
 # Rust
 /target/
+/fuzz/artifacts/
+/fuzz/target/
 **/*.rs.bk
 *.pdb
 

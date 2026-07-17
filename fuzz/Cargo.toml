@@ -1,0 +1,27 @@
+[package]
+name = "qubit-sanitize-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+http = "1.4"
+libfuzzer-sys = "0.4"
+qubit-sanitize = { path = "..", default-features = false, features = ["web", "http"] }
+
+[[bin]]
+name = "http_body"
+path = "fuzz_targets/http_body.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "web_inputs"
+path = "fuzz_targets/web_inputs.rs"
+test = false
+doc = false
+bench = false
