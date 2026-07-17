@@ -7,6 +7,7 @@
 // =============================================================================
 //! Tests for core sanitization primitives.
 
+mod default_sensitive_fields_tests;
 mod field_name_tests;
 mod field_sanitize_policy_tests;
 mod field_sanitizer_tests;

@@ -5,15 +5,10 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for structured object sanitization adapters.
+//! Tests mirroring internal HTTP body sanitization components.
 
-mod argv_sanitizer_tests;
-mod env_sanitizer_tests;
-#[cfg(feature = "web")]
-mod form_url_encoded_sanitizer_tests;
-#[cfg(feature = "web")]
-mod form_url_encoded_tests;
-#[cfg(feature = "http")]
-mod http;
-#[cfg(feature = "web")]
-mod url_sanitizer_tests;
+mod body_input_kind_tests;
+mod header_parameter_tests;
+mod multipart_delimiter_tests;
+mod multipart_part_metadata_tests;
+mod multipart_sanitization_tests;

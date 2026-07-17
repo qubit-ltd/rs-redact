@@ -1,0 +1,52 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+//! Tests for the default sensitive-field collection.
+
+use qubit_sanitize::{
+    DEFAULT_EXTRA_FIELDS,
+    SensitiveFieldPreset,
+    SensitiveFields,
+    SensitivityLevel,
+};
+
+#[test]
+fn test_sensitive_fields_default_contains_targeted_environment_credentials() {
+    let fields = SensitiveFields::default();
+
+    for field in [
+        "mysql_pwd",
+        "rediscli_auth",
+        "database_url",
+        "database_uri",
+        "connection_string",
+    ] {
+        assert_eq!(
+            fields.level_for(field),
+            Some(SensitivityLevel::Secret),
+            "expected {field:?} to be secret by default",
+        );
+    }
+}
+
+#[test]
+fn test_sensitive_fields_default_matches_presets_plus_extras() {
+    let mut from_presets = SensitiveFields::new();
+    for preset in [
+        SensitiveFieldPreset::Credentials,
+        SensitiveFieldPreset::AuthTokens,
+        SensitiveFieldPreset::Http,
+        SensitiveFieldPreset::Session,
+    ] {
+        from_presets.extend_preset(preset);
+    }
+    for &(field, level) in DEFAULT_EXTRA_FIELDS {
+        from_presets.insert_strongest(field, level);
+    }
+
+    assert_eq!(from_presets, SensitiveFields::default());
+}

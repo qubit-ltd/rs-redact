@@ -8,7 +8,6 @@
 //! Tests for [`SensitiveFieldPreset`](qubit_sanitize::SensitiveFieldPreset).
 
 use qubit_sanitize::{
-    DEFAULT_EXTRA_FIELDS,
     SensitiveFieldPreset,
     SensitiveFields,
     SensitivityLevel,
@@ -43,25 +42,6 @@ fn test_sensitive_field_preset_credentials_fields() {
         fields.level_for("pgpassword"),
         Some(SensitivityLevel::Secret),
     );
-}
-
-#[test]
-fn test_sensitive_fields_default_contains_targeted_environment_credentials() {
-    let fields = SensitiveFields::default();
-
-    for field in [
-        "mysql_pwd",
-        "rediscli_auth",
-        "database_url",
-        "database_uri",
-        "connection_string",
-    ] {
-        assert_eq!(
-            fields.level_for(field),
-            Some(SensitivityLevel::Secret),
-            "expected {field:?} to be secret by default",
-        );
-    }
 }
 
 #[test]
@@ -100,22 +80,4 @@ fn test_sensitive_field_preset_session_fields() {
     assert_eq!(fields[0], ("session", SensitivityLevel::High));
     assert_eq!(fields[1], ("session_id", SensitivityLevel::High));
     assert_eq!(fields[2], ("session_token", SensitivityLevel::High));
-}
-
-#[test]
-fn test_sensitive_fields_default_matches_presets_plus_extras() {
-    let mut from_presets = SensitiveFields::new();
-    for preset in [
-        SensitiveFieldPreset::Credentials,
-        SensitiveFieldPreset::AuthTokens,
-        SensitiveFieldPreset::Http,
-        SensitiveFieldPreset::Session,
-    ] {
-        from_presets.extend_preset(preset);
-    }
-    for &(field, level) in DEFAULT_EXTRA_FIELDS {
-        from_presets.insert_strongest(field, level);
-    }
-
-    assert_eq!(from_presets, SensitiveFields::default());
 }
