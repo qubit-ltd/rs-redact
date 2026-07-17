@@ -45,8 +45,7 @@ pub(super) fn sanitize_multipart(
     match_mode: NameMatchMode,
 ) -> Option<MultipartSanitization> {
     let boundary = content_type::multipart_boundary(content_type?)?;
-    let text = std::str::from_utf8(bytes).ok()?;
-    let segments = multipart_part_segments(text, &boundary)?;
+    let segments = multipart_part_segments(bytes, &boundary)?;
     let mut lines = Vec::with_capacity(segments.len());
     let mut contains_passed_through_text = false;
     for segment in segments {
@@ -79,7 +78,7 @@ pub(super) fn sanitize_multipart(
 /// Sanitized `name=value` line, or `None` when part headers are malformed.
 fn sanitize_multipart_part(
     sanitizer: &HttpBodySanitizer,
-    segment: &str,
+    segment: &[u8],
     match_mode: NameMatchMode,
 ) -> Option<MultipartSanitization> {
     let (headers, body) = split_multipart_headers_and_body(segment)?;
@@ -111,7 +110,7 @@ fn sanitize_multipart_part(
         metadata.content_type(),
         body,
         match_mode,
-    );
+    )?;
     let displayed_field_name = field_name.escape_debug().collect::<String>();
     let contains_passed_through_text = value.contains_passed_through_text();
     Some(MultipartSanitization::new(
@@ -133,58 +132,80 @@ fn sanitize_multipart_part(
 ///
 /// # Returns
 ///
-/// Sanitized part value for diagnostic output.
+/// Sanitized part value for diagnostic output, or `None` when a non-file body
+/// is not valid UTF-8.
 fn sanitize_multipart_part_value(
     sanitizer: &HttpBodySanitizer,
     field_name: &str,
     filename: Option<&str>,
     content_type: Option<&str>,
-    body: &str,
+    body: &[u8],
     match_mode: NameMatchMode,
-) -> MultipartSanitization {
+) -> Option<MultipartSanitization> {
     if filename.is_some() {
-        return sanitized_part(MULTIPART_FILE_PART_REDACTED.to_string());
+        return Some(sanitized_part(MULTIPART_FILE_PART_REDACTED.to_string()));
     }
+    let body = std::str::from_utf8(body).ok()?;
     if let Some(level) = sanitizer
         .field_sanitizer()
         .sensitivity_for_name(field_name, match_mode)
     {
-        return sanitized_part(
-            sanitizer
-                .field_sanitizer()
-                .mask_value_at_level(body, level)
-                .into_owned(),
-        );
+        let masked =
+            sanitizer.field_sanitizer().mask_value_at_level(body, level);
+        return Some(sanitized_part(escape_multipart_diagnostic_value(
+            masked.as_ref(),
+        )));
     }
     if field_name == MULTIPART_UNNAMED_FIELD {
-        return sanitized_part(MULTIPART_PART_REDACTED.to_string());
+        return Some(sanitized_part(MULTIPART_PART_REDACTED.to_string()));
     }
     let Some(content_type) = content_type else {
-        return sanitize_text_part(sanitizer, body);
+        return Some(sanitize_text_part(sanitizer, body));
     };
     if content_type::is_json(content_type) {
-        return sanitized_part(
+        return Some(sanitized_part(
             sanitizer
                 .sanitize_json(body.as_bytes(), match_mode)
                 .unwrap_or_else(|| MULTIPART_PART_REDACTED.to_string()),
-        );
+        ));
     }
     if content_type::is_ndjson(content_type) {
-        return sanitized_part(
+        return Some(sanitized_part(
             sanitizer
                 .sanitize_ndjson(body.as_bytes(), match_mode)
                 .unwrap_or_else(|| MULTIPART_PART_REDACTED.to_string()),
-        );
+        ));
     }
     if content_type::is_form_urlencoded(content_type) {
-        return sanitized_part(
+        return Some(sanitized_part(
             sanitizer.sanitize_form(body.as_bytes(), match_mode),
-        );
+        ));
     }
     if content_type::is_text(content_type) {
-        return sanitize_text_part(sanitizer, body);
+        return Some(sanitize_text_part(sanitizer, body));
     }
-    sanitized_part(MULTIPART_PART_REDACTED.to_string())
+    Some(sanitized_part(MULTIPART_PART_REDACTED.to_string()))
+}
+
+/// Escapes control characters in one masked multipart diagnostic value.
+///
+/// # Parameters
+///
+/// * `value` - Masked value that may preserve caller-controlled characters.
+///
+/// # Returns
+///
+/// A diagnostic value with control characters represented by debug escapes.
+fn escape_multipart_diagnostic_value(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        if character.is_control() {
+            escaped.extend(character.escape_debug());
+        } else {
+            escaped.push(character);
+        }
+    }
+    escaped
 }
 
 /// Wraps content that contains no passed-through opaque text.
@@ -231,7 +252,7 @@ fn sanitize_text_part(
 ///
 /// # Parameters
 ///
-/// * `text` - Multipart body text.
+/// * `bytes` - Multipart body bytes.
 /// * `boundary` - Boundary parameter without the leading `--`.
 ///
 /// # Returns
@@ -239,33 +260,42 @@ fn sanitize_text_part(
 /// Raw part segments without boundary delimiter lines, or `None` for malformed
 /// multipart bodies.
 fn multipart_part_segments<'a>(
-    text: &'a str,
+    bytes: &'a [u8],
     boundary: &str,
-) -> Option<Vec<&'a str>> {
+) -> Option<Vec<&'a [u8]>> {
     let delimiter = format!("--{boundary}");
     let closing_delimiter = format!("{delimiter}--");
     let mut current_start = None;
     let mut segments = Vec::new();
     let mut position = 0;
-    while position < text.len() {
+    while position < bytes.len() {
         let (line_start, line_end, next_position) =
-            next_line_bounds(text, position);
-        let line = &text[line_start..line_end];
-        let Some(delimiter_kind) =
-            MultipartDelimiter::classify(line, &delimiter, &closing_delimiter)
-        else {
+            next_line_bounds(bytes, position);
+        let delimiter_kind = std::str::from_utf8(&bytes[line_start..line_end])
+            .ok()
+            .and_then(|line| {
+                MultipartDelimiter::classify(
+                    line,
+                    &delimiter,
+                    &closing_delimiter,
+                )
+            });
+        let Some(delimiter_kind) = delimiter_kind else {
             position = next_position;
             continue;
         };
         if let Some(start) = current_start {
             let segment =
-                strip_one_trailing_line_ending(&text[start..line_start]);
-            if !segment.trim().is_empty() {
+                strip_one_trailing_line_ending(&bytes[start..line_start]);
+            if !segment.iter().all(|byte| byte.is_ascii_whitespace()) {
                 segments.push(segment);
             }
         }
         if delimiter_kind == MultipartDelimiter::Closing {
-            if text[next_position..].trim().is_empty() {
+            if bytes[next_position..]
+                .iter()
+                .all(|byte| byte.is_ascii_whitespace())
+            {
                 return Some(segments);
             }
             return None;
@@ -280,7 +310,7 @@ fn multipart_part_segments<'a>(
 ///
 /// # Parameters
 ///
-/// * `text` - Source text.
+/// * `bytes` - Source bytes.
 /// * `position` - Byte offset where the next line starts.
 ///
 /// # Returns
@@ -289,20 +319,21 @@ fn multipart_part_segments<'a>(
 ///
 /// # Panics
 ///
-/// Panics when `position` exceeds `text.len()` or is not a UTF-8 character
-/// boundary.
+/// Panics when `position` exceeds `bytes.len()`.
 #[must_use]
 #[inline]
-fn next_line_bounds(text: &str, position: usize) -> (usize, usize, usize) {
-    if let Some(relative_end) = text[position..].find('\n') {
+fn next_line_bounds(bytes: &[u8], position: usize) -> (usize, usize, usize) {
+    if let Some(relative_end) =
+        bytes[position..].iter().position(|byte| *byte == b'\n')
+    {
         let line_end = position + relative_end;
         let trimmed_end = line_end
             .checked_sub(1)
-            .filter(|index| text.as_bytes()[*index] == b'\r')
+            .filter(|index| bytes[*index] == b'\r')
             .unwrap_or(line_end);
         return (position, trimmed_end, line_end + 1);
     }
-    (position, text.len(), text.len())
+    (position, bytes.len(), bytes.len())
 }
 
 /// Splits multipart part headers from the part body.
@@ -313,32 +344,35 @@ fn next_line_bounds(text: &str, position: usize) -> (usize, usize, usize) {
 ///
 /// # Returns
 ///
-/// Header text and body text.
+/// UTF-8 header text and raw body bytes.
 #[inline]
-fn split_multipart_headers_and_body(segment: &str) -> Option<(&str, &str)> {
-    if let Some(index) = segment.find("\r\n\r\n") {
-        return Some((&segment[..index], &segment[index + 4..]));
-    }
-    if let Some(index) = segment.find("\n\n") {
-        return Some((&segment[..index], &segment[index + 2..]));
-    }
-    None
+fn split_multipart_headers_and_body(segment: &[u8]) -> Option<(&str, &[u8])> {
+    let (header_end, body_start) = if let Some(index) =
+        segment.windows(4).position(|window| window == b"\r\n\r\n")
+    {
+        (index, index + 4)
+    } else {
+        let index = segment.windows(2).position(|window| window == b"\n\n")?;
+        (index, index + 2)
+    };
+    let headers = std::str::from_utf8(&segment[..header_end]).ok()?;
+    Some((headers, &segment[body_start..]))
 }
 
 /// Removes one trailing multipart line ending.
 ///
 /// # Parameters
 ///
-/// * `value` - Text that may end with one line ending.
+/// * `value` - Bytes that may end with one line ending.
 ///
 /// # Returns
 ///
-/// Text without one trailing line ending.
+/// Bytes without one trailing line ending.
 #[must_use]
 #[inline(always)]
-fn strip_one_trailing_line_ending(value: &str) -> &str {
+fn strip_one_trailing_line_ending(value: &[u8]) -> &[u8] {
     value
-        .strip_suffix("\r\n")
-        .or_else(|| value.strip_suffix('\n'))
+        .strip_suffix(b"\r\n")
+        .or_else(|| value.strip_suffix(b"\n"))
         .unwrap_or(value)
 }

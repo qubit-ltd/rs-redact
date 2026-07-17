@@ -828,6 +828,49 @@ fn test_http_body_sanitizer_escapes_multipart_field_name_controls() {
 }
 
 #[test]
+fn test_http_body_sanitizer_escapes_multipart_sensitive_value_controls() {
+    let sanitizer = HttpBodySanitizer::default();
+    let content_type =
+        HeaderValue::from_static("multipart/form-data; boundary=b");
+    let cases: [(&str, &[u8], &str); 4] = [
+        (
+            "line feed",
+            b"--b\r\nContent-Disposition: form-data; name=\"session\"\r\n\r\nabcdef\n\r\n--b--\r\n",
+            r"session=****\n",
+        ),
+        (
+            "carriage return",
+            b"--b\r\nContent-Disposition: form-data; name=\"session\"\r\n\r\nabcdef\r\r\n--b--\r\n",
+            r"session=****\r",
+        ),
+        (
+            "tab",
+            b"--b\r\nContent-Disposition: form-data; name=\"session\"\r\n\r\nabcdef\t\r\n--b--\r\n",
+            r"session=****\t",
+        ),
+        (
+            "escape",
+            b"--b\r\nContent-Disposition: form-data; name=\"session\"\r\n\r\nabcdef\x1b\r\n--b--\r\n",
+            r"session=****\u{1b}",
+        ),
+    ];
+
+    for (label, body, expected) in cases {
+        let result = sanitizer.sanitize_body(
+            body,
+            Some(&content_type),
+            NameMatchMode::ExactOrSuffix,
+        );
+
+        assert!(
+            result.content().contains(expected),
+            "{label}: {}",
+            result.content(),
+        );
+    }
+}
+
+#[test]
 fn test_http_body_sanitizer_sanitize_body_handles_empty_multipart_body() {
     let sanitizer = HttpBodySanitizer::default();
     let content_type =
@@ -842,6 +885,27 @@ fn test_http_body_sanitizer_sanitize_body_handles_empty_multipart_body() {
     let sanitized = sanitized.into_rendered();
 
     assert_eq!(sanitized, "<multipart>\n</multipart>");
+}
+
+#[test]
+fn test_http_body_sanitizer_summarizes_non_utf8_multipart_file_part() {
+    let sanitizer = HttpBodySanitizer::default();
+    let content_type =
+        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let body = b"--boundary\r\nContent-Disposition: form-data; name=\"upload\"; filename=\"payload.bin\"\r\nContent-Type: application/octet-stream\r\n\r\nbinary-\xff-data\r\n--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nsecret\r\n--boundary--\r\n\r\n";
+
+    let sanitized = sanitizer.sanitize_body(
+        body,
+        Some(&content_type),
+        NameMatchMode::ExactOrSuffix,
+    );
+
+    assert_eq!(
+        sanitized.content(),
+        "<multipart>\nupload=<redacted: file part>\npassword=<redacted>\n</multipart>",
+    );
+    assert!(!sanitized.content().contains("binary"));
+    assert!(!sanitized.content().contains("secret"));
 }
 
 #[test]
