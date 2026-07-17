@@ -402,6 +402,27 @@ let sanitizer = HttpBodySanitizer::default()
 两种策略都不会扫描任意文本。同样地，藏在非敏感结构化字段 value 中的业务秘密，不在
 基于字段名脱敏的保证范围内。
 
+### 无字段上下文的 JSON value
+
+`HttpBodySanitizer` 默认会脱敏顶层 JSON/NDJSON 标量，以及没有外层对象字段
+上下文的数组标量。位于非敏感对象字段下的数组会继承该字段上下文，因此其 value
+仍遵循基于字段名的脱敏规则。
+
+只有诊断确实需要保留这些 value，且调用方愿意承担无法通过字段名分类的秘密泄露
+风险时，才应选择 `UnkeyedJsonValuePolicy::PassThrough`：
+
+```rust
+use qubit_sanitize::{
+    HttpBodySanitizer,
+    UnkeyedJsonValuePolicy,
+};
+
+let sanitizer = HttpBodySanitizer::default()
+    .with_unkeyed_json_value_policy(
+        UnkeyedJsonValuePolicy::PassThrough,
+    );
+```
+
 ## 测试
 
 ```bash

@@ -433,6 +433,29 @@ Neither policy scans arbitrary text. Similarly, a business secret stored inside
 a non-sensitive structured field is outside the guarantee of field-name-based
 sanitization.
 
+### Unkeyed JSON Values
+
+`HttpBodySanitizer` redacts top-level JSON/NDJSON scalar values and scalar
+elements in arrays that have no enclosing object-field context. Arrays stored
+under a non-sensitive object field retain that field context, so their values
+continue to follow field-name-based sanitization.
+
+Select `UnkeyedJsonValuePolicy::PassThrough` only when preserving those values
+is required for diagnostics and the caller accepts responsibility for secrets
+that have no classifiable field name:
+
+```rust
+use qubit_sanitize::{
+    HttpBodySanitizer,
+    UnkeyedJsonValuePolicy,
+};
+
+let sanitizer = HttpBodySanitizer::default()
+    .with_unkeyed_json_value_policy(
+        UnkeyedJsonValuePolicy::PassThrough,
+    );
+```
+
 ## Testing
 
 ```bash
