@@ -45,7 +45,7 @@ fn hexadecimal_prefix(data: &[u8]) -> String {
 /// * `data` - Fuzzer-provided bytes used as non-secret structured noise.
 fn assert_structured_secret_is_redacted(selector: u8, data: &[u8]) {
     let noise = hexadecimal_prefix(data);
-    let (body, content_type) = match selector % 4 {
+    let (body, content_type) = match selector % 7 {
         0 => (
             format!(
                 r#"{{"noise":"{noise}","password":"{FUZZ_SECRET}"}}"#
@@ -66,7 +66,7 @@ fn assert_structured_secret_is_redacted(selector: u8, data: &[u8]) {
                 "application/x-www-form-urlencoded",
             ),
         ),
-        _ => {
+        3 => {
             let mut multipart = b"--boundary\r\nContent-Disposition: form-data; name=\"upload\"; filename=\"fuzz.bin\"\r\nContent-Type: application/octet-stream\r\n\r\n".to_vec();
             multipart.extend_from_slice(data);
             multipart.extend_from_slice(
@@ -82,6 +82,18 @@ fn assert_structured_secret_is_redacted(selector: u8, data: &[u8]) {
                 ),
             )
         }
+        4 => (
+            format!(r#""{FUZZ_SECRET}""#).into_bytes(),
+            HeaderValue::from_static("application/json"),
+        ),
+        5 => (
+            format!(r#"["{FUZZ_SECRET}"]"#).into_bytes(),
+            HeaderValue::from_static("application/json"),
+        ),
+        _ => (
+            format!("\"{FUZZ_SECRET}\"\n").into_bytes(),
+            HeaderValue::from_static("application/x-ndjson"),
+        ),
     };
     let result = HttpBodySanitizer::default().sanitize_body(
         &body,

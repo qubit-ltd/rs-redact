@@ -25,3 +25,10 @@ path = "fuzz_targets/web_inputs.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "command_inputs"
+path = "fuzz_targets/command_inputs.rs"
+test = false
+doc = false
+bench = false
