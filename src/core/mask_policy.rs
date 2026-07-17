@@ -13,11 +13,32 @@ use std::borrow::Cow;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MaskPolicy {
     /// Replaces non-empty values with a fixed replacement string.
+    ///
+    /// ```compile_fail
+    /// use qubit_sanitize::MaskPolicy;
+    ///
+    /// let _ = MaskPolicy::Fixed {
+    ///     replacement: "****".to_string(),
+    /// };
+    /// ```
+    #[non_exhaustive]
     Fixed {
         /// Replacement used for non-empty values.
         replacement: String,
     },
     /// Preserves a prefix and suffix for diagnosability.
+    ///
+    /// ```compile_fail
+    /// use qubit_sanitize::MaskPolicy;
+    ///
+    /// let _ = MaskPolicy::PreserveEdges {
+    ///     prefix_chars: 1,
+    ///     suffix_chars: 1,
+    ///     replacement: "****".to_string(),
+    ///     full_mask_below_or_equal: 2,
+    /// };
+    /// ```
+    #[non_exhaustive]
     PreserveEdges {
         /// Number of leading Unicode scalar values to retain.
         prefix_chars: usize,
@@ -29,6 +50,17 @@ pub enum MaskPolicy {
         full_mask_below_or_equal: usize,
     },
     /// Preserves only the final part of the value.
+    ///
+    /// ```compile_fail
+    /// use qubit_sanitize::MaskPolicy;
+    ///
+    /// let _ = MaskPolicy::PreserveSuffix {
+    ///     suffix_chars: 1,
+    ///     replacement: "****".to_string(),
+    ///     full_mask_below_or_equal: 1,
+    /// };
+    /// ```
+    #[non_exhaustive]
     PreserveSuffix {
         /// Number of trailing Unicode scalar values to retain.
         suffix_chars: usize,
