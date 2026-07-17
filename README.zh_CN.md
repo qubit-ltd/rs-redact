@@ -394,10 +394,10 @@ let sanitizer = HttpBodySanitizer::default()
 ## 测试
 
 ```bash
-# 使用默认的空 feature 集测试核心 API
+# 测试不启用可选 feature 的核心 API
 cargo test --no-default-features
 
-# 测试核心 API 和正则校验
+# 测试核心 API、web 和 HTTP adapter
 cargo test --all-features
 
 # 运行项目 CI 检查

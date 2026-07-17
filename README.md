@@ -424,10 +424,10 @@ sanitization.
 ## Testing
 
 ```bash
-# Core API with the default empty feature set
+# Core API without optional features
 cargo test --no-default-features
 
-# Core API plus regex validation
+# Core API plus web and HTTP adapters
 cargo test --all-features
 
 # Project CI checks
