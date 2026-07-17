@@ -407,7 +407,7 @@ fn test_field_sanitizer_extend_preset_adds_group_fields() {
 
     assert_eq!(
         sanitizer.sanitize_value("session-id", "abcdef", NameMatchMode::Exact),
-        "****f"
+        "****"
     );
     assert_eq!(
         sanitizer.sanitize_value(

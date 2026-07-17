@@ -97,8 +97,8 @@ fn test_sensitive_field_preset_session_fields() {
     let fields = SensitiveFieldPreset::Session.fields();
 
     assert_eq!(fields.len(), 3);
-    assert_eq!(fields[0], ("session", SensitivityLevel::Medium));
-    assert_eq!(fields[1], ("session_id", SensitivityLevel::Medium));
+    assert_eq!(fields[0], ("session", SensitivityLevel::High));
+    assert_eq!(fields[1], ("session_id", SensitivityLevel::High));
     assert_eq!(fields[2], ("session_token", SensitivityLevel::High));
 }
 

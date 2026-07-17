@@ -62,8 +62,8 @@ pub const HTTP_FIELDS: [(&str, SensitivityLevel); 4] = [
 
 /// Field names for [`SensitiveFieldPreset::Session`].
 pub const SESSION_FIELDS: [(&str, SensitivityLevel); 3] = [
-    ("session", SensitivityLevel::Medium),
-    ("session_id", SensitivityLevel::Medium),
+    ("session", SensitivityLevel::High),
+    ("session_id", SensitivityLevel::High),
     ("session_token", SensitivityLevel::High),
 ];
 

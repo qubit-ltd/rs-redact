@@ -274,10 +274,7 @@ fn test_sensitive_fields_extend_preset_covers_all_groups() {
         Some(SensitivityLevel::High),
     );
     assert_eq!(fields.level_for("jwt-token"), Some(SensitivityLevel::High));
-    assert_eq!(
-        fields.level_for("session-id"),
-        Some(SensitivityLevel::Medium)
-    );
+    assert_eq!(fields.level_for("session-id"), Some(SensitivityLevel::High));
     assert_eq!(
         fields.level_for("session-token"),
         Some(SensitivityLevel::High),
