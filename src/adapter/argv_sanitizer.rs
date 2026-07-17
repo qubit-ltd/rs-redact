@@ -110,6 +110,31 @@ impl ArgvSanitizer {
         sanitized
     }
 
+    /// Sanitizes one argv vector and formats it in argv-debug style.
+    ///
+    /// # Parameters
+    ///
+    /// * `argv` - Program and argument vector to render safely.
+    /// * `match_mode` - Field-name matching mode for options and assignments.
+    ///
+    /// # Returns
+    ///
+    /// Debug-style sanitized argv string, for example
+    /// `["cmd", "--token", "****"]`.
+    #[must_use = "use the returned sanitized display instead of the original argv"]
+    #[inline(always)]
+    pub fn sanitize_argv_display<I, S>(
+        &self,
+        argv: I,
+        match_mode: NameMatchMode,
+    ) -> String
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        format!("{:?}", self.sanitize_argv(argv, match_mode))
+    }
+
     /// Sanitizes one argv token while updating parser state.
     ///
     /// The token is appended to `sanitized` after masking when required. This
@@ -186,31 +211,6 @@ impl ArgvSanitizer {
             }
         }
         sanitized.push(arg.to_string());
-    }
-
-    /// Sanitizes one argv vector and formats it in argv-debug style.
-    ///
-    /// # Parameters
-    ///
-    /// * `argv` - Program and argument vector to render safely.
-    /// * `match_mode` - Field-name matching mode for options and assignments.
-    ///
-    /// # Returns
-    ///
-    /// Debug-style sanitized argv string, for example
-    /// `["cmd", "--token", "****"]`.
-    #[must_use = "use the returned sanitized display instead of the original argv"]
-    #[inline(always)]
-    pub fn sanitize_argv_display<I, S>(
-        &self,
-        argv: I,
-        match_mode: NameMatchMode,
-    ) -> String
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<OsStr>,
-    {
-        format!("{:?}", self.sanitize_argv(argv, match_mode))
     }
 
     /// Returns the sensitivity level represented by a bare option token.

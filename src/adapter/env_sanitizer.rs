@@ -139,40 +139,6 @@ impl EnvSanitizer {
         self.sanitize_os_pair_ref(key.as_ref(), value.as_ref(), match_mode)
     }
 
-    /// Sanitizes one borrowed environment pair that may not be UTF-8.
-    ///
-    /// # Parameters
-    ///
-    /// * `key` - Borrowed environment variable key.
-    /// * `value` - Borrowed environment variable value.
-    /// * `match_mode` - Field-name matching mode for the key.
-    ///
-    /// # Returns
-    ///
-    /// Owned string pair preserving the rendered key and sanitizing the value.
-    fn sanitize_os_pair_ref(
-        &self,
-        key: &OsStr,
-        value: &OsStr,
-        match_mode: NameMatchMode,
-    ) -> (String, String) {
-        let rendered_key = key.to_string_lossy();
-        let rendered_value = value.to_string_lossy();
-        let sanitized_value = match (key.to_str(), value.to_str()) {
-            (Some(key), Some(value)) => {
-                self.sanitize_value(key, value, match_mode).into_owned()
-            }
-            _ => self
-                .field_sanitizer
-                .mask_value_at_level(
-                    rendered_value.as_ref(),
-                    SensitivityLevel::Secret,
-                )
-                .into_owned(),
-        };
-        (rendered_key.into_owned(), sanitized_value)
-    }
-
     /// Sanitizes one `KEY=value` assignment.
     ///
     /// Strings without `=` are returned unchanged.
@@ -250,6 +216,40 @@ impl EnvSanitizer {
         S: AsRef<str>,
     {
         format!("{:?}", self.sanitize_assignments(assignments, match_mode))
+    }
+
+    /// Sanitizes one borrowed environment pair that may not be UTF-8.
+    ///
+    /// # Parameters
+    ///
+    /// * `key` - Borrowed environment variable key.
+    /// * `value` - Borrowed environment variable value.
+    /// * `match_mode` - Field-name matching mode for the key.
+    ///
+    /// # Returns
+    ///
+    /// Owned string pair preserving the rendered key and sanitizing the value.
+    fn sanitize_os_pair_ref(
+        &self,
+        key: &OsStr,
+        value: &OsStr,
+        match_mode: NameMatchMode,
+    ) -> (String, String) {
+        let rendered_key = key.to_string_lossy();
+        let rendered_value = value.to_string_lossy();
+        let sanitized_value = match (key.to_str(), value.to_str()) {
+            (Some(key), Some(value)) => {
+                self.sanitize_value(key, value, match_mode).into_owned()
+            }
+            _ => self
+                .field_sanitizer
+                .mask_value_at_level(
+                    rendered_value.as_ref(),
+                    SensitivityLevel::Secret,
+                )
+                .into_owned(),
+        };
+        (rendered_key.into_owned(), sanitized_value)
     }
 }
 

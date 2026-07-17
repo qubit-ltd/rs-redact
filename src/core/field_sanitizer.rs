@@ -164,13 +164,14 @@ impl FieldSanitizer {
         match_mode: NameMatchMode,
     ) -> Option<SensitivityLevel> {
         let fields = self.policy.sensitive_fields();
-        if match_mode == NameMatchMode::Exact {
-            return fields.level_for(name);
+        match match_mode {
+            NameMatchMode::Exact => fields.level_for(name),
+            NameMatchMode::ExactOrSuffix => {
+                find_canonical_field_match(name, |canonical| {
+                    fields.level_for_canonical(canonical)
+                })
+            }
         }
-
-        find_canonical_field_match(name, |canonical| {
-            fields.level_for_canonical(canonical)
-        })
     }
 
     /// Sanitizes one field-value pair.
@@ -210,26 +211,6 @@ impl FieldSanitizer {
             return Cow::Borrowed(value);
         };
         self.mask_value_at_level(value, level)
-    }
-
-    /// Masks a value whose sensitivity level has already been resolved.
-    ///
-    /// # Parameters
-    ///
-    /// * `value` - Value to mask.
-    /// * `level` - Previously resolved sensitivity level.
-    ///
-    /// # Returns
-    ///
-    /// Masked value according to the policy for `level`.
-    #[must_use = "use the returned masked value instead of the original value"]
-    #[inline(always)]
-    pub(crate) fn mask_value_at_level<'a>(
-        &self,
-        value: &'a str,
-        level: SensitivityLevel,
-    ) -> Cow<'a, str> {
-        self.policy.mask_policies().for_level(level).mask(value)
     }
 
     /// Returns a sanitized copy of a string map.
@@ -283,6 +264,26 @@ impl FieldSanitizer {
                 *value = sanitized;
             }
         }
+    }
+
+    /// Masks a value whose sensitivity level has already been resolved.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Value to mask.
+    /// * `level` - Previously resolved sensitivity level.
+    ///
+    /// # Returns
+    ///
+    /// Masked value according to the policy for `level`.
+    #[must_use = "use the returned masked value instead of the original value"]
+    #[inline(always)]
+    pub(crate) fn mask_value_at_level<'a>(
+        &self,
+        value: &'a str,
+        level: SensitivityLevel,
+    ) -> Cow<'a, str> {
+        self.policy.mask_policies().for_level(level).mask(value)
     }
 }
 

@@ -130,8 +130,9 @@ impl UrlSanitizer {
     #[must_use = "use the returned sanitized URL instead of the original URL"]
     pub fn sanitize_url(&self, url: &Url, match_mode: NameMatchMode) -> String {
         let mut sanitized = url.clone();
-        if self.url_path_policy == UrlPathPolicy::Redact {
-            sanitized.set_path("/<redacted>");
+        match self.url_path_policy {
+            UrlPathPolicy::Preserve => {}
+            UrlPathPolicy::Redact => sanitized.set_path("/<redacted>"),
         }
         if !sanitized.username().is_empty() {
             let username = mask_url_component(
