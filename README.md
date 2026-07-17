@@ -127,8 +127,8 @@ such as:
 
 The default list is not an exhaustive secret detector. Applications should add
 their own protocol and business field names. Field names are canonicalized
-before lookup. Separators such as `_`, `-`, `.`, and whitespace are ignored,
-and names are lowercased:
+before lookup. Separators such as `_`, `-`, `.`, `[`, `]`, and whitespace are
+ignored, and names are lowercased:
 
 ```rust
 use qubit_sanitize::canonicalize_field_name;
@@ -136,6 +136,7 @@ use qubit_sanitize::canonicalize_field_name;
 assert_eq!(canonicalize_field_name(" access-token "), "accesstoken");
 assert_eq!(canonicalize_field_name("access_token"), "accesstoken");
 assert_eq!(canonicalize_field_name("access.token"), "accesstoken");
+assert_eq!(canonicalize_field_name("user[password]"), "userpassword");
 ```
 
 ## Name Matching Modes
@@ -357,32 +358,42 @@ can use `HttpBodySanitizer` when it has body bytes plus an optional
 multipart bodies, declared `text/*` bodies, and binary fallback markers.
 Unsupported UTF-8 media types are redacted rather than passed through. The
 returned `BodySanitization` exposes sanitized `content`, a structured `status`,
-and captured/source byte lengths. Its `Display` implementation and
-`into_rendered` add the standard counted truncation suffix; `into_content`
-omits that suffix for callers with context-specific rendering. The diagnostic
-content is not a replayable HTTP body: structured output may be compacted and
-may not preserve original whitespace, field order, or JSON value types for
-redacted fields. The caller still owns capture limits, decompression, streaming
-boundaries, and any application-specific parsing.
+the captured byte length, and an optional exact source byte length. Its
+`Display` implementation and `into_rendered` add a counted truncation suffix
+when the total is known, or `...<truncated>` when it is unknown;
+`into_content` omits that suffix for callers with context-specific rendering.
+The diagnostic content is not a replayable HTTP body: structured output may be
+compacted and may not preserve original whitespace, field order, or JSON value
+types for redacted fields. `sanitize_body` has no internal byte limit. The
+caller still owns capture limits, decompression, streaming boundaries, and any
+application-specific parsing.
 
 ```rust
 use http::HeaderValue;
-use qubit_sanitize::{HttpBodySanitizer, NameMatchMode};
+use qubit_sanitize::{
+    BodySourceLength,
+    HttpBodySanitizer,
+    NameMatchMode,
+};
 
 let prefix = br#"{"password":"secret"#;
 let source_len = 40;
 let content_type = HeaderValue::from_static("application/json");
 let result = HttpBodySanitizer::default().sanitize_body_preview(
     prefix,
-    source_len,
+    BodySourceLength::Known(source_len),
     Some(&content_type),
     NameMatchMode::ExactOrSuffix,
 );
 
-assert_eq!(result.truncated_bytes(), source_len - prefix.len());
+assert_eq!(result.truncated_bytes(), Some(source_len - prefix.len()));
 assert!(!result.content().contains("secret"));
 println!("{result}");
 ```
+
+Use `BodySourceLength::UnknownTruncated` when a stream reader knows more bytes
+were omitted but cannot know the exact total. In that case `source_len()` and
+`truncated_bytes()` return `None`, while rendering adds `...<truncated>`.
 
 A command runner can use `ArgvSanitizer` for structured argv and
 `EnvSanitizer` for explicit environment overrides, but should not claim to

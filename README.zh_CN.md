@@ -107,14 +107,16 @@ assert_eq!(fixed.mask("secret"), "****");
 
 `SensitiveFields::default()` 内置了一组常见敏感字段作为起点，例如：
 
-- `password`、`passwd`、`secret`、`client_secret`、`private_key`、`security_key`
+- `password`、`passwd`、`passphrase`、`pgpassword`、`secret`、`client_secret`
+- `private_key`、`security_key`、`mysql_pwd`、`rediscli_auth`
+- `database_url`、`database_uri`、`connection_string`
 - `api_key`、`x_api_key`
 - `token`、`access_token`、`refresh_token`、`id_token`、`sig`、`signature`
 - `authorization`、`proxy_authorization`、`cookie`、`set_cookie`
 - `session`、`session_id`、`session_token`
 
 默认列表并不是穷尽式的秘密检测器，应用应补充自身协议和业务中的敏感字段名。字段名在
-匹配前会先规范化：去掉 `_`、`-`、`.`、空白字符并转小写。因此下面这些
+匹配前会先规范化：去掉 `_`、`-`、`.`、`[`、`]`、空白字符并转小写。因此下面这些
 名字会匹配到同一个字段：
 
 ```rust
@@ -123,6 +125,7 @@ use qubit_sanitize::canonicalize_field_name;
 assert_eq!(canonicalize_field_name(" access-token "), "accesstoken");
 assert_eq!(canonicalize_field_name("access_token"), "accesstoken");
 assert_eq!(canonicalize_field_name("access.token"), "accesstoken");
+assert_eq!(canonicalize_field_name("user[password]"), "userpassword");
 ```
 
 ## 字段名匹配模式
@@ -160,6 +163,24 @@ assert_eq!(
 );
 ```
 
+## 自定义字段
+
+```rust
+use qubit_sanitize::{
+    FieldSanitizer,
+    NameMatchMode,
+    SensitivityLevel,
+};
+
+let mut sanitizer = FieldSanitizer::default();
+sanitizer.insert_sensitive_field("license_key", SensitivityLevel::Medium);
+
+assert_eq!(
+    sanitizer.sanitize_value("license-key", "abcdef", NameMatchMode::Exact),
+    "****f",
+);
+```
+
 `FieldSanitizer::insert_sensitive_field` 和 `extend_sensitive_fields` 使用最强等级
 语义：添加较弱等级不会降低已有字段。只有明确需要覆盖（包括降级）时才使用
 `set_sensitive_field_level`。更底层的 `SensitiveFields::insert` 和 `extend` 保留
@@ -177,24 +198,6 @@ sanitizer.remove_sensitive_field("sig");
 assert_eq!(
     sanitizer.sanitize_value("sig", "known-safe", NameMatchMode::Exact),
     "known-safe",
-);
-```
-
-## 自定义字段
-
-```rust
-use qubit_sanitize::{
-    FieldSanitizer,
-    NameMatchMode,
-    SensitivityLevel,
-};
-
-let mut sanitizer = FieldSanitizer::default();
-sanitizer.insert_sensitive_field("license_key", SensitivityLevel::Medium);
-
-assert_eq!(
-    sanitizer.sanitize_value("license-key", "abcdef", NameMatchMode::Exact),
-    "****f",
 );
 ```
 
@@ -331,31 +334,39 @@ URL query 和 URL-encoded form 中，如果百分号转义格式错误，或解�
 字节和可选 `Content-Type` header 时，可以用 `HttpBodySanitizer`；它支持 JSON、
 NDJSON、URL-encoded form、multipart body、显式声明的 `text/*` body 以及二进制
 fallback marker。不支持的 UTF-8 media type 会被整体 redaction，而不是原样透传。
-返回的 `BodySanitization` 提供脱敏后的 `content`、结构化 `status`，以及已捕获/来源
-字节数。它的 `Display` 和 `into_rendered` 会追加标准的计数截断后缀；
-`into_content` 则不追加，便于调用方使用自己的上下文后缀。诊断内容不是可回放的
-HTTP body：结构化输出可能会被压缩，也不保证保留原始空白、字段顺序，或已脱敏 JSON
-字段的原始 value 类型。调用方仍然负责 body 捕获上限、解压、流式边界和业务自定义
-解析。
+返回的 `BodySanitization` 提供脱敏后的 `content`、结构化 `status`、已捕获字节数，以及
+可选的精确来源字节数。总长已知时，它的 `Display` 和 `into_rendered` 会追加计数截断
+后缀；总长未知时则追加 `...<truncated>`。`into_content` 不追加后缀，便于调用方使用
+自己的上下文渲染。诊断内容不是可回放的 HTTP body：结构化输出可能会被压缩，也不
+保证保留原始空白、字段顺序，或已脱敏 JSON 字段的原始 value 类型。`sanitize_body`
+没有内置字节上限。调用方仍然负责 body 捕获上限、解压、流式边界和业务自定义解析。
 
 ```rust
 use http::HeaderValue;
-use qubit_sanitize::{HttpBodySanitizer, NameMatchMode};
+use qubit_sanitize::{
+    BodySourceLength,
+    HttpBodySanitizer,
+    NameMatchMode,
+};
 
 let prefix = br#"{"password":"secret"#;
 let source_len = 40;
 let content_type = HeaderValue::from_static("application/json");
 let result = HttpBodySanitizer::default().sanitize_body_preview(
     prefix,
-    source_len,
+    BodySourceLength::Known(source_len),
     Some(&content_type),
     NameMatchMode::ExactOrSuffix,
 );
 
-assert_eq!(result.truncated_bytes(), source_len - prefix.len());
+assert_eq!(result.truncated_bytes(), Some(source_len - prefix.len()));
 assert!(!result.content().contains("secret"));
 println!("{result}");
 ```
+
+流式读取器只知道后续字节已被省略、但不知道精确总长时，应使用
+`BodySourceLength::UnknownTruncated`。此时 `source_len()` 和 `truncated_bytes()` 返回
+`None`，渲染结果会追加 `...<truncated>`。
 
 命令执行 crate 可以用 `ArgvSanitizer` 处理结构化 argv，用 `EnvSanitizer` 处理显式
 环境变量覆盖，但不应宣称可以安全解析任意 shell 脚本。
