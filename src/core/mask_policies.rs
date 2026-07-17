@@ -148,7 +148,7 @@ impl Default for MaskPolicies {
 ///
 /// Index into the low, medium, high, and secret policy array.
 #[must_use]
-#[inline(always)]
+#[inline]
 const fn level_index(level: SensitivityLevel) -> usize {
     match level {
         SensitivityLevel::Low => 0,

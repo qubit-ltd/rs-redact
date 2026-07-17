@@ -369,7 +369,7 @@ fn split_multipart_headers_and_body(segment: &[u8]) -> Option<(&str, &[u8])> {
 ///
 /// Bytes without one trailing line ending.
 #[must_use]
-#[inline(always)]
+#[inline]
 fn strip_one_trailing_line_ending(value: &[u8]) -> &[u8] {
     value
         .strip_suffix(b"\r\n")

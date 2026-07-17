@@ -34,7 +34,7 @@ impl BodySourceLength {
     ///
     /// Exact source length when known and whether source bytes were omitted.
     #[must_use]
-    #[inline(always)]
+    #[inline]
     pub(super) const fn resolve(
         self,
         captured_len: usize,

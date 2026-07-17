@@ -73,6 +73,7 @@ fn is_valid_component(component: &[u8]) -> bool {
 
 /// Converts one ASCII hexadecimal digit to its numeric value.
 #[must_use]
+#[inline]
 const fn hex_value(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),

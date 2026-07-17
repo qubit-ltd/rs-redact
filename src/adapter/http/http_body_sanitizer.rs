@@ -518,7 +518,6 @@ impl HttpBodySanitizer {
     ///
     /// A sanitized URL-encoded form result containing the captured and source
     /// lengths, or a redacted result when decoding is invalid or ambiguous.
-    #[inline(always)]
     fn sanitize_form_body(
         &self,
         bytes: &[u8],
@@ -587,7 +586,8 @@ impl HttpBodySanitizer {
                 ),
             ),
             Err(_) => {
-                let content = match source_length.resolve(bytes.len()).0 {
+                let (source_len, _) = source_length.resolve(bytes.len());
+                let content = match source_len {
                     Some(source_len) => format!("<binary {source_len} bytes>"),
                     None => format!("<binary more than {} bytes>", bytes.len()),
                 };
