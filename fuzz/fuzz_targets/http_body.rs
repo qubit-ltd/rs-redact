@@ -7,6 +7,8 @@
 // =============================================================================
 #![no_main]
 
+use std::fmt::Write;
+
 use http::HeaderValue;
 use libfuzzer_sys::fuzz_target;
 use qubit_sanitize::{
@@ -14,6 +16,80 @@ use qubit_sanitize::{
     HttpBodySanitizer,
     NameMatchMode,
 };
+
+const FUZZ_SECRET: &str = "qubit-fuzz-secret-7f54a19c";
+
+/// Encodes a bounded input prefix as lowercase hexadecimal text.
+///
+/// # Parameters
+///
+/// * `data` - Fuzzer-provided bytes used as structured non-secret noise.
+///
+/// # Returns
+///
+/// Hexadecimal text for at most the first 64 bytes.
+#[must_use]
+fn hexadecimal_prefix(data: &[u8]) -> String {
+    let mut encoded = String::with_capacity(data.len().min(64) * 2);
+    for byte in data.iter().take(64) {
+        let _ = write!(&mut encoded, "{byte:02x}");
+    }
+    encoded
+}
+
+/// Verifies a known secret is removed from one valid structured HTTP body.
+///
+/// # Parameters
+///
+/// * `selector` - Chooses JSON, NDJSON, form, or multipart syntax.
+/// * `data` - Fuzzer-provided bytes used as non-secret structured noise.
+fn assert_structured_secret_is_redacted(selector: u8, data: &[u8]) {
+    let noise = hexadecimal_prefix(data);
+    let (body, content_type) = match selector % 4 {
+        0 => (
+            format!(
+                r#"{{"noise":"{noise}","password":"{FUZZ_SECRET}"}}"#
+            )
+            .into_bytes(),
+            HeaderValue::from_static("application/json"),
+        ),
+        1 => (
+            format!(
+                "{{\"noise\":\"{noise}\"}}\n{{\"password\":\"{FUZZ_SECRET}\"}}"
+            )
+            .into_bytes(),
+            HeaderValue::from_static("application/x-ndjson"),
+        ),
+        2 => (
+            format!("noise={noise}&password={FUZZ_SECRET}").into_bytes(),
+            HeaderValue::from_static(
+                "application/x-www-form-urlencoded",
+            ),
+        ),
+        _ => {
+            let mut multipart = b"--boundary\r\nContent-Disposition: form-data; name=\"upload\"; filename=\"fuzz.bin\"\r\nContent-Type: application/octet-stream\r\n\r\n".to_vec();
+            multipart.extend_from_slice(data);
+            multipart.extend_from_slice(
+                format!(
+                    "\r\n--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\n{FUZZ_SECRET}\r\n--boundary--\r\n"
+                )
+                .as_bytes(),
+            );
+            (
+                multipart,
+                HeaderValue::from_static(
+                    "multipart/form-data; boundary=boundary",
+                ),
+            )
+        }
+    };
+    let result = HttpBodySanitizer::default().sanitize_body(
+        &body,
+        Some(&content_type),
+        NameMatchMode::ExactOrSuffix,
+    );
+    assert!(!result.content().contains(FUZZ_SECRET));
+}
 
 fuzz_target!(|data: &[u8]| {
     let [media_selector, source_selector, options, body @ ..] = data else {
@@ -67,4 +143,5 @@ fuzz_target!(|data: &[u8]| {
     if let Some(source_len) = first.source_len() {
         assert!(source_len >= first.captured_len());
     }
+    assert_structured_secret_is_redacted(*media_selector, body);
 });
