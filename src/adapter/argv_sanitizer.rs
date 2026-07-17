@@ -98,69 +98,94 @@ impl ArgvSanitizer {
         let mut parse_options = true;
 
         for arg in argv {
-            let arg = arg.as_ref();
-            let Some(arg) = arg.to_str() else {
-                let encoded = arg.as_encoded_bytes();
-                let may_take_separate_value = parse_options
-                    && encoded.starts_with(b"-")
-                    && !encoded.contains(&b'=');
-                let rendered = arg.to_string_lossy();
-                sanitized.push(
-                    self.field_sanitizer
-                        .mask_value_at_level(
-                            rendered.as_ref(),
-                            SensitivityLevel::Secret,
-                        )
-                        .into_owned(),
-                );
-                pending_sensitive_level =
-                    may_take_separate_value.then_some(SensitivityLevel::Secret);
-                continue;
-            };
-            let sensitive_option_level = parse_options
-                .then(|| self.sensitive_option_level(arg, match_mode))
-                .flatten();
-            if let Some(level) = pending_sensitive_level.take() {
-                if let Some(level) = sensitive_option_level {
-                    pending_sensitive_level = Some(level);
-                    sanitized.push(arg.to_string());
-                } else {
-                    sanitized.push(
-                        self.field_sanitizer
-                            .mask_value_at_level(arg, level)
-                            .into_owned(),
-                    );
-                }
-                continue;
-            }
-
-            if arg == "--" {
-                parse_options = false;
-                sanitized.push(arg.to_string());
-                continue;
-            }
-
-            if let Some(value) = self.sanitize_assignment_arg(arg, match_mode) {
-                sanitized.push(value);
-                continue;
-            }
-
-            if parse_options {
-                if let Some(value) =
-                    self.sanitize_inline_option_arg(arg, match_mode)
-                {
-                    sanitized.push(value);
-                    continue;
-                }
-                if let Some(level) = sensitive_option_level {
-                    pending_sensitive_level = Some(level);
-                }
-            }
-
-            sanitized.push(arg.to_string());
+            self.sanitize_arg(
+                arg.as_ref(),
+                match_mode,
+                &mut sanitized,
+                &mut pending_sensitive_level,
+                &mut parse_options,
+            );
         }
 
         sanitized
+    }
+
+    /// Sanitizes one argv token while updating parser state.
+    ///
+    /// The token is appended to `sanitized` after masking when required. This
+    /// method also updates pending-value sensitivity and whether option parsing
+    /// remains enabled.
+    ///
+    /// # Parameters
+    ///
+    /// * `arg` - Argument token to sanitize.
+    /// * `match_mode` - Field-name matching mode for options and assignments.
+    /// * `sanitized` - Output vector receiving the sanitized token.
+    /// * `pending_sensitive_level` - Sensitivity expected for the next value.
+    /// * `parse_options` - Whether option tokens are still interpreted.
+    fn sanitize_arg(
+        &self,
+        arg: &OsStr,
+        match_mode: NameMatchMode,
+        sanitized: &mut Vec<String>,
+        pending_sensitive_level: &mut Option<SensitivityLevel>,
+        parse_options: &mut bool,
+    ) {
+        let Some(arg) = arg.to_str() else {
+            let encoded = arg.as_encoded_bytes();
+            let may_take_separate_value = *parse_options
+                && encoded.starts_with(b"-")
+                && !encoded.contains(&b'=');
+            let rendered = arg.to_string_lossy();
+            sanitized.push(
+                self.field_sanitizer
+                    .mask_value_at_level(
+                        rendered.as_ref(),
+                        SensitivityLevel::Secret,
+                    )
+                    .into_owned(),
+            );
+            *pending_sensitive_level =
+                may_take_separate_value.then_some(SensitivityLevel::Secret);
+            return;
+        };
+        let sensitive_option_level = (*parse_options)
+            .then(|| self.sensitive_option_level(arg, match_mode))
+            .flatten();
+        if let Some(level) = pending_sensitive_level.take() {
+            if let Some(level) = sensitive_option_level {
+                *pending_sensitive_level = Some(level);
+                sanitized.push(arg.to_string());
+            } else {
+                sanitized.push(
+                    self.field_sanitizer
+                        .mask_value_at_level(arg, level)
+                        .into_owned(),
+                );
+            }
+            return;
+        }
+        if arg == "--" {
+            *parse_options = false;
+            sanitized.push(arg.to_string());
+            return;
+        }
+        if let Some(value) = self.sanitize_assignment_arg(arg, match_mode) {
+            sanitized.push(value);
+            return;
+        }
+        if *parse_options {
+            if let Some(value) =
+                self.sanitize_inline_option_arg(arg, match_mode)
+            {
+                sanitized.push(value);
+                return;
+            }
+            if let Some(level) = sensitive_option_level {
+                *pending_sensitive_level = Some(level);
+            }
+        }
+        sanitized.push(arg.to_string());
     }
 
     /// Sanitizes one argv vector and formats it in argv-debug style.

@@ -136,8 +136,26 @@ impl EnvSanitizer {
         K: AsRef<OsStr>,
         V: AsRef<OsStr>,
     {
-        let key = key.as_ref();
-        let value = value.as_ref();
+        self.sanitize_os_pair_ref(key.as_ref(), value.as_ref(), match_mode)
+    }
+
+    /// Sanitizes one borrowed environment pair that may not be UTF-8.
+    ///
+    /// # Parameters
+    ///
+    /// * `key` - Borrowed environment variable key.
+    /// * `value` - Borrowed environment variable value.
+    /// * `match_mode` - Field-name matching mode for the key.
+    ///
+    /// # Returns
+    ///
+    /// Owned string pair preserving the rendered key and sanitizing the value.
+    fn sanitize_os_pair_ref(
+        &self,
+        key: &OsStr,
+        value: &OsStr,
+        match_mode: NameMatchMode,
+    ) -> (String, String) {
         let rendered_key = key.to_string_lossy();
         let rendered_value = value.to_string_lossy();
         let sanitized_value = match (key.to_str(), value.to_str()) {
