@@ -14,6 +14,7 @@ use crate::{
     adapter::form_url_encoded::{
         is_valid_form_urlencoded,
         sanitize_form_urlencoded,
+        sanitize_valid_form_urlencoded,
     },
 };
 
@@ -206,7 +207,7 @@ impl HttpBodySanitizer {
     /// outputs may be compacted and may not preserve the original field order,
     /// whitespace, or JSON value types for redacted fields. Rendering through
     /// [`BodySanitization::rendered`], [`BodySanitization::into_rendered`], or
-    /// [`std::fmt::Display`] escapes control characters for a text log
+    /// [`std::fmt::Display`] escapes log-unsafe characters for a text log
     /// boundary; [`BodySanitization::content`] remains raw sanitized content.
     ///
     /// # Parameters
@@ -258,7 +259,7 @@ impl HttpBodySanitizer {
     /// outputs may be compacted and may not preserve the original field order,
     /// whitespace, or JSON value types for redacted fields. Rendering through
     /// [`BodySanitization::rendered`], [`BodySanitization::into_rendered`], or
-    /// [`std::fmt::Display`] escapes control characters for a text log
+    /// [`std::fmt::Display`] escapes log-unsafe characters for a text log
     /// boundary; [`BodySanitization::content`] remains raw sanitized content.
     ///
     /// # Parameters
@@ -271,7 +272,7 @@ impl HttpBodySanitizer {
     ///
     /// # Returns
     ///
-    /// Structured preview sanitization result. Rendering escapes control
+    /// Structured preview sanitization result. Rendering escapes log-unsafe
     /// characters and adds a truncation marker when source bytes were omitted.
     /// Exact lengths produce a counted marker, while unknown totals produce
     /// `...<truncated>`. Declared `text/*` previews are redacted unless callers
@@ -617,7 +618,11 @@ impl HttpBodySanitizer {
             );
         }
         BodySanitization::new(
-            self.sanitize_form(bytes, match_mode),
+            sanitize_valid_form_urlencoded(
+                &self.field_sanitizer,
+                bytes,
+                match_mode,
+            ),
             BodySanitizationStatus::Sanitized,
             bytes.len(),
             source_length,

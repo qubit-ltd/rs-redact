@@ -100,6 +100,7 @@ const fn hex_value(byte: u8) -> Option<u8> {
 /// Sanitized URL-encoded form text, or a fixed redaction marker when decoding
 /// is invalid or ambiguous.
 #[must_use = "use the returned sanitized form instead of the original form"]
+#[inline]
 pub(crate) fn sanitize_form_urlencoded(
     field_sanitizer: &FieldSanitizer,
     form: &[u8],
@@ -108,6 +109,31 @@ pub(crate) fn sanitize_form_urlencoded(
     if !is_valid_form_urlencoded(form) {
         return "<redacted: invalid URL-encoded form>".to_string();
     }
+    sanitize_valid_form_urlencoded(field_sanitizer, form, match_mode)
+}
+
+/// Sanitizes URL-encoded form bytes that have already been validated.
+///
+/// Callers must first verify `form` with [`is_valid_form_urlencoded`]. This
+/// helper deliberately skips validation so a caller that needs custom invalid
+/// or truncated input reporting can avoid decoding the same bytes twice.
+///
+/// # Parameters
+///
+/// * `field_sanitizer` - Core sanitizer used for form field values.
+/// * `form` - Valid URL-encoded form bytes.
+/// * `match_mode` - Field-name matching mode for form keys.
+///
+/// # Returns
+///
+/// Sanitized URL-encoded form text with field order and duplicate keys
+/// preserved.
+#[must_use = "use the returned sanitized form instead of the original form"]
+pub(crate) fn sanitize_valid_form_urlencoded(
+    field_sanitizer: &FieldSanitizer,
+    form: &[u8],
+    match_mode: NameMatchMode,
+) -> String {
     let mut serializer = Serializer::new(String::new());
     for (key, value) in form_urlencoded::parse(form) {
         let sanitized_value = field_sanitizer.sanitize_value(
