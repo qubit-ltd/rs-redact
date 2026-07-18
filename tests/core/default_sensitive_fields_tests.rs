@@ -8,7 +8,6 @@
 //! Tests for the default sensitive-field collection.
 
 use qubit_sanitize::{
-    DEFAULT_EXTRA_FIELDS,
     SensitiveFieldPreset,
     SensitiveFields,
     SensitivityLevel,
@@ -67,7 +66,18 @@ fn test_sensitive_fields_default_matches_presets_plus_extras() {
     ] {
         from_presets.extend_preset(preset);
     }
-    for &(field, level) in DEFAULT_EXTRA_FIELDS {
+    for (field, level) in [
+        ("auth_app_token", SensitivityLevel::High),
+        ("auth_user_token", SensitivityLevel::High),
+        ("connection_string", SensitivityLevel::Secret),
+        ("database_uri", SensitivityLevel::Secret),
+        ("database_url", SensitivityLevel::Secret),
+        ("license_key", SensitivityLevel::Medium),
+        ("mysql_pwd", SensitivityLevel::Secret),
+        ("rediscli_auth", SensitivityLevel::Secret),
+        ("sig", SensitivityLevel::Secret),
+        ("signature", SensitivityLevel::Secret),
+    ] {
         from_presets.insert_strongest(field, level);
     }
 

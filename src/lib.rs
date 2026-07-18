@@ -43,13 +43,14 @@
 //! They only inspect formats and field names they explicitly model; callers
 //! remain responsible for application-specific secrets and protocols.
 //! Field sanitization is not log escaping: values whose field names are not
-//! classified as sensitive may be returned unchanged, including control
+//! classified as sensitive may be returned unchanged, including log-unsafe
 //! characters. At untrusted text boundaries, callers should use structured
 //! logging, [`escape_log_control_characters`], or adapter display helpers such
 //! as [`ArgvSanitizer::sanitize_argv_display`] and
 //! [`EnvSanitizer::sanitize_assignments_display`]. HTTP body
 //! `BodySanitization::rendered` and `BodySanitization::into_rendered` escape
-//! control characters; `BodySanitization::content` intentionally remains raw
+//! controls, Unicode line and paragraph separators, and bidirectional
+//! formatting controls; `BodySanitization::content` intentionally remains raw
 //! sanitized content.
 //!
 //! ```
@@ -102,7 +103,6 @@ pub use adapter::{
     UrlSanitizer,
 };
 pub use core::{
-    DEFAULT_EXTRA_FIELDS,
     FieldSanitizePolicy,
     FieldSanitizer,
     MaskPolicies,

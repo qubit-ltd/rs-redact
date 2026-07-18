@@ -20,7 +20,6 @@ mod sensitive_field_preset;
 mod sensitive_fields;
 mod sensitivity_level;
 
-pub use default_sensitive_fields::DEFAULT_EXTRA_FIELDS;
 pub use field_name::canonicalize_field_name;
 pub use field_sanitize_policy::FieldSanitizePolicy;
 pub use field_sanitizer::FieldSanitizer;

@@ -13,7 +13,6 @@ use qubit_sanitize::FormUrlEncodedSanitizer;
 use qubit_sanitize::UrlSanitizer;
 use qubit_sanitize::{
     ArgvSanitizer,
-    DEFAULT_EXTRA_FIELDS,
     EnvSanitizer,
     FieldSanitizePolicy,
     FieldSanitizer,
@@ -41,9 +40,6 @@ use qubit_sanitize::{
 
 #[test]
 fn test_lib_exports_public_api() {
-    let fields: &'static [(&'static str, SensitivityLevel)] =
-        DEFAULT_EXTRA_FIELDS;
-    assert!(!fields.is_empty());
     let _ = ArgvSanitizer::default();
     let _ = EnvSanitizer::default();
     let _ = escape_log_control_characters("safe");
