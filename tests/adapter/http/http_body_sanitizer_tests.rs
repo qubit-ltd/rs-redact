@@ -241,7 +241,7 @@ fn test_http_body_sanitizer_sanitize_body_redacts_ndjson_fields() {
     );
     let sanitized = sanitized.into_rendered();
 
-    assert_eq!(sanitized, "{\"id\":1,\"token\":\"****\"}\n\n{\"id\":2}");
+    assert_eq!(sanitized, r#"{"id":1,"token":"****"}\n\n{"id":2}"#);
     assert!(!sanitized.contains("abc"));
 }
 

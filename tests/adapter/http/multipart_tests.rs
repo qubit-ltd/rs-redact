@@ -252,7 +252,7 @@ fn test_http_body_sanitizer_sanitize_body_handles_empty_multipart_body() {
     );
     let sanitized = sanitized.into_rendered();
 
-    assert_eq!(sanitized, "<multipart>\n</multipart>");
+    assert_eq!(sanitized, r"<multipart>\n</multipart>");
 }
 
 #[test]

@@ -42,11 +42,15 @@
 //! Adapter APIs apply the same explicit matching mode to structured inputs.
 //! They only inspect formats and field names they explicitly model; callers
 //! remain responsible for application-specific secrets and protocols.
-//! Sanitization is not log escaping: values whose field names are not
+//! Field sanitization is not log escaping: values whose field names are not
 //! classified as sensitive may be returned unchanged, including control
-//! characters. Callers should use structured logging or adapter display
-//! helpers such as [`ArgvSanitizer::sanitize_argv_display`] and
-//! [`EnvSanitizer::sanitize_assignments_display`] at untrusted text boundaries.
+//! characters. At untrusted text boundaries, callers should use structured
+//! logging, [`escape_log_control_characters`], or adapter display helpers such
+//! as [`ArgvSanitizer::sanitize_argv_display`] and
+//! [`EnvSanitizer::sanitize_assignments_display`]. HTTP body
+//! `BodySanitization::rendered` and `BodySanitization::into_rendered` escape
+//! control characters; `BodySanitization::content` intentionally remains raw
+//! sanitized content.
 //!
 //! ```
 //! # #[cfg(feature = "http")]
@@ -109,5 +113,6 @@ pub use core::{
     SensitiveFields,
     SensitivityLevel,
     canonicalize_field_name,
+    escape_log_control_characters,
     redacted_debug,
 };

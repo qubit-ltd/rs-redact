@@ -204,7 +204,10 @@ impl HttpBodySanitizer {
     /// The returned result contains diagnostic content and source-length
     /// metadata. Its rendered form is not a replayable HTTP body. Structured
     /// outputs may be compacted and may not preserve the original field order,
-    /// whitespace, or JSON value types for redacted fields.
+    /// whitespace, or JSON value types for redacted fields. Rendering through
+    /// [`BodySanitization::rendered`], [`BodySanitization::into_rendered`], or
+    /// [`std::fmt::Display`] escapes control characters for a text log
+    /// boundary; [`BodySanitization::content`] remains raw sanitized content.
     ///
     /// # Parameters
     ///
@@ -253,7 +256,10 @@ impl HttpBodySanitizer {
     /// The returned result contains diagnostic content and source-length
     /// metadata. Its rendered form is not a replayable HTTP body. Structured
     /// outputs may be compacted and may not preserve the original field order,
-    /// whitespace, or JSON value types for redacted fields.
+    /// whitespace, or JSON value types for redacted fields. Rendering through
+    /// [`BodySanitization::rendered`], [`BodySanitization::into_rendered`], or
+    /// [`std::fmt::Display`] escapes control characters for a text log
+    /// boundary; [`BodySanitization::content`] remains raw sanitized content.
     ///
     /// # Parameters
     ///
@@ -265,10 +271,11 @@ impl HttpBodySanitizer {
     ///
     /// # Returns
     ///
-    /// Structured preview sanitization result. Rendering it adds a truncation
-    /// marker when source bytes were omitted. Exact lengths produce a counted
-    /// marker, while unknown totals produce `...<truncated>`. Declared `text/*`
-    /// previews are redacted unless callers explicitly select
+    /// Structured preview sanitization result. Rendering escapes control
+    /// characters and adds a truncation marker when source bytes were omitted.
+    /// Exact lengths produce a counted marker, while unknown totals produce
+    /// `...<truncated>`. Declared `text/*` previews are redacted unless callers
+    /// explicitly select
     /// [`TextBodyPolicy::PassThrough`]. Unsupported UTF-8 previews are
     /// redacted. Bodies with a present but non-UTF-8 `Content-Type` are fully
     /// redacted because the structured parser cannot choose a safe media-type

@@ -82,3 +82,23 @@ fn test_http_body_sanitizer_reports_top_level_text_as_passed_through() {
 
     assert_eq!(result.status(), BodySanitizationStatus::PassedThrough);
 }
+
+#[test]
+fn test_body_sanitization_rendering_escapes_log_control_characters() {
+    let sanitizer = HttpBodySanitizer::default()
+        .with_text_body_policy(TextBodyPolicy::PassThrough);
+    let content_type = HeaderValue::from_static("text/plain");
+    let body = b"first\nsecond\t\x1b[31m";
+
+    let result = sanitizer.sanitize_body(
+        body,
+        Some(&content_type),
+        NameMatchMode::Exact,
+    );
+
+    assert_eq!(result.content().as_bytes(), body);
+    assert_eq!(result.clone().into_content().as_bytes(), body);
+    assert_eq!(result.to_string(), r"first\nsecond\t\u{1b}[31m");
+    assert_eq!(result.rendered(), r"first\nsecond\t\u{1b}[31m");
+    assert_eq!(result.into_rendered(), r"first\nsecond\t\u{1b}[31m");
+}

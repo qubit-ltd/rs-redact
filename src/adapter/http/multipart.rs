@@ -7,7 +7,10 @@
 // =============================================================================
 //! Multipart body parsing and sanitized diagnostic summary rendering.
 
-use crate::NameMatchMode;
+use crate::{
+    NameMatchMode,
+    escape_log_control_characters,
+};
 
 use super::{
     content_type,
@@ -152,9 +155,9 @@ fn sanitize_multipart_part_value(
     {
         let masked =
             sanitizer.field_sanitizer().mask_value_at_level(body, level);
-        return Some(sanitized_part(escape_multipart_diagnostic_value(
-            masked.as_ref(),
-        )));
+        return Some(sanitized_part(
+            escape_log_control_characters(masked.as_ref()).into_owned(),
+        ));
     }
     if field_name == MULTIPART_UNNAMED_FIELD {
         return Some(sanitized_part(MULTIPART_PART_REDACTED.to_string()));
@@ -189,27 +192,6 @@ fn sanitize_multipart_part_value(
         return Some(sanitize_text_part(sanitizer, body));
     }
     Some(sanitized_part(MULTIPART_PART_REDACTED.to_string()))
-}
-
-/// Escapes control characters in one masked multipart diagnostic value.
-///
-/// # Parameters
-///
-/// * `value` - Masked value that may preserve caller-controlled characters.
-///
-/// # Returns
-///
-/// A diagnostic value with control characters represented by debug escapes.
-fn escape_multipart_diagnostic_value(value: &str) -> String {
-    let mut escaped = String::with_capacity(value.len());
-    for character in value.chars() {
-        if character.is_control() {
-            escaped.extend(character.escape_debug());
-        } else {
-            escaped.push(character);
-        }
-    }
-    escaped
 }
 
 /// Wraps content that contains no passed-through opaque text.

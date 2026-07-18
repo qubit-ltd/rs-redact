@@ -11,6 +11,7 @@ mod default_sensitive_fields_tests;
 mod field_name_tests;
 mod field_sanitize_policy_tests;
 mod field_sanitizer_tests;
+mod log_escape_tests;
 mod mask_policies_tests;
 mod mask_policy_tests;
 mod name_match_mode_tests;

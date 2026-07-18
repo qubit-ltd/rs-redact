@@ -24,6 +24,7 @@ use qubit_sanitize::{
     SensitiveFieldPreset,
     SensitiveFields,
     SensitivityLevel,
+    escape_log_control_characters,
     redacted_debug,
 };
 #[cfg(feature = "http")]
@@ -45,6 +46,7 @@ fn test_lib_exports_public_api() {
     assert!(!fields.is_empty());
     let _ = ArgvSanitizer::default();
     let _ = EnvSanitizer::default();
+    let _ = escape_log_control_characters("safe");
     let _ = FieldSanitizePolicy::default();
     let _ = FieldSanitizer::default();
     let _ = MaskPolicies::default();
