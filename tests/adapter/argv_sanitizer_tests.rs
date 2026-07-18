@@ -74,7 +74,7 @@ fn test_argv_sanitizer_masks_sensitive_option_next_value() {
 }
 
 #[test]
-fn test_argv_sanitizer_recognizes_consecutive_sensitive_options() {
+fn test_argv_sanitizer_masks_ambiguous_consecutive_sensitive_options() {
     let sanitizer = ArgvSanitizer::default();
 
     assert_eq!(
@@ -82,7 +82,7 @@ fn test_argv_sanitizer_recognizes_consecutive_sensitive_options() {
             ["cmd", "--password", "--token", "second-secret"],
             NameMatchMode::ExactOrSuffix,
         ),
-        ["cmd", "--password", "--token", "****"],
+        ["cmd", "--password", "<redacted>", "****"],
     );
 }
 

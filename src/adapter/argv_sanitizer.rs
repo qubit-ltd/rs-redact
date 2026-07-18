@@ -216,14 +216,17 @@ impl ArgvSanitizer {
         let sensitive_option_level = (*parse_options)
             .then(|| self.sensitive_option_level(arg, match_mode))
             .flatten();
-        if let Some(level) = pending_sensitive_level.take() {
-            if let Some(level) = sensitive_option_level {
-                *pending_sensitive_level = Some(level);
-                return arg.to_string();
+        if let Some(pending_level) = pending_sensitive_level.take() {
+            if let Some(option_level) = sensitive_option_level {
+                *pending_sensitive_level = Some(option_level);
+                return self
+                    .field_sanitizer
+                    .mask_value_at_level(arg, pending_level)
+                    .into_owned();
             } else {
                 return self
                     .field_sanitizer
-                    .mask_value_at_level(arg, level)
+                    .mask_value_at_level(arg, pending_level)
                     .into_owned();
             }
         }
@@ -327,6 +330,10 @@ impl ArgvSanitizer {
 
 impl Default for ArgvSanitizer {
     /// Creates an argv sanitizer using [`FieldSanitizer::default`].
+    ///
+    /// # Returns
+    ///
+    /// Argv sanitizer configured with default sensitive fields and masks.
     #[inline(always)]
     fn default() -> Self {
         Self::new(FieldSanitizer::default())
