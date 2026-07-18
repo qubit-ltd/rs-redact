@@ -78,7 +78,7 @@ fn test_http_body_sanitizer_sanitize_body_redacts_json_fields() {
 #[test]
 fn test_http_body_sanitizer_fixed_policy_masks_non_string_json_values() {
     let mut policy = FieldSanitizePolicy::empty();
-    policy.sensitive_fields_mut().extend(
+    policy.extend_sensitive_fields(
         ["numeric", "boolean", "array", "object", "nothing"],
         SensitivityLevel::High,
     );
@@ -104,9 +104,7 @@ fn test_http_body_sanitizer_fixed_policy_masks_non_string_json_values() {
 #[test]
 fn test_http_body_sanitizer_empty_policy_masks_non_string_json_value() {
     let mut policy = FieldSanitizePolicy::empty();
-    policy
-        .sensitive_fields_mut()
-        .insert("payload", SensitivityLevel::High);
+    policy.insert_sensitive_field("payload", SensitivityLevel::High);
     policy
         .mask_policies_mut()
         .set(SensitivityLevel::High, MaskPolicy::empty());
@@ -289,9 +287,7 @@ fn test_http_body_sanitizer_sanitize_body_redacts_form_fields() {
 #[test]
 fn test_http_body_sanitizer_sanitize_body_uses_custom_policy() {
     let mut policy = FieldSanitizePolicy::empty();
-    policy
-        .sensitive_fields_mut()
-        .insert("customer_id", SensitivityLevel::High);
+    policy.insert_sensitive_field("customer_id", SensitivityLevel::High);
     let sanitizer = HttpBodySanitizer::new(FieldSanitizer::new(policy));
     let content_type = HeaderValue::from_static("application/json");
 

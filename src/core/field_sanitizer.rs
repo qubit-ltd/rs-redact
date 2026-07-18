@@ -61,7 +61,9 @@ impl FieldSanitizer {
         &mut self.policy
     }
 
-    /// Adds one sensitive field to this sanitizer.
+    /// Adds one sensitive field without lowering an existing level.
+    ///
+    /// A matching explicit exclusion is cancelled before the field is added.
     ///
     /// # Parameters
     ///
@@ -73,10 +75,7 @@ impl FieldSanitizer {
         field: &str,
         level: SensitivityLevel,
     ) {
-        self.policy.include_sensitive_field(field);
-        self.policy
-            .sensitive_fields_mut()
-            .insert_strongest(field, level);
+        self.policy.insert_sensitive_field(field, level);
     }
 
     /// Explicitly excludes one sensitive field from this sanitizer.
@@ -90,14 +89,14 @@ impl FieldSanitizer {
     ///
     /// # Parameters
     ///
-    /// * `field` - Field name to remove after canonicalization.
+    /// * `field` - Field name to exclude after canonicalization.
     ///
     /// # Returns
     ///
     /// The removed sensitivity level, or `None` when the field was not
     /// configured.
     #[inline(always)]
-    pub fn remove_sensitive_field(
+    pub fn exclude_sensitive_field(
         &mut self,
         field: &str,
     ) -> Option<SensitivityLevel> {
@@ -105,6 +104,8 @@ impl FieldSanitizer {
     }
 
     /// Explicitly replaces the sensitivity level for one field.
+    ///
+    /// A matching explicit exclusion is cancelled before the field is added.
     ///
     /// # Parameters
     ///
@@ -116,17 +117,17 @@ impl FieldSanitizer {
         field: &str,
         level: SensitivityLevel,
     ) {
-        self.policy.include_sensitive_field(field);
-        self.policy.sensitive_fields_mut().insert(field, level);
+        self.policy.set_sensitive_field_level(field, level);
     }
 
-    /// Adds each field with the same sensitivity level.
+    /// Adds each field without lowering existing sensitivity levels.
+    ///
+    /// Matching explicit exclusions are cancelled as fields are added.
     ///
     /// # Parameters
     ///
     /// * `fields` - Field names to add.
     /// * `level` - Sensitivity level assigned to every field.
-    #[inline(always)]
     pub fn extend_sensitive_fields<I, S>(
         &mut self,
         fields: I,
@@ -135,21 +136,18 @@ impl FieldSanitizer {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        for field in fields {
-            self.insert_sensitive_field(field.as_ref(), level);
-        }
+        self.policy.extend_sensitive_fields(fields, level);
     }
 
-    /// Adds one predefined field group.
+    /// Adds one predefined field group without lowering existing levels.
+    ///
+    /// Matching explicit exclusions are cancelled as fields are added.
     ///
     /// # Parameters
     ///
     /// * `preset` - Predefined group to insert.
-    #[inline(always)]
     pub fn extend_preset(&mut self, preset: SensitiveFieldPreset) {
-        for &(field, level) in preset.fields() {
-            self.insert_sensitive_field(field, level);
-        }
+        self.policy.extend_preset(preset);
     }
 
     /// Returns the sensitivity level for a field name.

@@ -34,26 +34,26 @@ fn test_field_sanitizer_sanitize_value_masks_default_sensitive_field() {
 }
 
 #[test]
-fn test_field_sanitizer_can_remove_default_sensitive_field() {
+fn test_field_sanitizer_can_exclude_default_sensitive_field() {
     let mut sanitizer = FieldSanitizer::default();
 
     assert_eq!(
-        sanitizer.remove_sensitive_field("SIG"),
+        sanitizer.exclude_sensitive_field("SIG"),
         Some(SensitivityLevel::Secret),
     );
     assert_eq!(
         sanitizer.sanitize_value("sig", "false-positive", NameMatchMode::Exact),
         "false-positive",
     );
-    assert_eq!(sanitizer.remove_sensitive_field("sig"), None);
+    assert_eq!(sanitizer.exclude_sensitive_field("sig"), None);
 }
 
 #[test]
-fn test_field_sanitizer_removed_field_wins_over_sensitive_suffix() {
+fn test_field_sanitizer_excluded_field_wins_over_sensitive_suffix() {
     let mut sanitizer = FieldSanitizer::default();
 
     assert_eq!(
-        sanitizer.remove_sensitive_field("access_token"),
+        sanitizer.exclude_sensitive_field("access_token"),
         Some(SensitivityLevel::High),
     );
     assert_eq!(

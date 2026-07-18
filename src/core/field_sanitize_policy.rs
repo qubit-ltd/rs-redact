@@ -9,12 +9,18 @@ use std::collections::BTreeSet;
 
 use super::{
     MaskPolicies,
+    SensitiveFieldPreset,
     SensitiveFields,
     SensitivityLevel,
     canonicalize_field_name,
 };
 
 /// Policy used by [`crate::FieldSanitizer`] for field-value sanitization.
+///
+/// The policy owns both positive field entries and explicit exclusions. Its
+/// mutation methods keep those sets consistent: adding or setting a field
+/// cancels its matching exclusion, while replacing the complete field set
+/// clears every exclusion.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldSanitizePolicy {
@@ -61,6 +67,9 @@ impl FieldSanitizePolicy {
 
     /// Returns a copy with the sensitive fields replaced.
     ///
+    /// Replacing the complete field set clears every explicit exclusion so
+    /// that `fields` is authoritative.
+    ///
     /// # Parameters
     ///
     /// * `fields` - Replacement sensitive fields.
@@ -68,9 +77,9 @@ impl FieldSanitizePolicy {
     /// # Returns
     ///
     /// The updated sanitization policy.
-    #[inline(always)]
+    #[inline]
     pub fn with_sensitive_fields(mut self, fields: SensitiveFields) -> Self {
-        self.sensitive_fields = fields;
+        self.set_sensitive_fields(fields);
         self
     }
 
@@ -99,14 +108,143 @@ impl FieldSanitizePolicy {
         &self.sensitive_fields
     }
 
-    /// Returns the configured sensitive fields mutably.
+    /// Replaces the configured sensitive fields.
+    ///
+    /// Replacing the complete field set clears every explicit exclusion so
+    /// that the supplied set is authoritative.
+    ///
+    /// # Parameters
+    ///
+    /// * `fields` - Replacement sensitive fields.
+    #[inline]
+    pub fn set_sensitive_fields(&mut self, fields: SensitiveFields) {
+        self.sensitive_fields = fields;
+        self.excluded_fields.clear();
+    }
+
+    /// Adds one sensitive field without lowering an existing level.
+    ///
+    /// A matching explicit exclusion is cancelled before the field is added.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Field name to mark sensitive.
+    /// * `level` - Minimum sensitivity level assigned to the field.
+    #[inline]
+    pub fn insert_sensitive_field(
+        &mut self,
+        field: &str,
+        level: SensitivityLevel,
+    ) {
+        self.excluded_fields.remove(&canonicalize_field_name(field));
+        self.sensitive_fields.insert_strongest(field, level);
+    }
+
+    /// Explicitly replaces the sensitivity level for one field.
+    ///
+    /// A matching explicit exclusion is cancelled before the field is added.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Field name whose level should be replaced.
+    /// * `level` - Replacement sensitivity level, even when weaker.
+    #[inline]
+    pub fn set_sensitive_field_level(
+        &mut self,
+        field: &str,
+        level: SensitivityLevel,
+    ) {
+        self.excluded_fields.remove(&canonicalize_field_name(field));
+        self.sensitive_fields.insert(field, level);
+    }
+
+    /// Adds each field without lowering existing sensitivity levels.
+    ///
+    /// Matching explicit exclusions are cancelled as fields are added.
+    ///
+    /// # Parameters
+    ///
+    /// * `fields` - Field names to add.
+    /// * `level` - Minimum sensitivity level assigned to every field.
+    pub fn extend_sensitive_fields<I, S>(
+        &mut self,
+        fields: I,
+        level: SensitivityLevel,
+    ) where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        for field in fields {
+            self.insert_sensitive_field(field.as_ref(), level);
+        }
+    }
+
+    /// Adds one predefined field group without lowering existing levels.
+    ///
+    /// Matching explicit exclusions are cancelled as fields are added.
+    ///
+    /// # Parameters
+    ///
+    /// * `preset` - Predefined group to insert.
+    pub fn extend_preset(&mut self, preset: SensitiveFieldPreset) {
+        for &(field, level) in preset.fields() {
+            self.insert_sensitive_field(field, level);
+        }
+    }
+
+    /// Explicitly excludes one sensitive field.
+    ///
+    /// The exclusion wins over positive matches at the same canonical token
+    /// boundary. With [`crate::NameMatchMode::ExactOrSuffix`], excluding
+    /// `access_token` also prevents a contextual name such as
+    /// `OPENAI_ACCESS_TOKEN` from falling back to the shorter built-in
+    /// `token` suffix. Callers should use this only after deciding that
+    /// exposing matching values is acceptable in their diagnostic context.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Field name to exclude after canonicalization.
     ///
     /// # Returns
     ///
-    /// Mutable sensitive fields and their levels.
+    /// The removed exact sensitivity level, or `None` when no exact entry was
+    /// configured.
+    #[inline]
+    pub fn exclude_sensitive_field(
+        &mut self,
+        field: &str,
+    ) -> Option<SensitivityLevel> {
+        let canonical = canonicalize_field_name(field);
+        if !canonical.is_empty() {
+            self.excluded_fields.insert(canonical);
+        }
+        self.sensitive_fields.remove(field)
+    }
+
+    /// Returns whether one field has an explicit exclusion.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Field name to test after canonicalization.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the canonical field name is explicitly excluded.
+    #[must_use]
+    #[inline]
+    pub fn is_sensitive_field_excluded(&self, field: &str) -> bool {
+        self.excluded_fields
+            .contains(&canonicalize_field_name(field))
+    }
+
+    /// Iterates canonical field names with explicit exclusions.
+    ///
+    /// # Returns
+    ///
+    /// Iterator over excluded canonical field names in sorted order.
     #[inline(always)]
-    pub fn sensitive_fields_mut(&mut self) -> &mut SensitiveFields {
-        &mut self.sensitive_fields
+    pub fn excluded_sensitive_fields(&self) -> impl Iterator<Item = &str> {
+        self.excluded_fields.iter().map(String::as_str)
     }
 
     /// Returns the configured mask policies.
@@ -127,38 +265,6 @@ impl FieldSanitizePolicy {
     #[inline(always)]
     pub fn mask_policies_mut(&mut self) -> &mut MaskPolicies {
         &mut self.mask_policies
-    }
-
-    /// Records one explicit exclusion and removes its exact positive entry.
-    ///
-    /// # Parameters
-    ///
-    /// * `field` - Field name to exclude after canonicalization.
-    ///
-    /// # Returns
-    ///
-    /// The removed exact sensitivity level, or `None` when no exact entry was
-    /// configured.
-    #[inline]
-    pub(super) fn exclude_sensitive_field(
-        &mut self,
-        field: &str,
-    ) -> Option<SensitivityLevel> {
-        let canonical = canonicalize_field_name(field);
-        if !canonical.is_empty() {
-            self.excluded_fields.insert(canonical);
-        }
-        self.sensitive_fields.remove(field)
-    }
-
-    /// Cancels the exact exclusion for one field name.
-    ///
-    /// # Parameters
-    ///
-    /// * `field` - Field name to include after canonicalization.
-    #[inline]
-    pub(super) fn include_sensitive_field(&mut self, field: &str) {
-        self.excluded_fields.remove(&canonicalize_field_name(field));
     }
 
     /// Returns canonical field names that override positive matches.

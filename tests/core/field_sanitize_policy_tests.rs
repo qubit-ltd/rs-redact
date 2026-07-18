@@ -9,8 +9,11 @@
 
 use qubit_sanitize::{
     FieldSanitizePolicy,
+    FieldSanitizer,
     MaskPolicies,
     MaskPolicy,
+    NameMatchMode,
+    SensitiveFieldPreset,
     SensitiveFields,
     SensitivityLevel,
 };
@@ -35,9 +38,7 @@ fn test_field_sanitize_policy_new_and_accessors_expose_owned_components() {
         "low",
     );
 
-    policy
-        .sensitive_fields_mut()
-        .insert("second", SensitivityLevel::High);
+    policy.insert_sensitive_field("second", SensitivityLevel::High);
     policy
         .mask_policies_mut()
         .set(SensitivityLevel::High, MaskPolicy::fixed("high"));
@@ -76,4 +77,83 @@ fn test_field_sanitize_policy_builders_replace_owned_components() {
             .mask("value"),
         "secret",
     );
+}
+
+#[test]
+fn test_field_sanitize_policy_replacement_clears_explicit_exclusions() {
+    let mut policy = FieldSanitizePolicy::default();
+    policy.exclude_sensitive_field("password");
+
+    let mut replacement = SensitiveFields::new();
+    replacement.insert("password", SensitivityLevel::Secret);
+    let policy = policy.with_sensitive_fields(replacement);
+    let sanitizer = FieldSanitizer::new(policy);
+
+    assert_eq!(
+        sanitizer.sensitivity_for_name("password", NameMatchMode::Exact),
+        Some(SensitivityLevel::Secret),
+    );
+}
+
+#[test]
+fn test_field_sanitize_policy_mutations_cancel_matching_exclusions() {
+    let mut policy = FieldSanitizePolicy::default();
+
+    assert_eq!(
+        policy.exclude_sensitive_field("API_KEY"),
+        Some(SensitivityLevel::High),
+    );
+    assert!(policy.is_sensitive_field_excluded("api_key"));
+    assert_eq!(
+        policy.excluded_sensitive_fields().collect::<Vec<_>>(),
+        vec!["apikey"],
+    );
+
+    policy.insert_sensitive_field("apiKey", SensitivityLevel::Low);
+    assert_eq!(
+        policy.sensitive_fields().level_for("api_key"),
+        Some(SensitivityLevel::Low),
+    );
+    assert!(!policy.is_sensitive_field_excluded("api_key"));
+
+    policy.exclude_sensitive_field("api_key");
+    policy.set_sensitive_field_level("api_key", SensitivityLevel::Medium);
+    assert_eq!(
+        policy.sensitive_fields().level_for("api_key"),
+        Some(SensitivityLevel::Medium),
+    );
+    assert!(!policy.is_sensitive_field_excluded("api_key"));
+
+    policy.exclude_sensitive_field("password");
+    policy.extend_sensitive_fields(["password"], SensitivityLevel::High);
+    assert_eq!(
+        policy.sensitive_fields().level_for("password"),
+        Some(SensitivityLevel::High),
+    );
+    assert!(!policy.is_sensitive_field_excluded("password"));
+
+    policy.exclude_sensitive_field("password");
+    policy.extend_preset(SensitiveFieldPreset::Credentials);
+    assert_eq!(
+        policy.sensitive_fields().level_for("password"),
+        Some(SensitivityLevel::Secret),
+    );
+    assert!(!policy.is_sensitive_field_excluded("password"));
+}
+
+#[test]
+fn test_field_sanitize_policy_set_sensitive_fields_clears_all_exclusions() {
+    let mut policy = FieldSanitizePolicy::default();
+    policy.exclude_sensitive_field("password");
+    policy.exclude_sensitive_field("api_key");
+
+    let mut replacement = SensitiveFields::new();
+    replacement.insert("custom", SensitivityLevel::High);
+    policy.set_sensitive_fields(replacement);
+
+    assert_eq!(
+        policy.sensitive_fields().level_for("custom"),
+        Some(SensitivityLevel::High),
+    );
+    assert_eq!(policy.excluded_sensitive_fields().next(), None);
 }
