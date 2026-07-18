@@ -121,6 +121,8 @@ such as:
 - `password`, `passwd`, `passphrase`, `pgpassword`, `secret`, `client_secret`
 - `private_key`, `security_key`, `mysql_pwd`, `rediscli_auth`
 - `database_url`, `database_uri`, `connection_string`
+- `dsn`, `redis_url`, `mongodb_uri`, `amqp_url`, `http_proxy`, `https_proxy`
+- `all_proxy`, `docker_auth_config`
 - `api_key`, `x_api_key`
 - `token`, `access_token`, `refresh_token`, `id_token`, `sig`, `signature`
 - `authorization`, `proxy_authorization`, `cookie`, `set_cookie`
@@ -202,8 +204,9 @@ including a downgrade, is intended. At the lower-level `SensitiveFields` API,
 `insert_strongest` and `extend_strongest` prevent downgrades.
 
 Built-in names can be removed when an application has verified a false
-positive. Removing a default is an explicit disclosure decision: matching
-values are returned unchanged afterward.
+positive. Removing a default is an explicit disclosure decision: the
+exclusion wins over shorter sensitive suffixes, so matching values are
+returned unchanged afterward.
 
 ```rust
 use qubit_sanitize::{FieldSanitizer, NameMatchMode};
@@ -291,7 +294,7 @@ let url = UrlSanitizer::default()
     .expect("sample URL should parse");
 assert_eq!(
     url,
-    "https://****:%3Credacted%3E@example.com/path?access_token=****#****",
+    "https://****:%3Credacted%3E@example.com/%3Credacted%3E?access_token=****#****",
 );
 
 let form = FormUrlEncodedSanitizer::default()
@@ -331,9 +334,13 @@ names such as `OPENAI_API_KEY` should match the configured field `api_key`.
 
 `UrlSanitizer` masks userinfo and fragments with the `High` policy, passwords
 with the `Secret` policy, and configured query parameters by their resolved
-field level. It preserves URL paths by default because path segment semantics
-are application-specific. Select `UrlPathPolicy::Redact` when a complete path
-may contain vendor-specific webhook tokens or other secrets.
+field level. It redacts non-root URL paths by default because path segments may
+contain vendor-specific webhook tokens or other secrets. Select
+`UrlPathPolicy::Preserve` only after reviewing that diagnostic boundary.
+
+`sanitize_url_str` returns a parse error for invalid input. At logging and
+diagnostic boundaries, use `sanitize_url_str_or_redact` to replace an invalid
+URL with `<redacted: invalid URL>` instead of returning the original text.
 
 Malformed percent escapes or percent-decoded non-UTF-8 in URL queries and
 URL-encoded forms are redacted as a whole. This fail-closed behavior prevents
@@ -459,10 +466,10 @@ let sanitizer = HttpBodySanitizer::default()
 ## Testing
 
 ```bash
-# Core API with the default empty feature set
-cargo test --no-default-features
+# Run tests with the default feature set
+cargo test
 
-# Core API plus regex validation
+# Run tests with all declared features
 cargo test --all-features
 
 # Project CI checks

@@ -55,6 +55,15 @@ fn test_credentials_preset_contains_security_key_as_secret() {
 }
 
 #[test]
+fn test_sensitive_field_preset_credential_container_fields() {
+    let fields = SensitiveFieldPreset::CredentialContainers.fields();
+
+    assert_eq!(fields.len(), 11);
+    assert_eq!(fields[0], ("dsn", SensitivityLevel::Secret));
+    assert_eq!(fields[10], ("docker_auth_config", SensitivityLevel::Secret),);
+}
+
+#[test]
 fn test_sensitive_field_preset_auth_tokens_fields() {
     let fields = SensitiveFieldPreset::AuthTokens.fields();
 

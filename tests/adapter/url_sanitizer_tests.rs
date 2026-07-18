@@ -58,7 +58,7 @@ fn test_url_sanitizer_sanitize_url_masks_sensitive_components() {
 
     assert_eq!(
         sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
-        "https://****:%3Credacted%3E@example.com/path?access_token=****&mode=debug#****",
+        "https://****:%3Credacted%3E@example.com/%3Credacted%3E?access_token=****&mode=debug#****",
     );
 }
 
@@ -74,7 +74,7 @@ fn test_url_sanitizer_masks_signed_url_credentials() {
 
     assert_eq!(
         sanitized,
-        "https://example.com/object?X-Amz-Signature=%3Credacted%3E&X-Goog-Signature=%3Credacted%3E&sig=%3Credacted%3E",
+        "https://example.com/%3Credacted%3E?X-Amz-Signature=%3Credacted%3E&X-Goog-Signature=%3Credacted%3E&sig=%3Credacted%3E",
     );
 }
 
@@ -115,7 +115,7 @@ fn test_url_sanitizer_sanitize_url_str_parses_and_masks_prefixed_query_name() {
                 NameMatchMode::ExactOrSuffix
             )
             .expect("test URL should parse"),
-        "https://example.com/callback?openai_api_key=****&state=ok",
+        "https://example.com/%3Credacted%3E?openai_api_key=****&state=ok",
     );
 }
 
@@ -130,7 +130,7 @@ fn test_url_sanitizer_sanitize_url_str_exact_mode_keeps_prefixed_query_name() {
                 NameMatchMode::Exact,
             )
             .expect("test URL should parse"),
-        "https://example.com/callback?openai_api_key=abcdef&state=ok",
+        "https://example.com/%3Credacted%3E?openai_api_key=abcdef&state=ok",
     );
 }
 
@@ -146,6 +146,19 @@ fn test_url_sanitizer_sanitize_url_str_reports_parse_error() {
 }
 
 #[test]
+fn test_url_sanitizer_sanitize_url_str_or_redact_hides_invalid_url() {
+    let sanitizer = UrlSanitizer::default();
+
+    assert_eq!(
+        sanitizer.sanitize_url_str_or_redact(
+            "https://debug-user:debug-password@example.com:bad-port/path?access_token=query-secret",
+            NameMatchMode::ExactOrSuffix,
+        ),
+        "<redacted: invalid URL>",
+    );
+}
+
+#[test]
 fn test_url_sanitizer_sanitize_url_without_query() {
     let sanitizer = UrlSanitizer::default();
     let url =
@@ -154,7 +167,19 @@ fn test_url_sanitizer_sanitize_url_without_query() {
 
     assert_eq!(
         sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
-        "https://****:%3Credacted%3E@example.com/path#****",
+        "https://****:%3Credacted%3E@example.com/%3Credacted%3E#****",
+    );
+}
+
+#[test]
+fn test_url_sanitizer_keeps_root_path_with_redact_policy() {
+    let sanitizer = UrlSanitizer::default();
+    let url = Url::parse("https://example.com/?access_token=secret")
+        .expect("test URL should parse");
+
+    assert_eq!(
+        sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
+        "https://example.com/?access_token=****",
     );
 }
 
@@ -175,7 +200,7 @@ fn test_url_sanitizer_redacts_malformed_percent_encoded_query() {
             .expect("test URL should parse");
         assert_eq!(
             sanitized,
-            "https://example.com/path?%3Credacted:%20invalid%20URL-encoded%20query%3E",
+            "https://example.com/%3Credacted%3E?%3Credacted:%20invalid%20URL-encoded%20query%3E",
         );
         assert!(!sanitized.contains("secret"));
     }
@@ -194,7 +219,7 @@ fn test_url_sanitizer_constructed_from_field_sanitizer() {
 }
 
 #[test]
-fn test_url_sanitizer_preserves_vendor_specific_secret_path() {
+fn test_url_sanitizer_redacts_vendor_specific_secret_path_by_default() {
     let sanitizer = UrlSanitizer::default();
     let url = Url::parse(
         "https://hooks.example.com/services/T001/B001/path-secret?access_token=query-secret",
@@ -203,7 +228,7 @@ fn test_url_sanitizer_preserves_vendor_specific_secret_path() {
 
     assert_eq!(
         sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
-        "https://hooks.example.com/services/T001/B001/path-secret?access_token=****",
+        "https://hooks.example.com/%3Credacted%3E?access_token=****",
     );
 }
 
@@ -229,12 +254,12 @@ fn test_url_sanitizer_url_path_policy_setter() {
     let url = Url::parse("https://example.com/tenant/secret-id")
         .expect("test URL should parse");
 
-    sanitizer.set_url_path_policy(UrlPathPolicy::Redact);
+    sanitizer.set_url_path_policy(UrlPathPolicy::Preserve);
 
-    assert_eq!(sanitizer.url_path_policy(), UrlPathPolicy::Redact);
+    assert_eq!(sanitizer.url_path_policy(), UrlPathPolicy::Preserve);
     assert_eq!(
         sanitizer.sanitize_url(&url, NameMatchMode::ExactOrSuffix),
-        "https://example.com/%3Credacted%3E",
+        "https://example.com/tenant/secret-id",
     );
 }
 

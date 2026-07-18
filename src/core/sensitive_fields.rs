@@ -35,6 +35,7 @@ static DEFAULT_SENSITIVE_FIELDS: LazyLock<
     let mut fields = SensitiveFields::new();
     for preset in [
         SensitiveFieldPreset::Credentials,
+        SensitiveFieldPreset::CredentialContainers,
         SensitiveFieldPreset::AuthTokens,
         SensitiveFieldPreset::Http,
         SensitiveFieldPreset::Session,

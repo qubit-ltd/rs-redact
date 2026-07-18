@@ -10,8 +10,8 @@
 use qubit_sanitize::UrlPathPolicy;
 
 #[test]
-fn test_url_path_policy_defaults_to_preserve() {
-    assert_eq!(UrlPathPolicy::default(), UrlPathPolicy::Preserve);
+fn test_url_path_policy_defaults_to_redact() {
+    assert_eq!(UrlPathPolicy::default(), UrlPathPolicy::Redact);
 }
 
 #[test]

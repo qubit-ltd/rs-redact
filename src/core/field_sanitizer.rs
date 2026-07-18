@@ -12,7 +12,10 @@ use super::{
     NameMatchMode,
     SensitiveFieldPreset,
     SensitivityLevel,
-    field_name::find_canonical_field_match,
+    field_name::{
+        canonicalize_field_name,
+        find_canonical_field_match,
+    },
 };
 
 /// Sanitizes values by looking up their field names in a configurable policy.
@@ -70,16 +73,20 @@ impl FieldSanitizer {
         field: &str,
         level: SensitivityLevel,
     ) {
+        self.policy.include_sensitive_field(field);
         self.policy
             .sensitive_fields_mut()
             .insert_strongest(field, level);
     }
 
-    /// Removes one sensitive field from this sanitizer.
+    /// Explicitly excludes one sensitive field from this sanitizer.
     ///
-    /// This can remove built-in defaults. Callers should do so only after
-    /// deciding that exposing the matching value is acceptable for their
-    /// logging or diagnostic context.
+    /// The exclusion wins over positive matches at the same canonical token
+    /// boundary. With [`NameMatchMode::ExactOrSuffix`], excluding
+    /// `access_token` also prevents a contextual name such as
+    /// `OPENAI_ACCESS_TOKEN` from falling back to the shorter built-in
+    /// `token` suffix. Callers should use this only after deciding that
+    /// exposing matching values is acceptable in their diagnostic context.
     ///
     /// # Parameters
     ///
@@ -94,7 +101,7 @@ impl FieldSanitizer {
         &mut self,
         field: &str,
     ) -> Option<SensitivityLevel> {
-        self.policy.sensitive_fields_mut().remove(field)
+        self.policy.exclude_sensitive_field(field)
     }
 
     /// Explicitly replaces the sensitivity level for one field.
@@ -109,6 +116,7 @@ impl FieldSanitizer {
         field: &str,
         level: SensitivityLevel,
     ) {
+        self.policy.include_sensitive_field(field);
         self.policy.sensitive_fields_mut().insert(field, level);
     }
 
@@ -127,9 +135,9 @@ impl FieldSanitizer {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        self.policy
-            .sensitive_fields_mut()
-            .extend_strongest(fields, level);
+        for field in fields {
+            self.insert_sensitive_field(field.as_ref(), level);
+        }
     }
 
     /// Adds one predefined field group.
@@ -139,7 +147,9 @@ impl FieldSanitizer {
     /// * `preset` - Predefined group to insert.
     #[inline(always)]
     pub fn extend_preset(&mut self, preset: SensitiveFieldPreset) {
-        self.policy.sensitive_fields_mut().extend_preset(preset);
+        for &(field, level) in preset.fields() {
+            self.insert_sensitive_field(field, level);
+        }
     }
 
     /// Returns the sensitivity level for a field name.
@@ -164,12 +174,23 @@ impl FieldSanitizer {
         match_mode: NameMatchMode,
     ) -> Option<SensitivityLevel> {
         let fields = self.policy.sensitive_fields();
+        let excluded_fields = self.policy.excluded_fields();
         match match_mode {
-            NameMatchMode::Exact => fields.level_for(name),
+            NameMatchMode::Exact => {
+                let canonical = canonicalize_field_name(name);
+                (!excluded_fields.contains(&canonical))
+                    .then(|| fields.level_for_canonical(&canonical))
+                    .flatten()
+            }
             NameMatchMode::ExactOrSuffix => {
                 find_canonical_field_match(name, |canonical| {
-                    fields.level_for_canonical(canonical)
+                    if excluded_fields.contains(canonical) {
+                        Some(None)
+                    } else {
+                        fields.level_for_canonical(canonical).map(Some)
+                    }
                 })
+                .flatten()
             }
         }
     }

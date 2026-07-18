@@ -5,9 +5,13 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+use std::collections::BTreeSet;
+
 use super::{
     MaskPolicies,
     SensitiveFields,
+    SensitivityLevel,
+    canonicalize_field_name,
 };
 
 /// Policy used by [`crate::FieldSanitizer`] for field-value sanitization.
@@ -16,6 +20,8 @@ use super::{
 pub struct FieldSanitizePolicy {
     /// Sensitive fields and their sensitivity levels.
     sensitive_fields: SensitiveFields,
+    /// Canonical names that override positive field matches.
+    excluded_fields: BTreeSet<String>,
     /// Mask policies for each sensitivity level.
     mask_policies: MaskPolicies,
 }
@@ -38,6 +44,7 @@ impl FieldSanitizePolicy {
     ) -> Self {
         Self {
             sensitive_fields,
+            excluded_fields: BTreeSet::new(),
             mask_policies,
         }
     }
@@ -120,6 +127,48 @@ impl FieldSanitizePolicy {
     #[inline(always)]
     pub fn mask_policies_mut(&mut self) -> &mut MaskPolicies {
         &mut self.mask_policies
+    }
+
+    /// Records one explicit exclusion and removes its exact positive entry.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Field name to exclude after canonicalization.
+    ///
+    /// # Returns
+    ///
+    /// The removed exact sensitivity level, or `None` when no exact entry was
+    /// configured.
+    #[inline]
+    pub(super) fn exclude_sensitive_field(
+        &mut self,
+        field: &str,
+    ) -> Option<SensitivityLevel> {
+        let canonical = canonicalize_field_name(field);
+        if !canonical.is_empty() {
+            self.excluded_fields.insert(canonical);
+        }
+        self.sensitive_fields.remove(field)
+    }
+
+    /// Cancels the exact exclusion for one field name.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Field name to include after canonicalization.
+    #[inline]
+    pub(super) fn include_sensitive_field(&mut self, field: &str) {
+        self.excluded_fields.remove(&canonicalize_field_name(field));
+    }
+
+    /// Returns canonical field names that override positive matches.
+    ///
+    /// # Returns
+    ///
+    /// Borrowed explicit exclusion set.
+    #[inline(always)]
+    pub(super) const fn excluded_fields(&self) -> &BTreeSet<String> {
+        &self.excluded_fields
     }
 }
 

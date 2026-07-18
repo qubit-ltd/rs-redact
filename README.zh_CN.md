@@ -111,6 +111,8 @@ assert_eq!(fixed.mask("secret"), "****");
 - `password`、`passwd`、`passphrase`、`pgpassword`、`secret`、`client_secret`
 - `private_key`、`security_key`、`mysql_pwd`、`rediscli_auth`
 - `database_url`、`database_uri`、`connection_string`
+- `dsn`、`redis_url`、`mongodb_uri`、`amqp_url`、`http_proxy`、`https_proxy`
+- `all_proxy`、`docker_auth_config`
 - `api_key`、`x_api_key`
 - `token`、`access_token`、`refresh_token`、`id_token`、`sig`、`signature`
 - `authorization`、`proxy_authorization`、`cookie`、`set_cookie`
@@ -188,7 +190,7 @@ assert_eq!(
 map 风格的覆盖语义；`insert_strongest` 和 `extend_strongest` 则保证不降级。
 
 应用确认某个默认字段属于误报后，可以将其删除。删除默认项是一项显式的信息披露
-决策：此后匹配值会保持原样。
+决策：排除规则优先于较短的敏感后缀，此后匹配值会保持原样。
 
 ```rust
 use qubit_sanitize::{FieldSanitizer, NameMatchMode};
@@ -274,7 +276,7 @@ let url = UrlSanitizer::default()
     .expect("sample URL should parse");
 assert_eq!(
     url,
-    "https://****:%3Credacted%3E@example.com/path?access_token=****#****",
+    "https://****:%3Credacted%3E@example.com/%3Credacted%3E?access_token=****#****",
 );
 
 let form = FormUrlEncodedSanitizer::default()
@@ -313,9 +315,13 @@ adapter 方法也和 core 的 `FieldSanitizer` 一样要求显式传入 `NameMat
 `NameMatchMode::ExactOrSuffix`。
 
 `UrlSanitizer` 使用 `High` 策略遮盖 userinfo 和 fragment，使用 `Secret` 策略遮盖
-password，并按已解析出的字段等级遮盖 query parameter。它默认保留 URL path，因为
-path segment 的语义属于具体应用；当完整 path 可能包含供应商 webhook token 或其他
-秘密时，应选择 `UrlPathPolicy::Redact`。
+password，并按已解析出的字段等级遮盖 query parameter。它默认隐藏非根 URL path，
+因为 path segment 可能包含供应商 webhook token 或其他秘密。只有在确认诊断边界安全后，
+才应显式选择 `UrlPathPolicy::Preserve`。
+
+`sanitize_url_str` 会为非法输入返回解析错误。在日志和诊断边界应使用
+`sanitize_url_str_or_redact`，把非法 URL 替换为 `<redacted: invalid URL>`，而不是返回
+原始文本。
 
 URL query 和 URL-encoded form 中，如果百分号转义格式错误，或解码后不是 UTF-8，
 会整体脱敏。这个 fail-closed 行为可以防止歧义解码绕过字段名匹配。
@@ -426,10 +432,10 @@ let sanitizer = HttpBodySanitizer::default()
 ## 测试
 
 ```bash
-# 使用默认的空 feature 集测试核心 API
-cargo test --no-default-features
+# 使用默认 feature 集运行测试
+cargo test
 
-# 测试核心 API 和正则校验
+# 使用项目声明的全部 feature 运行测试
 cargo test --all-features
 
 # 运行项目 CI 检查

@@ -22,6 +22,8 @@ use super::form_url_encoded::is_valid_form_urlencoded;
 
 /// Marker used when a URL query cannot be decoded without ambiguity.
 const INVALID_QUERY_REDACTED: &str = "<redacted: invalid URL-encoded query>";
+/// Marker used when a URL string cannot be parsed safely.
+const INVALID_URL_REDACTED: &str = "<redacted: invalid URL>";
 
 /// Sanitizes URLs for logs and diagnostics.
 #[must_use = "the sanitizer must be used to produce sanitized URLs"]
@@ -48,7 +50,7 @@ impl UrlSanitizer {
     pub const fn new(field_sanitizer: FieldSanitizer) -> Self {
         Self {
             field_sanitizer,
-            url_path_policy: UrlPathPolicy::Preserve,
+            url_path_policy: UrlPathPolicy::Redact,
         }
     }
 
@@ -115,8 +117,8 @@ impl UrlSanitizer {
     /// Userinfo and fragment values are masked with the configured
     /// high-sensitivity mask. Passwords use the secret-sensitivity mask. Query
     /// parameter values are sanitized by parameter name, preserving parameter
-    /// order and duplicates. URL paths follow [`UrlPathPolicy`] and remain
-    /// unchanged by default. A query containing malformed percent escapes or
+    /// order and duplicates. Non-root URL paths follow [`UrlPathPolicy`] and
+    /// are redacted by default. A query containing malformed percent escapes or
     /// percent-decoded non-UTF-8 is redacted as a whole.
     ///
     /// # Parameters
@@ -132,7 +134,10 @@ impl UrlSanitizer {
         let mut sanitized = url.clone();
         match self.url_path_policy {
             UrlPathPolicy::Preserve => {}
-            UrlPathPolicy::Redact => sanitized.set_path("/<redacted>"),
+            UrlPathPolicy::Redact if sanitized.path() != "/" => {
+                sanitized.set_path("/<redacted>");
+            }
+            UrlPathPolicy::Redact => {}
         }
         if !sanitized.username().is_empty() {
             let username = mask_url_component(
@@ -200,6 +205,31 @@ impl UrlSanitizer {
         match_mode: NameMatchMode,
     ) -> Result<String, ParseError> {
         Url::parse(url).map(|url| self.sanitize_url(&url, match_mode))
+    }
+
+    /// Parses and sanitizes one URL string, redacting invalid input.
+    ///
+    /// This fail-closed helper is intended for logging and diagnostic
+    /// boundaries where returning the original input after a parse failure
+    /// could expose URL userinfo, query values, or path credentials.
+    ///
+    /// # Parameters
+    ///
+    /// * `url` - Absolute URL string to parse and sanitize.
+    /// * `match_mode` - Field-name matching mode for query parameters.
+    ///
+    /// # Returns
+    ///
+    /// Sanitized URL text when parsing succeeds, otherwise
+    /// `<redacted: invalid URL>`.
+    #[inline]
+    pub fn sanitize_url_str_or_redact(
+        &self,
+        url: &str,
+        match_mode: NameMatchMode,
+    ) -> String {
+        self.sanitize_url_str(url, match_mode)
+            .unwrap_or_else(|_| INVALID_URL_REDACTED.to_string())
     }
 }
 

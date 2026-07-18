@@ -14,6 +14,9 @@ use super::SensitivityLevel;
 pub enum SensitiveFieldPreset {
     /// Passwords, client secrets, private keys, and secret-like names.
     Credentials,
+    /// Connection strings and configuration values that commonly embed
+    /// credentials.
+    CredentialContainers,
     /// API keys, access tokens, refresh tokens, and JWT-like names.
     AuthTokens,
     /// HTTP authentication and cookie fields.
@@ -37,6 +40,21 @@ pub const CREDENTIALS_FIELDS: [(&str, SensitivityLevel); 13] = [
     ("secret_access_key", SensitivityLevel::Secret),
     ("access_key", SensitivityLevel::High),
     ("access_key_id", SensitivityLevel::Medium),
+];
+
+/// Field names for [`SensitiveFieldPreset::CredentialContainers`].
+pub const CREDENTIAL_CONTAINER_FIELDS: [(&str, SensitivityLevel); 11] = [
+    ("dsn", SensitivityLevel::Secret),
+    ("database_dsn", SensitivityLevel::Secret),
+    ("redis_url", SensitivityLevel::Secret),
+    ("mongodb_uri", SensitivityLevel::Secret),
+    ("mongodb_url", SensitivityLevel::Secret),
+    ("amqp_url", SensitivityLevel::Secret),
+    ("broker_url", SensitivityLevel::Secret),
+    ("http_proxy", SensitivityLevel::Secret),
+    ("https_proxy", SensitivityLevel::Secret),
+    ("all_proxy", SensitivityLevel::Secret),
+    ("docker_auth_config", SensitivityLevel::Secret),
 ];
 
 /// Field names for [`SensitiveFieldPreset::AuthTokens`].
@@ -77,6 +95,7 @@ impl SensitiveFieldPreset {
     pub const fn fields(self) -> &'static [(&'static str, SensitivityLevel)] {
         match self {
             Self::Credentials => &CREDENTIALS_FIELDS,
+            Self::CredentialContainers => &CREDENTIAL_CONTAINER_FIELDS,
             Self::AuthTokens => &AUTH_TOKEN_FIELDS,
             Self::Http => &HTTP_FIELDS,
             Self::Session => &SESSION_FIELDS,

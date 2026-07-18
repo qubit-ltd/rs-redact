@@ -49,6 +49,24 @@ fn test_field_sanitizer_can_remove_default_sensitive_field() {
 }
 
 #[test]
+fn test_field_sanitizer_removed_field_wins_over_sensitive_suffix() {
+    let mut sanitizer = FieldSanitizer::default();
+
+    assert_eq!(
+        sanitizer.remove_sensitive_field("access_token"),
+        Some(SensitivityLevel::High),
+    );
+    assert_eq!(
+        sanitizer.sanitize_value(
+            "OPENAI_ACCESS_TOKEN",
+            "known-false-positive",
+            NameMatchMode::ExactOrSuffix,
+        ),
+        "known-false-positive",
+    );
+}
+
+#[test]
 fn test_field_sanitizer_sanitize_value_keeps_non_sensitive_field_borrowed() {
     let sanitizer = FieldSanitizer::default();
     let value = "debug";
