@@ -240,15 +240,33 @@ fn test_argv_sanitizer_stops_option_parsing_at_double_dash() {
 }
 
 #[test]
-fn test_argv_sanitizer_keeps_inline_option_after_double_dash() {
+fn test_argv_sanitizer_masks_explicitly_sensitive_positional_argument() {
+    let sanitizer = ArgvSanitizer::default();
+    let argv = [
+        ("tool", None),
+        ("--", None),
+        (
+            "/private/customer/video.mp4",
+            Some(SensitivityLevel::Secret),
+        ),
+    ];
+
+    assert_eq!(
+        sanitizer.sanitize_argv_with_sensitivity(argv, NameMatchMode::ExactOrSuffix,),
+        ["tool", "--", "<redacted>"],
+    );
+}
+
+#[test]
+fn test_argv_sanitizer_sanitizes_inline_option_after_double_dash() {
     let sanitizer = ArgvSanitizer::default();
 
     assert_eq!(
         sanitizer.sanitize_argv(
-            ["cmd", "--", "--password=secret"],
+            ["cmd", "--", "--password=secret", "PASSWORD=secret",],
             NameMatchMode::ExactOrSuffix
         ),
-        ["cmd", "--", "--password=secret"],
+        ["cmd", "--", "--password=<redacted>", "PASSWORD=<redacted>",],
     );
 }
 

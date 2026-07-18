@@ -157,4 +157,10 @@ fuzz_target!(|data: &[u8]| {
     let second = sanitizer
         .sanitize_argv(boundary_argv, NameMatchMode::ExactOrSuffix);
     assert_eq!(first, second);
+
+    let inline_secret = format!("--password={FUZZ_SECRET}");
+    let boundary_inline_argv = ["client", "--", inline_secret.as_str()];
+    let sanitized = sanitizer
+        .sanitize_argv(boundary_inline_argv, NameMatchMode::ExactOrSuffix);
+    assert!(!sanitized.iter().any(|value| value.contains(FUZZ_SECRET)));
 });
