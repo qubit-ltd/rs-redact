@@ -38,6 +38,14 @@ pub(crate) fn is_valid_form_urlencoded(form: &[u8]) -> bool {
 }
 
 /// Returns whether one URL-encoded component has valid escapes and UTF-8.
+///
+/// # Parameters
+///
+/// * `component` - URL-encoded component bytes to validate.
+///
+/// # Returns
+///
+/// `true` when every escape is complete and the decoded bytes are UTF-8.
 #[must_use]
 fn is_valid_component(component: &[u8]) -> bool {
     let mut decoded = Vec::with_capacity(component.len());
@@ -72,6 +80,14 @@ fn is_valid_component(component: &[u8]) -> bool {
 }
 
 /// Converts one ASCII hexadecimal digit to its numeric value.
+///
+/// # Parameters
+///
+/// * `byte` - ASCII byte to decode.
+///
+/// # Returns
+///
+/// The hexadecimal digit value, or `None` for a non-hexadecimal byte.
 #[must_use]
 #[inline]
 const fn hex_value(byte: u8) -> Option<u8> {

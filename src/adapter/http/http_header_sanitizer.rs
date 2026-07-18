@@ -148,6 +148,10 @@ impl HttpHeaderSanitizer {
 
 impl Default for HttpHeaderSanitizer {
     /// Creates an HTTP header sanitizer using [`FieldSanitizer::default`].
+    ///
+    /// # Returns
+    ///
+    /// Header sanitizer configured with default sensitive fields and masks.
     #[inline(always)]
     fn default() -> Self {
         Self::new(FieldSanitizer::default())

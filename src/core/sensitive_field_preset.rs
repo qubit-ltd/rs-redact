@@ -26,7 +26,7 @@ pub enum SensitiveFieldPreset {
 }
 
 /// Field names for [`SensitiveFieldPreset::Credentials`].
-pub const CREDENTIALS_FIELDS: [(&str, SensitivityLevel); 13] = [
+const CREDENTIALS_FIELDS: [(&str, SensitivityLevel); 13] = [
     ("password", SensitivityLevel::Secret),
     ("password_confirmation", SensitivityLevel::Secret),
     ("passwd", SensitivityLevel::Secret),
@@ -43,7 +43,7 @@ pub const CREDENTIALS_FIELDS: [(&str, SensitivityLevel); 13] = [
 ];
 
 /// Field names for [`SensitiveFieldPreset::CredentialContainers`].
-pub const CREDENTIAL_CONTAINER_FIELDS: [(&str, SensitivityLevel); 11] = [
+const CREDENTIAL_CONTAINER_FIELDS: [(&str, SensitivityLevel); 11] = [
     ("dsn", SensitivityLevel::Secret),
     ("database_dsn", SensitivityLevel::Secret),
     ("redis_url", SensitivityLevel::Secret),
@@ -58,7 +58,7 @@ pub const CREDENTIAL_CONTAINER_FIELDS: [(&str, SensitivityLevel); 11] = [
 ];
 
 /// Field names for [`SensitiveFieldPreset::AuthTokens`].
-pub const AUTH_TOKEN_FIELDS: [(&str, SensitivityLevel); 9] = [
+const AUTH_TOKEN_FIELDS: [(&str, SensitivityLevel); 9] = [
     ("api_key", SensitivityLevel::High),
     ("x_api_key", SensitivityLevel::High),
     ("token", SensitivityLevel::High),
@@ -71,7 +71,7 @@ pub const AUTH_TOKEN_FIELDS: [(&str, SensitivityLevel); 9] = [
 ];
 
 /// Field names for [`SensitiveFieldPreset::Http`].
-pub const HTTP_FIELDS: [(&str, SensitivityLevel); 4] = [
+const HTTP_FIELDS: [(&str, SensitivityLevel); 4] = [
     ("authorization", SensitivityLevel::High),
     ("proxy_authorization", SensitivityLevel::High),
     ("cookie", SensitivityLevel::High),
@@ -79,7 +79,7 @@ pub const HTTP_FIELDS: [(&str, SensitivityLevel); 4] = [
 ];
 
 /// Field names for [`SensitiveFieldPreset::Session`].
-pub const SESSION_FIELDS: [(&str, SensitivityLevel); 3] = [
+const SESSION_FIELDS: [(&str, SensitivityLevel); 3] = [
     ("session", SensitivityLevel::High),
     ("session_id", SensitivityLevel::High),
     ("session_token", SensitivityLevel::High),

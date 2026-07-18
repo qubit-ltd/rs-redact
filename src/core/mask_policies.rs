@@ -132,6 +132,10 @@ impl MaskPolicies {
 
 impl Default for MaskPolicies {
     /// Creates conservative default mask policies.
+    ///
+    /// # Returns
+    ///
+    /// Shared default policies for every sensitivity level.
     #[inline(always)]
     fn default() -> Self {
         DEFAULT_MASK_POLICIES.clone()

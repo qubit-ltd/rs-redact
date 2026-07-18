@@ -308,6 +308,10 @@ impl FieldSanitizer {
 
 impl Default for FieldSanitizer {
     /// Creates a sanitizer with [`FieldSanitizePolicy::default`].
+    ///
+    /// # Returns
+    ///
+    /// Field sanitizer configured with the default policy.
     #[inline(always)]
     fn default() -> Self {
         Self::new(FieldSanitizePolicy::default())

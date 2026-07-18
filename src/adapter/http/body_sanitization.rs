@@ -214,6 +214,18 @@ impl BodySanitization {
 impl Display for BodySanitization {
     /// Renders diagnostic content with escaped log-unsafe characters and a
     /// truncation suffix when needed.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination formatter.
+    ///
+    /// # Returns
+    ///
+    /// Formatting result after writing sanitized diagnostic content.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the formatter rejects a write.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter.write_str(&escape_log_control_characters(&self.content))?;
         match self.truncated_bytes() {

@@ -255,6 +255,10 @@ impl EnvSanitizer {
 
 impl Default for EnvSanitizer {
     /// Creates an environment sanitizer using [`FieldSanitizer::default`].
+    ///
+    /// # Returns
+    ///
+    /// Environment sanitizer configured with default fields and masks.
     #[inline(always)]
     fn default() -> Self {
         Self::new(FieldSanitizer::default())

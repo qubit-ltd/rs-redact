@@ -235,6 +235,10 @@ impl UrlSanitizer {
 
 impl Default for UrlSanitizer {
     /// Creates a URL sanitizer using [`FieldSanitizer::default`].
+    ///
+    /// # Returns
+    ///
+    /// URL sanitizer configured with default fields, masks, and path policy.
     #[inline(always)]
     fn default() -> Self {
         Self::new(FieldSanitizer::default())
