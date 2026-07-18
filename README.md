@@ -376,6 +376,10 @@ For example, an HTTP crate can use `UrlSanitizer` for parsed URLs and
 can use `HttpBodySanitizer` when it has body bytes plus an optional
 `Content-Type` header; the adapter supports JSON, NDJSON, URL-encoded forms,
 multipart bodies, declared `text/*` bodies, and binary fallback markers.
+Callers holding Content-Type text can use
+`sanitize_body_with_content_type_str` or
+`sanitize_body_preview_with_content_type_str`; invalid header syntax is
+redacted with structured status instead of being returned to the caller.
 Unsupported UTF-8 media types are redacted rather than passed through. The
 returned `BodySanitization` exposes raw sanitized `content`, a structured
 `status`, the captured byte length, and an optional exact source byte length.

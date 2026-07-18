@@ -18,6 +18,7 @@ use proptest::{
 };
 
 use qubit_sanitize::{
+    BodyRedactionReason,
     BodySanitizationStatus,
     BodySourceLength,
     FieldSanitizePolicy,
@@ -28,6 +29,107 @@ use qubit_sanitize::{
     SensitivityLevel,
     UnkeyedJsonValuePolicy,
 };
+
+#[test]
+fn test_http_body_sanitizer_sanitize_body_with_content_type_str() {
+    let sanitizer = HttpBodySanitizer::default();
+
+    let result = sanitizer.sanitize_body_with_content_type_str(
+        br#"{"password":"secret"}"#,
+        Some("application/json"),
+        NameMatchMode::Exact,
+    );
+
+    assert_eq!(result.content(), r#"{"password":"<redacted>"}"#);
+    assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
+}
+
+#[test]
+fn test_http_body_sanitizer_body_content_type_str_rejects_invalid_header() {
+    let sanitizer = HttpBodySanitizer::default();
+
+    let result = sanitizer.sanitize_body_with_content_type_str(
+        b"secret",
+        Some("text/plain\r\nx-invalid: value"),
+        NameMatchMode::Exact,
+    );
+
+    assert_eq!(
+        result.status(),
+        BodySanitizationStatus::Redacted(
+            BodyRedactionReason::InvalidContentType,
+        ),
+    );
+    assert_eq!(result.content(), "<redacted: invalid content type body>");
+}
+
+#[test]
+fn test_http_body_sanitizer_body_content_type_str_accepts_absent_header() {
+    let sanitizer = HttpBodySanitizer::default();
+
+    let result = sanitizer.sanitize_body_with_content_type_str(
+        br#"{"password":"secret"}"#,
+        None,
+        NameMatchMode::Exact,
+    );
+
+    assert_eq!(result.content(), r#"{"password":"<redacted>"}"#);
+    assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
+}
+
+#[test]
+fn test_http_body_sanitizer_content_type_str_rejects_invalid_header() {
+    let sanitizer = HttpBodySanitizer::default();
+    let body = b"secret";
+
+    let result = sanitizer.sanitize_body_preview_with_content_type_str(
+        body,
+        BodySourceLength::Known(10),
+        Some("text/plain\r\nx-invalid: value"),
+        NameMatchMode::Exact,
+    );
+
+    assert_eq!(
+        result.status(),
+        BodySanitizationStatus::Redacted(
+            BodyRedactionReason::InvalidContentType,
+        ),
+    );
+    assert_eq!(result.content(), "<redacted: invalid content type body>");
+    assert_eq!(result.captured_len(), body.len());
+    assert_eq!(result.source_len(), Some(10));
+    assert!(result.is_truncated());
+}
+
+#[test]
+fn test_http_body_sanitizer_preview_content_type_str_accepts_valid_header() {
+    let sanitizer = HttpBodySanitizer::default();
+
+    let result = sanitizer.sanitize_body_preview_with_content_type_str(
+        br#"{"password":"secret"}"#,
+        BodySourceLength::Known(21),
+        Some("application/json"),
+        NameMatchMode::Exact,
+    );
+
+    assert_eq!(result.content(), r#"{"password":"<redacted>"}"#);
+    assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
+}
+
+#[test]
+fn test_http_body_sanitizer_preview_content_type_str_accepts_absent_header() {
+    let sanitizer = HttpBodySanitizer::default();
+
+    let result = sanitizer.sanitize_body_preview_with_content_type_str(
+        br#"{"password":"secret"}"#,
+        BodySourceLength::Known(21),
+        None,
+        NameMatchMode::Exact,
+    );
+
+    assert_eq!(result.content(), r#"{"password":"<redacted>"}"#);
+    assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
+}
 
 #[test]
 fn test_http_body_sanitizer_field_sanitizer_accessors() {

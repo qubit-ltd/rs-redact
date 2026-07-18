@@ -351,7 +351,11 @@ URL query 和 URL-encoded form 中，如果百分号转义格式错误，或解�
 `HttpHeaderSanitizer` 处理 `http::HeaderMap` 和 `http::HeaderValue`。当调用方有 body
 字节和可选 `Content-Type` header 时，可以用 `HttpBodySanitizer`；它支持 JSON、
 NDJSON、URL-encoded form、multipart body、显式声明的 `text/*` body 以及二进制
-fallback marker。不支持的 UTF-8 media type 会被整体 redaction，而不是原样透传。
+fallback marker。持有 Content-Type 文本的调用方可以使用
+`sanitize_body_with_content_type_str` 或
+`sanitize_body_preview_with_content_type_str`；不合法的 header 语法会返回结构化
+redaction 状态，而不会交还给调用方处理。不支持的 UTF-8 media type 会被整体
+redaction，而不是原样透传。
 返回的 `BodySanitization` 提供原始脱敏 `content`、结构化 `status`、已捕获字节数，以及
 可选的精确来源字节数。它的 `Display`、`rendered` 和 `into_rendered` 会先用 Debug 风格
 转义控制字符、Unicode 行/段分隔符和双向格式控制符；总长已知时再追加计数截断后缀，

@@ -241,6 +241,42 @@ impl HttpBodySanitizer {
         )
     }
 
+    /// Sanitizes a complete HTTP body with a string Content-Type value.
+    ///
+    /// The Content-Type is validated using [`HeaderValue`] syntax before
+    /// structured parsing. Invalid values redact the complete body with
+    /// [`BodyRedactionReason::InvalidContentType`].
+    ///
+    /// # Parameters
+    ///
+    /// * `body` - Complete HTTP body bytes.
+    /// * `content_type` - Optional Content-Type text to validate and use for
+    ///   structured parsing.
+    /// * `match_mode` - Field-name matching mode for structured body fields.
+    ///
+    /// # Returns
+    ///
+    /// Structured body sanitization result, or a fail-closed invalid
+    /// Content-Type redaction result when header validation fails.
+    #[inline]
+    pub fn sanitize_body_with_content_type_str(
+        &self,
+        body: &[u8],
+        content_type: Option<&str>,
+        match_mode: NameMatchMode,
+    ) -> BodySanitization {
+        match content_type.map(HeaderValue::from_str) {
+            Some(Ok(content_type)) => {
+                self.sanitize_body(body, Some(&content_type), match_mode)
+            }
+            Some(Err(_)) => Self::invalid_content_type_result(
+                body.len(),
+                BodySourceLength::Known(body.len()),
+            ),
+            None => self.sanitize_body(body, None, match_mode),
+        }
+    }
+
     /// Sanitizes a caller-provided HTTP body preview.
     ///
     /// Use this method when `body_prefix` is already limited by the caller, for
@@ -296,6 +332,53 @@ impl HttpBodySanitizer {
             BodyInputKind::Preview,
             match_mode,
         )
+    }
+
+    /// Sanitizes an HTTP body preview with a string Content-Type value.
+    ///
+    /// The Content-Type is validated using [`HeaderValue`] syntax before
+    /// structured parsing. Invalid values redact the complete preview with
+    /// [`BodyRedactionReason::InvalidContentType`] while preserving source
+    /// length metadata.
+    ///
+    /// # Parameters
+    ///
+    /// * `body_prefix` - Body bytes available for preview rendering.
+    /// * `source_length` - Exact or unknown-truncated source length metadata.
+    /// * `content_type` - Optional Content-Type text to validate and use for
+    ///   structured parsing.
+    /// * `match_mode` - Field-name matching mode for structured body fields.
+    ///
+    /// # Returns
+    ///
+    /// Structured preview sanitization result, or a fail-closed invalid
+    /// Content-Type redaction result when header validation fails.
+    #[inline]
+    pub fn sanitize_body_preview_with_content_type_str(
+        &self,
+        body_prefix: &[u8],
+        source_length: BodySourceLength,
+        content_type: Option<&str>,
+        match_mode: NameMatchMode,
+    ) -> BodySanitization {
+        match content_type.map(HeaderValue::from_str) {
+            Some(Ok(content_type)) => self.sanitize_body_preview(
+                body_prefix,
+                source_length,
+                Some(&content_type),
+                match_mode,
+            ),
+            Some(Err(_)) => Self::invalid_content_type_result(
+                body_prefix.len(),
+                source_length,
+            ),
+            None => self.sanitize_body_preview(
+                body_prefix,
+                source_length,
+                None,
+                match_mode,
+            ),
+        }
     }
 
     /// Sanitizes one JSON document.
@@ -379,6 +462,31 @@ impl HttpBodySanitizer {
         sanitize_form_urlencoded(&self.field_sanitizer, bytes, match_mode)
     }
 
+    /// Creates a fail-closed result for invalid Content-Type metadata.
+    ///
+    /// # Parameters
+    ///
+    /// * `captured_len` - Number of body bytes available to the sanitizer.
+    /// * `source_length` - Exact or unknown-truncated source length metadata.
+    ///
+    /// # Returns
+    ///
+    /// Structured invalid Content-Type redaction result.
+    #[inline(always)]
+    fn invalid_content_type_result(
+        captured_len: usize,
+        source_length: BodySourceLength,
+    ) -> BodySanitization {
+        BodySanitization::new(
+            INVALID_CONTENT_TYPE_REDACTED.to_string(),
+            BodySanitizationStatus::Redacted(
+                BodyRedactionReason::InvalidContentType,
+            ),
+            captured_len,
+            source_length,
+        )
+    }
+
     /// Sanitizes complete or preview body bytes.
     ///
     /// # Parameters
@@ -414,11 +522,9 @@ impl HttpBodySanitizer {
         {
             Some(Ok(content_type)) => Some(content_type),
             Some(Err(_)) => {
-                return result(
-                    INVALID_CONTENT_TYPE_REDACTED.to_string(),
-                    BodySanitizationStatus::Redacted(
-                        BodyRedactionReason::InvalidContentType,
-                    ),
+                return Self::invalid_content_type_result(
+                    bytes.len(),
+                    source_length,
                 );
             }
             None => None,
