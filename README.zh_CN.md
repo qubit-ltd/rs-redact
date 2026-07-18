@@ -27,6 +27,8 @@ shell 命令字符串和其他业务协议 payload 仍应由掌握完整上下�
 - 每个敏感级别可以绑定不同的 `MaskPolicy`
 - 支持固定替换、保留首尾、保留尾部、完全移除等脱敏策略
 - `FieldSanitizer` 对象专注处理单个字段值脱敏
+- 通过保持不变量的 policy 方法添加、替换和显式排除敏感字段
+- 日志文本没有控制字符时，转义 helper 可以零分配地直接借用原文
 - 提供 `BTreeMap<String, String>` 的复制式和原地脱敏便捷方法
 - 提供 URL、URL-encoded form、HTTP header、HTTP body、argv 向量和环境变量 adapter
 
@@ -189,14 +191,20 @@ assert_eq!(
 `set_sensitive_field_level`。更底层的 `SensitiveFields::insert` 和 `extend` 保留
 map 风格的覆盖语义；`insert_strongest` 和 `extend_strongest` 则保证不降级。
 
-应用确认某个默认字段属于误报后，可以将其删除。删除默认项是一项显式的信息披露
+`FieldSanitizePolicy` 是 policy 状态的唯一修改边界。它的
+`insert_sensitive_field`、`set_sensitive_field_level`、
+`extend_sensitive_fields` 和 `extend_preset` 会取消同名排除项；
+`set_sensitive_fields` 和 `with_sensitive_fields` 会替换完整的正向字段集合并清空全部
+排除项。`sensitive_fields()` 只提供只读访问，调用方不会意外绕过这些不变量。
+
+应用确认某个默认字段属于误报后，可以将其显式排除。排除默认项是一项显式的信息披露
 决策：排除规则优先于较短的敏感后缀，此后匹配值会保持原样。
 
 ```rust
 use qubit_sanitize::{FieldSanitizer, NameMatchMode};
 
 let mut sanitizer = FieldSanitizer::default();
-sanitizer.remove_sensitive_field("sig");
+sanitizer.exclude_sensitive_field("sig");
 
 assert_eq!(
     sanitizer.sanitize_value("sig", "known-safe", NameMatchMode::Exact),
@@ -313,6 +321,9 @@ assert_eq!(argv, r#"["docker", "login", "--password", "<redacted>"]"#);
 adapter 方法也和 core 的 `FieldSanitizer` 一样要求显式传入 `NameMatchMode`。如果
 希望 `OPENAI_API_KEY` 这类上下文字段名命中已配置的 `api_key`，使用
 `NameMatchMode::ExactOrSuffix`。
+对于 argv，`--` 只停止对“选项名与下一个参数”这种分离形式的推断；分隔符之后
+自包含的 `--password=value` 和 `PASSWORD=value` 仍会脱敏，而位置参数形式的
+`--password value` 会保持不变。
 
 `UrlSanitizer` 使用 `High` 策略遮盖 userinfo 和 fragment，使用 `Secret` 策略遮盖
 password，并按已解析出的字段等级遮盖 query parameter。它默认隐藏非根 URL path，
@@ -341,12 +352,14 @@ URL query 和 URL-encoded form 中，如果百分号转义格式错误，或解�
 字节和可选 `Content-Type` header 时，可以用 `HttpBodySanitizer`；它支持 JSON、
 NDJSON、URL-encoded form、multipart body、显式声明的 `text/*` body 以及二进制
 fallback marker。不支持的 UTF-8 media type 会被整体 redaction，而不是原样透传。
-返回的 `BodySanitization` 提供脱敏后的 `content`、结构化 `status`、已捕获字节数，以及
-可选的精确来源字节数。总长已知时，它的 `Display` 和 `into_rendered` 会追加计数截断
-后缀；总长未知时则追加 `...<truncated>`。`into_content` 不追加后缀，便于调用方使用
-自己的上下文渲染。诊断内容不是可回放的 HTTP body：结构化输出可能会被压缩，也不
-保证保留原始空白、字段顺序，或已脱敏 JSON 字段的原始 value 类型。`sanitize_body`
-没有内置字节上限。调用方仍然负责 body 捕获上限、解压、流式边界和业务自定义解析。
+返回的 `BodySanitization` 提供原始脱敏 `content`、结构化 `status`、已捕获字节数，以及
+可选的精确来源字节数。它的 `Display`、`rendered` 和 `into_rendered` 会先用 Debug 风格
+转义全部 Unicode 控制字符；总长已知时再追加计数截断后缀，总长未知时则追加
+`...<truncated>`。`content` 和 `into_content` 会有意保留原始控制字符并省略后缀，供
+需要自定义上下文渲染的调用方使用；写入文本日志时应使用 rendered 形式。诊断内容不是
+可回放的 HTTP body：结构化输出可能会被压缩，也不保证保留原始空白、字段顺序，或已
+脱敏 JSON 字段的原始 value 类型。`sanitize_body` 没有内置字节上限。调用方仍然负责
+body 捕获上限、解压、流式边界和业务自定义解析。
 
 ```rust
 use http::HeaderValue;
@@ -384,7 +397,20 @@ println!("{result}");
 value 可能原样返回，其中包括换行符和其他日志控制字符。因此，脱敏结果并不天然适合
 通过字符串拼接直接写入日志。
 
-最终日志边界应使用结构化日志或转义格式化。记录命令参数和环境变量赋值时，优先使用
+最终日志边界应使用结构化日志或 `escape_log_control_characters`。没有控制字符时，该
+helper 会借用原文；需要转义时则使用不带外层引号的 Debug 风格转义：
+
+```rust
+use qubit_sanitize::escape_log_control_characters;
+
+assert_eq!(
+    escape_log_control_characters("first\nsecond\t"),
+    r"first\nsecond\t",
+);
+```
+
+HTTP body 应使用 `BodySanitization::rendered`、`into_rendered` 或 `Display`；`content`
+和 `into_content` 有意保持原始形式。记录命令参数和环境变量赋值时，优先使用
 `sanitize_argv_display` 和 `sanitize_assignments_display`；这些 helper 使用 Debug 风格
 渲染，控制字符不会伪造新的日志行。
 
@@ -392,7 +418,7 @@ value 可能原样返回，其中包括换行符和其他日志控制字符。�
 
 `HttpBodySanitizer` 默认会脱敏显式声明的 `text/*` body，以及 multipart 中
 非敏感的文本 part。它们没有可靠的字段结构，因此无法使用字段名匹配判断 value 是否
-包含秘密。只有当调用方愿意自行承担原文中的业务秘密和日志控制字符风险时，才应显式
+包含秘密。只有当调用方愿意自行承担原文中的业务秘密风险时，才应显式
 选择 `TextBodyPolicy::PassThrough`：
 
 ```rust
@@ -405,8 +431,9 @@ let sanitizer = HttpBodySanitizer::default()
     .with_text_body_policy(TextBodyPolicy::PassThrough);
 ```
 
-两种策略都不会扫描任意文本。同样地，藏在非敏感结构化字段 value 中的业务秘密，不在
-基于字段名脱敏的保证范围内。
+两种策略都不会扫描任意文本。透传文本中的控制字符会保留在原始 `content` 中，但
+`BodySanitization` 的 rendered 形式会将其转义。同样地，藏在非敏感结构化字段 value
+中的业务秘密，不在基于字段名脱敏的保证范围内。
 
 ### 无字段上下文的 JSON value
 

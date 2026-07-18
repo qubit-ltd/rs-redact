@@ -33,6 +33,9 @@ handled by caller crates that have the full context.
 - Mask strategies for fixed replacement, edge preservation, suffix
   preservation, and full removal
 - A `FieldSanitizer` object that sanitizes single field-value pairs
+- Invariant-preserving policy methods for adding, replacing, and explicitly
+  excluding sensitive fields
+- Allocation-free pass-through when log text contains no control characters
 - Convenience helpers for sanitizing `BTreeMap<String, String>` values by key
 - Adapters for URLs, URL-encoded forms, HTTP headers, HTTP bodies, argv
   vectors, and environment variables
@@ -203,8 +206,15 @@ including a downgrade, is intended. At the lower-level `SensitiveFields` API,
 `insert` and `extend` retain map-style replacement semantics, while
 `insert_strongest` and `extend_strongest` prevent downgrades.
 
-Built-in names can be removed when an application has verified a false
-positive. Removing a default is an explicit disclosure decision: the
+`FieldSanitizePolicy` is the mutation boundary for policy state. Its
+`insert_sensitive_field`, `set_sensitive_field_level`,
+`extend_sensitive_fields`, and `extend_preset` methods cancel a matching
+exclusion. `set_sensitive_fields` and `with_sensitive_fields` replace the
+complete positive set and clear all exclusions. `sensitive_fields()` is
+read-only so these invariants cannot be bypassed accidentally.
+
+Built-in names can be excluded when an application has verified a false
+positive. Excluding a default is an explicit disclosure decision: the
 exclusion wins over shorter sensitive suffixes, so matching values are
 returned unchanged afterward.
 
@@ -212,7 +222,7 @@ returned unchanged afterward.
 use qubit_sanitize::{FieldSanitizer, NameMatchMode};
 
 let mut sanitizer = FieldSanitizer::default();
-sanitizer.remove_sensitive_field("sig");
+sanitizer.exclude_sensitive_field("sig");
 
 assert_eq!(
     sanitizer.sanitize_value("sig", "known-safe", NameMatchMode::Exact),
@@ -331,6 +341,9 @@ assert_eq!(argv, r#"["docker", "login", "--password", "<redacted>"]"#);
 Adapter methods require an explicit `NameMatchMode`, just like the core
 `FieldSanitizer` methods. Use `NameMatchMode::ExactOrSuffix` when contextual
 names such as `OPENAI_API_KEY` should match the configured field `api_key`.
+For argv, `--` stops only separate-value option inference: self-contained
+`--password=value` and `PASSWORD=value` tokens after the delimiter are still
+sanitized, while positional `--password value` tokens are left unchanged.
 
 `UrlSanitizer` masks userinfo and fragments with the `High` policy, passwords
 with the `Secret` policy, and configured query parameters by their resolved
@@ -364,16 +377,19 @@ can use `HttpBodySanitizer` when it has body bytes plus an optional
 `Content-Type` header; the adapter supports JSON, NDJSON, URL-encoded forms,
 multipart bodies, declared `text/*` bodies, and binary fallback markers.
 Unsupported UTF-8 media types are redacted rather than passed through. The
-returned `BodySanitization` exposes sanitized `content`, a structured `status`,
-the captured byte length, and an optional exact source byte length. Its
-`Display` implementation and `into_rendered` add a counted truncation suffix
-when the total is known, or `...<truncated>` when it is unknown;
-`into_content` omits that suffix for callers with context-specific rendering.
-The diagnostic content is not a replayable HTTP body: structured output may be
-compacted and may not preserve original whitespace, field order, or JSON value
-types for redacted fields. `sanitize_body` has no internal byte limit. The
-caller still owns capture limits, decompression, streaming boundaries, and any
-application-specific parsing.
+returned `BodySanitization` exposes raw sanitized `content`, a structured
+`status`, the captured byte length, and an optional exact source byte length.
+Its `Display`, `rendered`, and `into_rendered` forms escape every Unicode
+control character with Debug-style escapes, then add a counted truncation
+suffix when the total is known or `...<truncated>` when it is unknown.
+`content` and `into_content` intentionally keep raw controls and omit the
+suffix for callers that need context-specific rendering. Use a rendered form,
+not raw content, at a text log boundary. The diagnostic content is not a
+replayable HTTP body: structured output may be compacted and may not preserve
+original whitespace, field order, or JSON value types for redacted fields.
+`sanitize_body` has no internal byte limit. The caller still owns capture
+limits, decompression, streaming boundaries, and any application-specific
+parsing.
 
 ```rust
 use http::HeaderValue;
@@ -413,8 +429,22 @@ name identify them as sensitive. Non-sensitive values may be returned
 unchanged, including newlines and other log-control characters. Sanitized
 output therefore is not automatically safe for raw string concatenation.
 
-Use structured logging or an escaping formatter at the final log boundary.
-For command arguments and environment assignments, prefer
+Use structured logging or `escape_log_control_characters` at the final log
+boundary. The helper returns a borrowed value when no controls are present and
+uses Debug-style escapes without adding quotes otherwise:
+
+```rust
+use qubit_sanitize::escape_log_control_characters;
+
+assert_eq!(
+    escape_log_control_characters("first\nsecond\t"),
+    r"first\nsecond\t",
+);
+```
+
+For HTTP bodies, use `BodySanitization::rendered`, `into_rendered`, or
+`Display`; `content` and `into_content` are deliberately raw. For command
+arguments and environment assignments, prefer
 `sanitize_argv_display` and `sanitize_assignments_display`; these helpers use
 Debug-style rendering so control characters cannot create forged log lines.
 
@@ -424,7 +454,7 @@ Debug-style rendering so control characters cannot create forged log lines.
 multipart text parts by default. They do not contain reliable field structure,
 so field-name matching cannot determine whether a value is secret. Select
 `TextBodyPolicy::PassThrough` only when the caller accepts responsibility for
-the original text, including application secrets and log-control content:
+application secrets in the original text:
 
 ```rust
 use qubit_sanitize::{
@@ -436,9 +466,10 @@ let sanitizer = HttpBodySanitizer::default()
     .with_text_body_policy(TextBodyPolicy::PassThrough);
 ```
 
-Neither policy scans arbitrary text. Similarly, a business secret stored inside
-a non-sensitive structured field is outside the guarantee of field-name-based
-sanitization.
+Neither policy scans arbitrary text. Pass-through controls remain present in
+raw `content`, but the `BodySanitization` rendered forms escape them. Similarly,
+a business secret stored inside a non-sensitive structured field is outside the
+guarantee of field-name-based sanitization.
 
 ### Unkeyed JSON Values
 

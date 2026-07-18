@@ -14,7 +14,10 @@ pub(in crate::adapter::http) enum HeaderParameter {
     /// The requested parameter was not present.
     Absent,
     /// The requested parameter occurred exactly once with a valid value.
-    Value(String),
+    Value(
+        /// Decoded parameter value without surrounding quotes or escapes.
+        String,
+    ),
     /// The header was malformed or the requested parameter was duplicated.
     Invalid,
 }

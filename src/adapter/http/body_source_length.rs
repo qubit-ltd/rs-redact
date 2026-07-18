@@ -18,7 +18,10 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BodySourceLength {
     /// Exact total source byte length.
-    Known(usize),
+    Known(
+        /// Total number of bytes in the complete source body.
+        usize,
+    ),
     /// The source is truncated and its exact total length is unknown.
     UnknownTruncated,
 }
