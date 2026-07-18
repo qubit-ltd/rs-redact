@@ -7,15 +7,16 @@
 // =============================================================================
 use std::borrow::Cow;
 
-/// Escapes control characters for insertion into untrusted log text.
+/// Escapes log-unsafe characters for insertion into untrusted log text.
 ///
-/// Every character for which [`char::is_control`] returns `true` is replaced
-/// by its [`char::escape_debug`] representation. Printable text is preserved
-/// without surrounding quotes. Inputs without control characters are returned
-/// as a borrowed string and do not allocate.
+/// Every character for which [`char::is_control`] returns `true`, every Unicode
+/// line or paragraph separator, and every Unicode bidirectional formatting
+/// control is replaced by its [`char::escape_debug`] representation. Other
+/// text is preserved without surrounding quotes. Inputs without log-unsafe
+/// characters are returned as a borrowed string and do not allocate.
 ///
-/// This function only makes a value safe against control-character injection;
-/// it does not classify or mask secrets.
+/// This function only makes a value safe against log-structure and
+/// bidirectional-control injection; it does not classify or mask secrets.
 ///
 /// # Parameters
 ///
@@ -29,7 +30,7 @@ use std::borrow::Cow;
 pub fn escape_log_control_characters(value: &str) -> Cow<'_, str> {
     let Some((index, first_control)) = value
         .char_indices()
-        .find(|(_, character)| character.is_control())
+        .find(|(_, character)| is_log_unsafe_character(*character))
     else {
         return Cow::Borrowed(value);
     };
@@ -38,11 +39,35 @@ pub fn escape_log_control_characters(value: &str) -> Cow<'_, str> {
     escaped.push_str(&value[..index]);
     escaped.extend(first_control.escape_debug());
     for character in value[index + first_control.len_utf8()..].chars() {
-        if character.is_control() {
+        if is_log_unsafe_character(character) {
             escaped.extend(character.escape_debug());
         } else {
             escaped.push(character);
         }
     }
     Cow::Owned(escaped)
+}
+
+/// Returns whether one character can alter log structure or visual ordering.
+///
+/// # Parameters
+///
+/// * `character` - Character to classify at a text log boundary.
+///
+/// # Returns
+///
+/// `true` for control characters, Unicode line and paragraph separators, and
+/// Unicode bidirectional formatting controls; otherwise, `false`.
+#[must_use]
+#[inline]
+fn is_log_unsafe_character(character: char) -> bool {
+    character.is_control()
+        || matches!(
+            character,
+            '\u{061c}'
+                | '\u{200e}'
+                | '\u{200f}'
+                | '\u{2028}'..='\u{202e}'
+                | '\u{2066}'..='\u{2069}'
+        )
 }

@@ -7,11 +7,14 @@
 // =============================================================================
 //! Structured result of sanitizing an HTTP body.
 
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
-    Write,
+use std::{
+    borrow::Cow,
+    fmt::{
+        self,
+        Display,
+        Formatter,
+        Write,
+    },
 };
 
 use crate::escape_log_control_characters;
@@ -78,7 +81,7 @@ impl BodySanitization {
 
     /// Returns raw sanitized content without the standard truncation suffix.
     ///
-    /// Control characters are not escaped. Use [`Self::rendered`] or
+    /// Log-unsafe characters are not escaped. Use [`Self::rendered`] or
     /// [`Display`] when inserting the result into untrusted log text.
     ///
     /// # Returns
@@ -93,7 +96,7 @@ impl BodySanitization {
     /// Consumes this result and returns raw sanitized content without the
     /// truncation suffix.
     ///
-    /// Control characters are not escaped. Use [`Self::into_rendered`] when
+    /// Log-unsafe characters are not escaped. Use [`Self::into_rendered`] when
     /// inserting the result into untrusted log text.
     ///
     /// # Returns
@@ -168,7 +171,7 @@ impl BodySanitization {
         self.truncated
     }
 
-    /// Renders diagnostic content with escaped control characters and the
+    /// Renders diagnostic content with escaped log-unsafe characters and the
     /// standard truncation suffix.
     ///
     /// # Returns
@@ -181,21 +184,21 @@ impl BodySanitization {
     }
 
     /// Consumes this result and renders its diagnostic content with escaped
-    /// control characters.
+    /// log-unsafe characters.
     ///
     /// # Returns
     ///
     /// Owned diagnostic rendering with a truncation suffix when needed.
     #[must_use = "use the sanitized rendering instead of discarding it"]
-    #[inline]
-    pub fn into_rendered(self) -> String {
+    pub fn into_rendered(mut self) -> String {
         let truncated_bytes = self.truncated_bytes();
         let truncated = self.truncated;
-        let mut content = if self.content.chars().any(char::is_control) {
-            escape_log_control_characters(&self.content).into_owned()
-        } else {
-            self.content
-        };
+        if let Cow::Owned(escaped) =
+            escape_log_control_characters(&self.content)
+        {
+            self.content = escaped;
+        }
+        let mut content = self.content;
         match truncated_bytes {
             Some(truncated_bytes) if truncated_bytes > 0 => {
                 let _ =
@@ -209,9 +212,8 @@ impl BodySanitization {
 }
 
 impl Display for BodySanitization {
-    /// Renders diagnostic content with escaped control characters and a
+    /// Renders diagnostic content with escaped log-unsafe characters and a
     /// truncation suffix when needed.
-    #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter.write_str(&escape_log_control_characters(&self.content))?;
         match self.truncated_bytes() {

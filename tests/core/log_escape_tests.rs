@@ -13,9 +13,22 @@ use qubit_sanitize::escape_log_control_characters;
 
 #[test]
 fn test_escape_log_control_characters_keeps_safe_text_borrowed() {
-    let value = "safe UTF-8 text: 你好";
+    let value = "safe UTF-8 text: 你好، العربية، עברית";
 
     assert_eq!(escape_log_control_characters(value), Cow::Borrowed(value));
+}
+
+#[test]
+fn test_escape_log_control_characters_escapes_unicode_log_controls() {
+    let value = "\u{2028}\u{2029}\u{61c}\u{200e}\u{200f}\u{202a}\u{202b}\u{202c}\u{202d}\u{202e}\u{2066}\u{2067}\u{2068}\u{2069}";
+
+    assert_eq!(
+        escape_log_control_characters(value),
+        Cow::<str>::Owned(
+            r"\u{2028}\u{2029}\u{61c}\u{200e}\u{200f}\u{202a}\u{202b}\u{202c}\u{202d}\u{202e}\u{2066}\u{2067}\u{2068}\u{2069}"
+                .to_string(),
+        ),
+    );
 }
 
 #[test]

@@ -102,3 +102,23 @@ fn test_body_sanitization_rendering_escapes_log_control_characters() {
     assert_eq!(result.rendered(), r"first\nsecond\t\u{1b}[31m");
     assert_eq!(result.into_rendered(), r"first\nsecond\t\u{1b}[31m");
 }
+
+#[test]
+fn test_body_sanitization_rendering_escapes_unicode_log_controls() {
+    let sanitizer = HttpBodySanitizer::default()
+        .with_text_body_policy(TextBodyPolicy::PassThrough);
+    let content_type = HeaderValue::from_static("text/plain");
+    let body = "first\u{2028}second\u{202e}tail";
+
+    let result = sanitizer.sanitize_body(
+        body.as_bytes(),
+        Some(&content_type),
+        NameMatchMode::Exact,
+    );
+
+    assert_eq!(result.content(), body);
+    assert_eq!(result.clone().into_content(), body);
+    assert_eq!(result.to_string(), r"first\u{2028}second\u{202e}tail");
+    assert_eq!(result.rendered(), r"first\u{2028}second\u{202e}tail");
+    assert_eq!(result.into_rendered(), r"first\u{2028}second\u{202e}tail");
+}
