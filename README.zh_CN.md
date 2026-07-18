@@ -28,7 +28,7 @@ shell 命令字符串和其他业务协议 payload 仍应由掌握完整上下�
 - 支持固定替换、保留首尾、保留尾部、完全移除等脱敏策略
 - `FieldSanitizer` 对象专注处理单个字段值脱敏
 - 通过保持不变量的 policy 方法添加、替换和显式排除敏感字段
-- 日志文本没有控制字符时，转义 helper 可以零分配地直接借用原文
+- 日志文本没有日志不安全字符时，转义 helper 可以零分配地直接借用原文
 - 提供 `BTreeMap<String, String>` 的复制式和原地脱敏便捷方法
 - 提供 URL、URL-encoded form、HTTP header、HTTP body、argv 向量和环境变量 adapter
 
@@ -354,9 +354,9 @@ NDJSON、URL-encoded form、multipart body、显式声明的 `text/*` body 以�
 fallback marker。不支持的 UTF-8 media type 会被整体 redaction，而不是原样透传。
 返回的 `BodySanitization` 提供原始脱敏 `content`、结构化 `status`、已捕获字节数，以及
 可选的精确来源字节数。它的 `Display`、`rendered` 和 `into_rendered` 会先用 Debug 风格
-转义全部 Unicode 控制字符；总长已知时再追加计数截断后缀，总长未知时则追加
-`...<truncated>`。`content` 和 `into_content` 会有意保留原始控制字符并省略后缀，供
-需要自定义上下文渲染的调用方使用；写入文本日志时应使用 rendered 形式。诊断内容不是
+转义控制字符、Unicode 行/段分隔符和双向格式控制符；总长已知时再追加计数截断后缀，
+总长未知时则追加 `...<truncated>`。`content` 和 `into_content` 会有意保留原始日志
+不安全字符并省略后缀，供需要自定义上下文渲染的调用方使用；写入文本日志时应使用 rendered 形式。诊断内容不是
 可回放的 HTTP body：结构化输出可能会被压缩，也不保证保留原始空白、字段顺序，或已
 脱敏 JSON 字段的原始 value 类型。`sanitize_body` 没有内置字节上限。调用方仍然负责
 body 捕获上限、解压、流式边界和业务自定义解析。
@@ -394,11 +394,11 @@ println!("{result}");
 ### 脱敏与日志转义
 
 脱敏只会在已建模的结构和已配置字段名将 value 识别为敏感内容时进行遮盖。非敏感
-value 可能原样返回，其中包括换行符和其他日志控制字符。因此，脱敏结果并不天然适合
-通过字符串拼接直接写入日志。
+value 可能原样返回，其中包括换行符、Unicode 行/段分隔符和双向格式控制符。因此，
+脱敏结果并不天然适合通过字符串拼接直接写入日志。
 
-最终日志边界应使用结构化日志或 `escape_log_control_characters`。没有控制字符时，该
-helper 会借用原文；需要转义时则使用不带外层引号的 Debug 风格转义：
+最终日志边界应使用结构化日志或 `escape_log_control_characters`。没有日志不安全字符
+时，该 helper 会借用原文；需要转义时则使用不带外层引号的 Debug 风格转义：
 
 ```rust
 use qubit_sanitize::escape_log_control_characters;
@@ -412,7 +412,7 @@ assert_eq!(
 HTTP body 应使用 `BodySanitization::rendered`、`into_rendered` 或 `Display`；`content`
 和 `into_content` 有意保持原始形式。记录命令参数和环境变量赋值时，优先使用
 `sanitize_argv_display` 和 `sanitize_assignments_display`；这些 helper 使用 Debug 风格
-渲染，控制字符不会伪造新的日志行。
+渲染，使日志不安全字符无法改变日志结构或视觉顺序。
 
 ### 不透明文本 body
 
@@ -431,9 +431,9 @@ let sanitizer = HttpBodySanitizer::default()
     .with_text_body_policy(TextBodyPolicy::PassThrough);
 ```
 
-两种策略都不会扫描任意文本。透传文本中的控制字符会保留在原始 `content` 中，但
-`BodySanitization` 的 rendered 形式会将其转义。同样地，藏在非敏感结构化字段 value
-中的业务秘密，不在基于字段名脱敏的保证范围内。
+两种策略都不会扫描任意文本。透传文本中的日志不安全字符会保留在原始 `content`
+中，但 `BodySanitization` 的 rendered 形式会将其转义。同样地，藏在非敏感结构化字段
+value 中的业务秘密，不在基于字段名脱敏的保证范围内。
 
 ### 无字段上下文的 JSON value
 

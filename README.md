@@ -35,7 +35,7 @@ handled by caller crates that have the full context.
 - A `FieldSanitizer` object that sanitizes single field-value pairs
 - Invariant-preserving policy methods for adding, replacing, and explicitly
   excluding sensitive fields
-- Allocation-free pass-through when log text contains no control characters
+- Allocation-free pass-through when log text contains no log-unsafe characters
 - Convenience helpers for sanitizing `BTreeMap<String, String>` values by key
 - Adapters for URLs, URL-encoded forms, HTTP headers, HTTP bodies, argv
   vectors, and environment variables
@@ -379,12 +379,13 @@ multipart bodies, declared `text/*` bodies, and binary fallback markers.
 Unsupported UTF-8 media types are redacted rather than passed through. The
 returned `BodySanitization` exposes raw sanitized `content`, a structured
 `status`, the captured byte length, and an optional exact source byte length.
-Its `Display`, `rendered`, and `into_rendered` forms escape every Unicode
-control character with Debug-style escapes, then add a counted truncation
-suffix when the total is known or `...<truncated>` when it is unknown.
-`content` and `into_content` intentionally keep raw controls and omit the
-suffix for callers that need context-specific rendering. Use a rendered form,
-not raw content, at a text log boundary. The diagnostic content is not a
+Its `Display`, `rendered`, and `into_rendered` forms escape controls, Unicode
+line and paragraph separators, and bidirectional formatting controls with
+Debug-style escapes, then add a counted truncation suffix when the total is
+known or `...<truncated>` when it is unknown. `content` and `into_content`
+intentionally keep raw log-unsafe characters and omit the suffix for callers
+that need context-specific rendering. Use a rendered form, not raw content, at
+a text log boundary. The diagnostic content is not a
 replayable HTTP body: structured output may be compacted and may not preserve
 original whitespace, field order, or JSON value types for redacted fields.
 `sanitize_body` has no internal byte limit. The caller still owns capture
@@ -426,12 +427,13 @@ safely parse arbitrary shell scripts.
 
 Sanitization masks values only when a modeled structure and configured field
 name identify them as sensitive. Non-sensitive values may be returned
-unchanged, including newlines and other log-control characters. Sanitized
-output therefore is not automatically safe for raw string concatenation.
+unchanged, including newlines, Unicode separators, and bidirectional controls.
+Sanitized output therefore is not automatically safe for raw string
+concatenation.
 
 Use structured logging or `escape_log_control_characters` at the final log
-boundary. The helper returns a borrowed value when no controls are present and
-uses Debug-style escapes without adding quotes otherwise:
+boundary. The helper returns a borrowed value when no log-unsafe characters
+are present and uses Debug-style escapes without adding quotes otherwise:
 
 ```rust
 use qubit_sanitize::escape_log_control_characters;
@@ -446,7 +448,8 @@ For HTTP bodies, use `BodySanitization::rendered`, `into_rendered`, or
 `Display`; `content` and `into_content` are deliberately raw. For command
 arguments and environment assignments, prefer
 `sanitize_argv_display` and `sanitize_assignments_display`; these helpers use
-Debug-style rendering so control characters cannot create forged log lines.
+Debug-style rendering so log-unsafe characters cannot alter log structure or
+visual ordering.
 
 ### Opaque Text Bodies
 
@@ -466,10 +469,10 @@ let sanitizer = HttpBodySanitizer::default()
     .with_text_body_policy(TextBodyPolicy::PassThrough);
 ```
 
-Neither policy scans arbitrary text. Pass-through controls remain present in
-raw `content`, but the `BodySanitization` rendered forms escape them. Similarly,
-a business secret stored inside a non-sensitive structured field is outside the
-guarantee of field-name-based sanitization.
+Neither policy scans arbitrary text. Pass-through log-unsafe characters remain
+present in raw `content`, but the `BodySanitization` rendered forms escape them.
+Similarly, a business secret stored inside a non-sensitive structured field is
+outside the guarantee of field-name-based sanitization.
 
 ### Unkeyed JSON Values
 

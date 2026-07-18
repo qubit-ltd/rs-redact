@@ -14,9 +14,10 @@
 /// [`crate::FieldSanitizer`] can match. [`TextBodyPolicy::PassThrough`] is an
 /// explicit diagnostic opt-in: callers accept responsibility for ensuring the
 /// text does not contain application secrets. Raw [`crate::BodySanitization`]
-/// content preserves the text, including controls, while its rendered forms
-/// escape control characters. Neither variant scans arbitrary text or detects
-/// secrets stored in non-sensitive structured fields.
+/// content preserves the text, including log-unsafe characters, while its
+/// rendered forms escape controls, Unicode line and paragraph separators, and
+/// bidirectional formatting controls. Neither variant scans arbitrary text or
+/// detects secrets stored in non-sensitive structured fields.
 #[must_use]
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
