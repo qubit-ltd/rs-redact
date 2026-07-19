@@ -55,6 +55,22 @@ fn assert_structured_secret_is_redacted(data: &[u8]) {
     assert!(!sanitized_url.contains(FUZZ_SECRET));
 }
 
+/// Verifies malformed percent escapes fail closed in form and URL adapters.
+fn assert_malformed_structured_secret_is_redacted() {
+    for suffix in ["%", "%FF"] {
+        let form = format!("password={FUZZ_SECRET}&noise={suffix}");
+        let sanitized_form = FormUrlEncodedSanitizer::default()
+            .sanitize_str(&form, NameMatchMode::ExactOrSuffix);
+        assert!(!sanitized_form.contains(FUZZ_SECRET));
+
+        let url = format!("https://example.test/?{form}");
+        let sanitized_url = UrlSanitizer::default()
+            .sanitize_url_str(&url, NameMatchMode::ExactOrSuffix)
+            .expect("the constructed malformed-query URL should parse");
+        assert!(!sanitized_url.contains(FUZZ_SECRET));
+    }
+}
+
 fuzz_target!(|data: &[u8]| {
     let form_sanitizer = FormUrlEncodedSanitizer::default();
     let first_form =
@@ -73,4 +89,5 @@ fuzz_target!(|data: &[u8]| {
         assert_eq!(first_url, second_url);
     }
     assert_structured_secret_is_redacted(data);
+    assert_malformed_structured_secret_is_redacted();
 });

@@ -103,6 +103,59 @@ fn assert_structured_secret_is_redacted(selector: u8, data: &[u8]) {
     assert!(!result.content().contains(FUZZ_SECRET));
 }
 
+/// Verifies malformed structured bodies fail closed around a known secret.
+///
+/// # Parameters
+///
+/// * `selector` - Chooses one bounded malformed JSON, NDJSON, form, or
+///   multipart body.
+fn assert_malformed_structured_secret_is_redacted(selector: u8) {
+    let (body, content_type) = match selector % 5 {
+        0 => (
+            format!(r#"{{"password":"{FUZZ_SECRET}""#).into_bytes(),
+            HeaderValue::from_static("application/json"),
+        ),
+        1 => (
+            format!(
+                "{{\"noise\":\"visible\"}}\n{{\"password\":\"{FUZZ_SECRET}\""
+            )
+            .into_bytes(),
+            HeaderValue::from_static("application/x-ndjson"),
+        ),
+        2 => (
+            format!("password={FUZZ_SECRET}&noise=%").into_bytes(),
+            HeaderValue::from_static(
+                "application/x-www-form-urlencoded",
+            ),
+        ),
+        3 => (
+            format!(
+                "--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\n{FUZZ_SECRET}"
+            )
+            .into_bytes(),
+            HeaderValue::from_static(
+                "multipart/form-data; boundary=boundary",
+            ),
+        ),
+        _ => (
+            format!(
+                "--boundary\r\nContent-Disposition: form-data; name=\"password\"; name=\"note\"\r\n\r\n{FUZZ_SECRET}\r\n--boundary--\r\n"
+            )
+            .into_bytes(),
+            HeaderValue::from_static(
+                "multipart/form-data; boundary=boundary",
+            ),
+        ),
+    };
+
+    let result = HttpBodySanitizer::default().sanitize_body(
+        &body,
+        Some(&content_type),
+        NameMatchMode::ExactOrSuffix,
+    );
+    assert!(!result.content().contains(FUZZ_SECRET));
+}
+
 fuzz_target!(|data: &[u8]| {
     let [media_selector, source_selector, options, body @ ..] = data else {
         return;
@@ -156,4 +209,5 @@ fuzz_target!(|data: &[u8]| {
         assert!(source_len >= first.captured_len());
     }
     assert_structured_secret_is_redacted(*media_selector, body);
+    assert_malformed_structured_secret_is_redacted(*media_selector);
 });
