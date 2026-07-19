@@ -118,3 +118,34 @@ fn test_http_body_sanitizer_rejects_valueless_requested_multipart_parameter() {
     );
     assert!(!result.raw_content().contains("raw-secret"));
 }
+
+#[test]
+fn test_http_body_sanitizer_rejects_malformed_content_disposition_values() {
+    let sanitizer = HttpBodySanitizer::default()
+        .with_text_body_policy(TextBodyPolicy::PassThrough);
+    let content_type =
+        HeaderValue::from_static("multipart/form-data; boundary=b");
+    let bodies: [&[u8]; 4] = [
+        b"--b\r\nContent-Disposition: form-data; name=pass\"word\r\n\r\nraw-secret\r\n--b--\r\n",
+        b"--b\r\nContent-Disposition: form-data; name=\"password\r\n\r\nraw-secret\r\n--b--\r\n",
+        b"--b\r\nContent-Disposition: form-data; name=\"password\\\r\n\r\nraw-secret\r\n--b--\r\n",
+        b"--b\r\nContent-Disposition: form-data; name=\"note\r\ninjected\"\r\n\r\nraw-secret\r\n--b--\r\n",
+    ];
+
+    for body in bodies {
+        let result = sanitizer.sanitize_body(
+            body,
+            Some(&content_type),
+            NameMatchMode::ExactOrSuffix,
+        );
+
+        assert_eq!(result.raw_content(), "<redacted: multipart body>");
+        assert_eq!(
+            result.status(),
+            BodySanitizationStatus::Redacted(
+                BodyRedactionReason::InvalidMultipart,
+            ),
+        );
+        assert!(!result.raw_content().contains("raw-secret"));
+    }
+}

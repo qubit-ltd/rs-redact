@@ -10,6 +10,7 @@
 use http::HeaderValue;
 
 use qubit_sanitize::{
+    BodyRedactionReason,
     BodySanitizationStatus,
     BodySourceLength,
     HttpBodySanitizer,
@@ -293,6 +294,48 @@ fn test_http_body_sanitizer_sanitize_body_redacts_non_utf8_multipart() {
 
     assert_eq!(sanitized, "<redacted: multipart body>");
     assert!(!sanitized.contains("secret"));
+}
+
+#[test]
+fn test_http_body_sanitizer_redacts_non_utf8_multipart_part_header() {
+    let sanitizer = HttpBodySanitizer::default();
+    let content_type =
+        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let body = b"--boundary\r\nContent-Disposition: form-data; name=\"password\xff\"\r\n\r\nsecret\r\n--boundary--\r\n";
+
+    let result = sanitizer.sanitize_body(
+        body,
+        Some(&content_type),
+        NameMatchMode::ExactOrSuffix,
+    );
+
+    assert_eq!(result.raw_content(), "<redacted: multipart body>");
+    assert_eq!(
+        result.status(),
+        BodySanitizationStatus::Redacted(BodyRedactionReason::InvalidMultipart,),
+    );
+    assert!(!result.raw_content().contains("secret"));
+}
+
+#[test]
+fn test_http_body_sanitizer_redacts_multipart_with_non_whitespace_epilogue() {
+    let sanitizer = HttpBodySanitizer::default();
+    let content_type =
+        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let body = b"--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nsecret\r\n--boundary--\r\nsecret-epilogue";
+
+    let result = sanitizer.sanitize_body(
+        body,
+        Some(&content_type),
+        NameMatchMode::ExactOrSuffix,
+    );
+
+    assert_eq!(result.raw_content(), "<redacted: multipart body>");
+    assert_eq!(
+        result.status(),
+        BodySanitizationStatus::Redacted(BodyRedactionReason::InvalidMultipart,),
+    );
+    assert!(!result.raw_content().contains("secret"));
 }
 
 #[test]
