@@ -299,6 +299,15 @@ let header = HttpHeaderSanitizer::default()
     );
 assert_eq!(header, "****");
 
+let mut native_sensitive = HeaderValue::from_static("vendor-specific-secret");
+native_sensitive.set_sensitive(true);
+let header = HttpHeaderSanitizer::default().sanitize_value(
+    &http::HeaderName::from_static("x-vendor-context"),
+    &native_sensitive,
+    NameMatchMode::Exact,
+);
+assert_eq!(header, "<redacted>");
+
 let body_content_type = HeaderValue::from_static("application/json");
 let body = HttpBodySanitizer::default().sanitize_body(
     br#"{"user":"alice","password":"secret"}"#,
@@ -321,6 +330,10 @@ assert_eq!(argv, r#"["docker", "login", "--password", "<redacted>"]"#);
 adapter 方法也和 core 的 `FieldSanitizer` 一样要求显式传入 `NameMatchMode`。如果
 希望 `OPENAI_API_KEY` 这类上下文字段名命中已配置的 `api_key`，使用
 `NameMatchMode::ExactOrSuffix`。
+对于 HTTP header，`HeaderValue::is_sensitive()` 是值级 `Secret` 声明，不需要额外
+wrapper。它的优先级高于 header name 规则，因此排除某个 name 也不能暴露带原生敏感
+标记的值；最终替换文本仍由已配置的 `Secret` mask policy 决定。未标记的值继续使用
+已配置的 name 匹配、敏感等级和排除规则。
 对于 argv，`--` 只停止对“选项名与下一个参数”这种分离形式的推断；分隔符之后
 自包含的 `--password=value` 和 `PASSWORD=value` 仍会脱敏，而位置参数形式的
 `--password value` 会保持不变。

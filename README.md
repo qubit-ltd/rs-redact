@@ -319,6 +319,15 @@ let header = HttpHeaderSanitizer::default()
     );
 assert_eq!(header, "****");
 
+let mut native_sensitive = HeaderValue::from_static("vendor-specific-secret");
+native_sensitive.set_sensitive(true);
+let header = HttpHeaderSanitizer::default().sanitize_value(
+    &http::HeaderName::from_static("x-vendor-context"),
+    &native_sensitive,
+    NameMatchMode::Exact,
+);
+assert_eq!(header, "<redacted>");
+
 let body_content_type = HeaderValue::from_static("application/json");
 let body = HttpBodySanitizer::default().sanitize_body(
     br#"{"user":"alice","password":"secret"}"#,
@@ -341,6 +350,11 @@ assert_eq!(argv, r#"["docker", "login", "--password", "<redacted>"]"#);
 Adapter methods require an explicit `NameMatchMode`, just like the core
 `FieldSanitizer` methods. Use `NameMatchMode::ExactOrSuffix` when contextual
 names such as `OPENAI_API_KEY` should match the configured field `api_key`.
+For HTTP headers, `HeaderValue::is_sensitive()` is a value-level `Secret`
+declaration and requires no wrapper type. It takes precedence over header-name
+rules, so excluding a name cannot expose a natively sensitive value; the
+configured `Secret` mask policy still controls its replacement. Unmarked
+values continue to use the configured name matching, levels, and exclusions.
 For argv, `--` stops only separate-value option inference: self-contained
 `--password=value` and `PASSWORD=value` tokens after the delimiter are still
 sanitized, while positional `--password value` tokens are left unchanged.
