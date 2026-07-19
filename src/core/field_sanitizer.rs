@@ -128,6 +128,7 @@ impl FieldSanitizer {
     ///
     /// * `fields` - Field names to add.
     /// * `level` - Sensitivity level assigned to every field.
+    #[inline(always)]
     pub fn extend_sensitive_fields<I, S>(
         &mut self,
         fields: I,
@@ -146,6 +147,7 @@ impl FieldSanitizer {
     /// # Parameters
     ///
     /// * `preset` - Predefined group to insert.
+    #[inline(always)]
     pub fn extend_preset(&mut self, preset: SensitiveFieldPreset) {
         self.policy.extend_preset(preset);
     }

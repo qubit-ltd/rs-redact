@@ -77,7 +77,7 @@ impl FieldSanitizePolicy {
     /// # Returns
     ///
     /// The updated sanitization policy.
-    #[inline]
+    #[inline(always)]
     pub fn with_sensitive_fields(mut self, fields: SensitiveFields) -> Self {
         self.set_sensitive_fields(fields);
         self

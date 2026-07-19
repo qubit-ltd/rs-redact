@@ -82,6 +82,7 @@ impl<'a> JsonValueSanitizer<'a> {
     /// # Returns
     ///
     /// `true` when policy allowed at least one unkeyed scalar value unchanged.
+    #[must_use]
     fn sanitize_with_context(
         &self,
         value: &mut Value,

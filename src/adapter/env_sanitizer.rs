@@ -125,7 +125,7 @@ impl EnvSanitizer {
     /// render them with `Debug` formatting before writing untrusted control
     /// characters to a single-line log.
     #[must_use = "use the returned sanitized pair instead of the original pair"]
-    #[inline]
+    #[inline(always)]
     pub fn sanitize_os_pair<K, V>(
         &self,
         key: K,
@@ -229,6 +229,7 @@ impl EnvSanitizer {
     /// # Returns
     ///
     /// Owned string pair preserving the rendered key and sanitizing the value.
+    #[must_use]
     fn sanitize_os_pair_ref(
         &self,
         key: &OsStr,

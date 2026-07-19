@@ -190,6 +190,7 @@ impl ArgvSanitizer {
     /// # Returns
     ///
     /// The sanitized rendering of `arg`.
+    #[must_use]
     fn sanitize_arg(
         &self,
         arg: &OsStr,
