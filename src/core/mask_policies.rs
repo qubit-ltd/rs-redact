@@ -52,6 +52,21 @@ impl MaskPolicies {
         }
     }
 
+    /// Creates the conservative default policy collection.
+    ///
+    /// # Returns
+    ///
+    /// Default mask policies for all sensitivity levels.
+    #[inline]
+    fn new_default() -> Self {
+        Self::new(
+            MaskPolicy::preserve_edges(2, 2, "****", 4),
+            MaskPolicy::preserve_suffix(1, "****", 1),
+            MaskPolicy::fixed("****"),
+            MaskPolicy::fixed("<redacted>"),
+        )
+    }
+
     /// Returns a copy with the policy for one sensitivity level replaced.
     ///
     /// # Parameters
@@ -70,21 +85,6 @@ impl MaskPolicies {
     ) -> Self {
         self.set(level, policy);
         self
-    }
-
-    /// Creates the conservative default policy collection.
-    ///
-    /// # Returns
-    ///
-    /// Default mask policies for all sensitivity levels.
-    #[inline]
-    fn new_default() -> Self {
-        Self::new(
-            MaskPolicy::preserve_edges(2, 2, "****", 4),
-            MaskPolicy::preserve_suffix(1, "****", 1),
-            MaskPolicy::fixed("****"),
-            MaskPolicy::fixed("<redacted>"),
-        )
     }
 
     /// Returns the policy for one sensitivity level.
