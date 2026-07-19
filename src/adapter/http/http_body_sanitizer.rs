@@ -26,14 +26,15 @@ use super::{
     UnkeyedJsonValuePolicy,
     body_bytes::trim_ascii_whitespace,
     content_type,
-    internal::BodyInputKind,
+    internal::{
+        BodyInputKind,
+        JsonValueSanitizer,
+        sanitize_fallback_body,
+    },
     multipart,
     redaction_markers::{
         INVALID_CONTENT_TYPE_REDACTED,
         MULTIPART_BODY_REDACTED,
-        TEXT_BODY_REDACTED,
-        UNKEYED_JSON_VALUE_REDACTED,
-        UNSUPPORTED_BODY_REDACTED,
     },
     text_body_policy::TextBodyPolicy,
 };
@@ -398,8 +399,12 @@ impl HttpBodySanitizer {
         match_mode: NameMatchMode,
     ) -> Option<(String, bool)> {
         let mut value = serde_json::from_slice::<Value>(bytes).ok()?;
-        let contains_passed_through_value =
-            self.sanitize_json_value(&mut value, match_mode, false);
+        let contains_passed_through_value = JsonValueSanitizer::new(
+            &self.field_sanitizer,
+            match_mode,
+            self.unkeyed_json_value_policy,
+        )
+        .sanitize(&mut value);
         let content = serde_json::to_string(&value).ok()?;
         Some((content, contains_passed_through_value))
     }
@@ -424,6 +429,11 @@ impl HttpBodySanitizer {
         let trailing_newline = text.ends_with('\n');
         let mut sanitized_lines = Vec::new();
         let mut contains_passed_through_value = false;
+        let json_sanitizer = JsonValueSanitizer::new(
+            &self.field_sanitizer,
+            match_mode,
+            self.unkeyed_json_value_policy,
+        );
         for line in text.lines() {
             if line.trim().is_empty() {
                 sanitized_lines.push(String::new());
@@ -431,7 +441,7 @@ impl HttpBodySanitizer {
             }
             let mut value = serde_json::from_str::<Value>(line).ok()?;
             contains_passed_through_value |=
-                self.sanitize_json_value(&mut value, match_mode, false);
+                json_sanitizer.sanitize(&mut value);
             sanitized_lines.push(serde_json::to_string(&value).ok()?);
         }
         let mut result = sanitized_lines.join("\n");
@@ -550,7 +560,12 @@ impl HttpBodySanitizer {
             return self.sanitize_form_body(bytes, source_length, match_mode);
         }
 
-        self.sanitize_fallback_body(bytes, source_length, content_type)
+        sanitize_fallback_body(
+            bytes,
+            source_length,
+            content_type,
+            self.text_body_policy,
+        )
     }
 
     /// Sanitizes a body declared as multipart.
@@ -735,78 +750,6 @@ impl HttpBodySanitizer {
         )
     }
 
-    /// Sanitizes a body not handled by a structured media-type branch.
-    ///
-    /// # Parameters
-    ///
-    /// * `bytes` - Complete body bytes or the captured preview prefix.
-    /// * `source_length` - Exact or unknown-truncated source length metadata
-    ///   used for result metadata and binary byte-count markers.
-    /// * `content_type` - Optional declared content type used to recognize
-    ///   opaque text bodies.
-    ///
-    /// # Returns
-    ///
-    /// A policy-controlled text result for declared UTF-8 text, an unsupported
-    /// media-type redaction for other UTF-8 bodies, or a binary byte-count
-    /// result for non-UTF-8 bodies.
-    fn sanitize_fallback_body(
-        &self,
-        bytes: &[u8],
-        source_length: BodySourceLength,
-        content_type: Option<&str>,
-    ) -> BodySanitization {
-        let result = |content, status| {
-            BodySanitization::new(content, status, bytes.len(), source_length)
-        };
-        match std::str::from_utf8(bytes) {
-            Ok(text) if content_type.is_some_and(content_type::is_text) => {
-                let status = match self.text_body_policy {
-                    TextBodyPolicy::Redact => BodySanitizationStatus::Redacted(
-                        BodyRedactionReason::OpaqueText,
-                    ),
-                    TextBodyPolicy::PassThrough => {
-                        BodySanitizationStatus::PassedThrough
-                    }
-                };
-                result(self.sanitize_text_body(text), status)
-            }
-            Ok(_) => result(
-                UNSUPPORTED_BODY_REDACTED.to_string(),
-                BodySanitizationStatus::Redacted(
-                    BodyRedactionReason::UnsupportedMediaType,
-                ),
-            ),
-            Err(_) => {
-                let (source_len, _) = source_length.resolve(bytes.len());
-                let content = match source_len {
-                    Some(source_len) => format!("<binary {source_len} bytes>"),
-                    None => format!("<binary more than {} bytes>", bytes.len()),
-                };
-                result(content, BodySanitizationStatus::Binary)
-            }
-        }
-    }
-
-    /// Sanitizes an opaque top-level text body according to the text policy.
-    ///
-    /// # Parameters
-    ///
-    /// * `text` - UTF-8 text body whose content has no structured field names.
-    ///
-    /// # Returns
-    ///
-    /// A redaction marker by default, or `text` unchanged when callers choose
-    /// [`TextBodyPolicy::PassThrough`].
-    #[must_use = "use the returned policy-controlled text instead of the original body"]
-    #[inline]
-    fn sanitize_text_body(&self, text: &str) -> String {
-        match self.text_body_policy {
-            TextBodyPolicy::Redact => TEXT_BODY_REDACTED.to_string(),
-            TextBodyPolicy::PassThrough => text.to_string(),
-        }
-    }
-
     /// Returns whether body bytes should be treated as JSON.
     ///
     /// # Parameters
@@ -825,106 +768,6 @@ impl HttpBodySanitizer {
         }
         let trimmed = trim_ascii_whitespace(bytes);
         matches!(trimmed.first(), Some(b'{') | Some(b'['))
-    }
-
-    /// Applies structured sanitization to one JSON value.
-    ///
-    /// # Parameters
-    ///
-    /// * `value` - JSON value to mutate.
-    /// * `match_mode` - Field-name matching mode for JSON object keys.
-    /// * `has_field_context` - Whether an enclosing object key identifies this
-    ///   value.
-    ///
-    /// # Returns
-    ///
-    /// `true` when policy allowed at least one unkeyed scalar value unchanged.
-    fn sanitize_json_value(
-        &self,
-        value: &mut Value,
-        match_mode: NameMatchMode,
-        has_field_context: bool,
-    ) -> bool {
-        match value {
-            Value::Object(map) => {
-                let mut contains_passed_through_value = false;
-                for (key, value) in map.iter_mut() {
-                    if let Some(masked) =
-                        self.mask_json_field_value(key, value, match_mode)
-                    {
-                        *value = Value::String(masked);
-                    } else {
-                        contains_passed_through_value |=
-                            self.sanitize_json_value(value, match_mode, true);
-                    }
-                }
-                contains_passed_through_value
-            }
-            Value::Array(items) => {
-                let mut contains_passed_through_value = false;
-                for item in items {
-                    contains_passed_through_value |= self.sanitize_json_value(
-                        item,
-                        match_mode,
-                        has_field_context,
-                    );
-                }
-                contains_passed_through_value
-            }
-            Value::Null
-            | Value::Bool(_)
-            | Value::Number(_)
-            | Value::String(_) => {
-                if has_field_context {
-                    return false;
-                }
-                match self.unkeyed_json_value_policy {
-                    UnkeyedJsonValuePolicy::Redact => {
-                        *value = Value::String(
-                            UNKEYED_JSON_VALUE_REDACTED.to_string(),
-                        );
-                        false
-                    }
-                    UnkeyedJsonValuePolicy::PassThrough => true,
-                }
-            }
-        }
-    }
-
-    /// Masks a sensitive JSON field value.
-    ///
-    /// # Parameters
-    ///
-    /// * `field` - JSON object key used for sensitivity lookup.
-    /// * `value` - JSON value to mask when the key is sensitive.
-    /// * `match_mode` - Field-name matching mode for `field`.
-    ///
-    /// # Returns
-    ///
-    /// `Some(masked)` when `field` is sensitive, otherwise `None`.
-    #[inline]
-    fn mask_json_field_value(
-        &self,
-        field: &str,
-        value: &Value,
-        match_mode: NameMatchMode,
-    ) -> Option<String> {
-        let level = self
-            .field_sanitizer
-            .sensitivity_for_name(field, match_mode)?;
-        let policy = self
-            .field_sanitizer
-            .policy()
-            .mask_policies()
-            .for_level(level);
-        if let Value::String(value) = value {
-            return Some(policy.mask(value).into_owned());
-        }
-        if let Some(masked) = policy.value_independent_non_empty_mask() {
-            return Some(masked.to_owned());
-        }
-        let serialized = value.to_string();
-        Some(policy.mask(&serialized).into_owned())
     }
 }
 
