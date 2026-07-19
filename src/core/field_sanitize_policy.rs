@@ -272,6 +272,7 @@ impl FieldSanitizePolicy {
     /// # Returns
     ///
     /// Borrowed explicit exclusion set.
+    #[must_use]
     #[inline(always)]
     pub(super) const fn excluded_fields(&self) -> &BTreeSet<String> {
         &self.excluded_fields
