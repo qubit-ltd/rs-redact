@@ -85,6 +85,7 @@ impl ArgvSanitizer {
     /// sanitizer.sanitize_argv(["cmd", "--token", "secret"], NameMatchMode::Exact);
     /// ```
     #[must_use = "use the returned sanitized argv instead of the original argv"]
+    #[inline(always)]
     pub fn sanitize_argv<I, S>(
         &self,
         argv: I,
