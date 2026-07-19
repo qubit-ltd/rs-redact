@@ -16,6 +16,7 @@ use http::{
 use crate::{
     FieldSanitizer,
     NameMatchMode,
+    SensitivityLevel,
 };
 
 /// Sanitizes HTTP header values for logs and diagnostics.
@@ -61,10 +62,18 @@ impl HttpHeaderSanitizer {
         &mut self.field_sanitizer
     }
 
-    /// Sanitizes one HTTP header value by header name.
+    /// Sanitizes one HTTP header value by its native flag and header name.
     ///
-    /// Non-UTF-8 header values are rendered as `<non-utf8>` before applying
-    /// sensitive-name masking.
+    /// A value marked with [`HeaderValue::set_sensitive`] is a value-level
+    /// declaration and is masked at [`SensitivityLevel::Secret`] before any
+    /// header-name policy is considered. Consequently, excluding a header
+    /// name from the field policy does not expose a natively sensitive value.
+    /// The configured `Secret` mask policy still determines the replacement.
+    ///
+    /// Unmarked values retain the normal header-name matching, sensitivity
+    /// levels, and exclusions configured on the underlying sanitizer.
+    /// Non-UTF-8 values are rendered as `<non-utf8>` before either policy is
+    /// applied.
     ///
     /// # Parameters
     ///
@@ -76,20 +85,32 @@ impl HttpHeaderSanitizer {
     ///
     /// Sanitized header value for diagnostic output.
     #[must_use = "use the returned sanitized header value instead of the original value"]
-    #[inline(always)]
+    #[inline]
     pub fn sanitize_value(
         &self,
         name: &HeaderName,
         value: &HeaderValue,
         match_mode: NameMatchMode,
     ) -> String {
-        let value = value.to_str().unwrap_or("<non-utf8>");
+        let rendered = value.to_str().unwrap_or("<non-utf8>");
+        if value.is_sensitive() {
+            return self
+                .field_sanitizer
+                .mask_value_at_level(rendered, SensitivityLevel::Secret)
+                .into_owned();
+        }
         self.field_sanitizer
-            .sanitize_value(name.as_str(), value, match_mode)
+            .sanitize_value(name.as_str(), rendered, match_mode)
             .into_owned()
     }
 
     /// Sanitizes one HTTP header pair.
+    ///
+    /// Values marked with [`HeaderValue::set_sensitive`] are masked at
+    /// [`SensitivityLevel::Secret`] even when the header name is excluded
+    /// from name-based sanitization. Unmarked values use the configured
+    /// header-name policy. See [`Self::sanitize_value`] for the full priority
+    /// rules.
     ///
     /// # Parameters
     ///
@@ -120,6 +141,12 @@ impl HttpHeaderSanitizer {
     /// Duplicate header values are grouped under the lowercase header name
     /// yielded by [`HeaderName::as_str`]. The returned map is sorted
     /// deterministically for debug output.
+    ///
+    /// Each value is evaluated independently. A value marked with
+    /// [`HeaderValue::set_sensitive`] is masked at
+    /// [`SensitivityLevel::Secret`] regardless of header-name exclusions;
+    /// unmarked values continue to use the name-based policy. See
+    /// [`Self::sanitize_value`] for the full priority rules.
     ///
     /// # Parameters
     ///
