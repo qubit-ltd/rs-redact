@@ -222,6 +222,23 @@ impl UrlSanitizer {
     ///
     /// Sanitized URL text when parsing succeeds, otherwise
     /// `<redacted: invalid URL>`.
+    ///
+    /// # Examples
+    ///
+    /// The sanitized URL must replace the original value at the output
+    /// boundary.
+    ///
+    /// ```compile_fail
+    /// #![deny(unused_must_use)]
+    ///
+    /// use qubit_sanitize::{NameMatchMode, UrlSanitizer};
+    ///
+    /// UrlSanitizer::default().sanitize_url_str_or_redact(
+    ///     "https://example.com/?token=secret",
+    ///     NameMatchMode::Exact,
+    /// );
+    /// ```
+    #[must_use = "use the returned sanitized URL instead of the original URL"]
     #[inline]
     pub fn sanitize_url_str_or_redact(
         &self,
