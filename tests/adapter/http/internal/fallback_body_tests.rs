@@ -30,7 +30,7 @@ fn test_fallback_body_sanitizer_applies_opaque_text_policy() {
         NameMatchMode::Exact,
     );
 
-    assert_eq!(result.content(), "diagnostic text");
+    assert_eq!(result.raw_content(), "diagnostic text");
     assert_eq!(result.status(), BodySanitizationStatus::PassedThrough);
 }
 
@@ -45,7 +45,7 @@ fn test_fallback_body_sanitizer_preserves_unknown_binary_length() {
         NameMatchMode::Exact,
     );
 
-    assert_eq!(result.content(), "<binary more than 2 bytes>");
+    assert_eq!(result.raw_content(), "<binary more than 2 bytes>");
     assert_eq!(result.status(), BodySanitizationStatus::Binary);
     assert_ne!(
         result.status(),

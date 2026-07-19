@@ -80,8 +80,8 @@ fn test_body_sanitization_complete_result_has_no_truncation_suffix() {
     assert_eq!(result.source_len(), Some(body.len()));
     assert_eq!(result.truncated_bytes(), Some(0));
     assert!(!result.is_truncated());
-    assert_eq!(result.content(), r#"{"password":"<redacted>"}"#);
-    assert_eq!(result.rendered(), result.content());
+    assert_eq!(result.raw_content(), r#"{"password":"<redacted>"}"#);
+    assert_eq!(result.rendered(), result.raw_content());
 
     let consumed = sanitizer.sanitize_body(
         body,
@@ -92,7 +92,7 @@ fn test_body_sanitization_complete_result_has_no_truncation_suffix() {
 }
 
 #[test]
-fn test_body_sanitization_into_content_omits_truncation_suffix() {
+fn test_body_sanitization_into_raw_content_omits_truncation_suffix() {
     let sanitizer = HttpBodySanitizer::default();
     let content_type = HeaderValue::from_static("application/json");
     let prefix = br#"{"password":"secret"#;
@@ -105,7 +105,7 @@ fn test_body_sanitization_into_content_omits_truncation_suffix() {
     );
 
     assert_eq!(
-        result.into_content(),
+        result.into_raw_content(),
         "<redacted: invalid or truncated JSON>",
     );
 }

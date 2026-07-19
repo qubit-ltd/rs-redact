@@ -113,7 +113,7 @@ Content-Type: application/json
         NameMatchMode::Exact,
     );
 
-    assert!(result.content().contains(r#"metadata=["diagnostic"]"#));
+    assert!(result.raw_content().contains(r#"metadata=["diagnostic"]"#));
     assert_eq!(result.status(), BodySanitizationStatus::PassedThrough);
 }
 
@@ -269,11 +269,11 @@ fn test_http_body_sanitizer_summarizes_non_utf8_multipart_file_part() {
     );
 
     assert_eq!(
-        sanitized.content(),
+        sanitized.raw_content(),
         "<multipart>\nupload=<redacted: file part>\npassword=<redacted>\n</multipart>",
     );
-    assert!(!sanitized.content().contains("binary"));
-    assert!(!sanitized.content().contains("secret"));
+    assert!(!sanitized.raw_content().contains("binary"));
+    assert!(!sanitized.raw_content().contains("secret"));
 }
 
 #[test]

@@ -81,30 +81,69 @@ impl BodySanitization {
 
     /// Returns raw sanitized content without the standard truncation suffix.
     ///
-    /// Log-unsafe characters are not escaped. Use [`Self::rendered`] or
-    /// [`Display`] when inserting the result into untrusted log text.
+    /// Log-unsafe characters are not escaped. Use [`Self::escaped_content`],
+    /// [`Self::rendered`], or [`Display`] when inserting the result into
+    /// untrusted log text.
     ///
     /// # Returns
     ///
     /// Borrowed diagnostic content.
     #[must_use]
     #[inline(always)]
-    pub fn content(&self) -> &str {
+    pub fn raw_content(&self) -> &str {
         &self.content
     }
 
     /// Consumes this result and returns raw sanitized content without the
     /// truncation suffix.
     ///
-    /// Log-unsafe characters are not escaped. Use [`Self::into_rendered`] when
-    /// inserting the result into untrusted log text.
+    /// Log-unsafe characters are not escaped. Use
+    /// [`Self::into_escaped_content`] or [`Self::into_rendered`] when inserting
+    /// the result into untrusted log text.
     ///
     /// # Returns
     ///
     /// Owned diagnostic content.
     #[must_use = "use the sanitized content instead of discarding it"]
     #[inline(always)]
-    pub fn into_content(self) -> String {
+    pub fn into_raw_content(self) -> String {
+        self.content
+    }
+
+    /// Returns diagnostic content with log-unsafe characters escaped and no
+    /// standard truncation suffix.
+    ///
+    /// This method is intended for callers that need to append their own
+    /// trusted, context-specific suffix. Use [`Self::rendered`] when the
+    /// standard truncation suffix is appropriate.
+    ///
+    /// # Returns
+    ///
+    /// Owned, log-safe diagnostic content without a truncation suffix.
+    #[must_use = "use the sanitized rendering instead of discarding it"]
+    #[inline(always)]
+    pub fn escaped_content(&self) -> String {
+        escape_log_control_characters(&self.content).into_owned()
+    }
+
+    /// Consumes this result and returns diagnostic content with log-unsafe
+    /// characters escaped and no standard truncation suffix.
+    ///
+    /// This method is intended for callers that need to append their own
+    /// trusted, context-specific suffix. Use [`Self::into_rendered`] when the
+    /// standard truncation suffix is appropriate.
+    ///
+    /// # Returns
+    ///
+    /// Owned, log-safe diagnostic content without a truncation suffix.
+    #[must_use = "use the sanitized rendering instead of discarding it"]
+    #[inline(always)]
+    pub fn into_escaped_content(mut self) -> String {
+        if let Cow::Owned(escaped) =
+            escape_log_control_characters(&self.content)
+        {
+            self.content = escaped;
+        }
         self.content
     }
 
@@ -190,15 +229,10 @@ impl BodySanitization {
     ///
     /// Owned diagnostic rendering with a truncation suffix when needed.
     #[must_use = "use the sanitized rendering instead of discarding it"]
-    pub fn into_rendered(mut self) -> String {
+    pub fn into_rendered(self) -> String {
         let truncated_bytes = self.truncated_bytes();
         let truncated = self.truncated;
-        if let Cow::Owned(escaped) =
-            escape_log_control_characters(&self.content)
-        {
-            self.content = escaped;
-        }
-        let mut content = self.content;
+        let mut content = self.into_escaped_content();
         match truncated_bytes {
             Some(truncated_bytes) if truncated_bytes > 0 => {
                 let _ =

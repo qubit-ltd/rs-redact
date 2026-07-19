@@ -48,7 +48,7 @@ fn test_body_sanitization_empty_preview_keeps_source_metadata() {
     );
 
     assert_eq!(result.status(), BodySanitizationStatus::Empty);
-    assert_eq!(result.content(), "<empty>");
+    assert_eq!(result.raw_content(), "<empty>");
     assert_eq!(result.captured_len(), 0);
     assert_eq!(result.source_len(), Some(10));
     assert_eq!(result.to_string(), "<empty>...<truncated 10 bytes>");

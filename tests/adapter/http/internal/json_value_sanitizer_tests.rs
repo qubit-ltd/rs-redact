@@ -31,7 +31,7 @@ fn test_json_value_sanitizer_tracks_nested_field_context() {
     );
 
     assert_eq!(
-        result.content(),
+        result.raw_content(),
         r#"[{"items":["visible"]},["<redacted: unkeyed JSON value>"],{"token":"****"}]"#,
     );
     assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
@@ -65,6 +65,6 @@ fn test_json_value_sanitizer_masks_non_string_with_value_dependent_policy() {
         NameMatchMode::Exact,
     );
 
-    assert_eq!(result.content(), r#"{"numeric":"12****56"}"#);
+    assert_eq!(result.raw_content(), r#"{"numeric":"12****56"}"#);
     assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
 }

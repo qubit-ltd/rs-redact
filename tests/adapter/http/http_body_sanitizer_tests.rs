@@ -40,7 +40,7 @@ fn test_http_body_sanitizer_sanitize_body_with_content_type_str() {
         NameMatchMode::Exact,
     );
 
-    assert_eq!(result.content(), r#"{"password":"<redacted>"}"#);
+    assert_eq!(result.raw_content(), r#"{"password":"<redacted>"}"#);
     assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
 }
 
@@ -60,7 +60,10 @@ fn test_http_body_sanitizer_body_content_type_str_rejects_invalid_header() {
             BodyRedactionReason::InvalidContentType,
         ),
     );
-    assert_eq!(result.content(), "<redacted: invalid content type body>");
+    assert_eq!(
+        result.raw_content(),
+        "<redacted: invalid content type body>"
+    );
 }
 
 #[test]
@@ -73,7 +76,7 @@ fn test_http_body_sanitizer_body_content_type_str_accepts_absent_header() {
         NameMatchMode::Exact,
     );
 
-    assert_eq!(result.content(), r#"{"password":"<redacted>"}"#);
+    assert_eq!(result.raw_content(), r#"{"password":"<redacted>"}"#);
     assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
 }
 
@@ -95,7 +98,10 @@ fn test_http_body_sanitizer_content_type_str_rejects_invalid_header() {
             BodyRedactionReason::InvalidContentType,
         ),
     );
-    assert_eq!(result.content(), "<redacted: invalid content type body>");
+    assert_eq!(
+        result.raw_content(),
+        "<redacted: invalid content type body>"
+    );
     assert_eq!(result.captured_len(), body.len());
     assert_eq!(result.source_len(), Some(10));
     assert!(result.is_truncated());
@@ -112,7 +118,7 @@ fn test_http_body_sanitizer_preview_content_type_str_accepts_valid_header() {
         NameMatchMode::Exact,
     );
 
-    assert_eq!(result.content(), r#"{"password":"<redacted>"}"#);
+    assert_eq!(result.raw_content(), r#"{"password":"<redacted>"}"#);
     assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
 }
 
@@ -127,7 +133,7 @@ fn test_http_body_sanitizer_preview_content_type_str_accepts_absent_header() {
         NameMatchMode::Exact,
     );
 
-    assert_eq!(result.content(), r#"{"password":"<redacted>"}"#);
+    assert_eq!(result.raw_content(), r#"{"password":"<redacted>"}"#);
     assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
 }
 
@@ -270,10 +276,10 @@ fn test_http_body_sanitizer_redacts_unkeyed_json_scalars_by_default() {
             Some(&content_type),
             NameMatchMode::ExactOrSuffix,
         );
-        assert_eq!(result.content(), *expected);
+        assert_eq!(result.raw_content(), *expected);
         assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
-        assert!(!result.content().contains("secret"));
-        assert!(result.content().contains(marker));
+        assert!(!result.raw_content().contains("secret"));
+        assert!(result.raw_content().contains(marker));
     }
 }
 
@@ -289,7 +295,7 @@ fn test_http_body_sanitizer_keeps_scalars_with_object_field_context() {
     );
 
     assert_eq!(
-        result.content(),
+        result.raw_content(),
         r#"{"items":["ok",1],"message":"visible"}"#,
     );
     assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
@@ -307,7 +313,10 @@ fn test_http_body_sanitizer_reports_unkeyed_json_pass_through() {
         NameMatchMode::Exact,
     );
 
-    assert_eq!(result.content(), r#"["diagnostic",{"message":"visible"}]"#);
+    assert_eq!(
+        result.raw_content(),
+        r#"["diagnostic",{"message":"visible"}]"#
+    );
     assert_eq!(result.status(), BodySanitizationStatus::PassedThrough);
 }
 
@@ -359,11 +368,11 @@ fn test_http_body_sanitizer_redacts_unkeyed_ndjson_scalars_by_default() {
     );
 
     assert_eq!(
-        result.content(),
+        result.raw_content(),
         "\"<redacted: unkeyed JSON value>\"\n[\"<redacted: unkeyed JSON value>\"]\n{\"message\":\"visible\"}\n",
     );
     assert_eq!(result.status(), BodySanitizationStatus::Sanitized);
-    assert!(!result.content().contains("secret"));
+    assert!(!result.raw_content().contains("secret"));
 }
 
 #[test]

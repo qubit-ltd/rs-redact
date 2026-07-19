@@ -209,7 +209,8 @@ impl HttpBodySanitizer {
     /// whitespace, or JSON value types for redacted fields. Rendering through
     /// [`BodySanitization::rendered`], [`BodySanitization::into_rendered`], or
     /// [`std::fmt::Display`] escapes log-unsafe characters for a text log
-    /// boundary; [`BodySanitization::content`] remains raw sanitized content.
+    /// boundary; [`BodySanitization::raw_content`] remains raw sanitized
+    /// content.
     ///
     /// # Parameters
     ///
@@ -297,7 +298,8 @@ impl HttpBodySanitizer {
     /// whitespace, or JSON value types for redacted fields. Rendering through
     /// [`BodySanitization::rendered`], [`BodySanitization::into_rendered`], or
     /// [`std::fmt::Display`] escapes log-unsafe characters for a text log
-    /// boundary; [`BodySanitization::content`] remains raw sanitized content.
+    /// boundary; [`BodySanitization::raw_content`] remains raw sanitized
+    /// content.
     ///
     /// # Parameters
     ///

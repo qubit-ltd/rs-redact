@@ -120,8 +120,11 @@ fn test_http_body_sanitizer_redacts_invalid_urlencoded_form() {
                 BodyRedactionReason::InvalidFormUrlEncoded,
             ),
         );
-        assert_eq!(result.content(), "<redacted: invalid URL-encoded form>");
-        assert!(!result.content().contains("secret"));
+        assert_eq!(
+            result.raw_content(),
+            "<redacted: invalid URL-encoded form>"
+        );
+        assert!(!result.raw_content().contains("secret"));
     }
 }
 
@@ -146,8 +149,8 @@ fn test_http_body_sanitizer_redacts_invalid_or_truncated_urlencoded_preview() {
         ),
     );
     assert_eq!(
-        result.content(),
+        result.raw_content(),
         "<redacted: invalid or truncated URL-encoded form>",
     );
-    assert!(!result.content().contains("secret"));
+    assert!(!result.raw_content().contains("secret"));
 }

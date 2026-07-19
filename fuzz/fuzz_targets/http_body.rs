@@ -100,7 +100,7 @@ fn assert_structured_secret_is_redacted(selector: u8, data: &[u8]) {
         Some(&content_type),
         NameMatchMode::ExactOrSuffix,
     );
-    assert!(!result.content().contains(FUZZ_SECRET));
+    assert!(!result.raw_content().contains(FUZZ_SECRET));
 }
 
 /// Verifies malformed structured bodies fail closed around a known secret.
@@ -153,7 +153,7 @@ fn assert_malformed_structured_secret_is_redacted(selector: u8) {
         Some(&content_type),
         NameMatchMode::ExactOrSuffix,
     );
-    assert!(!result.content().contains(FUZZ_SECRET));
+    assert!(!result.raw_content().contains(FUZZ_SECRET));
 }
 
 fuzz_target!(|data: &[u8]| {

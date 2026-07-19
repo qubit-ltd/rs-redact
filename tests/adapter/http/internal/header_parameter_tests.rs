@@ -93,8 +93,8 @@ fn test_http_body_sanitizer_ignores_unrequested_multipart_parameter() {
         NameMatchMode::ExactOrSuffix,
     );
 
-    assert!(result.content().contains("password=<redacted>"));
-    assert!(!result.content().contains("secret"));
+    assert!(result.raw_content().contains("password=<redacted>"));
+    assert!(!result.raw_content().contains("secret"));
 }
 
 #[test]
@@ -111,10 +111,10 @@ fn test_http_body_sanitizer_rejects_valueless_requested_multipart_parameter() {
         NameMatchMode::ExactOrSuffix,
     );
 
-    assert_eq!(result.content(), "<redacted: multipart body>");
+    assert_eq!(result.raw_content(), "<redacted: multipart body>");
     assert_eq!(
         result.status(),
         BodySanitizationStatus::Redacted(BodyRedactionReason::InvalidMultipart,),
     );
-    assert!(!result.content().contains("raw-secret"));
+    assert!(!result.raw_content().contains("raw-secret"));
 }

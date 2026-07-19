@@ -56,9 +56,9 @@ fn test_http_body_sanitizer_escapes_multipart_sensitive_value_controls() {
         );
 
         assert!(
-            result.content().contains(expected),
+            result.raw_content().contains(expected),
             "{label}: {}",
-            result.content(),
+            result.raw_content(),
         );
     }
 }
@@ -95,7 +95,7 @@ fn test_http_body_sanitizer_reports_mixed_multipart_as_passed_through() {
     );
 
     assert_eq!(result.status(), BodySanitizationStatus::PassedThrough);
-    assert!(result.content().contains("note=visible text"));
-    assert!(result.content().contains("password=<redacted>"));
-    assert!(!result.content().contains("secret value"));
+    assert!(result.raw_content().contains("note=visible text"));
+    assert!(result.raw_content().contains("password=<redacted>"));
+    assert!(!result.raw_content().contains("secret value"));
 }

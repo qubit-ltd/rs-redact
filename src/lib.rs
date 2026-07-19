@@ -48,10 +48,10 @@
 //! logging, [`escape_log_control_characters`], or adapter display helpers such
 //! as [`ArgvSanitizer::sanitize_argv_display`] and
 //! [`EnvSanitizer::sanitize_assignments_display`]. HTTP body
-//! `BodySanitization::rendered` and `BodySanitization::into_rendered` escape
-//! controls, Unicode line and paragraph separators, and bidirectional
-//! formatting controls; `BodySanitization::content` intentionally remains raw
-//! sanitized content.
+//! `BodySanitization::escaped_content`, `BodySanitization::rendered`, and their
+//! consuming variants escape controls, Unicode line and paragraph separators,
+//! and bidirectional formatting controls; `BodySanitization::raw_content`
+//! intentionally remains raw sanitized content.
 //!
 //! ```
 //! # #[cfg(feature = "http")]

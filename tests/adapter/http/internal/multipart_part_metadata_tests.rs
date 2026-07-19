@@ -76,8 +76,8 @@ fn test_http_body_sanitizer_redacts_file_part_before_field_policy() {
         NameMatchMode::ExactOrSuffix,
     );
 
-    assert!(result.content().contains("<redacted: file part>"));
-    assert!(!result.content().contains("raw-file-secret"));
+    assert!(result.raw_content().contains("<redacted: file part>"));
+    assert!(!result.raw_content().contains("raw-file-secret"));
 }
 
 #[test]
@@ -96,10 +96,10 @@ fn test_http_body_sanitizer_treats_blank_multipart_name_as_unnamed() {
 
     assert!(
         result
-            .content()
+            .raw_content()
             .contains("<unnamed>=<redacted: multipart part>")
     );
-    assert!(!result.content().contains("raw-secret"));
+    assert!(!result.raw_content().contains("raw-secret"));
 }
 
 #[test]
@@ -115,8 +115,8 @@ fn test_http_body_sanitizer_redacts_extended_filename_part() {
         NameMatchMode::ExactOrSuffix,
     );
 
-    assert!(result.content().contains("<redacted: file part>"));
-    assert!(!result.content().contains("raw-file-secret"));
+    assert!(result.raw_content().contains("<redacted: file part>"));
+    assert!(!result.raw_content().contains("raw-file-secret"));
 }
 
 #[test]
@@ -136,7 +136,7 @@ fn test_http_body_sanitizer_escapes_multipart_field_name_controls() {
         NameMatchMode::ExactOrSuffix,
     );
 
-    assert!(result.content().contains(r#"note\u{1b}[31m="#));
-    assert!(!result.content().contains('\u{1b}'));
-    assert!(!result.content().contains("secret"));
+    assert!(result.raw_content().contains(r#"note\u{1b}[31m="#));
+    assert!(!result.raw_content().contains('\u{1b}'));
+    assert!(!result.raw_content().contains("secret"));
 }

@@ -57,7 +57,7 @@ fn test_http_body_sanitizer_preview_returns_structured_redaction_metadata() {
     assert_eq!(result.source_len(), Some(40));
     assert_eq!(result.truncated_bytes(), Some(40 - prefix.len()));
     assert!(result.is_truncated());
-    assert!(!result.content().contains("secret"));
+    assert!(!result.raw_content().contains("secret"));
     assert_eq!(
         result.to_string(),
         format!(
@@ -96,8 +96,13 @@ fn test_body_sanitization_rendering_escapes_log_control_characters() {
         NameMatchMode::Exact,
     );
 
-    assert_eq!(result.content().as_bytes(), body);
-    assert_eq!(result.clone().into_content().as_bytes(), body);
+    assert_eq!(result.raw_content().as_bytes(), body);
+    assert_eq!(result.clone().into_raw_content().as_bytes(), body);
+    assert_eq!(result.escaped_content(), r"first\nsecond\t\u{1b}[31m");
+    assert_eq!(
+        result.clone().into_escaped_content(),
+        r"first\nsecond\t\u{1b}[31m",
+    );
     assert_eq!(result.to_string(), r"first\nsecond\t\u{1b}[31m");
     assert_eq!(result.rendered(), r"first\nsecond\t\u{1b}[31m");
     assert_eq!(result.into_rendered(), r"first\nsecond\t\u{1b}[31m");
@@ -116,8 +121,13 @@ fn test_body_sanitization_rendering_escapes_unicode_log_controls() {
         NameMatchMode::Exact,
     );
 
-    assert_eq!(result.content(), body);
-    assert_eq!(result.clone().into_content(), body);
+    assert_eq!(result.raw_content(), body);
+    assert_eq!(result.clone().into_raw_content(), body);
+    assert_eq!(result.escaped_content(), r"first\u{2028}second\u{202e}tail",);
+    assert_eq!(
+        result.clone().into_escaped_content(),
+        r"first\u{2028}second\u{202e}tail",
+    );
     assert_eq!(result.to_string(), r"first\u{2028}second\u{202e}tail");
     assert_eq!(result.rendered(), r"first\u{2028}second\u{202e}tail");
     assert_eq!(result.into_rendered(), r"first\u{2028}second\u{202e}tail");
