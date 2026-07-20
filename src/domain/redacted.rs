@@ -1,0 +1,105 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+//! Borrowed, policy-snapshot view of a domain object.
+
+use std::{
+    borrow::Cow,
+    fmt::{
+        self,
+        Debug,
+        Display,
+        Formatter,
+    },
+};
+
+use crate::{
+    Redact,
+    RedactedText,
+    RedactionPolicy,
+};
+
+/// A lazy non-destructive redacted view of a domain object.
+///
+/// The view borrows the original object and owns a cheap clone of the complete
+/// policy. Creating it does not inspect, clone, or modify object fields.
+#[must_use = "format or serialize the redacted view"]
+pub struct Redacted<'a, T: ?Sized> {
+    /// Domain object rendered through this view.
+    value: &'a T,
+    /// Immutable policy snapshot used for every formatting operation.
+    policy: RedactionPolicy,
+}
+
+impl<'a, T: ?Sized> Redacted<'a, T> {
+    /// Creates a redacted view from a borrowed object and an owned policy.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Domain object to borrow without inspecting its fields.
+    /// * `policy` - Complete policy snapshot owned by the view.
+    ///
+    /// # Returns
+    ///
+    /// A lazy redacted view.
+    #[inline(always)]
+    pub(crate) const fn new(value: &'a T, policy: RedactionPolicy) -> Self {
+        Self { value, policy }
+    }
+}
+
+impl<T: Redact + ?Sized> Debug for Redacted<'_, T> {
+    /// Writes the object's redacted representation while preserving formatter
+    /// flags such as alternate pretty formatting.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination formatting context whose flags are passed to
+    ///   the object's redaction hook.
+    ///
+    /// # Returns
+    ///
+    /// The formatter result for the complete redacted representation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the object cannot write its complete
+    /// redacted representation.
+    #[inline(always)]
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        self.value.fmt_redacted(&self.policy, formatter)
+    }
+}
+
+impl<T: Redact + ?Sized> Display for Redacted<'_, T> {
+    /// Writes a compact redacted debug representation escaped for logs.
+    ///
+    /// Every call first allocates a complete compact redacted `Debug`
+    /// representation as an intermediate [`String`]. Log escaping may allocate
+    /// a second string when that intermediate text contains characters that
+    /// require escaping. This implementation never calls the original object's
+    /// `Display`.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination formatting context.
+    ///
+    /// # Returns
+    ///
+    /// The formatter result for the escaped redacted representation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the destination cannot accept the complete
+    /// log-safe representation.
+    #[inline]
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        let redacted = format!("{self:?}");
+        let safe = RedactedText::new(Cow::Owned(redacted)).escape_for_log();
+        Display::fmt(&safe, formatter)
+    }
+}

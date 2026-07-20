@@ -112,6 +112,7 @@
 //! ```
 
 pub mod argv;
+pub mod domain;
 pub mod env;
 #[cfg(feature = "http")]
 pub mod http;
@@ -120,6 +121,12 @@ mod redactor;
 pub mod text;
 
 pub use argv::ArgvRedactor;
+pub use domain::{
+    Redact,
+    RedactValue,
+    Redacted,
+    RedactedValue,
+};
 pub use env::EnvRedactor;
 pub use policy::{
     AllowRule,

@@ -1,0 +1,19 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+//! Runtime traits and borrowed views for domain-object redaction.
+
+mod internal;
+mod redact;
+mod redact_value;
+mod redacted;
+mod redacted_value;
+
+pub use redact::Redact;
+pub use redact_value::RedactValue;
+pub use redacted::Redacted;
+pub use redacted_value::RedactedValue;
