@@ -79,6 +79,7 @@
 
 pub mod adapter;
 pub mod core;
+pub mod policy;
 
 #[cfg(feature = "form")]
 pub use adapter::FormUrlEncodedSanitizer;
@@ -106,13 +107,23 @@ pub use core::{
     FieldSanitizePolicy,
     FieldSanitizer,
     MaskPolicies,
-    MaskPolicy,
     NameMatchMode,
     RedactedDebug,
-    SensitiveFieldPreset,
     SensitiveFields,
     SensitivityLevel,
     canonicalize_field_name,
     escape_log_control_characters,
     redacted_debug,
+};
+pub use policy::{
+    AllowRule,
+    FieldNameMatching,
+    MaskPolicy,
+    MaskingPolicy,
+    PolicyError,
+    RedactionPolicy,
+    RedactionPolicyBuilder,
+    SensitiveFieldPreset,
+    SensitiveFieldRule,
+    Sensitivity,
 };

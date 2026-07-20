@@ -1,0 +1,291 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+//! Immutable field-classification and masking policy.
+
+use std::{
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    sync::Arc,
+};
+
+use super::{
+    AllowRule,
+    FieldNameMatching,
+    MaskingPolicy,
+    RedactionPolicyBuilder,
+    SensitiveFieldPreset,
+    SensitiveFieldRule,
+    Sensitivity,
+    internal::canonical_field_candidates,
+};
+
+/// Built-in sensitive fields not owned by a named preset.
+const STANDARD_EXTRA_FIELDS: &[(&str, Sensitivity)] = &[
+    ("auth_app_token", Sensitivity::High),
+    ("auth_user_token", Sensitivity::High),
+    ("connection_string", Sensitivity::Secret),
+    ("database_uri", Sensitivity::Secret),
+    ("database_url", Sensitivity::Secret),
+    ("license_key", Sensitivity::Medium),
+    ("mysql_pwd", Sensitivity::Secret),
+    ("rediscli_auth", Sensitivity::Secret),
+    ("sig", Sensitivity::Secret),
+    ("signature", Sensitivity::Secret),
+];
+
+/// Immutable field-classification and value-masking policy.
+///
+/// Cloning a policy shares its complete configuration and has constant cost.
+#[must_use]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RedactionPolicy {
+    /// Shared immutable policy state.
+    inner: Arc<RedactionPolicyInner>,
+}
+
+/// Complete immutable state shared by policy clones.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RedactionPolicyInner {
+    /// Canonical sensitive fields and their levels.
+    sensitive: BTreeMap<String, Sensitivity>,
+    /// Canonical fields allowed only as complete names.
+    allow_exact: BTreeSet<String>,
+    /// Canonical fields allowed at exact and token-suffix boundaries.
+    allow_suffix: BTreeSet<String>,
+    /// Candidate-generation breadth for sensitive-field matching.
+    matching: FieldNameMatching,
+    /// Value masks selected by sensitivity level.
+    masking: MaskingPolicy,
+}
+
+impl RedactionPolicy {
+    /// Returns the built-in conservative policy.
+    ///
+    /// # Returns
+    ///
+    /// A policy containing every built-in preset and extra sensitive field.
+    pub fn standard() -> Self {
+        Self::build_standard()
+    }
+
+    /// Creates a builder initialized from the current default policy.
+    ///
+    /// # Returns
+    ///
+    /// A mutable builder containing a snapshot of the default policy.
+    #[inline]
+    pub fn builder() -> RedactionPolicyBuilder {
+        RedactionPolicyBuilder::new()
+    }
+
+    /// Creates a builder without any built-in sensitive fields.
+    ///
+    /// This weakens the built-in protection baseline and should only be used
+    /// when the caller intends to define the complete field set explicitly.
+    ///
+    /// # Returns
+    ///
+    /// An empty field-rule builder with default matching and masks.
+    #[inline]
+    pub fn empty_builder() -> RedactionPolicyBuilder {
+        RedactionPolicyBuilder::empty()
+    }
+
+    /// Creates a builder by copying one immutable policy snapshot.
+    ///
+    /// # Parameters
+    ///
+    /// * `base` - Policy whose complete configuration is copied.
+    ///
+    /// # Returns
+    ///
+    /// A mutable builder initialized from `base`.
+    #[inline]
+    pub fn builder_from(base: &Self) -> RedactionPolicyBuilder {
+        RedactionPolicyBuilder::from_policy(base)
+    }
+
+    /// Resolves the sensitivity configured for `field`.
+    ///
+    /// Candidates are examined from the complete canonical name to shorter
+    /// semantic token suffixes. An allow rule wins over a sensitive rule at
+    /// the same candidate, but exact allow rules apply only to the complete
+    /// input candidate.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Raw field name to classify.
+    ///
+    /// # Returns
+    ///
+    /// `Some(level)` for the first matching sensitive rule, or `None` when an
+    /// allow rule wins or no sensitive rule matches.
+    #[must_use]
+    pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
+        let candidates = canonical_field_candidates(field, self.inner.matching);
+        for (index, candidate) in candidates.enumerate() {
+            let is_exact = index == 0;
+            if (is_exact && self.inner.allow_exact.contains(&candidate))
+                || self.inner.allow_suffix.contains(&candidate)
+            {
+                return None;
+            }
+            if let Some(level) = self.inner.sensitive.get(&candidate) {
+                return Some(*level);
+            }
+        }
+        None
+    }
+
+    /// Returns the configured sensitive-field matching breadth.
+    ///
+    /// # Returns
+    ///
+    /// The matching mode used to generate lookup candidates.
+    #[inline(always)]
+    pub fn matching(&self) -> FieldNameMatching {
+        self.inner.matching
+    }
+
+    /// Returns the configured value-masking policy.
+    ///
+    /// # Returns
+    ///
+    /// The four-level immutable masking configuration.
+    #[inline(always)]
+    pub fn masking(&self) -> &MaskingPolicy {
+        &self.inner.masking
+    }
+
+    /// Iterates configured sensitive-field rules in canonical name order.
+    ///
+    /// # Returns
+    ///
+    /// Borrowed read-only views of all sensitive-field rules.
+    pub fn sensitive_rules(
+        &self,
+    ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
+        self.inner.sensitive.iter().map(|(field, sensitivity)| {
+            SensitiveFieldRule::new(field, *sensitivity)
+        })
+    }
+
+    /// Iterates exact allow rules followed by suffix allow rules.
+    ///
+    /// Each group is ordered by canonical field name.
+    ///
+    /// # Returns
+    ///
+    /// Borrowed read-only views of all allow rules.
+    pub fn allow_rules(&self) -> impl Iterator<Item = AllowRule<'_>> {
+        let exact = self
+            .inner
+            .allow_exact
+            .iter()
+            .map(|field| AllowRule::new(field, FieldNameMatching::Exact));
+        let suffix = self.inner.allow_suffix.iter().map(|field| {
+            AllowRule::new(field, FieldNameMatching::ExactOrTokenSuffix)
+        });
+        exact.chain(suffix)
+    }
+
+    /// Constructs the built-in policy without consulting `Default`.
+    ///
+    /// # Returns
+    ///
+    /// The complete built-in conservative policy.
+    pub(super) fn build_standard() -> Self {
+        let mut builder = RedactionPolicyBuilder::empty();
+        for preset in [
+            SensitiveFieldPreset::Credentials,
+            SensitiveFieldPreset::CredentialContainers,
+            SensitiveFieldPreset::AuthTokens,
+            SensitiveFieldPreset::Http,
+            SensitiveFieldPreset::Session,
+        ] {
+            builder = builder.include_preset(preset);
+        }
+        for &(field, level) in STANDARD_EXTRA_FIELDS {
+            builder = builder.raise(field, level);
+        }
+        builder.into_policy()
+    }
+
+    /// Creates an immutable policy from validated builder components.
+    ///
+    /// # Parameters
+    ///
+    /// * `sensitive` - Canonical sensitive fields and levels.
+    /// * `allow_exact` - Canonical exact-only allow rules.
+    /// * `allow_suffix` - Canonical suffix allow rules.
+    /// * `matching` - Sensitive-field matching breadth.
+    /// * `masking` - Four-level value-masking policy.
+    ///
+    /// # Returns
+    ///
+    /// A cheap-clone immutable policy.
+    #[inline(always)]
+    pub(super) fn from_parts(
+        sensitive: BTreeMap<String, Sensitivity>,
+        allow_exact: BTreeSet<String>,
+        allow_suffix: BTreeSet<String>,
+        matching: FieldNameMatching,
+        masking: MaskingPolicy,
+    ) -> Self {
+        Self {
+            inner: Arc::new(RedactionPolicyInner {
+                sensitive,
+                allow_exact,
+                allow_suffix,
+                matching,
+                masking,
+            }),
+        }
+    }
+
+    /// Clones the canonical sensitive-field map for a new builder.
+    ///
+    /// # Returns
+    ///
+    /// An owned copy of all sensitive-field rules.
+    pub(super) fn clone_sensitive(&self) -> BTreeMap<String, Sensitivity> {
+        self.inner.sensitive.clone()
+    }
+
+    /// Clones the exact allow-rule set for a new builder.
+    ///
+    /// # Returns
+    ///
+    /// An owned copy of all exact allow rules.
+    pub(super) fn clone_allow_exact(&self) -> BTreeSet<String> {
+        self.inner.allow_exact.clone()
+    }
+
+    /// Clones the suffix allow-rule set for a new builder.
+    ///
+    /// # Returns
+    ///
+    /// An owned copy of all suffix allow rules.
+    pub(super) fn clone_allow_suffix(&self) -> BTreeSet<String> {
+        self.inner.allow_suffix.clone()
+    }
+}
+
+impl Default for RedactionPolicy {
+    /// Returns the built-in conservative policy.
+    ///
+    /// # Returns
+    ///
+    /// The same configuration as [`RedactionPolicy::standard`].
+    #[inline]
+    fn default() -> Self {
+        Self::standard()
+    }
+}
