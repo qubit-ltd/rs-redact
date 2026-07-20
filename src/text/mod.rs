@@ -9,7 +9,12 @@
 
 mod log_escape;
 mod log_safe_text;
+mod redacted_debug;
 mod redacted_text;
 
 pub use log_safe_text::LogSafeText;
+pub use redacted_debug::{
+    RedactedDebug,
+    redacted_debug,
+};
 pub use redacted_text::RedactedText;

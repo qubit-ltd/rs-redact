@@ -20,9 +20,6 @@ use qubit_redact::{
         BodyRedactionStatus,
         HttpRedactionPolicy,
         HttpRedactionPolicyBuilder,
-        TextBodyPolicy,
-        UnkeyedJsonValuePolicy,
-        UrlPathPolicy,
     },
 };
 
@@ -37,12 +34,6 @@ fn test_http_redaction_policy_default_uses_safe_values() {
     assert_eq!(policy.header_policy(), &RedactionPolicy::default(),);
     assert_eq!(policy.query_policy(), &RedactionPolicy::default());
     assert_eq!(policy.body_policy(), &RedactionPolicy::default());
-    assert_eq!(policy.url_path_policy(), UrlPathPolicy::Redact);
-    assert_eq!(policy.text_body_policy(), TextBodyPolicy::Redact);
-    assert_eq!(
-        policy.unkeyed_json_value_policy(),
-        UnkeyedJsonValuePolicy::Redact,
-    );
     assert_eq!(policy.body_budget().max_input_bytes(), 16 * 1024);
     assert_eq!(policy.body_budget().max_output_bytes(), 64 * 1024);
 }
@@ -77,21 +68,12 @@ fn test_http_redaction_policy_builder_overrides_each_context() {
         .header_policy(header.clone())
         .query_policy(query.clone())
         .body_policy(body.clone())
-        .url_path_policy(UrlPathPolicy::Preserve)
-        .text_body_policy(TextBodyPolicy::PassThrough)
-        .unkeyed_json_value_policy(UnkeyedJsonValuePolicy::PassThrough)
         .body_budget(budget)
         .build();
 
     assert_eq!(policy.header_policy(), &header);
     assert_eq!(policy.query_policy(), &query);
     assert_eq!(policy.body_policy(), &body);
-    assert_eq!(policy.url_path_policy(), UrlPathPolicy::Preserve);
-    assert_eq!(policy.text_body_policy(), TextBodyPolicy::PassThrough);
-    assert_eq!(
-        policy.unkeyed_json_value_policy(),
-        UnkeyedJsonValuePolicy::PassThrough,
-    );
     assert_eq!(policy.body_budget(), budget);
 }
 

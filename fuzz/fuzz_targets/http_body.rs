@@ -182,12 +182,12 @@ fuzz_target!(|data: &[u8]| {
             .expect("unknown truncated captures are valid"),
     };
     let redactor = HttpRedactor::default();
-    let sanitize = || {
+    let redact = || {
         redactor.redact_body(capture, content_type.as_ref())
     };
 
-    let first = sanitize();
-    let second = sanitize();
+    let first = redact();
+    let second = redact();
     assert_eq!(first, second);
     assert!(first.captured_len() <= body.len());
     if let Some(source_len) = first.source_len() {

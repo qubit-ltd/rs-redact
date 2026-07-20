@@ -7,6 +7,8 @@
 // =============================================================================
 //! Integration tests for typed redacted and log-safe text.
 
+mod text;
+
 use qubit_redact::Redactor;
 
 /// Verifies that log escaping covers controls, separators, and every Unicode

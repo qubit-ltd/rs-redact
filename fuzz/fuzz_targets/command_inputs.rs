@@ -14,7 +14,11 @@ use std::fmt::Write;
 use std::os::unix::ffi::OsStringExt;
 
 use libfuzzer_sys::fuzz_target;
-use qubit_redact::{ArgvSanitizer, EnvSanitizer, NameMatchMode};
+use qubit_redact::{
+    ArgvRedactor,
+    EnvRedactor,
+    argv::ArgvItem,
+};
 
 const FUZZ_SECRET: &str = "qubit-fuzz-secret-7f54a19c";
 
@@ -70,31 +74,22 @@ fn assert_sensitive_argv_is_redacted(selector: u8, data: &[u8]) {
             FUZZ_SECRET.to_string(),
         ]),
     }
-    let sanitizer = ArgvSanitizer::default();
-    let first =
-        sanitizer.sanitize_argv(&argv, NameMatchMode::ExactOrSuffix);
-    let second =
-        sanitizer.sanitize_argv(&argv, NameMatchMode::ExactOrSuffix);
+    let redactor = ArgvRedactor::default();
+    let items = argv.iter().map(|value| ArgvItem::plain(value.as_ref()));
+    let first = redactor.redact_heuristically(items).to_string();
+    let items = argv.iter().map(|value| ArgvItem::plain(value.as_ref()));
+    let second = redactor.redact_heuristically(items).to_string();
     assert_eq!(first, second);
-    assert!(!first.iter().any(|value| value.contains(FUZZ_SECRET)));
+    assert!(!first.contains(FUZZ_SECRET));
 }
 
-/// Verifies environment sanitization removes the fixed secret.
+/// Verifies environment redaction removes the fixed secret.
 fn assert_sensitive_environment_is_redacted() {
-    let sanitizer = EnvSanitizer::default();
-    let first = sanitizer.sanitize_os_pair(
-        "PASSWORD",
-        FUZZ_SECRET,
-        NameMatchMode::ExactOrSuffix,
-    );
-    let second = sanitizer.sanitize_os_pair(
-        "PASSWORD",
-        FUZZ_SECRET,
-        NameMatchMode::ExactOrSuffix,
-    );
+    let redactor = EnvRedactor::default();
+    let first = redactor.redact_os_pair("PASSWORD".as_ref(), FUZZ_SECRET.as_ref());
+    let second = redactor.redact_os_pair("PASSWORD".as_ref(), FUZZ_SECRET.as_ref());
     assert_eq!(first, second);
-    let (_, first_value) = first;
-    assert!(!first_value.contains(FUZZ_SECRET));
+    assert!(!first.to_string().contains(FUZZ_SECRET));
 }
 
 /// Verifies Unix non-UTF-8 environment values fail closed.
@@ -104,25 +99,17 @@ fn assert_sensitive_environment_is_redacted() {
 /// * `data` - Fuzzer-provided bytes appended as bounded non-secret noise.
 #[cfg(unix)]
 fn assert_non_utf8_environment_is_redacted(data: &[u8]) {
-    let sanitizer = EnvSanitizer::default();
+    let redactor = EnvRedactor::default();
     let mut value_bytes = vec![0xff];
     value_bytes.extend_from_slice(FUZZ_SECRET.as_bytes());
     value_bytes.extend_from_slice(&data[..data.len().min(16)]);
     let value = OsString::from_vec(value_bytes);
-    let (_, sanitized_value) = sanitizer.sanitize_os_pair(
-        "PASSWORD",
-        value,
-        NameMatchMode::ExactOrSuffix,
-    );
-    assert!(!sanitized_value.contains(FUZZ_SECRET));
+    let redacted = redactor.redact_os_pair("PASSWORD".as_ref(), &value);
+    assert!(!redacted.to_string().contains(FUZZ_SECRET));
 
     let key = OsString::from_vec(b"PASS\xffWORD".to_vec());
-    let (_, sanitized_value) = sanitizer.sanitize_os_pair(
-        key,
-        FUZZ_SECRET,
-        NameMatchMode::ExactOrSuffix,
-    );
-    assert!(!sanitized_value.contains(FUZZ_SECRET));
+    let redacted = redactor.redact_os_pair(&key, FUZZ_SECRET.as_ref());
+    assert!(!redacted.to_string().contains(FUZZ_SECRET));
 }
 
 /// Verifies Unix non-UTF-8 argv tokens fail closed across parser state.
@@ -134,9 +121,9 @@ fn assert_non_utf8_argv_is_redacted() {
         option,
         OsString::from(FUZZ_SECRET),
     ];
-    let sanitized = ArgvSanitizer::default()
-        .sanitize_argv(argv, NameMatchMode::ExactOrSuffix);
-    assert!(!sanitized.iter().any(|value| value.contains(FUZZ_SECRET)));
+    let items = argv.iter().map(|value| ArgvItem::plain(value.as_ref()));
+    let redacted = ArgvRedactor::default().redact_heuristically(items);
+    assert!(!redacted.to_string().contains(FUZZ_SECRET));
 }
 
 fuzz_target!(|data: &[u8]| {
@@ -151,16 +138,18 @@ fuzz_target!(|data: &[u8]| {
     assert_non_utf8_argv_is_redacted();
 
     let boundary_argv = ["client", "--", "--password", FUZZ_SECRET];
-    let sanitizer = ArgvSanitizer::default();
-    let first = sanitizer
-        .sanitize_argv(boundary_argv, NameMatchMode::ExactOrSuffix);
-    let second = sanitizer
-        .sanitize_argv(boundary_argv, NameMatchMode::ExactOrSuffix);
+    let redactor = ArgvRedactor::default();
+    let items = boundary_argv.iter().map(|value| ArgvItem::plain(value.as_ref()));
+    let first = redactor.redact_heuristically(items).to_string();
+    let items = boundary_argv.iter().map(|value| ArgvItem::plain(value.as_ref()));
+    let second = redactor.redact_heuristically(items).to_string();
     assert_eq!(first, second);
 
     let inline_secret = format!("--password={FUZZ_SECRET}");
     let boundary_inline_argv = ["client", "--", inline_secret.as_str()];
-    let sanitized = sanitizer
-        .sanitize_argv(boundary_inline_argv, NameMatchMode::ExactOrSuffix);
-    assert!(!sanitized.iter().any(|value| value.contains(FUZZ_SECRET)));
+    let items = boundary_inline_argv
+        .iter()
+        .map(|value| ArgvItem::plain(value.as_ref()));
+    let redacted = redactor.redact_heuristically(items);
+    assert!(!redacted.to_string().contains(FUZZ_SECRET));
 });

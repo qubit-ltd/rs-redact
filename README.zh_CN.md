@@ -1,477 +1,156 @@
-# Qubit Sanitize
+# Qubit Redact
 
 [![Rust CI](https://github.com/qubit-ltd/rs-sanitize/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-ltd/rs-sanitize/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://qubit-ltd.github.io/rs-sanitize/coverage-badge.json)](https://qubit-ltd.github.io/rs-sanitize/coverage/)
-[![Crates.io](https://img.shields.io/crates/v/qubit-sanitize.svg?color=blue)](https://crates.io/crates/qubit-sanitize)
+[![Crates.io](https://img.shields.io/crates/v/qubit-redact.svg?color=blue)](https://crates.io/crates/qubit-redact)
 [![Rust](https://img.shields.io/badge/rust-1.94+-blue.svg?logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
 
-Rust 通用脱敏工具。
+面向 Rust 诊断信息、结构化字段、Map、进程参数、环境变量及可选 HTTP 数据的策略化
+遮盖库。
 
-## 概览
+## 设计
 
-Qubit Sanitize 提供一组用于遮盖已知敏感数据的可复用工具，面向日志、诊断信息和结构化 Debug
-输出。core 层解决多个 crate 都会重复遇到的共性问题：给定一个 `(field, value)`
-字段名和值，判断字段名是否被配置为敏感字段，并返回适合展示的掩码值。
+Qubit Redact 将职责拆成四层：
 
-adapter 层在 core 策略之上处理常见结构化输入，例如 URL、URL-encoded form、
-HTTP header、HTTP body、argv 向量和环境变量。adapter 只解析自己明确建模的格式；
-shell 命令字符串和其他业务协议 payload 仍应由掌握完整上下文的调用方 crate 处理。
+- `RedactionPolicy` 是字段规则、允许规则、匹配方式和掩码的不可变快照。
+- `Redactor` 使用一份策略处理标量字段值和字符串 Map。
+- `ArgvRedactor`、`EnvRedactor` 生成有类型且日志安全的进程诊断结果。
+- 可选 `http` 模块处理 URL、form、header 和有界 body。
 
-## 特性
-
-- 字段名规范化，支持忽略常见分隔符后匹配
-- 内置凭证、token、HTTP 认证、cookie、session 等常见敏感字段
-- 可配置敏感级别：`Low`、`Medium`、`High`、`Secret`
-- 每个敏感级别可以绑定不同的 `MaskPolicy`
-- 支持固定替换、保留首尾、保留尾部、完全移除等脱敏策略
-- `FieldSanitizer` 对象专注处理单个字段值脱敏
-- 通过保持不变量的 policy 方法添加、替换和显式排除敏感字段
-- 日志文本没有日志不安全字符时，转义 helper 可以零分配地直接借用原文
-- 提供 `BTreeMap<String, String>` 的复制式和原地脱敏便捷方法
-- 提供 URL、URL-encoded form、HTTP header、HTTP body、argv 向量和环境变量 adapter
+未知字段会原样通过。因此，本库依靠已知结构和已配置字段名，而不是尝试通用地发现
+秘密。默认策略提供保守的预定义规则，builder 可增加业务规则和显式允许决策。
 
 ## Cargo Feature
 
-core 字段匹配 API、argv 和环境变量 adapter 始终可用，并且没有外部依赖。默认 feature
-还会启用完整的 web 和 HTTP adapter API。只需要无依赖能力的调用方可以关闭默认
-feature。
+默认 feature 集为空，核心 crate 没有外部运行时依赖。
 
-| Feature | 包含内容 | 可选依赖 |
+| Feature | 能力 | 可选依赖 |
 | --- | --- | --- |
-| 始终编译 | 字段策略、掩码、argv 和环境变量 adapter | 无 |
-| `form` | URL-encoded form adapter | `form_urlencoded` |
-| `web` | URL adapter 以及 `form` | `url`、`form_urlencoded` |
-| `http` | HTTP header 和 body adapter | `http`、`serde_json`、`form_urlencoded` |
-
-例如，命令执行 crate 只依赖 core 能力：
+| `http` | URL、form、header 和有界 body 遮盖 | `form_urlencoded`、`http`、`serde_json`、`url` |
 
 ```toml
-qubit-sanitize = { version = "0.3", default-features = false }
+[dependencies]
+qubit-redact = "0.1"
+
+# 仅在需要 HTTP 能力的 crate 中启用。
+qubit-redact-http = { package = "qubit-redact", version = "0.1", features = ["http"] }
 ```
 
-## 快速开始
-
-```rust
-use qubit_sanitize::{
-    FieldSanitizer,
-    NameMatchMode,
-};
-
-let sanitizer = FieldSanitizer::default();
-
-assert_eq!(
-    sanitizer.sanitize_value(
-        "password",
-        "correct-horse-battery-staple",
-        NameMatchMode::Exact,
-    ),
-    "<redacted>",
-);
-assert_eq!(
-    sanitizer.sanitize_value("mode", "debug", NameMatchMode::Exact),
-    "debug",
-);
-```
-
-## 敏感级别
-
-敏感字段可以配置为四个级别：
-
-| 级别 | 适用场景 | 默认脱敏结果 |
-| --- | --- | --- |
-| `Low` | 可以保留少量首尾字符辅助排查的低风险值 | `ab****yz` |
-| `Medium` | 只适合保留尾部一小段的标识类值 | `****z` |
-| `High` | token、API key 等不应暴露首尾的值 | `****` |
-| `Secret` | 密码、私钥、client secret 等最高风险值 | `<redacted>` |
-
-默认策略面向运行日志偏保守。如果某个业务场景需要不同展示方式，可以替换
-`MaskPolicies` 中任意级别对应的策略。
-
-## 脱敏策略
-
-```rust
-use qubit_sanitize::MaskPolicy;
-
-let edge = MaskPolicy::preserve_edges(2, 2, "****", 4);
-assert_eq!(edge.mask("abcdefgh"), "ab****gh");
-
-let suffix = MaskPolicy::preserve_suffix(4, "****", 4);
-assert_eq!(suffix.mask("1234567890"), "****7890");
-
-let fixed = MaskPolicy::fixed("****");
-assert_eq!(fixed.mask("secret"), "****");
-```
-
-空值会保持为空。这样可以保留“字段存在但值为空”的语义，同时不泄露敏感内容。
-
-## 敏感字段
-
-`SensitiveFields::default()` 内置了一组常见敏感字段作为起点，例如：
-
-- `password`、`passwd`、`passphrase`、`pgpassword`、`secret`、`client_secret`
-- `private_key`、`security_key`、`mysql_pwd`、`rediscli_auth`
-- `database_url`、`database_uri`、`connection_string`
-- `dsn`、`redis_url`、`mongodb_uri`、`amqp_url`、`http_proxy`、`https_proxy`
-- `all_proxy`、`docker_auth_config`
-- `api_key`、`x_api_key`
-- `token`、`access_token`、`refresh_token`、`id_token`、`sig`、`signature`
-- `authorization`、`proxy_authorization`、`cookie`、`set_cookie`
-- `session`、`session_id`、`session_token`
-
-默认列表并不是穷尽式的秘密检测器，应用应补充自身协议和业务中的敏感字段名。字段名在
-匹配前会先规范化：去掉 `_`、`-`、`.`、`[`、`]`、空白字符并转小写。因此下面这些
-名字会匹配到同一个字段：
-
-```rust
-use qubit_sanitize::canonicalize_field_name;
-
-assert_eq!(canonicalize_field_name(" access-token "), "accesstoken");
-assert_eq!(canonicalize_field_name("access_token"), "accesstoken");
-assert_eq!(canonicalize_field_name("access.token"), "accesstoken");
-assert_eq!(canonicalize_field_name("user[password]"), "userpassword");
-```
-
-## 字段名匹配模式
-
-`sanitize_value`、`sanitize_map` 等 core 方法要求调用方显式选择字段名匹配模式。
-如果需要规范化后的精确字段名匹配，使用 `NameMatchMode::Exact`；如果希望
-`OPENAI_API_KEY` 这类带上下文前缀的名字命中已配置的 `api_key`，使用
-`NameMatchMode::ExactOrSuffix`。后缀匹配遵循分隔符和驼峰词元边界：
-`openaiApiKey`、`OPENAI_API_KEY` 可以命中 `api_key`，而无关的单一词元
-`notapikey` 不会命中。
-
-```rust
-use qubit_sanitize::{
-    FieldSanitizer,
-    NameMatchMode,
-};
-
-let sanitizer = FieldSanitizer::default();
-
-assert_eq!(
-    sanitizer.sanitize_value(
-        "OPENAI_API_KEY",
-        "abcdef",
-        NameMatchMode::Exact,
-    ),
-    "abcdef",
-);
-assert_eq!(
-    sanitizer.sanitize_value(
-        "OPENAI_API_KEY",
-        "abcdef",
-        NameMatchMode::ExactOrSuffix,
-    ),
-    "****",
-);
-```
-
-## 自定义字段
-
-```rust
-use qubit_sanitize::{
-    FieldSanitizer,
-    NameMatchMode,
-    SensitivityLevel,
-};
-
-let mut sanitizer = FieldSanitizer::default();
-sanitizer.insert_sensitive_field("license_key", SensitivityLevel::Medium);
-
-assert_eq!(
-    sanitizer.sanitize_value("license-key", "abcdef", NameMatchMode::Exact),
-    "****f",
-);
-```
-
-`FieldSanitizer::insert_sensitive_field` 和 `extend_sensitive_fields` 使用最强等级
-语义：添加较弱等级不会降低已有字段。只有明确需要覆盖（包括降级）时才使用
-`set_sensitive_field_level`。更底层的 `SensitiveFields::insert` 和 `extend` 保留
-map 风格的覆盖语义；`insert_strongest` 和 `extend_strongest` 则保证不降级。
-
-`FieldSanitizePolicy` 是 policy 状态的唯一修改边界。它的
-`insert_sensitive_field`、`set_sensitive_field_level`、
-`extend_sensitive_fields` 和 `extend_preset` 会取消同名排除项；
-`set_sensitive_fields` 和 `with_sensitive_fields` 会替换完整的正向字段集合并清空全部
-排除项。`sensitive_fields()` 只提供只读访问，调用方不会意外绕过这些不变量。
-
-应用确认某个默认字段属于误报后，可以将其显式排除。排除默认项是一项显式的信息披露
-决策：排除规则优先于较短的敏感后缀，此后匹配值会保持原样。
-
-```rust
-use qubit_sanitize::{FieldSanitizer, NameMatchMode};
-
-let mut sanitizer = FieldSanitizer::default();
-sanitizer.exclude_sensitive_field("sig");
-
-assert_eq!(
-    sanitizer.sanitize_value("sig", "known-safe", NameMatchMode::Exact),
-    "known-safe",
-);
-```
-
-如果不想使用内置字段，可以从空策略开始：
-
-```rust
-use qubit_sanitize::{
-    FieldSanitizePolicy,
-    FieldSanitizer,
-    SensitivityLevel,
-};
-
-let mut sanitizer = FieldSanitizer::new(FieldSanitizePolicy::empty());
-sanitizer.insert_sensitive_field("tenant_secret", SensitivityLevel::Secret);
-```
-
-## Map 脱敏
+## 标量与 Map
 
 ```rust
 use std::collections::BTreeMap;
 
-use qubit_sanitize::{
-    FieldSanitizer,
-    NameMatchMode,
-};
+use qubit_redact::{RedactionPolicy, Redactor};
 
-let sanitizer = FieldSanitizer::default();
-let mut values = BTreeMap::new();
-values.insert("password".to_string(), "secret".to_string());
-values.insert("name".to_string(), "alice".to_string());
+let redactor = Redactor::new(RedactionPolicy::default());
+assert_eq!(redactor.redact("password", "secret").as_ref(), "<redacted>");
+assert_eq!(redactor.redact("mode", "debug").as_ref(), "debug");
 
-let sanitized = sanitizer.sanitize_map(&values, NameMatchMode::Exact);
-
-assert_eq!(sanitized["password"], "<redacted>");
-assert_eq!(sanitized["name"], "alice");
-assert_eq!(values["password"], "secret");
+let values = BTreeMap::from([
+    ("password".to_owned(), "secret".to_owned()),
+    ("mode".to_owned(), "debug".to_owned()),
+]);
+let redacted = redactor.redact_map(&values);
+assert_eq!(redacted["password"], "<redacted>");
+assert_eq!(redacted["mode"], "debug");
 ```
 
-如果需要直接修改已有结构，可以使用 `sanitize_map_in_place`，并显式传入
-`NameMatchMode`。
+`redact_map_in_place` 提供对应的原地修改操作。两个 Map 方法都根据 key 分类 value，
+并保留安全值。
 
-## Debug 字段脱敏
-
-自定义 `Debug` 实现如果需要展示对象结构、但不能格式化某个敏感字段，可以使用
-`redacted_debug`。该 wrapper 不会调用被包装值的 `Debug` 实现：
+## 策略配置
 
 ```rust
-use qubit_sanitize::redacted_debug;
+use qubit_redact::{
+    FieldNameMatching, MaskPolicy, RedactionPolicy, Redactor, Sensitivity,
+};
+
+let policy = RedactionPolicy::builder()
+    .matching(FieldNameMatching::ExactOrTokenSuffix)
+    .raise("license_key", Sensitivity::High)
+    .allow_exact("public_token")
+    .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))
+    .build()
+    .expect("the policy is valid");
+
+let redactor = Redactor::new(policy);
+assert_eq!(redactor.redact("LICENSE_KEY", "abcdef").as_ref(), "[hidden]");
+```
+
+`raise` 不会削弱已有规则。只有明确需要替换（包括降级）时才使用
+`override_level`。精确允许规则只作用于完整字段；后缀允许规则的披露范围更广，应谨慎
+使用。
+
+## 进程诊断
+
+`ArgvRedactor::redact_items` 信任调用方提供的敏感等级，不推断命令行语法。
+`redact_heuristically` 会额外识别常见 option 和赋值形式，但不会把 shell payload 当作
+脚本解析。
+
+`EnvRedactor` 处理 UTF-8 pair；任一操作系统组件不是合法 UTF-8 时会安全关闭。结果可
+安全显示为 `NAME=VALUE`。
+自定义 `Debug` 实现需要隐藏捕获值时，可使用 `redacted_debug` 固定输出
+`<redacted>`；该 wrapper 绝不会调用被包装值自身的 `Debug` 实现。
+
+```rust
+use std::ffi::OsStr;
+
+use qubit_redact::{ArgvRedactor, argv::ArgvItem};
+
+let items = [
+    ArgvItem::plain(OsStr::new("client")),
+    ArgvItem::plain(OsStr::new("--password")),
+    ArgvItem::plain(OsStr::new("secret")),
+];
+let output = ArgvRedactor::default().redact_heuristically(items);
+assert!(!output.to_string().contains("secret"));
 
 let captured_bytes = b"secret output";
-assert_eq!(format!("{:?}", redacted_debug(captured_bytes)), "<redacted>");
+assert_eq!(
+    format!("{:?}", qubit_redact::redacted_debug(captured_bytes)),
+    "<redacted>",
+);
 ```
 
-## Adapter 脱敏
+## HTTP 遮盖
+
+启用 `http` 后可使用 `HttpRedactor`。它持有不可变 `HttpRedactionPolicy`，提供 URL、
+URL-encoded form、header 和 body 操作。`BodyCapture` 区分完整输入和受检的截断输入，
+`BodyBudget` 同时限制解析输入和渲染输出。
+
+不合法或已截断的结构化 body 会安全关闭。不透明文本、无 key 的 JSON 标量、文件
+part、匿名 multipart part 和 URL path 默认采用保守策略。HTTP 结果类型只暴露日志
+安全文本，不提供原始 body 逃生口。
 
 ```rust
-use qubit_sanitize::{
-    ArgvSanitizer,
-    FormUrlEncodedSanitizer,
-    HttpBodySanitizer,
-    HttpHeaderSanitizer,
-    NameMatchMode,
-    UrlSanitizer,
-};
-use http::header::AUTHORIZATION;
+# #[cfg(feature = "http")]
+# {
 use http::HeaderValue;
+use qubit_redact::http::{BodyCapture, HttpRedactor};
 
-let url = UrlSanitizer::default()
-    .sanitize_url_str(
-        "https://alice:secret@example.com/path?access_token=abcdef#callback",
-        NameMatchMode::ExactOrSuffix,
-    )
-    .expect("sample URL should parse");
-assert_eq!(
-    url,
-    "https://****:%3Credacted%3E@example.com/%3Credacted%3E?access_token=****#****",
-);
-
-let form = FormUrlEncodedSanitizer::default()
-    .sanitize_str("username=alice&password=secret", NameMatchMode::ExactOrSuffix);
-assert_eq!(form, "username=alice&password=%3Credacted%3E");
-
-let header = HttpHeaderSanitizer::default()
-    .sanitize_value(
-        &AUTHORIZATION,
-        &HeaderValue::from_static("Bearer abcdef"),
-        NameMatchMode::ExactOrSuffix,
-    );
-assert_eq!(header, "****");
-
-let mut native_sensitive = HeaderValue::from_static("vendor-specific-secret");
-native_sensitive.set_sensitive(true);
-let header = HttpHeaderSanitizer::default().sanitize_value(
-    &http::HeaderName::from_static("x-vendor-context"),
-    &native_sensitive,
-    NameMatchMode::Exact,
-);
-assert_eq!(header, "<redacted>");
-
-let body_content_type = HeaderValue::from_static("application/json");
-let body = HttpBodySanitizer::default().sanitize_body(
-    br#"{"user":"alice","password":"secret"}"#,
-    Some(&body_content_type),
-    NameMatchMode::ExactOrSuffix,
-);
-assert_eq!(
-    body.to_string(),
-    r#"{"password":"<redacted>","user":"alice"}"#,
-);
-
-let argv = ArgvSanitizer::default()
-    .sanitize_argv_display(
-        ["docker", "login", "--password", "secret"],
-        NameMatchMode::ExactOrSuffix,
-    );
-assert_eq!(argv, r#"["docker", "login", "--password", "<redacted>"]"#);
-```
-
-adapter 方法也和 core 的 `FieldSanitizer` 一样要求显式传入 `NameMatchMode`。如果
-希望 `OPENAI_API_KEY` 这类上下文字段名命中已配置的 `api_key`，使用
-`NameMatchMode::ExactOrSuffix`。
-对于 HTTP header，`HeaderValue::is_sensitive()` 是值级 `Secret` 声明，不需要额外
-wrapper。它的优先级高于 header name 规则，因此排除某个 name 也不能暴露带原生敏感
-标记的值；最终替换文本仍由已配置的 `Secret` mask policy 决定。未标记的值继续使用
-已配置的 name 匹配、敏感等级和排除规则。
-对于 argv，`--` 只停止对“选项名与下一个参数”这种分离形式的推断；分隔符之后
-自包含的 `--password=value` 和 `PASSWORD=value` 仍会脱敏，而位置参数形式的
-`--password value` 会保持不变。
-
-`UrlSanitizer` 使用 `High` 策略遮盖 userinfo 和 fragment，使用 `Secret` 策略遮盖
-password，并按已解析出的字段等级遮盖 query parameter。它默认隐藏非根 URL path，
-因为 path segment 可能包含供应商 webhook token 或其他秘密。只有在确认诊断边界安全后，
-才应显式选择 `UrlPathPolicy::Preserve`。
-
-`sanitize_url_str` 会为非法输入返回解析错误。在日志和诊断边界应使用
-`sanitize_url_str_or_redact`，把非法 URL 替换为 `<redacted: invalid URL>`，而不是返回
-原始文本。
-
-URL query 和 URL-encoded form 中，如果百分号转义格式错误，或解码后不是 UTF-8，
-会整体脱敏。这个 fail-closed 行为可以防止歧义解码绕过字段名匹配。
-
-## 集成建议
-
-这个 crate 分为两层：
-
-- 使用 `core` 或根导出的 `FieldSanitizer` 等类型处理字段名匹配和值脱敏。
-- 使用 `adapter` 或根导出的 `UrlSanitizer`、`HttpBodySanitizer`、`ArgvSanitizer`
-  等类型处理已支持的结构化输入。
-- 当 adapter 无法完整建模上下文时，协议相关解析仍应放在调用方 crate，尤其是
-  shell 命令字符串和业务自定义 payload。
-
-例如，HTTP crate 可以用 `UrlSanitizer` 处理解析后的 URL，用
-`HttpHeaderSanitizer` 处理 `http::HeaderMap` 和 `http::HeaderValue`。当调用方有 body
-字节和可选 `Content-Type` header 时，可以用 `HttpBodySanitizer`；它支持 JSON、
-NDJSON、URL-encoded form、multipart body、显式声明的 `text/*` body 以及二进制
-fallback marker。持有 Content-Type 文本的调用方可以使用
-`sanitize_body_with_content_type_str` 或
-`sanitize_body_preview_with_content_type_str`；不合法的 header 语法会返回结构化
-redaction 状态，而不会交还给调用方处理。不支持的 UTF-8 media type 会被整体
-redaction，而不是原样透传。
-返回的 `BodySanitization` 提供原始脱敏 `content`、结构化 `status`、已捕获字节数，以及
-可选的精确来源字节数。它的 `Display`、`rendered` 和 `into_rendered` 会先用 Debug 风格
-转义控制字符、Unicode 行/段分隔符和双向格式控制符；总长已知时再追加计数截断后缀，
-总长未知时则追加 `...<truncated>`。`content` 和 `into_content` 会有意保留原始日志
-不安全字符并省略后缀，供需要自定义上下文渲染的调用方使用；写入文本日志时应使用 rendered 形式。诊断内容不是
-可回放的 HTTP body：结构化输出可能会被压缩，也不保证保留原始空白、字段顺序，或已
-脱敏 JSON 字段的原始 value 类型。`sanitize_body` 没有内置字节上限。调用方仍然负责
-body 捕获上限、解压、流式边界和业务自定义解析。
-
-```rust
-use http::HeaderValue;
-use qubit_sanitize::{
-    BodySourceLength,
-    HttpBodySanitizer,
-    NameMatchMode,
-};
-
-let prefix = br#"{"password":"secret"#;
-let source_len = 40;
+let body = br#"{"password":"secret","mode":"debug"}"#;
 let content_type = HeaderValue::from_static("application/json");
-let result = HttpBodySanitizer::default().sanitize_body_preview(
-    prefix,
-    BodySourceLength::Known(source_len),
-    Some(&content_type),
-    NameMatchMode::ExactOrSuffix,
-);
-
-assert_eq!(result.truncated_bytes(), Some(source_len - prefix.len()));
-assert!(!result.content().contains("secret"));
-println!("{result}");
+let result = HttpRedactor::default()
+    .redact_body(BodyCapture::complete(body), Some(&content_type));
+assert!(!result.to_string().contains("secret"));
+# }
 ```
 
-流式读取器只知道后续字节已被省略、但不知道精确总长时，应使用
-`BodySourceLength::UnknownTruncated`。此时 `source_len()` 和 `truncated_bytes()` 返回
-`None`，渲染结果会追加 `...<truncated>`。
+`TextBodyPolicy::PassThrough`、`UnkeyedJsonValuePolicy::PassThrough` 和
+`UrlPathPolicy::Preserve` 都是显式诊断 opt-in。只有应用已经接受相应信息披露风险时才
+应选择它们。
 
-命令执行 crate 可以用 `ArgvSanitizer` 处理结构化 argv，用 `EnvSanitizer` 处理显式
-环境变量覆盖，但不应宣称可以安全解析任意 shell 脚本。
+## 安全边界
 
-### 脱敏与日志转义
-
-脱敏只会在已建模的结构和已配置字段名将 value 识别为敏感内容时进行遮盖。非敏感
-value 可能原样返回，其中包括换行符、Unicode 行/段分隔符和双向格式控制符。因此，
-脱敏结果并不天然适合通过字符串拼接直接写入日志。
-
-最终日志边界应使用结构化日志或 `escape_log_control_characters`。没有日志不安全字符
-时，该 helper 会借用原文；需要转义时则使用不带外层引号的 Debug 风格转义：
-
-```rust
-use qubit_sanitize::escape_log_control_characters;
-
-assert_eq!(
-    escape_log_control_characters("first\nsecond\t"),
-    r"first\nsecond\t",
-);
-```
-
-HTTP body 应使用 `BodySanitization::rendered`、`into_rendered` 或 `Display`；`content`
-和 `into_content` 有意保持原始形式。记录命令参数和环境变量赋值时，优先使用
-`sanitize_argv_display` 和 `sanitize_assignments_display`；这些 helper 使用 Debug 风格
-渲染，使日志不安全字符无法改变日志结构或视觉顺序。
-
-### 不透明文本 body
-
-`HttpBodySanitizer` 默认会脱敏显式声明的 `text/*` body，以及 multipart 中
-非敏感的文本 part。它们没有可靠的字段结构，因此无法使用字段名匹配判断 value 是否
-包含秘密。只有当调用方愿意自行承担原文中的业务秘密风险时，才应显式
-选择 `TextBodyPolicy::PassThrough`：
-
-```rust
-use qubit_sanitize::{
-    HttpBodySanitizer,
-    TextBodyPolicy,
-};
-
-let sanitizer = HttpBodySanitizer::default()
-    .with_text_body_policy(TextBodyPolicy::PassThrough);
-```
-
-两种策略都不会扫描任意文本。透传文本中的日志不安全字符会保留在原始 `content`
-中，但 `BodySanitization` 的 rendered 形式会将其转义。同样地，藏在非敏感结构化字段
-value 中的业务秘密，不在基于字段名脱敏的保证范围内。
-
-### 无字段上下文的 JSON value
-
-`HttpBodySanitizer` 默认会脱敏顶层 JSON/NDJSON 标量，以及没有外层对象字段
-上下文的数组标量。位于非敏感对象字段下的数组会继承该字段上下文，因此其 value
-仍遵循基于字段名的脱敏规则。
-
-只有诊断确实需要保留这些 value，且调用方愿意承担无法通过字段名分类的秘密泄露
-风险时，才应选择 `UnkeyedJsonValuePolicy::PassThrough`：
-
-```rust
-use qubit_sanitize::{
-    HttpBodySanitizer,
-    UnkeyedJsonValuePolicy,
-};
-
-let sanitizer = HttpBodySanitizer::default()
-    .with_unkeyed_json_value_policy(
-        UnkeyedJsonValuePolicy::PassThrough,
-    );
-```
+- 字段名会被规范化，可选择精确或 token 后缀匹配。
+- 允许规则会有意胜出并可能暴露数据，应把它们作为安全策略审查。
+- 本库不会发现保存在未知字段名下的秘密。
+- `RedactedText` 表示字段值已按策略处理；`LogSafeText` 还会转义控制字符和 Unicode
+  行序字符。
+- 应把有类型的显示结果作为日志边界，不要再用原始输入拼接字符串。
 
 ## 测试
 

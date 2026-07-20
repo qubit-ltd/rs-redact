@@ -174,24 +174,6 @@ impl MaskPolicy {
             Self::Empty => Cow::Owned(String::new()),
         }
     }
-
-    /// Returns a content-independent non-empty mask when one exists.
-    ///
-    /// Fixed and empty policies return `Some`; edge-preserving policies return
-    /// `None` because they must inspect the input.
-    ///
-    /// # Returns
-    ///
-    /// A content-independent replacement when available.
-    #[cfg(feature = "http")]
-    #[inline]
-    pub(crate) fn value_independent_non_empty_mask(&self) -> Option<&str> {
-        match self {
-            Self::Fixed { replacement } => Some(replacement),
-            Self::Empty => Some(""),
-            Self::PreserveEdges { .. } | Self::PreserveSuffix { .. } => None,
-        }
-    }
 }
 
 /// Masks `value` while preserving requested Unicode scalar edges.

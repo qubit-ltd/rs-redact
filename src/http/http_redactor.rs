@@ -7,10 +7,7 @@
 // =============================================================================
 //! Unified immutable HTTP redaction façade.
 
-use std::{
-    borrow::Cow,
-    collections::BTreeMap,
-};
+use std::collections::BTreeMap;
 
 use http::{
     HeaderMap,
@@ -23,9 +20,9 @@ use url::{
 
 use crate::{
     LogSafeText,
+    RedactedText,
     Redactor,
     Sensitivity,
-    escape_log_control_characters,
 };
 
 use super::{
@@ -556,7 +553,9 @@ impl HttpRedactor {
         budget: BodyBudget,
     ) -> BodyRedaction {
         let (parsed_text, status) = parsed;
-        let escaped = escape_log_control_characters(&parsed_text).into_owned();
+        let escaped = RedactedText::new(parsed_text.into())
+            .escape_for_log()
+            .to_string();
         let source_truncated =
             capture.is_source_truncated() || budget_truncated;
         let output_truncated = escaped.len() > budget.max_output_bytes()
@@ -594,11 +593,9 @@ impl HttpRedactor {
     /// # Returns
     ///
     /// Owned text safe for plain log rendering.
-    #[inline]
+    #[inline(always)]
     fn safe_owned(text: String) -> LogSafeText<'static> {
-        LogSafeText::from_escaped(Cow::Owned(
-            escape_log_control_characters(&text).into_owned(),
-        ))
+        RedactedText::new(text.into()).escape_for_log()
     }
 }
 

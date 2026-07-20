@@ -12,4 +12,7 @@ mod body_capture_tests;
 mod body_redaction_tests;
 mod header_redaction_tests;
 mod http_redactor_tests;
+mod text_body_policy_tests;
+mod unkeyed_json_value_policy_tests;
+mod url_path_policy_tests;
 mod url_redaction_tests;

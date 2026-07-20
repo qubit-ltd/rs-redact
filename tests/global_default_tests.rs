@@ -50,4 +50,8 @@ fn test_global_default_can_be_installed_once_and_is_snapshotted() {
         RedactionPolicy::set_global_default(RedactionPolicy::standard()),
         Err(GlobalDefaultAlreadySet),
     );
+    assert_eq!(
+        GlobalDefaultAlreadySet.to_string(),
+        "the global default redaction policy is already set",
+    );
 }

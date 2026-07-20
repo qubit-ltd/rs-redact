@@ -7,64 +7,21 @@
 // =============================================================================
 //! Tests for crate-level exports.
 
-#[cfg(feature = "form")]
-use qubit_redact::FormUrlEncodedSanitizer;
-#[cfg(feature = "web")]
-use qubit_redact::UrlSanitizer;
 use qubit_redact::{
-    ArgvSanitizer,
-    EnvSanitizer,
-    FieldSanitizePolicy,
-    FieldSanitizer,
-    MaskPolicies,
-    MaskPolicy,
-    NameMatchMode,
+    ArgvRedactor,
+    EnvRedactor,
     RedactedDebug,
-    SensitiveFieldPreset,
-    SensitiveFields,
-    SensitivityLevel,
-    escape_log_control_characters,
+    RedactionPolicy,
+    Redactor,
     redacted_debug,
 };
-#[cfg(feature = "http")]
-use qubit_redact::{
-    BodyRedactionReason,
-    BodySanitization,
-    BodySanitizationStatus,
-    BodySourceLength,
-    HttpBodySanitizer,
-    HttpHeaderSanitizer,
-    TextBodyPolicy,
-    UnkeyedJsonValuePolicy,
-};
 
+/// Verifies the intended top-level redaction types remain publicly exported.
 #[test]
 fn test_lib_exports_public_api() {
-    let _ = ArgvSanitizer::default();
-    let _ = EnvSanitizer::default();
-    let _ = escape_log_control_characters("safe");
-    let _ = FieldSanitizePolicy::default();
-    let _ = FieldSanitizer::default();
-    let _ = MaskPolicies::default();
-    let _ = MaskPolicy::fixed("****");
-    let _ = NameMatchMode::Exact;
+    let policy = RedactionPolicy::default();
+    let redactor = Redactor::new(policy);
+    let _ = ArgvRedactor::new(redactor.clone());
+    let _ = EnvRedactor::new(redactor);
     let _: RedactedDebug<'_, str> = redacted_debug("secret");
-    let _ = SensitiveFieldPreset::Credentials;
-    let _ = SensitiveFields::default();
-    let _ = SensitivityLevel::High;
-    #[cfg(feature = "form")]
-    let _ = FormUrlEncodedSanitizer::default();
-    #[cfg(feature = "web")]
-    let _ = UrlSanitizer::default();
-    #[cfg(feature = "http")]
-    {
-        let _: Option<BodySanitization> = None;
-        let _ = BodySourceLength::UnknownTruncated;
-        let _ =
-            BodySanitizationStatus::Redacted(BodyRedactionReason::InvalidJson);
-        let _ = HttpBodySanitizer::default();
-        let _ = HttpHeaderSanitizer::default();
-        let _ = TextBodyPolicy::default();
-        let _ = UnkeyedJsonValuePolicy::default();
-    }
 }

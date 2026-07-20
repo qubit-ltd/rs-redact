@@ -56,10 +56,13 @@ fn test_masking_policy_new_and_for_level_select_requested_policy() {
 #[test]
 fn test_masking_policy_with_policy_updates_requested_level() {
     let policy = MaskingPolicy::default()
+        .with_policy(Sensitivity::Low, MaskPolicy::fixed("<low>"))
+        .with_policy(Sensitivity::Medium, MaskPolicy::fixed("<medium>"))
         .with_policy(Sensitivity::High, MaskPolicy::fixed("<high>"))
         .with_policy(Sensitivity::Secret, MaskPolicy::fixed("<secret>"));
 
+    assert_eq!(policy.mask(Sensitivity::Low, "value"), "<low>");
+    assert_eq!(policy.mask(Sensitivity::Medium, "value"), "<medium>");
     assert_eq!(policy.mask(Sensitivity::High, "value"), "<high>");
     assert_eq!(policy.mask(Sensitivity::Secret, "value"), "<secret>");
-    assert_eq!(policy.mask(Sensitivity::Low, "abcdefgh"), "ab****gh");
 }

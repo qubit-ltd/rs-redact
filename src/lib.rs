@@ -5,81 +5,23 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! # Qubit Sanitize
+//! # Qubit Redact
 //!
-//! Provides reusable utilities for masking configured sensitive fields in
-//! logs, diagnostics, and structured debug output.
+//! The pre-release redaction façades are intentionally not available.
 //!
-//! The core API sanitizes one `(field, value)` pair at a time and requires the
-//! caller to choose a [`NameMatchMode`].
-//!
-//! ```
-//! use qubit_redact::{
-//!     FieldSanitizer,
-//!     NameMatchMode,
-//! };
-//!
-//! let sanitizer = FieldSanitizer::default();
-//!
-//! assert_eq!(
-//!     sanitizer.sanitize_value("password", "secret", NameMatchMode::Exact),
-//!     "<redacted>",
-//! );
-//! assert_eq!(
-//!     sanitizer.sanitize_value("OPENAI_API_KEY", "abcdef", NameMatchMode::Exact),
-//!     "abcdef",
-//! );
-//! assert_eq!(
-//!     sanitizer.sanitize_value(
-//!         "OPENAI_API_KEY",
-//!         "abcdef",
-//!         NameMatchMode::ExactOrSuffix,
-//!     ),
-//!     "****",
-//! );
+//! ```compile_fail
+//! use qubit_redact::FieldSanitizer;
 //! ```
 //!
-//! Adapter APIs apply the same explicit matching mode to structured inputs.
-//! They only inspect formats and field names they explicitly model; callers
-//! remain responsible for application-specific secrets and protocols.
-//! Field sanitization is not log escaping: values whose field names are not
-//! classified as sensitive may be returned unchanged, including log-unsafe
-//! characters. At untrusted text boundaries, callers should use structured
-//! logging, [`escape_log_control_characters`], or adapter display helpers such
-//! as [`ArgvSanitizer::sanitize_argv_display`] and
-//! [`EnvSanitizer::sanitize_assignments_display`]. HTTP body
-//! `BodySanitization::escaped_content`, `BodySanitization::rendered`, and their
-//! consuming variants escape controls, Unicode line and paragraph separators,
-//! and bidirectional formatting controls; `BodySanitization::raw_content`
-//! intentionally remains raw sanitized content.
-//!
+//! ```compile_fail
+//! use qubit_redact::HttpBodySanitizer;
 //! ```
-//! # #[cfg(feature = "http")]
-//! # fn main() {
-//! use http::header::{
-//!     AUTHORIZATION,
-//!     HeaderValue,
-//! };
-//! use qubit_redact::{
-//!     HttpHeaderSanitizer,
-//!     NameMatchMode,
-//! };
 //!
-//! let sanitizer = HttpHeaderSanitizer::default();
-//! let value = HeaderValue::from_static("Bearer abcdef");
-//!
-//! assert_eq!(
-//!     sanitizer.sanitize_value(&AUTHORIZATION, &value, NameMatchMode::ExactOrSuffix),
-//!     "****",
-//! );
-//! # }
-//! # #[cfg(not(feature = "http"))]
-//! # fn main() {}
-//! ```
+//! Provides immutable, policy-driven redaction for scalar fields, maps,
+//! process diagnostics, and optionally HTTP data. Safe result types separate
+//! redacted text from text that has also been escaped for logs.
 
-pub mod adapter;
 pub mod argv;
-pub mod core;
 pub mod env;
 #[cfg(feature = "http")]
 pub mod http;
@@ -87,40 +29,8 @@ pub mod policy;
 mod redactor;
 pub mod text;
 
-#[cfg(any(feature = "form", feature = "http"))]
-pub use adapter::FormUrlEncodedSanitizer;
-pub use adapter::{
-    ArgvSanitizer,
-    EnvSanitizer,
-};
-#[cfg(feature = "http")]
-pub use adapter::{
-    BodyRedactionReason,
-    BodySanitization,
-    BodySanitizationStatus,
-    BodySourceLength,
-    HttpBodySanitizer,
-    HttpHeaderSanitizer,
-    TextBodyPolicy,
-    UnkeyedJsonValuePolicy,
-};
-#[cfg(any(feature = "web", feature = "http"))]
-pub use adapter::{
-    UrlPathPolicy,
-    UrlSanitizer,
-};
-pub use core::{
-    FieldSanitizePolicy,
-    FieldSanitizer,
-    MaskPolicies,
-    NameMatchMode,
-    RedactedDebug,
-    SensitiveFields,
-    SensitivityLevel,
-    canonicalize_field_name,
-    escape_log_control_characters,
-    redacted_debug,
-};
+pub use argv::ArgvRedactor;
+pub use env::EnvRedactor;
 pub use policy::{
     AllowRule,
     FieldNameMatching,
@@ -137,5 +47,7 @@ pub use policy::{
 pub use redactor::Redactor;
 pub use text::{
     LogSafeText,
+    RedactedDebug,
     RedactedText,
+    redacted_debug,
 };

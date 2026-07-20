@@ -5,12 +5,10 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for the public crate name.
+//! Private helper types for mirrored text integration tests.
 
-use qubit_redact as redact;
+mod no_debug;
+mod panic_debug;
 
-/// Verifies that public exports are available through `qubit_redact`.
-#[test]
-fn test_crate_is_named_qubit_redact() {
-    let _ = core::any::type_name::<redact::Redactor>();
-}
+pub(super) use no_debug::NoDebug;
+pub(super) use panic_debug::PanicDebug;

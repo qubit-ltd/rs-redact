@@ -10,7 +10,7 @@ description = "Rule-driven redaction for fields, diagnostics, HTTP data, and Rus
 homepage = "https://github.com/qubit-ltd/rs-sanitize"
 documentation = "https://docs.rs/qubit-redact"
 readme = "README.md"
-keywords = ["sanitize", "mask", "redact", "logging", "qubit"]
+keywords = ["redact", "mask", "privacy", "logging", "qubit"]
 categories = ["development-tools", "value-formatting"]
 include = [
     "/Cargo.toml",
@@ -26,9 +26,7 @@ name = "qubit_redact"
 doctest = true
 
 [features]
-default = ["web", "http"]
-form = ["dep:form_urlencoded"]
-web = ["form", "dep:url"]
+default = []
 http = [
     "dep:form_urlencoded",
     "dep:http",

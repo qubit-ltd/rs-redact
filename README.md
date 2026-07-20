@@ -1,519 +1,166 @@
-# Qubit Sanitize
+# Qubit Redact
 
 [![Rust CI](https://github.com/qubit-ltd/rs-sanitize/actions/workflows/ci.yml/badge.svg)](https://github.com/qubit-ltd/rs-sanitize/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://qubit-ltd.github.io/rs-sanitize/coverage-badge.json)](https://qubit-ltd.github.io/rs-sanitize/coverage/)
-[![Crates.io](https://img.shields.io/crates/v/qubit-sanitize.svg?color=blue)](https://crates.io/crates/qubit-sanitize)
+[![Crates.io](https://img.shields.io/crates/v/qubit-redact.svg?color=blue)](https://crates.io/crates/qubit-redact)
 [![Rust](https://img.shields.io/badge/rust-1.94+-blue.svg?logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
-Reusable sanitization utilities for Rust.
+Policy-driven redaction for Rust diagnostics, structured fields, maps, process
+arguments, environment variables, and optional HTTP data.
 
-## Overview
+## Design
 
-Qubit Sanitize provides reusable tools for masking known sensitive data in
-logs, diagnostics, and structured debug output. The core layer handles the common
-field-value problem shared by HTTP clients, command runners, configuration
-objects, and other crates: given a `(field, value)` pair, decide whether the
-field name is configured as sensitive and return a masked value to display.
+Qubit Redact separates four concerns:
 
-The adapter layer builds on that core policy for common structured inputs such
-as URLs, URL-encoded forms, HTTP headers, HTTP bodies, argv vectors, and
-environment variables. Adapters parse only the formats they explicitly model;
-shell command strings and other application-specific protocols should still be
-handled by caller crates that have the full context.
+- `RedactionPolicy` is an immutable snapshot of field rules, allow rules,
+  matching behavior, and masks.
+- `Redactor` applies one policy to scalar field values and string maps.
+- `ArgvRedactor` and `EnvRedactor` produce typed, log-safe process diagnostics.
+- The optional `http` module handles URLs, forms, headers, and bounded bodies.
 
-## Features
-
-- Field-name canonicalization for separator-insensitive matching
-- Built-in sensitive field defaults for credentials, tokens, HTTP auth, cookies,
-  and sessions
-- Configurable sensitivity levels: `Low`, `Medium`, `High`, and `Secret`
-- Level-specific masking through `MaskPolicies`
-- Mask strategies for fixed replacement, edge preservation, suffix
-  preservation, and full removal
-- A `FieldSanitizer` object that sanitizes single field-value pairs
-- Invariant-preserving policy methods for adding, replacing, and explicitly
-  excluding sensitive fields
-- Allocation-free pass-through when log text contains no log-unsafe characters
-- Convenience helpers for sanitizing `BTreeMap<String, String>` values by key
-- Adapters for URLs, URL-encoded forms, HTTP headers, HTTP bodies, argv
-  vectors, and environment variables
+Unknown fields pass through unchanged. Redaction is therefore based on known
+structure and configured names, not general secret detection. The default
+policy provides conservative presets, while the builder supports application
+rules and explicit allow decisions.
 
 ## Cargo Features
 
-The core field-matching API plus argv and environment adapters are always
-available and have no external dependencies. The default feature selection
-also enables the complete web and HTTP adapter API. Consumers that only need
-the dependency-free surface can disable defaults.
+The default feature set is empty and the core crate has no external runtime
+dependencies.
 
-| Feature | Includes | Optional dependencies |
+| Feature | Capability | Optional dependencies |
 | --- | --- | --- |
-| Always compiled | Field policies, masking, argv, and environment adapters | None |
-| `form` | URL-encoded form adapter | `form_urlencoded` |
-| `web` | URL adapter plus `form` | `url`, `form_urlencoded` |
-| `http` | HTTP header and body adapters | `http`, `serde_json`, `form_urlencoded` |
-
-For example, a command runner can depend only on the core surface:
+| `http` | URL, form, header, and bounded body redaction | `form_urlencoded`, `http`, `serde_json`, `url` |
 
 ```toml
-qubit-sanitize = { version = "0.3", default-features = false }
+[dependencies]
+qubit-redact = "0.1"
+
+# Enable HTTP support only where it is needed.
+qubit-redact-http = { package = "qubit-redact", version = "0.1", features = ["http"] }
 ```
 
-## Quick Start
-
-```rust
-use qubit_sanitize::{
-    FieldSanitizer,
-    NameMatchMode,
-};
-
-let sanitizer = FieldSanitizer::default();
-
-assert_eq!(
-    sanitizer.sanitize_value(
-        "password",
-        "correct-horse-battery-staple",
-        NameMatchMode::Exact,
-    ),
-    "<redacted>",
-);
-assert_eq!(
-    sanitizer.sanitize_value("mode", "debug", NameMatchMode::Exact),
-    "debug",
-);
-```
-
-## Sensitivity Levels
-
-Sensitive fields are assigned one of four levels:
-
-| Level | Intended use | Default mask |
-| --- | --- | --- |
-| `Low` | Values where a small prefix and suffix help diagnostics | `ab****yz` |
-| `Medium` | Identifiers where only the tail should remain visible | `****z` |
-| `High` | Tokens or API keys that should not expose edges | `****` |
-| `Secret` | Passwords, private keys, or client secrets | `<redacted>` |
-
-The defaults are conservative for operational logs. You can replace any level's
-masking strategy through `MaskPolicies`.
-
-## Mask Policies
-
-```rust
-use qubit_sanitize::MaskPolicy;
-
-let edge = MaskPolicy::preserve_edges(2, 2, "****", 4);
-assert_eq!(edge.mask("abcdefgh"), "ab****gh");
-
-let suffix = MaskPolicy::preserve_suffix(4, "****", 4);
-assert_eq!(suffix.mask("1234567890"), "****7890");
-
-let fixed = MaskPolicy::fixed("****");
-assert_eq!(fixed.mask("secret"), "****");
-```
-
-Empty values are kept empty. This avoids changing the semantics of fields that
-are present but intentionally blank.
-
-## Sensitive Fields
-
-`SensitiveFields::default()` contains a starter set of common sensitive names
-such as:
-
-- `password`, `passwd`, `passphrase`, `pgpassword`, `secret`, `client_secret`
-- `private_key`, `security_key`, `mysql_pwd`, `rediscli_auth`
-- `database_url`, `database_uri`, `connection_string`
-- `dsn`, `redis_url`, `mongodb_uri`, `amqp_url`, `http_proxy`, `https_proxy`
-- `all_proxy`, `docker_auth_config`
-- `api_key`, `x_api_key`
-- `token`, `access_token`, `refresh_token`, `id_token`, `sig`, `signature`
-- `authorization`, `proxy_authorization`, `cookie`, `set_cookie`
-- `session`, `session_id`, `session_token`
-
-The default list is not an exhaustive secret detector. Applications should add
-their own protocol and business field names. Field names are canonicalized
-before lookup. Separators such as `_`, `-`, `.`, `[`, `]`, and whitespace are
-ignored, and names are lowercased:
-
-```rust
-use qubit_sanitize::canonicalize_field_name;
-
-assert_eq!(canonicalize_field_name(" access-token "), "accesstoken");
-assert_eq!(canonicalize_field_name("access_token"), "accesstoken");
-assert_eq!(canonicalize_field_name("access.token"), "accesstoken");
-assert_eq!(canonicalize_field_name("user[password]"), "userpassword");
-```
-
-## Name Matching Modes
-
-Core methods such as `sanitize_value` and `sanitize_map` require callers to
-choose a field-name matching mode. Use `NameMatchMode::Exact` for exact
-canonical field-name matching. For contextual names where callers want
-`OPENAI_API_KEY` to match the configured field `api_key`, use
-`NameMatchMode::ExactOrSuffix`. Suffix matching observes separator and camel-case
-token boundaries: `openaiApiKey` and `OPENAI_API_KEY` can match `api_key`, while
-an unrelated single token such as `notapikey` does not.
-
-```rust
-use qubit_sanitize::{
-    FieldSanitizer,
-    NameMatchMode,
-};
-
-let sanitizer = FieldSanitizer::default();
-
-assert_eq!(
-    sanitizer.sanitize_value(
-        "OPENAI_API_KEY",
-        "abcdef",
-        NameMatchMode::Exact,
-    ),
-    "abcdef",
-);
-assert_eq!(
-    sanitizer.sanitize_value(
-        "OPENAI_API_KEY",
-        "abcdef",
-        NameMatchMode::ExactOrSuffix,
-    ),
-    "****",
-);
-```
-
-## Custom Fields
-
-```rust
-use qubit_sanitize::{
-    FieldSanitizer,
-    NameMatchMode,
-    SensitivityLevel,
-};
-
-let mut sanitizer = FieldSanitizer::default();
-sanitizer.insert_sensitive_field("license_key", SensitivityLevel::Medium);
-
-assert_eq!(
-    sanitizer.sanitize_value("license-key", "abcdef", NameMatchMode::Exact),
-    "****f",
-);
-```
-
-`FieldSanitizer::insert_sensitive_field` and `extend_sensitive_fields` use
-strongest-level semantics: adding a weaker level never downgrades an existing
-field. Use `set_sensitive_field_level` only when an explicit replacement,
-including a downgrade, is intended. At the lower-level `SensitiveFields` API,
-`insert` and `extend` retain map-style replacement semantics, while
-`insert_strongest` and `extend_strongest` prevent downgrades.
-
-`FieldSanitizePolicy` is the mutation boundary for policy state. Its
-`insert_sensitive_field`, `set_sensitive_field_level`,
-`extend_sensitive_fields`, and `extend_preset` methods cancel a matching
-exclusion. `set_sensitive_fields` and `with_sensitive_fields` replace the
-complete positive set and clear all exclusions. `sensitive_fields()` is
-read-only so these invariants cannot be bypassed accidentally.
-
-Built-in names can be excluded when an application has verified a false
-positive. Excluding a default is an explicit disclosure decision: the
-exclusion wins over shorter sensitive suffixes, so matching values are
-returned unchanged afterward.
-
-```rust
-use qubit_sanitize::{FieldSanitizer, NameMatchMode};
-
-let mut sanitizer = FieldSanitizer::default();
-sanitizer.exclude_sensitive_field("sig");
-
-assert_eq!(
-    sanitizer.sanitize_value("sig", "known-safe", NameMatchMode::Exact),
-    "known-safe",
-);
-```
-
-You can also start from an empty policy when you do not want built-in field
-names:
-
-```rust
-use qubit_sanitize::{
-    FieldSanitizePolicy,
-    FieldSanitizer,
-    SensitivityLevel,
-};
-
-let mut sanitizer = FieldSanitizer::new(FieldSanitizePolicy::empty());
-sanitizer.insert_sensitive_field("tenant_secret", SensitivityLevel::Secret);
-```
-
-## Map Sanitization
+## Scalar Values and Maps
 
 ```rust
 use std::collections::BTreeMap;
 
-use qubit_sanitize::{
-    FieldSanitizer,
-    NameMatchMode,
-};
+use qubit_redact::{RedactionPolicy, Redactor};
 
-let sanitizer = FieldSanitizer::default();
-let mut values = BTreeMap::new();
-values.insert("password".to_string(), "secret".to_string());
-values.insert("name".to_string(), "alice".to_string());
+let redactor = Redactor::new(RedactionPolicy::default());
+assert_eq!(redactor.redact("password", "secret").as_ref(), "<redacted>");
+assert_eq!(redactor.redact("mode", "debug").as_ref(), "debug");
 
-let sanitized = sanitizer.sanitize_map(&values, NameMatchMode::Exact);
-
-assert_eq!(sanitized["password"], "<redacted>");
-assert_eq!(sanitized["name"], "alice");
-assert_eq!(values["password"], "secret");
+let values = BTreeMap::from([
+    ("password".to_owned(), "secret".to_owned()),
+    ("mode".to_owned(), "debug".to_owned()),
+]);
+let redacted = redactor.redact_map(&values);
+assert_eq!(redacted["password"], "<redacted>");
+assert_eq!(redacted["mode"], "debug");
 ```
 
-For mutable structured data, use `sanitize_map_in_place` with an explicit
-`NameMatchMode`.
+`redact_map_in_place` provides the corresponding mutating operation. Both map
+methods classify each value from its key and preserve safe values.
 
-## Redacted Debug Fields
-
-Use `redacted_debug` when a custom `Debug` implementation must expose object
-structure without formatting a sensitive field. The wrapper never calls the
-wrapped value's `Debug` implementation:
+## Policy Configuration
 
 ```rust
-use qubit_sanitize::redacted_debug;
+use qubit_redact::{
+    FieldNameMatching, MaskPolicy, RedactionPolicy, Redactor, Sensitivity,
+};
+
+let policy = RedactionPolicy::builder()
+    .matching(FieldNameMatching::ExactOrTokenSuffix)
+    .raise("license_key", Sensitivity::High)
+    .allow_exact("public_token")
+    .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))
+    .build()
+    .expect("the policy is valid");
+
+let redactor = Redactor::new(policy);
+assert_eq!(redactor.redact("LICENSE_KEY", "abcdef").as_ref(), "[hidden]");
+```
+
+`raise` never weakens an existing rule. Use `override_level` only when an
+intentional replacement, including a downgrade, is required. Exact allow rules
+affect only the complete field; suffix allow rules are broader disclosure
+decisions and should be used sparingly.
+
+## Process Diagnostics
+
+`ArgvRedactor::redact_items` trusts explicit sensitivity metadata and performs
+no command-line inference. `redact_heuristically` additionally recognizes
+common option and assignment forms. Shell payloads are never parsed as scripts.
+
+`EnvRedactor` redacts UTF-8 pairs and fails closed when either operating-system
+component is not valid UTF-8. Its result safely renders as `NAME=VALUE`.
+Use `redacted_debug` in custom `Debug` implementations when a captured value
+must render only as `<redacted>`; the wrapper never calls the value's own
+`Debug` implementation.
+
+```rust
+use std::ffi::OsStr;
+
+use qubit_redact::{ArgvRedactor, argv::ArgvItem};
+
+let items = [
+    ArgvItem::plain(OsStr::new("client")),
+    ArgvItem::plain(OsStr::new("--password")),
+    ArgvItem::plain(OsStr::new("secret")),
+];
+let output = ArgvRedactor::default().redact_heuristically(items);
+assert!(!output.to_string().contains("secret"));
 
 let captured_bytes = b"secret output";
-assert_eq!(format!("{:?}", redacted_debug(captured_bytes)), "<redacted>");
+assert_eq!(
+    format!("{:?}", qubit_redact::redacted_debug(captured_bytes)),
+    "<redacted>",
+);
 ```
 
-## Adapter Sanitization
+## HTTP Redaction
+
+Enable `http` to use `HttpRedactor`. It owns an immutable
+`HttpRedactionPolicy` and provides URL, URL-encoded form, header, and body
+operations. `BodyCapture` distinguishes complete input from checked truncated
+input, while `BodyBudget` bounds both parsing input and rendered output.
+
+Malformed or truncated structured bodies fail closed. Opaque text, unkeyed JSON
+scalars, file parts, unnamed multipart parts, and URL paths use conservative
+defaults. The HTTP result types expose only log-safe text; they do not expose a
+raw-body escape hatch.
 
 ```rust
-use qubit_sanitize::{
-    ArgvSanitizer,
-    FormUrlEncodedSanitizer,
-    HttpBodySanitizer,
-    HttpHeaderSanitizer,
-    NameMatchMode,
-    UrlSanitizer,
-};
-use http::header::AUTHORIZATION;
+# #[cfg(feature = "http")]
+# {
 use http::HeaderValue;
+use qubit_redact::http::{BodyCapture, HttpRedactor};
 
-let url = UrlSanitizer::default()
-    .sanitize_url_str(
-        "https://alice:secret@example.com/path?access_token=abcdef#callback",
-        NameMatchMode::ExactOrSuffix,
-    )
-    .expect("sample URL should parse");
-assert_eq!(
-    url,
-    "https://****:%3Credacted%3E@example.com/%3Credacted%3E?access_token=****#****",
-);
-
-let form = FormUrlEncodedSanitizer::default()
-    .sanitize_str("username=alice&password=secret", NameMatchMode::ExactOrSuffix);
-assert_eq!(form, "username=alice&password=%3Credacted%3E");
-
-let header = HttpHeaderSanitizer::default()
-    .sanitize_value(
-        &AUTHORIZATION,
-        &HeaderValue::from_static("Bearer abcdef"),
-        NameMatchMode::ExactOrSuffix,
-    );
-assert_eq!(header, "****");
-
-let mut native_sensitive = HeaderValue::from_static("vendor-specific-secret");
-native_sensitive.set_sensitive(true);
-let header = HttpHeaderSanitizer::default().sanitize_value(
-    &http::HeaderName::from_static("x-vendor-context"),
-    &native_sensitive,
-    NameMatchMode::Exact,
-);
-assert_eq!(header, "<redacted>");
-
-let body_content_type = HeaderValue::from_static("application/json");
-let body = HttpBodySanitizer::default().sanitize_body(
-    br#"{"user":"alice","password":"secret"}"#,
-    Some(&body_content_type),
-    NameMatchMode::ExactOrSuffix,
-);
-assert_eq!(
-    body.to_string(),
-    r#"{"password":"<redacted>","user":"alice"}"#,
-);
-
-let argv = ArgvSanitizer::default()
-    .sanitize_argv_display(
-        ["docker", "login", "--password", "secret"],
-        NameMatchMode::ExactOrSuffix,
-    );
-assert_eq!(argv, r#"["docker", "login", "--password", "<redacted>"]"#);
-```
-
-Adapter methods require an explicit `NameMatchMode`, just like the core
-`FieldSanitizer` methods. Use `NameMatchMode::ExactOrSuffix` when contextual
-names such as `OPENAI_API_KEY` should match the configured field `api_key`.
-For HTTP headers, `HeaderValue::is_sensitive()` is a value-level `Secret`
-declaration and requires no wrapper type. It takes precedence over header-name
-rules, so excluding a name cannot expose a natively sensitive value; the
-configured `Secret` mask policy still controls its replacement. Unmarked
-values continue to use the configured name matching, levels, and exclusions.
-For argv, `--` stops only separate-value option inference: self-contained
-`--password=value` and `PASSWORD=value` tokens after the delimiter are still
-sanitized, while positional `--password value` tokens are left unchanged.
-
-`UrlSanitizer` masks userinfo and fragments with the `High` policy, passwords
-with the `Secret` policy, and configured query parameters by their resolved
-field level. It redacts non-root URL paths by default because path segments may
-contain vendor-specific webhook tokens or other secrets. Select
-`UrlPathPolicy::Preserve` only after reviewing that diagnostic boundary.
-
-`sanitize_url_str` returns a parse error for invalid input. At logging and
-diagnostic boundaries, use `sanitize_url_str_or_redact` to replace an invalid
-URL with `<redacted: invalid URL>` instead of returning the original text.
-
-Malformed percent escapes or percent-decoded non-UTF-8 in URL queries and
-URL-encoded forms are redacted as a whole. This fail-closed behavior prevents
-ambiguous decoding from bypassing field-name matching.
-
-## Integration Guidance
-
-The crate has two layers:
-
-- Use `core` / root exports such as `FieldSanitizer` for field-name matching
-  and value masking.
-- Use `adapter` / root exports such as `UrlSanitizer`, `HttpBodySanitizer`, and
-  `ArgvSanitizer` for supported structured inputs.
-- Keep protocol-specific parsing in caller crates when the adapter cannot model
-  the full context, especially shell command strings and application-specific
-  payloads.
-
-For example, an HTTP crate can use `UrlSanitizer` for parsed URLs and
-`HttpHeaderSanitizer` for `http::HeaderMap` and `http::HeaderValue` values. It
-can use `HttpBodySanitizer` when it has body bytes plus an optional
-`Content-Type` header; the adapter supports JSON, NDJSON, URL-encoded forms,
-multipart bodies, declared `text/*` bodies, and binary fallback markers.
-Callers holding Content-Type text can use
-`sanitize_body_with_content_type_str` or
-`sanitize_body_preview_with_content_type_str`; invalid header syntax is
-redacted with structured status instead of being returned to the caller.
-Unsupported UTF-8 media types are redacted rather than passed through. The
-returned `BodySanitization` exposes raw sanitized `content`, a structured
-`status`, the captured byte length, and an optional exact source byte length.
-Its `Display`, `rendered`, and `into_rendered` forms escape controls, Unicode
-line and paragraph separators, and bidirectional formatting controls with
-Debug-style escapes, then add a counted truncation suffix when the total is
-known or `...<truncated>` when it is unknown. `content` and `into_content`
-intentionally keep raw log-unsafe characters and omit the suffix for callers
-that need context-specific rendering. Use a rendered form, not raw content, at
-a text log boundary. The diagnostic content is not a
-replayable HTTP body: structured output may be compacted and may not preserve
-original whitespace, field order, or JSON value types for redacted fields.
-`sanitize_body` has no internal byte limit. The caller still owns capture
-limits, decompression, streaming boundaries, and any application-specific
-parsing.
-
-```rust
-use http::HeaderValue;
-use qubit_sanitize::{
-    BodySourceLength,
-    HttpBodySanitizer,
-    NameMatchMode,
-};
-
-let prefix = br#"{"password":"secret"#;
-let source_len = 40;
+let body = br#"{"password":"secret","mode":"debug"}"#;
 let content_type = HeaderValue::from_static("application/json");
-let result = HttpBodySanitizer::default().sanitize_body_preview(
-    prefix,
-    BodySourceLength::Known(source_len),
-    Some(&content_type),
-    NameMatchMode::ExactOrSuffix,
-);
-
-assert_eq!(result.truncated_bytes(), Some(source_len - prefix.len()));
-assert!(!result.content().contains("secret"));
-println!("{result}");
+let result = HttpRedactor::default()
+    .redact_body(BodyCapture::complete(body), Some(&content_type));
+assert!(!result.to_string().contains("secret"));
+# }
 ```
 
-Use `BodySourceLength::UnknownTruncated` when a stream reader knows more bytes
-were omitted but cannot know the exact total. In that case `source_len()` and
-`truncated_bytes()` return `None`, while rendering adds `...<truncated>`.
+`TextBodyPolicy::PassThrough`, `UnkeyedJsonValuePolicy::PassThrough`, and
+`UrlPathPolicy::Preserve` are explicit diagnostic opt-ins. Choose them only
+after the application has accepted the corresponding disclosure risk.
 
-A command runner can use `ArgvSanitizer` for structured argv and
-`EnvSanitizer` for explicit environment overrides, but should not claim to
-safely parse arbitrary shell scripts.
+## Safety Boundaries
 
-### Sanitization and Log Escaping
-
-Sanitization masks values only when a modeled structure and configured field
-name identify them as sensitive. Non-sensitive values may be returned
-unchanged, including newlines, Unicode separators, and bidirectional controls.
-Sanitized output therefore is not automatically safe for raw string
-concatenation.
-
-Use structured logging or `escape_log_control_characters` at the final log
-boundary. The helper returns a borrowed value when no log-unsafe characters
-are present and uses Debug-style escapes without adding quotes otherwise:
-
-```rust
-use qubit_sanitize::escape_log_control_characters;
-
-assert_eq!(
-    escape_log_control_characters("first\nsecond\t"),
-    r"first\nsecond\t",
-);
-```
-
-For HTTP bodies, use `BodySanitization::rendered`, `into_rendered`, or
-`Display`; `content` and `into_content` are deliberately raw. For command
-arguments and environment assignments, prefer
-`sanitize_argv_display` and `sanitize_assignments_display`; these helpers use
-Debug-style rendering so log-unsafe characters cannot alter log structure or
-visual ordering.
-
-### Opaque Text Bodies
-
-`HttpBodySanitizer` redacts declared `text/*` bodies and non-sensitive
-multipart text parts by default. They do not contain reliable field structure,
-so field-name matching cannot determine whether a value is secret. Select
-`TextBodyPolicy::PassThrough` only when the caller accepts responsibility for
-application secrets in the original text:
-
-```rust
-use qubit_sanitize::{
-    HttpBodySanitizer,
-    TextBodyPolicy,
-};
-
-let sanitizer = HttpBodySanitizer::default()
-    .with_text_body_policy(TextBodyPolicy::PassThrough);
-```
-
-Neither policy scans arbitrary text. Pass-through log-unsafe characters remain
-present in raw `content`, but the `BodySanitization` rendered forms escape them.
-Similarly, a business secret stored inside a non-sensitive structured field is
-outside the guarantee of field-name-based sanitization.
-
-### Unkeyed JSON Values
-
-`HttpBodySanitizer` redacts top-level JSON/NDJSON scalar values and scalar
-elements in arrays that have no enclosing object-field context. Arrays stored
-under a non-sensitive object field retain that field context, so their values
-continue to follow field-name-based sanitization.
-
-Select `UnkeyedJsonValuePolicy::PassThrough` only when preserving those values
-is required for diagnostics and the caller accepts responsibility for secrets
-that have no classifiable field name:
-
-```rust
-use qubit_sanitize::{
-    HttpBodySanitizer,
-    UnkeyedJsonValuePolicy,
-};
-
-let sanitizer = HttpBodySanitizer::default()
-    .with_unkeyed_json_value_policy(
-        UnkeyedJsonValuePolicy::PassThrough,
-    );
-```
+- Field names are canonicalized and can use exact or token-suffix matching.
+- Allow rules win deliberately and can expose data; review them as security
+  policy.
+- Redaction does not discover secrets stored under unknown field names.
+- `RedactedText` distinguishes field redaction from `LogSafeText`, which also
+  escapes controls and Unicode line-ordering characters.
+- Treat typed display results as the logging boundary instead of rebuilding
+  strings from raw inputs.
 
 ## Testing
 

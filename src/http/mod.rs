@@ -19,12 +19,10 @@ mod http_redaction_policy_builder;
 mod http_redactor;
 mod internal;
 mod redacted_headers;
+mod text_body_policy;
+mod unkeyed_json_value_policy;
+mod url_path_policy;
 
-pub use crate::adapter::{
-    TextBodyPolicy,
-    UnkeyedJsonValuePolicy,
-    UrlPathPolicy,
-};
 pub use body_budget::BodyBudget;
 pub use body_budget_error::BodyBudgetError;
 pub use body_capture::BodyCapture;
@@ -36,3 +34,6 @@ pub use http_redaction_policy::HttpRedactionPolicy;
 pub use http_redaction_policy_builder::HttpRedactionPolicyBuilder;
 pub use http_redactor::HttpRedactor;
 pub use redacted_headers::RedactedHeaders;
+pub use text_body_policy::TextBodyPolicy;
+pub use unkeyed_json_value_policy::UnkeyedJsonValuePolicy;
+pub use url_path_policy::UrlPathPolicy;

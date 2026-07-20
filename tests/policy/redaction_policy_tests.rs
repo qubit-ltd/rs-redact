@@ -16,6 +16,7 @@ use qubit_redact::{
     MaskPolicy,
     PolicyError,
     RedactionPolicy,
+    RedactionPolicyBuilder,
     SensitiveFieldPreset,
     Sensitivity,
 };
@@ -248,6 +249,29 @@ fn test_build_rejects_empty_fixed_replacement() {
             .mask(Sensitivity::High, MaskPolicy::empty())
             .build()
             .is_ok(),
+    );
+}
+
+/// Verifies builder defaults and validation errors expose useful diagnostics.
+#[test]
+fn test_builder_default_and_policy_error_display() {
+    let policy = RedactionPolicyBuilder::default()
+        .build()
+        .expect("the default builder should be valid");
+    assert_eq!(
+        policy.sensitivity_for("password"),
+        Some(Sensitivity::Secret),
+    );
+    assert_eq!(
+        PolicyError::EmptyFieldName.to_string(),
+        "field name is empty after canonicalization",
+    );
+    assert_eq!(
+        PolicyError::EmptyFixedReplacement {
+            level: Sensitivity::Medium,
+        }
+        .to_string(),
+        "fixed mask replacement for Medium sensitivity is empty",
     );
 }
 

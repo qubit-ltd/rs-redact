@@ -12,13 +12,6 @@ use proptest::prelude::{
     proptest,
 };
 use qubit_redact::http::HttpRedactor;
-use qubit_redact::{
-    RedactionPolicy,
-    http::{
-        HttpRedactionPolicy,
-        UrlPathPolicy,
-    },
-};
 
 #[test]
 fn test_url_redaction_masks_components_and_query_values() {
@@ -30,22 +23,6 @@ fn test_url_redaction_masks_components_and_query_values() {
     assert!(!result.as_ref().contains("secret"));
     assert!(!result.as_ref().contains("raw"));
     assert!(result.as_ref().contains("mode=debug"));
-}
-
-#[test]
-fn test_url_redaction_can_preserve_path_and_handles_urls_without_query() {
-    let policy = HttpRedactionPolicy::builder(RedactionPolicy::default())
-        .url_path_policy(UrlPathPolicy::Preserve)
-        .build();
-    let redactor = HttpRedactor::new(policy);
-
-    assert_eq!(
-        redactor
-            .redact_url_str("https://example.test/public/path")
-            .as_ref(),
-        "https://example.test/public/path",
-    );
-    assert_eq!(redactor.policy().url_path_policy(), UrlPathPolicy::Preserve);
 }
 
 #[test]

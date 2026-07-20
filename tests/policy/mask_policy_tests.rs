@@ -50,11 +50,11 @@ fn test_mask_policy_preserve_edges_keeps_unicode_edges() {
 /// Verifies that overflowing edge counts cannot expose the raw value.
 #[test]
 fn test_mask_policy_preserve_edges_masks_when_edge_lengths_overflow() {
-    let sanitized = MaskPolicy::preserve_edges(usize::MAX, 1, "****", 0)
+    let redacted = MaskPolicy::preserve_edges(usize::MAX, 1, "****", 0)
         .mask("secret-token");
 
-    assert_eq!(sanitized, "****");
-    assert!(!sanitized.contains("secret-token"));
+    assert_eq!(redacted, "****");
+    assert!(!redacted.contains("secret-token"));
 }
 
 /// Verifies that a suffix policy retains only the requested tail.
@@ -104,8 +104,8 @@ proptest! {
             "****",
             0,
         );
-        let sanitized = policy.mask(&value);
+        let redacted = policy.mask(&value);
 
-        prop_assert_ne!(sanitized.as_ref(), value.as_str());
+        prop_assert_ne!(redacted.as_ref(), value.as_str());
     }
 }
