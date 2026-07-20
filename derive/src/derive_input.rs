@@ -8,12 +8,22 @@
 //! Named-struct validation and code generation for `Redact`.
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{
+    quote,
+    quote_spanned,
+};
 use syn::{
     Data,
     DeriveInput,
     Fields,
     Path,
+    spanned::Spanned,
+};
+
+use crate::{
+    container_attributes::ContainerAttributes,
+    field_attributes::FieldAttributes,
+    field_mode::FieldMode,
 };
 
 /// Expands a named-field struct into its runtime `Redact` implementation.
@@ -35,6 +45,7 @@ pub(crate) fn expand(
     input: &DeriveInput,
     runtime: &Path,
 ) -> syn::Result<TokenStream> {
+    let _container_attributes = ContainerAttributes::parse(input)?;
     let fields = match &input.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(fields) => fields,
@@ -53,21 +64,57 @@ pub(crate) fn expand(
         }
     };
 
-    let field_idents = fields
+    let parsed_fields = fields
         .named
         .iter()
         .map(|field| {
-            field.ident.as_ref().ok_or_else(|| {
+            let identifier = field.ident.as_ref().ok_or_else(|| {
                 syn::Error::new_spanned(
                     field,
                     "Redact requires every field to have a name",
                 )
-            })
+            })?;
+            let attributes =
+                FieldAttributes::parse(field, &input.ident, identifier)?;
+            Ok((field, identifier, attributes))
         })
         .collect::<syn::Result<Vec<_>>>()?;
-    let field_names = field_idents
+    let field_calls = parsed_fields
         .iter()
-        .map(|identifier| identifier.to_string())
+        .map(|(field, identifier, attributes)| {
+            let field_name = identifier.to_string();
+            match attributes.mode() {
+                FieldMode::Plain => quote_spanned! {field.span()=>
+                    .field(#field_name, &self.#identifier)
+                },
+                FieldMode::Level(sensitivity) => {
+                    let level = sensitivity.runtime_tokens(runtime);
+                    quote_spanned! {field.span()=>
+                        .field(
+                            #field_name,
+                            &#runtime::RedactValue::redact_value(
+                                &self.#identifier,
+                                #level,
+                                policy.masking(),
+                            ),
+                        )
+                    }
+                }
+                FieldMode::Skip => TokenStream::new(),
+                FieldMode::Nested => quote_spanned! {field.span()=>
+                    .field(
+                        #field_name,
+                        &#runtime::Redact::redacted_with(&self.#identifier, policy),
+                    )
+                },
+                FieldMode::Map => quote_spanned! {field.span()=>
+                    .field(
+                        #field_name,
+                        &#runtime::RedactedMap::new(&self.#identifier, policy.clone()),
+                    )
+                },
+            }
+        })
         .collect::<Vec<_>>();
     let name = &input.ident;
     let (impl_generics, type_generics, where_clause) =
@@ -83,7 +130,7 @@ pub(crate) fn expand(
                 let _ = policy;
                 formatter
                     .debug_struct(stringify!(#name))
-                    #(.field(#field_names, &self.#field_idents))*
+                    #(#field_calls)*
                     .finish()
             }
         }

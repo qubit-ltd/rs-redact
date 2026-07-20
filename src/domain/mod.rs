@@ -9,11 +9,17 @@
 
 mod internal;
 mod redact;
+mod redact_map_value;
+mod redact_map_value_mut;
 mod redact_value;
 mod redacted;
+mod redacted_map;
 mod redacted_value;
 
 pub use redact::Redact;
+pub use redact_map_value::RedactMapValue;
+pub use redact_map_value_mut::RedactMapValueMut;
 pub use redact_value::RedactValue;
 pub use redacted::Redacted;
+pub use redacted_map::RedactedMap;
 pub use redacted_value::RedactedValue;

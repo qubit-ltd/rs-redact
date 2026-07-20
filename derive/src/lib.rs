@@ -7,9 +7,13 @@
 // =============================================================================
 //! Derive macros for `qubit-redact` domain objects.
 
+mod container_attributes;
 mod derive_input;
+mod field_attributes;
+mod field_mode;
 mod redact_derive;
 mod runtime_path;
+mod sensitivity;
 
 use proc_macro::TokenStream;
 
@@ -28,7 +32,7 @@ use proc_macro::TokenStream;
 /// An implementation of `qubit_redact::Redact`, or a targeted compile error
 /// when the input is not a named-field struct or the runtime crate cannot be
 /// resolved.
-#[proc_macro_derive(Redact)]
+#[proc_macro_derive(Redact, attributes(redact))]
 #[inline(always)]
 pub fn derive_redact(input: TokenStream) -> TokenStream {
     redact_derive::derive(input)

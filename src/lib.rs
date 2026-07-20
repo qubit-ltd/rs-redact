@@ -123,8 +123,11 @@ pub mod text;
 pub use argv::ArgvRedactor;
 pub use domain::{
     Redact,
+    RedactMapValue,
+    RedactMapValueMut,
     RedactValue,
     Redacted,
+    RedactedMap,
     RedactedValue,
 };
 pub use env::EnvRedactor;

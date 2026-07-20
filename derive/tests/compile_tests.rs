@@ -7,9 +7,14 @@
 // =============================================================================
 //! Compile tests for supported `Redact` derive inputs.
 
-/// Verifies that a generic named-field struct compiles successfully.
+/// Verifies that all supported derive fixtures compile successfully.
 #[test]
-fn test_basic_named_struct_passes() {
-    trybuild::TestCases::new()
-        .pass("tests/fixtures/pass/basic_named_struct.rs");
+fn test_pass_fixtures() {
+    trybuild::TestCases::new().pass("tests/fixtures/pass/*.rs");
+}
+
+/// Verifies that invalid attributes produce stable targeted diagnostics.
+#[test]
+fn test_compile_fail_fixtures() {
+    trybuild::TestCases::new().compile_fail("tests/fixtures/fail/*.rs");
 }

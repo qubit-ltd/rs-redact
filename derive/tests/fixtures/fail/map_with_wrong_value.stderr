@@ -1,0 +1,12 @@
+error[E0271]: type mismatch resolving `<&HashMap<String, u64> as IntoIterator>::Item == (&String, &String)`
+  --> tests/fixtures/fail/map_with_wrong_value.rs:15:10
+   |
+15 | #[derive(Redact)]
+   |          ^^^^^^ expected `(&String, &String)`, found `(&String, &u64)`
+   |
+   = note: expected tuple `(&String, &String)`
+              found tuple `(&String, &u64)`
+   = note: required for `HashMap<String, u64>` to implement `RedactMapValue`
+   = note: required for `RedactedMap<'_, HashMap<String, u64>>` to implement `Debug`
+   = note: required for the cast from `&RedactedMap<'_, HashMap<String, u64>>` to `&dyn Debug`
+   = note: this error originates in the derive macro `Redact` (in Nightly builds, run with -Z macro-backtrace for more info)

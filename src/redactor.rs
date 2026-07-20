@@ -105,7 +105,7 @@ impl Redactor {
     /// # Parameters
     ///
     /// * `map` - Mutable map whose values are classified by their keys.
-    pub fn redact_map_in_place<M>(&self, map: &mut M)
+    pub fn redact_map_in_place<M: ?Sized>(&self, map: &mut M)
     where
         for<'a> &'a mut M: IntoIterator<Item = (&'a String, &'a mut String)>,
     {

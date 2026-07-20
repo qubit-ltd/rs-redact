@@ -7,5 +7,11 @@
 // =============================================================================
 //! Mirrored integration tests for domain-object redaction APIs.
 
+#[cfg(feature = "derive")]
+mod derive_attribute_tests;
+#[cfg(feature = "derive")]
+mod map_tests;
+#[cfg(feature = "derive")]
+mod nested_tests;
 mod redact_value_tests;
 mod redacted_tests;
