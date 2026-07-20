@@ -1,0 +1,7 @@
+error: Redact can only be derived for structs with named fields
+  --> tests/fixtures/fail/tuple_struct.rs:12:1
+   |
+12 | / /// Unsupported unnamed fields.
+13 | | #[derive(Redact)]
+14 | | struct Pair(String, String);
+   | |____________________________^

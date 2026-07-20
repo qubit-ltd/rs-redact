@@ -22,6 +22,7 @@ use syn::{
 
 use crate::{
     container_attributes::ContainerAttributes,
+    field_assertion,
     field_attributes::FieldAttributes,
     field_mode::FieldMode,
     serde_attributes::SerdeAttributes,
@@ -86,24 +87,31 @@ pub(crate) fn expand(
             Ok((field, identifier, attributes, serde_attributes))
         })
         .collect::<syn::Result<Vec<_>>>()?;
+    let name = &input.ident;
     let field_calls = parsed_fields
         .iter()
         .map(|(field, identifier, attributes, _serde_attributes)| {
             let field_name = identifier.to_string();
+            let helper = field_assertion::helper_name(
+                name,
+                field,
+                identifier,
+                match attributes.mode() {
+                    FieldMode::Level(_) => "RedactValue",
+                    FieldMode::Nested => "Redact",
+                    FieldMode::Map => "RedactMapValue",
+                    FieldMode::Plain | FieldMode::Skip => "Unused",
+                },
+            );
             match attributes.mode() {
                 FieldMode::Plain => quote_spanned! {field.span()=>
                     .field(#field_name, &self.#identifier)
                 },
-                FieldMode::Level(sensitivity) => {
-                    let level = sensitivity.runtime_tokens(runtime);
+                FieldMode::Level(_) => {
                     quote_spanned! {field.span()=>
                         .field(
                             #field_name,
-                            &#runtime::RedactValue::redact_value(
-                                &self.#identifier,
-                                #level,
-                                policy.masking(),
-                            ),
+                            &#helper(&self.#identifier, policy),
                         )
                     }
                 }
@@ -111,22 +119,45 @@ pub(crate) fn expand(
                 FieldMode::Nested => quote_spanned! {field.span()=>
                     .field(
                         #field_name,
-                        &#runtime::Redact::redacted_with(&self.#identifier, policy),
+                        &#helper(&self.#identifier, policy),
                     )
                 },
                 FieldMode::Map => quote_spanned! {field.span()=>
                     .field(
                         #field_name,
-                        &#runtime::RedactedMap::new(&self.#identifier, policy.clone()),
+                        &#helper(&self.#identifier, policy),
                     )
                 },
             }
         })
         .collect::<Vec<_>>();
-    let name = &input.ident;
+    let immutable_assertions = parsed_fields
+        .iter()
+        .map(|(field, identifier, attributes, _serde_attributes)| {
+            field_assertion::immutable(
+                name,
+                field,
+                identifier,
+                attributes.mode(),
+                runtime,
+            )
+        })
+        .collect::<Vec<_>>();
     let (impl_generics, type_generics, where_clause) =
         input.generics.split_for_impl();
     let serde_impl = if container_attributes.serde_enabled() {
+        let serialization_assertions = parsed_fields
+            .iter()
+            .map(|(field, identifier, attributes, _serde_attributes)| {
+                field_assertion::serialization(
+                    name,
+                    field,
+                    identifier,
+                    attributes.mode(),
+                    runtime,
+                )
+            })
+            .collect::<Vec<_>>();
         let serialized_fields = parsed_fields
             .iter()
             .filter_map(|(field, identifier, attributes, serde_attributes)| {
@@ -154,18 +185,28 @@ pub(crate) fn expand(
                             )
                         }
                     }
-                    FieldMode::Nested => quote_spanned! {field.span()=>
-                        &#runtime::__private::RedactedSerialize::new(
-                            &self.#identifier,
-                            policy,
-                        )
-                    },
-                    FieldMode::Map => quote_spanned! {field.span()=>
-                        &#runtime::RedactedMap::new(
-                            &self.#identifier,
-                            policy.clone(),
-                        )
-                    },
+                    FieldMode::Nested => {
+                        let helper = field_assertion::helper_name(
+                            name,
+                            field,
+                            identifier,
+                            "RedactSerialize",
+                        );
+                        quote_spanned! {field.span()=>
+                            &#helper(&self.#identifier, policy)
+                        }
+                    }
+                    FieldMode::Map => {
+                        let helper = field_assertion::helper_name(
+                            name,
+                            field,
+                            identifier,
+                            "RedactMapSerialize",
+                        );
+                        quote_spanned! {field.span()=>
+                            &#helper(&self.#identifier, policy)
+                        }
+                    }
                     FieldMode::Skip => return None,
                 };
                 Some((condition, serialized_name, value))
@@ -203,6 +244,7 @@ pub(crate) fn expand(
                         __QubitRedactSerializer:
                             #runtime::__private::serde::Serializer,
                     {
+                        #(#serialization_assertions)*
                         let mut field_count = 0usize;
                         #(
                             if #count_conditions {
@@ -233,6 +275,7 @@ pub(crate) fn expand(
                 formatter: &mut ::core::fmt::Formatter<'_>,
             ) -> ::core::fmt::Result {
                 let _ = policy;
+                #(#immutable_assertions)*
                 formatter
                     .debug_struct(stringify!(#name))
                     #(#field_calls)*
@@ -281,7 +324,7 @@ pub(crate) fn expand_mut(
         }
     };
 
-    let mutations = fields
+    let parsed_fields = fields
         .named
         .iter()
         .map(|field| {
@@ -293,35 +336,50 @@ pub(crate) fn expand_mut(
             })?;
             let attributes =
                 FieldAttributes::parse(field, &input.ident, identifier)?;
-            let mutation = match attributes.mode() {
-                FieldMode::Plain | FieldMode::Skip => TokenStream::new(),
-                FieldMode::Level(sensitivity) => {
-                    let level = sensitivity.runtime_tokens(runtime);
-                    quote_spanned! {field.span()=>
-                        #runtime::RedactValueMut::redact_value_in_place(
-                            &mut self.#identifier,
-                            #level,
-                            policy.masking(),
-                        );
-                    }
-                }
-                FieldMode::Nested => quote_spanned! {field.span()=>
-                    #runtime::RedactMut::redact_in_place_with(
-                        &mut self.#identifier,
-                        policy,
-                    );
-                },
-                FieldMode::Map => quote_spanned! {field.span()=>
-                    #runtime::RedactMapValueMut::redact_map_in_place(
-                        &mut self.#identifier,
-                        policy,
-                    );
-                },
-            };
-            Ok(mutation)
+            Ok((field, identifier, attributes))
         })
         .collect::<syn::Result<Vec<_>>>()?;
+    let mutations = parsed_fields
+        .iter()
+        .map(|(field, identifier, attributes)| {
+            let helper = field_assertion::helper_name(
+                &input.ident,
+                field,
+                identifier,
+                match attributes.mode() {
+                    FieldMode::Level(_) => "RedactValueMut",
+                    FieldMode::Nested => "RedactMut",
+                    FieldMode::Map => "RedactMapValueMut",
+                    FieldMode::Plain | FieldMode::Skip => "Unused",
+                },
+            );
+            match attributes.mode() {
+                FieldMode::Plain | FieldMode::Skip => TokenStream::new(),
+                FieldMode::Level(_) => quote_spanned! {field.span()=>
+                    #helper(&mut self.#identifier, policy);
+                },
+                FieldMode::Nested => quote_spanned! {field.span()=>
+                    #helper(&mut self.#identifier, policy);
+                },
+                FieldMode::Map => quote_spanned! {field.span()=>
+                    #helper(&mut self.#identifier, policy);
+                },
+            }
+        })
+        .collect::<Vec<_>>();
     let name = &input.ident;
+    let mutable_assertions = parsed_fields
+        .iter()
+        .map(|(field, identifier, attributes)| {
+            field_assertion::mutable(
+                name,
+                field,
+                identifier,
+                attributes.mode(),
+                runtime,
+            )
+        })
+        .collect::<Vec<_>>();
     let (impl_generics, type_generics, where_clause) =
         input.generics.split_for_impl();
 
@@ -329,6 +387,7 @@ pub(crate) fn expand_mut(
         impl #impl_generics #runtime::RedactMut for #name #type_generics #where_clause {
             fn redact_in_place_with(&mut self, policy: &#runtime::RedactionPolicy) {
                 let _ = policy;
+                #(#mutable_assertions)*
                 #(#mutations)*
             }
         }

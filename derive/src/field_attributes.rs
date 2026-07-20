@@ -84,7 +84,7 @@ impl FieldAttributes {
                     let literal: LitStr = meta.value()?.parse()?;
                     FieldMode::Level(Sensitivity::parse(&literal, type_name, field_name)?)
                 } else if meta.path.is_ident("skip") {
-                    if !meta.input.is_empty() {
+                    if meta.input.peek(Token![=]) || meta.input.peek(syn::token::Paren) {
                         return Err(meta.error(format!(
                             "Redact derive for `{type_name}` field `{field_name}` requires bare \
                              `skip` without arguments",
@@ -92,7 +92,7 @@ impl FieldAttributes {
                     }
                     FieldMode::Skip
                 } else if meta.path.is_ident("nested") {
-                    if !meta.input.is_empty() {
+                    if meta.input.peek(Token![=]) || meta.input.peek(syn::token::Paren) {
                         return Err(meta.error(format!(
                             "Redact derive for `{type_name}` field `{field_name}` requires bare \
                              `nested` without arguments",
@@ -100,7 +100,7 @@ impl FieldAttributes {
                     }
                     FieldMode::Nested
                 } else if meta.path.is_ident("map") {
-                    if !meta.input.is_empty() {
+                    if meta.input.peek(Token![=]) || meta.input.peek(syn::token::Paren) {
                         return Err(meta.error(format!(
                             "Redact derive for `{type_name}` field `{field_name}` requires bare \
                              `map` without arguments; map values are classified by runtime key \

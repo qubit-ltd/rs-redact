@@ -9,6 +9,7 @@
 
 mod container_attributes;
 mod derive_input;
+mod field_assertion;
 mod field_attributes;
 mod field_mode;
 mod redact_derive;

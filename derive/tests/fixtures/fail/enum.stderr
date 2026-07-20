@@ -1,0 +1,10 @@
+error: Redact can only be derived for structs with named fields
+  --> tests/fixtures/fail/enum.rs:12:1
+   |
+12 | / /// Unsupported enum shape.
+13 | | #[derive(Redact)]
+14 | | enum Event {
+15 | |     /// One variant.
+16 | |     Ready,
+17 | | }
+   | |_^

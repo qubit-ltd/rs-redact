@@ -1,10 +1,11 @@
 error[E0277]: the trait bound `Plain: Redact` is not satisfied
   --> tests/fixtures/fail/nested_without_redact.rs:18:5
    |
-16 |   #[derive(Redact)]
-   |            ------ required by a bound introduced by this call
-17 |   struct Wrapper {
-18 | /     /// Requires a `Redact` implementation.
+18 |       /// Requires a `Redact` implementation.
+   |       ^--------------------------------------
+   |       |
+   |  _____required by a bound introduced by this call
+   | |
 19 | |     #[redact(nested)]
 20 | |     value: Plain,
    | |_________^ unsatisfied trait bound
@@ -30,13 +31,21 @@ help: the following other types implement trait `Redact`
 ...
    | impl<T: Redact> Redact for Vec<T> {
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Vec<T>`
-   = note: this error originates in the derive macro `Redact` (in Nightly builds, run with -Z macro-backtrace for more info)
-
-error[E0277]: the trait bound `Plain: Redact` is not satisfied
+note: required by a bound in `__qubit_redact_Wrapper_value_requires_Redact`
   --> tests/fixtures/fail/nested_without_redact.rs:16:10
    |
 16 | #[derive(Redact)]
-   |          ^^^^^^ unsatisfied trait bound
+   |          ^^^^^^ required by this bound in `__qubit_redact_Wrapper_value_requires_Redact`
+17 | struct Wrapper {
+18 |     /// Requires a `Redact` implementation.
+   |     --------------------------------------- required by a bound in this function
+   = note: this error originates in the derive macro `Redact` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Plain: Redact` is not satisfied
+  --> tests/fixtures/fail/nested_without_redact.rs:18:5
+   |
+18 |     /// Requires a `Redact` implementation.
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
 help: the trait `Redact` is not implemented for `Plain`
   --> tests/fixtures/fail/nested_without_redact.rs:13:1

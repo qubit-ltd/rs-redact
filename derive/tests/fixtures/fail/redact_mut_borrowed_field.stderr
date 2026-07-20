@@ -1,10 +1,11 @@
 error[E0277]: the trait bound `&'a str: RedactValueMut` is not satisfied
   --> tests/fixtures/fail/redact_mut_borrowed_field.rs:15:5
    |
-13 |   #[derive(RedactMut)]
-   |            --------- required by a bound introduced by this call
-14 |   struct Borrowed<'a> {
-15 | /     /// Must use an owned string or a custom mutation implementation.
+15 |       /// Must use an owned string or a custom mutation implementation.
+   |       ^----------------------------------------------------------------
+   |       |
+   |  _____required by a bound introduced by this call
+   | |
 16 | |     #[redact(level = "secret")]
 17 | |     value: &'a str,
    | |_________^ the trait `RedactValueMut` is not implemented for `&'a str`
@@ -14,3 +15,12 @@ help: the trait `RedactValueMut` is implemented for `String`
    |
    | impl RedactValueMut for String {
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `__qubit_redact_Borrowed_value_requires_RedactValueMut`
+  --> tests/fixtures/fail/redact_mut_borrowed_field.rs:13:10
+   |
+13 | #[derive(RedactMut)]
+   |          ^^^^^^^^^ required by this bound in `__qubit_redact_Borrowed_value_requires_RedactValueMut`
+14 | struct Borrowed<'a> {
+15 |     /// Must use an owned string or a custom mutation implementation.
+   |     ----------------------------------------------------------------- required by a bound in this function
+   = note: this error originates in the derive macro `RedactMut` (in Nightly builds, run with -Z macro-backtrace for more info)
