@@ -5,9 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`FieldSanitizePolicy`](qubit_sanitize::FieldSanitizePolicy).
+//! Tests for [`FieldSanitizePolicy`](qubit_redact::FieldSanitizePolicy).
 
-use qubit_sanitize::{
+use qubit_redact::{
     FieldSanitizePolicy,
     FieldSanitizer,
     MaskPolicies,

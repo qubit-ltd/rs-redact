@@ -5,9 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`FormUrlEncodedSanitizer`](qubit_sanitize::FormUrlEncodedSanitizer).
+//! Tests for [`FormUrlEncodedSanitizer`](qubit_redact::FormUrlEncodedSanitizer).
 
-use qubit_sanitize::{
+use qubit_redact::{
     FieldSanitizer,
     FormUrlEncodedSanitizer,
     NameMatchMode,

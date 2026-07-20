@@ -5,11 +5,11 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`escape_log_control_characters`](qubit_sanitize::escape_log_control_characters).
+//! Tests for [`escape_log_control_characters`](qubit_redact::escape_log_control_characters).
 
 use std::borrow::Cow;
 
-use qubit_sanitize::escape_log_control_characters;
+use qubit_redact::escape_log_control_characters;
 
 #[test]
 fn test_escape_log_control_characters_keeps_safe_text_borrowed() {

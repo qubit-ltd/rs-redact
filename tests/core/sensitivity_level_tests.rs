@@ -5,9 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`SensitivityLevel`](qubit_sanitize::SensitivityLevel).
+//! Tests for [`SensitivityLevel`](qubit_redact::SensitivityLevel).
 
-use qubit_sanitize::SensitivityLevel;
+use qubit_redact::SensitivityLevel;
 
 #[test]
 fn test_sensitivity_levels_have_increasing_strength() {

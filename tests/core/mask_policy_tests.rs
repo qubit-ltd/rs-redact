@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`MaskPolicy`](qubit_sanitize::MaskPolicy).
+//! Tests for [`MaskPolicy`](qubit_redact::MaskPolicy).
 
 use proptest::prelude::{
     Just,
@@ -15,7 +15,7 @@ use proptest::prelude::{
     proptest,
 };
 
-use qubit_sanitize::MaskPolicy;
+use qubit_redact::MaskPolicy;
 
 #[test]
 fn test_mask_policy_fixed_masks_non_empty_value() {

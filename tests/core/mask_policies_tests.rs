@@ -5,9 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`MaskPolicies`](qubit_sanitize::MaskPolicies).
+//! Tests for [`MaskPolicies`](qubit_redact::MaskPolicies).
 
-use qubit_sanitize::{
+use qubit_redact::{
     MaskPolicies,
     MaskPolicy,
     SensitivityLevel,

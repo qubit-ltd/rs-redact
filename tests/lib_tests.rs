@@ -8,10 +8,10 @@
 //! Tests for crate-level exports.
 
 #[cfg(feature = "form")]
-use qubit_sanitize::FormUrlEncodedSanitizer;
+use qubit_redact::FormUrlEncodedSanitizer;
 #[cfg(feature = "web")]
-use qubit_sanitize::UrlSanitizer;
-use qubit_sanitize::{
+use qubit_redact::UrlSanitizer;
+use qubit_redact::{
     ArgvSanitizer,
     EnvSanitizer,
     FieldSanitizePolicy,
@@ -27,7 +27,7 @@ use qubit_sanitize::{
     redacted_debug,
 };
 #[cfg(feature = "http")]
-use qubit_sanitize::{
+use qubit_redact::{
     BodyRedactionReason,
     BodySanitization,
     BodySanitizationStatus,

@@ -5,9 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`RedactedDebug`](qubit_sanitize::RedactedDebug).
+//! Tests for [`RedactedDebug`](qubit_redact::RedactedDebug).
 
-use qubit_sanitize::redacted_debug;
+use qubit_redact::redacted_debug;
 
 #[test]
 fn test_redacted_debug_never_calls_inner_debug() {

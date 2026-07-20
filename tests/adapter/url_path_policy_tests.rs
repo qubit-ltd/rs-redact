@@ -5,9 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`UrlPathPolicy`](qubit_sanitize::UrlPathPolicy).
+//! Tests for [`UrlPathPolicy`](qubit_redact::UrlPathPolicy).
 
-use qubit_sanitize::UrlPathPolicy;
+use qubit_redact::UrlPathPolicy;
 
 #[test]
 fn test_url_path_policy_defaults_to_redact() {

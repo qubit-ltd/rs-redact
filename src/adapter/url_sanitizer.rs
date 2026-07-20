@@ -231,7 +231,7 @@ impl UrlSanitizer {
     /// ```compile_fail
     /// #![deny(unused_must_use)]
     ///
-    /// use qubit_sanitize::{NameMatchMode, UrlSanitizer};
+    /// use qubit_redact::{NameMatchMode, UrlSanitizer};
     ///
     /// UrlSanitizer::default().sanitize_url_str_or_redact(
     ///     "https://example.com/?token=secret",

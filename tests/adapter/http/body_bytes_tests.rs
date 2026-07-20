@@ -7,7 +7,7 @@
 // =============================================================================
 //! Tests for HTTP body byte-input classification.
 
-use qubit_sanitize::{
+use qubit_redact::{
     BodySourceLength,
     HttpBodySanitizer,
     NameMatchMode,

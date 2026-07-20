@@ -5,9 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`UnkeyedJsonValuePolicy`](qubit_sanitize::UnkeyedJsonValuePolicy).
+//! Tests for [`UnkeyedJsonValuePolicy`](qubit_redact::UnkeyedJsonValuePolicy).
 
-use qubit_sanitize::{
+use qubit_redact::{
     HttpBodySanitizer,
     UnkeyedJsonValuePolicy,
 };

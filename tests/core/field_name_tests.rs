@@ -7,7 +7,7 @@
 // =============================================================================
 //! Tests for field-name canonicalization.
 
-use qubit_sanitize::canonicalize_field_name;
+use qubit_redact::canonicalize_field_name;
 
 #[test]
 fn test_canonicalize_field_name_normalizes_supported_separators() {

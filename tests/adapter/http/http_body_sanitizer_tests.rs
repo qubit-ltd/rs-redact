@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`HttpBodySanitizer`](qubit_sanitize::HttpBodySanitizer).
+//! Tests for [`HttpBodySanitizer`](qubit_redact::HttpBodySanitizer).
 
 use http::HeaderValue;
 use proptest::{
@@ -17,7 +17,7 @@ use proptest::{
     },
 };
 
-use qubit_sanitize::{
+use qubit_redact::{
     BodyRedactionReason,
     BodySanitizationStatus,
     BodySourceLength,

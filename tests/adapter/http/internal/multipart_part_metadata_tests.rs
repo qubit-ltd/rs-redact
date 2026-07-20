@@ -9,7 +9,7 @@
 
 use http::HeaderValue;
 
-use qubit_sanitize::{
+use qubit_redact::{
     HttpBodySanitizer,
     NameMatchMode,
     SensitivityLevel,

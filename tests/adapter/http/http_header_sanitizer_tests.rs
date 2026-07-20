@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`HttpHeaderSanitizer`](qubit_sanitize::HttpHeaderSanitizer).
+//! Tests for [`HttpHeaderSanitizer`](qubit_redact::HttpHeaderSanitizer).
 
 use http::HeaderMap;
 use http::header::{
@@ -21,7 +21,7 @@ use proptest::prelude::{
     proptest,
 };
 
-use qubit_sanitize::{
+use qubit_redact::{
     FieldSanitizer,
     HttpHeaderSanitizer,
     MaskPolicy,

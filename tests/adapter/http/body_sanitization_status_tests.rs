@@ -5,9 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`BodySanitizationStatus`](qubit_sanitize::BodySanitizationStatus).
+//! Tests for [`BodySanitizationStatus`](qubit_redact::BodySanitizationStatus).
 
-use qubit_sanitize::{
+use qubit_redact::{
     BodyRedactionReason,
     BodySanitizationStatus,
 };

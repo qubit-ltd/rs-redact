@@ -10,7 +10,7 @@
 use std::fmt::Write;
 
 use libfuzzer_sys::fuzz_target;
-use qubit_sanitize::{
+use qubit_redact::{
     FormUrlEncodedSanitizer,
     NameMatchMode,
     UrlSanitizer,

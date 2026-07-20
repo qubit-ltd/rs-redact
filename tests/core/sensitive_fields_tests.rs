@@ -5,9 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`SensitiveFields`](qubit_sanitize::SensitiveFields).
+//! Tests for [`SensitiveFields`](qubit_redact::SensitiveFields).
 
-use qubit_sanitize::{
+use qubit_redact::{
     SensitiveFieldPreset,
     SensitiveFields,
     SensitivityLevel,

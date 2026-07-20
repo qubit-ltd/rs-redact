@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`FieldSanitizer`](qubit_sanitize::FieldSanitizer).
+//! Tests for [`FieldSanitizer`](qubit_redact::FieldSanitizer).
 
 use std::borrow::Cow;
 use std::collections::{
@@ -13,7 +13,7 @@ use std::collections::{
     HashMap,
 };
 
-use qubit_sanitize::{
+use qubit_redact::{
     FieldSanitizePolicy,
     FieldSanitizer,
     MaskPolicies,
@@ -421,7 +421,7 @@ fn test_field_sanitizer_extend_sensitive_fields_adds_multiple_fields() {
 #[test]
 fn test_field_sanitizer_extend_preset_adds_group_fields() {
     let mut sanitizer = FieldSanitizer::new(FieldSanitizePolicy::empty());
-    sanitizer.extend_preset(qubit_sanitize::SensitiveFieldPreset::Session);
+    sanitizer.extend_preset(qubit_redact::SensitiveFieldPreset::Session);
 
     assert_eq!(
         sanitizer.sanitize_value("session-id", "abcdef", NameMatchMode::Exact),
@@ -443,7 +443,7 @@ fn test_field_sanitizer_extend_preset_does_not_downgrade_existing_level() {
     sanitizer
         .set_sensitive_field_level("authorization", SensitivityLevel::Secret);
 
-    sanitizer.extend_preset(qubit_sanitize::SensitiveFieldPreset::Http);
+    sanitizer.extend_preset(qubit_redact::SensitiveFieldPreset::Http);
 
     assert_eq!(
         sanitizer.sensitivity_for_name("authorization", NameMatchMode::Exact),

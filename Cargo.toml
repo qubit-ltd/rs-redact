@@ -1,14 +1,14 @@
 [package]
-name = "qubit-sanitize"
-version = "0.3.0"
+name = "qubit-redact"
+version = "0.1.0"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/qubit-ltd/rs-sanitize"
-description = "Reusable field and structured object sanitization utilities for Rust"
+description = "Rule-driven redaction for fields, diagnostics, HTTP data, and Rust domain objects"
 homepage = "https://github.com/qubit-ltd/rs-sanitize"
-documentation = "https://docs.rs/qubit-sanitize"
+documentation = "https://docs.rs/qubit-redact"
 readme = "README.md"
 keywords = ["sanitize", "mask", "redact", "logging", "qubit"]
 categories = ["development-tools", "value-formatting"]
@@ -22,14 +22,14 @@ include = [
 ]
 
 [lib]
-name = "qubit_sanitize"
+name = "qubit_redact"
 doctest = true
 
 [features]
 default = ["web", "http"]
 form = ["dep:form_urlencoded"]
 web = ["form", "dep:url"]
-http = ["form", "dep:http", "dep:serde_json"]
+http = ["web", "dep:http", "dep:serde_json"]
 
 [dependencies]
 form_urlencoded = { version = "1.2", optional = true }

@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`ArgvSanitizer`](qubit_sanitize::ArgvSanitizer).
+//! Tests for [`ArgvSanitizer`](qubit_redact::ArgvSanitizer).
 
 use proptest::prelude::{
     prop_assert,
@@ -16,7 +16,7 @@ use std::ffi::OsString;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStringExt;
 
-use qubit_sanitize::{
+use qubit_redact::{
     ArgvSanitizer,
     FieldSanitizer,
     NameMatchMode,

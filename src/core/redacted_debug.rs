@@ -20,7 +20,7 @@ use std::fmt::{
 ///
 /// ```compile_fail
 /// #![deny(unused_must_use)]
-/// use qubit_sanitize::redacted_debug;
+/// use qubit_redact::redacted_debug;
 ///
 /// let secret = "secret";
 /// redacted_debug(&secret);

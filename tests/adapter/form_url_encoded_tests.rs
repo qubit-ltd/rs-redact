@@ -12,7 +12,7 @@ use proptest::prelude::{
     proptest,
 };
 
-use qubit_sanitize::{
+use qubit_redact::{
     FormUrlEncodedSanitizer,
     NameMatchMode,
 };

@@ -251,8 +251,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "qubit-sanitize"
-version = "0.3.0"
+name = "qubit-redact"
+version = "0.1.0"
 dependencies = [
  "form_urlencoded",
  "http",
@@ -266,7 +266,7 @@ version = "0.0.0"
 dependencies = [
  "http",
  "libfuzzer-sys",
- "qubit-sanitize",
+ "qubit-redact",
 ]
 
 [[package]]

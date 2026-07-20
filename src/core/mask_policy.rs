@@ -15,7 +15,7 @@ pub enum MaskPolicy {
     /// Replaces non-empty values with a fixed replacement string.
     ///
     /// ```compile_fail
-    /// use qubit_sanitize::MaskPolicy;
+    /// use qubit_redact::MaskPolicy;
     ///
     /// let _ = MaskPolicy::Fixed {
     ///     replacement: "****".to_string(),
@@ -29,7 +29,7 @@ pub enum MaskPolicy {
     /// Preserves a prefix and suffix for diagnosability.
     ///
     /// ```compile_fail
-    /// use qubit_sanitize::MaskPolicy;
+    /// use qubit_redact::MaskPolicy;
     ///
     /// let _ = MaskPolicy::PreserveEdges {
     ///     prefix_chars: 1,
@@ -52,7 +52,7 @@ pub enum MaskPolicy {
     /// Preserves only the final part of the value.
     ///
     /// ```compile_fail
-    /// use qubit_sanitize::MaskPolicy;
+    /// use qubit_redact::MaskPolicy;
     ///
     /// let _ = MaskPolicy::PreserveSuffix {
     ///     suffix_chars: 1,

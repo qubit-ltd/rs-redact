@@ -13,7 +13,7 @@
 ///
 /// ```compile_fail
 /// #![deny(unused_must_use)]
-/// use qubit_sanitize::SensitivityLevel;
+/// use qubit_redact::SensitivityLevel;
 ///
 /// SensitivityLevel::Secret;
 /// ```

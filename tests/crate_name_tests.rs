@@ -5,14 +5,12 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`BodyRedactionReason`](qubit_redact::BodyRedactionReason).
+//! Tests for the public crate name.
 
-use qubit_redact::BodyRedactionReason;
+use qubit_redact as redact;
 
+/// Verifies that public exports are available through `qubit_redact`.
 #[test]
-fn test_body_redaction_reason_supports_urlencoded_failures() {
-    assert_ne!(
-        BodyRedactionReason::InvalidFormUrlEncoded,
-        BodyRedactionReason::InvalidOrTruncatedFormUrlEncoded,
-    );
+fn test_crate_is_named_qubit_redact() {
+    let _ = core::any::type_name::<redact::FieldSanitizer>();
 }

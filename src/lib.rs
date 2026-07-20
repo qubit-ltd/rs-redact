@@ -14,7 +14,7 @@
 //! caller to choose a [`NameMatchMode`].
 //!
 //! ```
-//! use qubit_sanitize::{
+//! use qubit_redact::{
 //!     FieldSanitizer,
 //!     NameMatchMode,
 //! };
@@ -60,7 +60,7 @@
 //!     AUTHORIZATION,
 //!     HeaderValue,
 //! };
-//! use qubit_sanitize::{
+//! use qubit_redact::{
 //!     HttpHeaderSanitizer,
 //!     NameMatchMode,
 //! };

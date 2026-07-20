@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`EnvSanitizer`](qubit_sanitize::EnvSanitizer).
+//! Tests for [`EnvSanitizer`](qubit_redact::EnvSanitizer).
 
 use std::borrow::Cow;
 #[cfg(unix)]
@@ -18,7 +18,7 @@ use proptest::prelude::{
     proptest,
 };
 
-use qubit_sanitize::{
+use qubit_redact::{
     EnvSanitizer,
     FieldSanitizePolicy,
     FieldSanitizer,

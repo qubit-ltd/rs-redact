@@ -7,7 +7,7 @@
 // =============================================================================
 //! Tests for the default sensitive-field collection.
 
-use qubit_sanitize::{
+use qubit_redact::{
     SensitiveFieldPreset,
     SensitiveFields,
     SensitivityLevel,

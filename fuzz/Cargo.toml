@@ -10,7 +10,7 @@ cargo-fuzz = true
 [dependencies]
 http = "1.4"
 libfuzzer-sys = "0.4"
-qubit-sanitize = { path = "..", default-features = false, features = ["web", "http"] }
+qubit-redact = { path = "..", default-features = false, features = ["http"] }
 
 [[bin]]
 name = "http_body"

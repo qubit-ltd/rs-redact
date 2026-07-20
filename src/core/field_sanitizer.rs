@@ -215,7 +215,7 @@ impl FieldSanitizer {
     ///
     /// ```compile_fail
     /// #![deny(unused_must_use)]
-    /// use qubit_sanitize::{FieldSanitizer, NameMatchMode};
+    /// use qubit_redact::{FieldSanitizer, NameMatchMode};
     ///
     /// let sanitizer = FieldSanitizer::default();
     /// sanitizer.sanitize_value("password", "secret", NameMatchMode::Exact);

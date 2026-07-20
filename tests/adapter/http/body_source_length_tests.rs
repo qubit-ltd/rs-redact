@@ -7,7 +7,7 @@
 // =============================================================================
 //! Tests for HTTP body source-length metadata.
 
-use qubit_sanitize::{
+use qubit_redact::{
     BodySanitizationStatus,
     BodySourceLength,
     HttpBodySanitizer,

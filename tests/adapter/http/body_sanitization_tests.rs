@@ -5,11 +5,11 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`BodySanitization`](qubit_sanitize::BodySanitization).
+//! Tests for [`BodySanitization`](qubit_redact::BodySanitization).
 
 use http::HeaderValue;
 
-use qubit_sanitize::{
+use qubit_redact::{
     BodyRedactionReason,
     BodySanitization,
     BodySanitizationStatus,

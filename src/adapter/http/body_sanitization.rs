@@ -28,7 +28,7 @@ use super::{
 ///
 /// ```compile_fail
 /// #![deny(unused_must_use)]
-/// use qubit_sanitize::{HttpBodySanitizer, NameMatchMode};
+/// use qubit_redact::{HttpBodySanitizer, NameMatchMode};
 ///
 /// let sanitizer = HttpBodySanitizer::default();
 /// sanitizer.sanitize_body(b"secret", None, NameMatchMode::Exact);

@@ -5,14 +5,14 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`UrlSanitizer`](qubit_sanitize::UrlSanitizer).
+//! Tests for [`UrlSanitizer`](qubit_redact::UrlSanitizer).
 
 use proptest::prelude::{
     prop_assert,
     proptest,
 };
 
-use qubit_sanitize::{
+use qubit_redact::{
     FieldSanitizePolicy,
     FieldSanitizer,
     MaskPolicies,
@@ -37,7 +37,7 @@ fn test_url_sanitizer_field_sanitizer_accessors() {
     );
     sanitizer.field_sanitizer_mut().insert_sensitive_field(
         "custom_query",
-        qubit_sanitize::SensitivityLevel::High,
+        qubit_redact::SensitivityLevel::High,
     );
     let url = Url::parse("https://example.com/?custom_query=abcdef&mode=debug")
         .expect("test URL should parse");

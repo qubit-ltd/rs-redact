@@ -79,7 +79,7 @@ impl ArgvSanitizer {
     ///
     /// ```compile_fail
     /// #![deny(unused_must_use)]
-    /// use qubit_sanitize::{ArgvSanitizer, NameMatchMode};
+    /// use qubit_redact::{ArgvSanitizer, NameMatchMode};
     ///
     /// let sanitizer = ArgvSanitizer::default();
     /// sanitizer.sanitize_argv(["cmd", "--token", "secret"], NameMatchMode::Exact);

@@ -5,11 +5,11 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`TextBodyPolicy`](qubit_sanitize::TextBodyPolicy).
+//! Tests for [`TextBodyPolicy`](qubit_redact::TextBodyPolicy).
 
 use http::HeaderValue;
 
-use qubit_sanitize::{
+use qubit_redact::{
     HttpBodySanitizer,
     NameMatchMode,
     TextBodyPolicy,
