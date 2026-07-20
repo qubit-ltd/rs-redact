@@ -80,6 +80,8 @@
 pub mod adapter;
 pub mod core;
 pub mod policy;
+mod redactor;
+pub mod text;
 
 #[cfg(feature = "form")]
 pub use adapter::FormUrlEncodedSanitizer;
@@ -127,4 +129,9 @@ pub use policy::{
     SensitiveFieldPreset,
     SensitiveFieldRule,
     Sensitivity,
+};
+pub use redactor::Redactor;
+pub use text::{
+    LogSafeText,
+    RedactedText,
 };
