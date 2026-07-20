@@ -9,6 +9,7 @@
 
 mod allow_rule;
 mod field_name_matching;
+mod global_default_already_set;
 pub(crate) mod internal;
 mod mask_policy;
 mod masking_policy;
@@ -21,6 +22,7 @@ mod sensitivity;
 
 pub use allow_rule::AllowRule;
 pub use field_name_matching::FieldNameMatching;
+pub use global_default_already_set::GlobalDefaultAlreadySet;
 pub use mask_policy::MaskPolicy;
 pub use masking_policy::MaskingPolicy;
 pub use policy_error::PolicyError;

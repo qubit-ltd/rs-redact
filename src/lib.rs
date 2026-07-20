@@ -118,6 +118,7 @@ pub use core::{
 pub use policy::{
     AllowRule,
     FieldNameMatching,
+    GlobalDefaultAlreadySet,
     MaskPolicy,
     MaskingPolicy,
     PolicyError,

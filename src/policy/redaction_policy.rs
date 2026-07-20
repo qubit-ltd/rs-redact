@@ -12,12 +12,17 @@ use std::{
         BTreeMap,
         BTreeSet,
     },
-    sync::Arc,
+    sync::{
+        Arc,
+        LazyLock,
+        OnceLock,
+    },
 };
 
 use super::{
     AllowRule,
     FieldNameMatching,
+    GlobalDefaultAlreadySet,
     MaskingPolicy,
     RedactionPolicyBuilder,
     SensitiveFieldPreset,
@@ -39,6 +44,13 @@ const STANDARD_EXTRA_FIELDS: &[(&str, Sensitivity)] = &[
     ("sig", Sensitivity::Secret),
     ("signature", Sensitivity::Secret),
 ];
+
+/// Lazily initialized built-in conservative policy.
+static STANDARD_POLICY: LazyLock<RedactionPolicy> =
+    LazyLock::new(RedactionPolicy::build_standard);
+
+/// Process-wide default policy installed at most once.
+static GLOBAL_DEFAULT: OnceLock<Arc<RedactionPolicy>> = OnceLock::new();
 
 /// Immutable field-classification and value-masking policy.
 ///
@@ -71,8 +83,27 @@ impl RedactionPolicy {
     /// # Returns
     ///
     /// A policy containing every built-in preset and extra sensitive field.
+    #[inline(always)]
     pub fn standard() -> Self {
-        Self::build_standard()
+        STANDARD_POLICY.clone()
+    }
+
+    /// Returns a snapshot of the process-wide default policy.
+    ///
+    /// Before a custom default is installed, this returns a new shared handle
+    /// to the built-in [`Self::standard`] policy. The returned snapshot never
+    /// changes after a later installation.
+    ///
+    /// # Returns
+    ///
+    /// A shared immutable snapshot of the current process-wide default.
+    #[must_use]
+    #[inline]
+    pub fn global_default() -> Arc<Self> {
+        GLOBAL_DEFAULT
+            .get()
+            .cloned()
+            .unwrap_or_else(|| Arc::new(Self::standard()))
     }
 
     /// Creates a builder initialized from the current default policy.
@@ -110,6 +141,28 @@ impl RedactionPolicy {
     #[inline]
     pub fn builder_from(base: &Self) -> RedactionPolicyBuilder {
         RedactionPolicyBuilder::from_policy(base)
+    }
+
+    /// Installs the process-wide default policy exactly once.
+    ///
+    /// The installed immutable policy affects later calls to [`Self::default`]
+    /// and [`Self::builder`]. Previously created snapshots remain unchanged.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` - Immutable policy to install as the process-wide default.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GlobalDefaultAlreadySet`] when a policy was installed by an
+    /// earlier successful call. The existing policy is never replaced.
+    #[inline]
+    pub fn set_global_default(
+        policy: Self,
+    ) -> Result<(), GlobalDefaultAlreadySet> {
+        GLOBAL_DEFAULT
+            .set(Arc::new(policy))
+            .map_err(|_| GlobalDefaultAlreadySet)
     }
 
     /// Resolves the sensitivity configured for `field`.
@@ -279,13 +332,14 @@ impl RedactionPolicy {
 }
 
 impl Default for RedactionPolicy {
-    /// Returns the built-in conservative policy.
+    /// Returns a snapshot of the current process-wide default policy.
     ///
     /// # Returns
     ///
-    /// The same configuration as [`RedactionPolicy::standard`].
-    #[inline]
+    /// The installed global configuration, or [`RedactionPolicy::standard`]
+    /// before a custom default is installed.
+    #[inline(always)]
     fn default() -> Self {
-        Self::standard()
+        Self::global_default().as_ref().clone()
     }
 }
