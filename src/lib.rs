@@ -78,7 +78,9 @@
 //! ```
 
 pub mod adapter;
+pub mod argv;
 pub mod core;
+pub mod env;
 pub mod policy;
 mod redactor;
 pub mod text;

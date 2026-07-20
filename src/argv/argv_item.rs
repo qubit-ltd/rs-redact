@@ -1,0 +1,84 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+//! One argument and the sensitivity known by its caller.
+
+use std::ffi::OsStr;
+
+use crate::Sensitivity;
+
+/// A borrowed argument with optional authoritative sensitivity metadata.
+///
+/// Plain items may be inspected by
+/// [`super::ArgvRedactor::redact_heuristically`]. Sensitive items are always
+/// masked at their explicit level and never interpreted as command-line syntax.
+#[must_use = "pass the item to an argv redactor"]
+#[derive(Debug, Clone, Copy)]
+pub struct ArgvItem<'a> {
+    /// Original operating-system argument value.
+    value: &'a OsStr,
+    /// Authoritative sensitivity supplied by the caller, when known.
+    sensitivity: Option<Sensitivity>,
+}
+
+impl<'a> ArgvItem<'a> {
+    /// Creates an item with no caller-supplied sensitivity.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Argument value that may be inspected by heuristic mode.
+    ///
+    /// # Returns
+    ///
+    /// A plain borrowed argument item.
+    #[inline(always)]
+    pub const fn plain(value: &'a OsStr) -> Self {
+        Self {
+            value,
+            sensitivity: None,
+        }
+    }
+
+    /// Creates an item whose value must be masked at `sensitivity`.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Argument value to mask.
+    /// * `sensitivity` - Authoritative masking level for the complete value.
+    ///
+    /// # Returns
+    ///
+    /// A sensitive borrowed argument item.
+    #[inline(always)]
+    pub const fn sensitive(value: &'a OsStr, sensitivity: Sensitivity) -> Self {
+        Self {
+            value,
+            sensitivity: Some(sensitivity),
+        }
+    }
+
+    /// Returns the original operating-system argument.
+    ///
+    /// # Returns
+    ///
+    /// The borrowed argument value.
+    #[inline(always)]
+    pub(super) const fn value(&self) -> &'a OsStr {
+        self.value
+    }
+
+    /// Returns the caller-supplied sensitivity, when present.
+    ///
+    /// # Returns
+    ///
+    /// `Some(level)` for an explicitly sensitive item, or `None` for a plain
+    /// item.
+    #[inline(always)]
+    pub(super) const fn sensitivity(&self) -> Option<Sensitivity> {
+        self.sensitivity
+    }
+}

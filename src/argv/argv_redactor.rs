@@ -1,0 +1,335 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+//! Explicit and heuristic argument-vector redaction.
+
+use std::{
+    borrow::Cow,
+    ffi::OsStr,
+};
+
+use crate::{
+    Redactor,
+    Sensitivity,
+};
+
+use super::{
+    ArgvItem,
+    RedactedArgv,
+};
+
+/// Applies one immutable redaction policy to argument vectors.
+#[must_use = "use the redactor to produce a safe argv rendering"]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArgvRedactor {
+    /// Core redactor supplying field classification and masking policies.
+    redactor: Redactor,
+}
+
+impl ArgvRedactor {
+    /// Creates an argv redactor from a core redactor.
+    ///
+    /// # Parameters
+    ///
+    /// * `redactor` - Core redactor whose immutable policy will be used.
+    ///
+    /// # Returns
+    ///
+    /// An argv redactor owning the supplied policy snapshot.
+    #[inline(always)]
+    pub const fn new(redactor: Redactor) -> Self {
+        Self { redactor }
+    }
+
+    /// Returns the core redactor backing this adapter.
+    ///
+    /// # Returns
+    ///
+    /// A borrowed view of the core redactor.
+    #[inline(always)]
+    pub const fn redactor(&self) -> &Redactor {
+        &self.redactor
+    }
+
+    /// Redacts only values explicitly marked sensitive by their caller.
+    ///
+    /// Plain items are rendered as ordinary argv values without guessing
+    /// whether they are options, assignments, or option values. Non-UTF-8
+    /// sensitive items are masked from an opaque sentinel so their original
+    /// bytes can never reach output.
+    ///
+    /// # Parameters
+    ///
+    /// * `items` - Borrowed argv items with optional authoritative levels.
+    ///
+    /// # Returns
+    ///
+    /// A log-safe rendering in input order.
+    pub fn redact_items<'a, I>(&self, items: I) -> RedactedArgv
+    where
+        I: IntoIterator<Item = ArgvItem<'a>>,
+    {
+        let items = items
+            .into_iter()
+            .map(|item| self.render_explicit_or_plain(item))
+            .collect();
+        RedactedArgv::new(items)
+    }
+
+    /// Redacts explicit sensitive values and heuristically classified plain
+    /// values.
+    ///
+    /// Explicit sensitivity always wins. Only plain items participate in the
+    /// `--name=value`, `--name value`, `NAME=value`, and `--` parser. A
+    /// non-UTF-8 plain item is masked at [`Sensitivity::Secret`] because it
+    /// cannot be classified safely.
+    ///
+    /// # Parameters
+    ///
+    /// * `items` - Borrowed argv items with optional authoritative levels.
+    ///
+    /// # Returns
+    ///
+    /// A log-safe rendering in input order.
+    pub fn redact_heuristically<'a, I>(&self, items: I) -> RedactedArgv
+    where
+        I: IntoIterator<Item = ArgvItem<'a>>,
+    {
+        let items = items.into_iter();
+        let mut rendered = Vec::with_capacity(items.size_hint().0);
+        let mut pending_sensitivity = None;
+        let mut parse_options = true;
+
+        for item in items {
+            if let Some(level) = item.sensitivity() {
+                pending_sensitivity = None;
+                rendered.push(self.mask_os_value(item.value(), level));
+                continue;
+            }
+            rendered.push(self.redact_plain_item(
+                item.value(),
+                &mut pending_sensitivity,
+                &mut parse_options,
+            ));
+        }
+        RedactedArgv::new(rendered)
+    }
+
+    /// Renders an item according to explicit sensitivity without heuristics.
+    ///
+    /// # Parameters
+    ///
+    /// * `item` - Item whose explicit metadata is authoritative.
+    ///
+    /// # Returns
+    ///
+    /// The masked or plain owned rendering.
+    #[inline]
+    fn render_explicit_or_plain(&self, item: ArgvItem<'_>) -> String {
+        match item.sensitivity() {
+            Some(level) => self.mask_os_value(item.value(), level),
+            None => item.value().to_string_lossy().into_owned(),
+        }
+    }
+
+    /// Masks an operating-system value without exposing invalid UTF-8 bytes.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Operating-system value to mask.
+    /// * `level` - Explicit masking level for valid UTF-8 input.
+    ///
+    /// # Returns
+    ///
+    /// The configured mask, using the secret policy over an opaque sentinel
+    /// when `value` is not valid UTF-8.
+    #[inline]
+    fn mask_os_value(&self, value: &OsStr, level: Sensitivity) -> String {
+        match value.to_str() {
+            Some(value) => self
+                .redactor
+                .policy()
+                .masking()
+                .mask(level, value)
+                .into_owned(),
+            None => self.mask_opaque_value(),
+        }
+    }
+
+    /// Redacts one plain item while updating the heuristic parser state.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Plain operating-system argument to inspect.
+    /// * `pending_sensitivity` - Level expected for the next separate value.
+    /// * `parse_options` - Whether bare options may still establish pending
+    ///   state.
+    ///
+    /// # Returns
+    ///
+    /// The redacted owned rendering of `value`.
+    fn redact_plain_item(
+        &self,
+        value: &OsStr,
+        pending_sensitivity: &mut Option<Sensitivity>,
+        parse_options: &mut bool,
+    ) -> String {
+        let Some(value) = value.to_str() else {
+            let encoded = value.as_encoded_bytes();
+            let may_take_separate_value = *parse_options
+                && encoded.starts_with(b"-")
+                && !encoded.contains(&b'=');
+            *pending_sensitivity =
+                may_take_separate_value.then_some(Sensitivity::Secret);
+            return self.mask_opaque_value();
+        };
+
+        let option_sensitivity = (*parse_options)
+            .then(|| self.option_sensitivity(value))
+            .flatten();
+        if let Some(pending) = pending_sensitivity.take() {
+            if let Some(level) = option_sensitivity {
+                *pending_sensitivity = Some(level);
+            }
+            return self.mask_utf8_value(value, pending);
+        }
+        if value == "--" {
+            *parse_options = false;
+            return value.to_owned();
+        }
+        if let Some(value) = self.redact_assignment(value) {
+            return value;
+        }
+        if let Some(value) = self.redact_inline_option(value) {
+            return value;
+        }
+        if *parse_options && let Some(level) = option_sensitivity {
+            *pending_sensitivity = Some(level);
+        }
+        value.to_owned()
+    }
+
+    /// Resolves sensitivity for one bare option token.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Plain argument that may name an option.
+    ///
+    /// # Returns
+    ///
+    /// `Some(level)` for a configured option name, or `None` otherwise.
+    #[inline]
+    fn option_sensitivity(&self, value: &str) -> Option<Sensitivity> {
+        let name = option_name(value)?;
+        self.redactor.policy().sensitivity_for(name)
+    }
+
+    /// Redacts a plain `NAME=value` token when its name is sensitive.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Plain argument that may be an assignment.
+    ///
+    /// # Returns
+    ///
+    /// `Some(rendering)` for an assignment-like argument, or `None` otherwise.
+    fn redact_assignment(&self, value: &str) -> Option<String> {
+        if value.starts_with('-') {
+            return None;
+        }
+        let (name, raw_value) = value.split_once('=')?;
+        if name.is_empty() {
+            return None;
+        }
+        let redacted = self.redactor.redact(name, raw_value).into_inner();
+        match redacted {
+            Cow::Borrowed(_) => None,
+            Cow::Owned(redacted) => Some(format!("{name}={redacted}")),
+        }
+    }
+
+    /// Redacts a plain `--name=value` token when its name is sensitive.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Plain argument that may be an inline option.
+    ///
+    /// # Returns
+    ///
+    /// `Some(rendering)` for a sensitive inline option, or `None` otherwise.
+    #[inline]
+    fn redact_inline_option(&self, value: &str) -> Option<String> {
+        if !value.starts_with('-') || value == "-" {
+            return None;
+        }
+        let (left, raw_value) = value.split_once('=')?;
+        let name = option_name(left)?;
+        let level = self.redactor.policy().sensitivity_for(name)?;
+        let redacted = self.mask_utf8_value(raw_value, level);
+        Some(format!("{left}={redacted}"))
+    }
+
+    /// Masks one valid UTF-8 value at an explicit sensitivity level.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Valid UTF-8 value to mask.
+    /// * `level` - Masking level to apply.
+    ///
+    /// # Returns
+    ///
+    /// The configured mask as an owned string.
+    #[inline(always)]
+    fn mask_utf8_value(&self, value: &str, level: Sensitivity) -> String {
+        self.redactor
+            .policy()
+            .masking()
+            .mask(level, value)
+            .into_owned()
+    }
+
+    /// Produces the configured secret mask without passing opaque bytes to it.
+    ///
+    /// # Returns
+    ///
+    /// A secret-level mask derived from a fixed internal sentinel.
+    #[inline(always)]
+    fn mask_opaque_value(&self) -> String {
+        self.mask_utf8_value("opaque-non-utf8-value", Sensitivity::Secret)
+    }
+}
+
+impl Default for ArgvRedactor {
+    /// Creates an argv redactor from the current default policy snapshot.
+    ///
+    /// # Returns
+    ///
+    /// An argv redactor backed by [`Redactor::default`].
+    #[inline(always)]
+    fn default() -> Self {
+        Self::new(Redactor::default())
+    }
+}
+
+/// Returns an option name without its leading dashes.
+///
+/// # Parameters
+///
+/// * `value` - Argument token that may name an option.
+///
+/// # Returns
+///
+/// `Some(name)` for an option-looking token with a non-empty name, or `None`
+/// otherwise.
+#[inline]
+fn option_name(value: &str) -> Option<&str> {
+    if !value.starts_with('-') || value == "-" {
+        return None;
+    }
+    let name = value.trim_start_matches('-');
+    if name.is_empty() { None } else { Some(name) }
+}
