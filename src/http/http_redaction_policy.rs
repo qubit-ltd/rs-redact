@@ -1,0 +1,173 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+//! Immutable policy snapshot for every HTTP redaction context.
+
+use crate::RedactionPolicy;
+
+use super::{
+    BodyBudget,
+    HttpRedactionPolicyBuilder,
+    TextBodyPolicy,
+    UnkeyedJsonValuePolicy,
+    UrlPathPolicy,
+};
+
+/// Combines independent HTTP field policies, behavior choices, and hard limits.
+#[must_use]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HttpRedactionPolicy {
+    /// Field policy used for HTTP header names and values.
+    header_policy: RedactionPolicy,
+    /// Field policy used for URL query and form names and values.
+    query_policy: RedactionPolicy,
+    /// Field policy used inside structured HTTP body formats.
+    body_policy: RedactionPolicy,
+    /// Visibility choice for non-root URL paths.
+    url_path_policy: UrlPathPolicy,
+    /// Visibility choice for opaque UTF-8 text bodies.
+    text_body_policy: TextBodyPolicy,
+    /// Visibility choice for JSON scalar values without a field name.
+    unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
+    /// Finite parser-input and log-output byte limits.
+    body_budget: BodyBudget,
+}
+
+impl HttpRedactionPolicy {
+    /// Creates a builder with three independent snapshots of `base`.
+    ///
+    /// # Parameters
+    ///
+    /// * `base` - Field policy cloned for header, query, and body contexts.
+    ///
+    /// # Returns
+    ///
+    /// A mutable HTTP policy builder using fail-closed behavior defaults and
+    /// finite 16 KiB input and 64 KiB output limits.
+    #[inline(always)]
+    pub fn builder(base: RedactionPolicy) -> HttpRedactionPolicyBuilder {
+        HttpRedactionPolicyBuilder::new(base)
+    }
+
+    /// Creates an immutable HTTP policy from complete builder state.
+    ///
+    /// # Parameters
+    ///
+    /// * `header_policy` - Header field-policy snapshot.
+    /// * `query_policy` - Query and form field-policy snapshot.
+    /// * `body_policy` - Structured-body field-policy snapshot.
+    /// * `url_path_policy` - URL path visibility choice.
+    /// * `text_body_policy` - Opaque text-body visibility choice.
+    /// * `unkeyed_json_value_policy` - Unkeyed scalar visibility choice.
+    /// * `body_budget` - Checked hard byte limits.
+    ///
+    /// # Returns
+    ///
+    /// A complete immutable HTTP policy.
+    #[inline(always)]
+    pub(super) const fn from_parts(
+        header_policy: RedactionPolicy,
+        query_policy: RedactionPolicy,
+        body_policy: RedactionPolicy,
+        url_path_policy: UrlPathPolicy,
+        text_body_policy: TextBodyPolicy,
+        unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
+        body_budget: BodyBudget,
+    ) -> Self {
+        Self {
+            header_policy,
+            query_policy,
+            body_policy,
+            url_path_policy,
+            text_body_policy,
+            unkeyed_json_value_policy,
+            body_budget,
+        }
+    }
+
+    /// Returns the immutable header-field policy snapshot.
+    ///
+    /// # Returns
+    ///
+    /// The policy used for HTTP headers.
+    #[inline(always)]
+    pub const fn header_policy(&self) -> &RedactionPolicy {
+        &self.header_policy
+    }
+
+    /// Returns the immutable query and form field-policy snapshot.
+    ///
+    /// # Returns
+    ///
+    /// The policy used for URL query and form fields.
+    #[inline(always)]
+    pub const fn query_policy(&self) -> &RedactionPolicy {
+        &self.query_policy
+    }
+
+    /// Returns the immutable structured-body field-policy snapshot.
+    ///
+    /// # Returns
+    ///
+    /// The policy used for fields inside HTTP bodies.
+    #[inline(always)]
+    pub const fn body_policy(&self) -> &RedactionPolicy {
+        &self.body_policy
+    }
+
+    /// Returns the URL path visibility choice.
+    ///
+    /// # Returns
+    ///
+    /// The immutable URL path behavior.
+    #[inline(always)]
+    pub const fn url_path_policy(&self) -> UrlPathPolicy {
+        self.url_path_policy
+    }
+
+    /// Returns the opaque text-body visibility choice.
+    ///
+    /// # Returns
+    ///
+    /// The immutable text-body behavior.
+    #[inline(always)]
+    pub const fn text_body_policy(&self) -> TextBodyPolicy {
+        self.text_body_policy
+    }
+
+    /// Returns the unkeyed JSON scalar visibility choice.
+    ///
+    /// # Returns
+    ///
+    /// The immutable unkeyed JSON behavior.
+    #[inline(always)]
+    pub const fn unkeyed_json_value_policy(&self) -> UnkeyedJsonValuePolicy {
+        self.unkeyed_json_value_policy
+    }
+
+    /// Returns the finite body input and output limits.
+    ///
+    /// # Returns
+    ///
+    /// The checked hard body budget.
+    #[inline(always)]
+    pub const fn body_budget(&self) -> BodyBudget {
+        self.body_budget
+    }
+}
+
+impl Default for HttpRedactionPolicy {
+    /// Creates a fail-closed HTTP policy from the current global field default.
+    ///
+    /// # Returns
+    ///
+    /// Three independent default policy snapshots and finite body limits.
+    #[inline(always)]
+    fn default() -> Self {
+        Self::builder(RedactionPolicy::default()).build()
+    }
+}

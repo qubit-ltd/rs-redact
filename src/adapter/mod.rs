@@ -9,20 +9,20 @@
 
 mod argv_sanitizer;
 mod env_sanitizer;
-#[cfg(feature = "form")]
+#[cfg(any(feature = "form", feature = "http"))]
 pub(crate) mod form_url_encoded;
-#[cfg(feature = "form")]
+#[cfg(any(feature = "form", feature = "http"))]
 mod form_url_encoded_sanitizer;
 #[cfg(feature = "http")]
 mod http;
-#[cfg(feature = "web")]
+#[cfg(any(feature = "web", feature = "http"))]
 mod url_path_policy;
-#[cfg(feature = "web")]
+#[cfg(any(feature = "web", feature = "http"))]
 mod url_sanitizer;
 
 pub use argv_sanitizer::ArgvSanitizer;
 pub use env_sanitizer::EnvSanitizer;
-#[cfg(feature = "form")]
+#[cfg(any(feature = "form", feature = "http"))]
 pub use form_url_encoded_sanitizer::FormUrlEncodedSanitizer;
 #[cfg(feature = "http")]
 pub use http::{
@@ -35,7 +35,7 @@ pub use http::{
     TextBodyPolicy,
     UnkeyedJsonValuePolicy,
 };
-#[cfg(feature = "web")]
+#[cfg(any(feature = "web", feature = "http"))]
 pub use url_path_policy::UrlPathPolicy;
-#[cfg(feature = "web")]
+#[cfg(any(feature = "web", feature = "http"))]
 pub use url_sanitizer::UrlSanitizer;

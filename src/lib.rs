@@ -81,11 +81,13 @@ pub mod adapter;
 pub mod argv;
 pub mod core;
 pub mod env;
+#[cfg(feature = "http")]
+pub mod http;
 pub mod policy;
 mod redactor;
 pub mod text;
 
-#[cfg(feature = "form")]
+#[cfg(any(feature = "form", feature = "http"))]
 pub use adapter::FormUrlEncodedSanitizer;
 pub use adapter::{
     ArgvSanitizer,
@@ -102,7 +104,7 @@ pub use adapter::{
     TextBodyPolicy,
     UnkeyedJsonValuePolicy,
 };
-#[cfg(feature = "web")]
+#[cfg(any(feature = "web", feature = "http"))]
 pub use adapter::{
     UrlPathPolicy,
     UrlSanitizer,

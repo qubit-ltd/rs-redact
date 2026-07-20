@@ -29,7 +29,12 @@ doctest = true
 default = ["web", "http"]
 form = ["dep:form_urlencoded"]
 web = ["form", "dep:url"]
-http = ["web", "dep:http", "dep:serde_json"]
+http = [
+    "dep:form_urlencoded",
+    "dep:http",
+    "dep:serde_json",
+    "dep:url",
+]
 
 [dependencies]
 form_urlencoded = { version = "1.2", optional = true }
