@@ -32,30 +32,35 @@ Qubit Redact 将职责拆成四层：
 
 ```toml
 [dependencies]
-qubit-redact = "0.1"
-
-# 仅在需要 HTTP 能力的 crate 中启用。
-qubit-redact-http = { package = "qubit-redact", version = "0.1", features = ["http"] }
+# 仅在需要 HTTP 能力的 crate 中启用：
+# cargo add qubit-redact --features http
+# cargo add http@1.4
+qubit-redact = { version = "0.1", features = ["http"] }
+http = "1.4"
 ```
+
+仅需要无依赖 core 时，改用 `qubit-redact = "0.1"`。
 
 ## 标量与 Map
 
 ```rust
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
-use qubit_redact::{RedactionPolicy, Redactor};
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
-let redactor = Redactor::new(RedactionPolicy::default());
-assert_eq!(redactor.redact("password", "secret").as_ref(), "<redacted>");
-assert_eq!(redactor.redact("mode", "debug").as_ref(), "debug");
-
-let values = BTreeMap::from([
-    ("password".to_owned(), "secret".to_owned()),
-    ("mode".to_owned(), "debug".to_owned()),
-]);
-let redacted = redactor.redact_map(&values);
-assert_eq!(redacted["password"], "<redacted>");
-assert_eq!(redacted["mode"], "debug");
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let policy = RedactionPolicy::builder()
+        .raise("tenant_secret", Sensitivity::Secret)
+        .build()?;
+    let source = HashMap::from([
+        ("tenant_secret".to_owned(), "raw".to_owned()),
+        ("display_name".to_owned(), "Alice".to_owned()),
+    ]);
+    let redacted = Redactor::new(policy).redact_map(&source);
+    assert_eq!(redacted["tenant_secret"], "<redacted>");
+    assert_eq!(source["tenant_secret"], "raw");
+    Ok(())
+}
 ```
 
 `redact_map_in_place` 提供对应的原地修改操作。两个 Map 方法都根据 key 分类 value，
@@ -68,21 +73,36 @@ use qubit_redact::{
     FieldNameMatching, MaskPolicy, RedactionPolicy, Redactor, Sensitivity,
 };
 
-let policy = RedactionPolicy::builder()
-    .matching(FieldNameMatching::ExactOrTokenSuffix)
-    .raise("license_key", Sensitivity::High)
-    .allow_exact("public_token")
-    .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))
-    .build()
-    .expect("the policy is valid");
+fn main() {
+    let policy = RedactionPolicy::builder()
+        .matching(FieldNameMatching::ExactOrTokenSuffix)
+        .raise("license_key", Sensitivity::High)
+        .allow_exact("public_token")
+        .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))
+        .build()
+        .expect("the policy is valid");
 
-let redactor = Redactor::new(policy);
-assert_eq!(redactor.redact("LICENSE_KEY", "abcdef").as_ref(), "[hidden]");
+    RedactionPolicy::set_global_default(policy.clone())
+        .expect("the application installs its default only once");
+    let inherited = RedactionPolicy::builder()
+        .build()
+        .expect("the default snapshot remains valid");
+    assert_eq!(inherited.sensitivity_for("license_key"), Some(Sensitivity::High));
+
+    let redactor = Redactor::new(policy);
+    assert_eq!(redactor.redact("LICENSE_KEY", "abcdef").as_str(), "[hidden]");
+}
 ```
 
 `raise` 不会削弱已有规则。只有明确需要替换（包括降级）时才使用
-`override_level`。精确允许规则只作用于完整字段；后缀允许规则的披露范围更广，应谨慎
+`override_level`。精确允许规则只作用于完整的规范化字段。后缀允许规则还可能允许
+`request_public_token` 这样的带前缀字段，披露范围更广；只有审查并接受该风险后才应
 使用。
+
+`RedactionPolicy::default()` 读取当前进程级默认策略的快照。
+`RedactionPolicy::set_global_default(policy)` 只能成功设置一次；后续调用返回
+`GlobalDefaultAlreadySet`，且不会替换已有默认值。`RedactionPolicy::builder()` 从调用时的
+默认值快照开始构建。此前创建的 policy、builder 和 redactor 都不会随之变化。
 
 ## 进程诊断
 
@@ -98,26 +118,42 @@ assert_eq!(redactor.redact("LICENSE_KEY", "abcdef").as_ref(), "[hidden]");
 ```rust
 use std::ffi::OsStr;
 
-use qubit_redact::{ArgvRedactor, argv::ArgvItem};
+use qubit_redact::{ArgvRedactor, EnvRedactor, argv::ArgvItem};
 
-let items = [
-    ArgvItem::plain(OsStr::new("client")),
-    ArgvItem::plain(OsStr::new("--password")),
-    ArgvItem::plain(OsStr::new("secret")),
-];
-let output = ArgvRedactor::default().redact_heuristically(items);
-assert!(!output.to_string().contains("secret"));
+fn main() {
+    let items = [
+        ArgvItem::plain(OsStr::new("client")),
+        ArgvItem::plain(OsStr::new("--password")),
+        ArgvItem::plain(OsStr::new("secret")),
+    ];
+    let output = ArgvRedactor::default().redact_heuristically(items);
+    assert!(!output.to_string().contains("secret"));
 
-let captured_bytes = b"secret output";
-assert_eq!(
-    format!("{:?}", qubit_redact::redacted_debug(captured_bytes)),
-    "<redacted>",
-);
+    let environment = EnvRedactor::default().redact_pair("PASSWORD", "secret");
+    assert_eq!(environment.to_string(), "PASSWORD=<redacted>");
+
+    let captured_bytes = b"secret output";
+    assert_eq!(
+        format!("{:?}", qubit_redact::redacted_debug(captured_bytes)),
+        "<redacted>",
+    );
+
+    let log_safe = qubit_redact::Redactor::default()
+        .redact("message", "line one\nline two")
+        .escape_for_log();
+    assert_eq!(log_safe.to_string(), "line one\\nline two");
+}
 ```
+
+`RedactedText` 刻意不实现 `Display`：值遮盖和日志转义是两种不同保证。把标量结果写入
+纯文本日志前，必须显式调用 `escape_for_log()`。argv 和 env 的结果类型已经跨过该边界，
+可安全地使用 `Display`。
 
 ## HTTP 遮盖
 
-启用 `http` 后可使用 `HttpRedactor`。它持有不可变 `HttpRedactionPolicy`，提供 URL、
+通过 `cargo add qubit-redact --features http` 启用 `http`，并通过
+`cargo add http@1.4` 添加示例直接使用的 `http` 依赖（或使用上面的等价 Cargo.toml
+配置）。`HttpRedactor` 持有不可变 `HttpRedactionPolicy`，提供 URL、
 URL-encoded form、header 和 body 操作。`BodyCapture` 区分完整输入和受检的截断输入，
 `BodyBudget` 同时限制解析输入和渲染输出。
 
@@ -126,18 +162,21 @@ part、匿名 multipart part 和 URL path 默认采用保守策略。HTTP 结果
 安全文本，不提供原始 body 逃生口。
 
 ```rust
-# #[cfg(feature = "http")]
-# {
 use http::HeaderValue;
-use qubit_redact::http::{BodyCapture, HttpRedactor};
+use qubit_redact::http::{BodyCapture, BodyRedaction, HttpRedactor};
 
-let body = br#"{"password":"secret","mode":"debug"}"#;
-let content_type = HeaderValue::from_static("application/json");
-let result = HttpRedactor::default()
-    .redact_body(BodyCapture::complete(body), Some(&content_type));
-assert!(!result.to_string().contains("secret"));
-# }
+fn main() {
+    let body = br#"{"password":"secret","mode":"debug"}"#;
+    let content_type = HeaderValue::from_static("application/json");
+    let result: BodyRedaction = HttpRedactor::default()
+        .redact_body(BodyCapture::complete(body), Some(&content_type));
+    let display_text = format!("{result}");
+    assert!(!display_text.contains("secret"));
+}
 ```
+
+HTTP 遮盖只接受调用方提供的有界 capture，不会自行读取或缓存网络 body。
+`BodyRedaction` 的 `Display` 实现就是安全日志边界，并且会保持配置的输出预算。
 
 `TextBodyPolicy::PassThrough`、`UnkeyedJsonValuePolicy::PassThrough` 和
 `UrlPathPolicy::Preserve` 都是显式诊断 opt-in。只有应用已经接受相应信息披露风险时才

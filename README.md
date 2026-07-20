@@ -36,30 +36,36 @@ dependencies.
 
 ```toml
 [dependencies]
-qubit-redact = "0.1"
-
-# Enable HTTP support only where it is needed.
-qubit-redact-http = { package = "qubit-redact", version = "0.1", features = ["http"] }
+# Enable HTTP support only where it is needed:
+# cargo add qubit-redact --features http
+# cargo add http@1.4
+qubit-redact = { version = "0.1", features = ["http"] }
+http = "1.4"
 ```
+
+Use `qubit-redact = "0.1"` instead when only the dependency-free core is
+needed.
 
 ## Scalar Values and Maps
 
 ```rust
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
-use qubit_redact::{RedactionPolicy, Redactor};
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
-let redactor = Redactor::new(RedactionPolicy::default());
-assert_eq!(redactor.redact("password", "secret").as_ref(), "<redacted>");
-assert_eq!(redactor.redact("mode", "debug").as_ref(), "debug");
-
-let values = BTreeMap::from([
-    ("password".to_owned(), "secret".to_owned()),
-    ("mode".to_owned(), "debug".to_owned()),
-]);
-let redacted = redactor.redact_map(&values);
-assert_eq!(redacted["password"], "<redacted>");
-assert_eq!(redacted["mode"], "debug");
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let policy = RedactionPolicy::builder()
+        .raise("tenant_secret", Sensitivity::Secret)
+        .build()?;
+    let source = HashMap::from([
+        ("tenant_secret".to_owned(), "raw".to_owned()),
+        ("display_name".to_owned(), "Alice".to_owned()),
+    ]);
+    let redacted = Redactor::new(policy).redact_map(&source);
+    assert_eq!(redacted["tenant_secret"], "<redacted>");
+    assert_eq!(source["tenant_secret"], "raw");
+    Ok(())
+}
 ```
 
 `redact_map_in_place` provides the corresponding mutating operation. Both map
@@ -72,22 +78,39 @@ use qubit_redact::{
     FieldNameMatching, MaskPolicy, RedactionPolicy, Redactor, Sensitivity,
 };
 
-let policy = RedactionPolicy::builder()
-    .matching(FieldNameMatching::ExactOrTokenSuffix)
-    .raise("license_key", Sensitivity::High)
-    .allow_exact("public_token")
-    .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))
-    .build()
-    .expect("the policy is valid");
+fn main() {
+    let policy = RedactionPolicy::builder()
+        .matching(FieldNameMatching::ExactOrTokenSuffix)
+        .raise("license_key", Sensitivity::High)
+        .allow_exact("public_token")
+        .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))
+        .build()
+        .expect("the policy is valid");
 
-let redactor = Redactor::new(policy);
-assert_eq!(redactor.redact("LICENSE_KEY", "abcdef").as_ref(), "[hidden]");
+    RedactionPolicy::set_global_default(policy.clone())
+        .expect("the application installs its default only once");
+    let inherited = RedactionPolicy::builder()
+        .build()
+        .expect("the default snapshot remains valid");
+    assert_eq!(inherited.sensitivity_for("license_key"), Some(Sensitivity::High));
+
+    let redactor = Redactor::new(policy);
+    assert_eq!(redactor.redact("LICENSE_KEY", "abcdef").as_str(), "[hidden]");
+}
 ```
 
 `raise` never weakens an existing rule. Use `override_level` only when an
 intentional replacement, including a downgrade, is required. Exact allow rules
-affect only the complete field; suffix allow rules are broader disclosure
-decisions and should be used sparingly.
+affect only the complete canonical field. Suffix allow rules can also allow
+prefixed names such as `request_public_token`; they are broader disclosure
+decisions and should be used only after reviewing that risk.
+
+`RedactionPolicy::default()` reads the current process-wide default snapshot.
+`RedactionPolicy::set_global_default(policy)` can successfully install a custom
+default only once; a later call returns `GlobalDefaultAlreadySet` and never
+replaces it. `RedactionPolicy::builder()` starts from the default at the time it
+is called. Previously created policies, builders, and redactors remain
+unchanged.
 
 ## Process Diagnostics
 
@@ -104,26 +127,43 @@ must render only as `<redacted>`; the wrapper never calls the value's own
 ```rust
 use std::ffi::OsStr;
 
-use qubit_redact::{ArgvRedactor, argv::ArgvItem};
+use qubit_redact::{ArgvRedactor, EnvRedactor, argv::ArgvItem};
 
-let items = [
-    ArgvItem::plain(OsStr::new("client")),
-    ArgvItem::plain(OsStr::new("--password")),
-    ArgvItem::plain(OsStr::new("secret")),
-];
-let output = ArgvRedactor::default().redact_heuristically(items);
-assert!(!output.to_string().contains("secret"));
+fn main() {
+    let items = [
+        ArgvItem::plain(OsStr::new("client")),
+        ArgvItem::plain(OsStr::new("--password")),
+        ArgvItem::plain(OsStr::new("secret")),
+    ];
+    let output = ArgvRedactor::default().redact_heuristically(items);
+    assert!(!output.to_string().contains("secret"));
 
-let captured_bytes = b"secret output";
-assert_eq!(
-    format!("{:?}", qubit_redact::redacted_debug(captured_bytes)),
-    "<redacted>",
-);
+    let environment = EnvRedactor::default().redact_pair("PASSWORD", "secret");
+    assert_eq!(environment.to_string(), "PASSWORD=<redacted>");
+
+    let captured_bytes = b"secret output";
+    assert_eq!(
+        format!("{:?}", qubit_redact::redacted_debug(captured_bytes)),
+        "<redacted>",
+    );
+
+    let log_safe = qubit_redact::Redactor::default()
+        .redact("message", "line one\nline two")
+        .escape_for_log();
+    assert_eq!(log_safe.to_string(), "line one\\nline two");
+}
 ```
+
+`RedactedText` deliberately does not implement `Display`: redaction and log
+escaping are different guarantees. Always call `escape_for_log()` before
+rendering a scalar result into a plain-text log sink. The argv and environment
+result types already cross that boundary and implement safe `Display`.
 
 ## HTTP Redaction
 
-Enable `http` to use `HttpRedactor`. It owns an immutable
+Enable `http` with `cargo add qubit-redact --features http`, and add the direct
+`http` dependency used by the example with `cargo add http@1.4` (or use the
+equivalent Cargo.toml entries above). `HttpRedactor` owns an immutable
 `HttpRedactionPolicy` and provides URL, URL-encoded form, header, and body
 operations. `BodyCapture` distinguishes complete input from checked truncated
 input, while `BodyBudget` bounds both parsing input and rendered output.
@@ -134,18 +174,22 @@ defaults. The HTTP result types expose only log-safe text; they do not expose a
 raw-body escape hatch.
 
 ```rust
-# #[cfg(feature = "http")]
-# {
 use http::HeaderValue;
-use qubit_redact::http::{BodyCapture, HttpRedactor};
+use qubit_redact::http::{BodyCapture, BodyRedaction, HttpRedactor};
 
-let body = br#"{"password":"secret","mode":"debug"}"#;
-let content_type = HeaderValue::from_static("application/json");
-let result = HttpRedactor::default()
-    .redact_body(BodyCapture::complete(body), Some(&content_type));
-assert!(!result.to_string().contains("secret"));
-# }
+fn main() {
+    let body = br#"{"password":"secret","mode":"debug"}"#;
+    let content_type = HeaderValue::from_static("application/json");
+    let result: BodyRedaction = HttpRedactor::default()
+        .redact_body(BodyCapture::complete(body), Some(&content_type));
+    let display_text = format!("{result}");
+    assert!(!display_text.contains("secret"));
+}
 ```
+
+HTTP redaction accepts only a caller-provided, bounded capture; it does not read
+or buffer a network body. `BodyRedaction`'s `Display` implementation is the safe
+logging boundary and preserves the configured output budget.
 
 `TextBodyPolicy::PassThrough`, `UnkeyedJsonValuePolicy::PassThrough`, and
 `UrlPathPolicy::Preserve` are explicit diagnostic opt-ins. Choose them only
