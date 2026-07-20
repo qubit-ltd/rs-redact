@@ -10,11 +10,7 @@
 use std::fmt::Write;
 
 use libfuzzer_sys::fuzz_target;
-use qubit_redact::{
-    FormUrlEncodedSanitizer,
-    NameMatchMode,
-    UrlSanitizer,
-};
+use qubit_redact::http::HttpRedactor;
 
 const FUZZ_SECRET: &str = "qubit-fuzz-secret-7f54a19c";
 
@@ -44,48 +40,39 @@ fn hexadecimal_prefix(data: &[u8]) -> String {
 fn assert_structured_secret_is_redacted(data: &[u8]) {
     let noise = hexadecimal_prefix(data);
     let form = format!("noise={noise}&password={FUZZ_SECRET}");
-    let sanitized_form = FormUrlEncodedSanitizer::default()
-        .sanitize_str(&form, NameMatchMode::ExactOrSuffix);
-    assert!(!sanitized_form.contains(FUZZ_SECRET));
+    let redactor = HttpRedactor::default();
+    let redacted_form = redactor.redact_form(&form);
+    assert!(!redacted_form.as_ref().contains(FUZZ_SECRET));
 
     let url = format!("https://example.test/?{form}");
-    let sanitized_url = UrlSanitizer::default()
-        .sanitize_url_str(&url, NameMatchMode::ExactOrSuffix)
-        .expect("the constructed fuzz URL should parse");
-    assert!(!sanitized_url.contains(FUZZ_SECRET));
+    let redacted_url = redactor.redact_url_str(&url);
+    assert!(!redacted_url.as_ref().contains(FUZZ_SECRET));
 }
 
 /// Verifies malformed percent escapes fail closed in form and URL adapters.
 fn assert_malformed_structured_secret_is_redacted() {
     for suffix in ["%", "%FF"] {
         let form = format!("password={FUZZ_SECRET}&noise={suffix}");
-        let sanitized_form = FormUrlEncodedSanitizer::default()
-            .sanitize_str(&form, NameMatchMode::ExactOrSuffix);
-        assert!(!sanitized_form.contains(FUZZ_SECRET));
+        let redactor = HttpRedactor::default();
+        let redacted_form = redactor.redact_form(&form);
+        assert!(!redacted_form.as_ref().contains(FUZZ_SECRET));
 
         let url = format!("https://example.test/?{form}");
-        let sanitized_url = UrlSanitizer::default()
-            .sanitize_url_str(&url, NameMatchMode::ExactOrSuffix)
-            .expect("the constructed malformed-query URL should parse");
-        assert!(!sanitized_url.contains(FUZZ_SECRET));
+        let redacted_url = redactor.redact_url_str(&url);
+        assert!(!redacted_url.as_ref().contains(FUZZ_SECRET));
     }
 }
 
 fuzz_target!(|data: &[u8]| {
-    let form_sanitizer = FormUrlEncodedSanitizer::default();
-    let first_form =
-        form_sanitizer.sanitize_bytes(data, NameMatchMode::ExactOrSuffix);
-    let second_form =
-        form_sanitizer.sanitize_bytes(data, NameMatchMode::ExactOrSuffix);
-    assert_eq!(first_form, second_form);
-
+    let redactor = HttpRedactor::default();
     if let Ok(text) = std::str::from_utf8(data) {
+        let first_form = redactor.redact_form(text);
+        let second_form = redactor.redact_form(text);
+        assert_eq!(first_form, second_form);
+
         let url = format!("https://example.test/?{text}");
-        let url_sanitizer = UrlSanitizer::default();
-        let first_url =
-            url_sanitizer.sanitize_url_str(&url, NameMatchMode::ExactOrSuffix);
-        let second_url =
-            url_sanitizer.sanitize_url_str(&url, NameMatchMode::ExactOrSuffix);
+        let first_url = redactor.redact_url_str(&url);
+        let second_url = redactor.redact_url_str(&url);
         assert_eq!(first_url, second_url);
     }
     assert_structured_secret_is_redacted(data);

@@ -16,6 +16,9 @@ mod body_redaction_reason;
 mod body_redaction_status;
 mod http_redaction_policy;
 mod http_redaction_policy_builder;
+mod http_redactor;
+mod internal;
+mod redacted_headers;
 
 pub use crate::adapter::{
     TextBodyPolicy,
@@ -31,3 +34,5 @@ pub use body_redaction_reason::BodyRedactionReason;
 pub use body_redaction_status::BodyRedactionStatus;
 pub use http_redaction_policy::HttpRedactionPolicy;
 pub use http_redaction_policy_builder::HttpRedactionPolicyBuilder;
+pub use http_redactor::HttpRedactor;
+pub use redacted_headers::RedactedHeaders;

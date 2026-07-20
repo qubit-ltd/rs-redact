@@ -11,10 +11,9 @@ use std::fmt::Write;
 
 use http::HeaderValue;
 use libfuzzer_sys::fuzz_target;
-use qubit_redact::{
-    BodySourceLength,
-    HttpBodySanitizer,
-    NameMatchMode,
+use qubit_redact::http::{
+    BodyCapture,
+    HttpRedactor,
 };
 
 const FUZZ_SECRET: &str = "qubit-fuzz-secret-7f54a19c";
@@ -95,12 +94,11 @@ fn assert_structured_secret_is_redacted(selector: u8, data: &[u8]) {
             HeaderValue::from_static("application/x-ndjson"),
         ),
     };
-    let result = HttpBodySanitizer::default().sanitize_body(
-        &body,
+    let result = HttpRedactor::default().redact_body(
+        BodyCapture::complete(&body),
         Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
     );
-    assert!(!result.raw_content().contains(FUZZ_SECRET));
+    assert!(!result.log_safe_text().as_ref().contains(FUZZ_SECRET));
 }
 
 /// Verifies malformed structured bodies fail closed around a known secret.
@@ -148,16 +146,15 @@ fn assert_malformed_structured_secret_is_redacted(selector: u8) {
         ),
     };
 
-    let result = HttpBodySanitizer::default().sanitize_body(
-        &body,
+    let result = HttpRedactor::default().redact_body(
+        BodyCapture::complete(&body),
         Some(&content_type),
-        NameMatchMode::ExactOrSuffix,
     );
-    assert!(!result.raw_content().contains(FUZZ_SECRET));
+    assert!(!result.log_safe_text().as_ref().contains(FUZZ_SECRET));
 }
 
 fuzz_target!(|data: &[u8]| {
-    let [media_selector, source_selector, options, body @ ..] = data else {
+    let [media_selector, source_selector, _options, body @ ..] = data else {
         return;
     };
     let content_types = [
@@ -174,37 +171,25 @@ fuzz_target!(|data: &[u8]| {
     ];
     let content_type =
         &content_types[usize::from(*media_selector) % content_types.len()];
-    let source_length = match source_selector % 3 {
-        0 => BodySourceLength::Known(body.len()),
-        1 => BodySourceLength::Known(
-            body.len()
-                .saturating_add(usize::from(*source_selector).max(1)),
-        ),
-        _ => BodySourceLength::UnknownTruncated,
+    let capture = match source_selector % 3 {
+        0 => BodyCapture::complete(body),
+        1 => BodyCapture::truncated(
+            body,
+            Some(body.len().saturating_add(usize::from(*source_selector).max(1))),
+        )
+        .expect("constructed total exceeds captured bytes"),
+        _ => BodyCapture::truncated(body, None)
+            .expect("unknown truncated captures are valid"),
     };
-    let match_mode = if options & 2 == 0 {
-        NameMatchMode::Exact
-    } else {
-        NameMatchMode::ExactOrSuffix
-    };
-    let sanitizer = HttpBodySanitizer::default();
+    let redactor = HttpRedactor::default();
     let sanitize = || {
-        if options & 1 == 0 {
-            sanitizer.sanitize_body(body, content_type.as_ref(), match_mode)
-        } else {
-            sanitizer.sanitize_body_preview(
-                body,
-                source_length,
-                content_type.as_ref(),
-                match_mode,
-            )
-        }
+        redactor.redact_body(capture, content_type.as_ref())
     };
 
     let first = sanitize();
     let second = sanitize();
     assert_eq!(first, second);
-    assert_eq!(first.captured_len(), body.len());
+    assert!(first.captured_len() <= body.len());
     if let Some(source_len) = first.source_len() {
         assert!(source_len >= first.captured_len());
     }

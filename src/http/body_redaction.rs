@@ -7,10 +7,13 @@
 // =============================================================================
 //! Log-safe bounded result of HTTP body redaction.
 
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
+use std::{
+    borrow::Cow,
+    fmt::{
+        self,
+        Display,
+        Formatter,
+    },
 };
 
 use crate::LogSafeText;
@@ -36,6 +39,39 @@ pub struct BodyRedaction {
 }
 
 impl BodyRedaction {
+    /// Creates a completed safe body result.
+    ///
+    /// # Parameters
+    ///
+    /// * `text` - Escaped and bounded output text.
+    /// * `status` - Classification of the redaction outcome.
+    /// * `captured_len` - Number of source bytes inspected.
+    /// * `source_len` - Exact source length when known.
+    /// * `omitted_len` - Exact number of uninspected source bytes when known.
+    /// * `truncated` - Whether source or rendered data was omitted.
+    ///
+    /// # Returns
+    ///
+    /// A body result exposing only log-safe text.
+    #[inline(always)]
+    pub(super) fn new(
+        text: String,
+        status: BodyRedactionStatus,
+        captured_len: usize,
+        source_len: Option<usize>,
+        omitted_len: Option<usize>,
+        truncated: bool,
+    ) -> Self {
+        Self {
+            text: LogSafeText::from_escaped(Cow::Owned(text)),
+            status,
+            captured_len,
+            source_len,
+            omitted_len,
+            truncated,
+        }
+    }
+
     /// Returns the escaped and output-bounded diagnostic text.
     ///
     /// # Returns
