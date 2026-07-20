@@ -51,13 +51,9 @@ where
     where
         S: serde::Serializer,
     {
-        use serde::ser::SerializeMap;
-
         let redactor = Redactor::new(policy.clone());
-        let mut map = serializer.serialize_map(None)?;
-        for (key, value) in self {
-            map.serialize_entry(key, redactor.redact(key, value).as_str())?;
-        }
-        map.end()
+        serializer.collect_map(self.into_iter().map(|(key, value)| {
+            (key, redactor.redact(key, value).into_inner())
+        }))
     }
 }

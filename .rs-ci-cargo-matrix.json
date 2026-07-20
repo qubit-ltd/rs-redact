@@ -8,6 +8,24 @@
       "features": []
     },
     {
+      "name": "derive",
+      "commands": ["check", "test", "doc"],
+      "defaultFeatures": false,
+      "features": ["derive"]
+    },
+    {
+      "name": "serde",
+      "commands": ["check", "test", "doc"],
+      "defaultFeatures": false,
+      "features": ["serde"]
+    },
+    {
+      "name": "derive-serde",
+      "commands": ["check", "test", "doc"],
+      "defaultFeatures": false,
+      "features": ["derive", "serde"]
+    },
+    {
       "name": "http",
       "commands": ["check", "test", "doc"],
       "defaultFeatures": false,

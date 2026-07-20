@@ -7,16 +7,6 @@
 // =============================================================================
 //! # Qubit Redact
 //!
-//! The pre-release redaction façades are intentionally not available.
-//!
-//! ```compile_fail
-//! use qubit_redact::FieldSanitizer;
-//! ```
-//!
-//! ```compile_fail
-//! use qubit_redact::HttpBodySanitizer;
-//! ```
-//!
 //! Provides immutable, policy-driven redaction for scalar fields, maps,
 //! process diagnostics, and optionally HTTP data. Safe result types separate
 //! redacted text from text that has also been escaped for logs.
@@ -68,6 +58,114 @@
 //! assert_eq!(safe.to_string(), "line one\\nline two");
 //! ```
 //!
+//! # Domain objects
+//!
+//! Enable the `derive` feature to annotate fields explicitly. Plain fields are
+//! never recursively redacted, `nested` is the recursion boundary, `map`
+//! classifies each value by its runtime key, and `skip` omits a field only from
+//! the redacted representation.
+//!
+//! ```
+//! # #[cfg(feature = "derive")]
+//! # {
+//! use std::collections::HashMap;
+//! use qubit_redact::{Redact, RedactionPolicy, Sensitivity};
+//!
+//! #[derive(Redact)]
+//! struct Account {
+//!     id: u64,
+//!     #[redact(level = "secret")]
+//!     password: String,
+//!     #[redact(map)]
+//!     metadata: HashMap<String, String>,
+//! }
+//!
+//! let policy = RedactionPolicy::empty_builder()
+//!     .raise("api_key", Sensitivity::Secret)
+//!     .build()?;
+//! let account = Account {
+//!     id: 1,
+//!     password: "raw-password".to_owned(),
+//!     metadata: HashMap::from([
+//!         ("api_key".to_owned(), "raw-key".to_owned()),
+//!     ]),
+//! };
+//! let output = format!("{:?}", account.redacted_with(&policy));
+//! assert!(!output.contains("raw-password"));
+//! assert!(!output.contains("raw-key"));
+//! # }
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
+//! `RedactMut` is an explicit destructive contract. The skipped field below
+//! remains unchanged, while `nested` uses the same policy for the child.
+//! Clone-based `to_redacted` temporarily retains a second raw copy; prefer
+//! `redact_in_place` or `into_redacted` for highly sensitive data.
+//!
+//! ```
+//! # #[cfg(feature = "derive")]
+//! # {
+//! use qubit_redact::{Redact, RedactMut};
+//!
+//! #[derive(Clone, Redact, RedactMut)]
+//! struct Secret {
+//!     #[redact(level = "secret")]
+//!     value: String,
+//! }
+//!
+//! #[derive(Clone, Redact, RedactMut)]
+//! struct Envelope {
+//!     #[redact(nested)]
+//!     secret: Secret,
+//!     #[redact(skip)]
+//!     internal_note: String,
+//! }
+//!
+//! let mut envelope = Envelope {
+//!     secret: Secret { value: "raw".to_owned() },
+//!     internal_note: "unchanged".to_owned(),
+//! };
+//! envelope.redact_in_place();
+//! assert_eq!(envelope.secret.value, "<redacted>");
+//! assert_eq!(envelope.internal_note, "unchanged");
+//! # }
+//! ```
+//!
+//! With both `derive` and `serde`, `#[redact(serde)]` opts only the redacted
+//! view into serialization. The original object's traits are unchanged, and
+//! [`Redacted`] intentionally does not implement `Deserialize`.
+//!
+//! ```
+//! # #[cfg(all(feature = "derive", feature = "serde"))]
+//! # {
+//! use qubit_redact::Redact;
+//!
+//! #[derive(Redact)]
+//! #[redact(serde)]
+//! struct Credentials {
+//!     #[redact(level = "secret")]
+//!     token: String,
+//!     #[redact(skip)]
+//!     internal_note: String,
+//! }
+//!
+//! let value = Credentials {
+//!     token: "raw-token".to_owned(),
+//!     internal_note: "not serialized".to_owned(),
+//! };
+//! let json = serde_json::to_string(&value.redacted())?;
+//! assert!(!json.contains("raw-token"));
+//! assert!(!json.contains("internal_note"));
+//! # }
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
+//! `redacted()` snapshots the process default; `redacted_with` snapshots an
+//! explicit policy, which every nested and map field reuses. Field-specific
+//! map policies are not supported in the first version; use a domain newtype
+//! plus `nested` for a separate policy boundary. Derives support named structs
+//! only.
+//!
 //! # Process diagnostics
 //!
 //! ```
@@ -111,6 +209,8 @@
 //! # }
 //! ```
 
+extern crate self as qubit_redact;
+
 pub mod argv;
 pub mod domain;
 pub mod env;
@@ -120,6 +220,7 @@ pub mod policy;
 #[cfg(feature = "serde")]
 mod private;
 mod redactor;
+mod serde_feature_gate;
 pub mod text;
 
 pub use argv::ArgvRedactor;
@@ -164,21 +265,3 @@ pub use text::{
 #[cfg(feature = "serde")]
 #[doc(hidden)]
 pub use private::__private;
-
-#[cfg(feature = "serde")]
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __qubit_redact_serde {
-    ($($tokens:tt)*) => { $($tokens)* };
-}
-
-#[cfg(not(feature = "serde"))]
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __qubit_redact_serde {
-    ($($tokens:tt)*) => {
-        compile_error!(
-            "#[redact(serde)] requires the `serde` feature of qubit-redact"
-        );
-    };
-}

@@ -68,3 +68,23 @@ fn test_nested_uses_the_same_explicit_policy_for_every_container() {
     assert!(!rendered.contains("three"));
     assert!(rendered.contains("raw-ordinary"));
 }
+
+/// Verifies absent and empty nested containers preserve their shape.
+#[test]
+fn test_nested_preserves_absent_and_empty_containers() {
+    let session = Session {
+        primary: Credential {
+            token: "one".to_owned(),
+        },
+        backup: None,
+        history: Vec::new(),
+        ordinary: Credential {
+            token: "raw-ordinary".to_owned(),
+        },
+    };
+
+    let rendered = format!("{:?}", session.redacted());
+
+    assert!(rendered.contains("backup: None"));
+    assert!(rendered.contains("history: []"));
+}

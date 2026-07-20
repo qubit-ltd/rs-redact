@@ -18,6 +18,7 @@ use std::{
 
 use qubit_redact::{
     Redact,
+    RedactedMap,
     RedactionPolicy,
     Sensitivity,
 };
@@ -104,4 +105,23 @@ fn test_map_view_defers_iteration_until_debug_formatting() {
 
     let _ = format!("{view:?}");
     assert_eq!(event.metadata.traversals.get(), 1);
+}
+
+/// Verifies plain-text map output escapes log-control characters.
+#[test]
+fn test_map_display_is_log_safe() {
+    let event = Event {
+        metadata: HashMap::from([(
+            "label".to_owned(),
+            "first\nsecond".to_owned(),
+        )]),
+        unmarked: BTreeMap::new(),
+    };
+
+    let rendered =
+        RedactedMap::new(&event.metadata, RedactionPolicy::default())
+            .to_string();
+
+    assert!(!rendered.contains('\n'));
+    assert!(rendered.contains(r"first\nsecond"));
 }

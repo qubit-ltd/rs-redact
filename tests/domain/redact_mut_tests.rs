@@ -156,3 +156,32 @@ fn test_redact_value_mut_supports_owned_value_forms() {
     assert_eq!(cow, "[strict]");
     assert_eq!(optional.as_deref(), Some("[strict]"));
 }
+
+/// Verifies empty and absent values remain unchanged during mutation.
+#[test]
+fn test_redact_value_mut_preserves_empty_and_absent_values() {
+    let masking = strict_policy().masking().clone();
+    let mut text = String::new();
+    let mut cow = Cow::Borrowed("");
+    let mut optional: Option<String> = None;
+
+    RedactValueMut::redact_value_in_place(
+        &mut text,
+        Sensitivity::Secret,
+        &masking,
+    );
+    RedactValueMut::redact_value_in_place(
+        &mut cow,
+        Sensitivity::Secret,
+        &masking,
+    );
+    RedactValueMut::redact_value_in_place(
+        &mut optional,
+        Sensitivity::Secret,
+        &masking,
+    );
+
+    assert_eq!(text, "");
+    assert_eq!(cow, "");
+    assert_eq!(optional, None);
+}

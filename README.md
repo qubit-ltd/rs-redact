@@ -32,6 +32,8 @@ dependencies.
 
 | Feature | Capability | Optional dependencies |
 | --- | --- | --- |
+| `derive` | `Redact` and `RedactMut` derives for named domain structs | `qubit-redact-derive` |
+| `serde` | Serialization of explicitly opted-in redacted views | `serde` |
 | `http` | URL, form, header, and bounded body redaction | `form_urlencoded`, `http`, `serde_json`, `url` |
 
 ```toml
@@ -111,6 +113,88 @@ default only once; a later call returns `GlobalDefaultAlreadySet` and never
 replaces it. `RedactionPolicy::builder()` starts from the default at the time it
 is called. Previously created policies, builders, and redactors remain
 unchanged.
+
+## Domain Objects
+
+Enable `derive` to describe redaction at the field boundary. Unmarked fields
+remain ordinary values; recursion and Map key classification are always
+explicit.
+
+```rust
+use std::collections::HashMap;
+
+use qubit_redact::{Redact, RedactionPolicy, Sensitivity};
+
+#[derive(Redact)]
+struct Account {
+    id: u64,
+    #[redact(level = "secret")]
+    password: String,
+    #[redact(map)]
+    metadata: HashMap<String, String>,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let policy = RedactionPolicy::empty_builder()
+        .raise("api_key", Sensitivity::Secret)
+        .build()?;
+    let account = Account {
+        id: 1,
+        password: "raw-password".to_owned(),
+        metadata: HashMap::from([
+            ("api_key".to_owned(), "raw-key".to_owned()),
+        ]),
+    };
+    let output = format!("{:?}", account.redacted_with(&policy));
+    assert!(!output.contains("raw-password"));
+    assert!(!output.contains("raw-key"));
+    Ok(())
+}
+```
+
+Use `#[redact(nested)]` for a field whose type implements `Redact`; without
+that attribute even a derived field type is not traversed. `#[redact(skip)]`
+omits a field from redacted Debug, Display, and serde output. It does not
+remove or modify the field on the original object, and `RedactMut` leaves it
+unchanged.
+
+`RedactMut` is a separate, explicit destructive contract. Its
+`redact_in_place`, `into_redacted`, and clone-based `to_redacted` operations
+support the same `level`, `nested`, and `map` field modes. `to_redacted`
+briefly creates a second copy of the original sensitive data; prefer
+`redact_in_place` or `into_redacted` for highly sensitive values.
+
+Enable both `derive` and `serde`, then add `#[redact(serde)]` to opt a named
+struct into serialization of its redacted view. The original type's
+`Serialize`, `Debug`, and `Display` behavior is unchanged, and `Redacted` does
+not implement `Deserialize`.
+
+```rust
+use qubit_redact::Redact;
+
+#[derive(Redact)]
+#[redact(serde)]
+struct Credentials {
+    #[redact(level = "secret")]
+    token: String,
+    #[redact(skip)]
+    internal_note: String,
+}
+
+let value = Credentials {
+    token: "raw-token".to_owned(),
+    internal_note: "not serialized".to_owned(),
+};
+let json = serde_json::to_string(&value.redacted()).unwrap();
+assert!(!json.contains("raw-token"));
+assert!(!json.contains("internal_note"));
+```
+
+`redacted()` snapshots the process-wide default policy. `redacted_with`
+snapshots an explicit policy, and every nested or Map field uses that same
+snapshot. Field-specific Map policies are intentionally unsupported in the
+first version; use a domain newtype with `nested` when a field needs a
+different policy boundary. Derives currently support named structs only.
 
 ## Process Diagnostics
 

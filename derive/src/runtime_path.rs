@@ -27,8 +27,8 @@ use syn::{
 ///
 /// # Returns
 ///
-/// `crate` when deriving inside the runtime crate, or an absolute path using
-/// the dependency's local name when invoked by a downstream crate.
+/// `::qubit_redact` when deriving inside the runtime crate, or an absolute path
+/// using the dependency's local name when invoked by a downstream crate.
 ///
 /// # Errors
 ///
@@ -36,7 +36,7 @@ use syn::{
 /// expose the `qubit-redact` runtime dependency.
 pub(crate) fn resolve(input: &DeriveInput) -> syn::Result<Path> {
     match crate_name("qubit-redact") {
-        Ok(FoundCrate::Itself) => Ok(parse_quote!(crate)),
+        Ok(FoundCrate::Itself) => Ok(parse_quote!(::qubit_redact)),
         Ok(FoundCrate::Name(name)) => {
             let identifier = format_ident!(
                 "{}",

@@ -17,6 +17,7 @@ use std::{
 
 use qubit_redact::{
     Redact,
+    RedactedMap,
     RedactionPolicy,
     Sensitivity,
 };
@@ -84,6 +85,31 @@ impl Write for FailingWriter {
     #[inline(always)]
     fn flush(&mut self) -> io::Result<()> {
         Err(io::Error::other("intentional serializer failure"))
+    }
+}
+
+/// Writer that accepts a fixed prefix before returning an I/O error.
+struct FailAfter {
+    /// Number of bytes still accepted.
+    remaining: usize,
+}
+
+impl Write for FailAfter {
+    /// Accepts at most the configured byte budget.
+    #[inline]
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        if self.remaining == 0 {
+            return Err(io::Error::other("intentional serializer failure"));
+        }
+        let accepted = self.remaining.min(buffer.len());
+        self.remaining -= accepted;
+        Ok(accepted)
+    }
+
+    /// Flushes successfully because only data writes are under test.
+    #[inline(always)]
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 
@@ -173,4 +199,47 @@ fn test_redacted_serde_propagates_serializer_errors() {
     .expect_err("the writer rejects serialization");
 
     assert!(error.is_io());
+}
+
+/// Verifies empty runtime-keyed maps serialize as empty objects.
+#[test]
+fn test_redacted_serde_serializes_empty_map() {
+    let mut value = account();
+    value.metadata.clear();
+
+    let json = serde_json::to_value(value.redacted_with(&policy()))
+        .expect("redacted serialization succeeds");
+
+    assert_eq!(json["metadata"], serde_json::json!({}));
+}
+
+/// Verifies absent and empty nested containers preserve their wire shape.
+#[test]
+fn test_redacted_serde_preserves_absent_and_empty_nested_containers() {
+    let mut value = account();
+    value.backup = None;
+    value.history.clear();
+
+    let json = serde_json::to_value(value.redacted_with(&policy()))
+        .expect("redacted serialization succeeds");
+
+    assert_eq!(json["backup"], serde_json::Value::Null);
+    assert_eq!(json["history"], serde_json::json!([]));
+}
+
+/// Verifies map serializer errors propagate while opening and writing entries.
+#[test]
+fn test_redacted_map_serde_propagates_serializer_errors() {
+    let metadata =
+        BTreeMap::from([("api_key".to_owned(), "raw-api-key".to_owned())]);
+    let redacted = RedactedMap::new(&metadata, policy());
+
+    let open_error = serde_json::to_writer(FailingWriter, &redacted)
+        .expect_err("the writer rejects the opening map delimiter");
+    let entry_error =
+        serde_json::to_writer(FailAfter { remaining: 1 }, &redacted)
+            .expect_err("the writer rejects the first map entry");
+
+    assert!(open_error.is_io());
+    assert!(entry_error.is_io());
 }

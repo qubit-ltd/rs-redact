@@ -28,6 +28,8 @@ Qubit Redact 将职责拆成四层：
 
 | Feature | 能力 | 可选依赖 |
 | --- | --- | --- |
+| `derive` | 为具名领域 struct 派生 `Redact` 和 `RedactMut` | `qubit-redact-derive` |
+| `serde` | 序列化显式 opt-in 的脱敏视图 | `serde` |
 | `http` | URL、form、header 和有界 body 遮盖 | `form_urlencoded`、`http`、`serde_json`、`url` |
 
 ```toml
@@ -103,6 +105,80 @@ fn main() {
 `RedactionPolicy::set_global_default(policy)` 只能成功设置一次；后续调用返回
 `GlobalDefaultAlreadySet`，且不会替换已有默认值。`RedactionPolicy::builder()` 从调用时的
 默认值快照开始构建。此前创建的 policy、builder 和 redactor 都不会随之变化。
+
+## 领域对象
+
+启用 `derive` 后，可在字段边界声明脱敏语义。没有属性的字段保持普通值；递归处理和
+Map 按 key 分类都必须显式指定。
+
+```rust
+use std::collections::HashMap;
+
+use qubit_redact::{Redact, RedactionPolicy, Sensitivity};
+
+#[derive(Redact)]
+struct Account {
+    id: u64,
+    #[redact(level = "secret")]
+    password: String,
+    #[redact(map)]
+    metadata: HashMap<String, String>,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let policy = RedactionPolicy::empty_builder()
+        .raise("api_key", Sensitivity::Secret)
+        .build()?;
+    let account = Account {
+        id: 1,
+        password: "raw-password".to_owned(),
+        metadata: HashMap::from([
+            ("api_key".to_owned(), "raw-key".to_owned()),
+        ]),
+    };
+    let output = format!("{:?}", account.redacted_with(&policy));
+    assert!(!output.contains("raw-password"));
+    assert!(!output.contains("raw-key"));
+    Ok(())
+}
+```
+
+字段类型实现了 `Redact` 时，仍然只有标记 `#[redact(nested)]` 才会递归处理；没有该
+属性就绝不隐式遍历。`#[redact(skip)]` 会从脱敏后的 Debug、Display 和 serde 表示中省略
+字段，但不会删除或修改原对象字段，`RedactMut` 也不会改它。
+
+`RedactMut` 是独立且显式的破坏式契约。`redact_in_place`、`into_redacted` 和基于 clone
+的 `to_redacted` 支持相同的 `level`、`nested`、`map` 字段模式。`to_redacted` 会短暂产生
+第二份原始敏感数据；高敏感场景应优先使用 `redact_in_place` 或 `into_redacted`。
+
+同时启用 `derive`、`serde`，再给具名 struct 添加 `#[redact(serde)]`，即可序列化其脱敏
+视图。原类型自身的 `Serialize`、`Debug`、`Display` 行为不变，`Redacted` 不实现
+`Deserialize`。
+
+```rust
+use qubit_redact::Redact;
+
+#[derive(Redact)]
+#[redact(serde)]
+struct Credentials {
+    #[redact(level = "secret")]
+    token: String,
+    #[redact(skip)]
+    internal_note: String,
+}
+
+let value = Credentials {
+    token: "raw-token".to_owned(),
+    internal_note: "not serialized".to_owned(),
+};
+let json = serde_json::to_string(&value.redacted()).unwrap();
+assert!(!json.contains("raw-token"));
+assert!(!json.contains("internal_note"));
+```
+
+`redacted()` 会快照进程级默认策略；`redacted_with` 会快照显式策略，所有 nested 和 Map
+字段都沿用同一快照。第一版不支持字段级 Map policy；字段需要不同策略边界时，请使用
+领域 newtype 并通过 `nested` 处理。derive 当前只支持具名 struct。
 
 ## 进程诊断
 
