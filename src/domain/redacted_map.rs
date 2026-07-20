@@ -67,3 +67,17 @@ impl<M: RedactMapValue + ?Sized> Display for RedactedMap<'_, M> {
         Display::fmt(&safe, formatter)
     }
 }
+
+#[cfg(feature = "serde")]
+impl<M: crate::domain::RedactMapSerialize + ?Sized> serde::Serialize
+    for RedactedMap<'_, M>
+{
+    /// Serializes values after classifying each one by its runtime key.
+    #[inline(always)]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.map.serialize_redacted_map(&self.policy, serializer)
+    }
+}

@@ -17,3 +17,5 @@ mod nested_tests;
 mod redact_mut_tests;
 mod redact_value_tests;
 mod redacted_tests;
+#[cfg(all(feature = "derive", feature = "serde"))]
+mod serde_tests;

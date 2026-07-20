@@ -50,6 +50,34 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     pub(crate) const fn new(value: &'a T, policy: RedactionPolicy) -> Self {
         Self { value, policy }
     }
+
+    /// Returns the borrowed domain value to crate-internal adapters.
+    #[cfg(feature = "serde")]
+    #[inline(always)]
+    pub(crate) const fn value(&self) -> &'a T {
+        self.value
+    }
+
+    /// Returns the policy snapshot to crate-internal adapters.
+    #[cfg(feature = "serde")]
+    #[inline(always)]
+    pub(crate) const fn policy(&self) -> &RedactionPolicy {
+        &self.policy
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<T: crate::domain::RedactSerialize + ?Sized> serde::Serialize
+    for Redacted<'_, T>
+{
+    /// Delegates serialization to the derived redaction hook.
+    #[inline(always)]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.value().serialize_redacted(self.policy(), serializer)
+    }
 }
 
 impl<T: Redact + ?Sized> Debug for Redacted<'_, T> {

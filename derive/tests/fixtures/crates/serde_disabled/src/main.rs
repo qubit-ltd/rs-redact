@@ -5,11 +5,17 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Private support for domain-object redaction.
+//! Fixture proving redacted serde requires the runtime feature.
 
-mod nested;
-#[cfg(feature = "serde")]
-mod redacted_serialize;
+use qubit_redact::Redact;
 
-#[cfg(feature = "serde")]
-pub use redacted_serialize::RedactedSerialize;
+/// Invalid because the dependency enables derive but not serde.
+#[derive(Redact)]
+#[redact(serde)]
+struct Record {
+    /// Plain value.
+    value: String,
+}
+
+/// Keeps the invalid type reachable.
+fn main() {}

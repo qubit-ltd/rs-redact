@@ -67,6 +67,22 @@ impl Debug for RedactedValue<'_> {
     }
 }
 
+#[cfg(feature = "serde")]
+impl serde::Serialize for RedactedValue<'_> {
+    /// Preserves the original plain or optional container shape.
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Text(text) => serializer.serialize_str(text.as_str()),
+            Self::Some(text) => serializer.serialize_some(text.as_str()),
+            Self::None => serializer.serialize_none(),
+        }
+    }
+}
+
 impl Display for RedactedValue<'_> {
     /// Writes masked contents escaped for a plain-text log boundary.
     ///

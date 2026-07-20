@@ -15,6 +15,8 @@ mod redact_derive;
 mod redact_mut_derive;
 mod runtime_path;
 mod sensitivity;
+mod serde_attributes;
+mod serde_rename_rule;
 
 use proc_macro::TokenStream;
 
@@ -32,7 +34,7 @@ use proc_macro::TokenStream;
 /// An implementation of `qubit_redact::Redact`, or a targeted compile error
 /// when the input is not a named-field struct or the runtime crate cannot be
 /// resolved.
-#[proc_macro_derive(Redact, attributes(redact))]
+#[proc_macro_derive(Redact, attributes(redact, serde))]
 #[inline(always)]
 pub fn derive_redact(input: TokenStream) -> TokenStream {
     redact_derive::derive(input)
@@ -48,7 +50,7 @@ pub fn derive_redact(input: TokenStream) -> TokenStream {
 ///
 /// An implementation of `qubit_redact::RedactMut`, or a targeted compile
 /// error for unsupported input or field capabilities.
-#[proc_macro_derive(RedactMut, attributes(redact))]
+#[proc_macro_derive(RedactMut, attributes(redact, serde))]
 #[inline(always)]
 pub fn derive_redact_mut(input: TokenStream) -> TokenStream {
     redact_mut_derive::derive(input)

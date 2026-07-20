@@ -117,6 +117,8 @@ pub mod env;
 #[cfg(feature = "http")]
 pub mod http;
 pub mod policy;
+#[cfg(feature = "serde")]
+mod private;
 mod redactor;
 pub mod text;
 
@@ -158,3 +160,25 @@ pub use text::{
     RedactedText,
     redacted_debug,
 };
+
+#[cfg(feature = "serde")]
+#[doc(hidden)]
+pub use private::__private;
+
+#[cfg(feature = "serde")]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __qubit_redact_serde {
+    ($($tokens:tt)*) => { $($tokens)* };
+}
+
+#[cfg(not(feature = "serde"))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __qubit_redact_serde {
+    ($($tokens:tt)*) => {
+        compile_error!(
+            "#[redact(serde)] requires the `serde` feature of qubit-redact"
+        );
+    };
+}
