@@ -1,0 +1,69 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+//! Value-level destructive masking for owned textual forms.
+
+use std::borrow::Cow;
+
+use crate::{
+    MaskingPolicy,
+    Sensitivity,
+};
+
+/// Replaces an owned textual value according to one sensitivity level.
+pub trait RedactValueMut {
+    /// Masks this value in place.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` - Sensitivity selecting a mask.
+    /// * `masking` - Complete masking configuration.
+    fn redact_value_in_place(
+        &mut self,
+        level: Sensitivity,
+        masking: &MaskingPolicy,
+    );
+}
+
+impl RedactValueMut for String {
+    #[inline]
+    fn redact_value_in_place(
+        &mut self,
+        level: Sensitivity,
+        masking: &MaskingPolicy,
+    ) {
+        if let Cow::Owned(redacted) = masking.mask(level, self) {
+            *self = redacted;
+        }
+    }
+}
+
+impl RedactValueMut for Cow<'_, str> {
+    #[inline]
+    fn redact_value_in_place(
+        &mut self,
+        level: Sensitivity,
+        masking: &MaskingPolicy,
+    ) {
+        if let Cow::Owned(redacted) = masking.mask(level, self.as_ref()) {
+            *self = Cow::Owned(redacted);
+        }
+    }
+}
+
+impl<T: RedactValueMut> RedactValueMut for Option<T> {
+    #[inline]
+    fn redact_value_in_place(
+        &mut self,
+        level: Sensitivity,
+        masking: &MaskingPolicy,
+    ) {
+        if let Some(value) = self {
+            value.redact_value_in_place(level, masking);
+        }
+    }
+}

@@ -136,3 +136,95 @@ pub(crate) fn expand(
         }
     })
 }
+
+/// Expands a named-field struct into its runtime `RedactMut` implementation.
+///
+/// # Parameters
+///
+/// * `input` - Parsed derive input whose generics and fields are preserved.
+/// * `runtime` - Resolved path to the `qubit-redact` runtime crate.
+///
+/// # Returns
+///
+/// Generated destructive redaction implementation tokens.
+///
+/// # Errors
+///
+/// Returns a targeted syntax error when `input` is not a named-field struct,
+/// a field has no identifier, or a redaction attribute is invalid.
+pub(crate) fn expand_mut(
+    input: &DeriveInput,
+    runtime: &Path,
+) -> syn::Result<TokenStream> {
+    let _container_attributes = ContainerAttributes::parse(input)?;
+    let fields = match &input.data {
+        Data::Struct(data) => match &data.fields {
+            Fields::Named(fields) => fields,
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    input,
+                    "RedactMut can only be derived for structs with named fields",
+                ));
+            }
+        },
+        _ => {
+            return Err(syn::Error::new_spanned(
+                input,
+                "RedactMut can only be derived for structs with named fields",
+            ));
+        }
+    };
+
+    let mutations = fields
+        .named
+        .iter()
+        .map(|field| {
+            let identifier = field.ident.as_ref().ok_or_else(|| {
+                syn::Error::new_spanned(
+                    field,
+                    "RedactMut requires every field to have a name",
+                )
+            })?;
+            let attributes =
+                FieldAttributes::parse(field, &input.ident, identifier)?;
+            let mutation = match attributes.mode() {
+                FieldMode::Plain | FieldMode::Skip => TokenStream::new(),
+                FieldMode::Level(sensitivity) => {
+                    let level = sensitivity.runtime_tokens(runtime);
+                    quote_spanned! {field.span()=>
+                        #runtime::RedactValueMut::redact_value_in_place(
+                            &mut self.#identifier,
+                            #level,
+                            policy.masking(),
+                        );
+                    }
+                }
+                FieldMode::Nested => quote_spanned! {field.span()=>
+                    #runtime::RedactMut::redact_in_place_with(
+                        &mut self.#identifier,
+                        policy,
+                    );
+                },
+                FieldMode::Map => quote_spanned! {field.span()=>
+                    #runtime::RedactMapValueMut::redact_map_in_place(
+                        &mut self.#identifier,
+                        policy,
+                    );
+                },
+            };
+            Ok(mutation)
+        })
+        .collect::<syn::Result<Vec<_>>>()?;
+    let name = &input.ident;
+    let (impl_generics, type_generics, where_clause) =
+        input.generics.split_for_impl();
+
+    Ok(quote! {
+        impl #impl_generics #runtime::RedactMut for #name #type_generics #where_clause {
+            fn redact_in_place_with(&mut self, policy: &#runtime::RedactionPolicy) {
+                let _ = policy;
+                #(#mutations)*
+            }
+        }
+    })
+}

@@ -125,7 +125,9 @@ pub use domain::{
     Redact,
     RedactMapValue,
     RedactMapValueMut,
+    RedactMut,
     RedactValue,
+    RedactValueMut,
     Redacted,
     RedactedMap,
     RedactedValue,
@@ -145,7 +147,10 @@ pub use policy::{
     Sensitivity,
 };
 #[cfg(feature = "derive")]
-pub use qubit_redact_derive::Redact;
+pub use qubit_redact_derive::{
+    Redact,
+    RedactMut,
+};
 pub use redactor::Redactor;
 pub use text::{
     LogSafeText,

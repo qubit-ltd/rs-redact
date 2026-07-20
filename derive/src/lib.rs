@@ -12,6 +12,7 @@ mod derive_input;
 mod field_attributes;
 mod field_mode;
 mod redact_derive;
+mod redact_mut_derive;
 mod runtime_path;
 mod sensitivity;
 
@@ -19,9 +20,8 @@ use proc_macro::TokenStream;
 
 /// Derives immutable redacted formatting for a named-field struct.
 ///
-/// In this initial form, every field is formatted unchanged. Redaction
-/// attributes are introduced separately so that recursion and masking remain
-/// explicit choices.
+/// Unmarked fields use ordinary `Debug`; masking, recursion, map processing,
+/// and omission require explicit field attributes.
 ///
 /// # Parameters
 ///
@@ -36,4 +36,20 @@ use proc_macro::TokenStream;
 #[inline(always)]
 pub fn derive_redact(input: TokenStream) -> TokenStream {
     redact_derive::derive(input)
+}
+
+/// Derives explicit destructive redaction for owned fields of a named struct.
+///
+/// # Parameters
+///
+/// * `input` - Rust item annotated with `#[derive(RedactMut)]`.
+///
+/// # Returns
+///
+/// An implementation of `qubit_redact::RedactMut`, or a targeted compile
+/// error for unsupported input or field capabilities.
+#[proc_macro_derive(RedactMut, attributes(redact))]
+#[inline(always)]
+pub fn derive_redact_mut(input: TokenStream) -> TokenStream {
+    redact_mut_derive::derive(input)
 }

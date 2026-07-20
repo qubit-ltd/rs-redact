@@ -14,6 +14,7 @@ use std::fmt::{
 
 use crate::{
     Redact,
+    RedactMut,
     RedactionPolicy,
 };
 
@@ -60,5 +61,33 @@ impl<T: Redact> Redact for Vec<T> {
             list.entry(&value.redacted_with(policy));
         }
         list.finish()
+    }
+}
+
+impl<T: RedactMut> RedactMut for Option<T> {
+    /// Redacts a present nested object with the supplied policy.
+    #[inline]
+    fn redact_in_place_with(&mut self, policy: &RedactionPolicy) {
+        if let Some(value) = self {
+            value.redact_in_place_with(policy);
+        }
+    }
+}
+
+impl<T: RedactMut + ?Sized> RedactMut for Box<T> {
+    /// Transparently delegates mutation to the boxed object.
+    #[inline(always)]
+    fn redact_in_place_with(&mut self, policy: &RedactionPolicy) {
+        self.as_mut().redact_in_place_with(policy);
+    }
+}
+
+impl<T: RedactMut> RedactMut for Vec<T> {
+    /// Redacts every nested item with the supplied policy.
+    #[inline]
+    fn redact_in_place_with(&mut self, policy: &RedactionPolicy) {
+        for value in self {
+            value.redact_in_place_with(policy);
+        }
     }
 }

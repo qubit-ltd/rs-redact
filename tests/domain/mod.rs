@@ -13,5 +13,7 @@ mod derive_attribute_tests;
 mod map_tests;
 #[cfg(feature = "derive")]
 mod nested_tests;
+#[cfg(feature = "derive")]
+mod redact_mut_tests;
 mod redact_value_tests;
 mod redacted_tests;
