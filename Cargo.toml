@@ -5,9 +5,9 @@ edition = "2024"
 rust-version = "1.94"
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
 license = "Apache-2.0"
-repository = "https://github.com/qubit-ltd/rs-sanitize"
+repository = "https://github.com/qubit-ltd/rs-redact"
 description = "Rule-driven redaction for fields, diagnostics, HTTP data, and Rust domain objects"
-homepage = "https://github.com/qubit-ltd/rs-sanitize"
+homepage = "https://github.com/qubit-ltd/rs-redact"
 documentation = "https://docs.rs/qubit-redact"
 readme = "README.md"
 keywords = ["redact", "mask", "privacy", "logging", "qubit"]
@@ -37,8 +37,8 @@ edition = "2024"
 rust-version = "1.94"
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
 license = "Apache-2.0"
-repository = "https://github.com/qubit-ltd/rs-sanitize"
-homepage = "https://github.com/qubit-ltd/rs-sanitize"
+repository = "https://github.com/qubit-ltd/rs-redact"
+homepage = "https://github.com/qubit-ltd/rs-redact"
 readme = "README.md"
 
 [features]
