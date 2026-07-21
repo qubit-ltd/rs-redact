@@ -7,6 +7,8 @@
 // =============================================================================
 //! Canonical field-name and semantic token-suffix generation.
 
+use std::ops::ControlFlow;
+
 use crate::policy::FieldNameMatching;
 
 /// Canonicalizes `name` by trimming, lowercasing, and removing separators.
@@ -30,7 +32,7 @@ pub(crate) fn canonicalize_field_name(name: &str) -> String {
     canonical
 }
 
-/// Returns canonical candidates for `name`, ordered longest to shortest.
+/// Visits canonical candidates for `name`, ordered longest to shortest.
 ///
 /// Exact matching yields only the complete canonical name. Token-suffix
 /// matching additionally yields separator and camel-case suffixes without
@@ -43,32 +45,38 @@ pub(crate) fn canonicalize_field_name(name: &str) -> String {
 ///
 /// # Returns
 ///
-/// An owned iterator over canonical candidates.
-pub(crate) fn canonical_field_candidates(
+/// `Break(value)` from the first visitor call that stops classification, or
+/// `Continue(())` after every candidate has been visited.
+pub(crate) fn visit_canonical_field_candidates<B>(
     name: &str,
     matching: FieldNameMatching,
-) -> impl Iterator<Item = String> {
+    mut visitor: impl FnMut(bool, &str) -> ControlFlow<B>,
+) -> ControlFlow<B> {
     let canonical = canonicalize_field_name(name);
-    let mut candidates = vec![canonical.clone()];
+    visitor(true, &canonical)?;
     if matching == FieldNameMatching::ExactOrTokenSuffix {
-        append_token_suffixes(name, &canonical, &mut candidates);
+        visit_token_suffixes(name, &canonical, &mut visitor)?;
     }
-    candidates.into_iter()
+    ControlFlow::Continue(())
 }
 
-/// Appends semantic token suffixes of `name` to `candidates` without
-/// duplicates.
+/// Visits semantic token suffixes of `name` without allocating candidates.
 ///
 /// # Parameters
 ///
 /// * `name` - Raw field name whose boundaries are inspected.
 /// * `canonical` - Complete canonical form of `name`.
-/// * `candidates` - Destination that already contains the complete form.
-fn append_token_suffixes(
+/// * `visitor` - Callback receiving suffix candidates in longest-first order.
+///
+/// # Returns
+///
+/// `Break(value)` when the visitor stops classification, otherwise
+/// `Continue(())` after all suffixes have been visited.
+fn visit_token_suffixes<B>(
     name: &str,
     canonical: &str,
-    candidates: &mut Vec<String>,
-) {
+    visitor: &mut impl FnMut(bool, &str) -> ControlFlow<B>,
+) -> ControlFlow<B> {
     let mut canonical_offset = 0;
     let mut previous = None;
     let mut in_token = false;
@@ -85,15 +93,14 @@ fn append_token_suffixes(
             && canonical_offset > 0
         {
             let candidate = &canonical[canonical_offset..];
-            if candidates.last().is_none_or(|last| last != candidate) {
-                candidates.push(candidate.to_string());
-            }
+            visitor(false, candidate)?;
         }
         canonical_offset +=
             ch.to_lowercase().map(char::len_utf8).sum::<usize>();
         in_token = true;
         previous = Some(ch);
     }
+    ControlFlow::Continue(())
 }
 
 /// Returns whether `ch` separates semantic field-name tokens.

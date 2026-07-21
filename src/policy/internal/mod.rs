@@ -8,8 +8,10 @@
 //! Internal field-name canonicalization and candidate generation.
 
 mod field_name;
+mod redaction_policy_inner;
 
 pub(crate) use field_name::{
-    canonical_field_candidates,
     canonicalize_field_name,
+    visit_canonical_field_candidates,
 };
+pub(super) use redaction_policy_inner::RedactionPolicyInner;

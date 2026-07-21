@@ -12,6 +12,7 @@ use std::{
         BTreeMap,
         BTreeSet,
     },
+    ops::ControlFlow,
     sync::{
         Arc,
         LazyLock,
@@ -28,7 +29,10 @@ use super::{
     SensitiveFieldPreset,
     SensitiveFieldRule,
     Sensitivity,
-    internal::canonical_field_candidates,
+    internal::{
+        RedactionPolicyInner,
+        visit_canonical_field_candidates,
+    },
 };
 
 /// Built-in sensitive fields not owned by a named preset.
@@ -50,7 +54,7 @@ static STANDARD_POLICY: LazyLock<RedactionPolicy> =
     LazyLock::new(RedactionPolicy::build_standard);
 
 /// Process-wide default policy installed at most once.
-static GLOBAL_DEFAULT: OnceLock<Arc<RedactionPolicy>> = OnceLock::new();
+static GLOBAL_DEFAULT: OnceLock<RedactionPolicy> = OnceLock::new();
 
 /// Immutable field-classification and value-masking policy.
 ///
@@ -60,21 +64,6 @@ static GLOBAL_DEFAULT: OnceLock<Arc<RedactionPolicy>> = OnceLock::new();
 pub struct RedactionPolicy {
     /// Shared immutable policy state.
     inner: Arc<RedactionPolicyInner>,
-}
-
-/// Complete immutable state shared by policy clones.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct RedactionPolicyInner {
-    /// Canonical sensitive fields and their levels.
-    sensitive: BTreeMap<String, Sensitivity>,
-    /// Canonical fields allowed only as complete names.
-    allow_exact: BTreeSet<String>,
-    /// Canonical fields allowed at exact and token-suffix boundaries.
-    allow_suffix: BTreeSet<String>,
-    /// Candidate-generation breadth for sensitive-field matching.
-    matching: FieldNameMatching,
-    /// Value masks selected by sensitivity level.
-    masking: MaskingPolicy,
 }
 
 impl RedactionPolicy {
@@ -97,13 +86,9 @@ impl RedactionPolicy {
     /// # Returns
     ///
     /// A shared immutable snapshot of the current process-wide default.
-    #[must_use]
     #[inline]
-    pub fn global_default() -> Arc<Self> {
-        GLOBAL_DEFAULT
-            .get()
-            .cloned()
-            .unwrap_or_else(|| Arc::new(Self::standard()))
+    pub fn global_default() -> Self {
+        GLOBAL_DEFAULT.get().cloned().unwrap_or_else(Self::standard)
     }
 
     /// Creates a builder initialized from the current default policy.
@@ -161,7 +146,7 @@ impl RedactionPolicy {
         policy: Self,
     ) -> Result<(), GlobalDefaultAlreadySet> {
         GLOBAL_DEFAULT
-            .set(Arc::new(policy))
+            .set(policy)
             .map_err(|_| GlobalDefaultAlreadySet)
     }
 
@@ -182,19 +167,24 @@ impl RedactionPolicy {
     /// allow rule wins or no sensitive rule matches.
     #[must_use]
     pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
-        let candidates = canonical_field_candidates(field, self.inner.matching);
-        for (index, candidate) in candidates.enumerate() {
-            let is_exact = index == 0;
-            if (is_exact && self.inner.allow_exact.contains(&candidate))
-                || self.inner.allow_suffix.contains(&candidate)
-            {
-                return None;
-            }
-            if let Some(level) = self.inner.sensitive.get(&candidate) {
-                return Some(*level);
-            }
+        match visit_canonical_field_candidates(
+            field,
+            self.inner.matching,
+            |is_exact, candidate| {
+                if (is_exact && self.inner.allow_exact.contains(candidate))
+                    || self.inner.allow_suffix.contains(candidate)
+                {
+                    return ControlFlow::Break(None);
+                }
+                if let Some(level) = self.inner.sensitive.get(candidate) {
+                    return ControlFlow::Break(Some(*level));
+                }
+                ControlFlow::Continue(())
+            },
+        ) {
+            ControlFlow::Break(result) => result,
+            ControlFlow::Continue(()) => None,
         }
-        None
     }
 
     /// Returns the configured sensitive-field matching breadth.
@@ -340,6 +330,6 @@ impl Default for RedactionPolicy {
     /// before a custom default is installed.
     #[inline(always)]
     fn default() -> Self {
-        Self::global_default().as_ref().clone()
+        Self::global_default()
     }
 }
