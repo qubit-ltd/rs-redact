@@ -1,6 +1,6 @@
 [package]
 name = "qubit-redact"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
@@ -17,6 +17,7 @@ include = [
     "/LICENSE",
     "/README.md",
     "/README.zh_CN.md",
+    "/benches/**",
     "/src/**",
     "/tests/**",
 ]
@@ -60,10 +61,20 @@ serde_json = { version = "1.0", optional = true }
 url = { version = "2.5", optional = true }
 
 [dev-dependencies]
+criterion = { version = "0.8.2", default-features = false }
 proptest = "1.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 trybuild = "1"
+
+[[bench]]
+name = "redaction_policy"
+harness = false
+
+[[bench]]
+name = "http_diagnostics"
+harness = false
+required-features = ["http"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
