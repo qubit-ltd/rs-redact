@@ -41,11 +41,11 @@ dependencies.
 # Enable HTTP support only where it is needed:
 # cargo add qubit-redact --features http
 # cargo add http@1.4
-qubit-redact = { version = "0.1", features = ["http"] }
+qubit-redact = { version = "0.3", features = ["http"] }
 http = "1.4"
 ```
 
-Use `qubit-redact = "0.1"` instead when only the dependency-free core is
+Use `qubit-redact = "0.3"` instead when only the dependency-free core is
 needed.
 
 ## Scalar Values and Maps

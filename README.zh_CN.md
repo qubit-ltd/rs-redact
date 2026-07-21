@@ -37,11 +37,11 @@ Qubit Redact 将职责拆成四层：
 # 仅在需要 HTTP 能力的 crate 中启用：
 # cargo add qubit-redact --features http
 # cargo add http@1.4
-qubit-redact = { version = "0.1", features = ["http"] }
+qubit-redact = { version = "0.3", features = ["http"] }
 http = "1.4"
 ```
 
-仅需要无依赖 core 时，改用 `qubit-redact = "0.1"`。
+仅需要无依赖 core 时，改用 `qubit-redact = "0.3"`。
 
 ## 标量与 Map
 
