@@ -11,6 +11,7 @@ use std::fmt::Display;
 
 use qubit_redact::{
     LogSafeText,
+    PolicyError,
     RedactionPolicy,
     Sensitivity,
     http::{
@@ -41,7 +42,9 @@ fn test_http_redaction_policy_default_uses_safe_values() {
 /// Verifies the builder default follows the current field-policy default.
 #[test]
 fn test_http_redaction_policy_builder_default_uses_safe_values() {
-    let policy = HttpRedactionPolicyBuilder::default().build();
+    let policy = HttpRedactionPolicyBuilder::default()
+        .build()
+        .expect("HTTP redaction policy should be valid");
 
     assert_eq!(policy, HttpRedactionPolicy::default());
 }
@@ -64,17 +67,110 @@ fn test_http_redaction_policy_builder_overrides_each_context() {
         .expect("body policy should be valid");
     let budget = BodyBudget::new(32, 48).expect("budget should be valid");
 
-    let policy = HttpRedactionPolicy::builder(base)
+    let policy = HttpRedactionPolicy::builder_from(base)
         .header_policy(header.clone())
         .query_policy(query.clone())
         .body_policy(body.clone())
         .body_budget(budget)
-        .build();
+        .build()
+        .expect("HTTP redaction policy should be valid");
 
     assert_eq!(policy.header_policy(), &header);
     assert_eq!(policy.query_policy(), &query);
     assert_eq!(policy.body_policy(), &body);
     assert_eq!(policy.body_budget(), budget);
+}
+
+/// Verifies one upstream builder owns independent mutable rules for every
+/// HTTP field context.
+#[test]
+fn test_http_redaction_policy_builder_configures_context_rules() {
+    let base = RedactionPolicy::empty_builder()
+        .build()
+        .expect("empty base policy should be valid");
+
+    let policy = HttpRedactionPolicy::builder_from(base)
+        .raise_header("header_secret", Sensitivity::High)
+        .override_header("header_secret", Sensitivity::Low)
+        .raise_header("visible_header", Sensitivity::Secret)
+        .allow_header_exact("visible_header")
+        .raise_header("public_header", Sensitivity::Secret)
+        .allow_header_suffix("public_header")
+        .raise_query("query_secret", Sensitivity::Secret)
+        .override_query("query_secret", Sensitivity::Medium)
+        .raise_query("visible_query", Sensitivity::Secret)
+        .allow_query_exact("visible_query")
+        .raise_query("public_query", Sensitivity::Secret)
+        .allow_query_suffix("public_query")
+        .raise_body("body_secret", Sensitivity::Secret)
+        .override_body("body_secret", Sensitivity::High)
+        .raise_body("visible_body", Sensitivity::Secret)
+        .allow_body_exact("visible_body")
+        .raise_body("public_body", Sensitivity::Secret)
+        .allow_body_suffix("public_body")
+        .build()
+        .expect("independent HTTP context rules should be valid");
+
+    assert_eq!(
+        policy.header_policy().sensitivity_for("header_secret"),
+        Some(Sensitivity::Low),
+    );
+    assert_eq!(
+        policy.query_policy().sensitivity_for("query_secret"),
+        Some(Sensitivity::Medium),
+    );
+    assert_eq!(
+        policy.body_policy().sensitivity_for("body_secret"),
+        Some(Sensitivity::High),
+    );
+    assert_eq!(
+        policy.header_policy().sensitivity_for("visible_header"),
+        None,
+    );
+    assert_eq!(policy.query_policy().sensitivity_for("visible_query"), None,);
+    assert_eq!(policy.body_policy().sensitivity_for("visible_body"), None,);
+    assert_eq!(
+        policy
+            .header_policy()
+            .sensitivity_for("tenant_visible_header"),
+        Some(Sensitivity::Secret),
+    );
+    assert_eq!(
+        policy
+            .query_policy()
+            .sensitivity_for("tenant_visible_query"),
+        Some(Sensitivity::Secret),
+    );
+    assert_eq!(
+        policy.body_policy().sensitivity_for("tenant_visible_body"),
+        Some(Sensitivity::Secret),
+    );
+    assert_eq!(
+        policy
+            .header_policy()
+            .sensitivity_for("tenant_public_header"),
+        None,
+    );
+    assert_eq!(
+        policy.query_policy().sensitivity_for("tenant_public_query"),
+        None,
+    );
+    assert_eq!(
+        policy.body_policy().sensitivity_for("tenant_public_body"),
+        None,
+    );
+}
+
+/// Verifies invalid context rules remain fallible until the HTTP snapshot is
+/// built.
+#[test]
+fn test_http_redaction_policy_builder_reports_invalid_context_rule() {
+    assert_eq!(
+        HttpRedactionPolicy::builder()
+            .raise_header("---", Sensitivity::High)
+            .build(),
+        Err(PolicyError::EmptyFieldName),
+    );
 }
 
 /// Verifies the new status vocabulary and result type are publicly usable.

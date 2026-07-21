@@ -38,19 +38,30 @@ pub struct HttpRedactionPolicy {
 }
 
 impl HttpRedactionPolicy {
-    /// Creates a builder with three independent snapshots of `base`.
-    ///
-    /// # Parameters
-    ///
-    /// * `base` - Field policy cloned for header, query, and body contexts.
+    /// Creates a builder from the current default field-policy snapshot.
     ///
     /// # Returns
     ///
     /// A mutable HTTP policy builder using fail-closed behavior defaults and
     /// finite 16 KiB input and 64 KiB output limits.
     #[inline(always)]
-    pub fn builder(base: RedactionPolicy) -> HttpRedactionPolicyBuilder {
-        HttpRedactionPolicyBuilder::new(base)
+    pub fn builder() -> HttpRedactionPolicyBuilder {
+        HttpRedactionPolicyBuilder::new()
+    }
+
+    /// Creates a builder with three mutable copies of `base`.
+    ///
+    /// # Parameters
+    ///
+    /// * `base` - Field policy copied for header, query, and body contexts.
+    ///
+    /// # Returns
+    ///
+    /// A mutable HTTP policy builder using fail-closed behavior defaults and
+    /// finite 16 KiB input and 64 KiB output limits.
+    #[inline(always)]
+    pub fn builder_from(base: RedactionPolicy) -> HttpRedactionPolicyBuilder {
+        HttpRedactionPolicyBuilder::from_policy(base)
     }
 
     /// Creates an immutable HTTP policy from complete builder state.
@@ -168,6 +179,15 @@ impl Default for HttpRedactionPolicy {
     /// Three independent default policy snapshots and finite body limits.
     #[inline(always)]
     fn default() -> Self {
-        Self::builder(RedactionPolicy::default()).build()
+        let base = RedactionPolicy::default();
+        Self::from_parts(
+            base.clone(),
+            base.clone(),
+            base,
+            UrlPathPolicy::default(),
+            TextBodyPolicy::default(),
+            UnkeyedJsonValuePolicy::default(),
+            BodyBudget::default(),
+        )
     }
 }

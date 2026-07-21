@@ -9,6 +9,8 @@
 
 pub(in crate::http) const TRUNCATED: &str = "<truncated>";
 pub(in crate::http) const INVALID_URL: &str = "<redacted: invalid URL>";
+pub(in crate::http) const NESTED_URL_LIMIT: &str =
+    "<redacted: nested URL limit exceeded>";
 pub(in crate::http) const INVALID_QUERY: &str =
     "<redacted: invalid URL-encoded query>";
 pub(in crate::http) const INVALID_FORM: &str =

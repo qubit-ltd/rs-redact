@@ -7,7 +7,12 @@
 // =============================================================================
 //! Builder for immutable HTTP redaction policy snapshots.
 
-use crate::RedactionPolicy;
+use crate::{
+    PolicyError,
+    RedactionPolicy,
+    RedactionPolicyBuilder,
+    Sensitivity,
+};
 
 use super::{
     BodyBudget,
@@ -21,12 +26,12 @@ use super::{
 #[must_use]
 #[derive(Debug, Clone)]
 pub struct HttpRedactionPolicyBuilder {
-    /// Field policy used for HTTP headers.
-    header_policy: RedactionPolicy,
-    /// Field policy used for URL query and form values.
-    query_policy: RedactionPolicy,
-    /// Field policy used inside structured bodies.
-    body_policy: RedactionPolicy,
+    /// Header-field policy construction state.
+    header: RedactionPolicyBuilder,
+    /// Query and form field-policy construction state.
+    query: RedactionPolicyBuilder,
+    /// Structured-body field-policy construction state.
+    body: RedactionPolicyBuilder,
     /// Visibility choice for non-root URL paths.
     url_path_policy: UrlPathPolicy,
     /// Visibility choice for opaque UTF-8 text bodies.
@@ -38,21 +43,31 @@ pub struct HttpRedactionPolicyBuilder {
 }
 
 impl HttpRedactionPolicyBuilder {
-    /// Creates a builder with three independent snapshots of `base`.
-    ///
-    /// # Parameters
-    ///
-    /// * `base` - Field policy cloned for header, query, and body contexts.
+    /// Creates a builder from the current default field-policy snapshot.
     ///
     /// # Returns
     ///
     /// A builder with fail-closed behavior choices and finite default limits.
     #[inline]
-    pub fn new(base: RedactionPolicy) -> Self {
+    pub fn new() -> Self {
+        Self::from_policy(RedactionPolicy::default())
+    }
+
+    /// Creates a builder with three mutable copies of `base`.
+    ///
+    /// # Parameters
+    ///
+    /// * `base` - Field policy copied for all three HTTP contexts.
+    ///
+    /// # Returns
+    ///
+    /// A builder with fail-closed behavior choices and finite default limits.
+    #[inline]
+    pub(super) fn from_policy(base: RedactionPolicy) -> Self {
         Self {
-            header_policy: base.clone(),
-            query_policy: base.clone(),
-            body_policy: base,
+            header: RedactionPolicy::builder_from(&base),
+            query: RedactionPolicy::builder_from(&base),
+            body: RedactionPolicy::builder_from(&base),
             url_path_policy: UrlPathPolicy::default(),
             text_body_policy: TextBodyPolicy::default(),
             unkeyed_json_value_policy: UnkeyedJsonValuePolicy::default(),
@@ -71,7 +86,7 @@ impl HttpRedactionPolicyBuilder {
     /// The updated builder.
     #[inline(always)]
     pub fn header_policy(mut self, policy: RedactionPolicy) -> Self {
-        self.header_policy = policy;
+        self.header = RedactionPolicy::builder_from(&policy);
         self
     }
 
@@ -86,7 +101,7 @@ impl HttpRedactionPolicyBuilder {
     /// The updated builder.
     #[inline(always)]
     pub fn query_policy(mut self, policy: RedactionPolicy) -> Self {
-        self.query_policy = policy;
+        self.query = RedactionPolicy::builder_from(&policy);
         self
     }
 
@@ -101,7 +116,193 @@ impl HttpRedactionPolicyBuilder {
     /// The updated builder.
     #[inline(always)]
     pub fn body_policy(mut self, policy: RedactionPolicy) -> Self {
-        self.body_policy = policy;
+        self.body = RedactionPolicy::builder_from(&policy);
+        self
+    }
+
+    /// Raises one header field to at least `level`.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Header name to canonicalize.
+    /// * `level` - Minimum sensitivity level.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline]
+    pub fn raise_header(mut self, name: &str, level: Sensitivity) -> Self {
+        self.header = self.header.raise(name, level);
+        self
+    }
+
+    /// Replaces one header field's sensitivity with `level`.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Header name to canonicalize.
+    /// * `level` - Explicit replacement sensitivity.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline]
+    pub fn override_header(mut self, name: &str, level: Sensitivity) -> Self {
+        self.header = self.header.override_level(name, level);
+        self
+    }
+
+    /// Allows one exact header name to remain visible.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Exact header name to allow after canonicalization.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline]
+    pub fn allow_header_exact(mut self, name: &str) -> Self {
+        self.header = self.header.allow_exact(name);
+        self
+    }
+
+    /// Allows one header name at token-suffix boundaries.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Header suffix to allow after canonicalization.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline]
+    pub fn allow_header_suffix(mut self, name: &str) -> Self {
+        self.header = self.header.allow_suffix(name);
+        self
+    }
+
+    /// Raises one query or form field to at least `level`.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Query field name to canonicalize.
+    /// * `level` - Minimum sensitivity level.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline]
+    pub fn raise_query(mut self, name: &str, level: Sensitivity) -> Self {
+        self.query = self.query.raise(name, level);
+        self
+    }
+
+    /// Replaces one query or form field's sensitivity with `level`.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Query field name to canonicalize.
+    /// * `level` - Explicit replacement sensitivity.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline]
+    pub fn override_query(mut self, name: &str, level: Sensitivity) -> Self {
+        self.query = self.query.override_level(name, level);
+        self
+    }
+
+    /// Allows one exact query or form field name to remain visible.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Exact query field name to allow after canonicalization.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline]
+    pub fn allow_query_exact(mut self, name: &str) -> Self {
+        self.query = self.query.allow_exact(name);
+        self
+    }
+
+    /// Allows one query or form field at token-suffix boundaries.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Query field suffix to allow after canonicalization.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline]
+    pub fn allow_query_suffix(mut self, name: &str) -> Self {
+        self.query = self.query.allow_suffix(name);
+        self
+    }
+
+    /// Raises one structured-body field to at least `level`.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Body field name to canonicalize.
+    /// * `level` - Minimum sensitivity level.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline]
+    pub fn raise_body(mut self, name: &str, level: Sensitivity) -> Self {
+        self.body = self.body.raise(name, level);
+        self
+    }
+
+    /// Replaces one structured-body field's sensitivity with `level`.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Body field name to canonicalize.
+    /// * `level` - Explicit replacement sensitivity.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline]
+    pub fn override_body(mut self, name: &str, level: Sensitivity) -> Self {
+        self.body = self.body.override_level(name, level);
+        self
+    }
+
+    /// Allows one exact structured-body field name to remain visible.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Exact body field name to allow after canonicalization.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline]
+    pub fn allow_body_exact(mut self, name: &str) -> Self {
+        self.body = self.body.allow_exact(name);
+        self
+    }
+
+    /// Allows one structured-body field at token-suffix boundaries.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Body field suffix to allow after canonicalization.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline]
+    pub fn allow_body_suffix(mut self, name: &str) -> Self {
+        self.body = self.body.allow_suffix(name);
         self
     }
 
@@ -168,25 +369,29 @@ impl HttpRedactionPolicyBuilder {
         self
     }
 
-    /// Builds the complete immutable HTTP policy.
-    ///
-    /// All fallible validation occurs while constructing the component field
-    /// policies and [`BodyBudget`], so this final operation is infallible.
+    /// Validates all field rules and builds the complete HTTP policy.
     ///
     /// # Returns
     ///
     /// A complete immutable HTTP policy snapshot.
-    #[inline(always)]
-    pub fn build(self) -> HttpRedactionPolicy {
-        HttpRedactionPolicy::from_parts(
-            self.header_policy,
-            self.query_policy,
-            self.body_policy,
+    ///
+    /// # Errors
+    ///
+    /// Returns the first [`PolicyError`] found while validating the header,
+    /// query, and body policy builders in that order.
+    pub fn build(self) -> Result<HttpRedactionPolicy, PolicyError> {
+        let header = self.header.build()?;
+        let query = self.query.build()?;
+        let body = self.body.build()?;
+        Ok(HttpRedactionPolicy::from_parts(
+            header,
+            query,
+            body,
             self.url_path_policy,
             self.text_body_policy,
             self.unkeyed_json_value_policy,
             self.body_budget,
-        )
+        ))
     }
 }
 
@@ -196,9 +401,9 @@ impl Default for HttpRedactionPolicyBuilder {
     /// # Returns
     ///
     /// The same construction state as
-    /// `HttpRedactionPolicy::builder(RedactionPolicy::default())`.
+    /// [`HttpRedactionPolicy::builder`](HttpRedactionPolicy::builder).
     #[inline(always)]
     fn default() -> Self {
-        Self::new(RedactionPolicy::default())
+        Self::new()
     }
 }

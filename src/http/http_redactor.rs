@@ -7,7 +7,10 @@
 // =============================================================================
 //! Unified immutable HTTP redaction façade.
 
-use std::collections::BTreeMap;
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+};
 
 use http::{
     HeaderMap,
@@ -37,12 +40,20 @@ use super::{
     UrlPathPolicy,
     internal::{
         content_type,
+        diagnostic_text,
         form,
         json,
         markers,
         multipart,
+        nested_url::{
+            self,
+            NestedUrl,
+        },
     },
 };
+
+/// Maximum number of recursively embedded HTTP URLs to redact.
+const MAX_NESTED_URL_DEPTH: usize = 8;
 
 /// Applies one immutable HTTP policy to URLs, forms, headers, and bodies.
 #[must_use = "use the redactor to produce safe HTTP diagnostics"]
@@ -92,6 +103,9 @@ impl HttpRedactor {
     ///
     /// User information, passwords, fragments, sensitive query values, and
     /// non-root paths under the default policy never reach the result.
+    /// Complete HTTP URLs used as non-sensitive query values are redacted
+    /// recursively under fixed nesting and percent-decoding limits; exceeding
+    /// either limit fails closed.
     ///
     /// # Parameters
     ///
@@ -100,54 +114,29 @@ impl HttpRedactor {
     /// # Returns
     ///
     /// An owned log-safe URL representation.
+    #[inline]
     pub fn redact_url(&self, url: &Url) -> LogSafeText<'static> {
-        let mut output = url.clone();
-        if self.policy.url_path_policy() == UrlPathPolicy::Redact
-            && output.path() != "/"
-        {
-            output.set_path("/<redacted>");
-        }
-        if !output.username().is_empty() {
-            let masked = self
-                .query_redactor
-                .policy()
-                .masking()
-                .mask(Sensitivity::High, output.username())
-                .into_owned();
-            let _ = output.set_username(&masked);
-        }
-        if let Some(password) = output.password() {
-            let masked = self
-                .query_redactor
-                .policy()
-                .masking()
-                .mask(Sensitivity::Secret, password)
-                .into_owned();
-            let _ = output.set_password(Some(&masked));
-        }
-        if let Some(fragment) = output.fragment() {
-            let masked = self
-                .query_redactor
-                .policy()
-                .masking()
-                .mask(Sensitivity::High, fragment)
-                .into_owned();
-            output.set_fragment(Some(&masked));
-        }
-        if let Some(query) = url.query() {
-            if form::is_valid(query.as_bytes()) {
-                let mut serializer =
-                    form_urlencoded::Serializer::new(String::new());
-                for (key, value) in url.query_pairs() {
-                    let value = self.query_redactor.redact(&key, &value);
-                    serializer.append_pair(&key, value.as_str());
-                }
-                output.set_query(Some(&serializer.finish()));
-            } else {
-                output.set_query(Some(markers::INVALID_QUERY));
-            }
-        }
-        Self::safe_owned(output.to_string())
+        Self::safe_owned(self.redact_url_text(url))
+    }
+
+    /// Redacts every HTTP URL-looking token in diagnostic text.
+    ///
+    /// Surrounding prose and punctuation are preserved. Invalid URL-looking
+    /// tokens fail closed, and log-control characters are escaped once after
+    /// all URL replacements are complete.
+    ///
+    /// # Parameters
+    ///
+    /// * `text` - Diagnostic text that may contain absolute HTTP URLs.
+    ///
+    /// # Returns
+    ///
+    /// Owned log-safe text with recognized URLs redacted.
+    #[inline]
+    pub fn redact_urls_in_text(&self, text: &str) -> LogSafeText<'static> {
+        let redacted =
+            diagnostic_text::redact(text, |url| self.redact_url_text(url));
+        Self::safe_owned(redacted)
     }
 
     /// Parses and redacts a URL, failing closed on invalid input.
@@ -163,7 +152,7 @@ impl HttpRedactor {
     pub fn redact_url_str(&self, input: &str) -> LogSafeText<'static> {
         Url::parse(input).map_or_else(
             |_| Self::safe_owned(markers::INVALID_URL.to_string()),
-            |url| self.redact_url(&url),
+            |url| Self::safe_owned(self.redact_url_text(&url)),
         )
     }
 
@@ -261,6 +250,113 @@ impl HttpRedactor {
             budget_truncated,
             self.policy.body_budget(),
         )
+    }
+
+    /// Produces an owned redacted URL before log-control escaping.
+    ///
+    /// # Parameters
+    ///
+    /// * `url` - Parsed URL to redact.
+    ///
+    /// # Returns
+    ///
+    /// An owned URL representation safe to combine with other redacted text.
+    fn redact_url_text(&self, url: &Url) -> String {
+        self.redact_url_text_at_depth(url, 0)
+    }
+
+    /// Produces a redacted URL under a bounded nested-URL recursion depth.
+    ///
+    /// # Parameters
+    ///
+    /// * `url` - Parsed URL to redact.
+    /// * `depth` - Number of enclosing URL query values already traversed.
+    ///
+    /// # Returns
+    ///
+    /// An owned URL representation safe to combine with other redacted text.
+    fn redact_url_text_at_depth(&self, url: &Url, depth: usize) -> String {
+        let mut output = url.clone();
+        if self.policy.url_path_policy() == UrlPathPolicy::Redact
+            && output.path() != "/"
+        {
+            output.set_path("/<redacted>");
+        }
+        if !output.username().is_empty() {
+            let masked = self
+                .query_redactor
+                .policy()
+                .masking()
+                .mask(Sensitivity::High, output.username())
+                .into_owned();
+            let _ = output.set_username(&masked);
+        }
+        if let Some(password) = output.password() {
+            let masked = self
+                .query_redactor
+                .policy()
+                .masking()
+                .mask(Sensitivity::Secret, password)
+                .into_owned();
+            let _ = output.set_password(Some(&masked));
+        }
+        if let Some(fragment) = output.fragment() {
+            let masked = self
+                .query_redactor
+                .policy()
+                .masking()
+                .mask(Sensitivity::High, fragment)
+                .into_owned();
+            output.set_fragment(Some(&masked));
+        }
+        if let Some(query) = url.query() {
+            if form::is_valid(query.as_bytes()) {
+                let mut serializer =
+                    form_urlencoded::Serializer::new(String::new());
+                for (key, value) in url.query_pairs() {
+                    let value =
+                        self.query_redactor.redact(&key, &value).into_inner();
+                    let value = self.redact_nested_url_value(value, depth);
+                    serializer.append_pair(&key, value.as_ref());
+                }
+                output.set_query(Some(&serializer.finish()));
+            } else {
+                output.set_query(Some(markers::INVALID_QUERY));
+            }
+        }
+        output.to_string()
+    }
+
+    /// Redacts a complete HTTP URL embedded in a non-sensitive query value.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Query value after ordinary field-policy redaction.
+    /// * `depth` - Number of enclosing URL query values already traversed.
+    ///
+    /// # Returns
+    ///
+    /// The original ownership form when no nested URL is present, otherwise
+    /// an owned redacted URL or fixed fail-closed marker.
+    fn redact_nested_url_value<'a>(
+        &self,
+        value: Cow<'a, str>,
+        depth: usize,
+    ) -> Cow<'a, str> {
+        let raw = match value {
+            Cow::Borrowed(raw) => raw,
+            Cow::Owned(masked) => return Cow::Owned(masked),
+        };
+        match nested_url::detect(raw) {
+            NestedUrl::NotUrl => Cow::Borrowed(raw),
+            NestedUrl::Parsed(url) if depth < MAX_NESTED_URL_DEPTH => {
+                Cow::Owned(self.redact_url_text_at_depth(&url, depth + 1))
+            }
+            NestedUrl::Parsed(_) | NestedUrl::LimitExceeded => {
+                Cow::Borrowed(markers::NESTED_URL_LIMIT)
+            }
+            NestedUrl::Invalid => Cow::Borrowed(markers::INVALID_URL),
+        }
     }
 
     /// Dispatches a bounded body slice to a supported parser.

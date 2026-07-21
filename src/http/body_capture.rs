@@ -40,6 +40,51 @@ impl<'a> BodyCapture<'a> {
         }
     }
 
+    /// Captures at most `max_bytes` from a complete source body.
+    ///
+    /// # Parameters
+    ///
+    /// * `bytes` - Complete source body bytes.
+    /// * `max_bytes` - Maximum prefix length to expose to the redactor.
+    ///
+    /// # Returns
+    ///
+    /// A complete capture when the body fits, otherwise a truncated prefix
+    /// carrying the exact total source length. A zero limit captures an empty
+    /// prefix of non-empty input.
+    #[inline]
+    pub fn prefix(bytes: &'a [u8], max_bytes: usize) -> Self {
+        let captured_len = bytes.len().min(max_bytes);
+        if captured_len == bytes.len() {
+            Self::complete(bytes)
+        } else {
+            Self {
+                bytes: &bytes[..captured_len],
+                total_len: Some(bytes.len()),
+                source_truncated: true,
+            }
+        }
+    }
+
+    /// Creates a capture known to omit an unknown number of source bytes.
+    ///
+    /// # Parameters
+    ///
+    /// * `bytes` - Captured prefix of the source body.
+    ///
+    /// # Returns
+    ///
+    /// An infallible truncated capture whose complete source length is
+    /// unknown.
+    #[inline(always)]
+    pub const fn truncated_unknown(bytes: &'a [u8]) -> Self {
+        Self {
+            bytes,
+            total_len: None,
+            source_truncated: true,
+        }
+    }
+
     /// Creates a capture known to omit source bytes.
     ///
     /// # Parameters
@@ -124,7 +169,8 @@ impl<'a> BodyCapture<'a> {
     ///
     /// # Returns
     ///
-    /// `true` only for captures created with [`Self::truncated`].
+    /// `true` for captures created with [`Self::prefix`] when the source does
+    /// not fit, [`Self::truncated_unknown`], or [`Self::truncated`].
     #[inline(always)]
     pub const fn is_source_truncated(self) -> bool {
         self.source_truncated

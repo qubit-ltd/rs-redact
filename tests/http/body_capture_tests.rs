@@ -73,3 +73,35 @@ fn test_body_capture_truncated_preserves_metadata() {
     assert_eq!(unknown.omitted_len(), None);
     assert!(unknown.is_source_truncated());
 }
+
+/// Verifies a presentation prefix preserves complete or truncated source
+/// metadata without a fallible impossible branch.
+#[test]
+fn test_body_capture_prefix_preserves_truthful_metadata() {
+    let bytes = b"abcdef";
+    let complete = BodyCapture::prefix(bytes, bytes.len());
+    let truncated = BodyCapture::prefix(bytes, 3);
+    let empty_prefix = BodyCapture::prefix(bytes, 0);
+
+    assert_eq!(complete, BodyCapture::complete(bytes));
+    assert_eq!(truncated.bytes(), b"abc");
+    assert_eq!(truncated.total_len(), Some(bytes.len()));
+    assert_eq!(truncated.omitted_len(), Some(3));
+    assert!(truncated.is_source_truncated());
+    assert_eq!(empty_prefix.bytes(), b"");
+    assert_eq!(empty_prefix.total_len(), Some(bytes.len()));
+    assert_eq!(empty_prefix.omitted_len(), Some(bytes.len()));
+    assert!(empty_prefix.is_source_truncated());
+}
+
+/// Verifies an unknown-length truncated capture is infallible and never
+/// misrepresented as complete input.
+#[test]
+fn test_body_capture_truncated_unknown_preserves_truncation() {
+    let capture = BodyCapture::truncated_unknown(b"captured");
+
+    assert_eq!(capture.bytes(), b"captured");
+    assert_eq!(capture.total_len(), None);
+    assert_eq!(capture.omitted_len(), None);
+    assert!(capture.is_source_truncated());
+}
