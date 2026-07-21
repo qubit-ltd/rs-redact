@@ -231,6 +231,58 @@ impl HttpRedactor {
         capture: BodyCapture<'_>,
         content_type: Option<&HeaderValue>,
     ) -> BodyRedaction {
+        let (content_type, invalid_content_type) = match content_type {
+            Some(value) => match value.to_str() {
+                Ok(value) => (Some(value), false),
+                Err(_) => (None, true),
+            },
+            None => (None, false),
+        };
+        self.redact_body_with_content_type(
+            capture,
+            content_type,
+            invalid_content_type,
+        )
+    }
+
+    /// Redacts a checked body capture selected by optional Content-Type text.
+    ///
+    /// This accepts text from callers that do not retain a native HTTP header.
+    /// Malformed Content-Type syntax is redacted fail-closed.
+    ///
+    /// # Parameters
+    ///
+    /// * `capture` - Checked complete or source-truncated body capture.
+    /// * `content_type` - Optional Content-Type text used for parser selection.
+    ///
+    /// # Returns
+    ///
+    /// A bounded result exposing only log-safe text and truthful metadata.
+    pub fn redact_body_with_content_type_text(
+        &self,
+        capture: BodyCapture<'_>,
+        content_type: Option<&str>,
+    ) -> BodyRedaction {
+        self.redact_body_with_content_type(capture, content_type, false)
+    }
+
+    /// Redacts a checked body capture after normalizing Content-Type input.
+    ///
+    /// # Parameters
+    ///
+    /// * `capture` - Checked complete or source-truncated body capture.
+    /// * `content_type` - UTF-8 Content-Type text available for parser selection.
+    /// * `invalid_content_type` - Whether a supplied native header was not UTF-8.
+    ///
+    /// # Returns
+    ///
+    /// A bounded result exposing only log-safe text and truthful metadata.
+    fn redact_body_with_content_type(
+        &self,
+        capture: BodyCapture<'_>,
+        content_type: Option<&str>,
+        invalid_content_type: bool,
+    ) -> BodyRedaction {
         let input_len = capture
             .bytes()
             .len()
@@ -238,11 +290,12 @@ impl HttpRedactor {
         let bounded = &capture.bytes()[..input_len];
         let budget_truncated = input_len < capture.bytes().len();
 
-        let parsed = self.redact_body_inner(
-            bounded,
-            content_type,
-            capture.is_source_truncated() || budget_truncated,
-        );
+        let truncated = capture.is_source_truncated() || budget_truncated;
+        let parsed = if invalid_content_type {
+            Self::invalid_content_type_body()
+        } else {
+            self.redact_body_inner(bounded, content_type, truncated)
+        };
         Self::finish_body_redaction(
             parsed,
             capture,
@@ -364,7 +417,7 @@ impl HttpRedactor {
     /// # Parameters
     ///
     /// * `bounded` - Input prefix already limited by the hard budget.
-    /// * `content_type_header` - Optional parser-selection header.
+    /// * `content_type` - Optional parser-selection text.
     /// * `truncated` - Whether bytes are known to follow the prefix.
     ///
     /// # Returns
@@ -374,31 +427,14 @@ impl HttpRedactor {
     fn redact_body_inner(
         &self,
         bounded: &[u8],
-        content_type_header: Option<&HeaderValue>,
+        content_type: Option<&str>,
         truncated: bool,
     ) -> (String, BodyRedactionStatus) {
         if bounded.is_empty() {
             return (String::new(), BodyRedactionStatus::Empty);
         }
-        let content_type = match content_type_header.map(HeaderValue::to_str) {
-            Some(Ok(value)) => Some(value),
-            Some(Err(_)) => {
-                return (
-                    markers::INVALID_CONTENT_TYPE.to_string(),
-                    BodyRedactionStatus::Redacted(
-                        BodyRedactionReason::InvalidContentType,
-                    ),
-                );
-            }
-            None => None,
-        };
         if content_type.is_some_and(|value| !content_type::is_valid(value)) {
-            return (
-                markers::INVALID_CONTENT_TYPE.to_string(),
-                BodyRedactionStatus::Redacted(
-                    BodyRedactionReason::InvalidContentType,
-                ),
-            );
+            return Self::invalid_content_type_body();
         }
         if content_type.is_some_and(content_type::is_multipart) {
             if truncated {
@@ -497,6 +533,20 @@ impl HttpRedactor {
                 BodyRedactionStatus::Redacted(BodyRedactionReason::InvalidJson),
             ),
         }
+    }
+
+    /// Creates the fail-closed result for an invalid Content-Type.
+    ///
+    /// # Returns
+    ///
+    /// The fixed marker and its matching redaction status.
+    fn invalid_content_type_body() -> (String, BodyRedactionStatus) {
+        (
+            markers::INVALID_CONTENT_TYPE.to_string(),
+            BodyRedactionStatus::Redacted(
+                BodyRedactionReason::InvalidContentType,
+            ),
+        )
     }
 
     /// Redacts newline-delimited JSON from a bounded slice.

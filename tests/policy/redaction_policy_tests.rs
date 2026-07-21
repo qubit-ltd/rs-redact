@@ -230,6 +230,19 @@ fn test_build_rejects_empty_canonical_field_names() {
     }
 }
 
+/// Verifies direct field-name validation matches builder canonicalization.
+#[test]
+fn test_validate_field_name_accepts_canonicalizable_names_and_rejects_empty() {
+    assert_eq!(
+        RedactionPolicyBuilder::validate_field_name("Tenant-Token"),
+        Ok(()),
+    );
+    assert_eq!(
+        RedactionPolicyBuilder::validate_field_name(" _-.[ ] "),
+        Err(PolicyError::EmptyFieldName),
+    );
+}
+
 /// Verifies that fixed masks require a non-empty replacement.
 #[test]
 fn test_build_rejects_empty_fixed_replacement() {

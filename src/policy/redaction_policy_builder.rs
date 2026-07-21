@@ -52,6 +52,24 @@ impl RedactionPolicyBuilder {
         Self::from_policy(&RedactionPolicy::default())
     }
 
+    /// Validates one field name using the builder's canonicalization rules.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Raw field name to canonicalize and validate.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when the name remains non-empty after canonicalization.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError::EmptyFieldName`] when canonicalization removes
+    /// every character.
+    pub fn validate_field_name(field: &str) -> Result<(), PolicyError> {
+        Self::checked_canonical_field(field).map(|_| ())
+    }
+
     /// Sets the candidate-generation breadth for sensitive rules.
     ///
     /// # Parameters
@@ -269,12 +287,35 @@ impl RedactionPolicyBuilder {
     /// `Some(canonical)` for a non-empty name, otherwise `None` after storing
     /// the first [`PolicyError::EmptyFieldName`].
     fn canonical_field(&mut self, field: &str) -> Option<String> {
+        match Self::checked_canonical_field(field) {
+            Ok(canonical) => Some(canonical),
+            Err(error) => {
+                self.error.get_or_insert(error);
+                None
+            }
+        }
+    }
+
+    /// Canonicalizes one field name and rejects an empty result.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Raw field name to canonicalize.
+    ///
+    /// # Returns
+    ///
+    /// The canonical field name when it is non-empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError::EmptyFieldName`] when canonicalization removes
+    /// every character.
+    fn checked_canonical_field(field: &str) -> Result<String, PolicyError> {
         let canonical = canonicalize_field_name(field);
         if canonical.is_empty() {
-            self.error.get_or_insert(PolicyError::EmptyFieldName);
-            None
+            Err(PolicyError::EmptyFieldName)
         } else {
-            Some(canonical)
+            Ok(canonical)
         }
     }
 }

@@ -428,6 +428,29 @@ fn test_body_dispatch_covers_empty_binary_unsupported_and_invalid_content_type()
     assert!(!invalid.to_string().contains("visible-secret"));
 }
 
+/// Verifies text Content-Type input selects parsers and rejects unsafe syntax.
+#[test]
+fn test_redact_body_with_content_type_text_dispatches_and_fails_closed() {
+    let redactor = HttpRedactor::default();
+    let structured = redactor.redact_body_with_content_type_text(
+        BodyCapture::complete(br#"{"password":"raw"}"#),
+        Some("application/json"),
+    );
+    let invalid = redactor.redact_body_with_content_type_text(
+        BodyCapture::complete(b"visible-secret"),
+        Some("text/plain\r\ninjected: true"),
+    );
+
+    assert!(!structured.to_string().contains("raw"));
+    assert_eq!(
+        invalid.status(),
+        qubit_redact::http::BodyRedactionStatus::Redacted(
+            qubit_redact::http::BodyRedactionReason::InvalidContentType,
+        ),
+    );
+    assert!(!invalid.to_string().contains("visible-secret"));
+}
+
 #[test]
 fn test_ndjson_and_form_body_redaction_cover_valid_and_invalid_inputs() {
     let redactor = HttpRedactor::default();
