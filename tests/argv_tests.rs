@@ -7,6 +7,8 @@
 // =============================================================================
 //! Tests for the explicit and heuristic argv redaction adapters.
 
+mod argv;
+
 use std::ffi::OsStr;
 #[cfg(unix)]
 use std::{

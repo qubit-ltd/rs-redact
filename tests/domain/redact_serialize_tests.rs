@@ -1,0 +1,12 @@
+//! Tests for serde redaction of domain objects.
+
+/// Asserts at compile time that a type implements [`serde::Serialize`].
+#[cfg(feature = "serde")]
+fn assert_serialize<T: serde::Serialize>() {}
+
+/// Verifies redacted scalar values implement serde serialization.
+#[cfg(feature = "serde")]
+#[test]
+fn test_redact_serialize_redacted_value_implements_serialize() {
+    assert_serialize::<qubit_redact::RedactedValue<'static>>();
+}
