@@ -28,7 +28,7 @@ fn test_body_capture_error_display_describes_invalid_total() {
 /// Verifies that a complete capture has exact, self-consistent metadata.
 #[test]
 fn test_body_capture_complete_sets_exact_metadata() {
-    let bytes = b"abcdef";
+    let bytes = std::hint::black_box(b"abcdef".as_slice());
     let capture = BodyCapture::complete(bytes);
 
     assert_eq!(capture.bytes(), bytes);
@@ -98,7 +98,8 @@ fn test_body_capture_prefix_preserves_truthful_metadata() {
 /// misrepresented as complete input.
 #[test]
 fn test_body_capture_truncated_unknown_preserves_truncation() {
-    let capture = BodyCapture::truncated_unknown(b"captured");
+    let bytes = std::hint::black_box(b"captured".as_slice());
+    let capture = BodyCapture::truncated_unknown(bytes);
 
     assert_eq!(capture.bytes(), b"captured");
     assert_eq!(capture.total_len(), None);

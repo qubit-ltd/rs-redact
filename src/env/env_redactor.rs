@@ -145,7 +145,6 @@ impl Default for EnvRedactor {
     /// # Returns
     ///
     /// An environment redactor backed by [`Redactor::default`].
-    #[inline(always)]
     fn default() -> Self {
         Self::new(Redactor::default())
     }

@@ -701,7 +701,6 @@ impl Default for HttpRedactor {
     /// # Returns
     ///
     /// A fail-closed redactor with finite body limits.
-    #[inline(always)]
     fn default() -> Self {
         Self::new(HttpRedactionPolicy::default())
     }

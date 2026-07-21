@@ -50,7 +50,6 @@ impl RedactValue for str {
     /// # Returns
     ///
     /// A plain redacted text representation.
-    #[inline(always)]
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -113,7 +112,6 @@ impl RedactValue for Cow<'_, str> {
     /// # Returns
     ///
     /// A plain redacted text representation.
-    #[inline(always)]
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -218,7 +216,6 @@ fn redact_text<'a>(
 ///
 /// [`RedactedValue::Some`] containing masked text when `value` is present, or
 /// [`RedactedValue::None`] when it is absent.
-#[inline(always)]
 fn redact_option<'a>(
     value: Option<&'a str>,
     level: Sensitivity,

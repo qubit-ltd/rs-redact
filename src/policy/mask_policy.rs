@@ -125,7 +125,6 @@ impl MaskPolicy {
     /// # Returns
     ///
     /// A mask policy that produces an empty result.
-    #[inline(always)]
     pub const fn empty() -> Self {
         Self::Empty
     }

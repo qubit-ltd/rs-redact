@@ -114,7 +114,6 @@ impl HttpRedactionPolicyBuilder {
     /// # Returns
     ///
     /// The updated builder.
-    #[inline(always)]
     pub fn body_policy(mut self, policy: RedactionPolicy) -> Self {
         self.body = RedactionPolicy::builder_from(&policy);
         self
@@ -315,7 +314,6 @@ impl HttpRedactionPolicyBuilder {
     /// # Returns
     ///
     /// The updated builder.
-    #[inline(always)]
     pub const fn url_path_policy(mut self, policy: UrlPathPolicy) -> Self {
         self.url_path_policy = policy;
         self
@@ -330,7 +328,6 @@ impl HttpRedactionPolicyBuilder {
     /// # Returns
     ///
     /// The updated builder.
-    #[inline(always)]
     pub const fn text_body_policy(mut self, policy: TextBodyPolicy) -> Self {
         self.text_body_policy = policy;
         self
@@ -345,7 +342,6 @@ impl HttpRedactionPolicyBuilder {
     /// # Returns
     ///
     /// The updated builder.
-    #[inline(always)]
     pub const fn unkeyed_json_value_policy(
         mut self,
         policy: UnkeyedJsonValuePolicy,
@@ -402,7 +398,6 @@ impl Default for HttpRedactionPolicyBuilder {
     ///
     /// The same construction state as
     /// [`HttpRedactionPolicy::builder`](HttpRedactionPolicy::builder).
-    #[inline(always)]
     fn default() -> Self {
         Self::new()
     }

@@ -78,7 +78,6 @@ impl BodyRedaction {
     ///
     /// A borrowed log-safe body representation including a complete
     /// truncation marker whenever [`Self::is_truncated`] is `true`.
-    #[inline(always)]
     pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
         &self.text
     }
@@ -108,7 +107,6 @@ impl BodyRedaction {
     /// # Returns
     ///
     /// The byte count after applying the hard input budget.
-    #[inline(always)]
     pub const fn captured_len(&self) -> usize {
         self.captured_len
     }
@@ -129,7 +127,6 @@ impl BodyRedaction {
     /// # Returns
     ///
     /// `Some(count)` when the source length is known, or `None` otherwise.
-    #[inline(always)]
     pub const fn omitted_len(&self) -> Option<usize> {
         self.omitted_len
     }
@@ -139,7 +136,6 @@ impl BodyRedaction {
     /// # Returns
     ///
     /// `true` for source capture, input-budget, or output-budget truncation.
-    #[inline(always)]
     pub const fn is_truncated(&self) -> bool {
         self.truncated
     }

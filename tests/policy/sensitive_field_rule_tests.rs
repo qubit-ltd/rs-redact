@@ -8,10 +8,12 @@ use qubit_redact::{
 /// Verifies a configured sensitive rule exposes its field and level.
 #[test]
 fn test_sensitive_field_rule_exposes_configuration() {
-    let policy = RedactionPolicy::empty_builder()
-        .raise("tenant_secret", Sensitivity::High)
-        .build()
-        .expect("the configured rule should be valid");
+    let policy = std::hint::black_box(
+        RedactionPolicy::empty_builder()
+            .raise("tenant_secret", Sensitivity::High)
+            .build()
+            .expect("the configured rule should be valid"),
+    );
     let rule = policy
         .sensitive_rules()
         .next()

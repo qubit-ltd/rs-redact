@@ -87,7 +87,9 @@ fn test_mask_policy_preserve_suffix_masks_short_value() {
 /// Verifies that an empty policy removes a non-empty value.
 #[test]
 fn test_mask_policy_empty_removes_value() {
-    assert_eq!(MaskPolicy::empty().mask("secret-token"), "");
+    let constructor =
+        std::hint::black_box(MaskPolicy::empty as fn() -> MaskPolicy);
+    assert_eq!(constructor().mask("secret-token"), "");
 }
 
 proptest! {

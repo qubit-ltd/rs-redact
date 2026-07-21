@@ -44,7 +44,6 @@ impl RedactedHeaders {
     /// # Returns
     ///
     /// A borrowed log-safe header representation.
-    #[inline(always)]
     pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
         &self.text
     }
@@ -54,7 +53,6 @@ impl RedactedHeaders {
     /// # Returns
     ///
     /// Owned log-safe header text.
-    #[inline(always)]
     pub fn into_log_safe_text(self) -> LogSafeText<'static> {
         self.text
     }
@@ -74,7 +72,6 @@ impl Display for RedactedHeaders {
     /// # Errors
     ///
     /// Returns [`fmt::Error`] when the destination rejects a write.
-    #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.text, formatter)
     }
@@ -94,7 +91,6 @@ impl Debug for RedactedHeaders {
     /// # Errors
     ///
     /// Returns [`fmt::Error`] when the destination rejects a write.
-    #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter
             .debug_tuple("RedactedHeaders")

@@ -74,6 +74,16 @@ fn test_diagnostic_text_redaction_masks_urls_and_preserves_punctuation() {
 }
 
 #[test]
+fn test_diagnostic_text_redaction_handles_overlapping_schemes_and_braces() {
+    let result = HttpRedactor::default().redact_urls_in_text(
+        "http://example.test/https://nested.test/{visible}}",
+    );
+
+    assert!(result.as_ref().ends_with('}'));
+    assert!(result.as_ref().contains("http://example.test/"));
+}
+
+#[test]
 fn test_diagnostic_text_redaction_masks_nested_url_in_same_token() {
     let result = HttpRedactor::default().redact_urls_in_text(
         "redirect=https://outer.test/?next=https://nested-user:nested-secret@inner.test/private",
@@ -122,6 +132,31 @@ fn test_url_redaction_preserves_non_url_percent_values() {
             .as_ref(),
         "https://outer.test/?next=h%25ZZ",
     );
+}
+
+#[test]
+fn test_nested_url_detection_covers_malformed_and_bounded_decoding() {
+    let redactor = HttpRedactor::default();
+    let inputs = [
+        "https://outer.test/?next=http://",
+        "https://outer.test/?next=http%253A%252F%25",
+        "https://outer.test/?next=%25FF",
+        "https://outer.test/?next=%25FF%25",
+        "https://outer.test/?next=http%253a%252f%252finner.test",
+    ];
+
+    for input in inputs {
+        let result = redactor.redact_url_str(input);
+        assert!(!result.as_ref().is_empty());
+    }
+
+    let mut non_url = "%3A".to_owned();
+    for _ in 0..7 {
+        non_url = non_url.replace('%', "%25");
+    }
+    let result = redactor
+        .redact_url_str(&format!("https://outer.test/?next={non_url}",));
+    assert!(result.as_ref().contains("next="));
 }
 
 #[test]

@@ -31,7 +31,6 @@ impl<'a> BodyCapture<'a> {
     /// # Returns
     ///
     /// A capture whose total length equals the borrowed slice length.
-    #[inline(always)]
     pub const fn complete(bytes: &'a [u8]) -> Self {
         Self {
             bytes,
@@ -76,7 +75,6 @@ impl<'a> BodyCapture<'a> {
     ///
     /// An infallible truncated capture whose complete source length is
     /// unknown.
-    #[inline(always)]
     pub const fn truncated_unknown(bytes: &'a [u8]) -> Self {
         Self {
             bytes,

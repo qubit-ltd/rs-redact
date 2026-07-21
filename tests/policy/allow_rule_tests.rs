@@ -8,10 +8,12 @@ use qubit_redact::{
 /// Verifies an exact allow rule is exposed with its canonical field name.
 #[test]
 fn test_allow_rule_exposes_exact_field_and_matching_mode() {
-    let policy = RedactionPolicy::empty_builder()
-        .allow_exact("public-token")
-        .build()
-        .expect("the allow rule should be valid");
+    let policy = std::hint::black_box(
+        RedactionPolicy::empty_builder()
+            .allow_exact("public-token")
+            .build()
+            .expect("the allow rule should be valid"),
+    );
     let rule = policy
         .allow_rules()
         .next()

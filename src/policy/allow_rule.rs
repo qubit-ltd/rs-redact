@@ -30,7 +30,6 @@ impl<'a> AllowRule<'a> {
     /// # Returns
     ///
     /// A read-only view over the supplied rule.
-    #[inline(always)]
     pub(super) const fn new(
         field: &'a str,
         matching: FieldNameMatching,

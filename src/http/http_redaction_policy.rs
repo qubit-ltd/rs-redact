@@ -59,7 +59,6 @@ impl HttpRedactionPolicy {
     ///
     /// A mutable HTTP policy builder using fail-closed behavior defaults and
     /// finite 16 KiB input and 64 KiB output limits.
-    #[inline(always)]
     pub fn builder_from(base: RedactionPolicy) -> HttpRedactionPolicyBuilder {
         HttpRedactionPolicyBuilder::from_policy(base)
     }
@@ -105,7 +104,6 @@ impl HttpRedactionPolicy {
     /// # Returns
     ///
     /// The policy used for HTTP headers.
-    #[inline(always)]
     pub const fn header_policy(&self) -> &RedactionPolicy {
         &self.header_policy
     }
