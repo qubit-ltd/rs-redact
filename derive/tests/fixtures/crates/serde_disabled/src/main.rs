@@ -7,9 +7,9 @@
 // =============================================================================
 //! Fixture proving redacted serde requires the runtime feature.
 
-use qubit_redact::Redact;
+use qubit_redact_derive::Redact;
 
-/// Invalid because the dependency enables derive but not serde.
+/// Invalid because the runtime dependency does not enable serde.
 #[derive(Redact)]
 #[redact(serde)]
 struct Record {

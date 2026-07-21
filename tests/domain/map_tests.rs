@@ -22,6 +22,7 @@ use qubit_redact::{
     RedactionPolicy,
     Sensitivity,
 };
+use qubit_redact_derive::Redact;
 
 /// Event containing marked and unmarked maps.
 #[derive(Redact)]

@@ -7,8 +7,6 @@
 // =============================================================================
 //! Isolated global-default test for derived map redaction.
 
-#![cfg(feature = "derive")]
-
 use std::collections::BTreeMap;
 
 use qubit_redact::{
@@ -16,6 +14,7 @@ use qubit_redact::{
     RedactionPolicy,
     Sensitivity,
 };
+use qubit_redact_derive::Redact;
 
 /// Event whose map uses the process default policy.
 #[derive(Redact)]

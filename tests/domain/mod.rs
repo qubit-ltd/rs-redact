@@ -7,17 +7,13 @@
 // =============================================================================
 //! Mirrored integration tests for domain-object redaction APIs.
 
-#[cfg(feature = "derive")]
 mod derive_attribute_tests;
 mod internal;
-#[cfg(feature = "derive")]
 mod map_tests;
-#[cfg(feature = "derive")]
 mod nested_tests;
 mod redact_map_serialize_tests;
 mod redact_map_value_mut_tests;
 mod redact_map_value_tests;
-#[cfg(feature = "derive")]
 mod redact_mut_tests;
 mod redact_serialize_tests;
 mod redact_tests;
@@ -26,5 +22,5 @@ mod redact_value_tests;
 mod redacted_map_tests;
 mod redacted_tests;
 mod redacted_value_tests;
-#[cfg(all(feature = "derive", feature = "serde"))]
+#[cfg(feature = "serde")]
 mod serde_tests;

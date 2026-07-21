@@ -32,7 +32,6 @@ dependencies.
 
 | Feature | Capability | Optional dependencies |
 | --- | --- | --- |
-| `derive` | `Redact` and `RedactMut` derives for named domain structs | `qubit-redact-derive` |
 | `serde` | Serialization of explicitly opted-in redacted views | `serde` |
 | `http` | URL, form, header, and bounded body redaction | `form_urlencoded`, `http`, `serde_json`, `url` |
 
@@ -42,6 +41,7 @@ dependencies.
 # cargo add qubit-redact --features http
 # cargo add http@1.4
 qubit-redact = { version = "0.3", features = ["http"] }
+qubit-redact-derive = "0.3"
 http = "1.4"
 ```
 
@@ -116,14 +116,15 @@ unchanged.
 
 ## Domain Objects
 
-Enable `derive` to describe redaction at the field boundary. Unmarked fields
-remain ordinary values; recursion and Map key classification are always
-explicit.
+Add the companion `qubit-redact-derive` crate to describe redaction at the
+field boundary. Unmarked fields remain ordinary values; recursion and Map key
+classification are always explicit.
 
 ```rust
 use std::collections::HashMap;
 
-use qubit_redact::{Redact, RedactionPolicy, Sensitivity};
+use qubit_redact::{Redact as _, RedactionPolicy, Sensitivity};
+use qubit_redact_derive::Redact;
 
 #[derive(Redact)]
 struct Account {
@@ -164,13 +165,14 @@ support the same `level`, `nested`, and `map` field modes. `to_redacted`
 briefly creates a second copy of the original sensitive data; prefer
 `redact_in_place` or `into_redacted` for highly sensitive values.
 
-Enable both `derive` and `serde`, then add `#[redact(serde)]` to opt a named
-struct into serialization of its redacted view. The original type's
+Enable `serde` and use the companion derive crate, then add `#[redact(serde)]`
+to opt a named struct into serialization of its redacted view. The original type's
 `Serialize`, `Debug`, and `Display` behavior is unchanged, and `Redacted` does
 not implement `Deserialize`.
 
 ```rust
-use qubit_redact::Redact;
+use qubit_redact::Redact as _;
+use qubit_redact_derive::Redact;
 
 #[derive(Redact)]
 #[redact(serde)]

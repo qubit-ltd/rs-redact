@@ -28,7 +28,6 @@ Qubit Redact 将职责拆成四层：
 
 | Feature | 能力 | 可选依赖 |
 | --- | --- | --- |
-| `derive` | 为具名领域 struct 派生 `Redact` 和 `RedactMut` | `qubit-redact-derive` |
 | `serde` | 序列化显式 opt-in 的脱敏视图 | `serde` |
 | `http` | URL、form、header 和有界 body 遮盖 | `form_urlencoded`、`http`、`serde_json`、`url` |
 
@@ -38,6 +37,7 @@ Qubit Redact 将职责拆成四层：
 # cargo add qubit-redact --features http
 # cargo add http@1.4
 qubit-redact = { version = "0.3", features = ["http"] }
+qubit-redact-derive = "0.3"
 http = "1.4"
 ```
 
@@ -108,13 +108,14 @@ fn main() {
 
 ## 领域对象
 
-启用 `derive` 后，可在字段边界声明脱敏语义。没有属性的字段保持普通值；递归处理和
-Map 按 key 分类都必须显式指定。
+添加配套的 `qubit-redact-derive` crate 后，可在字段边界声明脱敏语义。没有属性的字段
+保持普通值；递归处理和 Map 按 key 分类都必须显式指定。
 
 ```rust
 use std::collections::HashMap;
 
-use qubit_redact::{Redact, RedactionPolicy, Sensitivity};
+use qubit_redact::{Redact as _, RedactionPolicy, Sensitivity};
+use qubit_redact_derive::Redact;
 
 #[derive(Redact)]
 struct Account {
@@ -151,12 +152,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 的 `to_redacted` 支持相同的 `level`、`nested`、`map` 字段模式。`to_redacted` 会短暂产生
 第二份原始敏感数据；高敏感场景应优先使用 `redact_in_place` 或 `into_redacted`。
 
-同时启用 `derive`、`serde`，再给具名 struct 添加 `#[redact(serde)]`，即可序列化其脱敏
-视图。原类型自身的 `Serialize`、`Debug`、`Display` 行为不变，`Redacted` 不实现
+启用 `serde` 并使用配套 derive crate，再给具名 struct 添加 `#[redact(serde)]`，即可
+序列化其脱敏视图。原类型自身的 `Serialize`、`Debug`、`Display` 行为不变，`Redacted` 不实现
 `Deserialize`。
 
 ```rust
-use qubit_redact::Redact;
+use qubit_redact::Redact as _;
+use qubit_redact_derive::Redact;
 
 #[derive(Redact)]
 #[redact(serde)]

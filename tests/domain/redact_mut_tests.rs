@@ -19,6 +19,7 @@ use qubit_redact::{
     RedactionPolicy,
     Sensitivity,
 };
+use qubit_redact_derive::RedactMut;
 
 /// Mutable leaf used by nested redaction.
 #[derive(Clone, RedactMut)]

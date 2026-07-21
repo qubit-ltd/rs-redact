@@ -13,6 +13,7 @@ use qubit_redact::{
     RedactionPolicy,
     Sensitivity,
 };
+use qubit_redact_derive::Redact;
 
 /// Sensitive nested credential.
 #[derive(Debug, Redact)]

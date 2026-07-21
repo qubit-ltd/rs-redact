@@ -5,11 +5,10 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Integration tests for the optional domain-object derive macro.
+//! Integration tests for the companion domain-object derive crate.
 
-#![cfg(feature = "derive")]
-
-use qubit_redact::Redact;
+use qubit_redact::Redact as _;
+use qubit_redact_derive::Redact;
 
 /// A record whose fields have no explicit redaction attributes.
 #[derive(Redact)]

@@ -7,7 +7,7 @@
 // =============================================================================
 //! Compile tests for redacted serde integration.
 
-#![cfg(all(feature = "derive", feature = "serde"))]
+#![cfg(feature = "serde")]
 
 /// Verifies supported serde shapes and targeted unsupported-attribute errors.
 #[test]

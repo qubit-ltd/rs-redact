@@ -7,7 +7,8 @@
 // =============================================================================
 //! Fixture for a renamed runtime dependency.
 
-use redaction_runtime::{Redact, RedactionPolicy};
+use qubit_redact_derive::Redact;
+use redaction_runtime::{Redact as _, RedactionPolicy};
 
 /// Record derived through the dependency alias.
 #[derive(Redact)]

@@ -9,7 +9,7 @@
 
 use std::collections::BTreeMap;
 
-use qubit_redact::Redact;
+use qubit_redact_derive::Redact;
 
 /// Flattening would change the generated redacted structure.
 #[derive(Redact)]

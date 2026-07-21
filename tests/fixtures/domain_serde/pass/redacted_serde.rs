@@ -8,6 +8,7 @@
 //! Passing fixture for redacted serialization.
 
 use qubit_redact::Redact;
+use qubit_redact_derive::Redact;
 use serde::Serialize;
 
 /// Serializable record using a supported rename.

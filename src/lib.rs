@@ -60,16 +60,15 @@
 //!
 //! # Domain objects
 //!
-//! Enable the `derive` feature to annotate fields explicitly. Plain fields are
-//! never recursively redacted, `nested` is the recursion boundary, `map`
-//! classifies each value by its runtime key, and `skip` omits a field only from
-//! the redacted representation.
+//! Add the companion `qubit-redact-derive` crate to annotate fields explicitly.
+//! Plain fields are never recursively redacted, `nested` is the recursion
+//! boundary, `map` classifies each value by its runtime key, and `skip` omits a
+//! field only from the redacted representation.
 //!
 //! ```
-//! # #[cfg(feature = "derive")]
-//! # {
 //! use std::collections::HashMap;
-//! use qubit_redact::{Redact, RedactionPolicy, Sensitivity};
+//! use qubit_redact::{Redact as _, RedactionPolicy, Sensitivity};
+//! use qubit_redact_derive::Redact;
 //!
 //! #[derive(Redact)]
 //! struct Account {
@@ -93,7 +92,6 @@
 //! let output = format!("{:?}", account.redacted_with(&policy));
 //! assert!(!output.contains("raw-password"));
 //! assert!(!output.contains("raw-key"));
-//! # }
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
@@ -103,9 +101,8 @@
 //! `redact_in_place` or `into_redacted` for highly sensitive data.
 //!
 //! ```
-//! # #[cfg(feature = "derive")]
-//! # {
-//! use qubit_redact::{Redact, RedactMut};
+//! use qubit_redact::{Redact as _, RedactMut as _};
+//! use qubit_redact_derive::{Redact, RedactMut};
 //!
 //! #[derive(Clone, Redact, RedactMut)]
 //! struct Secret {
@@ -128,17 +125,18 @@
 //! envelope.redact_in_place();
 //! assert_eq!(envelope.secret.value, "<redacted>");
 //! assert_eq!(envelope.internal_note, "unchanged");
-//! # }
 //! ```
 //!
-//! With both `derive` and `serde`, `#[redact(serde)]` opts only the redacted
-//! view into serialization. The original object's traits are unchanged, and
-//! [`Redacted`] intentionally does not implement `Deserialize`.
+//! With the `serde` feature and the companion derive crate,
+//! `#[redact(serde)]` opts only the redacted view into serialization. The
+//! original object's traits are unchanged, and [`Redacted`] intentionally does
+//! not implement `Deserialize`.
 //!
 //! ```
-//! # #[cfg(all(feature = "derive", feature = "serde"))]
+//! # #[cfg(feature = "serde")]
 //! # {
-//! use qubit_redact::Redact;
+//! use qubit_redact::Redact as _;
+//! use qubit_redact_derive::Redact;
 //!
 //! #[derive(Redact)]
 //! #[redact(serde)]
@@ -248,11 +246,6 @@ pub use policy::{
     SensitiveFieldPreset,
     SensitiveFieldRule,
     Sensitivity,
-};
-#[cfg(feature = "derive")]
-pub use qubit_redact_derive::{
-    Redact,
-    RedactMut,
 };
 pub use redactor::Redactor;
 pub use text::{

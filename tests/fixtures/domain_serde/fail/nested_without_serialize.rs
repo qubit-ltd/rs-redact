@@ -7,7 +7,7 @@
 // =============================================================================
 //! Compile-fail fixture for nested redaction without serialization support.
 
-use qubit_redact::Redact;
+use qubit_redact_derive::Redact;
 
 /// Nested type that supports formatting but not redacted serialization.
 #[derive(Redact)]

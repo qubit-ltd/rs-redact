@@ -24,6 +24,7 @@ use qubit_redact::{
     RedactionPolicy,
     Sensitivity,
 };
+use qubit_redact_derive::Redact;
 use serde::Serialize;
 
 /// Nested serializable profile.

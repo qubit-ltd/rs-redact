@@ -7,4 +7,5 @@ publish = false
 [workspace]
 
 [dependencies]
-redaction-runtime = { package = "qubit-redact", path = "../../../../..", default-features = false, features = ["derive"] }
+qubit-redact-derive = { path = "../../../.." }
+redaction-runtime = { package = "qubit-redact", path = "../../../../..", default-features = false }

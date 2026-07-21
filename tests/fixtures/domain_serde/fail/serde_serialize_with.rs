@@ -7,7 +7,7 @@
 // =============================================================================
 //! Compile-fail fixture for a custom serde serializer.
 
-use qubit_redact::Redact;
+use qubit_redact_derive::Redact;
 
 /// Custom serialization could bypass the redaction wrappers.
 #[derive(Redact)]

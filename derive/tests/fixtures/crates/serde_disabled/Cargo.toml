@@ -7,4 +7,5 @@ publish = false
 [workspace]
 
 [dependencies]
-qubit-redact = { path = "../../../../..", default-features = false, features = ["derive"] }
+qubit-redact = { path = "../../../../..", default-features = false }
+qubit-redact-derive = { path = "../../../.." }
