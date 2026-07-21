@@ -191,10 +191,10 @@ fn test_redact_heuristically_keeps_plain_shell_payload_unparsed() {
     );
 }
 
-/// Verifies the delimiter stops bare-option inference but not self-contained
-/// forms.
+/// Verifies an option delimiter remains visible without disabling safety
+/// inference for later wrapper arguments.
 #[test]
-fn test_redact_heuristically_honors_double_dash_state() {
+fn test_redact_heuristically_keeps_safety_inference_after_double_dash() {
     let items = [
         ArgvItem::plain(OsStr::new("cmd")),
         ArgvItem::plain(OsStr::new("--")),
@@ -208,7 +208,26 @@ fn test_redact_heuristically_honors_double_dash_state() {
         ArgvRedactor::default()
             .redact_heuristically(items)
             .to_string(),
-        r#"["cmd", "--", "--password", "plain", "--password=<redacted>", "PASSWORD=<redacted>"]"#,
+        r#"["cmd", "--", "--password", "<redacted>", "--password=<redacted>", "PASSWORD=<redacted>"]"#,
+    );
+}
+
+/// Verifies wrapper-style argv segments cannot bypass sensitive-option
+/// inference after an option delimiter.
+#[test]
+fn test_redact_heuristically_masks_sensitive_option_after_double_dash() {
+    let items = ["cmd", "--", "child", "--password", "raw-secret"]
+        .into_iter()
+        .map(|value| ArgvItem::plain(OsStr::new(value)));
+
+    let rendered = ArgvRedactor::default()
+        .redact_heuristically(items)
+        .to_string();
+
+    assert!(!rendered.contains("raw-secret"));
+    assert_eq!(
+        rendered,
+        r#"["cmd", "--", "child", "--password", "<redacted>"]"#,
     );
 }
 

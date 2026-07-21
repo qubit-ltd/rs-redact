@@ -144,6 +144,7 @@ fuzz_target!(|data: &[u8]| {
     let items = boundary_argv.iter().map(|value| ArgvItem::plain(value.as_ref()));
     let second = redactor.redact_heuristically(items).to_string();
     assert_eq!(first, second);
+    assert!(!first.contains(FUZZ_SECRET));
 
     let inline_secret = format!("--password={FUZZ_SECRET}");
     let boundary_inline_argv = ["client", "--", inline_secret.as_str()];

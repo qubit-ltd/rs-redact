@@ -84,9 +84,11 @@ impl ArgvRedactor {
     /// values.
     ///
     /// Explicit sensitivity always wins. Only plain items participate in the
-    /// `--name=value`, `--name value`, `NAME=value`, and `--` parser. A
-    /// non-UTF-8 plain item is masked at [`Sensitivity::Secret`] because it
-    /// cannot be classified safely.
+    /// `--name=value`, `--name value`, and `NAME=value` recognition. Because
+    /// this is a safety heuristic rather than a command-specific parser, an
+    /// option delimiter does not disable recognition in later wrapper or
+    /// child-command segments. A non-UTF-8 plain item is masked at
+    /// [`Sensitivity::Secret`] because it cannot be classified safely.
     ///
     /// # Parameters
     ///
@@ -102,7 +104,6 @@ impl ArgvRedactor {
         let items = items.into_iter();
         let mut rendered = Vec::with_capacity(items.size_hint().0);
         let mut pending_sensitivity = None;
-        let mut parse_options = true;
 
         for item in items {
             if let Some(level) = item.sensitivity() {
@@ -110,11 +111,9 @@ impl ArgvRedactor {
                 rendered.push(self.mask_os_value(item.value(), level));
                 continue;
             }
-            rendered.push(self.redact_plain_item(
-                item.value(),
-                &mut pending_sensitivity,
-                &mut parse_options,
-            ));
+            rendered.push(
+                self.redact_plain_item(item.value(), &mut pending_sensitivity),
+            );
         }
         RedactedArgv::new(rendered)
     }
@@ -160,14 +159,12 @@ impl ArgvRedactor {
         }
     }
 
-    /// Redacts one plain item while updating the heuristic parser state.
+    /// Redacts one plain item while updating pending-value state.
     ///
     /// # Parameters
     ///
     /// * `value` - Plain operating-system argument to inspect.
     /// * `pending_sensitivity` - Level expected for the next separate value.
-    /// * `parse_options` - Whether bare options may still establish pending
-    ///   state.
     ///
     /// # Returns
     ///
@@ -176,30 +173,22 @@ impl ArgvRedactor {
         &self,
         value: &OsStr,
         pending_sensitivity: &mut Option<Sensitivity>,
-        parse_options: &mut bool,
     ) -> String {
         let Some(value) = value.to_str() else {
             let encoded = value.as_encoded_bytes();
-            let may_take_separate_value = *parse_options
-                && encoded.starts_with(b"-")
-                && !encoded.contains(&b'=');
+            let may_take_separate_value =
+                encoded.starts_with(b"-") && !encoded.contains(&b'=');
             *pending_sensitivity =
                 may_take_separate_value.then_some(Sensitivity::Secret);
             return self.mask_opaque_value();
         };
 
-        let option_sensitivity = (*parse_options)
-            .then(|| self.option_sensitivity(value))
-            .flatten();
+        let option_sensitivity = self.option_sensitivity(value);
         if let Some(pending) = pending_sensitivity.take() {
             if let Some(level) = option_sensitivity {
                 *pending_sensitivity = Some(level);
             }
             return self.mask_utf8_value(value, pending);
-        }
-        if value == "--" {
-            *parse_options = false;
-            return value.to_owned();
         }
         if let Some(value) = self.redact_assignment(value) {
             return value;
@@ -207,7 +196,7 @@ impl ArgvRedactor {
         if let Some(value) = self.redact_inline_option(value) {
             return value;
         }
-        if *parse_options && let Some(level) = option_sensitivity {
+        if let Some(level) = option_sensitivity {
             *pending_sensitivity = Some(level);
         }
         value.to_owned()
