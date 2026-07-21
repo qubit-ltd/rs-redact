@@ -11,7 +11,7 @@ use syn::LitStr;
 
 /// Case conversion applied to serialized field names.
 pub(crate) enum SerdeRenameRule {
-    /// Converts letters to lowercase.
+    /// Retains field spelling under Serde's lowercase field semantics.
     Lowercase,
     /// Converts letters to uppercase.
     Uppercase,
@@ -74,20 +74,16 @@ impl SerdeRenameRule {
     /// The serialized field name.
     pub(crate) fn apply(&self, name: &str) -> String {
         match self {
-            Self::Lowercase => name.to_ascii_lowercase(),
+            Self::Lowercase | Self::SnakeCase => name.to_owned(),
             Self::Uppercase => name.to_ascii_uppercase(),
             Self::PascalCase => pascal_case(name),
             Self::CamelCase => {
-                let pascal = pascal_case(name);
-                let mut characters = pascal.chars();
-                match characters.next() {
-                    Some(first) => {
-                        first.to_lowercase().chain(characters).collect()
-                    }
-                    None => String::new(),
+                let mut pascal = pascal_case(name);
+                if let Some(first) = pascal.get_mut(..1) {
+                    first.make_ascii_lowercase();
                 }
+                pascal
             }
-            Self::SnakeCase => name.to_owned(),
             Self::ScreamingSnakeCase => name.to_ascii_uppercase(),
             Self::KebabCase => name.replace('_', "-"),
             Self::ScreamingKebabCase => {
@@ -100,11 +96,15 @@ impl SerdeRenameRule {
 /// Converts a snake-case identifier to Pascal case.
 fn pascal_case(name: &str) -> String {
     let mut output = String::new();
-    for word in name.split('_').filter(|word| !word.is_empty()) {
-        let mut characters = word.chars();
-        if let Some(first) = characters.next() {
-            output.extend(first.to_uppercase());
-            output.extend(characters);
+    let mut capitalize = true;
+    for character in name.chars() {
+        if character == '_' {
+            capitalize = true;
+        } else if capitalize {
+            output.push(character.to_ascii_uppercase());
+            capitalize = false;
+        } else {
+            output.push(character);
         }
     }
     output

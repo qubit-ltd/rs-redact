@@ -11,7 +11,7 @@ use proc_macro::TokenStream;
 use syn::DeriveInput;
 
 use crate::{
-    derive_input,
+    redact_expansion,
     runtime_path,
 };
 
@@ -29,7 +29,7 @@ pub(crate) fn derive(input: TokenStream) -> TokenStream {
     syn::parse::<DeriveInput>(input)
         .and_then(|input| {
             let runtime = runtime_path::resolve(&input)?;
-            derive_input::expand(&input, &runtime)
+            redact_expansion::expand(&input, &runtime)
         })
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()

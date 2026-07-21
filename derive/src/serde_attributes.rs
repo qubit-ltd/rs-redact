@@ -78,9 +78,7 @@ impl SerdeAttributes {
                     }
                     let literal: LitStr = meta.value()?.parse()?;
                     parsed.rename = Some(literal.value());
-                } else if meta.path.is_ident("skip")
-                    || meta.path.is_ident("skip_serializing")
-                {
+                } else if meta.path.is_ident("skip") || meta.path.is_ident("skip_serializing") {
                     if !meta.input.is_empty() {
                         return Err(meta.error(format!(
                             "Redact serde for `{type_name}` field `{field_name}` requires a bare \

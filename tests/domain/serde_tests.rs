@@ -8,7 +8,10 @@
 //! Tests for optional serialization of redacted domain views.
 
 use std::{
-    collections::BTreeMap,
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     io::{
         self,
         Write,
@@ -147,6 +150,73 @@ fn account() -> ApiAccount {
         serde_internal: "raw-serde-internal".to_owned(),
         write_only: "raw-write-only".to_owned(),
     }
+}
+
+/// Returns the owned object-key set produced by a JSON value.
+///
+/// # Parameters
+///
+/// * `value` - Serialized value expected to contain a JSON object.
+///
+/// # Returns
+///
+/// The object's keys in deterministic order.
+///
+/// # Panics
+///
+/// Panics when `value` is not a JSON object.
+fn object_keys(value: &serde_json::Value) -> BTreeSet<String> {
+    value
+        .as_object()
+        .expect("rename_all test values should serialize as objects")
+        .keys()
+        .cloned()
+        .collect()
+}
+
+/// Verifies every supported `rename_all` rule emits the same keys as Serde.
+#[test]
+fn test_redacted_serde_rename_all_matches_serde() {
+    macro_rules! assert_rule {
+        ($rule:literal) => {{
+            #[allow(non_snake_case)]
+            #[derive(Redact, Serialize)]
+            #[redact(serde)]
+            #[serde(rename_all = $rule)]
+            struct RenameFields {
+                /// Mixed-case field that distinguishes lowercase semantics.
+                #[redact(level = "secret")]
+                HTTP_status: String,
+                /// Ordinary snake-case field that distinguishes separators.
+                some_value: String,
+            }
+
+            let value = RenameFields {
+                HTTP_status: "raw-status".to_owned(),
+                some_value: "plain-value".to_owned(),
+            };
+            let raw = serde_json::to_value(&value)
+                .expect("raw rename_all serialization should succeed");
+            let redacted = serde_json::to_value(value.redacted_with(&policy()))
+                .expect("redacted rename_all serialization should succeed");
+
+            assert_eq!(
+                object_keys(&redacted),
+                object_keys(&raw),
+                "redacted keys should match serde for {}",
+                $rule,
+            );
+        }};
+    }
+
+    assert_rule!("lowercase");
+    assert_rule!("UPPERCASE");
+    assert_rule!("PascalCase");
+    assert_rule!("camelCase");
+    assert_rule!("snake_case");
+    assert_rule!("SCREAMING_SNAKE_CASE");
+    assert_rule!("kebab-case");
+    assert_rule!("SCREAMING-KEBAB-CASE");
 }
 
 /// Verifies redacted serialization preserves shape and excludes raw secrets.

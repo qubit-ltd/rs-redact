@@ -8,15 +8,19 @@
 //! Derive macros for `qubit-redact` domain objects.
 
 mod container_attributes;
-mod derive_input;
 mod field_assertion;
 mod field_attributes;
 mod field_mode;
+mod internal;
+mod named_fields;
 mod redact_derive;
+mod redact_expansion;
 mod redact_mut_derive;
+mod redact_mut_expansion;
 mod runtime_path;
 mod sensitivity;
 mod serde_attributes;
+mod serde_expansion;
 mod serde_rename_rule;
 
 use proc_macro::TokenStream;
