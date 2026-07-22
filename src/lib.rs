@@ -127,10 +127,9 @@
 //! assert_eq!(envelope.internal_note, "unchanged");
 //! ```
 //!
-//! With the `serde` feature and the companion derive crate,
-//! `#[redact(serde)]` opts only the redacted view into serialization. The
-//! original object's traits are unchanged, and [`Redacted`] intentionally does
-//! not implement `Deserialize`.
+//! With the `serde` feature, a direct `serde` dependency, and the companion
+//! derive crate, `#[redact(serde)]` opts the redacted view into serialization.
+//! [`Redacted`] intentionally does not implement `Deserialize`.
 //!
 //! ```
 //! # #[cfg(feature = "serde")]
@@ -139,7 +138,7 @@
 //! use qubit_redact_derive::Redact;
 //!
 //! #[derive(Redact)]
-//! #[redact(serde)]
+//! #[redact(debug, display, serde)]
 //! struct Credentials {
 //!     #[redact(level = "secret")]
 //!     token: String,
@@ -154,9 +153,16 @@
 //! let json = serde_json::to_string(&value.redacted())?;
 //! assert!(!json.contains("raw-token"));
 //! assert!(!json.contains("internal_note"));
+//! assert!(!format!("{value:?}").contains("raw-token"));
+//! assert!(!format!("{value}").contains("raw-token"));
 //! # }
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
+//!
+//! `debug` and `display` are opt-in implementations on the original type and
+//! use the process-wide default policy. Plain fields remain ordinary `Debug`
+//! values. Do not request an implementation already supplied by the type,
+//! such as combining `#[derive(Debug)]` with `#[redact(debug)]`.
 //!
 //! `redacted()` snapshots the process default; `redacted_with` snapshots an
 //! explicit policy, which every nested and map field reuses. Field-specific

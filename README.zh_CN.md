@@ -153,15 +153,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 第二份原始敏感数据；高敏感场景应优先使用 `redact_in_place` 或 `into_redacted`。
 
 启用 `serde` 并使用配套 derive crate，再给具名 struct 添加 `#[redact(serde)]`，即可
-序列化其脱敏视图。原类型自身的 `Serialize`、`Debug`、`Display` 行为不变，`Redacted` 不实现
-`Deserialize`。
+序列化其脱敏视图。使用方 crate 必须直接声明 `serde` 依赖（支持重命名依赖），runtime
+crate 不再转导出它。`Redacted` 不实现 `Deserialize`。
 
 ```rust
 use qubit_redact::Redact as _;
 use qubit_redact_derive::Redact;
 
 #[derive(Redact)]
-#[redact(serde)]
+#[redact(debug, display, serde)]
 struct Credentials {
     #[redact(level = "secret")]
     token: String,
@@ -176,7 +176,13 @@ let value = Credentials {
 let json = serde_json::to_string(&value.redacted()).unwrap();
 assert!(!json.contains("raw-token"));
 assert!(!json.contains("internal_note"));
+assert!(!format!("{value:?}").contains("raw-token"));
+assert!(!format!("{value}").contains("raw-token"));
 ```
+
+`#[redact(debug)]` 与 `#[redact(display)]` 让原类型通过进程级默认策略获得安全格式化。
+它们不会根据未标注字段的名称推断敏感性。不要同时提供同一 trait 的既有实现；例如
+`#[derive(Debug)]` 与 `#[redact(debug)]` 一起使用时，Rust 会正确报告实现冲突。
 
 `redacted()` 会快照进程级默认策略；`redacted_with` 会快照显式策略，所有 nested 和 Map
 字段都沿用同一快照。第一版不支持字段级 Map policy；字段需要不同策略边界时，请使用

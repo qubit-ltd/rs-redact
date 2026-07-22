@@ -166,16 +166,17 @@ briefly creates a second copy of the original sensitive data; prefer
 `redact_in_place` or `into_redacted` for highly sensitive values.
 
 Enable `serde` and use the companion derive crate, then add `#[redact(serde)]`
-to opt a named struct into serialization of its redacted view. The original type's
-`Serialize`, `Debug`, and `Display` behavior is unchanged, and `Redacted` does
-not implement `Deserialize`.
+to opt a named struct into serialization of its redacted view. The consuming
+crate must declare `serde` directly (a renamed dependency is supported); the
+runtime crate does not re-export it. `Redacted` does not implement
+`Deserialize`.
 
 ```rust
 use qubit_redact::Redact as _;
 use qubit_redact_derive::Redact;
 
 #[derive(Redact)]
-#[redact(serde)]
+#[redact(debug, display, serde)]
 struct Credentials {
     #[redact(level = "secret")]
     token: String,
@@ -190,7 +191,15 @@ let value = Credentials {
 let json = serde_json::to_string(&value.redacted()).unwrap();
 assert!(!json.contains("raw-token"));
 assert!(!json.contains("internal_note"));
+assert!(!format!("{value:?}").contains("raw-token"));
+assert!(!format!("{value}").contains("raw-token"));
 ```
+
+`#[redact(debug)]` and `#[redact(display)]` opt the original type into safe
+formatting through the process-wide default policy. They do not infer
+sensitivity from unmarked field names. Do not combine either option with an
+existing implementation of the same trait, including `#[derive(Debug)]` with
+`#[redact(debug)]`, because Rust correctly reports conflicting implementations.
 
 `redacted()` snapshots the process-wide default policy. `redacted_with`
 snapshots an explicit policy, and every nested or Map field uses that same
