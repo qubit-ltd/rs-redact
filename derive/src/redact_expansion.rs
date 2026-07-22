@@ -22,8 +22,10 @@ use crate::{
     container_attributes::ContainerAttributes,
     field_assertion,
     field_mode::FieldMode,
+    format_expansion,
     named_fields,
     serde_expansion,
+    serde_path,
 };
 
 /// Expands a named-field struct into its runtime `Redact` implementation.
@@ -110,8 +112,19 @@ pub(crate) fn expand(
             )
         })
         .collect::<Vec<_>>();
-    let serde_impl =
-        serde_expansion::expand(input, runtime, &container_attributes, &fields);
+    let serde = container_attributes
+        .serde_enabled()
+        .then(|| serde_path::resolve(input))
+        .transpose()?;
+    let serde_impl = serde_expansion::expand(
+        input,
+        runtime,
+        serde.as_ref(),
+        &container_attributes,
+        &fields,
+    );
+    let format_impl =
+        format_expansion::expand(input, runtime, &container_attributes);
     let (impl_generics, type_generics, where_clause) =
         input.generics.split_for_impl();
 
@@ -130,6 +143,7 @@ pub(crate) fn expand(
                     .finish()
             }
         }
+        #format_impl
         #serde_impl
     })
 }

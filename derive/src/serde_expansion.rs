@@ -31,6 +31,7 @@ use crate::{
 ///
 /// * `input` - Derive input whose name and generics are preserved.
 /// * `runtime` - Resolved path to the runtime crate.
+/// * `serde` - Resolved direct serde dependency when integration is enabled.
 /// * `container_attributes` - Validated container serde controls.
 /// * `fields` - Parsed named fields in source order.
 ///
@@ -41,12 +42,13 @@ use crate::{
 pub(crate) fn expand(
     input: &DeriveInput,
     runtime: &Path,
+    serde: Option<&Path>,
     container_attributes: &ContainerAttributes,
     fields: &[NamedField<'_>],
 ) -> TokenStream {
-    if !container_attributes.serde_enabled() {
+    let Some(serde) = serde else {
         return TokenStream::new();
-    }
+    };
 
     let name = &input.ident;
     let serialization_assertions = fields.iter().map(|parsed| {
@@ -113,19 +115,20 @@ pub(crate) fn expand(
         .collect::<Vec<_>>();
     let count_conditions =
         serialized_fields.iter().map(|(condition, _, _)| condition);
-    let serialize_calls = serialized_fields
-        .iter()
-        .map(|(condition, serialized_name, value)| {
-            quote! {
-                if #condition {
-                    #runtime::__private::serde::ser::SerializeStruct::serialize_field(
-                        &mut state,
-                        #serialized_name,
-                        #value,
-                    )?;
+    let serialize_calls =
+        serialized_fields
+            .iter()
+            .map(|(condition, serialized_name, value)| {
+                quote! {
+                    if #condition {
+                        #serde::ser::SerializeStruct::serialize_field(
+                            &mut state,
+                            #serialized_name,
+                            #value,
+                        )?;
+                    }
                 }
-            }
-        });
+            });
     let (impl_generics, type_generics, where_clause) =
         input.generics.split_for_impl();
 
@@ -144,7 +147,7 @@ pub(crate) fn expand(
                 >
                 where
                     __QubitRedactSerializer:
-                        #runtime::__private::serde::Serializer,
+                        #serde::Serializer,
                 {
                     #(#serialization_assertions)*
                     let mut field_count = 0usize;
@@ -154,13 +157,13 @@ pub(crate) fn expand(
                         }
                     )*
                     let mut state =
-                        #runtime::__private::serde::Serializer::serialize_struct(
+                        #serde::Serializer::serialize_struct(
                             serializer,
                             stringify!(#name),
                             field_count,
                         )?;
                     #(#serialize_calls)*
-                    #runtime::__private::serde::ser::SerializeStruct::end(state)
+                    #serde::ser::SerializeStruct::end(state)
                 }
             }
         }

@@ -1,0 +1,5 @@
+error: Redact derive for `Record` repeats the `debug` container option
+  --> tests/fixtures/fail/duplicate_debug_option.rs:14:17
+   |
+14 | #[redact(debug, debug)]
+   |                 ^^^^^

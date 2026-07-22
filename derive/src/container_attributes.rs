@@ -11,12 +11,17 @@ use syn::{
     DeriveInput,
     LitStr,
     Meta,
+    Token,
 };
 
 use crate::serde_rename_rule::SerdeRenameRule;
 
 /// Parsed container controls for optional redacted serde integration.
 pub(crate) struct ContainerAttributes {
+    /// Whether the original type should receive a redacted `Debug` impl.
+    debug: bool,
+    /// Whether the original type should receive a redacted `Display` impl.
+    display: bool,
     /// Whether redacted serde integration was requested.
     serde: bool,
     /// Container-wide serialized field rename rule.
@@ -39,6 +44,8 @@ impl ContainerAttributes {
     /// Returns a targeted error for malformed, repeated, or unsupported
     /// container controls.
     pub(crate) fn parse(input: &DeriveInput) -> syn::Result<Self> {
+        let mut debug = false;
+        let mut display = false;
         let mut serde = false;
         for attribute in &input.attrs {
             if !attribute.path().is_ident("redact") {
@@ -48,7 +55,7 @@ impl ContainerAttributes {
                 return Err(syn::Error::new_spanned(
                     attribute,
                     format!(
-                        "Redact derive for `{}` expects `#[redact(serde)]` on the container",
+                        "Redact derive for `{}` expects `#[redact(debug, display, serde)]` on the container",
                         input.ident,
                     ),
                 ));
@@ -58,32 +65,48 @@ impl ContainerAttributes {
                     attribute,
                     format!(
                         "Redact derive for `{}` does not allow an empty container attribute; use \
-                         `#[redact(serde)]`",
+                         `#[redact(debug)]`, `#[redact(display)]`, or `#[redact(serde)]`",
                         input.ident,
                     ),
                 ));
             }
             attribute.parse_nested_meta(|meta| {
-                if !meta.path.is_ident("serde") {
+                let option = if meta.path.is_ident("debug") {
+                    &mut debug
+                } else if meta.path.is_ident("display") {
+                    &mut display
+                } else if meta.path.is_ident("serde") {
+                    &mut serde
+                } else {
                     return Err(meta.error(format!(
                         "Redact derive for `{}` has unknown container attribute; use \
-                         `#[redact(serde)]`",
+                         `debug`, `display`, or `serde`",
                         input.ident,
                     )));
-                }
-                if !meta.input.is_empty() {
+                };
+                if meta.input.peek(Token![=]) || meta.input.peek(syn::token::Paren) {
+                    let name = meta
+                        .path
+                        .segments
+                        .last()
+                        .map_or("option".to_owned(), |segment| segment.ident.to_string());
                     return Err(meta.error(format!(
-                        "Redact derive for `{}` requires bare `serde` without arguments",
-                        input.ident,
+                        "Redact derive for `{}` requires bare `{name}` without arguments",
+                        input.ident
                     )));
                 }
-                if serde {
+                if *option {
+                    let name = meta
+                        .path
+                        .segments
+                        .last()
+                        .map_or("option".to_owned(), |segment| segment.ident.to_string());
                     return Err(meta.error(format!(
-                        "Redact derive for `{}` repeats the `serde` container option",
-                        input.ident,
+                        "Redact derive for `{}` repeats the `{name}` container option",
+                        input.ident
                     )));
                 }
-                serde = true;
+                *option = true;
                 Ok(())
             })?;
         }
@@ -122,7 +145,32 @@ impl ContainerAttributes {
                 })?;
             }
         }
-        Ok(Self { serde, rename_all })
+        Ok(Self {
+            debug,
+            display,
+            serde,
+            rename_all,
+        })
+    }
+
+    /// Returns whether this struct requested a redacted `Debug` impl.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the `debug` container option was present.
+    #[inline(always)]
+    pub(crate) const fn debug_enabled(&self) -> bool {
+        self.debug
+    }
+
+    /// Returns whether this struct requested a redacted `Display` impl.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the `display` container option was present.
+    #[inline(always)]
+    pub(crate) const fn display_enabled(&self) -> bool {
+        self.display
     }
 
     /// Returns whether this struct requested redacted serialization.

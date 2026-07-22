@@ -10,8 +10,6 @@
 /// Runtime implementation details used by `qubit-redact-derive` expansions.
 #[doc(hidden)]
 pub mod __private {
-    pub use serde;
-
     pub use crate::domain::internal::RedactedSerialize;
     pub use crate::domain::{
         RedactMapSerialize,

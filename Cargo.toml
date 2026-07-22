@@ -28,6 +28,7 @@ doctest = true
 
 [workspace]
 members = ["derive"]
+default-members = [".", "derive"]
 exclude = ["fuzz"]
 resolver = "3"
 
