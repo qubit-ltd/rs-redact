@@ -100,6 +100,17 @@ impl MaskingPolicy {
         self.for_level(level).mask(value)
     }
 
+    /// Masks a value without allocating beyond a byte limit.
+    #[cfg(feature = "http")]
+    pub(crate) fn mask_bounded<'a>(
+        &self,
+        level: Sensitivity,
+        value: &'a str,
+        max_bytes: usize,
+    ) -> Cow<'a, str> {
+        self.for_level(level).mask_bounded(value, max_bytes)
+    }
+
     /// Returns the mask policy configured for `level`.
     ///
     /// # Parameters

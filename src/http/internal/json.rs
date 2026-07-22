@@ -21,6 +21,7 @@ use crate::http::UnkeyedJsonValuePolicy;
 /// * `redactor` - Structured-body field redactor.
 /// * `value` - JSON tree to mutate.
 /// * `unkeyed` - Policy for scalars without an object-field context.
+/// * `max_mask_bytes` - Maximum bytes allocated for one generated mask.
 ///
 /// # Returns
 ///
@@ -30,8 +31,9 @@ pub(in crate::http) fn redact(
     redactor: &Redactor,
     value: &mut Value,
     unkeyed: UnkeyedJsonValuePolicy,
+    max_mask_bytes: usize,
 ) -> bool {
-    redact_with_context(redactor, value, unkeyed, false)
+    redact_with_context(redactor, value, unkeyed, max_mask_bytes, false)
 }
 
 /// Redacts every non-empty line of one NDJSON document.
@@ -41,6 +43,7 @@ pub(in crate::http) fn redact(
 /// * `redactor` - Structured-body field redactor.
 /// * `bytes` - Complete NDJSON bytes.
 /// * `unkeyed` - Policy for unkeyed scalar values.
+/// * `max_mask_bytes` - Maximum bytes allocated for one generated mask.
 ///
 /// # Returns
 ///
@@ -50,6 +53,7 @@ pub(in crate::http) fn redact_ndjson(
     redactor: &Redactor,
     bytes: &[u8],
     unkeyed: UnkeyedJsonValuePolicy,
+    max_mask_bytes: usize,
 ) -> Option<(String, bool)> {
     let text = std::str::from_utf8(bytes).ok()?;
     let trailing_newline = text.ends_with('\n');
@@ -61,7 +65,7 @@ pub(in crate::http) fn redact_ndjson(
             continue;
         }
         let mut value = serde_json::from_str(line).ok()?;
-        passed |= redact(redactor, &mut value, unkeyed);
+        passed |= redact(redactor, &mut value, unkeyed, max_mask_bytes);
         lines.push(serde_json::to_string(&value).ok()?);
     }
     let mut output = lines.join("\n");
@@ -78,6 +82,7 @@ pub(in crate::http) fn redact_ndjson(
 /// * `redactor` - Structured-body field redactor.
 /// * `value` - Current JSON node.
 /// * `unkeyed` - Policy for unkeyed scalar values.
+/// * `max_mask_bytes` - Maximum bytes allocated for one generated mask.
 /// * `has_field` - Whether an object key identifies this node.
 ///
 /// # Returns
@@ -88,6 +93,7 @@ fn redact_with_context(
     redactor: &Redactor,
     value: &mut Value,
     unkeyed: UnkeyedJsonValuePolicy,
+    max_mask_bytes: usize,
     has_field: bool,
 ) -> bool {
     match value {
@@ -106,12 +112,17 @@ fn redact_with_context(
                         redactor
                             .policy()
                             .masking()
-                            .mask(level, input)
+                            .mask_bounded(level, input, max_mask_bytes)
                             .into_owned(),
                     );
                 } else {
-                    passed |=
-                        redact_with_context(redactor, value, unkeyed, true);
+                    passed |= redact_with_context(
+                        redactor,
+                        value,
+                        unkeyed,
+                        max_mask_bytes,
+                        true,
+                    );
                 }
             }
             passed
@@ -119,8 +130,13 @@ fn redact_with_context(
         Value::Array(values) => {
             let mut passed = false;
             for value in values {
-                passed |=
-                    redact_with_context(redactor, value, unkeyed, has_field);
+                passed |= redact_with_context(
+                    redactor,
+                    value,
+                    unkeyed,
+                    max_mask_bytes,
+                    has_field,
+                );
             }
             passed
         }

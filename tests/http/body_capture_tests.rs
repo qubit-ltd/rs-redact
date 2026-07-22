@@ -38,6 +38,19 @@ fn test_body_capture_complete_sets_exact_metadata() {
     assert!(!capture.is_source_truncated());
 }
 
+/// Verifies debug output exposes metadata without captured body bytes.
+#[test]
+fn test_body_capture_debug_does_not_expose_bytes() {
+    let capture = BodyCapture::truncated(b"debug-body-secret", Some(32))
+        .expect("the total length exceeds the captured length");
+    let rendered = format!("{capture:?}");
+
+    assert!(!rendered.contains("debug-body-secret"));
+    assert!(rendered.contains("captured_len"));
+    assert!(rendered.contains("omitted_len"));
+    assert!(rendered.contains("source_truncated: true"));
+}
+
 /// Verifies that known truncated totals must strictly exceed captured bytes.
 #[test]
 fn test_body_capture_truncated_rejects_impossible_total() {

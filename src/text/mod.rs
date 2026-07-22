@@ -7,7 +7,7 @@
 // =============================================================================
 //! Typed text values that distinguish redacted data from log-safe output.
 
-mod log_escape;
+pub(crate) mod log_escape;
 mod log_safe_text;
 mod redacted_debug;
 mod redacted_text;

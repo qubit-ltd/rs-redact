@@ -55,7 +55,7 @@ pub(super) fn escape_log_control_characters<'a>(
 /// Unicode bidirectional formatting controls; otherwise, `false`.
 #[must_use]
 #[inline]
-fn is_log_unsafe_character(character: char) -> bool {
+pub(crate) fn is_log_unsafe_character(character: char) -> bool {
     character.is_control()
         || matches!(
             character,

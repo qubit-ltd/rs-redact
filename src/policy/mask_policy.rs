@@ -8,6 +8,11 @@
 //! Algorithms for masking one sensitive value.
 
 use std::borrow::Cow;
+#[cfg(feature = "http")]
+use std::fmt;
+
+#[cfg(feature = "http")]
+use super::internal::BoundedMaskWriter;
 
 /// Strategy used to mask one sensitive field value.
 #[must_use]
@@ -171,6 +176,94 @@ impl MaskPolicy {
                 *full_mask_below_or_equal,
             )),
             Self::Empty => Cow::Owned(String::new()),
+        }
+    }
+
+    /// Masks a value without allocating beyond a caller-supplied byte limit.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Value to mask.
+    /// * `max_bytes` - Maximum bytes retained from the masked representation.
+    ///
+    /// # Returns
+    ///
+    /// Empty input remains borrowed; other results own at most `max_bytes`.
+    #[cfg(feature = "http")]
+    pub(crate) fn mask_bounded<'a>(
+        &self,
+        value: &'a str,
+        max_bytes: usize,
+    ) -> Cow<'a, str> {
+        if value.is_empty() {
+            return Cow::Borrowed(value);
+        }
+        let mut writer = BoundedMaskWriter::new(max_bytes);
+        let _ = self.write_masked(value, &mut writer);
+        Cow::Owned(writer.finish())
+    }
+
+    /// Writes a masked value directly without cloning fixed replacements.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Non-empty value to mask.
+    /// * `writer` - Formatting destination that may stop accepting output.
+    ///
+    /// # Errors
+    ///
+    /// Returns the destination formatting error unchanged.
+    #[cfg(feature = "http")]
+    pub(crate) fn write_masked<W: fmt::Write>(
+        &self,
+        value: &str,
+        writer: &mut W,
+    ) -> fmt::Result {
+        match self {
+            Self::Fixed { replacement } => writer.write_str(replacement),
+            Self::PreserveEdges {
+                prefix_chars,
+                suffix_chars,
+                replacement,
+                full_mask_below_or_equal,
+            } => {
+                let char_count = value.chars().count();
+                if char_count <= *full_mask_below_or_equal
+                    || char_count <= prefix_chars.saturating_add(*suffix_chars)
+                {
+                    return writer.write_str(replacement);
+                }
+                let prefix_end = value
+                    .char_indices()
+                    .nth(*prefix_chars)
+                    .map_or(value.len(), |(index, _)| index);
+                let suffix_start = value
+                    .char_indices()
+                    .nth(char_count - *suffix_chars)
+                    .map_or(value.len(), |(index, _)| index);
+                writer.write_str(&value[..prefix_end])?;
+                writer.write_str(replacement)?;
+                writer.write_str(&value[suffix_start..])
+            }
+            Self::PreserveSuffix {
+                suffix_chars,
+                replacement,
+                full_mask_below_or_equal,
+            } => {
+                let char_count = value.chars().count();
+                if char_count <= *full_mask_below_or_equal
+                    || char_count <= *suffix_chars
+                {
+                    return writer.write_str(replacement);
+                }
+                let suffix_start = value
+                    .char_indices()
+                    .nth(char_count - *suffix_chars)
+                    .map_or(value.len(), |(index, _)| index);
+                writer.write_str(replacement)?;
+                writer.write_str(&value[suffix_start..])
+            }
+            Self::Empty => Ok(()),
         }
     }
 }

@@ -51,6 +51,20 @@ struct AllLevels {
     secret: String,
 }
 
+/// Record whose original formatting traits are generated from `Redact`.
+#[derive(Redact)]
+#[redact(debug, display)]
+struct SafeFormatting {
+    /// Visible value rendered with ordinary `Debug`.
+    visible: &'static str,
+    /// Secret value rendered with the strongest mask.
+    #[redact(level = "secret")]
+    secret: String,
+    /// Omitted value that intentionally implements no formatting trait.
+    #[redact(skip)]
+    ignored: NotDebug,
+}
+
 /// Verifies explicit masking, complete omission, and non-recursive plain
 /// fields.
 #[test]
@@ -89,4 +103,20 @@ fn test_level_accepts_all_supported_case_sensitive_values() {
     assert!(!rendered.contains("high-value"));
     assert!(!rendered.contains("secret-value"));
     assert!(rendered.contains("<redacted>"));
+}
+
+/// Verifies generated formatting delegates to the existing redacted view.
+#[test]
+fn test_safe_formatting_matches_explicit_redacted_view() {
+    let value = SafeFormatting {
+        visible: "shown",
+        secret: "formatting-secret".to_owned(),
+        ignored: NotDebug,
+    };
+    let _ = &value.ignored;
+
+    assert_eq!(format!("{value:?}"), format!("{:?}", value.redacted()));
+    assert_eq!(format!("{value:#?}"), format!("{:#?}", value.redacted()));
+    assert_eq!(format!("{value}"), format!("{}", value.redacted()));
+    assert!(!format!("{value:?}").contains("formatting-secret"));
 }

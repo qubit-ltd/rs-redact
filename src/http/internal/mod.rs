@@ -7,6 +7,7 @@
 // =============================================================================
 //! Private HTTP parsing and rendering helpers.
 
+mod bounded_log_writer;
 pub(super) mod content_type;
 pub(super) mod diagnostic_text;
 pub(super) mod form;
@@ -17,4 +18,5 @@ pub(super) mod multipart;
 mod multipart_part_metadata;
 pub(super) mod nested_url;
 
+pub(super) use bounded_log_writer::BoundedLogWriter;
 pub(super) use multipart_part_metadata::MultipartPartMetadata;

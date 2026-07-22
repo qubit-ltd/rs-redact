@@ -39,6 +39,7 @@ use super::{
     TextBodyPolicy,
     UrlPathPolicy,
     internal::{
+        BoundedLogWriter,
         content_type,
         diagnostic_text,
         form,
@@ -271,8 +272,10 @@ impl HttpRedactor {
     /// # Parameters
     ///
     /// * `capture` - Checked complete or source-truncated body capture.
-    /// * `content_type` - UTF-8 Content-Type text available for parser selection.
-    /// * `invalid_content_type` - Whether a supplied native header was not UTF-8.
+    /// * `content_type` - UTF-8 Content-Type text available for parser
+    ///   selection.
+    /// * `invalid_content_type` - Whether a supplied native header was not
+    ///   UTF-8.
     ///
     /// # Returns
     ///
@@ -451,6 +454,7 @@ impl HttpRedactor {
                 bounded,
                 self.policy.text_body_policy(),
                 self.policy.unkeyed_json_value_policy(),
+                self.policy.body_budget().max_output_bytes(),
             ) {
                 return (
                     text,
@@ -518,6 +522,7 @@ impl HttpRedactor {
             &self.body_redactor,
             &mut value,
             self.policy.unkeyed_json_value_policy(),
+            self.policy.body_budget().max_output_bytes(),
         );
         match serde_json::to_string(&value) {
             Ok(text) => (
@@ -577,6 +582,7 @@ impl HttpRedactor {
             &self.body_redactor,
             bounded,
             self.policy.unkeyed_json_value_policy(),
+            self.policy.body_budget().max_output_bytes(),
         ) {
             Some((output, passed)) => (
                 output,
@@ -628,7 +634,11 @@ impl HttpRedactor {
             );
         }
         (
-            form::redact(&self.body_redactor, bounded),
+            form::redact_bounded(
+                &self.body_redactor,
+                bounded,
+                self.policy.body_budget().max_output_bytes(),
+            ),
             BodyRedactionStatus::Structured,
         )
     }
@@ -699,24 +709,12 @@ impl HttpRedactor {
         budget: BodyBudget,
     ) -> BodyRedaction {
         let (parsed_text, status) = parsed;
-        let escaped = RedactedText::new(parsed_text.into())
-            .escape_for_log()
-            .to_string();
         let source_truncated =
             capture.is_source_truncated() || budget_truncated;
-        let output_truncated = escaped.len() > budget.max_output_bytes()
-            || (source_truncated
-                && escaped.len() + markers::TRUNCATED.len()
-                    > budget.max_output_bytes());
-        let truncated = source_truncated || output_truncated;
-        let text = if truncated {
-            let payload_budget =
-                budget.max_output_bytes() - markers::TRUNCATED.len();
-            let end = utf8_prefix_len(&escaped, payload_budget);
-            format!("{}{}", &escaped[..end], markers::TRUNCATED)
-        } else {
-            escaped
-        };
+        let mut writer =
+            BoundedLogWriter::new(budget.max_output_bytes(), source_truncated);
+        let _ = writer.write_str(&parsed_text);
+        let (text, truncated) = writer.finish();
         let source_len = capture.total_len();
         let omitted_len =
             source_len.map(|total| total.saturating_sub(captured_len));
@@ -774,23 +772,4 @@ fn trim_ascii_whitespace(mut bytes: &[u8]) -> &[u8] {
         bytes = &bytes[..bytes.len() - 1];
     }
     bytes
-}
-
-/// Finds the longest UTF-8 prefix no longer than a byte budget.
-///
-/// # Parameters
-///
-/// * `value` - Valid UTF-8 text.
-/// * `budget` - Maximum prefix byte length.
-///
-/// # Returns
-///
-/// A byte offset at a valid character boundary.
-#[must_use]
-fn utf8_prefix_len(value: &str, budget: usize) -> usize {
-    let mut end = value.len().min(budget);
-    while !value.is_char_boundary(end) {
-        end -= 1;
-    }
-    end
 }

@@ -53,6 +53,35 @@ pub(in crate::http) fn redact(redactor: &Redactor, input: &[u8]) -> String {
     serializer.finish()
 }
 
+/// Redacts a validated form while bounding each generated mask.
+///
+/// # Parameters
+///
+/// * `redactor` - Field policy executor.
+/// * `input` - Previously validated URL-encoded bytes.
+/// * `max_mask_bytes` - Maximum bytes allocated for one generated mask.
+///
+/// # Returns
+///
+/// A URL-encoded representation with bounded sensitive replacements.
+#[must_use]
+pub(in crate::http) fn redact_bounded(
+    redactor: &Redactor,
+    input: &[u8],
+    max_mask_bytes: usize,
+) -> String {
+    let mut serializer = Serializer::new(String::new());
+    for (key, value) in form_urlencoded::parse(input) {
+        let value = redactor.redact_bounded(
+            key.as_ref(),
+            value.as_ref(),
+            max_mask_bytes,
+        );
+        serializer.append_pair(key.as_ref(), value.as_str());
+    }
+    serializer.finish()
+}
+
 /// Validates one encoded component and its decoded UTF-8 representation.
 ///
 /// # Parameters

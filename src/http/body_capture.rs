@@ -7,11 +7,13 @@
 // =============================================================================
 //! Checked borrowed input for HTTP body redaction.
 
+use std::fmt;
+
 use super::BodyCaptureError;
 
 /// Borrowed HTTP body bytes with truthful source-length metadata.
 #[must_use]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct BodyCapture<'a> {
     /// Source bytes available to the redactor before its hard input budget.
     bytes: &'a [u8],
@@ -19,6 +21,20 @@ pub struct BodyCapture<'a> {
     total_len: Option<usize>,
     /// Whether the source already omitted bytes before reaching the redactor.
     source_truncated: bool,
+}
+
+impl fmt::Debug for BodyCapture<'_> {
+    /// Formats safe capture metadata without exposing body bytes.
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("BodyCapture")
+            .field("bytes", &"<redacted>")
+            .field("captured_len", &self.bytes.len())
+            .field("total_len", &self.total_len)
+            .field("omitted_len", &self.omitted_len())
+            .field("source_truncated", &self.source_truncated)
+            .finish()
+    }
 }
 
 impl<'a> BodyCapture<'a> {

@@ -71,6 +71,33 @@ impl Redactor {
         RedactedText::new(value)
     }
 
+    /// Redacts one value while bounding any allocated mask.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Raw field name to classify.
+    /// * `value` - Field value to redact when sensitive.
+    /// * `max_bytes` - Maximum bytes allocated for a generated mask.
+    ///
+    /// # Returns
+    ///
+    /// Typed redacted text whose owned mask does not exceed `max_bytes`.
+    #[cfg(feature = "http")]
+    pub(crate) fn redact_bounded<'a>(
+        &self,
+        field: &str,
+        value: &'a str,
+        max_bytes: usize,
+    ) -> RedactedText<'a> {
+        let value = match self.policy.sensitivity_for(field) {
+            Some(level) => {
+                self.policy.masking().mask_bounded(level, value, max_bytes)
+            }
+            None => Cow::Borrowed(value),
+        };
+        RedactedText::new(value)
+    }
+
     /// Creates a redacted copy of a string-keyed, string-valued map.
     ///
     /// The source map is never modified. Its concrete collection type is

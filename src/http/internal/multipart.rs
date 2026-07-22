@@ -30,6 +30,7 @@ use crate::http::{
 /// * `bytes` - Complete bounded body bytes.
 /// * `text_policy` - Policy for named opaque text parts.
 /// * `unkeyed_policy` - Policy for nested unkeyed JSON values.
+/// * `max_mask_bytes` - Maximum bytes allocated for one generated mask.
 ///
 /// # Returns
 ///
@@ -41,6 +42,7 @@ pub(in crate::http) fn redact(
     bytes: &[u8],
     text_policy: TextBodyPolicy,
     unkeyed_policy: UnkeyedJsonValuePolicy,
+    max_mask_bytes: usize,
 ) -> Option<(String, bool)> {
     let boundary = content_type::multipart_boundary(content_type_value)?;
     let require_form_data =
@@ -55,6 +57,7 @@ pub(in crate::http) fn redact(
             text_policy,
             unkeyed_policy,
             require_form_data,
+            max_mask_bytes,
         )?;
         lines.push(line);
         passed |= part_passed;
@@ -78,6 +81,7 @@ pub(in crate::http) fn redact(
 /// * `text_policy` - Policy for named opaque text parts.
 /// * `unkeyed_policy` - Policy for nested unkeyed JSON values.
 /// * `require_form_data` - Whether disposition must be `form-data`.
+/// * `max_mask_bytes` - Maximum bytes allocated for one generated mask.
 ///
 /// # Returns
 ///
@@ -89,6 +93,7 @@ fn redact_part(
     text_policy: TextBodyPolicy,
     unkeyed_policy: UnkeyedJsonValuePolicy,
     require_form_data: bool,
+    max_mask_bytes: usize,
 ) -> Option<(String, bool)> {
     let (headers, body) = split_headers_body(segment)?;
     let mut disposition = None;
@@ -117,7 +122,12 @@ fn redact_part(
         (markers::MULTIPART_PART.to_string(), false)
     } else if redactor.policy().sensitivity_for(name).is_some() {
         let body = std::str::from_utf8(body).ok()?;
-        (redactor.redact(name, body).into_owned(), false)
+        (
+            redactor
+                .redact_bounded(name, body, max_mask_bytes)
+                .into_owned(),
+            false,
+        )
     } else {
         redact_non_sensitive_part(
             redactor,
@@ -125,6 +135,7 @@ fn redact_part(
             metadata.content_type(),
             text_policy,
             unkeyed_policy,
+            max_mask_bytes,
         )?
     };
     Some((format!("{}={value}", name.escape_debug()), passed))
@@ -139,6 +150,7 @@ fn redact_part(
 /// * `part_type` - Optional part Content-Type text.
 /// * `text_policy` - Policy for named opaque text parts.
 /// * `unkeyed_policy` - Policy for nested unkeyed JSON values.
+/// * `max_mask_bytes` - Maximum bytes allocated for one generated mask.
 ///
 /// # Returns
 ///
@@ -150,20 +162,27 @@ fn redact_non_sensitive_part(
     part_type: Option<&str>,
     text_policy: TextBodyPolicy,
     unkeyed_policy: UnkeyedJsonValuePolicy,
+    max_mask_bytes: usize,
 ) -> Option<(String, bool)> {
     let text = std::str::from_utf8(body).ok()?;
     match part_type {
         Some(value) if content_type::is_json(value) => {
             let mut value = serde_json::from_slice(body).ok()?;
-            let passed = json::redact(redactor, &mut value, unkeyed_policy);
+            let passed = json::redact(
+                redactor,
+                &mut value,
+                unkeyed_policy,
+                max_mask_bytes,
+            );
             Some((serde_json::to_string(&value).ok()?, passed))
         }
         Some(value) if content_type::is_ndjson(value) => {
-            json::redact_ndjson(redactor, body, unkeyed_policy)
+            json::redact_ndjson(redactor, body, unkeyed_policy, max_mask_bytes)
         }
-        Some(value) if content_type::is_form(value) => {
-            form::is_valid(body).then(|| (form::redact(redactor, body), false))
-        }
+        Some(value) if content_type::is_form(value) => form::is_valid(body)
+            .then(|| {
+                (form::redact_bounded(redactor, body, max_mask_bytes), false)
+            }),
         Some(value) if content_type::is_text(value) => match text_policy {
             TextBodyPolicy::Redact => {
                 Some((markers::MULTIPART_TEXT.to_string(), false))

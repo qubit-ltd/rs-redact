@@ -7,7 +7,10 @@
 // =============================================================================
 //! One argument and the sensitivity known by its caller.
 
-use std::ffi::OsStr;
+use std::{
+    ffi::OsStr,
+    fmt,
+};
 
 use crate::Sensitivity;
 
@@ -17,12 +20,24 @@ use crate::Sensitivity;
 /// [`super::ArgvRedactor::redact_heuristically`]. Sensitive items are always
 /// masked at their explicit level and never interpreted as command-line syntax.
 #[must_use = "pass the item to an argv redactor"]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct ArgvItem<'a> {
     /// Original operating-system argument value.
     value: &'a OsStr,
     /// Authoritative sensitivity supplied by the caller, when known.
     sensitivity: Option<Sensitivity>,
+}
+
+impl fmt::Debug for ArgvItem<'_> {
+    /// Formats safe argument metadata without exposing the original value.
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ArgvItem")
+            .field("value", &"<redacted>")
+            .field("value_len", &self.value.as_encoded_bytes().len())
+            .field("sensitivity", &self.sensitivity)
+            .finish()
+    }
 }
 
 impl<'a> ArgvItem<'a> {
