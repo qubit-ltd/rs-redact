@@ -5,8 +5,17 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Redacted Serde implementation generation.
+//! Private functional modules for redacted Serde expansion.
 
-mod internal;
+mod adjacently_tagged;
+mod entry;
+mod enum_expansion;
+mod externally_tagged;
+mod field_serialization;
+mod internally_tagged;
+mod naming;
+mod struct_expansion;
+mod untagged;
+mod variant_fields;
 
-pub(crate) use internal::expand;
+pub(crate) use entry::expand;
