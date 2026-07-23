@@ -8,6 +8,7 @@
 //! Immutable field classification and value-masking primitives.
 
 mod allow_rule;
+mod field_classification;
 mod field_name_matching;
 mod global_default_already_set;
 pub(crate) mod internal;
@@ -21,6 +22,7 @@ mod sensitive_field_rule;
 mod sensitivity;
 
 pub use allow_rule::AllowRule;
+pub use field_classification::FieldClassification;
 pub use field_name_matching::FieldNameMatching;
 pub use global_default_already_set::GlobalDefaultAlreadySet;
 pub use mask_policy::MaskPolicy;

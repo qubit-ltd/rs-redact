@@ -1,0 +1,102 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+//! Explainable borrowed results from field-policy classification.
+
+use super::{
+    AllowRule,
+    FieldNameMatching,
+    SensitiveFieldRule,
+    Sensitivity,
+};
+
+/// Explains why a field is sensitive, allowed, or unknown to a policy.
+///
+/// Matched rules borrow canonical field names from the immutable policy, so
+/// callers can inspect classification without cloning rule metadata.
+#[must_use]
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldClassification<'a> {
+    /// A sensitive rule classified the field.
+    Sensitive {
+        /// Borrowed configured rule that supplied the sensitivity.
+        rule: SensitiveFieldRule<'a>,
+        /// Whether the complete name or a semantic suffix matched.
+        matching: FieldNameMatching,
+    },
+    /// An allow rule took precedence over sensitivity at the same candidate.
+    Allowed(AllowRule<'a>),
+    /// No configured rule classified the field.
+    Unknown,
+}
+
+impl<'a> FieldClassification<'a> {
+    /// Returns the configured sensitivity when the field is sensitive.
+    ///
+    /// # Returns
+    ///
+    /// `Some(level)` for [`Self::Sensitive`], or `None` for allowed and unknown
+    /// fields.
+    #[must_use]
+    pub const fn sensitivity(self) -> Option<Sensitivity> {
+        match self {
+            Self::Sensitive { rule, .. } => Some(rule.sensitivity()),
+            Self::Allowed(_) | Self::Unknown => None,
+        }
+    }
+
+    /// Returns the canonical configured field that matched.
+    ///
+    /// # Returns
+    ///
+    /// A field name borrowed from the policy for sensitive and allowed
+    /// classifications, or `None` for [`Self::Unknown`].
+    #[must_use]
+    pub const fn matched_field(self) -> Option<&'a str> {
+        match self {
+            Self::Sensitive { rule, .. } => Some(rule.field()),
+            Self::Allowed(rule) => Some(rule.field()),
+            Self::Unknown => None,
+        }
+    }
+
+    /// Returns how the configured rule matched the input.
+    ///
+    /// # Returns
+    ///
+    /// Exact or semantic-suffix matching for sensitive and allowed
+    /// classifications, or `None` for [`Self::Unknown`].
+    #[must_use]
+    pub const fn matching(self) -> Option<FieldNameMatching> {
+        match self {
+            Self::Sensitive { matching, .. } => Some(matching),
+            Self::Allowed(rule) => Some(rule.matching()),
+            Self::Unknown => None,
+        }
+    }
+
+    /// Reports whether an allow rule classified the field.
+    ///
+    /// # Returns
+    ///
+    /// `true` only for [`Self::Allowed`].
+    #[must_use]
+    pub const fn is_allowed(self) -> bool {
+        matches!(self, Self::Allowed(_))
+    }
+
+    /// Reports whether no configured rule classified the field.
+    ///
+    /// # Returns
+    ///
+    /// `true` only for [`Self::Unknown`].
+    #[must_use]
+    pub const fn is_unknown(self) -> bool {
+        matches!(self, Self::Unknown)
+    }
+}

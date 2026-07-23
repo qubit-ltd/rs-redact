@@ -22,6 +22,7 @@ use std::{
 
 use super::{
     AllowRule,
+    FieldClassification,
     FieldNameMatching,
     GlobalDefaultAlreadySet,
     MaskingPolicy,
@@ -208,7 +209,7 @@ impl RedactionPolicy {
             .map_err(|_| GlobalDefaultAlreadySet)
     }
 
-    /// Resolves the sensitivity configured for `field`.
+    /// Classifies `field` and returns the configured rule that decided it.
     ///
     /// Candidates are examined from the complete canonical name to shorter
     /// semantic token suffixes. An allow rule wins over a sensitive rule at
@@ -221,28 +222,108 @@ impl RedactionPolicy {
     ///
     /// # Returns
     ///
-    /// `Some(level)` for the first matching sensitive rule, or `None` when an
-    /// allow rule wins or no sensitive rule matches.
+    /// A borrowed sensitive or allow rule for the first matching candidate, or
+    /// [`FieldClassification::Unknown`] when no rule matches.
+    pub fn classify_field<'a>(
+        &'a self,
+        field: &str,
+    ) -> FieldClassification<'a> {
+        self.classify_field_with_matching(field, self.inner.matching)
+    }
+
+    /// Resolves the sensitivity configured for `field`.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Raw field name to classify.
+    ///
+    /// # Returns
+    ///
+    /// `Some(level)` for a sensitive classification, or `None` when an allow
+    /// rule wins or no rule matches.
     #[must_use]
+    #[inline]
     pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
+        self.classify_field(field).sensitivity()
+    }
+
+    /// Classifies a field using an explicit candidate-generation breadth.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Raw field name to classify.
+    /// * `matching` - Exact or semantic-suffix candidate generation.
+    ///
+    /// # Returns
+    ///
+    /// The first sensitive or allow rule in candidate order, otherwise
+    /// [`FieldClassification::Unknown`].
+    fn classify_field_with_matching<'a>(
+        &'a self,
+        field: &str,
+        matching: FieldNameMatching,
+    ) -> FieldClassification<'a> {
         match visit_canonical_field_candidates(
             field,
-            self.inner.matching,
+            matching,
             |is_exact, candidate| {
-                if (is_exact && self.inner.allow_exact.contains(candidate))
-                    || self.inner.allow_suffix.contains(candidate)
+                if is_exact
+                    && let Some(field) = self.inner.allow_exact.get(candidate)
                 {
-                    return ControlFlow::Break(None);
+                    return ControlFlow::Break(FieldClassification::Allowed(
+                        AllowRule::new(field, FieldNameMatching::Exact),
+                    ));
                 }
-                if let Some(level) = self.inner.sensitive.get(candidate) {
-                    return ControlFlow::Break(Some(*level));
+                if let Some(field) = self.inner.allow_suffix.get(candidate) {
+                    return ControlFlow::Break(FieldClassification::Allowed(
+                        AllowRule::new(
+                            field,
+                            FieldNameMatching::ExactOrTokenSuffix,
+                        ),
+                    ));
+                }
+                if let Some((field, sensitivity)) =
+                    self.inner.sensitive.get_key_value(candidate)
+                {
+                    let matching = if is_exact {
+                        FieldNameMatching::Exact
+                    } else {
+                        FieldNameMatching::ExactOrTokenSuffix
+                    };
+                    return ControlFlow::Break(
+                        FieldClassification::Sensitive {
+                            rule: SensitiveFieldRule::new(field, *sensitivity),
+                            matching,
+                        },
+                    );
                 }
                 ControlFlow::Continue(())
             },
         ) {
-            ControlFlow::Break(result) => result,
-            ControlFlow::Continue(()) => None,
+            ControlFlow::Break(classification) => classification,
+            ControlFlow::Continue(()) => FieldClassification::Unknown,
         }
+    }
+
+    /// Resolves sensitivity only for the complete canonical field name.
+    ///
+    /// This restricted lookup supports syntax adapters that must not interpret
+    /// compact values as semantic field-name suffixes.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Raw field name to classify exactly.
+    ///
+    /// # Returns
+    ///
+    /// `Some(level)` for an exact sensitive rule, or `None` when an allow rule
+    /// wins or no exact sensitive rule matches.
+    pub(crate) fn sensitivity_for_exact(
+        &self,
+        field: &str,
+    ) -> Option<Sensitivity> {
+        self.classify_field_with_matching(field, FieldNameMatching::Exact)
+            .sensitivity()
     }
 
     /// Returns the configured sensitive-field matching breadth.

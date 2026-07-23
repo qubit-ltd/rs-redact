@@ -270,6 +270,7 @@ pub use domain::{
 pub use env::EnvRedactor;
 pub use policy::{
     AllowRule,
+    FieldClassification,
     FieldNameMatching,
     GlobalDefaultAlreadySet,
     MaskPolicy,

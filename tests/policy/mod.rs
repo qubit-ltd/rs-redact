@@ -8,6 +8,7 @@
 //! Tests for redaction policy primitives.
 
 mod allow_rule_tests;
+mod field_classification_tests;
 mod field_name_matching_tests;
 mod global_default_already_set_tests;
 mod internal;
