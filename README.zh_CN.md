@@ -22,6 +22,10 @@ Qubit Redact 将职责拆成四层：
 未知字段会原样通过。因此，本库依靠已知结构和已配置字段名，而不是尝试通用地发现
 秘密。默认策略提供保守的预定义规则，builder 可增加业务规则和显式允许决策。
 
+`RedactionPolicy::classify_field` 会把每次决策解释为 `Sensitive`、`Allowed` 或
+`Unknown`。匹配字段名直接借用策略中的规则，`sensitivity_for` 也委托给同一套优先级
+逻辑。
+
 ## Cargo Feature
 
 默认 feature 集为空，核心 crate 没有外部运行时依赖。
@@ -230,8 +234,10 @@ assert!(!format!("{value}").contains("raw-token"));
 ## 进程诊断
 
 `ArgvRedactor::redact_items` 信任调用方提供的敏感等级，不推断命令行语法。
-`redact_heuristically` 会额外识别常见 option 和赋值形式，但不会把 shell payload 当作
-脚本解析。
+`redact_heuristically` 会识别 `--password value`、`--password=value`、
+`-password value` 和 `NAME=value`；显式标记为敏感的 `ArgvItem` 始终会被遮盖。
+它不会推断 `-pSECRET` 这类紧凑 option、`-Dpassword=SECRET` 这类 JVM property，
+也不会解析 shell payload 语法；这些参数可能含有秘密时，调用方必须显式标记。
 
 `EnvRedactor` 处理 UTF-8 pair；任一操作系统组件不是合法 UTF-8 时会安全关闭。结果可
 安全显示为 `NAME=VALUE`。
@@ -278,7 +284,10 @@ fn main() {
 `cargo add http@1.4` 添加示例直接使用的 `http` 依赖（或使用上面的等价 Cargo.toml
 配置）。`HttpRedactor` 持有不可变 `HttpRedactionPolicy`，提供 URL、
 URL-encoded form、header 和 body 操作。`BodyCapture` 区分完整输入和受检的截断输入，
-`BodyBudget` 同时限制解析输入和渲染输出。
+`BodyBudget` 同时限制解析输入和渲染输出。`DiagnosticBudget` 单独限制
+`redact_url`、`redact_url_str`、`redact_urls_in_text`、`redact_form` 和
+`redact_headers`；默认输入上限为 16 KiB、输出上限为 64 KiB。输入超限时只返回
+`<redacted: diagnostic limit exceeded>`，不会保留任何源前缀。
 
 不合法或已截断的结构化 body 会安全关闭。不透明文本、无 key 的 JSON 标量、文件
 part、匿名 multipart part 和 URL path 默认采用保守策略。HTTP 结果类型只暴露日志
@@ -286,12 +295,24 @@ part、匿名 multipart part 和 URL path 默认采用保守策略。HTTP 结果
 
 ```rust
 use http::HeaderValue;
-use qubit_redact::http::{BodyCapture, BodyRedaction, HttpRedactor};
+use qubit_redact::http::{
+    BodyCapture,
+    BodyRedaction,
+    DiagnosticBudget,
+    HttpRedactionPolicy,
+    HttpRedactor,
+};
 
 fn main() {
+    let diagnostics = DiagnosticBudget::new(8 * 1024, 32 * 1024)
+        .expect("诊断预算合法");
+    let policy = HttpRedactionPolicy::builder()
+        .diagnostic_budget(diagnostics)
+        .build()
+        .expect("HTTP 策略合法");
     let body = br#"{"password":"secret","mode":"debug"}"#;
     let content_type = HeaderValue::from_static("application/json");
-    let result: BodyRedaction = HttpRedactor::default()
+    let result: BodyRedaction = HttpRedactor::new(policy)
         .redact_body(BodyCapture::complete(body), Some(&content_type));
     let display_text = format!("{result}");
     assert!(!display_text.contains("secret"));

@@ -30,3 +30,9 @@ All notable changes to this project are documented in this file.
 - Added performance baselines for map redaction and structured HTTP bodies.
 - Added bounded HTTP body output and hardened diagnostic parsing for URLs,
   forms, JSON, NDJSON, multipart bodies, headers, and malformed input.
+- Added `DiagnosticBudget` to bound every public URL, form, text, and header
+  diagnostic entry point with a fixed fail-closed marker for oversized input.
+- Added borrowed `FieldClassification` explanations while preserving
+  `sensitivity_for` precedence and behavior.
+- Split redacted Serde expansion into private functional modules without
+  changing the derive entry point or generated diagnostics.

@@ -26,6 +26,10 @@ structure and configured names, not general secret detection. The default
 policy provides conservative presets, while the builder supports application
 rules and explicit allow decisions.
 
+`RedactionPolicy::classify_field` explains each decision as `Sensitive`,
+`Allowed`, or `Unknown`. Matched field names borrow the configured policy rule,
+and `sensitivity_for` delegates to the same precedence logic.
+
 ## Cargo Features
 
 The default feature set is empty and the core crate has no external runtime
@@ -256,7 +260,11 @@ different policy boundary.
 
 `ArgvRedactor::redact_items` trusts explicit sensitivity metadata and performs
 no command-line inference. `redact_heuristically` additionally recognizes
-common option and assignment forms. Shell payloads are never parsed as scripts.
+`--password value`, `--password=value`, `-password value`, and `NAME=value`.
+Explicitly sensitive `ArgvItem` values are always masked. Compact options such
+as `-pSECRET`, JVM-style properties such as `-Dpassword=SECRET`, and shell
+payload syntax are not inferred; mark those items explicitly when they can
+contain secrets.
 
 `EnvRedactor` redacts UTF-8 pairs and fails closed when either operating-system
 component is not valid UTF-8. Its result safely renders as `NAME=VALUE`.
@@ -307,6 +315,10 @@ equivalent Cargo.toml entries above). `HttpRedactor` owns an immutable
 `HttpRedactionPolicy` and provides URL, URL-encoded form, header, and body
 operations. `BodyCapture` distinguishes complete input from checked truncated
 input, while `BodyBudget` bounds both parsing input and rendered output.
+`DiagnosticBudget` separately bounds `redact_url`, `redact_url_str`,
+`redact_urls_in_text`, `redact_form`, and `redact_headers`. Its defaults are
+16 KiB of input and 64 KiB of output; oversized input returns exactly
+`<redacted: diagnostic limit exceeded>` without preserving a source prefix.
 
 Malformed or truncated structured bodies fail closed. Opaque text, unkeyed JSON
 scalars, file parts, unnamed multipart parts, and URL paths use conservative
@@ -315,12 +327,24 @@ raw-body escape hatch.
 
 ```rust
 use http::HeaderValue;
-use qubit_redact::http::{BodyCapture, BodyRedaction, HttpRedactor};
+use qubit_redact::http::{
+    BodyCapture,
+    BodyRedaction,
+    DiagnosticBudget,
+    HttpRedactionPolicy,
+    HttpRedactor,
+};
 
 fn main() {
+    let diagnostics = DiagnosticBudget::new(8 * 1024, 32 * 1024)
+        .expect("the diagnostic limits are valid");
+    let policy = HttpRedactionPolicy::builder()
+        .diagnostic_budget(diagnostics)
+        .build()
+        .expect("the HTTP policy is valid");
     let body = br#"{"password":"secret","mode":"debug"}"#;
     let content_type = HeaderValue::from_static("application/json");
-    let result: BodyRedaction = HttpRedactor::default()
+    let result: BodyRedaction = HttpRedactor::new(policy)
         .redact_body(BodyCapture::complete(body), Some(&content_type));
     let display_text = format!("{result}");
     assert!(!display_text.contains("secret"));
