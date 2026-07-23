@@ -164,11 +164,39 @@
 //! values. Do not request an implementation already supplied by the type,
 //! such as combining `#[derive(Debug)]` with `#[redact(debug)]`.
 //!
+//! Derives support named, tuple, and unit structs, plus enums with named,
+//! tuple, and unit variants. With `#[redact(serde)]`, redacted serialization
+//! supports Serde's external, internal, adjacent, and untagged enum
+//! representations through a structure-preserving attribute allowlist.
+//!
+//! ```
+//! use qubit_redact::Redact as _;
+//! use qubit_redact_derive::Redact;
+//!
+//! #[derive(Redact)]
+//! struct Token(#[redact(level = "secret")] String);
+//!
+//! #[derive(Redact)]
+//! enum Event {
+//!     Credential(#[redact(level = "secret")] String),
+//!     Ready,
+//! }
+//!
+//! assert_eq!(
+//!     format!("{:?}", Token("raw".into()).redacted()),
+//!     "Token(\"<redacted>\")",
+//! );
+//! assert_eq!(
+//!     format!("{:?}", Event::Credential("raw".into()).redacted()),
+//!     "Credential(\"<redacted>\")",
+//! );
+//! assert_eq!(format!("{:?}", Event::Ready.redacted()), "Ready");
+//! ```
+//!
 //! `redacted()` snapshots the process default; `redacted_with` snapshots an
 //! explicit policy, which every nested and map field reuses. Field-specific
 //! map policies are not supported in the first version; use a domain newtype
-//! plus `nested` for a separate policy boundary. Derives support named structs
-//! only.
+//! plus `nested` for a separate policy boundary.
 //!
 //! # Process diagnostics
 //!

@@ -16,7 +16,8 @@ Qubit Redact separates four concerns:
 
 - `RedactionPolicy` is an immutable snapshot of field rules, allow rules,
   matching behavior, and masks.
-- `Redactor` applies one policy to scalar field values and string maps.
+- `Redactor` applies one policy to scalar field values and text-keyed map-like
+  collections.
 - `ArgvRedactor` and `EnvRedactor` produce typed, log-safe process diagnostics.
 - The optional `http` module handles URLs, forms, headers, and bounded bodies.
 
@@ -71,7 +72,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 `redact_map_in_place` provides the corresponding mutating operation. Both map
-methods classify each value from its key and preserve safe values.
+methods classify each value from its key, preserve safe values, and retain the
+concrete collection type. The blanket contracts cover common collections such
+as `HashMap`, `BTreeMap`, and `indexmap::IndexMap` without coupling the runtime
+crate to a collection implementation; keys implement `AsRef<str>` and values
+implement the appropriate redaction value contract. Heterogeneous object maps
+such as `serde_json::Map<String, serde_json::Value>` are intentionally outside
+this blanket behavior because their replacement semantics are domain-specific;
+wrap them in a domain newtype and implement an explicit redaction boundary.
 
 ## Policy Configuration
 
@@ -165,8 +173,45 @@ support the same `level`, `nested`, and `map` field modes. `to_redacted`
 briefly creates a second copy of the original sensitive data; prefer
 `redact_in_place` or `into_redacted` for highly sensitive values.
 
+The derives accept named, tuple, and unit structs as well as enums whose
+variants use any of those three field shapes. Field attributes retain the
+surrounding Rust shape: tuple fields stay positional, enum formatting reports
+the active variant, and `RedactMut` changes only the active variant's fields.
+
+```rust
+use qubit_redact::Redact as _;
+use qubit_redact_derive::Redact;
+
+#[derive(Redact)]
+struct Token(#[redact(level = "secret")] String);
+
+#[derive(Redact)]
+struct Ready;
+
+#[derive(Redact)]
+enum Event {
+    Credential(#[redact(level = "secret")] String),
+    Ready,
+}
+
+assert_eq!(format!("{:?}", Token("raw".into()).redacted()), "Token(\"<redacted>\")");
+assert_eq!(format!("{:?}", Ready.redacted()), "Ready");
+assert_eq!(
+    format!("{:?}", Event::Credential("raw".into()).redacted()),
+    "Credential(\"<redacted>\")",
+);
+assert_eq!(format!("{:?}", Event::Ready.redacted()), "Ready");
+```
+
 Enable `serde` and use the companion derive crate, then add `#[redact(serde)]`
-to opt a named struct into serialization of its redacted view. The consuming
+to opt a supported struct or enum into serialization of its redacted view.
+Externally tagged, internally tagged, adjacently tagged, and untagged enums are
+supported. To prevent an ordinary Serde customization from bypassing
+redaction, the derive accepts only structure-preserving controls: container
+`rename`, `rename_all`, `rename_all_fields`, `tag`, `content`, and `untagged`;
+variant `rename`, `rename_all`, `skip`, and `skip_serializing`; and field
+`rename`, `skip`, `skip_serializing`, and `skip_serializing_if`. Other Serde
+controls are rejected when redacted serialization is enabled. The consuming
 crate must declare `serde` directly (a renamed dependency is supported); the
 runtime crate does not re-export it. `Redacted` does not implement
 `Deserialize`.
@@ -205,7 +250,7 @@ existing implementation of the same trait, including `#[derive(Debug)]` with
 snapshots an explicit policy, and every nested or Map field uses that same
 snapshot. Field-specific Map policies are intentionally unsupported in the
 first version; use a domain newtype with `nested` when a field needs a
-different policy boundary. Derives currently support named structs only.
+different policy boundary.
 
 ## Process Diagnostics
 

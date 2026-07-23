@@ -15,7 +15,7 @@
 Qubit Redact 将职责拆成四层：
 
 - `RedactionPolicy` 是字段规则、允许规则、匹配方式和掩码的不可变快照。
-- `Redactor` 使用一份策略处理标量字段值和字符串 Map。
+- `Redactor` 使用一份策略处理标量字段值和文本 key 的类 Map 集合。
 - `ArgvRedactor`、`EnvRedactor` 生成有类型且日志安全的进程诊断结果。
 - 可选 `http` 模块处理 URL、form、header 和有界 body。
 
@@ -66,7 +66,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 `redact_map_in_place` 提供对应的原地修改操作。两个 Map 方法都根据 key 分类 value，
-并保留安全值。
+保留安全值，并维持具体集合类型。通用 trait 在 runtime crate 不依赖具体集合实现的前提下
+覆盖 `HashMap`、`BTreeMap` 和 `indexmap::IndexMap` 等常见集合；key 需实现
+`AsRef<str>`，value 需实现相应的 redaction value 契约。像
+`serde_json::Map<String, serde_json::Value>` 这样具有异构领域语义的 object map
+不在通用实现范围内；应使用领域 newtype 并实现显式脱敏边界。
 
 ## 策略配置
 
@@ -152,9 +156,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 的 `to_redacted` 支持相同的 `level`、`nested`、`map` 字段模式。`to_redacted` 会短暂产生
 第二份原始敏感数据；高敏感场景应优先使用 `redact_in_place` 或 `into_redacted`。
 
-启用 `serde` 并使用配套 derive crate，再给具名 struct 添加 `#[redact(serde)]`，即可
-序列化其脱敏视图。使用方 crate 必须直接声明 `serde` 依赖（支持重命名依赖），runtime
-crate 不再转导出它。`Redacted` 不实现 `Deserialize`。
+derive 支持具名、tuple 和 unit struct，也支持 variant 采用这三种字段形态的 enum。
+字段属性会保留外层 Rust 形态：tuple 字段保持位置语义，enum 格式化显示当前 variant，
+`RedactMut` 也只修改当前 variant 的字段。
+
+```rust
+use qubit_redact::Redact as _;
+use qubit_redact_derive::Redact;
+
+#[derive(Redact)]
+struct Token(#[redact(level = "secret")] String);
+
+#[derive(Redact)]
+struct Ready;
+
+#[derive(Redact)]
+enum Event {
+    Credential(#[redact(level = "secret")] String),
+    Ready,
+}
+
+assert_eq!(format!("{:?}", Token("raw".into()).redacted()), "Token(\"<redacted>\")");
+assert_eq!(format!("{:?}", Ready.redacted()), "Ready");
+assert_eq!(
+    format!("{:?}", Event::Credential("raw".into()).redacted()),
+    "Credential(\"<redacted>\")",
+);
+assert_eq!(format!("{:?}", Event::Ready.redacted()), "Ready");
+```
+
+启用 `serde` 并使用配套 derive crate，再给受支持的 struct 或 enum 添加
+`#[redact(serde)]`，即可序列化其脱敏视图。enum 支持 externally tagged、internally
+tagged、adjacently tagged 和 untagged 四种标准表示。为避免普通 Serde 自定义绕过脱敏，
+derive 只接受保持结构安全的控制项：container 的 `rename`、`rename_all`、
+`rename_all_fields`、`tag`、`content`、`untagged`；variant 的 `rename`、
+`rename_all`、`skip`、`skip_serializing`；field 的 `rename`、`skip`、
+`skip_serializing`、`skip_serializing_if`。启用脱敏序列化后，其他 Serde 控制项会被拒绝。
+使用方 crate 必须直接声明 `serde` 依赖（支持重命名依赖），runtime crate 不再转导出它。
+`Redacted` 不实现 `Deserialize`。
 
 ```rust
 use qubit_redact::Redact as _;
@@ -186,7 +225,7 @@ assert!(!format!("{value}").contains("raw-token"));
 
 `redacted()` 会快照进程级默认策略；`redacted_with` 会快照显式策略，所有 nested 和 Map
 字段都沿用同一快照。第一版不支持字段级 Map policy；字段需要不同策略边界时，请使用
-领域 newtype 并通过 `nested` 处理。derive 当前只支持具名 struct。
+领域 newtype 并通过 `nested` 处理。
 
 ## 进程诊断
 
