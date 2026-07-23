@@ -21,3 +21,73 @@ fn test_argv_redactor_masks_password_value() {
         .to_string();
     assert!(!rendered.contains("raw"));
 }
+
+/// Verifies the complete supported heuristic syntax remains explicit.
+#[test]
+fn test_argv_redactor_supports_documented_heuristic_forms() {
+    let rendered = ArgvRedactor::default()
+        .redact_heuristically([
+            ArgvItem::plain(OsStr::new("--password")),
+            ArgvItem::plain(OsStr::new("separate-long")),
+            ArgvItem::plain(OsStr::new("--password=inline-long")),
+            ArgvItem::plain(OsStr::new("-password")),
+            ArgvItem::plain(OsStr::new("separate-single")),
+            ArgvItem::plain(OsStr::new("PASSWORD=assignment")),
+            ArgvItem::sensitive(
+                OsStr::new("authoritative"),
+                qubit_redact::Sensitivity::Secret,
+            ),
+        ])
+        .to_string();
+
+    for secret in [
+        "separate-long",
+        "inline-long",
+        "separate-single",
+        "assignment",
+        "authoritative",
+    ] {
+        assert!(!rendered.contains(secret));
+    }
+}
+
+/// Verifies compact options, JVM-style properties, and shell payloads are not
+/// inferred by the command-agnostic heuristic.
+#[test]
+fn test_argv_redactor_keeps_documented_unsupported_forms_plain() {
+    let rendered = ArgvRedactor::default()
+        .redact_heuristically([
+            ArgvItem::plain(OsStr::new("-pSECRET")),
+            ArgvItem::plain(OsStr::new("-Dpassword=SECRET")),
+            ArgvItem::plain(OsStr::new("echo --password shell-secret")),
+        ])
+        .to_string();
+
+    assert!(rendered.contains("-pSECRET"));
+    assert!(rendered.contains("-Dpassword=SECRET"));
+    assert!(rendered.contains("shell-secret"));
+}
+
+/// Verifies explicit sensitivity remains authoritative for unsupported forms.
+#[test]
+fn test_argv_redactor_masks_unsupported_forms_when_explicitly_sensitive() {
+    let rendered = ArgvRedactor::default()
+        .redact_heuristically([
+            ArgvItem::sensitive(
+                OsStr::new("-pSECRET"),
+                qubit_redact::Sensitivity::Secret,
+            ),
+            ArgvItem::sensitive(
+                OsStr::new("-Dpassword=SECRET"),
+                qubit_redact::Sensitivity::Secret,
+            ),
+            ArgvItem::sensitive(
+                OsStr::new("echo --password shell-secret"),
+                qubit_redact::Sensitivity::Secret,
+            ),
+        ])
+        .to_string();
+
+    assert!(!rendered.contains("SECRET"));
+    assert!(!rendered.contains("shell-secret"));
+}

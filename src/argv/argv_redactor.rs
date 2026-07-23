@@ -83,12 +83,15 @@ impl ArgvRedactor {
     /// Redacts explicit sensitive values and heuristically classified plain
     /// values.
     ///
-    /// Explicit sensitivity always wins. Only plain items participate in the
-    /// `--name=value`, `--name value`, and `NAME=value` recognition. Because
-    /// this is a safety heuristic rather than a command-specific parser, an
-    /// option delimiter does not disable recognition in later wrapper or
-    /// child-command segments. A non-UTF-8 plain item is masked at
-    /// [`Sensitivity::Secret`] because it cannot be classified safely.
+    /// Explicit sensitivity always wins. Plain items recognize
+    /// `--name value`, `--name=value`, `-name value`, and `NAME=value`.
+    /// Compact options such as `-pSECRET`, JVM-style properties such as
+    /// `-Dpassword=SECRET`, and shell payload syntax are not inferred. Callers
+    /// must mark those values explicitly when they are sensitive. Because this
+    /// is a safety heuristic rather than a command-specific parser, an option
+    /// delimiter does not disable recognition in later wrapper or child-command
+    /// segments. A non-UTF-8 plain item is masked at [`Sensitivity::Secret`]
+    /// because it cannot be classified safely.
     ///
     /// # Parameters
     ///
@@ -214,7 +217,11 @@ impl ArgvRedactor {
     #[inline]
     fn option_sensitivity(&self, value: &str) -> Option<Sensitivity> {
         let name = option_name(value)?;
-        self.redactor.policy().sensitivity_for(name)
+        if value.starts_with("--") {
+            self.redactor.policy().sensitivity_for(name)
+        } else {
+            self.redactor.policy().sensitivity_for_exact(name)
+        }
     }
 
     /// Redacts a plain `NAME=value` token when its name is sensitive.
@@ -249,10 +256,11 @@ impl ArgvRedactor {
     ///
     /// # Returns
     ///
-    /// `Some(rendering)` for a sensitive inline option, or `None` otherwise.
+    /// `Some(rendering)` for a sensitive long inline option, or `None`
+    /// otherwise. Single-dash attached forms remain uninterpreted.
     #[inline]
     fn redact_inline_option(&self, value: &str) -> Option<String> {
-        if !value.starts_with('-') || value == "-" {
+        if !value.starts_with("--") {
             return None;
         }
         let (left, raw_value) = value.split_once('=')?;
@@ -316,7 +324,7 @@ impl Default for ArgvRedactor {
 /// otherwise.
 #[inline]
 fn option_name(value: &str) -> Option<&str> {
-    if !value.starts_with('-') || value == "-" {
+    if !value.starts_with('-') || value == "-" || value.contains('=') {
         return None;
     }
     let name = value.trim_start_matches('-');
