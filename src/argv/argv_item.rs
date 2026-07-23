@@ -30,6 +30,18 @@ pub struct ArgvItem<'a> {
 
 impl fmt::Debug for ArgvItem<'_> {
     /// Formats safe argument metadata without exposing the original value.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination formatting context.
+    ///
+    /// # Returns
+    ///
+    /// The formatter result from writing the safe metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the destination rejects a write.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("ArgvItem")

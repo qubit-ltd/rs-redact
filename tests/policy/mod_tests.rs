@@ -5,23 +5,20 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for policy state used by public field matching.
+//! Tests for the public policy module boundary.
 
 use qubit_redact::{
     RedactionPolicy,
     Sensitivity,
 };
 
-/// Verifies internal policy state supports normalized public lookup.
+/// Verifies builder and immutable policy reexports compose.
 #[test]
-fn test_redaction_policy_inner_normalizes_field_name_for_lookup() {
+fn test_policy_module_reexports_compose() {
     let policy = RedactionPolicy::empty_builder()
-        .raise("tenant_secret", Sensitivity::Secret)
+        .raise("token", Sensitivity::Secret)
         .build()
-        .expect("the configured rule should be valid");
+        .expect("the module-level policy rule is valid");
 
-    assert_eq!(
-        policy.sensitivity_for("tenant-secret"),
-        Some(Sensitivity::Secret),
-    );
+    assert_eq!(policy.sensitivity_for("token"), Some(Sensitivity::Secret));
 }

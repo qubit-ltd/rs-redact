@@ -35,6 +35,10 @@ impl BoundedMaskWriter {
     }
 
     /// Returns the retained masked prefix.
+    ///
+    /// # Returns
+    ///
+    /// The owned masked UTF-8 prefix within the configured byte budget.
     pub(in crate::policy) fn finish(self) -> String {
         self.output
     }
@@ -42,6 +46,18 @@ impl BoundedMaskWriter {
 
 impl fmt::Write for BoundedMaskWriter {
     /// Appends the longest UTF-8 prefix that fits the remaining budget.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Masked text to append within the remaining byte budget.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` after retaining the longest complete UTF-8 prefix that fits.
+    ///
+    /// # Errors
+    ///
+    /// This bounded in-memory writer does not return a formatting error.
     fn write_str(&mut self, value: &str) -> fmt::Result {
         let remaining = self.max_bytes.saturating_sub(self.output.len());
         let mut end = value.len().min(remaining);

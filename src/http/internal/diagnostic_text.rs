@@ -218,6 +218,14 @@ fn unmatched_closer_counts(candidate: &str) -> [usize; 3] {
 }
 
 /// Consumes one pre-counted unmatched closer when available.
+///
+/// # Parameters
+///
+/// * `count` - Remaining unmatched closers for one delimiter kind.
+///
+/// # Returns
+///
+/// `true` after consuming one closer, or `false` when none remain.
 #[inline(always)]
 fn take_unmatched_closer(count: &mut usize) -> bool {
     if *count == 0 {

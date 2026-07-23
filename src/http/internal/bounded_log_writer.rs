@@ -51,6 +51,10 @@ impl BoundedLogWriter {
     ///
     /// * `value` - Redacted text to append.
     ///
+    /// # Returns
+    ///
+    /// `Ok(())` after appending the longest escaped prefix that fits.
+    ///
     /// # Errors
     ///
     /// This implementation currently cannot return a formatting error.

@@ -65,6 +65,7 @@ impl BodyBudget {
     /// # Returns
     ///
     /// The positive input limit in bytes.
+    #[must_use]
     #[inline(always)]
     pub const fn max_input_bytes(self) -> usize {
         self.max_input_bytes
@@ -75,6 +76,7 @@ impl BodyBudget {
     /// # Returns
     ///
     /// The output limit in bytes, including any truncation marker.
+    #[must_use]
     #[inline(always)]
     pub const fn max_output_bytes(self) -> usize {
         self.max_output_bytes

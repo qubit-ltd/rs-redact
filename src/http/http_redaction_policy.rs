@@ -104,6 +104,7 @@ impl HttpRedactionPolicy {
     /// # Returns
     ///
     /// The policy used for HTTP headers.
+    #[inline(always)]
     pub const fn header_policy(&self) -> &RedactionPolicy {
         &self.header_policy
     }

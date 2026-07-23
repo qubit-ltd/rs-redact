@@ -70,6 +70,18 @@ impl Debug for RedactedValue<'_> {
 #[cfg(feature = "serde")]
 impl serde::Serialize for RedactedValue<'_> {
     /// Preserves the original plain or optional container shape.
+    ///
+    /// # Parameters
+    ///
+    /// * `serializer` - Destination Serde serializer.
+    ///
+    /// # Returns
+    ///
+    /// The serializer's successful text or option output.
+    ///
+    /// # Errors
+    ///
+    /// Returns the destination serializer's error unchanged.
     #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

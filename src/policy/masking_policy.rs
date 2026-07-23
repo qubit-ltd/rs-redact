@@ -101,7 +101,19 @@ impl MaskingPolicy {
     }
 
     /// Masks a value without allocating beyond a byte limit.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` - Sensitivity level selecting the mask policy.
+    /// * `value` - Value to mask.
+    /// * `max_bytes` - Maximum bytes allocated for the masked result.
+    ///
+    /// # Returns
+    ///
+    /// The borrowed empty input or an owned mask bounded by `max_bytes`.
     #[cfg(feature = "http")]
+    #[must_use = "use the returned bounded mask instead of the original value"]
+    #[inline(always)]
     pub(crate) fn mask_bounded<'a>(
         &self,
         level: Sensitivity,

@@ -42,6 +42,18 @@ impl<T: RedactSerialize + ?Sized> serde::Serialize
     for RedactedSerialize<'_, T>
 {
     /// Delegates serialization to the nested redaction hook.
+    ///
+    /// # Parameters
+    ///
+    /// * `serializer` - Destination Serde serializer.
+    ///
+    /// # Returns
+    ///
+    /// The nested redaction hook's successful output.
+    ///
+    /// # Errors
+    ///
+    /// Returns the nested redaction hook's error unchanged.
     #[inline(always)]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

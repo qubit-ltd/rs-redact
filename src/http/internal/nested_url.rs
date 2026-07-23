@@ -85,6 +85,14 @@ pub(in crate::http) fn detect(value: &str) -> NestedUrl {
 }
 
 /// Reports whether a partial candidate has established the HTTP scheme name.
+///
+/// # Parameters
+///
+/// * `value` - Candidate prefix to inspect case-insensitively.
+///
+/// # Returns
+///
+/// `true` when at least the leading `http` name is present.
 fn starts_with_http_name(value: &str) -> bool {
     value
         .as_bytes()
@@ -93,6 +101,14 @@ fn starts_with_http_name(value: &str) -> bool {
 }
 
 /// Reports whether `value` starts with an absolute HTTP URL scheme.
+///
+/// # Parameters
+///
+/// * `value` - Candidate text to inspect case-insensitively.
+///
+/// # Returns
+///
+/// `true` for an `http://` or `https://` prefix.
 fn starts_with_http_scheme(value: &str) -> bool {
     [b"http://".as_slice(), b"https://".as_slice()]
         .into_iter()
@@ -114,6 +130,11 @@ fn starts_with_http_scheme(value: &str) -> bool {
 ///
 /// `Ok(Some(value))` for decoded UTF-8 text, `Ok(None)` when unchanged, or the
 /// valid decoded prefix in `Err` when an escape or UTF-8 sequence is malformed.
+///
+/// # Errors
+///
+/// Returns the safely decoded UTF-8 prefix when an escape is incomplete,
+/// contains a non-hexadecimal byte, or produces invalid UTF-8.
 fn percent_decode_once(value: &str) -> Result<Option<String>, String> {
     let bytes = value.as_bytes();
     let mut decoded = Vec::with_capacity(bytes.len());
@@ -149,6 +170,14 @@ fn percent_decode_once(value: &str) -> Result<Option<String>, String> {
 }
 
 /// Converts the valid UTF-8 prefix of partially decoded bytes to text.
+///
+/// # Parameters
+///
+/// * `decoded` - Partially decoded byte buffer.
+///
+/// # Returns
+///
+/// The complete string when valid, otherwise its valid UTF-8 prefix.
 fn valid_utf8_prefix(decoded: Vec<u8>) -> String {
     match String::from_utf8(decoded) {
         Ok(text) => text,
@@ -161,6 +190,14 @@ fn valid_utf8_prefix(decoded: Vec<u8>) -> String {
 }
 
 /// Decodes one ASCII hexadecimal digit.
+///
+/// # Parameters
+///
+/// * `byte` - Candidate ASCII hexadecimal byte.
+///
+/// # Returns
+///
+/// Its numeric value, or `None` for another byte.
 const fn hex(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),

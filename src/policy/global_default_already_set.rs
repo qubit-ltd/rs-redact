@@ -18,6 +18,18 @@ pub struct GlobalDefaultAlreadySet;
 
 impl fmt::Display for GlobalDefaultAlreadySet {
     /// Formats a concise description of the one-time installation failure.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination formatting context.
+    ///
+    /// # Returns
+    ///
+    /// The formatter result from writing the error description.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the destination rejects a write.
     #[inline(always)]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter

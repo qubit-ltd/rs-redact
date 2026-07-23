@@ -128,6 +128,60 @@ impl RedactionPolicy {
         RedactionPolicyBuilder::from_policy(base)
     }
 
+    /// Constructs the built-in policy without consulting `Default`.
+    ///
+    /// # Returns
+    ///
+    /// The complete built-in conservative policy.
+    pub(super) fn build_standard() -> Self {
+        let mut builder = RedactionPolicyBuilder::empty();
+        for preset in [
+            SensitiveFieldPreset::Credentials,
+            SensitiveFieldPreset::CredentialContainers,
+            SensitiveFieldPreset::AuthTokens,
+            SensitiveFieldPreset::Http,
+            SensitiveFieldPreset::Session,
+        ] {
+            builder = builder.include_preset(preset);
+        }
+        for &(field, level) in STANDARD_EXTRA_FIELDS {
+            builder = builder.raise(field, level);
+        }
+        builder.into_policy()
+    }
+
+    /// Creates an immutable policy from validated builder components.
+    ///
+    /// # Parameters
+    ///
+    /// * `sensitive` - Canonical sensitive fields and levels.
+    /// * `allow_exact` - Canonical exact-only allow rules.
+    /// * `allow_suffix` - Canonical suffix allow rules.
+    /// * `matching` - Sensitive-field matching breadth.
+    /// * `masking` - Four-level value-masking policy.
+    ///
+    /// # Returns
+    ///
+    /// A cheap-clone immutable policy.
+    #[inline(always)]
+    pub(super) fn from_parts(
+        sensitive: BTreeMap<String, Sensitivity>,
+        allow_exact: BTreeSet<String>,
+        allow_suffix: BTreeSet<String>,
+        matching: FieldNameMatching,
+        masking: MaskingPolicy,
+    ) -> Self {
+        Self {
+            inner: Arc::new(RedactionPolicyInner {
+                sensitive,
+                allow_exact,
+                allow_suffix,
+                matching,
+                masking,
+            }),
+        }
+    }
+
     /// Installs the process-wide default policy exactly once.
     ///
     /// The installed immutable policy affects later calls to [`Self::default`]
@@ -136,6 +190,10 @@ impl RedactionPolicy {
     /// # Parameters
     ///
     /// * `policy` - Immutable policy to install as the process-wide default.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when this call installs the process-wide default.
     ///
     /// # Errors
     ///
@@ -237,60 +295,6 @@ impl RedactionPolicy {
             AllowRule::new(field, FieldNameMatching::ExactOrTokenSuffix)
         });
         exact.chain(suffix)
-    }
-
-    /// Constructs the built-in policy without consulting `Default`.
-    ///
-    /// # Returns
-    ///
-    /// The complete built-in conservative policy.
-    pub(super) fn build_standard() -> Self {
-        let mut builder = RedactionPolicyBuilder::empty();
-        for preset in [
-            SensitiveFieldPreset::Credentials,
-            SensitiveFieldPreset::CredentialContainers,
-            SensitiveFieldPreset::AuthTokens,
-            SensitiveFieldPreset::Http,
-            SensitiveFieldPreset::Session,
-        ] {
-            builder = builder.include_preset(preset);
-        }
-        for &(field, level) in STANDARD_EXTRA_FIELDS {
-            builder = builder.raise(field, level);
-        }
-        builder.into_policy()
-    }
-
-    /// Creates an immutable policy from validated builder components.
-    ///
-    /// # Parameters
-    ///
-    /// * `sensitive` - Canonical sensitive fields and levels.
-    /// * `allow_exact` - Canonical exact-only allow rules.
-    /// * `allow_suffix` - Canonical suffix allow rules.
-    /// * `matching` - Sensitive-field matching breadth.
-    /// * `masking` - Four-level value-masking policy.
-    ///
-    /// # Returns
-    ///
-    /// A cheap-clone immutable policy.
-    #[inline(always)]
-    pub(super) fn from_parts(
-        sensitive: BTreeMap<String, Sensitivity>,
-        allow_exact: BTreeSet<String>,
-        allow_suffix: BTreeSet<String>,
-        matching: FieldNameMatching,
-        masking: MaskingPolicy,
-    ) -> Self {
-        Self {
-            inner: Arc::new(RedactionPolicyInner {
-                sensitive,
-                allow_exact,
-                allow_suffix,
-                matching,
-                masking,
-            }),
-        }
     }
 
     /// Clones the canonical sensitive-field map for a new builder.

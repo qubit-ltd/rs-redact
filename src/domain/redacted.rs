@@ -52,6 +52,10 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     }
 
     /// Returns the borrowed domain value to crate-internal adapters.
+    ///
+    /// # Returns
+    ///
+    /// The original domain value borrowed for the view's lifetime.
     #[cfg(feature = "serde")]
     #[inline(always)]
     pub(crate) const fn value(&self) -> &'a T {
@@ -59,6 +63,10 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     }
 
     /// Returns the policy snapshot to crate-internal adapters.
+    ///
+    /// # Returns
+    ///
+    /// The immutable policy snapshot owned by this view.
     #[cfg(feature = "serde")]
     #[inline(always)]
     pub(crate) const fn policy(&self) -> &RedactionPolicy {
@@ -71,6 +79,18 @@ impl<T: crate::domain::RedactSerialize + ?Sized> serde::Serialize
     for Redacted<'_, T>
 {
     /// Delegates serialization to the derived redaction hook.
+    ///
+    /// # Parameters
+    ///
+    /// * `serializer` - Destination Serde serializer.
+    ///
+    /// # Returns
+    ///
+    /// The derived hook's successful output.
+    ///
+    /// # Errors
+    ///
+    /// Returns the derived hook's serialization error unchanged.
     #[inline(always)]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

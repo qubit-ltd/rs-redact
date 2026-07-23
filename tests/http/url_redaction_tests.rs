@@ -22,6 +22,7 @@ use qubit_redact::{
 };
 
 #[test]
+/// Verifies that url redaction masks components and query values.
 fn test_url_redaction_masks_components_and_query_values() {
     let result = HttpRedactor::default().redact_url_str(
         "https://alice:secret@example.test/private?openai_api_key=raw&mode=debug#secret-fragment",
@@ -34,6 +35,7 @@ fn test_url_redaction_masks_components_and_query_values() {
 }
 
 #[test]
+/// Verifies that url and form redaction fail closed on malformed input.
 fn test_url_and_form_redaction_fail_closed_on_malformed_input() {
     let redactor = HttpRedactor::default();
 
@@ -52,6 +54,7 @@ fn test_url_and_form_redaction_fail_closed_on_malformed_input() {
 }
 
 #[test]
+/// Verifies that diagnostic text redaction keeps non url text.
 fn test_diagnostic_text_redaction_keeps_non_url_text() {
     let result = HttpRedactor::default()
         .redact_urls_in_text("opaque diagnostic message");
@@ -60,6 +63,8 @@ fn test_diagnostic_text_redaction_keeps_non_url_text() {
 }
 
 #[test]
+/// Verifies that diagnostic text redaction masks urls and preserves
+/// punctuation.
 fn test_diagnostic_text_redaction_masks_urls_and_preserves_punctuation() {
     let result = HttpRedactor::default().redact_urls_in_text(
         "failed near (https://alice:secret@example.test/private?password=raw), then HTTP://example.test/?access_token=query-secret!",
@@ -74,6 +79,8 @@ fn test_diagnostic_text_redaction_masks_urls_and_preserves_punctuation() {
 }
 
 #[test]
+/// Verifies that diagnostic text redaction handles overlapping schemes and
+/// braces.
 fn test_diagnostic_text_redaction_handles_overlapping_schemes_and_braces() {
     let result = HttpRedactor::default().redact_urls_in_text(
         "http://example.test/https://nested.test/{visible}}",
@@ -84,6 +91,7 @@ fn test_diagnostic_text_redaction_handles_overlapping_schemes_and_braces() {
 }
 
 #[test]
+/// Verifies that diagnostic text redaction masks nested url in same token.
 fn test_diagnostic_text_redaction_masks_nested_url_in_same_token() {
     let result = HttpRedactor::default().redact_urls_in_text(
         "redirect=https://outer.test/?next=https://nested-user:nested-secret@inner.test/private",
@@ -95,6 +103,7 @@ fn test_diagnostic_text_redaction_masks_nested_url_in_same_token() {
 }
 
 #[test]
+/// Verifies that url redaction masks percent encoded nested url.
 fn test_url_redaction_masks_percent_encoded_nested_url() {
     let result = HttpRedactor::default().redact_url_str(
         "https://outer.test/?next=https%3A%2F%2Fnested-user%3Anested-secret%40inner.test%2Fprivate",
@@ -106,6 +115,7 @@ fn test_url_redaction_masks_percent_encoded_nested_url() {
 }
 
 #[test]
+/// Verifies that url redaction fails closed on malformed encoded nested url.
 fn test_url_redaction_fails_closed_on_malformed_encoded_nested_url() {
     let result = HttpRedactor::default().redact_url_str(
         "https://outer.test/?next=https%253A%252F%252Fnested-user%253Anested-secret%2540inner.test%252Fprivate%25ZZ",
@@ -117,6 +127,7 @@ fn test_url_redaction_fails_closed_on_malformed_encoded_nested_url() {
 }
 
 #[test]
+/// Verifies that url redaction preserves non url percent values.
 fn test_url_redaction_preserves_non_url_percent_values() {
     let redactor = HttpRedactor::default();
 
@@ -135,6 +146,7 @@ fn test_url_redaction_preserves_non_url_percent_values() {
 }
 
 #[test]
+/// Verifies that nested url detection covers malformed and bounded decoding.
 fn test_nested_url_detection_covers_malformed_and_bounded_decoding() {
     let redactor = HttpRedactor::default();
     let inputs = [
@@ -160,6 +172,7 @@ fn test_nested_url_detection_covers_malformed_and_bounded_decoding() {
 }
 
 #[test]
+/// Verifies that url redaction preserves authoritative mask output.
 fn test_url_redaction_preserves_authoritative_mask_output() {
     let query_policy = RedactionPolicy::builder()
         .mask(
@@ -184,6 +197,7 @@ fn test_url_redaction_preserves_authoritative_mask_output() {
 }
 
 #[test]
+/// Verifies that url redaction fails closed at percent decoding limit.
 fn test_url_redaction_fails_closed_at_percent_decoding_limit() {
     let mut nested =
         "https://nested-user:nested-secret@inner.test/private".to_owned();
@@ -207,6 +221,7 @@ fn test_url_redaction_fails_closed_at_percent_decoding_limit() {
 }
 
 #[test]
+/// Verifies that url redaction fails closed at nested url recursion limit.
 fn test_url_redaction_fails_closed_at_nested_url_recursion_limit() {
     let mut nested =
         "https://deep-user:deep-secret@inner.test/private".to_owned();
@@ -235,6 +250,7 @@ fn test_url_redaction_fails_closed_at_nested_url_recursion_limit() {
 }
 
 #[test]
+/// Verifies that diagnostic text redaction fails closed on incomplete url.
 fn test_diagnostic_text_redaction_fails_closed_on_incomplete_url() {
     let result = HttpRedactor::default()
         .redact_urls_in_text("failed near https:// and plain text");
@@ -246,6 +262,7 @@ fn test_diagnostic_text_redaction_fails_closed_on_incomplete_url() {
 }
 
 #[test]
+/// Verifies that diagnostic text redaction keeps balanced ipv6 host brackets.
 fn test_diagnostic_text_redaction_keeps_balanced_ipv6_host_brackets() {
     let result =
         HttpRedactor::default().redact_urls_in_text("connect http://[::1]");
@@ -254,6 +271,8 @@ fn test_diagnostic_text_redaction_keeps_balanced_ipv6_host_brackets() {
 }
 
 #[test]
+/// Verifies that diagnostic text redaction preserves long unmatched delimiter
+/// suffix.
 fn test_diagnostic_text_redaction_preserves_long_unmatched_delimiter_suffix() {
     let suffix = ")".repeat(8_192);
     let input = format!("https://alice:secret@example.test/private{suffix}",);
@@ -265,6 +284,7 @@ fn test_diagnostic_text_redaction_preserves_long_unmatched_delimiter_suffix() {
 }
 
 #[test]
+/// Verifies that diagnostic text redaction escapes log controls once.
 fn test_diagnostic_text_redaction_escapes_log_controls_once() {
     let result = HttpRedactor::default().redact_urls_in_text(
         "first\tHTTP://alice:secret@example.test/path?password=raw\nsecond",
@@ -278,6 +298,7 @@ fn test_diagnostic_text_redaction_escapes_log_controls_once() {
 
 proptest! {
     #[test]
+    /// Checks across generated inputs that url redaction never leaks sensitive components.
     fn prop_url_redaction_never_leaks_sensitive_components(
         secret in "[A-Za-z0-9]{8,64}",
     ) {
@@ -290,6 +311,7 @@ proptest! {
     }
 
     #[test]
+    /// Checks across generated inputs that url and form redaction are deterministic.
     fn prop_url_and_form_redaction_are_deterministic(input in ".{0,128}") {
         let redactor = HttpRedactor::default();
         prop_assert_eq!(redactor.redact_form(&input), redactor.redact_form(&input));

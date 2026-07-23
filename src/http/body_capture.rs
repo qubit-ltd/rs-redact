@@ -25,6 +25,18 @@ pub struct BodyCapture<'a> {
 
 impl fmt::Debug for BodyCapture<'_> {
     /// Formats safe capture metadata without exposing body bytes.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination formatting context.
+    ///
+    /// # Returns
+    ///
+    /// The formatter result from writing the safe metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the destination rejects a write.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("BodyCapture")
@@ -149,6 +161,14 @@ impl<'a> BodyCapture<'a> {
     /// # Returns
     ///
     /// The borrowed slice length.
+    ///
+    /// ```compile_fail
+    /// #![deny(unused_must_use)]
+    /// use qubit_redact::http::BodyCapture;
+    ///
+    /// BodyCapture::complete(b"payload").captured_len();
+    /// ```
+    #[must_use]
     #[inline(always)]
     pub const fn captured_len(self) -> usize {
         self.bytes.len()
@@ -185,6 +205,7 @@ impl<'a> BodyCapture<'a> {
     ///
     /// `true` for captures created with [`Self::prefix`] when the source does
     /// not fit, [`Self::truncated_unknown`], or [`Self::truncated`].
+    #[must_use]
     #[inline(always)]
     pub const fn is_source_truncated(self) -> bool {
         self.source_truncated

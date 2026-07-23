@@ -5,23 +5,25 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`RedactionPolicyBuilder`](qubit_redact::RedactionPolicyBuilder).
+//! Tests for internal policy composition through the public builder.
 
 use qubit_redact::{
+    FieldNameMatching,
     RedactionPolicy,
     Sensitivity,
 };
 
-/// Verifies the builder installs a configured field sensitivity.
+/// Verifies canonical storage and candidate matching compose consistently.
 #[test]
-fn test_redaction_policy_builder_builds_configured_rule() {
+fn test_policy_internal_components_share_canonical_state() {
     let policy = RedactionPolicy::empty_builder()
-        .raise("tenant_secret", Sensitivity::High)
+        .matching(FieldNameMatching::ExactOrTokenSuffix)
+        .raise("access-token", Sensitivity::High)
         .build()
-        .expect("the configured rule should be valid");
+        .expect("the canonicalized rule is valid");
 
     assert_eq!(
-        policy.sensitivity_for("tenant_secret"),
+        policy.sensitivity_for("serviceAccessToken"),
         Some(Sensitivity::High),
     );
 }

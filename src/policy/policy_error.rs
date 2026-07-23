@@ -29,6 +29,18 @@ pub enum PolicyError {
 
 impl fmt::Display for PolicyError {
     /// Formats a concise description of the invalid policy configuration.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination formatting context.
+    ///
+    /// # Returns
+    ///
+    /// The formatter result from writing the error description.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the destination rejects a write.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyFieldName => formatter

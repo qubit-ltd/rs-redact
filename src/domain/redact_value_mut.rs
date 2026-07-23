@@ -30,6 +30,12 @@ pub trait RedactValueMut {
 }
 
 impl RedactValueMut for String {
+    /// Replaces this owned string with the selected mask.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` - Sensitivity selecting the mask.
+    /// * `masking` - Complete masking configuration.
     #[inline]
     fn redact_value_in_place(
         &mut self,
@@ -43,6 +49,12 @@ impl RedactValueMut for String {
 }
 
 impl RedactValueMut for Cow<'_, str> {
+    /// Replaces this borrowed-or-owned string with an owned selected mask.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` - Sensitivity selecting the mask.
+    /// * `masking` - Complete masking configuration.
     #[inline]
     fn redact_value_in_place(
         &mut self,
@@ -56,6 +68,12 @@ impl RedactValueMut for Cow<'_, str> {
 }
 
 impl<T: RedactValueMut> RedactValueMut for Option<T> {
+    /// Redacts a present value while preserving the option shape.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` - Sensitivity selecting the mask.
+    /// * `masking` - Complete masking configuration.
     #[inline]
     fn redact_value_in_place(
         &mut self,

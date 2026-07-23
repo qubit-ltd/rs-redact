@@ -16,16 +16,38 @@ use qubit_redact::{
     Sensitivity,
     http::{
         BodyBudget,
+        BodyCapture,
         BodyRedaction,
         BodyRedactionReason,
         BodyRedactionStatus,
         HttpRedactionPolicy,
         HttpRedactionPolicyBuilder,
+        HttpRedactor,
     },
 };
 
 /// Asserts at compile time that a public result implements [`Display`].
 fn assert_display<T: Display>() {}
+
+/// Alternate text query used as the unselected function-pointer target.
+fn alternate_log_safe_text(body: &BodyRedaction) -> &LogSafeText<'static> {
+    body.log_safe_text()
+}
+
+/// Alternate captured-length query used as an unselected target.
+const fn alternate_captured_len(_body: &BodyRedaction) -> usize {
+    usize::MAX
+}
+
+/// Alternate omitted-length query used as an unselected target.
+const fn alternate_omitted_len(_body: &BodyRedaction) -> Option<usize> {
+    None
+}
+
+/// Alternate truncation query used as an unselected target.
+const fn alternate_is_truncated(_body: &BodyRedaction) -> bool {
+    false
+}
 
 /// Verifies HTTP defaults use independent policy snapshots and hard budgets.
 #[test]
@@ -197,4 +219,30 @@ fn test_body_redaction_public_types_are_available() {
     assert_display::<BodyRedaction>();
 
     assert_eq!(statuses.len(), 5);
+}
+
+/// Verifies body-result queries expose the captured source metadata.
+#[test]
+fn test_body_redaction_queries_expose_captured_metadata() {
+    let body = HttpRedactor::default().redact_body(
+        BodyCapture::truncated(b"visible", Some(10))
+            .expect("the capture metadata should be valid"),
+        None,
+    );
+    let selected = usize::from(std::process::id() == 0);
+    let log_safe_text: [for<'a> fn(
+        &'a BodyRedaction,
+    ) -> &'a LogSafeText<'static>; 2] =
+        [BodyRedaction::log_safe_text, alternate_log_safe_text];
+    let captured_len: [fn(&BodyRedaction) -> usize; 2] =
+        [BodyRedaction::captured_len, alternate_captured_len];
+    let omitted_len: [fn(&BodyRedaction) -> Option<usize>; 2] =
+        [BodyRedaction::omitted_len, alternate_omitted_len];
+    let is_truncated: [fn(&BodyRedaction) -> bool; 2] =
+        [BodyRedaction::is_truncated, alternate_is_truncated];
+
+    assert!(!log_safe_text[selected](&body).as_ref().is_empty());
+    assert_eq!(captured_len[selected](&body), 7);
+    assert_eq!(omitted_len[selected](&body), Some(3));
+    assert!(is_truncated[selected](&body));
 }

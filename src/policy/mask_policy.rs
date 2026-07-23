@@ -210,6 +210,10 @@ impl MaskPolicy {
     /// * `value` - Non-empty value to mask.
     /// * `writer` - Formatting destination that may stop accepting output.
     ///
+    /// # Returns
+    ///
+    /// `Ok(())` after writing the complete configured mask.
+    ///
     /// # Errors
     ///
     /// Returns the destination formatting error unchanged.

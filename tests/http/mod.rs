@@ -19,6 +19,7 @@ mod http_redaction_policy_builder_tests;
 mod http_redaction_policy_tests;
 mod http_redactor_tests;
 mod internal;
+mod mod_tests;
 mod redacted_headers_tests;
 mod text_body_policy_tests;
 mod unkeyed_json_value_policy_tests;

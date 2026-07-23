@@ -52,6 +52,42 @@ impl RedactionPolicyBuilder {
         Self::from_policy(&RedactionPolicy::default())
     }
 
+    /// Creates a builder with no field rules and default masks.
+    ///
+    /// # Returns
+    ///
+    /// Empty construction state using token-suffix matching.
+    pub(super) fn empty() -> Self {
+        Self {
+            sensitive: BTreeMap::new(),
+            allow_exact: BTreeSet::new(),
+            allow_suffix: BTreeSet::new(),
+            matching: FieldNameMatching::ExactOrTokenSuffix,
+            masking: MaskingPolicy::default(),
+            error: None,
+        }
+    }
+
+    /// Copies complete construction state from an immutable policy.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` - Immutable base policy to copy.
+    ///
+    /// # Returns
+    ///
+    /// Mutable construction state initialized from `policy`.
+    pub(super) fn from_policy(policy: &RedactionPolicy) -> Self {
+        Self {
+            sensitive: policy.clone_sensitive(),
+            allow_exact: policy.clone_allow_exact(),
+            allow_suffix: policy.clone_allow_suffix(),
+            matching: policy.matching(),
+            masking: policy.masking().clone(),
+            error: None,
+        }
+    }
+
     /// Validates one field name using the builder's canonicalization rules.
     ///
     /// # Parameters
@@ -221,42 +257,6 @@ impl RedactionPolicyBuilder {
             }
         }
         Ok(self.into_policy())
-    }
-
-    /// Creates a builder with no field rules and default masks.
-    ///
-    /// # Returns
-    ///
-    /// Empty construction state using token-suffix matching.
-    pub(super) fn empty() -> Self {
-        Self {
-            sensitive: BTreeMap::new(),
-            allow_exact: BTreeSet::new(),
-            allow_suffix: BTreeSet::new(),
-            matching: FieldNameMatching::ExactOrTokenSuffix,
-            masking: MaskingPolicy::default(),
-            error: None,
-        }
-    }
-
-    /// Copies complete construction state from an immutable policy.
-    ///
-    /// # Parameters
-    ///
-    /// * `policy` - Immutable base policy to copy.
-    ///
-    /// # Returns
-    ///
-    /// Mutable construction state initialized from `policy`.
-    pub(super) fn from_policy(policy: &RedactionPolicy) -> Self {
-        Self {
-            sensitive: policy.clone_sensitive(),
-            allow_exact: policy.clone_allow_exact(),
-            allow_suffix: policy.clone_allow_suffix(),
-            matching: policy.matching(),
-            masking: policy.masking().clone(),
-            error: None,
-        }
     }
 
     /// Converts builder state into an immutable policy without validation.

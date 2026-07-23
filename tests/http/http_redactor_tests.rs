@@ -45,6 +45,7 @@ fn redactor_with_budget(input: usize, output: usize) -> HttpRedactor {
 }
 
 #[test]
+/// Verifies that http redactor covers url headers and body.
 fn test_http_redactor_covers_url_headers_and_body() {
     let redactor = HttpRedactor::default();
     let url =
@@ -73,6 +74,7 @@ fn test_http_redactor_covers_url_headers_and_body() {
 }
 
 #[test]
+/// Verifies that body output budget applies after control escaping.
 fn test_body_output_budget_applies_after_control_escaping() {
     let redactor = redactor_with_budget(64, 16);
     let body = redactor.redact_body(
@@ -86,6 +88,7 @@ fn test_body_output_budget_applies_after_control_escaping() {
 }
 
 #[test]
+/// Verifies that minimum output budget is exact marker.
 fn test_minimum_output_budget_is_exact_marker() {
     let redactor = redactor_with_budget(64, BodyBudget::MIN_OUTPUT_BYTES);
     let body = redactor.redact_body(
@@ -98,6 +101,7 @@ fn test_minimum_output_budget_is_exact_marker() {
 }
 
 #[test]
+/// Verifies that output truncation preserves multibyte utf8 boundary.
 fn test_output_truncation_preserves_multibyte_utf8_boundary() {
     let redactor = redactor_with_budget(64, 14);
     let body = redactor.redact_body(
@@ -110,6 +114,7 @@ fn test_output_truncation_preserves_multibyte_utf8_boundary() {
 }
 
 #[test]
+/// Verifies that source truncation is reported even when payload fits.
 fn test_source_truncation_is_reported_even_when_payload_fits() {
     let redactor = redactor_with_budget(64, 64);
     let capture = BodyCapture::truncated(b"ok", Some(9))
@@ -125,6 +130,7 @@ fn test_source_truncation_is_reported_even_when_payload_fits() {
 }
 
 #[test]
+/// Verifies that input budget metadata is exact and output is bounded.
 fn test_input_budget_metadata_is_exact_and_output_is_bounded() {
     let redactor = redactor_with_budget(4, 15);
     let body = redactor.redact_body(
@@ -141,6 +147,7 @@ fn test_input_budget_metadata_is_exact_and_output_is_bounded() {
 }
 
 #[test]
+/// Verifies that native sensitive header wins over allow rule.
 fn test_native_sensitive_header_wins_over_allow_rule() {
     let allowed = RedactionPolicy::builder()
         .allow_exact("x-visible")
@@ -165,6 +172,7 @@ fn test_native_sensitive_header_wins_over_allow_rule() {
 }
 
 #[test]
+/// Verifies that structured body status and fail closed cases.
 fn test_structured_body_status_and_fail_closed_cases() {
     let redactor = HttpRedactor::default();
     let json_type = HeaderValue::from_static("application/json");
@@ -186,6 +194,7 @@ fn test_structured_body_status_and_fail_closed_cases() {
 }
 
 #[test]
+/// Verifies that multipart redacts file and sensitive field.
 fn test_multipart_redacts_file_and_sensitive_field() {
     let body = b"--boundary\r\nContent-Disposition: form-data; name=\"upload\"; filename=\"secret.txt\"\r\nContent-Type: text/plain\r\n\r\nfile-secret\r\n--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nfield-secret\r\n--boundary--\r\n";
     let content_type =
@@ -204,6 +213,7 @@ fn test_multipart_redacts_file_and_sensitive_field() {
 }
 
 #[test]
+/// Verifies that malformed and truncated multipart fail closed.
 fn test_malformed_and_truncated_multipart_fail_closed() {
     let content_type =
         HeaderValue::from_static("multipart/form-data; boundary=boundary");
@@ -224,6 +234,7 @@ fn test_malformed_and_truncated_multipart_fail_closed() {
 }
 
 #[test]
+/// Verifies that multipart rejects invalid header parameter grammar.
 fn test_multipart_rejects_invalid_header_parameter_grammar() {
     let policy = HttpRedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -269,6 +280,7 @@ fn test_multipart_rejects_invalid_header_parameter_grammar() {
 }
 
 #[test]
+/// Verifies that multipart form data requires exact disposition token.
 fn test_multipart_form_data_requires_exact_disposition_token() {
     let policy = HttpRedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -299,6 +311,8 @@ fn test_multipart_form_data_requires_exact_disposition_token() {
 }
 
 #[test]
+/// Verifies that multipart mixed allows missing but rejects malformed
+/// disposition.
 fn test_multipart_mixed_allows_missing_but_rejects_malformed_disposition() {
     let policy = HttpRedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -343,6 +357,8 @@ fn test_multipart_mixed_allows_missing_but_rejects_malformed_disposition() {
 }
 
 #[test]
+/// Verifies that multipart boundary allows internal space but not trailing
+/// space.
 fn test_multipart_boundary_allows_internal_space_but_not_trailing_space() {
     let policy = HttpRedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -377,6 +393,7 @@ fn test_multipart_boundary_allows_internal_space_but_not_trailing_space() {
 }
 
 #[test]
+/// Verifies that multipart rejects malformed part content type parameters.
 fn test_multipart_rejects_malformed_part_content_type_parameters() {
     let policy = HttpRedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -400,6 +417,8 @@ fn test_multipart_rejects_malformed_part_content_type_parameters() {
 }
 
 #[test]
+/// Verifies that body dispatch covers empty binary unsupported and invalid
+/// content type.
 fn test_body_dispatch_covers_empty_binary_unsupported_and_invalid_content_type()
 {
     let redactor = HttpRedactor::default();
@@ -452,6 +471,7 @@ fn test_redact_body_with_content_type_text_dispatches_and_fails_closed() {
 }
 
 #[test]
+/// Verifies that ndjson and form body redaction cover valid and invalid inputs.
 fn test_ndjson_and_form_body_redaction_cover_valid_and_invalid_inputs() {
     let redactor = HttpRedactor::default();
     let ndjson_type = HeaderValue::from_static("application/x-ndjson");
@@ -515,6 +535,8 @@ fn test_ndjson_and_form_body_redaction_cover_valid_and_invalid_inputs() {
 }
 
 #[test]
+/// Verifies that json policy handles arrays non strings and unkeyed pass
+/// through.
 fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
     let masking = qubit_redact::MaskingPolicy::default()
         .with_policy(Sensitivity::Secret, MaskPolicy::fixed("SECRET"));
@@ -551,6 +573,7 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
 }
 
 #[test]
+/// Verifies that multipart handles nested formats text unknown and empty.
 fn test_multipart_handles_nested_formats_text_unknown_and_empty() {
     let policy = HttpRedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -578,6 +601,7 @@ fn test_multipart_handles_nested_formats_text_unknown_and_empty() {
 }
 
 #[test]
+/// Verifies that body escapes unicode line and bidirectional controls.
 fn test_body_escapes_unicode_line_and_bidirectional_controls() {
     let redactor = redactor_with_budget(128, 128);
     let body = redactor.redact_body(
@@ -591,6 +615,7 @@ fn test_body_escapes_unicode_line_and_bidirectional_controls() {
 }
 
 #[test]
+/// Verifies that default redactor hides opaque text and truncated json.
 fn test_default_redactor_hides_opaque_text_and_truncated_json() {
     let redactor = HttpRedactor::default();
     let opaque = redactor.redact_body(
@@ -609,6 +634,7 @@ fn test_default_redactor_hides_opaque_text_and_truncated_json() {
 }
 
 #[test]
+/// Verifies that malformed content type grammar fails closed before dispatch.
 fn test_malformed_content_type_grammar_fails_closed_before_dispatch() {
     let redactor = redactor_with_budget(512, 512);
     let cases = [
@@ -639,6 +665,7 @@ fn test_malformed_content_type_grammar_fails_closed_before_dispatch() {
 }
 
 #[test]
+/// Verifies that ndjson unkeyed pass through reports passed through.
 fn test_ndjson_unkeyed_pass_through_reports_passed_through() {
     let policy = HttpRedactionPolicy::builder()
         .unkeyed_json_value_policy(
@@ -659,6 +686,7 @@ fn test_ndjson_unkeyed_pass_through_reports_passed_through() {
 }
 
 #[test]
+/// Verifies that multipart metadata and framing fail closed.
 fn test_multipart_metadata_and_framing_fail_closed() {
     let policy = HttpRedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -728,6 +756,8 @@ fn test_multipart_metadata_and_framing_fail_closed() {
 }
 
 #[test]
+/// Verifies that multipart blank name extended filename and non utf8 file are
+/// safe.
 fn test_multipart_blank_name_extended_filename_and_non_utf8_file_are_safe() {
     let policy = HttpRedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -749,6 +779,7 @@ fn test_multipart_blank_name_extended_filename_and_non_utf8_file_are_safe() {
 }
 
 #[test]
+/// Verifies that multipart accepts valid quoted pairs and unknown parameters.
 fn test_multipart_accepts_valid_quoted_pairs_and_unknown_parameters() {
     let content_type = HeaderValue::from_static(
         "multipart/form-data; charset=utf-8; boundary=\"b\"",
@@ -774,6 +805,7 @@ fn test_multipart_accepts_valid_quoted_pairs_and_unknown_parameters() {
 }
 
 #[test]
+/// Verifies that multipart covers strict line and part policy branches.
 fn test_multipart_covers_strict_line_and_part_policy_branches() {
     let multipart_type =
         HeaderValue::from_static("multipart/form-data; boundary=b");
@@ -806,6 +838,8 @@ fn test_multipart_covers_strict_line_and_part_policy_branches() {
 }
 
 #[test]
+/// Verifies that multipart invalid nested json and sensitive non utf8 fail
+/// closed.
 fn test_multipart_invalid_nested_json_and_sensitive_non_utf8_fail_closed() {
     let content_type =
         HeaderValue::from_static("multipart/form-data; boundary=b");
@@ -837,6 +871,7 @@ fn test_multipart_invalid_nested_json_and_sensitive_non_utf8_fail_closed() {
 
 proptest! {
     #[test]
+    /// Checks across generated inputs that http body never leaks structured secret.
     fn prop_http_body_never_leaks_structured_secret(
         secret in "[A-Za-z0-9]{8,64}",
     ) {
@@ -870,6 +905,7 @@ proptest! {
     }
 
     #[test]
+    /// Checks across generated inputs that http body handles arbitrary bytes without panicking.
     fn prop_http_body_handles_arbitrary_bytes_without_panicking(
         body in collection::vec(any::<u8>(), 0..512),
     ) {

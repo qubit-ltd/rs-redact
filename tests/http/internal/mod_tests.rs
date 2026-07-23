@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for content-type dispatch.
+//! Tests for internal HTTP parser dispatch through the public redactor.
 
 use http::HeaderValue;
 use qubit_redact::http::{
@@ -14,13 +14,16 @@ use qubit_redact::http::{
     HttpRedactor,
 };
 
-/// Verifies JSON content types select structured redaction.
+/// Verifies format dispatch selects a structured parser for form bodies.
 #[test]
-fn test_content_type_json_selects_structured_redaction() {
+fn test_http_internal_dispatch_selects_structured_parser() {
     let result = HttpRedactor::default().redact_body(
-        BodyCapture::complete(br#"{"password":"raw"}"#),
-        Some(&HeaderValue::from_static("application/json")),
+        BodyCapture::complete(b"password=raw-secret&mode=visible"),
+        Some(&HeaderValue::from_static(
+            "application/x-www-form-urlencoded",
+        )),
     );
 
     assert_eq!(result.status(), BodyRedactionStatus::Structured);
+    assert!(!result.to_string().contains("raw-secret"));
 }

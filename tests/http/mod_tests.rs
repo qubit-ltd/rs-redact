@@ -5,22 +5,21 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for content-type dispatch.
+//! Tests for the public HTTP module boundary.
 
 use http::HeaderValue;
 use qubit_redact::http::{
     BodyCapture,
-    BodyRedactionStatus,
     HttpRedactor,
 };
 
-/// Verifies JSON content types select structured redaction.
+/// Verifies the module reexports compose into structured body redaction.
 #[test]
-fn test_content_type_json_selects_structured_redaction() {
+fn test_http_module_reexports_compose() {
     let result = HttpRedactor::default().redact_body(
-        BodyCapture::complete(br#"{"password":"raw"}"#),
+        BodyCapture::complete(br#"{"password":"raw-secret"}"#),
         Some(&HeaderValue::from_static("application/json")),
     );
 
-    assert_eq!(result.status(), BodyRedactionStatus::Structured);
+    assert!(!result.to_string().contains("raw-secret"));
 }

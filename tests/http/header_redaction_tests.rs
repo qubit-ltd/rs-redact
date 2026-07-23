@@ -22,6 +22,7 @@ use proptest::prelude::{
 use qubit_redact::http::HttpRedactor;
 
 #[test]
+/// Verifies that header redaction groups duplicates deterministically.
 fn test_header_redaction_groups_duplicates_deterministically() {
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -36,6 +37,7 @@ fn test_header_redaction_groups_duplicates_deterministically() {
 }
 
 #[test]
+/// Verifies that header redaction handles non utf8 and control characters.
 fn test_header_redaction_handles_non_utf8_and_control_characters() {
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -64,6 +66,7 @@ fn test_header_redaction_handles_non_utf8_and_control_characters() {
 
 proptest! {
     #[test]
+    /// Checks across generated inputs that header name policy never leaks secret.
     fn prop_header_name_policy_never_leaks_secret(
         secret in "[A-Za-z0-9]{8,64}",
     ) {
@@ -80,6 +83,7 @@ proptest! {
     }
 
     #[test]
+    /// Checks across generated inputs that native sensitive header never leaks secret.
     fn prop_native_sensitive_header_never_leaks_secret(
         secret in "[A-Za-z0-9]{8,64}",
     ) {

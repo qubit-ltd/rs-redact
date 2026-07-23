@@ -5,14 +5,17 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`RedactedText`](qubit_redact::RedactedText).
+//! Tests for the public text module boundary.
 
 use qubit_redact::Redactor;
 
-/// Verifies redacted text exposes the masked scalar value.
+/// Verifies redacted and log-safe text reexports compose at the log boundary.
 #[test]
-fn test_redacted_text_exposes_masked_value() {
-    let text = Redactor::default().redact("password", "raw");
+fn test_text_module_reexports_compose() {
+    let rendered = Redactor::default()
+        .redact("message", "visible\nforged")
+        .escape_for_log()
+        .to_string();
 
-    assert_eq!(text.as_str(), "<redacted>");
+    assert_eq!(rendered, r"visible\nforged");
 }

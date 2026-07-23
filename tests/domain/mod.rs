@@ -10,7 +10,7 @@
 mod derive_attribute_tests;
 mod internal;
 mod map_tests;
-mod nested_tests;
+mod mod_tests;
 mod redact_map_serialize_tests;
 mod redact_map_value_mut_tests;
 mod redact_map_value_tests;
