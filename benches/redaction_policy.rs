@@ -7,16 +7,24 @@
 // =============================================================================
 //! Benchmarks policy snapshot creation and field classification.
 
-use std::hint::black_box;
+use std::{
+    collections::BTreeMap,
+    hint::black_box,
+};
 
 use criterion::{
+    BatchSize,
+    BenchmarkId,
     Criterion,
+    Throughput,
     criterion_group,
     criterion_main,
 };
 use qubit_redact::{
     FieldNameMatching,
+    RedactedMap,
     RedactionPolicy,
+    Redactor,
     Sensitivity,
 };
 
@@ -71,9 +79,103 @@ fn benchmark_field_classification(criterion: &mut Criterion) {
     group.finish();
 }
 
+/// Builds deterministic text entries for Map benchmarks.
+///
+/// # Parameters
+///
+/// * `size` - Number of entries to create.
+///
+/// # Returns
+///
+/// A key-ordered map with distinct values.
+fn benchmark_map(size: usize) -> BTreeMap<String, String> {
+    (0..size)
+        .map(|index| {
+            (
+                format!("field_{index:04}"),
+                format!("value_{index:04}_with_representative_text"),
+            )
+        })
+        .collect()
+}
+
+/// Builds a policy classifying every fourth benchmark entry.
+///
+/// # Parameters
+///
+/// * `size` - Number of entries in the matching fixture.
+/// * `mixed_hits` - Whether to add sensitive field rules.
+///
+/// # Returns
+///
+/// A validated benchmark policy.
+fn benchmark_map_policy(size: usize, mixed_hits: bool) -> RedactionPolicy {
+    let mut builder = RedactionPolicy::empty_builder();
+    if mixed_hits {
+        for index in (0..size).step_by(4) {
+            let field = format!("field_{index:04}");
+            builder = builder.raise(&field, Sensitivity::Secret);
+        }
+    }
+    builder.build().expect("benchmark field rules are valid")
+}
+
+/// Measures Map view formatting, copy, and in-place paths across sizes and
+/// classification hit rates.
+fn benchmark_map_redaction(criterion: &mut Criterion) {
+    let mut group = criterion.benchmark_group("map_redaction");
+    for (size_name, size) in [("small", 8usize), ("large", 256usize)] {
+        let map = benchmark_map(size);
+        for (scenario, mixed_hits) in [("miss", false), ("mixed", true)] {
+            let policy = benchmark_map_policy(size, mixed_hits);
+            let redactor = Redactor::new(policy.clone());
+            let parameter = format!("{size_name}_{size}/{scenario}");
+            group.throughput(Throughput::Elements(size as u64));
+
+            group.bench_with_input(
+                BenchmarkId::new("view_format", &parameter),
+                &map,
+                |bencher, input| {
+                    bencher.iter(|| {
+                        let view =
+                            RedactedMap::new(black_box(input), policy.clone());
+                        black_box(format!("{view:?}"))
+                    });
+                },
+            );
+            group.bench_with_input(
+                BenchmarkId::new("copy", &parameter),
+                &map,
+                |bencher, input| {
+                    bencher.iter(|| {
+                        black_box(redactor.redact_map(black_box(input)))
+                    });
+                },
+            );
+            group.bench_with_input(
+                BenchmarkId::new("in_place", &parameter),
+                &map,
+                |bencher, input| {
+                    bencher.iter_batched(
+                        || input.clone(),
+                        |mut candidate| {
+                            redactor
+                                .redact_map_in_place(black_box(&mut candidate));
+                            black_box(candidate)
+                        },
+                        BatchSize::SmallInput,
+                    );
+                },
+            );
+        }
+    }
+    group.finish();
+}
+
 criterion_group!(
     benches,
     benchmark_policy_snapshot,
     benchmark_field_classification,
+    benchmark_map_redaction,
 );
 criterion_main!(benches);
