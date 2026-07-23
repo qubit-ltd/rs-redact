@@ -111,8 +111,9 @@ impl SerdeVariantAttributes {
                         .path
                         .segments
                         .last()
-                        .map(|segment| segment.ident.to_string())
-                        .unwrap_or_else(|| "unknown".to_owned());
+                        .expect("syn nested meta paths always contain a segment")
+                        .ident
+                        .to_string();
                     return Err(meta.error(format!(
                         "Redact serde for `{type_name}` variant `{}` does not support `{key}` because it can change value paths or bypass redaction; use only `rename`, `rename_all`, `skip`, or `skip_serializing`",
                         variant.ident,

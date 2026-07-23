@@ -16,6 +16,15 @@ struct NotDebug;
 /// Named struct accepted by the field-attribute parser.
 #[derive(Redact)]
 struct Record {
+    /// Low-sensitivity text.
+    #[redact(level = "low")]
+    low: String,
+    /// Medium-sensitivity text.
+    #[redact(level = "medium")]
+    medium: String,
+    /// High-sensitivity text.
+    #[redact(level = "high")]
+    high: String,
     /// Explicitly sensitive text.
     #[redact(level = "secret")]
     password: String,
@@ -27,6 +36,9 @@ struct Record {
 /// Builds and formats the derived view.
 fn main() {
     let value = Record {
+        low: "low".to_owned(),
+        medium: "medium".to_owned(),
+        high: "high".to_owned(),
         password: "secret".to_owned(),
         cache: NotDebug,
     };

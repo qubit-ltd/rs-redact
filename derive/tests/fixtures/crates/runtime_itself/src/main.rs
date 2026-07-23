@@ -5,12 +5,14 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Aggregates mirrored tests for the derive input model.
+//! Fixture exercising runtime self-resolution before attribute validation.
 
-mod container_data_tests;
-mod crate_path_tests;
-mod fields_data_tests;
-mod mod_tests;
-mod named_field_tests;
-mod unnamed_field_tests;
-mod variant_data_tests;
+use qubit_redact_derive::Redact;
+
+/// Invalid control is reached only after runtime self-resolution succeeds.
+#[derive(Redact)]
+#[redact(unknown)]
+struct Record;
+
+/// Keeps the invalid type reachable.
+fn main() {}

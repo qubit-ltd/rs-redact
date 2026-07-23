@@ -7,17 +7,14 @@
 // =============================================================================
 //! Serde-crate path resolution for generated implementations.
 
-use proc_macro_crate::{
-    FoundCrate,
-    crate_name,
-};
-use proc_macro2::Span;
-use quote::format_ident;
+use proc_macro_crate::crate_name;
 use syn::{
     DeriveInput,
     Path,
     parse_quote,
 };
+
+use crate::internal::crate_path;
 
 /// Resolves the serde path visible from the derive call site.
 ///
@@ -32,22 +29,12 @@ use syn::{
 /// # Errors
 ///
 /// Returns a targeted syntax error when serde is not a direct dependency.
+#[inline(always)]
 pub(crate) fn resolve(input: &DeriveInput) -> syn::Result<Path> {
-    match crate_name("serde") {
-        Ok(FoundCrate::Itself) => Ok(parse_quote!(::serde)),
-        Ok(FoundCrate::Name(name)) => {
-            let identifier = format_ident!(
-                "{}",
-                name.replace('-', "_"),
-                span = Span::call_site()
-            );
-            Ok(parse_quote!(::#identifier))
-        }
-        Err(error) => Err(syn::Error::new_spanned(
-            input,
-            format!(
-                "unable to resolve serde; add `serde` as a direct dependency: {error}"
-            ),
-        )),
-    }
+    crate_path::resolve(
+        input,
+        crate_name("serde"),
+        parse_quote!(::serde),
+        "unable to resolve serde; add `serde` as a direct dependency",
+    )
 }

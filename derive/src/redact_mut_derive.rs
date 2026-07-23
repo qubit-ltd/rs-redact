@@ -27,8 +27,9 @@ use crate::{
 pub(crate) fn derive(input: TokenStream) -> TokenStream {
     syn::parse::<DeriveInput>(input)
         .and_then(|input| {
-            let runtime = runtime_path::resolve(&input)?;
-            redact_mut_expansion::expand(&input, &runtime)
+            runtime_path::resolve(&input).and_then(|runtime| {
+                redact_mut_expansion::expand(&input, &runtime)
+            })
         })
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()

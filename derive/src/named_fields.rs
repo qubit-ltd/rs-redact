@@ -32,8 +32,7 @@ use crate::{
 ///
 /// # Errors
 ///
-/// Returns a targeted error when a field lacks an identifier or an attribute
-/// is invalid.
+/// Returns a targeted error when a field attribute is invalid.
 pub(crate) fn parse<'a>(
     fields: &'a FieldsNamed,
     type_name: &Ident,
@@ -43,14 +42,13 @@ pub(crate) fn parse<'a>(
         .named
         .iter()
         .map(|field| {
-            let identifier = field.ident.as_ref().ok_or_else(|| {
-                syn::Error::new_spanned(
-                    field,
-                    format!("Redact derive for `{type_name}` requires every named field to have an identifier"),
-                )
-            })?;
+            let identifier = field
+                .ident
+                .as_ref()
+                .expect("syn named fields always have identifiers");
             let field_name = identifier.to_string();
-            let attributes = FieldAttributes::parse(field, type_name, &field_name)?;
+            let attributes =
+                FieldAttributes::parse(field, type_name, &field_name)?;
             let serde_attributes = SerdeAttributes::parse(
                 field,
                 type_name,

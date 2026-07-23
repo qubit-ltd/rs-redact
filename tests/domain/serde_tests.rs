@@ -141,6 +141,12 @@ enum InternalMessage {
     Ready,
     /// Newtype content may merge a redacted struct into the tagged object.
     Profile(#[redact(nested)] Profile),
+    /// Conditionally omitted newtype content leaves only the tag.
+    Optional(
+        #[redact(nested)]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        Option<Profile>,
+    ),
 }
 
 /// Adjacently tagged enum covering named, tuple, and unit content.
@@ -175,6 +181,75 @@ enum UntaggedMessage {
     Tuple(#[redact(level = "secret")] String, &'static str),
     /// Unit content serializes as null.
     Ready,
+}
+
+/// Newtype whose only field is omitted from the redacted wire shape.
+#[allow(dead_code)]
+#[derive(Redact)]
+#[redact(serde)]
+struct EmptyNewtype(#[redact(skip)] String);
+
+/// Externally tagged variants with empty or forbidden payloads.
+#[allow(dead_code)]
+#[derive(Redact)]
+#[redact(serde)]
+enum ExternalEmptyMessage {
+    /// Omitted newtype content becomes a unit variant.
+    EmptyNewtype(#[redact(skip)] String),
+    /// Omitted named content remains an empty object.
+    EmptyNamed {
+        /// Payload omitted from the redacted representation.
+        #[redact(skip)]
+        hidden: String,
+    },
+    /// Omitted tuple content remains an empty array.
+    EmptyTuple(#[redact(skip)] String, #[serde(skip)] String),
+    /// Skipped tuple variants reject serialization.
+    #[serde(skip)]
+    HiddenTuple(String),
+    /// Skipped unit variants reject serialization.
+    #[serde(skip)]
+    HiddenUnit,
+}
+
+/// Internally tagged newtype with no serializable payload.
+#[allow(dead_code)]
+#[derive(Redact)]
+#[redact(serde)]
+#[serde(tag = "kind")]
+enum InternalEmptyMessage {
+    /// Omitted content leaves only the internal tag.
+    Empty(#[redact(skip)] String),
+}
+
+/// Adjacently tagged variants with empty content shapes.
+#[allow(dead_code)]
+#[derive(Redact)]
+#[redact(serde)]
+#[serde(tag = "kind", content = "payload")]
+enum AdjacentEmptyMessage {
+    /// Omitted named content remains an empty object.
+    Named {
+        /// Payload omitted from the redacted representation.
+        #[redact(skip)]
+        hidden: String,
+    },
+    /// Omitted tuple content remains an empty array.
+    Tuple(#[redact(skip)] String, #[serde(skip)] String),
+    /// Omitted newtype content removes the content member.
+    Newtype(#[redact(skip)] String),
+}
+
+/// Untagged newtypes with absent and present redacted content.
+#[allow(dead_code)]
+#[derive(Redact)]
+#[redact(serde)]
+#[serde(untagged)]
+enum UntaggedNewtypeMessage {
+    /// Omitted content serializes as a unit.
+    Empty(#[redact(skip)] String),
+    /// Plain content serializes directly.
+    Value(String),
 }
 
 /// Writer that always returns an I/O error.
@@ -519,6 +594,9 @@ fn test_redacted_serde_supports_internally_tagged_enums() {
     });
     let profile_json = serde_json::to_value(profile.redacted())
         .expect("redacted internally tagged newtype serialization succeeds");
+    let optional_json =
+        serde_json::to_value(InternalMessage::Optional(None).redacted())
+            .expect("omitted internally tagged newtype serialization succeeds");
 
     assert_eq!(
         record_json,
@@ -533,6 +611,7 @@ fn test_redacted_serde_supports_internally_tagged_enums() {
             "token": "<redacted>"
         }),
     );
+    assert_eq!(optional_json, serde_json::json!({"kind": "optional"}));
 }
 
 /// Verifies adjacently tagged enums wrap redacted content under the configured
@@ -588,6 +667,85 @@ fn test_redacted_serde_supports_untagged_enums() {
     assert_eq!(unit_json, serde_json::Value::Null);
 }
 
+/// Verifies omitted fields preserve each container's empty wire shape.
+#[test]
+fn test_redacted_serde_preserves_empty_container_shapes() {
+    let newtype = EmptyNewtype("raw-newtype".to_owned());
+    let external_newtype =
+        ExternalEmptyMessage::EmptyNewtype("raw-external".to_owned());
+    let external_named = ExternalEmptyMessage::EmptyNamed {
+        hidden: "raw-named".to_owned(),
+    };
+    let external_tuple = ExternalEmptyMessage::EmptyTuple(
+        "raw-first".to_owned(),
+        "raw-second".to_owned(),
+    );
+    let internal = InternalEmptyMessage::Empty("raw-internal".to_owned());
+    let adjacent_named = AdjacentEmptyMessage::Named {
+        hidden: "raw-adjacent-named".to_owned(),
+    };
+    let adjacent_tuple = AdjacentEmptyMessage::Tuple(
+        "raw-adjacent-first".to_owned(),
+        "raw-adjacent-second".to_owned(),
+    );
+    let adjacent_newtype =
+        AdjacentEmptyMessage::Newtype("raw-adjacent".to_owned());
+    let untagged_empty =
+        UntaggedNewtypeMessage::Empty("raw-untagged".to_owned());
+    let untagged_value = UntaggedNewtypeMessage::Value("visible".to_owned());
+
+    assert_eq!(
+        serde_json::to_value(newtype.redacted())
+            .expect("empty newtype serialization succeeds"),
+        serde_json::Value::Null,
+    );
+    assert_eq!(
+        serde_json::to_value(external_newtype.redacted())
+            .expect("empty external newtype serialization succeeds"),
+        serde_json::json!("EmptyNewtype"),
+    );
+    assert_eq!(
+        serde_json::to_value(external_named.redacted())
+            .expect("empty external named serialization succeeds"),
+        serde_json::json!({"EmptyNamed": {}}),
+    );
+    assert_eq!(
+        serde_json::to_value(external_tuple.redacted())
+            .expect("empty external tuple serialization succeeds"),
+        serde_json::json!({"EmptyTuple": []}),
+    );
+    assert_eq!(
+        serde_json::to_value(internal.redacted())
+            .expect("empty internal newtype serialization succeeds"),
+        serde_json::json!({"kind": "Empty"}),
+    );
+    assert_eq!(
+        serde_json::to_value(adjacent_named.redacted())
+            .expect("empty adjacent named serialization succeeds"),
+        serde_json::json!({"kind": "Named", "payload": {}}),
+    );
+    assert_eq!(
+        serde_json::to_value(adjacent_tuple.redacted())
+            .expect("empty adjacent tuple serialization succeeds"),
+        serde_json::json!({"kind": "Tuple", "payload": []}),
+    );
+    assert_eq!(
+        serde_json::to_value(adjacent_newtype.redacted())
+            .expect("empty adjacent newtype serialization succeeds"),
+        serde_json::json!({"kind": "Newtype"}),
+    );
+    assert_eq!(
+        serde_json::to_value(untagged_empty.redacted())
+            .expect("empty untagged newtype serialization succeeds"),
+        serde_json::Value::Null,
+    );
+    assert_eq!(
+        serde_json::to_value(untagged_value.redacted())
+            .expect("plain untagged newtype serialization succeeds"),
+        serde_json::json!("visible"),
+    );
+}
+
 /// Verifies a selected skipped variant returns an error without exposing its
 /// payload.
 #[test]
@@ -600,4 +758,26 @@ fn test_redacted_serde_rejects_selected_skipped_variant() {
         .expect_err("selected skipped variants must fail serialization");
 
     assert!(!error.to_string().contains("raw-hidden"));
+}
+
+/// Verifies skipped tuple and unit variants use the same rejection policy.
+#[test]
+fn test_redacted_serde_rejects_skipped_tuple_and_unit_variants() {
+    let hidden_tuple =
+        ExternalEmptyMessage::HiddenTuple("raw-hidden".to_owned());
+    let tuple_error = serde_json::to_string(&hidden_tuple.redacted())
+        .expect_err("selected skipped tuple variants must fail");
+    let unit_error =
+        serde_json::to_string(&ExternalEmptyMessage::HiddenUnit.redacted())
+            .expect_err("selected skipped unit variants must fail");
+
+    assert!(!tuple_error.to_string().contains("raw-hidden"));
+    assert_eq!(
+        tuple_error.to_string(),
+        "cannot serialize skipped redacted variant `HiddenTuple`",
+    );
+    assert_eq!(
+        unit_error.to_string(),
+        "cannot serialize skipped redacted variant `HiddenUnit`",
+    );
 }

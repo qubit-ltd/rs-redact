@@ -8,6 +8,8 @@
 //! Private derive expansion data structures.
 
 mod container_data;
+/// Shared Cargo-aware path mapping for generated derive code.
+pub(crate) mod crate_path;
 mod fields_data;
 mod named_field;
 mod unnamed_field;

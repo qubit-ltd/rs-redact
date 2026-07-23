@@ -13,6 +13,7 @@ publish = true
 
 [lib]
 proc-macro = true
+test = false
 
 [dependencies]
 proc-macro-crate = "3"

@@ -8,23 +8,21 @@
 //! Strict derive-side representation of supported sensitivity spellings.
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{
+    format_ident,
+    quote,
+};
 use syn::{
     Ident,
     LitStr,
     Path,
 };
 
-/// Sensitivity level parsed from a field attribute.
-pub(crate) enum Sensitivity {
-    /// Low-sensitivity text.
-    Low,
-    /// Medium-sensitivity text.
-    Medium,
-    /// High-sensitivity text.
-    High,
-    /// Secret text.
-    Secret,
+/// Validated sensitivity level used to generate a runtime variant path.
+#[must_use]
+pub(crate) struct Sensitivity {
+    /// Runtime `Sensitivity` variant identifier.
+    runtime_variant: &'static str,
 }
 
 impl Sensitivity {
@@ -50,10 +48,18 @@ impl Sensitivity {
         field_name: &str,
     ) -> syn::Result<Self> {
         match literal.value().as_str() {
-            "low" => Ok(Self::Low),
-            "medium" => Ok(Self::Medium),
-            "high" => Ok(Self::High),
-            "secret" => Ok(Self::Secret),
+            "low" => Ok(Self {
+                runtime_variant: "Low",
+            }),
+            "medium" => Ok(Self {
+                runtime_variant: "Medium",
+            }),
+            "high" => Ok(Self {
+                runtime_variant: "High",
+            }),
+            "secret" => Ok(Self {
+                runtime_variant: "Secret",
+            }),
             value => Err(syn::Error::new_spanned(
                 literal,
                 format!(
@@ -74,11 +80,7 @@ impl Sensitivity {
     ///
     /// Tokens naming the corresponding runtime `Sensitivity` variant.
     pub(crate) fn runtime_tokens(&self, runtime: &Path) -> TokenStream {
-        match self {
-            Self::Low => quote!(#runtime::Sensitivity::Low),
-            Self::Medium => quote!(#runtime::Sensitivity::Medium),
-            Self::High => quote!(#runtime::Sensitivity::High),
-            Self::Secret => quote!(#runtime::Sensitivity::Secret),
-        }
+        let variant = format_ident!("{}", self.runtime_variant);
+        quote!(#runtime::Sensitivity::#variant)
     }
 }

@@ -10,8 +10,10 @@
 use std::{
     env,
     path::PathBuf,
-    process::Command,
 };
+
+#[path = "support/isolated_cargo.rs"]
+mod isolated_cargo;
 
 /// Verifies redacted serialization requires serde as a direct dependency.
 #[test]
@@ -21,7 +23,7 @@ fn test_missing_direct_serde_dependency_is_targeted() {
         manifest_dir.join("tests/fixtures/crates/serde_missing/Cargo.toml");
     let target_dir = manifest_dir.join("../target/serde-missing-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let output = Command::new(cargo)
+    let output = isolated_cargo::command(&cargo)
         .args(["check", "--manifest-path"])
         .arg(&manifest)
         .arg("--target-dir")
@@ -47,7 +49,7 @@ fn test_renamed_serde_dependency_compiles() {
         manifest_dir.join("tests/fixtures/crates/serde_renamed/Cargo.toml");
     let target_dir = manifest_dir.join("../target/serde-renamed-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let output = Command::new(cargo)
+    let output = isolated_cargo::command(&cargo)
         .args(["check", "--manifest-path"])
         .arg(&manifest)
         .arg("--target-dir")

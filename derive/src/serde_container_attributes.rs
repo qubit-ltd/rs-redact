@@ -127,8 +127,11 @@ impl SerdeContainerAttributes {
                             .path
                             .segments
                             .last()
-                            .map(|segment| segment.ident.to_string())
-                            .unwrap_or_else(|| "unknown".to_owned());
+                            .expect(
+                                "syn nested meta paths always contain a segment",
+                            )
+                            .ident
+                            .to_string();
                         Err(meta.error(format!(
                             "Redact serde for `{}` does not support container `{key}` because it can change value paths or bypass redaction; use only `rename`, `rename_all`, `rename_all_fields`, `tag`, `content`, or `untagged`",
                             input.ident,

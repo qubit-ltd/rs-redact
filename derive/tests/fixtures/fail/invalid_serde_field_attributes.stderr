@@ -1,0 +1,71 @@
+error: Redact serde for `PathAttribute` field `value` expects `#[serde(...)]`
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:17:5
+   |
+17 |     #[serde]
+   |     ^^^^^^^^
+
+error: Redact serde for `DuplicateRename` field `value` repeats `rename`
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:26:31
+   |
+26 |     #[serde(rename = "first", rename = "second")]
+   |                               ^^^^^^
+
+error: Redact serde for `AssignedSkip` field `value` requires a bare skip attribute
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:35:13
+   |
+35 |     #[serde(skip = true)]
+   |             ^^^^
+
+error: Redact serde for `DuplicateSkip` field `value` repeats a skip attribute
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:45:13
+   |
+45 |     #[serde(skip_serializing)]
+   |             ^^^^^^^^^^^^^^^^
+
+error: Redact serde for `DuplicatePredicate` field `value` repeats `skip_serializing_if`
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:56:9
+   |
+56 |         skip_serializing_if = "String::is_empty"
+   |         ^^^^^^^^^^^^^^^^^^^
+
+error: Redact serde for `UnsupportedControl` field `value` does not support `flatten` because it can change structure or bypass redaction; use only `rename`, `skip`, `skip_serializing`, or `skip_serializing_if`
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:66:13
+   |
+66 |     #[serde(flatten)]
+   |             ^^^^^^^
+
+error: Redact serde for `InvalidTuple` field `0` expects `#[serde(...)]`
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:73:21
+   |
+73 | struct InvalidTuple(#[serde] String);
+   |                     ^^^^^^^^
+
+error: expected `=`
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:80:19
+   |
+80 |     #[serde(rename)]
+   |                   ^
+
+error: expected string literal
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:89:22
+   |
+89 |     #[serde(rename = 7)]
+   |                      ^
+
+error: expected `=`
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:98:32
+   |
+98 |     #[serde(skip_serializing_if)]
+   |                                ^
+
+error: expected string literal
+   --> tests/fixtures/fail/invalid_serde_field_attributes.rs:107:35
+    |
+107 |     #[serde(skip_serializing_if = 7)]
+    |                                   ^
+
+error: unexpected token
+   --> tests/fixtures/fail/invalid_serde_field_attributes.rs:116:35
+    |
+116 |     #[serde(skip_serializing_if = "not a path")]
+    |                                   ^^^^^^^^^^^^

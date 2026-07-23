@@ -106,8 +106,9 @@ impl SerdeAttributes {
                         .path
                         .segments
                         .last()
-                        .map(|segment| segment.ident.to_string())
-                        .unwrap_or_else(|| "unknown".to_owned());
+                        .expect("syn nested meta paths always contain a segment")
+                        .ident
+                        .to_string();
                     return Err(meta.error(format!(
                         "Redact serde for `{type_name}` field `{field_name}` does not support \
                          `{key}` because it can change structure or bypass redaction; use only \

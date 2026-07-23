@@ -23,6 +23,24 @@ struct Tuple(
 #[redact(serde)]
 struct Unit;
 
+/// Serializable record covering every supported sensitivity literal.
+#[derive(Redact)]
+#[redact(serde)]
+struct AllLevels {
+    /// Low-sensitivity text.
+    #[redact(level = "low")]
+    low: String,
+    /// Medium-sensitivity text.
+    #[redact(level = "medium")]
+    medium: String,
+    /// High-sensitivity text.
+    #[redact(level = "high")]
+    high: String,
+    /// Secret text.
+    #[redact(level = "secret")]
+    secret: String,
+}
+
 /// Externally tagged enum.
 #[derive(Redact)]
 #[redact(serde)]
@@ -39,6 +57,14 @@ enum External {
     Unit,
 }
 
+/// Nested payload used by an internally tagged newtype.
+#[derive(Redact)]
+#[redact(serde)]
+struct InternalPayload {
+    /// Plain serializable content.
+    value: String,
+}
+
 /// Internally tagged enum with valid content.
 #[derive(Redact)]
 #[redact(serde)]
@@ -50,6 +76,10 @@ enum Internal {
         #[redact(level = "secret")]
         secret: String,
     },
+    /// Omitted newtype content leaves only the tag.
+    Empty(#[redact(skip)] String),
+    /// Nested newtype content is merged beside the tag.
+    Nested(#[redact(nested)] InternalPayload),
     /// Unit variant.
     Unit,
 }
@@ -87,6 +117,15 @@ fn main() {
     let _ = serde_json::to_string(&Tuple(String::new(), String::new()).redacted());
     let _ = serde_json::to_string(&Unit.redacted());
     let _ = serde_json::to_string(
+        &AllLevels {
+            low: String::new(),
+            medium: String::new(),
+            high: String::new(),
+            secret: String::new(),
+        }
+        .redacted(),
+    );
+    let _ = serde_json::to_string(
         &External::Named {
             secret: String::new(),
         }
@@ -96,6 +135,14 @@ fn main() {
         &Internal::Named {
             secret: String::new(),
         }
+        .redacted(),
+    );
+    let _ =
+        serde_json::to_string(&Internal::Empty(String::new()).redacted());
+    let _ = serde_json::to_string(
+        &Internal::Nested(InternalPayload {
+            value: String::new(),
+        })
         .redacted(),
     );
     let _ = serde_json::to_string(
