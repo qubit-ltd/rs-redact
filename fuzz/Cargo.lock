@@ -267,6 +267,7 @@ dependencies = [
  "http",
  "libfuzzer-sys",
  "qubit-redact",
+ "url",
 ]
 
 [[package]]

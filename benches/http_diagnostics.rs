@@ -10,15 +10,20 @@
 use std::hint::black_box;
 
 use criterion::{
+    BenchmarkId,
     Criterion,
     Throughput,
     criterion_group,
     criterion_main,
 };
-use http::HeaderValue;
+use http::{
+    HeaderMap,
+    HeaderValue,
+};
 use qubit_redact::http::{
     BodyBudget,
     BodyCapture,
+    DiagnosticBudget,
     HttpRedactionPolicy,
     HttpRedactor,
 };
@@ -55,6 +60,106 @@ fn redactor_with_budget(budget: BodyBudget) -> HttpRedactor {
         .build()
         .expect("benchmark HTTP policy is valid");
     HttpRedactor::new(policy)
+}
+
+/// Builds an HTTP redactor using explicit diagnostic limits.
+///
+/// # Parameters
+///
+/// * `budget` - Diagnostic-input and rendered-output byte limits.
+///
+/// # Returns
+///
+/// A redactor using the validated benchmark policy.
+fn redactor_with_diagnostic_budget(budget: DiagnosticBudget) -> HttpRedactor {
+    let policy = HttpRedactionPolicy::builder()
+        .diagnostic_budget(budget)
+        .build()
+        .expect("benchmark HTTP policy is valid");
+    HttpRedactor::new(policy)
+}
+
+/// Measures diagnostic entry points below, near, and above the input limit.
+fn benchmark_diagnostic_budgets(criterion: &mut Criterion) {
+    const INPUT_LIMIT: usize = 4_096;
+    let redactor = redactor_with_diagnostic_budget(
+        DiagnosticBudget::new(INPUT_LIMIT, 512)
+            .expect("benchmark diagnostic budget is valid"),
+    );
+    let sizes = [
+        ("below", INPUT_LIMIT / 4),
+        ("near", INPUT_LIMIT - 64),
+        ("over", INPUT_LIMIT * 2),
+    ];
+    let text_inputs = sizes.map(|(label, size)| {
+        (label, format!("diagnostic {}", "x".repeat(size)))
+    });
+    let url_inputs = sizes.map(|(label, size)| {
+        (
+            label,
+            format!("https://example.test/?note={}", "x".repeat(size)),
+        )
+    });
+    let form_inputs = sizes
+        .map(|(label, size)| (label, format!("note={}", "x".repeat(size))));
+    let header_inputs = sizes.map(|(label, size)| {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-diagnostic",
+            HeaderValue::from_str(&"x".repeat(size))
+                .expect("benchmark header value is valid"),
+        );
+        (label, headers)
+    });
+    let mut group = criterion.benchmark_group("http_diagnostic_budget");
+
+    for (label, input) in &text_inputs {
+        group.throughput(Throughput::Bytes(input.len() as u64));
+        group.bench_with_input(
+            BenchmarkId::new("text", label),
+            input,
+            |bencher, input| {
+                bencher.iter(|| {
+                    black_box(redactor.redact_urls_in_text(black_box(input)))
+                });
+            },
+        );
+    }
+    for (label, input) in &url_inputs {
+        group.throughput(Throughput::Bytes(input.len() as u64));
+        group.bench_with_input(
+            BenchmarkId::new("url", label),
+            input,
+            |bencher, input| {
+                bencher.iter(|| {
+                    black_box(redactor.redact_url_str(black_box(input)))
+                });
+            },
+        );
+    }
+    for (label, input) in &form_inputs {
+        group.throughput(Throughput::Bytes(input.len() as u64));
+        group.bench_with_input(
+            BenchmarkId::new("form", label),
+            input,
+            |bencher, input| {
+                bencher
+                    .iter(|| black_box(redactor.redact_form(black_box(input))));
+            },
+        );
+    }
+    for (label, headers) in &header_inputs {
+        group.bench_with_input(
+            BenchmarkId::new("headers", label),
+            headers,
+            |bencher, headers| {
+                bencher.iter(|| {
+                    black_box(redactor.redact_headers(black_box(headers)))
+                });
+            },
+        );
+    }
+    group.finish();
 }
 
 /// Measures structured bodies, source truncation, and a tight output budget.
@@ -133,6 +238,7 @@ fn benchmark_body_redaction(criterion: &mut Criterion) {
 criterion_group!(
     benches,
     benchmark_unmatched_url_delimiters,
+    benchmark_diagnostic_budgets,
     benchmark_body_redaction,
 );
 criterion_main!(benches);

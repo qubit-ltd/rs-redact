@@ -9,10 +9,21 @@
 
 use std::fmt::Write;
 
+use http::{
+    HeaderMap,
+    HeaderValue,
+};
 use libfuzzer_sys::fuzz_target;
-use qubit_redact::http::HttpRedactor;
+use qubit_redact::http::{
+    DiagnosticBudget,
+    HttpRedactionPolicy,
+    HttpRedactor,
+};
+use url::Url;
 
 const FUZZ_SECRET: &str = "qubit-fuzz-secret-7f54a19c";
+const DIAGNOSTIC_INPUT_LIMIT: usize = 128;
+const DIAGNOSTIC_OUTPUT_LIMIT: usize = 64;
 
 /// Encodes a bounded input prefix as lowercase hexadecimal text.
 ///
@@ -63,6 +74,49 @@ fn assert_malformed_structured_secret_is_redacted() {
     }
 }
 
+/// Verifies every diagnostic adapter respects one deliberately small budget.
+///
+/// # Parameters
+///
+/// * `data` - Fuzzer-provided bytes used to construct bounded diagnostic
+///   inputs.
+fn assert_diagnostic_outputs_are_bounded(data: &[u8]) {
+    let budget = DiagnosticBudget::new(
+        DIAGNOSTIC_INPUT_LIMIT,
+        DIAGNOSTIC_OUTPUT_LIMIT,
+    )
+    .expect("the fixed fuzz diagnostic budget is valid");
+    let policy = HttpRedactionPolicy::builder()
+        .diagnostic_budget(budget)
+        .build()
+        .expect("the fixed fuzz HTTP policy is valid");
+    let redactor = HttpRedactor::new(policy);
+    let noise = hexadecimal_prefix(data);
+    let form = format!("note={noise}&password={FUZZ_SECRET}");
+    let url_text = format!("https://example.test/?{form}");
+    let parsed_url =
+        Url::parse(&url_text).expect("the generated fuzz URL is valid");
+    let text = format!("request failed near {url_text}");
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "x-fuzz-input",
+        HeaderValue::from_str(&noise)
+            .expect("hexadecimal fuzz text is a valid header value"),
+    );
+
+    let outputs = [
+        redactor.redact_form(&form).to_string(),
+        redactor.redact_url_str(&url_text).to_string(),
+        redactor.redact_url(&parsed_url).to_string(),
+        redactor.redact_urls_in_text(&text).to_string(),
+        redactor.redact_headers(&headers).to_string(),
+    ];
+    for output in outputs {
+        assert!(output.len() <= DIAGNOSTIC_OUTPUT_LIMIT);
+        assert!(std::str::from_utf8(output.as_bytes()).is_ok());
+    }
+}
+
 fuzz_target!(|data: &[u8]| {
     let redactor = HttpRedactor::default();
     if let Ok(text) = std::str::from_utf8(data) {
@@ -77,4 +131,5 @@ fuzz_target!(|data: &[u8]| {
     }
     assert_structured_secret_is_redacted(data);
     assert_malformed_structured_secret_is_redacted();
+    assert_diagnostic_outputs_are_bounded(data);
 });
