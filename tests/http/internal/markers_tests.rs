@@ -11,6 +11,7 @@ use http::HeaderValue;
 use qubit_redact::http::{
     BodyBudget,
     BodyCapture,
+    DiagnosticBudget,
     HttpRedactionPolicy,
     HttpRedactor,
     TextBodyPolicy,
@@ -34,4 +35,21 @@ fn test_markers_append_truncation_marker() {
         .to_string();
 
     assert_eq!(rendered, "<truncated>");
+}
+
+/// Verifies the minimum diagnostic budget can contain its fixed limit marker.
+#[test]
+fn test_diagnostic_limit_marker_matches_minimum_budget() {
+    let budget = DiagnosticBudget::new(1, DiagnosticBudget::MIN_OUTPUT_BYTES)
+        .expect("the minimum diagnostic output budget should be valid");
+    let policy = HttpRedactionPolicy::builder()
+        .diagnostic_budget(budget)
+        .build()
+        .expect("the HTTP policy should be valid");
+    let rendered = HttpRedactor::new(policy)
+        .redact_url_str("https://example.test/")
+        .to_string();
+
+    assert_eq!(rendered, "<redacted: diagnostic limit exceeded>");
+    assert_eq!(rendered.len(), DiagnosticBudget::MIN_OUTPUT_BYTES);
 }

@@ -7,15 +7,16 @@
 // =============================================================================
 //! Tests for [`HttpRedactionPolicy`](qubit_redact::http::HttpRedactionPolicy).
 
-use qubit_redact::http::HttpRedactionPolicy;
+use qubit_redact::http::{
+    DiagnosticBudget,
+    HttpRedactionPolicy,
+};
 
 /// Verifies the default HTTP policy has a non-zero body input budget.
 #[test]
 fn test_http_redaction_policy_default_has_input_budget() {
-    assert!(
-        HttpRedactionPolicy::default()
-            .body_budget()
-            .max_input_bytes()
-            > 0
-    );
+    let policy = HttpRedactionPolicy::default();
+
+    assert!(policy.body_budget().max_input_bytes() > 0);
+    assert_eq!(policy.diagnostic_budget(), DiagnosticBudget::default());
 }

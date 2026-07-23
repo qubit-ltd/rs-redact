@@ -11,6 +11,7 @@ use qubit_redact::{
     RedactionPolicy,
     Sensitivity,
     http::{
+        DiagnosticBudget,
         HttpRedactionPolicy,
         HttpRedactionPolicyBuilder,
         TextBodyPolicy,
@@ -117,6 +118,23 @@ fn test_http_redaction_policy_builder_sets_body_and_behavior_policies() {
         policy.unkeyed_json_value_policy(),
         UnkeyedJsonValuePolicy::PassThrough,
     );
+}
+
+/// Verifies custom diagnostic limits survive building and rebuilding a policy.
+#[test]
+fn test_http_redaction_policy_builder_preserves_diagnostic_budget() {
+    let budget = DiagnosticBudget::new(128, 256)
+        .expect("the custom diagnostic budget should be valid");
+    let policy = HttpRedactionPolicy::builder()
+        .diagnostic_budget(budget)
+        .build()
+        .expect("the HTTP policy should be valid");
+    let rebuilt = HttpRedactionPolicyBuilder::from_policy(&policy)
+        .build()
+        .expect("the copied HTTP policy should be valid");
+
+    assert_eq!(policy.diagnostic_budget(), budget);
+    assert_eq!(rebuilt, policy);
 }
 
 /// Verifies validation reaches invalid query and body builders after earlier

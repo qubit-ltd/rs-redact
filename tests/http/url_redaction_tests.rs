@@ -16,10 +16,72 @@ use qubit_redact::{
     RedactionPolicy,
     Sensitivity,
     http::{
+        DiagnosticBudget,
         HttpRedactionPolicy,
         HttpRedactor,
     },
 };
+use url::Url;
+
+/// Builds an HTTP redactor with explicit finite diagnostic limits.
+fn redactor_with_diagnostic_budget(
+    input: usize,
+    output: usize,
+) -> HttpRedactor {
+    let budget = DiagnosticBudget::new(input, output)
+        .expect("test diagnostic budgets satisfy the public lower bounds");
+    let policy = HttpRedactionPolicy::builder()
+        .diagnostic_budget(budget)
+        .build()
+        .expect("HTTP redaction policy should be valid");
+    HttpRedactor::new(policy)
+}
+
+/// Verifies every URL and form diagnostic entry rejects oversized input before
+/// exposing any source prefix.
+#[test]
+fn test_url_and_form_diagnostics_fail_closed_at_input_limit() {
+    let redactor =
+        std::hint::black_box(redactor_with_diagnostic_budget(16, 128));
+    let marker = "<redacted: diagnostic limit exceeded>";
+    let url = Url::parse("https://example.test/?password=source-secret")
+        .expect("the test URL should be valid");
+
+    assert_eq!(redactor.redact_url(&url).as_ref(), marker);
+    assert_eq!(
+        redactor
+            .redact_url_str("https://example.test/?password=source-secret",)
+            .as_ref(),
+        marker,
+    );
+    assert_eq!(
+        redactor
+            .redact_urls_in_text(
+                "failed at https://example.test/?password=source-secret",
+            )
+            .as_ref(),
+        marker,
+    );
+    assert_eq!(
+        redactor.redact_form("password=source-secret").as_ref(),
+        marker,
+    );
+}
+
+/// Verifies normal diagnostic text is escaped and truncated at a UTF-8
+/// boundary under the configured output limit.
+#[test]
+fn test_diagnostic_output_budget_is_log_safe_and_utf8_bounded() {
+    let output_limit = DiagnosticBudget::MIN_OUTPUT_BYTES + 5;
+    let redactor = redactor_with_diagnostic_budget(128, output_limit);
+    let result =
+        redactor.redact_urls_in_text("你\n你你你你你你你你你你你你你你你");
+
+    assert!(result.as_ref().len() <= output_limit);
+    assert!(result.as_ref().ends_with("<truncated>"));
+    assert!(!result.as_ref().contains('\n'));
+    assert!(std::str::from_utf8(result.as_ref().as_bytes()).is_ok());
+}
 
 #[test]
 /// Verifies that url redaction masks components and query values.

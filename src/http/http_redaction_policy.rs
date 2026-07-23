@@ -11,6 +11,7 @@ use crate::RedactionPolicy;
 
 use super::{
     BodyBudget,
+    DiagnosticBudget,
     HttpRedactionPolicyBuilder,
     TextBodyPolicy,
     UnkeyedJsonValuePolicy,
@@ -35,6 +36,8 @@ pub struct HttpRedactionPolicy {
     unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
     /// Finite parser-input and log-output byte limits.
     body_budget: BodyBudget,
+    /// Finite diagnostic-input and log-output byte limits.
+    diagnostic_budget: DiagnosticBudget,
 }
 
 impl HttpRedactionPolicy {
@@ -60,7 +63,7 @@ impl HttpRedactionPolicy {
     /// A mutable HTTP policy builder using fail-closed behavior defaults and
     /// finite 16 KiB input and 64 KiB output limits.
     pub fn builder_from(base: RedactionPolicy) -> HttpRedactionPolicyBuilder {
-        HttpRedactionPolicyBuilder::from_policy(base)
+        HttpRedactionPolicyBuilder::from_base_policy(base)
     }
 
     /// Creates an immutable HTTP policy from complete builder state.
@@ -73,7 +76,7 @@ impl HttpRedactionPolicy {
     /// * `url_path_policy` - URL path visibility choice.
     /// * `text_body_policy` - Opaque text-body visibility choice.
     /// * `unkeyed_json_value_policy` - Unkeyed scalar visibility choice.
-    /// * `body_budget` - Checked hard byte limits.
+    /// * `budgets` - Checked body and diagnostic byte limits, respectively.
     ///
     /// # Returns
     ///
@@ -86,8 +89,9 @@ impl HttpRedactionPolicy {
         url_path_policy: UrlPathPolicy,
         text_body_policy: TextBodyPolicy,
         unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
-        body_budget: BodyBudget,
+        budgets: (BodyBudget, DiagnosticBudget),
     ) -> Self {
+        let (body_budget, diagnostic_budget) = budgets;
         Self {
             header_policy,
             query_policy,
@@ -96,6 +100,7 @@ impl HttpRedactionPolicy {
             text_body_policy,
             unkeyed_json_value_policy,
             body_budget,
+            diagnostic_budget,
         }
     }
 
@@ -168,6 +173,16 @@ impl HttpRedactionPolicy {
     pub const fn body_budget(&self) -> BodyBudget {
         self.body_budget
     }
+
+    /// Returns the finite diagnostic input and output limits.
+    ///
+    /// # Returns
+    ///
+    /// The checked hard diagnostic budget.
+    #[inline(always)]
+    pub const fn diagnostic_budget(&self) -> DiagnosticBudget {
+        self.diagnostic_budget
+    }
 }
 
 impl Default for HttpRedactionPolicy {
@@ -186,7 +201,7 @@ impl Default for HttpRedactionPolicy {
             UrlPathPolicy::default(),
             TextBodyPolicy::default(),
             UnkeyedJsonValuePolicy::default(),
-            BodyBudget::default(),
+            (BodyBudget::default(), DiagnosticBudget::default()),
         )
     }
 }

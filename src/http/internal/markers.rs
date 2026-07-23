@@ -8,6 +8,8 @@
 //! Fixed fail-closed HTTP markers.
 
 pub(in crate::http) const TRUNCATED: &str = "<truncated>";
+pub(in crate::http) const DIAGNOSTIC_LIMIT_EXCEEDED: &str =
+    "<redacted: diagnostic limit exceeded>";
 pub(in crate::http) const INVALID_URL: &str = "<redacted: invalid URL>";
 pub(in crate::http) const NESTED_URL_LIMIT: &str =
     "<redacted: nested URL limit exceeded>";

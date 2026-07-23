@@ -19,7 +19,32 @@ use proptest::prelude::{
     prop_assert,
     proptest,
 };
-use qubit_redact::http::HttpRedactor;
+use qubit_redact::{
+    RedactionPolicy,
+    http::{
+        DiagnosticBudget,
+        HttpRedactionPolicy,
+        HttpRedactor,
+    },
+};
+
+/// Builds an HTTP redactor with visible test headers and finite diagnostics.
+fn redactor_with_diagnostic_budget(
+    input: usize,
+    output: usize,
+) -> HttpRedactor {
+    let header_policy = RedactionPolicy::empty_builder()
+        .build()
+        .expect("the empty header policy should be valid");
+    let budget = DiagnosticBudget::new(input, output)
+        .expect("test diagnostic budgets satisfy the public lower bounds");
+    let policy = HttpRedactionPolicy::builder()
+        .header_policy(header_policy)
+        .diagnostic_budget(budget)
+        .build()
+        .expect("the HTTP policy should be valid");
+    HttpRedactor::new(policy)
+}
 
 #[test]
 /// Verifies that header redaction groups duplicates deterministically.
@@ -62,6 +87,43 @@ fn test_header_redaction_handles_non_utf8_and_control_characters() {
     assert!(!format!("{result:?}").contains("Bearer raw"));
     assert_eq!(result.log_safe_text().as_ref(), rendered);
     assert_eq!(result.into_log_safe_text().as_ref(), rendered);
+}
+
+/// Verifies oversized headers return only the fixed diagnostic-limit marker.
+#[test]
+fn test_header_redaction_fails_closed_at_input_limit() {
+    let redactor = redactor_with_diagnostic_budget(8, 128);
+    let mut headers = HeaderMap::new();
+    headers.insert("x-secret", HeaderValue::from_static("source-secret"));
+
+    assert_eq!(
+        redactor.redact_headers(&headers).to_string(),
+        "<redacted: diagnostic limit exceeded>",
+    );
+}
+
+/// Verifies bounded header rendering keeps sorted names and duplicate order.
+#[test]
+fn test_header_redaction_is_sorted_stable_and_output_bounded() {
+    let redactor = redactor_with_diagnostic_budget(256, 256);
+    let mut headers = HeaderMap::new();
+    headers.append("x-zeta", HeaderValue::from_static("first"));
+    headers.append("x-alpha", HeaderValue::from_static("visible"));
+    headers.append("x-zeta", HeaderValue::from_static("second"));
+
+    assert_eq!(
+        redactor.redact_headers(&headers).to_string(),
+        r"x-alpha: [visible]\nx-zeta: [first, second]",
+    );
+
+    let bounded = redactor_with_diagnostic_budget(
+        256,
+        DiagnosticBudget::MIN_OUTPUT_BYTES + 4,
+    )
+    .redact_headers(&headers)
+    .to_string();
+    assert!(bounded.len() <= DiagnosticBudget::MIN_OUTPUT_BYTES + 4,);
+    assert!(bounded.ends_with("<truncated>"));
 }
 
 proptest! {

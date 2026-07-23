@@ -16,6 +16,7 @@ use crate::{
 
 use super::{
     BodyBudget,
+    DiagnosticBudget,
     HttpRedactionPolicy,
     TextBodyPolicy,
     UnkeyedJsonValuePolicy,
@@ -40,6 +41,8 @@ pub struct HttpRedactionPolicyBuilder {
     unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
     /// Finite body parser-input and log-output limits.
     body_budget: BodyBudget,
+    /// Finite diagnostic-input and log-output limits.
+    diagnostic_budget: DiagnosticBudget,
 }
 
 impl HttpRedactionPolicyBuilder {
@@ -50,7 +53,31 @@ impl HttpRedactionPolicyBuilder {
     /// A builder with fail-closed behavior choices and finite default limits.
     #[inline]
     pub fn new() -> Self {
-        Self::from_policy(RedactionPolicy::default())
+        Self::from_base_policy(RedactionPolicy::default())
+    }
+
+    /// Creates a builder by copying a complete immutable HTTP policy.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` - HTTP policy whose fields, behaviors, and budgets are
+    ///   copied.
+    ///
+    /// # Returns
+    ///
+    /// Mutable construction state equivalent to `policy`.
+    #[inline]
+    pub fn from_policy(policy: &HttpRedactionPolicy) -> Self {
+        Self {
+            header: RedactionPolicy::builder_from(policy.header_policy()),
+            query: RedactionPolicy::builder_from(policy.query_policy()),
+            body: RedactionPolicy::builder_from(policy.body_policy()),
+            url_path_policy: policy.url_path_policy(),
+            text_body_policy: policy.text_body_policy(),
+            unkeyed_json_value_policy: policy.unkeyed_json_value_policy(),
+            body_budget: policy.body_budget(),
+            diagnostic_budget: policy.diagnostic_budget(),
+        }
     }
 
     /// Creates a builder with three mutable copies of `base`.
@@ -63,7 +90,7 @@ impl HttpRedactionPolicyBuilder {
     ///
     /// A builder with fail-closed behavior choices and finite default limits.
     #[inline]
-    pub(super) fn from_policy(base: RedactionPolicy) -> Self {
+    pub(super) fn from_base_policy(base: RedactionPolicy) -> Self {
         Self {
             header: RedactionPolicy::builder_from(&base),
             query: RedactionPolicy::builder_from(&base),
@@ -72,6 +99,7 @@ impl HttpRedactionPolicyBuilder {
             text_body_policy: TextBodyPolicy::default(),
             unkeyed_json_value_policy: UnkeyedJsonValuePolicy::default(),
             body_budget: BodyBudget::default(),
+            diagnostic_budget: DiagnosticBudget::default(),
         }
     }
 
@@ -369,6 +397,21 @@ impl HttpRedactionPolicyBuilder {
         self
     }
 
+    /// Replaces the finite hard HTTP diagnostic limits.
+    ///
+    /// # Parameters
+    ///
+    /// * `budget` - Previously checked diagnostic input and output byte limits.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline(always)]
+    pub const fn diagnostic_budget(mut self, budget: DiagnosticBudget) -> Self {
+        self.diagnostic_budget = budget;
+        self
+    }
+
     /// Validates all field rules and builds the complete HTTP policy.
     ///
     /// # Returns
@@ -390,7 +433,7 @@ impl HttpRedactionPolicyBuilder {
             self.url_path_policy,
             self.text_body_policy,
             self.unkeyed_json_value_policy,
-            self.body_budget,
+            (self.body_budget, self.diagnostic_budget),
         ))
     }
 }

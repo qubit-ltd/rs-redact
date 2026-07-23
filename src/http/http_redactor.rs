@@ -23,7 +23,6 @@ use url::{
 
 use crate::{
     LogSafeText,
-    RedactedText,
     Redactor,
     Sensitivity,
 };
@@ -117,7 +116,10 @@ impl HttpRedactor {
     /// An owned log-safe URL representation.
     #[inline]
     pub fn redact_url(&self, url: &Url) -> LogSafeText<'static> {
-        Self::safe_owned(self.redact_url_text(url))
+        if self.diagnostic_input_exceeded(url.as_str().len()) {
+            return Self::diagnostic_limit_exceeded();
+        }
+        self.finish_diagnostic(self.redact_url_text(url))
     }
 
     /// Redacts every HTTP URL-looking token in diagnostic text.
@@ -135,9 +137,12 @@ impl HttpRedactor {
     /// Owned log-safe text with recognized URLs redacted.
     #[inline]
     pub fn redact_urls_in_text(&self, text: &str) -> LogSafeText<'static> {
+        if self.diagnostic_input_exceeded(text.len()) {
+            return Self::diagnostic_limit_exceeded();
+        }
         let redacted =
             diagnostic_text::redact(text, |url| self.redact_url_text(url));
-        Self::safe_owned(redacted)
+        self.finish_diagnostic(redacted)
     }
 
     /// Parses and redacts a URL, failing closed on invalid input.
@@ -151,9 +156,12 @@ impl HttpRedactor {
     /// A safe redacted URL or a fixed invalid-URL marker.
     #[inline]
     pub fn redact_url_str(&self, input: &str) -> LogSafeText<'static> {
+        if self.diagnostic_input_exceeded(input.len()) {
+            return Self::diagnostic_limit_exceeded();
+        }
         Url::parse(input).map_or_else(
-            |_| Self::safe_owned(markers::INVALID_URL.to_string()),
-            |url| Self::safe_owned(self.redact_url_text(&url)),
+            |_| self.finish_diagnostic(markers::INVALID_URL.to_string()),
+            |url| self.finish_diagnostic(self.redact_url_text(&url)),
         )
     }
 
@@ -168,12 +176,15 @@ impl HttpRedactor {
     /// A safe redacted form or a fixed invalid-form marker.
     #[inline]
     pub fn redact_form(&self, input: &str) -> LogSafeText<'static> {
+        if self.diagnostic_input_exceeded(input.len()) {
+            return Self::diagnostic_limit_exceeded();
+        }
         let text = if form::is_valid(input.as_bytes()) {
             form::redact(&self.query_redactor, input.as_bytes())
         } else {
             markers::INVALID_FORM.to_string()
         };
-        Self::safe_owned(text)
+        self.finish_diagnostic(text)
     }
 
     /// Redacts and deterministically renders all HTTP header values.
@@ -189,28 +200,61 @@ impl HttpRedactor {
     ///
     /// An opaque result whose `Display` and `Debug` expose only safe text.
     pub fn redact_headers(&self, headers: &HeaderMap) -> RedactedHeaders {
-        let mut values = BTreeMap::<&str, Vec<String>>::new();
+        let input_limit = self.policy.diagnostic_budget().max_input_bytes();
+        let mut input_bytes = 0_usize;
         for (name, value) in headers {
-            let rendered = value.to_str().unwrap_or("<non-utf8>");
-            let redacted = if value.is_sensitive() {
-                self.header_redactor
-                    .policy()
-                    .masking()
-                    .mask(Sensitivity::Secret, rendered)
-                    .into_owned()
-            } else {
-                self.header_redactor
-                    .redact(name.as_str(), rendered)
-                    .into_owned()
-            };
-            values.entry(name.as_str()).or_default().push(redacted);
+            input_bytes = input_bytes
+                .saturating_add(name.as_str().len())
+                .saturating_add(value.as_bytes().len());
+            if input_bytes > input_limit {
+                return RedactedHeaders::new(Self::diagnostic_limit_exceeded());
+            }
         }
-        let rendered = values
-            .into_iter()
-            .map(|(name, values)| format!("{name}: [{}]", values.join(", ")))
-            .collect::<Vec<_>>()
-            .join("\n");
-        RedactedHeaders::new(Self::safe_owned(rendered))
+
+        let mut values = BTreeMap::<&str, Vec<&HeaderValue>>::new();
+        for (name, value) in headers {
+            values.entry(name.as_str()).or_default().push(value);
+        }
+
+        let mut writer = BoundedLogWriter::new(
+            self.policy.diagnostic_budget().max_output_bytes(),
+            false,
+        );
+        for (name_index, (name, header_values)) in
+            values.into_iter().enumerate()
+        {
+            if name_index > 0 {
+                let _ = writer.write_str("\n");
+            }
+            let _ = writer.write_str(name);
+            let _ = writer.write_str(": [");
+            for (value_index, value) in header_values.into_iter().enumerate() {
+                if writer.is_full() {
+                    break;
+                }
+                if value_index > 0 {
+                    let _ = writer.write_str(", ");
+                }
+                let rendered = value.to_str().unwrap_or("<non-utf8>");
+                if value.is_sensitive() {
+                    let redacted = self
+                        .header_redactor
+                        .policy()
+                        .masking()
+                        .mask(Sensitivity::Secret, rendered);
+                    let _ = writer.write_str(redacted.as_ref());
+                } else {
+                    let redacted = self.header_redactor.redact(name, rendered);
+                    let _ = writer.write_str(redacted.as_str());
+                }
+            }
+            if writer.is_full() {
+                break;
+            }
+            let _ = writer.write_str("]");
+        }
+        let (rendered, _) = writer.finish();
+        RedactedHeaders::new(LogSafeText::from_escaped(Cow::Owned(rendered)))
     }
 
     /// Redacts a checked body capture under hard input and output limits.
@@ -728,18 +772,48 @@ impl HttpRedactor {
         )
     }
 
-    /// Wraps owned text after escaping all log-unsafe characters.
+    /// Reports whether a diagnostic input exceeds the configured hard limit.
     ///
     /// # Parameters
     ///
-    /// * `text` - Redacted but not yet escaped text.
+    /// * `input_bytes` - Number of source bytes the operation would inspect.
     ///
     /// # Returns
     ///
-    /// Owned text safe for plain log rendering.
+    /// `true` when the input must fail closed without further processing.
+    fn diagnostic_input_exceeded(&self, input_bytes: usize) -> bool {
+        input_bytes > self.policy.diagnostic_budget().max_input_bytes()
+    }
+
+    /// Returns the fixed log-safe diagnostic-limit marker.
+    ///
+    /// # Returns
+    ///
+    /// A marker containing no source prefix.
     #[inline(always)]
-    fn safe_owned(text: String) -> LogSafeText<'static> {
-        RedactedText::new(text.into()).escape_for_log()
+    fn diagnostic_limit_exceeded() -> LogSafeText<'static> {
+        LogSafeText::from_escaped(Cow::Borrowed(
+            markers::DIAGNOSTIC_LIMIT_EXCEEDED,
+        ))
+    }
+
+    /// Escapes and bounds one normally redacted HTTP diagnostic.
+    ///
+    /// # Parameters
+    ///
+    /// * `text` - Redacted diagnostic text before log escaping.
+    ///
+    /// # Returns
+    ///
+    /// Owned log-safe text within the configured output limit.
+    fn finish_diagnostic(&self, text: String) -> LogSafeText<'static> {
+        let mut writer = BoundedLogWriter::new(
+            self.policy.diagnostic_budget().max_output_bytes(),
+            false,
+        );
+        let _ = writer.write_str(&text);
+        let (text, _) = writer.finish();
+        LogSafeText::from_escaped(Cow::Owned(text))
     }
 }
 
