@@ -54,6 +54,51 @@ struct MutableAccount {
     history: Vec<MutableCredential>,
 }
 
+/// Mutable tuple record covering positional masking and omission.
+#[derive(RedactMut)]
+struct MutableTuple(
+    /// Secret positional field.
+    #[redact(level = "secret")]
+    String,
+    /// Skipped positional field.
+    #[redact(skip)]
+    String,
+);
+
+/// Mutable unit record whose redaction is an explicit no-op.
+#[derive(RedactMut)]
+struct MutableUnit;
+
+/// Mutable enum covering every supported variant shape and field mode.
+#[derive(RedactMut)]
+enum MutableEvent {
+    /// Named fields combine direct and key-classified mutation.
+    Named {
+        /// Directly sensitive value.
+        #[redact(level = "secret")]
+        password: String,
+        /// Key-classified values.
+        #[redact(map)]
+        metadata: HashMap<String, String>,
+        /// Plain value left unchanged.
+        visible: String,
+    },
+    /// Positional fields combine direct, nested, and skipped mutation.
+    Tuple(
+        /// Directly sensitive value.
+        #[redact(level = "secret")]
+        String,
+        /// Nested domain object.
+        #[redact(nested)]
+        MutableCredential,
+        /// Skipped value left unchanged.
+        #[redact(skip)]
+        String,
+    ),
+    /// Unit variant has no mutable state.
+    Unit,
+}
+
 /// Builds a mutable account containing distinct raw sentinels.
 fn account() -> MutableAccount {
     MutableAccount {
@@ -185,4 +230,65 @@ fn test_redact_value_mut_preserves_empty_and_absent_values() {
     assert_eq!(text, "");
     assert_eq!(cow, "");
     assert_eq!(optional, None);
+}
+
+/// Verifies tuple mutation changes selected positions and unit mutation is
+/// safe.
+#[test]
+fn test_redact_mut_supports_tuple_and_unit_structs() {
+    let mut tuple =
+        MutableTuple(String::from("raw-tuple"), String::from("unchanged"));
+    let mut unit = MutableUnit;
+
+    tuple.redact_in_place_with(&strict_policy());
+    unit.redact_in_place_with(&strict_policy());
+
+    assert_eq!(tuple.0, "[strict]");
+    assert_eq!(tuple.1, "unchanged");
+}
+
+/// Verifies destructive enum redaction mutates only fields in the active
+/// variant selected by explicit controls.
+#[test]
+fn test_redact_mut_supports_all_enum_variant_shapes() {
+    let policy = strict_policy();
+    let mut named = MutableEvent::Named {
+        password: String::from("raw-password"),
+        metadata: HashMap::from([(
+            String::from("token"),
+            String::from("raw-map"),
+        )]),
+        visible: String::from("shown"),
+    };
+    let mut tuple = MutableEvent::Tuple(
+        String::from("raw-tuple"),
+        MutableCredential {
+            token: String::from("raw-nested"),
+        },
+        String::from("unchanged"),
+    );
+    let mut unit = MutableEvent::Unit;
+
+    named.redact_in_place_with(&policy);
+    tuple.redact_in_place_with(&policy);
+    unit.redact_in_place_with(&policy);
+
+    let MutableEvent::Named {
+        password,
+        metadata,
+        visible,
+    } = named
+    else {
+        panic!("named variant changed shape");
+    };
+    assert_eq!(password, "[strict]");
+    assert_eq!(metadata["token"], "[strict]");
+    assert_eq!(visible, "shown");
+
+    let MutableEvent::Tuple(secret, nested, skipped) = tuple else {
+        panic!("tuple variant changed shape");
+    };
+    assert_eq!(secret, "[strict]");
+    assert_eq!(nested.token, "[strict]");
+    assert_eq!(skipped, "unchanged");
 }

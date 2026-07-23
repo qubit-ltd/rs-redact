@@ -5,16 +5,21 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Hidden serialization hook for redacted string-valued maps.
+//! Hidden serialization hook for redacted text-valued maps.
+
+use serde::{
+    Serialize,
+    ser::SerializeMap,
+};
 
 use crate::{
+    RedactValue,
     RedactionPolicy,
-    Redactor,
 };
 
 /// Serializes map values after classifying them by runtime key.
 #[doc(hidden)]
-pub trait RedactMapSerialize {
+pub trait RedactMapSerialize<K: ?Sized, V: ?Sized> {
     /// Serializes this map through `policy`.
     ///
     /// # Parameters
@@ -38,10 +43,26 @@ pub trait RedactMapSerialize {
         S: serde::Serializer;
 }
 
-impl<M: ?Sized> RedactMapSerialize for M
+impl<M: ?Sized, K: ?Sized, V: ?Sized> RedactMapSerialize<K, V> for M
 where
-    for<'a> &'a M: IntoIterator<Item = (&'a String, &'a String)>,
+    for<'a> &'a M: IntoIterator<Item = (&'a K, &'a V)>,
+    K: AsRef<str> + Serialize,
+    V: RedactValue + Serialize,
 {
+    /// Serializes every entry through the map redaction contract.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` - Complete policy used to classify every runtime key.
+    /// * `serializer` - Destination Serde serializer.
+    ///
+    /// # Returns
+    ///
+    /// The serializer's successful map output.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first entry or destination serialization error unchanged.
     #[inline]
     fn serialize_redacted_map<S>(
         &self,
@@ -51,9 +72,15 @@ where
     where
         S: serde::Serializer,
     {
-        let redactor = Redactor::new(policy.clone());
-        serializer.collect_map(self.into_iter().map(|(key, value)| {
-            (key, redactor.redact(key, value).into_inner())
-        }))
+        let mut map = serializer.serialize_map(None)?;
+        for (key, value) in self {
+            if let Some(level) = policy.sensitivity_for(key.as_ref()) {
+                let redacted = value.redact_value(level, policy.masking());
+                map.serialize_entry(key, &redacted)?;
+            } else {
+                map.serialize_entry(key, value)?;
+            }
+        }
+        map.end()
     }
 }

@@ -5,16 +5,12 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Compile-fail fixture for an enum input.
+//! Black-box tests for Serde variant attributes.
 
-use qubit_redact_derive::Redact;
+mod support;
 
-/// Unsupported enum shape.
-#[derive(Redact)]
-enum Event {
-    /// One variant.
-    Ready,
+/// Verifies variant-level representation data reaches generated output.
+#[test]
+fn test_serde_variant_attributes_reach_output() {
+    support::assertions::assert_serde_expansion();
 }
-
-/// Keeps the invalid type reachable.
-fn main() {}

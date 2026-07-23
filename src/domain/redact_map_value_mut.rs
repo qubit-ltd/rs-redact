@@ -5,15 +5,15 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Destructive redaction contract for string-valued map-like containers.
+//! Destructive redaction contract for text-valued map-like containers.
 
 use crate::{
+    RedactValueMut,
     RedactionPolicy,
-    Redactor,
 };
 
 /// Redacts map values in place after classifying each value by its runtime key.
-pub trait RedactMapValueMut {
+pub trait RedactMapValueMut<K: ?Sized, V: ?Sized> {
     /// Replaces sensitive values according to `policy`.
     ///
     /// # Parameters
@@ -22,12 +22,23 @@ pub trait RedactMapValueMut {
     fn redact_map_in_place(&mut self, policy: &RedactionPolicy);
 }
 
-impl<M: ?Sized> RedactMapValueMut for M
+impl<M: ?Sized, K: ?Sized, V: ?Sized> RedactMapValueMut<K, V> for M
 where
-    for<'a> &'a mut M: IntoIterator<Item = (&'a String, &'a mut String)>,
+    for<'a> &'a mut M: IntoIterator<Item = (&'a K, &'a mut V)>,
+    K: AsRef<str>,
+    V: RedactValueMut,
 {
+    /// Replaces sensitive entry values according to their runtime keys.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` - Complete policy used to classify every runtime key.
     #[inline]
     fn redact_map_in_place(&mut self, policy: &RedactionPolicy) {
-        Redactor::new(policy.clone()).redact_map_in_place(self);
+        for (key, value) in self {
+            if let Some(level) = policy.sensitivity_for(key.as_ref()) {
+                value.redact_value_in_place(level, policy.masking());
+            }
+        }
     }
 }

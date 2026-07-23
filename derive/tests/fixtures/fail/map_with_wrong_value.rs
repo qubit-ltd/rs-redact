@@ -14,7 +14,7 @@ use qubit_redact_derive::Redact;
 /// Invalid map value type.
 #[derive(Redact)]
 struct Metrics {
-    /// Map redaction requires string values.
+    /// Map redaction requires supported text values.
     #[redact(map)]
     values: HashMap<String, u64>,
 }

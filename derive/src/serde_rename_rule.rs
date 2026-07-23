@@ -72,7 +72,7 @@ impl SerdeRenameRule {
     /// # Returns
     ///
     /// The serialized field name.
-    pub(crate) fn apply(&self, name: &str) -> String {
+    pub(crate) fn apply_to_field(&self, name: &str) -> String {
         match self {
             Self::Lowercase | Self::SnakeCase => name.to_owned(),
             Self::Uppercase => name.to_ascii_uppercase(),
@@ -91,9 +91,47 @@ impl SerdeRenameRule {
             }
         }
     }
+
+    /// Applies this rule to a Rust enum variant identifier.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Pascal-case Rust variant name.
+    ///
+    /// # Returns
+    ///
+    /// The serialized variant name.
+    pub(crate) fn apply_to_variant(&self, name: &str) -> String {
+        match self {
+            Self::Lowercase => name.to_ascii_lowercase(),
+            Self::Uppercase => name.to_ascii_uppercase(),
+            Self::PascalCase => name.to_owned(),
+            Self::CamelCase => {
+                let mut output = name.to_owned();
+                if let Some(first) = output.get_mut(..1) {
+                    first.make_ascii_lowercase();
+                }
+                output
+            }
+            Self::SnakeCase => snake_case(name),
+            Self::ScreamingSnakeCase => snake_case(name).to_ascii_uppercase(),
+            Self::KebabCase => snake_case(name).replace('_', "-"),
+            Self::ScreamingKebabCase => {
+                snake_case(name).to_ascii_uppercase().replace('_', "-")
+            }
+        }
+    }
 }
 
 /// Converts a snake-case identifier to Pascal case.
+///
+/// # Parameters
+///
+/// * `name` - Snake-case identifier to transform.
+///
+/// # Returns
+///
+/// A Pascal-case identifier with underscores removed.
 fn pascal_case(name: &str) -> String {
     let mut output = String::new();
     let mut capitalize = true;
@@ -106,6 +144,26 @@ fn pascal_case(name: &str) -> String {
         } else {
             output.push(character);
         }
+    }
+    output
+}
+
+/// Converts a Pascal-case variant identifier to snake case.
+///
+/// # Parameters
+///
+/// * `name` - Pascal-case Rust variant name.
+///
+/// # Returns
+///
+/// A lowercase name with underscores before non-leading uppercase letters.
+fn snake_case(name: &str) -> String {
+    let mut output = String::new();
+    for (index, character) in name.char_indices() {
+        if index > 0 && character.is_uppercase() {
+            output.push('_');
+        }
+        output.push(character.to_ascii_lowercase());
     }
     output
 }

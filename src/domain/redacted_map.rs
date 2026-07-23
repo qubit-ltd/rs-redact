@@ -15,6 +15,7 @@ use std::{
         Display,
         Formatter,
     },
+    marker::PhantomData,
 };
 
 use crate::{
@@ -25,14 +26,16 @@ use crate::{
 
 /// A lazy map view that classifies values by their runtime keys.
 #[must_use = "format or serialize the redacted map view"]
-pub struct RedactedMap<'a, M: ?Sized> {
+pub struct RedactedMap<'a, M: ?Sized, K: ?Sized = String, V: ?Sized = String> {
     /// Map borrowed without traversal.
     map: &'a M,
     /// Immutable policy snapshot used during formatting.
     policy: RedactionPolicy,
+    /// Associates the view with the map entry types without storing them.
+    marker: PhantomData<fn() -> (*const K, *const V)>,
 }
 
-impl<'a, M: ?Sized> RedactedMap<'a, M> {
+impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     /// Creates a lazy map view without traversing or cloning the map.
     ///
     /// # Parameters
@@ -45,21 +48,55 @@ impl<'a, M: ?Sized> RedactedMap<'a, M> {
     /// A lazy borrowed map view.
     #[inline(always)]
     pub const fn new(map: &'a M, policy: RedactionPolicy) -> Self {
-        Self { map, policy }
+        Self {
+            map,
+            policy,
+            marker: PhantomData,
+        }
     }
 }
 
-impl<M: RedactMapValue + ?Sized> Debug for RedactedMap<'_, M> {
+impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug
+    for RedactedMap<'_, M, K, V>
+{
     /// Formats the map by classifying every value with its corresponding key.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination debug formatter.
+    ///
+    /// # Returns
+    ///
+    /// The formatter result for the complete map.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the destination rejects an entry or the
+    /// completed map.
     #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         self.map.fmt_redacted_map(&self.policy, formatter)
     }
 }
 
-impl<M: RedactMapValue + ?Sized> Display for RedactedMap<'_, M> {
+impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
+    for RedactedMap<'_, M, K, V>
+{
     /// Formats compact redacted debug output and escapes it for plain-text
     /// logs.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination formatting context.
+    ///
+    /// # Returns
+    ///
+    /// The formatter result for the escaped redacted representation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the destination rejects the complete
+    /// log-safe representation.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let redacted = format!("{self:?}");
@@ -69,10 +106,22 @@ impl<M: RedactMapValue + ?Sized> Display for RedactedMap<'_, M> {
 }
 
 #[cfg(feature = "serde")]
-impl<M: crate::domain::RedactMapSerialize + ?Sized> serde::Serialize
-    for RedactedMap<'_, M>
+impl<M: crate::domain::RedactMapSerialize<K, V> + ?Sized, K: ?Sized, V: ?Sized>
+    serde::Serialize for RedactedMap<'_, M, K, V>
 {
     /// Serializes values after classifying each one by its runtime key.
+    ///
+    /// # Parameters
+    ///
+    /// * `serializer` - Destination Serde serializer.
+    ///
+    /// # Returns
+    ///
+    /// The serializer's successful map output.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first entry or destination serialization error unchanged.
     #[inline(always)]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

@@ -5,20 +5,21 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Formatting contract for string-valued map-like containers.
+//! Formatting contract for text-valued map-like containers.
 
 use std::fmt::{
     self,
+    Debug,
     Formatter,
 };
 
 use crate::{
+    RedactValue,
     RedactionPolicy,
-    Redactor,
 };
 
 /// Formats map values after classifying each value by its runtime key.
-pub trait RedactMapValue {
+pub trait RedactMapValue<K: ?Sized, V: ?Sized> {
     /// Writes a lazy redacted map representation.
     ///
     /// # Parameters
@@ -42,21 +43,41 @@ pub trait RedactMapValue {
     ) -> fmt::Result;
 }
 
-impl<M: ?Sized> RedactMapValue for M
+impl<M: ?Sized, K: ?Sized, V: ?Sized> RedactMapValue<K, V> for M
 where
-    for<'a> &'a M: IntoIterator<Item = (&'a String, &'a String)>,
+    for<'a> &'a M: IntoIterator<Item = (&'a K, &'a V)>,
+    K: AsRef<str> + Debug,
+    V: RedactValue + Debug,
 {
+    /// Formats every entry through the map redaction contract.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` - Complete policy used to classify every runtime key.
+    /// * `formatter` - Destination debug formatter.
+    ///
+    /// # Returns
+    ///
+    /// The formatter result for the complete map.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the destination rejects an entry or the
+    /// completed map.
     #[inline]
     fn fmt_redacted_map(
         &self,
         policy: &RedactionPolicy,
         formatter: &mut Formatter<'_>,
     ) -> fmt::Result {
-        let redactor = Redactor::new(policy.clone());
         let mut map = formatter.debug_map();
         for (key, value) in self {
-            let redacted = redactor.redact(key, value);
-            map.entry(key, &redacted.as_str());
+            if let Some(level) = policy.sensitivity_for(key.as_ref()) {
+                let redacted = value.redact_value(level, policy.masking());
+                map.entry(&key, &redacted);
+            } else {
+                map.entry(&key, &value);
+            }
         }
         map.finish()
     }

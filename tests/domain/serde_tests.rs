@@ -75,6 +75,108 @@ struct ApiAccount {
     write_only: String,
 }
 
+/// Serializable newtype preserving its scalar wire shape.
+#[derive(Redact, Serialize)]
+#[redact(serde)]
+struct SecretNewtype(#[redact(level = "secret")] String);
+
+/// Serializable tuple struct preserving positional omission.
+#[derive(Redact, Serialize)]
+#[redact(serde)]
+struct SecretTuple(
+    #[redact(level = "secret")] String,
+    &'static str,
+    #[redact(skip)] String,
+);
+
+/// Serializable unit struct preserving its unit wire shape.
+#[derive(Redact, Serialize)]
+#[redact(serde)]
+struct SerdeMarker;
+
+/// Externally tagged enum covering names, fields, tuples, units, and skips.
+#[derive(Redact, Serialize)]
+#[redact(serde)]
+#[serde(rename_all = "snake_case", rename_all_fields = "camelCase")]
+enum ExternalMessage {
+    /// Named content uses the container field rule.
+    Record {
+        /// Plain field renamed by `rename_all_fields`.
+        account_id: u64,
+        /// Secret field.
+        #[redact(level = "secret")]
+        secret: String,
+    },
+    /// Tuple content uses an explicit variant name.
+    #[serde(rename = "wire_tuple")]
+    Tuple(#[redact(level = "secret")] String, &'static str),
+    /// Unit content uses the container variant rule.
+    UnitValue,
+    /// Variant field rule overrides the container field rule.
+    #[serde(rename_all = "UPPERCASE")]
+    Override {
+        /// Field renamed by the variant rule.
+        some_field: &'static str,
+    },
+    /// Skipped variants must return a serializer error when selected.
+    #[serde(skip_serializing)]
+    Hidden {
+        /// Raw value that must never reach the serializer.
+        raw_secret: String,
+    },
+}
+
+/// Internally tagged enum covering the structurally valid variant shapes.
+#[derive(Redact, Serialize)]
+#[redact(serde)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum InternalMessage {
+    /// Named variant merges redacted fields beside the tag.
+    Record {
+        /// Secret payload.
+        #[redact(level = "secret")]
+        secret: String,
+    },
+    /// Unit variant contains only the tag.
+    Ready,
+    /// Newtype content may merge a redacted struct into the tagged object.
+    Profile(#[redact(nested)] Profile),
+}
+
+/// Adjacently tagged enum covering named, tuple, and unit content.
+#[derive(Redact, Serialize)]
+#[redact(serde)]
+#[serde(tag = "kind", content = "payload")]
+enum AdjacentMessage {
+    /// Named content.
+    Record {
+        /// Secret payload.
+        #[redact(level = "secret")]
+        secret: String,
+    },
+    /// Tuple content.
+    Tuple(#[redact(level = "secret")] String, &'static str),
+    /// Unit variant has no content entry.
+    Ready,
+}
+
+/// Untagged enum covering named, tuple, and unit content.
+#[derive(Redact, Serialize)]
+#[redact(serde)]
+#[serde(untagged)]
+enum UntaggedMessage {
+    /// Named object content.
+    Record {
+        /// Secret payload.
+        #[redact(level = "secret")]
+        secret: String,
+    },
+    /// Tuple array content.
+    Tuple(#[redact(level = "secret")] String, &'static str),
+    /// Unit content serializes as null.
+    Ready,
+}
+
 /// Writer that always returns an I/O error.
 struct FailingWriter;
 
@@ -313,4 +415,189 @@ fn test_redacted_map_serde_propagates_serializer_errors() {
 
     assert!(open_error.is_io());
     assert!(entry_error.is_io());
+
+    let visible = BTreeMap::from([("label".to_owned(), "visible".to_owned())]);
+    let visible_error = serde_json::to_writer(
+        FailAfter { remaining: 1 },
+        &RedactedMap::new(&visible, policy()),
+    )
+    .expect_err("the writer rejects a visible map entry");
+
+    assert!(visible_error.is_io());
+
+    let mixed = BTreeMap::from([
+        ("api_key".to_owned(), "raw-api-key".to_owned()),
+        ("label".to_owned(), "visible".to_owned()),
+    ]);
+    let mixed = RedactedMap::new(&mixed, policy());
+    let output_len = serde_json::to_vec(&mixed)
+        .expect("the complete redacted map should serialize")
+        .len();
+
+    for remaining in 0..output_len {
+        let error = serde_json::to_writer(FailAfter { remaining }, &mixed)
+            .expect_err("each truncated destination should reject the map");
+        assert!(error.is_io());
+    }
+}
+
+/// Verifies newtype, tuple, and unit structs retain their Serde wire shapes.
+#[test]
+fn test_redacted_serde_supports_unnamed_and_unit_structs() {
+    let newtype = SecretNewtype(String::from("raw-newtype"));
+    let tuple = SecretTuple(
+        String::from("raw-tuple"),
+        "shown",
+        String::from("raw-skipped"),
+    );
+
+    let newtype_json = serde_json::to_value(newtype.redacted())
+        .expect("redacted newtype serialization succeeds");
+    let tuple_json = serde_json::to_value(tuple.redacted())
+        .expect("redacted tuple serialization succeeds");
+    let unit_json = serde_json::to_value(SerdeMarker.redacted())
+        .expect("redacted unit serialization succeeds");
+
+    assert_eq!(newtype_json, serde_json::json!("<redacted>"));
+    assert_eq!(tuple_json, serde_json::json!(["<redacted>", "shown"]));
+    assert_eq!(unit_json, serde_json::Value::Null);
+}
+
+/// Verifies externally tagged enums preserve variant and field renaming while
+/// redacting every selected payload.
+#[test]
+fn test_redacted_serde_supports_externally_tagged_enums() {
+    let record = ExternalMessage::Record {
+        account_id: 7,
+        secret: String::from("raw-record"),
+    };
+    let tuple = ExternalMessage::Tuple(String::from("raw-tuple"), "shown");
+    let override_fields = ExternalMessage::Override {
+        some_field: "shown",
+    };
+
+    let record_json = serde_json::to_value(record.redacted())
+        .expect("redacted named variant serialization succeeds");
+    let tuple_json = serde_json::to_value(tuple.redacted())
+        .expect("redacted tuple variant serialization succeeds");
+    let unit_json = serde_json::to_value(ExternalMessage::UnitValue.redacted())
+        .expect("redacted unit variant serialization succeeds");
+    let override_json = serde_json::to_value(override_fields.redacted())
+        .expect("redacted renamed fields serialize successfully");
+
+    assert_eq!(
+        record_json,
+        serde_json::json!({
+            "record": {"accountId": 7, "secret": "<redacted>"}
+        }),
+    );
+    assert_eq!(
+        tuple_json,
+        serde_json::json!({"wire_tuple": ["<redacted>", "shown"]}),
+    );
+    assert_eq!(unit_json, serde_json::json!("unit_value"));
+    assert_eq!(
+        override_json,
+        serde_json::json!({"override": {"SOME_FIELD": "shown"}}),
+    );
+}
+
+/// Verifies internally tagged enums merge their tag and redacted fields.
+#[test]
+fn test_redacted_serde_supports_internally_tagged_enums() {
+    let record = InternalMessage::Record {
+        secret: String::from("raw-internal"),
+    };
+
+    let record_json = serde_json::to_value(record.redacted())
+        .expect("redacted internally tagged variant serialization succeeds");
+    let unit_json = serde_json::to_value(InternalMessage::Ready.redacted())
+        .expect("redacted internally tagged unit serialization succeeds");
+    let profile = InternalMessage::Profile(Profile {
+        name: String::from("Alice"),
+        token: String::from("raw-profile-token"),
+    });
+    let profile_json = serde_json::to_value(profile.redacted())
+        .expect("redacted internally tagged newtype serialization succeeds");
+
+    assert_eq!(
+        record_json,
+        serde_json::json!({"kind": "record", "secret": "<redacted>"}),
+    );
+    assert_eq!(unit_json, serde_json::json!({"kind": "ready"}));
+    assert_eq!(
+        profile_json,
+        serde_json::json!({
+            "kind": "profile",
+            "wire_name": "Alice",
+            "token": "<redacted>"
+        }),
+    );
+}
+
+/// Verifies adjacently tagged enums wrap redacted content under the configured
+/// tag and content keys.
+#[test]
+fn test_redacted_serde_supports_adjacently_tagged_enums() {
+    let record = AdjacentMessage::Record {
+        secret: String::from("raw-adjacent"),
+    };
+    let tuple = AdjacentMessage::Tuple(String::from("raw-tuple"), "shown");
+
+    let record_json = serde_json::to_value(record.redacted())
+        .expect("redacted adjacent named serialization succeeds");
+    let tuple_json = serde_json::to_value(tuple.redacted())
+        .expect("redacted adjacent tuple serialization succeeds");
+    let unit_json = serde_json::to_value(AdjacentMessage::Ready.redacted())
+        .expect("redacted adjacent unit serialization succeeds");
+
+    assert_eq!(
+        record_json,
+        serde_json::json!({
+            "kind": "Record",
+            "payload": {"secret": "<redacted>"}
+        }),
+    );
+    assert_eq!(
+        tuple_json,
+        serde_json::json!({
+            "kind": "Tuple",
+            "payload": ["<redacted>", "shown"]
+        }),
+    );
+    assert_eq!(unit_json, serde_json::json!({"kind": "Ready"}));
+}
+
+/// Verifies untagged enums serialize only their redacted content shape.
+#[test]
+fn test_redacted_serde_supports_untagged_enums() {
+    let record = UntaggedMessage::Record {
+        secret: String::from("raw-untagged"),
+    };
+    let tuple = UntaggedMessage::Tuple(String::from("raw-tuple"), "shown");
+
+    let record_json = serde_json::to_value(record.redacted())
+        .expect("redacted untagged named serialization succeeds");
+    let tuple_json = serde_json::to_value(tuple.redacted())
+        .expect("redacted untagged tuple serialization succeeds");
+    let unit_json = serde_json::to_value(UntaggedMessage::Ready.redacted())
+        .expect("redacted untagged unit serialization succeeds");
+
+    assert_eq!(record_json, serde_json::json!({"secret": "<redacted>"}),);
+    assert_eq!(tuple_json, serde_json::json!(["<redacted>", "shown"]));
+    assert_eq!(unit_json, serde_json::Value::Null);
+}
+
+/// Verifies a selected skipped variant returns an error without exposing its
+/// payload.
+#[test]
+fn test_redacted_serde_rejects_selected_skipped_variant() {
+    let hidden = ExternalMessage::Hidden {
+        raw_secret: String::from("raw-hidden"),
+    };
+
+    let error = serde_json::to_string(&hidden.redacted())
+        .expect_err("selected skipped variants must fail serialization");
+
+    assert!(!error.to_string().contains("raw-hidden"));
 }

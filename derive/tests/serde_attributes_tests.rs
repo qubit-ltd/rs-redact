@@ -5,13 +5,12 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Compile-fail fixture for a tuple struct.
+//! Black-box tests for Serde field attributes.
 
-use qubit_redact_derive::Redact;
+mod support;
 
-/// Unsupported unnamed fields.
-#[derive(Redact)]
-struct Pair(String, String);
-
-/// Keeps the invalid type reachable.
-fn main() {}
+/// Verifies allowlisted field controls preserve redacted serialization.
+#[test]
+fn test_serde_field_attributes_preserve_redaction() {
+    support::assertions::assert_serde_expansion();
+}

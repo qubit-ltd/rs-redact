@@ -46,6 +46,23 @@ fn test_redact_map_in_place_supports_btree_map() {
     assert_eq!(source["username"], "alice");
 }
 
+/// Verifies copy redaction supports optional values without changing source.
+#[test]
+fn test_redact_map_copy_supports_optional_values() {
+    let source = HashMap::from([
+        ("label".to_owned(), Some("visible".to_owned())),
+        ("password".to_owned(), Some("raw".to_owned())),
+        ("secret".to_owned(), None),
+    ]);
+
+    let redacted = Redactor::default().redact_map(&source);
+
+    assert_eq!(source["password"].as_deref(), Some("raw"));
+    assert_eq!(redacted["label"].as_deref(), Some("visible"));
+    assert_eq!(redacted["password"].as_deref(), Some("<redacted>"));
+    assert_eq!(redacted["secret"], None);
+}
+
 /// Verifies that non-sensitive scalar values retain their input borrowing.
 #[test]
 fn test_redact_keeps_non_sensitive_value_borrowed() {

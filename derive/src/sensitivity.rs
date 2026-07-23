@@ -47,7 +47,7 @@ impl Sensitivity {
     pub(crate) fn parse(
         literal: &LitStr,
         type_name: &Ident,
-        field_name: &Ident,
+        field_name: &str,
     ) -> syn::Result<Self> {
         match literal.value().as_str() {
             "low" => Ok(Self::Low),

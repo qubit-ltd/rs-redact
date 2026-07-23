@@ -1,6 +1,16 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 //! Tests for [`RedactMapValue`](qubit_redact::RedactMapValue).
 
-use std::collections::BTreeMap;
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+};
 
 use qubit_redact::{
     RedactedMap,
@@ -16,4 +26,21 @@ fn test_redact_map_value_masks_sensitive_map_entry() {
 
     assert!(!rendered.contains("raw"));
     assert!(rendered.contains("<redacted>"));
+}
+
+/// Verifies borrowed keys and cow values retain their map representation.
+#[test]
+fn test_redact_map_value_supports_borrowed_keys_and_cow_values() {
+    let map = BTreeMap::from([
+        ("label", Cow::Borrowed("visible")),
+        ("password", Cow::Owned(String::from("raw"))),
+    ]);
+
+    let rendered =
+        format!("{:?}", RedactedMap::new(&map, RedactionPolicy::default()),);
+
+    assert_eq!(
+        rendered,
+        r#"{"label": "visible", "password": "<redacted>"}"#,
+    );
 }

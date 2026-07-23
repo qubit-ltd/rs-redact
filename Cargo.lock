@@ -545,6 +545,7 @@ dependencies = [
  "criterion",
  "form_urlencoded",
  "http",
+ "indexmap",
  "proptest",
  "qubit-redact-derive",
  "serde",
@@ -561,6 +562,8 @@ dependencies = [
  "proc-macro2",
  "qubit-redact",
  "quote",
+ "serde",
+ "serde_json",
  "syn",
  "trybuild",
 ]

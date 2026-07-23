@@ -48,7 +48,7 @@ impl FieldAttributes {
     pub(crate) fn parse(
         field: &Field,
         type_name: &Ident,
-        field_name: &Ident,
+        field_name: &str,
     ) -> syn::Result<Self> {
         let mut selected = None;
         for attribute in &field.attrs {
@@ -158,7 +158,7 @@ impl FieldAttributes {
 fn field_error(
     tokens: impl ToTokens,
     type_name: &Ident,
-    field_name: &Ident,
+    field_name: &str,
     message: &str,
 ) -> syn::Error {
     syn::Error::new_spanned(

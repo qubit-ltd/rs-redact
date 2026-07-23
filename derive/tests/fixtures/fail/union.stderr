@@ -1,4 +1,4 @@
-error: Redact can only be derived for structs with named fields
+error: Redact cannot be derived for unions
   --> tests/fixtures/fail/union.rs:12:1
    |
 12 | / /// Unsupported union shape.

@@ -5,12 +5,11 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Named-struct validation and field-attribute parsing.
+//! Named-field attribute parsing shared by structs and enum variants.
 
 use syn::{
-    Data,
-    DeriveInput,
-    Fields,
+    FieldsNamed,
+    Ident,
 };
 
 use crate::{
@@ -19,12 +18,12 @@ use crate::{
     serde_attributes::SerdeAttributes,
 };
 
-/// Validates and parses every named field on a derive input.
+/// Validates and parses every named field in source order.
 ///
 /// # Parameters
 ///
-/// * `input` - Complete derive input to validate.
-/// * `derive_name` - Derive name used in targeted shape diagnostics.
+/// * `fields` - Named fields to validate.
+/// * `type_name` - Derived type used in targeted diagnostics.
 /// * `serde_enabled` - Whether supported serde field controls are validated.
 ///
 /// # Returns
@@ -33,35 +32,13 @@ use crate::{
 ///
 /// # Errors
 ///
-/// Returns a targeted error when the input is not a named-field struct, a
-/// field lacks an identifier, or a field attribute is invalid.
+/// Returns a targeted error when a field lacks an identifier or an attribute
+/// is invalid.
 pub(crate) fn parse<'a>(
-    input: &'a DeriveInput,
-    derive_name: &str,
+    fields: &'a FieldsNamed,
+    type_name: &Ident,
     serde_enabled: bool,
 ) -> syn::Result<Vec<NamedField<'a>>> {
-    let fields = match &input.data {
-        Data::Struct(data) => match &data.fields {
-            Fields::Named(fields) => fields,
-            _ => {
-                return Err(syn::Error::new_spanned(
-                    input,
-                    format!(
-                        "{derive_name} can only be derived for structs with named fields",
-                    ),
-                ));
-            }
-        },
-        _ => {
-            return Err(syn::Error::new_spanned(
-                input,
-                format!(
-                    "{derive_name} can only be derived for structs with named fields",
-                ),
-            ));
-        }
-    };
-
     fields
         .named
         .iter()
@@ -69,17 +46,15 @@ pub(crate) fn parse<'a>(
             let identifier = field.ident.as_ref().ok_or_else(|| {
                 syn::Error::new_spanned(
                     field,
-                    format!(
-                        "{derive_name} requires every field to have a name",
-                    ),
+                    format!("Redact derive for `{type_name}` requires every named field to have an identifier"),
                 )
             })?;
-            let attributes =
-                FieldAttributes::parse(field, &input.ident, identifier)?;
+            let field_name = identifier.to_string();
+            let attributes = FieldAttributes::parse(field, type_name, &field_name)?;
             let serde_attributes = SerdeAttributes::parse(
                 field,
-                &input.ident,
-                identifier,
+                type_name,
+                &field_name,
                 serde_enabled,
             )?;
             Ok(NamedField::new(

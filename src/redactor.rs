@@ -10,6 +10,7 @@
 use std::borrow::Cow;
 
 use crate::{
+    RedactMapValueMut,
     RedactedText,
     RedactionPolicy,
 };
@@ -98,10 +99,10 @@ impl Redactor {
         RedactedText::new(value)
     }
 
-    /// Creates a redacted copy of a string-keyed, string-valued map.
+    /// Creates a redacted copy of a text-keyed, mutable text-valued map.
     ///
     /// The source map is never modified. Its concrete collection type is
-    /// preserved through `FromIterator`.
+    /// preserved by cloning the collection before applying in-place redaction.
     ///
     /// # Parameters
     ///
@@ -109,38 +110,28 @@ impl Redactor {
     ///
     /// # Returns
     ///
-    /// A map of the same type containing cloned keys and redacted values.
+    /// A map of the same type containing redacted values.
     #[must_use = "use the returned redacted map"]
-    pub fn redact_map<M>(&self, map: &M) -> M
+    pub fn redact_map<M, K: ?Sized, V: ?Sized>(&self, map: &M) -> M
     where
-        for<'a> &'a M: IntoIterator<Item = (&'a String, &'a String)>,
-        M: FromIterator<(String, String)>,
+        M: Clone + RedactMapValueMut<K, V>,
     {
-        map.into_iter()
-            .map(|(key, value)| {
-                (key.clone(), self.redact(key, value).into_owned())
-            })
-            .collect()
+        let mut redacted = map.clone();
+        RedactMapValueMut::redact_map_in_place(&mut redacted, &self.policy);
+        redacted
     }
 
-    /// Redacts sensitive values of a string-keyed map in place.
-    ///
-    /// Borrowed results leave their source entries untouched. Only owned mask
-    /// results replace map values, avoiding simultaneous borrowing and
-    /// assignment of the same entry.
+    /// Redacts sensitive values of a text-keyed map in place.
     ///
     /// # Parameters
     ///
     /// * `map` - Mutable map whose values are classified by their keys.
-    pub fn redact_map_in_place<M: ?Sized>(&self, map: &mut M)
+    #[inline(always)]
+    pub fn redact_map_in_place<M, K: ?Sized, V: ?Sized>(&self, map: &mut M)
     where
-        for<'a> &'a mut M: IntoIterator<Item = (&'a String, &'a mut String)>,
+        M: RedactMapValueMut<K, V> + ?Sized,
     {
-        for (key, value) in map {
-            if let Cow::Owned(redacted) = self.redact(key, value).into_inner() {
-                *value = redacted;
-            }
-        }
+        RedactMapValueMut::redact_map_in_place(map, &self.policy);
     }
 }
 

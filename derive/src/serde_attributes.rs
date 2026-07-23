@@ -45,7 +45,7 @@ impl SerdeAttributes {
     pub(crate) fn parse(
         field: &Field,
         type_name: &Ident,
-        field_name: &Ident,
+        field_name: &str,
         enabled: bool,
     ) -> syn::Result<Self> {
         let mut parsed = Self {
@@ -121,18 +121,33 @@ impl SerdeAttributes {
     }
 
     /// Returns the explicit serialized name, when present.
+    ///
+    /// # Returns
+    ///
+    /// `Some(name)` for an explicit field rename, or `None` to use the
+    /// applicable container or variant rename rule.
     #[inline(always)]
     pub(crate) fn rename(&self) -> Option<&str> {
         self.rename.as_deref()
     }
 
     /// Returns whether the field is always omitted by serde.
+    ///
+    /// # Returns
+    ///
+    /// `true` when either `skip` or `skip_serializing` was present.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn skip(&self) -> bool {
         self.skip
     }
 
     /// Returns the optional raw-value skip predicate.
+    ///
+    /// # Returns
+    ///
+    /// `Some(path)` for `skip_serializing_if`, or `None` when serialization is
+    /// unconditional.
     #[inline(always)]
     pub(crate) const fn skip_serializing_if(&self) -> Option<&Path> {
         self.skip_serializing_if.as_ref()

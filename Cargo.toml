@@ -61,6 +61,7 @@ url = { version = "2.5", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.8.2", default-features = false }
+indexmap = "2"
 proptest = "1.0"
 qubit-redact-derive = { path = "derive" }
 serde = { version = "1", features = ["derive"] }

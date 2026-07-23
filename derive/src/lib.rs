@@ -12,6 +12,7 @@ mod field_assertion;
 mod field_attributes;
 mod field_mode;
 mod format_expansion;
+mod input_model;
 mod internal;
 mod named_fields;
 mod redact_derive;
@@ -21,16 +22,21 @@ mod redact_mut_expansion;
 mod runtime_path;
 mod sensitivity;
 mod serde_attributes;
+mod serde_container_attributes;
+mod serde_enum_representation;
 mod serde_expansion;
 mod serde_path;
 mod serde_rename_rule;
+mod serde_variant_attributes;
+mod unnamed_fields;
 
 use proc_macro::TokenStream;
 
-/// Derives immutable redacted formatting for a named-field struct.
+/// Derives immutable redacted formatting for a struct or enum.
 ///
-/// Unmarked fields use ordinary `Debug`; masking, recursion, map processing,
-/// and omission require explicit field attributes.
+/// Named, tuple, and unit structs are accepted, as are enums with named,
+/// tuple, and unit variants. Unmarked fields use ordinary `Debug`; masking,
+/// recursion, map processing, and omission require explicit field attributes.
 ///
 /// # Parameters
 ///
@@ -39,15 +45,15 @@ use proc_macro::TokenStream;
 /// # Returns
 ///
 /// An implementation of `qubit_redact::Redact`, or a targeted compile error
-/// when the input is not a named-field struct or the runtime crate cannot be
-/// resolved.
+/// when the input is a union, an attribute is unsafe or malformed, or the
+/// runtime crate cannot be resolved.
 #[proc_macro_derive(Redact, attributes(redact, serde))]
 #[inline(always)]
 pub fn derive_redact(input: TokenStream) -> TokenStream {
     redact_derive::derive(input)
 }
 
-/// Derives explicit destructive redaction for owned fields of a named struct.
+/// Derives explicit destructive redaction for owned fields of a struct or enum.
 ///
 /// # Parameters
 ///
