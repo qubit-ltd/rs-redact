@@ -25,11 +25,12 @@ use std::{
 ///
 /// # Returns
 ///
-/// A command that preserves ordinary caller configuration and removes only
+/// A command with deterministic uncolored diagnostics that removes
 /// cargo-llvm-cov's private instrumentation variables when coverage is active.
 #[allow(dead_code)]
 pub fn command(program: &OsStr) -> Command {
     let mut command = Command::new(program);
+    command.env("CARGO_TERM_COLOR", "never");
     if env::var_os("CARGO_LLVM_COV").is_some() {
         for variable in [
             "LLVM_PROFILE_FILE",
