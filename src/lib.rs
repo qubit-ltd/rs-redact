@@ -257,6 +257,7 @@ pub mod text;
 
 pub use argv::ArgvRedactor;
 pub use domain::{
+    BoundedRedactedDisplay,
     Redact,
     RedactMapValue,
     RedactMapValueMut,
@@ -284,6 +285,8 @@ pub use policy::{
 };
 pub use redactor::Redactor;
 pub use text::{
+    LogOutputLimit,
+    LogOutputLimitError,
     LogSafeText,
     RedactedDebug,
     RedactedText,

@@ -8,20 +8,22 @@
 //! Lazy borrowed view of a string-valued map-like container.
 
 use std::{
-    borrow::Cow,
     fmt::{
         self,
         Debug,
         Display,
         Formatter,
+        Write as _,
     },
     marker::PhantomData,
 };
 
 use crate::{
+    BoundedRedactedDisplay,
+    LogOutputLimit,
     RedactMapValue,
-    RedactedText,
     RedactionPolicy,
+    text::internal::LogEscapeWriter,
 };
 
 /// A lazy map view that classifies values by their runtime keys.
@@ -53,6 +55,23 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
             policy,
             marker: PhantomData,
         }
+    }
+
+    /// Converts this view into a byte-bounded, log-safe display adapter.
+    ///
+    /// # Parameters
+    ///
+    /// * `limit` - Maximum rendered bytes including any truncation marker.
+    ///
+    /// # Returns
+    ///
+    /// A display-only adapter that owns this redacted map view.
+    #[inline(always)]
+    pub const fn with_output_limit(
+        self,
+        limit: LogOutputLimit,
+    ) -> BoundedRedactedDisplay<Self> {
+        BoundedRedactedDisplay::new(self, limit)
     }
 }
 
@@ -99,9 +118,8 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
     /// log-safe representation.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        let redacted = format!("{self:?}");
-        let safe = RedactedText::new(Cow::Owned(redacted)).escape_for_log();
-        Display::fmt(&safe, formatter)
+        let mut writer = LogEscapeWriter::new(formatter);
+        write!(&mut writer, "{self:?}")
     }
 }
 

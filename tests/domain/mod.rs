@@ -7,6 +7,7 @@
 // =============================================================================
 //! Mirrored integration tests for domain-object redaction APIs.
 
+mod bounded_redacted_display_tests;
 mod derive_attribute_tests;
 mod internal;
 mod map_tests;

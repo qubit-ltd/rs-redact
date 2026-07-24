@@ -165,6 +165,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+Domain-view `Display` streams escaped, log-safe output without constructing a
+complete intermediate representation. When a log sink also requires a strict
+byte budget, validate the limit once and apply it to the redacted view:
+
+```rust
+use qubit_redact::{LogOutputLimit, Redact as _};
+
+# use qubit_redact_derive::Redact;
+# #[derive(Redact)]
+# struct Event {
+#     #[redact(level = "secret")]
+#     token: String,
+# }
+# let event = Event { token: "raw".to_owned() };
+let limit = LogOutputLimit::new(128)?;
+let output = event.redacted().with_output_limit(limit).to_string();
+assert!(output.len() <= limit.max_bytes());
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Truncated output ends with `<truncated>` and never splits a UTF-8 character or
+a generated control-character escape.
+
 Use `#[redact(nested)]` for a field whose type implements `Redact`; without
 that attribute even a derived field type is not traversed. `#[redact(skip)]`
 omits a field from redacted Debug, Display, and serde output. It does not

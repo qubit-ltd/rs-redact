@@ -7,20 +7,20 @@
 // =============================================================================
 //! Borrowed, policy-snapshot view of a domain object.
 
-use std::{
-    borrow::Cow,
-    fmt::{
-        self,
-        Debug,
-        Display,
-        Formatter,
-    },
+use std::fmt::{
+    self,
+    Debug,
+    Display,
+    Formatter,
+    Write as _,
 };
 
 use crate::{
+    BoundedRedactedDisplay,
+    LogOutputLimit,
     Redact,
-    RedactedText,
     RedactionPolicy,
+    text::internal::LogEscapeWriter,
 };
 
 /// A lazy non-destructive redacted view of a domain object.
@@ -49,6 +49,23 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     #[inline(always)]
     pub(crate) const fn new(value: &'a T, policy: RedactionPolicy) -> Self {
         Self { value, policy }
+    }
+
+    /// Converts this view into a byte-bounded, log-safe display adapter.
+    ///
+    /// # Parameters
+    ///
+    /// * `limit` - Maximum rendered bytes including any truncation marker.
+    ///
+    /// # Returns
+    ///
+    /// A display-only adapter that owns this redacted view.
+    #[inline(always)]
+    pub const fn with_output_limit(
+        self,
+        limit: LogOutputLimit,
+    ) -> BoundedRedactedDisplay<Self> {
+        BoundedRedactedDisplay::new(self, limit)
     }
 
     /// Returns the borrowed domain value to crate-internal adapters.
@@ -126,11 +143,9 @@ impl<T: Redact + ?Sized> Debug for Redacted<'_, T> {
 impl<T: Redact + ?Sized> Display for Redacted<'_, T> {
     /// Writes a compact redacted debug representation escaped for logs.
     ///
-    /// Every call first allocates a complete compact redacted `Debug`
-    /// representation as an intermediate [`String`]. Log escaping may allocate
-    /// a second string when that intermediate text contains characters that
-    /// require escaping. This implementation never calls the original object's
-    /// `Display`.
+    /// Redacted debug output is escaped directly into the destination without
+    /// constructing an intermediate [`String`]. This implementation never
+    /// calls the original object's `Display`.
     ///
     /// # Parameters
     ///
@@ -146,8 +161,7 @@ impl<T: Redact + ?Sized> Display for Redacted<'_, T> {
     /// log-safe representation.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        let redacted = format!("{self:?}");
-        let safe = RedactedText::new(Cow::Owned(redacted)).escape_for_log();
-        Display::fmt(&safe, formatter)
+        let mut writer = LogEscapeWriter::new(formatter);
+        write!(&mut writer, "{self:?}")
     }
 }

@@ -152,6 +152,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+领域视图的 `Display` 会直接流式写出经过转义、可安全写入日志的内容，不构造完整的中间
+表示。如果日志接收端还要求严格的字节预算，可先验证限制，再应用到脱敏视图：
+
+```rust
+use qubit_redact::{LogOutputLimit, Redact as _};
+
+# use qubit_redact_derive::Redact;
+# #[derive(Redact)]
+# struct Event {
+#     #[redact(level = "secret")]
+#     token: String,
+# }
+# let event = Event { token: "raw".to_owned() };
+let limit = LogOutputLimit::new(128)?;
+let output = event.redacted().with_output_limit(limit).to_string();
+assert!(output.len() <= limit.max_bytes());
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+发生截断时，输出以 `<truncated>` 结尾，并且不会截断 UTF-8 字符或生成的控制字符转义
+序列。
+
 字段类型实现了 `Redact` 时，仍然只有标记 `#[redact(nested)]` 才会递归处理；没有该
 属性就绝不隐式遍历。`#[redact(skip)]` 会从脱敏后的 Debug、Display 和 serde 表示中省略
 字段，但不会删除或修改原对象字段，`RedactMut` 也不会改它。

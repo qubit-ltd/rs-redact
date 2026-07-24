@@ -9,6 +9,8 @@
 
 mod internal;
 mod log_escape_tests;
+mod log_output_limit_error_tests;
+mod log_output_limit_tests;
 mod log_safe_text_tests;
 mod mod_tests;
 mod redacted_debug_tests;

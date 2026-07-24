@@ -22,6 +22,7 @@ use criterion::{
 };
 use qubit_redact::{
     FieldNameMatching,
+    LogOutputLimit,
     RedactedMap,
     RedactionPolicy,
     Redactor,
@@ -124,6 +125,8 @@ fn benchmark_map_policy(size: usize, mixed_hits: bool) -> RedactionPolicy {
 /// classification hit rates.
 fn benchmark_map_redaction(criterion: &mut Criterion) {
     let mut group = criterion.benchmark_group("map_redaction");
+    let output_limit = LogOutputLimit::new(256)
+        .expect("benchmark output limit should contain the marker");
     for (size_name, size) in [("small", 8usize), ("large", 256usize)] {
         let map = benchmark_map(size);
         for (scenario, mixed_hits) in [("miss", false), ("mixed", true)] {
@@ -140,6 +143,30 @@ fn benchmark_map_redaction(criterion: &mut Criterion) {
                         let view =
                             RedactedMap::new(black_box(input), policy.clone());
                         black_box(format!("{view:?}"))
+                    });
+                },
+            );
+            group.bench_with_input(
+                BenchmarkId::new("display_streaming", &parameter),
+                &map,
+                |bencher, input| {
+                    bencher.iter(|| {
+                        let view =
+                            RedactedMap::new(black_box(input), policy.clone());
+                        black_box(view.to_string())
+                    });
+                },
+            );
+            group.bench_with_input(
+                BenchmarkId::new("display_bounded", &parameter),
+                &map,
+                |bencher, input| {
+                    bencher.iter(|| {
+                        let view =
+                            RedactedMap::new(black_box(input), policy.clone());
+                        black_box(
+                            view.with_output_limit(output_limit).to_string(),
+                        )
                     });
                 },
             );
