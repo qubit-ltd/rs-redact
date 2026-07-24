@@ -4,24 +4,28 @@
     {
       "name": "core",
       "commands": ["check", "test", "doc"],
+      "packages": ["qubit-redact"],
       "defaultFeatures": false,
       "features": []
     },
     {
       "name": "serde",
       "commands": ["check", "test", "doc"],
+      "packages": ["qubit-redact"],
       "defaultFeatures": false,
       "features": ["serde"]
     },
     {
       "name": "http",
       "commands": ["check", "test", "doc"],
+      "packages": ["qubit-redact"],
       "defaultFeatures": false,
       "features": ["http"]
     },
     {
       "name": "all",
       "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact", "qubit-redact-derive"],
       "allFeatures": true
     }
   ]
