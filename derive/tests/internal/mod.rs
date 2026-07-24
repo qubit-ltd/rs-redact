@@ -8,7 +8,6 @@
 //! Aggregates mirrored tests for the derive input model.
 
 mod container_data_tests;
-mod crate_path_tests;
 mod fields_data_tests;
 mod mod_tests;
 mod named_field_tests;

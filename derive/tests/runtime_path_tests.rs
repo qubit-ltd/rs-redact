@@ -12,8 +12,6 @@ use std::{
     path::PathBuf,
 };
 
-#[path = "support/isolated_cargo.rs"]
-mod isolated_cargo;
 mod support;
 
 /// Verifies the ordinary direct runtime dependency resolves in expansion.
@@ -30,7 +28,7 @@ fn test_runtime_path_reports_missing_dependency() {
         manifest_dir.join("tests/fixtures/crates/runtime_missing/Cargo.toml");
     let target_dir = manifest_dir.join("../target/runtime-missing-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let output = isolated_cargo::command(&cargo)
+    let output = support::isolated_cargo::command(&cargo)
         .args(["check", "--manifest-path"])
         .arg(&manifest)
         .arg("--target-dir")
@@ -57,7 +55,7 @@ fn test_runtime_path_resolves_itself() {
         manifest_dir.join("tests/fixtures/crates/runtime_itself/Cargo.toml");
     let target_dir = manifest_dir.join("../target/runtime-itself-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let output = isolated_cargo::command(&cargo)
+    let output = support::isolated_cargo::command(&cargo)
         .args(["check", "--manifest-path"])
         .arg(&manifest)
         .arg("--target-dir")

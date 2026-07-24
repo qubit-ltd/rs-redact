@@ -12,8 +12,7 @@ use std::{
     path::PathBuf,
 };
 
-#[path = "support/isolated_cargo.rs"]
-mod isolated_cargo;
+mod support;
 
 /// Verifies feature-disabled expansion emits one targeted primary diagnostic.
 #[test]
@@ -23,7 +22,7 @@ fn test_serde_feature_guard_is_single_and_targeted() {
         manifest_dir.join("tests/fixtures/crates/serde_disabled/Cargo.toml");
     let target_dir = manifest_dir.join("../target/serde-disabled-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let output = isolated_cargo::command(&cargo)
+    let output = support::isolated_cargo::command(&cargo)
         .args(["check", "--manifest-path"])
         .arg(&manifest)
         .arg("--target-dir")

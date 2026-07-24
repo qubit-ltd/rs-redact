@@ -8,3 +8,4 @@
 //! Shared support for black-box derive tests.
 
 pub mod assertions;
+pub mod isolated_cargo;

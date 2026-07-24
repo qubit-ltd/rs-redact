@@ -12,8 +12,6 @@ use std::{
     path::PathBuf,
 };
 
-#[path = "support/isolated_cargo.rs"]
-mod isolated_cargo;
 mod support;
 
 /// Verifies the direct Serde dependency is usable by generated code.
@@ -30,7 +28,7 @@ fn test_serde_path_resolves_itself() {
         manifest_dir.join("tests/fixtures/crates/serde_itself/Cargo.toml");
     let target_dir = manifest_dir.join("../target/serde-itself-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let output = isolated_cargo::command(&cargo)
+    let output = support::isolated_cargo::command(&cargo)
         .args(["check", "--manifest-path"])
         .arg(&manifest)
         .arg("--target-dir")

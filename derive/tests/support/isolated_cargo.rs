@@ -27,6 +27,7 @@ use std::{
 ///
 /// A command that preserves ordinary caller configuration and removes only
 /// cargo-llvm-cov's private instrumentation variables when coverage is active.
+#[allow(dead_code)]
 pub fn command(program: &OsStr) -> Command {
     let mut command = Command::new(program);
     if env::var_os("CARGO_LLVM_COV").is_some() {

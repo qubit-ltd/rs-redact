@@ -12,8 +12,7 @@ use std::{
     path::PathBuf,
 };
 
-#[path = "support/isolated_cargo.rs"]
-mod isolated_cargo;
+mod support;
 
 /// Verifies generated code uses the Cargo dependency alias.
 #[test]
@@ -23,7 +22,7 @@ fn test_renamed_runtime_dependency_compiles() {
         .join("tests/fixtures/crates/renamed_dependency/Cargo.toml");
     let target_dir = manifest_dir.join("../target/renamed-dependency-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let status = isolated_cargo::command(&cargo)
+    let status = support::isolated_cargo::command(&cargo)
         .args(["check", "--manifest-path"])
         .arg(manifest)
         .arg("--target-dir")
