@@ -14,6 +14,7 @@ use crate::{
 
 /// A nested value paired with the current explicit policy.
 #[doc(hidden)]
+#[must_use = "serialize the adapter to produce redacted output"]
 pub struct RedactedSerialize<'a, T: ?Sized> {
     /// Nested value to serialize.
     value: &'a T,
