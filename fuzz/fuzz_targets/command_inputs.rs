@@ -86,8 +86,10 @@ fn assert_sensitive_argv_is_redacted(selector: u8, data: &[u8]) {
 /// Verifies environment redaction removes the fixed secret.
 fn assert_sensitive_environment_is_redacted() {
     let redactor = EnvRedactor::default();
-    let first = redactor.redact_os_pair("PASSWORD".as_ref(), FUZZ_SECRET.as_ref());
-    let second = redactor.redact_os_pair("PASSWORD".as_ref(), FUZZ_SECRET.as_ref());
+    let first =
+        redactor.redact_os_pair("PASSWORD".as_ref(), FUZZ_SECRET.as_ref());
+    let second =
+        redactor.redact_os_pair("PASSWORD".as_ref(), FUZZ_SECRET.as_ref());
     assert_eq!(first, second);
     assert!(!first.to_string().contains(FUZZ_SECRET));
 }
@@ -139,9 +141,13 @@ fuzz_target!(|data: &[u8]| {
 
     let boundary_argv = ["client", "--", "--password", FUZZ_SECRET];
     let redactor = ArgvRedactor::default();
-    let items = boundary_argv.iter().map(|value| ArgvItem::plain(value.as_ref()));
+    let items = boundary_argv
+        .iter()
+        .map(|value| ArgvItem::plain(value.as_ref()));
     let first = redactor.redact_heuristically(items).to_string();
-    let items = boundary_argv.iter().map(|value| ArgvItem::plain(value.as_ref()));
+    let items = boundary_argv
+        .iter()
+        .map(|value| ArgvItem::plain(value.as_ref()));
     let second = redactor.redact_heuristically(items).to_string();
     assert_eq!(first, second);
     assert!(!first.contains(FUZZ_SECRET));
