@@ -1,0 +1,211 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+//! Allocation regressions for bounded HTTP diagnostics.
+
+#![cfg(feature = "http")]
+
+use std::{
+    alloc::{
+        GlobalAlloc,
+        Layout,
+        System,
+    },
+    sync::atomic::{
+        AtomicBool,
+        AtomicUsize,
+        Ordering,
+    },
+};
+
+use http::{
+    HeaderMap,
+    HeaderValue,
+};
+use qubit_redact::{
+    MaskPolicy,
+    RedactionPolicy,
+    Sensitivity,
+    http::{
+        BodyBudget,
+        BodyCapture,
+        DiagnosticBudget,
+        HttpRedactionPolicy,
+        HttpRedactor,
+    },
+};
+
+/// Controls whether allocator calls contribute to the active measurement.
+static TRACK_ALLOCATIONS: AtomicBool = AtomicBool::new(false);
+/// Records the largest allocation or reallocation while tracking is enabled.
+static LARGEST_ALLOCATION: AtomicUsize = AtomicUsize::new(0);
+/// Counts allocations and reallocations while tracking is enabled.
+static ALLOCATION_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+/// Global allocator that records the largest narrowly scoped allocation.
+struct MeasuringAllocator;
+
+// SAFETY: Every operation delegates to `System` with the original layout and
+// pointer. Recording allocation sizes does not alter allocator contracts.
+unsafe impl GlobalAlloc for MeasuringAllocator {
+    /// Allocates memory through the system allocator and records its size.
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        record_allocation(layout.size());
+        // SAFETY: `layout` is forwarded unchanged to the system allocator.
+        unsafe { System.alloc(layout) }
+    }
+
+    /// Deallocates memory through the system allocator.
+    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+        // SAFETY: `pointer` and `layout` came from the delegated allocator.
+        unsafe { System.dealloc(pointer, layout) }
+    }
+
+    /// Allocates zeroed memory through the system allocator and records it.
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        record_allocation(layout.size());
+        // SAFETY: `layout` is forwarded unchanged to the system allocator.
+        unsafe { System.alloc_zeroed(layout) }
+    }
+
+    /// Resizes an allocation through the system allocator and records it.
+    unsafe fn realloc(
+        &self,
+        pointer: *mut u8,
+        layout: Layout,
+        new_size: usize,
+    ) -> *mut u8 {
+        record_allocation(new_size);
+        // SAFETY: All arguments are forwarded unchanged to the system
+        // allocator.
+        unsafe { System.realloc(pointer, layout, new_size) }
+    }
+}
+
+#[global_allocator]
+static GLOBAL_ALLOCATOR: MeasuringAllocator = MeasuringAllocator;
+
+/// Records an allocation size when a measurement is active.
+///
+/// # Parameters
+///
+/// * `size` - Requested allocation or reallocation size.
+#[inline(always)]
+fn record_allocation(size: usize) {
+    if TRACK_ALLOCATIONS.load(Ordering::Relaxed) {
+        LARGEST_ALLOCATION.fetch_max(size, Ordering::Relaxed);
+        ALLOCATION_COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+/// Measures the largest allocation made by one operation.
+///
+/// # Parameters
+///
+/// * `operation` - Operation whose allocations are measured.
+///
+/// # Returns
+///
+/// The operation result, largest requested size, and allocation count.
+fn measure_allocations<T>(operation: impl FnOnce() -> T) -> (T, usize, usize) {
+    LARGEST_ALLOCATION.store(0, Ordering::Relaxed);
+    ALLOCATION_COUNT.store(0, Ordering::Relaxed);
+    TRACK_ALLOCATIONS.store(true, Ordering::Relaxed);
+    let result = operation();
+    TRACK_ALLOCATIONS.store(false, Ordering::Relaxed);
+    (
+        result,
+        LARGEST_ALLOCATION.load(Ordering::Relaxed),
+        ALLOCATION_COUNT.load(Ordering::Relaxed),
+    )
+}
+
+/// Verifies HTTP diagnostic allocations follow the rendered output budget.
+#[test]
+fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
+    let redactor = HttpRedactor::default();
+
+    let (result, largest, _) = measure_allocations(|| {
+        redactor.redact_url_str("https://example.test/")
+    });
+
+    assert_eq!(result.as_ref(), "https://example.test/");
+    assert!(
+        largest < DiagnosticBudget::default().max_output_bytes(),
+        "largest allocation unexpectedly reserved the output ceiling: {largest}",
+    );
+
+    let json_type = HeaderValue::from_static("application/json");
+    let (body, body_largest, _) = measure_allocations(|| {
+        redactor.redact_body(
+            BodyCapture::complete(br#"{"password":"body-secret"}"#),
+            Some(&json_type),
+        )
+    });
+    assert!(!body.to_string().contains("body-secret"));
+    assert!(
+        body_largest < BodyBudget::default().max_output_bytes(),
+        "short body mask reserved the output ceiling: {body_largest}",
+    );
+    let unsafe_text = "\n".repeat(128);
+    let (escaped, _, escape_allocations) =
+        measure_allocations(|| redactor.redact_urls_in_text(&unsafe_text));
+    assert!(!escaped.as_ref().contains('\n'));
+    assert!(
+        escape_allocations < 32,
+        "control escaping allocated per character: {escape_allocations}",
+    );
+
+    let replacement = "X".repeat(1024 * 1024);
+    let amplified_policy = RedactionPolicy::builder()
+        .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
+        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
+        .build()
+        .expect("the amplified redaction policy is valid");
+    let output_limit = 128;
+    let diagnostic_budget = DiagnosticBudget::new(4096, output_limit)
+        .expect("the diagnostic budget can contain every marker");
+    let policy = HttpRedactionPolicy::builder()
+        .header_policy(amplified_policy.clone())
+        .query_policy(amplified_policy)
+        .diagnostic_budget(diagnostic_budget)
+        .build()
+        .expect("the amplified HTTP policy is valid");
+    let redactor = HttpRedactor::new(policy);
+    let repeated_form = ["password=form-secret"; 32].join("&");
+    let repeated_query = ["password=query-secret"; 32].join("&");
+    let repeated_url = format!(
+        "https://user:password@example.test/?{repeated_query}#fragment",
+    );
+    let mut sensitive_header = HeaderValue::from_static("header-secret");
+    sensitive_header.set_sensitive(true);
+    let mut headers = HeaderMap::new();
+    headers.insert("x-secret", sensitive_header);
+
+    let (url, url_largest, _) =
+        measure_allocations(|| redactor.redact_url_str(&repeated_url));
+    let (form, form_largest, _) =
+        measure_allocations(|| redactor.redact_form(&repeated_form));
+    let (headers, header_largest, _) =
+        measure_allocations(|| redactor.redact_headers(&headers));
+
+    for rendered in [url.as_ref(), form.as_ref(), &headers.to_string()] {
+        assert!(rendered.len() <= output_limit, "{rendered:?}");
+        assert!(rendered.ends_with("<truncated>"), "{rendered:?}");
+        for source_secret in
+            ["query-secret", "form-secret", "header-secret", "fragment"]
+        {
+            assert!(!rendered.contains(source_secret), "{rendered:?}");
+        }
+    }
+    for largest in [url_largest, form_largest, header_largest] {
+        assert!(
+            largest <= 4096,
+            "bounded diagnostic copied an amplified mask: {largest}",
+        );
+    }
+}

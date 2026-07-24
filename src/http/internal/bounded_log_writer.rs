@@ -9,7 +9,7 @@
 
 use std::fmt;
 
-use crate::text::log_escape::is_log_unsafe_character;
+use crate::text::log_escape::encode_log_safe_character;
 
 use super::markers;
 
@@ -21,6 +21,8 @@ pub(in crate::http) struct BoundedLogWriter {
     max_bytes: usize,
     /// Whether the final result requires a truncation marker.
     truncated: bool,
+    /// Whether an output piece failed to fit in the final byte budget.
+    output_truncated: bool,
 }
 
 impl BoundedLogWriter {
@@ -39,9 +41,10 @@ impl BoundedLogWriter {
         source_truncated: bool,
     ) -> Self {
         Self {
-            output: String::with_capacity(max_bytes),
+            output: String::new(),
             max_bytes,
             truncated: source_truncated,
+            output_truncated: false,
         }
     }
 
@@ -64,15 +67,7 @@ impl BoundedLogWriter {
         }
         for character in value.chars() {
             let mut encoded = [0_u8; 12];
-            let piece = if is_log_unsafe_character(character) {
-                let escaped = character.escape_debug().to_string();
-                if !self.append_piece(&escaped) {
-                    break;
-                }
-                continue;
-            } else {
-                character.encode_utf8(&mut encoded)
-            };
+            let piece = encode_log_safe_character(character, &mut encoded)?;
             if !self.append_piece(piece) {
                 break;
             }
@@ -88,8 +83,18 @@ impl BoundedLogWriter {
     /// filled all bytes preceding the marker.
     #[inline(always)]
     pub(in crate::http) fn is_full(&self) -> bool {
-        let limit = self.payload_limit();
-        self.output.len() >= limit
+        self.output_truncated
+            || (self.truncated && self.output.len() >= self.payload_limit())
+    }
+
+    /// Returns bytes still available before the current payload limit.
+    ///
+    /// # Returns
+    ///
+    /// Remaining payload bytes before any required truncation marker.
+    #[inline(always)]
+    pub(in crate::http) fn remaining_bytes(&self) -> usize {
+        self.payload_limit().saturating_sub(self.output.len())
     }
 
     /// Finishes the bounded rendering.
@@ -121,6 +126,7 @@ impl BoundedLogWriter {
             return true;
         }
         self.truncated = true;
+        self.output_truncated = true;
         self.truncate_to_payload_limit();
         false
     }

@@ -16,10 +16,7 @@ use http::{
     HeaderMap,
     HeaderValue,
 };
-use url::{
-    Url,
-    form_urlencoded,
-};
+use url::Url;
 
 use crate::{
     LogSafeText,
@@ -179,8 +176,13 @@ impl HttpRedactor {
         if self.diagnostic_input_exceeded(input.len()) {
             return Self::diagnostic_limit_exceeded();
         }
+        let output_limit = self.policy.diagnostic_budget().max_output_bytes();
         let text = if form::is_valid(input.as_bytes()) {
-            form::redact(&self.query_redactor, input.as_bytes())
+            form::redact_bounded(
+                &self.query_redactor,
+                input.as_bytes(),
+                output_limit,
+            )
         } else {
             markers::INVALID_FORM.to_string()
         };
@@ -362,15 +364,18 @@ impl HttpRedactor {
                 let _ = writer.write_str(", ");
             }
             let rendered = value.to_str().unwrap_or("<non-utf8>");
+            let remaining = writer.remaining_bytes();
             if value.is_sensitive() {
                 let redacted = self
                     .header_redactor
                     .policy()
                     .masking()
-                    .mask(Sensitivity::Secret, rendered);
+                    .mask_bounded(Sensitivity::Secret, rendered, remaining);
                 let _ = writer.write_str(redacted.as_ref());
             } else {
-                let redacted = self.header_redactor.redact(name, rendered);
+                let redacted = self
+                    .header_redactor
+                    .redact_bounded(name, rendered, remaining);
                 let _ = writer.write_str(redacted.as_str());
             }
         }
@@ -441,6 +446,7 @@ impl HttpRedactor {
     ///
     /// An owned URL representation safe to combine with other redacted text.
     fn redact_url_text_at_depth(&self, url: &Url, depth: usize) -> String {
+        let output_limit = self.policy.diagnostic_budget().max_output_bytes();
         let mut output = url.clone();
         if self.policy.url_path_policy() == UrlPathPolicy::Redact
             && output.path() != "/"
@@ -452,7 +458,11 @@ impl HttpRedactor {
                 .query_redactor
                 .policy()
                 .masking()
-                .mask(Sensitivity::High, output.username())
+                .mask_bounded(
+                    Sensitivity::High,
+                    output.username(),
+                    output_limit,
+                )
                 .into_owned();
             let _ = output.set_username(&masked);
         }
@@ -461,7 +471,7 @@ impl HttpRedactor {
                 .query_redactor
                 .policy()
                 .masking()
-                .mask(Sensitivity::Secret, password)
+                .mask_bounded(Sensitivity::Secret, password, output_limit)
                 .into_owned();
             let _ = output.set_password(Some(&masked));
         }
@@ -470,21 +480,32 @@ impl HttpRedactor {
                 .query_redactor
                 .policy()
                 .masking()
-                .mask(Sensitivity::High, fragment)
+                .mask_bounded(Sensitivity::High, fragment, output_limit)
                 .into_owned();
             output.set_fragment(Some(&masked));
         }
         if let Some(query) = url.query() {
             if form::is_valid(query.as_bytes()) {
-                let mut serializer =
-                    form_urlencoded::Serializer::new(String::new());
+                let query_limit = output_limit.saturating_add(1);
+                let mut redacted_query = String::new();
                 for (key, value) in url.query_pairs() {
-                    let value =
-                        self.query_redactor.redact(&key, &value).into_inner();
+                    let remaining =
+                        query_limit.saturating_sub(redacted_query.len());
+                    let value = self
+                        .query_redactor
+                        .redact_bounded(&key, &value, remaining)
+                        .into_inner();
                     let value = self.redact_nested_url_value(value, depth);
-                    serializer.append_pair(&key, value.as_ref());
+                    if !form::append_pair_bounded(
+                        &mut redacted_query,
+                        &key,
+                        value.as_ref(),
+                        query_limit,
+                    ) {
+                        break;
+                    }
                 }
-                output.set_query(Some(&serializer.finish()));
+                output.set_query(Some(&redacted_query));
             } else {
                 output.set_query(Some(markers::INVALID_QUERY));
             }

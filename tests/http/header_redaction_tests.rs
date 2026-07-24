@@ -126,6 +126,23 @@ fn test_header_redaction_is_sorted_stable_and_output_bounded() {
     assert!(bounded.ends_with("<truncated>"));
 }
 
+/// Verifies an exactly full payload still marks an omitted closing delimiter.
+#[test]
+fn test_header_redaction_marks_truncation_after_exact_payload_boundary() {
+    let output_limit = 40;
+    let redactor = redactor_with_diagnostic_budget(256, output_limit);
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "x-a",
+        HeaderValue::from_static("1234567890123456789012345678901234"),
+    );
+
+    let rendered = redactor.redact_headers(&headers).to_string();
+
+    assert!(rendered.len() <= output_limit, "{rendered:?}");
+    assert!(rendered.ends_with("<truncated>"), "{rendered:?}");
+}
+
 proptest! {
     #[test]
     /// Checks across generated inputs that header name policy never leaks secret.

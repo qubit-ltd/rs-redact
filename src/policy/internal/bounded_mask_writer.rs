@@ -26,10 +26,10 @@ impl BoundedMaskWriter {
     ///
     /// # Returns
     ///
-    /// A writer with bounded initial capacity.
+    /// An empty writer that grows only for retained masked bytes.
     pub(in crate::policy) fn new(max_bytes: usize) -> Self {
         Self {
-            output: String::with_capacity(max_bytes),
+            output: String::new(),
             max_bytes,
         }
     }
