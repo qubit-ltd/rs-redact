@@ -200,59 +200,16 @@ impl HttpRedactor {
     ///
     /// An opaque result whose `Display` and `Debug` expose only safe text.
     pub fn redact_headers(&self, headers: &HeaderMap) -> RedactedHeaders {
-        let input_limit = self.policy.diagnostic_budget().max_input_bytes();
-        let mut input_bytes = 0_usize;
-        for (name, value) in headers {
-            input_bytes = input_bytes
-                .saturating_add(name.as_str().len())
-                .saturating_add(value.as_bytes().len());
-            if input_bytes > input_limit {
-                return RedactedHeaders::new(Self::diagnostic_limit_exceeded());
-            }
-        }
-
-        let mut values = BTreeMap::<&str, Vec<&HeaderValue>>::new();
-        for (name, value) in headers {
-            values.entry(name.as_str()).or_default().push(value);
+        if !self.headers_fit_input_budget(headers) {
+            return RedactedHeaders::new(Self::diagnostic_limit_exceeded());
         }
 
         let mut writer = BoundedLogWriter::new(
             self.policy.diagnostic_budget().max_output_bytes(),
             false,
         );
-        for (name_index, (name, header_values)) in
-            values.into_iter().enumerate()
-        {
-            if name_index > 0 {
-                let _ = writer.write_str("\n");
-            }
-            let _ = writer.write_str(name);
-            let _ = writer.write_str(": [");
-            for (value_index, value) in header_values.into_iter().enumerate() {
-                if writer.is_full() {
-                    break;
-                }
-                if value_index > 0 {
-                    let _ = writer.write_str(", ");
-                }
-                let rendered = value.to_str().unwrap_or("<non-utf8>");
-                if value.is_sensitive() {
-                    let redacted = self
-                        .header_redactor
-                        .policy()
-                        .masking()
-                        .mask(Sensitivity::Secret, rendered);
-                    let _ = writer.write_str(redacted.as_ref());
-                } else {
-                    let redacted = self.header_redactor.redact(name, rendered);
-                    let _ = writer.write_str(redacted.as_str());
-                }
-            }
-            if writer.is_full() {
-                break;
-            }
-            let _ = writer.write_str("]");
-        }
+        let values = Self::group_header_values(headers);
+        self.write_grouped_headers(&mut writer, values);
         let (rendered, _) = writer.finish();
         RedactedHeaders::new(LogSafeText::from_escaped(Cow::Owned(rendered)))
     }
@@ -309,6 +266,114 @@ impl HttpRedactor {
         content_type: Option<&str>,
     ) -> BodyRedaction {
         self.redact_body_with_content_type(capture, content_type, false)
+    }
+
+    /// Checks the complete header input against the diagnostic budget.
+    ///
+    /// # Parameters
+    ///
+    /// * `headers` - Header map whose names and values would be inspected.
+    ///
+    /// # Returns
+    ///
+    /// `true` when every header fits within the configured input limit.
+    fn headers_fit_input_budget(&self, headers: &HeaderMap) -> bool {
+        let input_limit = self.policy.diagnostic_budget().max_input_bytes();
+        let mut input_bytes = 0_usize;
+        for (name, value) in headers {
+            input_bytes = input_bytes
+                .saturating_add(name.as_str().len())
+                .saturating_add(value.as_bytes().len());
+            if input_bytes > input_limit {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Groups repeated header values under deterministically ordered names.
+    ///
+    /// # Parameters
+    ///
+    /// * `headers` - Header map whose insertion order must be preserved within
+    ///   each name.
+    ///
+    /// # Returns
+    ///
+    /// Header values grouped by their lowercase map name.
+    fn group_header_values(
+        headers: &HeaderMap,
+    ) -> BTreeMap<&str, Vec<&HeaderValue>> {
+        let mut values = BTreeMap::<&str, Vec<&HeaderValue>>::new();
+        for (name, value) in headers {
+            values.entry(name.as_str()).or_default().push(value);
+        }
+        values
+    }
+
+    /// Writes all deterministically grouped headers to a bounded writer.
+    ///
+    /// # Parameters
+    ///
+    /// * `writer` - Bounded log-safe output destination.
+    /// * `values` - Ordered header groups to redact and render.
+    fn write_grouped_headers(
+        &self,
+        writer: &mut BoundedLogWriter,
+        values: BTreeMap<&str, Vec<&HeaderValue>>,
+    ) {
+        for (name_index, (name, header_values)) in
+            values.into_iter().enumerate()
+        {
+            if name_index > 0 {
+                let _ = writer.write_str("\n");
+            }
+            let _ = writer.write_str(name);
+            let _ = writer.write_str(": [");
+            self.write_header_values(writer, name, &header_values);
+            if writer.is_full() {
+                break;
+            }
+            let _ = writer.write_str("]");
+        }
+    }
+
+    /// Redacts and writes every value for one header name.
+    ///
+    /// Native sensitive values always use Secret masking before name-based
+    /// policy evaluation.
+    ///
+    /// # Parameters
+    ///
+    /// * `writer` - Bounded log-safe output destination.
+    /// * `name` - Canonical HTTP header name.
+    /// * `values` - Header values in their original map order.
+    fn write_header_values(
+        &self,
+        writer: &mut BoundedLogWriter,
+        name: &str,
+        values: &[&HeaderValue],
+    ) {
+        for (value_index, value) in values.iter().enumerate() {
+            if writer.is_full() {
+                break;
+            }
+            if value_index > 0 {
+                let _ = writer.write_str(", ");
+            }
+            let rendered = value.to_str().unwrap_or("<non-utf8>");
+            if value.is_sensitive() {
+                let redacted = self
+                    .header_redactor
+                    .policy()
+                    .masking()
+                    .mask(Sensitivity::Secret, rendered);
+                let _ = writer.write_str(redacted.as_ref());
+            } else {
+                let redacted = self.header_redactor.redact(name, rendered);
+                let _ = writer.write_str(redacted.as_str());
+            }
+        }
     }
 
     /// Redacts a checked body capture after normalizing Content-Type input.
