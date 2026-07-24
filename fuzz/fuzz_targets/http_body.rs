@@ -17,6 +17,11 @@ use qubit_redact::http::{
 };
 
 const FUZZ_SECRET: &str = "qubit-fuzz-secret-7f54a19c";
+/// Maximum input length processed before building structured fuzz payloads.
+///
+/// The bound matches the CI smoke limit while preserving representative parser
+/// coverage without allowing a multipart fixture allocation to scale freely.
+const FUZZ_INPUT_LIMIT: usize = 4096;
 
 /// Encodes a bounded input prefix as lowercase hexadecimal text.
 ///
@@ -149,6 +154,7 @@ fuzz_target!(|data: &[u8]| {
     let [media_selector, source_selector, _options, body @ ..] = data else {
         return;
     };
+    let body = &body[..body.len().min(FUZZ_INPUT_LIMIT)];
     let content_types = [
         None,
         Some(HeaderValue::from_static("application/json")),

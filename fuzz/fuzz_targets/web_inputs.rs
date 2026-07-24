@@ -24,6 +24,11 @@ use url::Url;
 const FUZZ_SECRET: &str = "qubit-fuzz-secret-7f54a19c";
 const DIAGNOSTIC_INPUT_LIMIT: usize = 128;
 const DIAGNOSTIC_OUTPUT_LIMIT: usize = 64;
+/// Maximum fuzzer input processed before constructing diagnostic strings.
+///
+/// The bound matches the CI smoke limit and prevents the URL construction from
+/// allocating directly from an arbitrarily large UTF-8 input.
+const FUZZ_INPUT_LIMIT: usize = 4096;
 
 /// Encodes a bounded input prefix as lowercase hexadecimal text.
 ///
@@ -116,6 +121,7 @@ fn assert_diagnostic_outputs_are_bounded(data: &[u8]) {
 }
 
 fuzz_target!(|data: &[u8]| {
+    let data = &data[..data.len().min(FUZZ_INPUT_LIMIT)];
     let redactor = HttpRedactor::default();
     if let Ok(text) = std::str::from_utf8(data) {
         let first_form = redactor.redact_form(text);
