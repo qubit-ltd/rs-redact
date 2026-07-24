@@ -8,15 +8,13 @@
 //! Whitelisted Serde container attributes for redacted serialization.
 
 use syn::{
-    Data,
     DeriveInput,
     LitStr,
-    Meta,
-    Token,
     spanned::Spanned,
 };
 
 use crate::{
+    serde_container_attribute_parser::SerdeContainerAttributeParser,
     serde_enum_representation::SerdeEnumRepresentation,
     serde_rename_rule::SerdeRenameRule,
 };
@@ -54,93 +52,38 @@ impl SerdeContainerAttributes {
         input: &DeriveInput,
         enabled: bool,
     ) -> syn::Result<Self> {
-        let mut name = None;
-        let mut rename_all = None;
-        let mut rename_all_fields = None;
-        let mut tag = None;
-        let mut content = None;
-        let mut untagged = None;
+        SerdeContainerAttributeParser::parse(input, enabled)
+    }
 
-        if enabled {
-            for attribute in &input.attrs {
-                if !attribute.path().is_ident("serde") {
-                    continue;
-                }
-                let Meta::List(_) = &attribute.meta else {
-                    return Err(syn::Error::new_spanned(
-                        attribute,
-                        format!(
-                            "Redact serde for `{}` expects `#[serde(...)]`",
-                            input.ident,
-                        ),
-                    ));
-                };
-                attribute.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("rename") {
-                        parse_name(&meta, &input.ident, "rename", &mut name)
-                    } else if meta.path.is_ident("rename_all") {
-                        parse_rule(
-                            &meta,
-                            &input.ident,
-                            "rename_all",
-                            &mut rename_all,
-                        )
-                    } else if meta.path.is_ident("rename_all_fields") {
-                        if !matches!(input.data, Data::Enum(_)) {
-                            return Err(meta.error(format!(
-                                "Redact serde for `{}` allows `rename_all_fields` only on enums",
-                                input.ident,
-                            )));
-                        }
-                        parse_rule(
-                            &meta,
-                            &input.ident,
-                            "rename_all_fields",
-                            &mut rename_all_fields,
-                        )
-                    } else if meta.path.is_ident("tag") {
-                        require_enum(&meta, input, "tag")?;
-                        parse_literal(&meta, &input.ident, "tag", &mut tag)
-                    } else if meta.path.is_ident("content") {
-                        require_enum(&meta, input, "content")?;
-                        parse_literal(&meta, &input.ident, "content", &mut content)
-                    } else if meta.path.is_ident("untagged") {
-                        require_enum(&meta, input, "untagged")?;
-                        if meta.input.peek(Token![=])
-                            || meta.input.peek(syn::token::Paren)
-                        {
-                            return Err(meta.error(format!(
-                                "Redact serde for `{}` requires bare `untagged`",
-                                input.ident,
-                            )));
-                        }
-                        if untagged.is_some() {
-                            return Err(meta.error(format!(
-                                "Redact serde for `{}` repeats `untagged`",
-                                input.ident,
-                            )));
-                        }
-                        untagged = Some(meta.path.clone());
-                        Ok(())
-                    } else {
-                        let key = meta
-                            .path
-                            .segments
-                            .last()
-                            .expect(
-                                "syn nested meta paths always contain a segment",
-                            )
-                            .ident
-                            .to_string();
-                        Err(meta.error(format!(
-                            "Redact serde for `{}` does not support container `{key}` because it can change value paths or bypass redaction; use only `rename`, `rename_all`, `rename_all_fields`, `tag`, `content`, or `untagged`",
-                            input.ident,
-                        )))
-                    }
-                })?;
-            }
-        }
-
+    /// Builds validated attributes from parser-owned container controls.
+    ///
+    /// # Parameters
+    ///
+    /// * `input` - Complete derive input carrying the container identity.
+    /// * `name` - Optional explicit serialized container name.
+    /// * `rename_all` - Optional struct-field or enum-variant rename rule.
+    /// * `rename_all_fields` - Optional enum variant-field rename rule.
+    /// * `tag` - Optional internal or adjacent enum tag.
+    /// * `content` - Optional adjacent enum content key.
+    /// * `untagged` - Optional bare untagged attribute path.
+    ///
+    /// # Returns
+    ///
+    /// Attributes with a validated enum representation.
+    ///
+    /// # Errors
+    ///
+    /// Returns the targeted representation validation error for incompatible
+    /// tag, content, or untagged controls.
+    pub(super) fn from_parts(
+        input: &DeriveInput,
+        name: Option<String>,
+        rename_all: Option<SerdeRenameRule>,
+        rename_all_fields: Option<SerdeRenameRule>,
+        tag: Option<LitStr>,
+        content: Option<LitStr>,
+        untagged: Option<syn::Path>,
+    ) -> syn::Result<Self> {
         let representation = representation(input, tag, content, untagged)?;
         Ok(Self {
             name: name.unwrap_or_else(|| input.ident.to_string()),
@@ -217,83 +160,6 @@ impl SerdeContainerAttributes {
     pub(crate) const fn representation(&self) -> &SerdeEnumRepresentation {
         &self.representation
     }
-}
-
-/// Requires one Serde control to appear on an enum.
-///
-/// # Parameters
-///
-/// * `meta` - Nested attribute item used as the error span.
-/// * `input` - Complete derive input.
-/// * `name` - Enum-only control name.
-///
-/// # Errors
-///
-/// Returns a targeted error when the derive input is not an enum.
-fn require_enum(
-    meta: &syn::meta::ParseNestedMeta<'_>,
-    input: &DeriveInput,
-    name: &str,
-) -> syn::Result<()> {
-    if matches!(input.data, Data::Enum(_)) {
-        Ok(())
-    } else {
-        Err(meta.error(format!(
-            "Redact serde for `{}` allows `{name}` only on enums",
-            input.ident,
-        )))
-    }
-}
-
-/// Parses one unique string name.
-fn parse_name(
-    meta: &syn::meta::ParseNestedMeta<'_>,
-    type_name: &syn::Ident,
-    name: &str,
-    output: &mut Option<String>,
-) -> syn::Result<()> {
-    if output.is_some() {
-        return Err(meta.error(format!(
-            "Redact serde for `{type_name}` repeats `{name}`",
-        )));
-    }
-    let mut literal = None;
-    parse_literal(meta, type_name, name, &mut literal)?;
-    *output = literal.map(|literal| literal.value());
-    Ok(())
-}
-
-/// Parses one unique rename rule.
-fn parse_rule(
-    meta: &syn::meta::ParseNestedMeta<'_>,
-    type_name: &syn::Ident,
-    name: &str,
-    output: &mut Option<SerdeRenameRule>,
-) -> syn::Result<()> {
-    if output.is_some() {
-        return Err(meta.error(format!(
-            "Redact serde for `{type_name}` repeats `{name}`",
-        )));
-    }
-    let literal: LitStr = meta.value()?.parse()?;
-    *output = Some(SerdeRenameRule::parse(&literal)?);
-    Ok(())
-}
-
-/// Parses one unique string literal while retaining its diagnostic span.
-fn parse_literal(
-    meta: &syn::meta::ParseNestedMeta<'_>,
-    type_name: &syn::Ident,
-    name: &str,
-    output: &mut Option<LitStr>,
-) -> syn::Result<()> {
-    if output.is_some() {
-        return Err(meta.error(format!(
-            "Redact serde for `{type_name}` repeats `{name}`",
-        )));
-    }
-    *output = Some(meta.value()?.parse()?);
-    Ok(())
 }
 
 /// Validates and selects one enum representation.

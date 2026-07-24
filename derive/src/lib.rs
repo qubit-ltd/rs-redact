@@ -22,6 +22,7 @@ mod redact_mut_expansion;
 mod runtime_path;
 mod sensitivity;
 mod serde_attributes;
+mod serde_container_attribute_parser;
 mod serde_container_attributes;
 mod serde_enum_representation;
 mod serde_expansion;
