@@ -19,7 +19,9 @@ use std::{
 
 use crate::{
     LogSafeText,
+    MaskingPolicy,
     RedactedText,
+    Sensitivity,
 };
 
 /// Redacted text retaining its original plain or optional container shape.
@@ -38,6 +40,23 @@ pub enum RedactedValue<'a> {
     ),
     /// An absent optional textual value.
     None,
+}
+
+impl<'a> RedactedValue<'a> {
+    /// Creates an opaque replacement for a sensitive non-text value.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` - Sensitivity level selecting the complete replacement.
+    /// * `masking` - Complete masking configuration.
+    ///
+    /// # Returns
+    ///
+    /// A plain redacted value that borrows the configured opaque replacement.
+    #[inline(always)]
+    pub fn opaque(level: Sensitivity, masking: &'a MaskingPolicy) -> Self {
+        Self::Text(RedactedText::new(Cow::Borrowed(masking.mask_opaque(level))))
+    }
 }
 
 impl Debug for RedactedValue<'_> {

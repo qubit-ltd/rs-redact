@@ -55,7 +55,7 @@ pub(crate) fn immutable(
                 #[inline(always)]
                 fn #helper<'a, __QubitRedactField>(
                     value: &'a __QubitRedactField,
-                    policy: &#runtime::RedactionPolicy,
+                    policy: &'a #runtime::RedactionPolicy,
                 ) -> #runtime::RedactedValue<'a>
                 where
                     __QubitRedactField: #runtime::RedactValue + ?Sized,

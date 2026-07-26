@@ -94,8 +94,8 @@ fn test_redacted_value_display_is_log_safe() {
 #[test]
 fn test_redact_value_preserves_empty_borrow() {
     let input = String::new();
-    let value =
-        input.redact_value(Sensitivity::Secret, &MaskingPolicy::default());
+    let masking = MaskingPolicy::default();
+    let value = input.redact_value(Sensitivity::Secret, &masking);
     let RedactedValue::Text(text) = value else {
         panic!("plain text should retain the text variant");
     };

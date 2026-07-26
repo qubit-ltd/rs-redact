@@ -35,7 +35,7 @@ pub trait RedactValue {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
-        masking: &MaskingPolicy,
+        masking: &'a MaskingPolicy,
     ) -> RedactedValue<'a>;
 }
 
@@ -53,7 +53,7 @@ impl RedactValue for str {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
-        masking: &MaskingPolicy,
+        masking: &'a MaskingPolicy,
     ) -> RedactedValue<'a> {
         RedactedValue::Text(redact_text(self, level, masking))
     }
@@ -74,7 +74,7 @@ impl RedactValue for &str {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
-        masking: &MaskingPolicy,
+        masking: &'a MaskingPolicy,
     ) -> RedactedValue<'a> {
         RedactedValue::Text(redact_text(self, level, masking))
     }
@@ -95,7 +95,7 @@ impl RedactValue for String {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
-        masking: &MaskingPolicy,
+        masking: &'a MaskingPolicy,
     ) -> RedactedValue<'a> {
         RedactedValue::Text(redact_text(self.as_str(), level, masking))
     }
@@ -115,7 +115,7 @@ impl RedactValue for Cow<'_, str> {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
-        masking: &MaskingPolicy,
+        masking: &'a MaskingPolicy,
     ) -> RedactedValue<'a> {
         RedactedValue::Text(redact_text(self.as_ref(), level, masking))
     }
@@ -136,7 +136,7 @@ impl RedactValue for Option<String> {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
-        masking: &MaskingPolicy,
+        masking: &'a MaskingPolicy,
     ) -> RedactedValue<'a> {
         redact_option(self.as_deref(), level, masking)
     }
@@ -157,7 +157,7 @@ impl RedactValue for Option<&str> {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
-        masking: &MaskingPolicy,
+        masking: &'a MaskingPolicy,
     ) -> RedactedValue<'a> {
         redact_option(*self, level, masking)
     }
@@ -178,7 +178,7 @@ impl RedactValue for Option<Cow<'_, str>> {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
-        masking: &MaskingPolicy,
+        masking: &'a MaskingPolicy,
     ) -> RedactedValue<'a> {
         redact_option(self.as_deref(), level, masking)
     }
