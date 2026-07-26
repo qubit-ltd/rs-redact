@@ -7,9 +7,18 @@
 // =============================================================================
 //! Byte-bounded display adapter for an already-redacted view.
 
-use std::fmt::{self, Debug, Display, Formatter, Write as _};
+use std::fmt::{
+    self,
+    Debug,
+    Display,
+    Formatter,
+    Write as _,
+};
 
-use crate::{LogOutputLimit, text::internal::BoundedLogEscapeWriter};
+use crate::{
+    LogOutputLimit,
+    text::internal::BoundedLogEscapeWriter,
+};
 
 /// A redacted display view whose log-safe output cannot exceed a byte limit.
 ///

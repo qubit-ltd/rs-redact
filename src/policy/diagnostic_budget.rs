@@ -21,7 +21,8 @@ pub struct DiagnosticBudget {
 
 impl DiagnosticBudget {
     /// Smallest output limit that can contain the diagnostic-limit marker.
-    pub const MIN_OUTPUT_BYTES: usize = "<redacted: diagnostic limit exceeded>".len();
+    pub const MIN_OUTPUT_BYTES: usize =
+        "<redacted: diagnostic limit exceeded>".len();
 
     /// Creates checked hard limits for diagnostic processing.
     #[inline]
