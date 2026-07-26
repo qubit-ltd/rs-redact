@@ -7,10 +7,18 @@
 // =============================================================================
 //! Environment-variable pair and assignment redaction.
 
-use std::{borrow::Cow, ffi::OsStr, fmt::Write as _};
+use std::{
+    borrow::Cow,
+    ffi::OsStr,
+    fmt::Write as _,
+};
 
 use crate::{
-    LogOutputLimit, LogSafeText, RedactedText, Redactor, Sensitivity,
+    LogOutputLimit,
+    LogSafeText,
+    RedactedText,
+    Redactor,
+    Sensitivity,
     text::internal::BoundedLogEscapeWriter,
 };
 
@@ -84,7 +92,11 @@ impl EnvRedactor {
     /// # Returns
     ///
     /// A fail-closed, log-safe pair rendered as `NAME=VALUE`.
-    pub fn redact_os_pair(&self, name: &OsStr, value: &OsStr) -> RedactedEnvPair {
+    pub fn redact_os_pair(
+        &self,
+        name: &OsStr,
+        value: &OsStr,
+    ) -> RedactedEnvPair {
         match (name.to_str(), value.to_str()) {
             (Some(name), Some(value)) => self.redact_pair(name, value),
             _ => {
@@ -156,7 +168,8 @@ impl EnvRedactor {
     /// A log-safe pair rendered as `NAME=VALUE`.
     #[inline]
     pub fn redact_assignment(&self, assignment: &str) -> RedactedEnvPair {
-        let (name, value) = assignment.split_once('=').unwrap_or((assignment, ""));
+        let (name, value) =
+            assignment.split_once('=').unwrap_or((assignment, ""));
         self.redact_pair(name, value)
     }
 
@@ -208,7 +221,11 @@ fn log_safe_owned(value: String) -> LogSafeText<'static> {
 /// * `writer` - Escaped bounded output destination.
 /// * `has_item` - Whether a preceding list item has already been rendered.
 /// * `item` - Redacted assignment safe to format.
-fn write_debug_item(writer: &mut BoundedLogEscapeWriter, has_item: &mut bool, item: &str) {
+fn write_debug_item(
+    writer: &mut BoundedLogEscapeWriter,
+    has_item: &mut bool,
+    item: &str,
+) {
     if *has_item {
         let _ = writer.write_str(", ");
     }

@@ -9,7 +9,10 @@
 
 use std::borrow::Cow;
 
-use super::{MaskPolicy, Sensitivity};
+use super::{
+    MaskPolicy,
+    Sensitivity,
+};
 
 /// Mask policies assigned to all supported sensitivity levels.
 #[must_use]
@@ -64,7 +67,11 @@ impl MaskingPolicy {
     ///
     /// The updated immutable masking configuration.
     #[inline]
-    pub fn with_policy(mut self, level: Sensitivity, policy: MaskPolicy) -> Self {
+    pub fn with_policy(
+        mut self,
+        level: Sensitivity,
+        policy: MaskPolicy,
+    ) -> Self {
         match level {
             Sensitivity::Low => self.low = policy,
             Sensitivity::Medium => self.medium = policy,
@@ -148,7 +155,11 @@ impl MaskingPolicy {
     #[cfg(feature = "http")]
     #[must_use = "use the bounded opaque replacement instead of the original value"]
     #[inline(always)]
-    pub(crate) fn mask_opaque_bounded(&self, level: Sensitivity, max_bytes: usize) -> String {
+    pub(crate) fn mask_opaque_bounded(
+        &self,
+        level: Sensitivity,
+        max_bytes: usize,
+    ) -> String {
         self.for_level(level).opaque_mask_bounded(max_bytes)
     }
 

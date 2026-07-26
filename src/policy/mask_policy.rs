@@ -9,7 +9,10 @@
 
 use std::borrow::Cow;
 #[cfg(feature = "http")]
-use std::fmt::{self, Write};
+use std::fmt::{
+    self,
+    Write,
+};
 
 #[cfg(feature = "http")]
 use super::internal::BoundedMaskWriter;
@@ -210,7 +213,11 @@ impl MaskPolicy {
     ///
     /// Empty input remains borrowed; other results own at most `max_bytes`.
     #[cfg(feature = "http")]
-    pub(crate) fn mask_bounded<'a>(&self, value: &'a str, max_bytes: usize) -> Cow<'a, str> {
+    pub(crate) fn mask_bounded<'a>(
+        &self,
+        value: &'a str,
+        max_bytes: usize,
+    ) -> Cow<'a, str> {
         if value.is_empty() {
             return Cow::Borrowed(value);
         }
@@ -251,7 +258,11 @@ impl MaskPolicy {
     ///
     /// Returns the destination formatting error unchanged.
     #[cfg(feature = "http")]
-    pub(crate) fn write_masked<W: fmt::Write>(&self, value: &str, writer: &mut W) -> fmt::Result {
+    pub(crate) fn write_masked<W: fmt::Write>(
+        &self,
+        value: &str,
+        writer: &mut W,
+    ) -> fmt::Result {
         match self {
             Self::Fixed { replacement } => writer.write_str(replacement),
             Self::PreserveEdges {
@@ -284,7 +295,9 @@ impl MaskPolicy {
                 full_mask_below_or_equal,
             } => {
                 let char_count = value.chars().count();
-                if char_count <= *full_mask_below_or_equal || char_count <= *suffix_chars {
+                if char_count <= *full_mask_below_or_equal
+                    || char_count <= *suffix_chars
+                {
                     return writer.write_str(replacement);
                 }
                 let suffix_start = value
@@ -334,8 +347,9 @@ fn mask_preserving_edges(
         .char_indices()
         .nth(char_count - suffix_chars)
         .map_or(value.len(), |(index, _)| index);
-    let mut masked =
-        String::with_capacity(prefix_end + replacement.len() + value.len() - suffix_start);
+    let mut masked = String::with_capacity(
+        prefix_end + replacement.len() + value.len() - suffix_start,
+    );
     masked.push_str(&value[..prefix_end]);
     masked.push_str(replacement);
     masked.push_str(&value[suffix_start..]);
@@ -369,7 +383,8 @@ fn mask_preserving_suffix(
         .char_indices()
         .nth(char_count - suffix_chars)
         .map_or(value.len(), |(index, _)| index);
-    let mut masked = String::with_capacity(replacement.len() + value.len() - suffix_start);
+    let mut masked =
+        String::with_capacity(replacement.len() + value.len() - suffix_start);
     masked.push_str(replacement);
     masked.push_str(&value[suffix_start..]);
     masked

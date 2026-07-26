@@ -7,9 +7,16 @@
 // =============================================================================
 //! Streaming construction of bounded redacted argv diagnostics.
 
-use std::{ffi::OsStr, fmt::Write as _};
+use std::{
+    ffi::OsStr,
+    fmt::Write as _,
+};
 
-use crate::{DiagnosticBudget, LogOutputLimit, text::internal::BoundedLogEscapeWriter};
+use crate::{
+    DiagnosticBudget,
+    LogOutputLimit,
+    text::internal::BoundedLogEscapeWriter,
+};
 
 use super::RedactedArgv;
 

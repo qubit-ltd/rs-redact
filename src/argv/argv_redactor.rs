@@ -7,11 +7,20 @@
 // =============================================================================
 //! Explicit and heuristic argument-vector redaction.
 
-use std::{borrow::Cow, ffi::OsStr};
+use std::{
+    borrow::Cow,
+    ffi::OsStr,
+};
 
-use crate::{Redactor, Sensitivity};
+use crate::{
+    Redactor,
+    Sensitivity,
+};
 
-use super::{ArgvItem, RedactedArgv};
+use super::{
+    ArgvItem,
+    RedactedArgv,
+};
 
 /// Applies one immutable redaction policy to argument vectors.
 #[must_use = "use the redactor to produce a safe argv rendering"]
@@ -64,7 +73,8 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut rendered = RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
+        let mut rendered =
+            RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
         for item in items {
             if !rendered.reserve_input(item.value()) {
                 break;
@@ -100,7 +110,8 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut rendered = RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
+        let mut rendered =
+            RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
         let mut pending_sensitivity = None;
 
         for item in items {
@@ -114,7 +125,9 @@ impl ArgvRedactor {
                 }
                 continue;
             }
-            if !rendered.push(&self.redact_plain_item(item.value(), &mut pending_sensitivity)) {
+            if !rendered.push(
+                &self.redact_plain_item(item.value(), &mut pending_sensitivity),
+            ) {
                 break;
             }
         }
@@ -179,8 +192,10 @@ impl ArgvRedactor {
     ) -> String {
         let Some(value) = value.to_str() else {
             let encoded = value.as_encoded_bytes();
-            let may_take_separate_value = encoded.starts_with(b"-") && !encoded.contains(&b'=');
-            *pending_sensitivity = may_take_separate_value.then_some(Sensitivity::Secret);
+            let may_take_separate_value =
+                encoded.starts_with(b"-") && !encoded.contains(&b'=');
+            *pending_sensitivity =
+                may_take_separate_value.then_some(Sensitivity::Secret);
             return self.mask_opaque_value();
         };
 
