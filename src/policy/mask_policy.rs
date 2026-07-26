@@ -9,7 +9,7 @@
 
 use std::borrow::Cow;
 #[cfg(feature = "http")]
-use std::fmt;
+use std::fmt::{self, Write};
 
 #[cfg(feature = "http")]
 use super::internal::BoundedMaskWriter;
@@ -179,6 +179,26 @@ impl MaskPolicy {
         }
     }
 
+    /// Returns the complete replacement for a value whose contents are opaque.
+    ///
+    /// Edge-preserving policies cannot safely retain any part of an opaque
+    /// value, so this method returns only their configured replacement.
+    ///
+    /// # Returns
+    ///
+    /// The complete configured replacement, or an empty string for
+    /// [`Self::Empty`].
+    #[must_use = "use the opaque replacement instead of formatting the original value"]
+    #[inline(always)]
+    pub fn opaque_mask(&self) -> &str {
+        match self {
+            Self::Fixed { replacement }
+            | Self::PreserveEdges { replacement, .. }
+            | Self::PreserveSuffix { replacement, .. } => replacement,
+            Self::Empty => "",
+        }
+    }
+
     /// Masks a value without allocating beyond a caller-supplied byte limit.
     ///
     /// # Parameters
@@ -190,17 +210,30 @@ impl MaskPolicy {
     ///
     /// Empty input remains borrowed; other results own at most `max_bytes`.
     #[cfg(feature = "http")]
-    pub(crate) fn mask_bounded<'a>(
-        &self,
-        value: &'a str,
-        max_bytes: usize,
-    ) -> Cow<'a, str> {
+    pub(crate) fn mask_bounded<'a>(&self, value: &'a str, max_bytes: usize) -> Cow<'a, str> {
         if value.is_empty() {
             return Cow::Borrowed(value);
         }
         let mut writer = BoundedMaskWriter::new(max_bytes);
         let _ = self.write_masked(value, &mut writer);
         Cow::Owned(writer.finish())
+    }
+
+    /// Returns an opaque replacement without exceeding a byte limit.
+    ///
+    /// # Parameters
+    ///
+    /// * `max_bytes` - Maximum bytes retained from the replacement.
+    ///
+    /// # Returns
+    ///
+    /// An owned UTF-8 prefix of the configured opaque replacement.
+    #[cfg(feature = "http")]
+    #[must_use = "use the bounded opaque replacement instead of the original value"]
+    pub(crate) fn opaque_mask_bounded(&self, max_bytes: usize) -> String {
+        let mut writer = BoundedMaskWriter::new(max_bytes);
+        let _ = writer.write_str(self.opaque_mask());
+        writer.finish()
     }
 
     /// Writes a masked value directly without cloning fixed replacements.
@@ -218,11 +251,7 @@ impl MaskPolicy {
     ///
     /// Returns the destination formatting error unchanged.
     #[cfg(feature = "http")]
-    pub(crate) fn write_masked<W: fmt::Write>(
-        &self,
-        value: &str,
-        writer: &mut W,
-    ) -> fmt::Result {
+    pub(crate) fn write_masked<W: fmt::Write>(&self, value: &str, writer: &mut W) -> fmt::Result {
         match self {
             Self::Fixed { replacement } => writer.write_str(replacement),
             Self::PreserveEdges {
@@ -255,9 +284,7 @@ impl MaskPolicy {
                 full_mask_below_or_equal,
             } => {
                 let char_count = value.chars().count();
-                if char_count <= *full_mask_below_or_equal
-                    || char_count <= *suffix_chars
-                {
+                if char_count <= *full_mask_below_or_equal || char_count <= *suffix_chars {
                     return writer.write_str(replacement);
                 }
                 let suffix_start = value
@@ -307,9 +334,8 @@ fn mask_preserving_edges(
         .char_indices()
         .nth(char_count - suffix_chars)
         .map_or(value.len(), |(index, _)| index);
-    let mut masked = String::with_capacity(
-        prefix_end + replacement.len() + value.len() - suffix_start,
-    );
+    let mut masked =
+        String::with_capacity(prefix_end + replacement.len() + value.len() - suffix_start);
     masked.push_str(&value[..prefix_end]);
     masked.push_str(replacement);
     masked.push_str(&value[suffix_start..]);
@@ -343,8 +369,7 @@ fn mask_preserving_suffix(
         .char_indices()
         .nth(char_count - suffix_chars)
         .map_or(value.len(), |(index, _)| index);
-    let mut masked =
-        String::with_capacity(replacement.len() + value.len() - suffix_start);
+    let mut masked = String::with_capacity(replacement.len() + value.len() - suffix_start);
     masked.push_str(replacement);
     masked.push_str(&value[suffix_start..]);
     masked

@@ -7,20 +7,11 @@
 // =============================================================================
 //! Explicit and heuristic argument-vector redaction.
 
-use std::{
-    borrow::Cow,
-    ffi::OsStr,
-};
+use std::{borrow::Cow, ffi::OsStr};
 
-use crate::{
-    Redactor,
-    Sensitivity,
-};
+use crate::{Redactor, Sensitivity};
 
-use super::{
-    ArgvItem,
-    RedactedArgv,
-};
+use super::{ArgvItem, RedactedArgv};
 
 /// Applies one immutable redaction policy to argument vectors.
 #[must_use = "use the redactor to produce a safe argv rendering"]
@@ -73,11 +64,16 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let items = items
-            .into_iter()
-            .map(|item| self.render_explicit_or_plain(item))
-            .collect();
-        RedactedArgv::new(items)
+        let mut rendered = RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
+        for item in items {
+            if !rendered.reserve_input(item.value()) {
+                break;
+            }
+            if !rendered.push(&self.render_explicit_or_plain(item)) {
+                break;
+            }
+        }
+        rendered.finish()
     }
 
     /// Redacts explicit sensitive values and heuristically classified plain
@@ -104,21 +100,25 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let items = items.into_iter();
-        let mut rendered = Vec::with_capacity(items.size_hint().0);
+        let mut rendered = RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
         let mut pending_sensitivity = None;
 
         for item in items {
+            if !rendered.reserve_input(item.value()) {
+                break;
+            }
             if let Some(level) = item.sensitivity() {
                 pending_sensitivity = None;
-                rendered.push(self.mask_os_value(item.value(), level));
+                if !rendered.push(&self.mask_os_value(item.value(), level)) {
+                    break;
+                }
                 continue;
             }
-            rendered.push(
-                self.redact_plain_item(item.value(), &mut pending_sensitivity),
-            );
+            if !rendered.push(&self.redact_plain_item(item.value(), &mut pending_sensitivity)) {
+                break;
+            }
         }
-        RedactedArgv::new(rendered)
+        rendered.finish()
     }
 
     /// Renders an item according to explicit sensitivity without heuristics.
@@ -147,8 +147,8 @@ impl ArgvRedactor {
     ///
     /// # Returns
     ///
-    /// The configured mask, using the secret policy over an opaque sentinel
-    /// when `value` is not valid UTF-8.
+    /// The configured mask, using the secret opaque replacement when `value`
+    /// is not valid UTF-8.
     #[inline]
     fn mask_os_value(&self, value: &OsStr, level: Sensitivity) -> String {
         match value.to_str() {
@@ -179,10 +179,8 @@ impl ArgvRedactor {
     ) -> String {
         let Some(value) = value.to_str() else {
             let encoded = value.as_encoded_bytes();
-            let may_take_separate_value =
-                encoded.starts_with(b"-") && !encoded.contains(&b'=');
-            *pending_sensitivity =
-                may_take_separate_value.then_some(Sensitivity::Secret);
+            let may_take_separate_value = encoded.starts_with(b"-") && !encoded.contains(&b'=');
+            *pending_sensitivity = may_take_separate_value.then_some(Sensitivity::Secret);
             return self.mask_opaque_value();
         };
 
@@ -289,14 +287,18 @@ impl ArgvRedactor {
             .into_owned()
     }
 
-    /// Produces the configured secret mask without passing opaque bytes to it.
+    /// Produces the configured secret replacement without reading opaque bytes.
     ///
     /// # Returns
     ///
-    /// A secret-level mask derived from a fixed internal sentinel.
+    /// The secret-level opaque replacement.
     #[inline(always)]
     fn mask_opaque_value(&self) -> String {
-        self.mask_utf8_value("opaque-non-utf8-value", Sensitivity::Secret)
+        self.redactor
+            .policy()
+            .masking()
+            .mask_opaque(Sensitivity::Secret)
+            .to_owned()
     }
 }
 

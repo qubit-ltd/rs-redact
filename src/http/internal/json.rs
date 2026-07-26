@@ -80,12 +80,7 @@ pub(in crate::http) fn redact_ndjson(
     max_mask_bytes: usize,
 ) -> Option<(String, bool)> {
     let mut remaining_mask_bytes = max_mask_bytes;
-    redact_ndjson_with_remaining(
-        redactor,
-        bytes,
-        unkeyed,
-        &mut remaining_mask_bytes,
-    )
+    redact_ndjson_with_remaining(redactor, bytes, unkeyed, &mut remaining_mask_bytes)
 }
 
 /// Redacts NDJSON while consuming an enclosing aggregate mask budget.
@@ -106,12 +101,7 @@ pub(in crate::http) fn redact_ndjson_with_remaining(
             continue;
         }
         let mut value = serde_json::from_str(line).ok()?;
-        passed |= redact_with_remaining(
-            redactor,
-            &mut value,
-            unkeyed,
-            remaining_mask_bytes,
-        );
+        passed |= redact_with_remaining(redactor, &mut value, unkeyed, remaining_mask_bytes);
         lines.push(serde_json::to_string(&value).ok()?);
     }
     let mut output = lines.join("\n");
@@ -148,29 +138,23 @@ fn redact_with_context(
             let mut passed = false;
             for (key, value) in map {
                 if let Some(level) = redactor.policy().sensitivity_for(key) {
-                    let serialized;
-                    let input = if let Value::String(text) = value {
-                        text.as_str()
+                    let masked = if let Value::String(text) = value {
+                        redactor
+                            .policy()
+                            .masking()
+                            .mask_bounded(level, text, *remaining_mask_bytes)
+                            .into_owned()
                     } else {
-                        serialized = value.to_string();
-                        &serialized
-                    };
-                    let masked = redactor
+                        redactor
                         .policy()
                         .masking()
-                        .mask_bounded(level, input, *remaining_mask_bytes)
-                        .into_owned();
-                    *remaining_mask_bytes =
-                        remaining_mask_bytes.saturating_sub(masked.len());
+                            .mask_opaque_bounded(level, *remaining_mask_bytes)
+                    };
+                    *remaining_mask_bytes = remaining_mask_bytes.saturating_sub(masked.len());
                     *value = Value::String(masked);
                 } else {
-                    passed |= redact_with_context(
-                        redactor,
-                        value,
-                        unkeyed,
-                        remaining_mask_bytes,
-                        true,
-                    );
+                    passed |=
+                        redact_with_context(redactor, value, unkeyed, remaining_mask_bytes, true);
                 }
             }
             passed
@@ -178,19 +162,12 @@ fn redact_with_context(
         Value::Array(values) => {
             let mut passed = false;
             for value in values {
-                passed |= redact_with_context(
-                    redactor,
-                    value,
-                    unkeyed,
-                    remaining_mask_bytes,
-                    has_field,
-                );
+                passed |=
+                    redact_with_context(redactor, value, unkeyed, remaining_mask_bytes, has_field);
             }
             passed
         }
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_)
-            if !has_field =>
-        {
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) if !has_field => {
             match unkeyed {
                 UnkeyedJsonValuePolicy::Redact => {
                     *value = Value::String(UNKEYED_JSON.to_string());
@@ -199,8 +176,6 @@ fn redact_with_context(
                 UnkeyedJsonValuePolicy::PassThrough => true,
             }
         }
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
-            false
-        }
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => false,
     }
 }

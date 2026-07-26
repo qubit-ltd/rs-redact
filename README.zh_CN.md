@@ -263,6 +263,10 @@ assert!(!format!("{value}").contains("raw-token"));
 
 `EnvRedactor` 处理 UTF-8 pair；任一操作系统组件不是合法 UTF-8 时会安全关闭。结果可
 安全显示为 `NAME=VALUE`。
+`ArgvRedactor` 和 `EnvRedactor::redact_os_pairs` 也会使用所属
+`RedactionPolicy` 的 `DiagnosticBudget`：它们会在检查超大进程输入前停止，并限制最终的
+日志安全列表。`MaskingPolicy::mask_opaque` 只返回配置的替换文本，适用于绝不能格式化或
+检查原始值的敏感数据。
 自定义 `Debug` 实现需要隐藏捕获值时，可使用 `redacted_debug` 固定输出
 `<redacted>`；该 wrapper 绝不会调用被包装值自身的 `Debug` 实现。
 
@@ -310,6 +314,7 @@ URL-encoded form、header 和 body 操作。`BodyCapture` 区分完整输入和�
 `redact_url`、`redact_url_str`、`redact_urls_in_text`、`redact_form` 和
 `redact_headers`；默认输入上限为 16 KiB、输出上限为 64 KiB。输入超限时只返回
 `<redacted: diagnostic limit exceeded>`，不会保留任何源前缀。
+同一预算也限制聚合 argv 和 environment 诊断。
 
 不合法或已截断的结构化 body 会安全关闭。不透明文本、无 key 的 JSON 标量、文件
 part、匿名 multipart part 和 URL path 默认采用保守策略。HTTP 结果类型只暴露日志

@@ -11,26 +11,48 @@ mod argv;
 
 use std::ffi::OsStr;
 #[cfg(unix)]
-use std::{
-    ffi::OsString,
-    os::unix::ffi::OsStringExt,
-};
+use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
-use proptest::prelude::{
-    prop_assert,
-    prop_assert_eq,
-    proptest,
-};
+use proptest::prelude::{prop_assert, prop_assert_eq, proptest};
 
 use qubit_redact::{
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-    argv::{
-        ArgvItem,
-        ArgvRedactor,
-    },
+    DiagnosticBudget, RedactionPolicy, Redactor, Sensitivity,
+    argv::{ArgvItem, ArgvRedactor},
 };
+
+/// Creates a redactor with deliberately small diagnostic limits.
+fn bounded_redactor() -> ArgvRedactor {
+    let budget = DiagnosticBudget::new(8, 64).expect("the small diagnostic budget should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_budget(budget)
+        .build()
+        .expect("the bounded policy should be valid");
+    ArgvRedactor::new(Redactor::new(policy))
+}
+
+/// Verifies argv rendering stops before inspecting an item beyond the input
+/// budget.
+#[test]
+fn test_redact_items_stops_before_input_budget_exhaustion() {
+    let rendered = bounded_redactor()
+        .redact_items([ArgvItem::plain(OsStr::new("uninspected-secret"))])
+        .to_string();
+
+    assert!(rendered.len() <= 64, "{rendered}");
+    assert!(rendered.contains("truncated"), "{rendered}");
+    assert!(!rendered.contains("uninspected-secret"), "{rendered}");
+}
+
+/// Verifies argv rendering stops after its final log output reaches the budget.
+#[test]
+fn test_redact_items_stops_after_output_budget_exhaustion() {
+    let rendered = bounded_redactor()
+        .redact_items(std::iter::repeat_n(ArgvItem::plain(OsStr::new("")), 128))
+        .to_string();
+
+    assert!(rendered.len() <= 64, "{rendered}");
+    assert!(rendered.ends_with("<truncated>"), "{rendered}");
+}
 
 /// Verifies that explicit sensitivity masks a shell payload without parsing it.
 #[test]
@@ -65,8 +87,7 @@ fn test_redact_items_does_not_guess_plain_item_roles() {
 /// Verifies that heuristic classification applies only to remaining plain
 /// items.
 #[test]
-fn test_redact_heuristically_preserves_explicit_levels_and_matches_plain_options()
- {
+fn test_redact_heuristically_preserves_explicit_levels_and_matches_plain_options() {
     let items = [
         ArgvItem::plain(OsStr::new("tool")),
         ArgvItem::plain(OsStr::new("--password")),

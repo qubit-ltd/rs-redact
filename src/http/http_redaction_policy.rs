@@ -7,17 +7,10 @@
 // =============================================================================
 //! Immutable policy snapshot for every HTTP redaction context.
 
-use crate::{
-    DiagnosticBudget,
-    RedactionPolicy,
-};
+use crate::{DiagnosticBudget, RedactionPolicy};
 
 use super::{
-    BodyBudget,
-    HttpRedactionPolicyBuilder,
-    TextBodyPolicy,
-    UnkeyedJsonValuePolicy,
-    UrlPathPolicy,
+    BodyBudget, HttpRedactionPolicyBuilder, TextBodyPolicy, UnkeyedJsonValuePolicy, UrlPathPolicy,
 };
 
 /// Combines independent HTTP field policies, behavior choices, and hard limits.
@@ -38,6 +31,8 @@ pub struct HttpRedactionPolicy {
     unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
     /// Finite parser-input and log-output byte limits.
     body_budget: BodyBudget,
+    /// Finite input and output limits for non-body diagnostics.
+    diagnostic_budget: DiagnosticBudget,
 }
 
 impl HttpRedactionPolicy {
@@ -82,7 +77,7 @@ impl HttpRedactionPolicy {
     ///
     /// A complete immutable HTTP policy.
     #[inline(always)]
-    pub(super) const fn from_parts(
+    pub(super) fn from_parts(
         header_policy: RedactionPolicy,
         query_policy: RedactionPolicy,
         body_policy: RedactionPolicy,
@@ -99,7 +94,18 @@ impl HttpRedactionPolicy {
             text_body_policy,
             unkeyed_json_value_policy,
             body_budget,
+            diagnostic_budget: DiagnosticBudget::default(),
         }
+        }
+
+    /// Replaces the non-body diagnostic input and output byte limits.
+    #[inline(always)]
+    pub(super) const fn with_diagnostic_budget(
+        mut self,
+        diagnostic_budget: DiagnosticBudget,
+    ) -> Self {
+        self.diagnostic_budget = diagnostic_budget;
+        self
     }
 
     /// Returns the immutable header-field policy snapshot.
@@ -179,7 +185,7 @@ impl HttpRedactionPolicy {
     /// The checked hard diagnostic budget.
     #[inline(always)]
     pub const fn diagnostic_budget(&self) -> DiagnosticBudget {
-        self.body_policy.diagnostic_budget()
+        self.diagnostic_budget
     }
 }
 

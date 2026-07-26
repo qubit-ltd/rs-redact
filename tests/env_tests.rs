@@ -10,24 +10,71 @@
 mod env;
 
 #[cfg(unix)]
-use std::{
-    ffi::OsString,
-    os::unix::ffi::OsStringExt,
-};
+use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
-use proptest::prelude::{
-    prop_assert,
-    prop_assert_eq,
-    proptest,
-};
+use proptest::prelude::{prop_assert, prop_assert_eq, proptest};
 
 use qubit_redact::{
-    FieldNameMatching,
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-    env::EnvRedactor,
+    DiagnosticBudget, FieldNameMatching, RedactionPolicy, Redactor, Sensitivity, env::EnvRedactor,
 };
+
+/// Verifies aggregate environment rendering stops before inspecting a pair
+/// that exceeds the configured input budget.
+#[test]
+fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
+    let budget = DiagnosticBudget::new(8, 64).expect("the small diagnostic budget should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_budget(budget)
+        .build()
+        .expect("the bounded policy should be valid");
+    let redactor = EnvRedactor::new(Redactor::new(policy));
+
+    let rendered = redactor
+        .redact_os_pairs(vec![("MODE".as_ref(), "uninspected-secret".as_ref())])
+        .to_string();
+
+    assert!(rendered.len() <= 64, "{rendered}");
+    assert!(rendered.contains("truncated"), "{rendered}");
+    assert!(!rendered.contains("uninspected-secret"), "{rendered}");
+}
+
+/// Verifies aggregate environment rendering stops at the final output budget.
+#[test]
+fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
+    let budget = DiagnosticBudget::new(8, 64).expect("the small diagnostic budget should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_budget(budget)
+        .build()
+        .expect("the bounded policy should be valid");
+    let redactor = EnvRedactor::new(Redactor::new(policy));
+
+    let rendered = redactor
+        .redact_os_pairs(vec![
+            (std::ffi::OsStr::new(""), std::ffi::OsStr::new(""));
+            128
+        ])
+        .to_string();
+
+    assert!(rendered.len() <= 64, "{rendered}");
+    assert!(rendered.ends_with("<truncated>"), "{rendered}");
+}
+
+/// Verifies aggregate environment rendering preserves safe assignments within
+/// the configured budget.
+#[test]
+fn test_redact_os_pairs_renders_complete_safe_assignments() {
+    let rendered = EnvRedactor::default()
+        .redact_os_pairs(vec![
+            (std::ffi::OsStr::new("MODE"), std::ffi::OsStr::new("debug")),
+            (
+                std::ffi::OsStr::new("PASSWORD"),
+                std::ffi::OsStr::new("secret"),
+            ),
+        ])
+        .to_string();
+
+    assert_eq!(rendered, r#"["MODE=debug", "PASSWORD=<redacted>"]"#);
+}
 
 /// Verifies sensitive values are redacted before log escaping.
 #[test]

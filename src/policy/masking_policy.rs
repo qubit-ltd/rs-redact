@@ -9,10 +9,7 @@
 
 use std::borrow::Cow;
 
-use super::{
-    MaskPolicy,
-    Sensitivity,
-};
+use super::{MaskPolicy, Sensitivity};
 
 /// Mask policies assigned to all supported sensitivity levels.
 #[must_use]
@@ -67,11 +64,7 @@ impl MaskingPolicy {
     ///
     /// The updated immutable masking configuration.
     #[inline]
-    pub fn with_policy(
-        mut self,
-        level: Sensitivity,
-        policy: MaskPolicy,
-    ) -> Self {
+    pub fn with_policy(mut self, level: Sensitivity, policy: MaskPolicy) -> Self {
         match level {
             Sensitivity::Low => self.low = policy,
             Sensitivity::Medium => self.medium = policy,
@@ -100,6 +93,25 @@ impl MaskingPolicy {
         self.for_level(level).mask(value)
     }
 
+    /// Returns the configured complete replacement for an opaque value.
+    ///
+    /// This never reads the original value. Edge-preserving policies return
+    /// only their replacement text because no prefix or suffix is safe to
+    /// retain when the value is opaque.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` - Sensitivity level selecting the mask policy.
+    ///
+    /// # Returns
+    ///
+    /// The complete replacement configured for `level`.
+    #[must_use = "use the opaque replacement instead of formatting the original value"]
+    #[inline(always)]
+    pub fn mask_opaque(&self, level: Sensitivity) -> &str {
+        self.for_level(level).opaque_mask()
+    }
+
     /// Masks a value without allocating beyond a byte limit.
     ///
     /// # Parameters
@@ -121,6 +133,23 @@ impl MaskingPolicy {
         max_bytes: usize,
     ) -> Cow<'a, str> {
         self.for_level(level).mask_bounded(value, max_bytes)
+    }
+
+    /// Returns an opaque replacement constrained to `max_bytes`.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` - Sensitivity level selecting the mask policy.
+    /// * `max_bytes` - Maximum bytes retained from the replacement.
+    ///
+    /// # Returns
+    ///
+    /// An owned bounded prefix of the configured opaque replacement.
+    #[cfg(feature = "http")]
+    #[must_use = "use the bounded opaque replacement instead of the original value"]
+    #[inline(always)]
+    pub(crate) fn mask_opaque_bounded(&self, level: Sensitivity, max_bytes: usize) -> String {
+        self.for_level(level).opaque_mask_bounded(max_bytes)
     }
 
     /// Returns the mask policy configured for `level`.

@@ -9,17 +9,12 @@
 
 use std::{
     borrow::Cow,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
+    fmt::{self, Display, Formatter},
 };
 
-use crate::{
-    LogSafeText,
-    RedactedText,
-};
+use crate::{DiagnosticBudget, LogSafeText};
+
+use super::redacted_argv_builder::RedactedArgvBuilder;
 
 /// A redacted argv rendering that is safe for a single-line text log.
 #[must_use = "render the redacted argv instead of the original arguments"]
@@ -30,20 +25,26 @@ pub struct RedactedArgv {
 }
 
 impl RedactedArgv {
-    /// Creates a log-safe argv rendering from already redacted tokens.
+    /// Creates a bounded argv rendering builder for one diagnostic budget.
+    #[inline]
+    pub(super) fn builder(budget: DiagnosticBudget) -> RedactedArgvBuilder {
+        RedactedArgvBuilder::new(budget)
+    }
+
+    /// Creates an argv value from already escaped bounded output.
     ///
     /// # Parameters
     ///
-    /// * `items` - Redacted argument tokens in their original order.
+    /// * `rendered` - Escaped debug-style argv rendering.
     ///
     /// # Returns
     ///
-    /// An escaped debug-style one-line rendering.
-    #[inline]
-    pub(super) fn new(items: Vec<String>) -> Self {
-        let rendered = format!("{items:?}");
-        let rendered = RedactedText::new(Cow::Owned(rendered)).escape_for_log();
-        Self { rendered }
+    /// A displayable argv value.
+    #[inline(always)]
+    pub(super) fn from_rendered(rendered: String) -> Self {
+        Self {
+            rendered: LogSafeText::from_escaped(Cow::Owned(rendered)),
+        }
     }
 }
 

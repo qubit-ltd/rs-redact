@@ -8,15 +8,10 @@
 //! Tests for [`HttpRedactionPolicyBuilder`](qubit_redact::http::HttpRedactionPolicyBuilder).
 
 use qubit_redact::{
-    RedactionPolicy,
-    Sensitivity,
+    RedactionPolicy, Sensitivity,
     http::{
-        DiagnosticBudget,
-        HttpRedactionPolicy,
-        HttpRedactionPolicyBuilder,
-        TextBodyPolicy,
-        UnkeyedJsonValuePolicy,
-        UrlPathPolicy,
+        DiagnosticBudget, HttpRedactionPolicy, HttpRedactionPolicyBuilder, TextBodyPolicy,
+        UnkeyedJsonValuePolicy, UrlPathPolicy,
     },
 };
 
@@ -71,10 +66,8 @@ fn test_http_redaction_policy_builder_sets_body_and_behavior_policies() {
         .build()
         .expect("the body policy should be valid");
     let selected = usize::from(std::process::id() == 0);
-    let body_policy: [fn(
-        HttpRedactionPolicyBuilder,
-        RedactionPolicy,
-    ) -> HttpRedactionPolicyBuilder; 2] = [
+    let body_policy: [fn(HttpRedactionPolicyBuilder, RedactionPolicy) -> HttpRedactionPolicyBuilder;
+        2] = [
         HttpRedactionPolicyBuilder::body_policy,
         alternate_body_policy,
     ];
@@ -99,15 +92,10 @@ fn test_http_redaction_policy_builder_sets_body_and_behavior_policies() {
         HttpRedactionPolicyBuilder::unkeyed_json_value_policy,
         alternate_unkeyed_json_value_policy,
     ];
-    let builder =
-        body_policy[selected](HttpRedactionPolicy::builder(), body.clone());
+    let builder = body_policy[selected](HttpRedactionPolicy::builder(), body.clone());
     let builder = url_path_policy[selected](builder, UrlPathPolicy::Preserve);
-    let builder =
-        text_body_policy[selected](builder, TextBodyPolicy::PassThrough);
-    let policy = unkeyed_json_value_policy[selected](
-        builder,
-        UnkeyedJsonValuePolicy::PassThrough,
-    )
+    let builder = text_body_policy[selected](builder, TextBodyPolicy::PassThrough);
+    let policy = unkeyed_json_value_policy[selected](builder, UnkeyedJsonValuePolicy::PassThrough)
     .build()
     .expect("the HTTP policy should be valid");
 
@@ -123,8 +111,8 @@ fn test_http_redaction_policy_builder_sets_body_and_behavior_policies() {
 /// Verifies custom diagnostic limits survive building and rebuilding a policy.
 #[test]
 fn test_http_redaction_policy_builder_preserves_diagnostic_budget() {
-    let budget = DiagnosticBudget::new(128, 256)
-        .expect("the custom diagnostic budget should be valid");
+    let budget =
+        DiagnosticBudget::new(128, 256).expect("the custom diagnostic budget should be valid");
     let policy = HttpRedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()
@@ -135,6 +123,33 @@ fn test_http_redaction_policy_builder_preserves_diagnostic_budget() {
 
     assert_eq!(policy.diagnostic_budget(), budget);
     assert_eq!(rebuilt, policy);
+}
+
+/// Verifies diagnostic limits remain independent from component-policy setter
+/// order.
+#[test]
+fn test_http_redaction_policy_builder_keeps_diagnostic_budget_independent() {
+    let selected = DiagnosticBudget::new(128, 256).expect("the selected budget should be valid");
+    let replaced =
+        DiagnosticBudget::new(512, 1024).expect("the replacement budget should be valid");
+    let body = RedactionPolicy::builder()
+        .diagnostic_budget(replaced)
+        .build()
+        .expect("the body policy should be valid");
+
+    let budget_before_body = HttpRedactionPolicy::builder()
+        .diagnostic_budget(selected)
+        .body_policy(body.clone())
+        .build()
+        .expect("the HTTP policy should be valid");
+    let budget_after_body = HttpRedactionPolicy::builder()
+        .body_policy(body)
+        .diagnostic_budget(selected)
+        .build()
+        .expect("the HTTP policy should be valid");
+
+    assert_eq!(budget_before_body.diagnostic_budget(), selected);
+    assert_eq!(budget_after_body.diagnostic_budget(), selected);
 }
 
 /// Verifies validation reaches invalid query and body builders after earlier

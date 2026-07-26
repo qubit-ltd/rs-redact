@@ -291,6 +291,11 @@ contain secrets.
 
 `EnvRedactor` redacts UTF-8 pairs and fails closed when either operating-system
 component is not valid UTF-8. Its result safely renders as `NAME=VALUE`.
+`ArgvRedactor` and `EnvRedactor::redact_os_pairs` also use the owning
+`RedactionPolicy`'s `DiagnosticBudget`: they stop before inspecting oversized
+process input and bound their final log-safe list. `MaskingPolicy::mask_opaque`
+returns only the configured replacement for a sensitive value that must not be
+formatted or inspected.
 Use `redacted_debug` in custom `Debug` implementations when a captured value
 must render only as `<redacted>`; the wrapper never calls the value's own
 `Debug` implementation.
@@ -342,6 +347,7 @@ input, while `BodyBudget` bounds both parsing input and rendered output.
 `redact_urls_in_text`, `redact_form`, and `redact_headers`. Its defaults are
 16 KiB of input and 64 KiB of output; oversized input returns exactly
 `<redacted: diagnostic limit exceeded>` without preserving a source prefix.
+The same budget also bounds aggregate argv and environment diagnostics.
 
 Malformed or truncated structured bodies fail closed. Opaque text, unkeyed JSON
 scalars, file parts, unnamed multipart parts, and URL paths use conservative

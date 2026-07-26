@@ -8,4 +8,5 @@
 mod argv_item_tests;
 mod argv_redactor_tests;
 mod mod_tests;
+mod redacted_argv_builder_tests;
 mod redacted_argv_tests;

@@ -10,6 +10,7 @@
 mod argv_item;
 mod argv_redactor;
 mod redacted_argv;
+mod redacted_argv_builder;
 
 pub use argv_item::ArgvItem;
 pub use argv_redactor::ArgvRedactor;

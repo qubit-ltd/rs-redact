@@ -7,12 +7,7 @@
 // =============================================================================
 //! Tests for masking policy primitives.
 
-use qubit_redact::{
-    FieldNameMatching,
-    MaskPolicy,
-    MaskingPolicy,
-    Sensitivity,
-};
+use qubit_redact::{FieldNameMatching, MaskPolicy, MaskingPolicy, Sensitivity};
 
 /// Verifies that the new default masking model retains the established masks.
 #[test]
@@ -50,6 +45,22 @@ fn test_masking_policy_new_and_for_level_select_requested_policy() {
     assert_eq!(policy.mask(Sensitivity::Medium, "value"), "medium");
     assert_eq!(policy.mask(Sensitivity::High, "value"), "high");
     assert_eq!(policy.mask(Sensitivity::Secret, "value"), "secret");
+}
+
+/// Verifies opaque values use only complete configured replacements.
+#[test]
+fn test_masking_policy_masks_opaque_values_without_retaining_edges() {
+    let policy = MaskingPolicy::new(
+        MaskPolicy::preserve_edges(2, 2, "<low>", 0),
+        MaskPolicy::preserve_suffix(2, "<medium>", 0),
+        MaskPolicy::fixed("<high>"),
+        MaskPolicy::empty(),
+    );
+
+    assert_eq!(policy.mask_opaque(Sensitivity::Low), "<low>");
+    assert_eq!(policy.mask_opaque(Sensitivity::Medium), "<medium>");
+    assert_eq!(policy.mask_opaque(Sensitivity::High), "<high>");
+    assert_eq!(policy.mask_opaque(Sensitivity::Secret), "");
 }
 
 /// Verifies that replacing one level leaves all other levels unchanged.
