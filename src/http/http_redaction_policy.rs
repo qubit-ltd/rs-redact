@@ -7,15 +7,10 @@
 // =============================================================================
 //! Immutable policy snapshot for every HTTP redaction context.
 
-use crate::RedactionPolicy;
+use crate::{DiagnosticBudget, RedactionPolicy};
 
 use super::{
-    BodyBudget,
-    DiagnosticBudget,
-    HttpRedactionPolicyBuilder,
-    TextBodyPolicy,
-    UnkeyedJsonValuePolicy,
-    UrlPathPolicy,
+    BodyBudget, HttpRedactionPolicyBuilder, TextBodyPolicy, UnkeyedJsonValuePolicy, UrlPathPolicy,
 };
 
 /// Combines independent HTTP field policies, behavior choices, and hard limits.
@@ -36,8 +31,6 @@ pub struct HttpRedactionPolicy {
     unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
     /// Finite parser-input and log-output byte limits.
     body_budget: BodyBudget,
-    /// Finite diagnostic-input and log-output byte limits.
-    diagnostic_budget: DiagnosticBudget,
 }
 
 impl HttpRedactionPolicy {
@@ -76,7 +69,7 @@ impl HttpRedactionPolicy {
     /// * `url_path_policy` - URL path visibility choice.
     /// * `text_body_policy` - Opaque text-body visibility choice.
     /// * `unkeyed_json_value_policy` - Unkeyed scalar visibility choice.
-    /// * `budgets` - Checked body and diagnostic byte limits, respectively.
+    /// * `body_budget` - Checked body input and output byte limits.
     ///
     /// # Returns
     ///
@@ -89,9 +82,8 @@ impl HttpRedactionPolicy {
         url_path_policy: UrlPathPolicy,
         text_body_policy: TextBodyPolicy,
         unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
-        budgets: (BodyBudget, DiagnosticBudget),
+        body_budget: BodyBudget,
     ) -> Self {
-        let (body_budget, diagnostic_budget) = budgets;
         Self {
             header_policy,
             query_policy,
@@ -100,7 +92,6 @@ impl HttpRedactionPolicy {
             text_body_policy,
             unkeyed_json_value_policy,
             body_budget,
-            diagnostic_budget,
         }
     }
 
@@ -181,7 +172,7 @@ impl HttpRedactionPolicy {
     /// The checked hard diagnostic budget.
     #[inline(always)]
     pub const fn diagnostic_budget(&self) -> DiagnosticBudget {
-        self.diagnostic_budget
+        self.body_policy.diagnostic_budget()
     }
 }
 
@@ -201,7 +192,7 @@ impl Default for HttpRedactionPolicy {
             UrlPathPolicy::default(),
             TextBodyPolicy::default(),
             UnkeyedJsonValuePolicy::default(),
-            (BodyBudget::default(), DiagnosticBudget::default()),
+            BodyBudget::default(),
         )
     }
 }

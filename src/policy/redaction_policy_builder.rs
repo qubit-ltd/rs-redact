@@ -7,20 +7,11 @@
 // =============================================================================
 //! Mutable builder for immutable redaction policies.
 
-use std::collections::{
-    BTreeMap,
-    BTreeSet,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    FieldNameMatching,
-    MaskPolicy,
-    MaskingPolicy,
-    PolicyError,
-    RedactionPolicy,
-    SensitiveFieldPreset,
-    Sensitivity,
-    internal::canonicalize_field_name,
+    DiagnosticBudget, FieldNameMatching, MaskPolicy, MaskingPolicy, PolicyError, RedactionPolicy,
+    SensitiveFieldPreset, Sensitivity, internal::canonicalize_field_name,
 };
 
 /// Mutable construction state for an immutable [`RedactionPolicy`].
@@ -37,6 +28,8 @@ pub struct RedactionPolicyBuilder {
     matching: FieldNameMatching,
     /// Value masks selected by sensitivity level.
     masking: MaskingPolicy,
+    /// Limits applied to diagnostics rendered with the built policy.
+    diagnostic_budget: DiagnosticBudget,
     /// First validation error observed while canonicalizing rules.
     error: Option<PolicyError>,
 }
@@ -64,6 +57,7 @@ impl RedactionPolicyBuilder {
             allow_suffix: BTreeSet::new(),
             matching: FieldNameMatching::ExactOrTokenSuffix,
             masking: MaskingPolicy::default(),
+            diagnostic_budget: DiagnosticBudget::default(),
             error: None,
         }
     }
@@ -84,6 +78,7 @@ impl RedactionPolicyBuilder {
             allow_suffix: policy.clone_allow_suffix(),
             matching: policy.matching(),
             masking: policy.masking().clone(),
+            diagnostic_budget: policy.diagnostic_budget(),
             error: None,
         }
     }
@@ -231,6 +226,13 @@ impl RedactionPolicyBuilder {
         self
     }
 
+    /// Replaces the hard limits for diagnostics rendered with this policy.
+    #[inline(always)]
+    pub const fn diagnostic_budget(mut self, budget: DiagnosticBudget) -> Self {
+        self.diagnostic_budget = budget;
+        self
+    }
+
     /// Validates and builds an immutable redaction policy.
     ///
     /// # Returns
@@ -273,6 +275,7 @@ impl RedactionPolicyBuilder {
             self.allow_suffix,
             self.matching,
             self.masking,
+            self.diagnostic_budget,
         )
     }
 

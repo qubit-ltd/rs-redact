@@ -7,20 +7,10 @@
 // =============================================================================
 //! Builder for immutable HTTP redaction policy snapshots.
 
-use crate::{
-    PolicyError,
-    RedactionPolicy,
-    RedactionPolicyBuilder,
-    Sensitivity,
-};
+use crate::{DiagnosticBudget, PolicyError, RedactionPolicy, RedactionPolicyBuilder, Sensitivity};
 
 use super::{
-    BodyBudget,
-    DiagnosticBudget,
-    HttpRedactionPolicy,
-    TextBodyPolicy,
-    UnkeyedJsonValuePolicy,
-    UrlPathPolicy,
+    BodyBudget, HttpRedactionPolicy, TextBodyPolicy, UnkeyedJsonValuePolicy, UrlPathPolicy,
 };
 
 /// Mutable construction state for an [`HttpRedactionPolicy`].
@@ -41,8 +31,6 @@ pub struct HttpRedactionPolicyBuilder {
     unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
     /// Finite body parser-input and log-output limits.
     body_budget: BodyBudget,
-    /// Finite diagnostic-input and log-output limits.
-    diagnostic_budget: DiagnosticBudget,
 }
 
 impl HttpRedactionPolicyBuilder {
@@ -76,7 +64,6 @@ impl HttpRedactionPolicyBuilder {
             text_body_policy: policy.text_body_policy(),
             unkeyed_json_value_policy: policy.unkeyed_json_value_policy(),
             body_budget: policy.body_budget(),
-            diagnostic_budget: policy.diagnostic_budget(),
         }
     }
 
@@ -99,7 +86,6 @@ impl HttpRedactionPolicyBuilder {
             text_body_policy: TextBodyPolicy::default(),
             unkeyed_json_value_policy: UnkeyedJsonValuePolicy::default(),
             body_budget: BodyBudget::default(),
-            diagnostic_budget: DiagnosticBudget::default(),
         }
     }
 
@@ -374,10 +360,7 @@ impl HttpRedactionPolicyBuilder {
     ///
     /// The updated builder.
     #[inline]
-    pub const fn unkeyed_json_value_policy(
-        mut self,
-        policy: UnkeyedJsonValuePolicy,
-    ) -> Self {
+    pub const fn unkeyed_json_value_policy(mut self, policy: UnkeyedJsonValuePolicy) -> Self {
         self.unkeyed_json_value_policy = policy;
         self
     }
@@ -407,8 +390,10 @@ impl HttpRedactionPolicyBuilder {
     ///
     /// The updated builder.
     #[inline(always)]
-    pub const fn diagnostic_budget(mut self, budget: DiagnosticBudget) -> Self {
-        self.diagnostic_budget = budget;
+    pub fn diagnostic_budget(mut self, budget: DiagnosticBudget) -> Self {
+        self.header = self.header.diagnostic_budget(budget);
+        self.query = self.query.diagnostic_budget(budget);
+        self.body = self.body.diagnostic_budget(budget);
         self
     }
 
@@ -433,7 +418,7 @@ impl HttpRedactionPolicyBuilder {
             self.url_path_policy,
             self.text_body_policy,
             self.unkeyed_json_value_policy,
-            (self.body_budget, self.diagnostic_budget),
+            self.body_budget,
         ))
     }
 }

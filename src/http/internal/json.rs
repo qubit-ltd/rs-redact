@@ -21,7 +21,7 @@ use crate::http::UnkeyedJsonValuePolicy;
 /// * `redactor` - Structured-body field redactor.
 /// * `value` - JSON tree to mutate.
 /// * `unkeyed` - Policy for scalars without an object-field context.
-/// * `max_mask_bytes` - Maximum bytes allocated for one generated mask.
+/// * `max_mask_bytes` - Aggregate bytes allocated for generated masks.
 ///
 /// # Returns
 ///
@@ -33,7 +33,31 @@ pub(in crate::http) fn redact(
     unkeyed: UnkeyedJsonValuePolicy,
     max_mask_bytes: usize,
 ) -> bool {
-    redact_with_context(redactor, value, unkeyed, max_mask_bytes, false)
+    let mut remaining_mask_bytes = max_mask_bytes;
+    redact_with_remaining(redactor, value, unkeyed, &mut remaining_mask_bytes)
+}
+
+/// Redacts a JSON tree while consuming one enclosing mask budget.
+///
+/// # Parameters
+///
+/// * `redactor` - Structured-body field redactor.
+/// * `value` - JSON tree to mutate.
+/// * `unkeyed` - Policy for scalars without an object-field context.
+/// * `remaining_mask_bytes` - Aggregate mask bytes still available to the
+///   enclosing body renderer.
+///
+/// # Returns
+///
+/// `true` when at least one unkeyed scalar passed through.
+#[must_use]
+pub(in crate::http) fn redact_with_remaining(
+    redactor: &Redactor,
+    value: &mut Value,
+    unkeyed: UnkeyedJsonValuePolicy,
+    remaining_mask_bytes: &mut usize,
+) -> bool {
+    redact_with_context(redactor, value, unkeyed, remaining_mask_bytes, false)
 }
 
 /// Redacts every non-empty line of one NDJSON document.
@@ -43,7 +67,7 @@ pub(in crate::http) fn redact(
 /// * `redactor` - Structured-body field redactor.
 /// * `bytes` - Complete NDJSON bytes.
 /// * `unkeyed` - Policy for unkeyed scalar values.
-/// * `max_mask_bytes` - Maximum bytes allocated for one generated mask.
+/// * `max_mask_bytes` - Aggregate bytes allocated for generated masks.
 ///
 /// # Returns
 ///
@@ -55,6 +79,18 @@ pub(in crate::http) fn redact_ndjson(
     unkeyed: UnkeyedJsonValuePolicy,
     max_mask_bytes: usize,
 ) -> Option<(String, bool)> {
+    let mut remaining_mask_bytes = max_mask_bytes;
+    redact_ndjson_with_remaining(redactor, bytes, unkeyed, &mut remaining_mask_bytes)
+}
+
+/// Redacts NDJSON while consuming an enclosing aggregate mask budget.
+#[must_use]
+pub(in crate::http) fn redact_ndjson_with_remaining(
+    redactor: &Redactor,
+    bytes: &[u8],
+    unkeyed: UnkeyedJsonValuePolicy,
+    remaining_mask_bytes: &mut usize,
+) -> Option<(String, bool)> {
     let text = std::str::from_utf8(bytes).ok()?;
     let trailing_newline = text.ends_with('\n');
     let mut lines = Vec::new();
@@ -65,7 +101,7 @@ pub(in crate::http) fn redact_ndjson(
             continue;
         }
         let mut value = serde_json::from_str(line).ok()?;
-        passed |= redact(redactor, &mut value, unkeyed, max_mask_bytes);
+        passed |= redact_with_remaining(redactor, &mut value, unkeyed, remaining_mask_bytes);
         lines.push(serde_json::to_string(&value).ok()?);
     }
     let mut output = lines.join("\n");
@@ -82,7 +118,8 @@ pub(in crate::http) fn redact_ndjson(
 /// * `redactor` - Structured-body field redactor.
 /// * `value` - Current JSON node.
 /// * `unkeyed` - Policy for unkeyed scalar values.
-/// * `max_mask_bytes` - Maximum bytes allocated for one generated mask.
+/// * `remaining_mask_bytes` - Aggregate bytes still available for generated
+///   masks in the enclosing document.
 /// * `has_field` - Whether an object key identifies this node.
 ///
 /// # Returns
@@ -93,7 +130,7 @@ fn redact_with_context(
     redactor: &Redactor,
     value: &mut Value,
     unkeyed: UnkeyedJsonValuePolicy,
-    max_mask_bytes: usize,
+    remaining_mask_bytes: &mut usize,
     has_field: bool,
 ) -> bool {
     match value {
@@ -108,21 +145,16 @@ fn redact_with_context(
                         serialized = value.to_string();
                         &serialized
                     };
-                    *value = Value::String(
-                        redactor
-                            .policy()
-                            .masking()
-                            .mask_bounded(level, input, max_mask_bytes)
-                            .into_owned(),
-                    );
+                    let masked = redactor
+                        .policy()
+                        .masking()
+                        .mask_bounded(level, input, *remaining_mask_bytes)
+                        .into_owned();
+                    *remaining_mask_bytes = remaining_mask_bytes.saturating_sub(masked.len());
+                    *value = Value::String(masked);
                 } else {
-                    passed |= redact_with_context(
-                        redactor,
-                        value,
-                        unkeyed,
-                        max_mask_bytes,
-                        true,
-                    );
+                    passed |=
+                        redact_with_context(redactor, value, unkeyed, remaining_mask_bytes, true);
                 }
             }
             passed
@@ -130,19 +162,12 @@ fn redact_with_context(
         Value::Array(values) => {
             let mut passed = false;
             for value in values {
-                passed |= redact_with_context(
-                    redactor,
-                    value,
-                    unkeyed,
-                    max_mask_bytes,
-                    has_field,
-                );
+                passed |=
+                    redact_with_context(redactor, value, unkeyed, remaining_mask_bytes, has_field);
             }
             passed
         }
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_)
-            if !has_field =>
-        {
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) if !has_field => {
             match unkeyed {
                 UnkeyedJsonValuePolicy::Redact => {
                     *value = Value::String(UNKEYED_JSON.to_string());
@@ -151,8 +176,6 @@ fn redact_with_context(
                 UnkeyedJsonValuePolicy::PassThrough => true,
             }
         }
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
-            false
-        }
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => false,
     }
 }

@@ -257,40 +257,19 @@ pub mod text;
 
 pub use argv::ArgvRedactor;
 pub use domain::{
-    BoundedRedactedDisplay,
-    Redact,
-    RedactMapValue,
-    RedactMapValueMut,
-    RedactMut,
-    RedactValue,
-    RedactValueMut,
-    Redacted,
-    RedactedMap,
-    RedactedValue,
+    BoundedRedactedDisplay, Redact, RedactMapValue, RedactMapValueMut, RedactMut, RedactValue,
+    RedactValueMut, Redacted, RedactedMap, RedactedValue,
 };
 pub use env::EnvRedactor;
 pub use policy::{
-    AllowRule,
-    FieldClassification,
-    FieldNameMatching,
-    GlobalDefaultAlreadySet,
-    MaskPolicy,
-    MaskingPolicy,
-    PolicyError,
-    RedactionPolicy,
-    RedactionPolicyBuilder,
-    SensitiveFieldPreset,
-    SensitiveFieldRule,
-    Sensitivity,
+    AllowRule, DiagnosticBudget, DiagnosticBudgetError, FieldClassification, FieldNameMatching,
+    GlobalDefaultAlreadySet, MaskPolicy, MaskingPolicy, PolicyError, RedactionPolicy,
+    RedactionPolicyBuilder, SensitiveFieldPreset, SensitiveFieldRule, Sensitivity,
 };
 pub use redactor::Redactor;
 pub use text::{
-    LogOutputLimit,
-    LogOutputLimitError,
-    LogSafeText,
-    RedactedDebug,
-    RedactedText,
-    redacted_debug,
+    BoundedLogSafeDisplay, LogOutputLimit, LogOutputLimitError, LogSafeText, RedactedDebug,
+    RedactedText, redacted_debug,
 };
 
 #[cfg(feature = "serde")]

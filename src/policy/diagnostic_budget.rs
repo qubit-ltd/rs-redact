@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Hard input and output limits for HTTP diagnostic redaction.
+//! Hard input and output limits for redacted diagnostics.
 
 use super::DiagnosticBudgetError;
 
@@ -21,27 +21,9 @@ pub struct DiagnosticBudget {
 
 impl DiagnosticBudget {
     /// Smallest output limit that can contain the diagnostic-limit marker.
-    pub const MIN_OUTPUT_BYTES: usize =
-        "<redacted: diagnostic limit exceeded>".len();
+    pub const MIN_OUTPUT_BYTES: usize = "<redacted: diagnostic limit exceeded>".len();
 
-    /// Creates checked hard limits for HTTP diagnostic processing.
-    ///
-    /// # Parameters
-    ///
-    /// * `max_input_bytes` - Maximum source bytes available to a diagnostic
-    ///   redactor.
-    /// * `max_output_bytes` - Maximum bytes in the final log-safe result,
-    ///   including a complete limit or truncation marker when required.
-    ///
-    /// # Returns
-    ///
-    /// A checked finite diagnostic budget.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`DiagnosticBudgetError::ZeroInput`] when `max_input_bytes` is
-    /// zero, or [`DiagnosticBudgetError::OutputTooSmall`] when the output limit
-    /// cannot contain the complete diagnostic-limit marker.
+    /// Creates checked hard limits for diagnostic processing.
     #[inline]
     pub const fn new(
         max_input_bytes: usize,
@@ -63,10 +45,6 @@ impl DiagnosticBudget {
     }
 
     /// Returns the maximum number of source bytes a diagnostic may inspect.
-    ///
-    /// # Returns
-    ///
-    /// The positive input limit in bytes.
     #[must_use]
     #[inline(always)]
     pub const fn max_input_bytes(self) -> usize {
@@ -74,10 +52,6 @@ impl DiagnosticBudget {
     }
 
     /// Returns the maximum final log-safe diagnostic size.
-    ///
-    /// # Returns
-    ///
-    /// The output limit in bytes, including any complete marker.
     #[must_use]
     #[inline(always)]
     pub const fn max_output_bytes(self) -> usize {
@@ -86,11 +60,7 @@ impl DiagnosticBudget {
 }
 
 impl Default for DiagnosticBudget {
-    /// Returns the conservative 16 KiB input and 64 KiB output limits.
-    ///
-    /// # Returns
-    ///
-    /// The default finite HTTP diagnostic budget.
+    /// Returns conservative 16 KiB input and 64 KiB output limits.
     #[inline(always)]
     fn default() -> Self {
         Self {

@@ -5,15 +5,11 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Validation errors for HTTP diagnostic budgets.
+//! Validation errors for diagnostic budgets.
 
 use std::{
     error::Error,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
+    fmt::{self, Display, Formatter},
 };
 
 /// Reports which hard diagnostic-budget invariant was violated.
@@ -33,27 +29,14 @@ pub enum DiagnosticBudgetError {
 
 impl Display for DiagnosticBudgetError {
     /// Writes a concise description of the violated budget invariant.
-    ///
-    /// # Parameters
-    ///
-    /// * `formatter` - Destination formatting context.
-    ///
-    /// # Returns
-    ///
-    /// The formatter result from writing the error description.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`fmt::Error`] when the destination rejects a write.
-    #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ZeroInput => formatter
-                .write_str("diagnostic input budget must be greater than zero"),
+            Self::ZeroInput => {
+                formatter.write_str("diagnostic input budget must be greater than zero")
+            }
             Self::OutputTooSmall { minimum, actual } => write!(
                 formatter,
-                "diagnostic output budget must be at least {minimum} bytes, \
-                 got {actual}",
+                "diagnostic output budget must be at least {minimum} bytes, got {actual}",
             ),
         }
     }

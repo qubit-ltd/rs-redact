@@ -10,14 +10,10 @@
 use std::{
     collections::BTreeMap,
     fmt,
+    sync::atomic::{AtomicUsize, Ordering},
 };
 
-use qubit_redact::{
-    LogOutputLimit,
-    Redact,
-    RedactedMap,
-    RedactionPolicy,
-};
+use qubit_redact::{LogOutputLimit, Redact, RedactedMap, RedactionPolicy};
 
 /// Value whose redacted representation writes caller-selected safe text.
 struct DiagnosticText<'a> {
@@ -46,8 +42,7 @@ impl Redact for DiagnosticText<'_> {
 ///
 /// A validated log output limit.
 fn limit(max_bytes: usize) -> LogOutputLimit {
-    LogOutputLimit::new(max_bytes)
-        .expect("the test budget can contain the truncation marker")
+    LogOutputLimit::new(max_bytes).expect("the test budget can contain the truncation marker")
 }
 
 /// Verifies complete bounded output matches ordinary redacted display.
@@ -130,4 +125,48 @@ fn test_bounded_redacted_map_display_respects_budget() {
 
     assert!(output.len() <= 24, "{output}");
     assert!(output.ends_with("<truncated>"), "{output}");
+}
+
+/// Counts formatter writes so the test can prove truncation stops traversal.
+struct RepeatedDiagnostic {
+    /// Number of write attempts made by the formatter.
+    writes: AtomicUsize,
+}
+
+impl RepeatedDiagnostic {
+    /// Creates a formatter that writes one small piece repeatedly.
+    const fn new() -> Self {
+        Self {
+            writes: AtomicUsize::new(0),
+        }
+    }
+}
+
+impl Redact for RepeatedDiagnostic {
+    /// Writes many safe pieces and propagates the first destination error.
+    fn fmt_redacted(
+        &self,
+        _policy: &RedactionPolicy,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        for _ in 0..1_000_000 {
+            self.writes.fetch_add(1, Ordering::Relaxed);
+            formatter.write_str("x")?;
+        }
+        Ok(())
+    }
+}
+
+/// Verifies a bounded display stops a cooperative formatter after overflow.
+#[test]
+fn test_bounded_redacted_display_stops_formatter_after_budget_exhaustion() {
+    let value = RepeatedDiagnostic::new();
+
+    let output = value.redacted().with_output_limit(limit(14)).to_string();
+
+    assert_eq!(output, "xxx<truncated>");
+    assert_eq!(
+        value.writes.load(Ordering::Relaxed),
+        limit(14).max_bytes() + 1,
+    );
 }

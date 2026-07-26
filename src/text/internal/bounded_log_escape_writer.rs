@@ -7,17 +7,11 @@
 // =============================================================================
 //! Bounded streaming log-control escaping.
 
-use std::fmt::{
-    self,
-    Write,
-};
+use std::fmt::{self, Write};
 
 use crate::{
     LogOutputLimit,
-    text::{
-        log_escape::encode_log_safe_character,
-        log_output_limit::TRUNCATION_MARKER,
-    },
+    text::{log_escape::encode_log_safe_character, log_output_limit::TRUNCATION_MARKER},
 };
 
 /// Escapes log-unsafe characters into a byte-bounded owned string.
@@ -62,14 +56,24 @@ impl BoundedLogEscapeWriter {
         self.output
     }
 
+    /// Reports whether an input piece exceeded the output budget.
+    ///
+    /// # Returns
+    ///
+    /// True when the writer finalized its truncation marker.
+    #[inline(always)]
+    pub(crate) const fn is_truncated(&self) -> bool {
+        self.truncated
+    }
+
     /// Appends one complete UTF-8 character or escape sequence.
     ///
     /// # Parameters
     ///
     /// * `piece` - Atomic log-safe text corresponding to one input character.
-    fn write_piece(&mut self, piece: &str) {
+    fn write_piece(&mut self, piece: &str) -> bool {
         if self.truncated {
-            return;
+            return false;
         }
         if piece.len() <= self.max_bytes - self.output.len() {
             self.output.push_str(piece);
@@ -77,11 +81,12 @@ impl BoundedLogEscapeWriter {
             if self.output.len() <= payload_limit {
                 self.marker_boundary = self.output.len();
             }
-            return;
+            return true;
         }
         self.output.truncate(self.marker_boundary);
         self.output.push_str(TRUNCATION_MARKER);
         self.truncated = true;
+        false
     }
 }
 
@@ -94,16 +99,19 @@ impl Write for BoundedLogEscapeWriter {
     ///
     /// # Returns
     ///
-    /// `Ok(())` after the input has been processed.
+    /// Ok when the complete input fits in the budget.
     ///
     /// # Errors
     ///
-    /// This in-memory writer does not return formatting errors.
+    /// Returns an error after finalizing truncation so cooperative formatters
+    /// stop producing additional pieces.
     fn write_str(&mut self, value: &str) -> fmt::Result {
         for character in value.chars() {
             let mut buffer = [0_u8; 12];
             let piece = encode_log_safe_character(character, &mut buffer)?;
-            self.write_piece(piece);
+            if !self.write_piece(piece) {
+                return Err(fmt::Error);
+            }
         }
         Ok(())
     }
