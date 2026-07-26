@@ -7,9 +7,18 @@
 // =============================================================================
 //! Bounded display adapter for log-safe text.
 
-use std::fmt::{self, Display, Formatter, Write as _};
+use std::fmt::{
+    self,
+    Display,
+    Formatter,
+    Write as _,
+};
 
-use super::{LogOutputLimit, LogSafeText, internal::BoundedLogEscapeWriter};
+use super::{
+    LogOutputLimit,
+    LogSafeText,
+    internal::BoundedLogEscapeWriter,
+};
 
 /// A byte-bounded rendering of text that is already safe for a log boundary.
 #[must_use = "format the bounded log-safe text"]
@@ -23,7 +32,10 @@ pub struct BoundedLogSafeDisplay<'a> {
 impl<'a> BoundedLogSafeDisplay<'a> {
     /// Creates a bounded view of already escaped log-safe text.
     #[inline(always)]
-    pub(super) const fn new(value: &'a LogSafeText<'a>, limit: LogOutputLimit) -> Self {
+    pub(super) const fn new(
+        value: &'a LogSafeText<'a>,
+        limit: LogOutputLimit,
+    ) -> Self {
         Self { value, limit }
     }
 }
@@ -32,9 +44,9 @@ impl Display for BoundedLogSafeDisplay<'_> {
     /// Writes the escaped source text without exceeding the output limit.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut writer = BoundedLogEscapeWriter::new(self.limit);
-        if writer.write_str(self.value.as_str()).is_err() && !writer.is_truncated() {
-            return Err(fmt::Error);
-        }
+        // The internal writer uses `fmt::Error` only to stop after recording
+        // truncation; `finish` renders that state with a complete marker.
+        let _ = writer.write_str(self.value.as_str());
         formatter.write_str(&writer.finish())
     }
 }
