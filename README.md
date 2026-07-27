@@ -188,6 +188,9 @@ assert!(output.len() <= limit.max_bytes());
 Truncated output ends with `<truncated>` and never splits a UTF-8 character or
 a generated control-character escape.
 
+When the view already owns a `RedactionPolicy`,
+`with_policy_output_limit()` uses that policy's configured `DiagnosticBudget`.
+
 Use `#[redact(nested)]` for a field whose type implements `Redact`; without
 that attribute even a derived field type is not traversed. `#[redact(skip)]`
 omits a field from redacted Debug, Display, and serde output. It does not

@@ -27,25 +27,25 @@ use crate::{
 /// A borrowed value rendered according to a separate field key.
 ///
 /// The key is used only to select a policy rule. The view itself renders or
-/// serializes the value, and owns an immutable snapshot of that policy.
+/// serializes the value, and borrows an immutable policy snapshot.
 #[must_use = "format or serialize the keyed redaction view"]
-pub struct RedactedKeyedValue<'a, T: ?Sized> {
+pub struct RedactedKeyedValue<'value, 'policy, T: ?Sized> {
     /// Field name used for policy classification.
-    key: &'a str,
+    key: &'value str,
     /// Value represented by this view.
-    value: &'a T,
-    /// Immutable policy snapshot used by every output protocol.
-    policy: RedactionPolicy,
+    value: &'value T,
+    /// Immutable policy snapshot borrowed by every output protocol.
+    policy: &'policy RedactionPolicy,
 }
 
-impl<'a, T: ?Sized> RedactedKeyedValue<'a, T> {
-    /// Creates a keyed view from borrowed inputs and an owned policy snapshot.
+impl<'value, 'policy, T: ?Sized> RedactedKeyedValue<'value, 'policy, T> {
+    /// Creates a keyed view from borrowed inputs and a borrowed policy snapshot.
     ///
     /// # Parameters
     ///
     /// * `key` - Field name used only for policy classification.
     /// * `value` - Value to render or serialize lazily.
-    /// * `policy` - Complete policy snapshot owned by this view.
+    /// * `policy` - Complete policy snapshot borrowed by this view.
     ///
     /// # Returns
     ///
@@ -53,9 +53,9 @@ impl<'a, T: ?Sized> RedactedKeyedValue<'a, T> {
     #[must_use = "format or serialize the keyed redaction view"]
     #[inline(always)]
     pub const fn new(
-        key: &'a str,
-        value: &'a T,
-        policy: RedactionPolicy,
+        key: &'value str,
+        value: &'value T,
+        policy: &'policy RedactionPolicy,
     ) -> Self {
         Self { key, value, policy }
     }
@@ -67,12 +67,12 @@ impl<'a, T: ?Sized> RedactedKeyedValue<'a, T> {
     /// The unchanged policy lookup key.
     #[must_use]
     #[inline(always)]
-    pub const fn key(&self) -> &'a str {
+    pub const fn key(&self) -> &'value str {
         self.key
     }
 }
 
-impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValue<'_, T> {
+impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValue<'_, '_, T> {
     /// Formats the value through its selected field classification.
     ///
     /// # Parameters
@@ -94,12 +94,12 @@ impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValue<'_, T> {
                 &self.value.redact_value(level, self.policy.masking()),
                 formatter,
             ),
-            None => self.value.fmt_redacted(&self.policy, formatter),
+            None => self.value.fmt_redacted(self.policy, formatter),
         }
     }
 }
 
-impl<T: Redact + RedactValue + ?Sized> Display for RedactedKeyedValue<'_, T> {
+impl<T: Redact + RedactValue + ?Sized> Display for RedactedKeyedValue<'_, '_, T> {
     /// Formats the selected redacted representation for a plain-text log.
     ///
     /// # Parameters
@@ -123,7 +123,7 @@ impl<T: Redact + RedactValue + ?Sized> Display for RedactedKeyedValue<'_, T> {
 
 #[cfg(feature = "serde")]
 impl<T: RedactValue + crate::domain::RedactSerialize + ?Sized> serde::Serialize
-    for RedactedKeyedValue<'_, T>
+    for RedactedKeyedValue<'_, '_, T>
 {
     /// Serializes the value through its selected field classification.
     ///
@@ -150,7 +150,7 @@ impl<T: RedactValue + crate::domain::RedactSerialize + ?Sized> serde::Serialize
             ),
             None => crate::domain::RedactSerialize::serialize_redacted(
                 self.value,
-                &self.policy,
+                self.policy,
                 serializer,
             ),
         }

@@ -75,7 +75,7 @@ impl Redactor {
 
     /// Creates a lazy redacted view selected by an external key.
     ///
-    /// The returned view owns a policy snapshot. When its key is sensitive,
+    /// The returned view borrows this redactor's policy snapshot. When its key is sensitive,
     /// it masks the complete value through [`RedactValue`](crate::RedactValue).
     /// Otherwise it delegates to the value's recursive redaction contracts.
     ///
@@ -89,12 +89,12 @@ impl Redactor {
     /// A lazy keyed redaction view borrowing `key` and `value`.
     #[must_use = "format or serialize the returned keyed redaction view"]
     #[inline(always)]
-    pub fn redact_keyed<'a, T: ?Sized>(
+    pub fn redact_keyed<'value, T: ?Sized>(
         &self,
-        key: &'a str,
-        value: &'a T,
-    ) -> RedactedKeyedValue<'a, T> {
-        RedactedKeyedValue::new(key, value, self.policy.clone())
+        key: &'value str,
+        value: &'value T,
+    ) -> RedactedKeyedValue<'value, '_, T> {
+        RedactedKeyedValue::new(key, value, &self.policy)
     }
 
     /// Redacts one value while bounding any allocated mask.

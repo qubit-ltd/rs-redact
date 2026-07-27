@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 
 use indexmap::IndexMap;
 use qubit_redact::{
+    DiagnosticBudget,
     RedactedMap,
     RedactionPolicy,
 };
@@ -38,4 +39,26 @@ fn test_redacted_map_supports_index_map_without_runtime_coupling() {
         rendered,
         r#"{"password": "<redacted>", "label": "visible"}"#,
     );
+}
+
+/// Verifies map views can derive an output bound from their policy snapshot.
+#[test]
+fn test_redacted_map_with_policy_output_limit_uses_policy_budget() {
+    let map = BTreeMap::from([(
+        String::from("label"),
+        "visible diagnostic text".repeat(4),
+    )]);
+    let budget = DiagnosticBudget::new(1024, DiagnosticBudget::MIN_OUTPUT_BYTES)
+        .expect("the minimum bounded output should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_budget(budget)
+        .build()
+        .expect("the diagnostic budget should build a policy");
+
+    let output = RedactedMap::new(&map, policy)
+        .with_policy_output_limit()
+        .to_string();
+
+    assert!(output.len() <= budget.max_output_bytes());
+    assert!(output.ends_with("<truncated>"));
 }

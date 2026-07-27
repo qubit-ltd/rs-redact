@@ -5,49 +5,45 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Lazy borrowed view of a string-valued map-like container.
+//! Lazy borrowed view of a map whose values support recursive redaction.
 
 use std::{
-    fmt::{
-        self,
-        Debug,
-        Display,
-        Formatter,
-        Write as _,
-    },
+    fmt::{self, Debug, Display, Formatter, Write as _},
     marker::PhantomData,
 };
 
 use crate::{
-    BoundedRedactedDisplay,
-    LogOutputLimit,
-    RedactMapValue,
-    RedactionPolicy,
-    text::internal::LogEscapeWriter,
+    text::internal::LogEscapeWriter, BoundedRedactedDisplay, LogOutputLimit, Redact,
+    RedactValue, RedactedKeyedValue, RedactionPolicy,
 };
 
-/// A lazy map view that classifies values by their runtime keys.
-#[must_use = "format or serialize the redacted map view"]
-pub struct RedactedMap<'a, M: ?Sized, K: ?Sized = String, V: ?Sized = String> {
+/// A lazy map view that classifies each value by its key before recursion.
+///
+/// Unknown and explicitly allowed keys delegate to the corresponding value's
+/// [`Redact`] implementation. Sensitive keys mask the complete value through
+/// [`RedactValue`].
+#[must_use = "format the recursive keyed redaction view"]
+pub struct RedactedKeyedMap<'a, M: ?Sized, K: ?Sized = String, V: ?Sized = String> {
     /// Map borrowed without traversal.
     map: &'a M,
-    /// Immutable policy snapshot used during formatting.
+    /// Immutable policy snapshot shared by every keyed value view.
     policy: RedactionPolicy,
     /// Associates the view with the map entry types without storing them.
     marker: PhantomData<fn() -> (*const K, *const V)>,
 }
 
-impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
-    /// Creates a lazy map view without traversing or cloning the map.
+impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
+    /// Creates a lazy recursive keyed map view without traversing the map.
     ///
     /// # Parameters
     ///
-    /// * `map` - String-valued map-like container to borrow.
-    /// * `policy` - Complete policy snapshot owned by the view.
+    /// * `map` - Map-like container to borrow.
+    /// * `policy` - Complete policy snapshot owned by the map view.
     ///
     /// # Returns
     ///
-    /// A lazy borrowed map view.
+    /// A lazy borrowed map view that shares its policy across all entries.
+    #[must_use = "format the recursive keyed redaction view"]
     #[inline(always)]
     pub const fn new(map: &'a M, policy: RedactionPolicy) -> Self {
         Self {
@@ -65,7 +61,8 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     ///
     /// # Returns
     ///
-    /// A display-only adapter that owns this redacted map view.
+    /// A display-only adapter that owns this recursive keyed map view.
+    #[must_use = "format the bounded recursive keyed map display adapter"]
     #[inline(always)]
     pub const fn with_output_limit(
         self,
@@ -79,7 +76,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     /// # Returns
     ///
     /// A display-only adapter bounded by this view's diagnostic output budget.
-    #[must_use = "format the bounded redacted map display adapter"]
+    #[must_use = "format the bounded recursive keyed map display adapter"]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
         let limit = LogOutputLimit::from(self.policy.diagnostic_budget());
@@ -87,10 +84,12 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     }
 }
 
-impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug
-    for RedactedMap<'_, M, K, V>
+impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Debug
+    for RedactedKeyedMap<'_, M, K, V>
+where
+    for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
 {
-    /// Formats the map by classifying every value with its corresponding key.
+    /// Formats each entry through its key-selected redaction behavior.
     ///
     /// # Parameters
     ///
@@ -104,14 +103,23 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug
     ///
     /// Returns [`fmt::Error`] when the destination rejects an entry or the
     /// completed map.
-    #[inline(always)]
+    #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        self.map.fmt_redacted_map(&self.policy, formatter)
+        let mut output = formatter.debug_map();
+        for (key, value) in self.map {
+            output.entry(
+                &key,
+                &RedactedKeyedValue::new(key.as_ref(), value, &self.policy),
+            );
+        }
+        output.finish()
     }
 }
 
-impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
-    for RedactedMap<'_, M, K, V>
+impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Display
+    for RedactedKeyedMap<'_, M, K, V>
+where
+    for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
 {
     /// Formats compact redacted debug output and escapes it for plain-text
     /// logs.
@@ -132,31 +140,5 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut writer = LogEscapeWriter::new(formatter);
         write!(&mut writer, "{self:?}")
-    }
-}
-
-#[cfg(feature = "serde")]
-impl<M: crate::domain::RedactMapSerialize<K, V> + ?Sized, K: ?Sized, V: ?Sized>
-    serde::Serialize for RedactedMap<'_, M, K, V>
-{
-    /// Serializes values after classifying each one by its runtime key.
-    ///
-    /// # Parameters
-    ///
-    /// * `serializer` - Destination Serde serializer.
-    ///
-    /// # Returns
-    ///
-    /// The serializer's successful map output.
-    ///
-    /// # Errors
-    ///
-    /// Returns the first entry or destination serialization error unchanged.
-    #[inline(always)]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.map.serialize_redacted_map(&self.policy, serializer)
     }
 }

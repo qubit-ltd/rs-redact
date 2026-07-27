@@ -10,6 +10,7 @@
 use std::fmt;
 
 use qubit_redact::{
+    DiagnosticBudget,
     MaskPolicy,
     Redact,
     RedactValue,
@@ -108,4 +109,28 @@ fn test_redacted_debug_preserves_pretty_flag() {
         "ManualAccount {\n    id: 11,\n    password: \"<redacted>\",\n    note: \"visible\",\n}",
     );
     assert!(!display.contains('\n'));
+}
+
+/// Verifies a view can derive its output bound from its policy snapshot.
+#[test]
+fn test_redacted_with_policy_output_limit_uses_policy_budget() {
+    let account = ManualAccount {
+        id: 12,
+        password: "raw-secret".to_owned(),
+        note: "visible diagnostic text".to_owned(),
+    };
+    let budget = DiagnosticBudget::new(1024, DiagnosticBudget::MIN_OUTPUT_BYTES)
+        .expect("the minimum bounded output should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_budget(budget)
+        .build()
+        .expect("the diagnostic budget should build a policy");
+
+    let output = account
+        .redacted_with(&policy)
+        .with_policy_output_limit()
+        .to_string();
+
+    assert!(output.len() <= budget.max_output_bytes());
+    assert!(output.ends_with("<truncated>"));
 }

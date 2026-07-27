@@ -68,6 +68,18 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
         BoundedRedactedDisplay::new(self, limit)
     }
 
+    /// Converts this view into a byte-bounded display adapter using its policy.
+    ///
+    /// # Returns
+    ///
+    /// A display-only adapter bounded by this view's diagnostic output budget.
+    #[must_use = "format the bounded redacted display adapter"]
+    #[inline]
+    pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
+        let limit = LogOutputLimit::from(self.policy.diagnostic_budget());
+        BoundedRedactedDisplay::new(self, limit)
+    }
+
     /// Returns the borrowed domain value to crate-internal adapters.
     ///
     /// # Returns

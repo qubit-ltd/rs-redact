@@ -7,11 +7,12 @@
 // =============================================================================
 //! Tests for [`RedactedKeyedValue`](qubit_redact::RedactedKeyedValue).
 
-use std::fmt;
+use std::{collections::BTreeMap, fmt};
 
 use qubit_redact::{
     Redact,
     RedactValue,
+    RedactedKeyedMap,
     RedactedValue,
     RedactionPolicy,
     Redactor,
@@ -147,7 +148,8 @@ fn test_redact_keyed_masks_sensitive_non_text_value() {
         .build()
         .expect("the test policy should be valid");
     let value = nested_value();
-    let view = Redactor::new(policy).redact_keyed("tenant_secret", &value);
+    let redactor = Redactor::new(policy);
+    let view = redactor.redact_keyed("tenant_secret", &value);
 
     assert_eq!(format!("{view:?}"), "\"<redacted>\"");
     assert!(!format!("{view:?}").contains("nested-secret"));
@@ -157,7 +159,8 @@ fn test_redact_keyed_masks_sensitive_non_text_value() {
 #[test]
 fn test_redact_keyed_recursively_redacts_unclassified_value() {
     let value = nested_value();
-    let view = Redactor::default().redact_keyed("display_name", &value);
+    let redactor = Redactor::default();
+    let view = redactor.redact_keyed("display_name", &value);
     let debug = format!("{view:?}");
     let display = view.to_string();
 
@@ -167,11 +170,31 @@ fn test_redact_keyed_recursively_redacts_unclassified_value() {
     assert!(!display.contains('\n'));
 }
 
+/// Verifies a keyed map recursively redacts unclassified nested values.
+#[test]
+fn test_redacted_keyed_map_recursively_redacts_unclassified_values() {
+    let map = BTreeMap::from([
+        (String::from("profile"), nested_value()),
+        (String::from("tenant_secret"), nested_value()),
+    ]);
+    let policy = RedactionPolicy::builder()
+        .raise("tenant_secret", Sensitivity::Secret)
+        .build()
+        .expect("the keyed map policy should build");
+
+    let output = format!("{:?}", RedactedKeyedMap::new(&map, policy));
+
+    assert!(output.contains("visible-label"));
+    assert!(!output.contains("nested-secret"));
+    assert_eq!(output.matches("<redacted>").count(), 2);
+}
+
 /// Verifies a keyed redacted view retains its original field name.
 #[test]
 fn test_redact_keyed_preserves_key() {
     let value = TextValue("visible".to_owned());
-    let view = Redactor::default().redact_keyed("display_name", &value);
+    let redactor = Redactor::default();
+    let view = redactor.redact_keyed("display_name", &value);
 
     assert_eq!(view.key(), "display_name");
 }

@@ -271,6 +271,7 @@ pub use domain::{
     RedactValue,
     RedactValueMut,
     Redacted,
+    RedactedKeyedMap,
     RedactedKeyedValue,
     RedactedMap,
     RedactedValue,

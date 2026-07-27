@@ -174,6 +174,9 @@ assert!(output.len() <= limit.max_bytes());
 发生截断时，输出以 `<truncated>` 结尾，并且不会截断 UTF-8 字符或生成的控制字符转义
 序列。
 
+当视图已持有 `RedactionPolicy` 时，`with_policy_output_limit()` 会使用该策略配置的
+`DiagnosticBudget`。
+
 字段类型实现了 `Redact` 时，仍然只有标记 `#[redact(nested)]` 才会递归处理；没有该
 属性就绝不隐式遍历。`#[redact(skip)]` 会从脱敏后的 Debug、Display 和 serde 表示中省略
 字段，但不会删除或修改原对象字段，`RedactMut` 也不会改它。
