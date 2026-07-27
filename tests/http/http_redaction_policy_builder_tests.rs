@@ -52,6 +52,23 @@ const fn alternate_unkeyed_json_value_policy(
     builder
 }
 
+/// Builds an HTTP policy whose three contexts inherit exact and suffix allows.
+fn inherited_allow_policy() -> HttpRedactionPolicy {
+    let base = RedactionPolicy::empty_builder()
+        .raise("access_token", Sensitivity::Secret)
+        .raise("session_token", Sensitivity::High)
+        .allow_exact("access_token")
+        .allow_suffix("session_token")
+        .build()
+        .expect("the base policy should be valid");
+    HttpRedactionPolicy::builder()
+        .header_policy(base.clone())
+        .query_policy(base.clone())
+        .body_policy(base)
+        .build()
+        .expect("the HTTP policy should be valid")
+}
+
 /// Verifies the HTTP policy builder creates the default policy snapshot.
 #[test]
 fn test_http_redaction_policy_builder_builds_default_snapshot() {
@@ -183,25 +200,13 @@ fn test_http_redaction_policy_builder_validates_each_context_in_order() {
 /// Verifies context-specific builders can revoke inherited allow rules.
 #[test]
 fn test_http_redaction_policy_builder_removes_inherited_allow_rules() {
-    let base = RedactionPolicy::empty_builder()
-        .raise("access_token", Sensitivity::Secret)
-        .raise("session_token", Sensitivity::High)
-        .allow_exact("access_token")
-        .allow_suffix("session_token")
-        .build()
-        .expect("the base policy should be valid");
-    let original = HttpRedactionPolicy::builder()
-        .header_policy(base.clone())
-        .query_policy(base.clone())
-        .body_policy(base)
-        .build()
-        .expect("the HTTP policy should be valid");
-    let policy = HttpRedactionPolicyBuilder::from_policy(&original)
-        .remove_header_allow_exact("access-token")
-        .remove_query_allow_suffix("session-token")
-        .clear_body_allow_rules()
-        .build()
-        .expect("the rebuilt HTTP policy should be valid");
+    let policy =
+        HttpRedactionPolicyBuilder::from_policy(&inherited_allow_policy())
+            .remove_header_allow_exact("access-token")
+            .remove_query_allow_suffix("session-token")
+            .clear_body_allow_rules()
+            .build()
+            .expect("the rebuilt HTTP policy should be valid");
 
     assert_eq!(
         policy.header_policy().sensitivity_for("access_token"),
@@ -219,6 +224,105 @@ fn test_http_redaction_policy_builder_removes_inherited_allow_rules() {
     );
     assert_eq!(
         policy
+            .body_policy()
+            .sensitivity_for("request_session_token"),
+        Some(Sensitivity::High),
+    );
+}
+
+/// Verifies every context-specific allow-rule revocation reaches its matching
+/// field policy without changing the other allow rule.
+#[test]
+fn test_http_redaction_policy_builder_revokes_each_remaining_allow_rule() {
+    let original = inherited_allow_policy();
+
+    let header_suffix = HttpRedactionPolicyBuilder::from_policy(&original)
+        .remove_header_allow_suffix("session-token")
+        .build()
+        .expect("the rebuilt header policy should be valid");
+    assert_eq!(
+        header_suffix
+            .header_policy()
+            .sensitivity_for("request_session_token"),
+        Some(Sensitivity::High),
+    );
+    assert_eq!(
+        header_suffix
+            .header_policy()
+            .sensitivity_for("access_token"),
+        None
+    );
+
+    let header_clear = HttpRedactionPolicyBuilder::from_policy(&original)
+        .clear_header_allow_rules()
+        .build()
+        .expect("the rebuilt header policy should be valid");
+    assert_eq!(
+        header_clear.header_policy().sensitivity_for("access_token"),
+        Some(Sensitivity::Secret),
+    );
+    assert_eq!(
+        header_clear
+            .header_policy()
+            .sensitivity_for("request_session_token"),
+        Some(Sensitivity::High),
+    );
+
+    let query_exact = HttpRedactionPolicyBuilder::from_policy(&original)
+        .remove_query_allow_exact("access-token")
+        .build()
+        .expect("the rebuilt query policy should be valid");
+    assert_eq!(
+        query_exact.query_policy().sensitivity_for("access_token"),
+        Some(Sensitivity::Secret),
+    );
+    assert_eq!(
+        query_exact
+            .query_policy()
+            .sensitivity_for("request_session_token"),
+        None,
+    );
+
+    let query_clear = HttpRedactionPolicyBuilder::from_policy(&original)
+        .clear_query_allow_rules()
+        .build()
+        .expect("the rebuilt query policy should be valid");
+    assert_eq!(
+        query_clear.query_policy().sensitivity_for("access_token"),
+        Some(Sensitivity::Secret),
+    );
+    assert_eq!(
+        query_clear
+            .query_policy()
+            .sensitivity_for("request_session_token"),
+        Some(Sensitivity::High),
+    );
+
+    let body_exact = HttpRedactionPolicyBuilder::from_policy(&original)
+        .remove_body_allow_exact("access-token")
+        .build()
+        .expect("the rebuilt body policy should be valid");
+    assert_eq!(
+        body_exact.body_policy().sensitivity_for("access_token"),
+        Some(Sensitivity::Secret),
+    );
+    assert_eq!(
+        body_exact
+            .body_policy()
+            .sensitivity_for("request_session_token"),
+        None,
+    );
+
+    let body_suffix = HttpRedactionPolicyBuilder::from_policy(&original)
+        .remove_body_allow_suffix("session-token")
+        .build()
+        .expect("the rebuilt body policy should be valid");
+    assert_eq!(
+        body_suffix.body_policy().sensitivity_for("access_token"),
+        None
+    );
+    assert_eq!(
+        body_suffix
             .body_policy()
             .sensitivity_for("request_session_token"),
         Some(Sensitivity::High),
