@@ -7,17 +7,11 @@
 // =============================================================================
 //! Bounded streaming log-control escaping.
 
-use std::fmt::{
-    self,
-    Write,
-};
+use std::fmt::{self, Write};
 
 use crate::{
     LogOutputLimit,
-    text::{
-        log_escape::encode_log_safe_character,
-        log_output_limit::TRUNCATION_MARKER,
-    },
+    text::{log_escape::encode_log_safe_character, log_output_limit::TRUNCATION_MARKER},
 };
 
 /// Escapes log-unsafe characters into a byte-bounded owned string.
@@ -96,6 +90,43 @@ impl BoundedLogEscapeWriter {
     }
 }
 
+/// Splits one complete pre-generated debug escape from `value`.
+///
+/// # Parameters
+///
+/// * `value` - Remaining already log-safe text to inspect.
+///
+/// # Returns
+///
+/// `Some((escape, rest))` when `value` starts with one complete Rust debug
+/// escape, or `None` when its first character must be escaped normally.
+fn split_debug_escape(value: &str) -> Option<(&str, &str)> {
+    let bytes = value.as_bytes();
+    if bytes.first() != Some(&b'\\') {
+        return None;
+    }
+    match bytes.get(1).copied()? {
+        b'\\' | b'"' | b'n' | b'r' | b't' | b'0' => Some((&value[..2], &value[2..])),
+        b'x' if bytes.len() >= 4
+            && bytes[2].is_ascii_hexdigit()
+            && bytes[3].is_ascii_hexdigit() =>
+        {
+            Some((&value[..4], &value[4..]))
+        }
+        b'u' if bytes.get(2) == Some(&b'{') => {
+            let closing = bytes[3..]
+                .iter()
+                .position(|byte| *byte == b'}')
+                .map(|index| index + 3)?;
+            if closing == 3 || !bytes[3..closing].iter().all(u8::is_ascii_hexdigit) {
+                return None;
+            }
+            Some((&value[..=closing], &value[closing + 1..]))
+        }
+        _ => None,
+    }
+}
+
 impl Write for BoundedLogEscapeWriter {
     /// Writes escaped text without exceeding the configured byte budget.
     ///
@@ -112,12 +143,24 @@ impl Write for BoundedLogEscapeWriter {
     /// Returns an error after finalizing truncation so cooperative formatters
     /// stop producing additional pieces.
     fn write_str(&mut self, value: &str) -> fmt::Result {
-        for character in value.chars() {
+        let mut remaining = value;
+        while !remaining.is_empty() {
+            if let Some((escape, rest)) = split_debug_escape(remaining) {
+                if !self.write_piece(escape) {
+                    return Err(fmt::Error);
+                }
+                remaining = rest;
+                continue;
+            }
+            let Some(character) = remaining.chars().next() else {
+                return Ok(());
+            };
             let mut buffer = [0_u8; 12];
             let piece = encode_log_safe_character(character, &mut buffer)?;
             if !self.write_piece(piece) {
                 return Err(fmt::Error);
             }
+            remaining = &remaining[character.len_utf8()..];
         }
         Ok(())
     }

@@ -10,23 +10,32 @@
 use std::{
     collections::BTreeMap,
     fmt,
-    sync::atomic::{
-        AtomicUsize,
-        Ordering,
-    },
+    sync::atomic::{AtomicUsize, Ordering},
 };
 
-use qubit_redact::{
-    LogOutputLimit,
-    Redact,
-    RedactedMap,
-    RedactionPolicy,
-};
+use qubit_redact::{LogOutputLimit, Redact, RedactedMap, RedactionPolicy};
 
 /// Value whose redacted representation writes caller-selected safe text.
 struct DiagnosticText<'a> {
     /// Text written through the redacted formatting contract.
     value: &'a str,
+}
+
+/// Value whose redacted representation delegates escaping to Rust debug.
+struct DebugDiagnosticText<'a> {
+    /// Text to render through the standard debug formatter.
+    value: &'a str,
+}
+
+impl Redact for DebugDiagnosticText<'_> {
+    /// Writes the configured text using the standard debug string format.
+    fn fmt_redacted(
+        &self,
+        _policy: &RedactionPolicy,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        fmt::Debug::fmt(&self.value, formatter)
+    }
 }
 
 impl Redact for DiagnosticText<'_> {
@@ -50,8 +59,7 @@ impl Redact for DiagnosticText<'_> {
 ///
 /// A validated log output limit.
 fn limit(max_bytes: usize) -> LogOutputLimit {
-    LogOutputLimit::new(max_bytes)
-        .expect("the test budget can contain the truncation marker")
+    LogOutputLimit::new(max_bytes).expect("the test budget can contain the truncation marker")
 }
 
 /// Verifies complete bounded output matches ordinary redacted display.
@@ -121,6 +129,20 @@ fn test_bounded_redacted_display_keeps_escape_sequence_boundary() {
     let actual = value.redacted().with_output_limit(limit(14)).to_string();
 
     assert_eq!(actual, "ab<truncated>");
+    assert!(!actual.ends_with("\\<truncated>"));
+}
+
+/// Verifies truncation preserves one escape emitted by a nested debug
+/// formatter.
+#[test]
+fn test_bounded_redacted_display_does_not_split_debug_escape_sequence() {
+    let value = DebugDiagnosticText {
+        value: "ab\nremaining-long",
+    };
+
+    let actual = value.redacted().with_output_limit(limit(15)).to_string();
+
+    assert_eq!(actual, "\"ab<truncated>");
     assert!(!actual.ends_with("\\<truncated>"));
 }
 
