@@ -87,12 +87,11 @@ const SESSION_FIELDS: [(&str, Sensitivity); 3] = [
 ];
 
 impl SensitiveFieldPreset {
-    /// Returns the static canonical field-name and sensitivity pairs in this
-    /// preset.
+    /// Returns the built-in field-name and sensitivity pairs in this preset.
     ///
     /// # Returns
     ///
-    /// The complete static field table for this preset.
+    /// The complete built-in field table for this preset.
     #[inline(always)]
     pub const fn fields(self) -> &'static [(&'static str, Sensitivity)] {
         match self {

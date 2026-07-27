@@ -6,6 +6,8 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- `FieldClassification` now reports the actual matched field candidate through
+  `FieldMatchKind`, separately from an allow rule's configured breadth.
 - Renamed the runtime package from `qubit-sanitize` to `qubit-redact` and
   separated the procedural macros into the directly consumed
   `qubit-redact-derive` package.
@@ -18,6 +20,8 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- Added builder operations to remove exact or suffix allow rules, or clear all
+  allow rules, including context-specific HTTP policy builders.
 - Added derive support for named, tuple, and unit structs and for named,
   tuple, and unit enum variants across redacted formatting, mutation, and
   serialization.
