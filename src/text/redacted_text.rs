@@ -9,10 +9,7 @@
 
 use std::borrow::Cow;
 
-use super::{
-    LogSafeText,
-    log_escape::escape_log_control_characters,
-};
+use super::{LogSafeText, log_escape::escape_log_control_characters};
 
 /// A value that has passed through field-sensitive redaction.
 ///
@@ -89,6 +86,7 @@ impl<'a> RedactedText<'a> {
     /// # Returns
     ///
     /// The redacted text with its ownership form preserved.
+    #[cfg(feature = "http")]
     #[must_use = "use the redacted value instead of the original value"]
     #[inline(always)]
     pub(crate) fn into_inner(self) -> Cow<'a, str> {

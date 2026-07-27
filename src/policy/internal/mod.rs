@@ -7,15 +7,10 @@
 // =============================================================================
 //! Internal field-name canonicalization and candidate generation.
 
-#[cfg(feature = "http")]
 mod bounded_mask_writer;
 mod field_name;
 mod redaction_policy_inner;
 
-#[cfg(feature = "http")]
 pub(super) use bounded_mask_writer::BoundedMaskWriter;
-pub(crate) use field_name::{
-    canonicalize_field_name,
-    visit_canonical_field_candidates,
-};
+pub(crate) use field_name::{canonicalize_field_name, visit_canonical_field_candidates};
 pub(super) use redaction_policy_inner::RedactionPolicyInner;

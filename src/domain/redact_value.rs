@@ -9,12 +9,9 @@
 
 use std::borrow::Cow;
 
-use crate::{
-    MaskingPolicy,
-    RedactedText,
-    RedactedValue,
-    Sensitivity,
-};
+use crate::{MaskingPolicy, RedactedText, RedactedValue, Sensitivity};
+
+use super::bounded_redacted_display::mask_byte_limit;
 
 /// Produces a borrowed or owned redacted representation of a textual value.
 ///
@@ -201,7 +198,11 @@ fn redact_text<'a>(
     level: Sensitivity,
     masking: &MaskingPolicy,
 ) -> RedactedText<'a> {
-    RedactedText::new(masking.mask(level, value))
+    let redacted = match mask_byte_limit() {
+        Some(max_bytes) => masking.mask_bounded(level, value, max_bytes),
+        None => masking.mask(level, value),
+    };
+    RedactedText::new(redacted)
 }
 
 /// Masks optional text without inspecting it when absent.
