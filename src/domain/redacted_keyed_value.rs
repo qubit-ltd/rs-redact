@@ -9,10 +9,20 @@
 
 use std::{
     fmt::Write as _,
-    fmt::{self, Debug, Display, Formatter},
+    fmt::{
+        self,
+        Debug,
+        Display,
+        Formatter,
+    },
 };
 
-use crate::{Redact, RedactValue, RedactionPolicy, text::internal::LogEscapeWriter};
+use crate::{
+    Redact,
+    RedactValue,
+    RedactionPolicy,
+    text::internal::LogEscapeWriter,
+};
 
 /// A borrowed value rendered according to a separate field key.
 ///
@@ -42,7 +52,11 @@ impl<'a, T: ?Sized> RedactedKeyedValue<'a, T> {
     /// A view that never modifies the original value.
     #[must_use = "format or serialize the keyed redaction view"]
     #[inline(always)]
-    pub const fn new(key: &'a str, value: &'a T, policy: RedactionPolicy) -> Self {
+    pub const fn new(
+        key: &'a str,
+        value: &'a T,
+        policy: RedactionPolicy,
+    ) -> Self {
         Self { key, value, policy }
     }
 
