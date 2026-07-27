@@ -7,28 +7,19 @@
 // =============================================================================
 //! Streaming construction of bounded redacted argv diagnostics.
 
-use std::{
-    ffi::OsStr,
-    fmt::Write as _,
-};
+use std::fmt::Write as _;
 
-use crate::{
-    DiagnosticBudget,
-    LogOutputLimit,
-    text::internal::BoundedLogEscapeWriter,
-};
+use crate::{DiagnosticBudget, LogOutputLimit, text::internal::BoundedLogEscapeWriter};
 
 use super::RedactedArgv;
 
 /// Marker rendered as one argv item after diagnostic input is exhausted.
-const TRUNCATED_ITEM: &str = "<truncated>";
+pub(super) const TRUNCATED_ITEM: &str = "<truncated>";
 
 /// Streams a byte-bounded argv rendering without retaining every token.
 pub(super) struct RedactedArgvBuilder {
     /// Escaped destination for the complete debug-style list.
     writer: BoundedLogEscapeWriter,
-    /// Source bytes that may still be inspected.
-    remaining_input_bytes: usize,
     /// Whether at least one item has been written.
     has_item: bool,
 }
@@ -42,20 +33,8 @@ impl RedactedArgvBuilder {
         let _ = writer.write_str("[");
         Self {
             writer,
-            remaining_input_bytes: budget.max_input_bytes(),
             has_item: false,
         }
-    }
-
-    /// Reserves source budget before an operating-system argument is inspected.
-    pub(super) fn reserve_input(&mut self, value: &OsStr) -> bool {
-        let byte_len = value.as_encoded_bytes().len();
-        if byte_len > self.remaining_input_bytes {
-            let _ = self.push(TRUNCATED_ITEM);
-            return false;
-        }
-        self.remaining_input_bytes -= byte_len;
-        true
     }
 
     /// Appends one already redacted token to the bounded debug-style list.

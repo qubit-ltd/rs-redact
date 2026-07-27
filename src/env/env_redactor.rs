@@ -7,18 +7,10 @@
 // =============================================================================
 //! Environment-variable pair and assignment redaction.
 
-use std::{
-    borrow::Cow,
-    ffi::OsStr,
-    fmt::Write as _,
-};
+use std::{borrow::Cow, ffi::OsStr, fmt::Write as _};
 
 use crate::{
-    LogOutputLimit,
-    LogSafeText,
-    RedactedText,
-    Redactor,
-    Sensitivity,
+    DiagnosticInputBudget, LogOutputLimit, LogSafeText, RedactedText, Redactor, Sensitivity,
     text::internal::BoundedLogEscapeWriter,
 };
 
@@ -92,11 +84,7 @@ impl EnvRedactor {
     /// # Returns
     ///
     /// A fail-closed, log-safe pair rendered as `NAME=VALUE`.
-    pub fn redact_os_pair(
-        &self,
-        name: &OsStr,
-        value: &OsStr,
-    ) -> RedactedEnvPair {
+    pub fn redact_os_pair(&self, name: &OsStr, value: &OsStr) -> RedactedEnvPair {
         match (name.to_str(), value.to_str()) {
             (Some(name), Some(value)) => self.redact_pair(name, value),
             _ => {
@@ -124,12 +112,34 @@ impl EnvRedactor {
     where
         I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
     {
+        let mut input_budget = self.redactor.policy().diagnostic_budget().input_budget();
+        self.redact_os_pairs_with_input_budget(pairs, &mut input_budget)
+    }
+
+    /// Redacts environment pairs using shared source-byte accounting.
+    ///
+    /// # Parameters
+    ///
+    /// * `pairs` - Operating-system environment names and values to redact.
+    /// * `input_budget` - Shared source-byte accounting for this diagnostic.
+    ///
+    /// # Returns
+    ///
+    /// A debug-style log-safe list, ending with `<truncated>` when the next
+    /// pair cannot be inspected within the shared budget.
+    pub fn redact_os_pairs_with_input_budget<'a, I>(
+        &self,
+        pairs: I,
+        input_budget: &mut DiagnosticInputBudget,
+    ) -> LogSafeText<'static>
+    where
+        I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
+    {
         let budget = self.redactor.policy().diagnostic_budget();
         let limit = LogOutputLimit::new(budget.max_output_bytes())
             .expect("diagnostic budgets always satisfy the log output minimum");
         let mut writer = BoundedLogEscapeWriter::new(limit);
         let _ = writer.write_str("[");
-        let mut remaining_input_bytes = budget.max_input_bytes();
         let mut has_item = false;
 
         for (name, value) in pairs {
@@ -140,11 +150,10 @@ impl EnvRedactor {
                 .as_encoded_bytes()
                 .len()
                 .saturating_add(value.as_encoded_bytes().len());
-            if pair_bytes > remaining_input_bytes {
+            if !input_budget.reserve(pair_bytes) {
                 write_debug_item(&mut writer, &mut has_item, "<truncated>");
                 break;
             }
-            remaining_input_bytes -= pair_bytes;
             let pair = self.redact_os_pair(name, value).to_string();
             write_debug_item(&mut writer, &mut has_item, &pair);
         }
@@ -168,8 +177,7 @@ impl EnvRedactor {
     /// A log-safe pair rendered as `NAME=VALUE`.
     #[inline]
     pub fn redact_assignment(&self, assignment: &str) -> RedactedEnvPair {
-        let (name, value) =
-            assignment.split_once('=').unwrap_or((assignment, ""));
+        let (name, value) = assignment.split_once('=').unwrap_or((assignment, ""));
         self.redact_pair(name, value)
     }
 
@@ -221,11 +229,7 @@ fn log_safe_owned(value: String) -> LogSafeText<'static> {
 /// * `writer` - Escaped bounded output destination.
 /// * `has_item` - Whether a preceding list item has already been rendered.
 /// * `item` - Redacted assignment safe to format.
-fn write_debug_item(
-    writer: &mut BoundedLogEscapeWriter,
-    has_item: &mut bool,
-    item: &str,
-) {
+fn write_debug_item(writer: &mut BoundedLogEscapeWriter, has_item: &mut bool, item: &str) {
     if *has_item {
         let _ = writer.write_str(", ");
     }

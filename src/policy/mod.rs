@@ -10,6 +10,7 @@
 mod allow_rule;
 mod diagnostic_budget;
 mod diagnostic_budget_error;
+mod diagnostic_input_budget;
 mod field_classification;
 mod field_name_matching;
 mod global_default_already_set;
@@ -26,6 +27,7 @@ mod sensitivity;
 pub use allow_rule::AllowRule;
 pub use diagnostic_budget::DiagnosticBudget;
 pub use diagnostic_budget_error::DiagnosticBudgetError;
+pub use diagnostic_input_budget::DiagnosticInputBudget;
 pub use field_classification::FieldClassification;
 pub use field_name_matching::FieldNameMatching;
 pub use global_default_already_set::GlobalDefaultAlreadySet;

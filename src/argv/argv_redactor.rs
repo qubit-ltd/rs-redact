@@ -7,20 +7,11 @@
 // =============================================================================
 //! Explicit and heuristic argument-vector redaction.
 
-use std::{
-    borrow::Cow,
-    ffi::OsStr,
-};
+use std::{borrow::Cow, ffi::OsStr};
 
-use crate::{
-    Redactor,
-    Sensitivity,
-};
+use crate::{DiagnosticInputBudget, Redactor, Sensitivity};
 
-use super::{
-    ArgvItem,
-    RedactedArgv,
-};
+use super::{ArgvItem, RedactedArgv, redacted_argv_builder::TRUNCATED_ITEM};
 
 /// Applies one immutable redaction policy to argument vectors.
 #[must_use = "use the redactor to produce a safe argv rendering"]
@@ -73,10 +64,37 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut rendered =
-            RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
+        let mut input_budget = self.redactor.policy().diagnostic_budget().input_budget();
+        self.redact_items_with_input_budget(items, &mut input_budget)
+    }
+
+    /// Redacts explicitly classified values using shared input accounting.
+    ///
+    /// The caller owns `input_budget` and may pass it to later diagnostic
+    /// segments, ensuring the combined rendering never inspects more source
+    /// bytes than the configured policy permits.
+    ///
+    /// # Parameters
+    ///
+    /// * `items` - Borrowed argv items with optional authoritative levels.
+    /// * `input_budget` - Shared source-byte accounting for this diagnostic.
+    ///
+    /// # Returns
+    ///
+    /// A log-safe rendering in input order, ending with `<truncated>` when the
+    /// next item cannot be inspected within the shared budget.
+    pub fn redact_items_with_input_budget<'a, I>(
+        &self,
+        items: I,
+        input_budget: &mut DiagnosticInputBudget,
+    ) -> RedactedArgv
+    where
+        I: IntoIterator<Item = ArgvItem<'a>>,
+    {
+        let mut rendered = RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
         for item in items {
-            if !rendered.reserve_input(item.value()) {
+            if !input_budget.reserve(item.value().as_encoded_bytes().len()) {
+                let _ = rendered.push(TRUNCATED_ITEM);
                 break;
             }
             if !rendered.push(&self.render_explicit_or_plain(item)) {
@@ -110,12 +128,39 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut rendered =
-            RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
+        let mut input_budget = self.redactor.policy().diagnostic_budget().input_budget();
+        self.redact_heuristically_with_input_budget(items, &mut input_budget)
+    }
+
+    /// Redacts explicit and heuristic values using shared input accounting.
+    ///
+    /// The caller owns `input_budget` and may pass it to later diagnostic
+    /// segments, ensuring the combined rendering never inspects more source
+    /// bytes than the configured policy permits.
+    ///
+    /// # Parameters
+    ///
+    /// * `items` - Borrowed argv items with optional authoritative levels.
+    /// * `input_budget` - Shared source-byte accounting for this diagnostic.
+    ///
+    /// # Returns
+    ///
+    /// A log-safe rendering in input order, ending with `<truncated>` when the
+    /// next item cannot be inspected within the shared budget.
+    pub fn redact_heuristically_with_input_budget<'a, I>(
+        &self,
+        items: I,
+        input_budget: &mut DiagnosticInputBudget,
+    ) -> RedactedArgv
+    where
+        I: IntoIterator<Item = ArgvItem<'a>>,
+    {
+        let mut rendered = RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
         let mut pending_sensitivity = None;
 
         for item in items {
-            if !rendered.reserve_input(item.value()) {
+            if !input_budget.reserve(item.value().as_encoded_bytes().len()) {
+                let _ = rendered.push(TRUNCATED_ITEM);
                 break;
             }
             if let Some(level) = item.sensitivity() {
@@ -125,9 +170,7 @@ impl ArgvRedactor {
                 }
                 continue;
             }
-            if !rendered.push(
-                &self.redact_plain_item(item.value(), &mut pending_sensitivity),
-            ) {
+            if !rendered.push(&self.redact_plain_item(item.value(), &mut pending_sensitivity)) {
                 break;
             }
         }
@@ -192,10 +235,8 @@ impl ArgvRedactor {
     ) -> String {
         let Some(value) = value.to_str() else {
             let encoded = value.as_encoded_bytes();
-            let may_take_separate_value =
-                encoded.starts_with(b"-") && !encoded.contains(&b'=');
-            *pending_sensitivity =
-                may_take_separate_value.then_some(Sensitivity::Secret);
+            let may_take_separate_value = encoded.starts_with(b"-") && !encoded.contains(&b'=');
+            *pending_sensitivity = may_take_separate_value.then_some(Sensitivity::Secret);
             return self.mask_opaque_value();
         };
 
