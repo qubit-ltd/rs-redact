@@ -7,11 +7,16 @@
 // =============================================================================
 //! Whitelisted Serde container attributes for redacted serialization.
 
-use syn::{DeriveInput, LitStr, spanned::Spanned};
+use syn::{
+    DeriveInput,
+    LitStr,
+    spanned::Spanned,
+};
 
 use crate::{
     serde_container_attribute_parser::SerdeContainerAttributeParser,
-    serde_enum_representation::SerdeEnumRepresentation, serde_rename_rule::SerdeRenameRule,
+    serde_enum_representation::SerdeEnumRepresentation,
+    serde_rename_rule::SerdeRenameRule,
 };
 
 /// Validated names, rename rules, and enum representation.
@@ -43,7 +48,10 @@ impl SerdeContainerAttributes {
     ///
     /// Returns a targeted error for unsupported attributes, duplicates,
     /// invalid representation combinations, or enum-only controls on structs.
-    pub(crate) fn parse(input: &DeriveInput, enabled: bool) -> syn::Result<Self> {
+    pub(crate) fn parse(
+        input: &DeriveInput,
+        enabled: bool,
+    ) -> syn::Result<Self> {
         SerdeContainerAttributeParser::parse(input, enabled)
     }
 
@@ -182,7 +190,9 @@ fn representation(
                 input.ident,
             ),
         )),
-        (Some(tag), None) => Ok(SerdeEnumRepresentation::InternallyTagged { tag: tag.value() }),
+        (Some(tag), None) => {
+            Ok(SerdeEnumRepresentation::InternallyTagged { tag: tag.value() })
+        }
         (Some(tag), Some(content)) => {
             if tag.value() == content.value() {
                 return Err(syn::Error::new_spanned(

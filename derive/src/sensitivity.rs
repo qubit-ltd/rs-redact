@@ -8,8 +8,15 @@
 //! Strict derive-side representation of supported sensitivity spellings.
 
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
-use syn::{Ident, LitStr, Path};
+use quote::{
+    format_ident,
+    quote,
+};
+use syn::{
+    Ident,
+    LitStr,
+    Path,
+};
 
 /// Validated sensitivity level used to generate a runtime variant path.
 #[must_use]

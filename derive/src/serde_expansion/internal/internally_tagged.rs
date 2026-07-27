@@ -12,13 +12,19 @@ use quote::quote;
 use syn::Path;
 
 use crate::{
-    internal::{FieldsData, VariantData},
+    internal::{
+        FieldsData,
+        VariantData,
+    },
     serde_container_attributes::SerdeContainerAttributes,
 };
 
 use super::{
     naming::serialized_variant_name,
-    variant_fields::{enum_named_parts, enum_unnamed_parts},
+    variant_fields::{
+        enum_named_parts,
+        enum_unnamed_parts,
+    },
 };
 
 /// Generates one internally tagged variant arm.
@@ -35,15 +41,18 @@ pub(super) fn internal_variant_arm(
     let enum_name = container_attributes.name();
     match variant.fields() {
         FieldsData::Named(fields) => {
-            let (pattern, setups, conditions, names, carriers) = enum_named_parts(
-                type_name,
-                rust_name,
-                fields,
-                runtime,
-                container_attributes,
-                variant,
-            );
-            if let Some((field, _)) = fields.iter().zip(&names).find(|(_, name)| *name == tag) {
+            let (pattern, setups, conditions, names, carriers) =
+                enum_named_parts(
+                    type_name,
+                    rust_name,
+                    fields,
+                    runtime,
+                    container_attributes,
+                    variant,
+                );
+            if let Some((field, _)) =
+                fields.iter().zip(&names).find(|(_, name)| *name == tag)
+            {
                 return Err(syn::Error::new_spanned(
                     field.field(),
                     format!(

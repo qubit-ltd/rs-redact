@@ -7,9 +7,15 @@
 // =============================================================================
 //! Parsed state for one unnamed derive field.
 
-use syn::{Field, Index};
+use syn::{
+    Field,
+    Index,
+};
 
-use crate::{field_attributes::FieldAttributes, serde_attributes::SerdeAttributes};
+use crate::{
+    field_attributes::FieldAttributes,
+    serde_attributes::SerdeAttributes,
+};
 
 /// One positional field with validated redaction and serde attributes.
 #[must_use]

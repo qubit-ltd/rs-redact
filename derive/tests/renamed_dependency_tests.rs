@@ -7,7 +7,10 @@
 // =============================================================================
 //! Verifies runtime dependency alias resolution.
 
-use std::{env, path::PathBuf};
+use std::{
+    env,
+    path::PathBuf,
+};
 
 mod support;
 
@@ -15,7 +18,8 @@ mod support;
 #[test]
 fn test_renamed_runtime_dependency_compiles() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let manifest = manifest_dir.join("tests/fixtures/crates/renamed_dependency/Cargo.toml");
+    let manifest = manifest_dir
+        .join("tests/fixtures/crates/renamed_dependency/Cargo.toml");
     let target_dir = manifest_dir.join("../target/renamed-dependency-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let status = support::isolated_cargo::command(&cargo)

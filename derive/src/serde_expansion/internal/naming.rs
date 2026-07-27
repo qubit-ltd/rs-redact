@@ -8,17 +8,24 @@
 //! Serialized variant names and adjacent-content proxy generation.
 
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::{
+    format_ident,
+    quote,
+};
 use syn::Path;
 
-use crate::{internal::VariantData, serde_container_attributes::SerdeContainerAttributes};
+use crate::{
+    internal::VariantData,
+    serde_container_attributes::SerdeContainerAttributes,
+};
 
 /// Returns one variant's final serialized name.
 pub(super) fn serialized_variant_name(
     variant: &VariantData<'_>,
     container_attributes: &SerdeContainerAttributes,
 ) -> String {
-    let default_name = container_attributes.rename_variant(&variant.variant().ident.to_string());
+    let default_name = container_attributes
+        .rename_variant(&variant.variant().ident.to_string());
     variant.serde_attributes().rename_variant(default_name)
 }
 

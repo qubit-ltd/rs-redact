@@ -86,7 +86,9 @@ impl SerdeRenameRule {
             }
             Self::ScreamingSnakeCase => name.to_ascii_uppercase(),
             Self::KebabCase => name.replace('_', "-"),
-            Self::ScreamingKebabCase => name.to_ascii_uppercase().replace('_', "-"),
+            Self::ScreamingKebabCase => {
+                name.to_ascii_uppercase().replace('_', "-")
+            }
         }
     }
 
@@ -114,7 +116,9 @@ impl SerdeRenameRule {
             Self::SnakeCase => snake_case(name),
             Self::ScreamingSnakeCase => snake_case(name).to_ascii_uppercase(),
             Self::KebabCase => snake_case(name).replace('_', "-"),
-            Self::ScreamingKebabCase => snake_case(name).to_ascii_uppercase().replace('_', "-"),
+            Self::ScreamingKebabCase => {
+                snake_case(name).to_ascii_uppercase().replace('_', "-")
+            }
         }
     }
 }

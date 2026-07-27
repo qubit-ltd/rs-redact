@@ -8,9 +8,18 @@
 //! Strict field-level `redact` attribute parsing.
 
 use quote::ToTokens;
-use syn::{Field, Ident, LitStr, Meta, Token};
+use syn::{
+    Field,
+    Ident,
+    LitStr,
+    Meta,
+    Token,
+};
 
-use crate::{field_mode::FieldMode, sensitivity::Sensitivity};
+use crate::{
+    field_mode::FieldMode,
+    sensitivity::Sensitivity,
+};
 
 /// Parsed attributes selecting exactly one mode for a named field.
 pub(crate) struct FieldAttributes {
@@ -36,7 +45,11 @@ impl FieldAttributes {
     /// Returns an error at the offending attribute for empty attributes,
     /// duplicate or conflicting modes, unknown keys, invalid arguments, or an
     /// unsupported sensitivity spelling.
-    pub(crate) fn parse(field: &Field, type_name: &Ident, field_name: &str) -> syn::Result<Self> {
+    pub(crate) fn parse(
+        field: &Field,
+        type_name: &Ident,
+        field_name: &str,
+    ) -> syn::Result<Self> {
         let mut selected = None;
         for attribute in &field.attrs {
             if !attribute.path().is_ident("redact") {
@@ -114,7 +127,12 @@ fn parse_mode(
             &literal, type_name, field_name,
         )?))
     } else if meta.path.is_ident("skip") {
-        require_bare(meta, type_name, field_name, "bare `skip` without arguments")?;
+        require_bare(
+            meta,
+            type_name,
+            field_name,
+            "bare `skip` without arguments",
+        )?;
         Ok(FieldMode::Skip)
     } else if meta.path.is_ident("nested") {
         require_bare(
@@ -224,6 +242,8 @@ fn field_error(
 ) -> syn::Error {
     syn::Error::new_spanned(
         tokens,
-        format!("Redact derive for `{type_name}` field `{field_name}`: {message}"),
+        format!(
+            "Redact derive for `{type_name}` field `{field_name}`: {message}"
+        ),
     )
 }

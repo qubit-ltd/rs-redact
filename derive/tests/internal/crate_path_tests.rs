@@ -9,9 +9,15 @@
 
 use std::path::PathBuf;
 
-use proc_macro_crate::{Error, FoundCrate};
+use proc_macro_crate::{
+    Error,
+    FoundCrate,
+};
 use quote::ToTokens;
-use syn::{DeriveInput, Path};
+use syn::{
+    DeriveInput,
+    Path,
+};
 
 /// Production crate-path mapper compiled into this black-box test.
 mod crate_path {

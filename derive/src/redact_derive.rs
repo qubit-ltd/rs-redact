@@ -10,7 +10,10 @@
 use proc_macro::TokenStream;
 use syn::DeriveInput;
 
-use crate::{redact_expansion, runtime_path};
+use crate::{
+    redact_expansion,
+    runtime_path,
+};
 
 /// Parses and expands one `Redact` derive invocation.
 ///
