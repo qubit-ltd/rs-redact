@@ -15,6 +15,7 @@ use std::{
         Layout,
         System,
     },
+    sync::Mutex,
     sync::atomic::{
         AtomicBool,
         AtomicUsize,
@@ -45,6 +46,8 @@ static TRACK_ALLOCATIONS: AtomicBool = AtomicBool::new(false);
 static LARGEST_ALLOCATION: AtomicUsize = AtomicUsize::new(0);
 /// Counts allocations and reallocations while tracking is enabled.
 static ALLOCATION_COUNT: AtomicUsize = AtomicUsize::new(0);
+/// Serializes tests that use the process-global allocation measurement state.
+static ALLOCATION_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 /// Global allocator that records the largest narrowly scoped allocation.
 struct MeasuringAllocator;
@@ -127,6 +130,9 @@ fn measure_allocations<T>(operation: impl FnOnce() -> T) -> (T, usize, usize) {
 /// Verifies HTTP diagnostic allocations follow the rendered output budget.
 #[test]
 fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
+    let _lock = ALLOCATION_TEST_LOCK
+        .lock()
+        .expect("allocation measurement lock should not be poisoned");
     let redactor = HttpRedactor::default();
 
     let (result, largest, _) = measure_allocations(|| {
@@ -213,6 +219,9 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
 /// Verifies structured JSON shares one mask budget across every sensitive key.
 #[test]
 fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
+    let _lock = ALLOCATION_TEST_LOCK
+        .lock()
+        .expect("allocation measurement lock should not be poisoned");
     let replacement = "X".repeat(64 * 1024);
     let mut builder = RedactionPolicy::empty_builder()
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
