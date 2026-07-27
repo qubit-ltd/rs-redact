@@ -9,24 +9,16 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{
-    DeriveInput,
-    Path,
-};
+use syn::{DeriveInput, Path};
 
 use crate::{
     field_assertion,
-    internal::{
-        ContainerData,
-        FieldsData,
-    },
+    internal::{ContainerData, FieldsData},
     serde_container_attributes::SerdeContainerAttributes,
 };
 
 use super::{
-    enum_expansion::enum_body,
-    field_serialization::field_context,
-    struct_expansion::struct_body,
+    enum_expansion::enum_body, field_serialization::field_context, struct_expansion::struct_body,
 };
 
 /// Generates optional redacted serialization for every supported input shape.
@@ -58,27 +50,17 @@ pub(crate) fn expand(
         return Ok(TokenStream::new());
     };
 
-    let serialization_assertions =
-        serialization_assertions(&input.ident, model, runtime);
+    let serialization_assertions = serialization_assertions(&input.ident, model, runtime);
     let body = match model {
-        ContainerData::Struct(fields) => struct_body(
-            &input.ident,
-            fields,
-            runtime,
-            serde,
-            container_attributes,
-        ),
-        ContainerData::Enum(variants) => enum_body(
-            &input.ident,
-            variants,
-            runtime,
-            serde,
-            container_attributes,
-        )?,
+        ContainerData::Struct(fields) => {
+            struct_body(&input.ident, fields, runtime, serde, container_attributes)
+        }
+        ContainerData::Enum(variants) => {
+            enum_body(&input.ident, variants, runtime, serde, container_attributes)?
+        }
     };
     let name = &input.ident;
-    let (impl_generics, type_generics, where_clause) =
-        input.generics.split_for_impl();
+    let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
 
     Ok(quote! {
         #runtime::__qubit_redact_serde! {

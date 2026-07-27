@@ -7,18 +7,9 @@
 // =============================================================================
 //! Tests for explicit destructive domain-object redaction.
 
-use std::{
-    borrow::Cow,
-    collections::HashMap,
-};
+use std::{borrow::Cow, collections::HashMap};
 
-use qubit_redact::{
-    MaskPolicy,
-    RedactMut,
-    RedactValueMut,
-    RedactionPolicy,
-    Sensitivity,
-};
+use qubit_redact::{MaskPolicy, RedactMut, RedactValueMut, RedactionPolicy, Sensitivity};
 use qubit_redact_derive::RedactMut;
 
 /// Mutable leaf used by nested redaction.
@@ -104,10 +95,7 @@ fn account() -> MutableAccount {
     MutableAccount {
         id: 3,
         password: "raw-password".to_owned(),
-        metadata: HashMap::from([(
-            "token".to_owned(),
-            "raw-map-token".to_owned(),
-        )]),
+        metadata: HashMap::from([("token".to_owned(), "raw-map-token".to_owned())]),
         internal_note: "unchanged".to_owned(),
         primary: MutableCredential {
             token: "raw-primary".to_owned(),
@@ -182,21 +170,9 @@ fn test_redact_value_mut_supports_owned_value_forms() {
     let mut cow = Cow::Borrowed("raw-cow");
     let mut optional = Some(String::from("raw-option"));
 
-    RedactValueMut::redact_value_in_place(
-        &mut text,
-        Sensitivity::Secret,
-        &masking,
-    );
-    RedactValueMut::redact_value_in_place(
-        &mut cow,
-        Sensitivity::Secret,
-        &masking,
-    );
-    RedactValueMut::redact_value_in_place(
-        &mut optional,
-        Sensitivity::Secret,
-        &masking,
-    );
+    RedactValueMut::redact_value_in_place(&mut text, Sensitivity::Secret, &masking);
+    RedactValueMut::redact_value_in_place(&mut cow, Sensitivity::Secret, &masking);
+    RedactValueMut::redact_value_in_place(&mut optional, Sensitivity::Secret, &masking);
 
     assert_eq!(text, "[strict]");
     assert_eq!(cow, "[strict]");
@@ -211,21 +187,9 @@ fn test_redact_value_mut_preserves_empty_and_absent_values() {
     let mut cow = Cow::Borrowed("");
     let mut optional: Option<String> = None;
 
-    RedactValueMut::redact_value_in_place(
-        &mut text,
-        Sensitivity::Secret,
-        &masking,
-    );
-    RedactValueMut::redact_value_in_place(
-        &mut cow,
-        Sensitivity::Secret,
-        &masking,
-    );
-    RedactValueMut::redact_value_in_place(
-        &mut optional,
-        Sensitivity::Secret,
-        &masking,
-    );
+    RedactValueMut::redact_value_in_place(&mut text, Sensitivity::Secret, &masking);
+    RedactValueMut::redact_value_in_place(&mut cow, Sensitivity::Secret, &masking);
+    RedactValueMut::redact_value_in_place(&mut optional, Sensitivity::Secret, &masking);
 
     assert_eq!(text, "");
     assert_eq!(cow, "");
@@ -236,8 +200,7 @@ fn test_redact_value_mut_preserves_empty_and_absent_values() {
 /// safe.
 #[test]
 fn test_redact_mut_supports_tuple_and_unit_structs() {
-    let mut tuple =
-        MutableTuple(String::from("raw-tuple"), String::from("unchanged"));
+    let mut tuple = MutableTuple(String::from("raw-tuple"), String::from("unchanged"));
     let mut unit = MutableUnit;
 
     tuple.redact_in_place_with(&strict_policy());
@@ -254,10 +217,7 @@ fn test_redact_mut_supports_all_enum_variant_shapes() {
     let policy = strict_policy();
     let mut named = MutableEvent::Named {
         password: String::from("raw-password"),
-        metadata: HashMap::from([(
-            String::from("token"),
-            String::from("raw-map"),
-        )]),
+        metadata: HashMap::from([(String::from("token"), String::from("raw-map"))]),
         visible: String::from("shown"),
     };
     let mut tuple = MutableEvent::Tuple(

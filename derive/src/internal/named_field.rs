@@ -7,15 +7,9 @@
 // =============================================================================
 //! Parsed state for one named derive field.
 
-use syn::{
-    Field,
-    Ident,
-};
+use syn::{Field, Ident};
 
-use crate::{
-    field_attributes::FieldAttributes,
-    serde_attributes::SerdeAttributes,
-};
+use crate::{field_attributes::FieldAttributes, serde_attributes::SerdeAttributes};
 
 /// One named field with validated redaction and serde attributes.
 #[must_use]

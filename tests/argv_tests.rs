@@ -11,32 +11,18 @@ mod argv;
 
 use std::ffi::OsStr;
 #[cfg(unix)]
-use std::{
-    ffi::OsString,
-    os::unix::ffi::OsStringExt,
-};
+use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
-use proptest::prelude::{
-    prop_assert,
-    prop_assert_eq,
-    proptest,
-};
+use proptest::prelude::{prop_assert, prop_assert_eq, proptest};
 
 use qubit_redact::{
-    DiagnosticBudget,
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-    argv::{
-        ArgvItem,
-        ArgvRedactor,
-    },
+    DiagnosticBudget, RedactionPolicy, Redactor, Sensitivity,
+    argv::{ArgvItem, ArgvRedactor},
 };
 
 /// Creates a redactor with deliberately small diagnostic limits.
 fn bounded_redactor() -> ArgvRedactor {
-    let budget = DiagnosticBudget::new(8, 64)
-        .expect("the small diagnostic budget should be valid");
+    let budget = DiagnosticBudget::new(8, 64).expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()
@@ -101,8 +87,7 @@ fn test_redact_items_does_not_guess_plain_item_roles() {
 /// Verifies that heuristic classification applies only to remaining plain
 /// items.
 #[test]
-fn test_redact_heuristically_preserves_explicit_levels_and_matches_plain_options()
- {
+fn test_redact_heuristically_preserves_explicit_levels_and_matches_plain_options() {
     let items = [
         ArgvItem::plain(OsStr::new("tool")),
         ArgvItem::plain(OsStr::new("--password")),

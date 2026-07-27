@@ -8,31 +8,16 @@
 //! Bindings and carriers shared by enum representation expansions.
 
 use proc_macro2::TokenStream;
-use quote::{
-    format_ident,
-    quote,
-    quote_spanned,
-};
-use syn::{
-    Path,
-    spanned::Spanned,
-};
+use quote::{format_ident, quote, quote_spanned};
+use syn::{Path, spanned::Spanned};
 
 use crate::{
-    internal::{
-        NamedField,
-        UnnamedField,
-        VariantData,
-    },
+    internal::{NamedField, UnnamedField, VariantData},
     serde_container_attributes::SerdeContainerAttributes,
 };
 
 use super::field_serialization::{
-    field_context,
-    field_is_skipped,
-    raw_identifier,
-    serialization_condition,
-    serialized_carrier,
+    field_context, field_is_skipped, raw_identifier, serialization_condition, serialized_carrier,
 };
 
 /// Builds bindings, carriers, names, and conditions for named enum fields.
@@ -52,10 +37,7 @@ pub(super) fn enum_named_parts(
 ) {
     let patterns = fields.iter().map(|parsed| {
         let identifier = parsed.identifier();
-        if field_is_skipped(
-            parsed.attributes().mode(),
-            parsed.serde_attributes(),
-        ) {
+        if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
             quote!(#identifier: _)
         } else {
             quote!(#identifier)
@@ -66,17 +48,13 @@ pub(super) fn enum_named_parts(
     let mut names = Vec::new();
     let mut carriers = Vec::new();
     for (position, parsed) in fields.iter().enumerate() {
-        if field_is_skipped(
-            parsed.attributes().mode(),
-            parsed.serde_attributes(),
-        ) {
+        if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
             continue;
         }
         let field = parsed.field();
         let identifier = parsed.identifier();
         let raw_name = raw_identifier(identifier);
-        let container_name =
-            container_attributes.rename_variant_field(&raw_name);
+        let container_name = container_attributes.rename_variant_field(&raw_name);
         let default_name = variant
             .serde_attributes()
             .rename_field(&raw_name, container_name);
@@ -139,10 +117,7 @@ pub(super) fn enum_unnamed_parts(
         })
         .collect::<Vec<_>>();
     let patterns = fields.iter().zip(&bindings).map(|(parsed, binding)| {
-        if field_is_skipped(
-            parsed.attributes().mode(),
-            parsed.serde_attributes(),
-        ) {
+        if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
             quote!(_)
         } else {
             quote!(#binding)
@@ -151,13 +126,8 @@ pub(super) fn enum_unnamed_parts(
     let mut setups = Vec::new();
     let mut conditions = Vec::new();
     let mut carriers = Vec::new();
-    for (position, (parsed, binding)) in
-        fields.iter().zip(&bindings).enumerate()
-    {
-        if field_is_skipped(
-            parsed.attributes().mode(),
-            parsed.serde_attributes(),
-        ) {
+    for (position, (parsed, binding)) in fields.iter().zip(&bindings).enumerate() {
+        if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
             continue;
         }
         let field = parsed.field();

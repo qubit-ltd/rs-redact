@@ -9,17 +9,9 @@
 
 use std::ffi::OsStr;
 
-use crate::{
-    DiagnosticInputBudget,
-    Redactor,
-    Sensitivity,
-};
+use crate::{DiagnosticInputBudget, Redactor, Sensitivity};
 
-use super::{
-    ArgvItem,
-    RedactedArgv,
-    redacted_argv_builder::TRUNCATED_ITEM,
-};
+use super::{ArgvItem, RedactedArgv, redacted_argv_builder::TRUNCATED_ITEM};
 
 /// Applies one immutable redaction policy to argument vectors.
 #[must_use = "use the redactor to produce a safe argv rendering"]
@@ -72,8 +64,7 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut input_budget =
-            self.redactor.policy().diagnostic_budget().input_budget();
+        let mut input_budget = self.redactor.policy().diagnostic_budget().input_budget();
         self.redact_items_with_input_budget(items, &mut input_budget)
     }
 
@@ -100,8 +91,7 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut rendered =
-            RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
+        let mut rendered = RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
         for item in items {
             if !input_budget.reserve(item.value().as_encoded_bytes().len()) {
                 let _ = rendered.push(TRUNCATED_ITEM);
@@ -138,8 +128,7 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut input_budget =
-            self.redactor.policy().diagnostic_budget().input_budget();
+        let mut input_budget = self.redactor.policy().diagnostic_budget().input_budget();
         self.redact_heuristically_with_input_budget(items, &mut input_budget)
     }
 
@@ -166,8 +155,7 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut rendered =
-            RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
+        let mut rendered = RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
         let mut pending_sensitivity = None;
 
         for item in items {
@@ -182,9 +170,7 @@ impl ArgvRedactor {
                 }
                 continue;
             }
-            if !rendered.push(
-                &self.redact_plain_item(item.value(), &mut pending_sensitivity),
-            ) {
+            if !rendered.push(&self.redact_plain_item(item.value(), &mut pending_sensitivity)) {
                 break;
             }
         }
@@ -249,10 +235,8 @@ impl ArgvRedactor {
     ) -> String {
         let Some(value) = value.to_str() else {
             let encoded = value.as_encoded_bytes();
-            let may_take_separate_value =
-                encoded.starts_with(b"-") && !encoded.contains(&b'=');
-            *pending_sensitivity =
-                may_take_separate_value.then_some(Sensitivity::Secret);
+            let may_take_separate_value = encoded.starts_with(b"-") && !encoded.contains(&b'=');
+            *pending_sensitivity = may_take_separate_value.then_some(Sensitivity::Secret);
             return self.mask_opaque_value();
         };
 

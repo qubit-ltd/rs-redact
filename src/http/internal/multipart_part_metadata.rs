@@ -9,10 +9,7 @@
 
 use super::{
     content_type,
-    header_parameter::{
-        leading_token,
-        parse_parameters,
-    },
+    header_parameter::{leading_token, parse_parameters},
 };
 
 /// Holds the field identity, filename evidence, and media type of one part.
@@ -51,15 +48,10 @@ impl<'a> MultipartPartMetadata<'a> {
         let [name, filename, extended] = match disposition {
             Some(disposition) => {
                 let disposition_kind = leading_token(disposition)?;
-                if require_form_data
-                    && !disposition_kind.eq_ignore_ascii_case("form-data")
-                {
+                if require_form_data && !disposition_kind.eq_ignore_ascii_case("form-data") {
                     return None;
                 }
-                parse_parameters(
-                    disposition,
-                    ["name", "filename", "filename*"],
-                )?
+                parse_parameters(disposition, ["name", "filename", "filename*"])?
             }
             None if require_form_data => return None,
             None => [None, None, None],

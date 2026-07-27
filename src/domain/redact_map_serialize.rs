@@ -7,15 +7,9 @@
 // =============================================================================
 //! Hidden serialization hook for redacted text-valued maps.
 
-use serde::{
-    Serialize,
-    ser::SerializeMap,
-};
+use serde::{Serialize, ser::SerializeMap};
 
-use crate::{
-    RedactValue,
-    RedactionPolicy,
-};
+use crate::{RedactValue, RedactionPolicy};
 
 /// Serializes map values after classifying them by runtime key.
 #[doc(hidden)]

@@ -7,16 +7,9 @@
 // =============================================================================
 //! Complete immutable state shared by redaction policy clones.
 
-use std::collections::{
-    BTreeMap,
-    BTreeSet,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
-use crate::policy::{
-    FieldNameMatching,
-    MaskingPolicy,
-    Sensitivity,
-};
+use crate::policy::{FieldNameMatching, MaskingPolicy, Sensitivity};
 
 /// Complete immutable state shared by policy clones.
 #[derive(Debug, Clone, PartialEq, Eq)]

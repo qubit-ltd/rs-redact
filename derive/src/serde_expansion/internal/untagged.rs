@@ -12,19 +12,13 @@ use quote::quote;
 use syn::Path;
 
 use crate::{
-    internal::{
-        FieldsData,
-        VariantData,
-    },
+    internal::{FieldsData, VariantData},
     serde_container_attributes::SerdeContainerAttributes,
 };
 
 use super::{
     naming::serialized_variant_name,
-    variant_fields::{
-        enum_named_parts,
-        enum_unnamed_parts,
-    },
+    variant_fields::{enum_named_parts, enum_unnamed_parts},
 };
 
 /// Generates one untagged variant arm.
@@ -39,15 +33,14 @@ pub(super) fn untagged_variant_arm(
     let variant_name = serialized_variant_name(variant, container_attributes);
     let arm = match variant.fields() {
         FieldsData::Named(fields) => {
-            let (pattern, setups, conditions, names, carriers) =
-                enum_named_parts(
-                    type_name,
-                    rust_name,
-                    fields,
-                    runtime,
-                    container_attributes,
-                    variant,
-                );
+            let (pattern, setups, conditions, names, carriers) = enum_named_parts(
+                type_name,
+                rust_name,
+                fields,
+                runtime,
+                container_attributes,
+                variant,
+            );
             let count_conditions = &conditions;
             let calls = conditions.iter().zip(&names).zip(&carriers).map(
                 |((_condition, field_name), carrier)| {

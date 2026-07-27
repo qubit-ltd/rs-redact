@@ -8,19 +8,10 @@
 //! Shared field-level serialization expressions and naming context.
 
 use proc_macro2::TokenStream;
-use quote::{
-    quote,
-    quote_spanned,
-};
-use syn::{
-    Path,
-    spanned::Spanned,
-};
+use quote::{quote, quote_spanned};
+use syn::{Path, spanned::Spanned};
 
-use crate::{
-    field_assertion,
-    field_mode::FieldMode,
-};
+use crate::{field_assertion, field_mode::FieldMode};
 
 /// Returns whether a field is omitted by redaction or Serde controls.
 pub(super) fn field_is_skipped(
@@ -62,21 +53,12 @@ pub(super) fn serialized_carrier(
             }
         }
         FieldMode::Nested => {
-            let helper = field_assertion::helper_name(
-                type_name,
-                field,
-                context,
-                "RedactSerialize",
-            );
+            let helper = field_assertion::helper_name(type_name, field, context, "RedactSerialize");
             quote_spanned!(field.span()=> #helper(#raw, policy))
         }
         FieldMode::Map => {
-            let helper = field_assertion::helper_name(
-                type_name,
-                field,
-                context,
-                "RedactMapSerialize",
-            );
+            let helper =
+                field_assertion::helper_name(type_name, field, context, "RedactMapSerialize");
             quote_spanned!(field.span()=> #helper(#raw, policy))
         }
         FieldMode::Skip => TokenStream::new(),
@@ -92,10 +74,7 @@ pub(super) fn raw_identifier(identifier: &syn::Ident) -> String {
 }
 
 /// Creates a helper-name context unique within an enum.
-pub(super) fn field_context(
-    variant_name: Option<&syn::Ident>,
-    field_name: &str,
-) -> String {
+pub(super) fn field_context(variant_name: Option<&syn::Ident>, field_name: &str) -> String {
     variant_name.map_or_else(
         || field_name.to_owned(),
         |variant| format!("{variant}_{field_name}"),

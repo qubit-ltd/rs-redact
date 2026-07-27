@@ -8,10 +8,7 @@
 //! Tests for multipart part metadata redaction.
 
 use http::HeaderValue;
-use qubit_redact::http::{
-    BodyCapture,
-    HttpRedactor,
-};
+use qubit_redact::http::{BodyCapture, HttpRedactor};
 
 /// Verifies multipart filenames are removed from rendered diagnostics.
 #[test]

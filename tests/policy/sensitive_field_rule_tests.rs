@@ -7,11 +7,7 @@
 // =============================================================================
 //! Tests for [`SensitiveFieldRule`](qubit_redact::SensitiveFieldRule) views.
 
-use qubit_redact::{
-    RedactionPolicy,
-    SensitiveFieldRule,
-    Sensitivity,
-};
+use qubit_redact::{RedactionPolicy, SensitiveFieldRule, Sensitivity};
 
 /// Alternate field query used as an unselected function-pointer target.
 const fn alternate_field(_rule: &SensitiveFieldRule<'static>) -> &'static str {
@@ -19,9 +15,7 @@ const fn alternate_field(_rule: &SensitiveFieldRule<'static>) -> &'static str {
 }
 
 /// Alternate sensitivity query used as an unselected function target.
-const fn alternate_sensitivity(
-    _rule: &SensitiveFieldRule<'static>,
-) -> Sensitivity {
+const fn alternate_sensitivity(_rule: &SensitiveFieldRule<'static>) -> Sensitivity {
     Sensitivity::Low
 }
 
@@ -41,11 +35,9 @@ fn test_sensitive_field_rule_exposes_configuration() {
             .expect("the configured sensitive rule should be visible"),
     );
     let selected = usize::from(std::process::id() == 0);
-    let fields: [for<'a> fn(&'a SensitiveFieldRule<'static>) -> &'static str;
-        2] = [SensitiveFieldRule::field, alternate_field];
-    let sensitivities: [for<'a> fn(
-        &'a SensitiveFieldRule<'static>,
-    ) -> Sensitivity; 2] =
+    let fields: [for<'a> fn(&'a SensitiveFieldRule<'static>) -> &'static str; 2] =
+        [SensitiveFieldRule::field, alternate_field];
+    let sensitivities: [for<'a> fn(&'a SensitiveFieldRule<'static>) -> Sensitivity; 2] =
         [SensitiveFieldRule::sensitivity, alternate_sensitivity];
 
     assert_eq!(fields[selected](&rule), "tenantsecret");

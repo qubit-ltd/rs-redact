@@ -7,19 +7,10 @@
 // =============================================================================
 //! Borrowed, policy-snapshot view of a domain object.
 
-use std::fmt::{
-    self,
-    Debug,
-    Display,
-    Formatter,
-    Write as _,
-};
+use std::fmt::{self, Debug, Display, Formatter, Write as _};
 
 use crate::{
-    BoundedRedactedDisplay,
-    LogOutputLimit,
-    Redact,
-    RedactionPolicy,
+    BoundedRedactedDisplay, LogOutputLimit, Redact, RedactionPolicy,
     text::internal::LogEscapeWriter,
 };
 
@@ -61,10 +52,7 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     ///
     /// A display-only adapter that owns this redacted view.
     #[inline(always)]
-    pub const fn with_output_limit(
-        self,
-        limit: LogOutputLimit,
-    ) -> BoundedRedactedDisplay<Self> {
+    pub const fn with_output_limit(self, limit: LogOutputLimit) -> BoundedRedactedDisplay<Self> {
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -104,9 +92,7 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
 }
 
 #[cfg(feature = "serde")]
-impl<T: crate::domain::RedactSerialize + ?Sized> serde::Serialize
-    for Redacted<'_, T>
-{
+impl<T: crate::domain::RedactSerialize + ?Sized> serde::Serialize for Redacted<'_, T> {
     /// Delegates serialization to the derived redaction hook.
     ///
     /// # Parameters

@@ -8,31 +8,16 @@
 //! Redacted serialization expansion for struct shapes.
 
 use proc_macro2::TokenStream;
-use quote::{
-    format_ident,
-    quote,
-    quote_spanned,
-};
-use syn::{
-    Path,
-    spanned::Spanned,
-};
+use quote::{format_ident, quote, quote_spanned};
+use syn::{Path, spanned::Spanned};
 
 use crate::{
-    internal::{
-        FieldsData,
-        NamedField,
-        UnnamedField,
-    },
+    internal::{FieldsData, NamedField, UnnamedField},
     serde_container_attributes::SerdeContainerAttributes,
 };
 
 use super::field_serialization::{
-    field_context,
-    field_is_skipped,
-    raw_identifier,
-    serialization_condition,
-    serialized_carrier,
+    field_context, field_is_skipped, raw_identifier, serialization_condition, serialized_carrier,
 };
 
 /// Generates redacted serialization for one struct shape.
@@ -44,29 +29,15 @@ pub(super) fn struct_body(
     container_attributes: &SerdeContainerAttributes,
 ) -> TokenStream {
     match fields {
-        FieldsData::Named(fields) => named_struct_body(
-            type_name,
-            fields,
-            runtime,
-            serde,
-            container_attributes,
-        ),
-        FieldsData::Unnamed(fields) if fields.len() == 1 => {
-            newtype_struct_body(
-                type_name,
-                &fields[0],
-                runtime,
-                serde,
-                container_attributes,
-            )
+        FieldsData::Named(fields) => {
+            named_struct_body(type_name, fields, runtime, serde, container_attributes)
         }
-        FieldsData::Unnamed(fields) => tuple_struct_body(
-            type_name,
-            fields,
-            runtime,
-            serde,
-            container_attributes,
-        ),
+        FieldsData::Unnamed(fields) if fields.len() == 1 => {
+            newtype_struct_body(type_name, &fields[0], runtime, serde, container_attributes)
+        }
+        FieldsData::Unnamed(fields) => {
+            tuple_struct_body(type_name, fields, runtime, serde, container_attributes)
+        }
         FieldsData::Unit => {
             let serialized_name = container_attributes.name();
             quote! {
@@ -93,10 +64,7 @@ fn named_struct_body(
     let mut carriers = Vec::new();
 
     for (position, parsed) in fields.iter().enumerate() {
-        if field_is_skipped(
-            parsed.attributes().mode(),
-            parsed.serde_attributes(),
-        ) {
+        if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
             continue;
         }
         let field = parsed.field();
@@ -216,10 +184,7 @@ fn tuple_struct_body(
     let mut conditions = Vec::new();
     let mut carriers = Vec::new();
     for (position, parsed) in fields.iter().enumerate() {
-        if field_is_skipped(
-            parsed.attributes().mode(),
-            parsed.serde_attributes(),
-        ) {
+        if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
             continue;
         }
         let field = parsed.field();

@@ -7,12 +7,7 @@
 // =============================================================================
 //! Safe rendered HTTP header values.
 
-use std::fmt::{
-    self,
-    Debug,
-    Display,
-    Formatter,
-};
+use std::fmt::{self, Debug, Display, Formatter};
 
 use crate::LogSafeText;
 

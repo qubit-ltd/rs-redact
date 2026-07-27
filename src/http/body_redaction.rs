@@ -9,11 +9,7 @@
 
 use std::{
     borrow::Cow,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
+    fmt::{self, Display, Formatter},
 };
 
 use crate::LogSafeText;

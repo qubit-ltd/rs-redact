@@ -7,18 +7,9 @@
 // =============================================================================
 //! Bounded display adapter for log-safe text.
 
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
-    Write as _,
-};
+use std::fmt::{self, Display, Formatter, Write as _};
 
-use super::{
-    LogOutputLimit,
-    LogSafeText,
-    internal::BoundedLogEscapeWriter,
-};
+use super::{LogOutputLimit, LogSafeText, internal::BoundedLogEscapeWriter};
 
 /// A byte-bounded rendering of text that is already safe for a log boundary.
 #[must_use = "format the bounded log-safe text"]
@@ -32,10 +23,7 @@ pub struct BoundedLogSafeDisplay<'a> {
 impl<'a> BoundedLogSafeDisplay<'a> {
     /// Creates a bounded view of already escaped log-safe text.
     #[inline(always)]
-    pub(super) const fn new(
-        value: &'a LogSafeText<'a>,
-        limit: LogOutputLimit,
-    ) -> Self {
+    pub(super) const fn new(value: &'a LogSafeText<'a>, limit: LogOutputLimit) -> Self {
         Self { value, limit }
     }
 }

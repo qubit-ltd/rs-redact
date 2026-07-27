@@ -16,9 +16,6 @@ fn assert_serialize<T: serde::Serialize>() {}
 #[test]
 fn test_redacted_serialize_redacted_map_implements_serialize() {
     assert_serialize::<
-        qubit_redact::RedactedMap<
-            'static,
-            std::collections::BTreeMap<String, String>,
-        >,
+        qubit_redact::RedactedMap<'static, std::collections::BTreeMap<String, String>>,
     >();
 }

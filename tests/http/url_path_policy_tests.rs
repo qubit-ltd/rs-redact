@@ -7,11 +7,7 @@
 // =============================================================================
 //! Tests for [`UrlPathPolicy`](qubit_redact::http::UrlPathPolicy).
 
-use qubit_redact::http::{
-    HttpRedactionPolicy,
-    HttpRedactor,
-    UrlPathPolicy,
-};
+use qubit_redact::http::{HttpRedactionPolicy, HttpRedactor, UrlPathPolicy};
 
 /// Verifies URL paths are redacted by default.
 #[test]

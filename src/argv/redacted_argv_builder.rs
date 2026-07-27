@@ -9,11 +9,7 @@
 
 use std::fmt::Write as _;
 
-use crate::{
-    DiagnosticBudget,
-    LogOutputLimit,
-    text::internal::BoundedLogEscapeWriter,
-};
+use crate::{DiagnosticBudget, LogOutputLimit, text::internal::BoundedLogEscapeWriter};
 
 use super::RedactedArgv;
 

@@ -8,18 +8,9 @@
 //! Byte-bounded display adapter for an already-redacted view.
 
 use std::cell::Cell;
-use std::fmt::{
-    self,
-    Debug,
-    Display,
-    Formatter,
-    Write as _,
-};
+use std::fmt::{self, Debug, Display, Formatter, Write as _};
 
-use crate::{
-    LogOutputLimit,
-    text::internal::BoundedLogEscapeWriter,
-};
+use crate::{LogOutputLimit, text::internal::BoundedLogEscapeWriter};
 
 /// A redacted display view whose log-safe output cannot exceed a byte limit.
 ///
@@ -67,14 +58,10 @@ impl Drop for MaskByteLimitReset<'_> {
 /// # Returns
 ///
 /// The result produced by `operation` after restoring any previous context.
-pub(super) fn with_mask_byte_limit<T>(
-    max_bytes: usize,
-    operation: impl FnOnce() -> T,
-) -> T {
+pub(super) fn with_mask_byte_limit<T>(max_bytes: usize, operation: impl FnOnce() -> T) -> T {
     MASK_BYTE_LIMIT.with(|context| {
         let previous = context.get();
-        let effective =
-            previous.map_or(max_bytes, |previous| previous.min(max_bytes));
+        let effective = previous.map_or(max_bytes, |previous| previous.min(max_bytes));
         context.set(Some(effective));
         let _reset = MaskByteLimitReset { context, previous };
         operation()
@@ -151,9 +138,7 @@ fn format_bounded(
     formatter: &mut Formatter<'_>,
 ) -> fmt::Result {
     let mut writer = BoundedLogEscapeWriter::new(limit);
-    let result = with_mask_byte_limit(limit.max_bytes(), || {
-        write!(&mut writer, "{value:?}")
-    });
+    let result = with_mask_byte_limit(limit.max_bytes(), || write!(&mut writer, "{value:?}"));
     if result.is_err() && !writer.is_truncated() {
         return Err(fmt::Error);
     }

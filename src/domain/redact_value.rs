@@ -9,12 +9,7 @@
 
 use std::borrow::Cow;
 
-use crate::{
-    MaskingPolicy,
-    RedactedText,
-    RedactedValue,
-    Sensitivity,
-};
+use crate::{MaskingPolicy, RedactedText, RedactedValue, Sensitivity};
 
 use super::bounded_redacted_display::mask_byte_limit;
 

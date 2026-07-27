@@ -9,12 +9,7 @@
 
 use http::HeaderValue;
 use qubit_redact::http::{
-    BodyBudget,
-    BodyCapture,
-    DiagnosticBudget,
-    HttpRedactionPolicy,
-    HttpRedactor,
-    TextBodyPolicy,
+    BodyBudget, BodyCapture, DiagnosticBudget, HttpRedactionPolicy, HttpRedactor, TextBodyPolicy,
 };
 
 /// Verifies output truncation appends the complete marker.

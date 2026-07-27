@@ -11,27 +11,13 @@
 
 use std::{
     collections::BTreeMap,
-    io::{
-        self,
-        Write,
-    },
+    io::{self, Write},
 };
 
-use qubit_redact::{
-    __private::serialize_internally_tagged,
-    Redact,
-};
+use qubit_redact::{__private::serialize_internally_tagged, Redact};
 use qubit_redact_derive::Redact;
-use serde::{
-    Serialize,
-    Serializer,
-    ser::SerializeMap,
-};
-use serde_json::{
-    Error,
-    Value,
-    value::Serializer as ValueSerializer,
-};
+use serde::{Serialize, Serializer, ser::SerializeMap};
+use serde_json::{Error, Value, value::Serializer as ValueSerializer};
 
 /// Map-like newtype content accepted by internal tagging.
 #[derive(Redact, Serialize)]
@@ -146,10 +132,7 @@ where
 }
 
 /// Serializes one value through a writer with a finite byte allowance.
-fn internally_tagged_with_limit<T>(
-    value: &T,
-    remaining: usize,
-) -> Result<(), Error>
+fn internally_tagged_with_limit<T>(value: &T, remaining: usize) -> Result<(), Error>
 where
     T: Serialize + ?Sized,
 {
@@ -169,8 +152,7 @@ fn assert_unsupported<T>(value: &T, kind: &str)
 where
     T: Serialize + ?Sized,
 {
-    let error = internally_tagged(value)
-        .expect_err("the value shape cannot carry an internal tag");
+    let error = internally_tagged(value).expect_err("the value shape cannot carry an internal tag");
     let message = error.to_string();
 
     assert!(message.contains("Event::Payload"));
@@ -210,13 +192,11 @@ fn test_internally_tagged_serializer_accepts_supported_shapes() {
         serde_json::json!({"kind": "Payload"}),
     );
     assert_eq!(
-        internally_tagged(&UnitStruct)
-            .expect("unit-struct content accepts an internal tag"),
+        internally_tagged(&UnitStruct).expect("unit-struct content accepts an internal tag"),
         serde_json::json!({"kind": "Payload"}),
     );
     assert_eq!(
-        internally_tagged(&NestedEnum::Unit)
-            .expect("unit-variant content accepts an internal tag"),
+        internally_tagged(&NestedEnum::Unit).expect("unit-variant content accepts an internal tag"),
         serde_json::json!({"kind": "Payload", "Unit": null}),
     );
     assert_eq!(
@@ -269,10 +249,7 @@ fn test_internally_tagged_serializer_propagates_writer_failures() {
     for remaining in 0..64 {
         let _ = internally_tagged_with_limit(&(), remaining);
         let _ = internally_tagged_with_limit(&NestedEnum::Unit, remaining);
-        let _ = internally_tagged_with_limit(
-            &NestedEnum::Newtype("value"),
-            remaining,
-        );
+        let _ = internally_tagged_with_limit(&NestedEnum::Newtype("value"), remaining);
         let _ = internally_tagged_with_limit(&map, remaining);
         let _ = internally_tagged_with_limit(&payload, remaining);
     }

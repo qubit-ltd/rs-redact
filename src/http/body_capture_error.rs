@@ -9,11 +9,7 @@
 
 use std::{
     error::Error,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
+    fmt::{self, Display, Formatter},
 };
 
 /// Reports inconsistent source-length metadata for a body capture.

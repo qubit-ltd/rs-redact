@@ -7,32 +7,17 @@
 // =============================================================================
 
 use http::{
-    HeaderMap,
-    HeaderValue,
-    header::{
-        AUTHORIZATION,
-        CONTENT_TYPE,
-        SET_COOKIE,
-    },
+    HeaderMap, HeaderValue,
+    header::{AUTHORIZATION, CONTENT_TYPE, SET_COOKIE},
 };
-use proptest::prelude::{
-    prop_assert,
-    proptest,
-};
+use proptest::prelude::{prop_assert, proptest};
 use qubit_redact::{
     RedactionPolicy,
-    http::{
-        DiagnosticBudget,
-        HttpRedactionPolicy,
-        HttpRedactor,
-    },
+    http::{DiagnosticBudget, HttpRedactionPolicy, HttpRedactor},
 };
 
 /// Builds an HTTP redactor with visible test headers and finite diagnostics.
-fn redactor_with_diagnostic_budget(
-    input: usize,
-    output: usize,
-) -> HttpRedactor {
+fn redactor_with_diagnostic_budget(input: usize, output: usize) -> HttpRedactor {
     let header_policy = RedactionPolicy::empty_builder()
         .build()
         .expect("the empty header policy should be valid");
@@ -67,13 +52,11 @@ fn test_header_redaction_handles_non_utf8_and_control_characters() {
     let mut headers = HeaderMap::new();
     headers.insert(
         "x-binary",
-        HeaderValue::from_bytes(b"\xff")
-            .expect("opaque header bytes are valid"),
+        HeaderValue::from_bytes(b"\xff").expect("opaque header bytes are valid"),
     );
     headers.insert(
         "x-visible",
-        HeaderValue::from_bytes(b"line\tvalue")
-            .expect("tab is valid in a header value"),
+        HeaderValue::from_bytes(b"line\tvalue").expect("tab is valid in a header value"),
     );
     headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer raw"));
 
@@ -116,12 +99,9 @@ fn test_header_redaction_is_sorted_stable_and_output_bounded() {
         r"x-alpha: [visible]\nx-zeta: [first, second]",
     );
 
-    let bounded = redactor_with_diagnostic_budget(
-        256,
-        DiagnosticBudget::MIN_OUTPUT_BYTES + 4,
-    )
-    .redact_headers(&headers)
-    .to_string();
+    let bounded = redactor_with_diagnostic_budget(256, DiagnosticBudget::MIN_OUTPUT_BYTES + 4)
+        .redact_headers(&headers)
+        .to_string();
     assert!(bounded.len() <= DiagnosticBudget::MIN_OUTPUT_BYTES + 4,);
     assert!(bounded.ends_with("<truncated>"));
 }

@@ -7,12 +7,7 @@
 // =============================================================================
 //! Tests for [`FieldClassification`](qubit_redact::FieldClassification).
 
-use qubit_redact::{
-    FieldClassification,
-    FieldNameMatching,
-    RedactionPolicy,
-    Sensitivity,
-};
+use qubit_redact::{FieldClassification, FieldNameMatching, RedactionPolicy, Sensitivity};
 
 /// Verifies exact and suffix-sensitive results expose their matched rule.
 #[test]
@@ -32,8 +27,7 @@ fn test_field_classification_explains_sensitive_matches() {
     assert!(!exact.is_allowed());
     assert!(!exact.is_unknown());
 
-    let suffix =
-        std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
+    let suffix = std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
     assert_eq!(suffix.sensitivity(), Some(Sensitivity::Medium));
     assert_eq!(suffix.matched_field(), Some("accesstoken"));
     assert_eq!(
@@ -61,8 +55,7 @@ fn test_field_classification_explains_allow_precedence() {
     assert!(exact.is_allowed());
     assert!(!exact.is_unknown());
 
-    let suffix =
-        std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
+    let suffix = std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
     assert_eq!(suffix.sensitivity(), None);
     assert_eq!(suffix.matched_field(), Some("accesstoken"));
     assert_eq!(

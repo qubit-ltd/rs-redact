@@ -9,17 +9,10 @@
 
 use std::{
     borrow::Cow,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
+    fmt::{self, Display, Formatter},
 };
 
-use crate::{
-    DiagnosticBudget,
-    LogSafeText,
-};
+use crate::{DiagnosticBudget, LogSafeText};
 
 use super::redacted_argv_builder::RedactedArgvBuilder;
 
