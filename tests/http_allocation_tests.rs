@@ -17,12 +17,12 @@ use std::{
     },
     cell::Cell,
     sync::atomic::{
+        AtomicBool,
         AtomicUsize,
         Ordering,
     },
     sync::{
         Arc,
-        Barrier,
         Mutex,
     },
 };
@@ -139,20 +139,24 @@ fn test_measure_allocations_ignores_other_threads() {
     let _lock = ALLOCATION_TEST_LOCK
         .lock()
         .expect("allocation measurement lock should not be poisoned");
-    let start = Arc::new(Barrier::new(2));
-    let finish = Arc::new(Barrier::new(2));
-    let worker_start = Arc::clone(&start);
-    let worker_finish = Arc::clone(&finish);
+    let measurement_started = Arc::new(AtomicBool::new(false));
+    let worker_finished = Arc::new(AtomicBool::new(false));
+    let worker_measurement_started = Arc::clone(&measurement_started);
+    let worker_finished_signal = Arc::clone(&worker_finished);
     let worker = std::thread::spawn(move || {
-        worker_start.wait();
+        while !worker_measurement_started.load(Ordering::Acquire) {
+            std::hint::spin_loop();
+        }
         let allocation = vec![0_u8; 8192];
         std::hint::black_box(&allocation);
-        worker_finish.wait();
+        worker_finished_signal.store(true, Ordering::Release);
     });
 
     let (_, largest, count) = measure_allocations(|| {
-        start.wait();
-        finish.wait();
+        measurement_started.store(true, Ordering::Release);
+        while !worker_finished.load(Ordering::Acquire) {
+            std::hint::spin_loop();
+        }
     });
     worker.join().expect("the worker thread should not panic");
 
