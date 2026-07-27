@@ -82,9 +82,10 @@ fn test_body_output_budget_applies_after_control_escaping() {
         BodyCapture::complete(b"a\nb\nc\nd\ne\nf\ng"),
         Some(&HeaderValue::from_static("text/plain")),
     );
+    let rendered = body.to_string();
 
-    assert!(body.to_string().len() <= 16);
-    assert!(body.to_string().ends_with("<truncated>"));
+    assert_eq!(rendered, "a\\nb<truncated>");
+    assert!(!rendered.ends_with("\\<truncated>"));
     assert!(body.is_truncated());
 }
 

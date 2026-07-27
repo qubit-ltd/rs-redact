@@ -17,6 +17,8 @@ use super::markers;
 pub(in crate::http) struct BoundedLogWriter {
     /// Escaped payload accumulated so far.
     output: String,
+    /// Last complete escaped-piece boundary that leaves room for the marker.
+    marker_boundary: usize,
     /// Maximum final length including the truncation marker.
     max_bytes: usize,
     /// Whether the final result requires a truncation marker.
@@ -42,6 +44,7 @@ impl BoundedLogWriter {
     ) -> Self {
         Self {
             output: String::new(),
+            marker_boundary: 0,
             max_bytes,
             truncated: source_truncated,
             output_truncated: false,
@@ -123,6 +126,11 @@ impl BoundedLogWriter {
         let limit = self.payload_limit();
         if self.output.len().saturating_add(piece.len()) <= limit {
             self.output.push_str(piece);
+            let marker_payload_limit =
+                self.max_bytes - markers::TRUNCATED.len();
+            if self.output.len() <= marker_payload_limit {
+                self.marker_boundary = self.output.len();
+            }
             return true;
         }
         self.truncated = true;
@@ -145,12 +153,8 @@ impl BoundedLogWriter {
         }
     }
 
-    /// Truncates accumulated text to a valid UTF-8 marker-reserved boundary.
+    /// Truncates accumulated text to a complete marker-reserved piece.
     fn truncate_to_payload_limit(&mut self) {
-        let mut end = self.output.len().min(self.payload_limit());
-        while !self.output.is_char_boundary(end) {
-            end -= 1;
-        }
-        self.output.truncate(end);
+        self.output.truncate(self.marker_boundary);
     }
 }
