@@ -10,43 +10,27 @@
 #![cfg(feature = "http")]
 
 use std::{
-    alloc::{
-        GlobalAlloc,
-        Layout,
-        System,
-    },
-    sync::Mutex,
-    sync::atomic::{
-        AtomicBool,
-        AtomicUsize,
-        Ordering,
-    },
+    alloc::{GlobalAlloc, Layout, System},
+    cell::Cell,
+    sync::atomic::{AtomicUsize, Ordering},
+    sync::{Arc, Barrier, Mutex},
 };
 
-use http::{
-    HeaderMap,
-    HeaderValue,
-};
+use http::{HeaderMap, HeaderValue};
 use qubit_redact::{
-    MaskPolicy,
-    RedactionPolicy,
-    Sensitivity,
-    http::{
-        BodyBudget,
-        BodyCapture,
-        DiagnosticBudget,
-        HttpRedactionPolicy,
-        HttpRedactor,
-    },
+    MaskPolicy, RedactionPolicy, Sensitivity,
+    http::{BodyBudget, BodyCapture, DiagnosticBudget, HttpRedactionPolicy, HttpRedactor},
 };
 
-/// Controls whether allocator calls contribute to the active measurement.
-static TRACK_ALLOCATIONS: AtomicBool = AtomicBool::new(false);
+thread_local! {
+    /// Controls whether the current thread contributes to a measurement.
+    static TRACK_ALLOCATIONS: Cell<bool> = const { Cell::new(false) };
+}
 /// Records the largest allocation or reallocation while tracking is enabled.
 static LARGEST_ALLOCATION: AtomicUsize = AtomicUsize::new(0);
 /// Counts allocations and reallocations while tracking is enabled.
 static ALLOCATION_COUNT: AtomicUsize = AtomicUsize::new(0);
-/// Serializes tests that use the process-global allocation measurement state.
+/// Serializes tests that share process-global allocation counters.
 static ALLOCATION_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 /// Global allocator that records the largest narrowly scoped allocation.
@@ -76,12 +60,7 @@ unsafe impl GlobalAlloc for MeasuringAllocator {
     }
 
     /// Resizes an allocation through the system allocator and records it.
-    unsafe fn realloc(
-        &self,
-        pointer: *mut u8,
-        layout: Layout,
-        new_size: usize,
-    ) -> *mut u8 {
+    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         record_allocation(new_size);
         // SAFETY: All arguments are forwarded unchanged to the system
         // allocator.
@@ -99,7 +78,7 @@ static GLOBAL_ALLOCATOR: MeasuringAllocator = MeasuringAllocator;
 /// * `size` - Requested allocation or reallocation size.
 #[inline(always)]
 fn record_allocation(size: usize) {
-    if TRACK_ALLOCATIONS.load(Ordering::Relaxed) {
+    if TRACK_ALLOCATIONS.with(Cell::get) {
         LARGEST_ALLOCATION.fetch_max(size, Ordering::Relaxed);
         ALLOCATION_COUNT.fetch_add(1, Ordering::Relaxed);
     }
@@ -117,14 +96,41 @@ fn record_allocation(size: usize) {
 fn measure_allocations<T>(operation: impl FnOnce() -> T) -> (T, usize, usize) {
     LARGEST_ALLOCATION.store(0, Ordering::Relaxed);
     ALLOCATION_COUNT.store(0, Ordering::Relaxed);
-    TRACK_ALLOCATIONS.store(true, Ordering::Relaxed);
+    TRACK_ALLOCATIONS.with(|tracking| tracking.set(true));
     let result = operation();
-    TRACK_ALLOCATIONS.store(false, Ordering::Relaxed);
+    TRACK_ALLOCATIONS.with(|tracking| tracking.set(false));
     (
         result,
         LARGEST_ALLOCATION.load(Ordering::Relaxed),
         ALLOCATION_COUNT.load(Ordering::Relaxed),
     )
+}
+
+/// Verifies one measurement ignores allocations from a coordinated worker.
+#[test]
+fn test_measure_allocations_ignores_other_threads() {
+    let _lock = ALLOCATION_TEST_LOCK
+        .lock()
+        .expect("allocation measurement lock should not be poisoned");
+    let start = Arc::new(Barrier::new(2));
+    let finish = Arc::new(Barrier::new(2));
+    let worker_start = Arc::clone(&start);
+    let worker_finish = Arc::clone(&finish);
+    let worker = std::thread::spawn(move || {
+        worker_start.wait();
+        let allocation = vec![0_u8; 8192];
+        std::hint::black_box(&allocation);
+        worker_finish.wait();
+    });
+
+    let (_, largest, count) = measure_allocations(|| {
+        start.wait();
+        finish.wait();
+    });
+    worker.join().expect("the worker thread should not panic");
+
+    assert_eq!(largest, 0, "worker allocation polluted this measurement");
+    assert_eq!(count, 0, "worker allocation polluted this measurement");
 }
 
 /// Verifies HTTP diagnostic allocations follow the rendered output budget.
@@ -135,9 +141,8 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
         .expect("allocation measurement lock should not be poisoned");
     let redactor = HttpRedactor::default();
 
-    let (result, largest, _) = measure_allocations(|| {
-        redactor.redact_url_str("https://example.test/")
-    });
+    let (result, largest, _) =
+        measure_allocations(|| redactor.redact_url_str("https://example.test/"));
 
     assert_eq!(result.as_ref(), "https://example.test/");
     assert!(
@@ -184,27 +189,20 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
     let redactor = HttpRedactor::new(policy);
     let repeated_form = ["password=form-secret"; 32].join("&");
     let repeated_query = ["password=query-secret"; 32].join("&");
-    let repeated_url = format!(
-        "https://user:password@example.test/?{repeated_query}#fragment",
-    );
+    let repeated_url = format!("https://user:password@example.test/?{repeated_query}#fragment",);
     let mut sensitive_header = HeaderValue::from_static("header-secret");
     sensitive_header.set_sensitive(true);
     let mut headers = HeaderMap::new();
     headers.insert("x-secret", sensitive_header);
 
-    let (url, url_largest, _) =
-        measure_allocations(|| redactor.redact_url_str(&repeated_url));
-    let (form, form_largest, _) =
-        measure_allocations(|| redactor.redact_form(&repeated_form));
-    let (headers, header_largest, _) =
-        measure_allocations(|| redactor.redact_headers(&headers));
+    let (url, url_largest, _) = measure_allocations(|| redactor.redact_url_str(&repeated_url));
+    let (form, form_largest, _) = measure_allocations(|| redactor.redact_form(&repeated_form));
+    let (headers, header_largest, _) = measure_allocations(|| redactor.redact_headers(&headers));
 
     for rendered in [url.as_ref(), form.as_ref(), &headers.to_string()] {
         assert!(rendered.len() <= output_limit, "{rendered:?}");
         assert!(rendered.ends_with("<truncated>"), "{rendered:?}");
-        for source_secret in
-            ["query-secret", "form-secret", "header-secret", "fragment"]
-        {
+        for source_secret in ["query-secret", "form-secret", "header-secret", "fragment"] {
             assert!(!rendered.contains(source_secret), "{rendered:?}");
         }
     }
@@ -227,14 +225,11 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement));
     for index in 0..700 {
-        builder =
-            builder.raise(&format!("password_{index}"), Sensitivity::Secret);
+        builder = builder.raise(&format!("password_{index}"), Sensitivity::Secret);
     }
-    let body_policy =
-        builder.build().expect("the amplified body policy is valid");
+    let body_policy = builder.build().expect("the amplified body policy is valid");
     let output_limit = 64 * 1024;
-    let body_budget = BodyBudget::new(128 * 1024, output_limit)
-        .expect("the body budget is valid");
+    let body_budget = BodyBudget::new(128 * 1024, output_limit).expect("the body budget is valid");
     let policy = HttpRedactionPolicy::builder()
         .body_policy(body_policy)
         .body_budget(body_budget)
@@ -249,10 +244,7 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
     let content_type = HeaderValue::from_static("application/json");
 
     let (result, largest, _) = measure_allocations(|| {
-        redactor.redact_body(
-            BodyCapture::complete(body.as_bytes()),
-            Some(&content_type),
-        )
+        redactor.redact_body(BodyCapture::complete(body.as_bytes()), Some(&content_type))
     });
 
     assert!(result.to_string().len() <= output_limit);
