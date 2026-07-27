@@ -95,10 +95,12 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
-//! `RedactMut` is an explicit destructive contract. The skipped field below
-//! remains unchanged, while `nested` uses the same policy for the child.
-//! Clone-based `to_redacted` temporarily retains a second raw copy; prefer
-//! `redact_in_place` or `into_redacted` for highly sensitive data.
+//! `RedactMut` is an explicit logical in-place redaction contract. The skipped
+//! field below remains unchanged, while `nested` uses the same policy for the
+//! child. It does not zeroize released allocations or affect aliases, existing
+//! copies, or borrowed backing data. Clone-based `to_redacted` temporarily
+//! retains a second raw copy. Use a separately designed zeroization strategy
+//! when memory erasure is required.
 //!
 //! ```
 //! use qubit_redact::{Redact as _, RedactMut as _};

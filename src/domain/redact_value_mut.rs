@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Value-level destructive masking for owned textual forms.
+//! Value-level logical in-place masking for textual forms.
 
 use std::borrow::Cow;
 
@@ -14,7 +14,10 @@ use crate::{
     Sensitivity,
 };
 
-/// Replaces an owned textual value according to one sensitivity level.
+/// Replaces a textual value according to one sensitivity level.
+///
+/// This trait changes the logical value only. It does not zeroize released
+/// allocations or affect aliases, existing copies, or borrowed backing data.
 pub trait RedactValueMut {
     /// Masks this value in place.
     ///

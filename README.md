@@ -194,11 +194,13 @@ omits a field from redacted Debug, Display, and serde output. It does not
 remove or modify the field on the original object, and `RedactMut` leaves it
 unchanged.
 
-`RedactMut` is a separate, explicit destructive contract. Its
+`RedactMut` is a separate, explicit logical in-place redaction contract. Its
 `redact_in_place`, `into_redacted`, and clone-based `to_redacted` operations
-support the same `level`, `nested`, and `map` field modes. `to_redacted`
-briefly creates a second copy of the original sensitive data; prefer
-`redact_in_place` or `into_redacted` for highly sensitive values.
+support the same `level`, `nested`, and `map` field modes. It does not zeroize
+released allocations or affect aliases, existing copies, or borrowed backing
+data. `to_redacted` also briefly creates a second copy of the original
+sensitive data. Use a separately designed zeroization strategy when memory
+erasure is required.
 
 The derives accept named, tuple, and unit structs as well as enums whose
 variants use any of those three field shapes. Field attributes retain the
@@ -394,6 +396,8 @@ after the application has accepted the corresponding disclosure risk.
 - Allow rules win deliberately and can expose data; review them as security
   policy.
 - Redaction does not discover secrets stored under unknown field names.
+- Mutable redaction replaces logical values; it does not guarantee memory
+  erasure of released allocations, aliases, copies, or borrowed backing data.
 - `RedactedText` distinguishes field redaction from `LogSafeText`, which also
   escapes controls and Unicode line-ordering characters.
 - Treat typed display results as the logging boundary instead of rebuilding

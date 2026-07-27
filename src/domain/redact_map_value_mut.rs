@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Destructive redaction contract for text-valued map-like containers.
+//! Logical in-place redaction contract for text-valued map-like containers.
 
 use crate::{
     RedactValueMut,
@@ -13,6 +13,9 @@ use crate::{
 };
 
 /// Redacts map values in place after classifying each value by its runtime key.
+///
+/// This provides logical replacement only; see [`RedactValueMut`] for its
+/// memory-erasure boundary.
 pub trait RedactMapValueMut<K: ?Sized, V: ?Sized> {
     /// Replaces sensitive values according to `policy`.
     ///

@@ -178,9 +178,10 @@ assert!(output.len() <= limit.max_bytes());
 属性就绝不隐式遍历。`#[redact(skip)]` 会从脱敏后的 Debug、Display 和 serde 表示中省略
 字段，但不会删除或修改原对象字段，`RedactMut` 也不会改它。
 
-`RedactMut` 是独立且显式的破坏式契约。`redact_in_place`、`into_redacted` 和基于 clone
-的 `to_redacted` 支持相同的 `level`、`nested`、`map` 字段模式。`to_redacted` 会短暂产生
-第二份原始敏感数据；高敏感场景应优先使用 `redact_in_place` 或 `into_redacted`。
+`RedactMut` 是独立且显式的逻辑原地脱敏契约。`redact_in_place`、`into_redacted` 和基于
+clone 的 `to_redacted` 支持相同的 `level`、`nested`、`map` 字段模式。它不会清零已释放的
+分配内存，也不会影响别名、已有副本或借用的后备数据。`to_redacted` 还会短暂产生第二份
+原始敏感数据；需要擦除内存时，应采用专门设计的 zeroization 方案。
 
 derive 支持具名、tuple 和 unit struct，也支持 variant 采用这三种字段形态的 enum。
 字段属性会保留外层 Rust 形态：tuple 字段保持位置语义，enum 格式化显示当前 variant，
@@ -358,6 +359,7 @@ HTTP 遮盖只接受调用方提供的有界 capture，不会自行读取或缓�
 - 字段名会被规范化，可选择精确或 token 后缀匹配。
 - 允许规则会有意胜出并可能暴露数据，应把它们作为安全策略审查。
 - 本库不会发现保存在未知字段名下的秘密。
+- 可变脱敏只替换逻辑值；它不保证擦除已释放的分配内存、别名、副本或借用的后备数据。
 - `RedactedText` 表示字段值已按策略处理；`LogSafeText` 还会转义控制字符和 Unicode
   行序字符。
 - 应把有类型的显示结果作为日志边界，不要再用原始输入拼接字符串。

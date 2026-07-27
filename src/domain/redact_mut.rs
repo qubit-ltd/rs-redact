@@ -5,11 +5,14 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Explicit destructive redaction contract for domain objects.
+//! Explicit logical in-place redaction contract for domain objects.
 
 use crate::RedactionPolicy;
 
-/// Replaces sensitive owned fields inside a domain object.
+/// Replaces sensitive field values inside a domain object.
+///
+/// This trait changes the logical value only. It does not zeroize released
+/// allocations or affect aliases, existing copies, or borrowed backing data.
 pub trait RedactMut {
     /// Redacts this object in place with an explicit policy.
     ///
@@ -33,7 +36,7 @@ pub trait RedactMut {
     ///
     /// # Returns
     ///
-    /// The destructively redacted object.
+    /// The logically redacted object.
     #[must_use = "use the returned redacted object"]
     #[inline]
     fn into_redacted_with(mut self, policy: &RedactionPolicy) -> Self
@@ -48,7 +51,7 @@ pub trait RedactMut {
     ///
     /// # Returns
     ///
-    /// The destructively redacted object.
+    /// The logically redacted object.
     #[must_use = "use the returned redacted object"]
     #[inline]
     fn into_redacted(self) -> Self
