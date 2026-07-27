@@ -7,7 +7,10 @@
 // =============================================================================
 //! Tests for [`RedactedKeyedValue`](qubit_redact::RedactedKeyedValue).
 
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::BTreeMap,
+    fmt,
+};
 
 use qubit_redact::{
     Redact,

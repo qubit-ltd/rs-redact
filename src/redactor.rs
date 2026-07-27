@@ -75,9 +75,10 @@ impl Redactor {
 
     /// Creates a lazy redacted view selected by an external key.
     ///
-    /// The returned view borrows this redactor's policy snapshot. When its key is sensitive,
-    /// it masks the complete value through [`RedactValue`](crate::RedactValue).
-    /// Otherwise it delegates to the value's recursive redaction contracts.
+    /// The returned view borrows this redactor's policy snapshot. When its key
+    /// is sensitive, it masks the complete value through
+    /// [`RedactValue`](crate::RedactValue). Otherwise it delegates to the
+    /// value's recursive redaction contracts.
     ///
     /// # Parameters
     ///

@@ -39,7 +39,8 @@ pub struct RedactedKeyedValue<'value, 'policy, T: ?Sized> {
 }
 
 impl<'value, 'policy, T: ?Sized> RedactedKeyedValue<'value, 'policy, T> {
-    /// Creates a keyed view from borrowed inputs and a borrowed policy snapshot.
+    /// Creates a keyed view from borrowed inputs and a borrowed policy
+    /// snapshot.
     ///
     /// # Parameters
     ///
@@ -99,7 +100,9 @@ impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValue<'_, '_, T> {
     }
 }
 
-impl<T: Redact + RedactValue + ?Sized> Display for RedactedKeyedValue<'_, '_, T> {
+impl<T: Redact + RedactValue + ?Sized> Display
+    for RedactedKeyedValue<'_, '_, T>
+{
     /// Formats the selected redacted representation for a plain-text log.
     ///
     /// # Parameters

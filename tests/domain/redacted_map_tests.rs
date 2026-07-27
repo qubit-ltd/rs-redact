@@ -48,8 +48,9 @@ fn test_redacted_map_with_policy_output_limit_uses_policy_budget() {
         String::from("label"),
         "visible diagnostic text".repeat(4),
     )]);
-    let budget = DiagnosticBudget::new(1024, DiagnosticBudget::MIN_OUTPUT_BYTES)
-        .expect("the minimum bounded output should be valid");
+    let budget =
+        DiagnosticBudget::new(1024, DiagnosticBudget::MIN_OUTPUT_BYTES)
+            .expect("the minimum bounded output should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()
