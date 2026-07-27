@@ -14,8 +14,9 @@ use std::{
 };
 
 use super::{
-    AllowRule, DiagnosticBudget, FieldClassification, FieldNameMatching, GlobalDefaultAlreadySet,
-    MaskingPolicy, RedactionPolicyBuilder, SensitiveFieldPreset, SensitiveFieldRule, Sensitivity,
+    AllowRule, DiagnosticBudget, FieldClassification, FieldMatchKind, FieldNameMatching,
+    GlobalDefaultAlreadySet, MaskingPolicy, RedactionPolicyBuilder, SensitiveFieldPreset,
+    SensitiveFieldRule, Sensitivity,
     internal::{RedactionPolicyInner, visit_canonical_field_candidates},
 };
 
@@ -252,27 +253,27 @@ impl RedactionPolicy {
         matching: FieldNameMatching,
     ) -> FieldClassification<'a> {
         match visit_canonical_field_candidates(field, matching, |is_exact, candidate| {
+            let match_kind = if is_exact {
+                FieldMatchKind::Exact
+            } else {
+                FieldMatchKind::TokenSuffix
+            };
             if is_exact && let Some(field) = self.inner.allow_exact.get(candidate) {
-                return ControlFlow::Break(FieldClassification::Allowed(AllowRule::new(
-                    field,
-                    FieldNameMatching::Exact,
-                )));
+                return ControlFlow::Break(FieldClassification::Allowed {
+                    rule: AllowRule::new(field, FieldNameMatching::Exact),
+                    match_kind,
+                });
             }
             if let Some(field) = self.inner.allow_suffix.get(candidate) {
-                return ControlFlow::Break(FieldClassification::Allowed(AllowRule::new(
-                    field,
-                    FieldNameMatching::ExactOrTokenSuffix,
-                )));
+                return ControlFlow::Break(FieldClassification::Allowed {
+                    rule: AllowRule::new(field, FieldNameMatching::ExactOrTokenSuffix),
+                    match_kind,
+                });
             }
             if let Some((field, sensitivity)) = self.inner.sensitive.get_key_value(candidate) {
-                let matching = if is_exact {
-                    FieldNameMatching::Exact
-                } else {
-                    FieldNameMatching::ExactOrTokenSuffix
-                };
                 return ControlFlow::Break(FieldClassification::Sensitive {
                     rule: SensitiveFieldRule::new(field, *sensitivity),
-                    matching,
+                    match_kind,
                 });
             }
             ControlFlow::Continue(())

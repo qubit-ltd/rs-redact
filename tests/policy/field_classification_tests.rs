@@ -7,7 +7,9 @@
 // =============================================================================
 //! Tests for [`FieldClassification`](qubit_redact::FieldClassification).
 
-use qubit_redact::{FieldClassification, FieldNameMatching, RedactionPolicy, Sensitivity};
+use qubit_redact::{
+    FieldClassification, FieldMatchKind, FieldNameMatching, RedactionPolicy, Sensitivity,
+};
 
 /// Verifies exact and suffix-sensitive results expose their matched rule.
 #[test]
@@ -23,17 +25,14 @@ fn test_field_classification_explains_sensitive_matches() {
     let exact = std::hint::black_box(policy.classify_field("access_token"));
     assert_eq!(exact.sensitivity(), Some(Sensitivity::Medium));
     assert_eq!(exact.matched_field(), Some("accesstoken"));
-    assert_eq!(exact.matching(), Some(FieldNameMatching::Exact));
+    assert_eq!(exact.match_kind(), Some(FieldMatchKind::Exact));
     assert!(!exact.is_allowed());
     assert!(!exact.is_unknown());
 
     let suffix = std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
     assert_eq!(suffix.sensitivity(), Some(Sensitivity::Medium));
     assert_eq!(suffix.matched_field(), Some("accesstoken"));
-    assert_eq!(
-        suffix.matching(),
-        Some(FieldNameMatching::ExactOrTokenSuffix),
-    );
+    assert_eq!(suffix.match_kind(), Some(FieldMatchKind::TokenSuffix));
 }
 
 /// Verifies allow precedence and the most specific allow explanation.
@@ -51,17 +50,14 @@ fn test_field_classification_explains_allow_precedence() {
     let exact = std::hint::black_box(policy.classify_field("access_token"));
     assert_eq!(exact.sensitivity(), None);
     assert_eq!(exact.matched_field(), Some("accesstoken"));
-    assert_eq!(exact.matching(), Some(FieldNameMatching::Exact));
+    assert_eq!(exact.match_kind(), Some(FieldMatchKind::Exact));
     assert!(exact.is_allowed());
     assert!(!exact.is_unknown());
 
     let suffix = std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
     assert_eq!(suffix.sensitivity(), None);
     assert_eq!(suffix.matched_field(), Some("accesstoken"));
-    assert_eq!(
-        suffix.matching(),
-        Some(FieldNameMatching::ExactOrTokenSuffix),
-    );
+    assert_eq!(suffix.match_kind(), Some(FieldMatchKind::TokenSuffix));
     assert!(suffix.is_allowed());
 }
 
@@ -79,9 +75,29 @@ fn test_field_classification_reports_unknown_fields() {
         assert_eq!(classification, FieldClassification::Unknown);
         assert_eq!(classification.sensitivity(), None);
         assert_eq!(classification.matched_field(), None);
-        assert_eq!(classification.matching(), None);
+        assert_eq!(classification.match_kind(), None);
         assert!(!classification.is_allowed());
         assert!(classification.is_unknown());
+    }
+}
+
+/// Verifies classification distinguishes the matched candidate from an allow
+/// rule's configured matching breadth.
+#[test]
+fn test_field_classification_reports_exact_suffix_allow_match() {
+    let policy = RedactionPolicy::empty_builder()
+        .raise("access_token", Sensitivity::Secret)
+        .allow_suffix("access_token")
+        .build()
+        .expect("the conflicting policy should be valid");
+
+    let exact = policy.classify_field("access_token");
+    assert_eq!(exact.match_kind(), Some(FieldMatchKind::Exact));
+    match exact {
+        FieldClassification::Allowed { rule, .. } => {
+            assert_eq!(rule.matching(), FieldNameMatching::ExactOrTokenSuffix);
+        }
+        _ => panic!("the suffix allow rule should classify the exact field"),
     }
 }
 

@@ -269,8 +269,9 @@ pub use domain::{
 pub use env::EnvRedactor;
 pub use policy::{
     AllowRule, DiagnosticBudget, DiagnosticBudgetError, DiagnosticInputBudget, FieldClassification,
-    FieldNameMatching, GlobalDefaultAlreadySet, MaskPolicy, MaskingPolicy, PolicyError,
-    RedactionPolicy, RedactionPolicyBuilder, SensitiveFieldPreset, SensitiveFieldRule, Sensitivity,
+    FieldMatchKind, FieldNameMatching, GlobalDefaultAlreadySet, MaskPolicy, MaskingPolicy,
+    PolicyError, RedactionPolicy, RedactionPolicyBuilder, SensitiveFieldPreset, SensitiveFieldRule,
+    Sensitivity,
 };
 pub use redactor::Redactor;
 pub use text::{
