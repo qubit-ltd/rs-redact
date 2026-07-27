@@ -10,6 +10,9 @@
 Policy-driven redaction for Rust diagnostics, structured fields, maps, process
 arguments, environment variables, and optional HTTP data.
 
+For a problem-first introduction and runnable examples for every core tool, see
+the [User Guide](doc/user_guide.md).
+
 ## Design
 
 Qubit Redact separates four concerns:
