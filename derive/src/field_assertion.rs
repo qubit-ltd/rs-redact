@@ -19,7 +19,10 @@ use syn::{
     spanned::Spanned,
 };
 
-use crate::field_mode::FieldMode;
+use crate::{
+    field_mode::FieldMode,
+    immutable_trait_name::ImmutableTraitName,
+};
 
 /// Generates the immutable capability assertion for one field.
 ///
@@ -294,74 +297,4 @@ pub(crate) fn helper_name(
         required_trait,
         span = field.span(),
     )
-}
-
-/// Supplies the immutable trait-name suffix for helper identifiers.
-trait ImmutableTraitName {
-    /// Returns the required immutable capability name.
-    ///
-    /// # Returns
-    ///
-    /// The trait suffix used by immutable assertion helpers.
-    fn immutable_trait_name(&self) -> &str;
-
-    /// Returns the required destructive capability name.
-    ///
-    /// # Returns
-    ///
-    /// The trait suffix used by destructive assertion helpers.
-    fn mutable_trait_name(&self) -> &str;
-
-    /// Returns the required serialization capability name.
-    ///
-    /// # Returns
-    ///
-    /// The trait suffix used by serialization assertion helpers.
-    fn serialization_trait_name(&self) -> &str;
-}
-
-impl ImmutableTraitName for FieldMode {
-    /// Resolves the immutable capability represented by this field mode.
-    ///
-    /// # Returns
-    ///
-    /// The immutable trait suffix used in generated diagnostics.
-    #[inline(always)]
-    fn immutable_trait_name(&self) -> &str {
-        match self {
-            Self::Level(_) => "RedactValue",
-            Self::Nested => "Redact",
-            Self::Map => "RedactMapValue",
-            Self::Plain | Self::Skip => "Unused",
-        }
-    }
-
-    /// Resolves the destructive capability represented by this field mode.
-    ///
-    /// # Returns
-    ///
-    /// The destructive trait suffix used in generated diagnostics.
-    #[inline(always)]
-    fn mutable_trait_name(&self) -> &str {
-        match self {
-            Self::Level(_) => "RedactValueMut",
-            Self::Nested => "RedactMut",
-            Self::Map => "RedactMapValueMut",
-            Self::Plain | Self::Skip => "Unused",
-        }
-    }
-
-    /// Resolves the serialization capability represented by this field mode.
-    ///
-    /// # Returns
-    ///
-    /// The serialization trait suffix used in generated diagnostics.
-    #[inline(always)]
-    fn serialization_trait_name(&self) -> &str {
-        match self {
-            Self::Nested => "RedactSerialize",
-            Self::Map => "RedactMapSerialize",
-            Self::Plain | Self::Level(_) | Self::Skip => "Unused",
-        }
-    }
 }

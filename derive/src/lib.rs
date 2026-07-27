@@ -12,6 +12,7 @@ mod field_assertion;
 mod field_attributes;
 mod field_mode;
 mod format_expansion;
+mod immutable_trait_name;
 mod input_model;
 mod internal;
 mod named_fields;
