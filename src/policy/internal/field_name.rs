@@ -7,7 +7,10 @@
 // =============================================================================
 //! Canonical field-name and semantic token-suffix generation.
 
-use std::ops::ControlFlow;
+use std::{
+    borrow::Cow,
+    ops::ControlFlow,
+};
 
 use crate::policy::FieldNameMatching;
 
@@ -19,17 +22,28 @@ use crate::policy::FieldNameMatching;
 ///
 /// # Returns
 ///
-/// The canonical field name used as a lookup key.
+/// The borrowed field name when it is already canonical, otherwise an owned
+/// canonical lookup key.
 #[must_use]
-pub(crate) fn canonicalize_field_name(name: &str) -> String {
+pub(crate) fn canonicalize_field_name(name: &str) -> Cow<'_, str> {
     let name = name.trim();
+    let already_canonical = name.chars().all(|ch| {
+        if is_field_separator(ch) {
+            return false;
+        }
+        let mut lowercase = ch.to_lowercase();
+        lowercase.next() == Some(ch) && lowercase.next().is_none()
+    });
+    if already_canonical {
+        return Cow::Borrowed(name);
+    }
     let mut canonical = String::with_capacity(name.len());
     canonical.extend(
         name.chars()
             .filter(|ch| !is_field_separator(*ch))
             .flat_map(char::to_lowercase),
     );
-    canonical
+    Cow::Owned(canonical)
 }
 
 /// Visits canonical candidates for `name`, ordered longest to shortest.

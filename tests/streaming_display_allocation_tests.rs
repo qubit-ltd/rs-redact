@@ -13,19 +13,13 @@ use std::{
         Layout,
         System,
     },
+    cell::Cell,
     collections::BTreeMap,
     fmt::{
         self,
         Write,
     },
-    sync::{
-        Mutex,
-        atomic::{
-            AtomicBool,
-            AtomicUsize,
-            Ordering,
-        },
-    },
+    sync::Mutex,
 };
 
 use qubit_redact::{
@@ -36,10 +30,12 @@ use qubit_redact::{
 
 /// Serializes allocation-counting sections within this integration-test binary.
 static TEST_LOCK: Mutex<()> = Mutex::new(());
-/// Controls whether allocator calls contribute to the active measurement.
-static TRACK_ALLOCATIONS: AtomicBool = AtomicBool::new(false);
-/// Counts allocations performed while tracking is enabled.
-static ALLOCATION_COUNT: AtomicUsize = AtomicUsize::new(0);
+thread_local! {
+    /// Controls allocation tracking for the current measurement thread.
+    static TRACK_ALLOCATIONS: Cell<bool> = const { Cell::new(false) };
+    /// Counts allocations performed by the current measurement thread.
+    static ALLOCATION_COUNT: Cell<usize> = const { Cell::new(0) };
+}
 
 /// Global allocator that can count a narrowly scoped formatting operation.
 struct CountingAllocator;
@@ -87,9 +83,11 @@ static GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator;
 /// Records one allocation when a test measurement is active.
 #[inline(always)]
 fn record_allocation() {
-    if TRACK_ALLOCATIONS.load(Ordering::Relaxed) {
-        ALLOCATION_COUNT.fetch_add(1, Ordering::Relaxed);
-    }
+    TRACK_ALLOCATIONS.with(|tracking| {
+        if tracking.get() {
+            ALLOCATION_COUNT.with(|count| count.set(count.get() + 1));
+        }
+    });
 }
 
 /// Fixed-capacity formatting destination that never allocates.
@@ -158,11 +156,11 @@ impl Redact for SafeRecord {
 /// The number of allocation or reallocation calls during `format`.
 fn measured_allocations(format: impl FnOnce()) -> usize {
     let _guard = TEST_LOCK.lock().expect("the allocation test lock is valid");
-    ALLOCATION_COUNT.store(0, Ordering::Relaxed);
-    TRACK_ALLOCATIONS.store(true, Ordering::Relaxed);
+    ALLOCATION_COUNT.with(|count| count.set(0));
+    TRACK_ALLOCATIONS.with(|tracking| tracking.set(true));
     format();
-    TRACK_ALLOCATIONS.store(false, Ordering::Relaxed);
-    ALLOCATION_COUNT.load(Ordering::Relaxed)
+    TRACK_ALLOCATIONS.with(|tracking| tracking.set(false));
+    ALLOCATION_COUNT.with(Cell::get)
 }
 
 /// Verifies redacted domain and map views stream without heap allocation.
@@ -188,6 +186,26 @@ fn test_redacted_displays_stream_without_allocation() {
     let allocations = measured_allocations(|| {
         write!(&mut output, "{view}")
             .expect("the fixed output buffer can hold the map");
+    });
+
+    assert_eq!(allocations, 0);
+}
+
+/// Verifies classification of an already-canonical visible field does not
+/// allocate while streaming a nonempty map.
+#[test]
+fn test_nonempty_redacted_map_streams_without_allocation() {
+    let map = BTreeMap::from([("visible", "safe")]);
+    let policy = RedactionPolicy::builder()
+        .allow_exact("visible")
+        .build()
+        .expect("the visible-field policy should be valid");
+    let view = RedactedMap::new(&map, policy);
+    let mut output = FixedBuffer::new();
+
+    let allocations = measured_allocations(|| {
+        write!(&mut output, "{view}")
+            .expect("the fixed output buffer can hold the visible map");
     });
 
     assert_eq!(allocations, 0);

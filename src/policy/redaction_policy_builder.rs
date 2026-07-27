@@ -328,7 +328,7 @@ impl RedactionPolicyBuilder {
         if canonical.is_empty() {
             Err(PolicyError::EmptyFieldName)
         } else {
-            Ok(canonical)
+            Ok(canonical.into_owned())
         }
     }
 }
