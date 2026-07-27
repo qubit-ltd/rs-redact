@@ -7,11 +7,73 @@
 // =============================================================================
 //! Minimal Content-Type classification.
 
-use super::header_parameter::{
-    is_token_byte,
-    leading_value,
-    parse_parameters,
-};
+use super::header_parameter::{is_token_byte, leading_value, parse_parameters};
+
+/// One strict, once-parsed Content-Type classification.
+#[must_use]
+pub(in crate::http) enum ContentType {
+    /// A JSON media type.
+    Json,
+    /// A newline-delimited JSON media type.
+    Ndjson,
+    /// A URL-encoded form media type.
+    Form,
+    /// A multipart media type with its parsed boundary metadata.
+    Multipart {
+        /// Decoded boundary when it is present and conservatively valid.
+        boundary: Option<String>,
+        /// Whether each part must declare form-data disposition.
+        require_form_data: bool,
+    },
+    /// An opaque text media type.
+    Text,
+    /// A syntactically valid but unsupported media type.
+    Other,
+}
+
+/// Parses and classifies one complete Content-Type exactly once.
+///
+/// # Parameters
+///
+/// * `value` - Complete Content-Type text.
+///
+/// # Returns
+///
+/// A strict classification, or `None` when media-type or parameter grammar is
+/// invalid. Multipart values with a missing or invalid boundary remain valid
+/// classifications so callers can report an invalid multipart body.
+#[must_use]
+pub(in crate::http) fn parse(value: &str) -> Option<ContentType> {
+    let media_type = media_type(value);
+    let (kind, subtype) = media_type.split_once('/')?;
+    if kind.is_empty()
+        || subtype.is_empty()
+        || !kind.bytes().all(is_token_byte)
+        || !subtype.bytes().all(is_token_byte)
+    {
+        return None;
+    }
+    let [boundary] = parse_parameters(value, ["boundary"])?;
+    if is_multipart_media_type(media_type) {
+        return Some(ContentType::Multipart {
+            boundary: validate_boundary(boundary),
+            require_form_data: media_type.eq_ignore_ascii_case("multipart/form-data"),
+        });
+    }
+    if is_ndjson_media_type(media_type) {
+        return Some(ContentType::Ndjson);
+    }
+    if is_json_media_type(media_type) {
+        return Some(ContentType::Json);
+    }
+    if media_type.eq_ignore_ascii_case("application/x-www-form-urlencoded") {
+        return Some(ContentType::Form);
+    }
+    if is_text_media_type(media_type) {
+        return Some(ContentType::Text);
+    }
+    Some(ContentType::Other)
+}
 
 /// Returns the normalized media-type portion.
 ///
@@ -62,10 +124,7 @@ pub(in crate::http) fn is_valid(value: &str) -> bool {
 #[must_use]
 #[inline]
 pub(in crate::http) fn is_json(value: &str) -> bool {
-    let value = media_type(value).to_ascii_lowercase();
-    value == "application/json"
-        || value.ends_with("+json")
-        || value.ends_with("/json")
+    is_json_media_type(media_type(value))
 }
 
 /// Reports whether the media type declares NDJSON.
@@ -80,9 +139,7 @@ pub(in crate::http) fn is_json(value: &str) -> bool {
 #[must_use]
 #[inline]
 pub(in crate::http) fn is_ndjson(value: &str) -> bool {
-    let value = media_type(value);
-    value.eq_ignore_ascii_case("application/x-ndjson")
-        || value.eq_ignore_ascii_case("application/ndjson")
+    is_ndjson_media_type(media_type(value))
 }
 
 /// Reports whether the media type declares a URL-encoded form.
@@ -100,38 +157,6 @@ pub(in crate::http) fn is_form(value: &str) -> bool {
     media_type(value).eq_ignore_ascii_case("application/x-www-form-urlencoded")
 }
 
-/// Reports whether the media type declares multipart content.
-///
-/// # Parameters
-///
-/// * `value` - Complete Content-Type text.
-///
-/// # Returns
-///
-/// `true` for any multipart subtype.
-#[must_use]
-#[inline]
-pub(in crate::http) fn is_multipart(value: &str) -> bool {
-    media_type(value)
-        .to_ascii_lowercase()
-        .starts_with("multipart/")
-}
-
-/// Reports whether the media type is specifically multipart form data.
-///
-/// # Parameters
-///
-/// * `value` - Valid complete Content-Type text.
-///
-/// # Returns
-///
-/// `true` only for `multipart/form-data`, case-insensitively.
-#[must_use]
-#[inline(always)]
-pub(in crate::http) fn is_multipart_form_data(value: &str) -> bool {
-    media_type(value).eq_ignore_ascii_case("multipart/form-data")
-}
-
 /// Reports whether the media type declares opaque text.
 ///
 /// # Parameters
@@ -144,24 +169,119 @@ pub(in crate::http) fn is_multipart_form_data(value: &str) -> bool {
 #[must_use]
 #[inline]
 pub(in crate::http) fn is_text(value: &str) -> bool {
-    media_type(value).to_ascii_lowercase().starts_with("text/")
+    is_text_media_type(media_type(value))
 }
 
-/// Extracts a unique validated multipart boundary parameter.
+/// Reports whether a media type has a case-insensitive ASCII prefix.
 ///
 /// # Parameters
 ///
-/// * `value` - Multipart Content-Type text.
+/// * `value` - Media type text to inspect.
+/// * `prefix` - ASCII prefix to compare.
 ///
 /// # Returns
 ///
-/// The decoded conservative boundary, or `None` for invalid metadata.
+/// `true` when the value starts with the complete prefix.
 #[must_use]
-pub(in crate::http) fn multipart_boundary(value: &str) -> Option<String> {
-    if !is_multipart(value) {
-        return None;
-    }
-    let [boundary] = parse_parameters(value, ["boundary"])?;
+#[inline]
+fn starts_with_ascii_case_insensitive(value: &str, prefix: &str) -> bool {
+    value
+        .get(..prefix.len())
+        .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
+}
+
+/// Reports whether a media type has a case-insensitive ASCII suffix.
+///
+/// # Parameters
+///
+/// * `value` - Media type text to inspect.
+/// * `suffix` - ASCII suffix to compare.
+///
+/// # Returns
+///
+/// `true` when the value ends with the complete suffix.
+#[must_use]
+#[inline]
+fn ends_with_ascii_case_insensitive(value: &str, suffix: &str) -> bool {
+    value
+        .get(value.len().saturating_sub(suffix.len())..)
+        .is_some_and(|end| end.eq_ignore_ascii_case(suffix))
+}
+
+/// Reports whether a media type declares JSON.
+///
+/// # Parameters
+///
+/// * `value` - Media type portion without parameters.
+///
+/// # Returns
+///
+/// `true` for JSON media types and structured JSON suffixes.
+#[must_use]
+#[inline]
+fn is_json_media_type(value: &str) -> bool {
+    value.eq_ignore_ascii_case("application/json")
+        || ends_with_ascii_case_insensitive(value, "+json")
+        || ends_with_ascii_case_insensitive(value, "/json")
+}
+
+/// Reports whether a media type declares NDJSON.
+///
+/// # Parameters
+///
+/// * `value` - Media type portion without parameters.
+///
+/// # Returns
+///
+/// `true` for either supported NDJSON media type.
+#[must_use]
+#[inline]
+fn is_ndjson_media_type(value: &str) -> bool {
+    value.eq_ignore_ascii_case("application/x-ndjson")
+        || value.eq_ignore_ascii_case("application/ndjson")
+}
+
+/// Reports whether a media type declares multipart content.
+///
+/// # Parameters
+///
+/// * `value` - Media type portion without parameters.
+///
+/// # Returns
+///
+/// `true` for any multipart subtype.
+#[must_use]
+#[inline]
+fn is_multipart_media_type(value: &str) -> bool {
+    starts_with_ascii_case_insensitive(value, "multipart/")
+}
+
+/// Reports whether a media type declares opaque text.
+///
+/// # Parameters
+///
+/// * `value` - Media type portion without parameters.
+///
+/// # Returns
+///
+/// `true` for any text subtype.
+#[must_use]
+#[inline]
+fn is_text_media_type(value: &str) -> bool {
+    starts_with_ascii_case_insensitive(value, "text/")
+}
+
+/// Validates an optional decoded multipart boundary.
+///
+/// # Parameters
+///
+/// * `boundary` - Decoded boundary parameter, if one was present.
+///
+/// # Returns
+///
+/// The boundary when it satisfies conservative multipart framing rules.
+#[must_use]
+fn validate_boundary(boundary: Option<String>) -> Option<String> {
     let boundary = boundary?;
     ((1..=70).contains(&boundary.len())
         && boundary.bytes().all(is_boundary_byte)
