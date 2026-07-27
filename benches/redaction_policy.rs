@@ -11,7 +11,8 @@ use std::{collections::BTreeMap, hint::black_box};
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use qubit_redact::{
-    FieldNameMatching, LogOutputLimit, RedactedMap, RedactionPolicy, Redactor, Sensitivity,
+    FieldNameMatching, LogOutputLimit, MaskPolicy, RedactedMap, RedactionPolicy, Redactor,
+    Sensitivity,
 };
 
 /// Compares the global-default snapshot path with a direct standard clone.
@@ -52,6 +53,26 @@ fn benchmark_field_classification(criterion: &mut Criterion) {
     group.bench_function("suffix_miss", |bencher| {
         bencher.iter(|| black_box(suffix.sensitivity_for(black_box("servicePublicIdentifier"))));
     });
+    group.finish();
+}
+
+/// Measures preserved-mask rendering on long ASCII and Unicode values.
+fn benchmark_preserved_masks(criterion: &mut Criterion) {
+    let ascii = "a".repeat(1024 * 1024);
+    let unicode = "密".repeat((1024 * 1024) / "密".len());
+    let edges = MaskPolicy::preserve_edges(4, 4, "****", 8);
+    let suffix = MaskPolicy::preserve_suffix(8, "****", 8);
+    let mut group = criterion.benchmark_group("preserved_masks");
+
+    for (name, input) in [("ascii_1mib", &ascii), ("unicode_1mib", &unicode)] {
+        group.throughput(Throughput::Bytes(input.len() as u64));
+        group.bench_with_input(BenchmarkId::new("edges", name), input, |bencher, value| {
+            bencher.iter(|| black_box(edges.mask(black_box(value))));
+        });
+        group.bench_with_input(BenchmarkId::new("suffix", name), input, |bencher, value| {
+            bencher.iter(|| black_box(suffix.mask(black_box(value))));
+        });
+    }
     group.finish();
 }
 
@@ -170,6 +191,7 @@ criterion_group!(
     benches,
     benchmark_policy_snapshot,
     benchmark_field_classification,
+    benchmark_preserved_masks,
     benchmark_map_redaction,
 );
 criterion_main!(benches);

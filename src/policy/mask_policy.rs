@@ -255,20 +255,14 @@ impl MaskPolicy {
                 replacement,
                 full_mask_below_or_equal,
             } => {
-                let char_count = value.chars().count();
-                if char_count <= *full_mask_below_or_equal
-                    || char_count <= prefix_chars.saturating_add(*suffix_chars)
-                {
+                let Some((prefix_end, suffix_start)) = preserved_edge_bounds(
+                    value,
+                    *prefix_chars,
+                    *suffix_chars,
+                    *full_mask_below_or_equal,
+                ) else {
                     return writer.write_str(replacement);
-                }
-                let prefix_end = value
-                    .char_indices()
-                    .nth(*prefix_chars)
-                    .map_or(value.len(), |(index, _)| index);
-                let suffix_start = value
-                    .char_indices()
-                    .nth(char_count - *suffix_chars)
-                    .map_or(value.len(), |(index, _)| index);
+                };
                 writer.write_str(&value[..prefix_end])?;
                 writer.write_str(replacement)?;
                 writer.write_str(&value[suffix_start..])
@@ -278,14 +272,11 @@ impl MaskPolicy {
                 replacement,
                 full_mask_below_or_equal,
             } => {
-                let char_count = value.chars().count();
-                if char_count <= *full_mask_below_or_equal || char_count <= *suffix_chars {
+                let Some(suffix_start) =
+                    preserved_suffix_start(value, *suffix_chars, *full_mask_below_or_equal)
+                else {
                     return writer.write_str(replacement);
-                }
-                let suffix_start = value
-                    .char_indices()
-                    .nth(char_count - *suffix_chars)
-                    .map_or(value.len(), |(index, _)| index);
+                };
                 writer.write_str(replacement)?;
                 writer.write_str(&value[suffix_start..])
             }
@@ -315,20 +306,11 @@ fn mask_preserving_edges(
     replacement: &str,
     full_mask_below_or_equal: usize,
 ) -> String {
-    let char_count = value.chars().count();
-    if char_count <= full_mask_below_or_equal
-        || char_count <= prefix_chars.saturating_add(suffix_chars)
-    {
+    let Some((prefix_end, suffix_start)) =
+        preserved_edge_bounds(value, prefix_chars, suffix_chars, full_mask_below_or_equal)
+    else {
         return replacement.to_string();
-    }
-    let prefix_end = value
-        .char_indices()
-        .nth(prefix_chars)
-        .map_or(value.len(), |(index, _)| index);
-    let suffix_start = value
-        .char_indices()
-        .nth(char_count - suffix_chars)
-        .map_or(value.len(), |(index, _)| index);
+    };
     let mut masked =
         String::with_capacity(prefix_end + replacement.len() + value.len() - suffix_start);
     masked.push_str(&value[..prefix_end]);
@@ -356,16 +338,67 @@ fn mask_preserving_suffix(
     replacement: &str,
     full_mask_below_or_equal: usize,
 ) -> String {
-    let char_count = value.chars().count();
-    if char_count <= full_mask_below_or_equal || char_count <= suffix_chars {
+    let Some(suffix_start) = preserved_suffix_start(value, suffix_chars, full_mask_below_or_equal)
+    else {
         return replacement.to_string();
-    }
-    let suffix_start = value
-        .char_indices()
-        .nth(char_count - suffix_chars)
-        .map_or(value.len(), |(index, _)| index);
+    };
     let mut masked = String::with_capacity(replacement.len() + value.len() - suffix_start);
     masked.push_str(replacement);
     masked.push_str(&value[suffix_start..]);
     masked
+}
+
+/// Finds byte boundaries for preserving a prefix and suffix without counting
+/// every scalar in a long value.
+///
+/// # Returns
+///
+/// `Some((prefix_end, suffix_start))` when the value exceeds both full-mask
+/// limits, or `None` when it must be masked completely.
+fn preserved_edge_bounds(
+    value: &str,
+    prefix_chars: usize,
+    suffix_chars: usize,
+    full_mask_below_or_equal: usize,
+) -> Option<(usize, usize)> {
+    let edge_chars = prefix_chars.checked_add(suffix_chars)?;
+    let required_chars = full_mask_below_or_equal.max(edge_chars);
+    value.chars().nth(required_chars)?;
+    let prefix_end = value.char_indices().nth(prefix_chars)?.0;
+    let suffix_start = suffix_start(value, suffix_chars)?;
+    Some((prefix_end, suffix_start))
+}
+
+/// Finds the byte boundary for preserving a suffix without counting every
+/// scalar in a long value.
+///
+/// # Returns
+///
+/// `Some(suffix_start)` when the value exceeds both full-mask limits, or
+/// `None` when it must be masked completely.
+fn preserved_suffix_start(
+    value: &str,
+    suffix_chars: usize,
+    full_mask_below_or_equal: usize,
+) -> Option<usize> {
+    let required_chars = full_mask_below_or_equal.max(suffix_chars);
+    value.chars().nth(required_chars)?;
+    suffix_start(value, suffix_chars)
+}
+
+/// Finds the byte boundary before the final requested number of scalars.
+///
+/// # Returns
+///
+/// `Some(index)` at a UTF-8 character boundary, or `None` when the value is
+/// shorter than the requested suffix.
+fn suffix_start(value: &str, suffix_chars: usize) -> Option<usize> {
+    if suffix_chars == 0 {
+        return Some(value.len());
+    }
+    value
+        .char_indices()
+        .rev()
+        .nth(suffix_chars - 1)
+        .map(|(index, _)| index)
 }

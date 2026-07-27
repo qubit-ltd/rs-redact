@@ -41,6 +41,16 @@ fn test_mask_policy_preserve_edges_keeps_unicode_edges() {
     );
 }
 
+/// Verifies edge policies retain an empty requested suffix without scanning or
+/// exposing an overlapping value.
+#[test]
+fn test_mask_policy_preserve_edges_keeps_prefix_with_empty_suffix() {
+    assert_eq!(
+        MaskPolicy::preserve_edges(1, 0, "****", 0).mask("密钥值"),
+        "密****",
+    );
+}
+
 /// Verifies that overflowing edge counts cannot expose the raw value.
 #[test]
 fn test_mask_policy_preserve_edges_masks_when_edge_lengths_overflow() {
@@ -65,6 +75,15 @@ fn test_mask_policy_preserve_suffix_keeps_unicode_tail() {
     assert_eq!(
         MaskPolicy::preserve_suffix(2, "****", 2).mask("甲乙丙丁戊"),
         "****丁戊",
+    );
+}
+
+/// Verifies a zero-length suffix remains fully masked even above the threshold.
+#[test]
+fn test_mask_policy_preserve_suffix_masks_when_suffix_is_empty() {
+    assert_eq!(
+        MaskPolicy::preserve_suffix(0, "****", 0).mask("密钥值"),
+        "****",
     );
 }
 
