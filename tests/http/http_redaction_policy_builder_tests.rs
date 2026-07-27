@@ -166,3 +166,48 @@ fn test_http_redaction_policy_builder_validates_each_context_in_order() {
     assert!(invalid_query.is_err());
     assert!(invalid_body.is_err());
 }
+
+/// Verifies context-specific builders can revoke inherited allow rules.
+#[test]
+fn test_http_redaction_policy_builder_removes_inherited_allow_rules() {
+    let base = RedactionPolicy::empty_builder()
+        .raise("access_token", Sensitivity::Secret)
+        .raise("session_token", Sensitivity::High)
+        .allow_exact("access_token")
+        .allow_suffix("session_token")
+        .build()
+        .expect("the base policy should be valid");
+    let original = HttpRedactionPolicy::builder()
+        .header_policy(base.clone())
+        .query_policy(base.clone())
+        .body_policy(base)
+        .build()
+        .expect("the HTTP policy should be valid");
+    let policy = HttpRedactionPolicyBuilder::from_policy(&original)
+        .remove_header_allow_exact("access-token")
+        .remove_query_allow_suffix("session-token")
+        .clear_body_allow_rules()
+        .build()
+        .expect("the rebuilt HTTP policy should be valid");
+
+    assert_eq!(
+        policy.header_policy().sensitivity_for("access_token"),
+        Some(Sensitivity::Secret),
+    );
+    assert_eq!(
+        policy
+            .query_policy()
+            .sensitivity_for("request_session_token"),
+        Some(Sensitivity::High),
+    );
+    assert_eq!(
+        policy.body_policy().sensitivity_for("access_token"),
+        Some(Sensitivity::Secret),
+    );
+    assert_eq!(
+        policy
+            .body_policy()
+            .sensitivity_for("request_session_token"),
+        Some(Sensitivity::High),
+    );
+}

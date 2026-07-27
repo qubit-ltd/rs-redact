@@ -200,6 +200,27 @@ impl HttpRedactionPolicyBuilder {
         self
     }
 
+    /// Removes one exact header allow rule.
+    #[inline]
+    pub fn remove_header_allow_exact(mut self, name: &str) -> Self {
+        self.header = self.header.remove_allow_exact(name);
+        self
+    }
+
+    /// Removes one token-suffix header allow rule.
+    #[inline]
+    pub fn remove_header_allow_suffix(mut self, name: &str) -> Self {
+        self.header = self.header.remove_allow_suffix(name);
+        self
+    }
+
+    /// Removes every header allow rule.
+    #[inline]
+    pub fn clear_header_allow_rules(mut self) -> Self {
+        self.header = self.header.clear_allow_rules();
+        self
+    }
+
     /// Raises one query or form field to at least `level`.
     ///
     /// # Parameters
@@ -262,6 +283,27 @@ impl HttpRedactionPolicyBuilder {
         self
     }
 
+    /// Removes one exact query or form-field allow rule.
+    #[inline]
+    pub fn remove_query_allow_exact(mut self, name: &str) -> Self {
+        self.query = self.query.remove_allow_exact(name);
+        self
+    }
+
+    /// Removes one token-suffix query or form-field allow rule.
+    #[inline]
+    pub fn remove_query_allow_suffix(mut self, name: &str) -> Self {
+        self.query = self.query.remove_allow_suffix(name);
+        self
+    }
+
+    /// Removes every query and form-field allow rule.
+    #[inline]
+    pub fn clear_query_allow_rules(mut self) -> Self {
+        self.query = self.query.clear_allow_rules();
+        self
+    }
+
     /// Raises one structured-body field to at least `level`.
     ///
     /// # Parameters
@@ -321,6 +363,27 @@ impl HttpRedactionPolicyBuilder {
     #[inline]
     pub fn allow_body_suffix(mut self, name: &str) -> Self {
         self.body = self.body.allow_suffix(name);
+        self
+    }
+
+    /// Removes one exact structured-body allow rule.
+    #[inline]
+    pub fn remove_body_allow_exact(mut self, name: &str) -> Self {
+        self.body = self.body.remove_allow_exact(name);
+        self
+    }
+
+    /// Removes one token-suffix structured-body allow rule.
+    #[inline]
+    pub fn remove_body_allow_suffix(mut self, name: &str) -> Self {
+        self.body = self.body.remove_allow_suffix(name);
+        self
+    }
+
+    /// Removes every structured-body allow rule.
+    #[inline]
+    pub fn clear_body_allow_rules(mut self) -> Self {
+        self.body = self.body.clear_allow_rules();
         self
     }
 

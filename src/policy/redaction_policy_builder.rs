@@ -210,6 +210,51 @@ impl RedactionPolicyBuilder {
         self
     }
 
+    /// Removes one exact allow rule.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Field name to canonicalize and remove from exact rules.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder. Removing an absent rule has no effect.
+    pub fn remove_allow_exact(mut self, field: &str) -> Self {
+        let Some(field) = self.canonical_field(field) else {
+            return self;
+        };
+        self.allow_exact.remove(&field);
+        self
+    }
+
+    /// Removes one token-suffix allow rule.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Field name to canonicalize and remove from suffix rules.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder. Removing an absent rule has no effect.
+    pub fn remove_allow_suffix(mut self, field: &str) -> Self {
+        let Some(field) = self.canonical_field(field) else {
+            return self;
+        };
+        self.allow_suffix.remove(&field);
+        self
+    }
+
+    /// Removes every exact and token-suffix allow rule.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder without allow-rule exceptions.
+    pub fn clear_allow_rules(mut self) -> Self {
+        self.allow_exact.clear();
+        self.allow_suffix.clear();
+        self
+    }
+
     /// Replaces the mask assigned to one sensitivity level.
     ///
     /// # Parameters

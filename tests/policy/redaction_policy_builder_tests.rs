@@ -40,3 +40,54 @@ fn test_redaction_policy_builder_preserves_diagnostic_budget() {
         policy,
     );
 }
+
+/// Verifies copied policies can revoke inherited exact and suffix allow rules.
+#[test]
+fn test_redaction_policy_builder_removes_inherited_allow_rules() {
+    let base = RedactionPolicy::empty_builder()
+        .raise("access_token", Sensitivity::Secret)
+        .raise("session_token", Sensitivity::High)
+        .allow_exact("access_token")
+        .allow_suffix("session_token")
+        .build()
+        .expect("the base policy should be valid");
+    let policy = RedactionPolicy::builder_from(&base)
+        .remove_allow_exact("access-token")
+        .remove_allow_suffix("session-token")
+        .build()
+        .expect("the rebuilt policy should be valid");
+
+    assert_eq!(
+        policy.sensitivity_for("access_token"),
+        Some(Sensitivity::Secret)
+    );
+    assert_eq!(
+        policy.sensitivity_for("request_session_token"),
+        Some(Sensitivity::High),
+    );
+}
+
+/// Verifies one operation removes every inherited allow rule.
+#[test]
+fn test_redaction_policy_builder_clears_inherited_allow_rules() {
+    let base = RedactionPolicy::empty_builder()
+        .raise("access_token", Sensitivity::Secret)
+        .raise("session_token", Sensitivity::High)
+        .allow_exact("access_token")
+        .allow_suffix("session_token")
+        .build()
+        .expect("the base policy should be valid");
+    let policy = RedactionPolicy::builder_from(&base)
+        .clear_allow_rules()
+        .build()
+        .expect("the rebuilt policy should be valid");
+
+    assert_eq!(
+        policy.sensitivity_for("access_token"),
+        Some(Sensitivity::Secret)
+    );
+    assert_eq!(
+        policy.sensitivity_for("request_session_token"),
+        Some(Sensitivity::High),
+    );
+}
