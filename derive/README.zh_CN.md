@@ -27,7 +27,7 @@ use qubit_redact_derive::Redact;
 
 #[derive(Redact)]
 struct Credentials {
-    #[redact]
+    #[redact(level = "secret")]
     password: String,
 }
 ```
