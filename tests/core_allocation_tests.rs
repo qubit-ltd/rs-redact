@@ -34,6 +34,7 @@ use qubit_redact::{
     DiagnosticBudget,
     LogOutputLimit,
     MaskPolicy,
+    Redact,
     RedactedMap,
     RedactionPolicy,
     Redactor,
@@ -175,6 +176,60 @@ fn amplified_policy() -> RedactionPolicy {
         .diagnostic_budget(budget)
         .build()
         .expect("the amplified policy should be valid")
+}
+
+/// Redacted value that renders a bounded map inside an outer bounded view.
+struct NestedBoundedMap<'a> {
+    /// Sensitive values rendered by the inner map.
+    values: &'a BTreeMap<&'a str, &'a str>,
+    /// Policy containing an amplified fixed mask.
+    policy: RedactionPolicy,
+    /// Output limit requested by the inner bounded view.
+    limit: LogOutputLimit,
+}
+
+impl Redact for NestedBoundedMap<'_> {
+    /// Renders the inner map with its independently requested output limit.
+    fn fmt_redacted(
+        &self,
+        _policy: &RedactionPolicy,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(
+            formatter,
+            "{}",
+            RedactedMap::new(self.values, self.policy.clone())
+                .with_output_limit(self.limit),
+        )
+    }
+}
+
+/// Verifies an inner bounded view cannot widen the outer mask allocation
+/// ceiling.
+#[test]
+fn test_nested_bounded_display_does_not_widen_mask_allocation_limit() {
+    let _guard = allocation_test_lock();
+    let values = BTreeMap::from([("password", "raw-secret")]);
+    let inner_limit = LogOutputLimit::new(2 * 1024 * 1024)
+        .expect("the inner output limit should be valid");
+    let outer_limit = LogOutputLimit::new(14)
+        .expect("the outer output limit should be valid");
+    let nested = NestedBoundedMap {
+        values: &values,
+        policy: amplified_policy(),
+        limit: inner_limit,
+    };
+    let view = nested.redacted().with_output_limit(outer_limit);
+    let mut output = FixedBuffer::new();
+
+    let (result, largest) =
+        measure_largest_allocation(|| write!(&mut output, "{view}"));
+
+    result.expect("the nested bounded view should fit the fixed output buffer");
+    assert!(
+        largest < 4096,
+        "inner bounded view widened the mask allocation limit: {largest}",
+    );
 }
 
 /// Verifies a bounded map view never materializes a full fixed mask.

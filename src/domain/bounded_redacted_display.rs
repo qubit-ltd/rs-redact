@@ -56,6 +56,9 @@ impl Drop for MaskByteLimitReset<'_> {
 
 /// Executes `operation` while bounding each materialized mask on this thread.
 ///
+/// A nested operation may tighten the active ceiling but cannot widen a
+/// ceiling established by an outer bounded formatter.
+///
 /// # Parameters
 ///
 /// * `max_bytes` - Maximum bytes retained by one materialized mask.
@@ -69,7 +72,10 @@ pub(super) fn with_mask_byte_limit<T>(
     operation: impl FnOnce() -> T,
 ) -> T {
     MASK_BYTE_LIMIT.with(|context| {
-        let previous = context.replace(Some(max_bytes));
+        let previous = context.get();
+        let effective =
+            previous.map_or(max_bytes, |previous| previous.min(max_bytes));
+        context.set(Some(effective));
         let _reset = MaskByteLimitReset { context, previous };
         operation()
     })
