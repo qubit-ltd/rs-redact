@@ -9,11 +9,7 @@
 
 use std::borrow::Cow;
 
-use crate::{
-    RedactMapValueMut,
-    RedactedText,
-    RedactionPolicy,
-};
+use crate::{RedactMapValueMut, RedactedKeyedValue, RedactedText, RedactionPolicy};
 
 /// Applies one immutable policy to scalar values and string maps.
 #[must_use]
@@ -72,6 +68,30 @@ impl Redactor {
         RedactedText::new(value)
     }
 
+    /// Creates a lazy redacted view selected by an external key.
+    ///
+    /// The returned view owns a policy snapshot. When its key is sensitive,
+    /// it masks the complete value through [`RedactValue`](crate::RedactValue).
+    /// Otherwise it delegates to the value's recursive redaction contracts.
+    ///
+    /// # Parameters
+    ///
+    /// * `key` - Field name used only for policy classification.
+    /// * `value` - Value to render or serialize through the selected policy.
+    ///
+    /// # Returns
+    ///
+    /// A lazy keyed redaction view borrowing `key` and `value`.
+    #[must_use = "format or serialize the returned keyed redaction view"]
+    #[inline(always)]
+    pub fn redact_keyed<'a, T: ?Sized>(
+        &self,
+        key: &'a str,
+        value: &'a T,
+    ) -> RedactedKeyedValue<'a, T> {
+        RedactedKeyedValue::new(key, value, self.policy.clone())
+    }
+
     /// Redacts one value while bounding any allocated mask.
     ///
     /// # Parameters
@@ -91,9 +111,7 @@ impl Redactor {
         max_bytes: usize,
     ) -> RedactedText<'a> {
         let value = match self.policy.sensitivity_for(field) {
-            Some(level) => {
-                self.policy.masking().mask_bounded(level, value, max_bytes)
-            }
+            Some(level) => self.policy.masking().mask_bounded(level, value, max_bytes),
             None => Cow::Borrowed(value),
         };
         RedactedText::new(value)

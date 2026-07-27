@@ -20,6 +20,7 @@ mod redact_serialize_tests;
 mod redact_tests;
 mod redact_value_mut_tests;
 mod redact_value_tests;
+mod redacted_keyed_value_tests;
 mod redacted_map_tests;
 mod redacted_tests;
 mod redacted_value_tests;
