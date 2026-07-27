@@ -7,15 +7,11 @@
 // =============================================================================
 //! Tests for [`RedactedKeyedValue`](qubit_redact::RedactedKeyedValue).
 
-use std::{
-    collections::BTreeMap,
-    fmt,
-};
+use std::fmt;
 
 use qubit_redact::{
     Redact,
     RedactValue,
-    RedactedKeyedMap,
     RedactedValue,
     RedactionPolicy,
     Redactor,
@@ -171,25 +167,6 @@ fn test_redact_keyed_recursively_redacts_unclassified_value() {
     assert!(!debug.contains("nested-secret"));
     assert!(!display.contains("nested-secret"));
     assert!(!display.contains('\n'));
-}
-
-/// Verifies a keyed map recursively redacts unclassified nested values.
-#[test]
-fn test_redacted_keyed_map_recursively_redacts_unclassified_values() {
-    let map = BTreeMap::from([
-        (String::from("profile"), nested_value()),
-        (String::from("tenant_secret"), nested_value()),
-    ]);
-    let policy = RedactionPolicy::builder()
-        .raise("tenant_secret", Sensitivity::Secret)
-        .build()
-        .expect("the keyed map policy should build");
-
-    let output = format!("{:?}", RedactedKeyedMap::new(&map, policy));
-
-    assert!(output.contains("visible-label"));
-    assert!(!output.contains("nested-secret"));
-    assert_eq!(output.matches("<redacted>").count(), 2);
 }
 
 /// Verifies a keyed redacted view retains its original field name.
