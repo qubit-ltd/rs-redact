@@ -7,6 +7,10 @@
 // =============================================================================
 //! Parser for the supported Serde container attribute allowlist.
 
+// qubit-style: allow source-test-pair
+// This parser is exercised through the Serde container attribute integration
+// and compile-fail tests.
+
 use syn::{
     Attribute,
     Data,
