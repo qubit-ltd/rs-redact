@@ -167,6 +167,15 @@ fn test_redact_keyed_recursively_redacts_unclassified_value() {
     assert!(!display.contains('\n'));
 }
 
+/// Verifies a keyed redacted view retains its original field name.
+#[test]
+fn test_redact_keyed_preserves_key() {
+    let value = TextValue("visible".to_owned());
+    let view = Redactor::default().redact_keyed("display_name", &value);
+
+    assert_eq!(view.key(), "display_name");
+}
+
 /// Verifies keyed values serialize their selected redacted representation.
 #[cfg(feature = "serde")]
 #[test]
