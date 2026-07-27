@@ -13,6 +13,8 @@ use std::{
 };
 
 use qubit_redact::{
+    DiagnosticBudget,
+    LogOutputLimit,
     Redact,
     RedactValue,
     RedactedKeyedMap,
@@ -89,4 +91,36 @@ fn test_redacted_keyed_map_recursively_redacts_unclassified_values() {
     assert!(output.contains("visible-label"));
     assert!(!output.contains("nested-secret"));
     assert_eq!(output.matches("<redacted>").count(), 2);
+}
+
+/// Verifies keyed map displays escape log controls and both bounded adapters
+/// honor their configured output limits.
+#[test]
+fn test_redacted_keyed_map_display_and_bounded_adapters() {
+    let map = BTreeMap::from([(String::from("profile"), nested_value())]);
+    let output_limit = DiagnosticBudget::MIN_OUTPUT_BYTES;
+    let budget = DiagnosticBudget::new(1024, output_limit)
+        .expect("the test diagnostic budget should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_budget(budget)
+        .build()
+        .expect("the keyed map policy should build");
+
+    let display = RedactedKeyedMap::new(&map, policy.clone()).to_string();
+    let bounded = RedactedKeyedMap::new(&map, policy.clone())
+        .with_output_limit(
+            LogOutputLimit::new(output_limit)
+                .expect("the minimum output limit should be valid"),
+        )
+        .to_string();
+    let policy_bounded = RedactedKeyedMap::new(&map, policy)
+        .with_policy_output_limit()
+        .to_string();
+
+    assert!(display.contains("visible-label"));
+    assert!(!display.contains("nested-secret"));
+    assert!(bounded.len() <= output_limit);
+    assert!(bounded.ends_with("<truncated>"));
+    assert!(policy_bounded.len() <= output_limit);
+    assert!(policy_bounded.ends_with("<truncated>"));
 }
