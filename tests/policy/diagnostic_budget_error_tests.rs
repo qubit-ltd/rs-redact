@@ -5,11 +5,11 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`DiagnosticBudgetError`](qubit_redact::http::DiagnosticBudgetError).
+//! Tests for [`DiagnosticBudgetError`](qubit_redact::DiagnosticBudgetError).
 
 use std::error::Error;
 
-use qubit_redact::http::DiagnosticBudgetError;
+use qubit_redact::DiagnosticBudgetError;
 
 /// Verifies diagnostic budget errors implement the standard error contract.
 #[test]

@@ -5,12 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`DiagnosticBudget`](qubit_redact::http::DiagnosticBudget).
+//! Tests for [`DiagnosticBudget`](qubit_redact::DiagnosticBudget).
 
-use qubit_redact::http::{
-    DiagnosticBudget,
-    DiagnosticBudgetError,
-};
+use qubit_redact::{DiagnosticBudget, DiagnosticBudgetError};
 
 /// Verifies the default diagnostic limits remain finite and explicit.
 #[test]
@@ -51,8 +48,5 @@ fn test_diagnostic_budget_new_preserves_limits() {
         .expect("the minimum diagnostic output budget should be valid");
 
     assert_eq!(budget.max_input_bytes(), 16);
-    assert_eq!(
-        budget.max_output_bytes(),
-        DiagnosticBudget::MIN_OUTPUT_BYTES,
-    );
+    assert_eq!(budget.max_output_bytes(), DiagnosticBudget::MIN_OUTPUT_BYTES);
 }

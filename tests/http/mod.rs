@@ -14,8 +14,6 @@ mod body_capture_tests;
 mod body_redaction_reason_tests;
 mod body_redaction_status_tests;
 mod body_redaction_tests;
-mod diagnostic_budget_error_tests;
-mod diagnostic_budget_tests;
 mod header_redaction_tests;
 mod http_redaction_policy_builder_tests;
 mod http_redaction_policy_tests;
