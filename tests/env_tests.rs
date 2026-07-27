@@ -284,6 +284,23 @@ fn test_redact_os_pair_masks_non_utf8_value() {
     assert!(!rendered.contains("prefix-secret"));
 }
 
+/// Verifies bounded aggregate rendering also fails closed for non-UTF-8
+/// components.
+#[cfg(unix)]
+#[test]
+fn test_redact_os_pairs_masks_non_utf8_components() {
+    let name = OsString::from_vec(b"CUSTOM_\xFF_KEY".to_vec());
+    let value = OsString::from_vec(b"prefix-secret-\xFF-suffix".to_vec());
+
+    let rendered = EnvRedactor::default()
+        .redact_os_pairs([(&*name, &*value)])
+        .to_string();
+
+    assert_eq!(rendered, r#"["CUSTOM_�_KEY=<redacted>"]"#);
+    assert!(!rendered.contains("prefix-secret"));
+    assert!(!rendered.contains("suffix"));
+}
+
 proptest! {
     /// Verifies environment redaction is deterministic and never leaks secrets.
     #[test]

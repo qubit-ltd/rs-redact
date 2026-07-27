@@ -154,7 +154,7 @@ impl Write for BoundedLogEscapeWriter {
     /// stop producing additional pieces.
     fn write_str(&mut self, value: &str) -> fmt::Result {
         let mut remaining = value;
-        while !remaining.is_empty() {
+        while let Some(character) = remaining.chars().next() {
             if let Some((escape, rest)) = split_debug_escape(remaining) {
                 if !self.write_piece(escape) {
                     return Err(fmt::Error);
@@ -162,9 +162,6 @@ impl Write for BoundedLogEscapeWriter {
                 remaining = rest;
                 continue;
             }
-            let Some(character) = remaining.chars().next() else {
-                return Ok(());
-            };
             let mut buffer = [0_u8; 12];
             let piece = encode_log_safe_character(character, &mut buffer)?;
             if !self.write_piece(piece) {
