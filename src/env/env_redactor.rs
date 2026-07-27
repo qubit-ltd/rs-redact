@@ -150,8 +150,7 @@ impl EnvRedactor {
         I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
     {
         let budget = self.redactor.policy().diagnostic_budget();
-        let limit = LogOutputLimit::new(budget.max_output_bytes())
-            .expect("diagnostic budgets always satisfy the log output minimum");
+        let limit = LogOutputLimit::from(budget);
         let mut writer = BoundedLogEscapeWriter::new(limit);
         let _ = writer.write_str("[");
         let mut has_item = false;

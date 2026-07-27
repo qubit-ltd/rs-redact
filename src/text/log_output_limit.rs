@@ -7,7 +7,10 @@
 // =============================================================================
 //! Validated byte limits for bounded log output.
 
-use crate::LogOutputLimitError;
+use crate::{
+    DiagnosticBudget,
+    LogOutputLimitError,
+};
 
 /// Marker appended when bounded log output is truncated.
 pub(crate) const TRUNCATION_MARKER: &str = "<truncated>";
@@ -55,5 +58,18 @@ impl LogOutputLimit {
     #[inline(always)]
     pub const fn max_bytes(self) -> usize {
         self.max_bytes
+    }
+}
+
+impl From<DiagnosticBudget> for LogOutputLimit {
+    /// Converts a diagnostic budget into its compatible log-output limit.
+    ///
+    /// [`DiagnosticBudget`] guarantees an output bound large enough for every
+    /// [`LogOutputLimit`].
+    #[inline(always)]
+    fn from(budget: DiagnosticBudget) -> Self {
+        Self {
+            max_bytes: budget.max_output_bytes(),
+        }
     }
 }

@@ -48,7 +48,7 @@ impl HttpRedactionPolicy {
     /// # Returns
     ///
     /// A mutable HTTP policy builder using fail-closed behavior defaults and
-    /// finite 16 KiB input and 64 KiB output limits.
+    /// the current global diagnostic budget snapshot.
     #[inline(always)]
     pub fn builder() -> HttpRedactionPolicyBuilder {
         HttpRedactionPolicyBuilder::new()
@@ -63,7 +63,7 @@ impl HttpRedactionPolicy {
     /// # Returns
     ///
     /// A mutable HTTP policy builder using fail-closed behavior defaults and
-    /// finite 16 KiB input and 64 KiB output limits.
+    /// `base`'s diagnostic budget snapshot.
     pub fn builder_from(base: RedactionPolicy) -> HttpRedactionPolicyBuilder {
         HttpRedactionPolicyBuilder::from_base_policy(base)
     }
@@ -93,6 +93,7 @@ impl HttpRedactionPolicy {
         unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
         body_budget: BodyBudget,
     ) -> Self {
+        let diagnostic_budget = body_policy.diagnostic_budget();
         Self {
             header_policy,
             query_policy,
@@ -101,7 +102,7 @@ impl HttpRedactionPolicy {
             text_body_policy,
             unkeyed_json_value_policy,
             body_budget,
-            diagnostic_budget: DiagnosticBudget::default(),
+            diagnostic_budget,
         }
     }
 

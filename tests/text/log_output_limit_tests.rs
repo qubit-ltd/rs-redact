@@ -7,7 +7,10 @@
 // =============================================================================
 //! Tests for [`LogOutputLimit`](qubit_redact::LogOutputLimit).
 
-use qubit_redact::LogOutputLimit;
+use qubit_redact::{
+    DiagnosticBudget,
+    LogOutputLimit,
+};
 
 /// Verifies a valid limit preserves its configured byte count.
 #[test]
@@ -25,4 +28,15 @@ fn test_log_output_limit_accepts_minimum_budget() {
         .expect("the minimum limit is valid");
 
     assert_eq!(limit.max_bytes(), LogOutputLimit::MINIMUM);
+}
+
+/// Verifies a validated diagnostic budget converts to an output limit without
+/// revalidating its already-compatible output bound.
+#[test]
+fn test_log_output_limit_from_diagnostic_budget_preserves_output_limit() {
+    let budget = DiagnosticBudget::new(64, 128)
+        .expect("the diagnostic budget should be valid");
+    let limit = LogOutputLimit::from(budget);
+
+    assert_eq!(limit.max_bytes(), budget.max_output_bytes());
 }

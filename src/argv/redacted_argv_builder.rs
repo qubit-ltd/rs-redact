@@ -31,8 +31,7 @@ pub(super) struct RedactedArgvBuilder {
 impl RedactedArgvBuilder {
     /// Starts an empty argv rendering with the supplied diagnostic budget.
     pub(super) fn new(budget: DiagnosticBudget) -> Self {
-        let limit = LogOutputLimit::new(budget.max_output_bytes())
-            .expect("diagnostic budgets always satisfy the log output minimum");
+        let limit = LogOutputLimit::from(budget);
         let mut writer = BoundedLogEscapeWriter::new(limit);
         let _ = writer.write_str("[");
         Self {
