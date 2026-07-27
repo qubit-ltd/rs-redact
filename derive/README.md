@@ -7,8 +7,8 @@
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
 Procedural derive macros for the `qubit-redact` runtime crate. They generate
-safe redacted formatting and explicit destructive redaction for Rust domain
-objects.
+safe redacted formatting and explicit logical in-place redaction for Rust
+domain objects.
 
 ## Installation
 

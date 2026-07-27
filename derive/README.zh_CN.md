@@ -7,7 +7,7 @@
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
 
 `qubit-redact` 运行时 crate 的过程派生宏。它为 Rust 领域对象生成安全的脱敏格式化
-和显式的破坏性脱敏实现。
+和显式的逻辑原地脱敏实现。
 
 ## 安装
 

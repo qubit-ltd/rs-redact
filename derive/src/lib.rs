@@ -54,7 +54,8 @@ pub fn derive_redact(input: TokenStream) -> TokenStream {
     redact_derive::derive(input)
 }
 
-/// Derives explicit destructive redaction for owned fields of a struct or enum.
+/// Derives explicit logical in-place redaction for owned fields of a struct or
+/// enum.
 ///
 /// # Parameters
 ///
