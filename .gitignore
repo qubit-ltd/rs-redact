@@ -69,6 +69,7 @@ external/
 .cursor/
 
 # Temporary files
+.worktrees/
 *.tmp
 *.temp
 
