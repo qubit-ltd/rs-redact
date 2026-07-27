@@ -29,7 +29,10 @@ impl<'a> MaskByteLimitReset<'a> {
     ///
     /// A scope guard that restores the context when dropped.
     #[inline(always)]
-    pub(super) const fn new(context: &'a Cell<Option<usize>>, previous: Option<usize>) -> Self {
+    pub(super) const fn new(
+        context: &'a Cell<Option<usize>>,
+        previous: Option<usize>,
+    ) -> Self {
         Self { context, previous }
     }
 }
