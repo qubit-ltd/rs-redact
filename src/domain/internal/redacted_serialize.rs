@@ -7,7 +7,10 @@
 // =============================================================================
 //! Borrowed policy-preserving wrapper for nested serialization.
 
-use crate::{RedactionPolicy, domain::RedactSerialize};
+use crate::{
+    RedactionPolicy,
+    domain::RedactSerialize,
+};
 
 /// A nested value paired with the current explicit policy.
 #[doc(hidden)]
@@ -36,7 +39,9 @@ impl<'a, T: ?Sized> RedactedSerialize<'a, T> {
     }
 }
 
-impl<T: RedactSerialize + ?Sized> serde::Serialize for RedactedSerialize<'_, T> {
+impl<T: RedactSerialize + ?Sized> serde::Serialize
+    for RedactedSerialize<'_, T>
+{
     /// Delegates serialization to the nested redaction hook.
     ///
     /// # Parameters

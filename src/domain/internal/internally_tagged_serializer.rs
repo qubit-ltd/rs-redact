@@ -8,8 +8,13 @@
 //! Serializer adapter for redacted internally tagged newtype variants.
 
 use serde::{
-    Serialize, Serializer,
-    ser::{Impossible, SerializeMap, SerializeStruct},
+    Serialize,
+    Serializer,
+    ser::{
+        Impossible,
+        SerializeMap,
+        SerializeStruct,
+    },
 };
 
 /// Serializer that inserts an enum tag before map-like newtype content.
@@ -170,7 +175,10 @@ where
 
     /// Serializes unit-struct content as a map containing only the tag.
     #[inline]
-    fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {
+    fn serialize_unit_struct(
+        self,
+        _name: &'static str,
+    ) -> Result<Self::Ok, Self::Error> {
         self.serialize_unit()
     }
 
@@ -221,13 +229,19 @@ where
 
     /// Rejects sequence content because it cannot carry a named tag field.
     #[inline]
-    fn serialize_seq(self, _length: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
+    fn serialize_seq(
+        self,
+        _length: Option<usize>,
+    ) -> Result<Self::SerializeSeq, Self::Error> {
         Err(self.unsupported("a sequence"))
     }
 
     /// Rejects tuple content because it cannot carry a named tag field.
     #[inline]
-    fn serialize_tuple(self, _length: usize) -> Result<Self::SerializeTuple, Self::Error> {
+    fn serialize_tuple(
+        self,
+        _length: usize,
+    ) -> Result<Self::SerializeTuple, Self::Error> {
         Err(self.unsupported("a tuple"))
     }
 
@@ -255,7 +269,10 @@ where
 
     /// Starts map content after serializing the inserted tag entry.
     #[inline]
-    fn serialize_map(self, length: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
+    fn serialize_map(
+        self,
+        length: Option<usize>,
+    ) -> Result<Self::SerializeMap, Self::Error> {
         let mut map = self
             .serializer
             .serialize_map(length.map(|value| value + 1))?;

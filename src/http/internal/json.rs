@@ -80,7 +80,12 @@ pub(in crate::http) fn redact_ndjson(
     max_mask_bytes: usize,
 ) -> Option<(String, bool)> {
     let mut remaining_mask_bytes = max_mask_bytes;
-    redact_ndjson_with_remaining(redactor, bytes, unkeyed, &mut remaining_mask_bytes)
+    redact_ndjson_with_remaining(
+        redactor,
+        bytes,
+        unkeyed,
+        &mut remaining_mask_bytes,
+    )
 }
 
 /// Redacts NDJSON while consuming an enclosing aggregate mask budget.
@@ -101,7 +106,12 @@ pub(in crate::http) fn redact_ndjson_with_remaining(
             continue;
         }
         let mut value = serde_json::from_str(line).ok()?;
-        passed |= redact_with_remaining(redactor, &mut value, unkeyed, remaining_mask_bytes);
+        passed |= redact_with_remaining(
+            redactor,
+            &mut value,
+            unkeyed,
+            remaining_mask_bytes,
+        );
         lines.push(serde_json::to_string(&value).ok()?);
     }
     let mut output = lines.join("\n");
@@ -150,11 +160,17 @@ fn redact_with_context(
                             .masking()
                             .mask_opaque_bounded(level, *remaining_mask_bytes)
                     };
-                    *remaining_mask_bytes = remaining_mask_bytes.saturating_sub(masked.len());
+                    *remaining_mask_bytes =
+                        remaining_mask_bytes.saturating_sub(masked.len());
                     *value = Value::String(masked);
                 } else {
-                    passed |=
-                        redact_with_context(redactor, value, unkeyed, remaining_mask_bytes, true);
+                    passed |= redact_with_context(
+                        redactor,
+                        value,
+                        unkeyed,
+                        remaining_mask_bytes,
+                        true,
+                    );
                 }
             }
             passed
@@ -162,12 +178,19 @@ fn redact_with_context(
         Value::Array(values) => {
             let mut passed = false;
             for value in values {
-                passed |=
-                    redact_with_context(redactor, value, unkeyed, remaining_mask_bytes, has_field);
+                passed |= redact_with_context(
+                    redactor,
+                    value,
+                    unkeyed,
+                    remaining_mask_bytes,
+                    has_field,
+                );
             }
             passed
         }
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) if !has_field => {
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_)
+            if !has_field =>
+        {
             match unkeyed {
                 UnkeyedJsonValuePolicy::Redact => {
                     *value = Value::String(UNKEYED_JSON.to_string());
@@ -176,6 +199,8 @@ fn redact_with_context(
                 UnkeyedJsonValuePolicy::PassThrough => true,
             }
         }
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => false,
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
+            false
+        }
     }
 }

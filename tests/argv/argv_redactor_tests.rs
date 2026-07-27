@@ -51,20 +51,31 @@ fn test_argv_redactor_supports_documented_heuristic_forms() {
     }
 }
 
-/// Verifies compact options, JVM-style properties, and shell payloads are not
-/// inferred by the command-agnostic heuristic.
+/// Verifies JVM properties with sensitive names are redacted heuristically.
+#[test]
+fn test_argv_redactor_masks_sensitive_jvm_property() {
+    let rendered = ArgvRedactor::default()
+        .redact_heuristically([ArgvItem::plain(OsStr::new(
+            "-Dpassword=jvm-secret",
+        ))])
+        .to_string();
+
+    assert!(rendered.contains("-Dpassword=<redacted>"));
+    assert!(!rendered.contains("jvm-secret"));
+}
+
+/// Verifies compact options and shell payloads are not inferred by the
+/// command-agnostic heuristic.
 #[test]
 fn test_argv_redactor_keeps_documented_unsupported_forms_plain() {
     let rendered = ArgvRedactor::default()
         .redact_heuristically([
             ArgvItem::plain(OsStr::new("-pSECRET")),
-            ArgvItem::plain(OsStr::new("-Dpassword=SECRET")),
             ArgvItem::plain(OsStr::new("echo --password shell-secret")),
         ])
         .to_string();
 
     assert!(rendered.contains("-pSECRET"));
-    assert!(rendered.contains("-Dpassword=SECRET"));
     assert!(rendered.contains("shell-secret"));
 }
 
@@ -73,7 +84,10 @@ fn test_argv_redactor_keeps_documented_unsupported_forms_plain() {
 fn test_argv_redactor_masks_unsupported_forms_when_explicitly_sensitive() {
     let rendered = ArgvRedactor::default()
         .redact_heuristically([
-            ArgvItem::sensitive(OsStr::new("-pSECRET"), qubit_redact::Sensitivity::Secret),
+            ArgvItem::sensitive(
+                OsStr::new("-pSECRET"),
+                qubit_redact::Sensitivity::Secret,
+            ),
             ArgvItem::sensitive(
                 OsStr::new("-Dpassword=SECRET"),
                 qubit_redact::Sensitivity::Secret,

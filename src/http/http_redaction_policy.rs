@@ -7,10 +7,17 @@
 // =============================================================================
 //! Immutable policy snapshot for every HTTP redaction context.
 
-use crate::{DiagnosticBudget, RedactionPolicy};
+use crate::{
+    DiagnosticBudget,
+    RedactionPolicy,
+};
 
 use super::{
-    BodyBudget, HttpRedactionPolicyBuilder, TextBodyPolicy, UnkeyedJsonValuePolicy, UrlPathPolicy,
+    BodyBudget,
+    HttpRedactionPolicyBuilder,
+    TextBodyPolicy,
+    UnkeyedJsonValuePolicy,
+    UrlPathPolicy,
 };
 
 /// Combines independent HTTP field policies, behavior choices, and hard limits.

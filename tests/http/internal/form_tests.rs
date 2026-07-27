@@ -8,7 +8,11 @@
 //! Tests for URL-encoded form redaction.
 
 use http::HeaderValue;
-use qubit_redact::http::{BodyCapture, BodyRedactionStatus, HttpRedactor};
+use qubit_redact::http::{
+    BodyCapture,
+    BodyRedactionStatus,
+    HttpRedactor,
+};
 
 /// Verifies form values are classified from their field names.
 #[test]

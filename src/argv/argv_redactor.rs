@@ -9,9 +9,17 @@
 
 use std::ffi::OsStr;
 
-use crate::{DiagnosticInputBudget, Redactor, Sensitivity};
+use crate::{
+    DiagnosticInputBudget,
+    Redactor,
+    Sensitivity,
+};
 
-use super::{ArgvItem, RedactedArgv, redacted_argv_builder::TRUNCATED_ITEM};
+use super::{
+    ArgvItem,
+    RedactedArgv,
+    redacted_argv_builder::TRUNCATED_ITEM,
+};
 
 /// Applies one immutable redaction policy to argument vectors.
 #[must_use = "use the redactor to produce a safe argv rendering"]
@@ -64,7 +72,8 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut input_budget = self.redactor.policy().diagnostic_budget().input_budget();
+        let mut input_budget =
+            self.redactor.policy().diagnostic_budget().input_budget();
         self.redact_items_with_input_budget(items, &mut input_budget)
     }
 
@@ -91,7 +100,8 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut rendered = RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
+        let mut rendered =
+            RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
         for item in items {
             if !input_budget.reserve(item.value().as_encoded_bytes().len()) {
                 let _ = rendered.push(TRUNCATED_ITEM);
@@ -108,11 +118,11 @@ impl ArgvRedactor {
     /// values.
     ///
     /// Explicit sensitivity always wins. Plain items recognize
-    /// `--name value`, `--name=value`, `-name value`, and `NAME=value`.
-    /// Compact options such as `-pSECRET`, JVM-style properties such as
-    /// `-Dpassword=SECRET`, and shell payload syntax are not inferred. Callers
-    /// must mark those values explicitly when they are sensitive. Because this
-    /// is a safety heuristic rather than a command-specific parser, an option
+    /// `--name value`, `--name=value`, `-name value`, `NAME=value`, and
+    /// JVM-style `-Dname=value` properties. Compact options such as
+    /// `-pSECRET` and shell payload syntax are not inferred. Callers must mark
+    /// those values explicitly when they are sensitive. Because this is a
+    /// safety heuristic rather than a command-specific parser, an option
     /// delimiter does not disable recognition in later wrapper or child-command
     /// segments. A non-UTF-8 plain item is masked at [`Sensitivity::Secret`]
     /// because it cannot be classified safely.
@@ -128,7 +138,8 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut input_budget = self.redactor.policy().diagnostic_budget().input_budget();
+        let mut input_budget =
+            self.redactor.policy().diagnostic_budget().input_budget();
         self.redact_heuristically_with_input_budget(items, &mut input_budget)
     }
 
@@ -155,7 +166,8 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut rendered = RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
+        let mut rendered =
+            RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
         let mut pending_sensitivity = None;
 
         for item in items {
@@ -170,7 +182,9 @@ impl ArgvRedactor {
                 }
                 continue;
             }
-            if !rendered.push(&self.redact_plain_item(item.value(), &mut pending_sensitivity)) {
+            if !rendered.push(
+                &self.redact_plain_item(item.value(), &mut pending_sensitivity),
+            ) {
                 break;
             }
         }
@@ -235,8 +249,10 @@ impl ArgvRedactor {
     ) -> String {
         let Some(value) = value.to_str() else {
             let encoded = value.as_encoded_bytes();
-            let may_take_separate_value = encoded.starts_with(b"-") && !encoded.contains(&b'=');
-            *pending_sensitivity = may_take_separate_value.then_some(Sensitivity::Secret);
+            let may_take_separate_value =
+                encoded.starts_with(b"-") && !encoded.contains(&b'=');
+            *pending_sensitivity =
+                may_take_separate_value.then_some(Sensitivity::Secret);
             return self.mask_opaque_value();
         };
 
@@ -251,6 +267,9 @@ impl ArgvRedactor {
             return value;
         }
         if let Some(value) = self.redact_inline_option(value) {
+            return value;
+        }
+        if let Some(value) = self.redact_jvm_property(value) {
             return value;
         }
         if let Some(level) = option_sensitivity {
@@ -320,6 +339,26 @@ impl ArgvRedactor {
         let level = self.redactor.policy().sensitivity_for(name)?;
         let redacted = self.mask_utf8_value(raw_value, level);
         Some(format!("{left}={redacted}"))
+    }
+
+    /// Redacts a JVM `-Dname=value` property when its name is sensitive.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Plain argument that may be a JVM system property.
+    ///
+    /// # Returns
+    ///
+    /// `Some(rendering)` for a sensitive JVM property, or `None` otherwise.
+    fn redact_jvm_property(&self, value: &str) -> Option<String> {
+        let property = value.strip_prefix("-D")?;
+        let (name, raw_value) = property.split_once('=')?;
+        if name.is_empty() {
+            return None;
+        }
+        let level = self.redactor.policy().sensitivity_for(name)?;
+        let redacted = self.mask_utf8_value(raw_value, level);
+        Some(format!("-D{name}={redacted}"))
     }
 
     /// Masks one valid UTF-8 value at an explicit sensitivity level.

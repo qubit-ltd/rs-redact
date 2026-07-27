@@ -288,11 +288,11 @@ different policy boundary.
 
 `ArgvRedactor::redact_items` trusts explicit sensitivity metadata and performs
 no command-line inference. `redact_heuristically` additionally recognizes
-`--password value`, `--password=value`, `-password value`, and `NAME=value`.
-Explicitly sensitive `ArgvItem` values are always masked. Compact options such
-as `-pSECRET`, JVM-style properties such as `-Dpassword=SECRET`, and shell
-payload syntax are not inferred; mark those items explicitly when they can
-contain secrets.
+`--password value`, `--password=value`, `-password value`, `NAME=value`, and
+JVM-style `-Dpassword=SECRET` properties. Explicitly sensitive `ArgvItem`
+values are always masked. Compact options such as `-pSECRET` and shell payload
+syntax are not inferred; mark those items explicitly when they can contain
+secrets.
 
 `EnvRedactor` redacts UTF-8 pairs and fails closed when either operating-system
 component is not valid UTF-8. Its result safely renders as `NAME=VALUE`.

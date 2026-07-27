@@ -7,7 +7,10 @@
 // =============================================================================
 //! Streaming log-control escaping.
 
-use std::fmt::{self, Write};
+use std::fmt::{
+    self,
+    Write,
+};
 
 use crate::text::log_escape::is_log_unsafe_character;
 

@@ -13,8 +13,8 @@ use qubit_redact::LogOutputLimit;
 #[test]
 fn test_log_output_limit_error_describes_invalid_budget() {
     let requested = LogOutputLimit::MINIMUM - 1;
-    let error =
-        LogOutputLimit::new(requested).expect_err("a budget below the marker length must fail");
+    let error = LogOutputLimit::new(requested)
+        .expect_err("a budget below the marker length must fail");
 
     assert_eq!(error.requested(), requested);
     assert_eq!(error.minimum(), LogOutputLimit::MINIMUM);

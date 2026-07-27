@@ -261,9 +261,9 @@ assert!(!format!("{value}").contains("raw-token"));
 
 `ArgvRedactor::redact_items` 信任调用方提供的敏感等级，不推断命令行语法。
 `redact_heuristically` 会识别 `--password value`、`--password=value`、
-`-password value` 和 `NAME=value`；显式标记为敏感的 `ArgvItem` 始终会被遮盖。
-它不会推断 `-pSECRET` 这类紧凑 option、`-Dpassword=SECRET` 这类 JVM property，
-也不会解析 shell payload 语法；这些参数可能含有秘密时，调用方必须显式标记。
+`-password value`、`NAME=value` 和 `-Dpassword=SECRET` 这类 JVM property；显式标记为
+敏感的 `ArgvItem` 始终会被遮盖。它不会推断 `-pSECRET` 这类紧凑 option，也不会解析
+shell payload 语法；这些参数可能含有秘密时，调用方必须显式标记。
 
 `EnvRedactor` 处理 UTF-8 pair；任一操作系统组件不是合法 UTF-8 时会安全关闭。结果可
 安全显示为 `NAME=VALUE`。

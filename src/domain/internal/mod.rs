@@ -7,6 +7,8 @@
 // =============================================================================
 //! Private support for domain-object redaction.
 
+mod mask_byte_limit;
+mod mask_byte_limit_reset;
 #[cfg(feature = "serde")]
 mod internally_tagged_serializer;
 mod nested;
@@ -17,3 +19,7 @@ mod redacted_serialize;
 pub use internally_tagged_serializer::serialize_internally_tagged;
 #[cfg(feature = "serde")]
 pub use redacted_serialize::RedactedSerialize;
+pub(crate) use mask_byte_limit::{
+    mask_byte_limit,
+    with_mask_byte_limit,
+};

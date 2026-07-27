@@ -7,12 +7,16 @@
 // =============================================================================
 //! Tests for [`BoundedLogSafeDisplay`](qubit_redact::BoundedLogSafeDisplay).
 
-use qubit_redact::{LogOutputLimit, Redactor};
+use qubit_redact::{
+    LogOutputLimit,
+    Redactor,
+};
 
 /// Verifies bounded log-safe text is truncated at the configured byte limit.
 #[test]
 fn test_bounded_log_safe_display_truncates_at_budget() {
-    let limit = LogOutputLimit::new(14).expect("the test budget can contain the truncation marker");
+    let limit = LogOutputLimit::new(14)
+        .expect("the test budget can contain the truncation marker");
     let text = Redactor::default()
         .redact("message", "abcdefghijklmno")
         .escape_for_log();
@@ -26,7 +30,8 @@ fn test_bounded_log_safe_display_truncates_at_budget() {
 /// Verifies truncation preserves a complete pre-generated escape token.
 #[test]
 fn test_bounded_log_safe_display_does_not_split_preescaped_control() {
-    let limit = LogOutputLimit::new(14).expect("the test budget can contain the truncation marker");
+    let limit = LogOutputLimit::new(14)
+        .expect("the test budget can contain the truncation marker");
     let text = Redactor::default()
         .redact("message", "ab\nremaining-long")
         .escape_for_log();

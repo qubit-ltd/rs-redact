@@ -7,11 +7,20 @@
 // =============================================================================
 //! Tests for [`RedactedKeyedMap`](qubit_redact::RedactedKeyedMap).
 
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::BTreeMap,
+    fmt,
+};
 
 use qubit_redact::{
-    DiagnosticBudget, LogOutputLimit, Redact, RedactValue, RedactedKeyedMap, RedactedValue,
-    RedactionPolicy, Sensitivity,
+    DiagnosticBudget,
+    LogOutputLimit,
+    Redact,
+    RedactValue,
+    RedactedKeyedMap,
+    RedactedValue,
+    RedactionPolicy,
+    Sensitivity,
 };
 
 /// Nested diagnostic value whose secret must be recursively redacted.
@@ -100,7 +109,8 @@ fn test_redacted_keyed_map_display_and_bounded_adapters() {
     let display = RedactedKeyedMap::new(&map, policy.clone()).to_string();
     let bounded = RedactedKeyedMap::new(&map, policy.clone())
         .with_output_limit(
-            LogOutputLimit::new(output_limit).expect("the minimum output limit should be valid"),
+            LogOutputLimit::new(output_limit)
+                .expect("the minimum output limit should be valid"),
         )
         .to_string();
     let policy_bounded = RedactedKeyedMap::new(&map, policy)

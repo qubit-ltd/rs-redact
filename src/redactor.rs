@@ -9,7 +9,12 @@
 
 use std::borrow::Cow;
 
-use crate::{RedactMapValueMut, RedactedKeyedValue, RedactedText, RedactionPolicy};
+use crate::{
+    RedactMapValueMut,
+    RedactedKeyedValue,
+    RedactedText,
+    RedactionPolicy,
+};
 
 /// Applies one immutable policy to scalar values and string maps.
 #[must_use]
@@ -112,7 +117,9 @@ impl Redactor {
         max_bytes: usize,
     ) -> RedactedText<'a> {
         let value = match self.policy.sensitivity_for(field) {
-            Some(level) => self.policy.masking().mask_bounded(level, value, max_bytes),
+            Some(level) => {
+                self.policy.masking().mask_bounded(level, value, max_bytes)
+            }
             None => Cow::Borrowed(value),
         };
         RedactedText::new(value)

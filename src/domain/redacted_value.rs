@@ -9,10 +9,20 @@
 
 use std::{
     borrow::Cow,
-    fmt::{self, Debug, Display, Formatter},
+    fmt::{
+        self,
+        Debug,
+        Display,
+        Formatter,
+    },
 };
 
-use crate::{LogSafeText, MaskingPolicy, RedactedText, Sensitivity};
+use crate::{
+    LogSafeText,
+    MaskingPolicy,
+    RedactedText,
+    Sensitivity,
+};
 
 /// Redacted text retaining its original plain or optional container shape.
 #[must_use = "format or otherwise consume the redacted value"]
@@ -68,7 +78,9 @@ impl Debug for RedactedValue<'_> {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Text(text) => Debug::fmt(text.as_str(), formatter),
-            Self::Some(text) => formatter.debug_tuple("Some").field(&text.as_str()).finish(),
+            Self::Some(text) => {
+                formatter.debug_tuple("Some").field(&text.as_str()).finish()
+            }
             Self::None => formatter.write_str("None"),
         }
     }

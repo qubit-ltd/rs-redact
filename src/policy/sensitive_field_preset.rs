@@ -27,7 +27,7 @@ pub enum SensitiveFieldPreset {
 }
 
 /// Field names for [`SensitiveFieldPreset::Credentials`].
-const CREDENTIALS_FIELDS: [(&str, Sensitivity); 13] = [
+const CREDENTIALS_FIELDS: [(&str, Sensitivity); 17] = [
     ("password", Sensitivity::Secret),
     ("password_confirmation", Sensitivity::Secret),
     ("passwd", Sensitivity::Secret),
@@ -35,11 +35,15 @@ const CREDENTIALS_FIELDS: [(&str, Sensitivity); 13] = [
     ("pgpassword", Sensitivity::Secret),
     ("secret", Sensitivity::Secret),
     ("client_secret", Sensitivity::Secret),
+    ("credential", Sensitivity::Secret),
+    ("credentials", Sensitivity::Secret),
     ("private_key", Sensitivity::Secret),
+    ("privatekey", Sensitivity::Secret),
     ("security_key", Sensitivity::Secret),
     ("secret_key", Sensitivity::Secret),
     ("secret_access_key", Sensitivity::Secret),
     ("access_key", Sensitivity::High),
+    ("accesskey", Sensitivity::High),
     ("access_key_id", Sensitivity::Medium),
 ];
 
@@ -59,8 +63,9 @@ const CREDENTIAL_CONTAINER_FIELDS: [(&str, Sensitivity); 11] = [
 ];
 
 /// Field names for [`SensitiveFieldPreset::AuthTokens`].
-const AUTH_TOKEN_FIELDS: [(&str, Sensitivity); 9] = [
+const AUTH_TOKEN_FIELDS: [(&str, Sensitivity); 11] = [
     ("api_key", Sensitivity::High),
+    ("apikey", Sensitivity::High),
     ("x_api_key", Sensitivity::High),
     ("token", Sensitivity::High),
     ("access_token", Sensitivity::High),
@@ -69,6 +74,7 @@ const AUTH_TOKEN_FIELDS: [(&str, Sensitivity); 9] = [
     ("jwt", Sensitivity::High),
     ("jwt_token", Sensitivity::High),
     ("auth_token", Sensitivity::High),
+    ("bearer", Sensitivity::High),
 ];
 
 /// Field names for [`SensitiveFieldPreset::Http`].

@@ -7,10 +7,20 @@
 // =============================================================================
 //! Byte-bounded display adapter for an already-redacted view.
 
-use std::cell::Cell;
-use std::fmt::{self, Debug, Display, Formatter, Write as _};
+use std::fmt::{
+    self,
+    Debug,
+    Display,
+    Formatter,
+    Write as _,
+};
 
-use crate::{LogOutputLimit, text::internal::BoundedLogEscapeWriter};
+use crate::{
+    LogOutputLimit,
+    text::internal::BoundedLogEscapeWriter,
+};
+
+use super::internal::with_mask_byte_limit;
 
 /// A redacted display view whose log-safe output cannot exceed a byte limit.
 ///
@@ -22,61 +32,6 @@ pub struct BoundedRedactedDisplay<D> {
     value: D,
     /// Validated maximum output byte count.
     limit: LogOutputLimit,
-}
-
-thread_local! {
-    /// Active per-thread allocation ceiling for masks rendered by this adapter.
-    static MASK_BYTE_LIMIT: Cell<Option<usize>> = const { Cell::new(None) };
-}
-
-/// Restores the preceding bounded-mask allocation context on scope exit.
-struct MaskByteLimitReset<'a> {
-    /// Thread-local context whose previous value must be restored.
-    context: &'a Cell<Option<usize>>,
-    /// Context value active before entering the bounded formatter.
-    previous: Option<usize>,
-}
-
-impl Drop for MaskByteLimitReset<'_> {
-    /// Restores the context even when formatting exits through an error or
-    /// panic.
-    fn drop(&mut self) {
-        self.context.set(self.previous);
-    }
-}
-
-/// Executes `operation` while bounding each materialized mask on this thread.
-///
-/// A nested operation may tighten the active ceiling but cannot widen a
-/// ceiling established by an outer bounded formatter.
-///
-/// # Parameters
-///
-/// * `max_bytes` - Maximum bytes retained by one materialized mask.
-/// * `operation` - Formatting operation executed inside the bounded context.
-///
-/// # Returns
-///
-/// The result produced by `operation` after restoring any previous context.
-pub(super) fn with_mask_byte_limit<T>(max_bytes: usize, operation: impl FnOnce() -> T) -> T {
-    MASK_BYTE_LIMIT.with(|context| {
-        let previous = context.get();
-        let effective = previous.map_or(max_bytes, |previous| previous.min(max_bytes));
-        context.set(Some(effective));
-        let _reset = MaskByteLimitReset { context, previous };
-        operation()
-    })
-}
-
-/// Returns the active per-thread materialized-mask ceiling, when bounded.
-///
-/// # Returns
-///
-/// `Some(max_bytes)` while bounded display formatting is active, or `None`
-/// for ordinary unbounded redaction.
-#[inline(always)]
-pub(super) fn mask_byte_limit() -> Option<usize> {
-    MASK_BYTE_LIMIT.with(Cell::get)
 }
 
 impl<D> BoundedRedactedDisplay<D> {
@@ -138,7 +93,9 @@ fn format_bounded(
     formatter: &mut Formatter<'_>,
 ) -> fmt::Result {
     let mut writer = BoundedLogEscapeWriter::new(limit);
-    let result = with_mask_byte_limit(limit.max_bytes(), || write!(&mut writer, "{value:?}"));
+    let result = with_mask_byte_limit(limit.max_bytes(), || {
+        write!(&mut writer, "{value:?}")
+    });
     if result.is_err() && !writer.is_truncated() {
         return Err(fmt::Error);
     }

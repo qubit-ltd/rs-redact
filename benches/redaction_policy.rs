@@ -7,11 +7,26 @@
 // =============================================================================
 //! Benchmarks policy snapshot creation and field classification.
 
-use std::{collections::BTreeMap, hint::black_box};
+use std::{
+    collections::BTreeMap,
+    hint::black_box,
+};
 
-use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use criterion::{
+    BatchSize,
+    BenchmarkId,
+    Criterion,
+    Throughput,
+    criterion_group,
+    criterion_main,
+};
 use qubit_redact::{
-    FieldNameMatching, LogOutputLimit, MaskPolicy, RedactedMap, RedactionPolicy, Redactor,
+    FieldNameMatching,
+    LogOutputLimit,
+    MaskPolicy,
+    RedactedMap,
+    RedactionPolicy,
+    Redactor,
     Sensitivity,
 };
 
@@ -42,16 +57,26 @@ fn benchmark_field_classification(criterion: &mut Criterion) {
     let mut group = criterion.benchmark_group("field_classification");
 
     group.bench_function("exact_hit", |bencher| {
-        bencher.iter(|| black_box(exact.sensitivity_for(black_box("access_token"))));
+        bencher.iter(|| {
+            black_box(exact.sensitivity_for(black_box("access_token")))
+        });
     });
     group.bench_function("exact_miss", |bencher| {
-        bencher.iter(|| black_box(exact.sensitivity_for(black_box("public_identifier"))));
+        bencher.iter(|| {
+            black_box(exact.sensitivity_for(black_box("public_identifier")))
+        });
     });
     group.bench_function("suffix_hit", |bencher| {
-        bencher.iter(|| black_box(suffix.sensitivity_for(black_box("serviceAccessToken"))));
+        bencher.iter(|| {
+            black_box(suffix.sensitivity_for(black_box("serviceAccessToken")))
+        });
     });
     group.bench_function("suffix_miss", |bencher| {
-        bencher.iter(|| black_box(suffix.sensitivity_for(black_box("servicePublicIdentifier"))));
+        bencher.iter(|| {
+            black_box(
+                suffix.sensitivity_for(black_box("servicePublicIdentifier")),
+            )
+        });
     });
     group.finish();
 }
@@ -66,12 +91,20 @@ fn benchmark_preserved_masks(criterion: &mut Criterion) {
 
     for (name, input) in [("ascii_1mib", &ascii), ("unicode_1mib", &unicode)] {
         group.throughput(Throughput::Bytes(input.len() as u64));
-        group.bench_with_input(BenchmarkId::new("edges", name), input, |bencher, value| {
-            bencher.iter(|| black_box(edges.mask(black_box(value))));
-        });
-        group.bench_with_input(BenchmarkId::new("suffix", name), input, |bencher, value| {
-            bencher.iter(|| black_box(suffix.mask(black_box(value))));
-        });
+        group.bench_with_input(
+            BenchmarkId::new("edges", name),
+            input,
+            |bencher, value| {
+                bencher.iter(|| black_box(edges.mask(black_box(value))));
+            },
+        );
+        group.bench_with_input(
+            BenchmarkId::new("suffix", name),
+            input,
+            |bencher, value| {
+                bencher.iter(|| black_box(suffix.mask(black_box(value))));
+            },
+        );
     }
     group.finish();
 }
@@ -121,8 +154,8 @@ fn benchmark_map_policy(size: usize, mixed_hits: bool) -> RedactionPolicy {
 /// classification hit rates.
 fn benchmark_map_redaction(criterion: &mut Criterion) {
     let mut group = criterion.benchmark_group("map_redaction");
-    let output_limit =
-        LogOutputLimit::new(256).expect("benchmark output limit should contain the marker");
+    let output_limit = LogOutputLimit::new(256)
+        .expect("benchmark output limit should contain the marker");
     for (size_name, size) in [("small", 8usize), ("large", 256usize)] {
         let map = benchmark_map(size);
         for (scenario, mixed_hits) in [("miss", false), ("mixed", true)] {
@@ -136,7 +169,8 @@ fn benchmark_map_redaction(criterion: &mut Criterion) {
                 &map,
                 |bencher, input| {
                     bencher.iter(|| {
-                        let view = RedactedMap::new(black_box(input), policy.clone());
+                        let view =
+                            RedactedMap::new(black_box(input), policy.clone());
                         black_box(format!("{view:?}"))
                     });
                 },
@@ -146,7 +180,8 @@ fn benchmark_map_redaction(criterion: &mut Criterion) {
                 &map,
                 |bencher, input| {
                     bencher.iter(|| {
-                        let view = RedactedMap::new(black_box(input), policy.clone());
+                        let view =
+                            RedactedMap::new(black_box(input), policy.clone());
                         black_box(view.to_string())
                     });
                 },
@@ -156,8 +191,11 @@ fn benchmark_map_redaction(criterion: &mut Criterion) {
                 &map,
                 |bencher, input| {
                     bencher.iter(|| {
-                        let view = RedactedMap::new(black_box(input), policy.clone());
-                        black_box(view.with_output_limit(output_limit).to_string())
+                        let view =
+                            RedactedMap::new(black_box(input), policy.clone());
+                        black_box(
+                            view.with_output_limit(output_limit).to_string(),
+                        )
                     });
                 },
             );
@@ -165,7 +203,9 @@ fn benchmark_map_redaction(criterion: &mut Criterion) {
                 BenchmarkId::new("copy", &parameter),
                 &map,
                 |bencher, input| {
-                    bencher.iter(|| black_box(redactor.redact_map(black_box(input))));
+                    bencher.iter(|| {
+                        black_box(redactor.redact_map(black_box(input)))
+                    });
                 },
             );
             group.bench_with_input(
@@ -175,7 +215,8 @@ fn benchmark_map_redaction(criterion: &mut Criterion) {
                     bencher.iter_batched(
                         || input.clone(),
                         |mut candidate| {
-                            redactor.redact_map_in_place(black_box(&mut candidate));
+                            redactor
+                                .redact_map_in_place(black_box(&mut candidate));
                             black_box(candidate)
                         },
                         BatchSize::SmallInput,

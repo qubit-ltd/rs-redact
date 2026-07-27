@@ -9,7 +9,11 @@
 
 use std::{
     error::Error,
-    fmt::{self, Display, Formatter},
+    fmt::{
+        self,
+        Display,
+        Formatter,
+    },
 };
 
 use crate::LogOutputLimit;

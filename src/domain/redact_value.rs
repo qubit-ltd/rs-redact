@@ -9,9 +9,14 @@
 
 use std::borrow::Cow;
 
-use crate::{MaskingPolicy, RedactedText, RedactedValue, Sensitivity};
+use crate::{
+    MaskingPolicy,
+    RedactedText,
+    RedactedValue,
+    Sensitivity,
+};
 
-use super::bounded_redacted_display::mask_byte_limit;
+use super::internal::mask_byte_limit;
 
 /// Produces a borrowed or owned redacted representation of a textual value.
 ///

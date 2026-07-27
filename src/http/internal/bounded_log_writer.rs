@@ -38,7 +38,10 @@ impl BoundedLogWriter {
     /// # Returns
     ///
     /// An empty writer that reserves marker space when source is truncated.
-    pub(in crate::http) fn new(max_bytes: usize, source_truncated: bool) -> Self {
+    pub(in crate::http) fn new(
+        max_bytes: usize,
+        source_truncated: bool,
+    ) -> Self {
         Self {
             output: String::new(),
             marker_boundary: 0,
@@ -83,7 +86,8 @@ impl BoundedLogWriter {
     /// filled all bytes preceding the marker.
     #[inline(always)]
     pub(in crate::http) fn is_full(&self) -> bool {
-        self.output_truncated || (self.truncated && self.output.len() >= self.payload_limit())
+        self.output_truncated
+            || (self.truncated && self.output.len() >= self.payload_limit())
     }
 
     /// Returns bytes still available before the current payload limit.
@@ -122,7 +126,8 @@ impl BoundedLogWriter {
         let limit = self.payload_limit();
         if self.output.len().saturating_add(piece.len()) <= limit {
             self.output.push_str(piece);
-            let marker_payload_limit = self.max_bytes - markers::TRUNCATED.len();
+            let marker_payload_limit =
+                self.max_bytes - markers::TRUNCATED.len();
             if self.output.len() <= marker_payload_limit {
                 self.marker_boundary = self.output.len();
             }

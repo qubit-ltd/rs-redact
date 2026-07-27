@@ -7,7 +7,12 @@
 // =============================================================================
 //! Tests for masking policy primitives.
 
-use qubit_redact::{FieldNameMatching, MaskPolicy, MaskingPolicy, Sensitivity};
+use qubit_redact::{
+    FieldNameMatching,
+    MaskPolicy,
+    MaskingPolicy,
+    Sensitivity,
+};
 
 /// Verifies that the new default masking model retains the established masks.
 #[test]

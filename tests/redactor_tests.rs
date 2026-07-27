@@ -7,7 +7,10 @@
 // =============================================================================
 //! Integration tests for [`Redactor`](qubit_redact::Redactor).
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 use qubit_redact::Redactor;
 

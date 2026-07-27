@@ -8,7 +8,12 @@
 //! Tests for crate-level exports.
 
 use qubit_redact::{
-    ArgvRedactor, EnvRedactor, RedactedDebug, RedactionPolicy, Redactor, redacted_debug,
+    ArgvRedactor,
+    EnvRedactor,
+    RedactedDebug,
+    RedactionPolicy,
+    Redactor,
+    redacted_debug,
 };
 
 /// Verifies the intended top-level redaction types remain publicly exported.

@@ -9,10 +9,20 @@
 
 use std::{
     fmt::Write as _,
-    fmt::{self, Debug, Display, Formatter},
+    fmt::{
+        self,
+        Debug,
+        Display,
+        Formatter,
+    },
 };
 
-use crate::{Redact, RedactValue, RedactionPolicy, text::internal::LogEscapeWriter};
+use crate::{
+    Redact,
+    RedactValue,
+    RedactionPolicy,
+    text::internal::LogEscapeWriter,
+};
 
 /// A borrowed value rendered according to a separate field key.
 ///
@@ -43,7 +53,11 @@ impl<'value, 'policy, T: ?Sized> RedactedKeyedValue<'value, 'policy, T> {
     /// A view that never modifies the original value.
     #[must_use = "format or serialize the keyed redaction view"]
     #[inline(always)]
-    pub const fn new(key: &'value str, value: &'value T, policy: &'policy RedactionPolicy) -> Self {
+    pub const fn new(
+        key: &'value str,
+        value: &'value T,
+        policy: &'policy RedactionPolicy,
+    ) -> Self {
         Self { key, value, policy }
     }
 
@@ -86,7 +100,9 @@ impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValue<'_, '_, T> {
     }
 }
 
-impl<T: Redact + RedactValue + ?Sized> Display for RedactedKeyedValue<'_, '_, T> {
+impl<T: Redact + RedactValue + ?Sized> Display
+    for RedactedKeyedValue<'_, '_, T>
+{
     /// Formats the selected redacted representation for a plain-text log.
     ///
     /// # Parameters

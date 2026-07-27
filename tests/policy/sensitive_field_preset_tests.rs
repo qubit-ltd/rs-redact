@@ -7,22 +7,29 @@
 // =============================================================================
 //! Tests for [`SensitiveFieldPreset`](qubit_redact::SensitiveFieldPreset).
 
-use qubit_redact::{SensitiveFieldPreset, Sensitivity};
+use qubit_redact::{
+    SensitiveFieldPreset,
+    Sensitivity,
+};
 
 /// Verifies the complete credentials preset table and its strongest entries.
 #[test]
 fn test_sensitive_field_preset_credentials_fields() {
     let fields = SensitiveFieldPreset::Credentials.fields();
 
-    assert_eq!(fields.len(), 13);
+    assert_eq!(fields.len(), 17);
     assert_eq!(fields[0], ("password", Sensitivity::Secret));
     assert!(fields.contains(&("security_key", Sensitivity::Secret)));
     assert!(fields.contains(&("secret_key", Sensitivity::Secret)));
     assert!(fields.contains(&("secret_access_key", Sensitivity::Secret)));
     assert!(fields.contains(&("access_key", Sensitivity::High)));
+    assert!(fields.contains(&("accesskey", Sensitivity::High)));
     assert!(fields.contains(&("access_key_id", Sensitivity::Medium)));
     assert!(fields.contains(&("passphrase", Sensitivity::Secret)));
     assert!(fields.contains(&("pgpassword", Sensitivity::Secret)));
+    assert!(fields.contains(&("credential", Sensitivity::Secret)));
+    assert!(fields.contains(&("credentials", Sensitivity::Secret)));
+    assert!(fields.contains(&("privatekey", Sensitivity::Secret)));
 }
 
 /// Verifies the complete credential-container preset boundaries.
@@ -40,9 +47,11 @@ fn test_sensitive_field_preset_credential_container_fields() {
 fn test_sensitive_field_preset_auth_tokens_fields() {
     let fields = SensitiveFieldPreset::AuthTokens.fields();
 
-    assert_eq!(fields.len(), 9);
+    assert_eq!(fields.len(), 11);
     assert_eq!(fields[0], ("api_key", Sensitivity::High));
-    assert_eq!(fields[8], ("auth_token", Sensitivity::High));
+    assert!(fields.contains(&("apikey", Sensitivity::High)));
+    assert!(fields.contains(&("bearer", Sensitivity::High)));
+    assert_eq!(fields[10], ("bearer", Sensitivity::High));
 }
 
 /// Verifies the complete HTTP preset boundaries.
