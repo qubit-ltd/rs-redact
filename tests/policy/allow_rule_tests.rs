@@ -16,7 +16,7 @@ use qubit_redact::{
 #[test]
 fn test_allow_rule_exposes_exact_field_and_matching_mode() {
     let policy = std::hint::black_box(
-        RedactionPolicy::empty_builder()
+        RedactionPolicy::builder()
             .allow_exact("public-token")
             .build()
             .expect("the allow rule should be valid"),

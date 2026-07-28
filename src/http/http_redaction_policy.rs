@@ -43,12 +43,19 @@ pub struct HttpRedactionPolicy {
 }
 
 impl HttpRedactionPolicy {
-    /// Creates a builder from the current default field-policy snapshot.
+    /// Creates a builder without field rules.
     ///
     /// # Returns
     ///
-    /// A mutable HTTP policy builder using fail-closed behavior defaults and
-    /// the current global diagnostic budget snapshot.
+    /// A mutable HTTP policy builder with fail-closed behavior defaults and
+    /// finite diagnostic limits.
+    ///
+    /// # Warning
+    ///
+    /// This builder has no header, query, or body field rules. Unknown fields
+    /// pass through unchanged. Call `HttpRedactionPolicyBuilder::load_default`
+    /// before application-specific changes when the conservative default
+    /// snapshot is required.
     #[inline(always)]
     pub fn builder() -> HttpRedactionPolicyBuilder {
         HttpRedactionPolicyBuilder::new()

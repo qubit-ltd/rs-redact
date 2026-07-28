@@ -130,7 +130,7 @@ pub fn assert_enum_redaction() {
 
 /// Verifies destructive expansion uses the requested sensitivity.
 pub fn assert_mutable_redaction() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .build()
         .expect("the empty assertion policy is valid");
     let mut value = MutableRecord(String::from("raw-secret"));
@@ -152,7 +152,7 @@ pub fn assert_format_expansion() {
 
 /// Verifies every accepted sensitivity literal reaches the runtime model.
 pub fn assert_sensitivity_expansion() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("field", Sensitivity::Secret)
         .build()
         .expect("the sensitivity assertion policy is valid");

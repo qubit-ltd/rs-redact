@@ -17,7 +17,7 @@ use qubit_redact::{
 #[test]
 fn test_global_default_can_be_installed_once_and_is_snapshotted() {
     let before = RedactionPolicy::default();
-    let custom = RedactionPolicy::empty_builder()
+    let custom = RedactionPolicy::builder()
         .raise("tenant_protected_blob", Sensitivity::Secret)
         .build()
         .expect("the custom global policy should be valid");
@@ -35,6 +35,7 @@ fn test_global_default_can_be_installed_once_and_is_snapshotted() {
         Some(Sensitivity::Secret),
     );
     let from_current_default = RedactionPolicy::builder()
+        .load_default()
         .build()
         .expect("the current global default snapshot should remain valid");
     assert_eq!(

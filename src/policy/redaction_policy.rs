@@ -96,27 +96,21 @@ impl RedactionPolicy {
         GLOBAL_DEFAULT.get().cloned().unwrap_or_else(Self::standard)
     }
 
-    /// Creates a builder initialized from the current default policy.
+    /// Creates a builder without field rules.
     ///
     /// # Returns
     ///
-    /// A mutable builder containing a snapshot of the default policy.
+    /// A mutable builder with default matching, masks, and diagnostic budget.
+    ///
+    /// # Warning
+    ///
+    /// This builder has no sensitive or allow rules. Unknown fields pass
+    /// through unchanged. Call `RedactionPolicyBuilder::load_default` before
+    /// application-specific changes when the conservative default snapshot is
+    /// required.
     #[inline]
     pub fn builder() -> RedactionPolicyBuilder {
         RedactionPolicyBuilder::new()
-    }
-
-    /// Creates a builder without any built-in sensitive fields.
-    ///
-    /// This weakens the built-in protection baseline and should only be used
-    /// when the caller intends to define the complete field set explicitly.
-    ///
-    /// # Returns
-    ///
-    /// An empty field-rule builder with default matching and masks.
-    #[inline]
-    pub fn empty_builder() -> RedactionPolicyBuilder {
-        RedactionPolicyBuilder::empty()
     }
 
     /// Creates a builder by copying one immutable policy snapshot.
@@ -139,7 +133,7 @@ impl RedactionPolicy {
     ///
     /// The complete built-in conservative policy.
     pub(super) fn build_standard() -> Self {
-        let mut builder = RedactionPolicyBuilder::empty();
+        let mut builder = RedactionPolicyBuilder::new();
         for preset in [
             SensitiveFieldPreset::Credentials,
             SensitiveFieldPreset::CredentialContainers,

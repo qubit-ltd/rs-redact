@@ -340,7 +340,7 @@ fn test_redact_heuristically_does_not_parse_explicit_sensitive_options() {
 /// Verifies a custom immutable policy is honored by the adapter.
 #[test]
 fn test_new_uses_custom_redaction_policy() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("tenant_flag", Sensitivity::Secret)
         .build()
         .expect("the custom argv policy should be valid");

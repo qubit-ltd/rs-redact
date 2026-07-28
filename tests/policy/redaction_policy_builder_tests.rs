@@ -16,7 +16,7 @@ use qubit_redact::{
 /// Verifies the builder installs a configured field sensitivity.
 #[test]
 fn test_redaction_policy_builder_builds_configured_rule() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("tenant_secret", Sensitivity::High)
         .build()
         .expect("the configured rule should be valid");
@@ -32,7 +32,7 @@ fn test_redaction_policy_builder_builds_configured_rule() {
 fn test_redaction_policy_builder_preserves_diagnostic_budget() {
     let budget =
         DiagnosticBudget::new(128, 256).expect("the test budget is valid");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()
         .expect("the policy should build");
@@ -49,7 +49,7 @@ fn test_redaction_policy_builder_preserves_diagnostic_budget() {
 /// Verifies copied policies can revoke inherited exact and suffix allow rules.
 #[test]
 fn test_redaction_policy_builder_removes_inherited_allow_rules() {
-    let base = RedactionPolicy::empty_builder()
+    let base = RedactionPolicy::builder()
         .raise("access_token", Sensitivity::Secret)
         .raise("session_token", Sensitivity::High)
         .allow_exact("access_token")
@@ -75,7 +75,7 @@ fn test_redaction_policy_builder_removes_inherited_allow_rules() {
 /// Verifies one operation removes every inherited allow rule.
 #[test]
 fn test_redaction_policy_builder_clears_inherited_allow_rules() {
-    let base = RedactionPolicy::empty_builder()
+    let base = RedactionPolicy::builder()
         .raise("access_token", Sensitivity::Secret)
         .raise("session_token", Sensitivity::High)
         .allow_exact("access_token")

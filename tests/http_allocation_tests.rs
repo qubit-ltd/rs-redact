@@ -205,6 +205,7 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
 
     let replacement = "X".repeat(1024 * 1024);
     let amplified_policy = RedactionPolicy::builder()
+        .load_default()
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .build()
@@ -260,7 +261,7 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
         .lock()
         .expect("allocation measurement lock should not be poisoned");
     let replacement = "X".repeat(64 * 1024);
-    let mut builder = RedactionPolicy::empty_builder()
+    let mut builder = RedactionPolicy::builder()
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement));
     for index in 0..700 {

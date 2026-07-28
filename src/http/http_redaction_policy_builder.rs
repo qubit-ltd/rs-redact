@@ -46,14 +46,46 @@ pub struct HttpRedactionPolicyBuilder {
 }
 
 impl HttpRedactionPolicyBuilder {
-    /// Creates a builder from the current default field-policy snapshot.
+    /// Creates a builder without field rules.
     ///
     /// # Returns
     ///
     /// A builder with fail-closed behavior choices and finite default limits.
+    ///
+    /// # Warning
+    ///
+    /// This builder has no header, query, or body field rules. Unknown fields
+    /// pass through unchanged. Call `Self::load_default` before
+    /// application-specific changes when the conservative default snapshot is
+    /// required.
     #[inline]
     pub fn new() -> Self {
-        Self::from_base_policy(RedactionPolicy::default())
+        Self {
+            header: RedactionPolicyBuilder::new(),
+            query: RedactionPolicyBuilder::new(),
+            body: RedactionPolicyBuilder::new(),
+            url_path_policy: UrlPathPolicy::default(),
+            text_body_policy: TextBodyPolicy::default(),
+            unkeyed_json_value_policy: UnkeyedJsonValuePolicy::default(),
+            body_budget: BodyBudget::default(),
+            diagnostic_budget: DiagnosticBudget::default(),
+        }
+    }
+
+    /// Replaces this builder with the current default HTTP policy snapshot.
+    ///
+    /// # Returns
+    ///
+    /// A mutable copy of `HttpRedactionPolicy::default`.
+    ///
+    /// # Warning
+    ///
+    /// This replaces every builder component, including the header, query, and
+    /// body policies, behavior choices, and budgets. Call this method before
+    /// adding application-specific configuration.
+    #[inline]
+    pub fn load_default(self) -> Self {
+        Self::from_policy(&HttpRedactionPolicy::default())
     }
 
     /// Creates a builder by copying a complete immutable HTTP policy.
@@ -503,12 +535,16 @@ impl HttpRedactionPolicyBuilder {
 }
 
 impl Default for HttpRedactionPolicyBuilder {
-    /// Creates a builder from the current process-wide field-policy default.
+    /// Creates a builder without header, query, or body field rules.
     ///
     /// # Returns
     ///
-    /// The same construction state as
-    /// [`HttpRedactionPolicy::builder`](HttpRedactionPolicy::builder).
+    /// The same empty builder as [`HttpRedactionPolicy::builder`].
+    ///
+    /// # Warning
+    ///
+    /// Use [`Self::load_default`] before application-specific changes when
+    /// the conservative default HTTP policy snapshot is required.
     fn default() -> Self {
         Self::new()
     }

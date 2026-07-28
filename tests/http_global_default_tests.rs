@@ -15,8 +15,8 @@ use qubit_redact::{
     http::HttpRedactionPolicy,
 };
 
-/// Verifies HTTP default and builder policies preserve a global diagnostic
-/// budget snapshot.
+/// Verifies HTTP defaults and explicitly loaded builders preserve a global
+/// diagnostic budget snapshot.
 #[test]
 fn test_http_policy_defaults_preserve_global_diagnostic_budget() {
     let expected = DiagnosticBudget::new(64, 64)
@@ -30,6 +30,7 @@ fn test_http_policy_defaults_preserve_global_diagnostic_budget() {
 
     let default_policy = HttpRedactionPolicy::default();
     let builder_policy = HttpRedactionPolicy::builder()
+        .load_default()
         .build()
         .expect("the HTTP redaction policy should be valid");
 

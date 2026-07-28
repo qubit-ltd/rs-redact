@@ -25,6 +25,7 @@ use qubit_redact::{
 #[test]
 fn test_exact_allow_does_not_allow_contextual_suffix() {
     let policy = RedactionPolicy::builder()
+        .load_default()
         .allow_exact("access_token")
         .build()
         .expect("the exact allow rule should be valid");
@@ -67,7 +68,7 @@ fn test_longest_rule_wins_before_shorter_token() {
 /// Verifies that exact matching does not silently use token-suffix lookup.
 #[test]
 fn test_matching_exact_only_matches_complete_field_name() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("access_token", Sensitivity::High)
         .matching(FieldNameMatching::Exact)
         .build()
@@ -100,27 +101,30 @@ fn test_standard_and_default_contain_presets_and_extra_fields() {
     }
 }
 
-/// Verifies the distinct standard, empty, and copied builder starting points.
+/// Verifies that every no-argument builder entry point starts without field
+/// rules.
 #[test]
 fn test_builder_starting_points_are_explicit() {
-    let standard_extension = RedactionPolicy::builder()
-        .raise("tenant_id", Sensitivity::Low)
-        .build()
-        .expect("the standard policy extension should be valid");
-    let empty = RedactionPolicy::empty_builder()
+    let builder = RedactionPolicy::builder()
         .raise("tenant_id", Sensitivity::Low)
         .build()
         .expect("the empty policy should be valid");
-    let copied = RedactionPolicy::builder_from(&empty)
+    let constructed = RedactionPolicyBuilder::new()
+        .raise("tenant_id", Sensitivity::Low)
+        .build()
+        .expect("the constructed empty policy should be valid");
+    let defaulted = RedactionPolicyBuilder::default()
+        .raise("tenant_id", Sensitivity::Low)
+        .build()
+        .expect("the default empty policy should be valid");
+    let copied = RedactionPolicy::builder_from(&builder)
         .include_preset(SensitiveFieldPreset::Session)
         .build()
         .expect("the copied policy should be valid");
 
-    assert_eq!(
-        standard_extension.sensitivity_for("password"),
-        Some(Sensitivity::Secret),
-    );
-    assert_eq!(empty.sensitivity_for("password"), None);
+    assert_eq!(builder.sensitivity_for("password"), None);
+    assert_eq!(constructed, builder);
+    assert_eq!(defaulted, builder);
     assert_eq!(
         copied.sensitivity_for("session_token"),
         Some(Sensitivity::High),
@@ -128,10 +132,26 @@ fn test_builder_starting_points_are_explicit() {
     assert_eq!(copied.sensitivity_for("password"), None);
 }
 
+/// Verifies that loading defaults replaces every prior builder state.
+#[test]
+fn test_builder_load_default_replaces_existing_state_and_error() {
+    let policy = RedactionPolicy::builder()
+        .raise("custom_only", Sensitivity::Secret)
+        .raise("", Sensitivity::High)
+        .load_default()
+        .build()
+        .expect(
+            "the complete default replacement should clear the prior error",
+        );
+
+    assert_eq!(policy, RedactionPolicy::default());
+    assert_eq!(policy.sensitivity_for("custom_only"), None);
+}
+
 /// Verifies that `builder_from` copies every observable policy component.
 #[test]
 fn test_builder_from_copies_complete_policy_snapshot() {
-    let base = RedactionPolicy::empty_builder()
+    let base = RedactionPolicy::builder()
         .matching(FieldNameMatching::Exact)
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[copied]"))
         .raise("tenant_secret", Sensitivity::Secret)
@@ -179,7 +199,7 @@ fn test_builder_from_copies_complete_policy_snapshot() {
 /// Verifies that raising never weakens a rule while overriding replaces it.
 #[test]
 fn test_raise_and_override_have_distinct_strength_semantics() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("credential", Sensitivity::High)
         .raise("credential", Sensitivity::Medium)
         .override_level("override", Sensitivity::High)
@@ -197,7 +217,7 @@ fn test_raise_and_override_have_distinct_strength_semantics() {
 /// Verifies that masking can be replaced and queried by sensitivity level.
 #[test]
 fn test_mask_replaces_one_masking_policy() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[hidden]"))
         .build()
         .expect("the mask policy should be valid");
@@ -213,18 +233,14 @@ fn test_mask_replaces_one_masking_policy() {
 #[test]
 fn test_build_rejects_empty_canonical_field_names() {
     for result in [
-        RedactionPolicy::empty_builder()
+        RedactionPolicy::builder()
             .raise(" _-.[ ] ", Sensitivity::High)
             .build(),
-        RedactionPolicy::empty_builder()
+        RedactionPolicy::builder()
             .override_level(" _-.[ ] ", Sensitivity::High)
             .build(),
-        RedactionPolicy::empty_builder()
-            .allow_exact(" _-.[ ] ")
-            .build(),
-        RedactionPolicy::empty_builder()
-            .allow_suffix(" _-.[ ] ")
-            .build(),
+        RedactionPolicy::builder().allow_exact(" _-.[ ] ").build(),
+        RedactionPolicy::builder().allow_suffix(" _-.[ ] ").build(),
     ] {
         assert_eq!(result, Err(PolicyError::EmptyFieldName));
     }
@@ -246,7 +262,7 @@ fn test_validate_field_name_accepts_canonicalizable_names_and_rejects_empty() {
 /// Verifies that fixed masks require a non-empty replacement.
 #[test]
 fn test_build_rejects_empty_fixed_replacement() {
-    let result = RedactionPolicy::empty_builder()
+    let result = RedactionPolicy::builder()
         .mask(Sensitivity::High, MaskPolicy::fixed(""))
         .build();
 
@@ -258,7 +274,7 @@ fn test_build_rejects_empty_fixed_replacement() {
     );
 
     assert!(
-        RedactionPolicy::empty_builder()
+        RedactionPolicy::builder()
             .mask(Sensitivity::High, MaskPolicy::empty())
             .build()
             .is_ok(),
@@ -271,10 +287,7 @@ fn test_builder_default_and_policy_error_display() {
     let policy = RedactionPolicyBuilder::default()
         .build()
         .expect("the default builder should be valid");
-    assert_eq!(
-        policy.sensitivity_for("password"),
-        Some(Sensitivity::Secret),
-    );
+    assert_eq!(policy.sensitivity_for("password"), None);
     assert_eq!(
         PolicyError::EmptyFieldName.to_string(),
         "field name is empty after canonicalization",
@@ -291,7 +304,7 @@ fn test_builder_default_and_policy_error_display() {
 /// Verifies that immutable rule views expose canonical, sorted rule data.
 #[test]
 fn test_rule_views_expose_canonical_configuration() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("Tenant-Token", Sensitivity::High)
         .allow_exact("Public Token")
         .allow_suffix("Diagnostic.Token")

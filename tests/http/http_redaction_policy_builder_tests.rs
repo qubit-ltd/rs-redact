@@ -54,7 +54,7 @@ const fn alternate_unkeyed_json_value_policy(
 
 /// Builds an HTTP policy whose three contexts inherit exact and suffix allows.
 fn inherited_allow_policy() -> HttpRedactionPolicy {
-    let base = RedactionPolicy::empty_builder()
+    let base = RedactionPolicy::builder()
         .raise("access_token", Sensitivity::Secret)
         .raise("session_token", Sensitivity::High)
         .allow_exact("access_token")
@@ -69,21 +69,48 @@ fn inherited_allow_policy() -> HttpRedactionPolicy {
         .expect("the HTTP policy should be valid")
 }
 
-/// Verifies the HTTP policy builder creates the default policy snapshot.
+/// Verifies that every no-argument HTTP builder entry point starts without
+/// field rules.
 #[test]
-fn test_http_redaction_policy_builder_builds_default_snapshot() {
+fn test_http_redaction_policy_builder_starting_points_are_empty() {
+    let builder = HttpRedactionPolicy::builder()
+        .build()
+        .expect("the empty HTTP policy should be valid");
+    let constructed = HttpRedactionPolicyBuilder::new()
+        .build()
+        .expect("the constructed empty HTTP policy should be valid");
+    let defaulted = HttpRedactionPolicyBuilder::default()
+        .build()
+        .expect("the default empty HTTP policy should be valid");
+
+    assert_eq!(
+        builder.header_policy().sensitivity_for("authorization"),
+        None
+    );
+    assert_eq!(builder.query_policy().sensitivity_for("password"), None);
+    assert_eq!(builder.body_policy().sensitivity_for("password"), None);
+    assert_eq!(constructed, builder);
+    assert_eq!(defaulted, builder);
+}
+
+/// Verifies that loading defaults replaces every HTTP builder component.
+#[test]
+fn test_http_redaction_policy_builder_load_default_replaces_existing_state() {
     let policy = HttpRedactionPolicy::builder()
+        .raise_body("custom_only", Sensitivity::Secret)
+        .load_default()
         .build()
         .expect("the default HTTP policy should be valid");
 
     assert_eq!(policy, HttpRedactionPolicy::default());
+    assert_eq!(policy.body_policy().sensitivity_for("custom_only"), None);
 }
 
 /// Verifies the remaining replacement and behavior setters reach the built
 /// immutable policy.
 #[test]
 fn test_http_redaction_policy_builder_sets_body_and_behavior_policies() {
-    let body = RedactionPolicy::empty_builder()
+    let body = RedactionPolicy::builder()
         .raise("body-secret", Sensitivity::High)
         .build()
         .expect("the body policy should be valid");

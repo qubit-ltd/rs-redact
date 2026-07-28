@@ -44,12 +44,12 @@ fn benchmark_policy_snapshot(criterion: &mut Criterion) {
 
 /// Measures isolated exact and semantic-suffix classification paths.
 fn benchmark_field_classification(criterion: &mut Criterion) {
-    let exact = RedactionPolicy::empty_builder()
+    let exact = RedactionPolicy::builder()
         .matching(FieldNameMatching::Exact)
         .raise("access_token", Sensitivity::Secret)
         .build()
         .expect("exact benchmark policy should be valid");
-    let suffix = RedactionPolicy::empty_builder()
+    let suffix = RedactionPolicy::builder()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
         .raise("access_token", Sensitivity::Secret)
         .build()
@@ -140,7 +140,7 @@ fn benchmark_map(size: usize) -> BTreeMap<String, String> {
 ///
 /// A validated benchmark policy.
 fn benchmark_map_policy(size: usize, mixed_hits: bool) -> RedactionPolicy {
-    let mut builder = RedactionPolicy::empty_builder();
+    let mut builder = RedactionPolicy::builder();
     if mixed_hits {
         for index in (0..size).step_by(4) {
             let field = format!("field_{index:04}");

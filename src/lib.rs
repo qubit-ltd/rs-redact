@@ -31,8 +31,10 @@
 //! ```
 //!
 //! A process-wide default can be installed exactly once.
-//! [`RedactionPolicy::builder`] starts from a snapshot of that default, and
-//! existing policy snapshots never change.
+//! [`RedactionPolicy::builder`] starts without field rules; call
+//! [`RedactionPolicyBuilder::load_default`] before application-specific changes
+//! to copy the current default snapshot. Existing policy snapshots never
+//! change.
 //!
 //! ```
 //! use qubit_redact::{RedactionPolicy, Sensitivity};
@@ -41,7 +43,7 @@
 //!     .raise("tenant_secret", Sensitivity::Secret)
 //!     .build()?;
 //! RedactionPolicy::set_global_default(application_default)?;
-//! let snapshot = RedactionPolicy::builder().build()?;
+//! let snapshot = RedactionPolicy::builder().load_default().build()?;
 //! assert_eq!(snapshot.sensitivity_for("tenant_secret"), Some(Sensitivity::Secret));
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
@@ -79,7 +81,7 @@
 //!     metadata: HashMap<String, String>,
 //! }
 //!
-//! let policy = RedactionPolicy::empty_builder()
+//! let policy = RedactionPolicy::builder()
 //!     .raise("api_key", Sensitivity::Secret)
 //!     .build()?;
 //! let account = Account {

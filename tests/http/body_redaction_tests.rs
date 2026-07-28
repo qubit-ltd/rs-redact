@@ -61,29 +61,34 @@ fn test_http_redaction_policy_default_uses_safe_values() {
     assert_eq!(policy.body_budget().max_output_bytes(), 64 * 1024);
 }
 
-/// Verifies the builder default follows the current field-policy default.
+/// Verifies the HTTP builder default has no field rules.
 #[test]
-fn test_http_redaction_policy_builder_default_uses_safe_values() {
+fn test_http_redaction_policy_builder_default_has_no_field_rules() {
     let policy = HttpRedactionPolicyBuilder::default()
         .build()
         .expect("HTTP redaction policy should be valid");
 
-    assert_eq!(policy, HttpRedactionPolicy::default());
+    assert_eq!(
+        policy.header_policy().sensitivity_for("authorization"),
+        None
+    );
+    assert_eq!(policy.query_policy().sensitivity_for("password"), None);
+    assert_eq!(policy.body_policy().sensitivity_for("password"), None);
 }
 
 /// Verifies each HTTP context can receive an independent immutable snapshot.
 #[test]
 fn test_http_redaction_policy_builder_overrides_each_context() {
     let base = RedactionPolicy::default();
-    let header = RedactionPolicy::empty_builder()
+    let header = RedactionPolicy::builder()
         .raise("header_secret", Sensitivity::Secret)
         .build()
         .expect("header policy should be valid");
-    let query = RedactionPolicy::empty_builder()
+    let query = RedactionPolicy::builder()
         .raise("query_secret", Sensitivity::Secret)
         .build()
         .expect("query policy should be valid");
-    let body = RedactionPolicy::empty_builder()
+    let body = RedactionPolicy::builder()
         .raise("body_secret", Sensitivity::Secret)
         .build()
         .expect("body policy should be valid");
@@ -107,7 +112,7 @@ fn test_http_redaction_policy_builder_overrides_each_context() {
 /// HTTP field context.
 #[test]
 fn test_http_redaction_policy_builder_configures_context_rules() {
-    let base = RedactionPolicy::empty_builder()
+    let base = RedactionPolicy::builder()
         .build()
         .expect("empty base policy should be valid");
 

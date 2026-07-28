@@ -577,6 +577,7 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
     let masking = qubit_redact::MaskingPolicy::default()
         .with_policy(Sensitivity::Secret, MaskPolicy::fixed("SECRET"));
     let body_policy = RedactionPolicy::builder()
+        .load_default()
         .mask(Sensitivity::Secret, MaskPolicy::fixed("SECRET"))
         .build()
         .expect("the test masking policy is valid");
@@ -613,6 +614,7 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
 #[test]
 fn test_json_policy_masks_sensitive_non_strings_as_opaque_values() {
     let body_policy = RedactionPolicy::builder()
+        .load_default()
         .mask(
             Sensitivity::Secret,
             MaskPolicy::preserve_edges(1, 1, "OPAQUE", 0),
@@ -637,6 +639,7 @@ fn test_json_policy_masks_sensitive_non_strings_as_opaque_values() {
 /// Verifies that multipart handles nested formats text unknown and empty.
 fn test_multipart_handles_nested_formats_text_unknown_and_empty() {
     let policy = HttpRedactionPolicy::builder()
+        .load_default()
         .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
         .expect("HTTP redaction policy should be valid");

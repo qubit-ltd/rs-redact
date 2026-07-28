@@ -45,22 +45,21 @@ pub struct RedactionPolicyBuilder {
 }
 
 impl RedactionPolicyBuilder {
-    /// Creates a builder from the current default policy snapshot.
+    /// Creates a builder without field rules.
     ///
     /// # Returns
     ///
-    /// A mutable copy of [`RedactionPolicy::default`].
+    /// Empty construction state using token-suffix matching, default masks,
+    /// and the default diagnostic budget.
+    ///
+    /// # Warning
+    ///
+    /// This builder has no sensitive or allow rules. Unknown fields pass
+    /// through unchanged. Call `Self::load_default` before
+    /// application-specific changes when the conservative default snapshot is
+    /// required.
     #[inline]
     pub fn new() -> Self {
-        Self::from_policy(&RedactionPolicy::default())
-    }
-
-    /// Creates a builder with no field rules and default masks.
-    ///
-    /// # Returns
-    ///
-    /// Empty construction state using token-suffix matching.
-    pub(super) fn empty() -> Self {
         Self {
             sensitive: BTreeMap::new(),
             allow_exact: BTreeSet::new(),
@@ -70,6 +69,22 @@ impl RedactionPolicyBuilder {
             diagnostic_budget: DiagnosticBudget::default(),
             error: None,
         }
+    }
+
+    /// Replaces this builder with the current default policy snapshot.
+    ///
+    /// # Returns
+    ///
+    /// A mutable copy of `RedactionPolicy::default`.
+    ///
+    /// # Warning
+    ///
+    /// This replaces every builder component, including prior rules, matching,
+    /// masks, diagnostic budget, and recorded validation error. Call this
+    /// method before adding application-specific configuration.
+    #[inline]
+    pub fn load_default(self) -> Self {
+        Self::from_policy(&RedactionPolicy::default())
     }
 
     /// Copies complete construction state from an immutable policy.
@@ -379,11 +394,16 @@ impl RedactionPolicyBuilder {
 }
 
 impl Default for RedactionPolicyBuilder {
-    /// Creates a builder from the current default policy snapshot.
+    /// Creates a builder without field rules.
     ///
     /// # Returns
     ///
-    /// The same builder as [`RedactionPolicyBuilder::new`].
+    /// The same empty builder as [`RedactionPolicyBuilder::new`].
+    ///
+    /// # Warning
+    ///
+    /// Use [`Self::load_default`] before application-specific changes when
+    /// the conservative default snapshot is required.
     #[inline]
     fn default() -> Self {
         Self::new()

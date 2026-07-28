@@ -129,7 +129,7 @@ fn test_redact_pair_ignores_empty_canonical_name() {
 /// Verifies the longest matching suffix determines the sensitivity level.
 #[test]
 fn test_redact_pair_resolves_longest_suffix_match() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("key", Sensitivity::Low)
         .raise("api_key", Sensitivity::High)
         .build()
@@ -210,7 +210,7 @@ fn test_redact_pair_escapes_non_sensitive_name_and_value() {
 /// Verifies custom field rules are resolved through the injected policy.
 #[test]
 fn test_new_uses_custom_redaction_policy() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("tenant_value", Sensitivity::Secret)
         .build()
         .expect("the custom environment policy should be valid");

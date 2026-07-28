@@ -27,7 +27,7 @@ struct Event {
 /// Verifies parameterless views snapshot the installed global default.
 #[test]
 fn test_map_uses_global_default_policy() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("tenant_secret", Sensitivity::Secret)
         .build()
         .expect("the field rule is valid");
