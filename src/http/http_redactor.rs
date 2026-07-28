@@ -643,15 +643,16 @@ impl HttpRedactor {
                 );
             }
             if let Some(boundary) = boundary.as_deref()
-                && let Some((text, passed, rendered_truncated)) = multipart::redact(
-                    &self.body_redactor,
-                    boundary,
-                    *require_form_data,
-                    bounded,
-                    self.policy.text_body_policy(),
-                    self.policy.unkeyed_json_value_policy(),
-                    self.policy.body_budget().max_output_bytes(),
-                )
+                && let Some((text, passed, rendered_truncated)) =
+                    multipart::redact(
+                        &self.body_redactor,
+                        boundary,
+                        *require_form_data,
+                        bounded,
+                        self.policy.text_body_policy(),
+                        self.policy.unkeyed_json_value_policy(),
+                        self.policy.body_budget().max_output_bytes(),
+                    )
             {
                 return ParsedBody::new(
                     text,
@@ -702,11 +703,7 @@ impl HttpRedactor {
     /// Redacted JSON or a fixed fail-closed marker, status, and
     /// rendering-truncation state.
     #[must_use = "redacted JSON text and its status must be handled together"]
-    fn redact_json(
-        &self,
-        bounded: &[u8],
-        truncated: bool,
-    ) -> ParsedBody {
+    fn redact_json(&self, bounded: &[u8], truncated: bool) -> ParsedBody {
         if truncated {
             return ParsedBody::new(
                 markers::INVALID_OR_TRUNCATED_JSON.to_string(),
@@ -777,11 +774,7 @@ impl HttpRedactor {
     /// Redacted NDJSON or a fixed fail-closed marker, status, and
     /// rendering-truncation state.
     #[must_use = "redacted NDJSON text and its status must be handled together"]
-    fn redact_ndjson(
-        &self,
-        bounded: &[u8],
-        truncated: bool,
-    ) -> ParsedBody {
+    fn redact_ndjson(&self, bounded: &[u8], truncated: bool) -> ParsedBody {
         if truncated {
             return ParsedBody::new(
                 markers::INVALID_OR_TRUNCATED_NDJSON.to_string(),
@@ -828,11 +821,7 @@ impl HttpRedactor {
     /// Redacted form text or a fixed invalid marker, status, and complete
     /// rendering state.
     #[must_use = "redacted form text and its status must be handled together"]
-    fn redact_body_form(
-        &self,
-        bounded: &[u8],
-        truncated: bool,
-    ) -> ParsedBody {
+    fn redact_body_form(&self, bounded: &[u8], truncated: bool) -> ParsedBody {
         if truncated {
             return ParsedBody::new(
                 markers::INVALID_OR_TRUNCATED_FORM.to_string(),
@@ -874,11 +863,7 @@ impl HttpRedactor {
     /// A policy-controlled text marker or binary summary, status, and complete
     /// rendering state.
     #[must_use = "fallback text and its status must be handled together"]
-    fn redact_fallback(
-        &self,
-        bounded: &[u8],
-        is_text: bool,
-    ) -> ParsedBody {
+    fn redact_fallback(&self, bounded: &[u8], is_text: bool) -> ParsedBody {
         match std::str::from_utf8(bounded) {
             Err(_) => ParsedBody::new(
                 format!("<binary {} bytes>", bounded.len()),
@@ -934,8 +919,9 @@ impl HttpRedactor {
             status,
             rendered_truncated,
         } = parsed;
-        let source_truncated =
-            capture.is_source_truncated() || budget_truncated || rendered_truncated;
+        let source_truncated = capture.is_source_truncated()
+            || budget_truncated
+            || rendered_truncated;
         let mut writer =
             BoundedLogWriter::new(budget.max_output_bytes(), source_truncated);
         let _ = writer.write_str(&parsed_text);

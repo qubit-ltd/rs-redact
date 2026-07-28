@@ -310,9 +310,7 @@ fn test_unkeyed_json_redaction_respects_mask_budget() {
         .expect("allocation measurement lock should not be poisoned");
     let body = format!(
         "[{}]",
-        std::iter::repeat_n("0", 256)
-            .collect::<Vec<_>>()
-            .join(","),
+        std::iter::repeat_n("0", 256).collect::<Vec<_>>().join(","),
     );
     let output_limit = BodyBudget::MIN_OUTPUT_BYTES;
     let body_budget = BodyBudget::new(body.len(), output_limit)

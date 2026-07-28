@@ -126,7 +126,10 @@ fn test_builder_uses_default_policy_and_empty_builder_is_explicit() {
         .build()
         .expect("the copied policy should be valid");
 
-    assert_eq!(builder.sensitivity_for("password"), Some(Sensitivity::Secret));
+    assert_eq!(
+        builder.sensitivity_for("password"),
+        Some(Sensitivity::Secret)
+    );
     assert_eq!(constructed, builder);
     assert_eq!(defaulted, builder);
     assert_eq!(empty.sensitivity_for("password"), None);
@@ -134,7 +137,10 @@ fn test_builder_uses_default_policy_and_empty_builder_is_explicit() {
         copied.sensitivity_for("session_token"),
         Some(Sensitivity::High),
     );
-    assert_eq!(copied.sensitivity_for("password"), Some(Sensitivity::Secret));
+    assert_eq!(
+        copied.sensitivity_for("password"),
+        Some(Sensitivity::Secret)
+    );
 }
 
 /// Verifies that loading defaults replaces every prior builder state.
