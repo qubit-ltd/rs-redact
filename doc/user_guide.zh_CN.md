@@ -20,7 +20,7 @@ qubit-redact = "0.3"
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("api_key", Sensitivity::Secret)
         .build()?;
     let raw = "sk_live_123";
@@ -58,9 +58,13 @@ http = "1.4"
 
 ## 1. 用 `RedactionPolicy` 配置规则
 
-`RedactionPolicy::builder()` 从当前进程默认快照开始；`empty_builder()` 只保留你
-显式添加的规则。`raise` 不会降低既有等级；需要有意替换时使用
-`override_level`。精确允许规则范围窄；后缀允许规则可能放行带前缀字段，需安全审查。
+`RedactionPolicy::builder()`、`RedactionPolicyBuilder::new()` 和
+`RedactionPolicyBuilder::default()` 都从没有敏感或允许规则的状态开始。
+`RedactionPolicy::default()` 仍是保守的进程级默认快照，`Redactor::default()` 使用该快照。
+要在该快照上扩展，必须先调用 `.load_default()`；它会替换此前所有 builder 设置（包括已记录的
+校验错误），因此最后调用会丢弃已配置的内容。`raise` 不会降低既有等级；需要有意替换时使用
+`override_level`。
+精确允许规则范围窄；后缀允许规则可能放行带前缀字段，需安全审查。
 
 ```rust
 use qubit_redact::{
@@ -68,7 +72,7 @@ use qubit_redact::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
         .raise("license_key", Sensitivity::High)
         .allow_exact("public_token")
@@ -96,7 +100,7 @@ use std::collections::HashMap;
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("password", Sensitivity::Secret)
         .build()?;
     let source = HashMap::from([
@@ -271,8 +275,17 @@ fn main() {
 ## 7. 用 `HttpRedactor` 处理 HTTP 诊断
 
 可选 `http` feature 提供不可变 `HttpRedactionPolicy`，分别处理 Header、query/form 和
-结构化 body。`BodyCapture` 明确标记输入是否完整或源数据已截断；库不会读取网络流，也
-没有暴露原始 body 的逃生接口。
+结构化 body。它的 builder、`HttpRedactionPolicyBuilder::new()` 与 `Default::default()`
+都不带字段规则。要在保守 HTTP 快照上扩展，必须先调用 `.load_default()`；它会替换此前
+所有 header、query、body、行为和预算设置。
+`HttpRedactionPolicy::default()` 和 `HttpRedactor::default()` 仍使用这一保守快照。
+
+`HttpRedactor` 应用该快照。`BodyCapture` 提供借用字节和真实完整性元数据（`complete`、
+`prefix` 或截断 capture），因此库不会读取网络流。`BodyBudget` 限制检查和渲染的 body
+字节；`DiagnosticBudget` 单独限制 URL、form、header 和含 URL 的文本。`BodyRedaction`
+是有界日志安全结果；`BodyRedactionStatus` 说明其为结构化成功、策略放行、安全关闭、
+二进制或空结果，`BodyRedactionReason` 则解释安全关闭的原因。所有结果都不提供原始 body
+逃生接口。
 
 ```toml
 [dependencies]
@@ -287,6 +300,7 @@ use qubit_redact::http::{BodyCapture, HttpRedactionPolicy, HttpRedactor};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let policy = HttpRedactionPolicy::builder()
+        .load_default()
         .raise_body("password", Sensitivity::Secret)
         .raise_query("api_key", Sensitivity::Secret)
         .build()?;
@@ -312,8 +326,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 `HttpRedactionPolicyBuilder` 提供 `raise_header`、`raise_query` 和 `raise_body` 等
-上下文规则。`BodyBudget` 限制 body 解析和输出；`DiagnosticBudget` 单独限制 URL、
-form、Header 和含 URL 的文本。无效或截断的结构化输入会安全关闭。
+上下文规则。无效或截断的结构化输入会安全关闭。
 
 ## 如何选择工具
 
@@ -341,4 +354,3 @@ form、Header 和含 URL 的文本。无效或截断的结构化输入会安全�
 cargo test --all-features
 ./ci-check.sh
 ```
-

@@ -15,12 +15,15 @@ the [User Guide](doc/user_guide.md).
 
 ## Design
 
-Qubit Redact separates four concerns:
+Qubit Redact separates five layers:
 
 - `RedactionPolicy` is an immutable snapshot of field rules, allow rules,
   matching behavior, and masks.
 - `Redactor` applies one policy to scalar field values and text-keyed map-like
   collections.
+- `qubit-redact-derive`, kept in this workspace, provides the `Redact` and
+  `RedactMut` derives that make domain-object field boundaries explicit; see
+  its [README](derive/README.md).
 - `ArgvRedactor` and `EnvRedactor` produce typed, log-safe process diagnostics.
 - The optional `http` module handles URLs, forms, headers, and bounded bodies.
 
@@ -107,6 +110,7 @@ fn main() {
     RedactionPolicy::set_global_default(policy.clone())
         .expect("the application installs its default only once");
     let inherited = RedactionPolicy::builder()
+        .load_default()
         .build()
         .expect("the default snapshot remains valid");
     assert_eq!(inherited.sensitivity_for("license_key"), Some(Sensitivity::High));
@@ -125,9 +129,13 @@ decisions and should be used only after reviewing that risk.
 `RedactionPolicy::default()` reads the current process-wide default snapshot.
 `RedactionPolicy::set_global_default(policy)` can successfully install a custom
 default only once; a later call returns `GlobalDefaultAlreadySet` and never
-replaces it. `RedactionPolicy::builder()` starts from the default at the time it
-is called. Previously created policies, builders, and redactors remain
-unchanged.
+replaces it. `RedactionPolicy::builder()`, `RedactionPolicyBuilder::new()`, and
+`RedactionPolicyBuilder::default()` start with no sensitive or allow rules.
+Call `.load_default()` first when extending the current conservative default;
+it replaces every previous builder setting, including a recorded validation
+error. By contrast, `RedactionPolicy::default()` and `Redactor::default()`
+retain the conservative current default. Previously created policies, builders,
+and redactors remain unchanged.
 
 ## Domain Objects
 
@@ -151,7 +159,7 @@ struct Account {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("api_key", Sensitivity::Secret)
         .build()?;
     let account = Account {
@@ -347,15 +355,25 @@ result types already cross that boundary and implement safe `Display`.
 
 Enable `http` with `cargo add qubit-redact --features http`, and add the direct
 `http` dependency used by the example with `cargo add http@1.4` (or use the
-equivalent Cargo.toml entries above). `HttpRedactor` owns an immutable
-`HttpRedactionPolicy` and provides URL, URL-encoded form, header, and body
-operations. `BodyCapture` distinguishes complete input from checked truncated
-input, while `BodyBudget` bounds both parsing input and rendered output.
-`DiagnosticBudget` separately bounds `redact_url`, `redact_url_str`,
-`redact_urls_in_text`, `redact_form`, and `redact_headers`. Its defaults are
-16 KiB of input and 64 KiB of output; oversized input returns exactly
-`<redacted: diagnostic limit exceeded>` without preserving a source prefix.
-The same budget also bounds aggregate argv and environment diagnostics.
+equivalent Cargo.toml entries above). The core HTTP types have distinct roles:
+
+| Type | Role |
+| --- | --- |
+| `HttpRedactionPolicy` | Immutable, per-context snapshot for headers, query/form fields, bodies, behavior choices, and budgets. |
+| `HttpRedactionPolicyBuilder` | Its `new()` and `Default` start with no header, query, or body field rules. Call `.load_default()` first to extend the conservative HTTP snapshot; it replaces all earlier builder state. |
+| `HttpRedactor` | Applies one immutable HTTP policy to URLs, forms, headers, and caller-supplied body captures. |
+| `BodyCapture` | Borrowed bytes plus truthful completeness metadata; use `complete`, `prefix`, or a truncated constructor to state what was available. |
+| `BodyBudget` | Bounds body bytes inspected and final body text rendered. |
+| `BodyRedaction` | Bounded log-safe body result. Its `Display` output exposes no raw-body escape hatch. |
+| `BodyRedactionStatus` | States whether the result was empty, structured, passed through by policy, fail-closed, or binary. |
+| `BodyRedactionReason` | Explains a fail-closed status, such as malformed/truncated structured input, unsupported media type, or opaque text. |
+| `DiagnosticBudget` | Separately bounds URL, form, header, and URL-bearing-text diagnostics. |
+
+`DiagnosticBudget` defaults to 16 KiB of input and 64 KiB of output; oversized
+input returns exactly `<redacted: diagnostic limit exceeded>` without preserving
+a source prefix. The same budget also bounds aggregate argv and environment
+diagnostics. `HttpRedactionPolicy::default()` and `HttpRedactor::default()`
+continue to use the conservative HTTP default.
 
 Malformed or truncated structured bodies fail closed. Opaque text, unkeyed JSON
 scalars, file parts, unnamed multipart parts, and URL paths use conservative
@@ -376,6 +394,7 @@ fn main() {
     let diagnostics = DiagnosticBudget::new(8 * 1024, 32 * 1024)
         .expect("the diagnostic limits are valid");
     let policy = HttpRedactionPolicy::builder()
+        .load_default()
         .diagnostic_budget(diagnostics)
         .build()
         .expect("the HTTP policy is valid");

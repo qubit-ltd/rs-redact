@@ -23,7 +23,7 @@ qubit-redact = "0.3"
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("api_key", Sensitivity::Secret)
         .build()?;
     let raw = "sk_live_123";
@@ -65,10 +65,15 @@ boundary to obtain `LogSafeText`.
 
 ## 1. Configure `RedactionPolicy`
 
-`RedactionPolicy::builder()` starts from the process-wide default snapshot;
-`empty_builder()` starts with only your rules. `raise` never weakens a rule;
-`override_level` deliberately replaces it. Exact allow rules are narrow; suffix
-rules can expose prefixed fields and need security review.
+`RedactionPolicy::builder()`, `RedactionPolicyBuilder::new()`, and
+`RedactionPolicyBuilder::default()` start with no sensitive or allow rules.
+`RedactionPolicy::default()` remains the conservative process-wide snapshot.
+`Redactor::default()` uses that snapshot.
+Call `.load_default()` first to extend that snapshot; it replaces every earlier
+builder setting, including a recorded validation error, so calling it last
+discards your changes. `raise` never weakens a rule; `override_level`
+deliberately replaces it. Exact allow rules are narrow; suffix rules can expose
+prefixed fields and need security review.
 
 ```rust
 use qubit_redact::{
@@ -76,7 +81,7 @@ use qubit_redact::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
         .raise("license_key", Sensitivity::High)
         .allow_exact("public_token")
@@ -106,7 +111,7 @@ use std::collections::HashMap;
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("password", Sensitivity::Secret)
         .build()?;
     let source = HashMap::from([
@@ -290,9 +295,21 @@ budget and stops with a truncation marker instead of reading excess input.
 ## 7. Redact HTTP diagnostics with `HttpRedactor`
 
 The optional `http` feature provides an immutable `HttpRedactionPolicy` for
-headers, query/form fields, and structured bodies. `BodyCapture` states whether
-input is complete or source-truncated. The library does not read network streams
-or expose a raw-body escape hatch.
+headers, query/form fields, and structured bodies. Its builder starts without
+field rules, as does `HttpRedactionPolicyBuilder::new()` and `Default::default()`.
+Call `.load_default()` first when extending the conservative HTTP snapshot; it
+replaces all prior header, query, body, behavior, and budget settings.
+`HttpRedactionPolicy::default()` and `HttpRedactor::default()` continue to use
+that conservative snapshot.
+
+`HttpRedactor` applies that snapshot. `BodyCapture` supplies borrowed bytes and
+truthful completeness metadata (`complete`, `prefix`, or a truncated capture),
+so the library never reads a network stream. `BodyBudget` limits inspected and
+rendered body bytes; `DiagnosticBudget` separately limits URLs, forms, headers,
+and URL-bearing text. `BodyRedaction` is the bounded log-safe result;
+`BodyRedactionStatus` tells whether it was structured, passed through,
+fail-closed, binary, or empty, and `BodyRedactionReason` explains a fail-closed
+outcome. No result exposes a raw-body escape hatch.
 
 ```toml
 [dependencies]
@@ -307,6 +324,7 @@ use qubit_redact::http::{BodyCapture, HttpRedactionPolicy, HttpRedactor};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let policy = HttpRedactionPolicy::builder()
+        .load_default()
         .raise_body("password", Sensitivity::Secret)
         .raise_query("api_key", Sensitivity::Secret)
         .build()?;
@@ -332,9 +350,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 `HttpRedactionPolicyBuilder` offers `raise_header`, `raise_query`, and
-`raise_body` for context-specific rules. `BodyBudget` bounds body parsing and
-output; `DiagnosticBudget` separately bounds URLs, forms, headers, and
-URL-bearing text. Invalid or truncated structured input fails closed.
+`raise_body` for context-specific rules. Invalid or truncated structured input
+fails closed.
 
 ## Choosing a tool
 
@@ -363,4 +380,3 @@ Run the full feature set before publishing changed behavior or examples:
 cargo test --all-features
 ./ci-check.sh
 ```
-

@@ -15,10 +15,12 @@
 
 ## 设计
 
-Qubit Redact 将职责拆成四层：
+Qubit Redact 将职责拆成五层：
 
 - `RedactionPolicy` 是字段规则、允许规则、匹配方式和掩码的不可变快照。
 - `Redactor` 使用一份策略处理标量字段值和文本 key 的类 Map 集合。
+- 同一 workspace 中的 `qubit-redact-derive` 提供 `Redact` 与 `RedactMut`
+  derive，使领域对象的字段边界保持显式；参见其 [README](derive/README.zh_CN.md)。
 - `ArgvRedactor`、`EnvRedactor` 生成有类型且日志安全的进程诊断结果。
 - 可选 `http` 模块处理 URL、form、header 和有界 body。
 
@@ -98,6 +100,7 @@ fn main() {
     RedactionPolicy::set_global_default(policy.clone())
         .expect("the application installs its default only once");
     let inherited = RedactionPolicy::builder()
+        .load_default()
         .build()
         .expect("the default snapshot remains valid");
     assert_eq!(inherited.sensitivity_for("license_key"), Some(Sensitivity::High));
@@ -114,8 +117,12 @@ fn main() {
 
 `RedactionPolicy::default()` 读取当前进程级默认策略的快照。
 `RedactionPolicy::set_global_default(policy)` 只能成功设置一次；后续调用返回
-`GlobalDefaultAlreadySet`，且不会替换已有默认值。`RedactionPolicy::builder()` 从调用时的
-默认值快照开始构建。此前创建的 policy、builder 和 redactor 都不会随之变化。
+`GlobalDefaultAlreadySet`，且不会替换已有默认值。`RedactionPolicy::builder()`、
+`RedactionPolicyBuilder::new()` 和 `RedactionPolicyBuilder::default()` 都从没有敏感或允许
+规则的状态开始。需要在当前保守默认策略上扩展时，必须先调用 `.load_default()`；它会替换
+此前所有 builder 设置（包括已记录的校验错误）。此前创建的 policy、builder 和 redactor
+都不会随之变化。相对地，`RedactionPolicy::default()` 和 `Redactor::default()` 仍保留当前
+保守默认策略。
 
 ## 领域对象
 
@@ -138,7 +145,7 @@ struct Account {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("api_key", Sensitivity::Secret)
         .build()?;
     let account = Account {
@@ -315,13 +322,24 @@ fn main() {
 
 通过 `cargo add qubit-redact --features http` 启用 `http`，并通过
 `cargo add http@1.4` 添加示例直接使用的 `http` 依赖（或使用上面的等价 Cargo.toml
-配置）。`HttpRedactor` 持有不可变 `HttpRedactionPolicy`，提供 URL、
-URL-encoded form、header 和 body 操作。`BodyCapture` 区分完整输入和受检的截断输入，
-`BodyBudget` 同时限制解析输入和渲染输出。`DiagnosticBudget` 单独限制
-`redact_url`、`redact_url_str`、`redact_urls_in_text`、`redact_form` 和
-`redact_headers`；默认输入上限为 16 KiB、输出上限为 64 KiB。输入超限时只返回
-`<redacted: diagnostic limit exceeded>`，不会保留任何源前缀。
-同一预算也限制聚合 argv 和 environment 诊断。
+配置）。HTTP 核心类型的职责如下：
+
+| 类型 | 职责 |
+| --- | --- |
+| `HttpRedactionPolicy` | 不可变的按上下文策略快照，包含 header、query/form、body 字段规则、行为选择和预算。 |
+| `HttpRedactionPolicyBuilder` | `new()` 和 `Default` 都从没有 header、query、body 字段规则的状态开始。要在保守 HTTP 快照上扩展，必须先调用 `.load_default()`；它会替换此前全部 builder 状态。 |
+| `HttpRedactor` | 使用一份不可变 HTTP 策略处理 URL、form、header 和调用方提供的 body capture。 |
+| `BodyCapture` | 带有真实完整性元数据的借用字节；用 `complete`、`prefix` 或截断构造函数说明实际可用输入。 |
+| `BodyBudget` | 限制参与 body 处理的字节数，以及最终 body 文本的渲染长度。 |
+| `BodyRedaction` | 有界、日志安全的 body 结果；其 `Display` 不提供原始 body 逃生口。 |
+| `BodyRedactionStatus` | 标明结果是空、结构化成功、由策略放行、安全关闭，还是二进制摘要。 |
+| `BodyRedactionReason` | 解释安全关闭原因，例如结构化输入不合法/已截断、媒体类型不支持或不透明文本。 |
+| `DiagnosticBudget` | 单独限制 URL、form、header 和含 URL 文本的诊断。 |
+
+`DiagnosticBudget` 默认输入上限为 16 KiB、输出上限为 64 KiB。输入超限时只返回
+`<redacted: diagnostic limit exceeded>`，不会保留任何源前缀。同一预算也限制聚合 argv 和
+environment 诊断。`HttpRedactionPolicy::default()` 和 `HttpRedactor::default()` 仍使用
+保守的 HTTP 默认策略。
 
 不合法或已截断的结构化 body 会安全关闭。不透明文本、无 key 的 JSON 标量、文件
 part、匿名 multipart part 和 URL path 默认采用保守策略。HTTP 结果类型只暴露日志
@@ -341,6 +359,7 @@ fn main() {
     let diagnostics = DiagnosticBudget::new(8 * 1024, 32 * 1024)
         .expect("诊断预算合法");
     let policy = HttpRedactionPolicy::builder()
+        .load_default()
         .diagnostic_budget(diagnostics)
         .build()
         .expect("HTTP 策略合法");
