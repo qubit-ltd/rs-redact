@@ -100,7 +100,6 @@ fn main() {
     RedactionPolicy::set_global_default(policy.clone())
         .expect("the application installs its default only once");
     let inherited = RedactionPolicy::builder()
-        .load_default()
         .build()
         .expect("the default snapshot remains valid");
     assert_eq!(inherited.sensitivity_for("license_key"), Some(Sensitivity::High));
@@ -118,11 +117,13 @@ fn main() {
 `RedactionPolicy::default()` 读取当前进程级默认策略的快照。
 `RedactionPolicy::set_global_default(policy)` 只能成功设置一次；后续调用返回
 `GlobalDefaultAlreadySet`，且不会替换已有默认值。`RedactionPolicy::builder()`、
-`RedactionPolicyBuilder::new()` 和 `RedactionPolicyBuilder::default()` 都从没有敏感或允许
-规则的状态开始。需要在当前保守默认策略上扩展时，必须先调用 `.load_default()`；它会替换
-此前所有 builder 设置（包括已记录的校验错误）。此前创建的 policy、builder 和 redactor
-都不会随之变化。相对地，`RedactionPolicy::default()` 和 `Redactor::default()` 仍保留当前
-保守默认策略。
+`RedactionPolicyBuilder::new()` 和 `RedactionPolicyBuilder::default()` 都从当前保守默认快照
+开始，因此可以直接扩展。只有策略必须不继承任何规则时才使用 `.empty_builder()`。
+`.load_default()` 会显式将 builder 重置为当前默认快照，并替换此前所有设置（包括已记录的
+校验错误）。此前创建的 policy、builder 和 redactor 都不会随之变化。
+
+当安全边界已知某值敏感而与字段名无关时，使用
+`Redactor::redact_at(level, value)`。它直接应用指定级别的 mask，允许规则无法暴露该值。
 
 ## 领域对象
 
@@ -327,7 +328,7 @@ fn main() {
 | 类型 | 职责 |
 | --- | --- |
 | `HttpRedactionPolicy` | 不可变的按上下文策略快照，包含 header、query/form、body 字段规则、行为选择和预算。 |
-| `HttpRedactionPolicyBuilder` | `new()` 和 `Default` 都从没有 header、query、body 字段规则的状态开始。要在保守 HTTP 快照上扩展，必须先调用 `.load_default()`；它会替换此前全部 builder 状态。 |
+| `HttpRedactionPolicyBuilder` | `new()` 和 `Default` 都从保守 HTTP 快照开始，因此可以直接扩展 header、query、body 规则。`.load_default()` 会显式重置此前全部 builder 状态。 |
 | `HttpRedactor` | 使用一份不可变 HTTP 策略处理 URL、form、header 和调用方提供的 body capture。 |
 | `BodyCapture` | 带有真实完整性元数据的借用字节；用 `complete`、`prefix` 或截断构造函数说明实际可用输入。 |
 | `BodyBudget` | 限制参与 body 处理的字节数，以及最终 body 文本的渲染长度。 |
@@ -359,7 +360,6 @@ fn main() {
     let diagnostics = DiagnosticBudget::new(8 * 1024, 32 * 1024)
         .expect("诊断预算合法");
     let policy = HttpRedactionPolicy::builder()
-        .load_default()
         .diagnostic_budget(diagnostics)
         .build()
         .expect("HTTP 策略合法");

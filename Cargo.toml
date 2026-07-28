@@ -14,7 +14,6 @@ keywords = ["redact", "mask", "privacy", "logging", "qubit"]
 categories = ["development-tools", "value-formatting"]
 include = [
     "/Cargo.toml",
-    "/CHANGELOG.md",
     "/LICENSE",
     "/README.md",
     "/README.zh_CN.md",
