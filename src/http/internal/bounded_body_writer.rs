@@ -18,8 +18,6 @@ pub(in crate::http) struct BoundedBodyWriter {
     output: Vec<u8>,
     /// Maximum number of rendered bytes to retain.
     max_bytes: usize,
-    /// Whether one attempted write exceeded the configured budget.
-    overflowed: bool,
 }
 
 impl BoundedBodyWriter {
@@ -37,18 +35,7 @@ impl BoundedBodyWriter {
         Self {
             output: Vec::new(),
             max_bytes,
-            overflowed: false,
         }
-    }
-
-    /// Reports whether a write exceeded the configured output limit.
-    ///
-    /// # Returns
-    ///
-    /// `true` after the first rejected over-budget write.
-    #[inline(always)]
-    pub(in crate::http) const fn overflowed(&self) -> bool {
-        self.overflowed
     }
 
     /// Converts accepted rendering bytes into UTF-8 text.
@@ -72,7 +59,6 @@ impl Write for BoundedBodyWriter {
     /// retained, so successful JSON serialization always retains valid UTF-8.
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         if self.output.len().saturating_add(buffer.len()) > self.max_bytes {
-            self.overflowed = true;
             return Err(io::Error::from(io::ErrorKind::WriteZero));
         }
         self.output.extend_from_slice(buffer);

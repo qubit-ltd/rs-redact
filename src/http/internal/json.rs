@@ -79,21 +79,18 @@ pub(in crate::http) fn redact_with_remaining(
 /// # Returns
 ///
 /// `Some((text, false))` for complete JSON, `Some((prefix, true))` when
-/// serialization exceeded the output budget, or `None` for serialization or
-/// UTF-8 errors.
+/// serialization exceeded the output budget, or `None` for UTF-8 errors.
 #[must_use]
 pub(in crate::http) fn serialize_bounded(
     value: &Value,
     max_output_bytes: usize,
 ) -> Option<(String, bool)> {
     let mut writer = BoundedBodyWriter::new(max_output_bytes);
-    match serde_json::to_writer(&mut writer, value) {
-        Ok(()) => writer.into_string().map(|text| (text, false)),
-        Err(_) if writer.overflowed() => {
-            writer.into_string().map(|text| (text, true))
-        }
-        Err(_) => None,
+    if serde_json::to_writer(&mut writer, value).is_err() {
+        return writer.into_string().map(|text| (text, true));
     }
+    writer.flush().ok()?;
+    writer.into_string().map(|text| (text, false))
 }
 
 /// Redacts every non-empty line of one NDJSON document.
@@ -142,7 +139,7 @@ pub(in crate::http) fn redact_ndjson(
 /// # Returns
 ///
 /// Redacted NDJSON, a pass-through flag, and a rendering-truncation flag, or
-/// `None` for invalid UTF-8, JSON, or serialization.
+/// `None` for invalid UTF-8 or JSON.
 #[must_use]
 pub(in crate::http) fn redact_ndjson_with_remaining(
     redactor: &Redactor,
@@ -172,12 +169,7 @@ pub(in crate::http) fn redact_ndjson_with_remaining(
             remaining_mask_bytes,
         );
         if serde_json::to_writer(&mut output, &value).is_err() {
-            if output.overflowed() {
-                return output
-                    .into_string()
-                    .map(|text| (text, passed, true));
-            }
-            return None;
+            return output.into_string().map(|text| (text, passed, true));
         }
     }
     if trailing_newline && output.write_all(b"\n").is_err() {

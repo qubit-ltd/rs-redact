@@ -14,6 +14,7 @@ use crate::{
     RedactedKeyedValue,
     RedactedText,
     RedactionPolicy,
+    Sensitivity,
 };
 
 /// Applies one immutable policy to scalar values and string maps.
@@ -71,6 +72,29 @@ impl Redactor {
             None => Cow::Borrowed(value),
         };
         RedactedText::new(value)
+    }
+
+    /// Redacts one value at an explicit sensitivity level.
+    ///
+    /// This ignores field classification and allow rules. Use it at a boundary
+    /// where the value is known to be sensitive regardless of its field name.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` - Sensitivity required by the calling boundary.
+    /// * `value` - Value to mask.
+    ///
+    /// # Returns
+    ///
+    /// Typed redacted text produced by the configured mask for `level`.
+    #[must_use = "use the returned redacted value"]
+    #[inline]
+    pub fn redact_at<'a>(
+        &self,
+        level: Sensitivity,
+        value: &'a str,
+    ) -> RedactedText<'a> {
+        RedactedText::new(self.policy.masking().mask(level, value))
     }
 
     /// Creates a lazy redacted view selected by an external key.

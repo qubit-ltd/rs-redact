@@ -12,7 +12,24 @@ use std::collections::{
     HashMap,
 };
 
-use qubit_redact::Redactor;
+use qubit_redact::{
+    RedactionPolicy,
+    Redactor,
+    Sensitivity,
+};
+
+/// Verifies an explicit sensitivity cannot be bypassed by a field allow rule.
+#[test]
+fn test_redact_at_ignores_field_allow_rules() {
+    let policy = RedactionPolicy::builder()
+        .allow_exact("password")
+        .build()
+        .expect("the policy is valid");
+
+    let redacted = Redactor::new(policy).redact_at(Sensitivity::Secret, "raw");
+
+    assert_eq!(redacted.as_str(), "<redacted>");
+}
 
 /// Verifies that default field rules redact known secrets without changing the
 /// source map.

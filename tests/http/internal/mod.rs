@@ -7,6 +7,7 @@
 // =============================================================================
 //! Tests for internal HTTP format parsers.
 
+mod bounded_body_writer_tests;
 mod bounded_log_writer_tests;
 mod content_type_tests;
 mod diagnostic_text_tests;

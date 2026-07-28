@@ -224,13 +224,17 @@ fn redact_non_sensitive_part(
             TextBodyPolicy::Redact => {
                 Some((markers::MULTIPART_TEXT.to_string(), false, false))
             }
-            TextBodyPolicy::PassThrough => Some((text.to_string(), true, false)),
+            TextBodyPolicy::PassThrough => {
+                Some((text.to_string(), true, false))
+            }
         },
         None => match text_policy {
             TextBodyPolicy::Redact => {
                 Some((markers::MULTIPART_TEXT.to_string(), false, false))
             }
-            TextBodyPolicy::PassThrough => Some((text.to_string(), true, false)),
+            TextBodyPolicy::PassThrough => {
+                Some((text.to_string(), true, false))
+            }
         },
         Some(_) => Some((markers::MULTIPART_PART.to_string(), false, false)),
     }
