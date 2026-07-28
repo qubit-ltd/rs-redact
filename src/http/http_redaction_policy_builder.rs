@@ -46,24 +46,27 @@ pub struct HttpRedactionPolicyBuilder {
 }
 
 impl HttpRedactionPolicyBuilder {
-    /// Creates a builder without field rules.
+    /// Creates a builder from the current default HTTP policy snapshot.
+    ///
+    /// # Returns
+    ///
+    /// A mutable copy of [`HttpRedactionPolicy::default`].
+    #[inline]
+    pub fn new() -> Self {
+        Self::from_policy(&HttpRedactionPolicy::default())
+    }
+
+    /// Creates a builder with empty field policies and default HTTP behavior.
     ///
     /// # Returns
     ///
     /// A builder with fail-closed behavior choices and finite default limits.
-    ///
-    /// # Warning
-    ///
-    /// This builder has no header, query, or body field rules. Unknown fields
-    /// pass through unchanged. Call `Self::load_default` before
-    /// application-specific changes when the conservative default snapshot is
-    /// required.
     #[inline]
-    pub fn new() -> Self {
+    pub(super) fn empty() -> Self {
         Self {
-            header: RedactionPolicyBuilder::new(),
-            query: RedactionPolicyBuilder::new(),
-            body: RedactionPolicyBuilder::new(),
+            header: RedactionPolicyBuilder::empty(),
+            query: RedactionPolicyBuilder::empty(),
+            body: RedactionPolicyBuilder::empty(),
             url_path_policy: UrlPathPolicy::default(),
             text_body_policy: TextBodyPolicy::default(),
             unkeyed_json_value_policy: UnkeyedJsonValuePolicy::default(),
@@ -535,16 +538,11 @@ impl HttpRedactionPolicyBuilder {
 }
 
 impl Default for HttpRedactionPolicyBuilder {
-    /// Creates a builder without header, query, or body field rules.
+    /// Creates a builder from the current default HTTP policy snapshot.
     ///
     /// # Returns
     ///
-    /// The same empty builder as [`HttpRedactionPolicy::builder`].
-    ///
-    /// # Warning
-    ///
-    /// Use [`Self::load_default`] before application-specific changes when
-    /// the conservative default HTTP policy snapshot is required.
+    /// The same default-based builder as [`HttpRedactionPolicy::builder`].
     fn default() -> Self {
         Self::new()
     }

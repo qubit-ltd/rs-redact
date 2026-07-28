@@ -45,21 +45,23 @@ pub struct RedactionPolicyBuilder {
 }
 
 impl RedactionPolicyBuilder {
-    /// Creates a builder without field rules.
+    /// Creates a builder from the current default policy snapshot.
     ///
     /// # Returns
     ///
-    /// Empty construction state using token-suffix matching, default masks,
-    /// and the default diagnostic budget.
-    ///
-    /// # Warning
-    ///
-    /// This builder has no sensitive or allow rules. Unknown fields pass
-    /// through unchanged. Call `Self::load_default` before
-    /// application-specific changes when the conservative default snapshot is
-    /// required.
+    /// A mutable copy of [`RedactionPolicy::default`].
     #[inline]
     pub fn new() -> Self {
+        Self::from_policy(&RedactionPolicy::default())
+    }
+
+    /// Creates a builder with no field rules and default masks.
+    ///
+    /// # Returns
+    ///
+    /// Empty construction state using token-suffix matching.
+    #[inline]
+    pub(crate) fn empty() -> Self {
         Self {
             sensitive: BTreeMap::new(),
             allow_exact: BTreeSet::new(),
@@ -394,16 +396,11 @@ impl RedactionPolicyBuilder {
 }
 
 impl Default for RedactionPolicyBuilder {
-    /// Creates a builder without field rules.
+    /// Creates a builder from the current default policy snapshot.
     ///
     /// # Returns
     ///
-    /// The same empty builder as [`RedactionPolicyBuilder::new`].
-    ///
-    /// # Warning
-    ///
-    /// Use [`Self::load_default`] before application-specific changes when
-    /// the conservative default snapshot is required.
+    /// The same default-based builder as [`RedactionPolicyBuilder::new`].
     #[inline]
     fn default() -> Self {
         Self::new()

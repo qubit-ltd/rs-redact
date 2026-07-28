@@ -69,28 +69,40 @@ fn inherited_allow_policy() -> HttpRedactionPolicy {
         .expect("the HTTP policy should be valid")
 }
 
-/// Verifies that every no-argument HTTP builder entry point starts without
-/// field rules.
+/// Verifies that ordinary HTTP builders inherit the conservative default
+/// snapshot while the explicit empty entry point has no field rules.
 #[test]
-fn test_http_redaction_policy_builder_starting_points_are_empty() {
+fn test_http_redaction_policy_builder_uses_default_policy() {
     let builder = HttpRedactionPolicy::builder()
         .build()
-        .expect("the empty HTTP policy should be valid");
+        .expect("the default HTTP policy should be valid");
     let constructed = HttpRedactionPolicyBuilder::new()
         .build()
-        .expect("the constructed empty HTTP policy should be valid");
+        .expect("the constructed default HTTP policy should be valid");
     let defaulted = HttpRedactionPolicyBuilder::default()
         .build()
-        .expect("the default empty HTTP policy should be valid");
+        .expect("the default default HTTP policy should be valid");
+    let empty = HttpRedactionPolicy::empty_builder()
+        .build()
+        .expect("the explicit empty HTTP policy should be valid");
 
     assert_eq!(
         builder.header_policy().sensitivity_for("authorization"),
-        None
+        Some(Sensitivity::High)
     );
-    assert_eq!(builder.query_policy().sensitivity_for("password"), None);
-    assert_eq!(builder.body_policy().sensitivity_for("password"), None);
+    assert_eq!(
+        builder.query_policy().sensitivity_for("password"),
+        Some(Sensitivity::Secret)
+    );
+    assert_eq!(
+        builder.body_policy().sensitivity_for("password"),
+        Some(Sensitivity::Secret)
+    );
     assert_eq!(constructed, builder);
     assert_eq!(defaulted, builder);
+    assert_eq!(empty.header_policy().sensitivity_for("authorization"), None);
+    assert_eq!(empty.query_policy().sensitivity_for("password"), None);
+    assert_eq!(empty.body_policy().sensitivity_for("password"), None);
 }
 
 /// Verifies that loading defaults replaces every HTTP builder component.

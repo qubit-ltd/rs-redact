@@ -40,7 +40,7 @@ fn test_exact_allow_does_not_allow_contextual_suffix() {
 /// Verifies that a suffix allow rule explicitly allows contextual suffixes.
 #[test]
 fn test_suffix_allow_is_explicitly_broad() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .allow_suffix("access_token")
         .build()
         .expect("the suffix allow rule should be valid");
@@ -101,35 +101,40 @@ fn test_standard_and_default_contain_presets_and_extra_fields() {
     }
 }
 
-/// Verifies that every no-argument builder entry point starts without field
-/// rules.
+/// Verifies that ordinary builders inherit the conservative default snapshot
+/// while the explicit empty entry point has no field rules.
 #[test]
-fn test_builder_starting_points_are_explicit() {
+fn test_builder_uses_default_policy_and_empty_builder_is_explicit() {
     let builder = RedactionPolicy::builder()
         .raise("tenant_id", Sensitivity::Low)
         .build()
-        .expect("the empty policy should be valid");
+        .expect("the default-based policy should be valid");
     let constructed = RedactionPolicyBuilder::new()
         .raise("tenant_id", Sensitivity::Low)
         .build()
-        .expect("the constructed empty policy should be valid");
+        .expect("the constructed default-based policy should be valid");
     let defaulted = RedactionPolicyBuilder::default()
         .raise("tenant_id", Sensitivity::Low)
         .build()
-        .expect("the default empty policy should be valid");
+        .expect("the default default-based policy should be valid");
+    let empty = RedactionPolicy::empty_builder()
+        .raise("tenant_id", Sensitivity::Low)
+        .build()
+        .expect("the explicit empty policy should be valid");
     let copied = RedactionPolicy::builder_from(&builder)
         .include_preset(SensitiveFieldPreset::Session)
         .build()
         .expect("the copied policy should be valid");
 
-    assert_eq!(builder.sensitivity_for("password"), None);
+    assert_eq!(builder.sensitivity_for("password"), Some(Sensitivity::Secret));
     assert_eq!(constructed, builder);
     assert_eq!(defaulted, builder);
+    assert_eq!(empty.sensitivity_for("password"), None);
     assert_eq!(
         copied.sensitivity_for("session_token"),
         Some(Sensitivity::High),
     );
-    assert_eq!(copied.sensitivity_for("password"), None);
+    assert_eq!(copied.sensitivity_for("password"), Some(Sensitivity::Secret));
 }
 
 /// Verifies that loading defaults replaces every prior builder state.
@@ -199,7 +204,7 @@ fn test_builder_from_copies_complete_policy_snapshot() {
 /// Verifies that raising never weakens a rule while overriding replaces it.
 #[test]
 fn test_raise_and_override_have_distinct_strength_semantics() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("credential", Sensitivity::High)
         .raise("credential", Sensitivity::Medium)
         .override_level("override", Sensitivity::High)
@@ -281,12 +286,13 @@ fn test_build_rejects_empty_fixed_replacement() {
     );
 }
 
-/// Verifies builder defaults and validation errors expose useful diagnostics.
+/// Verifies explicit empty builders and validation errors expose useful
+/// diagnostics.
 #[test]
-fn test_builder_default_and_policy_error_display() {
-    let policy = RedactionPolicyBuilder::default()
+fn test_empty_builder_and_policy_error_display() {
+    let policy = RedactionPolicy::empty_builder()
         .build()
-        .expect("the default builder should be valid");
+        .expect("the empty builder should be valid");
     assert_eq!(policy.sensitivity_for("password"), None);
     assert_eq!(
         PolicyError::EmptyFieldName.to_string(),
@@ -304,7 +310,7 @@ fn test_builder_default_and_policy_error_display() {
 /// Verifies that immutable rule views expose canonical, sorted rule data.
 #[test]
 fn test_rule_views_expose_canonical_configuration() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("Tenant-Token", Sensitivity::High)
         .allow_exact("Public Token")
         .allow_suffix("Diagnostic.Token")
