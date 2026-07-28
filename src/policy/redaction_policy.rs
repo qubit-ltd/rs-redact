@@ -193,7 +193,8 @@ impl RedactionPolicy {
     /// Installs the process-wide default policy exactly once.
     ///
     /// The installed immutable policy affects later calls to [`Self::default`]
-    /// and [`Self::builder`]. Previously created snapshots remain unchanged.
+    /// and [`RedactionPolicyBuilder::load_default`]. Previously created
+    /// snapshots remain unchanged.
     ///
     /// # Parameters
     ///
