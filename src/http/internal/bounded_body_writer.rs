@@ -1,0 +1,91 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+//! Bounded byte sink for structured HTTP body rendering.
+
+use std::io::{
+    self,
+    Write,
+};
+
+/// Accumulates UTF-8 rendering bytes without exceeding a fixed budget.
+pub(in crate::http) struct BoundedBodyWriter {
+    /// Rendered bytes accepted before the first over-budget write.
+    output: Vec<u8>,
+    /// Maximum number of rendered bytes to retain.
+    max_bytes: usize,
+    /// Whether one attempted write exceeded the configured budget.
+    overflowed: bool,
+}
+
+impl BoundedBodyWriter {
+    /// Creates a byte sink with the specified output limit.
+    ///
+    /// # Parameters
+    ///
+    /// * `max_bytes` - Maximum number of bytes accepted by this writer.
+    ///
+    /// # Returns
+    ///
+    /// An empty writer that grows only as accepted output is produced.
+    #[inline]
+    pub(in crate::http) const fn new(max_bytes: usize) -> Self {
+        Self {
+            output: Vec::new(),
+            max_bytes,
+            overflowed: false,
+        }
+    }
+
+    /// Reports whether a write exceeded the configured output limit.
+    ///
+    /// # Returns
+    ///
+    /// `true` after the first rejected over-budget write.
+    #[inline(always)]
+    pub(in crate::http) const fn overflowed(&self) -> bool {
+        self.overflowed
+    }
+
+    /// Converts accepted rendering bytes into UTF-8 text.
+    ///
+    /// # Returns
+    ///
+    /// `Some` when all accepted bytes form valid UTF-8, or `None` otherwise.
+    #[inline]
+    pub(in crate::http) fn into_string(self) -> Option<String> {
+        String::from_utf8(self.output).ok()
+    }
+}
+
+impl Write for BoundedBodyWriter {
+    /// Appends one complete byte slice when it fits in the remaining budget.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`io::ErrorKind::WriteZero`] after recording overflow when the
+    /// complete slice would exceed the configured limit. No partial slice is
+    /// retained, so successful JSON serialization always retains valid UTF-8.
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        if self.output.len().saturating_add(buffer.len()) > self.max_bytes {
+            self.overflowed = true;
+            return Err(io::Error::from(io::ErrorKind::WriteZero));
+        }
+        self.output.extend_from_slice(buffer);
+        Ok(buffer.len())
+    }
+
+    /// Flushes this in-memory writer.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` because buffered bytes are retained in memory.
+    #[inline(always)]
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}

@@ -52,6 +52,43 @@ use super::{
 /// Maximum number of recursively embedded HTTP URLs to redact.
 const MAX_NESTED_URL_DEPTH: usize = 8;
 
+/// Unescaped parser output paired with its body-redaction status.
+#[must_use]
+struct ParsedBody {
+    /// Redacted text before final log escaping.
+    text: String,
+    /// How the parser processed the body.
+    status: BodyRedactionStatus,
+    /// Whether bounded structured rendering omitted output.
+    rendered_truncated: bool,
+}
+
+impl ParsedBody {
+    /// Creates parser output with its final rendering-truncation state.
+    ///
+    /// # Parameters
+    ///
+    /// * `text` - Redacted text before final log escaping.
+    /// * `status` - How the parser processed the body.
+    /// * `rendered_truncated` - Whether structured rendering omitted output.
+    ///
+    /// # Returns
+    ///
+    /// One complete parser result.
+    #[inline(always)]
+    const fn new(
+        text: String,
+        status: BodyRedactionStatus,
+        rendered_truncated: bool,
+    ) -> Self {
+        Self {
+            text,
+            status,
+            rendered_truncated,
+        }
+    }
+}
+
 /// Applies one immutable HTTP policy to URLs, forms, headers, and bodies.
 #[must_use = "use the redactor to produce safe HTTP diagnostics"]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -568,16 +605,21 @@ impl HttpRedactor {
     ///
     /// # Returns
     ///
-    /// Unescaped redacted text and its outcome status.
+    /// Unescaped redacted text, outcome status, and rendering-truncation
+    /// state.
     #[must_use = "redacted body text and its status must be handled together"]
     fn redact_body_inner(
         &self,
         bounded: &[u8],
         content_type: Option<&str>,
         truncated: bool,
-    ) -> (String, BodyRedactionStatus) {
+    ) -> ParsedBody {
         if bounded.is_empty() {
-            return (String::new(), BodyRedactionStatus::Empty);
+            return ParsedBody::new(
+                String::new(),
+                BodyRedactionStatus::Empty,
+                false,
+            );
         }
         let content_type = match content_type {
             Some(value) => match content_type::parse(value) {
@@ -592,15 +634,16 @@ impl HttpRedactor {
         }) = &content_type
         {
             if truncated {
-                return (
+                return ParsedBody::new(
                     markers::MULTIPART_BODY.to_string(),
                     BodyRedactionStatus::Redacted(
                         BodyRedactionReason::TruncatedMultipart,
                     ),
+                    false,
                 );
             }
             if let Some(boundary) = boundary.as_deref()
-                && let Some((text, passed)) = multipart::redact(
+                && let Some((text, passed, rendered_truncated)) = multipart::redact(
                     &self.body_redactor,
                     boundary,
                     *require_form_data,
@@ -610,20 +653,22 @@ impl HttpRedactor {
                     self.policy.body_budget().max_output_bytes(),
                 )
             {
-                return (
+                return ParsedBody::new(
                     text,
                     if passed {
                         BodyRedactionStatus::PassedThrough
                     } else {
                         BodyRedactionStatus::Structured
                     },
+                    rendered_truncated,
                 );
             }
-            return (
+            return ParsedBody::new(
                 markers::MULTIPART_BODY.to_string(),
                 BodyRedactionStatus::Redacted(
                     BodyRedactionReason::InvalidMultipart,
                 ),
+                false,
             );
         }
         if matches!(&content_type, Some(content_type::ContentType::Ndjson)) {
@@ -654,25 +699,28 @@ impl HttpRedactor {
     ///
     /// # Returns
     ///
-    /// Redacted JSON or a fixed fail-closed marker and status.
+    /// Redacted JSON or a fixed fail-closed marker, status, and
+    /// rendering-truncation state.
     #[must_use = "redacted JSON text and its status must be handled together"]
     fn redact_json(
         &self,
         bounded: &[u8],
         truncated: bool,
-    ) -> (String, BodyRedactionStatus) {
+    ) -> ParsedBody {
         if truncated {
-            return (
+            return ParsedBody::new(
                 markers::INVALID_OR_TRUNCATED_JSON.to_string(),
                 BodyRedactionStatus::Redacted(
                     BodyRedactionReason::InvalidOrTruncatedJson,
                 ),
+                false,
             );
         }
         let Ok(mut value) = serde_json::from_slice(bounded) else {
-            return (
+            return ParsedBody::new(
                 markers::INVALID_JSON.to_string(),
                 BodyRedactionStatus::Redacted(BodyRedactionReason::InvalidJson),
+                false,
             );
         };
         let passed = json::redact(
@@ -681,18 +729,23 @@ impl HttpRedactor {
             self.policy.unkeyed_json_value_policy(),
             self.policy.body_budget().max_output_bytes(),
         );
-        match serde_json::to_string(&value) {
-            Ok(text) => (
+        match json::serialize_bounded(
+            &value,
+            self.policy.body_budget().max_output_bytes(),
+        ) {
+            Some((text, rendered_truncated)) => ParsedBody::new(
                 text,
                 if passed {
                     BodyRedactionStatus::PassedThrough
                 } else {
                     BodyRedactionStatus::Structured
                 },
+                rendered_truncated,
             ),
-            Err(_) => (
+            None => ParsedBody::new(
                 markers::INVALID_JSON.to_string(),
                 BodyRedactionStatus::Redacted(BodyRedactionReason::InvalidJson),
+                false,
             ),
         }
     }
@@ -702,12 +755,13 @@ impl HttpRedactor {
     /// # Returns
     ///
     /// The fixed marker and its matching redaction status.
-    fn invalid_content_type_body() -> (String, BodyRedactionStatus) {
-        (
+    fn invalid_content_type_body() -> ParsedBody {
+        ParsedBody::new(
             markers::INVALID_CONTENT_TYPE.to_string(),
             BodyRedactionStatus::Redacted(
                 BodyRedactionReason::InvalidContentType,
             ),
+            false,
         )
     }
 
@@ -720,19 +774,21 @@ impl HttpRedactor {
     ///
     /// # Returns
     ///
-    /// Redacted NDJSON or a fixed fail-closed marker and status.
+    /// Redacted NDJSON or a fixed fail-closed marker, status, and
+    /// rendering-truncation state.
     #[must_use = "redacted NDJSON text and its status must be handled together"]
     fn redact_ndjson(
         &self,
         bounded: &[u8],
         truncated: bool,
-    ) -> (String, BodyRedactionStatus) {
+    ) -> ParsedBody {
         if truncated {
-            return (
+            return ParsedBody::new(
                 markers::INVALID_OR_TRUNCATED_NDJSON.to_string(),
                 BodyRedactionStatus::Redacted(
                     BodyRedactionReason::InvalidOrTruncatedNdjson,
                 ),
+                false,
             );
         }
         match json::redact_ndjson(
@@ -741,19 +797,21 @@ impl HttpRedactor {
             self.policy.unkeyed_json_value_policy(),
             self.policy.body_budget().max_output_bytes(),
         ) {
-            Some((output, passed)) => (
+            Some((output, passed, rendered_truncated)) => ParsedBody::new(
                 output,
                 if passed {
                     BodyRedactionStatus::PassedThrough
                 } else {
                     BodyRedactionStatus::Structured
                 },
+                rendered_truncated,
             ),
-            None => (
+            None => ParsedBody::new(
                 markers::INVALID_NDJSON.to_string(),
                 BodyRedactionStatus::Redacted(
                     BodyRedactionReason::InvalidNdjson,
                 ),
+                false,
             ),
         }
     }
@@ -767,36 +825,40 @@ impl HttpRedactor {
     ///
     /// # Returns
     ///
-    /// Redacted form text or a fixed invalid marker and status.
+    /// Redacted form text or a fixed invalid marker, status, and complete
+    /// rendering state.
     #[must_use = "redacted form text and its status must be handled together"]
     fn redact_body_form(
         &self,
         bounded: &[u8],
         truncated: bool,
-    ) -> (String, BodyRedactionStatus) {
+    ) -> ParsedBody {
         if truncated {
-            return (
+            return ParsedBody::new(
                 markers::INVALID_OR_TRUNCATED_FORM.to_string(),
                 BodyRedactionStatus::Redacted(
                     BodyRedactionReason::InvalidOrTruncatedFormUrlEncoded,
                 ),
+                false,
             );
         }
         if !form::is_valid(bounded) {
-            return (
+            return ParsedBody::new(
                 markers::INVALID_FORM.to_string(),
                 BodyRedactionStatus::Redacted(
                     BodyRedactionReason::InvalidFormUrlEncoded,
                 ),
+                false,
             );
         }
-        (
+        ParsedBody::new(
             form::redact_bounded(
                 &self.body_redactor,
                 bounded,
                 self.policy.body_budget().max_output_bytes(),
             ),
             BodyRedactionStatus::Structured,
+            false,
         )
     }
 
@@ -809,34 +871,40 @@ impl HttpRedactor {
     ///
     /// # Returns
     ///
-    /// A policy-controlled text marker or binary summary and status.
+    /// A policy-controlled text marker or binary summary, status, and complete
+    /// rendering state.
     #[must_use = "fallback text and its status must be handled together"]
     fn redact_fallback(
         &self,
         bounded: &[u8],
         is_text: bool,
-    ) -> (String, BodyRedactionStatus) {
+    ) -> ParsedBody {
         match std::str::from_utf8(bounded) {
-            Err(_) => (
+            Err(_) => ParsedBody::new(
                 format!("<binary {} bytes>", bounded.len()),
                 BodyRedactionStatus::Binary,
+                false,
             ),
             Ok(text) if is_text => match self.policy.text_body_policy() {
-                TextBodyPolicy::Redact => (
+                TextBodyPolicy::Redact => ParsedBody::new(
                     markers::TEXT_BODY.to_string(),
                     BodyRedactionStatus::Redacted(
                         BodyRedactionReason::OpaqueText,
                     ),
+                    false,
                 ),
-                TextBodyPolicy::PassThrough => {
-                    (text.to_string(), BodyRedactionStatus::PassedThrough)
-                }
+                TextBodyPolicy::PassThrough => ParsedBody::new(
+                    text.to_string(),
+                    BodyRedactionStatus::PassedThrough,
+                    false,
+                ),
             },
-            Ok(_) => (
+            Ok(_) => ParsedBody::new(
                 markers::UNSUPPORTED_BODY.to_string(),
                 BodyRedactionStatus::Redacted(
                     BodyRedactionReason::UnsupportedMediaType,
                 ),
+                false,
             ),
         }
     }
@@ -845,7 +913,7 @@ impl HttpRedactor {
     ///
     /// # Parameters
     ///
-    /// * `parsed` - Unescaped redacted payload and status.
+    /// * `parsed` - Unescaped redacted payload, status, and rendering state.
     /// * `capture` - Original checked source metadata.
     /// * `captured_len` - Number of bytes actually inspected.
     /// * `budget_truncated` - Whether the input budget omitted captured bytes.
@@ -855,15 +923,19 @@ impl HttpRedactor {
     ///
     /// A log-safe bounded body result with exact available metadata.
     fn finish_body_redaction(
-        parsed: (String, BodyRedactionStatus),
+        parsed: ParsedBody,
         capture: BodyCapture<'_>,
         captured_len: usize,
         budget_truncated: bool,
         budget: BodyBudget,
     ) -> BodyRedaction {
-        let (parsed_text, status) = parsed;
+        let ParsedBody {
+            text: parsed_text,
+            status,
+            rendered_truncated,
+        } = parsed;
         let source_truncated =
-            capture.is_source_truncated() || budget_truncated;
+            capture.is_source_truncated() || budget_truncated || rendered_truncated;
         let mut writer =
             BoundedLogWriter::new(budget.max_output_bytes(), source_truncated);
         let _ = writer.write_str(&parsed_text);

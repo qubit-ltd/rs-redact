@@ -5,11 +5,14 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Strict multipart parsing and diagnostic summary rendering.
+//! Strict multipart parsing and bounded diagnostic summary rendering.
+
+use std::io::Write;
 
 use crate::Redactor;
 
 use super::{
+    BoundedBodyWriter,
     MultipartPartMetadata,
     content_type,
     form,
@@ -31,11 +34,13 @@ use crate::http::{
 /// * `bytes` - Complete bounded body bytes.
 /// * `text_policy` - Policy for named opaque text parts.
 /// * `unkeyed_policy` - Policy for nested unkeyed JSON values.
-/// * `max_mask_bytes` - Maximum bytes allocated for one generated mask.
+/// * `max_mask_bytes` - Aggregate bytes available for generated masks and
+///   rendered multipart output.
 ///
 /// # Returns
 ///
-/// A summary and pass-through flag, or `None` for malformed input.
+/// A summary, pass-through flag, and rendering-truncation flag, or `None` for
+/// malformed input.
 #[must_use]
 pub(in crate::http) fn redact(
     redactor: &Redactor,
@@ -45,31 +50,42 @@ pub(in crate::http) fn redact(
     text_policy: TextBodyPolicy,
     unkeyed_policy: UnkeyedJsonValuePolicy,
     max_mask_bytes: usize,
-) -> Option<(String, bool)> {
+) -> Option<(String, bool, bool)> {
     let parts = part_segments(bytes, boundary)?;
-    let mut lines = Vec::with_capacity(parts.len());
+    let has_parts = !parts.is_empty();
+    let mut output = BoundedBodyWriter::new(max_mask_bytes);
+    if output.write_all(b"<multipart>\n").is_err() {
+        return output.into_string().map(|text| (text, false, true));
+    }
     let mut passed = false;
     let mut remaining_mask_bytes = max_mask_bytes;
-    for part in parts {
-        let (line, part_passed) = redact_part(
+    for (index, part) in parts.into_iter().enumerate() {
+        if index > 0 && output.write_all(b"\n").is_err() {
+            return output.into_string().map(|text| (text, passed, true));
+        }
+        let (line, part_passed, part_truncated) = redact_part(
             redactor,
             part,
             text_policy,
             unkeyed_policy,
             require_form_data,
             &mut remaining_mask_bytes,
+            max_mask_bytes,
         )?;
-        lines.push(line);
         passed |= part_passed;
+        if part_truncated || output.write_all(line.as_bytes()).is_err() {
+            return output.into_string().map(|text| (text, passed, true));
+        }
     }
-    Some((
-        if lines.is_empty() {
-            "<multipart>\n</multipart>".to_string()
-        } else {
-            format!("<multipart>\n{}\n</multipart>", lines.join("\n"))
-        },
-        passed,
-    ))
+    let closing = if has_parts {
+        b"\n</multipart>".as_slice()
+    } else {
+        b"</multipart>".as_slice()
+    };
+    if output.write_all(closing).is_err() {
+        return output.into_string().map(|text| (text, passed, true));
+    }
+    output.into_string().map(|text| (text, passed, false))
 }
 
 /// Redacts one multipart segment.
@@ -81,11 +97,13 @@ pub(in crate::http) fn redact(
 /// * `text_policy` - Policy for named opaque text parts.
 /// * `unkeyed_policy` - Policy for nested unkeyed JSON values.
 /// * `require_form_data` - Whether disposition must be `form-data`.
-/// * `max_mask_bytes` - Maximum bytes allocated for one generated mask.
+/// * `remaining_mask_bytes` - Aggregate bytes available for generated masks.
+/// * `max_output_bytes` - Maximum rendered multipart bytes to retain.
 ///
 /// # Returns
 ///
-/// A summary line and pass-through flag, or `None` for malformed input.
+/// A summary line, pass-through flag, and rendering-truncation flag, or `None`
+/// for malformed input.
 #[must_use]
 fn redact_part(
     redactor: &Redactor,
@@ -94,7 +112,8 @@ fn redact_part(
     unkeyed_policy: UnkeyedJsonValuePolicy,
     require_form_data: bool,
     remaining_mask_bytes: &mut usize,
-) -> Option<(String, bool)> {
+    max_output_bytes: usize,
+) -> Option<(String, bool, bool)> {
     let (headers, body) = split_headers_body(segment)?;
     let mut disposition = None;
     let mut part_type = None;
@@ -116,10 +135,10 @@ fn redact_part(
         require_form_data,
     )?;
     let name = metadata.name().unwrap_or(markers::MULTIPART_UNNAMED);
-    let (value, passed) = if metadata.filename().is_some() {
-        (markers::MULTIPART_FILE.to_string(), false)
+    let (value, passed, truncated) = if metadata.filename().is_some() {
+        (markers::MULTIPART_FILE.to_string(), false, false)
     } else if name == markers::MULTIPART_UNNAMED {
-        (markers::MULTIPART_PART.to_string(), false)
+        (markers::MULTIPART_PART.to_string(), false, false)
     } else if redactor.policy().sensitivity_for(name).is_some() {
         let body = std::str::from_utf8(body).ok()?;
         let value = redactor
@@ -127,7 +146,7 @@ fn redact_part(
             .into_owned();
         *remaining_mask_bytes =
             remaining_mask_bytes.saturating_sub(value.len());
-        (value, false)
+        (value, false, false)
     } else {
         redact_non_sensitive_part(
             redactor,
@@ -136,9 +155,13 @@ fn redact_part(
             text_policy,
             unkeyed_policy,
             remaining_mask_bytes,
+            max_output_bytes,
         )?
     };
-    Some((format!("{}={value}", name.escape_debug()), passed))
+    if truncated {
+        return Some((String::new(), passed, true));
+    }
+    Some((format!("{}={value}", name.escape_debug()), passed, false))
 }
 
 /// Redacts a non-sensitive named part according to its declared type.
@@ -150,11 +173,13 @@ fn redact_part(
 /// * `part_type` - Optional part Content-Type text.
 /// * `text_policy` - Policy for named opaque text parts.
 /// * `unkeyed_policy` - Policy for nested unkeyed JSON values.
-/// * `max_mask_bytes` - Maximum bytes allocated for one generated mask.
+/// * `remaining_mask_bytes` - Aggregate bytes available for generated masks.
+/// * `max_output_bytes` - Maximum rendered multipart bytes to retain.
 ///
 /// # Returns
 ///
-/// Safe part text and pass-through flag, or `None` for invalid UTF-8 or JSON.
+/// Safe part text, pass-through flag, and rendering-truncation flag, or `None`
+/// for invalid UTF-8, JSON, or serialization.
 #[must_use]
 fn redact_non_sensitive_part(
     redactor: &Redactor,
@@ -163,7 +188,8 @@ fn redact_non_sensitive_part(
     text_policy: TextBodyPolicy,
     unkeyed_policy: UnkeyedJsonValuePolicy,
     remaining_mask_bytes: &mut usize,
-) -> Option<(String, bool)> {
+    max_output_bytes: usize,
+) -> Option<(String, bool, bool)> {
     let text = std::str::from_utf8(body).ok()?;
     match part_type {
         Some(value) if content_type::is_json(value) => {
@@ -174,7 +200,8 @@ fn redact_non_sensitive_part(
                 unkeyed_policy,
                 remaining_mask_bytes,
             );
-            Some((serde_json::to_string(&value).ok()?, passed))
+            json::serialize_bounded(&value, max_output_bytes)
+                .map(|(text, truncated)| (text, passed, truncated))
         }
         Some(value) if content_type::is_ndjson(value) => {
             json::redact_ndjson_with_remaining(
@@ -182,6 +209,7 @@ fn redact_non_sensitive_part(
                 body,
                 unkeyed_policy,
                 remaining_mask_bytes,
+                max_output_bytes,
             )
         }
         Some(value) if content_type::is_form(value) => form::is_valid(body)
@@ -190,21 +218,21 @@ fn redact_non_sensitive_part(
                     form::redact_bounded(redactor, body, *remaining_mask_bytes);
                 *remaining_mask_bytes =
                     remaining_mask_bytes.saturating_sub(value.len());
-                (value, false)
+                (value, false, false)
             }),
         Some(value) if content_type::is_text(value) => match text_policy {
             TextBodyPolicy::Redact => {
-                Some((markers::MULTIPART_TEXT.to_string(), false))
+                Some((markers::MULTIPART_TEXT.to_string(), false, false))
             }
-            TextBodyPolicy::PassThrough => Some((text.to_string(), true)),
+            TextBodyPolicy::PassThrough => Some((text.to_string(), true, false)),
         },
         None => match text_policy {
             TextBodyPolicy::Redact => {
-                Some((markers::MULTIPART_TEXT.to_string(), false))
+                Some((markers::MULTIPART_TEXT.to_string(), false, false))
             }
-            TextBodyPolicy::PassThrough => Some((text.to_string(), true)),
+            TextBodyPolicy::PassThrough => Some((text.to_string(), true, false)),
         },
-        Some(_) => Some((markers::MULTIPART_PART.to_string(), false)),
+        Some(_) => Some((markers::MULTIPART_PART.to_string(), false, false)),
     }
 }
 
