@@ -5,66 +5,81 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for shared Cargo crate-path mapping.
+//! Black-box tests for runtime crate-path resolution.
 
-use std::path::PathBuf;
-
-use proc_macro_crate::{
-    Error,
-    FoundCrate,
-};
-use quote::ToTokens;
-use syn::{
-    DeriveInput,
-    Path,
+use std::{
+    env,
+    ffi::OsString,
+    path::PathBuf,
+    process::Output,
 };
 
-/// Production crate-path mapper compiled into this black-box test.
-mod crate_path {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/internal/crate_path.rs"
-    ));
+/// Runs Cargo against one isolated runtime-path fixture.
+///
+/// # Parameters
+///
+/// * `fixture` - Fixture directory below `tests/fixtures/crates`.
+///
+/// # Returns
+///
+/// The complete Cargo output for exact status and diagnostic assertions.
+fn check_fixture(fixture: &str) -> Output {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest = manifest_dir
+        .join("tests/fixtures/crates")
+        .join(fixture)
+        .join("Cargo.toml");
+    let target_dir =
+        manifest_dir.join("../target").join(format!("{fixture}-fixture"));
+    let cargo = env::var_os("CARGO").unwrap_or_else(|| OsString::from("cargo"));
+
+    crate::support::isolated_cargo::command(&cargo)
+        .args(["check", "--manifest-path"])
+        .arg(manifest)
+        .arg("--target-dir")
+        .arg(target_dir)
+        .output()
+        .expect("the isolated cargo check starts")
 }
 
-/// Verifies every Cargo lookup outcome maps to a stable path or diagnostic.
+/// Verifies generated code resolves a renamed runtime dependency.
 #[test]
-fn test_resolve_maps_every_lookup_outcome() {
-    let input: DeriveInput = syn::parse_quote!(
-        struct Record;
+fn test_runtime_crate_path_resolves_renamed_dependency() {
+    let output = check_fixture("renamed_dependency");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(output.status.success(), "{stderr}");
+}
+
+/// Verifies a package named `qubit-redact` reaches the `Itself` lookup branch.
+#[test]
+fn test_runtime_crate_path_resolves_itself() {
+    let output = check_fixture("runtime_itself");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(!output.status.success(), "{stderr}");
+    assert!(
+        stderr.contains("has unknown container attribute"),
+        "{stderr}",
     );
-    let itself_path: Path = syn::parse_quote!(::qubit_redact);
+    assert!(
+        !stderr.contains("unable to resolve the qubit-redact runtime crate"),
+        "{stderr}",
+    );
+}
 
-    let itself = crate_path::resolve(
-        &input,
-        Ok(FoundCrate::Itself),
-        itself_path.clone(),
-        "unable to resolve runtime",
-    )
-    .expect("the current crate uses its canonical path");
-    let renamed = crate_path::resolve(
-        &input,
-        Ok(FoundCrate::Name("safe-log".into())),
-        itself_path.clone(),
-        "unable to resolve runtime",
-    )
-    .expect("renamed dependencies are supported");
-    let missing = crate_path::resolve(
-        &input,
-        Err(Error::CrateNotFound {
-            crate_name: "qubit-redact".to_owned(),
-            path: PathBuf::from("/workspace/Cargo.toml"),
-        }),
-        itself_path,
-        "unable to resolve runtime",
-    )
-    .expect_err("a missing dependency is rejected");
+/// Verifies a missing runtime dependency emits the targeted public diagnostic.
+#[test]
+fn test_runtime_crate_path_reports_missing_dependency() {
+    let output = check_fixture("runtime_missing");
+    let stderr = String::from_utf8_lossy(&output.stderr);
 
-    assert_eq!(itself.to_token_stream().to_string(), ":: qubit_redact");
-    assert_eq!(renamed.to_token_stream().to_string(), ":: safe_log");
+    assert!(!output.status.success(), "{stderr}");
     assert_eq!(
-        missing.to_string(),
-        "unable to resolve runtime: Could not find `qubit-redact` in \
-         `dependencies` or `dev-dependencies` in `/workspace/Cargo.toml`!",
+        stderr
+            .matches("unable to resolve the qubit-redact runtime crate")
+            .count(),
+        2,
+        "{stderr}",
     );
 }

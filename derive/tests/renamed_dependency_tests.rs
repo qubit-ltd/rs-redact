@@ -22,13 +22,14 @@ fn test_renamed_runtime_dependency_compiles() {
         .join("tests/fixtures/crates/renamed_dependency/Cargo.toml");
     let target_dir = manifest_dir.join("../target/renamed-dependency-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let status = support::isolated_cargo::command(&cargo)
+    let output = support::isolated_cargo::command(&cargo)
         .args(["check", "--manifest-path"])
         .arg(manifest)
         .arg("--target-dir")
         .arg(target_dir)
-        .status()
+        .output()
         .expect("the isolated cargo check starts");
+    let stderr = String::from_utf8_lossy(&output.stderr);
 
-    assert!(status.success());
+    assert!(output.status.success(), "{stderr}");
 }

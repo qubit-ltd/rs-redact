@@ -93,19 +93,19 @@ pub fn assert_named_redaction() {
         )]),
     };
     let _ = &value.skipped;
-    let rendered = format!("{:?}", value.redacted());
 
-    assert!(rendered.contains("shown"));
-    assert!(!rendered.contains("raw-secret"));
-    assert!(!rendered.contains("raw-skipped"));
-    assert!(!rendered.contains("raw-map"));
+    assert_eq!(
+        format!("{:?}", value.redacted()),
+        r#"NamedRecord { visible: "shown", secret: "<redacted>", metadata: {"token": "****"} }"#,
+    );
 }
 
 /// Verifies positional input modeling and expansion.
 pub fn assert_tuple_redaction() {
     let value =
         TupleRecord(String::from("raw-secret"), String::from("raw-skipped"));
-    let _ = &value.1;
+    let TupleRecord(_, skipped) = &value;
+    let _ = skipped;
 
     assert_eq!(
         format!("{:?}", value.redacted()),
@@ -137,7 +137,8 @@ pub fn assert_mutable_redaction() {
 
     value.redact_in_place_with(&policy);
 
-    assert_ne!(value.0, "raw-secret");
+    let MutableRecord(redacted) = &value;
+    assert_eq!(redacted, "<redacted>");
 }
 
 /// Verifies generated `Debug` and `Display` delegate to redaction.
@@ -146,8 +147,14 @@ pub fn assert_format_expansion() {
         secret: String::from("raw-secret"),
     };
 
-    assert!(!format!("{value:?}").contains("raw-secret"));
-    assert!(!format!("{value}").contains("raw-secret"));
+    assert_eq!(
+        format!("{value:?}"),
+        r#"FormattedRecord { secret: "<redacted>" }"#,
+    );
+    assert_eq!(
+        format!("{value}"),
+        r#"FormattedRecord { secret: "<redacted>" }"#,
+    );
 }
 
 /// Verifies every accepted sensitivity literal reaches the runtime model.
@@ -167,8 +174,10 @@ pub fn assert_serde_expansion() {
     let json = serde_json::to_value(value.redacted())
         .expect("redacted adjacent serialization succeeds");
 
-    assert_eq!(json["kind"], "Tuple");
-    assert_eq!(json["payload"], "<redacted>");
+    assert_eq!(
+        json,
+        serde_json::json!({"kind": "Tuple", "payload": "<redacted>"}),
+    );
     assert_eq!(
         serde_json::to_value(SerializableEvent::Ready.redacted())
             .expect("redacted unit serialization succeeds"),

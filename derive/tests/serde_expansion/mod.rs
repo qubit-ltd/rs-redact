@@ -5,13 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Black-box tests for redacted Serde expansion.
+//! Behavior tests mirrored from redacted Serde expansion modules.
 
-mod serde_expansion;
-mod support;
+#![allow(dead_code)]
 
-/// Verifies generated serialization excludes raw sensitive content.
-#[test]
-fn test_serde_expansion_excludes_raw_content() {
-    support::assertions::assert_serde_expansion();
-}
+mod internal;
