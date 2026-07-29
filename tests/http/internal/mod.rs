@@ -19,3 +19,4 @@ mod mod_tests;
 mod multipart_part_metadata_tests;
 mod multipart_tests;
 mod nested_url_tests;
+mod parsed_body_tests;

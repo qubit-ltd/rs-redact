@@ -36,6 +36,7 @@ use super::{
     UrlPathPolicy,
     internal::{
         BoundedLogWriter,
+        ParsedBody,
         content_type,
         diagnostic_text,
         form,
@@ -51,43 +52,6 @@ use super::{
 
 /// Maximum number of recursively embedded HTTP URLs to redact.
 const MAX_NESTED_URL_DEPTH: usize = 8;
-
-/// Unescaped parser output paired with its body-redaction status.
-#[must_use]
-struct ParsedBody {
-    /// Redacted text before final log escaping.
-    text: String,
-    /// How the parser processed the body.
-    status: BodyRedactionStatus,
-    /// Whether bounded structured rendering omitted output.
-    rendered_truncated: bool,
-}
-
-impl ParsedBody {
-    /// Creates parser output with its final rendering-truncation state.
-    ///
-    /// # Parameters
-    ///
-    /// * `text` - Redacted text before final log escaping.
-    /// * `status` - How the parser processed the body.
-    /// * `rendered_truncated` - Whether structured rendering omitted output.
-    ///
-    /// # Returns
-    ///
-    /// One complete parser result.
-    #[inline(always)]
-    const fn new(
-        text: String,
-        status: BodyRedactionStatus,
-        rendered_truncated: bool,
-    ) -> Self {
-        Self {
-            text,
-            status,
-            rendered_truncated,
-        }
-    }
-}
 
 /// Applies one immutable HTTP policy to URLs, forms, headers, and bodies.
 #[must_use = "use the redactor to produce safe HTTP diagnostics"]
@@ -914,11 +878,7 @@ impl HttpRedactor {
         budget_truncated: bool,
         budget: BodyBudget,
     ) -> BodyRedaction {
-        let ParsedBody {
-            text: parsed_text,
-            status,
-            rendered_truncated,
-        } = parsed;
+        let (parsed_text, status, rendered_truncated) = parsed.into_parts();
         let source_truncated = capture.is_source_truncated()
             || budget_truncated
             || rendered_truncated;

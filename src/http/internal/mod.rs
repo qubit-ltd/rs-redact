@@ -18,7 +18,9 @@ pub(super) mod markers;
 pub(super) mod multipart;
 mod multipart_part_metadata;
 pub(super) mod nested_url;
+mod parsed_body;
 
 pub(super) use bounded_body_writer::BoundedBodyWriter;
 pub(super) use bounded_log_writer::BoundedLogWriter;
 pub(super) use multipart_part_metadata::MultipartPartMetadata;
+pub(super) use parsed_body::ParsedBody;
