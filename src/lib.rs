@@ -5,6 +5,22 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+#![cfg_attr(
+    all(doctest, feature = "http", feature = "serde"),
+    doc = include_str!("../README.md")
+)]
+#![cfg_attr(
+    all(doctest, feature = "http", feature = "serde"),
+    doc = include_str!("../README.zh_CN.md")
+)]
+#![cfg_attr(
+    all(doctest, feature = "http", feature = "serde"),
+    doc = include_str!("../doc/user_guide.md")
+)]
+#![cfg_attr(
+    all(doctest, feature = "http", feature = "serde"),
+    doc = include_str!("../doc/user_guide.zh_CN.md")
+)]
 //! # Qubit Redact
 //!
 //! Provides immutable, policy-driven redaction for scalar fields, maps,
