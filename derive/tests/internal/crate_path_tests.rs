@@ -29,8 +29,9 @@ fn check_fixture(fixture: &str) -> Output {
         .join("tests/fixtures/crates")
         .join(fixture)
         .join("Cargo.toml");
-    let target_dir =
-        manifest_dir.join("../target").join(format!("{fixture}-fixture"));
+    let target_dir = manifest_dir
+        .join("../target")
+        .join(format!("{fixture}-fixture"));
     let cargo = env::var_os("CARGO").unwrap_or_else(|| OsString::from("cargo"));
 
     crate::support::isolated_cargo::command(&cargo)

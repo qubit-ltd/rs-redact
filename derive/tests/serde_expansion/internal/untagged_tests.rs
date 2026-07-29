@@ -52,7 +52,8 @@ fn test_serde_untagged_enum_serializes_exact_content() {
     );
     assert_eq!(
         serde_json::to_value(
-            UntaggedEvent::Tuple(String::from("raw-secret"), "shown").redacted(),
+            UntaggedEvent::Tuple(String::from("raw-secret"), "shown")
+                .redacted(),
         )
         .expect("untagged tuple variant serializes"),
         serde_json::json!(["<redacted>", "shown"]),
