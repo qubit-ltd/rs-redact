@@ -35,14 +35,28 @@ use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let policy = RedactionPolicy::builder()
+        .raise("user_id", Sensitivity::Low)
+        .raise("phone_number", Sensitivity::Medium)
+        .raise("credit_card", Sensitivity::High)
         .raise("api_key", Sensitivity::Secret)
         .build()?;
-    let raw = "sk_live_123";
-    let diagnostic = Redactor::new(policy).redact("api_key", raw);
+    let redactor = Redactor::new(policy);
+    let user_id = "alpine42";
+    let phone_number = "13800138000";
+    let credit_card = "4111111111111111";
+    let api_key = "sk_live_123";
+    let display_name = "Alice";
 
-    assert_eq!(raw, "sk_live_123");
-    assert_eq!(diagnostic.as_str(), "<redacted>");
-    assert_eq!(diagnostic.escape_for_log().to_string(), "<redacted>");
+    assert_eq!(redactor.redact("user_id", user_id).as_str(), "al****42");
+    assert_eq!(redactor.redact("phone_number", phone_number).as_str(), "*******0");
+    assert_eq!(redactor.redact("credit_card", credit_card).as_str(), "****");
+    assert_eq!(redactor.redact("api_key", api_key).as_str(), "<redacted>");
+    assert_eq!(redactor.redact("display_name", display_name).as_str(), "Alice");
+    assert_eq!(api_key, "sk_live_123");
+    assert_eq!(
+        redactor.redact("api_key", api_key).escape_for_log().to_string(),
+        "<redacted>",
+    );
     Ok(())
 }
 ```
@@ -117,15 +131,25 @@ use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let policy = RedactionPolicy::builder()
-        .raise("tenant_secret", Sensitivity::Secret)
+        .raise("user_id", Sensitivity::Low)
+        .raise("phone_number", Sensitivity::Medium)
+        .raise("credit_card", Sensitivity::High)
+        .raise("api_key", Sensitivity::Secret)
         .build()?;
     let source = HashMap::from([
-        ("tenant_secret".to_owned(), "raw".to_owned()),
+        ("user_id".to_owned(), "alpine42".to_owned()),
+        ("phone_number".to_owned(), "13800138000".to_owned()),
+        ("credit_card".to_owned(), "4111111111111111".to_owned()),
+        ("api_key".to_owned(), "sk_live_123".to_owned()),
         ("display_name".to_owned(), "Alice".to_owned()),
     ]);
     let redacted = Redactor::new(policy).redact_map(&source);
-    assert_eq!(redacted["tenant_secret"], "<redacted>");
-    assert_eq!(source["tenant_secret"], "raw");
+    assert_eq!(redacted["user_id"], "al****42");
+    assert_eq!(redacted["phone_number"], "*******0");
+    assert_eq!(redacted["credit_card"], "****");
+    assert_eq!(redacted["api_key"], "<redacted>");
+    assert_eq!(redacted["display_name"], "Alice");
+    assert_eq!(source["api_key"], "sk_live_123");
     Ok(())
 }
 ```
