@@ -34,17 +34,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let phone_number = "13800138000";
     let credit_card = "4111111111111111";
     let api_key = "sk_live_123";
-    let display_name = "Alice";
+    let display_name = "Alice\nAdmin";
 
     assert_eq!(redactor.redact("user_id", user_id).as_str(), "al****42");
     assert_eq!(redactor.redact("phone_number", phone_number).as_str(), "*******0");
     assert_eq!(redactor.redact("credit_card", credit_card).as_str(), "****");
     assert_eq!(redactor.redact("api_key", api_key).as_str(), "<redacted>");
-    assert_eq!(redactor.redact("display_name", display_name).as_str(), "Alice");
+    assert_eq!(redactor.redact("display_name", display_name).as_str(), display_name);
     assert_eq!(api_key, "sk_live_123");
     assert_eq!(
-        redactor.redact("api_key", api_key).escape_for_log().to_string(),
-        "<redacted>",
+        redactor
+            .redact("display_name", display_name)
+            .escape_for_log()
+            .to_string(),
+        "Alice\\nAdmin",
     );
     Ok(())
 }
