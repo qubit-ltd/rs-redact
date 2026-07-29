@@ -28,6 +28,23 @@ use super::{
 };
 
 /// Generates redacted serialization for an enum representation.
+///
+/// # Parameters
+///
+/// * `type_name` - Enum receiving the generated serialization implementation.
+/// * `variants` - Parsed variants in declaration order.
+/// * `runtime` - Resolved path to the runtime crate.
+/// * `serde` - Resolved path to Serde.
+/// * `container_attributes` - Validated naming and representation controls.
+///
+/// # Returns
+///
+/// A match expression containing one serialization arm per variant.
+///
+/// # Errors
+///
+/// Returns an error when the selected representation is incompatible with a
+/// variant shape or serialized field name.
 pub(super) fn enum_body(
     type_name: &syn::Ident,
     variants: &[VariantData<'_>],
@@ -90,6 +107,16 @@ pub(super) fn enum_body(
 }
 
 /// Generates an erroring arm for a selected skipped variant.
+///
+/// # Parameters
+///
+/// * `variant` - Skipped variant being expanded.
+/// * `serde` - Resolved path to Serde.
+///
+/// # Returns
+///
+/// A match arm returning Serde's custom skipped-variant error.
+#[inline]
 fn skipped_variant_arm(variant: &VariantData<'_>, serde: &Path) -> TokenStream {
     let variant_name = &variant.variant().ident;
     let pattern = wildcard_variant_pattern(variant);
@@ -103,6 +130,15 @@ fn skipped_variant_arm(variant: &VariantData<'_>, serde: &Path) -> TokenStream {
 }
 
 /// Generates a wildcard suffix for one variant pattern.
+///
+/// # Parameters
+///
+/// * `variant` - Variant whose field shape determines the pattern.
+///
+/// # Returns
+///
+/// A named, unnamed, or empty wildcard suffix.
+#[inline]
 fn wildcard_variant_pattern(variant: &VariantData<'_>) -> TokenStream {
     match variant.fields() {
         FieldsData::Named(_) => quote!({ .. }),

@@ -242,6 +242,10 @@ fn redact_non_sensitive_part(
 
 /// Splits a complete multipart body into strict delimiter-bounded segments.
 ///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the multipart bytes borrowed by returned segments.
+///
 /// # Parameters
 ///
 /// * `bytes` - Complete multipart bytes.

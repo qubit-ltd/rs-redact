@@ -20,6 +20,16 @@ use crate::{
 };
 
 /// Returns one variant's final serialized name.
+///
+/// # Parameters
+///
+/// * `variant` - Parsed variant with optional local rename controls.
+/// * `container_attributes` - Validated container-wide rename controls.
+///
+/// # Returns
+///
+/// The explicit variant rename or the container-derived default.
+#[inline(always)]
 pub(super) fn serialized_variant_name(
     variant: &VariantData<'_>,
     container_attributes: &SerdeContainerAttributes,
@@ -30,6 +40,17 @@ pub(super) fn serialized_variant_name(
 }
 
 /// Generates a local serializable proxy for adjacent named content.
+///
+/// # Parameters
+///
+/// * `variant_name` - Variant owning the generated proxy.
+/// * `serde` - Resolved path to Serde.
+/// * `names` - Serialized field names in carrier order.
+/// * `carriers` - Optional serialized carrier identifiers.
+///
+/// # Returns
+///
+/// The proxy type definition and an expression constructing its value.
 pub(super) fn named_content_proxy(
     variant_name: &syn::Ident,
     serde: &Path,
@@ -123,6 +144,16 @@ pub(super) fn named_content_proxy(
 }
 
 /// Generates a local serializable proxy for adjacent tuple content.
+///
+/// # Parameters
+///
+/// * `variant_name` - Variant owning the generated proxy.
+/// * `serde` - Resolved path to Serde.
+/// * `carriers` - Optional serialized carrier identifiers in tuple order.
+///
+/// # Returns
+///
+/// The proxy type definition and an expression constructing its value.
 pub(super) fn tuple_content_proxy(
     variant_name: &syn::Ident,
     serde: &Path,

@@ -227,6 +227,10 @@ impl RedactionPolicy {
     /// the same candidate, but exact allow rules apply only to the complete
     /// input candidate.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of rules borrowed from this policy in the result.
+    ///
     /// # Parameters
     ///
     /// * `field` - Raw field name to classify.
@@ -259,6 +263,10 @@ impl RedactionPolicy {
     }
 
     /// Classifies a field using an explicit candidate-generation breadth.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of rules borrowed from this policy in the result.
     ///
     /// # Parameters
     ///

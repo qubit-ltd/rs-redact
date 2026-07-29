@@ -151,6 +151,10 @@ impl<T: RedactSerialize> RedactSerialize for Option<T> {
     /// Preserves `None` or serializes a present nested value with the same
     /// policy.
     ///
+    /// # Type Parameters
+    ///
+    /// * `S` - Destination Serde serializer type.
+    ///
     /// # Parameters
     ///
     /// * `policy` - Complete policy shared with a present nested value.
@@ -184,6 +188,10 @@ impl<T: RedactSerialize> RedactSerialize for Option<T> {
 impl<T: RedactSerialize + ?Sized> RedactSerialize for Box<T> {
     /// Transparently delegates to the boxed serialization hook.
     ///
+    /// # Type Parameters
+    ///
+    /// * `S` - Destination Serde serializer type.
+    ///
     /// # Parameters
     ///
     /// * `policy` - Complete policy forwarded to the boxed value.
@@ -212,6 +220,10 @@ impl<T: RedactSerialize + ?Sized> RedactSerialize for Box<T> {
 #[cfg(feature = "serde")]
 impl<T: RedactSerialize> RedactSerialize for Vec<T> {
     /// Serializes every nested item with the same explicit policy.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `S` - Destination Serde serializer type.
     ///
     /// # Parameters
     ///

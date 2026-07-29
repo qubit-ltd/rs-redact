@@ -49,6 +49,10 @@ impl<T: RedactSerialize + ?Sized> serde::Serialize
 {
     /// Delegates serialization to the nested redaction hook.
     ///
+    /// # Type Parameters
+    ///
+    /// * `S` - Destination Serde serializer type.
+    ///
     /// # Parameters
     ///
     /// * `serializer` - Destination Serde serializer.

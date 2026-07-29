@@ -28,6 +28,24 @@ use super::{
 };
 
 /// Generates one internally tagged variant arm.
+///
+/// # Parameters
+///
+/// * `type_name` - Enum receiving the generated serialization implementation.
+/// * `variant` - Parsed variant being expanded.
+/// * `runtime` - Resolved path to the runtime crate.
+/// * `serde` - Resolved path to Serde.
+/// * `container_attributes` - Validated container naming controls.
+/// * `tag` - Serialized key containing the variant name.
+///
+/// # Returns
+///
+/// A match arm that serializes the variant with internal tagging.
+///
+/// # Errors
+///
+/// Returns an error when a named field conflicts with `tag` or when an
+/// internally tagged variant has more than one unnamed field.
 pub(super) fn internal_variant_arm(
     type_name: &syn::Ident,
     variant: &VariantData<'_>,

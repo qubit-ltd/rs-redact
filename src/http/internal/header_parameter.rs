@@ -11,6 +11,10 @@ use std::collections::BTreeSet;
 
 /// Parses several named parameters in one strict pass.
 ///
+/// # Type Parameters
+///
+/// * `N` - Number of parameter names requested and result slots returned.
+///
 /// # Parameters
 ///
 /// * `value` - Header text containing semicolon parameters.

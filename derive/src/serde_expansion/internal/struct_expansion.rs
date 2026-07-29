@@ -36,6 +36,18 @@ use super::field_serialization::{
 };
 
 /// Generates redacted serialization for one struct shape.
+///
+/// # Parameters
+///
+/// * `type_name` - Struct receiving the generated serialization implementation.
+/// * `fields` - Parsed named, unnamed, or unit fields.
+/// * `runtime` - Resolved path to the runtime crate.
+/// * `serde` - Resolved path to Serde.
+/// * `container_attributes` - Validated container naming controls.
+///
+/// # Returns
+///
+/// A serializer expression preserving the source struct shape.
 pub(super) fn struct_body(
     type_name: &syn::Ident,
     fields: &FieldsData<'_>,
@@ -80,6 +92,18 @@ pub(super) fn struct_body(
 }
 
 /// Generates named-struct serialization.
+///
+/// # Parameters
+///
+/// * `type_name` - Struct receiving the generated serialization implementation.
+/// * `fields` - Parsed named fields in declaration order.
+/// * `runtime` - Resolved path to the runtime crate.
+/// * `serde` - Resolved path to Serde.
+/// * `container_attributes` - Validated container naming controls.
+///
+/// # Returns
+///
+/// A `SerializeStruct` expression containing each selected field.
 fn named_struct_body(
     type_name: &syn::Ident,
     fields: &[NamedField<'_>],
@@ -164,6 +188,18 @@ fn named_struct_body(
 }
 
 /// Generates newtype-struct serialization.
+///
+/// # Parameters
+///
+/// * `type_name` - Struct receiving the generated serialization implementation.
+/// * `parsed` - Parsed newtype field.
+/// * `runtime` - Resolved path to the runtime crate.
+/// * `serde` - Resolved path to Serde.
+/// * `container_attributes` - Validated container naming controls.
+///
+/// # Returns
+///
+/// A newtype serializer expression, or a unit-struct expression when omitted.
 fn newtype_struct_body(
     type_name: &syn::Ident,
     parsed: &UnnamedField<'_>,
@@ -205,6 +241,18 @@ fn newtype_struct_body(
 }
 
 /// Generates tuple-struct serialization.
+///
+/// # Parameters
+///
+/// * `type_name` - Struct receiving the generated serialization implementation.
+/// * `fields` - Parsed positional fields in declaration order.
+/// * `runtime` - Resolved path to the runtime crate.
+/// * `serde` - Resolved path to Serde.
+/// * `container_attributes` - Validated container naming controls.
+///
+/// # Returns
+///
+/// A `SerializeTupleStruct` expression containing each selected field.
 fn tuple_struct_body(
     type_name: &syn::Ident,
     fields: &[UnnamedField<'_>],

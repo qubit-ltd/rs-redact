@@ -23,6 +23,17 @@ use crate::{
 };
 
 /// Returns whether a field is omitted by redaction or Serde controls.
+///
+/// # Parameters
+///
+/// * `mode` - Validated redaction mode.
+/// * `serde_attributes` - Validated Serde field controls.
+///
+/// # Returns
+///
+/// `true` when either control set omits the field.
+#[must_use]
+#[inline(always)]
 pub(super) fn field_is_skipped(
     mode: &FieldMode,
     serde_attributes: &crate::serde_attributes::SerdeAttributes,
@@ -31,6 +42,17 @@ pub(super) fn field_is_skipped(
 }
 
 /// Generates the condition deciding whether one field is serialized.
+///
+/// # Parameters
+///
+/// * `serde_attributes` - Validated Serde field controls.
+/// * `raw` - Expression accessing the unredacted field value.
+///
+/// # Returns
+///
+/// A predicate expression honoring `skip_serializing_if`, or unconditional
+/// `true` when no predicate is configured.
+#[inline]
 pub(super) fn serialization_condition(
     serde_attributes: &crate::serde_attributes::SerdeAttributes,
     raw: TokenStream,
@@ -41,6 +63,19 @@ pub(super) fn serialization_condition(
 }
 
 /// Generates one serializable raw or redacted carrier expression.
+///
+/// # Parameters
+///
+/// * `type_name` - Type receiving the generated implementation.
+/// * `field` - Source field supplying type information and diagnostic span.
+/// * `context` - Stable field context used in generated helper names.
+/// * `mode` - Validated redaction mode.
+/// * `runtime` - Resolved path to the runtime crate.
+/// * `raw` - Expression accessing the unredacted field value.
+///
+/// # Returns
+///
+/// The raw value, a redacted carrier, or an empty stream for an omitted field.
 pub(super) fn serialized_carrier(
     type_name: &syn::Ident,
     field: &syn::Field,
@@ -84,6 +119,15 @@ pub(super) fn serialized_carrier(
 }
 
 /// Returns an identifier without Rust's raw prefix.
+///
+/// # Parameters
+///
+/// * `identifier` - Rust field or variant identifier.
+///
+/// # Returns
+///
+/// The identifier text without a leading `r#`.
+#[inline]
 pub(super) fn raw_identifier(identifier: &syn::Ident) -> String {
     identifier
         .to_string()
@@ -92,6 +136,16 @@ pub(super) fn raw_identifier(identifier: &syn::Ident) -> String {
 }
 
 /// Creates a helper-name context unique within an enum.
+///
+/// # Parameters
+///
+/// * `variant_name` - Owning variant, or `None` for a struct field.
+/// * `field_name` - Field identifier or positional index.
+///
+/// # Returns
+///
+/// A field name optionally prefixed by its owning variant.
+#[inline]
 pub(super) fn field_context(
     variant_name: Option<&syn::Ident>,
     field_name: &str,

@@ -21,6 +21,10 @@ thread_local! {
 /// A nested operation may tighten the active ceiling but cannot widen a
 /// ceiling established by an outer bounded formatter.
 ///
+/// # Type Parameters
+///
+/// * `T` - Result type produced by the bounded operation.
+///
 /// # Parameters
 ///
 /// * `max_bytes` - Maximum bytes retained by one materialized mask.

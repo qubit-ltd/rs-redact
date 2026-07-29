@@ -28,6 +28,23 @@ use super::{
 };
 
 /// Generates one externally tagged variant arm.
+///
+/// # Parameters
+///
+/// * `type_name` - Enum receiving the generated serialization implementation.
+/// * `variant` - Parsed variant being expanded.
+/// * `runtime` - Resolved path to the runtime crate.
+/// * `serde` - Resolved path to Serde.
+/// * `container_attributes` - Validated container naming controls.
+///
+/// # Returns
+///
+/// A match arm that serializes the variant with external tagging.
+///
+/// # Errors
+///
+/// This function currently produces no direct error; the result type matches
+/// the representation-dispatch interface.
 pub(super) fn external_variant_arm(
     type_name: &syn::Ident,
     variant: &VariantData<'_>,

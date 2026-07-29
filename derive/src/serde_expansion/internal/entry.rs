@@ -139,6 +139,17 @@ fn serialization_assertions(
 }
 
 /// Generates serialization assertions for one field collection.
+///
+/// # Parameters
+///
+/// * `type_name` - Type receiving the hidden serialization implementation.
+/// * `fields` - Parsed fields requiring capability assertions.
+/// * `variant_name` - Owning variant for enum fields, or `None` for structs.
+/// * `runtime` - Resolved path to the runtime crate.
+///
+/// # Returns
+///
+/// Local helper functions asserting nested and map serialization capabilities.
 fn fields_serialization_assertions(
     type_name: &syn::Ident,
     fields: &FieldsData<'_>,

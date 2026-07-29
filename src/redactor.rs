@@ -56,6 +56,10 @@ impl Redactor {
     /// Unknown and explicitly allowed fields retain a borrow of `value`.
     /// Sensitive fields return the value produced by the configured mask.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of the input and any borrowed redacted result.
+    ///
     /// # Parameters
     ///
     /// * `field` - Raw field name to classify.
@@ -78,6 +82,10 @@ impl Redactor {
     ///
     /// This ignores field classification and allow rules. Use it at a boundary
     /// where the value is known to be sensitive regardless of its field name.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of the input and any borrowed redacted result.
     ///
     /// # Parameters
     ///
@@ -104,6 +112,11 @@ impl Redactor {
     /// [`RedactValue`](crate::RedactValue). Otherwise it delegates to the
     /// value's recursive redaction contracts.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'value` - Lifetime of the borrowed key and value.
+    /// * `T` - Value type rendered or serialized through redaction.
+    ///
     /// # Parameters
     ///
     /// * `key` - Field name used only for policy classification.
@@ -123,6 +136,10 @@ impl Redactor {
     }
 
     /// Redacts one value while bounding any allocated mask.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of the input and any borrowed redacted result.
     ///
     /// # Parameters
     ///
@@ -154,6 +171,12 @@ impl Redactor {
     /// The source map is never modified. Its concrete collection type is
     /// preserved by cloning the collection before applying in-place redaction.
     ///
+    /// # Type Parameters
+    ///
+    /// * `M` - Cloneable map-like collection returned after redaction.
+    /// * `K` - Runtime key type used for field classification.
+    /// * `V` - Mutable map-value type redacted in the cloned collection.
+    ///
     /// # Parameters
     ///
     /// * `map` - Map whose values are classified by their corresponding keys.
@@ -172,6 +195,12 @@ impl Redactor {
     }
 
     /// Redacts sensitive values of a text-keyed map in place.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `M` - Mutable map-like collection type.
+    /// * `K` - Runtime key type used for field classification.
+    /// * `V` - Mutable map-value type redacted in place.
     ///
     /// # Parameters
     ///

@@ -36,6 +36,20 @@ use super::field_serialization::{
 };
 
 /// Builds bindings, carriers, names, and conditions for named enum fields.
+///
+/// # Parameters
+///
+/// * `type_name` - Enum receiving the generated serialization implementation.
+/// * `variant_name` - Variant owning the fields.
+/// * `fields` - Parsed named fields in declaration order.
+/// * `runtime` - Resolved path to the runtime crate.
+/// * `container_attributes` - Validated container naming controls.
+/// * `variant` - Parsed variant-local naming controls.
+///
+/// # Returns
+///
+/// The match pattern, carrier setup statements, inclusion conditions,
+/// serialized field names, and carrier identifiers.
 pub(super) fn enum_named_parts(
     type_name: &syn::Ident,
     variant_name: &syn::Ident,
@@ -117,6 +131,18 @@ pub(super) fn enum_named_parts(
 }
 
 /// Builds bindings, carriers, and conditions for tuple enum fields.
+///
+/// # Parameters
+///
+/// * `type_name` - Enum receiving the generated serialization implementation.
+/// * `variant_name` - Variant owning the fields.
+/// * `fields` - Parsed positional fields in declaration order.
+/// * `runtime` - Resolved path to the runtime crate.
+///
+/// # Returns
+///
+/// The match pattern, carrier setup statements, inclusion conditions, and
+/// carrier identifiers.
 pub(super) fn enum_unnamed_parts(
     type_name: &syn::Ident,
     variant_name: &syn::Ident,

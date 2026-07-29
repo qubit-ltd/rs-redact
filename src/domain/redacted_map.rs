@@ -148,6 +148,10 @@ impl<M: crate::domain::RedactMapSerialize<K, V> + ?Sized, K: ?Sized, V: ?Sized>
 {
     /// Serializes values after classifying each one by its runtime key.
     ///
+    /// # Type Parameters
+    ///
+    /// * `S` - Destination Serde serializer type.
+    ///
     /// # Parameters
     ///
     /// * `serializer` - Destination Serde serializer.

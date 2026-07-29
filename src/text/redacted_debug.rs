@@ -60,6 +60,10 @@ impl<T: ?Sized> Debug for RedactedDebug<'_, T> {
 ///
 /// The returned wrapper never invokes the value's [`Debug`] implementation.
 ///
+/// # Type Parameters
+///
+/// * `T` - Protected value type, which need not implement [`Debug`].
+///
 /// # Parameters
 ///
 /// - `value`: The value whose debug representation must be hidden.

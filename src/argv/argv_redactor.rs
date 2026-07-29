@@ -61,6 +61,11 @@ impl ArgvRedactor {
     /// sensitive items are masked from an opaque sentinel so their original
     /// bytes can never reach output.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of argument values borrowed by the iterator.
+    /// * `I` - Iterator source yielding borrowed [`ArgvItem`] values.
+    ///
     /// # Parameters
     ///
     /// * `items` - Borrowed argv items with optional authoritative levels.
@@ -82,6 +87,11 @@ impl ArgvRedactor {
     /// The caller owns `input_budget` and may pass it to later diagnostic
     /// segments, ensuring the combined rendering never inspects more source
     /// bytes than the configured policy permits.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of argument values borrowed by the iterator.
+    /// * `I` - Iterator source yielding borrowed [`ArgvItem`] values.
     ///
     /// # Parameters
     ///
@@ -127,6 +137,11 @@ impl ArgvRedactor {
     /// segments. A non-UTF-8 plain item is masked at [`Sensitivity::Secret`]
     /// because it cannot be classified safely.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of argument values borrowed by the iterator.
+    /// * `I` - Iterator source yielding borrowed [`ArgvItem`] values.
+    ///
     /// # Parameters
     ///
     /// * `items` - Borrowed argv items with optional authoritative levels.
@@ -148,6 +163,11 @@ impl ArgvRedactor {
     /// The caller owns `input_budget` and may pass it to later diagnostic
     /// segments, ensuring the combined rendering never inspects more source
     /// bytes than the configured policy permits.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of argument values borrowed by the iterator.
+    /// * `I` - Iterator source yielding borrowed [`ArgvItem`] values.
     ///
     /// # Parameters
     ///

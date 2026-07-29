@@ -52,7 +52,7 @@ pub(crate) fn expand(
     input: &DeriveInput,
     runtime: &Path,
 ) -> syn::Result<TokenStream> {
-    ContainerAttributes::parse(input)?;
+    let _ = ContainerAttributes::parse(input)?;
     let model = input_model::parse(input, "RedactMut", false)?;
     let (mutable_assertions, mutations) = match &model {
         ContainerData::Struct(fields) => (
@@ -460,6 +460,7 @@ fn enum_unnamed_mutation_arm(
 /// # Returns
 ///
 /// A stable variant-qualified field context.
+#[inline]
 fn variant_field_context(
     variant_name: &syn::Ident,
     field_name: &str,

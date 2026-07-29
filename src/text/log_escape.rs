@@ -15,6 +15,10 @@ use std::{
 
 /// Escapes characters that can alter log structure or visual ordering.
 ///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the input and any borrowed escaped result.
+///
 /// # Parameters
 ///
 /// * `value` - Redacted text crossing a plain-text log boundary.

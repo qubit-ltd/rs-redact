@@ -52,6 +52,10 @@ pub(crate) fn canonicalize_field_name(name: &str) -> Cow<'_, str> {
 /// matching additionally yields separator and camel-case suffixes without
 /// duplicates.
 ///
+/// # Type Parameters
+///
+/// * `B` - Value carried when the visitor stops candidate generation.
+///
 /// # Parameters
 ///
 /// * `name` - Raw field name.
@@ -75,6 +79,10 @@ pub(crate) fn visit_canonical_field_candidates<B>(
 }
 
 /// Visits semantic token suffixes of `name` without allocating candidates.
+///
+/// # Type Parameters
+///
+/// * `B` - Value carried when the visitor stops suffix generation.
 ///
 /// # Parameters
 ///

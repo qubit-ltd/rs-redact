@@ -27,6 +27,10 @@ use crate::{
 pub trait RedactMapSerialize<K: ?Sized, V: ?Sized> {
     /// Serializes this map through `policy`.
     ///
+    /// # Type Parameters
+    ///
+    /// * `S` - Destination Serde serializer type.
+    ///
     /// # Parameters
     ///
     /// * `policy` - Complete policy used to classify every key.
@@ -55,6 +59,10 @@ where
     V: RedactValue + Serialize,
 {
     /// Serializes every entry through the map redaction contract.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `S` - Destination Serde serializer type.
     ///
     /// # Parameters
     ///

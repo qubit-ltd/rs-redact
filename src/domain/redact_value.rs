@@ -25,6 +25,10 @@ use super::internal::mask_byte_limit;
 pub trait RedactValue {
     /// Redacts this value at the requested sensitivity level.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime shared by the borrowed value, masking policy, and result.
+    ///
     /// # Parameters
     ///
     /// * `level` - Sensitivity level selecting the mask algorithm.
@@ -43,6 +47,10 @@ pub trait RedactValue {
 
 impl RedactValue for str {
     /// Redacts a string slice without invoking its formatting traits.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime shared by the borrowed string, policy, and result.
     ///
     /// # Parameters
     ///
@@ -63,6 +71,10 @@ impl RedactValue for str {
 
 impl RedactValue for &str {
     /// Redacts a borrowed string without invoking its formatting traits.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime shared by the borrowed string, policy, and result.
     ///
     /// # Parameters
     ///
@@ -85,6 +97,10 @@ impl RedactValue for &str {
 impl RedactValue for String {
     /// Redacts an owned string through a borrow of its contents.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime shared by the borrowed contents, policy, and result.
+    ///
     /// # Parameters
     ///
     /// * `level` - Sensitivity level selecting the mask algorithm.
@@ -106,6 +122,10 @@ impl RedactValue for String {
 impl RedactValue for Cow<'_, str> {
     /// Redacts borrowed or owned cow text through its string contents.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime shared by the borrowed contents, policy, and result.
+    ///
     /// # Parameters
     ///
     /// * `level` - Sensitivity level selecting the mask algorithm.
@@ -125,6 +145,10 @@ impl RedactValue for Cow<'_, str> {
 
 impl RedactValue for Option<String> {
     /// Redacts an optional owned string while preserving its option shape.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime shared by the borrowed option, policy, and result.
     ///
     /// # Parameters
     ///
@@ -147,6 +171,10 @@ impl RedactValue for Option<String> {
 impl RedactValue for Option<&str> {
     /// Redacts an optional borrowed string while preserving its option shape.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime shared by the borrowed option, policy, and result.
+    ///
     /// # Parameters
     ///
     /// * `level` - Sensitivity level selecting the mask algorithm.
@@ -168,6 +196,10 @@ impl RedactValue for Option<&str> {
 impl RedactValue for Option<Cow<'_, str>> {
     /// Redacts optional cow text while preserving its option shape.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime shared by the borrowed option, policy, and result.
+    ///
     /// # Parameters
     ///
     /// * `level` - Sensitivity level selecting the mask algorithm.
@@ -187,6 +219,10 @@ impl RedactValue for Option<Cow<'_, str>> {
 }
 
 /// Masks text without consulting any formatting or serialization trait.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the raw text and any borrowed result.
 ///
 /// # Parameters
 ///
@@ -211,6 +247,10 @@ fn redact_text<'a>(
 }
 
 /// Masks optional text without inspecting it when absent.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the optional text and any borrowed result.
 ///
 /// # Parameters
 ///

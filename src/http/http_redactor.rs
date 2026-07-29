@@ -528,6 +528,10 @@ impl HttpRedactor {
 
     /// Redacts a complete HTTP URL embedded in a non-sensitive query value.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of any borrowed query value retained in the result.
+    ///
     /// # Parameters
     ///
     /// * `value` - Query value after ordinary field-policy redaction.

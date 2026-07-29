@@ -25,6 +25,7 @@ use crate::{
 ///
 /// Generated implementation tokens. Parse, shape, and runtime-resolution
 /// errors are returned as targeted `compile_error!` tokens.
+#[inline]
 pub(crate) fn derive(input: TokenStream) -> TokenStream {
     syn::parse::<DeriveInput>(input)
         .and_then(|input| {

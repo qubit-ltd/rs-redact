@@ -114,6 +114,11 @@ impl EnvRedactor {
     /// policy's diagnostic input budget. It also stops once the escaped list
     /// reaches the diagnostic output budget.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of environment names and values yielded by the iterator.
+    /// * `I` - Iterator source yielding borrowed environment pairs.
+    ///
     /// # Parameters
     ///
     /// * `pairs` - Operating-system environment names and values to redact.
@@ -131,6 +136,11 @@ impl EnvRedactor {
     }
 
     /// Redacts environment pairs using shared source-byte accounting.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of environment names and values yielded by the iterator.
+    /// * `I` - Iterator source yielding borrowed environment pairs.
     ///
     /// # Parameters
     ///

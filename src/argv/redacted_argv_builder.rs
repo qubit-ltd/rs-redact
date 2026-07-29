@@ -30,6 +30,15 @@ pub(super) struct RedactedArgvBuilder {
 
 impl RedactedArgvBuilder {
     /// Starts an empty argv rendering with the supplied diagnostic budget.
+    ///
+    /// # Parameters
+    ///
+    /// * `budget` - Input and output limits for the diagnostic rendering.
+    ///
+    /// # Returns
+    ///
+    /// An empty byte-bounded argv rendering builder.
+    #[inline]
     pub(super) fn new(budget: DiagnosticBudget) -> Self {
         let limit = LogOutputLimit::from(budget);
         let mut writer = BoundedLogEscapeWriter::new(limit);
@@ -41,6 +50,16 @@ impl RedactedArgvBuilder {
     }
 
     /// Appends one already redacted token to the bounded debug-style list.
+    ///
+    /// # Parameters
+    ///
+    /// * `item` - Already-redacted token to append.
+    ///
+    /// # Returns
+    ///
+    /// `true` when additional tokens can still be written, or `false` after
+    /// output truncation.
+    #[inline]
     pub(super) fn push(&mut self, item: &str) -> bool {
         if self.has_item {
             let _ = self.writer.write_str(", ");
@@ -51,6 +70,12 @@ impl RedactedArgvBuilder {
     }
 
     /// Completes the bounded argv rendering.
+    ///
+    /// # Returns
+    ///
+    /// The final log-safe argv rendering, including a truncation marker when
+    /// the output budget was exhausted.
+    #[inline]
     pub(super) fn finish(mut self) -> RedactedArgv {
         if !self.writer.is_truncated() {
             let _ = self.writer.write_str("]");

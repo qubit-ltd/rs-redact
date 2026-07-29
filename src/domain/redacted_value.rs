@@ -94,6 +94,10 @@ impl Debug for RedactedValue<'_> {
 impl serde::Serialize for RedactedValue<'_> {
     /// Preserves the original plain or optional container shape.
     ///
+    /// # Type Parameters
+    ///
+    /// * `S` - Destination Serde serializer type.
+    ///
     /// # Parameters
     ///
     /// * `serializer` - Destination Serde serializer.
@@ -148,6 +152,10 @@ impl Display for RedactedValue<'_> {
 }
 
 /// Borrows masked text and escapes it for a plain-text log boundary.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the masked text and returned log-safe view.
 ///
 /// # Parameters
 ///

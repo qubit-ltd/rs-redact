@@ -14,6 +14,10 @@ use crate::RedactionPolicy;
 pub trait RedactSerialize {
     /// Serializes the redacted representation of this object.
     ///
+    /// # Type Parameters
+    ///
+    /// * `S` - Destination Serde serializer type.
+    ///
     /// # Parameters
     ///
     /// * `policy` - Complete policy snapshot governing serialization.

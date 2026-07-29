@@ -140,6 +140,10 @@ impl MaskPolicy {
     /// Empty values remain borrowed and empty. Non-empty values return an
     /// owned mask, with edge counts measured in Unicode scalar values.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of the input and any borrowed result.
+    ///
     /// # Parameters
     ///
     /// * `value` - Value to mask.
@@ -202,6 +206,10 @@ impl MaskPolicy {
 
     /// Masks a value without allocating beyond a caller-supplied byte limit.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of the input and any borrowed result.
+    ///
     /// # Parameters
     ///
     /// * `value` - Value to mask.
@@ -240,6 +248,10 @@ impl MaskPolicy {
     }
 
     /// Writes a masked value directly without cloning fixed replacements.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `W` - Formatting destination receiving the masked value.
     ///
     /// # Parameters
     ///

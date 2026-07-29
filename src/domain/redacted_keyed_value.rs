@@ -136,6 +136,10 @@ impl<T: RedactValue + crate::domain::RedactSerialize + ?Sized> serde::Serialize
 {
     /// Serializes the value through its selected field classification.
     ///
+    /// # Type Parameters
+    ///
+    /// * `S` - Destination Serde serializer type.
+    ///
     /// # Parameters
     ///
     /// * `serializer` - Destination serde serializer.

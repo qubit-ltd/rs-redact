@@ -504,6 +504,7 @@ fn enum_unnamed_format_arm(
 /// # Returns
 ///
 /// A stable variant-qualified field context.
+#[inline]
 fn variant_field_context(
     variant_name: &syn::Ident,
     field_name: &str,

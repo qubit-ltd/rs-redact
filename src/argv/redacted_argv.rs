@@ -33,6 +33,14 @@ pub struct RedactedArgv {
 
 impl RedactedArgv {
     /// Creates a bounded argv rendering builder for one diagnostic budget.
+    ///
+    /// # Parameters
+    ///
+    /// * `budget` - Input and output limits for the diagnostic rendering.
+    ///
+    /// # Returns
+    ///
+    /// An empty byte-bounded argv rendering builder.
     #[inline]
     pub(super) fn builder(budget: DiagnosticBudget) -> RedactedArgvBuilder {
         RedactedArgvBuilder::new(budget)

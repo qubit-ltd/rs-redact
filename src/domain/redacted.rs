@@ -114,6 +114,10 @@ impl<T: crate::domain::RedactSerialize + ?Sized> serde::Serialize
 {
     /// Delegates serialization to the derived redaction hook.
     ///
+    /// # Type Parameters
+    ///
+    /// * `S` - Destination Serde serializer type.
+    ///
     /// # Parameters
     ///
     /// * `serializer` - Destination Serde serializer.

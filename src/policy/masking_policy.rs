@@ -86,6 +86,10 @@ impl MaskingPolicy {
     /// Empty values remain empty; otherwise the selected policy determines
     /// whether the result borrows or owns its contents.
     ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of the input and any borrowed result.
+    ///
     /// # Parameters
     ///
     /// * `level` - Sensitivity level selecting the mask policy.
@@ -120,6 +124,10 @@ impl MaskingPolicy {
     }
 
     /// Masks a value without allocating beyond a byte limit.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of the input and any borrowed result.
     ///
     /// # Parameters
     ///
