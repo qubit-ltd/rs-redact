@@ -445,7 +445,7 @@ use qubit_redact::http::{
 fn main() {
     let diagnostics = DiagnosticBudget::new(8 * 1024, 32 * 1024)
         .expect("the diagnostic limits are valid");
-    let policy = HttpRedactionPolicy::builder()
+    let policy = HttpRedactionPolicy::builder_from_default()
         .diagnostic_budget(diagnostics)
         .build()
         .expect("the HTTP policy is valid");
