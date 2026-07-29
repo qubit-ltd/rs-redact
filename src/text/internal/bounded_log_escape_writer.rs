@@ -77,6 +77,11 @@ impl BoundedLogEscapeWriter {
     /// # Parameters
     ///
     /// * `piece` - Atomic log-safe text corresponding to one input character.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the complete piece was appended, or `false` after
+    /// truncation.
     fn write_piece(&mut self, piece: &str) -> bool {
         if self.truncated {
             return false;

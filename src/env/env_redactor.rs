@@ -116,7 +116,8 @@ impl EnvRedactor {
     ///
     /// # Type Parameters
     ///
-    /// * `'a` - Lifetime of environment names and values yielded by the iterator.
+    /// * `'a` - Lifetime of environment names and values yielded by the
+    ///   iterator.
     /// * `I` - Iterator source yielding borrowed environment pairs.
     ///
     /// # Parameters
@@ -139,7 +140,8 @@ impl EnvRedactor {
     ///
     /// # Type Parameters
     ///
-    /// * `'a` - Lifetime of environment names and values yielded by the iterator.
+    /// * `'a` - Lifetime of environment names and values yielded by the
+    ///   iterator.
     /// * `I` - Iterator source yielding borrowed environment pairs.
     ///
     /// # Parameters

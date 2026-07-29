@@ -28,6 +28,21 @@ impl DiagnosticBudget {
         "<redacted: diagnostic limit exceeded>".len();
 
     /// Creates checked hard limits for diagnostic processing.
+    ///
+    /// # Parameters
+    ///
+    /// * `max_input_bytes` - Maximum source bytes one diagnostic may inspect.
+    /// * `max_output_bytes` - Maximum bytes in the final log-safe rendering.
+    ///
+    /// # Returns
+    ///
+    /// A validated diagnostic budget.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DiagnosticBudgetError::ZeroInput`] when `max_input_bytes` is
+    /// zero, or [`DiagnosticBudgetError::OutputTooSmall`] when the output limit
+    /// cannot contain the diagnostic-limit marker.
     #[inline]
     pub const fn new(
         max_input_bytes: usize,
@@ -49,6 +64,10 @@ impl DiagnosticBudget {
     }
 
     /// Returns the maximum number of source bytes a diagnostic may inspect.
+    ///
+    /// # Returns
+    ///
+    /// The configured source-byte limit.
     #[must_use]
     #[inline(always)]
     pub const fn max_input_bytes(self) -> usize {
@@ -56,6 +75,10 @@ impl DiagnosticBudget {
     }
 
     /// Returns the maximum final log-safe diagnostic size.
+    ///
+    /// # Returns
+    ///
+    /// The configured output-byte limit.
     #[must_use]
     #[inline(always)]
     pub const fn max_output_bytes(self) -> usize {
@@ -75,6 +98,10 @@ impl DiagnosticBudget {
 
 impl Default for DiagnosticBudget {
     /// Returns conservative 16 KiB input and 64 KiB output limits.
+    ///
+    /// # Returns
+    ///
+    /// A diagnostic budget with the documented conservative limits.
     #[inline(always)]
     fn default() -> Self {
         Self {

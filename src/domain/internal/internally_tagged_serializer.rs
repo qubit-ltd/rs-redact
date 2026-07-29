@@ -505,7 +505,8 @@ where
     ///
     /// # Parameters
     ///
-    /// * `_length` - Optional sequence length, unused because sequences are rejected.
+    /// * `_length` - Optional sequence length, unused because sequences are
+    ///   rejected.
     ///
     /// # Returns
     ///
@@ -547,8 +548,10 @@ where
     ///
     /// # Parameters
     ///
-    /// * `_name` - Tuple-struct name, unused because tuple structs are rejected.
-    /// * `_length` - Tuple-struct length, unused because tuple structs are rejected.
+    /// * `_name` - Tuple-struct name, unused because tuple structs are
+    ///   rejected.
+    /// * `_length` - Tuple-struct length, unused because tuple structs are
+    ///   rejected.
     ///
     /// # Returns
     ///
@@ -570,10 +573,12 @@ where
     ///
     /// # Parameters
     ///
-    /// * `_name` - Owning enum name, unused because tuple variants are rejected.
+    /// * `_name` - Owning enum name, unused because tuple variants are
+    ///   rejected.
     /// * `_index` - Variant index, unused because tuple variants are rejected.
     /// * `_variant` - Variant name, unused because tuple variants are rejected.
-    /// * `_length` - Variant length, unused because tuple variants are rejected.
+    /// * `_length` - Variant length, unused because tuple variants are
+    ///   rejected.
     ///
     /// # Returns
     ///
@@ -597,7 +602,8 @@ where
     ///
     /// # Parameters
     ///
-    /// * `length` - Optional number of original map entries before inserting the tag.
+    /// * `length` - Optional number of original map entries before inserting
+    ///   the tag.
     ///
     /// # Returns
     ///
@@ -649,10 +655,13 @@ where
     ///
     /// # Parameters
     ///
-    /// * `_name` - Owning enum name, unused because struct variants are rejected.
+    /// * `_name` - Owning enum name, unused because struct variants are
+    ///   rejected.
     /// * `_index` - Variant index, unused because struct variants are rejected.
-    /// * `_variant` - Variant name, unused because struct variants are rejected.
-    /// * `_length` - Variant length, unused because struct variants are rejected.
+    /// * `_variant` - Variant name, unused because struct variants are
+    ///   rejected.
+    /// * `_length` - Variant length, unused because struct variants are
+    ///   rejected.
     ///
     /// # Returns
     ///

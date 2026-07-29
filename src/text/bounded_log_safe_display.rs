@@ -35,6 +35,15 @@ pub struct BoundedLogSafeDisplay<'a> {
 
 impl<'a> BoundedLogSafeDisplay<'a> {
     /// Creates a bounded view of already escaped log-safe text.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Escaped source text to render.
+    /// * `limit` - Validated final output-byte limit.
+    ///
+    /// # Returns
+    ///
+    /// A borrowed bounded display adapter.
     #[inline(always)]
     pub(super) const fn new(
         value: &'a LogSafeText<'a>,
@@ -46,6 +55,18 @@ impl<'a> BoundedLogSafeDisplay<'a> {
 
 impl Display for BoundedLogSafeDisplay<'_> {
     /// Writes the escaped source text without exceeding the output limit.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination formatting context.
+    ///
+    /// # Returns
+    ///
+    /// The formatter result after writing bounded escaped text.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the destination formatter rejects output.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut writer = BoundedLogEscapeWriter::new(self.limit);
         // The internal writer uses `fmt::Error` only to stop after recording

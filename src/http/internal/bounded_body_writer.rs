@@ -52,6 +52,14 @@ impl BoundedBodyWriter {
 impl Write for BoundedBodyWriter {
     /// Appends one complete byte slice when it fits in the remaining budget.
     ///
+    /// # Parameters
+    ///
+    /// * `buffer` - Complete byte slice to append atomically.
+    ///
+    /// # Returns
+    ///
+    /// The number of bytes appended when the complete slice fits.
+    ///
     /// # Errors
     ///
     /// Returns [`io::ErrorKind::WriteZero`] after recording overflow when the
@@ -70,6 +78,10 @@ impl Write for BoundedBodyWriter {
     /// # Returns
     ///
     /// `Ok(())` because buffered bytes are retained in memory.
+    ///
+    /// # Errors
+    ///
+    /// This in-memory flush operation never returns an error.
     #[inline(always)]
     fn flush(&mut self) -> io::Result<()> {
         Ok(())

@@ -118,6 +118,14 @@ impl HttpRedactionPolicy {
     }
 
     /// Replaces the non-body diagnostic input and output byte limits.
+    ///
+    /// # Parameters
+    ///
+    /// * `diagnostic_budget` - Replacement limits for non-body diagnostics.
+    ///
+    /// # Returns
+    ///
+    /// The policy with its diagnostic budget replaced.
     #[inline(always)]
     pub(super) const fn with_diagnostic_budget(
         mut self,

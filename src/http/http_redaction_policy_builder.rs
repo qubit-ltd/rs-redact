@@ -246,6 +246,14 @@ impl HttpRedactionPolicyBuilder {
     }
 
     /// Removes one exact header allow rule.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Header name whose exact allow rule is removed.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
     #[inline]
     pub fn remove_header_allow_exact(mut self, name: &str) -> Self {
         self.header = self.header.remove_allow_exact(name);
@@ -253,6 +261,14 @@ impl HttpRedactionPolicyBuilder {
     }
 
     /// Removes one token-suffix header allow rule.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Header suffix whose allow rule is removed.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
     #[inline]
     pub fn remove_header_allow_suffix(mut self, name: &str) -> Self {
         self.header = self.header.remove_allow_suffix(name);
@@ -260,6 +276,10 @@ impl HttpRedactionPolicyBuilder {
     }
 
     /// Removes every header allow rule.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
     #[inline]
     pub fn clear_header_allow_rules(mut self) -> Self {
         self.header = self.header.clear_allow_rules();
@@ -329,6 +349,14 @@ impl HttpRedactionPolicyBuilder {
     }
 
     /// Removes one exact query or form-field allow rule.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Query or form-field name whose exact allow rule is removed.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
     #[inline]
     pub fn remove_query_allow_exact(mut self, name: &str) -> Self {
         self.query = self.query.remove_allow_exact(name);
@@ -336,6 +364,14 @@ impl HttpRedactionPolicyBuilder {
     }
 
     /// Removes one token-suffix query or form-field allow rule.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Query or form-field suffix whose allow rule is removed.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
     #[inline]
     pub fn remove_query_allow_suffix(mut self, name: &str) -> Self {
         self.query = self.query.remove_allow_suffix(name);
@@ -343,6 +379,10 @@ impl HttpRedactionPolicyBuilder {
     }
 
     /// Removes every query and form-field allow rule.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
     #[inline]
     pub fn clear_query_allow_rules(mut self) -> Self {
         self.query = self.query.clear_allow_rules();
@@ -412,6 +452,14 @@ impl HttpRedactionPolicyBuilder {
     }
 
     /// Removes one exact structured-body allow rule.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Body-field name whose exact allow rule is removed.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
     #[inline]
     pub fn remove_body_allow_exact(mut self, name: &str) -> Self {
         self.body = self.body.remove_allow_exact(name);
@@ -419,6 +467,14 @@ impl HttpRedactionPolicyBuilder {
     }
 
     /// Removes one token-suffix structured-body allow rule.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Body-field suffix whose allow rule is removed.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
     #[inline]
     pub fn remove_body_allow_suffix(mut self, name: &str) -> Self {
         self.body = self.body.remove_allow_suffix(name);
@@ -426,6 +482,10 @@ impl HttpRedactionPolicyBuilder {
     }
 
     /// Removes every structured-body allow rule.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
     #[inline]
     pub fn clear_body_allow_rules(mut self) -> Self {
         self.body = self.body.clear_allow_rules();

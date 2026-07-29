@@ -27,7 +27,8 @@ pub trait RedactValue {
     ///
     /// # Type Parameters
     ///
-    /// * `'a` - Lifetime shared by the borrowed value, masking policy, and result.
+    /// * `'a` - Lifetime shared by the borrowed value, masking policy, and
+    ///   result.
     ///
     /// # Parameters
     ///

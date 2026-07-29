@@ -300,6 +300,14 @@ impl RedactionPolicyBuilder {
     }
 
     /// Replaces the hard limits for diagnostics rendered with this policy.
+    ///
+    /// # Parameters
+    ///
+    /// * `budget` - Replacement diagnostic input and output limits.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
     #[inline(always)]
     pub const fn diagnostic_budget(mut self, budget: DiagnosticBudget) -> Self {
         self.diagnostic_budget = budget;
@@ -310,10 +318,13 @@ impl RedactionPolicyBuilder {
     ///
     /// # Returns
     ///
-    /// `Ok(policy)` when all rules and masks are valid. Returns
-    /// [`PolicyError::EmptyFieldName`] for a field name that canonicalizes to
-    /// empty, or [`PolicyError::EmptyFixedReplacement`] when a fixed mask has
-    /// an empty replacement.
+    /// `Ok(policy)` when all rules and masks are valid.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError::EmptyFieldName`] for a field name that
+    /// canonicalizes to empty, or [`PolicyError::EmptyFixedReplacement`] when
+    /// a fixed mask has an empty replacement.
     pub fn build(self) -> Result<RedactionPolicy, PolicyError> {
         if let Some(error) = self.error.clone() {
             return Err(error);

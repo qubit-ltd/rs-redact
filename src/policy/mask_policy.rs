@@ -382,6 +382,13 @@ fn mask_preserving_suffix(
 /// Finds byte boundaries for preserving a prefix and suffix without counting
 /// every scalar in a long value.
 ///
+/// # Parameters
+///
+/// * `value` - UTF-8 text whose preserved edges are measured.
+/// * `prefix_chars` - Number of leading scalar values to preserve.
+/// * `suffix_chars` - Number of trailing scalar values to preserve.
+/// * `full_mask_below_or_equal` - Length threshold requiring a complete mask.
+///
 /// # Returns
 ///
 /// `Some((prefix_end, suffix_start))` when the value exceeds both full-mask
@@ -403,6 +410,12 @@ fn preserved_edge_bounds(
 /// Finds the byte boundary for preserving a suffix without counting every
 /// scalar in a long value.
 ///
+/// # Parameters
+///
+/// * `value` - UTF-8 text whose preserved suffix is measured.
+/// * `suffix_chars` - Number of trailing scalar values to preserve.
+/// * `full_mask_below_or_equal` - Length threshold requiring a complete mask.
+///
 /// # Returns
 ///
 /// `Some(suffix_start)` when the value exceeds both full-mask limits, or
@@ -418,6 +431,11 @@ fn preserved_suffix_start(
 }
 
 /// Finds the byte boundary before the final requested number of scalars.
+///
+/// # Parameters
+///
+/// * `value` - UTF-8 text whose suffix boundary is located.
+/// * `suffix_chars` - Number of trailing scalar values in the suffix.
 ///
 /// # Returns
 ///

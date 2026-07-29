@@ -33,6 +33,18 @@ pub enum DiagnosticBudgetError {
 
 impl Display for DiagnosticBudgetError {
     /// Writes a concise description of the violated budget invariant.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination formatting context.
+    ///
+    /// # Returns
+    ///
+    /// The formatter result after writing the error description.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the destination formatter rejects output.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::ZeroInput => formatter

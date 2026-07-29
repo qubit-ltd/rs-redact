@@ -187,6 +187,10 @@ impl RedactionPolicy {
     }
 
     /// Returns the hard limits for diagnostics rendered with this policy.
+    ///
+    /// # Returns
+    ///
+    /// The immutable diagnostic input and output budget.
     #[must_use = "use the diagnostic budget to bound rendered diagnostics"]
     #[inline(always)]
     pub const fn diagnostic_budget(&self) -> DiagnosticBudget {

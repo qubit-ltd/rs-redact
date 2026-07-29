@@ -66,6 +66,14 @@ impl From<DiagnosticBudget> for LogOutputLimit {
     ///
     /// [`DiagnosticBudget`] guarantees an output bound large enough for every
     /// [`LogOutputLimit`].
+    ///
+    /// # Parameters
+    ///
+    /// * `budget` - Diagnostic budget whose output limit is converted.
+    ///
+    /// # Returns
+    ///
+    /// A compatible validated log-output limit.
     #[inline(always)]
     fn from(budget: DiagnosticBudget) -> Self {
         Self {

@@ -71,6 +71,10 @@ impl Display for LogOutputLimitError {
     /// # Returns
     ///
     /// The formatter result.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the destination formatter rejects output.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
