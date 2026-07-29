@@ -16,6 +16,11 @@ use crate::{
 ///
 /// This provides logical replacement only; see [`RedactValueMut`] for its
 /// memory-erasure boundary.
+///
+/// # Type Parameters
+///
+/// * `K` - Runtime map-key type used for field classification.
+/// * `V` - Mutable map-value type redacted in place.
 pub trait RedactMapValueMut<K: ?Sized, V: ?Sized> {
     /// Replaces sensitive values according to `policy`.
     ///

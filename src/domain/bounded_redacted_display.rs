@@ -26,6 +26,10 @@ use super::internal::with_mask_byte_limit;
 ///
 /// The limit includes the complete `<truncated>` marker. Truncation preserves
 /// UTF-8 character boundaries and never splits a generated escape sequence.
+///
+/// # Type Parameters
+///
+/// * `D` - Already-redacted debug value rendered by this adapter.
 #[must_use = "format the bounded redacted view"]
 pub struct BoundedRedactedDisplay<D> {
     /// Already-redacted debug view to render.
@@ -66,6 +70,7 @@ impl<D: Debug> Display for BoundedRedactedDisplay<D> {
     ///
     /// Returns [`fmt::Error`] when redacted formatting or the destination
     /// rejects output.
+    #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         format_bounded(&self.value, self.limit, formatter)
     }

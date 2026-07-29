@@ -18,6 +18,11 @@ use crate::{
 };
 
 /// Serializes map values after classifying them by runtime key.
+///
+/// # Type Parameters
+///
+/// * `K` - Runtime map-key type used for field classification.
+/// * `V` - Map-value type serialized through redaction.
 #[doc(hidden)]
 pub trait RedactMapSerialize<K: ?Sized, V: ?Sized> {
     /// Serializes this map through `policy`.

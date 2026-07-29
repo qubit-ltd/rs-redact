@@ -19,6 +19,11 @@ use crate::{
 };
 
 /// Formats map values after classifying each value by its runtime key.
+///
+/// # Type Parameters
+///
+/// * `K` - Runtime map-key type used for field classification.
+/// * `V` - Map-value type formatted through redaction.
 pub trait RedactMapValue<K: ?Sized, V: ?Sized> {
     /// Writes a lazy redacted map representation.
     ///

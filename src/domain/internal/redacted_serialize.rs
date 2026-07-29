@@ -13,6 +13,11 @@ use crate::{
 };
 
 /// A nested value paired with the current explicit policy.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed value and policy snapshot.
+/// * `T` - Domain value serialized through redaction.
 #[doc(hidden)]
 #[must_use = "serialize the adapter to produce redacted output"]
 pub struct RedactedSerialize<'a, T: ?Sized> {

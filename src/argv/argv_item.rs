@@ -19,6 +19,10 @@ use crate::Sensitivity;
 /// Plain items may be inspected by
 /// [`super::ArgvRedactor::redact_heuristically`]. Sensitive items are always
 /// masked at their explicit level and never interpreted as command-line syntax.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed operating-system argument.
 #[must_use = "pass the item to an argv redactor"]
 #[derive(Clone, Copy)]
 pub struct ArgvItem<'a> {

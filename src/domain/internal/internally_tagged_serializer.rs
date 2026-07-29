@@ -18,6 +18,10 @@ use serde::{
 };
 
 /// Serializer that inserts an enum tag before map-like newtype content.
+///
+/// # Type Parameters
+///
+/// * `S` - Underlying Serde serializer receiving the tagged representation.
 struct InternallyTaggedSerializer<S> {
     /// Underlying serializer receiving the merged representation.
     serializer: S,

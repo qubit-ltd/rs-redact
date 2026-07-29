@@ -10,6 +10,10 @@
 use std::cell::Cell;
 
 /// Restores the preceding bounded-mask allocation context on scope exit.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the bounded-mask allocation context reference.
 pub(super) struct MaskByteLimitReset<'a> {
     /// Thread-local context whose previous value must be restored.
     context: &'a Cell<Option<usize>>,
