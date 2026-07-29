@@ -1,7 +1,19 @@
 # Qubit Redact 用户手册
 
+[README](../README.zh_CN.md) · [English User Guide](user_guide.md) · [Runtime API](https://docs.rs/qubit-redact) · [derive README](../derive/README.zh_CN.md)
+
 Qubit Redact 是一个策略驱动的 Rust 脱敏库，用于防止敏感值经诊断信息泄露：
 结构化字段和 Map、领域对象、进程参数、环境变量，以及可选的 HTTP 数据都在其覆盖范围内。
+
+## 目录
+
+- [安装与示例运行方式](#安装与示例运行方式)
+- [配置策略](#1-用-redactionpolicy-配置规则)
+- [标量、Map 与日志文本](#2-用-redactor-处理标量和-map)
+- [领域对象](#4-用-redact-和-redactmut-处理领域对象)
+- [进程诊断](#5-用-argvredactor-处理命令行参数)
+- [HTTP 诊断](#7-用-httpredactor-处理-http-诊断)
+- [安全边界与排查](#安全边界与验证)
 
 ## 它解决什么问题
 
@@ -52,11 +64,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 如何选择工具
 
-| 诊断输入 | 首选工具 | 安全结果 |
+| 诊断输入 | 首选工具 | 返回结果与日志边界 |
 | --- | --- | --- |
-| 具名标量或文本 key Map | `Redactor` | `RedactedText`；日志前转为 `LogSafeText` |
+| 具名标量值 | `Redactor::redact` | `RedactedText`；写入纯文本日志前转为 `LogSafeText` |
+| 文本 key Map | `Redactor::redact_map` 或 `redact_map_in_place` | 返回副本或修改原 Map；显式选择最终日志格式 |
 | Rust struct 或 enum | `Redact` derive | `Redacted<T>` 视图 |
-| 需要逻辑替换的值 | `RedactMut` derive | 已修改对象 |
+| 需要逻辑替换的值 | `RedactMut` derive | 已修改对象；不等于内存擦除 |
 | 命令行参数 | `ArgvRedactor` | `RedactedArgv` |
 | 环境变量 pair | `EnvRedactor` | `RedactedEnvPair` 或 `LogSafeText` |
 | URL、form、Header、捕获的 body | `HttpRedactor` | 日志安全 HTTP 结果类型 |
@@ -84,6 +97,17 @@ http = "1.4"
 
 `RedactedText` 只表示“已按字段规则处理”，它故意不实现 `Display`。写入纯文本日志前，
 必须调用 `escape_for_log()` 得到可安全显示的 `LogSafeText`。
+
+| API | 初始状态 | 适用场景 |
+| --- | --- | --- |
+| `RedactionPolicy::default()` | 当前保守的进程级默认快照 | 接受应用已安装的默认策略。 |
+| `RedactionPolicy::builder()` | 没有敏感或 allow 规则 | 需要由当前调用点完整定义策略。 |
+| `RedactionPolicy::builder_from_default()` | 当前默认快照的副本 | 需要在保守默认策略上扩展。 |
+| `RedactionPolicy::set_global_default()` | 每个进程只能安装一次 | 应用初始化代码拥有默认策略。 |
+
+可用 `include_preset(SensitiveFieldPreset::...)` 向显式策略加入内置的凭据、凭据容器、
+认证令牌、HTTP 或会话字段组。策略测试或诊断需要解释决策时，使用
+`classify_field()` 获取 `Sensitive`、`Allowed` 或 `Unknown`。
 
 ## 1. 用 `RedactionPolicy` 配置规则
 
@@ -117,6 +141,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 `RedactionPolicy::set_global_default` 只应在应用初始化时调用，且每个进程只能成功一次。
 测试或多个安全边界应传递显式策略快照。
+
+字段名会被规范化。使用 `FieldNameMatching::ExactOrTokenSuffix` 时，`api_key` 规则可
+匹配 `request_api_key`；精确匹配范围最窄。`raise` 不会降低敏感等级，
+`override_level` 则有意替换它。精确 allow 规则只影响一个规范字段；后缀 allow 规则可能
+放行带前缀字段，必须经过安全审查。
+
+当边界已知某值敏感而与字段名无关时，使用 `Redactor::redact_at(level, value)`。它直接
+应用指定掩码，因此 allow 规则不能暴露该值。
 
 ## 2. 用 `Redactor` 处理标量和 Map
 
@@ -156,6 +188,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 不要将 `serde_json::Map<String, serde_json::Value>` 这类异构领域对象当作普通字符串
 Map；应通过领域类型定义明确的替换语义。
+
+`redact_map` 返回原集合类型，`redact_map_in_place` 原地修改该集合。两者都不会将 Map
+变成 `LogSafeText`；最终写日志时仍应选择合适的格式化方式。
 
 ## 3. 将脱敏文本安全写入日志
 
@@ -224,10 +259,16 @@ fn main() {
 `RedactMut` 仅做逻辑替换，不会擦除已释放的内存、别名、副本或借用后备存储；需要内存
 擦除时请使用专门的 zeroization 方案。
 
+普通字段绝不会被隐式遍历。derive 支持具名、tuple、unit struct 以及具有这些 variant
+形态的 enum。完整属性和 Serde 兼容规则请参阅 [derive README](../derive/README.zh_CN.md)。
+
 ### 使用 Serde 序列化脱敏视图
 
 序列化必须显式 opt-in：启用 `serde` feature，在使用方直接声明 `serde`，并添加
 `#[redact(serde)]`。`Redacted` 不实现 `Deserialize`。
+
+`#[redact(debug)]` 和 `#[redact(display)]` 让原类型通过进程级默认策略进行安全格式化。
+不要将它们与同一 trait 的已有实现组合使用。
 
 ```toml
 [dependencies]
@@ -325,6 +366,14 @@ fn main() {
 二进制或空结果，`BodyRedactionReason` 则解释安全关闭的原因。所有结果都不提供原始 body
 逃生接口。
 
+| 输入 | 默认安全行为 | 使用的配置 |
+| --- | --- | --- |
+| URL query、用户名、密码、fragment | 遮盖已配置字段和敏感 URL 组成部分 | `raise_query`、query 策略、`UrlPathPolicy` |
+| form 与 Header | 遮盖已配置字段，且输出有界 | `raise_header`、`raise_query` |
+| JSON、NDJSON、form body、multipart | 解析完整输入；不安全或截断时失败时默认遮盖 | `raise_body`、`BodyBudget` |
+| 不透明文本、无 key JSON、URL path | 默认采取保守策略 | 仅在接受风险后显式使用 `PassThrough` 或 `Preserve` |
+| 非 UTF-8 body | 返回二进制摘要，绝不暴露原始字节 | `BodyRedactionStatus::Binary` |
+
 ```toml
 [dependencies]
 qubit-redact = { version = "0.3", features = ["http"] }
@@ -357,6 +406,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         BodyCapture::complete(br#"{"password":"raw-password","mode":"debug"}"#),
         Some(&content_type),
     );
+    assert!(matches!(body.status(), qubit_redact::http::BodyRedactionStatus::Structured));
     assert!(!body.to_string().contains("raw-password"));
     Ok(())
 }
@@ -364,6 +414,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 `HttpRedactionPolicyBuilder` 提供 `raise_header`、`raise_query` 和 `raise_body` 等
 上下文规则。无效或截断的结构化输入会安全关闭。
+
+运行时诊断可读取 `BodyRedaction::status()`、`is_truncated()`、`captured_len()` 和
+`omitted_len()`。`BodyRedactionStatus::Redacted(reason)` 会给出结构化或可见表示不安全的原因。
 
 ## 安全边界与验证
 
@@ -373,6 +426,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 - 不要把 `RedactMut` 当作内存擦除机制。
 - 只有接受披露风险后，才启用 `TextBodyPolicy::PassThrough`、
   `UnkeyedJsonValuePolicy::PassThrough` 或 `UrlPathPolicy::Preserve`。
+
+| 情况 | 处理方式 |
+| --- | --- |
+| 可控字段仍然可见 | 添加显式规则；未知字段会原样通过。 |
+| 后缀规则披露范围过大 | 优先改用精确规则，或删除后缀 allow 规则。 |
+| 策略构建失败 | 检查返回的 `PolicyError`，不要回退到宽松策略。 |
+| 全局默认策略已安装 | 处理 `GlobalDefaultAlreadySet`；需要隔离时传递显式策略。 |
+| 结构化 body 不合法或已截断 | 记录安全结果，并检查 `BodyRedactionStatus::Redacted(reason)`。 |
+| 日志行包含控制字符或 Unicode 行序字符 | 通过 `escape_for_log()` 跨过标量日志边界。 |
+| 需要内存擦除 | 不要依赖 `RedactMut`；使用专门的 zeroization 设计。 |
 
 发布影响行为或示例的变更前，运行完整 feature 集：
 

@@ -1,8 +1,20 @@
 # Qubit Redact User Guide
 
+[README](../README.md) · [中文用户手册](user_guide.zh_CN.md) · [Runtime API](https://docs.rs/qubit-redact) · [Derive README](../derive/README.md)
+
 Qubit Redact is a policy-driven Rust library for preventing sensitive values from
 leaking through diagnostics: structured fields and maps, Rust domain objects,
 process arguments, environment variables, and optional HTTP data.
+
+## Contents
+
+- [Installation and example requirements](#installation-and-example-requirements)
+- [Configure a policy](#1-configure-redactionpolicy)
+- [Scalar values, maps, and log text](#2-redact-scalar-values-and-maps-with-redactor)
+- [Domain objects](#4-redact-domain-objects-with-redact-and-redactmut)
+- [Process diagnostics](#5-redact-command-arguments-with-argvredactor)
+- [HTTP diagnostics](#7-redact-http-diagnostics-with-httpredactor)
+- [Security checklist and troubleshooting](#security-boundaries-and-verification)
 
 ## What it solves
 
@@ -55,11 +67,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Choosing a tool
 
-| Diagnostic input | Primary tool | Safe result |
+| Diagnostic input | Primary tool | Result and logging boundary |
 | --- | --- | --- |
-| Named scalar or text-keyed map | `Redactor` | `RedactedText`, then `LogSafeText` for logs |
+| Named scalar value | `Redactor::redact` | `RedactedText`, then `LogSafeText` for plain-text logs |
+| Text-keyed map | `Redactor::redact_map` or `redact_map_in_place` | A copied or mutated map; choose the final logging format explicitly |
 | Rust struct or enum | `Redact` derive | `Redacted<T>` view |
-| Value requiring logical replacement | `RedactMut` derive | Mutated value |
+| Value requiring logical replacement | `RedactMut` derive | Mutated value; not memory erasure |
 | Command arguments | `ArgvRedactor` | `RedactedArgv` |
 | Environment pairs | `EnvRedactor` | `RedactedEnvPair` or `LogSafeText` |
 | URL, form, headers, captured body | `HttpRedactor` | Log-safe HTTP result types |
@@ -91,6 +104,18 @@ and applies it consistently.
 `RedactedText` means field-sensitive redaction occurred. It intentionally does
 not implement `Display`: call `escape_for_log()` before a plain-text log
 boundary to obtain `LogSafeText`.
+
+| API | Starting state | Use it when |
+| --- | --- | --- |
+| `RedactionPolicy::default()` | Current conservative process-wide snapshot | You accept the application's installed default. |
+| `RedactionPolicy::builder()` | No sensitive or allow rules | You need a policy defined entirely by this call site. |
+| `RedactionPolicy::builder_from_default()` | Copy of the current default snapshot | You want to extend the conservative default. |
+| `RedactionPolicy::set_global_default()` | Installs once per process | Application startup owns the default policy. |
+
+Use `include_preset(SensitiveFieldPreset::...)` to add the built-in credential,
+credential-container, auth-token, HTTP, or session field groups to an explicit
+policy. Use `classify_field()` when a policy test or diagnostic must explain a
+`Sensitive`, `Allowed`, or `Unknown` decision.
 
 ## 1. Configure `RedactionPolicy`
 
@@ -128,6 +153,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 Use `RedactionPolicy::set_global_default` only during application startup. It
 succeeds once per process; prefer explicit policy snapshots when tests or
 security boundaries need isolation.
+
+Field names are canonicalized. With `FieldNameMatching::ExactOrTokenSuffix`, a
+rule for `api_key` can match `request_api_key`; exact matching has the narrowest
+scope. `raise` never lowers sensitivity, while `override_level` intentionally
+replaces it. Exact allow rules affect one canonical field; suffix allow rules
+can reveal prefixed fields and need a security review.
+
+Use `Redactor::redact_at(level, value)` at a boundary that already knows a value
+is sensitive independently of its field name. It applies that mask directly, so
+an allow rule cannot expose the value.
 
 ## 2. Redact scalar values and maps with `Redactor`
 
@@ -169,6 +204,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 Do not apply generic string-map redaction to heterogeneous domain objects such
 as `serde_json::Map<String, serde_json::Value>`. Define an explicit domain
 boundary for their replacement semantics.
+
+`redact_map` returns the same collection type, while `redact_map_in_place`
+updates that collection. Neither operation turns a map into `LogSafeText`;
+choose an appropriate final formatter at the logging boundary.
 
 ## 3. Make redacted text safe for logs
 
@@ -241,10 +280,18 @@ fn main() {
 allocations, aliases, copies, or borrowed backing storage; use a dedicated
 zeroization strategy when memory erasure is required.
 
+Plain fields are never traversed implicitly. Derives support named, tuple, and
+unit structs plus enums with those variant shapes. See the [derive README](../derive/README.md)
+for the complete attribute and Serde compatibility rules.
+
 ### Serialize a redacted view with Serde
 
 Serialization is opt-in: enable the `serde` feature, declare `serde` directly,
 and add `#[redact(serde)]`. `Redacted` does not implement `Deserialize`.
+
+`#[redact(debug)]` and `#[redact(display)]` opt the original type into safe
+formatting through the process-wide default policy. Do not combine either with
+an existing implementation of the same trait.
 
 ```toml
 [dependencies]
@@ -351,6 +398,14 @@ and URL-bearing text. `BodyRedaction` is the bounded log-safe result;
 fail-closed, binary, or empty, and `BodyRedactionReason` explains a fail-closed
 outcome. No result exposes a raw-body escape hatch.
 
+| Input | Default safety behavior | Configure with |
+| --- | --- | --- |
+| URL query, username, password, fragment | Redacts configured fields and sensitive URL components | `raise_query`, query policy, `UrlPathPolicy` |
+| Form and headers | Redacts configured fields; output is bounded | `raise_header`, `raise_query` |
+| JSON, NDJSON, form body, multipart | Parses complete input and fails closed when unsafe or truncated | `raise_body`, `BodyBudget` |
+| Opaque text, unkeyed JSON, URL path | Conservative by default | Explicit `PassThrough` or `Preserve` only after risk review |
+| Non-UTF-8 body | Returns a binary summary, never raw bytes | `BodyRedactionStatus::Binary` |
+
 ```toml
 [dependencies]
 qubit-redact = { version = "0.3", features = ["http"] }
@@ -383,6 +438,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         BodyCapture::complete(br#"{"password":"raw-password","mode":"debug"}"#),
         Some(&content_type),
     );
+    assert!(matches!(body.status(), qubit_redact::http::BodyRedactionStatus::Structured));
     assert!(!body.to_string().contains("raw-password"));
     Ok(())
 }
@@ -391,6 +447,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 `HttpRedactionPolicyBuilder` offers `raise_header`, `raise_query`, and
 `raise_body` for context-specific rules. Invalid or truncated structured input
 fails closed.
+
+For operational diagnostics, inspect `BodyRedaction::status()`,
+`is_truncated()`, `captured_len()`, and `omitted_len()`. A
+`BodyRedactionStatus::Redacted(reason)` value reports why a structured or
+visible representation was unsafe.
 
 ## Security boundaries and verification
 
@@ -401,6 +462,16 @@ fails closed.
 - Do not use `RedactMut` as a memory-erasure mechanism.
 - Enable `TextBodyPolicy::PassThrough`, `UnkeyedJsonValuePolicy::PassThrough`,
   or `UrlPathPolicy::Preserve` only after accepting their disclosure risk.
+
+| Situation | What to do |
+| --- | --- |
+| A controlled field remained visible | Add an explicit rule; unknown fields pass through. |
+| A suffix rule exposed too much | Prefer an exact rule, or remove the suffix allow rule. |
+| A policy fails to build | Inspect the returned `PolicyError`; do not replace it with a permissive fallback. |
+| A global default is already installed | Handle `GlobalDefaultAlreadySet`; pass an explicit policy where isolation matters. |
+| A structured body is malformed or truncated | Log the safe result and inspect `BodyRedactionStatus::Redacted(reason)`. |
+| A log line contains controls or Unicode line separators | Cross the scalar boundary with `escape_for_log()`. |
+| Memory erasure is required | Do not rely on `RedactMut`; use a dedicated zeroization design. |
 
 Run the full feature set before publishing changed behavior or examples:
 
