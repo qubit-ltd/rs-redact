@@ -75,6 +75,7 @@ fn main() {
 | `#[redact(skip)]` | 从脱敏视图中省略该字段。 |
 | `#[redact(nested)]` | 将脱敏委托给嵌套值。 |
 | `#[redact(map)]` | 使用文本 key 和完整运行时策略处理 Map 的值。 |
+| `#[redact(json)]` | 递归按对象 key 脱敏存储在 `String` 中的 JSON；无效 JSON 会被不透明替换。 |
 
 容器属性是显式选择的控制项：
 
@@ -107,6 +108,9 @@ qubit-redact-derive = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
+
+`#[redact(json)]` 需要运行时 crate 的 `json` feature。它为 `Redact` 格式化脱敏 JSON
+视图，为 `RedactMut` 将字符串改写为紧凑脱敏 JSON；与 `#[redact(serde)]` 组合时仍序列化为 JSON 字符串。
 
 ## 安全边界
 

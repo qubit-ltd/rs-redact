@@ -9,19 +9,10 @@
 
 use std::{
     cell::Cell,
-    collections::{
-        BTreeMap,
-        HashMap,
-        hash_map,
-    },
+    collections::{BTreeMap, HashMap, hash_map},
 };
 
-use qubit_redact::{
-    Redact,
-    RedactedMap,
-    RedactionPolicy,
-    Sensitivity,
-};
+use qubit_redact::{Redact, RedactedMap, RedactionPolicy, Sensitivity};
 use qubit_redact_derive::Redact;
 
 /// Event containing marked and unmarked maps.
@@ -74,10 +65,7 @@ fn test_map_uses_view_policy_lazily_and_unmarked_map_stays_plain() {
             ("tenant_secret".to_owned(), "raw-map-secret".to_owned()),
             ("label".to_owned(), "visible".to_owned()),
         ]),
-        unmarked: BTreeMap::from([(
-            "tenant_secret".to_owned(),
-            "raw-unmarked".to_owned(),
-        )]),
+        unmarked: BTreeMap::from([("tenant_secret".to_owned(), "raw-unmarked".to_owned())]),
     };
 
     let rendered = format!("{:?}", event.redacted_with(&policy));
@@ -93,10 +81,7 @@ fn test_map_uses_view_policy_lazily_and_unmarked_map_stays_plain() {
 fn test_map_view_defers_iteration_until_debug_formatting() {
     let event = CountedEvent {
         metadata: CountingMap {
-            entries: HashMap::from([(
-                "label".to_owned(),
-                "visible".to_owned(),
-            )]),
+            entries: HashMap::from([("label".to_owned(), "visible".to_owned())]),
             traversals: Cell::new(0),
         },
     };
@@ -112,16 +97,11 @@ fn test_map_view_defers_iteration_until_debug_formatting() {
 #[test]
 fn test_map_display_is_log_safe() {
     let event = Event {
-        metadata: HashMap::from([(
-            "label".to_owned(),
-            "first\nsecond".to_owned(),
-        )]),
+        metadata: HashMap::from([("label".to_owned(), "first\nsecond".to_owned())]),
         unmarked: BTreeMap::new(),
     };
 
-    let rendered =
-        RedactedMap::new(&event.metadata, RedactionPolicy::default())
-            .to_string();
+    let rendered = RedactedMap::new(&event.metadata, RedactionPolicy::default()).to_string();
 
     assert!(!rendered.contains('\n'));
     assert!(rendered.contains(r"first\nsecond"));

@@ -7,21 +7,11 @@
 // =============================================================================
 //! Mutable builder for immutable redaction policies.
 
-use std::collections::{
-    BTreeMap,
-    BTreeSet,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    DiagnosticBudget,
-    FieldNameMatching,
-    MaskPolicy,
-    MaskingPolicy,
-    PolicyError,
-    RedactionPolicy,
-    SensitiveFieldPreset,
-    Sensitivity,
-    internal::canonicalize_field_name,
+    DiagnosticBudget, FieldNameMatching, MaskPolicy, MaskingPolicy, PolicyError, RedactionPolicy,
+    SensitiveFieldPreset, Sensitivity, UnknownFieldPolicy, internal::canonicalize_field_name,
 };
 
 /// Mutable construction state for an immutable [`RedactionPolicy`].
@@ -36,6 +26,8 @@ pub struct RedactionPolicyBuilder {
     allow_suffix: BTreeSet<String>,
     /// Candidate-generation breadth for sensitive rules.
     matching: FieldNameMatching,
+    /// Fallback behavior for fields with no matching rule.
+    unknown_field_policy: UnknownFieldPolicy,
     /// Value masks selected by sensitivity level.
     masking: MaskingPolicy,
     /// Limits applied to diagnostics rendered with the built policy.
@@ -68,6 +60,7 @@ impl RedactionPolicyBuilder {
             allow_exact: BTreeSet::new(),
             allow_suffix: BTreeSet::new(),
             matching: FieldNameMatching::ExactOrTokenSuffix,
+            unknown_field_policy: UnknownFieldPolicy::PassThrough,
             masking: MaskingPolicy::default(),
             diagnostic_budget: DiagnosticBudget::default(),
             error: None,
@@ -105,6 +98,7 @@ impl RedactionPolicyBuilder {
             allow_exact: policy.clone_allow_exact(),
             allow_suffix: policy.clone_allow_suffix(),
             matching: policy.matching(),
+            unknown_field_policy: policy.unknown_field_policy(),
             masking: policy.masking().clone(),
             diagnostic_budget: policy.diagnostic_budget(),
             error: None,
@@ -141,6 +135,24 @@ impl RedactionPolicyBuilder {
     #[inline(always)]
     pub const fn matching(mut self, matching: FieldNameMatching) -> Self {
         self.matching = matching;
+        self
+    }
+
+    /// Sets fallback behavior for fields with no matching rule.
+    ///
+    /// Explicit rules retain existing candidate-order semantics; this setting
+    /// applies only after classification is unknown.
+    ///
+    /// # Parameters
+    ///
+    /// * policy - Fallback selected by the built policy.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline(always)]
+    pub const fn unknown_field_policy(mut self, policy: UnknownFieldPolicy) -> Self {
+        self.unknown_field_policy = policy;
         self
     }
 
@@ -358,6 +370,7 @@ impl RedactionPolicyBuilder {
             self.allow_exact,
             self.allow_suffix,
             self.matching,
+            self.unknown_field_policy,
             self.masking,
             self.diagnostic_budget,
         )

@@ -40,8 +40,7 @@ fn test_serde_field_serialization_applies_carriers_and_conditions() {
     };
 
     assert_eq!(
-        serde_json::to_value(empty.redacted())
-            .expect("conditional empty record serializes"),
+        serde_json::to_value(empty.redacted()).expect("conditional empty record serializes"),
         serde_json::json!({"secret": "<redacted>"}),
     );
     assert_eq!(

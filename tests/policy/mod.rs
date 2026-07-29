@@ -25,3 +25,4 @@ mod redaction_policy_tests;
 mod sensitive_field_preset_tests;
 mod sensitive_field_rule_tests;
 mod sensitivity_tests;
+mod unknown_field_policy_tests;

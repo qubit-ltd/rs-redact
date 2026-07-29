@@ -7,13 +7,7 @@
 // =============================================================================
 //! Whitelisted serde field attributes for redacted serialization.
 
-use syn::{
-    Field,
-    Ident,
-    LitStr,
-    Meta,
-    Path,
-};
+use syn::{Field, Ident, LitStr, Meta, Path};
 
 /// Serde controls that preserve the generated redacted structure.
 #[must_use]

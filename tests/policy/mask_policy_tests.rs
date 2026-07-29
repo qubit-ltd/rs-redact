@@ -7,13 +7,7 @@
 // =============================================================================
 //! Tests for [`MaskPolicy`](qubit_redact::MaskPolicy).
 
-use proptest::prelude::{
-    Just,
-    any,
-    prop_assert_ne,
-    prop_oneof,
-    proptest,
-};
+use proptest::prelude::{Just, any, prop_assert_ne, prop_oneof, proptest};
 
 use qubit_redact::MaskPolicy;
 
@@ -60,8 +54,7 @@ fn test_mask_policy_preserve_edges_keeps_prefix_with_empty_suffix() {
 /// Verifies that overflowing edge counts cannot expose the raw value.
 #[test]
 fn test_mask_policy_preserve_edges_masks_when_edge_lengths_overflow() {
-    let redacted = MaskPolicy::preserve_edges(usize::MAX, 1, "****", 0)
-        .mask("secret-token");
+    let redacted = MaskPolicy::preserve_edges(usize::MAX, 1, "****", 0).mask("secret-token");
 
     assert_eq!(redacted, "****");
     assert!(!redacted.contains("secret-token"));
@@ -106,8 +99,7 @@ fn test_mask_policy_preserve_suffix_masks_short_value() {
 /// Verifies that an empty policy removes a non-empty value.
 #[test]
 fn test_mask_policy_empty_removes_value() {
-    let constructor =
-        std::hint::black_box(MaskPolicy::empty as fn() -> MaskPolicy);
+    let constructor = std::hint::black_box(MaskPolicy::empty as fn() -> MaskPolicy);
     assert_eq!(constructor().mask("secret-token"), "");
 }
 

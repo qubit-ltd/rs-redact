@@ -51,25 +51,18 @@ fn test_serde_untagged_enum_serializes_exact_content() {
         }),
     );
     assert_eq!(
-        serde_json::to_value(
-            UntaggedEvent::Tuple(String::from("raw-secret"), "shown")
-                .redacted(),
-        )
-        .expect("untagged tuple variant serializes"),
+        serde_json::to_value(UntaggedEvent::Tuple(String::from("raw-secret"), "shown").redacted(),)
+            .expect("untagged tuple variant serializes"),
         serde_json::json!(["<redacted>", "shown"]),
     );
     assert_eq!(
-        serde_json::to_value(
-            UntaggedEvent::Newtype(String::from("raw-secret")).redacted()
-        )
-        .expect("untagged newtype variant serializes"),
+        serde_json::to_value(UntaggedEvent::Newtype(String::from("raw-secret")).redacted())
+            .expect("untagged newtype variant serializes"),
         serde_json::json!("<redacted>"),
     );
     assert_eq!(
-        serde_json::to_value(
-            UntaggedEvent::Empty(String::from("raw-omitted")).redacted()
-        )
-        .expect("untagged empty variant serializes"),
+        serde_json::to_value(UntaggedEvent::Empty(String::from("raw-omitted")).redacted())
+            .expect("untagged empty variant serializes"),
         serde_json::Value::Null,
     );
     assert_eq!(

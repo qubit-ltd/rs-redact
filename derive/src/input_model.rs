@@ -7,18 +7,10 @@
 // =============================================================================
 //! Single parsing boundary for all supported derive input shapes.
 
-use syn::{
-    Data,
-    DeriveInput,
-    Fields,
-};
+use syn::{Data, DeriveInput, Fields};
 
 use crate::{
-    internal::{
-        ContainerData,
-        FieldsData,
-        VariantData,
-    },
+    internal::{ContainerData, FieldsData, VariantData},
     named_fields,
     serde_variant_attributes::SerdeVariantAttributes,
     unnamed_fields,
@@ -60,16 +52,9 @@ pub(crate) fn parse<'a>(
                 .iter()
                 .enumerate()
                 .map(|(index, variant)| {
-                    let serde_attributes = SerdeVariantAttributes::parse(
-                        variant,
-                        &input.ident,
-                        serde_enabled,
-                    )?;
-                    let fields = parse_fields(
-                        &variant.fields,
-                        &input.ident,
-                        serde_enabled,
-                    )?;
+                    let serde_attributes =
+                        SerdeVariantAttributes::parse(variant, &input.ident, serde_enabled)?;
+                    let fields = parse_fields(&variant.fields, &input.ident, serde_enabled)?;
                     Ok(VariantData::new(
                         variant,
                         index as u32,
@@ -117,9 +102,11 @@ fn parse_fields<'a>(
             type_name,
             serde_enabled,
         )?)),
-        Fields::Unnamed(fields) => Ok(FieldsData::Unnamed(
-            unnamed_fields::parse(fields, type_name, serde_enabled)?,
-        )),
+        Fields::Unnamed(fields) => Ok(FieldsData::Unnamed(unnamed_fields::parse(
+            fields,
+            type_name,
+            serde_enabled,
+        )?)),
         Fields::Unit => Ok(FieldsData::Unit),
     }
 }

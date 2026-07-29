@@ -271,6 +271,9 @@ pub mod domain;
 pub mod env;
 #[cfg(feature = "http")]
 pub mod http;
+#[cfg(feature = "json")]
+pub mod json;
+mod json_feature_gate;
 pub mod policy;
 #[cfg(feature = "serde")]
 mod private;
@@ -280,47 +283,22 @@ pub mod text;
 
 pub use argv::ArgvRedactor;
 pub use domain::{
-    BoundedRedactedDisplay,
-    Redact,
-    RedactMapValue,
-    RedactMapValueMut,
-    RedactMut,
-    RedactValue,
-    RedactValueMut,
-    Redacted,
-    RedactedKeyedMap,
-    RedactedKeyedValue,
-    RedactedMap,
-    RedactedValue,
+    BoundedRedactedDisplay, Redact, RedactMapValue, RedactMapValueMut, RedactMut, RedactValue,
+    RedactValueMut, Redacted, RedactedKeyedMap, RedactedKeyedValue, RedactedMap, RedactedValue,
 };
 pub use env::EnvRedactor;
+#[cfg(feature = "json")]
+pub use json::{RedactedJson, RedactedJsonText, redact_json_text_in_place};
 pub use policy::{
-    AllowRule,
-    DiagnosticBudget,
-    DiagnosticBudgetError,
-    DiagnosticInputBudget,
-    FieldClassification,
-    FieldMatchKind,
-    FieldNameMatching,
-    GlobalDefaultAlreadySet,
-    MaskPolicy,
-    MaskingPolicy,
-    PolicyError,
-    RedactionPolicy,
-    RedactionPolicyBuilder,
-    SensitiveFieldPreset,
-    SensitiveFieldRule,
-    Sensitivity,
+    AllowRule, DiagnosticBudget, DiagnosticBudgetError, DiagnosticInputBudget, FieldClassification,
+    FieldMatchKind, FieldNameMatching, GlobalDefaultAlreadySet, MaskPolicy, MaskingPolicy,
+    PolicyError, RedactionPolicy, RedactionPolicyBuilder, SensitiveFieldPreset, SensitiveFieldRule,
+    Sensitivity, UnknownFieldPolicy,
 };
 pub use redactor::Redactor;
 pub use text::{
-    BoundedLogSafeDisplay,
-    LogOutputLimit,
-    LogOutputLimitError,
-    LogSafeText,
-    RedactedDebug,
-    RedactedText,
-    redacted_debug,
+    BoundedLogSafeDisplay, LogOutputLimit, LogOutputLimitError, LogSafeText, RedactedDebug,
+    RedactedText, redacted_debug,
 };
 
 #[cfg(feature = "serde")]

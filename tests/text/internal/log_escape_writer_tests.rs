@@ -7,15 +7,9 @@
 // =============================================================================
 //! Public-contract tests for the internal streaming escape writer.
 
-use std::fmt::{
-    self,
-    Write,
-};
+use std::fmt::{self, Write};
 
-use qubit_redact::{
-    Redact,
-    RedactionPolicy,
-};
+use qubit_redact::{Redact, RedactionPolicy};
 
 /// Redacted value that emits log-unsafe controls.
 struct UnsafeDiagnostic;
@@ -82,8 +76,7 @@ fn test_log_escape_writer_escapes_streamed_controls() {
 fn test_log_escape_writer_propagates_destination_failure() {
     let mut output = FailingWriter;
     let safe_result = write!(&mut output, "{}", SafeDiagnostic.redacted());
-    let escaped_result =
-        write!(&mut output, "{}", ControlFirstDiagnostic.redacted());
+    let escaped_result = write!(&mut output, "{}", ControlFirstDiagnostic.redacted());
 
     assert_eq!(safe_result, Err(fmt::Error));
     assert_eq!(escaped_result, Err(fmt::Error));

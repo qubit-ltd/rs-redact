@@ -7,11 +7,7 @@
 // =============================================================================
 //! Cargo command setup for isolated compile fixtures.
 
-use std::{
-    env,
-    ffi::OsStr,
-    process::Command,
-};
+use std::{env, ffi::OsStr, process::Command};
 
 /// Builds a Cargo command without inheriting the parent coverage wrapper.
 ///

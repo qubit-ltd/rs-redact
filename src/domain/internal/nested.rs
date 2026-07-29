@@ -7,18 +7,11 @@
 // =============================================================================
 //! Container implementations for explicit nested redaction.
 
-use std::fmt::{
-    self,
-    Formatter,
-};
+use std::fmt::{self, Formatter};
 
 #[cfg(feature = "serde")]
 use crate::domain::RedactSerialize;
-use crate::{
-    Redact,
-    RedactMut,
-    RedactionPolicy,
-};
+use crate::{Redact, RedactMut, RedactionPolicy};
 
 impl<T: Redact> Redact for Option<T> {
     /// Formats `None` directly or a redacted `Some` value with the same policy.
@@ -37,11 +30,7 @@ impl<T: Redact> Redact for Option<T> {
     /// Returns [`fmt::Error`] when the destination or nested value rejects a
     /// write.
     #[inline]
-    fn fmt_redacted(
-        &self,
-        policy: &RedactionPolicy,
-        formatter: &mut Formatter<'_>,
-    ) -> fmt::Result {
+    fn fmt_redacted(&self, policy: &RedactionPolicy, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Some(value) => formatter
                 .debug_tuple("Some")
@@ -68,11 +57,7 @@ impl<T: Redact + ?Sized> Redact for Box<T> {
     ///
     /// Returns [`fmt::Error`] when the boxed value cannot complete its output.
     #[inline(always)]
-    fn fmt_redacted(
-        &self,
-        policy: &RedactionPolicy,
-        formatter: &mut Formatter<'_>,
-    ) -> fmt::Result {
+    fn fmt_redacted(&self, policy: &RedactionPolicy, formatter: &mut Formatter<'_>) -> fmt::Result {
         self.as_ref().fmt_redacted(policy, formatter)
     }
 }
@@ -93,11 +78,7 @@ impl<T: Redact> Redact for Vec<T> {
     ///
     /// Returns [`fmt::Error`] when the destination or an item rejects a write.
     #[inline]
-    fn fmt_redacted(
-        &self,
-        policy: &RedactionPolicy,
-        formatter: &mut Formatter<'_>,
-    ) -> fmt::Result {
+    fn fmt_redacted(&self, policy: &RedactionPolicy, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut list = formatter.debug_list();
         for value in self {
             list.entry(&value.redacted_with(policy));
@@ -177,8 +158,7 @@ impl<T: RedactSerialize> RedactSerialize for Option<T> {
         S: serde::Serializer,
     {
         match self {
-            Some(value) => serializer
-                .serialize_some(&super::RedactedSerialize::new(value, policy)),
+            Some(value) => serializer.serialize_some(&super::RedactedSerialize::new(value, policy)),
             None => serializer.serialize_none(),
         }
     }
@@ -250,9 +230,7 @@ impl<T: RedactSerialize> RedactSerialize for Vec<T> {
 
         let mut sequence = serializer.serialize_seq(Some(self.len()))?;
         for value in self {
-            sequence.serialize_element(&super::RedactedSerialize::new(
-                value, policy,
-            ))?;
+            sequence.serialize_element(&super::RedactedSerialize::new(value, policy))?;
         }
         sequence.end()
     }

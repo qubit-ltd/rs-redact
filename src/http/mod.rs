@@ -23,10 +23,7 @@ mod text_body_policy;
 mod unkeyed_json_value_policy;
 mod url_path_policy;
 
-pub use crate::{
-    DiagnosticBudget,
-    DiagnosticBudgetError,
-};
+pub use crate::{DiagnosticBudget, DiagnosticBudgetError};
 pub use body_budget::BodyBudget;
 pub use body_budget_error::BodyBudgetError;
 pub use body_capture::BodyCapture;

@@ -7,10 +7,7 @@
 // =============================================================================
 //! Tests for [`SensitiveFieldPreset`](qubit_redact::SensitiveFieldPreset).
 
-use qubit_redact::{
-    SensitiveFieldPreset,
-    Sensitivity,
-};
+use qubit_redact::{SensitiveFieldPreset, Sensitivity};
 
 /// Verifies the complete credentials preset table and its strongest entries.
 #[test]

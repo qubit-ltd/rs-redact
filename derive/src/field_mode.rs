@@ -22,4 +22,6 @@ pub(crate) enum FieldMode {
     Nested,
     /// Classifies string map values by their runtime keys and active policy.
     Map,
+    /// Redacts JSON text stored in a string field.
+    Json,
 }

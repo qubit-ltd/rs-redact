@@ -33,14 +33,10 @@ thread_local! {
 /// # Returns
 ///
 /// The result produced by `operation` after restoring any previous context.
-pub(crate) fn with_mask_byte_limit<T>(
-    max_bytes: usize,
-    operation: impl FnOnce() -> T,
-) -> T {
+pub(crate) fn with_mask_byte_limit<T>(max_bytes: usize, operation: impl FnOnce() -> T) -> T {
     MASK_BYTE_LIMIT.with(|context| {
         let previous = context.get();
-        let effective =
-            previous.map_or(max_bytes, |previous| previous.min(max_bytes));
+        let effective = previous.map_or(max_bytes, |previous| previous.min(max_bytes));
         context.set(Some(effective));
         let _reset = MaskByteLimitReset::new(context, previous);
         operation()

@@ -12,23 +12,13 @@ use quote::quote;
 use syn::Path;
 
 use crate::{
-    internal::{
-        FieldsData,
-        VariantData,
-    },
+    internal::{FieldsData, VariantData},
     serde_container_attributes::SerdeContainerAttributes,
 };
 
 use super::{
-    naming::{
-        named_content_proxy,
-        serialized_variant_name,
-        tuple_content_proxy,
-    },
-    variant_fields::{
-        enum_named_parts,
-        enum_unnamed_parts,
-    },
+    naming::{named_content_proxy, serialized_variant_name, tuple_content_proxy},
+    variant_fields::{enum_named_parts, enum_unnamed_parts},
 };
 
 /// Generates one adjacently tagged variant arm.
@@ -65,15 +55,14 @@ pub(super) fn adjacent_variant_arm(
     let enum_name = container_attributes.name();
     let arm = match variant.fields() {
         FieldsData::Named(fields) => {
-            let (pattern, setups, _conditions, names, carriers) =
-                enum_named_parts(
-                    type_name,
-                    rust_name,
-                    fields,
-                    runtime,
-                    container_attributes,
-                    variant,
-                );
+            let (pattern, setups, _conditions, names, carriers) = enum_named_parts(
+                type_name,
+                rust_name,
+                fields,
+                runtime,
+                container_attributes,
+                variant,
+            );
             let (proxy_definition, proxy_value) =
                 named_content_proxy(rust_name, serde, &names, &carriers);
             quote! {
@@ -150,8 +139,7 @@ pub(super) fn adjacent_variant_arm(
         FieldsData::Unnamed(fields) => {
             let (pattern, setups, _conditions, carriers) =
                 enum_unnamed_parts(type_name, rust_name, fields, runtime);
-            let (proxy_definition, proxy_value) =
-                tuple_content_proxy(rust_name, serde, &carriers);
+            let (proxy_definition, proxy_value) = tuple_content_proxy(rust_name, serde, &carriers);
             quote! {
                 Self::#rust_name #pattern => {
                     #(#setups)*

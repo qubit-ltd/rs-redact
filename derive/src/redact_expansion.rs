@@ -8,33 +8,17 @@
 //! Immutable `Redact` implementation generation.
 
 use proc_macro2::TokenStream;
-use quote::{
-    format_ident,
-    quote,
-    quote_spanned,
-};
-use syn::{
-    DeriveInput,
-    Path,
-    spanned::Spanned,
-};
+use quote::{format_ident, quote, quote_spanned};
+use syn::{DeriveInput, Path, spanned::Spanned};
 
 use crate::{
     container_attributes::ContainerAttributes,
     field_assertion,
     field_mode::FieldMode,
-    format_expansion,
-    input_model,
-    internal::{
-        ContainerData,
-        FieldsData,
-        NamedField,
-        UnnamedField,
-        VariantData,
-    },
+    format_expansion, input_model,
+    internal::{ContainerData, FieldsData, NamedField, UnnamedField, VariantData},
     serde_container_attributes::SerdeContainerAttributes,
-    serde_expansion,
-    serde_path,
+    serde_expansion, serde_path,
 };
 
 /// Expands a struct into its runtime `Redact` implementation.
@@ -52,24 +36,15 @@ use crate::{
 ///
 /// Returns a targeted syntax error when container or field controls are
 /// invalid or when Serde controls conflict with the input shape.
-pub(crate) fn expand(
-    input: &DeriveInput,
-    runtime: &Path,
-) -> syn::Result<TokenStream> {
+pub(crate) fn expand(input: &DeriveInput, runtime: &Path) -> syn::Result<TokenStream> {
     let container_attributes = ContainerAttributes::parse(input)?;
-    let model = input_model::parse(
-        input,
-        "Redact",
-        container_attributes.serde_enabled(),
-    )?;
+    let model = input_model::parse(input, "Redact", container_attributes.serde_enabled())?;
     let serde = container_attributes
         .serde_enabled()
         .then(|| serde_path::resolve(input))
         .transpose()?;
-    let serde_container_attributes = SerdeContainerAttributes::parse(
-        input,
-        container_attributes.serde_enabled(),
-    )?;
+    let serde_container_attributes =
+        SerdeContainerAttributes::parse(input, container_attributes.serde_enabled())?;
     let serde_impl = serde_expansion::expand(
         input,
         runtime,
@@ -80,18 +55,16 @@ pub(crate) fn expand(
     let (immutable_assertions, format_body) = match &model {
         ContainerData::Struct(fields) => (
             immutable_assertions(&input.ident, fields, runtime),
-            format_body(&input.ident, fields),
+            format_body(&input.ident, fields, runtime),
         ),
         ContainerData::Enum(variants) => (
             enum_immutable_assertions(&input.ident, variants, runtime),
-            enum_format_body(&input.ident, variants),
+            enum_format_body(&input.ident, variants, runtime),
         ),
     };
-    let format_impl =
-        format_expansion::expand(input, runtime, &container_attributes);
+    let format_impl = format_expansion::expand(input, runtime, &container_attributes);
     let name = &input.ident;
-    let (impl_generics, type_generics, where_clause) =
-        input.generics.split_for_impl();
+    let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
 
     Ok(quote! {
         impl #impl_generics #runtime::Redact for #name #type_generics #where_clause {
@@ -168,10 +141,10 @@ fn immutable_assertions(
 /// # Returns
 ///
 /// A complete formatter expression for named, tuple, or unit structs.
-fn format_body(type_name: &syn::Ident, fields: &FieldsData<'_>) -> TokenStream {
+fn format_body(type_name: &syn::Ident, fields: &FieldsData<'_>, runtime: &Path) -> TokenStream {
     match fields {
-        FieldsData::Named(fields) => named_format_body(type_name, fields),
-        FieldsData::Unnamed(fields) => unnamed_format_body(type_name, fields),
+        FieldsData::Named(fields) => named_format_body(type_name, fields, runtime),
+        FieldsData::Unnamed(fields) => unnamed_format_body(type_name, fields, runtime),
         FieldsData::Unit => quote! {
             formatter.write_str(stringify!(#type_name))
         },
@@ -191,6 +164,7 @@ fn format_body(type_name: &syn::Ident, fields: &FieldsData<'_>) -> TokenStream {
 fn named_format_body(
     type_name: &syn::Ident,
     fields: &[NamedField<'_>],
+    runtime: &Path,
 ) -> TokenStream {
     let field_calls = fields.iter().map(|parsed| {
         let field = parsed.field();
@@ -210,6 +184,20 @@ fn named_format_body(
                 );
                 quote_spanned! {field.span()=>
                     .field(#field_name, &#helper(&self.#identifier, policy))
+                }
+            }
+            FieldMode::Json => {
+                let helper = field_assertion::helper_name(
+                    type_name,
+                    field,
+                    &field_name,
+                    immutable_trait_name(attributes.mode()),
+                );
+                quote_spanned! {field.span()=>
+                    .field(
+                        #field_name,
+                        &#runtime::__qubit_redact_json!(#helper(&self.#identifier, policy)),
+                    )
                 }
             }
             FieldMode::Skip => TokenStream::new(),
@@ -236,6 +224,7 @@ fn named_format_body(
 fn unnamed_format_body(
     type_name: &syn::Ident,
     fields: &[UnnamedField<'_>],
+    runtime: &Path,
 ) -> TokenStream {
     let field_calls = fields.iter().map(|parsed| {
         let field = parsed.field();
@@ -255,6 +244,19 @@ fn unnamed_format_body(
                 );
                 quote_spanned! {field.span()=>
                     .field(&#helper(&self.#index, policy))
+                }
+            }
+            FieldMode::Json => {
+                let helper = field_assertion::helper_name(
+                    type_name,
+                    field,
+                    &field_name,
+                    immutable_trait_name(attributes.mode()),
+                );
+                quote_spanned! {field.span()=>
+                    .field(
+                        &#runtime::__qubit_redact_json!(#helper(&self.#index, policy)),
+                    )
                 }
             }
             FieldMode::Skip => TokenStream::new(),
@@ -282,6 +284,7 @@ const fn immutable_trait_name(mode: &FieldMode) -> &'static str {
         FieldMode::Level(_) => "RedactValue",
         FieldMode::Nested => "Redact",
         FieldMode::Map => "RedactMapValue",
+        FieldMode::Json => "Json",
         FieldMode::Plain | FieldMode::Skip => "Unused",
     }
 }
@@ -311,8 +314,7 @@ fn enum_immutable_assertions(
                     .iter()
                     .map(|parsed| {
                         let field_name = parsed.identifier().to_string();
-                        let context =
-                            variant_field_context(variant_name, &field_name);
+                        let context = variant_field_context(variant_name, &field_name);
                         field_assertion::immutable(
                             type_name,
                             parsed.field(),
@@ -326,8 +328,7 @@ fn enum_immutable_assertions(
                     .iter()
                     .map(|parsed| {
                         let field_name = parsed.index().index.to_string();
-                        let context =
-                            variant_field_context(variant_name, &field_name);
+                        let context = variant_field_context(variant_name, &field_name);
                         field_assertion::immutable(
                             type_name,
                             parsed.field(),
@@ -356,12 +357,17 @@ fn enum_immutable_assertions(
 fn enum_format_body(
     type_name: &syn::Ident,
     variants: &[VariantData<'_>],
+    runtime: &Path,
 ) -> TokenStream {
     let arms = variants.iter().map(|variant| {
         let variant_name = &variant.variant().ident;
         match variant.fields() {
-            FieldsData::Named(fields) => enum_named_format_arm(type_name, variant_name, fields),
-            FieldsData::Unnamed(fields) => enum_unnamed_format_arm(type_name, variant_name, fields),
+            FieldsData::Named(fields) => {
+                enum_named_format_arm(type_name, variant_name, fields, runtime)
+            }
+            FieldsData::Unnamed(fields) => {
+                enum_unnamed_format_arm(type_name, variant_name, fields, runtime)
+            }
             FieldsData::Unit => quote! {
                 Self::#variant_name => formatter.write_str(stringify!(#variant_name)),
             },
@@ -389,6 +395,7 @@ fn enum_named_format_arm(
     type_name: &syn::Ident,
     variant_name: &syn::Ident,
     fields: &[NamedField<'_>],
+    runtime: &Path,
 ) -> TokenStream {
     let patterns = fields.iter().map(|parsed| {
         let identifier = parsed.identifier();
@@ -419,6 +426,21 @@ fn enum_named_format_arm(
                     .field(#field_name, &#helper(#identifier, policy))
                 }
             }
+            FieldMode::Json => {
+                let context = variant_field_context(variant_name, &field_name);
+                let helper = field_assertion::helper_name(
+                    type_name,
+                    field,
+                    &context,
+                    immutable_trait_name(mode),
+                );
+                quote_spanned! {field.span()=>
+                    .field(
+                        #field_name,
+                        &#runtime::__qubit_redact_json!(#helper(#identifier, policy)),
+                    )
+                }
+            }
             FieldMode::Skip => TokenStream::new(),
         }
     });
@@ -445,6 +467,7 @@ fn enum_unnamed_format_arm(
     type_name: &syn::Ident,
     variant_name: &syn::Ident,
     fields: &[UnnamedField<'_>],
+    runtime: &Path,
 ) -> TokenStream {
     let bindings = fields
         .iter()
@@ -483,6 +506,21 @@ fn enum_unnamed_format_arm(
                     .field(&#helper(#binding, policy))
                 }
             }
+            FieldMode::Json => {
+                let field_name = parsed.index().index.to_string();
+                let context = variant_field_context(variant_name, &field_name);
+                let helper = field_assertion::helper_name(
+                    type_name,
+                    field,
+                    &context,
+                    immutable_trait_name(mode),
+                );
+                quote_spanned! {field.span()=>
+                    .field(
+                        &#runtime::__qubit_redact_json!(#helper(#binding, policy)),
+                    )
+                }
+            }
             FieldMode::Skip => TokenStream::new(),
         }
     });
@@ -505,9 +543,6 @@ fn enum_unnamed_format_arm(
 ///
 /// A stable variant-qualified field context.
 #[inline]
-fn variant_field_context(
-    variant_name: &syn::Ident,
-    field_name: &str,
-) -> String {
+fn variant_field_context(variant_name: &syn::Ident, field_name: &str) -> String {
     format!("{variant_name}_{field_name}")
 }

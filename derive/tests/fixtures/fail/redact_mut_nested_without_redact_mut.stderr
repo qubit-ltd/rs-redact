@@ -1,14 +1,11 @@
 error[E0277]: the trait bound `Child: RedactMut` is not satisfied
-  --> tests/fixtures/fail/redact_mut_nested_without_redact_mut.rs:18:5
+  --> tests/fixtures/fail/redact_mut_nested_without_redact_mut.rs:16:10
    |
-18 |       /// Requires `Child: RedactMut`.
-   |       ^-------------------------------
-   |       |
-   |  _____required by a bound introduced by this call
-   | |
-19 | |     #[redact(nested)]
-20 | |     child: Child,
-   | |_________^ unsatisfied trait bound
+16 | #[derive(RedactMut)]
+   |          ^^^^^^^^^ unsatisfied trait bound
+17 | struct Parent {
+18 |     /// Requires `Child: RedactMut`.
+   |     -------------------------------- required by a bound introduced by this call
    |
 help: the trait `RedactMut` is not implemented for `Child`
   --> tests/fixtures/fail/redact_mut_nested_without_redact_mut.rs:13:1

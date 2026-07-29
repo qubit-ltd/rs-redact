@@ -10,6 +10,8 @@
 mod bounded_redacted_display_tests;
 mod derive_attribute_tests;
 mod internal;
+#[cfg(feature = "json")]
+mod json_field_tests;
 mod map_tests;
 mod mod_tests;
 mod redact_map_serialize_tests;

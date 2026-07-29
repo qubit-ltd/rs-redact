@@ -7,11 +7,7 @@
 // =============================================================================
 //! Tests for [`RedactValueMut`](qubit_redact::RedactValueMut).
 
-use qubit_redact::{
-    MaskingPolicy,
-    RedactValueMut,
-    Sensitivity,
-};
+use qubit_redact::{MaskingPolicy, RedactValueMut, Sensitivity};
 
 /// Verifies in-place scalar redaction replaces an owned secret value.
 #[test]

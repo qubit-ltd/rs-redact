@@ -72,6 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 标量、Map、进程和文本 core 能力 | `qubit-redact = "0.3"` |
 | 领域对象 derive | 添加 `qubit-redact-derive = "0.3"`。 |
 | 序列化脱敏视图 | 启用 `serde`，并直接声明 `serde` 依赖。 |
+| 脱敏 `serde_json::Value` 或 JSON 文本字段 | 启用 `json`；应用使用时直接添加 `serde_json`。 |
 | HTTP 诊断 | 启用 `http`；应用使用其类型时直接添加 `http`。 |
 
 ```toml
@@ -83,7 +84,8 @@ http = "1.4"
 
 ## 安全边界
 
-- 未知字段名会原样通过。本库不是通用秘密探测器；请为应用可控的每个字段名配置规则。
+- 未知字段名默认原样通过。需要在边界遮盖所有未分类字段时，设置
+  `UnknownFieldPolicy::Redact(Sensitivity::Secret)`；`classify_field()` 仍会报告 `Unknown`。
 - allow 规则会有意胜出并可能披露数据。优先使用精确 allow 规则，并将每一条都视为安全决策。
 - `RedactedText` 故意不实现 `Display`。值脱敏与日志转义是两层不同保证。
 - `RedactMut` 只替换逻辑值，不会擦除已释放的分配内存、别名、副本或借用后备存储。

@@ -11,16 +11,16 @@ use std::io::Write;
 
 use serde_json::Value;
 
-use crate::Redactor;
+use crate::{
+    Redactor,
+    json::internal::{JsonRedactionState, JsonUnkeyedValuePolicy},
+};
 
 use crate::http::UnkeyedJsonValuePolicy;
 
 use super::{
     BoundedBodyWriter,
-    markers::{
-        TRUNCATED,
-        UNKEYED_JSON,
-    },
+    markers::{TRUNCATED, UNKEYED_JSON},
 };
 
 /// Redacts a JSON tree and reports whether an unkeyed scalar passed through.
@@ -66,7 +66,16 @@ pub(in crate::http) fn redact_with_remaining(
     unkeyed: UnkeyedJsonValuePolicy,
     remaining_mask_bytes: &mut usize,
 ) -> bool {
-    redact_with_context(redactor, value, unkeyed, remaining_mask_bytes, false)
+    let unkeyed = match unkeyed {
+        UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
+        UnkeyedJsonValuePolicy::Redact => JsonUnkeyedValuePolicy::Redact {
+            marker: UNKEYED_JSON,
+            truncated_marker: TRUNCATED,
+        },
+    };
+    JsonRedactionState::new(redactor.policy(), unkeyed, remaining_mask_bytes)
+        .redact(value)
+        .has_passed_unkeyed()
 }
 
 /// Serializes a redacted JSON value without exceeding the rendered-body limit.
@@ -162,12 +171,7 @@ pub(in crate::http) fn redact_ndjson_with_remaining(
             continue;
         }
         let mut value = serde_json::from_str(line).ok()?;
-        passed |= redact_with_remaining(
-            redactor,
-            &mut value,
-            unkeyed,
-            remaining_mask_bytes,
-        );
+        passed |= redact_with_remaining(redactor, &mut value, unkeyed, remaining_mask_bytes);
         if serde_json::to_writer(&mut output, &value).is_err() {
             return output.into_string().map(|text| (text, passed, true));
         }
@@ -176,112 +180,4 @@ pub(in crate::http) fn redact_ndjson_with_remaining(
         return output.into_string().map(|text| (text, passed, true));
     }
     output.into_string().map(|text| (text, passed, false))
-}
-
-/// Redacts one JSON node with its object-field context.
-///
-/// # Parameters
-///
-/// * `redactor` - Structured-body field redactor.
-/// * `value` - Current JSON node.
-/// * `unkeyed` - Policy for unkeyed scalar values.
-/// * `remaining_mask_bytes` - Aggregate bytes still available for generated
-///   masks in the enclosing document.
-/// * `has_field` - Whether an object key identifies this node.
-///
-/// # Returns
-///
-/// `true` when this subtree passed through an unkeyed scalar.
-#[must_use]
-fn redact_with_context(
-    redactor: &Redactor,
-    value: &mut Value,
-    unkeyed: UnkeyedJsonValuePolicy,
-    remaining_mask_bytes: &mut usize,
-    has_field: bool,
-) -> bool {
-    match value {
-        Value::Object(map) => {
-            let mut passed = false;
-            for (key, value) in map {
-                if let Some(level) = redactor.policy().sensitivity_for(key) {
-                    let masked = if let Value::String(text) = value {
-                        redactor
-                            .policy()
-                            .masking()
-                            .mask_bounded(level, text, *remaining_mask_bytes)
-                            .into_owned()
-                    } else {
-                        redactor
-                            .policy()
-                            .masking()
-                            .mask_opaque_bounded(level, *remaining_mask_bytes)
-                    };
-                    *remaining_mask_bytes =
-                        remaining_mask_bytes.saturating_sub(masked.len());
-                    *value = Value::String(masked);
-                } else {
-                    passed |= redact_with_context(
-                        redactor,
-                        value,
-                        unkeyed,
-                        remaining_mask_bytes,
-                        true,
-                    );
-                }
-            }
-            passed
-        }
-        Value::Array(values) => {
-            let mut passed = false;
-            for value in values {
-                passed |= redact_with_context(
-                    redactor,
-                    value,
-                    unkeyed,
-                    remaining_mask_bytes,
-                    has_field,
-                );
-            }
-            passed
-        }
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_)
-            if !has_field =>
-        {
-            match unkeyed {
-                UnkeyedJsonValuePolicy::Redact => {
-                    *value = Value::String(take_unkeyed_marker(
-                        remaining_mask_bytes,
-                    ));
-                    false
-                }
-                UnkeyedJsonValuePolicy::PassThrough => true,
-            }
-        }
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
-            false
-        }
-    }
-}
-
-/// Consumes the remaining generated-mask budget for one unkeyed JSON marker.
-///
-/// # Parameters
-///
-/// * `remaining_mask_bytes` - Aggregate bytes available for generated masks.
-///
-/// # Returns
-///
-/// The full unkeyed marker when it fits, the shorter truncation marker when it
-/// fits, or an empty JSON string when no marker can fit safely.
-fn take_unkeyed_marker(remaining_mask_bytes: &mut usize) -> String {
-    let marker = if *remaining_mask_bytes >= UNKEYED_JSON.len() {
-        UNKEYED_JSON
-    } else if *remaining_mask_bytes >= TRUNCATED.len() {
-        TRUNCATED
-    } else {
-        return String::new();
-    };
-    *remaining_mask_bytes = remaining_mask_bytes.saturating_sub(marker.len());
-    marker.to_string()
 }

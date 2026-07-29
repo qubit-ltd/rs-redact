@@ -24,6 +24,7 @@ mod redaction_policy_builder;
 mod sensitive_field_preset;
 mod sensitive_field_rule;
 mod sensitivity;
+mod unknown_field_policy;
 
 pub use allow_rule::AllowRule;
 pub use diagnostic_budget::DiagnosticBudget;
@@ -41,3 +42,4 @@ pub use redaction_policy_builder::RedactionPolicyBuilder;
 pub use sensitive_field_preset::SensitiveFieldPreset;
 pub use sensitive_field_rule::SensitiveFieldRule;
 pub use sensitivity::Sensitivity;
+pub use unknown_field_policy::UnknownFieldPolicy;

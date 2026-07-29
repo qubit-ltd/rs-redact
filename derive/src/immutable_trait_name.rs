@@ -45,6 +45,7 @@ impl ImmutableTraitName for FieldMode {
             Self::Level(_) => "RedactValue",
             Self::Nested => "Redact",
             Self::Map => "RedactMapValue",
+            Self::Json => "Json",
             Self::Plain | Self::Skip => "Unused",
         }
     }
@@ -60,6 +61,7 @@ impl ImmutableTraitName for FieldMode {
             Self::Level(_) => "RedactValueMut",
             Self::Nested => "RedactMut",
             Self::Map => "RedactMapValueMut",
+            Self::Json => "Json",
             Self::Plain | Self::Skip => "Unused",
         }
     }
@@ -74,6 +76,7 @@ impl ImmutableTraitName for FieldMode {
         match self {
             Self::Nested => "RedactSerialize",
             Self::Map => "RedactMapSerialize",
+            Self::Json => "Json",
             Self::Plain | Self::Level(_) | Self::Skip => "Unused",
         }
     }

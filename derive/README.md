@@ -82,6 +82,7 @@ Field attributes select exactly one handling mode:
 | `#[redact(skip)]` | Omits the field from the redacted view. |
 | `#[redact(nested)]` | Delegates redaction to the nested value. |
 | `#[redact(map)]` | Redacts text-keyed map values using their keys and the complete runtime policy. |
+| `#[redact(json)]` | Redacts JSON stored in a `String` recursively by object key; invalid JSON is replaced opaquely. |
 
 Container attributes are opt-in controls:
 
@@ -115,6 +116,11 @@ qubit-redact-derive = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
+
+`#[redact(json)]` requires the runtime crate's `json` feature. It formats a
+redacted JSON view, rewrites the string as compact redacted JSON for
+`RedactMut`, and serializes as a JSON string when combined with
+`#[redact(serde)]`.
 
 ## Safety Boundaries
 

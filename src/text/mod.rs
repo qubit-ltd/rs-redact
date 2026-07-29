@@ -20,8 +20,5 @@ pub use bounded_log_safe_display::BoundedLogSafeDisplay;
 pub use log_output_limit::LogOutputLimit;
 pub use log_output_limit_error::LogOutputLimitError;
 pub use log_safe_text::LogSafeText;
-pub use redacted_debug::{
-    RedactedDebug,
-    redacted_debug,
-};
+pub use redacted_debug::{RedactedDebug, redacted_debug};
 pub use redacted_text::RedactedText;

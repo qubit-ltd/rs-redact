@@ -1,14 +1,11 @@
 error[E0277]: the trait bound `&'a str: RedactValueMut` is not satisfied
-  --> tests/fixtures/fail/redact_mut_borrowed_field.rs:15:5
+  --> tests/fixtures/fail/redact_mut_borrowed_field.rs:13:10
    |
-15 |       /// Must use an owned string or a custom mutation implementation.
-   |       ^----------------------------------------------------------------
-   |       |
-   |  _____required by a bound introduced by this call
-   | |
-16 | |     #[redact(level = "secret")]
-17 | |     value: &'a str,
-   | |_________^ the trait `RedactValueMut` is not implemented for `&'a str`
+13 | #[derive(RedactMut)]
+   |          ^^^^^^^^^ the trait `RedactValueMut` is not implemented for `&'a str`
+14 | struct Borrowed<'a> {
+15 |     /// Must use an owned string or a custom mutation implementation.
+   |     ----------------------------------------------------------------- required by a bound introduced by this call
    |
 help: the trait `RedactValueMut` is implemented for `String`
   --> $WORKSPACE/src/domain/redact_value_mut.rs

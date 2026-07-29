@@ -7,20 +7,10 @@
 // =============================================================================
 //! Builder for immutable HTTP redaction policy snapshots.
 
-use crate::{
-    DiagnosticBudget,
-    PolicyError,
-    RedactionPolicy,
-    RedactionPolicyBuilder,
-    Sensitivity,
-};
+use crate::{DiagnosticBudget, PolicyError, RedactionPolicy, RedactionPolicyBuilder, Sensitivity};
 
 use super::{
-    BodyBudget,
-    HttpRedactionPolicy,
-    TextBodyPolicy,
-    UnkeyedJsonValuePolicy,
-    UrlPathPolicy,
+    BodyBudget, HttpRedactionPolicy, TextBodyPolicy, UnkeyedJsonValuePolicy, UrlPathPolicy,
 };
 
 /// Mutable construction state for an [`HttpRedactionPolicy`].
@@ -532,10 +522,7 @@ impl HttpRedactionPolicyBuilder {
     ///
     /// The updated builder.
     #[inline]
-    pub const fn unkeyed_json_value_policy(
-        mut self,
-        policy: UnkeyedJsonValuePolicy,
-    ) -> Self {
+    pub const fn unkeyed_json_value_policy(mut self, policy: UnkeyedJsonValuePolicy) -> Self {
         self.unkeyed_json_value_policy = policy;
         self
     }

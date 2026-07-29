@@ -8,34 +8,16 @@
 //! Immutable field-classification and masking policy.
 
 use std::{
-    collections::{
-        BTreeMap,
-        BTreeSet,
-    },
+    collections::{BTreeMap, BTreeSet},
     ops::ControlFlow,
-    sync::{
-        Arc,
-        LazyLock,
-        OnceLock,
-    },
+    sync::{Arc, LazyLock, OnceLock},
 };
 
 use super::{
-    AllowRule,
-    DiagnosticBudget,
-    FieldClassification,
-    FieldMatchKind,
-    FieldNameMatching,
-    GlobalDefaultAlreadySet,
-    MaskingPolicy,
-    RedactionPolicyBuilder,
-    SensitiveFieldPreset,
-    SensitiveFieldRule,
-    Sensitivity,
-    internal::{
-        RedactionPolicyInner,
-        visit_canonical_field_candidates,
-    },
+    AllowRule, DiagnosticBudget, FieldClassification, FieldMatchKind, FieldNameMatching,
+    GlobalDefaultAlreadySet, MaskingPolicy, RedactionPolicyBuilder, SensitiveFieldPreset,
+    SensitiveFieldRule, Sensitivity, UnknownFieldPolicy,
+    internal::{RedactionPolicyInner, visit_canonical_field_candidates},
 };
 
 /// Built-in sensitive fields not owned by a named preset.
@@ -53,8 +35,7 @@ const STANDARD_EXTRA_FIELDS: &[(&str, Sensitivity)] = &[
 ];
 
 /// Lazily initialized built-in conservative policy.
-static STANDARD_POLICY: LazyLock<RedactionPolicy> =
-    LazyLock::new(RedactionPolicy::build_standard);
+static STANDARD_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(RedactionPolicy::build_standard);
 
 /// Process-wide default policy installed at most once.
 static GLOBAL_DEFAULT: OnceLock<RedactionPolicy> = OnceLock::new();
@@ -171,6 +152,7 @@ impl RedactionPolicy {
         allow_exact: BTreeSet<String>,
         allow_suffix: BTreeSet<String>,
         matching: FieldNameMatching,
+        unknown_field_policy: UnknownFieldPolicy,
         masking: MaskingPolicy,
         diagnostic_budget: DiagnosticBudget,
     ) -> Self {
@@ -180,6 +162,7 @@ impl RedactionPolicy {
                 allow_exact,
                 allow_suffix,
                 matching,
+                unknown_field_policy,
                 masking,
             }),
             diagnostic_budget,
@@ -216,9 +199,7 @@ impl RedactionPolicy {
     /// Returns [`GlobalDefaultAlreadySet`] when a policy was installed by an
     /// earlier successful call. The existing policy is never replaced.
     #[inline]
-    pub fn set_global_default(
-        policy: Self,
-    ) -> Result<(), GlobalDefaultAlreadySet> {
+    pub fn set_global_default(policy: Self) -> Result<(), GlobalDefaultAlreadySet> {
         GLOBAL_DEFAULT
             .set(policy)
             .map_err(|_| GlobalDefaultAlreadySet)
@@ -243,10 +224,7 @@ impl RedactionPolicy {
     ///
     /// A borrowed sensitive or allow rule for the first matching candidate, or
     /// [`FieldClassification::Unknown`] when no rule matches.
-    pub fn classify_field<'a>(
-        &'a self,
-        field: &str,
-    ) -> FieldClassification<'a> {
+    pub fn classify_field<'a>(&'a self, field: &str) -> FieldClassification<'a> {
         self.classify_field_with_matching(field, self.inner.matching)
     }
 
@@ -263,7 +241,7 @@ impl RedactionPolicy {
     #[must_use]
     #[inline]
     pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
-        self.classify_field(field).sensitivity()
+        self.effective_sensitivity(self.classify_field(field))
     }
 
     /// Classifies a field using an explicit candidate-generation breadth.
@@ -286,45 +264,32 @@ impl RedactionPolicy {
         field: &str,
         matching: FieldNameMatching,
     ) -> FieldClassification<'a> {
-        match visit_canonical_field_candidates(
-            field,
-            matching,
-            |is_exact, candidate| {
-                let match_kind = if is_exact {
-                    FieldMatchKind::Exact
-                } else {
-                    FieldMatchKind::TokenSuffix
-                };
-                if is_exact
-                    && let Some(field) = self.inner.allow_exact.get(candidate)
-                {
-                    return ControlFlow::Break(FieldClassification::Allowed {
-                        rule: AllowRule::new(field, FieldNameMatching::Exact),
-                        match_kind,
-                    });
-                }
-                if let Some(field) = self.inner.allow_suffix.get(candidate) {
-                    return ControlFlow::Break(FieldClassification::Allowed {
-                        rule: AllowRule::new(
-                            field,
-                            FieldNameMatching::ExactOrTokenSuffix,
-                        ),
-                        match_kind,
-                    });
-                }
-                if let Some((field, sensitivity)) =
-                    self.inner.sensitive.get_key_value(candidate)
-                {
-                    return ControlFlow::Break(
-                        FieldClassification::Sensitive {
-                            rule: SensitiveFieldRule::new(field, *sensitivity),
-                            match_kind,
-                        },
-                    );
-                }
-                ControlFlow::Continue(())
-            },
-        ) {
+        match visit_canonical_field_candidates(field, matching, |is_exact, candidate| {
+            let match_kind = if is_exact {
+                FieldMatchKind::Exact
+            } else {
+                FieldMatchKind::TokenSuffix
+            };
+            if is_exact && let Some(field) = self.inner.allow_exact.get(candidate) {
+                return ControlFlow::Break(FieldClassification::Allowed {
+                    rule: AllowRule::new(field, FieldNameMatching::Exact),
+                    match_kind,
+                });
+            }
+            if let Some(field) = self.inner.allow_suffix.get(candidate) {
+                return ControlFlow::Break(FieldClassification::Allowed {
+                    rule: AllowRule::new(field, FieldNameMatching::ExactOrTokenSuffix),
+                    match_kind,
+                });
+            }
+            if let Some((field, sensitivity)) = self.inner.sensitive.get_key_value(candidate) {
+                return ControlFlow::Break(FieldClassification::Sensitive {
+                    rule: SensitiveFieldRule::new(field, *sensitivity),
+                    match_kind,
+                });
+            }
+            ControlFlow::Continue(())
+        }) {
             ControlFlow::Break(classification) => classification,
             ControlFlow::Continue(()) => FieldClassification::Unknown,
         }
@@ -343,12 +308,10 @@ impl RedactionPolicy {
     ///
     /// `Some(level)` for an exact sensitive rule, or `None` when an allow rule
     /// wins or no exact sensitive rule matches.
-    pub(crate) fn sensitivity_for_exact(
-        &self,
-        field: &str,
-    ) -> Option<Sensitivity> {
-        self.classify_field_with_matching(field, FieldNameMatching::Exact)
-            .sensitivity()
+    pub(crate) fn sensitivity_for_exact(&self, field: &str) -> Option<Sensitivity> {
+        self.effective_sensitivity(
+            self.classify_field_with_matching(field, FieldNameMatching::Exact),
+        )
     }
 
     /// Returns the configured sensitive-field matching breadth.
@@ -359,6 +322,16 @@ impl RedactionPolicy {
     #[inline(always)]
     pub fn matching(&self) -> FieldNameMatching {
         self.inner.matching
+    }
+
+    /// Returns fallback behavior for fields with no matching rule.
+    ///
+    /// # Returns
+    ///
+    /// The immutable unknown-field policy configured for this snapshot.
+    #[inline(always)]
+    pub fn unknown_field_policy(&self) -> UnknownFieldPolicy {
+        self.inner.unknown_field_policy
     }
 
     /// Returns the configured value-masking policy.
@@ -376,12 +349,11 @@ impl RedactionPolicy {
     /// # Returns
     ///
     /// Borrowed read-only views of all sensitive-field rules.
-    pub fn sensitive_rules(
-        &self,
-    ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
-        self.inner.sensitive.iter().map(|(field, sensitivity)| {
-            SensitiveFieldRule::new(field, *sensitivity)
-        })
+    pub fn sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
+        self.inner
+            .sensitive
+            .iter()
+            .map(|(field, sensitivity)| SensitiveFieldRule::new(field, *sensitivity))
     }
 
     /// Iterates exact allow rules followed by suffix allow rules.
@@ -397,9 +369,11 @@ impl RedactionPolicy {
             .allow_exact
             .iter()
             .map(|field| AllowRule::new(field, FieldNameMatching::Exact));
-        let suffix = self.inner.allow_suffix.iter().map(|field| {
-            AllowRule::new(field, FieldNameMatching::ExactOrTokenSuffix)
-        });
+        let suffix = self
+            .inner
+            .allow_suffix
+            .iter()
+            .map(|field| AllowRule::new(field, FieldNameMatching::ExactOrTokenSuffix));
         exact.chain(suffix)
     }
 
@@ -428,6 +402,28 @@ impl RedactionPolicy {
     /// An owned copy of all suffix allow rules.
     pub(super) fn clone_allow_suffix(&self) -> BTreeSet<String> {
         self.inner.allow_suffix.clone()
+    }
+
+    /// Applies fallback behavior after complete explicit-rule classification.
+    ///
+    /// # Parameters
+    ///
+    /// * classification - Result of the current candidate traversal.
+    ///
+    /// # Returns
+    ///
+    /// The matched sensitivity, no sensitivity for an explicit allow rule, or
+    /// the configured fallback for an unknown field.
+    #[inline(always)]
+    fn effective_sensitivity(
+        &self,
+        classification: FieldClassification<'_>,
+    ) -> Option<Sensitivity> {
+        match classification {
+            FieldClassification::Sensitive { rule, .. } => Some(rule.sensitivity()),
+            FieldClassification::Allowed { .. } => None,
+            FieldClassification::Unknown => self.unknown_field_policy().sensitivity(),
+        }
     }
 }
 

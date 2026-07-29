@@ -30,8 +30,7 @@ fn test_serde_entry_preserves_type_generics() {
     };
 
     assert_eq!(
-        serde_json::to_value(value.redacted())
-            .expect("borrowed redacted record serializes"),
+        serde_json::to_value(value.redacted()).expect("borrowed redacted record serializes"),
         serde_json::json!({
             "visible": "shown",
             "secret": "<redacted>",

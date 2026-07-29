@@ -49,10 +49,11 @@ readme = "README.md"
 [features]
 default = []
 serde = ["dep:serde"]
+json = ["dep:serde_json"]
 http = [
+    "json",
     "dep:form_urlencoded",
     "dep:http",
-    "dep:serde_json",
     "dep:url",
 ]
 

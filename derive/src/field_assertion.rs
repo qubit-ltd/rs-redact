@@ -8,21 +8,10 @@
 //! Field-scoped capability assertions for generated implementations.
 
 use proc_macro2::TokenStream;
-use quote::{
-    format_ident,
-    quote_spanned,
-};
-use syn::{
-    Field,
-    Ident,
-    Path,
-    spanned::Spanned,
-};
+use quote::{format_ident, quote_spanned};
+use syn::{Field, Ident, Path, spanned::Spanned};
 
-use crate::{
-    field_mode::FieldMode,
-    immutable_trait_name::ImmutableTraitName,
-};
+use crate::{field_mode::FieldMode, immutable_trait_name::ImmutableTraitName};
 
 /// Generates the immutable capability assertion for one field.
 ///
@@ -47,14 +36,14 @@ pub(crate) fn immutable(
     mode: &FieldMode,
     runtime: &Path,
 ) -> TokenStream {
-    let helper =
-        helper_name(type_name, field, field_name, mode.immutable_trait_name());
+    let helper = helper_name(type_name, field, field_name, mode.immutable_trait_name());
     match mode {
         FieldMode::Plain | FieldMode::Skip => TokenStream::new(),
         FieldMode::Level(sensitivity) => {
             let level = sensitivity.runtime_tokens(runtime);
             quote_spanned! {field.span()=>
                 #[allow(non_snake_case)]
+                #[allow(clippy::ptr_arg)]
                 #[inline(always)]
                 fn #helper<'a, __QubitRedactField>(
                     value: &'a __QubitRedactField,
@@ -111,6 +100,19 @@ pub(crate) fn immutable(
                 #runtime::RedactedMap::new(value, policy.clone())
             }
         },
+        FieldMode::Json => quote_spanned! {field.span()=>
+            #runtime::__qubit_redact_json! {
+                #[allow(non_snake_case)]
+                #[allow(clippy::ptr_arg)]
+                #[inline(always)]
+                fn #helper<'a>(
+                    value: &'a ::std::string::String,
+                    policy: &'a #runtime::RedactionPolicy,
+                ) -> #runtime::RedactedJsonText<'a, 'a> {
+                    #runtime::RedactedJsonText::new(value, policy)
+                }
+            }
+        },
     }
 }
 
@@ -134,8 +136,7 @@ pub(crate) fn mutable(
     mode: &FieldMode,
     runtime: &Path,
 ) -> TokenStream {
-    let helper =
-        helper_name(type_name, field, field_name, mode.mutable_trait_name());
+    let helper = helper_name(type_name, field, field_name, mode.mutable_trait_name());
     match mode {
         FieldMode::Plain | FieldMode::Skip => TokenStream::new(),
         FieldMode::Level(sensitivity) => {
@@ -190,6 +191,18 @@ pub(crate) fn mutable(
                     > + ?Sized,
             {
                 #runtime::RedactMapValueMut::redact_map_in_place(value, policy);
+            }
+        },
+        FieldMode::Json => quote_spanned! {field.span()=>
+            #runtime::__qubit_redact_json! {
+                #[allow(non_snake_case)]
+                #[inline(always)]
+                fn #helper(
+                    value: &mut ::std::string::String,
+                    policy: &#runtime::RedactionPolicy,
+                ) {
+                    #runtime::redact_json_text_in_place(value, policy);
+                }
             }
         },
     }
@@ -264,9 +277,20 @@ pub(crate) fn serialization(
                 #runtime::RedactedMap::new(value, policy.clone())
             }
         },
-        FieldMode::Plain | FieldMode::Level(_) | FieldMode::Skip => {
-            TokenStream::new()
-        }
+        FieldMode::Json => quote_spanned! {field.span()=>
+            #runtime::__qubit_redact_json! {
+                #[allow(non_snake_case)]
+                #[allow(clippy::ptr_arg)]
+                #[inline(always)]
+                fn #helper<'a>(
+                    value: &'a ::std::string::String,
+                    policy: &'a #runtime::RedactionPolicy,
+                ) -> #runtime::RedactedJsonText<'a, 'a> {
+                    #runtime::RedactedJsonText::new(value, policy)
+                }
+            }
+        },
+        FieldMode::Plain | FieldMode::Level(_) | FieldMode::Skip => TokenStream::new(),
     }
 }
 

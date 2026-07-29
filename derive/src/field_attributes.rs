@@ -8,18 +8,9 @@
 //! Strict field-level `redact` attribute parsing.
 
 use quote::ToTokens;
-use syn::{
-    Field,
-    Ident,
-    LitStr,
-    Meta,
-    Token,
-};
+use syn::{Field, Ident, LitStr, Meta, Token};
 
-use crate::{
-    field_mode::FieldMode,
-    sensitivity::Sensitivity,
-};
+use crate::{field_mode::FieldMode, sensitivity::Sensitivity};
 
 /// Parsed attributes selecting exactly one mode for a named field.
 #[must_use]
@@ -39,18 +30,14 @@ impl FieldAttributes {
     ///
     /// # Returns
     ///
-    /// A unique plain, level, skip, nested, or map mode.
+    /// A unique plain, level, skip, nested, map, or JSON mode.
     ///
     /// # Errors
     ///
     /// Returns an error at the offending attribute for empty attributes,
     /// duplicate or conflicting modes, unknown keys, invalid arguments, or an
     /// unsupported sensitivity spelling.
-    pub(crate) fn parse(
-        field: &Field,
-        type_name: &Ident,
-        field_name: &str,
-    ) -> syn::Result<Self> {
+    pub(crate) fn parse(field: &Field, type_name: &Ident, field_name: &str) -> syn::Result<Self> {
         let mut selected = None;
         for attribute in &field.attrs {
             if !attribute.path().is_ident("redact") {
@@ -88,7 +75,7 @@ impl FieldAttributes {
     ///
     /// # Returns
     ///
-    /// The parsed plain, explicit-level, skip, nested, or map mode.
+    /// The parsed plain, explicit-level, skip, nested, map, or JSON mode.
     #[inline(always)]
     pub(crate) const fn mode(&self) -> &FieldMode {
         &self.mode
@@ -128,12 +115,7 @@ fn parse_mode(
             &literal, type_name, field_name,
         )?))
     } else if meta.path.is_ident("skip") {
-        require_bare(
-            meta,
-            type_name,
-            field_name,
-            "bare `skip` without arguments",
-        )?;
+        require_bare(meta, type_name, field_name, "bare `skip` without arguments")?;
         Ok(FieldMode::Skip)
     } else if meta.path.is_ident("nested") {
         require_bare(
@@ -152,11 +134,19 @@ fn parse_mode(
              and the complete policy",
         )?;
         Ok(FieldMode::Map)
+    } else if meta.path.is_ident("json") {
+        require_bare(
+            meta,
+            type_name,
+            field_name,
+            "bare `json` without arguments; JSON text is parsed and redacted by field key",
+        )?;
+        Ok(FieldMode::Json)
     } else {
         let key = meta.path.to_token_stream().to_string();
         Err(meta.error(format!(
             "Redact derive for `{type_name}` field `{field_name}` has unknown \
-             attribute `{key}`; use `level = \"...\"`, `skip`, `nested`, or `map`",
+             attribute `{key}`; use `level = \"...\"`, `skip`, `nested`, `map`, or `json`",
         )))
     }
 }
@@ -215,7 +205,7 @@ fn select_mode(
         return Err(meta.error(format!(
             "Redact derive for `{type_name}` field `{field_name}` has conflicting or \
              repeated modes; choose exactly one of `level = \"...\"`, `skip`, \
-             `nested`, or `map`; map values are classified by runtime key and the \
+             `nested`, `map`, or `json`; map values are classified by runtime key and the \
              complete policy",
         )));
     }
@@ -244,8 +234,6 @@ fn field_error(
 ) -> syn::Error {
     syn::Error::new_spanned(
         tokens,
-        format!(
-            "Redact derive for `{type_name}` field `{field_name}`: {message}"
-        ),
+        format!("Redact derive for `{type_name}` field `{field_name}`: {message}"),
     )
 }

@@ -51,8 +51,7 @@ fn test_serde_external_enum_preserves_wire_shapes() {
     };
 
     assert_eq!(
-        serde_json::to_value(named.redacted())
-            .expect("external named variant serializes"),
+        serde_json::to_value(named.redacted()).expect("external named variant serializes"),
         serde_json::json!({
             "named": {
                 "public": "shown",
@@ -61,18 +60,13 @@ fn test_serde_external_enum_preserves_wire_shapes() {
         }),
     );
     assert_eq!(
-        serde_json::to_value(
-            ExternalEvent::Newtype(String::from("raw-secret")).redacted()
-        )
-        .expect("external newtype variant serializes"),
+        serde_json::to_value(ExternalEvent::Newtype(String::from("raw-secret")).redacted())
+            .expect("external newtype variant serializes"),
         serde_json::json!({"newtype": "<redacted>"}),
     );
     assert_eq!(
-        serde_json::to_value(
-            ExternalEvent::Tuple(String::from("raw-secret"), "shown")
-                .redacted()
-        )
-        .expect("external tuple variant serializes"),
+        serde_json::to_value(ExternalEvent::Tuple(String::from("raw-secret"), "shown").redacted())
+            .expect("external tuple variant serializes"),
         serde_json::json!({"tuple": ["<redacted>", "shown"]}),
     );
     assert_eq!(

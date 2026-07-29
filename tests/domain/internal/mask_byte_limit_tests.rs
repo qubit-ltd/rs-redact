@@ -9,18 +9,13 @@
 
 use std::collections::BTreeMap;
 
-use qubit_redact::{
-    LogOutputLimit,
-    RedactedMap,
-    RedactionPolicy,
-};
+use qubit_redact::{LogOutputLimit, RedactedMap, RedactionPolicy};
 
 /// Verifies bounded rendering keeps sensitive map values hidden and bounded.
 #[test]
 fn test_mask_byte_limit_keeps_sensitive_map_output_bounded() {
     let values = BTreeMap::from([("password", "secret-value".repeat(128))]);
-    let limit = LogOutputLimit::new(24)
-        .expect("the bounded rendering limit should be valid");
+    let limit = LogOutputLimit::new(24).expect("the bounded rendering limit should be valid");
 
     let output = RedactedMap::new(&values, RedactionPolicy::default())
         .with_output_limit(limit)

@@ -97,9 +97,12 @@ http = "1.4"
 ## Core concepts
 
 A `RedactionPolicy` is an immutable snapshot of field rules, matching behavior,
-masks, and diagnostic budgets. A field is **Sensitive**, **Allowed** by an
-explicit exception, or **Unknown** and preserved. `Redactor` owns one snapshot
-and applies it consistently.
+masks, unknown-field behavior, and diagnostic budgets. A field is **Sensitive**,
+**Allowed** by an explicit exception, or **Unknown**. `UnknownFieldPolicy`
+defaults to `PassThrough`; set `Redact(Sensitivity::Secret)` when an
+unclassified field must be masked without changing the observable
+`classify_field()` result. `Redactor` owns one snapshot and applies it
+consistently.
 
 `RedactedText` means field-sensitive redaction occurred. It intentionally does
 not implement `Display`: call `escape_for_log()` before a plain-text log
@@ -289,6 +292,12 @@ for the complete attribute and Serde compatibility rules.
 Serialization is opt-in: enable the `serde` feature, declare `serde` directly,
 and add `#[redact(serde)]`. `Redacted` does not implement `Deserialize`.
 
+For a `String` that stores JSON, enable the `json` feature and use
+`#[redact(json)]`. It recursively applies the policy to JSON object keys,
+renders a redacted view for `Redact`, rewrites compact redacted JSON for
+`RedactMut`, and fails closed to an opaque mask when parsing fails. Serde keeps
+the field as a JSON string rather than embedding the parsed object.
+
 `#[redact(debug)]` and `#[redact(display)]` opt the original type into safe
 formatting through the process-wide default policy. Do not combine either with
 an existing implementation of the same trait.
@@ -455,8 +464,9 @@ visible representation was unsafe.
 
 ## Security boundaries and verification
 
-- Unknown field names pass through. Add rules for every controlled field name;
-  this library is not a general secret detector.
+- Unknown field names pass through unless `UnknownFieldPolicy::Redact(...)` is
+  configured. Add rules for every controlled field name; this library is not a
+  general secret detector.
 - Allow rules deliberately reveal data and take precedence. Prefer exact rules.
 - Never format `RedactedText` directly; call `escape_for_log()` first.
 - Do not use `RedactMut` as a memory-erasure mechanism.

@@ -7,12 +7,7 @@
 // =============================================================================
 //! Tests for explicit recursive domain-object redaction.
 
-use qubit_redact::{
-    MaskPolicy,
-    Redact,
-    RedactionPolicy,
-    Sensitivity,
-};
+use qubit_redact::{MaskPolicy, Redact, RedactionPolicy, Sensitivity};
 use qubit_redact_derive::Redact;
 
 /// Sensitive nested credential.

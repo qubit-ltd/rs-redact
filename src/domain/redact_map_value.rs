@@ -7,16 +7,9 @@
 // =============================================================================
 //! Formatting contract for text-valued map-like containers.
 
-use std::fmt::{
-    self,
-    Debug,
-    Formatter,
-};
+use std::fmt::{self, Debug, Formatter};
 
-use crate::{
-    RedactValue,
-    RedactionPolicy,
-};
+use crate::{RedactValue, RedactionPolicy};
 
 /// Formats map values after classifying each value by its runtime key.
 ///

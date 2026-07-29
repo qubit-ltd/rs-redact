@@ -17,9 +17,6 @@ mod redacted_serialize;
 
 #[cfg(feature = "serde")]
 pub use internally_tagged_serializer::serialize_internally_tagged;
-pub(crate) use mask_byte_limit::{
-    mask_byte_limit,
-    with_mask_byte_limit,
-};
+pub(crate) use mask_byte_limit::{mask_byte_limit, with_mask_byte_limit};
 #[cfg(feature = "serde")]
 pub use redacted_serialize::RedactedSerialize;

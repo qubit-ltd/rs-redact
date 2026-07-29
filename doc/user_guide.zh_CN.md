@@ -91,9 +91,10 @@ http = "1.4"
 
 ## 核心概念
 
-`RedactionPolicy` 是字段规则、匹配方式、掩码和诊断预算的不可变快照。字段决策分为：
-**Sensitive**（遮盖）、显式例外的 **Allowed**（允许展示）和 **Unknown**（原样保留）。
-`Redactor` 始终使用同一份快照。
+`RedactionPolicy` 是字段规则、匹配方式、掩码、未知字段行为和诊断预算的不可变快照。字段决策分为：
+**Sensitive**（遮盖）、显式例外的 **Allowed**（允许展示）和 **Unknown**。
+`UnknownFieldPolicy` 默认是 `PassThrough`；边界必须遮盖未分类字段时设置
+`Redact(Sensitivity::Secret)`，而 `classify_field()` 仍报告 `Unknown`。`Redactor` 始终使用同一份快照。
 
 `RedactedText` 只表示“已按字段规则处理”，它故意不实现 `Display`。写入纯文本日志前，
 必须调用 `escape_for_log()` 得到可安全显示的 `LogSafeText`。
@@ -267,6 +268,10 @@ fn main() {
 序列化必须显式 opt-in：启用 `serde` feature，在使用方直接声明 `serde`，并添加
 `#[redact(serde)]`。`Redacted` 不实现 `Deserialize`。
 
+若 `String` 存储 JSON，启用 `json` feature 并使用 `#[redact(json)]`。它按 JSON
+对象 key 递归应用策略，`Redact` 格式化脱敏视图，`RedactMut` 改写为紧凑脱敏 JSON；
+解析失败时安全关闭为不透明掩码。Serde 仍将字段序列化为 JSON 字符串，而非嵌入解析后的对象。
+
 `#[redact(debug)]` 和 `#[redact(display)]` 让原类型通过进程级默认策略进行安全格式化。
 不要将它们与同一 trait 的已有实现组合使用。
 
@@ -420,7 +425,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 安全边界与验证
 
-- 未知字段原样通过；为所有可控字段名配置规则。本库不是通用秘密探测器。
+- 未知字段默认原样通过，除非配置 `UnknownFieldPolicy::Redact(...)`；为所有可控字段名配置规则。
+  本库不是通用秘密探测器。
 - 允许规则会有意披露数据且优先级更高；优先使用精确允许规则。
 - 不要直接格式化 `RedactedText`；先调用 `escape_for_log()`。
 - 不要把 `RedactMut` 当作内存擦除机制。

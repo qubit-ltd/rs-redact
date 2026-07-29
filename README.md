@@ -77,6 +77,7 @@ The original value remains available to application logic. Call
 | Core scalar, map, process, and text support | `qubit-redact = "0.3"` |
 | Domain-object derives | Add `qubit-redact-derive = "0.3"`. |
 | Serialize redacted views | Enable `serde` and declare `serde` directly. |
+| Redact `serde_json::Value` or JSON text fields | Enable `json`; add `serde_json` directly when your application uses it. |
 | HTTP diagnostics | Enable `http`; add `http` directly when your application uses its types. |
 
 ```toml
@@ -88,8 +89,9 @@ http = "1.4"
 
 ## Safety Boundaries
 
-- Unknown field names pass through unchanged. This crate is not a general
-  secret detector; configure every field name your application controls.
+- Unknown field names pass through by default. Set
+  `UnknownFieldPolicy::Redact(Sensitivity::Secret)` when a boundary must mask
+  every unclassified field; `classify_field()` still reports `Unknown`.
 - Allow rules intentionally win and can disclose data. Prefer exact allow rules
   and treat each one as a security decision.
 - `RedactedText` is not displayable by design. Redaction and log escaping are
