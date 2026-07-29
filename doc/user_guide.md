@@ -69,9 +69,10 @@ boundary to obtain `LogSafeText`.
 `RedactionPolicyBuilder::default()` start with no sensitive or allow rules.
 `RedactionPolicy::default()` remains the conservative process-wide snapshot.
 `Redactor::default()` uses that snapshot.
-Call `.load_default()` first to extend that snapshot; it replaces every earlier
-builder setting, including a recorded validation error, so calling it last
-discards your changes. `raise` never weakens a rule; `override_level`
+Use `RedactionPolicy::builder_from_default()` to extend that snapshot.
+`.load_default()` replaces every earlier builder setting, including a recorded
+validation error, so calling it last discards your changes. `raise` never
+weakens a rule; `override_level`
 deliberately replaces it. Exact allow rules are narrow; suffix rules can expose
 prefixed fields and need security review.
 
@@ -297,8 +298,9 @@ budget and stops with a truncation marker instead of reading excess input.
 The optional `http` feature provides an immutable `HttpRedactionPolicy` for
 headers, query/form fields, and structured bodies. Its builder starts without
 field rules, as does `HttpRedactionPolicyBuilder::new()` and `Default::default()`.
-Call `.load_default()` first when extending the conservative HTTP snapshot; it
-replaces all prior header, query, body, behavior, and budget settings.
+Use `HttpRedactionPolicy::builder_from_default()` when extending the
+conservative HTTP snapshot. `.load_default()` replaces all prior header, query,
+body, behavior, and budget settings.
 `HttpRedactionPolicy::default()` and `HttpRedactor::default()` continue to use
 that conservative snapshot.
 
@@ -323,8 +325,7 @@ use qubit_redact::Sensitivity;
 use qubit_redact::http::{BodyCapture, HttpRedactionPolicy, HttpRedactor};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = HttpRedactionPolicy::builder()
-        .load_default()
+    let policy = HttpRedactionPolicy::builder_from_default()
         .raise_body("password", Sensitivity::Secret)
         .raise_query("api_key", Sensitivity::Secret)
         .build()?;

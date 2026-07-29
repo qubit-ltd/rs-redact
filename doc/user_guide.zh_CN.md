@@ -61,8 +61,8 @@ http = "1.4"
 `RedactionPolicy::builder()`、`RedactionPolicyBuilder::new()` 和
 `RedactionPolicyBuilder::default()` 都从没有敏感或允许规则的状态开始。
 `RedactionPolicy::default()` 仍是保守的进程级默认快照，`Redactor::default()` 使用该快照。
-要在该快照上扩展，必须先调用 `.load_default()`；它会替换此前所有 builder 设置（包括已记录的
-校验错误），因此最后调用会丢弃已配置的内容。`raise` 不会降低既有等级；需要有意替换时使用
+要在该快照上扩展，使用 `RedactionPolicy::builder_from_default()`。
+`.load_default()` 会替换此前所有 builder 设置（包括已记录的校验错误），因此最后调用会丢弃已配置的内容。`raise` 不会降低既有等级；需要有意替换时使用
 `override_level`。
 精确允许规则范围窄；后缀允许规则可能放行带前缀字段，需安全审查。
 
@@ -276,8 +276,8 @@ fn main() {
 
 可选 `http` feature 提供不可变 `HttpRedactionPolicy`，分别处理 Header、query/form 和
 结构化 body。它的 builder、`HttpRedactionPolicyBuilder::new()` 与 `Default::default()`
-都不带字段规则。要在保守 HTTP 快照上扩展，必须先调用 `.load_default()`；它会替换此前
-所有 header、query、body、行为和预算设置。
+都不带字段规则。要在保守 HTTP 快照上扩展，使用 `HttpRedactionPolicy::builder_from_default()`。
+`.load_default()` 会替换此前所有 header、query、body、行为和预算设置。
 `HttpRedactionPolicy::default()` 和 `HttpRedactor::default()` 仍使用这一保守快照。
 
 `HttpRedactor` 应用该快照。`BodyCapture` 提供借用字节和真实完整性元数据（`complete`、
@@ -299,8 +299,7 @@ use qubit_redact::Sensitivity;
 use qubit_redact::http::{BodyCapture, HttpRedactionPolicy, HttpRedactor};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = HttpRedactionPolicy::builder()
-        .load_default()
+    let policy = HttpRedactionPolicy::builder_from_default()
         .raise_body("password", Sensitivity::Secret)
         .raise_query("api_key", Sensitivity::Secret)
         .build()?;

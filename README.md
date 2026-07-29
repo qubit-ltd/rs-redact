@@ -109,7 +109,7 @@ fn main() {
 
     RedactionPolicy::set_global_default(policy.clone())
         .expect("the application installs its default only once");
-    let inherited = RedactionPolicy::builder()
+    let inherited = RedactionPolicy::builder_from_default()
         .build()
         .expect("the default snapshot remains valid");
     assert_eq!(inherited.sensitivity_for("license_key"), Some(Sensitivity::High));
@@ -129,10 +129,10 @@ decisions and should be used only after reviewing that risk.
 `RedactionPolicy::set_global_default(policy)` can successfully install a custom
 default only once; a later call returns `GlobalDefaultAlreadySet` and never
 replaces it. `RedactionPolicy::builder()`, `RedactionPolicyBuilder::new()`, and
-`RedactionPolicyBuilder::default()` start from the current conservative default
-snapshot, so they can be extended directly. Use `.empty_builder()` only when a
-policy must contain no inherited rules. `.load_default()` explicitly resets a
-builder to the current default snapshot and replaces every previous setting,
+`RedactionPolicyBuilder::default()` start without sensitive or allow rules.
+Use `RedactionPolicy::builder_from_default()` to create a builder from the
+current conservative default snapshot. `.load_default()` explicitly resets a
+builder to that snapshot and replaces every previous setting,
 including a recorded validation error. Previously created policies, builders,
 and redactors remain unchanged.
 
@@ -363,7 +363,7 @@ equivalent Cargo.toml entries above). The core HTTP types have distinct roles:
 | Type | Role |
 | --- | --- |
 | `HttpRedactionPolicy` | Immutable, per-context snapshot for headers, query/form fields, bodies, behavior choices, and budgets. |
-| `HttpRedactionPolicyBuilder` | Its `new()` and `Default` start from the conservative HTTP snapshot, so header, query, and body rules can be extended directly. `.load_default()` explicitly resets all earlier builder state. |
+| `HttpRedactionPolicyBuilder` | Its `new()` and `Default` start without field rules while retaining safe behavior and budgets. Use `HttpRedactionPolicy::builder_from_default()` to extend the conservative HTTP snapshot; `.load_default()` resets all earlier builder state. |
 | `HttpRedactor` | Applies one immutable HTTP policy to URLs, forms, headers, and caller-supplied body captures. |
 | `BodyCapture` | Borrowed bytes plus truthful completeness metadata; use `complete`, `prefix`, or a truncated constructor to state what was available. |
 | `BodyBudget` | Bounds body bytes inspected and final body text rendered. |
