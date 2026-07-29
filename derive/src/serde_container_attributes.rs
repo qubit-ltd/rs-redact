@@ -14,7 +14,7 @@ use syn::{
 };
 
 use crate::{
-    serde_container_attribute_parser::SerdeContainerAttributeParser,
+    internal::SerdeContainerAttributeParser,
     serde_enum_representation::SerdeEnumRepresentation,
     serde_rename_rule::SerdeRenameRule,
 };
@@ -48,6 +48,7 @@ impl SerdeContainerAttributes {
     ///
     /// Returns a targeted error for unsupported attributes, duplicates,
     /// invalid representation combinations, or enum-only controls on structs.
+    #[inline(always)]
     pub(crate) fn parse(
         input: &DeriveInput,
         enabled: bool,

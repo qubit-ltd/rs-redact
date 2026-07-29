@@ -7,10 +7,6 @@
 // =============================================================================
 //! Parser for the supported Serde container attribute allowlist.
 
-// qubit-style: allow source-test-pair
-// This parser is exercised through the Serde container attribute integration
-// and compile-fail tests.
-
 use syn::{
     Attribute,
     Data,
@@ -27,6 +23,10 @@ use crate::{
 };
 
 /// Incremental state for Serde container attribute parsing.
+///
+/// # Type Parameters
+///
+/// * `'input` - Lifetime of the borrowed derive input being parsed.
 pub(crate) struct SerdeContainerAttributeParser<'input> {
     /// Complete derive input that owns the parsed attributes.
     input: &'input DeriveInput,
@@ -61,6 +61,11 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     ///
     /// Returns targeted errors for malformed, duplicate, enum-only, or
     /// unsupported controls and incompatible enum representations.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if `syn` supplies a nested metadata path without any
+    /// segments, which violates the `ParseNestedMeta` path invariant.
     pub(crate) fn parse(
         input: &'input DeriveInput,
         enabled: bool,
@@ -293,6 +298,11 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     /// # Returns
     ///
     /// The targeted diagnostic explaining the supported allowlist.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if `syn` supplies a nested metadata path without any
+    /// segments, which violates the `ParseNestedMeta` path invariant.
     fn unsupported_control_error(
         &self,
         meta: syn::meta::ParseNestedMeta<'_>,
