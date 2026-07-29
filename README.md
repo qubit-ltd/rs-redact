@@ -7,21 +7,21 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
-Qubit Redact prevents secrets from leaking through Rust logs, `Debug` output,
-process diagnostics, and HTTP traces. Instead of scattering string replacement
-across call sites, define immutable policies and render through typed, bounded,
-log-safe results.
+Qubit Redact prevents sensitive values from leaking through Rust diagnostics:
+logs, `Debug` output, process arguments, environment variables, and optional
+HTTP traces. Define immutable policies once, then render typed results at an
+explicit log-safe boundary.
 
 ## Why Qubit Redact
 
-- One policy model covers named fields, maps, domain objects, process arguments,
-  environment variables, and optional HTTP diagnostics.
-- Typed results distinguish field redaction from text that is safe to write to
-  logs, making the security boundary explicit in code.
-- Malformed or truncated structured HTTP data fails closed, while diagnostic
-  input and output budgets limit resource use and disclosure.
-- The core has no external runtime dependencies; `serde` and `http` support are
-  opt-in.
+- One policy model classifies named fields across scalar values, maps, domain
+  objects, process diagnostics, and optional HTTP data.
+- Typed results distinguish redacted values from text that is safe to write to
+  a plain-text log.
+- Malformed or truncated structured HTTP input fails closed, and diagnostic
+  budgets bound inspection, output, and disclosure.
+- The default feature set is empty; the core crate has no external runtime
+  dependencies.
 
 ## Quick Start
 
@@ -41,470 +41,70 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .raise("api_key", Sensitivity::Secret)
         .build()?;
     let redactor = Redactor::new(policy);
-    let user_id = "alpine42";
-    let phone_number = "13800138000";
-    let credit_card = "4111111111111111";
-    let api_key = "sk_live_123";
-    let display_name = "Alice\nAdmin";
 
-    assert_eq!(redactor.redact("user_id", user_id).as_str(), "al****42");
-    assert_eq!(redactor.redact("phone_number", phone_number).as_str(), "*******0");
-    assert_eq!(redactor.redact("credit_card", credit_card).as_str(), "****");
-    assert_eq!(redactor.redact("api_key", api_key).as_str(), "<redacted>");
-    assert_eq!(redactor.redact("display_name", display_name).as_str(), display_name);
-    assert_eq!(api_key, "sk_live_123");
-    assert_eq!(
-        redactor
-            .redact("display_name", display_name)
-            .escape_for_log()
-            .to_string(),
-        "Alice\\nAdmin",
-    );
+    assert_eq!(redactor.redact("user_id", "alpine42").as_str(), "al****42");
+    assert_eq!(redactor.redact("phone_number", "13800138000").as_str(), "*******0");
+    assert_eq!(redactor.redact("credit_card", "4111111111111111").as_str(), "****");
+    assert_eq!(redactor.redact("api_key", "sk_live_123").as_str(), "<redacted>");
+
+    let safe = redactor
+        .redact("display_name", "Alice\nAdmin")
+        .escape_for_log();
+    assert_eq!(safe.to_string(), "Alice\\nAdmin");
     Ok(())
 }
 ```
 
-The original value remains available to application logic, while the rendered
-diagnostic crosses an explicit log-safe boundary. For runnable examples of
-every core tool, see the [User Guide](doc/user_guide.md).
+The original value remains available to application logic. Call
+`escape_for_log()` before writing a scalar result to a plain-text log sink.
 
 ## Choose a Tool
 
-| Diagnostic input | Primary tool | Safe result |
+| Diagnostic input | Tool | Result and logging boundary |
 | --- | --- | --- |
-| Named scalar or text-keyed map | `Redactor` | `RedactedText`, then `LogSafeText` for logs |
-| Rust struct or enum | `Redact` derive | `Redacted<T>` view |
-| Value requiring logical replacement | `RedactMut` derive | Mutated value |
-| Command arguments | `ArgvRedactor` | `RedactedArgv` |
-| Environment pairs | `EnvRedactor` | `RedactedEnvPair` or `LogSafeText` |
-| URL, form, headers, captured body | `HttpRedactor` | Log-safe HTTP result types |
-
-## Design
-
-Qubit Redact separates five layers:
-
-- `RedactionPolicy` is an immutable snapshot of field rules, allow rules,
-  matching behavior, and masks.
-- `Redactor` applies one policy to scalar field values and text-keyed map-like
-  collections.
-- `qubit-redact-derive`, kept in this workspace, provides the `Redact` and
-  `RedactMut` derives that make domain-object field boundaries explicit; see
-  its [README](https://github.com/qubit-ltd/rs-redact/blob/main/derive/README.md).
-- `ArgvRedactor` and `EnvRedactor` produce typed, log-safe process diagnostics.
-- The optional `http` module handles URLs, forms, headers, and bounded bodies.
-
-Unknown fields pass through unchanged. Redaction is therefore based on known
-structure and configured names, not general secret detection. The default
-policy provides conservative presets, while the builder supports application
-rules and explicit allow decisions.
-
-`RedactionPolicy::classify_field` explains each decision as `Sensitive`,
-`Allowed`, or `Unknown`. Matched field names borrow the configured policy rule,
-and `sensitivity_for` delegates to the same precedence logic.
+| Named scalar value | `Redactor::redact` | `RedactedText`; call `escape_for_log()` for plain-text logs. |
+| Text-keyed map | `Redactor::redact_map` or `redact_map_in_place` | A copied or mutated map; apply the final logging format yourself. |
+| Rust struct or enum | `Redact` derive | Borrowed `Redacted<T>` view with safe formatting. |
+| Value that must be logically replaced | `RedactMut` derive | Mutated value; this is not memory erasure. |
+| Command arguments | `ArgvRedactor` | `RedactedArgv`, safe to display. |
+| Environment pairs | `EnvRedactor` | `RedactedEnvPair` or `LogSafeText`. |
+| URL, form, headers, or captured body | `HttpRedactor` | Bounded, log-safe HTTP result types. |
 
 ## Cargo Features
 
-The default feature set is empty and the core crate has no external runtime
-dependencies.
-
-| Feature | Capability | Optional dependencies |
-| --- | --- | --- |
-| `serde` | Serialization of explicitly opted-in redacted views | `serde` |
-| `http` | URL, form, header, and bounded body redaction | `form_urlencoded`, `http`, `serde_json`, `url` |
+| Need | Cargo configuration |
+| --- | --- |
+| Core scalar, map, process, and text support | `qubit-redact = "0.3"` |
+| Domain-object derives | Add `qubit-redact-derive = "0.3"`. |
+| Serialize redacted views | Enable `serde` and declare `serde` directly. |
+| HTTP diagnostics | Enable `http`; add `http` directly when your application uses its types. |
 
 ```toml
 [dependencies]
-# Enable HTTP support only where it is needed:
-# cargo add qubit-redact --features http
-# cargo add http@1.4
+# HTTP diagnostics only
 qubit-redact = { version = "0.3", features = ["http"] }
-qubit-redact-derive = "0.3"
 http = "1.4"
 ```
 
-Use `qubit-redact = "0.3"` instead when only the dependency-free core is
-needed.
-
-## Scalar Values and Maps
-
-```rust
-use std::collections::HashMap;
-
-use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
-        .raise("user_id", Sensitivity::Low)
-        .raise("phone_number", Sensitivity::Medium)
-        .raise("credit_card", Sensitivity::High)
-        .raise("api_key", Sensitivity::Secret)
-        .build()?;
-    let source = HashMap::from([
-        ("user_id".to_owned(), "alpine42".to_owned()),
-        ("phone_number".to_owned(), "13800138000".to_owned()),
-        ("credit_card".to_owned(), "4111111111111111".to_owned()),
-        ("api_key".to_owned(), "sk_live_123".to_owned()),
-        ("display_name".to_owned(), "Alice".to_owned()),
-    ]);
-    let redacted = Redactor::new(policy).redact_map(&source);
-    assert_eq!(redacted["user_id"], "al****42");
-    assert_eq!(redacted["phone_number"], "*******0");
-    assert_eq!(redacted["credit_card"], "****");
-    assert_eq!(redacted["api_key"], "<redacted>");
-    assert_eq!(redacted["display_name"], "Alice");
-    assert_eq!(source["api_key"], "sk_live_123");
-    Ok(())
-}
-```
-
-`redact_map_in_place` provides the corresponding mutating operation. Both map
-methods classify each value from its key, preserve safe values, and retain the
-concrete collection type. The blanket contracts cover common collections such
-as `HashMap`, `BTreeMap`, and `indexmap::IndexMap` without coupling the runtime
-crate to a collection implementation; keys implement `AsRef<str>` and values
-implement the appropriate redaction value contract. Heterogeneous object maps
-such as `serde_json::Map<String, serde_json::Value>` are intentionally outside
-this blanket behavior because their replacement semantics are domain-specific;
-wrap them in a domain newtype and implement an explicit redaction boundary.
-
-## Policy Configuration
-
-```rust
-use qubit_redact::{
-    FieldNameMatching, MaskPolicy, RedactionPolicy, Redactor, Sensitivity,
-};
-
-fn main() {
-    let policy = RedactionPolicy::builder()
-        .matching(FieldNameMatching::ExactOrTokenSuffix)
-        .raise("license_key", Sensitivity::High)
-        .allow_exact("public_token")
-        .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))
-        .build()
-        .expect("the policy is valid");
-
-    RedactionPolicy::set_global_default(policy.clone())
-        .expect("the application installs its default only once");
-    let inherited = RedactionPolicy::builder_from_default()
-        .build()
-        .expect("the default snapshot remains valid");
-    assert_eq!(inherited.sensitivity_for("license_key"), Some(Sensitivity::High));
-
-    let redactor = Redactor::new(policy);
-    assert_eq!(redactor.redact("LICENSE_KEY", "abcdef").as_str(), "[hidden]");
-}
-```
-
-`raise` never weakens an existing rule. Use `override_level` only when an
-intentional replacement, including a downgrade, is required. Exact allow rules
-affect only the complete canonical field. Suffix allow rules can also allow
-prefixed names such as `request_public_token`; they are broader disclosure
-decisions and should be used only after reviewing that risk.
-
-`RedactionPolicy::default()` reads the current process-wide default snapshot.
-`RedactionPolicy::set_global_default(policy)` can successfully install a custom
-default only once; a later call returns `GlobalDefaultAlreadySet` and never
-replaces it. `RedactionPolicy::builder()`, `RedactionPolicyBuilder::new()`, and
-`RedactionPolicyBuilder::default()` start without sensitive or allow rules.
-Use `RedactionPolicy::builder_from_default()` to create a builder from the
-current conservative default snapshot. `.load_default()` explicitly resets a
-builder to that snapshot and replaces every previous setting,
-including a recorded validation error. Previously created policies, builders,
-and redactors remain unchanged.
-
-Use `Redactor::redact_at(level, value)` at a security boundary where a value is
-known to be sensitive independently of its field name. It applies the selected
-mask directly, so an allow rule cannot expose that value.
-
-## Domain Objects
-
-Add the companion `qubit-redact-derive` crate to describe redaction at the
-field boundary. Unmarked fields remain ordinary values; recursion and Map key
-classification are always explicit.
-
-```rust
-use std::collections::HashMap;
-
-use qubit_redact::{Redact as _, RedactionPolicy, Sensitivity};
-use qubit_redact_derive::Redact;
-
-#[derive(Redact)]
-struct Account {
-    id: u64,
-    #[redact(level = "secret")]
-    password: String,
-    #[redact(map)]
-    metadata: HashMap<String, String>,
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
-        .raise("api_key", Sensitivity::Secret)
-        .build()?;
-    let account = Account {
-        id: 1,
-        password: "raw-password".to_owned(),
-        metadata: HashMap::from([
-            ("api_key".to_owned(), "raw-key".to_owned()),
-        ]),
-    };
-    let output = format!("{:?}", account.redacted_with(&policy));
-    assert!(!output.contains("raw-password"));
-    assert!(!output.contains("raw-key"));
-    Ok(())
-}
-```
-
-Domain-view `Display` streams escaped, log-safe output without constructing a
-complete intermediate representation. When a log sink also requires a strict
-byte budget, validate the limit once and apply it to the redacted view:
-
-```rust
-use qubit_redact::{LogOutputLimit, Redact as _};
-
-# use qubit_redact_derive::Redact;
-# #[derive(Redact)]
-# struct Event {
-#     #[redact(level = "secret")]
-#     token: String,
-# }
-# let event = Event { token: "raw".to_owned() };
-let limit = LogOutputLimit::new(128)?;
-let output = event.redacted().with_output_limit(limit).to_string();
-assert!(output.len() <= limit.max_bytes());
-# Ok::<(), Box<dyn std::error::Error>>(())
-```
-
-Truncated output ends with `<truncated>` and never splits a UTF-8 character or
-a generated control-character escape.
-
-When the view already owns a `RedactionPolicy`,
-`with_policy_output_limit()` uses that policy's configured `DiagnosticBudget`.
-
-Use `#[redact(nested)]` for a field whose type implements `Redact`; without
-that attribute even a derived field type is not traversed. `#[redact(skip)]`
-omits a field from redacted Debug, Display, and serde output. It does not
-remove or modify the field on the original object, and `RedactMut` leaves it
-unchanged.
-
-`RedactMut` is a separate, explicit logical in-place redaction contract. Its
-`redact_in_place`, `into_redacted`, and clone-based `to_redacted` operations
-support the same `level`, `nested`, and `map` field modes. It does not zeroize
-released allocations or affect aliases, existing copies, or borrowed backing
-data. `to_redacted` also briefly creates a second copy of the original
-sensitive data. Use a separately designed zeroization strategy when memory
-erasure is required.
-
-The derives accept named, tuple, and unit structs as well as enums whose
-variants use any of those three field shapes. Field attributes retain the
-surrounding Rust shape: tuple fields stay positional, enum formatting reports
-the active variant, and `RedactMut` changes only the active variant's fields.
-
-```rust
-use qubit_redact::Redact as _;
-use qubit_redact_derive::Redact;
-
-#[derive(Redact)]
-struct Token(#[redact(level = "secret")] String);
-
-#[derive(Redact)]
-struct Ready;
-
-#[derive(Redact)]
-enum Event {
-    Credential(#[redact(level = "secret")] String),
-    Ready,
-}
-
-assert_eq!(format!("{:?}", Token("raw".into()).redacted()), "Token(\"<redacted>\")");
-assert_eq!(format!("{:?}", Ready.redacted()), "Ready");
-assert_eq!(
-    format!("{:?}", Event::Credential("raw".into()).redacted()),
-    "Credential(\"<redacted>\")",
-);
-assert_eq!(format!("{:?}", Event::Ready.redacted()), "Ready");
-```
-
-Enable `serde` and use the companion derive crate, then add `#[redact(serde)]`
-to opt a supported struct or enum into serialization of its redacted view.
-Externally tagged, internally tagged, adjacently tagged, and untagged enums are
-supported. To prevent an ordinary Serde customization from bypassing
-redaction, the derive accepts only structure-preserving controls: container
-`rename`, `rename_all`, `rename_all_fields`, `tag`, `content`, and `untagged`;
-variant `rename`, `rename_all`, `skip`, and `skip_serializing`; and field
-`rename`, `skip`, `skip_serializing`, and `skip_serializing_if`. Other Serde
-controls are rejected when redacted serialization is enabled. The consuming
-crate must declare `serde` directly (a renamed dependency is supported); the
-runtime crate does not re-export it. `Redacted` does not implement
-`Deserialize`.
-
-```rust
-use qubit_redact::Redact as _;
-use qubit_redact_derive::Redact;
-
-#[derive(Redact)]
-#[redact(debug, display, serde)]
-struct Credentials {
-    #[redact(level = "secret")]
-    token: String,
-    #[redact(skip)]
-    internal_note: String,
-}
-
-let value = Credentials {
-    token: "raw-token".to_owned(),
-    internal_note: "not serialized".to_owned(),
-};
-let json = serde_json::to_string(&value.redacted()).unwrap();
-assert!(!json.contains("raw-token"));
-assert!(!json.contains("internal_note"));
-assert!(!format!("{value:?}").contains("raw-token"));
-assert!(!format!("{value}").contains("raw-token"));
-```
-
-`#[redact(debug)]` and `#[redact(display)]` opt the original type into safe
-formatting through the process-wide default policy. They do not infer
-sensitivity from unmarked field names. Do not combine either option with an
-existing implementation of the same trait, including `#[derive(Debug)]` with
-`#[redact(debug)]`, because Rust correctly reports conflicting implementations.
-
-`redacted()` snapshots the process-wide default policy. `redacted_with`
-snapshots an explicit policy, and every nested or Map field uses that same
-snapshot. Field-specific Map policies are intentionally unsupported in the
-first version; use a domain newtype with `nested` when a field needs a
-different policy boundary.
-
-## Process Diagnostics
-
-`ArgvRedactor::redact_items` trusts explicit sensitivity metadata and performs
-no command-line inference. `redact_heuristically` additionally recognizes
-`--password value`, `--password=value`, `-password value`, `NAME=value`, and
-JVM-style `-Dpassword=SECRET` properties. Explicitly sensitive `ArgvItem`
-values are always masked. Compact options such as `-pSECRET` and shell payload
-syntax are not inferred; mark those items explicitly when they can contain
-secrets.
-
-`EnvRedactor` redacts UTF-8 pairs and fails closed when either operating-system
-component is not valid UTF-8. Its result safely renders as `NAME=VALUE`.
-`ArgvRedactor` and `EnvRedactor::redact_os_pairs` also use the owning
-`RedactionPolicy`'s `DiagnosticBudget`: they stop before inspecting oversized
-process input and bound their final log-safe list. `MaskingPolicy::mask_opaque`
-returns only the configured replacement for a sensitive value that must not be
-formatted or inspected.
-Use `redacted_debug` in custom `Debug` implementations when a captured value
-must render only as `<redacted>`; the wrapper never calls the value's own
-`Debug` implementation.
-
-```rust
-use std::ffi::OsStr;
-
-use qubit_redact::{ArgvRedactor, EnvRedactor, argv::ArgvItem};
-
-fn main() {
-    let items = [
-        ArgvItem::plain(OsStr::new("client")),
-        ArgvItem::plain(OsStr::new("--password")),
-        ArgvItem::plain(OsStr::new("secret")),
-    ];
-    let output = ArgvRedactor::default().redact_heuristically(items);
-    assert!(!output.to_string().contains("secret"));
-
-    let environment = EnvRedactor::default().redact_pair("PASSWORD", "secret");
-    assert_eq!(environment.to_string(), "PASSWORD=<redacted>");
-
-    let captured_bytes = b"secret output";
-    assert_eq!(
-        format!("{:?}", qubit_redact::redacted_debug(captured_bytes)),
-        "<redacted>",
-    );
-
-    let log_safe = qubit_redact::Redactor::default()
-        .redact("message", "line one\nline two")
-        .escape_for_log();
-    assert_eq!(log_safe.to_string(), "line one\\nline two");
-}
-```
-
-`RedactedText` deliberately does not implement `Display`: redaction and log
-escaping are different guarantees. Always call `escape_for_log()` before
-rendering a scalar result into a plain-text log sink. The argv and environment
-result types already cross that boundary and implement safe `Display`.
-
-## HTTP Redaction
-
-Enable `http` with `cargo add qubit-redact --features http`, and add the direct
-`http` dependency used by the example with `cargo add http@1.4` (or use the
-equivalent Cargo.toml entries above). The core HTTP types have distinct roles:
-
-| Type | Role |
-| --- | --- |
-| `HttpRedactionPolicy` | Immutable, per-context snapshot for headers, query/form fields, bodies, behavior choices, and budgets. |
-| `HttpRedactionPolicyBuilder` | Its `new()` and `Default` start without field rules while retaining safe behavior and budgets. Use `HttpRedactionPolicy::builder_from_default()` to extend the conservative HTTP snapshot; `.load_default()` resets all earlier builder state. |
-| `HttpRedactor` | Applies one immutable HTTP policy to URLs, forms, headers, and caller-supplied body captures. |
-| `BodyCapture` | Borrowed bytes plus truthful completeness metadata; use `complete`, `prefix`, or a truncated constructor to state what was available. |
-| `BodyBudget` | Bounds body bytes inspected and final body text rendered. |
-| `BodyRedaction` | Bounded log-safe body result. Its `Display` output exposes no raw-body escape hatch. |
-| `BodyRedactionStatus` | States whether the result was empty, structured, passed through by policy, fail-closed, or binary. |
-| `BodyRedactionReason` | Explains a fail-closed status, such as malformed/truncated structured input, unsupported media type, or opaque text. |
-| `DiagnosticBudget` | Separately bounds URL, form, header, and URL-bearing-text diagnostics. |
-
-`DiagnosticBudget` defaults to 16 KiB of input and 64 KiB of output; oversized
-input returns exactly `<redacted: diagnostic limit exceeded>` without preserving
-a source prefix. The same budget also bounds aggregate argv and environment
-diagnostics. `HttpRedactionPolicy::default()` and `HttpRedactor::default()`
-continue to use the conservative HTTP default.
-
-Malformed or truncated structured bodies fail closed. Opaque text, unkeyed JSON
-scalars, file parts, unnamed multipart parts, and URL paths use conservative
-defaults. The HTTP result types expose only log-safe text; they do not expose a
-raw-body escape hatch.
-
-```rust
-use http::HeaderValue;
-use qubit_redact::http::{
-    BodyCapture,
-    BodyRedaction,
-    DiagnosticBudget,
-    HttpRedactionPolicy,
-    HttpRedactor,
-};
-
-fn main() {
-    let diagnostics = DiagnosticBudget::new(8 * 1024, 32 * 1024)
-        .expect("the diagnostic limits are valid");
-    let policy = HttpRedactionPolicy::builder_from_default()
-        .diagnostic_budget(diagnostics)
-        .build()
-        .expect("the HTTP policy is valid");
-    let body = br#"{"password":"secret","mode":"debug"}"#;
-    let content_type = HeaderValue::from_static("application/json");
-    let result: BodyRedaction = HttpRedactor::new(policy)
-        .redact_body(BodyCapture::complete(body), Some(&content_type));
-    let display_text = format!("{result}");
-    assert!(!display_text.contains("secret"));
-}
-```
-
-HTTP redaction accepts only a caller-provided, bounded capture; it does not read
-or buffer a network body. `BodyRedaction`'s `Display` implementation is the safe
-logging boundary and preserves the configured output budget.
-
-`TextBodyPolicy::PassThrough`, `UnkeyedJsonValuePolicy::PassThrough`, and
-`UrlPathPolicy::Preserve` are explicit diagnostic opt-ins. Choose them only
-after the application has accepted the corresponding disclosure risk.
-
 ## Safety Boundaries
 
-- Field names are canonicalized and can use exact or token-suffix matching.
-- Allow rules win deliberately and can expose data; review them as security
-  policy.
-- Redaction does not discover secrets stored under unknown field names.
-- Mutable redaction replaces logical values; it does not guarantee memory
-  erasure of released allocations, aliases, copies, or borrowed backing data.
-- `RedactedText` distinguishes field redaction from `LogSafeText`, which also
-  escapes controls and Unicode line-ordering characters.
-- Treat typed display results as the logging boundary instead of rebuilding
-  strings from raw inputs.
+- Unknown field names pass through unchanged. This crate is not a general
+  secret detector; configure every field name your application controls.
+- Allow rules intentionally win and can disclose data. Prefer exact allow rules
+  and treat each one as a security decision.
+- `RedactedText` is not displayable by design. Redaction and log escaping are
+  separate guarantees.
+- `RedactMut` replaces logical values only. It does not erase released
+  allocations, aliases, copies, or borrowed backing storage.
+- HTTP redaction accepts only caller-provided captures. It never reads or
+  buffers a network body itself.
+
+## Learn More
+
+- [English User Guide](doc/user_guide.md) and [中文用户手册](doc/user_guide.zh_CN.md)
+- [Runtime API documentation](https://docs.rs/qubit-redact)
+- [Derive crate README](derive/README.md) for field attributes and serde support
+- [Derive crate API documentation](https://docs.rs/qubit-redact-derive)
 
 ## Testing
 
