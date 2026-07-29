@@ -32,6 +32,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## 如何选择工具
+
+| 诊断输入 | 首选工具 | 安全结果 |
+| --- | --- | --- |
+| 具名标量或文本 key Map | `Redactor` | `RedactedText`；日志前转为 `LogSafeText` |
+| Rust struct 或 enum | `Redact` derive | `Redacted<T>` 视图 |
+| 需要逻辑替换的值 | `RedactMut` derive | 已修改对象 |
+| 命令行参数 | `ArgvRedactor` | `RedactedArgv` |
+| 环境变量 pair | `EnvRedactor` | `RedactedEnvPair` 或 `LogSafeText` |
+| URL、form、Header、捕获的 body | `HttpRedactor` | 日志安全 HTTP 结果类型 |
+
 ## 安装与示例运行方式
 
 包名是 `qubit-redact`，Rust 导入路径是 `qubit_redact`。默认 feature 没有运行时
@@ -326,17 +337,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 `HttpRedactionPolicyBuilder` 提供 `raise_header`、`raise_query` 和 `raise_body` 等
 上下文规则。无效或截断的结构化输入会安全关闭。
-
-## 如何选择工具
-
-| 诊断输入 | 首选工具 | 安全结果 |
-| --- | --- | --- |
-| 具名标量或文本 key Map | `Redactor` | `RedactedText`；日志前转为 `LogSafeText` |
-| Rust struct 或 enum | `Redact` derive | `Redacted<T>` 视图 |
-| 需要逻辑替换的值 | `RedactMut` derive | 已修改对象 |
-| 命令行参数 | `ArgvRedactor` | `RedactedArgv` |
-| 环境变量 pair | `EnvRedactor` | `RedactedEnvPair` 或 `LogSafeText` |
-| URL、form、Header、捕获的 body | `HttpRedactor` | 日志安全 HTTP 结果类型 |
 
 ## 安全边界与验证
 

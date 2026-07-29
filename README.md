@@ -7,11 +7,60 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
-Policy-driven redaction for Rust diagnostics, structured fields, maps, process
-arguments, environment variables, and optional HTTP data.
+Qubit Redact prevents secrets from leaking through Rust logs, `Debug` output,
+process diagnostics, and HTTP traces. Instead of scattering string replacement
+across call sites, define immutable policies and render through typed, bounded,
+log-safe results.
 
-For a problem-first introduction and runnable examples for every core tool, see
-the [User Guide](doc/user_guide.md).
+## Why Qubit Redact
+
+- One policy model covers named fields, maps, domain objects, process arguments,
+  environment variables, and optional HTTP diagnostics.
+- Typed results distinguish field redaction from text that is safe to write to
+  logs, making the security boundary explicit in code.
+- Malformed or truncated structured HTTP data fails closed, while diagnostic
+  input and output budgets limit resource use and disclosure.
+- The core has no external runtime dependencies; `serde` and `http` support are
+  opt-in.
+
+## Quick Start
+
+```toml
+[dependencies]
+qubit-redact = "0.3"
+```
+
+```rust
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let policy = RedactionPolicy::builder()
+        .raise("api_key", Sensitivity::Secret)
+        .build()?;
+    let raw = "sk_live_123";
+    let diagnostic = Redactor::new(policy).redact("api_key", raw);
+
+    assert_eq!(raw, "sk_live_123");
+    assert_eq!(diagnostic.as_str(), "<redacted>");
+    assert_eq!(diagnostic.escape_for_log().to_string(), "<redacted>");
+    Ok(())
+}
+```
+
+The original value remains available to application logic, while the rendered
+diagnostic crosses an explicit log-safe boundary. For runnable examples of
+every core tool, see the [User Guide](doc/user_guide.md).
+
+## Choose a Tool
+
+| Diagnostic input | Primary tool | Safe result |
+| --- | --- | --- |
+| Named scalar or text-keyed map | `Redactor` | `RedactedText`, then `LogSafeText` for logs |
+| Rust struct or enum | `Redact` derive | `Redacted<T>` view |
+| Value requiring logical replacement | `RedactMut` derive | Mutated value |
+| Command arguments | `ArgvRedactor` | `RedactedArgv` |
+| Environment pairs | `EnvRedactor` | `RedactedEnvPair` or `LogSafeText` |
+| URL, form, headers, captured body | `HttpRedactor` | Log-safe HTTP result types |
 
 ## Design
 
@@ -23,7 +72,7 @@ Qubit Redact separates five layers:
   collections.
 - `qubit-redact-derive`, kept in this workspace, provides the `Redact` and
   `RedactMut` derives that make domain-object field boundaries explicit; see
-  its [README](derive/README.md).
+  its [README](https://github.com/qubit-ltd/rs-redact/blob/main/derive/README.md).
 - `ArgvRedactor` and `EnvRedactor` produce typed, log-safe process diagnostics.
 - The optional `http` module handles URLs, forms, headers, and bounded bodies.
 

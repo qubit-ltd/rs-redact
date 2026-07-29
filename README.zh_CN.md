@@ -7,11 +7,56 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
 
-面向 Rust 诊断信息、结构化字段、Map、进程参数、环境变量及可选 HTTP 数据的策略化
-遮盖库。
+Qubit Redact 用于防止秘密经 Rust 日志、`Debug` 输出、进程诊断和 HTTP trace
+泄露。无需在各个调用点零散地替换字符串，只需定义不可变策略，并通过有类型、有界且
+日志安全的结果完成渲染。
 
-如需从实际痛点开始了解本库，并查看每项核心工具的可运行示例，请参阅
-[用户指南](doc/user_guide.zh_CN.md)。
+## 为什么选择 Qubit Redact
+
+- 一套策略模型覆盖具名字段、Map、领域对象、进程参数、环境变量和可选 HTTP 诊断。
+- 有类型的结果明确区分“字段值已经脱敏”和“文本可以安全写入日志”，让安全边界在代码
+  中可见。
+- 不合法或已截断的结构化 HTTP 数据会安全关闭，诊断输入和输出预算同时限制资源消耗与
+  信息披露。
+- 核心没有外部运行时依赖，`serde` 和 `http` 能力均按需启用。
+
+## 快速开始
+
+```toml
+[dependencies]
+qubit-redact = "0.3"
+```
+
+```rust
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let policy = RedactionPolicy::builder()
+        .raise("api_key", Sensitivity::Secret)
+        .build()?;
+    let raw = "sk_live_123";
+    let diagnostic = Redactor::new(policy).redact("api_key", raw);
+
+    assert_eq!(raw, "sk_live_123");
+    assert_eq!(diagnostic.as_str(), "<redacted>");
+    assert_eq!(diagnostic.escape_for_log().to_string(), "<redacted>");
+    Ok(())
+}
+```
+
+原始值仍可供应用逻辑使用，而诊断结果需要显式跨过日志安全边界。每项核心工具的完整
+可运行示例请参阅[用户指南](doc/user_guide.zh_CN.md)。
+
+## 如何选择工具
+
+| 诊断输入 | 首选工具 | 安全结果 |
+| --- | --- | --- |
+| 具名标量或文本 key Map | `Redactor` | `RedactedText`；日志前转为 `LogSafeText` |
+| Rust struct 或 enum | `Redact` derive | `Redacted<T>` 视图 |
+| 需要逻辑替换的值 | `RedactMut` derive | 已修改对象 |
+| 命令行参数 | `ArgvRedactor` | `RedactedArgv` |
+| 环境变量 pair | `EnvRedactor` | `RedactedEnvPair` 或 `LogSafeText` |
+| URL、form、Header、捕获的 body | `HttpRedactor` | 日志安全 HTTP 结果类型 |
 
 ## 设计
 
@@ -20,7 +65,8 @@ Qubit Redact 将职责拆成五层：
 - `RedactionPolicy` 是字段规则、允许规则、匹配方式和掩码的不可变快照。
 - `Redactor` 使用一份策略处理标量字段值和文本 key 的类 Map 集合。
 - 同一 workspace 中的 `qubit-redact-derive` 提供 `Redact` 与 `RedactMut`
-  derive，使领域对象的字段边界保持显式；参见其 [README](derive/README.zh_CN.md)。
+  derive，使领域对象的字段边界保持显式；参见其
+  [README](https://github.com/qubit-ltd/rs-redact/blob/main/derive/README.zh_CN.md)。
 - `ArgvRedactor`、`EnvRedactor` 生成有类型且日志安全的进程诊断结果。
 - 可选 `http` 模块处理 URL、form、header 和有界 body。
 
@@ -31,7 +77,7 @@ Qubit Redact 将职责拆成五层：
 `Unknown`。匹配字段名直接借用策略中的规则，`sensitivity_for` 也委托给同一套优先级
 逻辑。
 
-## Cargo Feature
+## Cargo Features
 
 默认 feature 集为空，核心 crate 没有外部运行时依赖。
 
@@ -319,7 +365,7 @@ fn main() {
 纯文本日志前，必须显式调用 `escape_for_log()`。argv 和 env 的结果类型已经跨过该边界，
 可安全地使用 `Display`。
 
-## HTTP 遮盖
+## HTTP 脱敏
 
 通过 `cargo add qubit-redact --features http` 启用 `http`，并通过
 `cargo add http@1.4` 添加示例直接使用的 `http` 依赖（或使用上面的等价 Cargo.toml

@@ -35,6 +35,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Choosing a tool
+
+| Diagnostic input | Primary tool | Safe result |
+| --- | --- | --- |
+| Named scalar or text-keyed map | `Redactor` | `RedactedText`, then `LogSafeText` for logs |
+| Rust struct or enum | `Redact` derive | `Redacted<T>` view |
+| Value requiring logical replacement | `RedactMut` derive | Mutated value |
+| Command arguments | `ArgvRedactor` | `RedactedArgv` |
+| Environment pairs | `EnvRedactor` | `RedactedEnvPair` or `LogSafeText` |
+| URL, form, headers, captured body | `HttpRedactor` | Log-safe HTTP result types |
+
 ## Installation and example requirements
 
 The package is `qubit-redact` and Rust imports it as `qubit_redact`. The default
@@ -353,17 +364,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 `HttpRedactionPolicyBuilder` offers `raise_header`, `raise_query`, and
 `raise_body` for context-specific rules. Invalid or truncated structured input
 fails closed.
-
-## Choosing a tool
-
-| Diagnostic input | Primary tool | Safe result |
-| --- | --- | --- |
-| Named scalar or text-keyed map | `Redactor` | `RedactedText`, then `LogSafeText` for logs |
-| Rust struct or enum | `Redact` derive | `Redacted<T>` view |
-| Value requiring logical replacement | `RedactMut` derive | Mutated value |
-| Command arguments | `ArgvRedactor` | `RedactedArgv` |
-| Environment pairs | `EnvRedactor` | `RedactedEnvPair` or `LogSafeText` |
-| URL, form, headers, captured body | `HttpRedactor` | Log-safe HTTP result types |
 
 ## Security boundaries and verification
 
