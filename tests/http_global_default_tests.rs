@@ -29,8 +29,7 @@ fn test_http_policy_defaults_preserve_global_diagnostic_budget() {
         .expect("this isolated test process installs the global default once");
 
     let default_policy = HttpRedactionPolicy::default();
-    let builder_policy = HttpRedactionPolicy::builder()
-        .load_default()
+    let builder_policy = HttpRedactionPolicy::builder_from_default()
         .build()
         .expect("the HTTP redaction policy should be valid");
 

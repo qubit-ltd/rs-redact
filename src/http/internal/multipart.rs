@@ -55,13 +55,13 @@ pub(in crate::http) fn redact(
     let has_parts = !parts.is_empty();
     let mut output = BoundedBodyWriter::new(max_mask_bytes);
     if output.write_all(b"<multipart>\n").is_err() {
-        return output.into_string().map(|text| (text, false, true));
+        return Some((output.into_string()?, false, true));
     }
     let mut passed = false;
     let mut remaining_mask_bytes = max_mask_bytes;
     for (index, part) in parts.into_iter().enumerate() {
         if index > 0 && output.write_all(b"\n").is_err() {
-            return output.into_string().map(|text| (text, passed, true));
+            return Some((output.into_string()?, passed, true));
         }
         let (line, part_passed, part_truncated) = redact_part(
             redactor,
@@ -74,7 +74,7 @@ pub(in crate::http) fn redact(
         )?;
         passed |= part_passed;
         if part_truncated || output.write_all(line.as_bytes()).is_err() {
-            return output.into_string().map(|text| (text, passed, true));
+            return Some((output.into_string()?, passed, true));
         }
     }
     let closing = if has_parts {
@@ -83,9 +83,9 @@ pub(in crate::http) fn redact(
         b"</multipart>".as_slice()
     };
     if output.write_all(closing).is_err() {
-        return output.into_string().map(|text| (text, passed, true));
+        return Some((output.into_string()?, passed, true));
     }
-    output.into_string().map(|text| (text, passed, false))
+    Some((output.into_string()?, passed, false))
 }
 
 /// Redacts one multipart segment.

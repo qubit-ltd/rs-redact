@@ -69,40 +69,45 @@ fn inherited_allow_policy() -> HttpRedactionPolicy {
         .expect("the HTTP policy should be valid")
 }
 
-/// Verifies that ordinary HTTP builders inherit the conservative default
-/// snapshot while the explicit empty entry point has no field rules.
+/// Verifies that ordinary HTTP builders have empty field policies while the
+/// explicit default entry point copies the conservative snapshot.
 #[test]
-fn test_http_redaction_policy_builder_uses_default_policy() {
+fn test_http_redaction_policy_builder_is_empty_and_default_is_explicit() {
     let builder = HttpRedactionPolicy::builder()
         .build()
-        .expect("the default HTTP policy should be valid");
+        .expect("the empty HTTP policy should be valid");
     let constructed = HttpRedactionPolicyBuilder::new()
         .build()
-        .expect("the constructed default HTTP policy should be valid");
+        .expect("the constructed empty HTTP policy should be valid");
     let defaulted = HttpRedactionPolicyBuilder::default()
         .build()
-        .expect("the default default HTTP policy should be valid");
-    let empty = HttpRedactionPolicy::empty_builder()
+        .expect("the default empty HTTP policy should be valid");
+    let from_default = HttpRedactionPolicy::builder_from_default()
         .build()
-        .expect("the explicit empty HTTP policy should be valid");
+        .expect("the default HTTP policy should be valid");
 
     assert_eq!(
         builder.header_policy().sensitivity_for("authorization"),
+        None
+    );
+    assert_eq!(builder.query_policy().sensitivity_for("password"), None);
+    assert_eq!(builder.body_policy().sensitivity_for("password"), None);
+    assert_eq!(constructed, builder);
+    assert_eq!(defaulted, builder);
+    assert_eq!(
+        from_default
+            .header_policy()
+            .sensitivity_for("authorization"),
         Some(Sensitivity::High)
     );
     assert_eq!(
-        builder.query_policy().sensitivity_for("password"),
+        from_default.query_policy().sensitivity_for("password"),
         Some(Sensitivity::Secret)
     );
     assert_eq!(
-        builder.body_policy().sensitivity_for("password"),
+        from_default.body_policy().sensitivity_for("password"),
         Some(Sensitivity::Secret)
     );
-    assert_eq!(constructed, builder);
-    assert_eq!(defaulted, builder);
-    assert_eq!(empty.header_policy().sensitivity_for("authorization"), None);
-    assert_eq!(empty.query_policy().sensitivity_for("password"), None);
-    assert_eq!(empty.body_policy().sensitivity_for("password"), None);
 }
 
 /// Verifies that loading defaults replaces every HTTP builder component.

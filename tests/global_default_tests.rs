@@ -34,8 +34,7 @@ fn test_global_default_can_be_installed_once_and_is_snapshotted() {
             .sensitivity_for("tenant_protected_blob"),
         Some(Sensitivity::Secret),
     );
-    let from_current_default = RedactionPolicy::builder()
-        .load_default()
+    let from_current_default = RedactionPolicy::builder_from_default()
         .build()
         .expect("the current global default snapshot should remain valid");
     assert_eq!(

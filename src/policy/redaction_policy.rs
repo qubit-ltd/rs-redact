@@ -96,27 +96,24 @@ impl RedactionPolicy {
         GLOBAL_DEFAULT.get().cloned().unwrap_or_else(Self::standard)
     }
 
-    /// Creates a builder initialized from the current default policy.
+    /// Creates a builder without sensitive or allow rules.
     ///
     /// # Returns
     ///
-    /// A mutable builder containing a snapshot of the default policy.
+    /// A mutable builder with default matching, masking, and diagnostic limits.
     #[inline]
     pub fn builder() -> RedactionPolicyBuilder {
         RedactionPolicyBuilder::new()
     }
 
-    /// Creates a builder without any built-in sensitive fields.
-    ///
-    /// This weakens the built-in protection baseline and should only be used
-    /// when the caller intends to define the complete field set explicitly.
+    /// Creates a builder initialized from the current default policy.
     ///
     /// # Returns
     ///
-    /// An empty field-rule builder with default matching and masks.
+    /// A mutable builder containing a snapshot of the current default policy.
     #[inline]
-    pub fn empty_builder() -> RedactionPolicyBuilder {
-        RedactionPolicyBuilder::empty()
+    pub fn builder_from_default() -> RedactionPolicyBuilder {
+        RedactionPolicyBuilder::from_policy(&Self::default())
     }
 
     /// Creates a builder by copying one immutable policy snapshot.

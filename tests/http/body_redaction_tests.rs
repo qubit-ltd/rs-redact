@@ -60,10 +60,10 @@ fn test_http_redaction_policy_default_uses_safe_values() {
     assert_eq!(policy.body_budget().max_output_bytes(), 64 * 1024);
 }
 
-/// Verifies the explicit empty HTTP builder has no field rules.
+/// Verifies the HTTP builder has no field rules.
 #[test]
-fn test_http_redaction_policy_empty_builder_has_no_field_rules() {
-    let policy = HttpRedactionPolicy::empty_builder()
+fn test_http_redaction_policy_builder_has_no_field_rules() {
+    let policy = HttpRedactionPolicy::builder()
         .build()
         .expect("HTTP redaction policy should be valid");
 

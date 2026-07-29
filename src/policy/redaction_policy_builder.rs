@@ -45,14 +45,15 @@ pub struct RedactionPolicyBuilder {
 }
 
 impl RedactionPolicyBuilder {
-    /// Creates a builder from the current default policy snapshot.
+    /// Creates a builder without sensitive or allow rules.
     ///
     /// # Returns
     ///
-    /// A mutable copy of [`RedactionPolicy::default`].
+    /// Empty construction state with default matching, masks, and diagnostic
+    /// limits.
     #[inline]
     pub fn new() -> Self {
-        Self::from_policy(&RedactionPolicy::default())
+        Self::empty()
     }
 
     /// Creates a builder with no field rules and default masks.
@@ -396,11 +397,11 @@ impl RedactionPolicyBuilder {
 }
 
 impl Default for RedactionPolicyBuilder {
-    /// Creates a builder from the current default policy snapshot.
+    /// Creates the same empty construction state as [`Self::new`].
     ///
     /// # Returns
     ///
-    /// The same default-based builder as [`RedactionPolicyBuilder::new`].
+    /// A builder with no sensitive or allow rules.
     #[inline]
     fn default() -> Self {
         Self::new()

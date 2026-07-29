@@ -19,7 +19,7 @@ use qubit_redact::{
 #[test]
 fn test_field_classification_explains_sensitive_matches() {
     let policy = std::hint::black_box(
-        RedactionPolicy::empty_builder()
+        RedactionPolicy::builder()
             .raise("token", Sensitivity::Secret)
             .raise("access_token", Sensitivity::Medium)
             .build()

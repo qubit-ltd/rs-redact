@@ -46,14 +46,14 @@ pub struct HttpRedactionPolicyBuilder {
 }
 
 impl HttpRedactionPolicyBuilder {
-    /// Creates a builder from the current default HTTP policy snapshot.
+    /// Creates a builder with empty field policies and default HTTP behavior.
     ///
     /// # Returns
     ///
-    /// A mutable copy of [`HttpRedactionPolicy::default`].
+    /// A builder with fail-closed behavior choices and finite default limits.
     #[inline]
     pub fn new() -> Self {
-        Self::from_policy(&HttpRedactionPolicy::default())
+        Self::empty()
     }
 
     /// Creates a builder with empty field policies and default HTTP behavior.
@@ -538,11 +538,11 @@ impl HttpRedactionPolicyBuilder {
 }
 
 impl Default for HttpRedactionPolicyBuilder {
-    /// Creates a builder from the current default HTTP policy snapshot.
+    /// Creates the same empty construction state as [`Self::new`].
     ///
     /// # Returns
     ///
-    /// The same default-based builder as [`HttpRedactionPolicy::builder`].
+    /// A builder with empty field policies and default HTTP behavior.
     fn default() -> Self {
         Self::new()
     }
