@@ -25,6 +25,10 @@ use super::{
 ///
 /// Values can only be constructed inside this crate after escaping, preventing
 /// arbitrary untrusted text from being labeled log-safe.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of any borrowed escaped text stored by the value.
 #[must_use = "render or otherwise consume the log-safe value"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogSafeText<'a>(

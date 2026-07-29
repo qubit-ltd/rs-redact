@@ -26,6 +26,10 @@ use super::{
 /// let value = Redactor::default().redact("message", "hello");
 /// let _ = format!("{value}");
 /// ```
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of any borrowed redacted text stored by the value.
 #[must_use = "use the redacted value instead of the original value"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactedText<'a>(

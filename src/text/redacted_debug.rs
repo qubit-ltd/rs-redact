@@ -25,6 +25,11 @@ use std::fmt::{
 /// let secret = String::from("secret");
 /// redacted_debug(&secret);
 /// ```
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the protected borrowed value.
+/// * `T` - Protected value type, which need not implement [`Debug`].
 #[must_use = "render the redacted debug marker instead of discarding it"]
 pub struct RedactedDebug<'a, T: ?Sized> {
     /// The protected value, retained only to preserve its borrow and traits.

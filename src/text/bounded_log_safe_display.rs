@@ -21,6 +21,10 @@ use super::{
 };
 
 /// A byte-bounded rendering of text that is already safe for a log boundary.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed log-safe text.
 #[must_use = "format the bounded log-safe text"]
 pub struct BoundedLogSafeDisplay<'a> {
     /// Escaped source text.

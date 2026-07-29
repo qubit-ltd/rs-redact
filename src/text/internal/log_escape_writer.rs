@@ -15,6 +15,11 @@ use std::fmt::{
 use crate::text::log_escape::is_log_unsafe_character;
 
 /// Escapes log-unsafe characters while streaming into another formatter.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed output formatter.
+/// * `W` - Formatting destination receiving escaped text.
 pub(crate) struct LogEscapeWriter<'a, W: Write + ?Sized> {
     /// Destination receiving only log-safe text.
     output: &'a mut W,
