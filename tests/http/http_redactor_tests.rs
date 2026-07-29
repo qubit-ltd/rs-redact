@@ -936,7 +936,7 @@ fn test_multipart_invalid_nested_json_and_sensitive_non_utf8_fail_closed() {
 proptest! {
     #[test]
     /// Checks across generated inputs that http body never leaks structured secret.
-    fn prop_http_body_never_leaks_structured_secret(
+    fn test_http_body_never_leaks_structured_secret(
         secret in "[A-Za-z0-9]{8,64}",
     ) {
         let redactor = HttpRedactor::default();
@@ -970,7 +970,7 @@ proptest! {
 
     #[test]
     /// Checks across generated inputs that http body handles arbitrary bytes without panicking.
-    fn prop_http_body_handles_arbitrary_bytes_without_panicking(
+    fn test_http_body_handles_arbitrary_bytes_without_panicking(
         body in collection::vec(any::<u8>(), 0..512),
     ) {
         let redactor = HttpRedactor::default();

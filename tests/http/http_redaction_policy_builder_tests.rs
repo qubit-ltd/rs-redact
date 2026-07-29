@@ -8,6 +8,7 @@
 //! Tests for [`HttpRedactionPolicyBuilder`](qubit_redact::http::HttpRedactionPolicyBuilder).
 
 use qubit_redact::{
+    PolicyError,
     RedactionPolicy,
     Sensitivity,
     http::{
@@ -237,8 +238,8 @@ fn test_http_redaction_policy_builder_validates_each_context_in_order() {
         .raise_body("---", Sensitivity::High)
         .build();
 
-    assert!(invalid_query.is_err());
-    assert!(invalid_body.is_err());
+    assert_eq!(invalid_query, Err(PolicyError::EmptyFieldName));
+    assert_eq!(invalid_body, Err(PolicyError::EmptyFieldName));
 }
 
 /// Verifies context-specific builders can revoke inherited allow rules.

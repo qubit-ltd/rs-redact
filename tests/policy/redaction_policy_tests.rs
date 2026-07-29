@@ -338,7 +338,7 @@ fn test_rule_views_expose_canonical_configuration() {
 proptest! {
     /// Verifies that repeated policy lookup is deterministic for arbitrary names.
     #[test]
-    fn prop_policy_lookup_is_deterministic(name in ".*") {
+    fn test_policy_lookup_is_deterministic(name in ".*") {
         let policy = RedactionPolicy::standard();
         prop_assert_eq!(
             policy.sensitivity_for(&name),

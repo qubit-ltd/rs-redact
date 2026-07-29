@@ -362,7 +362,7 @@ fn test_diagnostic_text_redaction_escapes_log_controls_once() {
 proptest! {
     #[test]
     /// Checks across generated inputs that url redaction never leaks sensitive components.
-    fn prop_url_redaction_never_leaks_sensitive_components(
+    fn test_url_redaction_never_leaks_sensitive_components(
         secret in "[A-Za-z0-9]{8,64}",
     ) {
         let input = format!(
@@ -375,7 +375,7 @@ proptest! {
 
     #[test]
     /// Checks across generated inputs that url and form redaction are deterministic.
-    fn prop_url_and_form_redaction_are_deterministic(input in ".{0,128}") {
+    fn test_url_and_form_redaction_are_deterministic(input in ".{0,128}") {
         let redactor = HttpRedactor::default();
         prop_assert_eq!(redactor.redact_form(&input), redactor.redact_form(&input));
         let url = format!("https://example.test/?{input}");

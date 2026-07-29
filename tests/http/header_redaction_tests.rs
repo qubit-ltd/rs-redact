@@ -146,7 +146,7 @@ fn test_header_redaction_marks_truncation_after_exact_payload_boundary() {
 proptest! {
     #[test]
     /// Checks across generated inputs that header name policy never leaks secret.
-    fn prop_header_name_policy_never_leaks_secret(
+    fn test_header_name_policy_never_leaks_secret(
         secret in "[A-Za-z0-9]{8,64}",
     ) {
         let mut headers = HeaderMap::new();
@@ -163,7 +163,7 @@ proptest! {
 
     #[test]
     /// Checks across generated inputs that native sensitive header never leaks secret.
-    fn prop_native_sensitive_header_never_leaks_secret(
+    fn test_native_sensitive_header_never_leaks_secret(
         secret in "[A-Za-z0-9]{8,64}",
     ) {
         let mut value = HeaderValue::from_bytes(secret.as_bytes())
