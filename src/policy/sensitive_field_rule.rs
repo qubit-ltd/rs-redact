@@ -10,6 +10,10 @@
 use super::Sensitivity;
 
 /// A borrowed canonical field name and its configured sensitivity.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed canonical field name.
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SensitiveFieldRule<'a> {

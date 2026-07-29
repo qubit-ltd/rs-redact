@@ -43,6 +43,11 @@ impl SerdeVariantAttributes {
     /// # Errors
     ///
     /// Returns an error for malformed, repeated, or unsupported controls.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if `syn` supplies a nested metadata path without any
+    /// segments, which violates the `ParseNestedMeta` path invariant.
     pub(crate) fn parse(
         variant: &Variant,
         type_name: &syn::Ident,
@@ -134,6 +139,7 @@ impl SerdeVariantAttributes {
     /// # Returns
     ///
     /// The explicit rename when present, otherwise `default_name`.
+    #[inline(always)]
     pub(crate) fn rename_variant(&self, default_name: String) -> String {
         self.rename.clone().unwrap_or(default_name)
     }
@@ -148,6 +154,7 @@ impl SerdeVariantAttributes {
     /// # Returns
     ///
     /// The serialized field name.
+    #[inline]
     pub(crate) fn rename_field(
         &self,
         field_name: &str,

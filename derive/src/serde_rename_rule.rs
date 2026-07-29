@@ -10,6 +10,7 @@
 use syn::LitStr;
 
 /// Case conversion applied to serialized field names.
+#[must_use]
 pub(crate) enum SerdeRenameRule {
     /// Retains field spelling under Serde's lowercase field semantics.
     Lowercase,

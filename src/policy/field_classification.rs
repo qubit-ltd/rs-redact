@@ -18,6 +18,10 @@ use super::{
 ///
 /// Matched rules borrow canonical field names from the immutable policy, so
 /// callers can inspect classification without cloning rule metadata.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of canonical field names borrowed from the policy.
 #[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

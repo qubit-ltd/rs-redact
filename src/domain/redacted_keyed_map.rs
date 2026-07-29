@@ -33,6 +33,13 @@ use crate::{
 /// Unknown and explicitly allowed keys delegate to the corresponding value's
 /// [`Redact`] implementation. Sensitive keys mask the complete value through
 /// [`RedactValue`].
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed map.
+/// * `M` - Borrowed map-like container type.
+/// * `K` - Runtime key type used for field classification.
+/// * `V` - Value type recursively rendered through redaction.
 #[must_use = "format the recursive keyed redaction view"]
 pub struct RedactedKeyedMap<
     'a,

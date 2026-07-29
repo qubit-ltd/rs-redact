@@ -27,6 +27,13 @@ use crate::{
 };
 
 /// A lazy map view that classifies values by their runtime keys.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed map.
+/// * `M` - Borrowed map-like container type.
+/// * `K` - Runtime key type used for field classification.
+/// * `V` - Value type formatted or serialized through redaction.
 #[must_use = "format or serialize the redacted map view"]
 pub struct RedactedMap<'a, M: ?Sized, K: ?Sized = String, V: ?Sized = String> {
     /// Map borrowed without traversal.

@@ -28,6 +28,12 @@ use crate::{
 ///
 /// The key is used only to select a policy rule. The view itself renders or
 /// serializes the value, and borrows an immutable policy snapshot.
+///
+/// # Type Parameters
+///
+/// * `'value` - Lifetime of the borrowed key and value.
+/// * `'policy` - Lifetime of the borrowed policy snapshot.
+/// * `T` - Value type rendered or serialized through redaction.
 #[must_use = "format or serialize the keyed redaction view"]
 pub struct RedactedKeyedValue<'value, 'policy, T: ?Sized> {
     /// Field name used for policy classification.

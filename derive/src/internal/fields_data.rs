@@ -13,6 +13,10 @@ use crate::internal::{
 };
 
 /// Validated named, unnamed, or unit fields in source order.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed field syntax.
 #[must_use]
 pub(crate) enum FieldsData<'a> {
     /// Brace-delimited fields carrying identifiers.

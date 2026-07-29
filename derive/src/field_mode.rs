@@ -10,6 +10,7 @@
 use crate::sensitivity::Sensitivity;
 
 /// Formatting behavior generated for one named field.
+#[must_use]
 pub(crate) enum FieldMode {
     /// Formats the original field with its ordinary `Debug` implementation.
     Plain,

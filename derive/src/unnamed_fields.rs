@@ -21,6 +21,11 @@ use crate::{
 
 /// Parses every unnamed field in source order.
 ///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed positional-field syntax retained by the
+///   result.
+///
 /// # Parameters
 ///
 /// * `fields` - Tuple fields to validate.

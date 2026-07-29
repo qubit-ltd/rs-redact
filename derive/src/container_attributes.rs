@@ -14,6 +14,7 @@ use syn::{
 };
 
 /// Parsed container controls for optional redacted serde integration.
+#[must_use]
 pub(crate) struct ContainerAttributes {
     /// Whether the original type should receive a redacted `Debug` impl.
     debug: bool,

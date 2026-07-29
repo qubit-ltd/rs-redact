@@ -16,6 +16,7 @@ use syn::{
 };
 
 /// Serde controls that preserve the generated redacted structure.
+#[must_use]
 pub(crate) struct SerdeAttributes {
     /// Explicit serialized field name.
     rename: Option<String>,
@@ -42,6 +43,11 @@ impl SerdeAttributes {
     /// # Errors
     ///
     /// Returns an error for malformed, repeated, or unsupported serde controls.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if `syn` supplies a nested metadata path without any
+    /// segments, which violates the `ParseNestedMeta` path invariant.
     pub(crate) fn parse(
         field: &Field,
         type_name: &Ident,

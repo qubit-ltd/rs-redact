@@ -18,6 +18,10 @@ use crate::{
 };
 
 /// One positional field with validated redaction and serde attributes.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed field syntax.
 #[must_use]
 pub(crate) struct UnnamedField<'a> {
     /// Original syntax node used to retain diagnostic spans.

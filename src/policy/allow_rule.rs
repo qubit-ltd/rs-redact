@@ -10,6 +10,10 @@
 use super::FieldNameMatching;
 
 /// A borrowed canonical field name and the breadth of its allow rule.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed canonical field name.
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AllowRule<'a> {

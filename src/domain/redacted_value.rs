@@ -25,6 +25,10 @@ use crate::{
 };
 
 /// Redacted text retaining its original plain or optional container shape.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of any borrowed redacted text stored by the value.
 #[must_use = "format or otherwise consume the redacted value"]
 #[derive(Clone, PartialEq, Eq)]
 pub enum RedactedValue<'a> {

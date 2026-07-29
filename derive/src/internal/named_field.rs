@@ -18,6 +18,10 @@ use crate::{
 };
 
 /// One named field with validated redaction and serde attributes.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed field and identifier syntax.
 #[must_use]
 pub(crate) struct NamedField<'a> {
     /// Original syntax node used to retain diagnostic spans.

@@ -22,6 +22,7 @@ use crate::{
 };
 
 /// Parsed attributes selecting exactly one mode for a named field.
+#[must_use]
 pub(crate) struct FieldAttributes {
     /// Unique mode selected by the field's attributes.
     mode: FieldMode,
@@ -234,6 +235,7 @@ fn select_mode(
 /// # Returns
 ///
 /// A syntax error located at `tokens`.
+#[inline]
 fn field_error(
     tokens: impl ToTokens,
     type_name: &Ident,

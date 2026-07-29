@@ -15,6 +15,10 @@ use crate::{
 };
 
 /// One enum variant with its declaration index and validated fields.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed variant and field syntax.
 #[must_use]
 pub(crate) struct VariantData<'a> {
     /// Original variant syntax node used for names and spans.

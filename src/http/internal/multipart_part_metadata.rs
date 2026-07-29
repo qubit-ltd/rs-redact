@@ -16,6 +16,10 @@ use super::{
 };
 
 /// Holds the field identity, filename evidence, and media type of one part.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the media type borrowed from the part headers.
 #[must_use]
 pub(in crate::http) struct MultipartPartMetadata<'a> {
     /// Non-blank form field name.

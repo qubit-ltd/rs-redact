@@ -20,6 +20,10 @@ use crate::{
 
 /// Validates and parses every named field in source order.
 ///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed named-field syntax retained by the result.
+///
 /// # Parameters
 ///
 /// * `fields` - Named fields to validate.
@@ -33,6 +37,11 @@ use crate::{
 /// # Errors
 ///
 /// Returns a targeted error when a field attribute is invalid.
+///
+/// # Panics
+///
+/// Panics only if a `syn::FieldsNamed` entry has no identifier, which violates
+/// the invariant guaranteed by `syn` for named fields.
 pub(crate) fn parse<'a>(
     fields: &'a FieldsNamed,
     type_name: &Ident,

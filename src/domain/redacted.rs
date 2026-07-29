@@ -27,6 +27,11 @@ use crate::{
 ///
 /// The view borrows the original object and owns a cheap clone of the complete
 /// policy. Creating it does not inspect, clone, or modify object fields.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed domain object.
+/// * `T` - Domain-object type rendered or serialized through redaction.
 #[must_use = "format or serialize the redacted view"]
 pub struct Redacted<'a, T: ?Sized> {
     /// Domain object rendered through this view.

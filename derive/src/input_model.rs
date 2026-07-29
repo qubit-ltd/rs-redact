@@ -26,6 +26,10 @@ use crate::{
 
 /// Parses one derive input into the shared semantic model.
 ///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed derive input retained by the model.
+///
 /// # Parameters
 ///
 /// * `input` - Complete derive input to validate.
@@ -84,6 +88,10 @@ pub(crate) fn parse<'a>(
 }
 
 /// Parses one named, unnamed, or unit field collection.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed field syntax retained by the model.
 ///
 /// # Parameters
 ///

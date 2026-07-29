@@ -12,6 +12,10 @@ use std::fmt;
 use super::BodyCaptureError;
 
 /// Borrowed HTTP body bytes with truthful source-length metadata.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed body bytes.
 #[must_use]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct BodyCapture<'a> {

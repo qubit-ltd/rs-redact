@@ -13,6 +13,10 @@ use crate::internal::{
 };
 
 /// Validated struct or enum data in source order.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed derive input syntax.
 #[must_use]
 pub(crate) enum ContainerData<'a> {
     /// One struct with named, unnamed, or unit fields.

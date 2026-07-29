@@ -5,6 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+//! Shared Cargo-aware crate-path mapping for generated derive code.
+
 use proc_macro_crate::{
     Error,
     FoundCrate,
