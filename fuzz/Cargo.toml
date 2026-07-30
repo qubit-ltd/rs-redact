@@ -10,7 +10,7 @@ cargo-fuzz = true
 [dependencies]
 http = "1.4"
 libfuzzer-sys = "0.4"
-qubit-redact = { path = "..", default-features = false, features = ["http"] }
+qubit-redact = { version = "0.3", default-features = false, features = ["http"] }
 url = "2.5"
 
 [[bin]]

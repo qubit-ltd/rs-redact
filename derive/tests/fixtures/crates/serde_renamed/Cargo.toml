@@ -7,6 +7,6 @@ publish = false
 [workspace]
 
 [dependencies]
-qubit-redact = { path = "../../../../..", features = ["serde"] }
+qubit-redact = { version = "0.3", features = ["serde"] }
 qubit-redact-derive = { path = "../../../.." }
 serialization = { package = "serde", version = "1" }
