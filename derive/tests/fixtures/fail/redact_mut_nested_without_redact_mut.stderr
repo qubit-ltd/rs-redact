@@ -18,7 +18,7 @@ help: the following other types implement trait `RedactMut`
 16 | #[derive(RedactMut)]
    |          ^^^^^^^^^ `Parent`
    |
-  ::: $WORKSPACE/src/domain/internal/nested.rs
+  ::: $CARGO/qubit-redact-$VERSION/src/domain/internal/nested.rs
    |
    | impl<T: RedactMut> RedactMut for Option<T> {
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Option<T>`
