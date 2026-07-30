@@ -7,20 +7,46 @@
 // =============================================================================
 //! Unified immutable HTTP redaction façade.
 
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+};
 
-use http::{HeaderMap, HeaderValue};
+use http::{
+    HeaderMap,
+    HeaderValue,
+};
 use url::Url;
 
-use crate::{LogSafeText, Redactor, Sensitivity};
+use crate::{
+    LogSafeText,
+    Redactor,
+    Sensitivity,
+};
 
 use super::{
-    BodyBudget, BodyCapture, BodyRedaction, BodyRedactionReason, BodyRedactionStatus,
-    HttpRedactionPolicy, RedactedHeaders, TextBodyPolicy, UrlPathPolicy,
+    BodyBudget,
+    BodyCapture,
+    BodyRedaction,
+    BodyRedactionReason,
+    BodyRedactionStatus,
+    HttpRedactionPolicy,
+    RedactedHeaders,
+    TextBodyPolicy,
+    UrlPathPolicy,
     internal::{
-        BoundedLogWriter, ParsedBody, content_type, diagnostic_text, form, json, markers,
+        BoundedLogWriter,
+        ParsedBody,
+        content_type,
+        diagnostic_text,
+        form,
+        json,
+        markers,
         multipart,
-        nested_url::{self, NestedUrl},
+        nested_url::{
+            self,
+            NestedUrl,
+        },
     },
 };
 
@@ -112,7 +138,8 @@ impl HttpRedactor {
         if self.diagnostic_input_exceeded(text.len()) {
             return Self::diagnostic_limit_exceeded();
         }
-        let redacted = diagnostic_text::redact(text, |url| self.redact_url_text(url));
+        let redacted =
+            diagnostic_text::redact(text, |url| self.redact_url_text(url));
         self.finish_diagnostic(redacted)
     }
 
@@ -152,7 +179,11 @@ impl HttpRedactor {
         }
         let output_limit = self.policy.diagnostic_budget().max_output_bytes();
         let text = if form::is_valid(input.as_bytes()) {
-            form::redact_bounded(&self.query_redactor, input.as_bytes(), output_limit)
+            form::redact_bounded(
+                &self.query_redactor,
+                input.as_bytes(),
+                output_limit,
+            )
         } else {
             markers::INVALID_FORM.to_string()
         };
@@ -176,8 +207,10 @@ impl HttpRedactor {
             return RedactedHeaders::new(Self::diagnostic_limit_exceeded());
         }
 
-        let mut writer =
-            BoundedLogWriter::new(self.policy.diagnostic_budget().max_output_bytes(), false);
+        let mut writer = BoundedLogWriter::new(
+            self.policy.diagnostic_budget().max_output_bytes(),
+            false,
+        );
         let values = Self::group_header_values(headers);
         self.write_grouped_headers(&mut writer, values);
         let (rendered, _) = writer.finish();
@@ -203,16 +236,23 @@ impl HttpRedactor {
         capture: BodyCapture<'_>,
         content_type: Option<&HeaderValue>,
     ) -> BodyRedaction {
-        let content_type_limit = self.policy.diagnostic_budget().max_input_bytes();
+        let content_type_limit =
+            self.policy.diagnostic_budget().max_input_bytes();
         let (content_type, invalid_content_type) = match content_type {
-            Some(value) if value.as_bytes().len() > content_type_limit => (None, true),
+            Some(value) if value.as_bytes().len() > content_type_limit => {
+                (None, true)
+            }
             Some(value) => match value.to_str() {
                 Ok(value) => (Some(value), false),
                 Err(_) => (None, true),
             },
             None => (None, false),
         };
-        self.redact_body_with_content_type(capture, content_type, invalid_content_type)
+        self.redact_body_with_content_type(
+            capture,
+            content_type,
+            invalid_content_type,
+        )
     }
 
     /// Redacts a checked body capture selected by optional Content-Type text.
@@ -233,9 +273,14 @@ impl HttpRedactor {
         capture: BodyCapture<'_>,
         content_type: Option<&str>,
     ) -> BodyRedaction {
-        let invalid_content_type = content_type
-            .is_some_and(|value| value.len() > self.policy.diagnostic_budget().max_input_bytes());
-        self.redact_body_with_content_type(capture, content_type, invalid_content_type)
+        let invalid_content_type = content_type.is_some_and(|value| {
+            value.len() > self.policy.diagnostic_budget().max_input_bytes()
+        });
+        self.redact_body_with_content_type(
+            capture,
+            content_type,
+            invalid_content_type,
+        )
     }
 
     /// Checks the complete header input against the diagnostic budget.
@@ -271,7 +316,9 @@ impl HttpRedactor {
     /// # Returns
     ///
     /// Header values grouped by their lowercase map name.
-    fn group_header_values(headers: &HeaderMap) -> BTreeMap<&str, Vec<&HeaderValue>> {
+    fn group_header_values(
+        headers: &HeaderMap,
+    ) -> BTreeMap<&str, Vec<&HeaderValue>> {
         let mut values = BTreeMap::<&str, Vec<&HeaderValue>>::new();
         for (name, value) in headers {
             values.entry(name.as_str()).or_default().push(value);
@@ -290,7 +337,9 @@ impl HttpRedactor {
         writer: &mut BoundedLogWriter,
         values: BTreeMap<&str, Vec<&HeaderValue>>,
     ) {
-        for (name_index, (name, header_values)) in values.into_iter().enumerate() {
+        for (name_index, (name, header_values)) in
+            values.into_iter().enumerate()
+        {
             if name_index > 0 {
                 let _ = writer.write_str("\n");
             }
@@ -330,11 +379,11 @@ impl HttpRedactor {
             let rendered = value.to_str().unwrap_or("<non-utf8>");
             let remaining = writer.remaining_bytes();
             if value.is_sensitive() {
-                let redacted = self.header_redactor.policy().masking().mask_bounded(
-                    Sensitivity::Secret,
-                    rendered,
-                    remaining,
-                );
+                let redacted = self
+                    .header_redactor
+                    .policy()
+                    .masking()
+                    .mask_bounded(Sensitivity::Secret, rendered, remaining);
                 let _ = writer.write_str(redacted.as_ref());
             } else {
                 let redacted = self
@@ -412,7 +461,9 @@ impl HttpRedactor {
     fn redact_url_text_at_depth(&self, url: &Url, depth: usize) -> String {
         let output_limit = self.policy.diagnostic_budget().max_output_bytes();
         let mut output = url.clone();
-        if self.policy.url_path_policy() == UrlPathPolicy::Redact && output.path() != "/" {
+        if self.policy.url_path_policy() == UrlPathPolicy::Redact
+            && output.path() != "/"
+        {
             output.set_path("/<redacted>");
         }
         if !output.username().is_empty() {
@@ -420,7 +471,11 @@ impl HttpRedactor {
                 .query_redactor
                 .policy()
                 .masking()
-                .mask_bounded(Sensitivity::High, output.username(), output_limit)
+                .mask_bounded(
+                    Sensitivity::High,
+                    output.username(),
+                    output_limit,
+                )
                 .into_owned();
             let _ = output.set_username(&masked);
         }
@@ -447,7 +502,8 @@ impl HttpRedactor {
                 let query_limit = output_limit.saturating_add(1);
                 let mut redacted_query = String::new();
                 for (key, value) in url.query_pairs() {
-                    let remaining = query_limit.saturating_sub(redacted_query.len());
+                    let remaining =
+                        query_limit.saturating_sub(redacted_query.len());
                     let value = self
                         .query_redactor
                         .redact_bounded(&key, &value, remaining)
@@ -485,7 +541,11 @@ impl HttpRedactor {
     ///
     /// The original ownership form when no nested URL is present, otherwise
     /// an owned redacted URL or fixed fail-closed marker.
-    fn redact_nested_url_value<'a>(&self, value: Cow<'a, str>, depth: usize) -> Cow<'a, str> {
+    fn redact_nested_url_value<'a>(
+        &self,
+        value: Cow<'a, str>,
+        depth: usize,
+    ) -> Cow<'a, str> {
         let raw = match value {
             Cow::Borrowed(raw) => raw,
             Cow::Owned(masked) => return Cow::Owned(masked),
@@ -523,7 +583,11 @@ impl HttpRedactor {
         truncated: bool,
     ) -> ParsedBody {
         if bounded.is_empty() {
-            return ParsedBody::new(String::new(), BodyRedactionStatus::Empty, false);
+            return ParsedBody::new(
+                String::new(),
+                BodyRedactionStatus::Empty,
+                false,
+            );
         }
         let content_type = match content_type {
             Some(value) => match content_type::parse(value) {
@@ -540,20 +604,23 @@ impl HttpRedactor {
             if truncated {
                 return ParsedBody::new(
                     markers::MULTIPART_BODY.to_string(),
-                    BodyRedactionStatus::Redacted(BodyRedactionReason::TruncatedMultipart),
+                    BodyRedactionStatus::Redacted(
+                        BodyRedactionReason::TruncatedMultipart,
+                    ),
                     false,
                 );
             }
             if let Some(boundary) = boundary.as_deref()
-                && let Some((text, passed, rendered_truncated)) = multipart::redact(
-                    &self.body_redactor,
-                    boundary,
-                    *require_form_data,
-                    bounded,
-                    self.policy.text_body_policy(),
-                    self.policy.unkeyed_json_value_policy(),
-                    self.policy.body_budget().max_output_bytes(),
-                )
+                && let Some((text, passed, rendered_truncated)) =
+                    multipart::redact(
+                        &self.body_redactor,
+                        boundary,
+                        *require_form_data,
+                        bounded,
+                        self.policy.text_body_policy(),
+                        self.policy.unkeyed_json_value_policy(),
+                        self.policy.body_budget().max_output_bytes(),
+                    )
             {
                 return ParsedBody::new(
                     text,
@@ -567,7 +634,9 @@ impl HttpRedactor {
             }
             return ParsedBody::new(
                 markers::MULTIPART_BODY.to_string(),
-                BodyRedactionStatus::Redacted(BodyRedactionReason::InvalidMultipart),
+                BodyRedactionStatus::Redacted(
+                    BodyRedactionReason::InvalidMultipart,
+                ),
                 false,
             );
         }
@@ -576,7 +645,8 @@ impl HttpRedactor {
         }
         let trimmed = trim_ascii_whitespace(bounded);
         if matches!(&content_type, Some(content_type::ContentType::Json))
-            || (content_type.is_none() && matches!(trimmed.first(), Some(b'{') | Some(b'[')))
+            || (content_type.is_none()
+                && matches!(trimmed.first(), Some(b'{') | Some(b'[')))
         {
             return self.redact_json(bounded, truncated);
         }
@@ -605,7 +675,9 @@ impl HttpRedactor {
         if truncated {
             return ParsedBody::new(
                 markers::INVALID_OR_TRUNCATED_JSON.to_string(),
-                BodyRedactionStatus::Redacted(BodyRedactionReason::InvalidOrTruncatedJson),
+                BodyRedactionStatus::Redacted(
+                    BodyRedactionReason::InvalidOrTruncatedJson,
+                ),
                 false,
             );
         }
@@ -622,7 +694,10 @@ impl HttpRedactor {
             self.policy.unkeyed_json_value_policy(),
             self.policy.body_budget().max_output_bytes(),
         );
-        match json::serialize_bounded(&value, self.policy.body_budget().max_output_bytes()) {
+        match json::serialize_bounded(
+            &value,
+            self.policy.body_budget().max_output_bytes(),
+        ) {
             Some((text, rendered_truncated)) => ParsedBody::new(
                 text,
                 if passed {
@@ -648,7 +723,9 @@ impl HttpRedactor {
     fn invalid_content_type_body() -> ParsedBody {
         ParsedBody::new(
             markers::INVALID_CONTENT_TYPE.to_string(),
-            BodyRedactionStatus::Redacted(BodyRedactionReason::InvalidContentType),
+            BodyRedactionStatus::Redacted(
+                BodyRedactionReason::InvalidContentType,
+            ),
             false,
         )
     }
@@ -669,7 +746,9 @@ impl HttpRedactor {
         if truncated {
             return ParsedBody::new(
                 markers::INVALID_OR_TRUNCATED_NDJSON.to_string(),
-                BodyRedactionStatus::Redacted(BodyRedactionReason::InvalidOrTruncatedNdjson),
+                BodyRedactionStatus::Redacted(
+                    BodyRedactionReason::InvalidOrTruncatedNdjson,
+                ),
                 false,
             );
         }
@@ -690,7 +769,9 @@ impl HttpRedactor {
             ),
             None => ParsedBody::new(
                 markers::INVALID_NDJSON.to_string(),
-                BodyRedactionStatus::Redacted(BodyRedactionReason::InvalidNdjson),
+                BodyRedactionStatus::Redacted(
+                    BodyRedactionReason::InvalidNdjson,
+                ),
                 false,
             ),
         }
@@ -721,7 +802,9 @@ impl HttpRedactor {
         if !form::is_valid(bounded) {
             return ParsedBody::new(
                 markers::INVALID_FORM.to_string(),
-                BodyRedactionStatus::Redacted(BodyRedactionReason::InvalidFormUrlEncoded),
+                BodyRedactionStatus::Redacted(
+                    BodyRedactionReason::InvalidFormUrlEncoded,
+                ),
                 false,
             );
         }
@@ -758,16 +841,22 @@ impl HttpRedactor {
             Ok(text) if is_text => match self.policy.text_body_policy() {
                 TextBodyPolicy::Redact => ParsedBody::new(
                     markers::TEXT_BODY.to_string(),
-                    BodyRedactionStatus::Redacted(BodyRedactionReason::OpaqueText),
+                    BodyRedactionStatus::Redacted(
+                        BodyRedactionReason::OpaqueText,
+                    ),
                     false,
                 ),
-                TextBodyPolicy::PassThrough => {
-                    ParsedBody::new(text.to_string(), BodyRedactionStatus::PassedThrough, false)
-                }
+                TextBodyPolicy::PassThrough => ParsedBody::new(
+                    text.to_string(),
+                    BodyRedactionStatus::PassedThrough,
+                    false,
+                ),
             },
             Ok(_) => ParsedBody::new(
                 markers::UNSUPPORTED_BODY.to_string(),
-                BodyRedactionStatus::Redacted(BodyRedactionReason::UnsupportedMediaType),
+                BodyRedactionStatus::Redacted(
+                    BodyRedactionReason::UnsupportedMediaType,
+                ),
                 false,
             ),
         }
@@ -794,13 +883,16 @@ impl HttpRedactor {
         budget: BodyBudget,
     ) -> BodyRedaction {
         let (parsed_text, status, rendered_truncated) = parsed.into_parts();
-        let source_truncated =
-            capture.is_source_truncated() || budget_truncated || rendered_truncated;
-        let mut writer = BoundedLogWriter::new(budget.max_output_bytes(), source_truncated);
+        let source_truncated = capture.is_source_truncated()
+            || budget_truncated
+            || rendered_truncated;
+        let mut writer =
+            BoundedLogWriter::new(budget.max_output_bytes(), source_truncated);
         let _ = writer.write_str(&parsed_text);
         let (text, truncated) = writer.finish();
         let source_len = capture.total_len();
-        let omitted_len = source_len.map(|total| total.saturating_sub(captured_len));
+        let omitted_len =
+            source_len.map(|total| total.saturating_sub(captured_len));
         BodyRedaction::new(
             text,
             status,
@@ -831,7 +923,9 @@ impl HttpRedactor {
     /// A marker containing no source prefix.
     #[inline(always)]
     fn diagnostic_limit_exceeded() -> LogSafeText<'static> {
-        LogSafeText::from_escaped(Cow::Borrowed(markers::DIAGNOSTIC_LIMIT_EXCEEDED))
+        LogSafeText::from_escaped(Cow::Borrowed(
+            markers::DIAGNOSTIC_LIMIT_EXCEEDED,
+        ))
     }
 
     /// Escapes and bounds one normally redacted HTTP diagnostic.
@@ -844,8 +938,10 @@ impl HttpRedactor {
     ///
     /// Owned log-safe text within the configured output limit.
     fn finish_diagnostic(&self, text: String) -> LogSafeText<'static> {
-        let mut writer =
-            BoundedLogWriter::new(self.policy.diagnostic_budget().max_output_bytes(), false);
+        let mut writer = BoundedLogWriter::new(
+            self.policy.diagnostic_budget().max_output_bytes(),
+            false,
+        );
         let _ = writer.write_str(&text);
         let (text, _) = writer.finish();
         LogSafeText::from_escaped(Cow::Owned(text))

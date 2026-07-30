@@ -8,12 +8,20 @@
 //! Tests for bounded structured HTTP body rendering.
 
 use http::HeaderValue;
-use qubit_redact::http::{BodyBudget, BodyCapture, HttpRedactionPolicy, HttpRedactor};
+use qubit_redact::http::{
+    BodyBudget,
+    BodyCapture,
+    HttpRedactionPolicy,
+    HttpRedactor,
+};
 
 /// Builds a redactor with a deliberately small rendered-body budget.
 fn redactor_with_output_limit(max_output_bytes: usize) -> HttpRedactor {
     let policy = HttpRedactionPolicy::builder()
-        .body_budget(BodyBudget::new(4096, max_output_bytes).expect("the body budget is valid"))
+        .body_budget(
+            BodyBudget::new(4096, max_output_bytes)
+                .expect("the body budget is valid"),
+        )
         .build()
         .expect("the HTTP policy is valid");
     HttpRedactor::new(policy)
@@ -23,10 +31,11 @@ fn redactor_with_output_limit(max_output_bytes: usize) -> HttpRedactor {
 /// partially rendered secret.
 #[test]
 fn test_bounded_json_rendering_truncates_without_partial_secret() {
-    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES).redact_body(
-        BodyCapture::complete(br#"{\"password\":\"raw-secret\"}"#),
-        Some(&HeaderValue::from_static("application/json")),
-    );
+    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES)
+        .redact_body(
+            BodyCapture::complete(br#"{\"password\":\"raw-secret\"}"#),
+            Some(&HeaderValue::from_static("application/json")),
+        );
 
     assert!(result.is_truncated());
     assert!(!result.to_string().contains("raw-secret"));
@@ -35,10 +44,13 @@ fn test_bounded_json_rendering_truncates_without_partial_secret() {
 /// Verifies NDJSON rendering can truncate after a complete first record.
 #[test]
 fn test_bounded_ndjson_rendering_truncates_after_complete_record() {
-    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES).redact_body(
-        BodyCapture::complete(b"{\"mode\":1}\n{\"password\":\"raw-secret\"}"),
-        Some(&HeaderValue::from_static("application/x-ndjson")),
-    );
+    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES)
+        .redact_body(
+            BodyCapture::complete(
+                b"{\"mode\":1}\n{\"password\":\"raw-secret\"}",
+            ),
+            Some(&HeaderValue::from_static("application/x-ndjson")),
+        );
 
     assert!(result.is_truncated());
     assert!(!result.to_string().contains("raw-secret"));
@@ -47,10 +59,11 @@ fn test_bounded_ndjson_rendering_truncates_after_complete_record() {
 /// Verifies NDJSON truncates when a record leaves no room for its separator.
 #[test]
 fn test_bounded_ndjson_rendering_truncates_at_record_separator() {
-    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES).redact_body(
-        BodyCapture::complete(b"{\"a\":\"abc\"}\n{}"),
-        Some(&HeaderValue::from_static("application/x-ndjson")),
-    );
+    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES)
+        .redact_body(
+            BodyCapture::complete(b"{\"a\":\"abc\"}\n{}"),
+            Some(&HeaderValue::from_static("application/x-ndjson")),
+        );
 
     assert!(result.is_truncated());
 }
@@ -59,10 +72,11 @@ fn test_bounded_ndjson_rendering_truncates_at_record_separator() {
 /// its original trailing newline.
 #[test]
 fn test_bounded_ndjson_rendering_truncates_at_trailing_newline() {
-    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES).redact_body(
-        BodyCapture::complete(b"{\"a\":\"abc\"}\n"),
-        Some(&HeaderValue::from_static("application/x-ndjson")),
-    );
+    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES)
+        .redact_body(
+            BodyCapture::complete(b"{\"a\":\"abc\"}\n"),
+            Some(&HeaderValue::from_static("application/x-ndjson")),
+        );
 
     assert!(result.is_truncated());
 }
@@ -71,12 +85,13 @@ fn test_bounded_ndjson_rendering_truncates_at_trailing_newline() {
 /// configured rendering budget.
 #[test]
 fn test_bounded_multipart_rendering_truncates_before_first_part() {
-    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES).redact_body(
-        BodyCapture::complete(b"--boundary--\r\n"),
-        Some(&HeaderValue::from_static(
-            "multipart/form-data; boundary=boundary",
-        )),
-    );
+    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES)
+        .redact_body(
+            BodyCapture::complete(b"--boundary--\r\n"),
+            Some(&HeaderValue::from_static(
+                "multipart/form-data; boundary=boundary",
+            )),
+        );
 
     assert!(result.is_truncated());
 }

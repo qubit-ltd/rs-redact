@@ -9,9 +9,15 @@
 
 use serde_json::Value;
 
-use crate::{RedactionPolicy, Sensitivity};
+use crate::{
+    RedactionPolicy,
+    Sensitivity,
+};
 
-use super::{JsonRedactionOutcome, JsonUnkeyedValuePolicy};
+use super::{
+    JsonRedactionOutcome,
+    JsonUnkeyedValuePolicy,
+};
 
 /// Mutable state shared by one JSON tree traversal.
 pub(crate) struct JsonRedactionState<'policy, 'budget, 'marker> {
@@ -71,13 +77,18 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// # Returns
     ///
     /// The aggregate outcome for this node and its descendants.
-    fn redact_value(&mut self, value: &mut Value, has_field: bool) -> JsonRedactionOutcome {
+    fn redact_value(
+        &mut self,
+        value: &mut Value,
+        has_field: bool,
+    ) -> JsonRedactionOutcome {
         match value {
             Value::Object(values) => self.redact_object(values),
             Value::Array(values) => self.redact_array(values, has_field),
-            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
-                self.redact_scalar(value, has_field)
-            }
+            Value::Null
+            | Value::Bool(_)
+            | Value::Number(_)
+            | Value::String(_) => self.redact_scalar(value, has_field),
         }
     }
 
@@ -115,7 +126,11 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// # Returns
     ///
     /// Aggregate outcome for every traversed item.
-    fn redact_array(&mut self, values: &mut Vec<Value>, has_field: bool) -> JsonRedactionOutcome {
+    fn redact_array(
+        &mut self,
+        values: &mut Vec<Value>,
+        has_field: bool,
+    ) -> JsonRedactionOutcome {
         let mut outcome = JsonRedactionOutcome::default();
         for value in values {
             outcome.merge(self.redact_value(value, has_field));
@@ -133,17 +148,25 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// # Returns
     ///
     /// An outcome reporting a pass-through only for unkeyed visible scalars.
-    fn redact_scalar(&mut self, value: &mut Value, has_field: bool) -> JsonRedactionOutcome {
+    fn redact_scalar(
+        &mut self,
+        value: &mut Value,
+        has_field: bool,
+    ) -> JsonRedactionOutcome {
         if has_field {
             return JsonRedactionOutcome::default();
         }
         match self.unkeyed {
-            JsonUnkeyedValuePolicy::PassThrough => JsonRedactionOutcome::passed_unkeyed(),
+            JsonUnkeyedValuePolicy::PassThrough => {
+                JsonRedactionOutcome::passed_unkeyed()
+            }
             JsonUnkeyedValuePolicy::Redact {
                 marker,
                 truncated_marker,
             } => {
-                *value = Value::String(self.take_unkeyed_marker(marker, truncated_marker));
+                *value = Value::String(
+                    self.take_unkeyed_marker(marker, truncated_marker),
+                );
                 JsonRedactionOutcome::default()
             }
         }
@@ -167,7 +190,8 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
                 .masking()
                 .mask_opaque_bounded(level, *self.remaining_mask_bytes),
         };
-        *self.remaining_mask_bytes = self.remaining_mask_bytes.saturating_sub(masked.len());
+        *self.remaining_mask_bytes =
+            self.remaining_mask_bytes.saturating_sub(masked.len());
         *value = Value::String(masked);
     }
 
@@ -182,7 +206,11 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ///
     /// The preferred marker, fallback marker, or an empty replacement when no
     /// marker fits the remaining generated-mask budget.
-    fn take_unkeyed_marker(&mut self, marker: &str, truncated_marker: &str) -> String {
+    fn take_unkeyed_marker(
+        &mut self,
+        marker: &str,
+        truncated_marker: &str,
+    ) -> String {
         let selected = if *self.remaining_mask_bytes >= marker.len() {
             marker
         } else if *self.remaining_mask_bytes >= truncated_marker.len() {
@@ -190,7 +218,8 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         } else {
             return String::new();
         };
-        *self.remaining_mask_bytes = self.remaining_mask_bytes.saturating_sub(selected.len());
+        *self.remaining_mask_bytes =
+            self.remaining_mask_bytes.saturating_sub(selected.len());
         selected.to_owned()
     }
 }

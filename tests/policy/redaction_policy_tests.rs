@@ -7,10 +7,18 @@
 // =============================================================================
 //! Tests for immutable redaction policies and rule matching.
 
-use proptest::{prop_assert_eq, proptest};
+use proptest::{
+    prop_assert_eq,
+    proptest,
+};
 use qubit_redact::{
-    FieldNameMatching, MaskPolicy, PolicyError, RedactionPolicy, RedactionPolicyBuilder,
-    SensitiveFieldPreset, Sensitivity,
+    FieldNameMatching,
+    MaskPolicy,
+    PolicyError,
+    RedactionPolicy,
+    RedactionPolicyBuilder,
+    SensitiveFieldPreset,
+    Sensitivity,
 };
 
 /// Verifies that an exact allow rule does not allow a contextual suffix.
@@ -143,7 +151,9 @@ fn test_builder_load_default_replaces_existing_state_and_error() {
         .raise("", Sensitivity::High)
         .load_default()
         .build()
-        .expect("the complete default replacement should clear the prior error");
+        .expect(
+            "the complete default replacement should clear the prior error",
+        );
 
     assert_eq!(policy, RedactionPolicy::default());
     assert_eq!(policy.sensitivity_for("custom_only"), None);
@@ -180,16 +190,16 @@ fn test_builder_from_copies_complete_policy_snapshot() {
     assert_eq!(copied.sensitivity_for("OPENAI_TENANT_SECRET"), None);
     assert_eq!(copied.sensitivity_for("public_token"), None);
     assert_eq!(copied.sensitivity_for("diagnostic_token"), None);
-    assert!(
-        sensitive.iter().any(|rule| {
-            rule.field() == "publictoken" && rule.sensitivity() == Sensitivity::High
-        })
-    );
     assert!(sensitive.iter().any(|rule| {
-        rule.field() == "diagnostictoken" && rule.sensitivity() == Sensitivity::Medium
+        rule.field() == "publictoken" && rule.sensitivity() == Sensitivity::High
+    }));
+    assert!(sensitive.iter().any(|rule| {
+        rule.field() == "diagnostictoken"
+            && rule.sensitivity() == Sensitivity::Medium
     }));
     assert!(allowed.iter().any(|rule| {
-        rule.field() == "publictoken" && rule.matching() == FieldNameMatching::Exact
+        rule.field() == "publictoken"
+            && rule.matching() == FieldNameMatching::Exact
     }));
     assert!(allowed.iter().any(|rule| {
         rule.field() == "diagnostictoken"

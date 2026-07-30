@@ -11,10 +11,17 @@ use std::fmt;
 
 use serde_json::Value;
 
-use crate::{RedactValue as _, RedactedValue, RedactionPolicy};
+use crate::{
+    RedactValue as _,
+    RedactedValue,
+    RedactionPolicy,
+};
 
 #[cfg(feature = "serde")]
-use super::internal::{JsonRedactionState, JsonUnkeyedValuePolicy};
+use super::internal::{
+    JsonRedactionState,
+    JsonUnkeyedValuePolicy,
+};
 
 /// A borrowed JSON value rendered with policy-aware object-key redaction.
 #[must_use = "format or serialize the redacted JSON view"]
@@ -37,7 +44,10 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     ///
     /// A borrowed JSON redaction view.
     #[inline(always)]
-    pub const fn new(value: &'value Value, policy: &'policy RedactionPolicy) -> Self {
+    pub const fn new(
+        value: &'value Value,
+        policy: &'policy RedactionPolicy,
+    ) -> Self {
         Self { value, policy }
     }
 
@@ -138,7 +148,13 @@ fn fmt_json(
             let mut output = formatter.debug_map();
             for (key, value) in values {
                 if let Some(sensitivity) = policy.sensitivity_for(key) {
-                    fmt_masked_entry(&mut output, key, value, sensitivity, policy);
+                    fmt_masked_entry(
+                        &mut output,
+                        key,
+                        value,
+                        sensitivity,
+                        policy,
+                    );
                 } else {
                     output.entry(key, &RedactedJson::new(value, policy));
                 }

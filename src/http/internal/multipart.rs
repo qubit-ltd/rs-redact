@@ -11,8 +11,18 @@ use std::io::Write;
 
 use crate::Redactor;
 
-use super::{BoundedBodyWriter, MultipartPartMetadata, content_type, form, json, markers};
-use crate::http::{TextBodyPolicy, UnkeyedJsonValuePolicy};
+use super::{
+    BoundedBodyWriter,
+    MultipartPartMetadata,
+    content_type,
+    form,
+    json,
+    markers,
+};
+use crate::http::{
+    TextBodyPolicy,
+    UnkeyedJsonValuePolicy,
+};
 
 /// Redacts one complete multipart body into a deterministic summary.
 ///
@@ -119,7 +129,11 @@ fn redact_part(
             return None;
         }
     }
-    let metadata = MultipartPartMetadata::parse(disposition, part_type, require_form_data)?;
+    let metadata = MultipartPartMetadata::parse(
+        disposition,
+        part_type,
+        require_form_data,
+    )?;
     let name = metadata.name().unwrap_or(markers::MULTIPART_UNNAMED);
     let (value, passed, truncated) = if metadata.filename().is_some() {
         (markers::MULTIPART_FILE.to_string(), false, false)
@@ -130,7 +144,8 @@ fn redact_part(
         let value = redactor
             .redact_bounded(name, body, *remaining_mask_bytes)
             .into_owned();
-        *remaining_mask_bytes = remaining_mask_bytes.saturating_sub(value.len());
+        *remaining_mask_bytes =
+            remaining_mask_bytes.saturating_sub(value.len());
         (value, false, false)
     } else {
         redact_non_sensitive_part(
@@ -188,25 +203,38 @@ fn redact_non_sensitive_part(
             json::serialize_bounded(&value, max_output_bytes)
                 .map(|(text, truncated)| (text, passed, truncated))
         }
-        Some(value) if content_type::is_ndjson(value) => json::redact_ndjson_with_remaining(
-            redactor,
-            body,
-            unkeyed_policy,
-            remaining_mask_bytes,
-            max_output_bytes,
-        ),
-        Some(value) if content_type::is_form(value) => form::is_valid(body).then(|| {
-            let value = form::redact_bounded(redactor, body, *remaining_mask_bytes);
-            *remaining_mask_bytes = remaining_mask_bytes.saturating_sub(value.len());
-            (value, false, false)
-        }),
+        Some(value) if content_type::is_ndjson(value) => {
+            json::redact_ndjson_with_remaining(
+                redactor,
+                body,
+                unkeyed_policy,
+                remaining_mask_bytes,
+                max_output_bytes,
+            )
+        }
+        Some(value) if content_type::is_form(value) => form::is_valid(body)
+            .then(|| {
+                let value =
+                    form::redact_bounded(redactor, body, *remaining_mask_bytes);
+                *remaining_mask_bytes =
+                    remaining_mask_bytes.saturating_sub(value.len());
+                (value, false, false)
+            }),
         Some(value) if content_type::is_text(value) => match text_policy {
-            TextBodyPolicy::Redact => Some((markers::MULTIPART_TEXT.to_string(), false, false)),
-            TextBodyPolicy::PassThrough => Some((text.to_string(), true, false)),
+            TextBodyPolicy::Redact => {
+                Some((markers::MULTIPART_TEXT.to_string(), false, false))
+            }
+            TextBodyPolicy::PassThrough => {
+                Some((text.to_string(), true, false))
+            }
         },
         None => match text_policy {
-            TextBodyPolicy::Redact => Some((markers::MULTIPART_TEXT.to_string(), false, false)),
-            TextBodyPolicy::PassThrough => Some((text.to_string(), true, false)),
+            TextBodyPolicy::Redact => {
+                Some((markers::MULTIPART_TEXT.to_string(), false, false))
+            }
+            TextBodyPolicy::PassThrough => {
+                Some((text.to_string(), true, false))
+            }
         },
         Some(_) => Some((markers::MULTIPART_PART.to_string(), false, false)),
     }
@@ -285,7 +313,9 @@ fn part_segments<'a>(bytes: &'a [u8], boundary: &str) -> Option<Vec<&'a [u8]>> {
 #[must_use]
 #[inline]
 fn next_line(bytes: &[u8], position: usize) -> (usize, usize, usize) {
-    if let Some(relative) = bytes[position..].iter().position(|byte| *byte == b'\n') {
+    if let Some(relative) =
+        bytes[position..].iter().position(|byte| *byte == b'\n')
+    {
         let end = position + relative;
         let trimmed = end
             .checked_sub(1)

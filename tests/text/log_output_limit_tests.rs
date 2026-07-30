@@ -7,12 +7,16 @@
 // =============================================================================
 //! Tests for [`LogOutputLimit`](qubit_redact::LogOutputLimit).
 
-use qubit_redact::{DiagnosticBudget, LogOutputLimit};
+use qubit_redact::{
+    DiagnosticBudget,
+    LogOutputLimit,
+};
 
 /// Verifies a valid limit preserves its configured byte count.
 #[test]
 fn test_log_output_limit_preserves_valid_budget() {
-    let limit = LogOutputLimit::new(256).expect("the limit can contain the truncation marker");
+    let limit = LogOutputLimit::new(256)
+        .expect("the limit can contain the truncation marker");
 
     assert_eq!(limit.max_bytes(), 256);
 }
@@ -20,7 +24,8 @@ fn test_log_output_limit_preserves_valid_budget() {
 /// Verifies the smallest accepted limit can contain exactly the marker.
 #[test]
 fn test_log_output_limit_accepts_minimum_budget() {
-    let limit = LogOutputLimit::new(LogOutputLimit::MINIMUM).expect("the minimum limit is valid");
+    let limit = LogOutputLimit::new(LogOutputLimit::MINIMUM)
+        .expect("the minimum limit is valid");
 
     assert_eq!(limit.max_bytes(), LogOutputLimit::MINIMUM);
 }
@@ -29,7 +34,8 @@ fn test_log_output_limit_accepts_minimum_budget() {
 /// revalidating its already-compatible output bound.
 #[test]
 fn test_log_output_limit_from_diagnostic_budget_preserves_output_limit() {
-    let budget = DiagnosticBudget::new(64, 128).expect("the diagnostic budget should be valid");
+    let budget = DiagnosticBudget::new(64, 128)
+        .expect("the diagnostic budget should be valid");
     let limit = LogOutputLimit::from(budget);
 
     assert_eq!(limit.max_bytes(), budget.max_output_bytes());

@@ -7,7 +7,12 @@
 // =============================================================================
 //! Tests for borrowed JSON value redaction.
 
-use qubit_redact::{RedactedJson, RedactionPolicy, Sensitivity, UnknownFieldPolicy};
+use qubit_redact::{
+    RedactedJson,
+    RedactionPolicy,
+    Sensitivity,
+    UnknownFieldPolicy,
+};
 use serde_json::json;
 
 /// Verifies object keys select recursive JSON redaction without altering

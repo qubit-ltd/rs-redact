@@ -7,7 +7,10 @@
 // =============================================================================
 //! Verifies direct serde dependency resolution for generated implementations.
 
-use std::{env, path::PathBuf};
+use std::{
+    env,
+    path::PathBuf,
+};
 
 mod support;
 
@@ -15,7 +18,8 @@ mod support;
 #[test]
 fn test_missing_direct_serde_dependency_is_targeted() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let manifest = manifest_dir.join("tests/fixtures/crates/serde_missing/Cargo.toml");
+    let manifest =
+        manifest_dir.join("tests/fixtures/crates/serde_missing/Cargo.toml");
     let target_dir = manifest_dir.join("../target/serde-missing-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = support::isolated_cargo::command(&cargo)
@@ -29,7 +33,9 @@ fn test_missing_direct_serde_dependency_is_targeted() {
 
     assert!(!output.status.success(), "{stderr}");
     assert!(
-        stderr.contains("unable to resolve serde; add `serde` as a direct dependency"),
+        stderr.contains(
+            "unable to resolve serde; add `serde` as a direct dependency"
+        ),
         "{stderr}",
     );
 }
@@ -38,7 +44,8 @@ fn test_missing_direct_serde_dependency_is_targeted() {
 #[test]
 fn test_renamed_serde_dependency_compiles() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let manifest = manifest_dir.join("tests/fixtures/crates/serde_renamed/Cargo.toml");
+    let manifest =
+        manifest_dir.join("tests/fixtures/crates/serde_renamed/Cargo.toml");
     let target_dir = manifest_dir.join("../target/serde-renamed-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = support::isolated_cargo::command(&cargo)

@@ -9,7 +9,11 @@
 
 use std::collections::BTreeMap;
 
-use qubit_redact::{Redact, RedactionPolicy, Sensitivity};
+use qubit_redact::{
+    Redact,
+    RedactionPolicy,
+    Sensitivity,
+};
 use qubit_redact_derive::Redact;
 
 /// Event whose map uses the process default policy.
@@ -27,9 +31,13 @@ fn test_map_uses_global_default_policy() {
         .raise("tenant_secret", Sensitivity::Secret)
         .build()
         .expect("the field rule is valid");
-    RedactionPolicy::set_global_default(policy).expect("this test process installs it once");
+    RedactionPolicy::set_global_default(policy)
+        .expect("this test process installs it once");
     let event = Event {
-        metadata: BTreeMap::from([("tenant_secret".to_owned(), "raw-global-secret".to_owned())]),
+        metadata: BTreeMap::from([(
+            "tenant_secret".to_owned(),
+            "raw-global-secret".to_owned(),
+        )]),
     };
 
     let rendered = format!("{:?}", event.redacted());

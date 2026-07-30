@@ -60,20 +60,25 @@ fn test_serde_struct_expansion_preserves_each_shape() {
     let _ = &named.omitted_value;
 
     assert_eq!(
-        serde_json::to_value(named.redacted()).expect("named redacted struct serializes"),
+        serde_json::to_value(named.redacted())
+            .expect("named redacted struct serializes"),
         serde_json::json!({
             "visibleValue": "shown",
             "secretValue": "<redacted>",
         }),
     );
     assert_eq!(
-        serde_json::to_value(SecretNewtype(String::from("raw-secret")).redacted())
-            .expect("redacted newtype serializes"),
+        serde_json::to_value(
+            SecretNewtype(String::from("raw-secret")).redacted()
+        )
+        .expect("redacted newtype serializes"),
         serde_json::json!("<redacted>"),
     );
     assert_eq!(
-        serde_json::to_value(EmptyNewtype(String::from("raw-omitted")).redacted())
-            .expect("empty redacted newtype serializes"),
+        serde_json::to_value(
+            EmptyNewtype(String::from("raw-omitted")).redacted()
+        )
+        .expect("empty redacted newtype serializes"),
         serde_json::Value::Null,
     );
     assert_eq!(
@@ -89,7 +94,8 @@ fn test_serde_struct_expansion_preserves_each_shape() {
         serde_json::json!(["<redacted>", "shown"]),
     );
     assert_eq!(
-        serde_json::to_value(Ready.redacted()).expect("redacted unit struct serializes"),
+        serde_json::to_value(Ready.redacted())
+            .expect("redacted unit struct serializes"),
         serde_json::Value::Null,
     );
 }

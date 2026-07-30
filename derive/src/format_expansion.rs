@@ -9,7 +9,10 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, Path};
+use syn::{
+    DeriveInput,
+    Path,
+};
 
 use crate::container_attributes::ContainerAttributes;
 
@@ -31,7 +34,8 @@ pub(crate) fn expand(
     attributes: &ContainerAttributes,
 ) -> TokenStream {
     let name = &input.ident;
-    let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
+    let (impl_generics, type_generics, where_clause) =
+        input.generics.split_for_impl();
     let debug_impl = attributes.debug_enabled().then(|| {
         quote! {
             impl #impl_generics ::core::fmt::Debug for #name #type_generics #where_clause {

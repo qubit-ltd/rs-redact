@@ -7,7 +7,10 @@
 // =============================================================================
 //! Errors reported while building a redaction policy.
 
-use std::{error::Error, fmt};
+use std::{
+    error::Error,
+    fmt,
+};
 
 use super::Sensitivity;
 
@@ -40,9 +43,8 @@ impl fmt::Display for PolicyError {
     /// Returns [`fmt::Error`] when the destination rejects a write.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyFieldName => {
-                formatter.write_str("field name is empty after canonicalization")
-            }
+            Self::EmptyFieldName => formatter
+                .write_str("field name is empty after canonicalization"),
             Self::EmptyFixedReplacement { level } => write!(
                 formatter,
                 "fixed mask replacement for {level:?} sensitivity is empty",

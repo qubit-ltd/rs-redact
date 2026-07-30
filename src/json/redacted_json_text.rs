@@ -7,9 +7,15 @@
 // =============================================================================
 //! Lazy fail-closed formatting for JSON stored as text.
 
-use std::fmt::{self, Write as _};
+use std::fmt::{
+    self,
+    Write as _,
+};
 
-use crate::{RedactionPolicy, text::internal::LogEscapeWriter};
+use crate::{
+    RedactionPolicy,
+    text::internal::LogEscapeWriter,
+};
 
 use super::RedactedJson;
 #[cfg(feature = "serde")]
@@ -36,7 +42,10 @@ impl<'text, 'policy> RedactedJsonText<'text, 'policy> {
     ///
     /// A borrowed fail-closed JSON text view.
     #[inline(always)]
-    pub const fn new(text: &'text str, policy: &'policy RedactionPolicy) -> Self {
+    pub const fn new(
+        text: &'text str,
+        policy: &'policy RedactionPolicy,
+    ) -> Self {
         Self { text, policy }
     }
 }
@@ -57,7 +66,10 @@ impl fmt::Debug for RedactedJsonText<'_, '_> {
     /// Returns a formatting error when the destination rejects output.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match serde_json::from_str(self.text) {
-            Ok(value) => fmt::Debug::fmt(&RedactedJson::new(&value, self.policy), formatter),
+            Ok(value) => fmt::Debug::fmt(
+                &RedactedJson::new(&value, self.policy),
+                formatter,
+            ),
             Err(_) => fmt::Debug::fmt(
                 self.policy
                     .masking()
@@ -90,7 +102,8 @@ impl fmt::Display for RedactedJsonText<'_, '_> {
 
 #[cfg(feature = "serde")]
 impl serde::Serialize for RedactedJsonText<'_, '_> {
-    /// Serializes compact redacted JSON while preserving the outer string shape.
+    /// Serializes compact redacted JSON while preserving the outer string
+    /// shape.
     ///
     /// # Type Parameters
     ///

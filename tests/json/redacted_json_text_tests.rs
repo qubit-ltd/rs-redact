@@ -7,7 +7,12 @@
 // =============================================================================
 //! Tests for JSON text redaction and fail-closed fallback.
 
-use qubit_redact::{RedactedJsonText, RedactionPolicy, Sensitivity, redact_json_text_in_place};
+use qubit_redact::{
+    RedactedJsonText,
+    RedactionPolicy,
+    Sensitivity,
+    redact_json_text_in_place,
+};
 
 /// Verifies in-place JSON text redaction produces compact valid JSON.
 #[test]
@@ -16,7 +21,8 @@ fn test_redact_json_text_in_place_masks_and_compacts_valid_json() {
         .raise("password", Sensitivity::Secret)
         .build()
         .expect("the policy should build");
-    let mut text = "{ \"password\": \"raw-password\", \"name\": \"Ada\" }".to_owned();
+    let mut text =
+        "{ \"password\": \"raw-password\", \"name\": \"Ada\" }".to_owned();
 
     redact_json_text_in_place(&mut text, &policy);
 

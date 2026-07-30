@@ -11,7 +11,10 @@ use std::ffi::OsStr;
 
 use qubit_redact::{
     Sensitivity,
-    argv::{ArgvItem, ArgvRedactor},
+    argv::{
+        ArgvItem,
+        ArgvRedactor,
+    },
 };
 
 /// Verifies the module reexports compose into a safe redacted argv view.

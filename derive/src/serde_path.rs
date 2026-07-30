@@ -8,7 +8,11 @@
 //! Serde-crate path resolution for generated implementations.
 
 use proc_macro_crate::crate_name;
-use syn::{DeriveInput, Path, parse_quote};
+use syn::{
+    DeriveInput,
+    Path,
+    parse_quote,
+};
 
 use crate::internal::crate_path;
 

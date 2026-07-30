@@ -8,10 +8,16 @@
 //! Tests for [`HttpRedactionPolicyBuilder`](qubit_redact::http::HttpRedactionPolicyBuilder).
 
 use qubit_redact::{
-    PolicyError, RedactionPolicy, Sensitivity,
+    PolicyError,
+    RedactionPolicy,
+    Sensitivity,
     http::{
-        DiagnosticBudget, HttpRedactionPolicy, HttpRedactionPolicyBuilder, TextBodyPolicy,
-        UnkeyedJsonValuePolicy, UrlPathPolicy,
+        DiagnosticBudget,
+        HttpRedactionPolicy,
+        HttpRedactionPolicyBuilder,
+        TextBodyPolicy,
+        UnkeyedJsonValuePolicy,
+        UrlPathPolicy,
     },
 };
 
@@ -127,8 +133,10 @@ fn test_http_redaction_policy_builder_sets_body_and_behavior_policies() {
         .build()
         .expect("the body policy should be valid");
     let selected = usize::from(std::process::id() == 0);
-    let body_policy: [fn(HttpRedactionPolicyBuilder, RedactionPolicy) -> HttpRedactionPolicyBuilder;
-        2] = [
+    let body_policy: [fn(
+        HttpRedactionPolicyBuilder,
+        RedactionPolicy,
+    ) -> HttpRedactionPolicyBuilder; 2] = [
         HttpRedactionPolicyBuilder::body_policy,
         alternate_body_policy,
     ];
@@ -153,12 +161,17 @@ fn test_http_redaction_policy_builder_sets_body_and_behavior_policies() {
         HttpRedactionPolicyBuilder::unkeyed_json_value_policy,
         alternate_unkeyed_json_value_policy,
     ];
-    let builder = body_policy[selected](HttpRedactionPolicy::builder(), body.clone());
+    let builder =
+        body_policy[selected](HttpRedactionPolicy::builder(), body.clone());
     let builder = url_path_policy[selected](builder, UrlPathPolicy::Preserve);
-    let builder = text_body_policy[selected](builder, TextBodyPolicy::PassThrough);
-    let policy = unkeyed_json_value_policy[selected](builder, UnkeyedJsonValuePolicy::PassThrough)
-        .build()
-        .expect("the HTTP policy should be valid");
+    let builder =
+        text_body_policy[selected](builder, TextBodyPolicy::PassThrough);
+    let policy = unkeyed_json_value_policy[selected](
+        builder,
+        UnkeyedJsonValuePolicy::PassThrough,
+    )
+    .build()
+    .expect("the HTTP policy should be valid");
 
     assert_eq!(policy.body_policy(), &body);
     assert_eq!(policy.url_path_policy(), UrlPathPolicy::Preserve);
@@ -172,8 +185,8 @@ fn test_http_redaction_policy_builder_sets_body_and_behavior_policies() {
 /// Verifies custom diagnostic limits survive building and rebuilding a policy.
 #[test]
 fn test_http_redaction_policy_builder_preserves_diagnostic_budget() {
-    let budget =
-        DiagnosticBudget::new(128, 256).expect("the custom diagnostic budget should be valid");
+    let budget = DiagnosticBudget::new(128, 256)
+        .expect("the custom diagnostic budget should be valid");
     let policy = HttpRedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()
@@ -190,9 +203,10 @@ fn test_http_redaction_policy_builder_preserves_diagnostic_budget() {
 /// order.
 #[test]
 fn test_http_redaction_policy_builder_keeps_diagnostic_budget_independent() {
-    let selected = DiagnosticBudget::new(128, 256).expect("the selected budget should be valid");
-    let replaced =
-        DiagnosticBudget::new(512, 1024).expect("the replacement budget should be valid");
+    let selected = DiagnosticBudget::new(128, 256)
+        .expect("the selected budget should be valid");
+    let replaced = DiagnosticBudget::new(512, 1024)
+        .expect("the replacement budget should be valid");
     let body = RedactionPolicy::builder()
         .diagnostic_budget(replaced)
         .build()
@@ -231,12 +245,13 @@ fn test_http_redaction_policy_builder_validates_each_context_in_order() {
 /// Verifies context-specific builders can revoke inherited allow rules.
 #[test]
 fn test_http_redaction_policy_builder_removes_inherited_allow_rules() {
-    let policy = HttpRedactionPolicyBuilder::from_policy(&inherited_allow_policy())
-        .remove_header_allow_exact("access-token")
-        .remove_query_allow_suffix("session-token")
-        .clear_body_allow_rules()
-        .build()
-        .expect("the rebuilt HTTP policy should be valid");
+    let policy =
+        HttpRedactionPolicyBuilder::from_policy(&inherited_allow_policy())
+            .remove_header_allow_exact("access-token")
+            .remove_query_allow_suffix("session-token")
+            .clear_body_allow_rules()
+            .build()
+            .expect("the rebuilt HTTP policy should be valid");
 
     assert_eq!(
         policy.header_policy().sensitivity_for("access_token"),

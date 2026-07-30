@@ -9,7 +9,11 @@
 
 // qubit-style: allow test-file-name
 
-use std::fmt::{Debug, Formatter, Result};
+use std::fmt::{
+    Debug,
+    Formatter,
+    Result,
+};
 
 /// Proves redacted debug wrappers never invoke the wrapped value's formatter.
 pub(crate) struct PanicDebug;

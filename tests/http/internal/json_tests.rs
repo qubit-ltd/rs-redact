@@ -8,7 +8,10 @@
 //! Tests for JSON body redaction.
 
 use http::HeaderValue;
-use qubit_redact::http::{BodyCapture, HttpRedactor};
+use qubit_redact::http::{
+    BodyCapture,
+    HttpRedactor,
+};
 
 /// Verifies JSON redaction does not expose a secret field value.
 #[test]

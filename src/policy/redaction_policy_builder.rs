@@ -7,11 +7,22 @@
 // =============================================================================
 //! Mutable builder for immutable redaction policies.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 use super::{
-    DiagnosticBudget, FieldNameMatching, MaskPolicy, MaskingPolicy, PolicyError, RedactionPolicy,
-    SensitiveFieldPreset, Sensitivity, UnknownFieldPolicy, internal::canonicalize_field_name,
+    DiagnosticBudget,
+    FieldNameMatching,
+    MaskPolicy,
+    MaskingPolicy,
+    PolicyError,
+    RedactionPolicy,
+    SensitiveFieldPreset,
+    Sensitivity,
+    UnknownFieldPolicy,
+    internal::canonicalize_field_name,
 };
 
 /// Mutable construction state for an immutable [`RedactionPolicy`].
@@ -151,7 +162,10 @@ impl RedactionPolicyBuilder {
     ///
     /// The updated builder.
     #[inline(always)]
-    pub const fn unknown_field_policy(mut self, policy: UnknownFieldPolicy) -> Self {
+    pub const fn unknown_field_policy(
+        mut self,
+        policy: UnknownFieldPolicy,
+    ) -> Self {
         self.unknown_field_policy = policy;
         self
     }

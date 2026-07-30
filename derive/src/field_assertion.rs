@@ -8,10 +8,21 @@
 //! Field-scoped capability assertions for generated implementations.
 
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote_spanned};
-use syn::{Field, Ident, Path, spanned::Spanned};
+use quote::{
+    format_ident,
+    quote_spanned,
+};
+use syn::{
+    Field,
+    Ident,
+    Path,
+    spanned::Spanned,
+};
 
-use crate::{field_mode::FieldMode, immutable_trait_name::ImmutableTraitName};
+use crate::{
+    field_mode::FieldMode,
+    immutable_trait_name::ImmutableTraitName,
+};
 
 /// Generates the immutable capability assertion for one field.
 ///
@@ -36,7 +47,8 @@ pub(crate) fn immutable(
     mode: &FieldMode,
     runtime: &Path,
 ) -> TokenStream {
-    let helper = helper_name(type_name, field, field_name, mode.immutable_trait_name());
+    let helper =
+        helper_name(type_name, field, field_name, mode.immutable_trait_name());
     match mode {
         FieldMode::Plain | FieldMode::Skip => TokenStream::new(),
         FieldMode::Level(sensitivity) => {
@@ -136,7 +148,8 @@ pub(crate) fn mutable(
     mode: &FieldMode,
     runtime: &Path,
 ) -> TokenStream {
-    let helper = helper_name(type_name, field, field_name, mode.mutable_trait_name());
+    let helper =
+        helper_name(type_name, field, field_name, mode.mutable_trait_name());
     match mode {
         FieldMode::Plain | FieldMode::Skip => TokenStream::new(),
         FieldMode::Level(sensitivity) => {
@@ -290,7 +303,9 @@ pub(crate) fn serialization(
                 }
             }
         },
-        FieldMode::Plain | FieldMode::Level(_) | FieldMode::Skip => TokenStream::new(),
+        FieldMode::Plain | FieldMode::Level(_) | FieldMode::Skip => {
+            TokenStream::new()
+        }
     }
 }
 

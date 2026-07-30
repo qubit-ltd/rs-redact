@@ -9,7 +9,11 @@
 
 use std::{
     error::Error,
-    fmt::{self, Display, Formatter},
+    fmt::{
+        self,
+        Display,
+        Formatter,
+    },
 };
 
 /// Reports which hard diagnostic-budget invariant was violated.
@@ -43,9 +47,8 @@ impl Display for DiagnosticBudgetError {
     /// Returns [`fmt::Error`] when the destination formatter rejects output.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ZeroInput => {
-                formatter.write_str("diagnostic input budget must be greater than zero")
-            }
+            Self::ZeroInput => formatter
+                .write_str("diagnostic input budget must be greater than zero"),
             Self::OutputTooSmall { minimum, actual } => write!(
                 formatter,
                 "diagnostic output budget must be at least {minimum} bytes, got {actual}",

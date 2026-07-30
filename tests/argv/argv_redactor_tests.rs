@@ -55,7 +55,9 @@ fn test_argv_redactor_supports_documented_heuristic_forms() {
 #[test]
 fn test_argv_redactor_masks_sensitive_jvm_property() {
     let rendered = ArgvRedactor::default()
-        .redact_heuristically([ArgvItem::plain(OsStr::new("-Dpassword=jvm-secret"))])
+        .redact_heuristically([ArgvItem::plain(OsStr::new(
+            "-Dpassword=jvm-secret",
+        ))])
         .to_string();
 
     assert!(rendered.contains("-Dpassword=<redacted>"));
@@ -82,7 +84,10 @@ fn test_argv_redactor_keeps_documented_unsupported_forms_plain() {
 fn test_argv_redactor_masks_unsupported_forms_when_explicitly_sensitive() {
     let rendered = ArgvRedactor::default()
         .redact_heuristically([
-            ArgvItem::sensitive(OsStr::new("-pSECRET"), qubit_redact::Sensitivity::Secret),
+            ArgvItem::sensitive(
+                OsStr::new("-pSECRET"),
+                qubit_redact::Sensitivity::Secret,
+            ),
             ArgvItem::sensitive(
                 OsStr::new("-Dpassword=SECRET"),
                 qubit_redact::Sensitivity::Secret,

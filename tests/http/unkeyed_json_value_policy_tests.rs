@@ -7,7 +7,10 @@
 // =============================================================================
 //! Tests for [`UnkeyedJsonValuePolicy`](qubit_redact::http::UnkeyedJsonValuePolicy).
 
-use qubit_redact::http::{HttpRedactionPolicy, UnkeyedJsonValuePolicy};
+use qubit_redact::http::{
+    HttpRedactionPolicy,
+    UnkeyedJsonValuePolicy,
+};
 
 /// Verifies unkeyed JSON scalar values are redacted by default.
 #[test]

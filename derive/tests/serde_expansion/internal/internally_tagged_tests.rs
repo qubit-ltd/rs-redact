@@ -59,13 +59,18 @@ fn test_serde_internal_enum_merges_content_beside_tag() {
         }),
     );
     assert_eq!(
-        serde_json::to_value(InternalEvent::Nested(InternalPayload { value: "shown" }).redacted(),)
-            .expect("internal nested variant serializes"),
+        serde_json::to_value(
+            InternalEvent::Nested(InternalPayload { value: "shown" })
+                .redacted(),
+        )
+        .expect("internal nested variant serializes"),
         serde_json::json!({"kind": "Nested", "value": "shown"}),
     );
     assert_eq!(
-        serde_json::to_value(InternalEvent::Empty(String::from("raw-omitted")).redacted())
-            .expect("internal empty variant serializes"),
+        serde_json::to_value(
+            InternalEvent::Empty(String::from("raw-omitted")).redacted()
+        )
+        .expect("internal empty variant serializes"),
         serde_json::json!({"kind": "Empty"}),
     );
     assert_eq!(
