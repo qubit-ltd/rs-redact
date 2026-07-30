@@ -30,9 +30,14 @@
       "features": ["http"]
     },
     {
-      "name": "all",
+      "name": "all-root",
       "commands": ["check", "test", "doc", "clippy"],
-      "packages": ["qubit-redact", "qubit-redact-derive"],
+      "allFeatures": true
+    },
+    {
+      "name": "derive-all",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact-derive"],
       "allFeatures": true
     }
   ]
