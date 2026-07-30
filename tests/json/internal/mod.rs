@@ -5,9 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for public JSON redaction adapters.
+//! Tests covering JSON traversal internals through their public behavior.
 
-mod internal;
-mod redact_json_text_in_place_tests;
-mod redacted_json_tests;
-mod redacted_json_text_tests;
+mod json_redaction_outcome_tests;
+mod json_redaction_state_tests;
+mod json_unkeyed_value_policy_tests;

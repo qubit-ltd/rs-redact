@@ -24,6 +24,14 @@ use super::internal::{
 /// Invalid JSON is replaced with the configured Secret opaque mask so callers
 /// never need to choose between propagating a parse error and exposing input.
 ///
+/// # Resource Use
+///
+/// This explicit data transformation parses and allocates the complete JSON
+/// value. It intentionally does not apply
+/// [`DiagnosticBudget`](crate::DiagnosticBudget), which only bounds diagnostic
+/// rendering; callers processing untrusted input must enforce their own
+/// request-size limit before calling this function.
+///
 /// # Parameters
 ///
 /// * text - JSON text replaced in place.
@@ -42,7 +50,7 @@ pub fn redact_json_text_in_place(text: &mut String, policy: &RedactionPolicy) {
 /// # Returns
 ///
 /// Compact redacted JSON for valid input, or the configured Secret opaque mask
-/// for invalid or non-serializable input.
+/// for invalid input.
 pub(crate) fn redacted_json_text(
     text: &str,
     policy: &RedactionPolicy,
@@ -57,7 +65,8 @@ pub(crate) fn redacted_json_text(
         &mut remaining_mask_bytes,
     );
     let _ = state.redact(&mut value);
-    serde_json::to_string(&value).unwrap_or_else(|_| opaque_secret(policy))
+    serde_json::to_string(&value)
+        .expect("serde_json::Value serialization is infallible")
 }
 
 /// Returns the configured opaque replacement for invalid JSON text.

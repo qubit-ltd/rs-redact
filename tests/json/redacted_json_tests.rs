@@ -79,6 +79,27 @@ fn test_redacted_json_preserves_pretty_formatter_semantics() {
     assert!(output.contains("Ada"));
 }
 
+/// Verifies sensitive non-string JSON values never retain their debug form.
+#[test]
+fn test_redacted_json_masks_sensitive_non_string_values() {
+    let value = json!({
+        "secret_number": 42,
+        "secret_object": {"nested": "raw"},
+        "visible": false,
+    });
+    let policy = RedactionPolicy::builder()
+        .raise("secret_number", Sensitivity::Secret)
+        .raise("secret_object", Sensitivity::Secret)
+        .build()
+        .expect("the policy should build");
+
+    let output = format!("{:?}", RedactedJson::new(&value, &policy));
+
+    assert!(!output.contains("42"));
+    assert!(!output.contains("raw"));
+    assert!(output.contains("false"));
+}
+
 /// Verifies redacted JSON serializes as a JSON value rather than a JSON text
 /// string when the serde feature is enabled.
 #[cfg(feature = "serde")]

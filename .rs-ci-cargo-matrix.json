@@ -16,6 +16,13 @@
       "features": ["serde"]
     },
     {
+      "name": "json",
+      "commands": ["check", "test", "doc"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["json"]
+    },
+    {
       "name": "http",
       "commands": ["check", "test", "doc"],
       "packages": ["qubit-redact"],

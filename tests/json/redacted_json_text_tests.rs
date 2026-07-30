@@ -8,11 +8,98 @@
 //! Tests for JSON text redaction and fail-closed fallback.
 
 use qubit_redact::{
+    DiagnosticBudget,
     RedactedJsonText,
     RedactionPolicy,
     Sensitivity,
     redact_json_text_in_place,
 };
+
+/// Verifies display emits compact, parseable JSON rather than Rust debug text.
+#[test]
+fn test_redacted_json_text_display_is_compact_valid_json() {
+    let policy = RedactionPolicy::builder()
+        .raise("password", Sensitivity::Secret)
+        .build()
+        .expect("the policy should build");
+    let output = RedactedJsonText::new(
+        r#"{ "n": 1, "ok": true, "none": null, "name": "Ada", "password": "raw" }"#,
+        &policy,
+    )
+    .to_string();
+    let value = serde_json::from_str::<serde_json::Value>(&output)
+        .expect("display output should remain valid JSON");
+
+    assert_eq!(value["n"], 1);
+    assert_eq!(value["ok"], true);
+    assert_eq!(value["none"], serde_json::Value::Null);
+    assert_eq!(value["name"], "Ada");
+    assert_ne!(value["password"], "raw");
+    assert!(!output.contains("Number("));
+    assert!(!output.contains("String("));
+    assert!(!output.contains("Bool("));
+    assert!(!output.contains("Null"));
+    assert!(!output.contains(' '));
+}
+
+/// Verifies diagnostic formatting refuses oversized JSON before parsing it.
+#[test]
+fn test_redacted_json_text_diagnostic_input_budget_fails_closed() {
+    let policy = RedactionPolicy::builder()
+        .diagnostic_budget(
+            DiagnosticBudget::new(16, 128)
+                .expect("the diagnostic budget should be valid"),
+        )
+        .mask(
+            Sensitivity::Secret,
+            qubit_redact::MaskPolicy::fixed("[input-limit]"),
+        )
+        .build()
+        .expect("the policy should build");
+    let raw = r#"{"name":"visible-untrusted-value"}"#;
+    let view = RedactedJsonText::new(raw, &policy);
+
+    assert!(!format!("{view:?}").contains("visible-untrusted-value"));
+    assert_eq!(view.to_string(), "[input-limit]");
+}
+
+/// Verifies display applies the configured diagnostic output limit.
+#[test]
+fn test_redacted_json_text_display_uses_diagnostic_output_budget() {
+    let budget = DiagnosticBudget::new(256, DiagnosticBudget::MIN_OUTPUT_BYTES)
+        .expect("the diagnostic budget should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_budget(budget)
+        .allow_exact("name")
+        .build()
+        .expect("the policy should build");
+    let raw = format!(r#"{{"name":"{}"}}"#, "a".repeat(128));
+    let view = RedactedJsonText::new(&raw, &policy);
+    let output = view.to_string();
+    let debug = format!("{view:?}");
+
+    assert!(output.len() <= budget.max_output_bytes());
+    assert!(output.ends_with("<truncated>"));
+    assert!(debug.len() <= budget.max_output_bytes());
+    assert!(debug.ends_with("<truncated>"));
+}
+
+/// Verifies alternate debug formatting remains log-safe after pretty rendering.
+#[test]
+fn test_redacted_json_text_debug_preserves_alternate_formatting() {
+    let policy = RedactionPolicy::builder()
+        .raise("password", Sensitivity::Secret)
+        .build()
+        .expect("the policy should build");
+    let view =
+        RedactedJsonText::new(r#"{"password":"raw","name":"Ada"}"#, &policy);
+
+    let output = format!("{view:#?}");
+
+    assert!(output.contains("\\n"));
+    assert!(!output.contains("raw"));
+    assert!(output.contains("Ada"));
+}
 
 /// Verifies in-place JSON text redaction produces compact valid JSON.
 #[test]

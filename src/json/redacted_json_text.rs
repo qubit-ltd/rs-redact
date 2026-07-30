@@ -13,15 +13,23 @@ use std::fmt::{
 };
 
 use crate::{
+    LogOutputLimit,
     RedactionPolicy,
-    text::internal::LogEscapeWriter,
+    Sensitivity,
+    text::internal::BoundedLogEscapeWriter,
 };
 
-use super::RedactedJson;
-#[cfg(feature = "serde")]
-use super::redact_json_text_in_place::redacted_json_text;
+use super::{
+    RedactedJson,
+    redact_json_text_in_place::redacted_json_text,
+};
 
 /// JSON text rendered with recursive object-key redaction.
+///
+/// [`fmt::Debug`] and [`fmt::Display`] are diagnostic boundaries: they reject
+/// text larger than the policy diagnostic input budget before parsing it and
+/// apply the policy output budget. Explicit mutation and Serde serialization
+/// preserve complete JSON instead.
 #[must_use = "format or serialize the redacted JSON text view"]
 pub struct RedactedJsonText<'text, 'policy> {
     /// Original JSON text borrowed without cloning.
@@ -48,10 +56,45 @@ impl<'text, 'policy> RedactedJsonText<'text, 'policy> {
     ) -> Self {
         Self { text, policy }
     }
+
+    /// Reports whether diagnostic formatting must refuse the raw input.
+    ///
+    /// # Returns
+    ///
+    /// True when the text exceeds the policy input limit.
+    #[inline(always)]
+    const fn exceeds_diagnostic_input_budget(&self) -> bool {
+        self.text.len() > self.policy.diagnostic_budget().max_input_bytes()
+    }
+
+    /// Returns the configured opaque replacement for unsafe JSON text.
+    ///
+    /// # Returns
+    ///
+    /// An opaque Secret-sensitivity marker.
+    #[inline(always)]
+    fn opaque_secret(&self) -> &str {
+        self.policy.masking().mask_opaque(Sensitivity::Secret)
+    }
+
+    /// Produces compact redacted JSON for a diagnostic rendering.
+    ///
+    /// # Returns
+    ///
+    /// Compact redacted JSON, or an opaque marker when the input is unsafe.
+    fn diagnostic_json_text(&self) -> String {
+        if self.exceeds_diagnostic_input_budget() {
+            return self.opaque_secret().to_owned();
+        }
+        redacted_json_text(self.text, self.policy)
+    }
 }
 
 impl fmt::Debug for RedactedJsonText<'_, '_> {
-    /// Formats parsed redacted JSON or an opaque replacement for invalid text.
+    /// Formats parsed redacted JSON or an opaque replacement for unsafe text.
+    ///
+    /// Output that exceeds the diagnostic budget ends in the log truncation
+    /// marker.
     ///
     /// # Parameters
     ///
@@ -65,23 +108,42 @@ impl fmt::Debug for RedactedJsonText<'_, '_> {
     ///
     /// Returns a formatting error when the destination rejects output.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match serde_json::from_str(self.text) {
-            Ok(value) => fmt::Debug::fmt(
-                &RedactedJson::new(&value, self.policy),
-                formatter,
-            ),
-            Err(_) => fmt::Debug::fmt(
-                self.policy
-                    .masking()
-                    .mask_opaque(crate::Sensitivity::Secret),
-                formatter,
-            ),
+        let mut writer = BoundedLogEscapeWriter::new(LogOutputLimit::from(
+            self.policy.diagnostic_budget(),
+        ));
+        if self.exceeds_diagnostic_input_budget() {
+            let _ = write!(&mut writer, "{:?}", self.opaque_secret());
+        } else {
+            match serde_json::from_str(self.text) {
+                Ok(value) if formatter.alternate() => {
+                    let _ = write!(
+                        &mut writer,
+                        "{:#?}",
+                        RedactedJson::new(&value, self.policy),
+                    );
+                }
+                Ok(value) => {
+                    let _ = write!(
+                        &mut writer,
+                        "{:?}",
+                        RedactedJson::new(&value, self.policy),
+                    );
+                }
+                Err(_) => {
+                    let _ = write!(&mut writer, "{:?}", self.opaque_secret());
+                }
+            }
         }
+        formatter.write_str(&writer.finish())
     }
 }
 
 impl fmt::Display for RedactedJsonText<'_, '_> {
-    /// Writes compact redacted JSON escaped for a plain-text log boundary.
+    /// Writes compact redacted JSON for a bounded plain-text log boundary.
+    ///
+    /// Complete valid input that fits both diagnostic budgets produces compact
+    /// valid JSON. Rejected input produces the opaque Secret mask; output that
+    /// exceeds its budget ends in the log truncation marker and is not JSON.
     ///
     /// # Parameters
     ///
@@ -95,8 +157,11 @@ impl fmt::Display for RedactedJsonText<'_, '_> {
     ///
     /// Returns a formatting error when the destination rejects output.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut writer = LogEscapeWriter::new(formatter);
-        write!(&mut writer, "{self:?}")
+        let mut writer = BoundedLogEscapeWriter::new(LogOutputLimit::from(
+            self.policy.diagnostic_budget(),
+        ));
+        let _ = writer.write_str(&self.diagnostic_json_text());
+        formatter.write_str(&writer.finish())
     }
 }
 
