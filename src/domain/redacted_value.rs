@@ -164,7 +164,6 @@ impl Display for RedactedValue<'_> {
 /// # Returns
 ///
 /// A log-safe view that borrows `text` when it contains no unsafe controls.
-#[inline(always)]
 fn log_safe<'a>(text: &'a RedactedText<'_>) -> LogSafeText<'a> {
     RedactedText::new(Cow::Borrowed(text.as_str())).escape_for_log()
 }

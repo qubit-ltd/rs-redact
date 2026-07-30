@@ -15,6 +15,21 @@ use qubit_redact::{
     redact_json_text_in_place,
 };
 
+/// Verifies the constructor preserves the borrowed text and policy behavior.
+#[test]
+fn test_redacted_json_text_new_constructs_borrowed_view() {
+    let policy = RedactionPolicy::builder()
+        .allow_exact("name")
+        .build()
+        .expect("the policy should build");
+    let view = std::hint::black_box(RedactedJsonText::new(
+        r#"{"name":"Ada"}"#,
+        &policy,
+    ));
+
+    assert_eq!(view.to_string(), r#"{"name":"Ada"}"#);
+}
+
 /// Verifies display emits compact, parseable JSON rather than Rust debug text.
 #[test]
 fn test_redacted_json_text_display_is_compact_valid_json() {

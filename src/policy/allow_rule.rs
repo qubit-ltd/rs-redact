@@ -58,7 +58,6 @@ impl<'a> AllowRule<'a> {
     ///
     /// [`FieldNameMatching::Exact`] for an exact-only allow rule or
     /// [`FieldNameMatching::ExactOrTokenSuffix`] for a suffix allow rule.
-    #[inline(always)]
     pub const fn matching(&self) -> FieldNameMatching {
         self.matching
     }

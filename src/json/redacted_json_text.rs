@@ -49,7 +49,6 @@ impl<'text, 'policy> RedactedJsonText<'text, 'policy> {
     /// # Returns
     ///
     /// A borrowed fail-closed JSON text view.
-    #[inline(always)]
     pub const fn new(
         text: &'text str,
         policy: &'policy RedactionPolicy,
