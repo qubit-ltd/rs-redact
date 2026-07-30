@@ -161,7 +161,9 @@ impl RedactionPolicy {
     /// * `allow_exact` - Canonical exact-only allow rules.
     /// * `allow_suffix` - Canonical suffix allow rules.
     /// * `matching` - Sensitive-field matching breadth.
+    /// * `unknown_field_policy` - Fallback for fields with no matching rule.
     /// * `masking` - Four-level value-masking policy.
+    /// * `diagnostic_budget` - Input and output limits for diagnostics.
     ///
     /// # Returns
     ///
@@ -261,8 +263,9 @@ impl RedactionPolicy {
     ///
     /// # Returns
     ///
-    /// `Some(level)` for a sensitive classification, or `None` when an allow
-    /// rule wins or no rule matches.
+    /// `Some(level)` for a sensitive classification or configured unknown-field
+    /// fallback, or `None` when an allow rule wins or the fallback passes
+    /// unknown fields through.
     #[must_use]
     #[inline]
     pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
@@ -344,8 +347,9 @@ impl RedactionPolicy {
     ///
     /// # Returns
     ///
-    /// `Some(level)` for an exact sensitive rule, or `None` when an allow rule
-    /// wins or no exact sensitive rule matches.
+    /// `Some(level)` for an exact sensitive rule or configured unknown-field
+    /// fallback, or `None` when an allow rule wins or the fallback passes
+    /// unknown fields through.
     pub(crate) fn sensitivity_for_exact(
         &self,
         field: &str,
