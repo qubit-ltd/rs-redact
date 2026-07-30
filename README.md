@@ -27,7 +27,7 @@ explicit log-safe boundary.
 
 ```toml
 [dependencies]
-qubit-redact = "0.3"
+qubit-redact = "0.4"
 ```
 
 ```rust
@@ -83,7 +83,7 @@ The original value remains available to application logic. Call
 ```toml
 [dependencies]
 # HTTP diagnostics only
-qubit-redact = { version = "0.3", features = ["http"] }
+qubit-redact = { version = "0.4", features = ["http"] }
 http = "1.4"
 ```
 

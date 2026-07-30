@@ -22,7 +22,7 @@ Qubit Redact 用于防止敏感信息经 Rust 诊断信息泄露，包括日志�
 
 ```toml
 [dependencies]
-qubit-redact = "0.3"
+qubit-redact = "0.4"
 ```
 
 ```rust
@@ -78,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```toml
 [dependencies]
 # 仅启用 HTTP 诊断
-qubit-redact = { version = "0.3", features = ["http"] }
+qubit-redact = { version = "0.4", features = ["http"] }
 http = "1.4"
 ```
 

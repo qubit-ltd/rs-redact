@@ -30,7 +30,7 @@ Add the runtime and derive crates together:
 
 ```toml
 [dependencies]
-qubit-redact = "0.3"
+qubit-redact = "0.4"
 qubit-redact-derive = "0.3"
 ```
 
@@ -102,7 +102,7 @@ derive crate discovers Cargo renames, so this also works:
 
 ```toml
 [dependencies]
-redaction = { package = "qubit-redact", version = "0.3" }
+redaction = { package = "qubit-redact", version = "0.4" }
 qubit-redact-derive = "0.3"
 ```
 
@@ -111,7 +111,7 @@ declare `serde` directly:
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.3", features = ["serde"] }
+qubit-redact = { version = "0.4", features = ["serde"] }
 qubit-redact-derive = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
