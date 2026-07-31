@@ -15,6 +15,7 @@ use qubit_redact::{
         DiagnosticBudget,
         HttpRedactionPolicy,
         HttpRedactionPolicyBuilder,
+        JsonDepthBudget,
         TextBodyPolicy,
         UnkeyedJsonValuePolicy,
         UrlPathPolicy,
@@ -196,6 +197,23 @@ fn test_http_redaction_policy_builder_preserves_diagnostic_budget() {
         .expect("the copied HTTP policy should be valid");
 
     assert_eq!(policy.diagnostic_budget(), budget);
+    assert_eq!(rebuilt, policy);
+}
+
+/// Verifies custom JSON depth limits survive building and rebuilding a policy.
+#[test]
+fn test_http_redaction_policy_builder_preserves_json_depth_budget() {
+    let budget =
+        JsonDepthBudget::new(7).expect("the JSON depth budget is valid");
+    let policy = HttpRedactionPolicy::builder()
+        .json_depth_budget(budget)
+        .build()
+        .expect("the HTTP policy should be valid");
+    let rebuilt = HttpRedactionPolicyBuilder::from_policy(&policy)
+        .build()
+        .expect("the copied HTTP policy should be valid");
+
+    assert_eq!(policy.json_depth_budget(), budget);
     assert_eq!(rebuilt, policy);
 }
 

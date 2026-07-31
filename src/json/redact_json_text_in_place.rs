@@ -30,7 +30,9 @@ use super::internal::{
 /// value. It intentionally does not apply
 /// [`DiagnosticBudget`](crate::DiagnosticBudget), which only bounds diagnostic
 /// rendering; callers processing untrusted input must enforce their own
-/// request-size limit before calling this function.
+/// request-size limit before calling this function. The policy's
+/// [`JsonDepthBudget`](crate::JsonDepthBudget) always applies and replaces an
+/// over-depth subtree without visiting its descendants.
 ///
 /// # Parameters
 ///

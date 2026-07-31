@@ -8,6 +8,8 @@
 //! Tests for borrowed JSON value redaction.
 
 use qubit_redact::{
+    JsonDepthBudget,
+    MaskPolicy,
     RedactedJson,
     RedactionPolicy,
     Sensitivity,
@@ -100,6 +102,30 @@ fn test_redacted_json_masks_sensitive_non_string_values() {
     assert!(output.contains("false"));
 }
 
+/// Verifies borrowed formatting replaces an over-depth subtree without
+/// inspecting or exposing its descendants.
+#[test]
+fn test_redacted_json_fails_closed_at_depth_budget() {
+    let value = json!({
+        "shallow": "visible",
+        "nested": {"deeper": {"secret": "raw-depth-secret"}},
+    });
+    let policy = RedactionPolicy::builder()
+        .json_depth_budget(
+            JsonDepthBudget::new(1).expect("the depth budget is valid"),
+        )
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
+        .build()
+        .expect("the policy should build");
+
+    let output = format!("{:?}", RedactedJson::new(&value, &policy));
+
+    assert!(output.contains("visible"));
+    assert!(output.contains("[depth-limit]"));
+    assert!(!output.contains("raw-depth-secret"));
+    assert!(!output.contains("deeper"));
+}
+
 /// Verifies redacted JSON serializes as a JSON value rather than a JSON text
 /// string when the serde feature is enabled.
 #[cfg(feature = "serde")]
@@ -117,4 +143,29 @@ fn test_redacted_json_serde_preserves_json_value_shape() {
     assert!(serialized.is_object());
     assert_eq!(serialized["name"], "Ada");
     assert_ne!(serialized["password"], "raw");
+}
+
+/// Verifies Serde serialization applies the same fail-closed depth budget
+/// without cloning the complete source tree.
+#[cfg(feature = "serde")]
+#[test]
+fn test_redacted_json_serde_fails_closed_at_depth_budget() {
+    let value = json!({
+        "shallow": "visible",
+        "nested": {"secret": "raw-depth-secret"},
+    });
+    let policy = RedactionPolicy::builder()
+        .json_depth_budget(
+            JsonDepthBudget::new(1).expect("the depth budget is valid"),
+        )
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
+        .build()
+        .expect("the policy should build");
+
+    let output = serde_json::to_value(RedactedJson::new(&value, &policy))
+        .expect("the bounded redacted view should serialize");
+
+    assert_eq!(output["shallow"], "visible");
+    assert_eq!(output["nested"], "[depth-limit]");
+    assert!(!output.to_string().contains("raw-depth-secret"));
 }

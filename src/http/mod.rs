@@ -26,6 +26,8 @@ mod url_path_policy;
 pub use crate::{
     DiagnosticBudget,
     DiagnosticBudgetError,
+    JsonDepthBudget,
+    JsonDepthBudgetError,
 };
 pub use body_budget::BodyBudget;
 pub use body_budget_error::BodyBudgetError;

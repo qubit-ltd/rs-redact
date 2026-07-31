@@ -11,16 +11,16 @@ use std::fmt;
 
 use serde_json::Value;
 
+#[cfg(feature = "serde")]
+use serde::ser::{
+    SerializeMap as _,
+    SerializeSeq as _,
+};
+
 use crate::{
     RedactValue as _,
     RedactedValue,
     RedactionPolicy,
-};
-
-#[cfg(feature = "serde")]
-use super::internal::{
-    JsonRedactionState,
-    JsonUnkeyedValuePolicy,
 };
 
 /// A borrowed JSON value rendered with policy-aware object-key redaction.
@@ -30,6 +30,8 @@ pub struct RedactedJson<'value, 'policy> {
     value: &'value Value,
     /// Policy used to classify every encountered object key.
     policy: &'policy RedactionPolicy,
+    /// Current recursive container depth measured from the root.
+    depth: usize,
 }
 
 impl<'value, 'policy> RedactedJson<'value, 'policy> {
@@ -48,25 +50,54 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
         value: &'value Value,
         policy: &'policy RedactionPolicy,
     ) -> Self {
-        Self { value, policy }
+        Self {
+            value,
+            policy,
+            depth: 0,
+        }
     }
 
-    /// Clones and redacts the value for owned output protocols.
+    /// Creates a nested view sharing the same policy and depth budget.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Nested JSON value borrowed from the current node.
     ///
     /// # Returns
     ///
-    /// An owned JSON value with every sensitive keyed value replaced.
-    #[cfg(feature = "serde")]
-    fn to_redacted_value(&self) -> Value {
-        let mut value = self.value.clone();
-        let mut remaining_mask_bytes = usize::MAX;
-        let mut state = JsonRedactionState::new(
-            self.policy,
-            JsonUnkeyedValuePolicy::PassThrough,
-            &mut remaining_mask_bytes,
-        );
-        let _ = state.redact(&mut value);
-        value
+    /// A borrowed view at the next recursive depth.
+    #[inline(always)]
+    fn nested<'nested>(
+        &self,
+        value: &'nested Value,
+    ) -> RedactedJson<'nested, 'policy> {
+        RedactedJson {
+            value,
+            policy: self.policy,
+            depth: self.depth.saturating_add(1),
+        }
+    }
+
+    /// Reports whether the current container must fail closed at the depth
+    /// budget.
+    ///
+    /// # Returns
+    ///
+    /// True for an object or array at or beyond the configured maximum depth.
+    #[inline(always)]
+    fn depth_limit_reached(&self) -> bool {
+        self.depth >= self.policy.json_depth_budget().max_depth()
+            && matches!(self.value, Value::Object(_) | Value::Array(_))
+    }
+
+    /// Returns the policy's opaque Secret replacement for an over-depth tree.
+    ///
+    /// # Returns
+    ///
+    /// A borrowed redacted scalar safe to use in debug and Serde output.
+    #[inline(always)]
+    fn depth_limit_mask(&self) -> RedactedValue<'_> {
+        RedactedValue::opaque(crate::Sensitivity::Secret, self.policy.masking())
     }
 }
 
@@ -85,13 +116,13 @@ impl fmt::Debug for RedactedJson<'_, '_> {
     ///
     /// Returns a formatting error when the destination rejects output.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt_json(self.value, self.policy, formatter)
+        fmt_json(self, formatter)
     }
 }
 
 #[cfg(feature = "serde")]
 impl serde::Serialize for RedactedJson<'_, '_> {
-    /// Serializes a redacted clone while retaining the JSON value shape.
+    /// Serializes a bounded redacted view while retaining safe JSON shapes.
     ///
     /// # Type Parameters
     ///
@@ -112,7 +143,51 @@ impl serde::Serialize for RedactedJson<'_, '_> {
     where
         S: serde::Serializer,
     {
-        serde::Serialize::serialize(&self.to_redacted_value(), serializer)
+        if self.depth_limit_reached() {
+            return serde::Serialize::serialize(
+                &self.depth_limit_mask(),
+                serializer,
+            );
+        }
+        match self.value {
+            Value::Array(values) => {
+                let mut output =
+                    serializer.serialize_seq(Some(values.len()))?;
+                for value in values {
+                    output.serialize_element(&self.nested(value))?;
+                }
+                output.end()
+            }
+            Value::Object(values) => {
+                let mut output =
+                    serializer.serialize_map(Some(values.len()))?;
+                for (key, value) in values {
+                    if let Some(sensitivity) = self.policy.sensitivity_for(key)
+                    {
+                        match value {
+                            Value::String(text) => {
+                                let redacted = text.redact_value(
+                                    sensitivity,
+                                    self.policy.masking(),
+                                );
+                                output.serialize_entry(key, &redacted)?;
+                            }
+                            _ => {
+                                let redacted = RedactedValue::opaque(
+                                    sensitivity,
+                                    self.policy.masking(),
+                                );
+                                output.serialize_entry(key, &redacted)?;
+                            }
+                        }
+                    } else {
+                        output.serialize_entry(key, &self.nested(value))?;
+                    }
+                }
+                output.end()
+            }
+            value => serde::Serialize::serialize(value, serializer),
+        }
     }
 }
 
@@ -120,8 +195,7 @@ impl serde::Serialize for RedactedJson<'_, '_> {
 ///
 /// # Parameters
 ///
-/// * value - Current node borrowed without cloning.
-/// * policy - Immutable key-classification and masking policy.
+/// * view - Current value, policy, and recursive depth.
 /// * formatter - Destination formatting context.
 ///
 /// # Returns
@@ -132,31 +206,33 @@ impl serde::Serialize for RedactedJson<'_, '_> {
 ///
 /// Returns a formatting error when the destination rejects output.
 fn fmt_json(
-    value: &Value,
-    policy: &RedactionPolicy,
+    view: &RedactedJson<'_, '_>,
     formatter: &mut fmt::Formatter<'_>,
 ) -> fmt::Result {
-    match value {
+    if view.depth_limit_reached() {
+        return fmt::Debug::fmt(&view.depth_limit_mask(), formatter);
+    }
+    match view.value {
         Value::Array(values) => {
             let mut output = formatter.debug_list();
             for value in values {
-                output.entry(&RedactedJson::new(value, policy));
+                output.entry(&view.nested(value));
             }
             output.finish()
         }
         Value::Object(values) => {
             let mut output = formatter.debug_map();
             for (key, value) in values {
-                if let Some(sensitivity) = policy.sensitivity_for(key) {
+                if let Some(sensitivity) = view.policy.sensitivity_for(key) {
                     fmt_masked_entry(
                         &mut output,
                         key,
                         value,
                         sensitivity,
-                        policy,
+                        view.policy,
                     );
                 } else {
-                    output.entry(key, &RedactedJson::new(value, policy));
+                    output.entry(key, &view.nested(value));
                 }
             }
             output.finish()

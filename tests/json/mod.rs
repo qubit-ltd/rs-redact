@@ -8,6 +8,7 @@
 //! Tests for public JSON redaction adapters.
 
 mod internal;
+mod json_depth_budget_tests;
 mod redact_json_text_in_place_tests;
 mod redacted_json_tests;
 mod redacted_json_text_tests;

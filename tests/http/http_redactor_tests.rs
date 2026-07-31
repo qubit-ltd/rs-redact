@@ -20,6 +20,7 @@ use proptest::{
 };
 use qubit_redact::{
     DiagnosticBudget,
+    JsonDepthBudget,
     MaskPolicy,
     RedactionPolicy,
     Sensitivity,
@@ -576,8 +577,7 @@ fn test_ndjson_and_form_body_redaction_cover_valid_and_invalid_inputs() {
 fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
     let masking = qubit_redact::MaskingPolicy::default()
         .with_policy(Sensitivity::Secret, MaskPolicy::fixed("SECRET"));
-    let body_policy = RedactionPolicy::builder()
-        .load_default()
+    let body_policy = RedactionPolicy::builder_from_default()
         .mask(Sensitivity::Secret, MaskPolicy::fixed("SECRET"))
         .build()
         .expect("the test masking policy is valid");
@@ -613,8 +613,7 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
 /// into an edge-preserving mask.
 #[test]
 fn test_json_policy_masks_sensitive_non_strings_as_opaque_values() {
-    let body_policy = RedactionPolicy::builder()
-        .load_default()
+    let body_policy = RedactionPolicy::builder_from_default()
         .mask(
             Sensitivity::Secret,
             MaskPolicy::preserve_edges(1, 1, "OPAQUE", 0),
@@ -635,11 +634,36 @@ fn test_json_policy_masks_sensitive_non_strings_as_opaque_values() {
     assert_eq!(body.to_string(), r#"{"password":"OPAQUE"}"#);
 }
 
+/// Verifies HTTP JSON redaction inherits and enforces the body policy's depth
+/// budget before rendering structured output.
+#[test]
+fn test_json_policy_fails_closed_at_depth_budget() {
+    let budget = JsonDepthBudget::new(1).expect("the depth budget is valid");
+    let policy = HttpRedactionPolicy::builder()
+        .json_depth_budget(budget)
+        .build()
+        .expect("the HTTP policy should build");
+    assert_eq!(policy.json_depth_budget(), budget);
+    let redactor = HttpRedactor::new(policy);
+    let body = redactor.redact_body(
+        BodyCapture::complete(
+            br#"{"shallow":"visible","nested":{"secret":"raw-depth-secret"}}"#,
+        ),
+        Some(&HeaderValue::from_static("application/json")),
+    );
+    let output = body.to_string();
+    let value = serde_json::from_str::<serde_json::Value>(&output)
+        .expect("depth-limited body output should remain valid JSON");
+
+    assert_eq!(value["shallow"], "visible");
+    assert_eq!(value["nested"], "<redacted>");
+    assert!(!output.contains("raw-depth-secret"));
+}
+
 #[test]
 /// Verifies that multipart handles nested formats text unknown and empty.
 fn test_multipart_handles_nested_formats_text_unknown_and_empty() {
-    let policy = HttpRedactionPolicy::builder()
-        .load_default()
+    let policy = HttpRedactionPolicy::builder_from_default()
         .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
         .expect("HTTP redaction policy should be valid");

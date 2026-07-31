@@ -9,6 +9,8 @@
 
 use qubit_redact::{
     DiagnosticBudget,
+    JsonDepthBudget,
+    MaskPolicy,
     RedactionPolicy,
     Sensitivity,
     redact_json_text_in_place,
@@ -35,4 +37,28 @@ fn test_redact_json_text_in_place_is_not_limited_by_diagnostic_budget() {
     assert_eq!(value["name"], "a".repeat(128));
     assert_ne!(value["password"], "raw");
     assert!(text.len() > policy.diagnostic_budget().max_input_bytes());
+}
+
+/// Verifies explicit JSON text mutation still obeys the structural depth
+/// safety budget even though byte-oriented diagnostic limits do not apply.
+#[test]
+fn test_redact_json_text_in_place_obeys_json_depth_budget() {
+    let policy = RedactionPolicy::builder()
+        .json_depth_budget(
+            JsonDepthBudget::new(1).expect("the depth budget is valid"),
+        )
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
+        .build()
+        .expect("the policy should build");
+    let mut text =
+        r#"{"shallow":"visible","nested":{"secret":"raw-depth-secret"}}"#
+            .to_owned();
+
+    redact_json_text_in_place(&mut text, &policy);
+
+    let value = serde_json::from_str::<serde_json::Value>(&text)
+        .expect("depth-limited output should remain valid JSON");
+    assert_eq!(value["shallow"], "visible");
+    assert_eq!(value["nested"], "[depth-limit]");
+    assert!(!text.contains("raw-depth-secret"));
 }

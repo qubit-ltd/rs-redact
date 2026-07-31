@@ -39,6 +39,9 @@ use super::{
     },
 };
 
+#[cfg(feature = "json")]
+use super::JsonDepthBudget;
+
 /// Built-in sensitive fields not owned by a named preset.
 const STANDARD_EXTRA_FIELDS: &[(&str, Sensitivity)] = &[
     ("auth_app_token", Sensitivity::High),
@@ -70,6 +73,9 @@ pub struct RedactionPolicy {
     inner: Arc<RedactionPolicyInner>,
     /// Limits applied whenever this policy renders a diagnostic.
     diagnostic_budget: DiagnosticBudget,
+    /// Maximum recursive container depth inspected for JSON redaction.
+    #[cfg(feature = "json")]
+    json_depth_budget: JsonDepthBudget,
 }
 
 impl RedactionPolicy {
@@ -157,37 +163,24 @@ impl RedactionPolicy {
     ///
     /// # Parameters
     ///
-    /// * `sensitive` - Canonical sensitive fields and levels.
-    /// * `allow_exact` - Canonical exact-only allow rules.
-    /// * `allow_suffix` - Canonical suffix allow rules.
-    /// * `matching` - Sensitive-field matching breadth.
-    /// * `unknown_field_policy` - Fallback for fields with no matching rule.
-    /// * `masking` - Four-level value-masking policy.
+    /// * `inner` - Complete field-classification and masking configuration.
     /// * `diagnostic_budget` - Input and output limits for diagnostics.
+    /// * `json_depth_budget` - Maximum JSON recursion depth when enabled.
     ///
     /// # Returns
     ///
     /// A cheap-clone immutable policy.
     #[inline(always)]
     pub(super) fn from_parts(
-        sensitive: BTreeMap<String, Sensitivity>,
-        allow_exact: BTreeSet<String>,
-        allow_suffix: BTreeSet<String>,
-        matching: FieldNameMatching,
-        unknown_field_policy: UnknownFieldPolicy,
-        masking: MaskingPolicy,
+        inner: RedactionPolicyInner,
         diagnostic_budget: DiagnosticBudget,
+        #[cfg(feature = "json")] json_depth_budget: JsonDepthBudget,
     ) -> Self {
         Self {
-            inner: Arc::new(RedactionPolicyInner {
-                sensitive,
-                allow_exact,
-                allow_suffix,
-                matching,
-                unknown_field_policy,
-                masking,
-            }),
+            inner: Arc::new(inner),
             diagnostic_budget,
+            #[cfg(feature = "json")]
+            json_depth_budget,
         }
     }
 
@@ -200,6 +193,18 @@ impl RedactionPolicy {
     #[inline(always)]
     pub const fn diagnostic_budget(&self) -> DiagnosticBudget {
         self.diagnostic_budget
+    }
+
+    /// Returns the hard recursion-depth limit for JSON redaction.
+    ///
+    /// # Returns
+    ///
+    /// The immutable positive JSON depth budget.
+    #[cfg(feature = "json")]
+    #[must_use = "use the JSON depth budget to bound recursive traversal"]
+    #[inline(always)]
+    pub const fn json_depth_budget(&self) -> JsonDepthBudget {
+        self.json_depth_budget
     }
 
     /// Installs the process-wide default policy exactly once.

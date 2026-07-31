@@ -9,6 +9,7 @@
 
 use crate::{
     DiagnosticBudget,
+    JsonDepthBudget,
     RedactionPolicy,
 };
 
@@ -193,6 +194,16 @@ impl HttpRedactionPolicy {
     #[inline(always)]
     pub const fn unkeyed_json_value_policy(&self) -> UnkeyedJsonValuePolicy {
         self.unkeyed_json_value_policy
+    }
+
+    /// Returns the recursion-depth limit for structured JSON bodies.
+    ///
+    /// # Returns
+    ///
+    /// The immutable positive JSON depth budget from the body policy.
+    #[inline(always)]
+    pub const fn json_depth_budget(&self) -> JsonDepthBudget {
+        self.body_policy.json_depth_budget()
     }
 
     /// Returns the finite body input and output limits.

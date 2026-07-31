@@ -16,6 +16,10 @@ mod field_match_kind;
 mod field_name_matching;
 mod global_default_already_set;
 pub(crate) mod internal;
+#[cfg(feature = "json")]
+mod json_depth_budget;
+#[cfg(feature = "json")]
+mod json_depth_budget_error;
 mod mask_policy;
 mod masking_policy;
 mod policy_error;
@@ -34,6 +38,10 @@ pub use field_classification::FieldClassification;
 pub use field_match_kind::FieldMatchKind;
 pub use field_name_matching::FieldNameMatching;
 pub use global_default_already_set::GlobalDefaultAlreadySet;
+#[cfg(feature = "json")]
+pub use json_depth_budget::JsonDepthBudget;
+#[cfg(feature = "json")]
+pub use json_depth_budget_error::JsonDepthBudgetError;
 pub use mask_policy::MaskPolicy;
 pub use masking_policy::MaskingPolicy;
 pub use policy_error::PolicyError;

@@ -9,6 +9,8 @@
 
 use qubit_redact::{
     DiagnosticBudget,
+    JsonDepthBudget,
+    MaskPolicy,
     RedactedJsonText,
     RedactionPolicy,
     Sensitivity,
@@ -97,6 +99,28 @@ fn test_redacted_json_text_display_uses_diagnostic_output_budget() {
     assert!(output.ends_with("<truncated>"));
     assert!(debug.len() <= budget.max_output_bytes());
     assert!(debug.ends_with("<truncated>"));
+}
+
+/// Verifies JSON text diagnostics replace over-depth subtrees while retaining
+/// safe shallow siblings.
+#[test]
+fn test_redacted_json_text_fails_closed_at_depth_budget() {
+    let policy = RedactionPolicy::builder()
+        .json_depth_budget(
+            JsonDepthBudget::new(1).expect("the depth budget is valid"),
+        )
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
+        .build()
+        .expect("the policy should build");
+    let raw = r#"{"shallow":"visible","nested":{"secret":"raw-depth-secret"}}"#;
+
+    let output = RedactedJsonText::new(raw, &policy).to_string();
+    let value = serde_json::from_str::<serde_json::Value>(&output)
+        .expect("depth-limited output should remain valid JSON");
+
+    assert_eq!(value["shallow"], "visible");
+    assert_eq!(value["nested"], "[depth-limit]");
+    assert!(!output.contains("raw-depth-secret"));
 }
 
 /// Verifies alternate debug formatting remains log-safe after pretty rendering.

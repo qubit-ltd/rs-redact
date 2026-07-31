@@ -64,7 +64,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ///
     /// The aggregate outcome for unkeyed scalar handling.
     pub(crate) fn redact(&mut self, value: &mut Value) -> JsonRedactionOutcome {
-        self.redact_value(value, false)
+        self.redact_value(value, false, 0)
     }
 
     /// Redacts one JSON node with the enclosing key-context flag.
@@ -73,6 +73,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ///
     /// * value - Node mutated in place.
     /// * has_field - Whether an object key identifies this node.
+    /// * depth - Recursive container depth measured from the root.
     ///
     /// # Returns
     ///
@@ -81,10 +82,17 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         &mut self,
         value: &mut Value,
         has_field: bool,
+        depth: usize,
     ) -> JsonRedactionOutcome {
+        if depth >= self.policy.json_depth_budget().max_depth()
+            && matches!(value, Value::Object(_) | Value::Array(_))
+        {
+            self.mask_keyed_value(value, Sensitivity::Secret);
+            return JsonRedactionOutcome::default();
+        }
         match value {
-            Value::Object(values) => self.redact_object(values),
-            Value::Array(values) => self.redact_array(values, has_field),
+            Value::Object(values) => self.redact_object(values, depth),
+            Value::Array(values) => self.redact_array(values, has_field, depth),
             Value::Null
             | Value::Bool(_)
             | Value::Number(_)
@@ -97,6 +105,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// # Parameters
     ///
     /// * values - Object entries mutated in place.
+    /// * depth - Current object depth measured from the root.
     ///
     /// # Returns
     ///
@@ -104,13 +113,18 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     fn redact_object(
         &mut self,
         values: &mut serde_json::Map<String, Value>,
+        depth: usize,
     ) -> JsonRedactionOutcome {
         let mut outcome = JsonRedactionOutcome::default();
         for (key, value) in values {
             if let Some(level) = self.policy.sensitivity_for(key) {
                 self.mask_keyed_value(value, level);
             } else {
-                outcome.merge(self.redact_value(value, true));
+                outcome.merge(self.redact_value(
+                    value,
+                    true,
+                    depth.saturating_add(1),
+                ));
             }
         }
         outcome
@@ -122,6 +136,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ///
     /// * values - Array entries mutated in place.
     /// * has_field - Whether the enclosing object key identifies the array.
+    /// * depth - Current array depth measured from the root.
     ///
     /// # Returns
     ///
@@ -130,10 +145,15 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         &mut self,
         values: &mut Vec<Value>,
         has_field: bool,
+        depth: usize,
     ) -> JsonRedactionOutcome {
         let mut outcome = JsonRedactionOutcome::default();
         for value in values {
-            outcome.merge(self.redact_value(value, has_field));
+            outcome.merge(self.redact_value(
+                value,
+                has_field,
+                depth.saturating_add(1),
+            ));
         }
         outcome
     }

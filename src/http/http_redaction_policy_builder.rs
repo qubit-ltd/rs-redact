@@ -9,6 +9,7 @@
 
 use crate::{
     DiagnosticBudget,
+    JsonDepthBudget,
     PolicyError,
     RedactionPolicy,
     RedactionPolicyBuilder,
@@ -537,6 +538,21 @@ impl HttpRedactionPolicyBuilder {
         policy: UnkeyedJsonValuePolicy,
     ) -> Self {
         self.unkeyed_json_value_policy = policy;
+        self
+    }
+
+    /// Replaces the maximum recursion depth for structured JSON bodies.
+    ///
+    /// # Parameters
+    ///
+    /// * `budget` - Previously validated recursive container-depth limit.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[inline(always)]
+    pub fn json_depth_budget(mut self, budget: JsonDepthBudget) -> Self {
+        self.body = self.body.json_depth_budget(budget);
         self
     }
 

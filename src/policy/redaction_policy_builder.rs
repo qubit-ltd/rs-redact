@@ -22,8 +22,14 @@ use super::{
     SensitiveFieldPreset,
     Sensitivity,
     UnknownFieldPolicy,
-    internal::canonicalize_field_name,
+    internal::{
+        RedactionPolicyInner,
+        canonicalize_field_name,
+    },
 };
+
+#[cfg(feature = "json")]
+use super::JsonDepthBudget;
 
 /// Mutable construction state for an immutable [`RedactionPolicy`].
 #[must_use]
@@ -43,6 +49,9 @@ pub struct RedactionPolicyBuilder {
     masking: MaskingPolicy,
     /// Limits applied to diagnostics rendered with the built policy.
     diagnostic_budget: DiagnosticBudget,
+    /// Maximum recursive container depth inspected for JSON redaction.
+    #[cfg(feature = "json")]
+    json_depth_budget: JsonDepthBudget,
     /// First validation error observed while canonicalizing rules.
     error: Option<PolicyError>,
 }
@@ -74,6 +83,8 @@ impl RedactionPolicyBuilder {
             unknown_field_policy: UnknownFieldPolicy::PassThrough,
             masking: MaskingPolicy::default(),
             diagnostic_budget: DiagnosticBudget::default(),
+            #[cfg(feature = "json")]
+            json_depth_budget: JsonDepthBudget::default(),
             error: None,
         }
     }
@@ -112,6 +123,8 @@ impl RedactionPolicyBuilder {
             unknown_field_policy: policy.unknown_field_policy(),
             masking: policy.masking().clone(),
             diagnostic_budget: policy.diagnostic_budget(),
+            #[cfg(feature = "json")]
+            json_depth_budget: policy.json_depth_budget(),
             error: None,
         }
     }
@@ -340,6 +353,22 @@ impl RedactionPolicyBuilder {
         self
     }
 
+    /// Replaces the maximum recursion depth for JSON redaction.
+    ///
+    /// # Parameters
+    ///
+    /// * `budget` - Previously validated recursive container-depth limit.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    #[cfg(feature = "json")]
+    #[inline(always)]
+    pub const fn json_depth_budget(mut self, budget: JsonDepthBudget) -> Self {
+        self.json_depth_budget = budget;
+        self
+    }
+
     /// Validates and builds an immutable redaction policy.
     ///
     /// # Returns
@@ -380,13 +409,17 @@ impl RedactionPolicyBuilder {
     /// An immutable policy sharing the complete constructed state.
     pub(super) fn into_policy(self) -> RedactionPolicy {
         RedactionPolicy::from_parts(
-            self.sensitive,
-            self.allow_exact,
-            self.allow_suffix,
-            self.matching,
-            self.unknown_field_policy,
-            self.masking,
+            RedactionPolicyInner {
+                sensitive: self.sensitive,
+                allow_exact: self.allow_exact,
+                allow_suffix: self.allow_suffix,
+                matching: self.matching,
+                unknown_field_policy: self.unknown_field_policy,
+                masking: self.masking,
+            },
             self.diagnostic_budget,
+            #[cfg(feature = "json")]
+            self.json_depth_budget,
         )
     }
 
