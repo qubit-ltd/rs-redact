@@ -338,6 +338,8 @@ pub use policy::{
 pub use redactor::Redactor;
 pub use text::{
     BoundedLogSafeDisplay,
+    DiagnosticLogBuilder,
+    DiagnosticWriteStatus,
     LogOutputLimit,
     LogOutputLimitError,
     LogSafeText,
