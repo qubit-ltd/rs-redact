@@ -91,7 +91,8 @@ http = "1.4"
 
 ## 核心概念
 
-`RedactionPolicy` 是字段规则、匹配方式、掩码、未知字段行为和诊断预算的不可变快照。字段决策分为：
+`RedactionPolicy` 是字段规则、匹配方式、掩码、未知字段行为、诊断预算，以及启用 `json`
+feature 时 `JsonDepthBudget` 的不可变快照。字段决策分为：
 **Sensitive**（遮盖）、显式例外的 **Allowed**（允许展示）和 **Unknown**。
 `UnknownFieldPolicy` 默认是 `PassThrough`；边界必须遮盖未分类字段时设置
 `Redact(Sensitivity::Secret)`，而 `classify_field()` 仍报告 `Unknown`。`Redactor` 始终使用同一份快照。
@@ -192,6 +193,12 @@ Map；应通过领域类型定义明确的替换语义。
 
 `redact_map` 返回原集合类型，`redact_map_in_place` 原地修改该集合。两者都不会将 Map
 变成 `LogSafeText`；最终写日志时仍应选择合适的格式化方式。
+
+启用 `json` feature 后，`RedactedJson`、`RedactedJsonText` 和
+`redact_json_text_in_place` 都使用不可变策略中的 `JsonDepthBudget`。根节点深度为 0；
+下一个 object 或 array 到达配置上限时，整个子树会在不访问后代的情况下替换成策略的
+Secret 不透明掩码。默认最大深度为 128；需要更小的正数限制时，使用
+`RedactionPolicyBuilder::json_depth_budget` 配置。
 
 ## 3. 将脱敏文本安全写入日志
 
@@ -366,7 +373,8 @@ fn main() {
 
 `HttpRedactor` 应用该快照。`BodyCapture` 提供借用字节和真实完整性元数据（`complete`、
 `prefix` 或截断 capture），因此库不会读取网络流。`BodyBudget` 限制检查和渲染的 body
-字节；`DiagnosticBudget` 单独限制 URL、form、header 和含 URL 的文本。`BodyRedaction`
+字节；`DiagnosticBudget` 单独限制 URL、form、header 和含 URL 的文本；
+`JsonDepthBudget` 限制 JSON 和 NDJSON 的递归深度。`BodyRedaction`
 是有界日志安全结果；`BodyRedactionStatus` 说明其为结构化成功、策略放行、安全关闭、
 二进制或空结果，`BodyRedactionReason` 则解释安全关闭的原因。所有结果都不提供原始 body
 逃生接口。
@@ -375,7 +383,7 @@ fn main() {
 | --- | --- | --- |
 | URL query、用户名、密码、fragment | 遮盖已配置字段和敏感 URL 组成部分 | `raise_query`、query 策略、`UrlPathPolicy` |
 | form 与 Header | 遮盖已配置字段，且输出有界 | `raise_header`、`raise_query` |
-| JSON、NDJSON、form body、multipart | 解析完整输入；不安全或截断时失败时默认遮盖 | `raise_body`、`BodyBudget` |
+| JSON、NDJSON、form body、multipart | 解析完整输入；不安全、超深或截断时失败时默认遮盖 | `raise_body`、`BodyBudget`、`JsonDepthBudget` |
 | 不透明文本、无 key JSON、URL path | 默认采取保守策略 | 仅在接受风险后显式使用 `PassThrough` 或 `Preserve` |
 | 非 UTF-8 body | 返回二进制摘要，绝不暴露原始字节 | `BodyRedactionStatus::Binary` |
 

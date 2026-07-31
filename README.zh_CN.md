@@ -14,15 +14,15 @@ Qubit Redact 用于防止敏感信息经 Rust 诊断信息泄露，包括日志�
 
 - 一套策略模型可分类标量值、Map、领域对象、进程诊断和可选 HTTP 数据中的具名字段。
 - 有类型的结果明确区分“值已脱敏”和“文本可安全写入日志”。
-- 不合法或已截断的结构化 HTTP 输入会失败时默认遮盖（fail closed）；诊断预算限制检查、
-  输出和信息披露。
+- 不合法或已截断的结构化 HTTP 输入会失败时默认遮盖（fail closed）；有限预算限制检查、
+  输出、JSON 递归深度和信息披露。
 - 默认 feature 集为空，核心 crate 没有外部运行时依赖。
 
 ## 快速开始
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
+qubit-redact = "0.3"
 ```
 
 ```rust
@@ -78,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```toml
 [dependencies]
 # 仅启用 HTTP 诊断
-qubit-redact = { version = "0.4", features = ["http"] }
+qubit-redact = { version = "0.3", features = ["http"] }
 http = "1.4"
 ```
 
@@ -89,6 +89,8 @@ http = "1.4"
 - allow 规则会有意胜出并可能披露数据。优先使用精确 allow 规则，并将每一条都视为安全决策。
 - `RedactedText` 故意不实现 `Display`。值脱敏与日志转义是两层不同保证。
 - `RedactMut` 只替换逻辑值，不会擦除已释放的分配内存、别名、副本或借用后备存储。
+- JSON 脱敏到达 `JsonDepthBudget` 后，会用策略的 Secret 不透明掩码替换超深子树；
+  默认最大深度为 128。
 - HTTP 脱敏只处理调用方提供的 capture，绝不会自行读取或缓存网络 body。
 
 ## 深入了解

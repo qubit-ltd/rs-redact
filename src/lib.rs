@@ -242,6 +242,14 @@
 //! );
 //! ```
 //!
+//! # JSON values
+//!
+//! With the `json` feature, [`RedactedJson`], [`RedactedJsonText`], and
+//! [`redact_json_text_in_place`] share the [`JsonDepthBudget`] stored in their
+//! immutable [`RedactionPolicy`] snapshot. The default maximum depth is 128;
+//! an over-depth object or array is replaced with the policy's opaque Secret
+//! mask without visiting its descendants.
+//!
 //! # HTTP bodies
 //!
 //! Enable this API with `qubit-redact = { version = "0.3", features = ["http"]
@@ -321,6 +329,11 @@ pub use policy::{
     SensitiveFieldRule,
     Sensitivity,
     UnknownFieldPolicy,
+};
+#[cfg(feature = "json")]
+pub use policy::{
+    JsonDepthBudget,
+    JsonDepthBudgetError,
 };
 pub use redactor::Redactor;
 pub use text::{

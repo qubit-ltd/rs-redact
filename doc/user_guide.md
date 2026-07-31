@@ -97,8 +97,9 @@ http = "1.4"
 ## Core concepts
 
 A `RedactionPolicy` is an immutable snapshot of field rules, matching behavior,
-masks, unknown-field behavior, and diagnostic budgets. A field is **Sensitive**,
-**Allowed** by an explicit exception, or **Unknown**. `UnknownFieldPolicy`
+masks, unknown-field behavior, diagnostic budgets, and, with the `json` feature,
+a `JsonDepthBudget`. A field is **Sensitive**, **Allowed** by an explicit
+exception, or **Unknown**. `UnknownFieldPolicy`
 defaults to `PassThrough`; set `Redact(Sensitivity::Secret)` when an
 unclassified field must be masked without changing the observable
 `classify_field()` result. `Redactor` owns one snapshot and applies it
@@ -211,6 +212,14 @@ boundary for their replacement semantics.
 `redact_map` returns the same collection type, while `redact_map_in_place`
 updates that collection. Neither operation turns a map into `LogSafeText`;
 choose an appropriate final formatter at the logging boundary.
+
+With the `json` feature, `RedactedJson`, `RedactedJsonText`, and
+`redact_json_text_in_place` all use the immutable policy's `JsonDepthBudget`.
+The root has depth zero; when another object or array would reach the configured
+maximum, that complete subtree is replaced with the policy's opaque Secret mask
+without visiting its descendants. The default maximum depth is 128. Configure a
+smaller positive limit with `RedactionPolicyBuilder::json_depth_budget` when an
+input boundary requires it.
 
 ## 3. Make redacted text safe for logs
 
@@ -402,7 +411,8 @@ that conservative snapshot.
 truthful completeness metadata (`complete`, `prefix`, or a truncated capture),
 so the library never reads a network stream. `BodyBudget` limits inspected and
 rendered body bytes; `DiagnosticBudget` separately limits URLs, forms, headers,
-and URL-bearing text. `BodyRedaction` is the bounded log-safe result;
+and URL-bearing text; `JsonDepthBudget` bounds JSON and NDJSON recursion.
+`BodyRedaction` is the bounded log-safe result;
 `BodyRedactionStatus` tells whether it was structured, passed through,
 fail-closed, binary, or empty, and `BodyRedactionReason` explains a fail-closed
 outcome. No result exposes a raw-body escape hatch.
@@ -411,7 +421,7 @@ outcome. No result exposes a raw-body escape hatch.
 | --- | --- | --- |
 | URL query, username, password, fragment | Redacts configured fields and sensitive URL components | `raise_query`, query policy, `UrlPathPolicy` |
 | Form and headers | Redacts configured fields; output is bounded | `raise_header`, `raise_query` |
-| JSON, NDJSON, form body, multipart | Parses complete input and fails closed when unsafe or truncated | `raise_body`, `BodyBudget` |
+| JSON, NDJSON, form body, multipart | Parses complete input and fails closed when unsafe, over-depth, or truncated | `raise_body`, `BodyBudget`, `JsonDepthBudget` |
 | Opaque text, unkeyed JSON, URL path | Conservative by default | Explicit `PassThrough` or `Preserve` only after risk review |
 | Non-UTF-8 body | Returns a binary summary, never raw bytes | `BodyRedactionStatus::Binary` |
 

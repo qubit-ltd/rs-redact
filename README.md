@@ -18,8 +18,8 @@ explicit log-safe boundary.
   objects, process diagnostics, and optional HTTP data.
 - Typed results distinguish redacted values from text that is safe to write to
   a plain-text log.
-- Malformed or truncated structured HTTP input fails closed, and diagnostic
-  budgets bound inspection, output, and disclosure.
+- Malformed or truncated structured HTTP input fails closed, and finite budgets
+  bound inspection, output, JSON recursion, and disclosure.
 - The default feature set is empty; the core crate has no external runtime
   dependencies.
 
@@ -27,7 +27,7 @@ explicit log-safe boundary.
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
+qubit-redact = "0.3"
 ```
 
 ```rust
@@ -83,7 +83,7 @@ The original value remains available to application logic. Call
 ```toml
 [dependencies]
 # HTTP diagnostics only
-qubit-redact = { version = "0.4", features = ["http"] }
+qubit-redact = { version = "0.3", features = ["http"] }
 http = "1.4"
 ```
 
@@ -98,6 +98,8 @@ http = "1.4"
   separate guarantees.
 - `RedactMut` replaces logical values only. It does not erase released
   allocations, aliases, copies, or borrowed backing storage.
+- JSON redaction stops at `JsonDepthBudget` and replaces an over-depth subtree
+  with the policy's opaque Secret mask. The default maximum depth is 128.
 - HTTP redaction accepts only caller-provided captures. It never reads or
   buffers a network body itself.
 

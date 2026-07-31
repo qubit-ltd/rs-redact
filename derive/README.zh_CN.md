@@ -24,7 +24,7 @@ Qubit Redact Derive 为 [`qubit-redact`](https://crates.io/crates/qubit-redact)
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
+qubit-redact = "0.3"
 qubit-redact-derive = "0.3"
 ```
 
@@ -94,7 +94,7 @@ fn main() {
 
 ```toml
 [dependencies]
-redaction = { package = "qubit-redact", version = "0.4" }
+redaction = { package = "qubit-redact", version = "0.3" }
 qubit-redact-derive = "0.3"
 ```
 
@@ -103,7 +103,7 @@ qubit-redact-derive = "0.3"
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.4", features = ["serde"] }
+qubit-redact = { version = "0.3", features = ["serde"] }
 qubit-redact-derive = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
