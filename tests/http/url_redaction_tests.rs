@@ -236,8 +236,7 @@ fn test_nested_url_detection_covers_malformed_and_bounded_decoding() {
 #[test]
 /// Verifies that url redaction preserves authoritative mask output.
 fn test_url_redaction_preserves_authoritative_mask_output() {
-    let query_policy = RedactionPolicy::builder()
-        .load_default()
+    let query_policy = RedactionPolicy::builder_from_default()
         .mask(
             Sensitivity::Secret,
             MaskPolicy::fixed("https://mask.invalid/private"),

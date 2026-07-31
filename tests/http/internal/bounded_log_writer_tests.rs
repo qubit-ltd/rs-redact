@@ -24,8 +24,7 @@ use qubit_redact::{
 /// output budget.
 fn amplified_mask_redactor() -> HttpRedactor {
     let replacement = "X\n".repeat(512 * 1024);
-    let body_policy = RedactionPolicy::builder()
-        .load_default()
+    let body_policy = RedactionPolicy::builder_from_default()
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .build()
         .expect("the body policy is valid");

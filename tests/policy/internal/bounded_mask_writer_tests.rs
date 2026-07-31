@@ -27,8 +27,7 @@ fn redact_json_value(
     value: &str,
     max_output: usize,
 ) -> String {
-    let body_policy = RedactionPolicy::builder()
-        .load_default()
+    let body_policy = RedactionPolicy::builder_from_default()
         .mask(Sensitivity::Secret, mask)
         .build()
         .expect("the body policy is valid");
@@ -53,8 +52,7 @@ fn redact_json_value(
 #[test]
 fn test_fixed_mask_respects_output_budget() {
     let replacement = "x".repeat(1024 * 1024);
-    let body_policy = RedactionPolicy::builder()
-        .load_default()
+    let body_policy = RedactionPolicy::builder_from_default()
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .build()
         .expect("the body policy is valid");

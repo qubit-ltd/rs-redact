@@ -24,8 +24,7 @@ use qubit_redact::{
 /// Verifies that an exact allow rule does not allow a contextual suffix.
 #[test]
 fn test_exact_allow_does_not_allow_contextual_suffix() {
-    let policy = RedactionPolicy::builder()
-        .load_default()
+    let policy = RedactionPolicy::builder_from_default()
         .allow_exact("access_token")
         .build()
         .expect("the exact allow rule should be valid");

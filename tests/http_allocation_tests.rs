@@ -204,8 +204,7 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
     );
 
     let replacement = "X".repeat(1024 * 1024);
-    let amplified_policy = RedactionPolicy::builder()
-        .load_default()
+    let amplified_policy = RedactionPolicy::builder_from_default()
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .build()
