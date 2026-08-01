@@ -7,9 +7,13 @@
 // =============================================================================
 //! Builder for immutable HTTP redaction policy snapshots.
 
+use std::sync::Arc;
+
 use crate::{
     DiagnosticBudget,
     JsonDepthBudget,
+    MaskPolicy,
+    MaskingPolicy,
     PolicyError,
     PolicyLocation,
     RedactionFloor,
@@ -90,6 +94,7 @@ pub struct HttpRedactionPolicyBuilder {
     header: ContextRulesBuilder,
     query: ContextRulesBuilder,
     body: ContextRulesBuilder,
+    masking: MaskingPolicy,
     url_path_policy: UrlPathPolicy,
     text_body_policy: TextBodyPolicy,
     unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
@@ -112,6 +117,7 @@ impl HttpRedactionPolicyBuilder {
                 floor.clone(),
             ),
             body: ContextRulesBuilder::empty(PolicyLocation::HttpBody, floor),
+            masking: MaskingPolicy::default(),
             url_path_policy: UrlPathPolicy::default(),
             text_body_policy: TextBodyPolicy::default(),
             unkeyed_json_value_policy: UnkeyedJsonValuePolicy::default(),
@@ -141,6 +147,7 @@ impl HttpRedactionPolicyBuilder {
                 policy.body_rules(),
                 PolicyLocation::HttpBody,
             ),
+            masking: policy.masking().clone(),
             url_path_policy: policy.url_path_policy(),
             text_body_policy: policy.text_body_policy(),
             unkeyed_json_value_policy: policy.unkeyed_json_value_policy(),
@@ -165,6 +172,7 @@ impl HttpRedactionPolicyBuilder {
                 policy.rules(),
                 PolicyLocation::HttpBody,
             ),
+            masking: policy.masking().clone(),
             url_path_policy: UrlPathPolicy::default(),
             text_body_policy: TextBodyPolicy::default(),
             unkeyed_json_value_policy: UnkeyedJsonValuePolicy::default(),
@@ -359,6 +367,12 @@ impl HttpRedactionPolicyBuilder {
         self
     }
 
+    /// Sets the shared mask policy for values at `level`.
+    pub fn mask(mut self, level: Sensitivity, policy: MaskPolicy) -> Self {
+        self.masking = self.masking.with_policy(level, policy);
+        self
+    }
+
     /// Replaces URL path handling.
     pub const fn url_path_policy(mut self, policy: UrlPathPolicy) -> Self {
         self.url_path_policy = policy;
@@ -395,10 +409,12 @@ impl HttpRedactionPolicyBuilder {
 
     /// Builds the complete HTTP policy, validating header, query, then body.
     pub fn build(self) -> Result<HttpRedactionPolicy, PolicyError> {
+        self.masking.validate(PolicyLocation::HttpBody)?;
         Ok(HttpRedactionPolicy::from_parts(HttpRedactionPolicyParts {
             header_rules: self.header.build()?,
             query_rules: self.query.build()?,
             body_rules: self.body.build()?,
+            masking: Arc::new(self.masking),
             diagnostic_budget: self.diagnostic_budget,
             body_budget: self.body_budget,
             json_depth_budget: self.json_depth_budget,

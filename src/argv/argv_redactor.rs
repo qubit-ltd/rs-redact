@@ -418,10 +418,10 @@ impl ArgvRedactor {
             self.redactor.policy().resolve_field(&pending.field)
         };
         match resolved {
-            ResolvedField::Sensitive {
-                sensitivity,
-                masking,
-            } => masking
+            ResolvedField::Sensitive { sensitivity } => self
+                .redactor
+                .policy()
+                .masking()
                 .mask_bounded(sensitivity, value, self.mask_output_limit())
                 .into_owned(),
             ResolvedField::PassThrough => value.to_owned(),
@@ -432,11 +432,10 @@ impl ArgvRedactor {
     fn mask_field_value(&self, field: &str, value: &str) -> Option<String> {
         let resolved = self.redactor.policy().resolve_field(field);
         match resolved {
-            ResolvedField::Sensitive {
-                sensitivity,
-                masking,
-            } => Some(
-                masking
+            ResolvedField::Sensitive { sensitivity } => Some(
+                self.redactor
+                    .policy()
+                    .masking()
                     .mask_bounded(sensitivity, value, self.mask_output_limit())
                     .into_owned(),
             ),

@@ -165,18 +165,20 @@ impl serde::Serialize for RedactedJson<'_, '_> {
                 for (key, value) in values {
                     let resolved = self.policy.resolve_field(key);
                     match resolved {
-                        ResolvedField::Sensitive {
-                            sensitivity,
-                            masking,
-                        } => match value {
+                        ResolvedField::Sensitive { sensitivity } => match value
+                        {
                             Value::String(text) => {
-                                let redacted =
-                                    text.redact_value(sensitivity, masking);
+                                let redacted = text.redact_value(
+                                    sensitivity,
+                                    self.policy.masking(),
+                                );
                                 output.serialize_entry(key, &redacted)?;
                             }
                             _ => {
-                                let redacted =
-                                    RedactedValue::opaque(sensitivity, masking);
+                                let redacted = RedactedValue::opaque(
+                                    sensitivity,
+                                    self.policy.masking(),
+                                );
                                 output.serialize_entry(key, &redacted)?;
                             }
                         },
@@ -226,16 +228,13 @@ fn fmt_json(
             for (key, value) in values {
                 let resolved = view.policy.resolve_field(key);
                 match resolved {
-                    ResolvedField::Sensitive {
-                        sensitivity,
-                        masking,
-                    } => {
+                    ResolvedField::Sensitive { sensitivity } => {
                         fmt_masked_entry(
                             &mut output,
                             key,
                             value,
                             sensitivity,
-                            masking,
+                            view.policy.masking(),
                         );
                     }
                     ResolvedField::PassThrough => {
@@ -257,7 +256,7 @@ fn fmt_json(
 /// * key - Original object key preserved in output.
 /// * value - Sensitive value to replace.
 /// * sensitivity - Level selecting the configured mask.
-/// * masking - Masking configuration selected by atomic field resolution.
+/// * masking - Shared masking configuration selected by sensitivity.
 fn fmt_masked_entry(
     output: &mut fmt::DebugMap<'_, '_>,
     key: &str,

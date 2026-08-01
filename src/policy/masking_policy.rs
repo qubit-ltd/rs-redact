@@ -11,6 +11,8 @@ use std::borrow::Cow;
 
 use super::{
     MaskPolicy,
+    PolicyError,
+    PolicyLocation,
     Sensitivity,
 };
 
@@ -187,6 +189,30 @@ impl MaskingPolicy {
             Sensitivity::High => &self.high,
             Sensitivity::Secret => &self.secret,
         }
+    }
+
+    /// Validates fixed replacements for one policy construction location.
+    pub(crate) fn validate(
+        &self,
+        location: PolicyLocation,
+    ) -> Result<(), PolicyError> {
+        for level in [
+            Sensitivity::Low,
+            Sensitivity::Medium,
+            Sensitivity::High,
+            Sensitivity::Secret,
+        ] {
+            if matches!(
+                self.for_level(level),
+                MaskPolicy::Fixed { replacement } if replacement.is_empty()
+            ) {
+                return Err(PolicyError::EmptyFixedReplacement {
+                    location,
+                    level,
+                });
+            }
+        }
+        Ok(())
     }
 }
 

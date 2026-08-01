@@ -63,15 +63,15 @@ fn test_floor_overrides_application_suffix_allow() {
 }
 
 #[test]
-fn test_floor_mask_is_used_when_application_level_is_higher() {
+fn test_floor_only_raises_sensitivity_when_application_level_is_higher() {
     let floor = RedactionFloor::empty_builder()
         .raise("credential", Sensitivity::Low)
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[floor]"))
         .build()
         .expect("the floor should build");
     let policy = RedactionPolicy::empty_builder()
         .floor(floor)
         .raise("credential", Sensitivity::Secret)
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
         .build()
         .expect("the policy should build");
     assert_eq!(
@@ -80,17 +80,16 @@ fn test_floor_mask_is_used_when_application_level_is_higher() {
     );
     assert_eq!(
         Redactor::new(policy).redact("credential", "value").as_str(),
-        "[floor]"
+        "[application]"
     );
 }
 
 /// Verifies that each layer's unknown-field fallback participates in the final
-/// maximum while a matching floor owns the mask.
+/// maximum while the shared application mask renders the result.
 #[test]
 fn test_floor_and_application_unknown_fallbacks_combine() {
     let floor = RedactionFloor::empty_builder()
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Medium))
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[floor-secret]"))
         .build()
         .expect("the floor should build");
     let policy = RedactionPolicy::empty_builder()
@@ -111,7 +110,7 @@ fn test_floor_and_application_unknown_fallbacks_combine() {
         Redactor::new(policy)
             .redact("unconfigured_reference", "value")
             .as_str(),
-        "[floor-secret]",
+        "[application-secret]",
     );
 }
 

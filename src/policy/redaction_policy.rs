@@ -8,6 +8,7 @@
 //! Immutable field-classification, masking, and diagnostic policy.
 
 use std::sync::{
+    Arc,
     LazyLock,
     OnceLock,
 };
@@ -55,11 +56,11 @@ static STANDARD_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
                 allow_suffix: Default::default(),
                 matching: FieldNameMatching::ExactOrTokenSuffix,
                 unknown_field_policy: UnknownFieldPolicy::PassThrough,
-                masking: MaskingPolicy::default(),
             },
             Some(RedactionFloor::standard()),
             RedactionFloorState::Explicit,
         ),
+        MaskingPolicy::default(),
         DiagnosticBudget::default(),
         #[cfg(feature = "json")]
         JsonDepthBudget::default(),
@@ -72,6 +73,7 @@ static GLOBAL_DEFAULT: OnceLock<RedactionPolicy> = OnceLock::new();
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionPolicy {
     rules: RedactionRules,
+    masking: Arc<MaskingPolicy>,
     limits: RedactionLimits,
 }
 
@@ -122,6 +124,10 @@ impl RedactionPolicy {
 
     /// Installs `policy` as the process-wide default exactly once.
     ///
+    /// Call this only from the application assembly or initialization phase,
+    /// before components that use [`RedactionPolicy::default`] are created.
+    /// Libraries and ordinary runtime code must not call this method.
+    ///
     /// Installation only affects future calls that acquire the global policy;
     /// existing builders, policies, and redactors retain their snapshots.
     ///
@@ -141,11 +147,13 @@ impl RedactionPolicy {
     /// Creates a policy from fully resolved field rules and resource limits.
     pub(crate) fn from_rules(
         rules: RedactionRules,
+        masking: MaskingPolicy,
         diagnostic_budget: DiagnosticBudget,
         #[cfg(feature = "json")] json_depth_budget: JsonDepthBudget,
     ) -> Self {
         Self {
             rules,
+            masking: Arc::new(masking),
             limits: RedactionLimits::new(
                 diagnostic_budget,
                 #[cfg(feature = "json")]
@@ -232,12 +240,12 @@ impl RedactionPolicy {
         self.rules.sensitivity_for_exact(field)
     }
 
-    /// Resolves final sensitivity and masking with exact-only field matching.
+    /// Resolves final sensitivity with exact-only field matching.
     #[inline]
     pub(crate) fn resolve_field_exact(
         &self,
         field: &str,
-    ) -> super::ResolvedField<'_> {
+    ) -> super::ResolvedField {
         self.rules.resolve_field_exact(field)
     }
 
@@ -257,10 +265,14 @@ impl RedactionPolicy {
     pub fn unknown_field_policy(&self) -> UnknownFieldPolicy {
         self.rules.unknown_field_policy()
     }
-    /// Returns application masks; field redaction must use atomic resolution.
+    /// Returns the single mask table used by every sensitivity decision.
+    ///
+    /// Field classification determines the effective sensitivity; this table
+    /// determines how that sensitivity is rendered. Floors never own a second
+    /// mask table.
     #[inline]
     pub fn masking(&self) -> &MaskingPolicy {
-        self.rules.masking()
+        self.masking.as_ref()
     }
 
     /// Iterates sensitive rules configured in the application layer only.
@@ -284,12 +296,9 @@ impl RedactionPolicy {
         self.rules.application_allow_rules()
     }
 
-    /// Resolves final sensitivity and the correct masking policy for `field`.
+    /// Resolves final sensitivity for `field`.
     #[inline]
-    pub(crate) fn resolve_field(
-        &self,
-        field: &str,
-    ) -> super::ResolvedField<'_> {
+    pub(crate) fn resolve_field(&self, field: &str) -> super::ResolvedField {
         self.rules.resolve_field(field)
     }
 }

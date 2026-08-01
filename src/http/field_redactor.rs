@@ -10,6 +10,7 @@
 use std::borrow::Cow;
 
 use crate::{
+    MaskingPolicy,
     RedactedText,
     RedactionRules,
     Sensitivity,
@@ -22,12 +23,16 @@ use crate::{
 /// sole HTTP policy owner and supplies context rules for each operation.
 pub(in crate::http) struct FieldRedactor<'a> {
     rules: &'a RedactionRules,
+    masking: &'a MaskingPolicy,
 }
 
 impl<'a> FieldRedactor<'a> {
     /// Borrows `rules` for one HTTP redaction operation.
-    pub(in crate::http) const fn new(rules: &'a RedactionRules) -> Self {
-        Self { rules }
+    pub(in crate::http) const fn new(
+        rules: &'a RedactionRules,
+        masking: &'a MaskingPolicy,
+    ) -> Self {
+        Self { rules, masking }
     }
 
     /// Masks a classified value without allocating beyond `max_bytes`.
@@ -62,30 +67,34 @@ impl<'a> FieldRedactor<'a> {
     ) -> Option<RedactedText<'value>> {
         let resolved = self.rules.resolve_field(field);
         match resolved {
-            ResolvedField::Sensitive {
-                sensitivity,
-                masking,
-            } => Some(RedactedText::new(masking.mask_bounded(
-                sensitivity,
-                value,
-                max_bytes,
-            ))),
+            ResolvedField::Sensitive { sensitivity } => {
+                Some(RedactedText::new(self.masking.mask_bounded(
+                    sensitivity,
+                    value,
+                    max_bytes,
+                )))
+            }
             ResolvedField::PassThrough => None,
         }
     }
 
-    /// Masks an explicitly sensitive native value with application masking.
+    /// Masks an explicitly sensitive native value with the shared mask table.
     pub(in crate::http) fn mask_bounded<'value>(
         &self,
         level: Sensitivity,
         value: &'value str,
         max_bytes: usize,
     ) -> Cow<'value, str> {
-        self.rules.masking().mask_bounded(level, value, max_bytes)
+        self.masking.mask_bounded(level, value, max_bytes)
     }
 
     /// Returns the borrowed immutable rule snapshot.
     pub(in crate::http) const fn rules(&self) -> &'a RedactionRules {
         self.rules
+    }
+
+    /// Returns the shared mask table for the current HTTP operation.
+    pub(in crate::http) const fn masking(&self) -> &'a MaskingPolicy {
+        self.masking
     }
 }

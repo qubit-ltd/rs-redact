@@ -19,7 +19,6 @@ use std::{
 use super::internal::RedactionPolicyInner;
 use super::{
     GlobalDefaultAlreadySet,
-    MaskingPolicy,
     RedactionFloorBuilder,
     SensitiveFieldPreset,
     SensitiveFieldRule,
@@ -27,8 +26,8 @@ use super::{
 
 /// Immutable minimum field-protection rules.
 ///
-/// A floor contains sensitive-field rules, matching behavior, an unknown-field
-/// fallback, and its own masking policy. It intentionally has no allow rules.
+/// A floor contains sensitive-field rules, matching behavior, and an
+/// unknown-field fallback. It intentionally has no allow rules or mask table.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionFloor {
@@ -70,6 +69,10 @@ impl RedactionFloor {
     }
 
     /// Installs the process-wide floor default exactly once.
+    ///
+    /// Call this only from the application assembly or initialization phase,
+    /// before components that snapshot the default floor are created.
+    /// Libraries and ordinary runtime code must not call this method.
     pub fn set_global_default(
         floor: Self,
     ) -> Result<(), GlobalDefaultAlreadySet> {
@@ -104,11 +107,6 @@ impl RedactionFloor {
             .sensitive
             .iter()
             .map(|(field, level)| SensitiveFieldRule::new(field, *level))
-    }
-
-    #[inline]
-    pub(crate) fn masking(&self) -> &MaskingPolicy {
-        &self.inner.masking
     }
 }
 

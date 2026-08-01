@@ -99,11 +99,8 @@ impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValue<'_, '_, T> {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let resolved = self.policy.resolve_field(self.key);
         match resolved {
-            ResolvedField::Sensitive {
-                sensitivity,
-                masking,
-            } => Debug::fmt(
-                &self.value.redact_value(sensitivity, masking),
+            ResolvedField::Sensitive { sensitivity } => Debug::fmt(
+                &self.value.redact_value(sensitivity, self.policy.masking()),
                 formatter,
             ),
             ResolvedField::PassThrough => {
@@ -165,13 +162,14 @@ impl<T: RedactValue + crate::domain::RedactSerialize + ?Sized> serde::Serialize
     {
         let resolved = self.policy.resolve_field(self.key);
         match resolved {
-            ResolvedField::Sensitive {
-                sensitivity,
-                masking,
-            } => serde::Serialize::serialize(
-                &self.value.redact_value(sensitivity, masking),
-                serializer,
-            ),
+            ResolvedField::Sensitive { sensitivity } => {
+                serde::Serialize::serialize(
+                    &self
+                        .value
+                        .redact_value(sensitivity, self.policy.masking()),
+                    serializer,
+                )
+            }
             ResolvedField::PassThrough => {
                 crate::domain::RedactSerialize::serialize_redacted(
                     self.value,

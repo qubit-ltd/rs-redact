@@ -7,9 +7,12 @@
 // =============================================================================
 //! Complete private construction state for an HTTP redaction policy.
 
+use std::sync::Arc;
+
 use crate::{
     DiagnosticBudget,
     JsonDepthBudget,
+    MaskingPolicy,
     RedactionRules,
 };
 
@@ -25,6 +28,7 @@ pub(super) struct HttpRedactionPolicyParts {
     pub(super) header_rules: RedactionRules,
     pub(super) query_rules: RedactionRules,
     pub(super) body_rules: RedactionRules,
+    pub(super) masking: Arc<MaskingPolicy>,
     pub(super) diagnostic_budget: DiagnosticBudget,
     pub(super) body_budget: BodyBudget,
     pub(super) json_depth_budget: JsonDepthBudget,

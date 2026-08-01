@@ -35,6 +35,7 @@ fn amplified_mask_redactor() -> HttpRedactor {
         BodyBudget::new(4096, 64).expect("the output can contain the marker");
     let policy = HttpRedactionPolicy::empty_builder()
         .body_rules(body_policy.rules().clone())
+        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .disable_body_floor()
         .body_budget(budget)
         .build()

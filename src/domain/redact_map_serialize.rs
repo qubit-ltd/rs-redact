@@ -90,11 +90,9 @@ where
         for (key, value) in self {
             let resolved = policy.resolve_field(key.as_ref());
             match resolved {
-                ResolvedField::Sensitive {
-                    sensitivity,
-                    masking,
-                } => {
-                    let redacted = value.redact_value(sensitivity, masking);
+                ResolvedField::Sensitive { sensitivity } => {
+                    let redacted =
+                        value.redact_value(sensitivity, policy.masking());
                     map.serialize_entry(key, &redacted)?;
                 }
                 ResolvedField::PassThrough => {

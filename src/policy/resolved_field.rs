@@ -7,24 +7,18 @@
 // =============================================================================
 //! Atomic field-resolution result used by redaction executors.
 
-use super::{
-    MaskingPolicy,
-    Sensitivity,
-};
+use super::Sensitivity;
 
 /// Final field decision selected atomically by one lookup.
 ///
-/// The enum makes an invalid state impossible: a sensitive result always owns
-/// the masking policy that must render it, while a pass-through result owns
-/// neither value.
+/// A sensitive result contains only the final level. The owning redaction
+/// policy supplies the single mask table used to render that level.
 #[derive(Clone, Copy)]
-pub(crate) enum ResolvedField<'a> {
-    /// A field is sensitive at the final maximum level and must use `masking`.
+pub(crate) enum ResolvedField {
+    /// A field is sensitive at the final maximum level.
     Sensitive {
         /// Final sensitivity after applying application and floor rules.
         sensitivity: Sensitivity,
-        /// Masking policy belonging to the layer that owns the protection.
-        masking: &'a MaskingPolicy,
     },
     /// Neither the application rules nor an enabled floor require redaction.
     PassThrough,

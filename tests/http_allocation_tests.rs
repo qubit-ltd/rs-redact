@@ -215,6 +215,8 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
     let policy = HttpRedactionPolicy::empty_builder()
         .header_rules(amplified_policy.rules().clone())
         .query_rules(amplified_policy.rules().clone())
+        .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
+        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .diagnostic_budget(diagnostic_budget)
         .build()
         .expect("the amplified HTTP policy is valid");
@@ -274,6 +276,8 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
         .expect("the body budget is valid");
     let policy = HttpRedactionPolicy::empty_builder()
         .body_rules(body_policy.rules().clone())
+        .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
+        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .body_budget(body_budget)
         .build()
         .expect("the HTTP policy is valid");

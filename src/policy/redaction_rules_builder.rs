@@ -14,8 +14,6 @@ use std::collections::{
 
 use super::{
     FieldNameMatching,
-    MaskPolicy,
-    MaskingPolicy,
     PolicyError,
     PolicyLocation,
     SensitiveFieldPreset,
@@ -34,7 +32,6 @@ pub(crate) struct RedactionRulesBuilder {
     allow_suffix: BTreeSet<String>,
     matching: FieldNameMatching,
     unknown_field_policy: UnknownFieldPolicy,
-    masking: MaskingPolicy,
     location: PolicyLocation,
     error: Option<PolicyError>,
 }
@@ -47,7 +44,6 @@ impl RedactionRulesBuilder {
             allow_suffix: BTreeSet::new(),
             matching: FieldNameMatching::ExactOrTokenSuffix,
             unknown_field_policy: UnknownFieldPolicy::PassThrough,
-            masking: MaskingPolicy::default(),
             location,
             error: None,
         }
@@ -63,7 +59,6 @@ impl RedactionRulesBuilder {
             allow_suffix: inner.allow_suffix.clone(),
             matching: inner.matching,
             unknown_field_policy: inner.unknown_field_policy,
-            masking: inner.masking.clone(),
             location,
             error: None,
         }
@@ -143,14 +138,6 @@ impl RedactionRulesBuilder {
         self.allow_suffix.clear();
         self
     }
-    pub(crate) fn mask(
-        mut self,
-        level: Sensitivity,
-        policy: MaskPolicy,
-    ) -> Self {
-        self.masking = self.masking.with_policy(level, policy);
-        self
-    }
     pub(crate) fn validate_field_name(
         field: &str,
         location: PolicyLocation,
@@ -163,27 +150,12 @@ impl RedactionRulesBuilder {
         if let Some(error) = self.error {
             return Err(error);
         }
-        for level in [
-            Sensitivity::Low,
-            Sensitivity::Medium,
-            Sensitivity::High,
-            Sensitivity::Secret,
-        ] {
-            if matches!(self.masking.for_level(level), MaskPolicy::Fixed { replacement } if replacement.is_empty())
-            {
-                return Err(PolicyError::EmptyFixedReplacement {
-                    location: self.location,
-                    level,
-                });
-            }
-        }
         Ok(RedactionPolicyInner {
             sensitive: self.sensitive,
             allow_exact: self.allow_exact,
             allow_suffix: self.allow_suffix,
             matching: self.matching,
             unknown_field_policy: self.unknown_field_policy,
-            masking: self.masking,
         })
     }
     fn canonical_field(&mut self, field: &str) -> Option<String> {

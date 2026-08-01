@@ -7,9 +7,12 @@
 // =============================================================================
 //! Immutable policy snapshot for every HTTP redaction context.
 
+use std::sync::Arc;
+
 use crate::{
     DiagnosticBudget,
     JsonDepthBudget,
+    MaskingPolicy,
     RedactionPolicy,
     RedactionRules,
 };
@@ -30,6 +33,7 @@ pub struct HttpRedactionPolicy {
     header_rules: RedactionRules,
     query_rules: RedactionRules,
     body_rules: RedactionRules,
+    masking: Arc<MaskingPolicy>,
     diagnostic_budget: DiagnosticBudget,
     body_budget: BodyBudget,
     json_depth_budget: JsonDepthBudget,
@@ -64,6 +68,7 @@ impl HttpRedactionPolicy {
             header_rules: parts.header_rules,
             query_rules: parts.query_rules,
             body_rules: parts.body_rules,
+            masking: parts.masking,
             diagnostic_budget: parts.diagnostic_budget,
             body_budget: parts.body_budget,
             json_depth_budget: parts.json_depth_budget,
@@ -89,6 +94,12 @@ impl HttpRedactionPolicy {
     #[inline(always)]
     pub const fn body_rules(&self) -> &RedactionRules {
         &self.body_rules
+    }
+
+    /// Returns the single mask table shared by all HTTP contexts.
+    #[inline(always)]
+    pub fn masking(&self) -> &MaskingPolicy {
+        self.masking.as_ref()
     }
 
     /// Returns the URL path visibility choice.
@@ -137,6 +148,7 @@ impl Default for HttpRedactionPolicy {
             header_rules: policy.rules().clone(),
             query_rules: policy.rules().clone(),
             body_rules: policy.rules().clone(),
+            masking: Arc::new(policy.masking().clone()),
             diagnostic_budget: policy.diagnostic_budget(),
             body_budget: BodyBudget::default(),
             json_depth_budget: policy.json_depth_budget(),

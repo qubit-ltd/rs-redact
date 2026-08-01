@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 use super::{
     FieldNameMatching,
-    MaskPolicy,
     PolicyError,
     PolicyLocation,
     RedactionFloor,
@@ -36,7 +35,7 @@ impl RedactionFloorBuilder {
         }
     }
 
-    /// Copies every field rule and masking choice from `floor`.
+    /// Copies every field rule from `floor`.
     pub(super) fn from_floor(floor: &RedactionFloor) -> Self {
         Self {
             rules: RedactionRulesBuilder::from_inner(
@@ -67,12 +66,6 @@ impl RedactionFloorBuilder {
     /// Sets the fallback for fields without an explicit floor rule.
     pub fn unknown_field_policy(mut self, policy: UnknownFieldPolicy) -> Self {
         self.rules = self.rules.unknown_field_policy(policy);
-        self
-    }
-
-    /// Replaces the mask selected for `level`.
-    pub fn mask(mut self, level: Sensitivity, policy: MaskPolicy) -> Self {
-        self.rules = self.rules.mask(level, policy);
         self
     }
 

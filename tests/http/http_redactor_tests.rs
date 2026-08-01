@@ -586,6 +586,7 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
     assert_eq!(body_policy.masking(), &masking);
     let policy = HttpRedactionPolicy::empty_builder()
         .body_rules(body_policy.rules().clone())
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("SECRET"))
         .disable_body_floor()
         .unkeyed_json_value_policy(
             qubit_redact::http::UnkeyedJsonValuePolicy::PassThrough,
@@ -628,6 +629,10 @@ fn test_json_policy_masks_sensitive_non_strings_as_opaque_values() {
     let policy = HttpRedactionPolicy::empty_builder()
         .disable_body_floor()
         .body_rules(body_policy.rules().clone())
+        .mask(
+            Sensitivity::Secret,
+            MaskPolicy::preserve_edges(1, 1, "OPAQUE", 0),
+        )
         .build()
         .expect("the HTTP policy should be valid");
     let json_type = HeaderValue::from_static("application/json");

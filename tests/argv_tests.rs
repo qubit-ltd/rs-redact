@@ -197,7 +197,7 @@ fn test_redact_heuristically_keeps_empty_sensitive_inline_value() {
 /// Verifies the default floor protects a suffix-matched assignment even when
 /// application matching is exact.
 #[test]
-fn test_redact_heuristically_floor_masks_prefixed_assignment_with_exact_application_matching()
+fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_application_matching()
  {
     let policy = RedactionPolicy::empty_builder()
         .matching(qubit_redact::FieldNameMatching::Exact)
@@ -491,17 +491,17 @@ fn test_redact_heuristically_masks_value_after_non_utf8_option() {
     );
 }
 
-/// Verifies separate option values retain the floor-selected masking policy.
+/// Verifies separate option values use the shared policy mask.
 #[test]
-fn test_redact_heuristically_uses_floor_mask_for_pending_option_value() {
+fn test_redact_heuristically_uses_application_mask_for_pending_option_value() {
     let floor = RedactionFloor::empty_builder()
         .raise("password", Sensitivity::High)
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[floor]"))
         .build()
         .expect("the floor should build");
     let policy = RedactionPolicy::empty_builder()
         .floor(floor)
         .raise("password", Sensitivity::Secret)
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
         .build()
         .expect("the policy should build");
     let rendered = ArgvRedactor::new(Redactor::new(policy))
@@ -511,20 +511,21 @@ fn test_redact_heuristically_uses_floor_mask_for_pending_option_value() {
         ])
         .to_string();
 
-    assert_eq!(rendered, r#"["--password", "[floor]"]"#);
+    assert_eq!(rendered, r#"["--password", "[application]"]"#);
 }
 
-/// Verifies exact single-dash options retain the floor-selected mask.
+/// Verifies exact single-dash options use the shared policy mask.
 #[test]
-fn test_redact_heuristically_uses_floor_mask_for_exact_single_dash_option() {
+fn test_redact_heuristically_uses_application_mask_for_exact_single_dash_option()
+ {
     let floor = RedactionFloor::empty_builder()
         .raise("tenant_secret", Sensitivity::High)
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[floor]"))
         .build()
         .expect("the floor should build");
     let policy = RedactionPolicy::empty_builder()
         .floor(floor)
         .raise("tenant_secret", Sensitivity::Secret)
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
         .build()
         .expect("the policy should build");
     let rendered = ArgvRedactor::new(Redactor::new(policy))
@@ -534,7 +535,7 @@ fn test_redact_heuristically_uses_floor_mask_for_exact_single_dash_option() {
         ])
         .to_string();
 
-    assert_eq!(rendered, r#"["-tenant_secret", "[floor]"]"#);
+    assert_eq!(rendered, r#"["-tenant_secret", "[application]"]"#);
 }
 
 proptest! {

@@ -22,12 +22,11 @@ use qubit_redact::{
     },
 };
 
-/// Verifies header field execution uses the floor-selected mask atomically.
+/// Verifies header field execution uses the shared mask table atomically.
 #[test]
-fn test_field_redactor_uses_floor_mask_for_header_rule() {
+fn test_field_redactor_uses_application_mask_for_header_rule() {
     let floor = RedactionFloor::empty_builder()
         .raise("tenant_token", Sensitivity::Low)
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[floor-secret]"))
         .build()
         .expect("the floor should be valid");
     let application = RedactionPolicy::empty_builder()
@@ -41,6 +40,10 @@ fn test_field_redactor_uses_floor_mask_for_header_rule() {
         .expect("the application policy should be valid");
     let policy = HttpRedactionPolicy::empty_builder()
         .header_rules(application.rules().clone().with_floor(floor))
+        .mask(
+            Sensitivity::Secret,
+            MaskPolicy::fixed("[application-secret]"),
+        )
         .build()
         .expect("the HTTP policy should be valid");
     let mut headers = HeaderMap::new();
@@ -50,7 +53,6 @@ fn test_field_redactor_uses_floor_mask_for_header_rule() {
         .redact_headers(&headers)
         .to_string();
 
-    assert!(rendered.contains("[floor-secret]"));
+    assert!(rendered.contains("[application-secret]"));
     assert!(!rendered.contains("source-secret"));
-    assert!(!rendered.contains("[application-secret]"));
 }

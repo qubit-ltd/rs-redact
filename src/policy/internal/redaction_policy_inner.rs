@@ -14,7 +14,6 @@ use std::collections::{
 
 use crate::policy::{
     FieldNameMatching,
-    MaskingPolicy,
     Sensitivity,
     UnknownFieldPolicy,
 };
@@ -32,6 +31,4 @@ pub(crate) struct RedactionPolicyInner {
     pub(in crate::policy) matching: FieldNameMatching,
     /// Fallback behavior for fields with no matching rule.
     pub(in crate::policy) unknown_field_policy: UnknownFieldPolicy,
-    /// Value masks selected by sensitivity level.
-    pub(in crate::policy) masking: MaskingPolicy,
 }

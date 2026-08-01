@@ -88,18 +88,18 @@ impl HttpRedactor {
 
     /// Borrows the header field-rule executor for the current operation.
     fn header_field_redactor(&self) -> FieldRedactor<'_> {
-        FieldRedactor::new(self.policy.header_rules())
+        FieldRedactor::new(self.policy.header_rules(), self.policy.masking())
     }
 
     /// Borrows the query field-rule executor for the current operation.
     fn query_field_redactor(&self) -> FieldRedactor<'_> {
-        FieldRedactor::new(self.policy.query_rules())
+        FieldRedactor::new(self.policy.query_rules(), self.policy.masking())
     }
 
     /// Borrows the structured-body field-rule executor for the current
     /// operation.
     fn body_field_redactor(&self) -> FieldRedactor<'_> {
-        FieldRedactor::new(self.policy.body_rules())
+        FieldRedactor::new(self.policy.body_rules(), self.policy.masking())
     }
 
     /// Redacts a parsed URL into log-safe text.
@@ -185,7 +185,10 @@ impl HttpRedactor {
         let output_limit = self.policy.diagnostic_budget().max_output_bytes();
         let text = if form::is_valid(input.as_bytes()) {
             form::redact_bounded(
-                &FieldRedactor::new(self.policy.query_rules()),
+                &FieldRedactor::new(
+                    self.policy.query_rules(),
+                    self.policy.masking(),
+                ),
                 input.as_bytes(),
                 output_limit,
             )

@@ -46,12 +46,8 @@ where
     fn redact_map_in_place(&mut self, policy: &RedactionPolicy) {
         for (key, value) in self {
             let resolved = policy.resolve_field(key.as_ref());
-            if let ResolvedField::Sensitive {
-                sensitivity,
-                masking,
-            } = resolved
-            {
-                value.redact_value_in_place(sensitivity, masking);
+            if let ResolvedField::Sensitive { sensitivity } = resolved {
+                value.redact_value_in_place(sensitivity, policy.masking());
             }
         }
     }

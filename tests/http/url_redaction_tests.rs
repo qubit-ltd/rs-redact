@@ -247,6 +247,10 @@ fn test_url_redaction_preserves_authoritative_mask_output() {
         .expect("query policy should be valid");
     let policy = HttpRedactionPolicy::empty_builder()
         .query_rules(query_policy.rules().clone())
+        .mask(
+            Sensitivity::Secret,
+            MaskPolicy::fixed("https://mask.invalid/private"),
+        )
         .disable_query_floor()
         .build()
         .expect("HTTP policy should be valid");

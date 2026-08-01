@@ -17,7 +17,6 @@ use super::{
     FieldClassification,
     FieldMatchKind,
     FieldNameMatching,
-    MaskingPolicy,
     RedactionFloor,
     RedactionFloorState,
     ResolvedField,
@@ -30,7 +29,7 @@ use super::{
     },
 };
 
-/// Immutable, cheap-to-clone field classification and masking snapshot.
+/// Immutable, cheap-to-clone field classification snapshot.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionRules {
@@ -101,7 +100,7 @@ impl RedactionRules {
     #[inline]
     pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
         match self.resolve_field(field) {
-            ResolvedField::Sensitive { sensitivity, .. } => Some(sensitivity),
+            ResolvedField::Sensitive { sensitivity } => Some(sensitivity),
             ResolvedField::PassThrough => None,
         }
     }
@@ -112,13 +111,13 @@ impl RedactionRules {
         field: &str,
     ) -> Option<Sensitivity> {
         match self.resolve_field_exact(field) {
-            ResolvedField::Sensitive { sensitivity, .. } => Some(sensitivity),
+            ResolvedField::Sensitive { sensitivity } => Some(sensitivity),
             ResolvedField::PassThrough => None,
         }
     }
 
-    /// Resolves exact-only sensitivity and the masking policy selected by it.
-    pub(crate) fn resolve_field_exact(&self, field: &str) -> ResolvedField<'_> {
+    /// Resolves exact-only sensitivity from application and floor rules.
+    pub(crate) fn resolve_field_exact(&self, field: &str) -> ResolvedField {
         let application = sensitivity_inner(
             &self.application,
             field,
@@ -134,24 +133,20 @@ impl RedactionRules {
             )
         });
         match self.floor.as_ref().zip(floor) {
-            Some((floor, floor_level)) => ResolvedField::Sensitive {
+            Some((_floor, floor_level)) => ResolvedField::Sensitive {
                 sensitivity: application
                     .map_or(floor_level, |level| level.max(floor_level)),
-                masking: floor.masking(),
             },
             None => match application {
-                Some(sensitivity) => ResolvedField::Sensitive {
-                    sensitivity,
-                    masking: &self.application.masking,
-                },
+                Some(sensitivity) => ResolvedField::Sensitive { sensitivity },
                 None => ResolvedField::PassThrough,
             },
         }
     }
 
     #[inline]
-    /// Resolves final sensitivity and masking for `field` exactly once.
-    pub(crate) fn resolve_field(&self, field: &str) -> ResolvedField<'_> {
+    /// Resolves final sensitivity for `field` exactly once.
+    pub(crate) fn resolve_field(&self, field: &str) -> ResolvedField {
         self.resolve_field_with_matching(field, self.application.matching)
     }
 
@@ -160,24 +155,19 @@ impl RedactionRules {
         &self,
         field: &str,
         matching: FieldNameMatching,
-    ) -> ResolvedField<'_> {
+    ) -> ResolvedField {
         let application =
             sensitivity_inner(&self.application, field, matching, true);
         let floor = self.floor.as_ref().and_then(|floor| {
             sensitivity_inner(&floor.inner, field, floor.inner.matching, false)
-                .map(|level| (level, floor.masking()))
         });
         match floor {
-            Some((floor_level, masking)) => ResolvedField::Sensitive {
+            Some(floor_level) => ResolvedField::Sensitive {
                 sensitivity: application
                     .map_or(floor_level, |level| level.max(floor_level)),
-                masking,
             },
             None => match application {
-                Some(sensitivity) => ResolvedField::Sensitive {
-                    sensitivity,
-                    masking: &self.application.masking,
-                },
+                Some(sensitivity) => ResolvedField::Sensitive { sensitivity },
                 None => ResolvedField::PassThrough,
             },
         }
@@ -193,15 +183,6 @@ impl RedactionRules {
     #[inline]
     pub fn unknown_field_policy(&self) -> UnknownFieldPolicy {
         self.application.unknown_field_policy
-    }
-
-    /// Returns application masking, not the floor-selected mask for a field.
-    ///
-    /// Use a redaction executor or [`Self::sensitivity_for`] for final field
-    /// decisions; an enabled floor may select its own masking policy.
-    #[inline]
-    pub fn masking(&self) -> &MaskingPolicy {
-        &self.application.masking
     }
 
     /// Iterates only application sensitive rules, never floor rules.

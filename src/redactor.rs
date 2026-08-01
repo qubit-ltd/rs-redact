@@ -74,10 +74,9 @@ impl Redactor {
     pub fn redact<'a>(&self, field: &str, value: &'a str) -> RedactedText<'a> {
         let resolved = self.policy.resolve_field(field);
         let value = match resolved {
-            ResolvedField::Sensitive {
-                sensitivity,
-                masking,
-            } => masking.mask(sensitivity, value),
+            ResolvedField::Sensitive { sensitivity } => {
+                self.policy.masking().mask(sensitivity, value)
+            }
             ResolvedField::PassThrough => Cow::Borrowed(value),
         };
         RedactedText::new(value)

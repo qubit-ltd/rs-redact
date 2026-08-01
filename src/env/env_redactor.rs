@@ -247,10 +247,10 @@ impl EnvRedactor {
             (Some(name), Some(value)) => {
                 let resolved = self.redactor.policy().resolve_field(name);
                 let value = match resolved {
-                    ResolvedField::Sensitive {
-                        sensitivity,
-                        masking,
-                    } => masking
+                    ResolvedField::Sensitive { sensitivity } => self
+                        .redactor
+                        .policy()
+                        .masking()
                         .mask_bounded(sensitivity, value, max_mask_bytes)
                         .into_owned(),
                     ResolvedField::PassThrough => value.to_owned(),

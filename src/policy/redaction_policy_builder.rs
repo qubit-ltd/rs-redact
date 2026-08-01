@@ -13,6 +13,7 @@ use super::{
     DiagnosticBudget,
     FieldNameMatching,
     MaskPolicy,
+    MaskingPolicy,
     PolicyError,
     PolicyLocation,
     RedactionFloor,
@@ -30,6 +31,7 @@ use super::{
 #[derive(Debug, Clone)]
 pub struct RedactionPolicyBuilder {
     rules: RedactionRulesBuilder,
+    masking: MaskingPolicy,
     floor: Option<RedactionFloor>,
     floor_state: RedactionFloorState,
     diagnostic_budget: DiagnosticBudget,
@@ -43,6 +45,7 @@ impl RedactionPolicyBuilder {
     pub fn new() -> Self {
         Self {
             rules: RedactionRulesBuilder::empty(PolicyLocation::Rules),
+            masking: MaskingPolicy::default(),
             floor: Some(RedactionFloor::global_default()),
             floor_state: RedactionFloorState::GlobalDefault,
             diagnostic_budget: DiagnosticBudget::default(),
@@ -56,6 +59,7 @@ impl RedactionPolicyBuilder {
                 &policy.rules().clone_application(),
                 PolicyLocation::Rules,
             ),
+            masking: policy.masking().clone(),
             floor: policy.rules().floor().cloned(),
             floor_state: policy.rules().floor_state(),
             diagnostic_budget: policy.diagnostic_budget(),
@@ -172,7 +176,7 @@ impl RedactionPolicyBuilder {
 
     /// Sets the application masking policy for values at `level`.
     pub fn mask(mut self, level: Sensitivity, policy: MaskPolicy) -> Self {
-        self.rules = self.rules.mask(level, policy);
+        self.masking = self.masking.with_policy(level, policy);
         self
     }
 
@@ -201,8 +205,10 @@ impl RedactionPolicyBuilder {
             self.floor,
             self.floor_state,
         );
+        self.masking.validate(PolicyLocation::Rules)?;
         Ok(RedactionPolicy::from_rules(
             rules,
+            self.masking,
             self.diagnostic_budget,
             #[cfg(feature = "json")]
             self.json_depth_budget,

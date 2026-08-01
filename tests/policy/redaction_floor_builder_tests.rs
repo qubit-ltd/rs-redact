@@ -9,7 +9,6 @@
 
 use qubit_redact::{
     FieldNameMatching,
-    MaskPolicy,
     RedactionFloor,
     Sensitivity,
     UnknownFieldPolicy,
@@ -21,7 +20,6 @@ fn test_redaction_floor_builder_from_copies_complete_floor() {
     let floor = RedactionFloor::empty_builder()
         .matching(FieldNameMatching::Exact)
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Medium))
-        .mask(Sensitivity::High, MaskPolicy::fixed("[floor-high]"))
         .raise("tenant_secret", Sensitivity::High)
         .build()
         .expect("the source floor should be valid");

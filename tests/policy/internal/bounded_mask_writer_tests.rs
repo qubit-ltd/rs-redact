@@ -30,11 +30,12 @@ fn redact_json_value(
     let body_policy = RedactionPolicy::empty_builder()
         .disable_floor()
         .raise("password", Sensitivity::Secret)
-        .mask(Sensitivity::Secret, mask)
+        .mask(Sensitivity::Secret, mask.clone())
         .build()
         .expect("the body policy is valid");
     let policy = HttpRedactionPolicy::empty_builder()
         .body_rules(body_policy.rules().clone())
+        .mask(Sensitivity::Secret, mask)
         .body_budget(
             BodyBudget::new(4096, max_output).expect("the budget is valid"),
         )
@@ -62,6 +63,7 @@ fn test_fixed_mask_respects_output_budget() {
         .expect("the body policy is valid");
     let policy = HttpRedactionPolicy::empty_builder()
         .body_rules(body_policy.rules().clone())
+        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .body_budget(BodyBudget::new(4096, 64).expect("the budget is valid"))
         .build()
         .expect("the HTTP policy is valid");
