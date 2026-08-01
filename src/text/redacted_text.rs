@@ -23,7 +23,7 @@ use super::{
 /// ```compile_fail
 /// use qubit_redact::Redactor;
 ///
-/// let value = Redactor::default().redact("message", "hello");
+/// let value = Redactor::default().redact_field("message", "hello");
 /// let _ = format!("{value}");
 /// ```
 ///

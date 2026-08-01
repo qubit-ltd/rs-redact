@@ -14,7 +14,6 @@ mod diagnostic_input_budget;
 mod field_classification;
 mod field_match_kind;
 mod field_name_matching;
-mod global_default_already_set;
 pub(crate) mod internal;
 #[cfg(feature = "json")]
 mod json_depth_budget;
@@ -45,7 +44,6 @@ pub use diagnostic_input_budget::DiagnosticInputBudget;
 pub use field_classification::FieldClassification;
 pub use field_match_kind::FieldMatchKind;
 pub use field_name_matching::FieldNameMatching;
-pub use global_default_already_set::GlobalDefaultAlreadySet;
 #[cfg(feature = "json")]
 pub use json_depth_budget::JsonDepthBudget;
 #[cfg(feature = "json")]

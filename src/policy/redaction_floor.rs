@@ -9,20 +9,11 @@
 
 use std::{
     fmt,
-    sync::{
-        Arc,
-        LazyLock,
-        OnceLock,
-    },
+    sync::{Arc, LazyLock},
 };
 
 use super::internal::RedactionPolicyInner;
-use super::{
-    GlobalDefaultAlreadySet,
-    RedactionFloorBuilder,
-    SensitiveFieldPreset,
-    SensitiveFieldRule,
-};
+use super::{RedactionFloorBuilder, SensitiveFieldPreset, SensitiveFieldRule};
 
 /// Immutable minimum field-protection rules.
 ///
@@ -35,7 +26,7 @@ pub struct RedactionFloor {
 }
 
 static STANDARD_FLOOR: LazyLock<RedactionFloor> = LazyLock::new(|| {
-    let mut builder = RedactionFloor::empty_builder();
+    let mut builder = RedactionFloor::builder();
     for preset in [
         SensitiveFieldPreset::Credentials,
         SensitiveFieldPreset::CredentialContainers,
@@ -53,8 +44,6 @@ static STANDARD_FLOOR: LazyLock<RedactionFloor> = LazyLock::new(|| {
         .expect("the built-in redaction floor is valid")
 });
 
-static GLOBAL_DEFAULT: OnceLock<RedactionFloor> = OnceLock::new();
-
 impl RedactionFloor {
     /// Returns the built-in conservative floor.
     #[inline]
@@ -62,47 +51,26 @@ impl RedactionFloor {
         STANDARD_FLOOR.clone()
     }
 
-    /// Returns a snapshot of the process-wide floor default.
+    /// Creates a deterministic empty floor builder.
     #[inline]
-    pub fn global_default() -> Self {
-        GLOBAL_DEFAULT.get().cloned().unwrap_or_else(Self::standard)
-    }
-
-    /// Installs the process-wide floor default exactly once.
-    ///
-    /// Call this only from the application assembly or initialization phase,
-    /// before components that snapshot the default floor are created.
-    /// Libraries and ordinary runtime code must not call this method.
-    pub fn set_global_default(
-        floor: Self,
-    ) -> Result<(), GlobalDefaultAlreadySet> {
-        GLOBAL_DEFAULT
-            .set(floor)
-            .map_err(|_| GlobalDefaultAlreadySet)
-    }
-
-    /// Creates an empty floor builder without reading the global default.
-    #[inline]
-    pub fn empty_builder() -> RedactionFloorBuilder {
+    pub fn builder() -> RedactionFloorBuilder {
         RedactionFloorBuilder::empty()
     }
 
-    /// Creates a floor builder from the current global floor snapshot.
+    /// Creates a floor builder by copying `self` exactly.
     #[inline]
-    pub fn builder_from_default() -> RedactionFloorBuilder {
-        RedactionFloorBuilder::from_floor(&Self::global_default())
+    pub fn to_builder(&self) -> RedactionFloorBuilder {
+        RedactionFloorBuilder::from_floor(self)
     }
 
-    /// Creates a floor builder by copying `base` exactly.
+    /// Creates a floor builder that exactly copies `base`.
     #[inline]
     pub fn builder_from(base: &Self) -> RedactionFloorBuilder {
-        RedactionFloorBuilder::from_floor(base)
+        base.to_builder()
     }
 
     /// Iterates the floor's canonical sensitive rules.
-    pub fn sensitive_rules(
-        &self,
-    ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
+    pub fn sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
         self.inner
             .sensitive
             .iter()
@@ -113,7 +81,7 @@ impl RedactionFloor {
 impl Default for RedactionFloor {
     #[inline]
     fn default() -> Self {
-        Self::global_default()
+        Self::standard()
     }
 }
 

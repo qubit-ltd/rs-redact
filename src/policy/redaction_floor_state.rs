@@ -11,8 +11,6 @@
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RedactionFloorState {
-    /// The builder captured the process-wide floor when it was created.
-    GlobalDefault,
     /// A caller explicitly supplied the floor.
     Explicit,
     /// The caller explicitly disabled every floor.

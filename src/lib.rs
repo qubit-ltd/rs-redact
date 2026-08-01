@@ -33,7 +33,7 @@
 //! use std::collections::HashMap;
 //! use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 //!
-//! let policy = RedactionPolicy::empty_builder()
+//! let policy = RedactionPolicy::builder()
 //!     .raise("tenant_secret", Sensitivity::Secret)
 //!     .build()?;
 //! let source = HashMap::from([
@@ -46,23 +46,20 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
-//! An application can install a process-wide default exactly once during its
-//! assembly or initialization phase. Libraries and ordinary runtime code must
-//! not call the `set_global_default` methods. This setup must happen before
-//! components that use default snapshots are created.
-//! [`RedactionPolicy::empty_builder`] starts without application field rules
-//! while capturing the current global floor; use
-//! [`RedactionPolicy::builder_from_default`] to copy the current default
-//! snapshot. Existing policy snapshots never change.
+//! An application can install one process-wide [`GlobalRedactionConfig`]
+//! during assembly or initialization. Builders are deterministic and never
+//! read process-wide state; use `GlobalRedactionConfig::current().policy()
+//! .to_builder()` when an explicit extension of the installed snapshot is
+//! needed. Existing policy snapshots never change.
 //!
 //! ```
-//! use qubit_redact::{RedactionPolicy, Sensitivity};
+//! use qubit_redact::{GlobalRedactionConfig, RedactionPolicy, Sensitivity};
 //!
-//! let application_default = RedactionPolicy::empty_builder()
+//! let application_default = RedactionPolicy::builder()
 //!     .raise("tenant_secret", Sensitivity::Secret)
 //!     .build()?;
-//! RedactionPolicy::set_global_default(application_default)?;
-//! let snapshot = RedactionPolicy::builder_from_default().build()?;
+//! GlobalRedactionConfig::from_policy(application_default).install()?;
+//! let snapshot = RedactionPolicy::default();
 //! assert_eq!(snapshot.sensitivity_for("tenant_secret"), Some(Sensitivity::Secret));
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
@@ -74,7 +71,7 @@
 //! use qubit_redact::Redactor;
 //!
 //! let safe = Redactor::default()
-//!     .redact("message", "line one\nline two")
+//!     .redact_field("message", "line one\nline two")
 //!     .escape_for_log();
 //! assert_eq!(safe.to_string(), "line one\\nline two");
 //! ```
@@ -100,7 +97,7 @@
 //!     metadata: HashMap<String, String>,
 //! }
 //!
-//! let policy = RedactionPolicy::empty_builder()
+//! let policy = RedactionPolicy::builder()
 //!     .raise("api_key", Sensitivity::Secret)
 //!     .build()?;
 //! let account = Account {
@@ -256,7 +253,7 @@
 //!
 //! # HTTP bodies
 //!
-//! Enable this API with `qubit-redact = { version = "0.4", features = ["http"]
+//! Enable this API with `qubit-redact = { version = "0.5", features = ["http"]
 //! }`. `http::BodyCapture` makes completeness explicit, and the returned
 //! `http::BodyRedaction` implements [`std::fmt::Display`] with bounded,
 //! log-safe output.
@@ -281,6 +278,8 @@ extern crate self as qubit_redact;
 pub mod argv;
 pub mod domain;
 pub mod env;
+mod field_redaction;
+mod global_redaction_config;
 #[cfg(feature = "http")]
 pub mod http;
 #[cfg(feature = "json")]
@@ -295,66 +294,30 @@ pub mod text;
 
 pub use argv::ArgvRedactor;
 pub use domain::{
-    BoundedRedactedDisplay,
-    Redact,
-    RedactMapValue,
-    RedactMapValueMut,
-    RedactMut,
-    RedactValue,
-    RedactValueMut,
-    Redacted,
-    RedactedKeyedMap,
-    RedactedKeyedValue,
-    RedactedMap,
-    RedactedValue,
+    BoundedRedactedDisplay, Redact, RedactMapValue, RedactMapValueMut, RedactMut, RedactValue,
+    RedactValueMut, Redacted, RedactedKeyedMap, RedactedKeyedValue, RedactedMap, RedactedValue,
 };
 pub use env::EnvRedactor;
 #[cfg(feature = "json")]
-pub use json::{
-    RedactedJson,
-    RedactedJsonText,
-    redact_json_text_in_place,
-};
+pub use json::{RedactedJson, RedactedJsonText, redact_json_text_in_place};
 pub use policy::{
-    AllowRule,
-    DiagnosticBudget,
-    DiagnosticBudgetError,
-    DiagnosticInputBudget,
-    FieldClassification,
-    FieldMatchKind,
-    FieldNameMatching,
-    GlobalDefaultAlreadySet,
-    MaskPolicy,
-    MaskingPolicy,
-    PolicyError,
-    PolicyLocation,
-    RedactionFloor,
-    RedactionFloorBuilder,
-    RedactionFloorState,
-    RedactionPolicy,
-    RedactionPolicyBuilder,
-    RedactionRules,
-    SensitiveFieldPreset,
-    SensitiveFieldRule,
-    Sensitivity,
-    UnknownFieldPolicy,
+    AllowRule, DiagnosticBudget, DiagnosticBudgetError, DiagnosticInputBudget, FieldClassification,
+    FieldMatchKind, FieldNameMatching, MaskPolicy, MaskingPolicy,
+    PolicyError, PolicyLocation, RedactionFloor, RedactionFloorBuilder, RedactionFloorState,
+    RedactionPolicy, RedactionPolicyBuilder, RedactionRules, SensitiveFieldPreset,
+    SensitiveFieldRule, Sensitivity, UnknownFieldPolicy,
 };
 #[cfg(feature = "json")]
-pub use policy::{
-    JsonDepthBudget,
-    JsonDepthBudgetError,
-};
+pub use policy::{JsonDepthBudget, JsonDepthBudgetError};
 pub use redactor::Redactor;
+pub use global_redaction_config::{
+    GlobalRedactionConfig,
+    GlobalRedactionConfigAlreadyInstalled,
+};
+pub use field_redaction::{FieldRedaction, PassThroughReason};
 pub use text::{
-    BoundedLogSafeDisplay,
-    DiagnosticLogBuilder,
-    DiagnosticWriteStatus,
-    LogOutputLimit,
-    LogOutputLimitError,
-    LogSafeText,
-    RedactedDebug,
-    RedactedText,
-    redacted_debug,
+    BoundedLogSafeDisplay, DiagnosticLogBuilder, DiagnosticWriteStatus, LogOutputLimit,
+    LogOutputLimitError, LogSafeText, RedactedDebug, RedactedText, redacted_debug,
 };
 
 #[cfg(feature = "serde")]

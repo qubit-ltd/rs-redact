@@ -7,14 +7,9 @@
 // =============================================================================
 //! Stateless redaction operations backed by an immutable policy.
 
-use std::borrow::Cow;
-
 use crate::{
-    RedactMapValueMut,
-    RedactedKeyedValue,
-    RedactedText,
-    RedactionPolicy,
-    Sensitivity,
+    FieldClassification, FieldRedaction, PassThroughReason, RedactMapValueMut,
+    RedactedKeyedValue, RedactedText, RedactionPolicy, Sensitivity,
     policy::ResolvedField,
 };
 
@@ -68,18 +63,27 @@ impl Redactor {
     ///
     /// # Returns
     ///
-    /// Typed redacted text borrowing safe input where possible.
+    /// A typed result that distinguishes masked values from pass-through
+    /// values while borrowing safe input where possible.
     #[must_use = "use the returned redacted value"]
     #[inline]
-    pub fn redact<'a>(&self, field: &str, value: &'a str) -> RedactedText<'a> {
+    pub fn redact_field<'a>(&self, field: &str, value: &'a str) -> FieldRedaction<'a> {
         let resolved = self.policy.resolve_field(field);
-        let value = match resolved {
-            ResolvedField::Sensitive { sensitivity } => {
-                self.policy.masking().mask(sensitivity, value)
-            }
-            ResolvedField::PassThrough => Cow::Borrowed(value),
-        };
-        RedactedText::new(value)
+        match resolved {
+            ResolvedField::Sensitive { sensitivity } => FieldRedaction::Masked {
+                value: RedactedText::new(self.policy.masking().mask(sensitivity, value)),
+                sensitivity,
+            },
+            ResolvedField::PassThrough => FieldRedaction::PassedThrough {
+                value,
+                reason: match self.policy.classify_field(field) {
+                    FieldClassification::Allowed { .. } => PassThroughReason::Allowed,
+                    FieldClassification::Sensitive { .. } | FieldClassification::Unknown => {
+                        PassThroughReason::Unknown
+                    }
+                },
+            },
+        }
     }
 
     /// Redacts one value at an explicit sensitivity level.
@@ -101,11 +105,7 @@ impl Redactor {
     /// Typed redacted text produced by the configured mask for `level`.
     #[must_use = "use the returned redacted value"]
     #[inline]
-    pub fn redact_at<'a>(
-        &self,
-        level: Sensitivity,
-        value: &'a str,
-    ) -> RedactedText<'a> {
+    pub fn redact_at<'a>(&self, level: Sensitivity, value: &'a str) -> RedactedText<'a> {
         RedactedText::new(self.policy.masking().mask(level, value))
     }
 
@@ -188,7 +188,7 @@ impl Redactor {
 }
 
 impl Default for Redactor {
-    /// Creates a redactor from the current global default policy snapshot.
+    /// Creates a redactor from the current global redaction configuration.
     ///
     /// # Returns
     ///

@@ -10,20 +10,9 @@
 #[cfg(feature = "json")]
 use super::JsonDepthBudget;
 use super::{
-    DiagnosticBudget,
-    FieldNameMatching,
-    MaskPolicy,
-    MaskingPolicy,
-    PolicyError,
-    PolicyLocation,
-    RedactionFloor,
-    RedactionFloorState,
-    RedactionPolicy,
-    RedactionRules,
-    RedactionRulesBuilder,
-    SensitiveFieldPreset,
-    Sensitivity,
-    UnknownFieldPolicy,
+    DiagnosticBudget, FieldNameMatching, MaskPolicy, MaskingPolicy, PolicyError, PolicyLocation,
+    RedactionFloor, RedactionFloorState, RedactionPolicy, RedactionRules, RedactionRulesBuilder,
+    SensitiveFieldPreset, Sensitivity, UnknownFieldPolicy,
 };
 
 /// Mutable construction state for an immutable [`RedactionPolicy`].
@@ -40,14 +29,13 @@ pub struct RedactionPolicyBuilder {
 }
 
 impl RedactionPolicyBuilder {
-    /// Creates an empty application-rule builder that snapshots the global
-    /// floor now.
+    /// Creates an empty application-rule builder with the standard floor.
     pub fn new() -> Self {
         Self {
             rules: RedactionRulesBuilder::empty(PolicyLocation::Rules),
             masking: MaskingPolicy::default(),
-            floor: Some(RedactionFloor::global_default()),
-            floor_state: RedactionFloorState::GlobalDefault,
+            floor: Some(RedactionFloor::standard()),
+            floor_state: RedactionFloorState::Explicit,
             diagnostic_budget: DiagnosticBudget::default(),
             #[cfg(feature = "json")]
             json_depth_budget: JsonDepthBudget::default(),
@@ -68,14 +56,6 @@ impl RedactionPolicyBuilder {
         }
     }
 
-    /// Replaces every builder setting with the current default-policy snapshot.
-    ///
-    /// This discards application rules, limits, floor state, and any deferred
-    /// validation error previously recorded by this builder.
-    pub fn load_default(self) -> Self {
-        Self::from_policy(&RedactionPolicy::default())
-    }
-
     /// Validates that `field` has a non-empty canonical application-rule name.
     ///
     /// # Errors
@@ -94,7 +74,7 @@ impl RedactionPolicyBuilder {
         self.floor_state = RedactionFloorState::Explicit;
         self
     }
-    /// Disables every floor, including an inherited global floor.
+    /// Disables every floor, including the standard floor.
     ///
     /// # Security
     ///
@@ -200,11 +180,7 @@ impl RedactionPolicyBuilder {
     /// Returns the first deferred [`PolicyError`] from application-rule
     /// validation.
     pub fn build(self) -> Result<RedactionPolicy, PolicyError> {
-        let rules = RedactionRules::new(
-            self.rules.build_inner()?,
-            self.floor,
-            self.floor_state,
-        );
+        let rules = RedactionRules::new(self.rules.build_inner()?, self.floor, self.floor_state);
         self.masking.validate(PolicyLocation::Rules)?;
         Ok(RedactionPolicy::from_rules(
             rules,

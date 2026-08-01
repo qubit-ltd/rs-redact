@@ -7,30 +7,15 @@
 // =============================================================================
 //! Immutable field-classification, masking, and diagnostic policy.
 
-use std::sync::{
-    Arc,
-    LazyLock,
-    OnceLock,
-};
+use std::sync::{Arc, LazyLock};
 
 #[cfg(feature = "json")]
 use super::JsonDepthBudget;
 use super::redaction_limits::RedactionLimits;
 use super::{
-    AllowRule,
-    DiagnosticBudget,
-    FieldClassification,
-    FieldNameMatching,
-    GlobalDefaultAlreadySet,
-    MaskingPolicy,
-    RedactionFloor,
-    RedactionFloorState,
-    RedactionPolicyBuilder,
-    RedactionRules,
-    SensitiveFieldRule,
-    Sensitivity,
-    UnknownFieldPolicy,
-    internal::RedactionPolicyInner,
+    AllowRule, DiagnosticBudget, FieldClassification, FieldNameMatching, MaskingPolicy,
+    RedactionFloor, RedactionFloorState, RedactionPolicyBuilder, RedactionRules,
+    SensitiveFieldRule, Sensitivity, UnknownFieldPolicy, internal::RedactionPolicyInner,
 };
 
 /// Built-in sensitive fields not owned by a named preset.
@@ -66,8 +51,6 @@ static STANDARD_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
         JsonDepthBudget::default(),
     )
 });
-static GLOBAL_DEFAULT: OnceLock<RedactionPolicy> = OnceLock::new();
-
 /// Immutable redaction policy.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,60 +71,26 @@ impl RedactionPolicy {
         STANDARD_POLICY.clone()
     }
 
-    /// Returns a snapshot of the process-wide application-policy default.
-    ///
-    /// Before installation, this returns [`Self::standard`]. A returned policy
-    /// is immutable and does not change after a later installation.
+    /// Creates a deterministic builder with no application rules and the
+    /// standard minimum-protection floor.
     #[inline]
-    pub fn global_default() -> Self {
-        GLOBAL_DEFAULT.get().cloned().unwrap_or_else(Self::standard)
-    }
-
-    /// Creates a builder with no application rules and a global-floor snapshot.
-    #[inline]
-    pub fn empty_builder() -> RedactionPolicyBuilder {
+    pub fn builder() -> RedactionPolicyBuilder {
         RedactionPolicyBuilder::new()
     }
 
-    /// Creates a builder that exactly copies the current default-policy
-    /// snapshot.
-    ///
-    /// Use this to extend the default application's rules, limits, and floor
-    /// state rather than starting with empty application rules.
-    #[inline]
-    pub fn builder_from_default() -> RedactionPolicyBuilder {
-        RedactionPolicyBuilder::from_policy(&Self::default())
-    }
-
-    /// Creates a builder that exactly copies `base`.
+    /// Creates a builder that exactly copies `self`.
     ///
     /// The copy includes application rules, limits, the attached floor, and
     /// its [`RedactionFloorState`].
     #[inline]
-    pub fn builder_from(base: &Self) -> RedactionPolicyBuilder {
-        RedactionPolicyBuilder::from_policy(base)
+    pub fn to_builder(&self) -> RedactionPolicyBuilder {
+        RedactionPolicyBuilder::from_policy(self)
     }
 
-    /// Installs `policy` as the process-wide default exactly once.
-    ///
-    /// Call this only from the application assembly or initialization phase,
-    /// before components that use [`RedactionPolicy::default`] are created.
-    /// Libraries and ordinary runtime code must not call this method.
-    ///
-    /// Installation only affects future calls that acquire the global policy;
-    /// existing builders, policies, and redactors retain their snapshots.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`GlobalDefaultAlreadySet`] when a policy default was already
-    /// installed in this process.
+    /// Creates a builder that exactly copies `base`.
     #[inline]
-    pub fn set_global_default(
-        policy: Self,
-    ) -> Result<(), GlobalDefaultAlreadySet> {
-        GLOBAL_DEFAULT
-            .set(policy)
-            .map_err(|_| GlobalDefaultAlreadySet)
+    pub fn builder_from(base: &Self) -> RedactionPolicyBuilder {
+        base.to_builder()
     }
 
     /// Creates a policy from fully resolved field rules and resource limits.
@@ -214,10 +163,7 @@ impl RedactionPolicy {
     /// This is useful for diagnostics about configured application rules. Use
     /// [`Self::sensitivity_for`] for the final security decision.
     #[inline]
-    pub fn classify_field<'a>(
-        &'a self,
-        field: &str,
-    ) -> FieldClassification<'a> {
+    pub fn classify_field<'a>(&'a self, field: &str) -> FieldClassification<'a> {
         self.rules.classify_field(field)
     }
 
@@ -233,19 +179,13 @@ impl RedactionPolicy {
 
     /// Resolves final sensitivity with exact-only field matching.
     #[inline]
-    pub(crate) fn sensitivity_for_exact(
-        &self,
-        field: &str,
-    ) -> Option<Sensitivity> {
+    pub(crate) fn sensitivity_for_exact(&self, field: &str) -> Option<Sensitivity> {
         self.rules.sensitivity_for_exact(field)
     }
 
     /// Resolves final sensitivity with exact-only field matching.
     #[inline]
-    pub(crate) fn resolve_field_exact(
-        &self,
-        field: &str,
-    ) -> super::ResolvedField {
+    pub(crate) fn resolve_field_exact(&self, field: &str) -> super::ResolvedField {
         self.rules.resolve_field_exact(field)
     }
 
@@ -280,9 +220,7 @@ impl RedactionPolicy {
     /// Use [`Self::floor`] to inspect the independent minimum-protection
     /// rules.
     #[inline]
-    pub fn application_sensitive_rules(
-        &self,
-    ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
+    pub fn application_sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
         self.rules.application_sensitive_rules()
     }
 
@@ -290,9 +228,7 @@ impl RedactionPolicy {
     ///
     /// These rules never bypass an enabled floor.
     #[inline]
-    pub fn application_allow_rules(
-        &self,
-    ) -> impl Iterator<Item = AllowRule<'_>> {
+    pub fn application_allow_rules(&self) -> impl Iterator<Item = AllowRule<'_>> {
         self.rules.application_allow_rules()
     }
 
@@ -305,6 +241,6 @@ impl RedactionPolicy {
 
 impl Default for RedactionPolicy {
     fn default() -> Self {
-        Self::global_default()
+        crate::GlobalRedactionConfig::current().policy().clone()
     }
 }
