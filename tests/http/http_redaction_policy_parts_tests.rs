@@ -17,28 +17,28 @@ use qubit_redact::{
 /// each HTTP field context.
 #[test]
 fn test_http_redaction_policy_parts_keep_context_rules_distinct() {
-    let header_rules = RedactionPolicy::empty_builder()
+    let header_rules = RedactionPolicy::builder()
         .disable_floor()
         .raise("header_only", Sensitivity::High)
         .build()
         .expect("header rules should be valid")
         .rules()
         .clone();
-    let query_rules = RedactionPolicy::empty_builder()
+    let query_rules = RedactionPolicy::builder()
         .disable_floor()
         .raise("query_only", Sensitivity::High)
         .build()
         .expect("query rules should be valid")
         .rules()
         .clone();
-    let body_rules = RedactionPolicy::empty_builder()
+    let body_rules = RedactionPolicy::builder()
         .disable_floor()
         .raise("body_only", Sensitivity::High)
         .build()
         .expect("body rules should be valid")
         .rules()
         .clone();
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .header_rules(header_rules)
         .query_rules(query_rules)
         .body_rules(body_rules)

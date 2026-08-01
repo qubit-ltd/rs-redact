@@ -33,12 +33,12 @@ fn redactor_with_diagnostic_budget(
     input: usize,
     output: usize,
 ) -> HttpRedactor {
-    let header_policy = RedactionPolicy::empty_builder()
+    let header_policy = RedactionPolicy::builder()
         .build()
         .expect("the empty header policy should be valid");
     let budget = DiagnosticBudget::new(input, output)
         .expect("test diagnostic budgets satisfy the public lower bounds");
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .header_rules(header_policy.rules().clone())
         .diagnostic_budget(budget)
         .build()

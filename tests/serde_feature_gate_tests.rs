@@ -11,7 +11,7 @@ use qubit_redact::Redactor;
 #[test]
 fn test_serde_feature_gate_keeps_core_redaction_available() {
     assert_eq!(
-        Redactor::default().redact("password", "raw").as_str(),
+        Redactor::default().redact_field("password", "raw").as_str(),
         "<redacted>",
     );
 }

@@ -30,11 +30,11 @@ fn test_http_redaction_policy_default_has_input_budget() {
 /// replace the inherited floor snapshot.
 #[test]
 fn test_http_redaction_policy_exposes_independent_context_rules_and_floors() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .raise("floor-secret", Sensitivity::Secret)
         .build()
         .expect("the floor should be valid");
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .header_floor(floor)
         .disable_query_floor()
         .disable_body_floor()

@@ -13,7 +13,7 @@ use qubit_redact::Redactor;
 #[test]
 fn test_log_safe_text_displays_escaped_contents() {
     let escaped = Redactor::default()
-        .redact("message", "line\nnext")
+        .redact_field("message", "line\nnext")
         .escape_for_log();
 
     assert_eq!(escaped.to_string(), r"line\nnext");
@@ -23,7 +23,7 @@ fn test_log_safe_text_displays_escaped_contents() {
 #[test]
 fn test_log_safe_text_as_str_borrows_escaped_contents() {
     let escaped = Redactor::default()
-        .redact("message", "line\nnext")
+        .redact_field("message", "line\nnext")
         .escape_for_log();
 
     assert_eq!(escaped.as_str(), r"line\nnext");
@@ -33,7 +33,7 @@ fn test_log_safe_text_as_str_borrows_escaped_contents() {
 #[test]
 fn test_log_safe_text_into_owned_returns_escaped_contents() {
     let escaped = Redactor::default()
-        .redact("message", "line\nnext")
+        .redact_field("message", "line\nnext")
         .escape_for_log();
 
     assert_eq!(escaped.into_owned(), r"line\nnext");

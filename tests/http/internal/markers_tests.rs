@@ -22,7 +22,7 @@ use qubit_redact::http::{
 fn test_markers_append_truncation_marker() {
     let budget = BodyBudget::new(64, BodyBudget::MIN_OUTPUT_BYTES)
         .expect("the minimum output budget should be valid");
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .body_budget(budget)
         .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
@@ -41,7 +41,7 @@ fn test_markers_append_truncation_marker() {
 fn test_diagnostic_limit_marker_matches_minimum_budget() {
     let budget = DiagnosticBudget::new(1, DiagnosticBudget::MIN_OUTPUT_BYTES)
         .expect("the minimum diagnostic output budget should be valid");
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()
         .expect("the HTTP policy should be valid");

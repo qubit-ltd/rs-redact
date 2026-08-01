@@ -17,7 +17,7 @@ use qubit_redact::{
 /// Verifies copying a floor preserves every builder-owned rule choice.
 #[test]
 fn test_redaction_floor_builder_from_copies_complete_floor() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .matching(FieldNameMatching::Exact)
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Medium))
         .raise("tenant_secret", Sensitivity::High)

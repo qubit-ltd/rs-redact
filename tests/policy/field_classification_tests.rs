@@ -19,7 +19,7 @@ use qubit_redact::{
 #[test]
 fn test_field_classification_explains_sensitive_matches() {
     let policy = std::hint::black_box(
-        RedactionPolicy::empty_builder()
+        RedactionPolicy::builder()
             .raise("token", Sensitivity::Secret)
             .raise("access_token", Sensitivity::Medium)
             .build()
@@ -44,7 +44,7 @@ fn test_field_classification_explains_sensitive_matches() {
 #[test]
 fn test_field_classification_explains_allow_precedence() {
     let policy = std::hint::black_box(
-        RedactionPolicy::empty_builder()
+        RedactionPolicy::builder()
             .raise("access_token", Sensitivity::Secret)
             .allow_canonical_exact("access_token")
             .allow_suffix("access_token")
@@ -71,7 +71,7 @@ fn test_field_classification_explains_allow_precedence() {
 #[test]
 fn test_field_classification_reports_unknown_fields() {
     let policy = std::hint::black_box(
-        RedactionPolicy::empty_builder()
+        RedactionPolicy::builder()
             .build()
             .expect("the empty policy should be valid"),
     );
@@ -91,7 +91,7 @@ fn test_field_classification_reports_unknown_fields() {
 /// rule's configured matching breadth.
 #[test]
 fn test_field_classification_reports_exact_suffix_allow_match() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("access_token", Sensitivity::Secret)
         .allow_suffix("access_token")
         .build()
@@ -111,7 +111,7 @@ fn test_field_classification_reports_exact_suffix_allow_match() {
 /// established sensitivity lookup.
 #[test]
 fn test_field_classification_matches_sensitivity_for() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .disable_floor()
         .raise("token", Sensitivity::Secret)
         .raise("access_token", Sensitivity::Medium)

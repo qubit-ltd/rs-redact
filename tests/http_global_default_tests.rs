@@ -5,31 +5,30 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Isolated global-default tests for HTTP redaction policy construction.
+//! Isolated global-configuration tests for HTTP redaction policy construction.
 
 #![cfg(feature = "http")]
 
 use qubit_redact::{
-    DiagnosticBudget,
-    RedactionPolicy,
-    http::HttpRedactionPolicy,
+    DiagnosticBudget, GlobalRedactionConfig, RedactionPolicy, http::HttpRedactionPolicy,
 };
 
 /// Verifies HTTP defaults and explicitly loaded builders preserve a global
 /// diagnostic budget snapshot.
 #[test]
 fn test_http_policy_defaults_preserve_global_diagnostic_budget() {
-    let expected = DiagnosticBudget::new(64, 64)
-        .expect("the diagnostic budget should be valid");
-    let custom = RedactionPolicy::empty_builder()
+    let expected = DiagnosticBudget::new(64, 64).expect("the diagnostic budget should be valid");
+    let custom = RedactionPolicy::builder()
         .diagnostic_budget(expected)
         .build()
         .expect("the custom global policy should be valid");
-    RedactionPolicy::set_global_default(custom)
-        .expect("this isolated test process installs the global default once");
+    GlobalRedactionConfig::from_policy(custom)
+        .install()
+        .expect("this isolated test process installs the global configuration once");
 
     let default_policy = HttpRedactionPolicy::default();
-    let builder_policy = HttpRedactionPolicy::builder_from_default()
+    let builder_policy = HttpRedactionPolicy::default()
+        .to_builder()
         .build()
         .expect("the HTTP redaction policy should be valid");
 

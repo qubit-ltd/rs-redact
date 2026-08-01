@@ -16,7 +16,7 @@ use qubit_redact::{
 /// Verifies canonical storage and candidate matching compose consistently.
 #[test]
 fn test_policy_internal_components_share_canonical_state() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
         .raise("access-token", Sensitivity::High)
         .build()

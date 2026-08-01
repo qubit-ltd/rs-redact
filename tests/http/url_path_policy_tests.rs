@@ -25,7 +25,7 @@ fn test_url_path_policy_default_is_redact() {
 /// Verifies the preserve opt-in retains a complete path without a query.
 #[test]
 fn test_url_path_policy_preserve_keeps_complete_path() {
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .url_path_policy(UrlPathPolicy::Preserve)
         .build()
         .expect("HTTP redaction policy should be valid");

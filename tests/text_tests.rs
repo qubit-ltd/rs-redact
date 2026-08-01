@@ -17,7 +17,7 @@ use qubit_redact::Redactor;
 fn test_escape_for_log_escapes_controls_and_bidi() {
     let input = "a\n\r\t\u{1b}\u{7f}\u{0085}\u{61c}\u{200e}\u{200f}\u{2028}\u{2029}\u{202a}\u{202b}\u{202c}\u{202d}\u{202e}\u{2066}\u{2067}\u{2068}\u{2069}b";
     let expected = r"a\n\r\t\u{1b}\u{7f}\u{85}\u{61c}\u{200e}\u{200f}\u{2028}\u{2029}\u{202a}\u{202b}\u{202c}\u{202d}\u{202e}\u{2066}\u{2067}\u{2068}\u{2069}b";
-    let text = Redactor::default().redact("message", input);
+    let text = Redactor::default().redact_field("message", input);
     let safe = text.escape_for_log();
 
     assert_eq!(safe.as_ref(), expected);
@@ -29,7 +29,7 @@ fn test_escape_for_log_escapes_controls_and_bidi() {
 fn test_escape_for_log_keeps_safe_text_borrowed() {
     let input = String::from("plain text");
     let safe = Redactor::default()
-        .redact("message", &input)
+        .redact_field("message", &input)
         .escape_for_log();
 
     assert!(std::ptr::eq(safe.as_ref(), input.as_str()));

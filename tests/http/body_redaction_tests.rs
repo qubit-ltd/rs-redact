@@ -64,7 +64,7 @@ fn test_http_redaction_policy_default_uses_safe_values() {
 /// Verifies the HTTP builder has no field rules.
 #[test]
 fn test_http_redaction_policy_builder_has_no_field_rules() {
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .disable_floor()
         .build()
         .expect("HTTP redaction policy should be valid");
@@ -78,15 +78,15 @@ fn test_http_redaction_policy_builder_has_no_field_rules() {
 #[test]
 fn test_http_redaction_policy_builder_overrides_each_context() {
     let base = RedactionPolicy::default();
-    let header = RedactionPolicy::empty_builder()
+    let header = RedactionPolicy::builder()
         .raise("header_secret", Sensitivity::Secret)
         .build()
         .expect("header policy should be valid");
-    let query = RedactionPolicy::empty_builder()
+    let query = RedactionPolicy::builder()
         .raise("query_secret", Sensitivity::Secret)
         .build()
         .expect("query policy should be valid");
-    let body = RedactionPolicy::empty_builder()
+    let body = RedactionPolicy::builder()
         .raise("body_secret", Sensitivity::Secret)
         .build()
         .expect("body policy should be valid");
@@ -111,7 +111,7 @@ fn test_http_redaction_policy_builder_overrides_each_context() {
 /// HTTP field context.
 #[test]
 fn test_http_redaction_policy_builder_configures_context_rules() {
-    let base = RedactionPolicy::empty_builder()
+    let base = RedactionPolicy::builder()
         .build()
         .expect("empty base policy should be valid");
 
@@ -191,7 +191,7 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
 #[test]
 fn test_http_redaction_policy_builder_reports_invalid_context_rule() {
     assert_eq!(
-        HttpRedactionPolicy::empty_builder()
+        HttpRedactionPolicy::builder()
             .raise_header("---", Sensitivity::High)
             .build(),
         Err(PolicyError::EmptyFieldName {

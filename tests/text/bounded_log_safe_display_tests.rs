@@ -18,7 +18,7 @@ fn test_bounded_log_safe_display_truncates_at_budget() {
     let limit = LogOutputLimit::new(14)
         .expect("the test budget can contain the truncation marker");
     let text = Redactor::default()
-        .redact("message", "abcdefghijklmno")
+        .redact_field("message", "abcdefghijklmno")
         .escape_for_log();
 
     let output = text.with_output_limit(limit).to_string();
@@ -33,7 +33,7 @@ fn test_bounded_log_safe_display_does_not_split_preescaped_control() {
     let limit = LogOutputLimit::new(14)
         .expect("the test budget can contain the truncation marker");
     let text = Redactor::default()
-        .redact("message", "ab\nremaining-long")
+        .redact_field("message", "ab\nremaining-long")
         .escape_for_log();
 
     let output = text.with_output_limit(limit).to_string();

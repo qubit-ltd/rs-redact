@@ -21,7 +21,7 @@ use qubit_redact::{
 /// rules.
 #[test]
 fn test_redaction_rules_exact_allow_does_not_hide_suffix_sensitive_rule() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("access_token", Sensitivity::High)
         .allow_canonical_exact("access_token")
         .matching(FieldNameMatching::ExactOrTokenSuffix)
@@ -47,7 +47,7 @@ fn test_redaction_rules_exact_allow_does_not_hide_suffix_sensitive_rule() {
 /// Verifies unknown-field fallback sensitivity is applied after rule lookup.
 #[test]
 fn test_redaction_rules_unknown_field_falls_back_to_policy() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low))
         .build()
         .expect("the fallback policy should be valid");
@@ -62,7 +62,7 @@ fn test_redaction_rules_unknown_field_falls_back_to_policy() {
 /// configuration independently from any floor.
 #[test]
 fn test_redaction_rules_expose_application_matching_and_unknown_policy() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .disable_floor()
         .matching(FieldNameMatching::Exact)
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low))

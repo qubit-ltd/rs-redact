@@ -13,7 +13,7 @@ use qubit_redact::Redactor;
 #[test]
 fn test_text_module_reexports_compose() {
     let rendered = Redactor::default()
-        .redact("message", "visible\nforged")
+        .redact_field("message", "visible\nforged")
         .escape_for_log()
         .to_string();
 

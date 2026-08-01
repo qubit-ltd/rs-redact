@@ -19,7 +19,7 @@ use qubit_redact::{
 #[test]
 fn test_rules_builder_reports_rules_location_for_invalid_field() {
     assert_eq!(
-        RedactionPolicy::empty_builder()
+        RedactionPolicy::builder()
             .raise(" -_[] ", Sensitivity::High)
             .build(),
         Err(PolicyError::EmptyFieldName {

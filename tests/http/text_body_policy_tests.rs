@@ -24,7 +24,7 @@ fn test_text_body_policy_default_is_redact() {
 /// Verifies the HTTP policy builder accepts the explicit pass-through opt-in.
 #[test]
 fn test_text_body_policy_builder_accepts_pass_through() {
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
         .expect("HTTP redaction policy should be valid");

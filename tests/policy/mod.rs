@@ -14,7 +14,7 @@ mod diagnostic_input_budget_tests;
 mod field_classification_tests;
 mod field_match_kind_tests;
 mod field_name_matching_tests;
-mod global_default_already_set_tests;
+mod global_redaction_config_tests;
 mod internal;
 mod mask_policy_tests;
 mod masking_policy_tests;

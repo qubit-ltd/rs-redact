@@ -24,7 +24,7 @@ use qubit_redact::{
 /// output budget.
 fn amplified_mask_redactor() -> HttpRedactor {
     let replacement = "X\n".repeat(512 * 1024);
-    let body_policy = RedactionPolicy::empty_builder()
+    let body_policy = RedactionPolicy::builder()
         .disable_floor()
         .raise("password", Sensitivity::Secret)
         .raise("api_key", Sensitivity::Secret)
@@ -33,7 +33,7 @@ fn amplified_mask_redactor() -> HttpRedactor {
         .expect("the body policy is valid");
     let budget =
         BodyBudget::new(4096, 64).expect("the output can contain the marker");
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .body_rules(body_policy.rules().clone())
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .disable_body_floor()
@@ -86,7 +86,7 @@ fn test_structured_formats_bound_amplified_masks() {
 fn test_bounded_output_keeps_utf8_and_marker_complete() {
     let budget =
         BodyBudget::new(64, 14).expect("the output can contain the marker");
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .body_budget(budget)
         .text_body_policy(qubit_redact::http::TextBodyPolicy::PassThrough)
         .build()
@@ -104,7 +104,7 @@ fn test_bounded_output_keeps_utf8_and_marker_complete() {
 fn test_late_truncation_backs_up_to_utf8_boundary() {
     let budget =
         BodyBudget::new(64, 15).expect("the output can contain the marker");
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .body_budget(budget)
         .text_body_policy(qubit_redact::http::TextBodyPolicy::PassThrough)
         .build()
@@ -122,7 +122,7 @@ fn test_late_truncation_backs_up_to_utf8_boundary() {
 fn test_source_truncation_can_use_marker_only_budget() {
     let budget =
         BodyBudget::new(1, 11).expect("the output can contain the marker");
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .body_budget(budget)
         .text_body_policy(qubit_redact::http::TextBodyPolicy::PassThrough)
         .build()

@@ -196,7 +196,7 @@ fn test_redacted_displays_stream_without_allocation() {
 #[test]
 fn test_nonempty_redacted_map_streams_without_allocation() {
     let map = BTreeMap::from([("visible", "safe")]);
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .allow_canonical_exact("visible")
         .build()
         .expect("the visible-field policy should be valid");

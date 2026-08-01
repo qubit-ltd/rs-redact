@@ -89,7 +89,7 @@ fn assert_diagnostic_outputs_are_bounded(data: &[u8]) {
     let budget =
         DiagnosticBudget::new(DIAGNOSTIC_INPUT_LIMIT, DIAGNOSTIC_OUTPUT_LIMIT)
             .expect("the fixed fuzz diagnostic budget is valid");
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()
         .expect("the fixed fuzz HTTP policy is valid");

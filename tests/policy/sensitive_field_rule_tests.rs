@@ -29,7 +29,7 @@ const fn alternate_sensitivity(
 #[test]
 fn test_sensitive_field_rule_exposes_configuration() {
     let policy: &'static RedactionPolicy = Box::leak(Box::new(
-        RedactionPolicy::empty_builder()
+        RedactionPolicy::builder()
             .raise("tenant_secret", Sensitivity::High)
             .build()
             .expect("the configured rule should be valid"),

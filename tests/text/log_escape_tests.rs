@@ -13,7 +13,7 @@ use qubit_redact::Redactor;
 #[test]
 fn test_log_escape_escapes_newline() {
     let escaped = Redactor::default()
-        .redact("message", "first\nsecond")
+        .redact_field("message", "first\nsecond")
         .escape_for_log();
 
     assert_eq!(escaped.as_ref(), r"first\nsecond");

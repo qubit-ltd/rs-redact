@@ -19,11 +19,11 @@ use qubit_redact::{
 
 #[test]
 fn test_json_uses_policy_mask_for_floor_matched_key() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .raise("credential", Sensitivity::Low)
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .floor(floor)
         .raise("credential", Sensitivity::Secret)
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))

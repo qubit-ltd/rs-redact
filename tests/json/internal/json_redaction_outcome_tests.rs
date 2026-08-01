@@ -22,7 +22,7 @@ use qubit_redact::http::{
 #[cfg(feature = "http")]
 #[test]
 fn test_json_redaction_outcome_reports_unkeyed_pass_through() {
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .unkeyed_json_value_policy(UnkeyedJsonValuePolicy::PassThrough)
         .build()
         .expect("the HTTP policy should build");

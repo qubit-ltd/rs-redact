@@ -123,7 +123,7 @@ fn account() -> MutableAccount {
 
 /// Builds an explicit policy with an easily identified secret mask.
 fn strict_policy() -> RedactionPolicy {
-    RedactionPolicy::empty_builder()
+    RedactionPolicy::builder()
         .disable_floor()
         .raise("token", Sensitivity::Secret)
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[strict]"))

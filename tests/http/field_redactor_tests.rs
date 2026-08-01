@@ -25,11 +25,11 @@ use qubit_redact::{
 /// Verifies header field execution uses the shared mask table atomically.
 #[test]
 fn test_field_redactor_uses_application_mask_for_header_rule() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .raise("tenant_token", Sensitivity::Low)
         .build()
         .expect("the floor should be valid");
-    let application = RedactionPolicy::empty_builder()
+    let application = RedactionPolicy::builder()
         .disable_floor()
         .raise("tenant_token", Sensitivity::Secret)
         .mask(
@@ -38,7 +38,7 @@ fn test_field_redactor_uses_application_mask_for_header_rule() {
         )
         .build()
         .expect("the application policy should be valid");
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .header_rules(application.rules().clone().with_floor(floor))
         .mask(
             Sensitivity::Secret,

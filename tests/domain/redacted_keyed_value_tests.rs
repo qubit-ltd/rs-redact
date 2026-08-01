@@ -125,7 +125,7 @@ fn nested_value() -> NestedValue {
 /// Verifies a sensitive keyed text view masks Debug and log-safe Display.
 #[test]
 fn test_redact_keyed_masks_sensitive_text_for_debug_and_display() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("tenant_secret", Sensitivity::Secret)
         .build()
         .expect("the test policy should be valid");
@@ -142,7 +142,7 @@ fn test_redact_keyed_masks_sensitive_text_for_debug_and_display() {
 /// Verifies a sensitive keyed non-text value uses an opaque replacement.
 #[test]
 fn test_redact_keyed_masks_sensitive_non_text_value() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("tenant_secret", Sensitivity::Secret)
         .build()
         .expect("the test policy should be valid");
@@ -183,7 +183,7 @@ fn test_redact_keyed_preserves_key() {
 #[cfg(feature = "serde")]
 #[test]
 fn test_redact_keyed_serializes_sensitive_and_recursive_values() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("tenant_secret", Sensitivity::Secret)
         .build()
         .expect("the test policy should be valid");

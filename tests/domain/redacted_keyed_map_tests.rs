@@ -81,7 +81,7 @@ fn test_redacted_keyed_map_recursively_redacts_unclassified_values() {
         (String::from("profile"), nested_value()),
         (String::from("tenant_secret"), nested_value()),
     ]);
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("tenant_secret", Sensitivity::Secret)
         .build()
         .expect("the keyed map policy should build");
@@ -101,7 +101,7 @@ fn test_redacted_keyed_map_display_and_bounded_adapters() {
     let output_limit = DiagnosticBudget::MIN_OUTPUT_BYTES;
     let budget = DiagnosticBudget::new(1024, output_limit)
         .expect("the test diagnostic budget should be valid");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()
         .expect("the keyed map policy should build");

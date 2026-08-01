@@ -5,18 +5,14 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Isolated global-default test for derived map redaction.
+//! Isolated global-configuration test for derived map redaction.
 
 use std::collections::BTreeMap;
 
-use qubit_redact::{
-    Redact,
-    RedactionPolicy,
-    Sensitivity,
-};
+use qubit_redact::{GlobalRedactionConfig, Redact, RedactionPolicy, Sensitivity};
 use qubit_redact_derive::Redact;
 
-/// Event whose map uses the process default policy.
+/// Event whose map uses the process-wide redaction configuration.
 #[derive(Redact)]
 struct Event {
     /// Runtime-keyed metadata.
@@ -24,20 +20,18 @@ struct Event {
     metadata: BTreeMap<String, String>,
 }
 
-/// Verifies parameterless views snapshot the installed global default.
+/// Verifies parameterless views snapshot the installed global configuration.
 #[test]
-fn test_map_uses_global_default_policy() {
-    let policy = RedactionPolicy::empty_builder()
+fn test_map_uses_global_redaction_config() {
+    let policy = RedactionPolicy::builder()
         .raise("tenant_secret", Sensitivity::Secret)
         .build()
         .expect("the field rule is valid");
-    RedactionPolicy::set_global_default(policy)
-        .expect("this test process installs it once");
+    GlobalRedactionConfig::from_policy(policy)
+        .install()
+        .expect("this test process installs the global configuration once");
     let event = Event {
-        metadata: BTreeMap::from([(
-            "tenant_secret".to_owned(),
-            "raw-global-secret".to_owned(),
-        )]),
+        metadata: BTreeMap::from([("tenant_secret".to_owned(), "raw-global-secret".to_owned())]),
     };
 
     let rendered = format!("{:?}", event.redacted());

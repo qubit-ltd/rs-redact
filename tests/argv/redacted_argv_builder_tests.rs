@@ -19,7 +19,7 @@ use qubit_redact::{
 fn test_redacted_argv_builder_renders_input_truncation_marker() {
     let budget = DiagnosticBudget::new(8, 64)
         .expect("the small diagnostic budget should be valid");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()
         .expect("the bounded policy should be valid");

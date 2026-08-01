@@ -78,7 +78,7 @@ fn test_redacted_with_snapshots_policy() {
         note: "visible".to_owned(),
     };
     let view = {
-        let policy = RedactionPolicy::empty_builder()
+        let policy = RedactionPolicy::builder()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[snapshot]"))
             .build()
             .expect("the fixed masking policy should be valid");
@@ -122,7 +122,7 @@ fn test_redacted_with_policy_output_limit_uses_policy_budget() {
     let budget =
         DiagnosticBudget::new(1024, DiagnosticBudget::MIN_OUTPUT_BYTES)
             .expect("the minimum bounded output should be valid");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()
         .expect("the diagnostic budget should build a policy");

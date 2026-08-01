@@ -15,7 +15,7 @@ use qubit_redact::{
 /// Verifies builder and immutable policy reexports compose.
 #[test]
 fn test_policy_module_reexports_compose() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("token", Sensitivity::Secret)
         .build()
         .expect("the module-level policy rule is valid");

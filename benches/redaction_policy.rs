@@ -31,7 +31,7 @@ use qubit_redact::{
     Sensitivity,
 };
 
-/// Compares the global-default snapshot path with a direct standard clone.
+/// Compares the default-configuration snapshot path with a direct standard clone.
 fn benchmark_policy_snapshot(criterion: &mut Criterion) {
     let mut group = criterion.benchmark_group("policy_snapshot");
     group.bench_function("default", |bencher| {
@@ -45,33 +45,33 @@ fn benchmark_policy_snapshot(criterion: &mut Criterion) {
 
 /// Measures the four field-resolution paths required by floor semantics.
 fn benchmark_field_classification(criterion: &mut Criterion) {
-    let floor_disabled = RedactionPolicy::empty_builder()
+    let floor_disabled = RedactionPolicy::builder()
         .disable_floor()
         .matching(FieldNameMatching::Exact)
         .raise("access_token", Sensitivity::Secret)
         .build()
         .expect("floor-disabled benchmark policy should be valid");
-    let floor_exact = RedactionFloor::empty_builder()
+    let floor_exact = RedactionFloor::builder()
         .matching(FieldNameMatching::Exact)
         .raise("floor_exact", Sensitivity::Secret)
         .build()
         .expect("exact floor benchmark should be valid");
-    let floor_suffix = RedactionFloor::empty_builder()
+    let floor_suffix = RedactionFloor::builder()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
         .raise("floor_suffix", Sensitivity::Secret)
         .build()
         .expect("suffix floor benchmark should be valid");
-    let floor_enabled_miss = RedactionPolicy::empty_builder()
+    let floor_enabled_miss = RedactionPolicy::builder()
         .floor(floor_exact.clone())
         .raise("application_only", Sensitivity::High)
         .build()
         .expect("floor-miss benchmark policy should be valid");
-    let floor_exact_hit = RedactionPolicy::empty_builder()
+    let floor_exact_hit = RedactionPolicy::builder()
         .floor(floor_exact)
         .raise("application_only", Sensitivity::High)
         .build()
         .expect("exact-hit benchmark policy should be valid");
-    let floor_suffix_hit = RedactionPolicy::empty_builder()
+    let floor_suffix_hit = RedactionPolicy::builder()
         .floor(floor_suffix)
         .raise("application_only", Sensitivity::High)
         .build()
@@ -166,7 +166,7 @@ fn benchmark_map(size: usize) -> BTreeMap<String, String> {
 ///
 /// A validated benchmark policy.
 fn benchmark_map_policy(size: usize, mixed_hits: bool) -> RedactionPolicy {
-    let mut builder = RedactionPolicy::empty_builder();
+    let mut builder = RedactionPolicy::builder();
     if mixed_hits {
         for index in (0..size).step_by(4) {
             let field = format!("field_{index:04}");

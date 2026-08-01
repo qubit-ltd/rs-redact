@@ -7,31 +7,19 @@
 // =============================================================================
 //! External tests for minimum redaction floors.
 
-use proptest::{
-    prop_assert,
-    prop_assert_eq,
-    proptest,
-};
+use proptest::{prop_assert, prop_assert_eq, proptest};
 use qubit_redact::{
-    FieldNameMatching,
-    MaskPolicy,
-    PolicyError,
-    PolicyLocation,
-    RedactionFloor,
-    RedactionFloorState,
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-    UnknownFieldPolicy,
+    FieldNameMatching, MaskPolicy, PolicyError, PolicyLocation, RedactionFloor,
+    RedactionFloorState, RedactionPolicy, Redactor, Sensitivity, UnknownFieldPolicy,
 };
 
 #[test]
 fn test_floor_overrides_application_exact_allow() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .raise("access_token", Sensitivity::High)
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .floor(floor)
         .allow_canonical_exact("access_token")
         .build()
@@ -46,11 +34,11 @@ fn test_floor_overrides_application_exact_allow() {
 /// Verifies that a suffix allow cannot bypass a matching floor rule.
 #[test]
 fn test_floor_overrides_application_suffix_allow() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .raise("access_token", Sensitivity::High)
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .floor(floor)
         .allow_suffix("access_token")
         .build()
@@ -64,11 +52,11 @@ fn test_floor_overrides_application_suffix_allow() {
 
 #[test]
 fn test_floor_only_raises_sensitivity_when_application_level_is_higher() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .raise("credential", Sensitivity::Low)
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .floor(floor)
         .raise("credential", Sensitivity::Secret)
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
@@ -79,7 +67,7 @@ fn test_floor_only_raises_sensitivity_when_application_level_is_higher() {
         Some(Sensitivity::Secret),
     );
     assert_eq!(
-        Redactor::new(policy).redact("credential", "value").as_str(),
+        Redactor::new(policy).redact_field("credential", "value").as_str(),
         "[application]"
     );
 }
@@ -88,11 +76,11 @@ fn test_floor_only_raises_sensitivity_when_application_level_is_higher() {
 /// maximum while the shared application mask renders the result.
 #[test]
 fn test_floor_and_application_unknown_fallbacks_combine() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Medium))
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .floor(floor)
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Secret))
         .mask(
@@ -108,7 +96,7 @@ fn test_floor_and_application_unknown_fallbacks_combine() {
     );
     assert_eq!(
         Redactor::new(policy)
-            .redact("unconfigured_reference", "value")
+            .redact_field("unconfigured_reference", "value")
             .as_str(),
         "[application-secret]",
     );
@@ -118,11 +106,11 @@ fn test_floor_and_application_unknown_fallbacks_combine() {
 /// classify a field.
 #[test]
 fn test_application_mask_is_used_when_floor_misses() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .raise("floor_only", Sensitivity::High)
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .floor(floor)
         .raise("application_only", Sensitivity::Secret)
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
@@ -131,7 +119,7 @@ fn test_application_mask_is_used_when_floor_misses() {
 
     assert_eq!(
         Redactor::new(policy)
-            .redact("application_only", "value")
+            .redact_field("application_only", "value")
             .as_str(),
         "[application]",
     );
@@ -139,12 +127,12 @@ fn test_application_mask_is_used_when_floor_misses() {
 
 #[test]
 fn test_floor_matching_is_independent_from_application_matching() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .matching(FieldNameMatching::Exact)
         .raise("token", Sensitivity::High)
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .floor(floor)
         .matching(FieldNameMatching::ExactOrTokenSuffix)
         .build()
@@ -155,11 +143,11 @@ fn test_floor_matching_is_independent_from_application_matching() {
 
 #[test]
 fn test_disable_floor_is_last_call_wins() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .raise("credential", Sensitivity::High)
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .floor(floor)
         .disable_floor()
         .build()
@@ -171,11 +159,11 @@ fn test_disable_floor_is_last_call_wins() {
 /// Verifies replacing a disabled floor restores explicit protection.
 #[test]
 fn test_with_floor_after_disable_floor_is_last_call_wins() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .raise("credential", Sensitivity::High)
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .disable_floor()
         .floor(floor)
         .build()
@@ -188,11 +176,11 @@ fn test_with_floor_after_disable_floor_is_last_call_wins() {
     );
 }
 
-/// Verifies disabled floor snapshots are copied and loading defaults replaces
+/// Verifies disabled floor snapshots are copied and default copying replaces
 /// the complete floor state.
 #[test]
-fn test_builder_copy_and_load_default_preserve_or_replace_floor_state() {
-    let disabled = RedactionPolicy::empty_builder()
+fn test_builder_copy_and_standard_preserve_or_replace_floor_state() {
+    let disabled = RedactionPolicy::builder()
         .disable_floor()
         .raise("application_only", Sensitivity::High)
         .build()
@@ -200,8 +188,8 @@ fn test_builder_copy_and_load_default_preserve_or_replace_floor_state() {
     let copied = RedactionPolicy::builder_from(&disabled)
         .build()
         .expect("the copied policy should build");
-    let reset = RedactionPolicy::builder_from(&disabled)
-        .load_default()
+    let reset = RedactionPolicy::default()
+        .to_builder()
         .build()
         .expect("the default-reset policy should build");
 
@@ -217,11 +205,11 @@ fn test_builder_copy_and_load_default_preserve_or_replace_floor_state() {
 /// Verifies public rule views keep application rules and floor rules separate.
 #[test]
 fn test_rule_views_keep_application_and_floor_sources_separate() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .raise("floor_only", Sensitivity::High)
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .floor(floor)
         .raise("application_only", Sensitivity::Medium)
         .allow_canonical_exact("application_visible")
@@ -255,7 +243,7 @@ fn test_rule_views_keep_application_and_floor_sources_separate() {
 
 #[test]
 fn test_floor_validation_reports_floor_location() {
-    let result = RedactionFloor::empty_builder()
+    let result = RedactionFloor::builder()
         .raise(" _-.[ ] ", Sensitivity::High)
         .build();
     assert_eq!(
@@ -270,13 +258,13 @@ fn test_floor_validation_reports_floor_location() {
 /// active global floor contract.
 #[test]
 fn test_floor_default_builder_snapshot_and_display_are_consistent() {
-    let from_default = RedactionFloor::builder_from_default()
+    let from_default = RedactionFloor::default().to_builder()
         .build()
         .expect("the default-derived floor should build");
     let default_floor = RedactionFloor::default();
 
-    assert_eq!(from_default, RedactionFloor::global_default());
-    assert_eq!(default_floor, RedactionFloor::global_default());
+    assert_eq!(from_default, RedactionFloor::standard());
+    assert_eq!(default_floor, RedactionFloor::standard());
     assert_eq!(RedactionFloor::standard().to_string(), "RedactionFloor");
 }
 
@@ -299,11 +287,11 @@ proptest! {
     ) {
         let floor_level = sensitivity_from_index(floor_index);
         let application_level = sensitivity_from_index(application_index);
-        let floor = RedactionFloor::empty_builder()
+        let floor = RedactionFloor::builder()
             .raise("shared_field", floor_level)
             .build()
             .expect("the generated floor should build");
-        let policy = RedactionPolicy::empty_builder()
+        let policy = RedactionPolicy::builder()
             .floor(floor)
             .raise("shared_field", application_level)
             .build()
@@ -323,17 +311,17 @@ proptest! {
         floor_index in 0_u8..4,
         application_index in 0_u8..4,
     ) {
-        let floor = RedactionFloor::empty_builder()
+        let floor = RedactionFloor::builder()
             .raise("shared_field", sensitivity_from_index(floor_index))
             .build()
             .expect("the generated floor should build");
-        let disabled = RedactionPolicy::empty_builder()
+        let disabled = RedactionPolicy::builder()
             .floor(floor)
             .disable_floor()
             .raise("shared_field", sensitivity_from_index(application_index))
             .build()
             .expect("the disabled policy should build");
-        let application_only = RedactionPolicy::empty_builder()
+        let application_only = RedactionPolicy::builder()
             .disable_floor()
             .raise("shared_field", sensitivity_from_index(application_index))
             .build()

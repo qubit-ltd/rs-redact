@@ -18,11 +18,11 @@ use qubit_redact::{
 /// Verifies a floor only raises sensitivity and uses the policy mask table.
 #[test]
 fn test_resolved_field_uses_application_mask_at_floor_level() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .raise("tenant_secret", Sensitivity::Low)
         .build()
         .expect("the floor should be valid");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .floor(floor)
         .raise("tenant_secret", Sensitivity::Secret)
         .mask(
@@ -34,7 +34,7 @@ fn test_resolved_field_uses_application_mask_at_floor_level() {
 
     assert_eq!(
         Redactor::new(policy)
-            .redact("tenant_secret", "source")
+            .redact_field("tenant_secret", "source")
             .as_str(),
         "[application-secret]",
     );

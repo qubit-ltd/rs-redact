@@ -39,7 +39,7 @@ use qubit_redact::{
 fn bounded_redactor() -> ArgvRedactor {
     let budget = DiagnosticBudget::new(8, 64)
         .expect("the small diagnostic budget should be valid");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()
         .expect("the bounded policy should be valid");
@@ -199,7 +199,7 @@ fn test_redact_heuristically_keeps_empty_sensitive_inline_value() {
 #[test]
 fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_application_matching()
  {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .matching(qubit_redact::FieldNameMatching::Exact)
         .build()
         .expect("the exact-only argv policy should be valid");
@@ -221,7 +221,7 @@ fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_app
 #[test]
 fn test_redact_heuristically_uses_application_rule_for_exact_single_dash_option()
  {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .disable_floor()
         .raise("tenant_secret", Sensitivity::Secret)
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
@@ -368,7 +368,7 @@ fn test_redact_heuristically_does_not_parse_explicit_sensitive_options() {
 /// Verifies a custom immutable policy is honored by the adapter.
 #[test]
 fn test_new_uses_custom_redaction_policy() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("tenant_flag", Sensitivity::Secret)
         .build()
         .expect("the custom argv policy should be valid");
@@ -494,11 +494,11 @@ fn test_redact_heuristically_masks_value_after_non_utf8_option() {
 /// Verifies separate option values use the shared policy mask.
 #[test]
 fn test_redact_heuristically_uses_application_mask_for_pending_option_value() {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .raise("password", Sensitivity::High)
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .floor(floor)
         .raise("password", Sensitivity::Secret)
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
@@ -518,11 +518,11 @@ fn test_redact_heuristically_uses_application_mask_for_pending_option_value() {
 #[test]
 fn test_redact_heuristically_uses_application_mask_for_exact_single_dash_option()
  {
-    let floor = RedactionFloor::empty_builder()
+    let floor = RedactionFloor::builder()
         .raise("tenant_secret", Sensitivity::High)
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .floor(floor)
         .raise("tenant_secret", Sensitivity::Secret)
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))

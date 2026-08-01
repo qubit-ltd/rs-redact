@@ -18,7 +18,7 @@ use qubit_redact::http::{
 /// Verifies diagnostic text escapes line controls before display.
 #[test]
 fn test_diagnostic_text_escapes_newline() {
-    let policy = HttpRedactionPolicy::empty_builder()
+    let policy = HttpRedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
         .expect("the HTTP policy should be valid");

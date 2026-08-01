@@ -20,7 +20,7 @@ use serde_json::json;
 #[cfg(feature = "serde")]
 #[test]
 fn test_json_redaction_state_recurses_through_nested_values() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("token", Sensitivity::Secret)
         .build()
         .expect("the policy should build");

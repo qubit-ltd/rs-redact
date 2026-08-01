@@ -7,21 +7,14 @@
 // =============================================================================
 //! Integration tests for [`Redactor`](qubit_redact::Redactor).
 
-use std::collections::{
-    BTreeMap,
-    HashMap,
-};
+use std::collections::{BTreeMap, HashMap};
 
-use qubit_redact::{
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-};
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 /// Verifies an explicit sensitivity cannot be bypassed by a field allow rule.
 #[test]
 fn test_redact_at_ignores_field_allow_rules() {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .allow_canonical_exact("password")
         .build()
         .expect("the policy is valid");
@@ -84,7 +77,7 @@ fn test_redact_map_copy_supports_optional_values() {
 #[test]
 fn test_redact_keeps_non_sensitive_value_borrowed() {
     let input = String::from("alice");
-    let redacted = Redactor::default().redact("username", &input);
+    let redacted = Redactor::default().redact_field("username", &input);
 
     assert!(std::ptr::eq(redacted.as_str(), input.as_str()));
 }

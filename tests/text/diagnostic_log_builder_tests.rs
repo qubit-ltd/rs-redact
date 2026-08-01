@@ -49,7 +49,7 @@ fn test_diagnostic_builder_appends_safe_text() {
     let budget = DiagnosticBudget::new(128, 64)
         .expect("the diagnostic budget should be valid");
     let safe = Redactor::default()
-        .redact("message", "line\nnext")
+        .redact_field("message", "line\nnext")
         .escape_for_log();
     let mut builder = DiagnosticLogBuilder::new(budget);
 
@@ -64,7 +64,7 @@ fn test_diagnostic_builder_safe_append_reports_current_and_prior_truncation() {
     let budget = DiagnosticBudget::new(128, DiagnosticBudget::MIN_OUTPUT_BYTES)
         .expect("the diagnostic budget should be valid");
     let safe = Redactor::default()
-        .redact(
+        .redact_field(
             "message",
             "payload that cannot fit and is definitely longer than the marker",
         )
