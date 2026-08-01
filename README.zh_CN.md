@@ -22,14 +22,14 @@ Qubit Redact 用于防止敏感信息经 Rust 诊断信息泄露，包括日志�
 
 ```toml
 [dependencies]
-qubit-redact = "0.3"
+qubit-redact = "0.5"
 ```
 
 ```rust
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("user_id", Sensitivity::Low)
         .raise("phone_number", Sensitivity::Medium)
         .raise("credit_card", Sensitivity::High)
@@ -69,8 +69,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 需求 | Cargo 配置 |
 | --- | --- |
-| 标量、Map、进程和文本 core 能力 | `qubit-redact = "0.3"` |
-| 领域对象 derive | 添加 `qubit-redact-derive = "0.3"`。 |
+| 标量、Map、进程和文本 core 能力 | `qubit-redact = "0.5"` |
+| 领域对象 derive | 添加 `qubit-redact-derive = "0.5"`。 |
 | 序列化脱敏视图 | 启用 `serde`，并直接声明 `serde` 依赖。 |
 | 脱敏 `serde_json::Value` 或 JSON 文本字段 | 启用 `json`；应用使用时直接添加 `serde_json`。 |
 | HTTP 诊断 | 启用 `http`；应用使用其类型时直接添加 `http`。 |
@@ -78,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```toml
 [dependencies]
 # 仅启用 HTTP 诊断
-qubit-redact = { version = "0.3", features = ["http"] }
+qubit-redact = { version = "0.5", features = ["http"] }
 http = "1.4"
 ```
 
@@ -86,12 +86,18 @@ http = "1.4"
 
 - 未知字段名默认原样通过。需要在边界遮盖所有未分类字段时，设置
   `UnknownFieldPolicy::Redact(Sensitivity::Secret)`；`classify_field()` 仍会报告 `Unknown`。
-- allow 规则会有意胜出并可能披露数据。优先使用精确 allow 规则，并将每一条都视为安全决策。
+- 应用层 allow 规则无法绕过已启用的 `RedactionFloor`。
+  `RedactionPolicy::empty_builder()` 使用空应用规则和创建时的全局 floor 快照；
+  常规扩展默认策略应使用 `builder_from_default()`。`disable_floor()` 会有意关闭全部
+  floor，只应由明确承担该安全决策的调用方使用。
+- 进程级 floor 和 policy 默认值只能安装一次，只影响未来快照；既有 policy 与 redactor
+  永不随之改变。
 - `RedactedText` 故意不实现 `Display`。值脱敏与日志转义是两层不同保证。
 - `RedactMut` 只替换逻辑值，不会擦除已释放的分配内存、别名、副本或借用后备存储。
 - JSON 脱敏到达 `JsonDepthBudget` 后，会用策略的 Secret 不透明掩码替换超深子树；
   默认最大深度为 128。
 - HTTP 脱敏只处理调用方提供的 capture，绝不会自行读取或缓存网络 body。
+  `HttpRedactionPolicy` 应从 `qubit_redact::http` 导入，而非 HTTP 客户端 crate。
 
 ## 深入了解
 

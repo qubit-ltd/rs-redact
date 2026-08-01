@@ -27,14 +27,14 @@ explicit log-safe boundary.
 
 ```toml
 [dependencies]
-qubit-redact = "0.3"
+qubit-redact = "0.5"
 ```
 
 ```rust
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("user_id", Sensitivity::Low)
         .raise("phone_number", Sensitivity::Medium)
         .raise("credit_card", Sensitivity::High)
@@ -74,8 +74,8 @@ The original value remains available to application logic. Call
 
 | Need | Cargo configuration |
 | --- | --- |
-| Core scalar, map, process, and text support | `qubit-redact = "0.3"` |
-| Domain-object derives | Add `qubit-redact-derive = "0.3"`. |
+| Core scalar, map, process, and text support | `qubit-redact = "0.5"` |
+| Domain-object derives | Add `qubit-redact-derive = "0.5"`. |
 | Serialize redacted views | Enable `serde` and declare `serde` directly. |
 | Redact `serde_json::Value` or JSON text fields | Enable `json`; add `serde_json` directly when your application uses it. |
 | HTTP diagnostics | Enable `http`; add `http` directly when your application uses its types. |
@@ -83,7 +83,7 @@ The original value remains available to application logic. Call
 ```toml
 [dependencies]
 # HTTP diagnostics only
-qubit-redact = { version = "0.3", features = ["http"] }
+qubit-redact = { version = "0.5", features = ["http"] }
 http = "1.4"
 ```
 
@@ -92,8 +92,13 @@ http = "1.4"
 - Unknown field names pass through by default. Set
   `UnknownFieldPolicy::Redact(Sensitivity::Secret)` when a boundary must mask
   every unclassified field; `classify_field()` still reports `Unknown`.
-- Allow rules intentionally win and can disclose data. Prefer exact allow rules
-  and treat each one as a security decision.
+- Application allow rules never bypass an enabled `RedactionFloor`. Use
+  `RedactionPolicy::empty_builder()` for empty application rules with the
+  creation-time global-floor snapshot, and use `builder_from_default()` for the
+  normal "extend defaults" path. `disable_floor()` intentionally removes every
+  floor and is appropriate only when the caller owns that security decision.
+- A process-wide floor or policy default installs once and affects only future
+  snapshots; already-built policies and redactors never change.
 - `RedactedText` is not displayable by design. Redaction and log escaping are
   separate guarantees.
 - `RedactMut` replaces logical values only. It does not erase released
@@ -101,7 +106,8 @@ http = "1.4"
 - JSON redaction stops at `JsonDepthBudget` and replaces an over-depth subtree
   with the policy's opaque Secret mask. The default maximum depth is 128.
 - HTTP redaction accepts only caller-provided captures. It never reads or
-  buffers a network body itself.
+  buffers a network body itself. Import `HttpRedactionPolicy` from
+  `qubit_redact::http`, not from an HTTP client crate.
 
 ## Learn More
 

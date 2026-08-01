@@ -32,7 +32,7 @@ qubit-redact = "0.3"
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("user_id", Sensitivity::Low)
         .raise("phone_number", Sensitivity::Medium)
         .raise("credit_card", Sensitivity::High)
@@ -103,7 +103,7 @@ feature 时 `JsonDepthBudget` 的不可变快照。字段决策分为：
 | API | 初始状态 | 适用场景 |
 | --- | --- | --- |
 | `RedactionPolicy::default()` | 当前保守的进程级默认快照 | 接受应用已安装的默认策略。 |
-| `RedactionPolicy::builder()` | 没有敏感或 allow 规则 | 需要由当前调用点完整定义策略。 |
+| `RedactionPolicy::empty_builder()` | 空应用规则加创建时全局 floor 快照 | 需要由当前调用点定义应用规则且保留 floor。 |
 | `RedactionPolicy::builder_from_default()` | 当前默认快照的副本 | 需要在保守默认策略上扩展。 |
 | `RedactionPolicy::set_global_default()` | 每个进程只能安装一次 | 应用初始化代码拥有默认策略。 |
 
@@ -113,10 +113,10 @@ feature 时 `JsonDepthBudget` 的不可变快照。字段决策分为：
 
 ## 1. 用 `RedactionPolicy` 配置规则
 
-`RedactionPolicy::builder()`、`RedactionPolicyBuilder::new()` 和
-`RedactionPolicyBuilder::default()` 都从没有敏感或允许规则的状态开始。
-`RedactionPolicy::default()` 仍是保守的进程级默认快照，`Redactor::default()` 使用该快照。
-要在该快照上扩展，使用 `RedactionPolicy::builder_from_default()`。
+`RedactionPolicy::empty_builder()` 从空应用敏感/allow 规则开始，但会立即捕获当前全局
+floor。`RedactionPolicy::default()` 仍是保守的进程级默认快照；扩展该快照时使用
+`RedactionPolicy::builder_from_default()`。只有调用方明确承担取消最低保护的风险时才可
+使用 `disable_floor()`；应用层 allow 规则无法绕过启用的 floor。
 `.load_default()` 会替换此前所有 builder 设置（包括已记录的校验错误），因此最后调用会丢弃已配置的内容。`raise` 不会降低既有等级；需要有意替换时使用
 `override_level`。
 精确允许规则范围窄；后缀允许规则可能放行带前缀字段，需安全审查。
@@ -127,16 +127,17 @@ use qubit_redact::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
-        .raise("license_key", Sensitivity::High)
-        .allow_canonical_exact("public_token")
+        .raise("tenant_reference", Sensitivity::High)
+        .raise("tenant_visible", Sensitivity::High)
+        .allow_canonical_exact("tenant_visible")
         .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))
         .build()?;
     let redactor = Redactor::new(policy);
 
-    assert_eq!(redactor.redact("LICENSE_KEY", "abc").as_str(), "[hidden]");
-    assert_eq!(redactor.redact("public_token", "visible").as_str(), "visible");
+    assert_eq!(redactor.redact("TENANT_REFERENCE", "abc").as_str(), "[hidden]");
+    assert_eq!(redactor.redact("tenant_visible", "visible").as_str(), "visible");
     Ok(())
 }
 ```
@@ -163,7 +164,7 @@ use std::collections::HashMap;
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("user_id", Sensitivity::Low)
         .raise("phone_number", Sensitivity::Medium)
         .raise("credit_card", Sensitivity::High)

@@ -35,7 +35,7 @@ qubit-redact = "0.3"
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("user_id", Sensitivity::Low)
         .raise("phone_number", Sensitivity::Medium)
         .raise("credit_card", Sensitivity::High)
@@ -112,7 +112,7 @@ boundary to obtain `LogSafeText`.
 | API | Starting state | Use it when |
 | --- | --- | --- |
 | `RedactionPolicy::default()` | Current conservative process-wide snapshot | You accept the application's installed default. |
-| `RedactionPolicy::builder()` | No sensitive or allow rules | You need a policy defined entirely by this call site. |
+| `RedactionPolicy::empty_builder()` | Empty application rules plus the creation-time global floor snapshot | You need application rules defined at this call site while retaining the floor. |
 | `RedactionPolicy::builder_from_default()` | Copy of the current default snapshot | You want to extend the conservative default. |
 | `RedactionPolicy::set_global_default()` | Installs once per process | Application startup owns the default policy. |
 
@@ -123,11 +123,12 @@ policy. Use `classify_field()` when a policy test or diagnostic must explain a
 
 ## 1. Configure `RedactionPolicy`
 
-`RedactionPolicy::builder()`, `RedactionPolicyBuilder::new()`, and
-`RedactionPolicyBuilder::default()` start with no sensitive or allow rules.
-`RedactionPolicy::default()` remains the conservative process-wide snapshot.
-`Redactor::default()` uses that snapshot.
-Use `RedactionPolicy::builder_from_default()` to extend that snapshot.
+`RedactionPolicy::empty_builder()` starts with no application sensitive or
+allow rules but captures the current global floor immediately. `RedactionPolicy::default()`
+remains the conservative process-wide snapshot. Use
+`RedactionPolicy::builder_from_default()` to extend that snapshot; use
+`disable_floor()` only when the caller intentionally accepts removal of all
+minimum protection. An application allow rule never bypasses an enabled floor.
 `.load_default()` replaces every earlier builder setting, including a recorded
 validation error, so calling it last discards your changes. `raise` never
 weakens a rule; `override_level`
@@ -140,16 +141,17 @@ use qubit_redact::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
-        .raise("license_key", Sensitivity::High)
-        .allow_canonical_exact("public_token")
+        .raise("tenant_reference", Sensitivity::High)
+        .raise("tenant_visible", Sensitivity::High)
+        .allow_canonical_exact("tenant_visible")
         .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))
         .build()?;
     let redactor = Redactor::new(policy);
 
-    assert_eq!(redactor.redact("LICENSE_KEY", "abc").as_str(), "[hidden]");
-    assert_eq!(redactor.redact("public_token", "visible").as_str(), "visible");
+    assert_eq!(redactor.redact("TENANT_REFERENCE", "abc").as_str(), "[hidden]");
+    assert_eq!(redactor.redact("tenant_visible", "visible").as_str(), "visible");
     Ok(())
 }
 ```
@@ -180,7 +182,7 @@ use std::collections::HashMap;
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("user_id", Sensitivity::Low)
         .raise("phone_number", Sensitivity::Medium)
         .raise("credit_card", Sensitivity::High)
