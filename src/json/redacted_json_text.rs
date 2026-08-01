@@ -7,11 +7,22 @@
 // =============================================================================
 //! Lazy fail-closed formatting for JSON stored as text.
 
-use std::fmt::{self, Write as _};
+use std::fmt::{
+    self,
+    Write as _,
+};
 
-use crate::{LogOutputLimit, RedactionPolicy, Sensitivity, text::internal::BoundedLogEscapeWriter};
+use crate::{
+    LogOutputLimit,
+    RedactionPolicy,
+    Sensitivity,
+    text::internal::BoundedLogEscapeWriter,
+};
 
-use super::{RedactedJson, redact_json_text_in_place::redacted_json_text};
+use super::{
+    RedactedJson,
+    redact_json_text_in_place::redacted_json_text,
+};
 
 /// JSON text rendered with recursive object-key redaction.
 ///
@@ -38,7 +49,10 @@ impl<'text, 'policy> RedactedJsonText<'text, 'policy> {
     /// # Returns
     ///
     /// A borrowed fail-closed JSON text view.
-    pub const fn new(text: &'text str, policy: &'policy RedactionPolicy) -> Self {
+    pub const fn new(
+        text: &'text str,
+        policy: &'policy RedactionPolicy,
+    ) -> Self {
         Self { text, policy }
     }
 
@@ -93,17 +107,26 @@ impl fmt::Debug for RedactedJsonText<'_, '_> {
     ///
     /// Returns a formatting error when the destination rejects output.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut writer =
-            BoundedLogEscapeWriter::new(LogOutputLimit::from(self.policy.diagnostic_budget()));
+        let mut writer = BoundedLogEscapeWriter::new(LogOutputLimit::from(
+            self.policy.diagnostic_budget(),
+        ));
         if self.exceeds_diagnostic_input_budget() {
             let _ = write!(&mut writer, "{:?}", self.opaque_secret());
         } else {
             match serde_json::from_str(self.text) {
                 Ok(value) if formatter.alternate() => {
-                    let _ = write!(&mut writer, "{:#?}", RedactedJson::new(&value, self.policy),);
+                    let _ = write!(
+                        &mut writer,
+                        "{:#?}",
+                        RedactedJson::new(&value, self.policy),
+                    );
                 }
                 Ok(value) => {
-                    let _ = write!(&mut writer, "{:?}", RedactedJson::new(&value, self.policy),);
+                    let _ = write!(
+                        &mut writer,
+                        "{:?}",
+                        RedactedJson::new(&value, self.policy),
+                    );
                 }
                 Err(_) => {
                     let _ = write!(&mut writer, "{:?}", self.opaque_secret());
@@ -133,8 +156,9 @@ impl fmt::Display for RedactedJsonText<'_, '_> {
     ///
     /// Returns a formatting error when the destination rejects output.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut writer =
-            BoundedLogEscapeWriter::new(LogOutputLimit::from(self.policy.diagnostic_budget()));
+        let mut writer = BoundedLogEscapeWriter::new(LogOutputLimit::from(
+            self.policy.diagnostic_budget(),
+        ));
         let _ = writer.write_str(&self.diagnostic_json_text());
         formatter.write_str(&writer.finish())
     }

@@ -10,13 +10,19 @@
 use std::collections::BTreeMap;
 
 use indexmap::IndexMap;
-use qubit_redact::{DiagnosticBudget, RedactedMap, RedactionPolicy};
+use qubit_redact::{
+    DiagnosticBudget,
+    RedactedMap,
+    RedactionPolicy,
+};
 
 /// Verifies a redacted map keeps non-sensitive values visible.
 #[test]
 fn test_redacted_map_preserves_visible_value() {
-    let map = BTreeMap::from([(String::from("label"), String::from("visible"))]);
-    let rendered = RedactedMap::new(&map, RedactionPolicy::default()).to_string();
+    let map =
+        BTreeMap::from([(String::from("label"), String::from("visible"))]);
+    let rendered =
+        RedactedMap::new(&map, RedactionPolicy::default()).to_string();
 
     assert!(rendered.contains("visible"));
 }
@@ -26,7 +32,8 @@ fn test_redacted_map_preserves_visible_value() {
 fn test_redacted_map_supports_index_map_without_runtime_coupling() {
     let map = IndexMap::from([("password", "raw"), ("label", "visible")]);
 
-    let rendered = format!("{:?}", RedactedMap::new(&map, RedactionPolicy::default()),);
+    let rendered =
+        format!("{:?}", RedactedMap::new(&map, RedactionPolicy::default()),);
 
     assert_eq!(
         rendered,
@@ -37,9 +44,13 @@ fn test_redacted_map_supports_index_map_without_runtime_coupling() {
 /// Verifies map views can derive an output bound from their policy snapshot.
 #[test]
 fn test_redacted_map_with_policy_output_limit_uses_policy_budget() {
-    let map = BTreeMap::from([(String::from("label"), "visible diagnostic text".repeat(4))]);
-    let budget = DiagnosticBudget::new(1024, DiagnosticBudget::MIN_OUTPUT_BYTES)
-        .expect("the minimum bounded output should be valid");
+    let map = BTreeMap::from([(
+        String::from("label"),
+        "visible diagnostic text".repeat(4),
+    )]);
+    let budget =
+        DiagnosticBudget::new(1024, DiagnosticBudget::MIN_OUTPUT_BYTES)
+            .expect("the minimum bounded output should be valid");
     let policy = RedactionPolicy::empty_builder()
         .diagnostic_budget(budget)
         .build()

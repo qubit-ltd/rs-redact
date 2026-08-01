@@ -9,9 +9,18 @@
 
 use serde_json::Value;
 
-use crate::{JsonDepthBudget, RedactionPolicy, RedactionRules, Sensitivity};
+use crate::{
+    JsonDepthBudget,
+    RedactionPolicy,
+    RedactionRules,
+    Sensitivity,
+    policy::ResolvedField,
+};
 
-use super::{JsonRedactionOutcome, JsonUnkeyedValuePolicy};
+use super::{
+    JsonRedactionOutcome,
+    JsonUnkeyedValuePolicy,
+};
 
 /// Mutable state shared by one JSON tree traversal.
 pub(crate) struct JsonRedactionState<'policy, 'budget, 'marker> {
@@ -101,15 +110,20 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         if depth >= self.json_depth_budget.max_depth()
             && matches!(value, Value::Object(_) | Value::Array(_))
         {
-            self.mask_keyed_value(value, Sensitivity::Secret, self.rules.masking());
+            self.mask_keyed_value(
+                value,
+                Sensitivity::Secret,
+                self.rules.masking(),
+            );
             return JsonRedactionOutcome::default();
         }
         match value {
             Value::Object(values) => self.redact_object(values, depth),
             Value::Array(values) => self.redact_array(values, has_field, depth),
-            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
-                self.redact_scalar(value, has_field)
-            }
+            Value::Null
+            | Value::Bool(_)
+            | Value::Number(_)
+            | Value::String(_) => self.redact_scalar(value, has_field),
         }
     }
 
@@ -131,10 +145,20 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         let mut outcome = JsonRedactionOutcome::default();
         for (key, value) in values {
             let resolved = self.rules.resolve_field(key);
-            if let (Some(level), Some(masking)) = (resolved.sensitivity, resolved.masking) {
-                self.mask_keyed_value(value, level, masking);
-            } else {
-                outcome.merge(self.redact_value(value, true, depth.saturating_add(1)));
+            match resolved {
+                ResolvedField::Sensitive {
+                    sensitivity,
+                    masking,
+                } => {
+                    self.mask_keyed_value(value, sensitivity, masking);
+                }
+                ResolvedField::PassThrough => {
+                    outcome.merge(self.redact_value(
+                        value,
+                        true,
+                        depth.saturating_add(1),
+                    ));
+                }
             }
         }
         outcome
@@ -159,7 +183,11 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ) -> JsonRedactionOutcome {
         let mut outcome = JsonRedactionOutcome::default();
         for value in values {
-            outcome.merge(self.redact_value(value, has_field, depth.saturating_add(1)));
+            outcome.merge(self.redact_value(
+                value,
+                has_field,
+                depth.saturating_add(1),
+            ));
         }
         outcome
     }
@@ -174,17 +202,25 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// # Returns
     ///
     /// An outcome reporting a pass-through only for unkeyed visible scalars.
-    fn redact_scalar(&mut self, value: &mut Value, has_field: bool) -> JsonRedactionOutcome {
+    fn redact_scalar(
+        &mut self,
+        value: &mut Value,
+        has_field: bool,
+    ) -> JsonRedactionOutcome {
         if has_field {
             return JsonRedactionOutcome::default();
         }
         match self.unkeyed {
-            JsonUnkeyedValuePolicy::PassThrough => JsonRedactionOutcome::passed_unkeyed(),
+            JsonUnkeyedValuePolicy::PassThrough => {
+                JsonRedactionOutcome::passed_unkeyed()
+            }
             JsonUnkeyedValuePolicy::Redact {
                 marker,
                 truncated_marker,
             } => {
-                *value = Value::String(self.take_unkeyed_marker(marker, truncated_marker));
+                *value = Value::String(
+                    self.take_unkeyed_marker(marker, truncated_marker),
+                );
                 JsonRedactionOutcome::default()
             }
         }
@@ -208,7 +244,8 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
                 .into_owned(),
             _ => masking.mask_opaque_bounded(level, *self.remaining_mask_bytes),
         };
-        *self.remaining_mask_bytes = self.remaining_mask_bytes.saturating_sub(masked.len());
+        *self.remaining_mask_bytes =
+            self.remaining_mask_bytes.saturating_sub(masked.len());
         *value = Value::String(masked);
     }
 
@@ -223,7 +260,11 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ///
     /// The preferred marker, fallback marker, or an empty replacement when no
     /// marker fits the remaining generated-mask budget.
-    fn take_unkeyed_marker(&mut self, marker: &str, truncated_marker: &str) -> String {
+    fn take_unkeyed_marker(
+        &mut self,
+        marker: &str,
+        truncated_marker: &str,
+    ) -> String {
         let selected = if *self.remaining_mask_bytes >= marker.len() {
             marker
         } else if *self.remaining_mask_bytes >= truncated_marker.len() {
@@ -231,7 +272,8 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         } else {
             return String::new();
         };
-        *self.remaining_mask_bytes = self.remaining_mask_bytes.saturating_sub(selected.len());
+        *self.remaining_mask_bytes =
+            self.remaining_mask_bytes.saturating_sub(selected.len());
         selected.to_owned()
     }
 }

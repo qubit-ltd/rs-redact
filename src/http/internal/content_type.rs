@@ -7,7 +7,11 @@
 // =============================================================================
 //! Minimal Content-Type classification.
 
-use super::header_parameter::{is_token_byte, leading_value, parse_parameters};
+use super::header_parameter::{
+    is_token_byte,
+    leading_value,
+    parse_parameters,
+};
 
 /// One strict, once-parsed Content-Type classification.
 #[must_use]
@@ -57,7 +61,8 @@ pub(in crate::http) fn parse(value: &str) -> Option<ContentType> {
     if is_multipart_media_type(media_type) {
         return Some(ContentType::Multipart {
             boundary: validate_boundary(boundary),
-            require_form_data: media_type.eq_ignore_ascii_case("multipart/form-data"),
+            require_form_data: media_type
+                .eq_ignore_ascii_case("multipart/form-data"),
         });
     }
     if is_ndjson_media_type(media_type) {

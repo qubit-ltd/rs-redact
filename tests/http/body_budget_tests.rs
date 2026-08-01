@@ -7,7 +7,10 @@
 // =============================================================================
 //! Tests for [`BodyBudget`](qubit_redact::http::BodyBudget).
 
-use qubit_redact::http::{BodyBudget, BodyBudgetError};
+use qubit_redact::http::{
+    BodyBudget,
+    BodyBudgetError,
+};
 
 /// Verifies budget errors implement the standard error contract precisely.
 #[test]

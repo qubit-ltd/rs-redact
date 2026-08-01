@@ -7,7 +7,10 @@
 // =============================================================================
 //! Tests for [`BodyRedactionStatus`](qubit_redact::http::BodyRedactionStatus).
 
-use qubit_redact::http::{BodyRedactionReason, BodyRedactionStatus};
+use qubit_redact::http::{
+    BodyRedactionReason,
+    BodyRedactionStatus,
+};
 
 /// Verifies a fail-closed status retains its precise reason.
 #[test]

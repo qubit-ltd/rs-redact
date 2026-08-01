@@ -10,7 +10,11 @@
 #[cfg(feature = "http")]
 use http::HeaderValue;
 #[cfg(feature = "http")]
-use qubit_redact::http::{BodyCapture, BodyRedactionStatus, HttpRedactor};
+use qubit_redact::http::{
+    BodyCapture,
+    BodyRedactionStatus,
+    HttpRedactor,
+};
 
 /// Verifies the default policy redacts unkeyed JSON scalar values.
 #[cfg(feature = "http")]

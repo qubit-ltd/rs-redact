@@ -12,6 +12,9 @@
       "src/text/bounded_log_safe_display.rs",
       "src/text/log_output_limit_error.rs",
       "src/text/log_safe_text.rs"
+    ],
+    "qubit-redact-derive": [
+      "src/internal/crate_path.rs"
     ]
   }
 }

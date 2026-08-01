@@ -12,9 +12,17 @@ use std::fmt;
 use serde_json::Value;
 
 #[cfg(feature = "serde")]
-use serde::ser::{SerializeMap as _, SerializeSeq as _};
+use serde::ser::{
+    SerializeMap as _,
+    SerializeSeq as _,
+};
 
-use crate::{RedactValue as _, RedactedValue, RedactionPolicy};
+use crate::{
+    RedactValue as _,
+    RedactedValue,
+    RedactionPolicy,
+    policy::ResolvedField,
+};
 
 /// A borrowed JSON value rendered with policy-aware object-key redaction.
 #[must_use = "format or serialize the redacted JSON view"]
@@ -39,7 +47,10 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     ///
     /// A borrowed JSON redaction view.
     #[inline(always)]
-    pub const fn new(value: &'value Value, policy: &'policy RedactionPolicy) -> Self {
+    pub const fn new(
+        value: &'value Value,
+        policy: &'policy RedactionPolicy,
+    ) -> Self {
         Self {
             value,
             policy,
@@ -57,7 +68,10 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     ///
     /// A borrowed view at the next recursive depth.
     #[inline(always)]
-    fn nested<'nested>(&self, value: &'nested Value) -> RedactedJson<'nested, 'policy> {
+    fn nested<'nested>(
+        &self,
+        value: &'nested Value,
+    ) -> RedactedJson<'nested, 'policy> {
         RedactedJson {
             value,
             policy: self.policy,
@@ -131,35 +145,44 @@ impl serde::Serialize for RedactedJson<'_, '_> {
         S: serde::Serializer,
     {
         if self.depth_limit_reached() {
-            return serde::Serialize::serialize(&self.depth_limit_mask(), serializer);
+            return serde::Serialize::serialize(
+                &self.depth_limit_mask(),
+                serializer,
+            );
         }
         match self.value {
             Value::Array(values) => {
-                let mut output = serializer.serialize_seq(Some(values.len()))?;
+                let mut output =
+                    serializer.serialize_seq(Some(values.len()))?;
                 for value in values {
                     output.serialize_element(&self.nested(value))?;
                 }
                 output.end()
             }
             Value::Object(values) => {
-                let mut output = serializer.serialize_map(Some(values.len()))?;
+                let mut output =
+                    serializer.serialize_map(Some(values.len()))?;
                 for (key, value) in values {
                     let resolved = self.policy.resolve_field(key);
-                    if let (Some(sensitivity), Some(masking)) =
-                        (resolved.sensitivity, resolved.masking)
-                    {
-                        match value {
+                    match resolved {
+                        ResolvedField::Sensitive {
+                            sensitivity,
+                            masking,
+                        } => match value {
                             Value::String(text) => {
-                                let redacted = text.redact_value(sensitivity, masking);
+                                let redacted =
+                                    text.redact_value(sensitivity, masking);
                                 output.serialize_entry(key, &redacted)?;
                             }
                             _ => {
-                                let redacted = RedactedValue::opaque(sensitivity, masking);
+                                let redacted =
+                                    RedactedValue::opaque(sensitivity, masking);
                                 output.serialize_entry(key, &redacted)?;
                             }
+                        },
+                        ResolvedField::PassThrough => {
+                            output.serialize_entry(key, &self.nested(value))?;
                         }
-                    } else {
-                        output.serialize_entry(key, &self.nested(value))?;
                     }
                 }
                 output.end()
@@ -183,7 +206,10 @@ impl serde::Serialize for RedactedJson<'_, '_> {
 /// # Errors
 ///
 /// Returns a formatting error when the destination rejects output.
-fn fmt_json(view: &RedactedJson<'_, '_>, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn fmt_json(
+    view: &RedactedJson<'_, '_>,
+    formatter: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
     if view.depth_limit_reached() {
         return fmt::Debug::fmt(&view.depth_limit_mask(), formatter);
     }
@@ -199,11 +225,22 @@ fn fmt_json(view: &RedactedJson<'_, '_>, formatter: &mut fmt::Formatter<'_>) -> 
             let mut output = formatter.debug_map();
             for (key, value) in values {
                 let resolved = view.policy.resolve_field(key);
-                if let (Some(sensitivity), Some(masking)) = (resolved.sensitivity, resolved.masking)
-                {
-                    fmt_masked_entry(&mut output, key, value, sensitivity, masking);
-                } else {
-                    output.entry(key, &view.nested(value));
+                match resolved {
+                    ResolvedField::Sensitive {
+                        sensitivity,
+                        masking,
+                    } => {
+                        fmt_masked_entry(
+                            &mut output,
+                            key,
+                            value,
+                            sensitivity,
+                            masking,
+                        );
+                    }
+                    ResolvedField::PassThrough => {
+                        output.entry(key, &view.nested(value));
+                    }
                 }
             }
             output.finish()

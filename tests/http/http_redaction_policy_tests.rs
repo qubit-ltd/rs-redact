@@ -7,8 +7,15 @@
 // =============================================================================
 //! Tests for [`HttpRedactionPolicy`](qubit_redact::http::HttpRedactionPolicy).
 
-use qubit_redact::http::{DiagnosticBudget, HttpRedactionPolicy};
-use qubit_redact::{RedactionFloor, RedactionFloorState, Sensitivity};
+use qubit_redact::http::{
+    DiagnosticBudget,
+    HttpRedactionPolicy,
+};
+use qubit_redact::{
+    RedactionFloor,
+    RedactionFloorState,
+    Sensitivity,
+};
 
 /// Verifies the default HTTP policy has a non-zero body input budget.
 #[test]

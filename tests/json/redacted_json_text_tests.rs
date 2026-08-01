@@ -8,7 +8,12 @@
 //! Tests for JSON text redaction and fail-closed fallback.
 
 use qubit_redact::{
-    DiagnosticBudget, JsonDepthBudget, MaskPolicy, RedactedJsonText, RedactionPolicy, Sensitivity,
+    DiagnosticBudget,
+    JsonDepthBudget,
+    MaskPolicy,
+    RedactedJsonText,
+    RedactionPolicy,
+    Sensitivity,
     redact_json_text_in_place,
 };
 
@@ -19,7 +24,10 @@ fn test_redacted_json_text_new_constructs_borrowed_view() {
         .allow_canonical_exact("name")
         .build()
         .expect("the policy should build");
-    let view = std::hint::black_box(RedactedJsonText::new(r#"{"name":"Ada"}"#, &policy));
+    let view = std::hint::black_box(RedactedJsonText::new(
+        r#"{"name":"Ada"}"#,
+        &policy,
+    ));
 
     assert_eq!(view.to_string(), r#"{"name":"Ada"}"#);
 }
@@ -56,7 +64,8 @@ fn test_redacted_json_text_display_is_compact_valid_json() {
 fn test_redacted_json_text_diagnostic_input_budget_fails_closed() {
     let policy = RedactionPolicy::empty_builder()
         .diagnostic_budget(
-            DiagnosticBudget::new(16, 128).expect("the diagnostic budget should be valid"),
+            DiagnosticBudget::new(16, 128)
+                .expect("the diagnostic budget should be valid"),
         )
         .mask(
             Sensitivity::Secret,
@@ -97,7 +106,9 @@ fn test_redacted_json_text_display_uses_diagnostic_output_budget() {
 #[test]
 fn test_redacted_json_text_fails_closed_at_depth_budget() {
     let policy = RedactionPolicy::empty_builder()
-        .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
+        .json_depth_budget(
+            JsonDepthBudget::new(1).expect("the depth budget is valid"),
+        )
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .build()
         .expect("the policy should build");
@@ -119,7 +130,8 @@ fn test_redacted_json_text_debug_preserves_alternate_formatting() {
         .raise("password", Sensitivity::Secret)
         .build()
         .expect("the policy should build");
-    let view = RedactedJsonText::new(r#"{"password":"raw","name":"Ada"}"#, &policy);
+    let view =
+        RedactedJsonText::new(r#"{"password":"raw","name":"Ada"}"#, &policy);
 
     let output = format!("{view:#?}");
 
@@ -135,7 +147,8 @@ fn test_redact_json_text_in_place_masks_and_compacts_valid_json() {
         .raise("password", Sensitivity::Secret)
         .build()
         .expect("the policy should build");
-    let mut text = "{ \"password\": \"raw-password\", \"name\": \"Ada\" }".to_owned();
+    let mut text =
+        "{ \"password\": \"raw-password\", \"name\": \"Ada\" }".to_owned();
 
     redact_json_text_in_place(&mut text, &policy);
 

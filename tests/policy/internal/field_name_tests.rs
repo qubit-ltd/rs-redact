@@ -7,7 +7,10 @@
 // =============================================================================
 //! Tests for field-name normalization used by policy matching.
 
-use qubit_redact::{RedactionPolicy, Sensitivity};
+use qubit_redact::{
+    RedactionPolicy,
+    Sensitivity,
+};
 
 /// Verifies that every supported separator produces the same canonical name.
 #[test]

@@ -30,8 +30,8 @@ its section and run `cargo run`.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.3", features = ["serde"] }
-qubit-redact-derive = "0.3"
+qubit-redact = { version = "0.4", features = ["serde"] }
+qubit-redact-derive = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -306,8 +306,8 @@ dependency is valid:
 
 ```toml
 [dependencies]
-redaction = { package = "qubit-redact", version = "0.3" }
-qubit-redact-derive = "0.3"
+redaction = { package = "qubit-redact", version = "0.4" }
+qubit-redact-derive = "0.4"
 ```
 
 The derive macro still emits the correct path. Do not rely on a transitive

@@ -8,7 +8,11 @@
 //! Tests for process-wide default redaction policy installation.
 
 use qubit_redact::{
-    GlobalDefaultAlreadySet, RedactionFloor, RedactionFloorState, RedactionPolicy, Redactor,
+    GlobalDefaultAlreadySet,
+    RedactionFloor,
+    RedactionFloorState,
+    RedactionPolicy,
+    Redactor,
     Sensitivity,
 };
 
@@ -30,7 +34,8 @@ fn test_global_default_can_be_installed_once_and_is_snapshotted() {
         Some(Sensitivity::Secret),
     );
     assert_eq!(
-        RedactionPolicy::global_default().sensitivity_for("tenant_protected_blob"),
+        RedactionPolicy::global_default()
+            .sensitivity_for("tenant_protected_blob"),
         Some(Sensitivity::Secret),
     );
     let from_current_default = RedactionPolicy::builder_from_default()

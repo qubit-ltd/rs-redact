@@ -25,7 +25,7 @@ Qubit Redact 是一个策略驱动的 Rust 脱敏库，用于防止敏感值经�
 
 ```toml
 [dependencies]
-qubit-redact = "0.3"
+qubit-redact = "0.4"
 ```
 
 ```rust
@@ -82,8 +82,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.3", features = ["serde", "http"] }
-qubit-redact-derive = "0.3"
+qubit-redact = { version = "0.4", features = ["serde", "http"] }
+qubit-redact-derive = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 http = "1.4"
@@ -91,10 +91,11 @@ http = "1.4"
 
 ## 核心概念
 
-`RedactionPolicy` 是字段规则、匹配方式、掩码、未知字段行为、诊断预算，以及启用 `json`
-feature 时 `JsonDepthBudget` 的不可变快照。字段决策分为：
-**Sensitive**（遮盖）、显式例外的 **Allowed**（允许展示）和 **Unknown**。
-`UnknownFieldPolicy` 默认是 `PassThrough`；边界必须遮盖未分类字段时设置
+`RedactionPolicy` 是应用字段规则、可选最低 `RedactionFloor`、匹配方式、掩码、未知字段行为、
+诊断预算，以及启用 `json` feature 时 `JsonDepthBudget` 的不可变快照。
+`classify_field()` 只解释应用层为何得到 **Sensitive**（遮盖）、显式例外的
+**Allowed**（允许展示）或 **Unknown**；最终安全裁决由 `sensitivity_for()` 和脱敏 API 完成，
+它们会合并应用层和 floor。`UnknownFieldPolicy` 默认是 `PassThrough`；边界必须遮盖未分类字段时设置
 `Redact(Sensitivity::Secret)`，而 `classify_field()` 仍报告 `Unknown`。`Redactor` 始终使用同一份快照。
 
 `RedactedText` 只表示“已按字段规则处理”，它故意不实现 `Display`。写入纯文本日志前，
@@ -233,8 +234,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```toml
 [dependencies]
-qubit-redact = "0.3"
-qubit-redact-derive = "0.3"
+qubit-redact = "0.4"
+qubit-redact-derive = "0.4"
 ```
 
 ```rust
@@ -285,8 +286,8 @@ fn main() {
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.3", features = ["serde"] }
-qubit-redact-derive = "0.3"
+qubit-redact = { version = "0.4", features = ["serde"] }
+qubit-redact-derive = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -368,8 +369,10 @@ fn main() {
 
 可选 `http` feature 提供不可变 `HttpRedactionPolicy`，分别处理 Header、query/form 和
 结构化 body。它的 builder、`HttpRedactionPolicyBuilder::new()` 与 `Default::default()`
-都不带字段规则。要在保守 HTTP 快照上扩展，使用 `HttpRedactionPolicy::builder_from_default()`。
-`.load_default()` 会替换此前所有 header、query、body、行为和预算设置。
+都不带应用字段规则，但每个上下文都会捕获同一份创建时的全局 floor 快照。应用层 allow
+规则无法绕过已启用的 floor。要在保守 HTTP 快照上扩展，使用
+`HttpRedactionPolicy::builder_from_default()`。`.load_default()` 会替换此前所有 header、query、
+body、行为、预算和 floor 设置。
 `HttpRedactionPolicy::default()` 和 `HttpRedactor::default()` 仍使用这一保守快照。
 
 `HttpRedactor` 应用该快照。`BodyCapture` 提供借用字节和真实完整性元数据（`complete`、
@@ -390,7 +393,7 @@ fn main() {
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.3", features = ["http"] }
+qubit-redact = { version = "0.4", features = ["http"] }
 http = "1.4"
 ```
 
@@ -431,6 +434,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 运行时诊断可读取 `BodyRedaction::status()`、`is_truncated()`、`captured_len()` 和
 `omitted_len()`。`BodyRedactionStatus::Redacted(reason)` 会给出结构化或可见表示不安全的原因。
+
+## 8. 迁移到 0.5
+
+0.5 有意删除了语义含混和重复的 API：
+
+- `RedactionPolicy::builder()` 改为 `RedactionPolicy::empty_builder()`。
+- `HttpRedactionPolicy::builder()` 改为 `HttpRedactionPolicy::empty_builder()`。
+- policy 和 rules 快照改用 `application_sensitive_rules()` 与
+  `application_allow_rules()`；最低保护规则通过 `floor()` 查看，不再提供混合规则视图。
+- `header_policy()`、`query_policy()`、`body_policy()` 改为 `header_rules()`、
+  `query_rules()`、`body_rules()`。
+- `qubit_http::LogRedactionPolicy`、`LogRedactionPolicyBuilder`、`LogRedactor`
+  已删除；`qubit_http` 不再重导出 HTTP 脱敏类型。
+
+HTTP policy 和 redactor 必须直接从 `qubit_redact` 导入：
+
+```rust,ignore
+use qubit_http::HttpClientOptions;
+use qubit_redact::http::{HttpRedactionPolicy, HttpRedactor};
+
+let policy = HttpRedactionPolicy::builder_from_default().build()?;
+let _redactor = HttpRedactor::new(policy.clone());
+let mut options = HttpClientOptions::default();
+options.log_redaction_policy = policy;
+```
 
 ## 安全边界与验证
 

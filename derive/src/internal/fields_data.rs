@@ -7,7 +7,10 @@
 // =============================================================================
 //! Parsed field shape shared by container and variant data.
 
-use crate::internal::{NamedField, UnnamedField};
+use crate::internal::{
+    NamedField,
+    UnnamedField,
+};
 
 /// Validated named, unnamed, or unit fields in source order.
 ///

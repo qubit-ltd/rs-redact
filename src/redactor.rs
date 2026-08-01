@@ -9,7 +9,14 @@
 
 use std::borrow::Cow;
 
-use crate::{RedactMapValueMut, RedactedKeyedValue, RedactedText, RedactionPolicy, Sensitivity};
+use crate::{
+    RedactMapValueMut,
+    RedactedKeyedValue,
+    RedactedText,
+    RedactionPolicy,
+    Sensitivity,
+    policy::ResolvedField,
+};
 
 /// Applies one immutable policy to scalar values and string maps.
 #[must_use]
@@ -66,10 +73,12 @@ impl Redactor {
     #[inline]
     pub fn redact<'a>(&self, field: &str, value: &'a str) -> RedactedText<'a> {
         let resolved = self.policy.resolve_field(field);
-        let value = match (resolved.sensitivity, resolved.masking) {
-            (Some(level), Some(masking)) => masking.mask(level, value),
-            (None, None) => Cow::Borrowed(value),
-            _ => unreachable!("a resolved sensitivity always has a mask"),
+        let value = match resolved {
+            ResolvedField::Sensitive {
+                sensitivity,
+                masking,
+            } => masking.mask(sensitivity, value),
+            ResolvedField::PassThrough => Cow::Borrowed(value),
         };
         RedactedText::new(value)
     }
@@ -93,7 +102,11 @@ impl Redactor {
     /// Typed redacted text produced by the configured mask for `level`.
     #[must_use = "use the returned redacted value"]
     #[inline]
-    pub fn redact_at<'a>(&self, level: Sensitivity, value: &'a str) -> RedactedText<'a> {
+    pub fn redact_at<'a>(
+        &self,
+        level: Sensitivity,
+        value: &'a str,
+    ) -> RedactedText<'a> {
         RedactedText::new(self.policy.masking().mask(level, value))
     }
 

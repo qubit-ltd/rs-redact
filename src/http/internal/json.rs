@@ -11,16 +11,25 @@ use std::io::Write;
 
 use serde_json::Value;
 
-use crate::json::internal::{JsonRedactionState, JsonUnkeyedValuePolicy};
+use crate::json::internal::{
+    JsonRedactionState,
+    JsonUnkeyedValuePolicy,
+};
 
 use crate::{
     JsonDepthBudget,
-    http::{FieldRedactor, UnkeyedJsonValuePolicy},
+    http::{
+        FieldRedactor,
+        UnkeyedJsonValuePolicy,
+    },
 };
 
 use super::{
     BoundedBodyWriter,
-    markers::{TRUNCATED, UNKEYED_JSON},
+    markers::{
+        TRUNCATED,
+        UNKEYED_JSON,
+    },
 };
 
 /// Redacts a JSON tree and reports whether an unkeyed scalar passed through.
@@ -75,7 +84,9 @@ pub(in crate::http) fn redact_with_remaining(
     remaining_mask_bytes: &mut usize,
 ) -> bool {
     let unkeyed = match unkeyed {
-        UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
+        UnkeyedJsonValuePolicy::PassThrough => {
+            JsonUnkeyedValuePolicy::PassThrough
+        }
         UnkeyedJsonValuePolicy::Redact => JsonUnkeyedValuePolicy::Redact {
             marker: UNKEYED_JSON,
             truncated_marker: TRUNCATED,

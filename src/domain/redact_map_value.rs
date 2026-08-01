@@ -7,9 +7,17 @@
 // =============================================================================
 //! Formatting contract for text-valued map-like containers.
 
-use std::fmt::{self, Debug, Formatter};
+use std::fmt::{
+    self,
+    Debug,
+    Formatter,
+};
 
-use crate::{RedactValue, RedactionPolicy};
+use crate::{
+    RedactValue,
+    RedactionPolicy,
+    policy::ResolvedField,
+};
 
 /// Formats map values after classifying each value by its runtime key.
 ///
@@ -71,11 +79,17 @@ where
         let mut map = formatter.debug_map();
         for (key, value) in self {
             let resolved = policy.resolve_field(key.as_ref());
-            if let (Some(level), Some(masking)) = (resolved.sensitivity, resolved.masking) {
-                let redacted = value.redact_value(level, masking);
-                map.entry(&key, &redacted);
-            } else {
-                map.entry(&key, &value);
+            match resolved {
+                ResolvedField::Sensitive {
+                    sensitivity,
+                    masking,
+                } => {
+                    let redacted = value.redact_value(sensitivity, masking);
+                    map.entry(&key, &redacted);
+                }
+                ResolvedField::PassThrough => {
+                    map.entry(&key, &value);
+                }
             }
         }
         map.finish()

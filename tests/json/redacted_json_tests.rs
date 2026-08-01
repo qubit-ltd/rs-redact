@@ -8,7 +8,12 @@
 //! Tests for borrowed JSON value redaction.
 
 use qubit_redact::{
-    JsonDepthBudget, MaskPolicy, RedactedJson, RedactionPolicy, Sensitivity, UnknownFieldPolicy,
+    JsonDepthBudget,
+    MaskPolicy,
+    RedactedJson,
+    RedactionPolicy,
+    Sensitivity,
+    UnknownFieldPolicy,
 };
 use serde_json::json;
 
@@ -106,7 +111,9 @@ fn test_redacted_json_fails_closed_at_depth_budget() {
         "nested": {"deeper": {"secret": "raw-depth-secret"}},
     });
     let policy = RedactionPolicy::empty_builder()
-        .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
+        .json_depth_budget(
+            JsonDepthBudget::new(1).expect("the depth budget is valid"),
+        )
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .build()
         .expect("the policy should build");
@@ -138,6 +145,34 @@ fn test_redacted_json_serde_preserves_json_value_shape() {
     assert_ne!(serialized["password"], "raw");
 }
 
+/// Verifies Serde output replaces sensitive non-string values with the
+/// configured opaque mask instead of recursively retaining their structure.
+#[cfg(feature = "serde")]
+#[test]
+fn test_redacted_json_serde_masks_sensitive_non_string_values_opaquely() {
+    let value = json!({
+        "secret_object": {"nested": "raw"},
+        "secret_number": 42,
+    });
+    let policy = RedactionPolicy::empty_builder()
+        .raise("secret_object", Sensitivity::Secret)
+        .raise("secret_number", Sensitivity::Secret)
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[opaque]"))
+        .build()
+        .expect("the policy should build");
+
+    let serialized = serde_json::to_value(RedactedJson::new(&value, &policy))
+        .expect("the redacted JSON value should serialize");
+
+    assert_eq!(
+        serialized,
+        json!({
+            "secret_object": "[opaque]",
+            "secret_number": "[opaque]",
+        }),
+    );
+}
+
 /// Verifies Serde serialization applies the same fail-closed depth budget
 /// without cloning the complete source tree.
 #[cfg(feature = "serde")]
@@ -148,7 +183,9 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
         "nested": {"secret": "raw-depth-secret"},
     });
     let policy = RedactionPolicy::empty_builder()
-        .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
+        .json_depth_budget(
+            JsonDepthBudget::new(1).expect("the depth budget is valid"),
+        )
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .build()
         .expect("the policy should build");

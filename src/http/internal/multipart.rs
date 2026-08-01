@@ -9,10 +9,20 @@
 
 use std::io::Write;
 
-use crate::{JsonDepthBudget, http::FieldRedactor};
+use crate::http::{
+    FieldRedactor,
+    HttpRedactionPolicy,
+    TextBodyPolicy,
+};
 
-use super::{BoundedBodyWriter, MultipartPartMetadata, content_type, form, json, markers};
-use crate::http::{TextBodyPolicy, UnkeyedJsonValuePolicy};
+use super::{
+    BoundedBodyWriter,
+    MultipartPartMetadata,
+    content_type,
+    form,
+    json,
+    markers,
+};
 
 /// Redacts one complete multipart body into a deterministic summary.
 ///
@@ -22,10 +32,7 @@ use crate::http::{TextBodyPolicy, UnkeyedJsonValuePolicy};
 /// * `boundary` - Validated multipart delimiter boundary.
 /// * `require_form_data` - Whether part dispositions must be `form-data`.
 /// * `bytes` - Complete bounded body bytes.
-/// * `text_policy` - Policy for named opaque text parts.
-/// * `unkeyed_policy` - Policy for nested unkeyed JSON values.
-/// * `max_mask_bytes` - Aggregate bytes available for generated masks and
-///   rendered multipart output.
+/// * `policy` - HTTP policy that supplies body limits and rendering choices.
 ///
 /// # Returns
 ///
@@ -37,19 +44,17 @@ pub(in crate::http) fn redact(
     boundary: &str,
     require_form_data: bool,
     bytes: &[u8],
-    json_depth_budget: JsonDepthBudget,
-    text_policy: TextBodyPolicy,
-    unkeyed_policy: UnkeyedJsonValuePolicy,
-    max_mask_bytes: usize,
+    policy: &HttpRedactionPolicy,
 ) -> Option<(String, bool, bool)> {
     let parts = part_segments(bytes, boundary)?;
     let has_parts = !parts.is_empty();
-    let mut output = BoundedBodyWriter::new(max_mask_bytes);
+    let max_output_bytes = policy.body_budget().max_output_bytes();
+    let mut output = BoundedBodyWriter::new(max_output_bytes);
     if output.write_all(b"<multipart>\n").is_err() {
         return Some((output.into_string()?, false, true));
     }
     let mut passed = false;
-    let mut remaining_mask_bytes = max_mask_bytes;
+    let mut remaining_mask_bytes = max_output_bytes;
     for (index, part) in parts.into_iter().enumerate() {
         if index > 0 && output.write_all(b"\n").is_err() {
             return Some((output.into_string()?, passed, true));
@@ -57,12 +62,9 @@ pub(in crate::http) fn redact(
         let (line, part_passed, part_truncated) = redact_part(
             redactor,
             part,
-            json_depth_budget,
-            text_policy,
-            unkeyed_policy,
+            policy,
             require_form_data,
             &mut remaining_mask_bytes,
-            max_mask_bytes,
         )?;
         passed |= part_passed;
         if part_truncated || output.write_all(line.as_bytes()).is_err() {
@@ -86,11 +88,9 @@ pub(in crate::http) fn redact(
 ///
 /// * `redactor` - Structured-body field redactor.
 /// * `segment` - Part bytes without delimiter lines.
-/// * `text_policy` - Policy for named opaque text parts.
-/// * `unkeyed_policy` - Policy for nested unkeyed JSON values.
+/// * `policy` - HTTP policy that supplies body limits and rendering choices.
 /// * `require_form_data` - Whether disposition must be `form-data`.
 /// * `remaining_mask_bytes` - Aggregate bytes available for generated masks.
-/// * `max_output_bytes` - Maximum rendered multipart bytes to retain.
 ///
 /// # Returns
 ///
@@ -100,12 +100,9 @@ pub(in crate::http) fn redact(
 fn redact_part(
     redactor: &FieldRedactor<'_>,
     segment: &[u8],
-    json_depth_budget: JsonDepthBudget,
-    text_policy: TextBodyPolicy,
-    unkeyed_policy: UnkeyedJsonValuePolicy,
+    policy: &HttpRedactionPolicy,
     require_form_data: bool,
     remaining_mask_bytes: &mut usize,
-    max_output_bytes: usize,
 ) -> Option<(String, bool, bool)> {
     let (headers, body) = split_headers_body(segment)?;
     let mut disposition = None;
@@ -122,7 +119,11 @@ fn redact_part(
             return None;
         }
     }
-    let metadata = MultipartPartMetadata::parse(disposition, part_type, require_form_data)?;
+    let metadata = MultipartPartMetadata::parse(
+        disposition,
+        part_type,
+        require_form_data,
+    )?;
     let name = metadata.name().unwrap_or(markers::MULTIPART_UNNAMED);
     let (value, passed, truncated) = if metadata.filename().is_some() {
         (markers::MULTIPART_FILE.to_string(), false, false)
@@ -130,22 +131,22 @@ fn redact_part(
         (markers::MULTIPART_PART.to_string(), false, false)
     } else {
         let body_text = std::str::from_utf8(body).ok()?;
-        if let Some(value) =
-            redactor.redact_bounded_if_sensitive(name, body_text, *remaining_mask_bytes)
-        {
+        if let Some(value) = redactor.redact_bounded_if_sensitive(
+            name,
+            body_text,
+            *remaining_mask_bytes,
+        ) {
             let value = value.into_owned();
-            *remaining_mask_bytes = remaining_mask_bytes.saturating_sub(value.len());
+            *remaining_mask_bytes =
+                remaining_mask_bytes.saturating_sub(value.len());
             (value, false, false)
         } else {
             redact_non_sensitive_part(
                 redactor,
                 body,
-                json_depth_budget,
+                policy,
                 metadata.content_type(),
-                text_policy,
-                unkeyed_policy,
                 remaining_mask_bytes,
-                max_output_bytes,
             )?
         }
     };
@@ -161,11 +162,9 @@ fn redact_part(
 ///
 /// * `redactor` - Structured-body field redactor.
 /// * `body` - Part body bytes.
+/// * `policy` - HTTP policy that supplies body limits and rendering choices.
 /// * `part_type` - Optional part Content-Type text.
-/// * `text_policy` - Policy for named opaque text parts.
-/// * `unkeyed_policy` - Policy for nested unkeyed JSON values.
 /// * `remaining_mask_bytes` - Aggregate bytes available for generated masks.
-/// * `max_output_bytes` - Maximum rendered multipart bytes to retain.
 ///
 /// # Returns
 ///
@@ -175,12 +174,9 @@ fn redact_part(
 fn redact_non_sensitive_part(
     redactor: &FieldRedactor<'_>,
     body: &[u8],
-    json_depth_budget: JsonDepthBudget,
+    policy: &HttpRedactionPolicy,
     part_type: Option<&str>,
-    text_policy: TextBodyPolicy,
-    unkeyed_policy: UnkeyedJsonValuePolicy,
     remaining_mask_bytes: &mut usize,
-    max_output_bytes: usize,
 ) -> Option<(String, bool, bool)> {
     let text = std::str::from_utf8(body).ok()?;
     match part_type {
@@ -189,33 +185,51 @@ fn redact_non_sensitive_part(
             let passed = json::redact_with_remaining(
                 redactor,
                 &mut value,
-                json_depth_budget,
-                unkeyed_policy,
+                policy.json_depth_budget(),
+                policy.unkeyed_json_value_policy(),
                 remaining_mask_bytes,
             );
-            json::serialize_bounded(&value, max_output_bytes)
-                .map(|(text, truncated)| (text, passed, truncated))
+            json::serialize_bounded(
+                &value,
+                policy.body_budget().max_output_bytes(),
+            )
+            .map(|(text, truncated)| (text, passed, truncated))
         }
-        Some(value) if content_type::is_ndjson(value) => json::redact_ndjson_with_remaining(
-            redactor,
-            body,
-            json_depth_budget,
-            unkeyed_policy,
-            remaining_mask_bytes,
-            max_output_bytes,
-        ),
-        Some(value) if content_type::is_form(value) => form::is_valid(body).then(|| {
-            let value = form::redact_bounded(redactor, body, *remaining_mask_bytes);
-            *remaining_mask_bytes = remaining_mask_bytes.saturating_sub(value.len());
-            (value, false, false)
-        }),
-        Some(value) if content_type::is_text(value) => match text_policy {
-            TextBodyPolicy::Redact => Some((markers::MULTIPART_TEXT.to_string(), false, false)),
-            TextBodyPolicy::PassThrough => Some((text.to_string(), true, false)),
-        },
-        None => match text_policy {
-            TextBodyPolicy::Redact => Some((markers::MULTIPART_TEXT.to_string(), false, false)),
-            TextBodyPolicy::PassThrough => Some((text.to_string(), true, false)),
+        Some(value) if content_type::is_ndjson(value) => {
+            json::redact_ndjson_with_remaining(
+                redactor,
+                body,
+                policy.json_depth_budget(),
+                policy.unkeyed_json_value_policy(),
+                remaining_mask_bytes,
+                policy.body_budget().max_output_bytes(),
+            )
+        }
+        Some(value) if content_type::is_form(value) => form::is_valid(body)
+            .then(|| {
+                let value =
+                    form::redact_bounded(redactor, body, *remaining_mask_bytes);
+                *remaining_mask_bytes =
+                    remaining_mask_bytes.saturating_sub(value.len());
+                (value, false, false)
+            }),
+        Some(value) if content_type::is_text(value) => {
+            match policy.text_body_policy() {
+                TextBodyPolicy::Redact => {
+                    Some((markers::MULTIPART_TEXT.to_string(), false, false))
+                }
+                TextBodyPolicy::PassThrough => {
+                    Some((text.to_string(), true, false))
+                }
+            }
+        }
+        None => match policy.text_body_policy() {
+            TextBodyPolicy::Redact => {
+                Some((markers::MULTIPART_TEXT.to_string(), false, false))
+            }
+            TextBodyPolicy::PassThrough => {
+                Some((text.to_string(), true, false))
+            }
         },
         Some(_) => Some((markers::MULTIPART_PART.to_string(), false, false)),
     }
@@ -294,7 +308,9 @@ fn part_segments<'a>(bytes: &'a [u8], boundary: &str) -> Option<Vec<&'a [u8]>> {
 #[must_use]
 #[inline]
 fn next_line(bytes: &[u8], position: usize) -> (usize, usize, usize) {
-    if let Some(relative) = bytes[position..].iter().position(|byte| *byte == b'\n') {
+    if let Some(relative) =
+        bytes[position..].iter().position(|byte| *byte == b'\n')
+    {
         let end = position + relative;
         let trimmed = end
             .checked_sub(1)

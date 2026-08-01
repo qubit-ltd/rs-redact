@@ -9,7 +9,11 @@
 
 use std::{
     error::Error,
-    fmt::{self, Display, Formatter},
+    fmt::{
+        self,
+        Display,
+        Formatter,
+    },
 };
 
 /// Reports which JSON recursion-depth invariant was violated.
@@ -36,7 +40,8 @@ impl Display for JsonDepthBudgetError {
     /// Returns [`fmt::Error`] when the destination rejects output.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ZeroDepth => formatter.write_str("JSON depth budget must be greater than zero"),
+            Self::ZeroDepth => formatter
+                .write_str("JSON depth budget must be greater than zero"),
         }
     }
 }

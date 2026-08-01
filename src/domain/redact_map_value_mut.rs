@@ -7,7 +7,11 @@
 // =============================================================================
 //! Logical in-place redaction contract for text-valued map-like containers.
 
-use crate::{RedactValueMut, RedactionPolicy};
+use crate::{
+    RedactValueMut,
+    RedactionPolicy,
+    policy::ResolvedField,
+};
 
 /// Redacts map values in place after classifying each value by its runtime key.
 ///
@@ -42,8 +46,12 @@ where
     fn redact_map_in_place(&mut self, policy: &RedactionPolicy) {
         for (key, value) in self {
             let resolved = policy.resolve_field(key.as_ref());
-            if let (Some(level), Some(masking)) = (resolved.sensitivity, resolved.masking) {
-                value.redact_value_in_place(level, masking);
+            if let ResolvedField::Sensitive {
+                sensitivity,
+                masking,
+            } = resolved
+            {
+                value.redact_value_in_place(sensitivity, masking);
             }
         }
     }

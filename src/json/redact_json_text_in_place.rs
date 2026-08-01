@@ -9,9 +9,15 @@
 
 use serde_json::Value;
 
-use crate::{RedactionPolicy, Sensitivity};
+use crate::{
+    RedactionPolicy,
+    Sensitivity,
+};
 
-use super::internal::{JsonRedactionState, JsonUnkeyedValuePolicy};
+use super::internal::{
+    JsonRedactionState,
+    JsonUnkeyedValuePolicy,
+};
 
 /// Replaces JSON text with its compact redacted representation.
 ///
@@ -47,7 +53,10 @@ pub fn redact_json_text_in_place(text: &mut String, policy: &RedactionPolicy) {
 ///
 /// Compact redacted JSON for valid input, or the configured Secret opaque mask
 /// for invalid input.
-pub(crate) fn redacted_json_text(text: &str, policy: &RedactionPolicy) -> String {
+pub(crate) fn redacted_json_text(
+    text: &str,
+    policy: &RedactionPolicy,
+) -> String {
     let Ok(mut value) = serde_json::from_str::<Value>(text) else {
         return opaque_secret(policy);
     };
@@ -58,7 +67,8 @@ pub(crate) fn redacted_json_text(text: &str, policy: &RedactionPolicy) -> String
         &mut remaining_mask_bytes,
     );
     let _ = state.redact(&mut value);
-    serde_json::to_string(&value).expect("serde_json::Value serialization is infallible")
+    serde_json::to_string(&value)
+        .expect("serde_json::Value serialization is infallible")
 }
 
 /// Returns the configured opaque replacement for invalid JSON text.

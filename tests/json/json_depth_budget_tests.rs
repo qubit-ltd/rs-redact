@@ -7,7 +7,11 @@
 // =============================================================================
 //! Tests for validated JSON recursion-depth budgets.
 
-use qubit_redact::{JsonDepthBudget, JsonDepthBudgetError, RedactionPolicy};
+use qubit_redact::{
+    JsonDepthBudget,
+    JsonDepthBudgetError,
+    RedactionPolicy,
+};
 
 /// Verifies JSON depth budgets are positive and have a finite default.
 #[test]

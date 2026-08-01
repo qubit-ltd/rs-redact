@@ -7,11 +7,17 @@
 // =============================================================================
 //! Bounded streaming log-control escaping.
 
-use std::fmt::{self, Write};
+use std::fmt::{
+    self,
+    Write,
+};
 
 use crate::{
     LogOutputLimit,
-    text::{log_escape::encode_log_safe_character, log_output_limit::TRUNCATION_MARKER},
+    text::{
+        log_escape::encode_log_safe_character,
+        log_output_limit::TRUNCATION_MARKER,
+    },
 };
 
 /// Escapes log-unsafe characters into a byte-bounded owned string.
@@ -111,7 +117,9 @@ fn split_debug_escape(value: &str) -> Option<(&str, &str)> {
         return None;
     }
     match bytes.get(1).copied()? {
-        b'\\' | b'"' | b'n' | b'r' | b't' | b'0' => Some((&value[..2], &value[2..])),
+        b'\\' | b'"' | b'n' | b'r' | b't' | b'0' => {
+            Some((&value[..2], &value[2..]))
+        }
         b'x' if bytes.len() >= 4
             && bytes[2].is_ascii_hexdigit()
             && bytes[3].is_ascii_hexdigit() =>
@@ -123,7 +131,9 @@ fn split_debug_escape(value: &str) -> Option<(&str, &str)> {
                 .iter()
                 .position(|byte| *byte == b'}')
                 .map(|index| index + 3)?;
-            if closing == 3 || !bytes[3..closing].iter().all(u8::is_ascii_hexdigit) {
+            if closing == 3
+                || !bytes[3..closing].iter().all(u8::is_ascii_hexdigit)
+            {
                 return None;
             }
             Some((&value[..=closing], &value[closing + 1..]))

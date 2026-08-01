@@ -7,8 +7,14 @@
 // =============================================================================
 //! Floor masking integration tests for JSON redaction.
 
+#![cfg(feature = "json")]
+
 use qubit_redact::{
-    MaskPolicy, RedactionFloor, RedactionPolicy, Sensitivity, redact_json_text_in_place,
+    MaskPolicy,
+    RedactionFloor,
+    RedactionPolicy,
+    Sensitivity,
+    redact_json_text_in_place,
 };
 
 #[test]

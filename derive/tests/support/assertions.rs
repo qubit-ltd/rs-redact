@@ -11,8 +11,16 @@
 
 use std::collections::BTreeMap;
 
-use qubit_redact::{Redact as _, RedactMut as _, RedactionPolicy, Sensitivity};
-use qubit_redact_derive::{Redact, RedactMut};
+use qubit_redact::{
+    Redact as _,
+    RedactMut as _,
+    RedactionPolicy,
+    Sensitivity,
+};
+use qubit_redact_derive::{
+    Redact,
+    RedactMut,
+};
 
 /// Named record covering plain, sensitive, skipped, and map fields.
 #[derive(Redact)]
@@ -79,7 +87,10 @@ pub fn assert_named_redaction() {
         visible: "shown",
         secret: String::from("raw-secret"),
         skipped: String::from("raw-skipped"),
-        metadata: BTreeMap::from([(String::from("token"), String::from("raw-map"))]),
+        metadata: BTreeMap::from([(
+            String::from("token"),
+            String::from("raw-map"),
+        )]),
     };
     let _ = &value.skipped;
 
@@ -91,7 +102,8 @@ pub fn assert_named_redaction() {
 
 /// Verifies positional input modeling and expansion.
 pub fn assert_tuple_redaction() {
-    let value = TupleRecord(String::from("raw-secret"), String::from("raw-skipped"));
+    let value =
+        TupleRecord(String::from("raw-secret"), String::from("raw-skipped"));
     let TupleRecord(_, skipped) = &value;
     let _ = skipped;
 
@@ -159,8 +171,8 @@ pub fn assert_sensitivity_expansion() {
 /// Verifies Serde container, variant, field, and representation expansion.
 pub fn assert_serde_expansion() {
     let value = SerializableEvent::Tuple(String::from("raw-secret"));
-    let json =
-        serde_json::to_value(value.redacted()).expect("redacted adjacent serialization succeeds");
+    let json = serde_json::to_value(value.redacted())
+        .expect("redacted adjacent serialization succeeds");
 
     assert_eq!(
         json,

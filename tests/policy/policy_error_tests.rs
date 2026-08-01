@@ -7,7 +7,10 @@
 // =============================================================================
 //! Tests for [`PolicyError`](qubit_redact::PolicyError).
 
-use qubit_redact::{PolicyError, PolicyLocation};
+use qubit_redact::{
+    PolicyError,
+    PolicyLocation,
+};
 
 /// Verifies an empty canonical name reports the precise validation error.
 #[test]

@@ -6,8 +6,18 @@
 //! Tests for [`HttpRedactionPolicyBuilder`](qubit_redact::http::HttpRedactionPolicyBuilder).
 
 use qubit_redact::{
-    PolicyError, PolicyLocation, RedactionFloor, RedactionFloorState, RedactionPolicy, Sensitivity,
-    http::{DiagnosticBudget, HttpRedactionPolicy, JsonDepthBudget},
+    PolicyError,
+    PolicyLocation,
+    RedactionFloor,
+    RedactionFloorState,
+    RedactionPolicy,
+    Sensitivity,
+    http::{
+        BodyBudget,
+        DiagnosticBudget,
+        HttpRedactionPolicy,
+        JsonDepthBudget,
+    },
 };
 
 /// Verifies an empty builder owns independently configurable rule snapshots.
@@ -40,6 +50,14 @@ fn test_empty_builder_uses_three_rule_snapshots() {
 fn test_build_reports_context_policy_location() {
     assert_eq!(
         HttpRedactionPolicy::empty_builder()
+            .raise_header("---", Sensitivity::High)
+            .build(),
+        Err(PolicyError::EmptyFieldName {
+            location: PolicyLocation::HttpHeader
+        }),
+    );
+    assert_eq!(
+        HttpRedactionPolicy::empty_builder()
             .raise_query("---", Sensitivity::High)
             .build(),
         Err(PolicyError::EmptyFieldName {
@@ -59,14 +77,14 @@ fn test_build_reports_context_policy_location() {
 /// Verifies global and context-specific floor calls are last-call-wins.
 #[test]
 fn test_floor_configuration_is_independent_and_last_call_wins() {
-    let floor = RedactionFloor::empty_builder()
-        .raise("floor-secret", Sensitivity::Secret)
+    let shared_floor = RedactionFloor::empty_builder()
+        .raise("shared-floor-secret", Sensitivity::Secret)
         .build()
         .expect("the floor should be valid");
     let policy = HttpRedactionPolicy::empty_builder()
-        .floor(floor.clone())
+        .floor(shared_floor.clone())
         .disable_query_floor()
-        .body_floor(floor)
+        .body_floor(shared_floor)
         .disable_body_floor()
         .build()
         .expect("the HTTP policy should be valid");
@@ -83,6 +101,34 @@ fn test_floor_configuration_is_independent_and_last_call_wins() {
         policy.body_rules().floor_state(),
         RedactionFloorState::Disabled
     );
+
+    let header_floor = RedactionFloor::empty_builder()
+        .raise("header-floor-secret", Sensitivity::High)
+        .build()
+        .expect("the header floor should be valid");
+    let global_floor = RedactionFloor::empty_builder()
+        .raise("global-floor-secret", Sensitivity::Secret)
+        .build()
+        .expect("the global floor should be valid");
+    let global_last = HttpRedactionPolicy::empty_builder()
+        .header_floor(header_floor)
+        .disable_query_floor()
+        .floor(global_floor)
+        .build()
+        .expect("the global-last HTTP policy should be valid");
+
+    for rules in [
+        global_last.header_rules(),
+        global_last.query_rules(),
+        global_last.body_rules(),
+    ] {
+        assert_eq!(rules.floor_state(), RedactionFloorState::Explicit);
+        assert_eq!(
+            rules.sensitivity_for("global-floor-secret"),
+            Some(Sensitivity::Secret),
+        );
+        assert_eq!(rules.sensitivity_for("header-floor-secret"), None);
+    }
 }
 
 /// Verifies replacement rules and resource budgets copy without coupling.
@@ -92,10 +138,14 @@ fn test_builder_from_policy_preserves_rules_and_independent_budgets() {
         .raise("base-secret", Sensitivity::Secret)
         .build()
         .expect("the policy should be valid");
-    let diagnostic_budget = DiagnosticBudget::new(128, 256).expect("valid diagnostic budget");
-    let json_depth_budget = JsonDepthBudget::new(7).expect("valid JSON depth budget");
+    let diagnostic_budget =
+        DiagnosticBudget::new(128, 256).expect("valid diagnostic budget");
+    let body_budget = BodyBudget::new(64, 128).expect("valid body budget");
+    let json_depth_budget =
+        JsonDepthBudget::new(7).expect("valid JSON depth budget");
     let policy = HttpRedactionPolicy::builder_from(&base)
         .diagnostic_budget(diagnostic_budget)
+        .body_budget(body_budget)
         .json_depth_budget(json_depth_budget)
         .build()
         .expect("the HTTP policy should be valid");
@@ -108,6 +158,7 @@ fn test_builder_from_policy_preserves_rules_and_independent_budgets() {
     assert_eq!(policy.query_rules(), base.rules());
     assert_eq!(policy.body_rules(), base.rules());
     assert_eq!(policy.diagnostic_budget(), diagnostic_budget);
+    assert_eq!(policy.body_budget(), body_budget);
     assert_eq!(policy.json_depth_budget(), json_depth_budget);
     assert_eq!(rebuilt, HttpRedactionPolicy::default());
 }

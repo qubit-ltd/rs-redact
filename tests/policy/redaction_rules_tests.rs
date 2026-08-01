@@ -4,13 +4,16 @@
 //    SPDX-License-Identifier: Apache-2.0
 //
 //    Licensed under the Apache License, Version 2.0.
-//
-//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Tests for immutable redaction rule behavior.
 
 use qubit_redact::{
-    FieldClassification, FieldMatchKind, FieldNameMatching, RedactionPolicy, Sensitivity,
+    FieldClassification,
+    FieldMatchKind,
+    FieldNameMatching,
+    RedactionPolicy,
+    RedactionRules,
+    Sensitivity,
     UnknownFieldPolicy,
 };
 
@@ -52,5 +55,27 @@ fn test_redaction_rules_unknown_field_falls_back_to_policy() {
     assert_eq!(
         policy.sensitivity_for("unconfigured"),
         Some(Sensitivity::Low)
+    );
+}
+
+/// Verifies the rule snapshot exposes application-only matching and fallback
+/// configuration independently from any floor.
+#[test]
+fn test_redaction_rules_expose_application_matching_and_unknown_policy() {
+    let policy = RedactionPolicy::empty_builder()
+        .disable_floor()
+        .matching(FieldNameMatching::Exact)
+        .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low))
+        .build()
+        .expect("the application rules should be valid");
+    let matching: fn(&RedactionRules) -> FieldNameMatching =
+        RedactionRules::matching;
+    let unknown_field_policy: fn(&RedactionRules) -> UnknownFieldPolicy =
+        RedactionRules::unknown_field_policy;
+
+    assert_eq!(matching(policy.rules()), FieldNameMatching::Exact);
+    assert_eq!(
+        unknown_field_policy(policy.rules()),
+        UnknownFieldPolicy::Redact(Sensitivity::Low),
     );
 }

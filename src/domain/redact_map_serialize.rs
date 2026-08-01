@@ -7,9 +7,16 @@
 // =============================================================================
 //! Hidden serialization hook for redacted text-valued maps.
 
-use serde::{Serialize, ser::SerializeMap};
+use serde::{
+    Serialize,
+    ser::SerializeMap,
+};
 
-use crate::{RedactValue, RedactionPolicy};
+use crate::{
+    RedactValue,
+    RedactionPolicy,
+    policy::ResolvedField,
+};
 
 /// Serializes map values after classifying them by runtime key.
 ///
@@ -82,11 +89,17 @@ where
         let mut map = serializer.serialize_map(None)?;
         for (key, value) in self {
             let resolved = policy.resolve_field(key.as_ref());
-            if let (Some(level), Some(masking)) = (resolved.sensitivity, resolved.masking) {
-                let redacted = value.redact_value(level, masking);
-                map.serialize_entry(key, &redacted)?;
-            } else {
-                map.serialize_entry(key, value)?;
+            match resolved {
+                ResolvedField::Sensitive {
+                    sensitivity,
+                    masking,
+                } => {
+                    let redacted = value.redact_value(sensitivity, masking);
+                    map.serialize_entry(key, &redacted)?;
+                }
+                ResolvedField::PassThrough => {
+                    map.serialize_entry(key, value)?;
+                }
             }
         }
         map.end()

@@ -10,10 +10,19 @@
 use std::fmt::Display;
 
 use qubit_redact::{
-    LogSafeText, PolicyError, PolicyLocation, RedactionPolicy, Sensitivity,
+    LogSafeText,
+    PolicyError,
+    PolicyLocation,
+    RedactionPolicy,
+    Sensitivity,
     http::{
-        BodyBudget, BodyCapture, BodyRedaction, BodyRedactionReason, BodyRedactionStatus,
-        HttpRedactionPolicy, HttpRedactor,
+        BodyBudget,
+        BodyCapture,
+        BodyRedaction,
+        BodyRedactionReason,
+        BodyRedactionStatus,
+        HttpRedactionPolicy,
+        HttpRedactor,
     },
 };
 
@@ -202,8 +211,10 @@ fn test_body_redaction_public_types_are_available() {
         BodyRedactionStatus::Binary,
     ];
     let _: Option<BodyRedaction> = None;
-    let _: for<'a> fn(&'a BodyRedaction) -> &'a LogSafeText<'static> = BodyRedaction::log_safe_text;
-    let _: fn(BodyRedaction) -> LogSafeText<'static> = BodyRedaction::into_log_safe_text;
+    let _: for<'a> fn(&'a BodyRedaction) -> &'a LogSafeText<'static> =
+        BodyRedaction::log_safe_text;
+    let _: fn(BodyRedaction) -> LogSafeText<'static> =
+        BodyRedaction::into_log_safe_text;
     let _: fn(&BodyRedaction) -> BodyRedactionStatus = BodyRedaction::status;
     let _: fn(&BodyRedaction) -> usize = BodyRedaction::captured_len;
     let _: fn(&BodyRedaction) -> Option<usize> = BodyRedaction::source_len;
@@ -219,11 +230,14 @@ fn test_body_redaction_public_types_are_available() {
 #[test]
 fn test_body_redaction_queries_expose_captured_metadata() {
     let body = HttpRedactor::default().redact_body(
-        BodyCapture::truncated(b"visible", Some(10)).expect("the capture metadata should be valid"),
+        BodyCapture::truncated(b"visible", Some(10))
+            .expect("the capture metadata should be valid"),
         None,
     );
     let selected = usize::from(std::process::id() == 0);
-    let log_safe_text: [for<'a> fn(&'a BodyRedaction) -> &'a LogSafeText<'static>; 2] =
+    let log_safe_text: [for<'a> fn(
+        &'a BodyRedaction,
+    ) -> &'a LogSafeText<'static>; 2] =
         [BodyRedaction::log_safe_text, alternate_log_safe_text];
     let captured_len: [fn(&BodyRedaction) -> usize; 2] =
         [BodyRedaction::captured_len, alternate_captured_len];

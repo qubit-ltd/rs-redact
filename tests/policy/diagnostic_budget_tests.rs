@@ -7,7 +7,10 @@
 // =============================================================================
 //! Tests for [`DiagnosticBudget`](qubit_redact::DiagnosticBudget).
 
-use qubit_redact::{DiagnosticBudget, DiagnosticBudgetError};
+use qubit_redact::{
+    DiagnosticBudget,
+    DiagnosticBudgetError,
+};
 
 /// Verifies the default diagnostic limits remain finite and explicit.
 #[test]

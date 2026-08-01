@@ -7,7 +7,12 @@
 // =============================================================================
 //! Explainable borrowed results from field-policy classification.
 
-use super::{AllowRule, FieldMatchKind, SensitiveFieldRule, Sensitivity};
+use super::{
+    AllowRule,
+    FieldMatchKind,
+    SensitiveFieldRule,
+    Sensitivity,
+};
 
 /// Explains why a field is sensitive, allowed, or unknown to a policy.
 ///
@@ -78,9 +83,8 @@ impl<'a> FieldClassification<'a> {
     #[must_use]
     pub const fn match_kind(self) -> Option<FieldMatchKind> {
         match self {
-            Self::Sensitive { match_kind, .. } | Self::Allowed { match_kind, .. } => {
-                Some(match_kind)
-            }
+            Self::Sensitive { match_kind, .. }
+            | Self::Allowed { match_kind, .. } => Some(match_kind),
             Self::Unknown => None,
         }
     }

@@ -28,7 +28,7 @@ diagnostic value.
 
 ```toml
 [dependencies]
-qubit-redact = "0.3"
+qubit-redact = "0.4"
 ```
 
 ```rust
@@ -87,8 +87,8 @@ shown by its section and run `cargo run`.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.3", features = ["serde", "http"] }
-qubit-redact-derive = "0.3"
+qubit-redact = { version = "0.4", features = ["serde", "http"] }
+qubit-redact-derive = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 http = "1.4"
@@ -96,10 +96,13 @@ http = "1.4"
 
 ## Core concepts
 
-A `RedactionPolicy` is an immutable snapshot of field rules, matching behavior,
-masks, unknown-field behavior, diagnostic budgets, and, with the `json` feature,
-a `JsonDepthBudget`. A field is **Sensitive**, **Allowed** by an explicit
-exception, or **Unknown**. `UnknownFieldPolicy`
+A `RedactionPolicy` is an immutable snapshot of application field rules, an
+optional minimum `RedactionFloor`, matching behavior, masks, unknown-field
+behavior, diagnostic budgets, and, with the `json` feature, a
+`JsonDepthBudget`. `classify_field()` explains the application layer only:
+**Sensitive**, **Allowed** by an explicit exception, or **Unknown**. Final
+field safety decisions come from `sensitivity_for()` and the redaction APIs,
+which combine the application layer with the floor. `UnknownFieldPolicy`
 defaults to `PassThrough`; set `Redact(Sensitivity::Secret)` when an
 unclassified field must be masked without changing the observable
 `classify_field()` result. `Redactor` owns one snapshot and applies it
@@ -258,8 +261,8 @@ a field from redacted representations.
 
 ```toml
 [dependencies]
-qubit-redact = "0.3"
-qubit-redact-derive = "0.3"
+qubit-redact = "0.4"
+qubit-redact-derive = "0.4"
 ```
 
 ```rust
@@ -315,8 +318,8 @@ an existing implementation of the same trait.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.3", features = ["serde"] }
-qubit-redact-derive = "0.3"
+qubit-redact = { version = "0.4", features = ["serde"] }
+qubit-redact-derive = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -401,11 +404,13 @@ budget and stops with a truncation marker instead of reading excess input.
 ## 7. Redact HTTP diagnostics with `HttpRedactor`
 
 The optional `http` feature provides an immutable `HttpRedactionPolicy` for
-headers, query/form fields, and structured bodies. Its builder starts without
-field rules, as does `HttpRedactionPolicyBuilder::new()` and `Default::default()`.
+headers, query/form fields, and structured bodies. Its builder,
+`HttpRedactionPolicyBuilder::new()`, and `Default::default()` start with no
+application field rules, but each context captures the same creation-time
+global-floor snapshot. Application allow rules cannot bypass an enabled floor.
 Use `HttpRedactionPolicy::builder_from_default()` when extending the
 conservative HTTP snapshot. `.load_default()` replaces all prior header, query,
-body, behavior, and budget settings.
+body, behavior, budget, and floor settings.
 `HttpRedactionPolicy::default()` and `HttpRedactor::default()` continue to use
 that conservative snapshot.
 
@@ -429,7 +434,7 @@ outcome. No result exposes a raw-body escape hatch.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.3", features = ["http"] }
+qubit-redact = { version = "0.4", features = ["http"] }
 http = "1.4"
 ```
 
@@ -473,6 +478,33 @@ For operational diagnostics, inspect `BodyRedaction::status()`,
 `is_truncated()`, `captured_len()`, and `omitted_len()`. A
 `BodyRedactionStatus::Redacted(reason)` value reports why a structured or
 visible representation was unsafe.
+
+## 8. Migrate to 0.5
+
+Version 0.5 intentionally removes the ambiguous and duplicate APIs below:
+
+- `RedactionPolicy::builder()` is now `RedactionPolicy::empty_builder()`.
+- `HttpRedactionPolicy::builder()` is now `HttpRedactionPolicy::empty_builder()`.
+- Policy and rules snapshots use `application_sensitive_rules()` and
+  `application_allow_rules()`; use `floor()` to inspect minimum rules instead
+  of a merged rule view.
+- `header_policy()`, `query_policy()`, and `body_policy()` are now
+  `header_rules()`, `query_rules()`, and `body_rules()`.
+- `qubit_http::LogRedactionPolicy`, `LogRedactionPolicyBuilder`, and
+  `LogRedactor` are removed. `qubit_http` no longer re-exports HTTP redaction
+  types.
+
+Import the canonical HTTP policy and redactor directly from `qubit_redact`:
+
+```rust,ignore
+use qubit_http::HttpClientOptions;
+use qubit_redact::http::{HttpRedactionPolicy, HttpRedactor};
+
+let policy = HttpRedactionPolicy::builder_from_default().build()?;
+let _redactor = HttpRedactor::new(policy.clone());
+let mut options = HttpClientOptions::default();
+options.log_redaction_policy = policy;
+```
 
 ## Security boundaries and verification
 

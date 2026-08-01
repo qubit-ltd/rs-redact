@@ -7,8 +7,14 @@
 // =============================================================================
 //! Integration tests for derived JSON text fields.
 
-use qubit_redact::{Redact as _, RedactMut as _};
-use qubit_redact_derive::{Redact, RedactMut};
+use qubit_redact::{
+    Redact as _,
+    RedactMut as _,
+};
+use qubit_redact_derive::{
+    Redact,
+    RedactMut,
+};
 
 /// Immutable record storing JSON in a string field.
 #[derive(Redact)]
@@ -16,6 +22,23 @@ struct JsonRecord {
     /// JSON document whose sensitive object values are masked.
     #[redact(json)]
     payload: String,
+}
+
+/// Tuple record storing a recursively redacted JSON text field.
+#[derive(Redact)]
+struct JsonTupleRecord(#[redact(json)] String);
+
+/// Enum covering recursively redacted JSON text in both field shapes.
+#[derive(Redact)]
+enum JsonEvent {
+    /// Named JSON payload.
+    Named {
+        /// JSON text whose keyed secret values are masked.
+        #[redact(json)]
+        payload: String,
+    },
+    /// Tuple JSON payload.
+    Tuple(#[redact(json)] String),
 }
 
 /// Mutable record storing JSON in a string field.
@@ -36,6 +59,27 @@ fn test_derived_json_field_redacts_debug_output() {
 
     assert!(!output.contains("raw-password"));
     assert!(output.contains("\"password\":"));
+}
+
+/// Verifies JSON field expansion handles tuple structs and both enum field
+/// shapes without leaking a keyed secret.
+#[test]
+fn test_derived_json_tuple_and_enum_fields_redact_debug_output() {
+    let payload = r#"{"password":"raw-secret","name":"Ada"}"#.to_owned();
+    let tuple = JsonTupleRecord(payload.clone());
+    let named = JsonEvent::Named {
+        payload: payload.clone(),
+    };
+    let enum_tuple = JsonEvent::Tuple(payload);
+
+    for output in [
+        format!("{:?}", tuple.redacted()),
+        format!("{:?}", named.redacted()),
+        format!("{:?}", enum_tuple.redacted()),
+    ] {
+        assert!(!output.contains("raw-secret"), "{output}");
+        assert!(output.contains("Ada"), "{output}");
+    }
 }
 
 #[test]

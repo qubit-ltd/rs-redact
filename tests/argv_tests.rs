@@ -11,18 +11,34 @@ mod argv;
 
 use std::ffi::OsStr;
 #[cfg(unix)]
-use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+use std::{
+    ffi::OsString,
+    os::unix::ffi::OsStringExt,
+};
 
-use proptest::prelude::{prop_assert, prop_assert_eq, proptest};
+use proptest::prelude::{
+    prop_assert,
+    prop_assert_eq,
+    proptest,
+};
 
 use qubit_redact::{
-    DiagnosticBudget, MaskPolicy, RedactionFloor, RedactionPolicy, Redactor, Sensitivity,
-    argv::{ArgvItem, ArgvRedactor},
+    DiagnosticBudget,
+    MaskPolicy,
+    RedactionFloor,
+    RedactionPolicy,
+    Redactor,
+    Sensitivity,
+    argv::{
+        ArgvItem,
+        ArgvRedactor,
+    },
 };
 
 /// Creates a redactor with deliberately small diagnostic limits.
 fn bounded_redactor() -> ArgvRedactor {
-    let budget = DiagnosticBudget::new(8, 64).expect("the small diagnostic budget should be valid");
+    let budget = DiagnosticBudget::new(8, 64)
+        .expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::empty_builder()
         .diagnostic_budget(budget)
         .build()
@@ -87,7 +103,8 @@ fn test_redact_items_does_not_guess_plain_item_roles() {
 /// Verifies that heuristic classification applies only to remaining plain
 /// items.
 #[test]
-fn test_redact_heuristically_preserves_explicit_levels_and_matches_plain_options() {
+fn test_redact_heuristically_preserves_explicit_levels_and_matches_plain_options()
+ {
     let items = [
         ArgvItem::plain(OsStr::new("tool")),
         ArgvItem::plain(OsStr::new("--password")),
@@ -180,7 +197,8 @@ fn test_redact_heuristically_keeps_empty_sensitive_inline_value() {
 /// Verifies the default floor protects a suffix-matched assignment even when
 /// application matching is exact.
 #[test]
-fn test_redact_heuristically_floor_masks_prefixed_assignment_with_exact_application_matching() {
+fn test_redact_heuristically_floor_masks_prefixed_assignment_with_exact_application_matching()
+ {
     let policy = RedactionPolicy::empty_builder()
         .matching(qubit_redact::FieldNameMatching::Exact)
         .build()
@@ -195,6 +213,30 @@ fn test_redact_heuristically_floor_masks_prefixed_assignment_with_exact_applicat
             .redact_heuristically(items)
             .to_string(),
         r#"["env", "OPENAI_API_KEY=****"]"#,
+    );
+}
+
+/// Verifies an exact single-dash option resolves application-only rules when
+/// the caller deliberately disables the floor.
+#[test]
+fn test_redact_heuristically_uses_application_rule_for_exact_single_dash_option()
+ {
+    let policy = RedactionPolicy::empty_builder()
+        .disable_floor()
+        .raise("tenant_secret", Sensitivity::Secret)
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
+        .build()
+        .expect("the application-only argv policy should be valid");
+    let items = [
+        ArgvItem::plain(OsStr::new("-tenant_secret")),
+        ArgvItem::plain(OsStr::new("raw-secret")),
+    ];
+
+    assert_eq!(
+        ArgvRedactor::new(Redactor::new(policy))
+            .redact_heuristically(items)
+            .to_string(),
+        r#"["-tenant_secret", "[application]"]"#,
     );
 }
 
@@ -470,6 +512,29 @@ fn test_redact_heuristically_uses_floor_mask_for_pending_option_value() {
         .to_string();
 
     assert_eq!(rendered, r#"["--password", "[floor]"]"#);
+}
+
+/// Verifies exact single-dash options retain the floor-selected mask.
+#[test]
+fn test_redact_heuristically_uses_floor_mask_for_exact_single_dash_option() {
+    let floor = RedactionFloor::empty_builder()
+        .raise("tenant_secret", Sensitivity::High)
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[floor]"))
+        .build()
+        .expect("the floor should build");
+    let policy = RedactionPolicy::empty_builder()
+        .floor(floor)
+        .raise("tenant_secret", Sensitivity::Secret)
+        .build()
+        .expect("the policy should build");
+    let rendered = ArgvRedactor::new(Redactor::new(policy))
+        .redact_heuristically([
+            ArgvItem::plain(OsStr::new("-tenant_secret")),
+            ArgvItem::plain(OsStr::new("value")),
+        ])
+        .to_string();
+
+    assert_eq!(rendered, r#"["-tenant_secret", "[floor]"]"#);
 }
 
 proptest! {

@@ -9,13 +9,18 @@
 
 #![cfg(feature = "http")]
 
-use qubit_redact::{DiagnosticBudget, RedactionPolicy, http::HttpRedactionPolicy};
+use qubit_redact::{
+    DiagnosticBudget,
+    RedactionPolicy,
+    http::HttpRedactionPolicy,
+};
 
 /// Verifies HTTP defaults and explicitly loaded builders preserve a global
 /// diagnostic budget snapshot.
 #[test]
 fn test_http_policy_defaults_preserve_global_diagnostic_budget() {
-    let expected = DiagnosticBudget::new(64, 64).expect("the diagnostic budget should be valid");
+    let expected = DiagnosticBudget::new(64, 64)
+        .expect("the diagnostic budget should be valid");
     let custom = RedactionPolicy::empty_builder()
         .diagnostic_budget(expected)
         .build()

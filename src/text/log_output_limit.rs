@@ -7,7 +7,10 @@
 // =============================================================================
 //! Validated byte limits for bounded log output.
 
-use crate::{DiagnosticBudget, LogOutputLimitError};
+use crate::{
+    DiagnosticBudget,
+    LogOutputLimitError,
+};
 
 /// Marker appended when bounded log output is truncated.
 pub(crate) const TRUNCATION_MARKER: &str = "<truncated>";

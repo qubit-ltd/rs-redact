@@ -7,7 +7,11 @@
 // =============================================================================
 //! Strict parsing boundary for container-level `redact` attributes.
 
-use syn::{DeriveInput, Meta, Token};
+use syn::{
+    DeriveInput,
+    Meta,
+    Token,
+};
 
 /// Parsed container controls for optional redacted serde integration.
 #[must_use]

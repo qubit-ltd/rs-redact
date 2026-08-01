@@ -9,7 +9,10 @@
 
 use std::borrow::Cow;
 
-use crate::{MaskingPolicy, Sensitivity};
+use crate::{
+    MaskingPolicy,
+    Sensitivity,
+};
 
 /// Replaces a textual value according to one sensitivity level.
 ///
@@ -22,7 +25,11 @@ pub trait RedactValueMut {
     ///
     /// * `level` - Sensitivity selecting a mask.
     /// * `masking` - Complete masking configuration.
-    fn redact_value_in_place(&mut self, level: Sensitivity, masking: &MaskingPolicy);
+    fn redact_value_in_place(
+        &mut self,
+        level: Sensitivity,
+        masking: &MaskingPolicy,
+    );
 }
 
 impl RedactValueMut for String {
@@ -33,7 +40,11 @@ impl RedactValueMut for String {
     /// * `level` - Sensitivity selecting the mask.
     /// * `masking` - Complete masking configuration.
     #[inline]
-    fn redact_value_in_place(&mut self, level: Sensitivity, masking: &MaskingPolicy) {
+    fn redact_value_in_place(
+        &mut self,
+        level: Sensitivity,
+        masking: &MaskingPolicy,
+    ) {
         if let Cow::Owned(redacted) = masking.mask(level, self) {
             *self = redacted;
         }
@@ -48,7 +59,11 @@ impl RedactValueMut for Cow<'_, str> {
     /// * `level` - Sensitivity selecting the mask.
     /// * `masking` - Complete masking configuration.
     #[inline]
-    fn redact_value_in_place(&mut self, level: Sensitivity, masking: &MaskingPolicy) {
+    fn redact_value_in_place(
+        &mut self,
+        level: Sensitivity,
+        masking: &MaskingPolicy,
+    ) {
         if let Cow::Owned(redacted) = masking.mask(level, self.as_ref()) {
             *self = Cow::Owned(redacted);
         }
@@ -63,7 +78,11 @@ impl<T: RedactValueMut> RedactValueMut for Option<T> {
     /// * `level` - Sensitivity selecting the mask.
     /// * `masking` - Complete masking configuration.
     #[inline]
-    fn redact_value_in_place(&mut self, level: Sensitivity, masking: &MaskingPolicy) {
+    fn redact_value_in_place(
+        &mut self,
+        level: Sensitivity,
+        masking: &MaskingPolicy,
+    ) {
         if let Some(value) = self {
             value.redact_value_in_place(level, masking);
         }

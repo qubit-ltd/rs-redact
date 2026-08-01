@@ -7,10 +7,20 @@
 // =============================================================================
 //! Immutable policy snapshot for every HTTP redaction context.
 
-use crate::{DiagnosticBudget, JsonDepthBudget, RedactionPolicy, RedactionRules};
+use crate::{
+    DiagnosticBudget,
+    JsonDepthBudget,
+    RedactionPolicy,
+    RedactionRules,
+};
 
+use super::http_redaction_policy_parts::HttpRedactionPolicyParts;
 use super::{
-    BodyBudget, HttpRedactionPolicyBuilder, TextBodyPolicy, UnkeyedJsonValuePolicy, UrlPathPolicy,
+    BodyBudget,
+    HttpRedactionPolicyBuilder,
+    TextBodyPolicy,
+    UnkeyedJsonValuePolicy,
+    UrlPathPolicy,
 };
 
 /// Combines HTTP field rules, behavior choices, and resource limits.
@@ -49,27 +59,17 @@ impl HttpRedactionPolicy {
     }
 
     #[inline(always)]
-    pub(super) const fn from_parts(
-        header_rules: RedactionRules,
-        query_rules: RedactionRules,
-        body_rules: RedactionRules,
-        diagnostic_budget: DiagnosticBudget,
-        body_budget: BodyBudget,
-        json_depth_budget: JsonDepthBudget,
-        url_path_policy: UrlPathPolicy,
-        text_body_policy: TextBodyPolicy,
-        unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
-    ) -> Self {
+    pub(super) fn from_parts(parts: HttpRedactionPolicyParts) -> Self {
         Self {
-            header_rules,
-            query_rules,
-            body_rules,
-            diagnostic_budget,
-            body_budget,
-            json_depth_budget,
-            url_path_policy,
-            text_body_policy,
-            unkeyed_json_value_policy,
+            header_rules: parts.header_rules,
+            query_rules: parts.query_rules,
+            body_rules: parts.body_rules,
+            diagnostic_budget: parts.diagnostic_budget,
+            body_budget: parts.body_budget,
+            json_depth_budget: parts.json_depth_budget,
+            url_path_policy: parts.url_path_policy,
+            text_body_policy: parts.text_body_policy,
+            unkeyed_json_value_policy: parts.unkeyed_json_value_policy,
         }
     }
 
@@ -133,16 +133,16 @@ impl Default for HttpRedactionPolicy {
     #[inline(always)]
     fn default() -> Self {
         let policy = RedactionPolicy::default();
-        Self::from_parts(
-            policy.rules().clone(),
-            policy.rules().clone(),
-            policy.rules().clone(),
-            policy.diagnostic_budget(),
-            BodyBudget::default(),
-            policy.json_depth_budget(),
-            UrlPathPolicy::default(),
-            TextBodyPolicy::default(),
-            UnkeyedJsonValuePolicy::default(),
-        )
+        Self::from_parts(HttpRedactionPolicyParts {
+            header_rules: policy.rules().clone(),
+            query_rules: policy.rules().clone(),
+            body_rules: policy.rules().clone(),
+            diagnostic_budget: policy.diagnostic_budget(),
+            body_budget: BodyBudget::default(),
+            json_depth_budget: policy.json_depth_budget(),
+            url_path_policy: UrlPathPolicy::default(),
+            text_body_policy: TextBodyPolicy::default(),
+            unkeyed_json_value_policy: UnkeyedJsonValuePolicy::default(),
+        })
     }
 }

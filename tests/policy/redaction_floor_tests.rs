@@ -7,10 +7,22 @@
 // =============================================================================
 //! External tests for minimum redaction floors.
 
-use proptest::{prop_assert, prop_assert_eq, proptest};
+use proptest::{
+    prop_assert,
+    prop_assert_eq,
+    proptest,
+};
 use qubit_redact::{
-    FieldNameMatching, MaskPolicy, PolicyError, PolicyLocation, RedactionFloor,
-    RedactionFloorState, RedactionPolicy, Redactor, Sensitivity, UnknownFieldPolicy,
+    FieldNameMatching,
+    MaskPolicy,
+    PolicyError,
+    PolicyLocation,
+    RedactionFloor,
+    RedactionFloorState,
+    RedactionPolicy,
+    Redactor,
+    Sensitivity,
+    UnknownFieldPolicy,
 };
 
 #[test]
@@ -253,6 +265,20 @@ fn test_floor_validation_reports_floor_location() {
             location: PolicyLocation::Floor
         })
     );
+}
+
+/// Verifies floor defaults, snapshot builders, and display all preserve the
+/// active global floor contract.
+#[test]
+fn test_floor_default_builder_snapshot_and_display_are_consistent() {
+    let from_default = RedactionFloor::builder_from_default()
+        .build()
+        .expect("the default-derived floor should build");
+    let default_floor = RedactionFloor::default();
+
+    assert_eq!(from_default, RedactionFloor::global_default());
+    assert_eq!(default_floor, RedactionFloor::global_default());
+    assert_eq!(RedactionFloor::standard().to_string(), "RedactionFloor");
 }
 
 /// Maps a generated index to one supported sensitivity level.

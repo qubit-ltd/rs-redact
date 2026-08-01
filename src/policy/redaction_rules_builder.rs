@@ -7,12 +7,24 @@
 // =============================================================================
 //! Shared construction kernel for application rules and floors.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 use super::{
-    FieldNameMatching, MaskPolicy, MaskingPolicy, PolicyError, PolicyLocation,
-    SensitiveFieldPreset, Sensitivity, UnknownFieldPolicy,
-    internal::{RedactionPolicyInner, canonicalize_field_name},
+    FieldNameMatching,
+    MaskPolicy,
+    MaskingPolicy,
+    PolicyError,
+    PolicyLocation,
+    SensitiveFieldPreset,
+    Sensitivity,
+    UnknownFieldPolicy,
+    internal::{
+        RedactionPolicyInner,
+        canonicalize_field_name,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -41,7 +53,10 @@ impl RedactionRulesBuilder {
         }
     }
 
-    pub(crate) fn from_inner(inner: &RedactionPolicyInner, location: PolicyLocation) -> Self {
+    pub(crate) fn from_inner(
+        inner: &RedactionPolicyInner,
+        location: PolicyLocation,
+    ) -> Self {
         Self {
             sensitive: inner.sensitive.clone(),
             allow_exact: inner.allow_exact.clone(),
@@ -58,11 +73,17 @@ impl RedactionRulesBuilder {
         self.matching = matching;
         self
     }
-    pub(crate) fn unknown_field_policy(mut self, policy: UnknownFieldPolicy) -> Self {
+    pub(crate) fn unknown_field_policy(
+        mut self,
+        policy: UnknownFieldPolicy,
+    ) -> Self {
         self.unknown_field_policy = policy;
         self
     }
-    pub(crate) fn include_preset(mut self, preset: SensitiveFieldPreset) -> Self {
+    pub(crate) fn include_preset(
+        mut self,
+        preset: SensitiveFieldPreset,
+    ) -> Self {
         for &(field, level) in preset.fields() {
             self = self.raise(field, level);
         }
@@ -78,7 +99,11 @@ impl RedactionRulesBuilder {
             .or_insert(level);
         self
     }
-    pub(crate) fn override_level(mut self, field: &str, level: Sensitivity) -> Self {
+    pub(crate) fn override_level(
+        mut self,
+        field: &str,
+        level: Sensitivity,
+    ) -> Self {
         let Some(field) = self.canonical_field(field) else {
             return self;
         };
@@ -118,7 +143,11 @@ impl RedactionRulesBuilder {
         self.allow_suffix.clear();
         self
     }
-    pub(crate) fn mask(mut self, level: Sensitivity, policy: MaskPolicy) -> Self {
+    pub(crate) fn mask(
+        mut self,
+        level: Sensitivity,
+        policy: MaskPolicy,
+    ) -> Self {
         self.masking = self.masking.with_policy(level, policy);
         self
     }
@@ -128,7 +157,9 @@ impl RedactionRulesBuilder {
     ) -> Result<(), PolicyError> {
         Self::checked_canonical_field(field, location).map(|_| ())
     }
-    pub(crate) fn build_inner(self) -> Result<RedactionPolicyInner, PolicyError> {
+    pub(crate) fn build_inner(
+        self,
+    ) -> Result<RedactionPolicyInner, PolicyError> {
         if let Some(error) = self.error {
             return Err(error);
         }

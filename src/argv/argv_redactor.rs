@@ -9,9 +9,18 @@
 
 use std::ffi::OsStr;
 
-use crate::{DiagnosticInputBudget, Redactor, Sensitivity};
+use crate::{
+    DiagnosticInputBudget,
+    Redactor,
+    Sensitivity,
+    policy::ResolvedField,
+};
 
-use super::{ArgvItem, RedactedArgv, redacted_argv_builder::TRUNCATED_ITEM};
+use super::{
+    ArgvItem,
+    RedactedArgv,
+    redacted_argv_builder::TRUNCATED_ITEM,
+};
 
 struct PendingField {
     field: String,
@@ -74,7 +83,8 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut input_budget = self.redactor.policy().diagnostic_budget().input_budget();
+        let mut input_budget =
+            self.redactor.policy().diagnostic_budget().input_budget();
         self.redact_items_with_input_budget(items, &mut input_budget)
     }
 
@@ -106,7 +116,8 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut rendered = RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
+        let mut rendered =
+            RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
         for item in items {
             if !input_budget.reserve(item.value().as_encoded_bytes().len()) {
                 let _ = rendered.push(TRUNCATED_ITEM);
@@ -148,7 +159,8 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut input_budget = self.redactor.policy().diagnostic_budget().input_budget();
+        let mut input_budget =
+            self.redactor.policy().diagnostic_budget().input_budget();
         self.redact_heuristically_with_input_budget(items, &mut input_budget)
     }
 
@@ -180,7 +192,8 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut rendered = RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
+        let mut rendered =
+            RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
         let mut pending_field = None;
 
         for item in items {
@@ -195,7 +208,9 @@ impl ArgvRedactor {
                 }
                 continue;
             }
-            if !rendered.push(&self.redact_plain_item(item.value(), &mut pending_field)) {
+            if !rendered
+                .push(&self.redact_plain_item(item.value(), &mut pending_field))
+            {
                 break;
             }
         }
@@ -253,7 +268,11 @@ impl ArgvRedactor {
     /// # Returns
     ///
     /// The redacted owned rendering of `value`.
-    fn redact_plain_item(&self, value: &OsStr, pending_field: &mut Option<PendingField>) -> String {
+    fn redact_plain_item(
+        &self,
+        value: &OsStr,
+        pending_field: &mut Option<PendingField>,
+    ) -> String {
         let Some(value) = value.to_str() else {
             *pending_field = Some(PendingField {
                 field: String::new(),
@@ -388,32 +407,40 @@ impl ArgvRedactor {
         Some(format!("-D{name}={redacted}"))
     }
 
-    fn mask_pending_value(&self, pending: &PendingField, value: &str) -> String {
+    fn mask_pending_value(
+        &self,
+        pending: &PendingField,
+        value: &str,
+    ) -> String {
         let resolved = if pending.exact {
             self.redactor.policy().resolve_field_exact(&pending.field)
         } else {
             self.redactor.policy().resolve_field(&pending.field)
         };
-        match (resolved.sensitivity, resolved.masking) {
-            (Some(level), Some(masking)) => masking
-                .mask_bounded(level, value, self.mask_output_limit())
+        match resolved {
+            ResolvedField::Sensitive {
+                sensitivity,
+                masking,
+            } => masking
+                .mask_bounded(sensitivity, value, self.mask_output_limit())
                 .into_owned(),
-            (None, None) => value.to_owned(),
-            _ => unreachable!("a resolved sensitivity always has a mask"),
+            ResolvedField::PassThrough => value.to_owned(),
         }
     }
 
     /// Masks one field value using its atomic field-resolution result.
     fn mask_field_value(&self, field: &str, value: &str) -> Option<String> {
         let resolved = self.redactor.policy().resolve_field(field);
-        match (resolved.sensitivity, resolved.masking) {
-            (Some(level), Some(masking)) => Some(
+        match resolved {
+            ResolvedField::Sensitive {
+                sensitivity,
+                masking,
+            } => Some(
                 masking
-                    .mask_bounded(level, value, self.mask_output_limit())
+                    .mask_bounded(sensitivity, value, self.mask_output_limit())
                     .into_owned(),
             ),
-            (None, None) => None,
-            _ => unreachable!("a resolved sensitivity always has a mask"),
+            ResolvedField::PassThrough => None,
         }
     }
 

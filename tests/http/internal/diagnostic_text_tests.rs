@@ -8,7 +8,12 @@
 //! Tests for safe diagnostic body text.
 
 use http::HeaderValue;
-use qubit_redact::http::{BodyCapture, HttpRedactionPolicy, HttpRedactor, TextBodyPolicy};
+use qubit_redact::http::{
+    BodyCapture,
+    HttpRedactionPolicy,
+    HttpRedactor,
+    TextBodyPolicy,
+};
 
 /// Verifies diagnostic text escapes line controls before display.
 #[test]

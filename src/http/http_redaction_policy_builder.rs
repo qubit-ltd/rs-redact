@@ -8,13 +8,25 @@
 //! Builder for immutable HTTP redaction policy snapshots.
 
 use crate::{
-    DiagnosticBudget, JsonDepthBudget, PolicyError, PolicyLocation, RedactionFloor,
-    RedactionFloorState, RedactionPolicy, RedactionRules, Sensitivity,
+    DiagnosticBudget,
+    JsonDepthBudget,
+    PolicyError,
+    PolicyLocation,
+    RedactionFloor,
+    RedactionFloorState,
+    RedactionPolicy,
+    RedactionRules,
+    Sensitivity,
     policy::RedactionRulesBuilder,
 };
 
+use super::http_redaction_policy_parts::HttpRedactionPolicyParts;
 use super::{
-    BodyBudget, HttpRedactionPolicy, TextBodyPolicy, UnkeyedJsonValuePolicy, UrlPathPolicy,
+    BodyBudget,
+    HttpRedactionPolicy,
+    TextBodyPolicy,
+    UnkeyedJsonValuePolicy,
+    UrlPathPolicy,
 };
 
 /// Construction state for a single HTTP field context.
@@ -38,7 +50,10 @@ impl ContextRulesBuilder {
     /// Copies an immutable rules snapshot while assigning validation location.
     fn from_rules(rules: &RedactionRules, location: PolicyLocation) -> Self {
         Self {
-            rules: RedactionRulesBuilder::from_inner(&rules.clone_application(), location),
+            rules: RedactionRulesBuilder::from_inner(
+                &rules.clone_application(),
+                location,
+            ),
             floor: rules.floor().cloned(),
             floor_state: rules.floor_state(),
         }
@@ -88,8 +103,14 @@ impl HttpRedactionPolicyBuilder {
     pub fn new() -> Self {
         let floor = RedactionFloor::global_default();
         Self {
-            header: ContextRulesBuilder::empty(PolicyLocation::HttpHeader, floor.clone()),
-            query: ContextRulesBuilder::empty(PolicyLocation::HttpQuery, floor.clone()),
+            header: ContextRulesBuilder::empty(
+                PolicyLocation::HttpHeader,
+                floor.clone(),
+            ),
+            query: ContextRulesBuilder::empty(
+                PolicyLocation::HttpQuery,
+                floor.clone(),
+            ),
             body: ContextRulesBuilder::empty(PolicyLocation::HttpBody, floor),
             url_path_policy: UrlPathPolicy::default(),
             text_body_policy: TextBodyPolicy::default(),
@@ -112,8 +133,14 @@ impl HttpRedactionPolicyBuilder {
                 policy.header_rules(),
                 PolicyLocation::HttpHeader,
             ),
-            query: ContextRulesBuilder::from_rules(policy.query_rules(), PolicyLocation::HttpQuery),
-            body: ContextRulesBuilder::from_rules(policy.body_rules(), PolicyLocation::HttpBody),
+            query: ContextRulesBuilder::from_rules(
+                policy.query_rules(),
+                PolicyLocation::HttpQuery,
+            ),
+            body: ContextRulesBuilder::from_rules(
+                policy.body_rules(),
+                PolicyLocation::HttpBody,
+            ),
             url_path_policy: policy.url_path_policy(),
             text_body_policy: policy.text_body_policy(),
             unkeyed_json_value_policy: policy.unkeyed_json_value_policy(),
@@ -126,9 +153,18 @@ impl HttpRedactionPolicyBuilder {
     /// Creates three context copies from one complete field policy.
     pub(crate) fn from_base_policy(policy: &RedactionPolicy) -> Self {
         Self {
-            header: ContextRulesBuilder::from_rules(policy.rules(), PolicyLocation::HttpHeader),
-            query: ContextRulesBuilder::from_rules(policy.rules(), PolicyLocation::HttpQuery),
-            body: ContextRulesBuilder::from_rules(policy.rules(), PolicyLocation::HttpBody),
+            header: ContextRulesBuilder::from_rules(
+                policy.rules(),
+                PolicyLocation::HttpHeader,
+            ),
+            query: ContextRulesBuilder::from_rules(
+                policy.rules(),
+                PolicyLocation::HttpQuery,
+            ),
+            body: ContextRulesBuilder::from_rules(
+                policy.rules(),
+                PolicyLocation::HttpBody,
+            ),
             url_path_policy: UrlPathPolicy::default(),
             text_body_policy: TextBodyPolicy::default(),
             unkeyed_json_value_policy: UnkeyedJsonValuePolicy::default(),
@@ -140,17 +176,20 @@ impl HttpRedactionPolicyBuilder {
 
     /// Replaces header rules.
     pub fn header_rules(mut self, rules: RedactionRules) -> Self {
-        self.header = ContextRulesBuilder::from_rules(&rules, PolicyLocation::HttpHeader);
+        self.header =
+            ContextRulesBuilder::from_rules(&rules, PolicyLocation::HttpHeader);
         self
     }
     /// Replaces query and form rules.
     pub fn query_rules(mut self, rules: RedactionRules) -> Self {
-        self.query = ContextRulesBuilder::from_rules(&rules, PolicyLocation::HttpQuery);
+        self.query =
+            ContextRulesBuilder::from_rules(&rules, PolicyLocation::HttpQuery);
         self
     }
     /// Replaces structured-body rules.
     pub fn body_rules(mut self, rules: RedactionRules) -> Self {
-        self.body = ContextRulesBuilder::from_rules(&rules, PolicyLocation::HttpBody);
+        self.body =
+            ContextRulesBuilder::from_rules(&rules, PolicyLocation::HttpBody);
         self
     }
 
@@ -233,7 +272,8 @@ impl HttpRedactionPolicyBuilder {
     }
     /// Removes an exact header allow rule.
     pub fn remove_header_allow_exact(mut self, name: &str) -> Self {
-        self.header.rules = self.header.rules.remove_allow_canonical_exact(name);
+        self.header.rules =
+            self.header.rules.remove_allow_canonical_exact(name);
         self
     }
     /// Removes a header suffix allow rule.
@@ -330,7 +370,10 @@ impl HttpRedactionPolicyBuilder {
         self
     }
     /// Replaces unkeyed JSON value handling.
-    pub const fn unkeyed_json_value_policy(mut self, policy: UnkeyedJsonValuePolicy) -> Self {
+    pub const fn unkeyed_json_value_policy(
+        mut self,
+        policy: UnkeyedJsonValuePolicy,
+    ) -> Self {
         self.unkeyed_json_value_policy = policy;
         self
     }
@@ -352,17 +395,17 @@ impl HttpRedactionPolicyBuilder {
 
     /// Builds the complete HTTP policy, validating header, query, then body.
     pub fn build(self) -> Result<HttpRedactionPolicy, PolicyError> {
-        Ok(HttpRedactionPolicy::from_parts(
-            self.header.build()?,
-            self.query.build()?,
-            self.body.build()?,
-            self.diagnostic_budget,
-            self.body_budget,
-            self.json_depth_budget,
-            self.url_path_policy,
-            self.text_body_policy,
-            self.unkeyed_json_value_policy,
-        ))
+        Ok(HttpRedactionPolicy::from_parts(HttpRedactionPolicyParts {
+            header_rules: self.header.build()?,
+            query_rules: self.query.build()?,
+            body_rules: self.body.build()?,
+            diagnostic_budget: self.diagnostic_budget,
+            body_budget: self.body_budget,
+            json_depth_budget: self.json_depth_budget,
+            url_path_policy: self.url_path_policy,
+            text_body_policy: self.text_body_policy,
+            unkeyed_json_value_policy: self.unkeyed_json_value_policy,
+        }))
     }
 }
 

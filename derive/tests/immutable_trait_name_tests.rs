@@ -12,5 +12,7 @@ mod support;
 /// Verifies map-mode diagnostics retain the required capability trait name.
 #[test]
 fn test_immutable_trait_name_preserves_map_capability_diagnostic() {
-    support::assertions::assert_compile_fail("tests/fixtures/fail/map_without_map_trait.rs");
+    support::assertions::assert_compile_fail(
+        "tests/fixtures/fail/map_without_map_trait.rs",
+    );
 }

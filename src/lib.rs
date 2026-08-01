@@ -47,7 +47,8 @@
 //! ```
 //!
 //! A process-wide default can be installed exactly once.
-//! [`RedactionPolicy::builder`] starts without field rules; use
+//! [`RedactionPolicy::empty_builder`] starts without application field rules
+//! while capturing the current global floor; use
 //! [`RedactionPolicy::builder_from_default`] to copy the current default
 //! snapshot. Existing policy snapshots never change.
 //!
@@ -252,7 +253,7 @@
 //!
 //! # HTTP bodies
 //!
-//! Enable this API with `qubit-redact = { version = "0.3", features = ["http"]
+//! Enable this API with `qubit-redact = { version = "0.5", features = ["http"]
 //! }`. `http::BodyCapture` makes completeness explicit, and the returned
 //! `http::BodyRedaction` implements [`std::fmt::Display`] with bounded,
 //! log-safe output.
@@ -291,25 +292,66 @@ pub mod text;
 
 pub use argv::ArgvRedactor;
 pub use domain::{
-    BoundedRedactedDisplay, Redact, RedactMapValue, RedactMapValueMut, RedactMut, RedactValue,
-    RedactValueMut, Redacted, RedactedKeyedMap, RedactedKeyedValue, RedactedMap, RedactedValue,
+    BoundedRedactedDisplay,
+    Redact,
+    RedactMapValue,
+    RedactMapValueMut,
+    RedactMut,
+    RedactValue,
+    RedactValueMut,
+    Redacted,
+    RedactedKeyedMap,
+    RedactedKeyedValue,
+    RedactedMap,
+    RedactedValue,
 };
 pub use env::EnvRedactor;
 #[cfg(feature = "json")]
-pub use json::{RedactedJson, RedactedJsonText, redact_json_text_in_place};
+pub use json::{
+    RedactedJson,
+    RedactedJsonText,
+    redact_json_text_in_place,
+};
 pub use policy::{
-    AllowRule, DiagnosticBudget, DiagnosticBudgetError, DiagnosticInputBudget, FieldClassification,
-    FieldMatchKind, FieldNameMatching, GlobalDefaultAlreadySet, MaskPolicy, MaskingPolicy,
-    PolicyError, PolicyLocation, RedactionFloor, RedactionFloorBuilder, RedactionFloorState,
-    RedactionPolicy, RedactionPolicyBuilder, RedactionRules, SensitiveFieldPreset,
-    SensitiveFieldRule, Sensitivity, UnknownFieldPolicy,
+    AllowRule,
+    DiagnosticBudget,
+    DiagnosticBudgetError,
+    DiagnosticInputBudget,
+    FieldClassification,
+    FieldMatchKind,
+    FieldNameMatching,
+    GlobalDefaultAlreadySet,
+    MaskPolicy,
+    MaskingPolicy,
+    PolicyError,
+    PolicyLocation,
+    RedactionFloor,
+    RedactionFloorBuilder,
+    RedactionFloorState,
+    RedactionPolicy,
+    RedactionPolicyBuilder,
+    RedactionRules,
+    SensitiveFieldPreset,
+    SensitiveFieldRule,
+    Sensitivity,
+    UnknownFieldPolicy,
 };
 #[cfg(feature = "json")]
-pub use policy::{JsonDepthBudget, JsonDepthBudgetError};
+pub use policy::{
+    JsonDepthBudget,
+    JsonDepthBudgetError,
+};
 pub use redactor::Redactor;
 pub use text::{
-    BoundedLogSafeDisplay, DiagnosticLogBuilder, DiagnosticWriteStatus, LogOutputLimit,
-    LogOutputLimitError, LogSafeText, RedactedDebug, RedactedText, redacted_debug,
+    BoundedLogSafeDisplay,
+    DiagnosticLogBuilder,
+    DiagnosticWriteStatus,
+    LogOutputLimit,
+    LogOutputLimitError,
+    LogSafeText,
+    RedactedDebug,
+    RedactedText,
+    redacted_debug,
 };
 
 #[cfg(feature = "serde")]
