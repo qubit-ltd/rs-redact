@@ -23,6 +23,8 @@ pub enum PolicyLocation {
     HttpQuery,
     /// HTTP body field rules in an HTTP policy builder.
     HttpBody,
+    /// Shared HTTP masking policy.
+    HttpMasking,
 }
 
 impl fmt::Display for PolicyLocation {
@@ -33,6 +35,7 @@ impl fmt::Display for PolicyLocation {
             Self::HttpHeader => formatter.write_str("http header"),
             Self::HttpQuery => formatter.write_str("http query"),
             Self::HttpBody => formatter.write_str("http body"),
+            Self::HttpMasking => formatter.write_str("http masking"),
         }
     }
 }

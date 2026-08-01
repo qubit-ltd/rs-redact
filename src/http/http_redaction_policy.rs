@@ -9,21 +9,11 @@
 
 use std::sync::Arc;
 
-use crate::{
-    DiagnosticBudget,
-    JsonDepthBudget,
-    MaskingPolicy,
-    RedactionPolicy,
-    RedactionRules,
-};
+use crate::{DiagnosticBudget, JsonDepthBudget, MaskingPolicy, RedactionPolicy, RedactionRules};
 
 use super::http_redaction_policy_parts::HttpRedactionPolicyParts;
 use super::{
-    BodyBudget,
-    HttpRedactionPolicyBuilder,
-    TextBodyPolicy,
-    UnkeyedJsonValuePolicy,
-    UrlPathPolicy,
+    BodyBudget, HttpRedactionPolicyBuilder, TextBodyPolicy, UnkeyedJsonValuePolicy, UrlPathPolicy,
 };
 
 /// Combines HTTP field rules, behavior choices, and resource limits.
@@ -43,23 +33,23 @@ pub struct HttpRedactionPolicy {
 }
 
 impl HttpRedactionPolicy {
-    /// Creates a builder with empty application rules and one global-floor
-    /// snapshot shared by the three initial contexts.
+    /// Creates a deterministic builder with empty application rules and the
+    /// standard floor shared by the three initial contexts.
     #[inline(always)]
-    pub fn empty_builder() -> HttpRedactionPolicyBuilder {
+    pub fn builder() -> HttpRedactionPolicyBuilder {
         HttpRedactionPolicyBuilder::new()
-    }
-
-    /// Creates a builder initialized from the current default HTTP policy.
-    #[inline(always)]
-    pub fn builder_from_default() -> HttpRedactionPolicyBuilder {
-        HttpRedactionPolicyBuilder::from_policy(&Self::default())
     }
 
     /// Creates a builder with three copies of `base`'s rules and limits.
     #[inline(always)]
     pub fn builder_from(base: &RedactionPolicy) -> HttpRedactionPolicyBuilder {
         HttpRedactionPolicyBuilder::from_base_policy(base)
+    }
+
+    /// Creates a builder that exactly copies `self`.
+    #[inline(always)]
+    pub fn to_builder(&self) -> HttpRedactionPolicyBuilder {
+        HttpRedactionPolicyBuilder::from_policy(self)
     }
 
     #[inline(always)]
@@ -140,21 +130,9 @@ impl HttpRedactionPolicy {
 }
 
 impl Default for HttpRedactionPolicy {
-    /// Creates three rule snapshots from one global policy snapshot.
+    /// Creates a policy snapshot from the current global configuration.
     #[inline(always)]
     fn default() -> Self {
-        let policy = RedactionPolicy::default();
-        Self::from_parts(HttpRedactionPolicyParts {
-            header_rules: policy.rules().clone(),
-            query_rules: policy.rules().clone(),
-            body_rules: policy.rules().clone(),
-            masking: Arc::new(policy.masking().clone()),
-            diagnostic_budget: policy.diagnostic_budget(),
-            body_budget: BodyBudget::default(),
-            json_depth_budget: policy.json_depth_budget(),
-            url_path_policy: UrlPathPolicy::default(),
-            text_body_policy: TextBodyPolicy::default(),
-            unkeyed_json_value_policy: UnkeyedJsonValuePolicy::default(),
-        })
+        crate::GlobalRedactionConfig::current().http_policy().clone()
     }
 }
