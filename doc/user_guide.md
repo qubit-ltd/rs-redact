@@ -28,14 +28,14 @@ diagnostic value.
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
+qubit-redact = "0.5"
 ```
 
 ```rust
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("user_id", Sensitivity::Low)
         .raise("phone_number", Sensitivity::Medium)
         .raise("credit_card", Sensitivity::High)
@@ -48,15 +48,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let api_key = "sk_live_123";
     let display_name = "Alice\nAdmin";
 
-    assert_eq!(redactor.redact("user_id", user_id).as_str(), "al****42");
-    assert_eq!(redactor.redact("phone_number", phone_number).as_str(), "*******0");
-    assert_eq!(redactor.redact("credit_card", credit_card).as_str(), "****");
-    assert_eq!(redactor.redact("api_key", api_key).as_str(), "<redacted>");
-    assert_eq!(redactor.redact("display_name", display_name).as_str(), display_name);
+    assert_eq!(redactor.redact_field("user_id", user_id).as_str(), "al****42");
+    assert_eq!(redactor.redact_field("phone_number", phone_number).as_str(), "*******0");
+    assert_eq!(redactor.redact_field("credit_card", credit_card).as_str(), "****");
+    assert_eq!(redactor.redact_field("api_key", api_key).as_str(), "<redacted>");
+    assert_eq!(redactor.redact_field("display_name", display_name).as_str(), display_name);
     assert_eq!(api_key, "sk_live_123");
     assert_eq!(
         redactor
-            .redact("display_name", display_name)
+            .redact_field("display_name", display_name)
             .escape_for_log()
             .to_string(),
         "Alice\\nAdmin",
@@ -87,8 +87,8 @@ shown by its section and run `cargo run`.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.4", features = ["serde", "http"] }
-qubit-redact-derive = "0.4"
+qubit-redact = { version = "0.5", features = ["serde", "http"] }
+qubit-redact-derive = "0.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 http = "1.4"
@@ -115,9 +115,9 @@ boundary to obtain `LogSafeText`.
 | API | Starting state | Use it when |
 | --- | --- | --- |
 | `RedactionPolicy::default()` | Current conservative process-wide snapshot | You accept the application's installed default. |
-| `RedactionPolicy::empty_builder()` | Empty application rules plus the creation-time global floor snapshot | You need application rules defined at this call site while retaining the floor. |
-| `RedactionPolicy::builder_from_default()` | Copy of the current default snapshot | You want to extend the conservative default. |
-| `RedactionPolicy::set_global_default()` | Installs once per process | Application startup owns the default policy. |
+| `RedactionPolicy::builder()` | Empty application rules plus the standard floor | You need application rules defined at this call site while retaining the floor. |
+| `RedactionPolicy::default().to_builder()` | Copy of the current default snapshot | You want to extend the conservative default. |
+| `GlobalRedactionConfig::install()` | Installs once per process | Application startup owns the default policy snapshot. |
 
 Use `include_preset(SensitiveFieldPreset::...)` to add the built-in credential,
 credential-container, auth-token, HTTP, or session field groups to an explicit
@@ -126,14 +126,13 @@ policy. Use `classify_field()` when a policy test or diagnostic must explain a
 
 ## 1. Configure `RedactionPolicy`
 
-`RedactionPolicy::empty_builder()` starts with no application sensitive or
-allow rules but captures the current global floor immediately. `RedactionPolicy::default()`
-remains the conservative process-wide snapshot. Use
-`RedactionPolicy::builder_from_default()` to extend that snapshot; use
+`RedactionPolicy::builder()` starts with no application sensitive or
+allow rules and uses the standard floor. `RedactionPolicy::default()` reads
+the current `GlobalRedactionConfig` snapshot. Use
+`RedactionPolicy::default().to_builder()` to extend that snapshot; use
 `disable_floor()` only when the caller intentionally accepts removal of all
 minimum protection. An application allow rule never bypasses an enabled floor.
-`.load_default()` replaces every earlier builder setting, including a recorded
-validation error, so calling it last discards your changes. `raise` never
+Builders do not load global state implicitly. `raise` never
 weakens a rule; `override_level`
 deliberately replaces it. Exact allow rules are narrow; suffix rules can expose
 prefixed fields and need security review.
@@ -144,7 +143,7 @@ use qubit_redact::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
         .raise("tenant_reference", Sensitivity::High)
         .raise("tenant_visible", Sensitivity::High)
@@ -153,13 +152,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
     let redactor = Redactor::new(policy);
 
-    assert_eq!(redactor.redact("TENANT_REFERENCE", "abc").as_str(), "[hidden]");
-    assert_eq!(redactor.redact("tenant_visible", "visible").as_str(), "visible");
+    assert_eq!(redactor.redact_field("TENANT_REFERENCE", "abc").as_str(), "[hidden]");
+    assert_eq!(redactor.redact_field("tenant_visible", "visible").as_str(), "visible");
     Ok(())
 }
 ```
 
-Use `RedactionPolicy::set_global_default` only during application startup. It
+Install `GlobalRedactionConfig` only during application startup. Installation
 succeeds once per process; prefer explicit policy snapshots when tests or
 security boundaries need isolation.
 
@@ -175,7 +174,9 @@ an allow rule cannot expose the value.
 
 ## 2. Redact scalar values and maps with `Redactor`
 
-`redact(field, value)` is the basic operation. `redact_map` returns a copy of
+`redact_field(field, value)` is the basic operation and returns a
+`FieldRedaction` result that distinguishes masked, allowed, and unknown values.
+`redact_map` returns a copy of
 the same collection type; `redact_map_in_place` updates sensitive values in an
 existing map. Text-keyed `HashMap`, `BTreeMap`, and `indexmap::IndexMap` are
 supported.
@@ -185,7 +186,7 @@ use std::collections::HashMap;
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("user_id", Sensitivity::Low)
         .raise("phone_number", Sensitivity::Medium)
         .raise("credit_card", Sensitivity::High)
@@ -239,7 +240,7 @@ use qubit_redact::{LogOutputLimit, Redactor};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let safe = Redactor::default()
-        .redact("message", "first line\nsecond line")
+        .redact_field("message", "first line\nsecond line")
         .escape_for_log();
     assert_eq!(safe.to_string(), "first line\\nsecond line");
 
@@ -261,8 +262,8 @@ a field from redacted representations.
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
-qubit-redact-derive = "0.4"
+qubit-redact = "0.5"
+qubit-redact-derive = "0.5"
 ```
 
 ```rust
@@ -318,8 +319,8 @@ an existing implementation of the same trait.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.4", features = ["serde"] }
-qubit-redact-derive = "0.4"
+qubit-redact = { version = "0.5", features = ["serde"] }
+qubit-redact-derive = "0.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -406,11 +407,10 @@ budget and stops with a truncation marker instead of reading excess input.
 The optional `http` feature provides an immutable `HttpRedactionPolicy` for
 headers, query/form fields, and structured bodies. Its builder,
 `HttpRedactionPolicyBuilder::new()`, and `Default::default()` start with no
-application field rules, but each context captures the same creation-time
-global-floor snapshot. Application allow rules cannot bypass an enabled floor.
-Use `HttpRedactionPolicy::builder_from_default()` when extending the
-conservative HTTP snapshot. `.load_default()` replaces all prior header, query,
-body, behavior, budget, and floor settings.
+application field rules and the standard floor in each context. Application
+allow rules cannot bypass an enabled floor.
+Use `HttpRedactionPolicy::default().to_builder()` when extending the
+conservative HTTP snapshot. The builder does not load global state implicitly.
 `HttpRedactionPolicy::default()` and `HttpRedactor::default()` continue to use
 that conservative snapshot.
 
@@ -426,27 +426,29 @@ outcome. No result exposes a raw-body escape hatch.
 
 | Input | Default safety behavior | Configure with |
 | --- | --- | --- |
-| URL query, username, password, fragment | Redacts configured fields and sensitive URL components | `raise_query`, query policy, `UrlPathPolicy` |
-| Form and headers | Redacts configured fields; output is bounded | `raise_header`, `raise_query` |
-| JSON, NDJSON, form body, multipart | Parses complete input and fails closed when unsafe, over-depth, or truncated | `raise_body`, `BodyBudget`, `JsonDepthBudget` |
+| URL query, username, password, fragment | Redacts configured fields and sensitive URL components | `raise(HttpFieldContext::Query, ...)`, query policy, `UrlPathPolicy` |
+| Form and headers | Redacts configured fields; output is bounded | `raise(HttpFieldContext::Header, ...)`, `raise(HttpFieldContext::Query, ...)` |
+| JSON, NDJSON, form body, multipart | Parses complete input and fails closed when unsafe, over-depth, or truncated | `raise(HttpFieldContext::Body, ...)`, `BodyBudget`, `JsonDepthBudget` |
 | Opaque text, unkeyed JSON, URL path | Conservative by default | Explicit `PassThrough` or `Preserve` only after risk review |
 | Non-UTF-8 body | Returns a binary summary, never raw bytes | `BodyRedactionStatus::Binary` |
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.4", features = ["http"] }
+qubit-redact = { version = "0.5", features = ["http"] }
 http = "1.4"
 ```
 
 ```rust
 use http::{HeaderMap, HeaderValue};
 use qubit_redact::Sensitivity;
-use qubit_redact::http::{BodyCapture, HttpRedactionPolicy, HttpRedactor};
+use qubit_redact::http::{
+    BodyCapture, HttpFieldContext, HttpRedactionPolicy, HttpRedactor,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = HttpRedactionPolicy::builder_from_default()
-        .raise_body("password", Sensitivity::Secret)
-        .raise_query("api_key", Sensitivity::Secret)
+    let policy = HttpRedactionPolicy::default().to_builder()
+        .raise(HttpFieldContext::Body, "password", Sensitivity::Secret)
+        .raise(HttpFieldContext::Query, "api_key", Sensitivity::Secret)
         .build()?;
     let redactor = HttpRedactor::new(policy);
 
@@ -470,9 +472,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`HttpRedactionPolicyBuilder` offers `raise_header`, `raise_query`, and
-`raise_body` for context-specific rules. Invalid or truncated structured input
-fails closed.
+`HttpRedactionPolicyBuilder` offers one context-aware `raise` method for
+header, query, and body rules. Invalid or truncated structured input fails
+closed.
 
 For operational diagnostics, inspect `BodyRedaction::status()`,
 `is_truncated()`, `captured_len()`, and `omitted_len()`. A
@@ -481,18 +483,17 @@ visible representation was unsafe.
 
 ## 8. Migrate to 0.5
 
-Version 0.5 intentionally removes the ambiguous and duplicate APIs below:
+Version 0.5 intentionally removes the split global-default APIs and the
+ambiguous scalar result:
 
-- `RedactionPolicy::builder()` is now `RedactionPolicy::empty_builder()`.
-- `HttpRedactionPolicy::builder()` is now `HttpRedactionPolicy::empty_builder()`.
-- Policy and rules snapshots use `application_sensitive_rules()` and
-  `application_allow_rules()`; use `floor()` to inspect minimum rules instead
-  of a merged rule view.
-- `header_policy()`, `query_policy()`, and `body_policy()` are now
-  `header_rules()`, `query_rules()`, and `body_rules()`.
-- `qubit_http::LogRedactionPolicy`, `LogRedactionPolicyBuilder`, and
-  `LogRedactor` are removed. `qubit_http` no longer re-exports HTTP redaction
-  types.
+- Install one `GlobalRedactionConfig` instead of calling separate policy and
+  floor global-default methods.
+- Use `RedactionPolicy::builder()` and
+  `RedactionPolicy::default().to_builder()`; builders never read global state.
+- Use `redact_field()` for field-sensitive values. It returns `FieldRedaction`,
+  which distinguishes masked values from allowed and unknown pass-through.
+- Use `HttpFieldContext` with the generic HTTP builder methods (`raise`,
+  `allow_exact`, `floor_for`, and `disable_floor_for`).
 
 Import the canonical HTTP policy and redactor directly from `qubit_redact`:
 
@@ -500,7 +501,7 @@ Import the canonical HTTP policy and redactor directly from `qubit_redact`:
 use qubit_http::HttpClientOptions;
 use qubit_redact::http::{HttpRedactionPolicy, HttpRedactor};
 
-let policy = HttpRedactionPolicy::builder_from_default().build()?;
+let policy = HttpRedactionPolicy::default().to_builder().build()?;
 let _redactor = HttpRedactor::new(policy.clone());
 let mut options = HttpClientOptions::default();
 options.log_redaction_policy = policy;
@@ -522,7 +523,7 @@ options.log_redaction_policy = policy;
 | A controlled field remained visible | Add an explicit rule; unknown fields pass through. |
 | A suffix rule exposed too much | Prefer an exact rule, or remove the suffix allow rule. |
 | A policy fails to build | Inspect the returned `PolicyError`; do not replace it with a permissive fallback. |
-| A global default is already installed | Handle `GlobalDefaultAlreadySet`; pass an explicit policy where isolation matters. |
+| A global configuration is already installed | Handle `GlobalRedactionConfigAlreadyInstalled`; pass an explicit policy where isolation matters. |
 | A structured body is malformed or truncated | Log the safe result and inspect `BodyRedactionStatus::Redacted(reason)`. |
 | A log line contains controls or Unicode line separators | Cross the scalar boundary with `escape_for_log()`. |
 | Memory erasure is required | Do not rely on `RedactMut`; use a dedicated zeroization design. |

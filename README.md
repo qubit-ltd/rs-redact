@@ -27,14 +27,14 @@ explicit log-safe boundary.
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
+qubit-redact = "0.5"
 ```
 
 ```rust
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("user_id", Sensitivity::Low)
         .raise("phone_number", Sensitivity::Medium)
         .raise("credit_card", Sensitivity::High)
@@ -42,13 +42,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
     let redactor = Redactor::new(policy);
 
-    assert_eq!(redactor.redact("user_id", "alpine42").as_str(), "al****42");
-    assert_eq!(redactor.redact("phone_number", "13800138000").as_str(), "*******0");
-    assert_eq!(redactor.redact("credit_card", "4111111111111111").as_str(), "****");
-    assert_eq!(redactor.redact("api_key", "sk_live_123").as_str(), "<redacted>");
+    assert_eq!(redactor.redact_field("user_id", "alpine42").as_str(), "al****42");
+    assert_eq!(redactor.redact_field("phone_number", "13800138000").as_str(), "*******0");
+    assert_eq!(redactor.redact_field("credit_card", "4111111111111111").as_str(), "****");
+    assert_eq!(redactor.redact_field("api_key", "sk_live_123").as_str(), "<redacted>");
 
     let safe = redactor
-        .redact("display_name", "Alice\nAdmin")
+        .redact_field("display_name", "Alice\nAdmin")
         .escape_for_log();
     assert_eq!(safe.to_string(), "Alice\\nAdmin");
     Ok(())
@@ -74,8 +74,8 @@ The original value remains available to application logic. Call
 
 | Need | Cargo configuration |
 | --- | --- |
-| Core scalar, map, process, and text support | `qubit-redact = "0.4"` |
-| Domain-object derives | Add `qubit-redact-derive = "0.4"`. |
+| Core scalar, map, process, and text support | `qubit-redact = "0.5"` |
+| Domain-object derives | Add `qubit-redact-derive = "0.5"`. |
 | Serialize redacted views | Enable `serde` and declare `serde` directly. |
 | Redact `serde_json::Value` or JSON text fields | Enable `json`; add `serde_json` directly when your application uses it. |
 | HTTP diagnostics | Enable `http`; add `http` directly when your application uses its types. |
@@ -83,7 +83,7 @@ The original value remains available to application logic. Call
 ```toml
 [dependencies]
 # HTTP diagnostics only
-qubit-redact = { version = "0.4", features = ["http"] }
+qubit-redact = { version = "0.5", features = ["http"] }
 http = "1.4"
 ```
 
@@ -93,12 +93,14 @@ http = "1.4"
   `UnknownFieldPolicy::Redact(Sensitivity::Secret)` when a boundary must mask
   every unclassified field; `classify_field()` still reports `Unknown`.
 - Application allow rules never bypass an enabled `RedactionFloor`. Use
-  `RedactionPolicy::empty_builder()` for empty application rules with the
-  creation-time global-floor snapshot, and use `builder_from_default()` for the
-  normal "extend defaults" path. `disable_floor()` intentionally removes every
+  `RedactionPolicy::builder()` for empty application rules with the standard
+  floor, and use `RedactionPolicy::default().to_builder()` for the normal
+  "extend defaults" path. `disable_floor()` intentionally removes every
   floor and is appropriate only when the caller owns that security decision.
-- A process-wide floor or policy default installs once and affects only future
-  snapshots; already-built policies and redactors never change.
+- Install one `GlobalRedactionConfig` during application assembly. It affects
+  only future snapshots; already-built policies and redactors never change.
+- `redact_field()` returns `FieldRedaction`, which distinguishes masked values
+  from allowed and unknown pass-through values.
 - `RedactedText` is not displayable by design. Redaction and log escaping are
   separate guarantees.
 - `RedactMut` replaces logical values only. It does not erase released

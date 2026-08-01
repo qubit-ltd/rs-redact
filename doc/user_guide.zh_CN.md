@@ -25,14 +25,14 @@ Qubit Redact 是一个策略驱动的 Rust 脱敏库，用于防止敏感值经�
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
+qubit-redact = "0.5"
 ```
 
 ```rust
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("user_id", Sensitivity::Low)
         .raise("phone_number", Sensitivity::Medium)
         .raise("credit_card", Sensitivity::High)
@@ -45,15 +45,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let api_key = "sk_live_123";
     let display_name = "Alice\nAdmin";
 
-    assert_eq!(redactor.redact("user_id", user_id).as_str(), "al****42");
-    assert_eq!(redactor.redact("phone_number", phone_number).as_str(), "*******0");
-    assert_eq!(redactor.redact("credit_card", credit_card).as_str(), "****");
-    assert_eq!(redactor.redact("api_key", api_key).as_str(), "<redacted>");
-    assert_eq!(redactor.redact("display_name", display_name).as_str(), display_name);
+    assert_eq!(redactor.redact_field("user_id", user_id).as_str(), "al****42");
+    assert_eq!(redactor.redact_field("phone_number", phone_number).as_str(), "*******0");
+    assert_eq!(redactor.redact_field("credit_card", credit_card).as_str(), "****");
+    assert_eq!(redactor.redact_field("api_key", api_key).as_str(), "<redacted>");
+    assert_eq!(redactor.redact_field("display_name", display_name).as_str(), display_name);
     assert_eq!(api_key, "sk_live_123");
     assert_eq!(
         redactor
-            .redact("display_name", display_name)
+            .redact_field("display_name", display_name)
             .escape_for_log()
             .to_string(),
         "Alice\\nAdmin",
@@ -82,8 +82,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.4", features = ["serde", "http"] }
-qubit-redact-derive = "0.4"
+qubit-redact = { version = "0.5", features = ["serde", "http"] }
+qubit-redact-derive = "0.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 http = "1.4"
@@ -104,9 +104,9 @@ http = "1.4"
 | API | 初始状态 | 适用场景 |
 | --- | --- | --- |
 | `RedactionPolicy::default()` | 当前保守的进程级默认快照 | 接受应用已安装的默认策略。 |
-| `RedactionPolicy::empty_builder()` | 空应用规则加创建时全局 floor 快照 | 需要由当前调用点定义应用规则且保留 floor。 |
-| `RedactionPolicy::builder_from_default()` | 当前默认快照的副本 | 需要在保守默认策略上扩展。 |
-| `RedactionPolicy::set_global_default()` | 每个进程只能安装一次 | 应用初始化代码拥有默认策略。 |
+| `RedactionPolicy::builder()` | 空应用规则加标准 floor | 需要由当前调用点定义应用规则且保留 floor。 |
+| `RedactionPolicy::default().to_builder()` | 当前默认快照的副本 | 需要在保守默认策略上扩展。 |
+| `GlobalRedactionConfig::install()` | 每个进程只能安装一次 | 应用初始化代码拥有默认策略快照。 |
 
 可用 `include_preset(SensitiveFieldPreset::...)` 向显式策略加入内置的凭据、凭据容器、
 认证令牌、HTTP 或会话字段组。策略测试或诊断需要解释决策时，使用
@@ -114,11 +114,11 @@ http = "1.4"
 
 ## 1. 用 `RedactionPolicy` 配置规则
 
-`RedactionPolicy::empty_builder()` 从空应用敏感/allow 规则开始，但会立即捕获当前全局
-floor。`RedactionPolicy::default()` 仍是保守的进程级默认快照；扩展该快照时使用
-`RedactionPolicy::builder_from_default()`。只有调用方明确承担取消最低保护的风险时才可
-使用 `disable_floor()`；应用层 allow 规则无法绕过启用的 floor。
-`.load_default()` 会替换此前所有 builder 设置（包括已记录的校验错误），因此最后调用会丢弃已配置的内容。`raise` 不会降低既有等级；需要有意替换时使用
+`RedactionPolicy::builder()` 从空应用敏感/allow 规则和标准 floor 开始。
+`RedactionPolicy::default()` 读取当前 `GlobalRedactionConfig` 快照；扩展该快照时使用
+`RedactionPolicy::default().to_builder()`。只有调用方明确承担取消最低保护的风险时才可
+使用 `disable_floor()`；应用层 allow 规则无法绕过启用的 floor。Builder 不会隐式读取全局状态。
+`raise` 不会降低既有等级；需要有意替换时使用
 `override_level`。
 精确允许规则范围窄；后缀允许规则可能放行带前缀字段，需安全审查。
 
@@ -128,7 +128,7 @@ use qubit_redact::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
         .raise("tenant_reference", Sensitivity::High)
         .raise("tenant_visible", Sensitivity::High)
@@ -137,13 +137,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
     let redactor = Redactor::new(policy);
 
-    assert_eq!(redactor.redact("TENANT_REFERENCE", "abc").as_str(), "[hidden]");
-    assert_eq!(redactor.redact("tenant_visible", "visible").as_str(), "visible");
+    assert_eq!(redactor.redact_field("TENANT_REFERENCE", "abc").as_str(), "[hidden]");
+    assert_eq!(redactor.redact_field("tenant_visible", "visible").as_str(), "visible");
     Ok(())
 }
 ```
 
-`RedactionPolicy::set_global_default` 只应在应用初始化时调用，且每个进程只能成功一次。
+`GlobalRedactionConfig::install` 只应在应用初始化时调用，且每个进程只能成功一次。
 测试或多个安全边界应传递显式策略快照。
 
 字段名会被规范化。使用 `FieldNameMatching::ExactOrTokenSuffix` 时，`api_key` 规则可
@@ -156,7 +156,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 2. 用 `Redactor` 处理标量和 Map
 
-`redact(field, value)` 是基本操作。`redact_map` 返回保持原集合类型的副本，
+`redact_field(field, value)` 是基本操作，返回能区分已遮盖、允许展示和未知直通的
+`FieldRedaction`。`redact_map` 返回保持原集合类型的副本，
 `redact_map_in_place` 原地替换敏感值。支持文本 key 的 `HashMap`、`BTreeMap` 和
 `indexmap::IndexMap`。
 
@@ -165,7 +166,7 @@ use std::collections::HashMap;
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("user_id", Sensitivity::Low)
         .raise("phone_number", Sensitivity::Medium)
         .raise("credit_card", Sensitivity::High)
@@ -213,7 +214,7 @@ use qubit_redact::{LogOutputLimit, Redactor};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let safe = Redactor::default()
-        .redact("message", "first line\nsecond line")
+        .redact_field("message", "first line\nsecond line")
         .escape_for_log();
     assert_eq!(safe.to_string(), "first line\\nsecond line");
 
@@ -234,8 +235,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
-qubit-redact-derive = "0.4"
+qubit-redact = "0.5"
+qubit-redact-derive = "0.5"
 ```
 
 ```rust
@@ -286,8 +287,8 @@ fn main() {
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.4", features = ["serde"] }
-qubit-redact-derive = "0.4"
+qubit-redact = { version = "0.5", features = ["serde"] }
+qubit-redact-derive = "0.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -369,10 +370,9 @@ fn main() {
 
 可选 `http` feature 提供不可变 `HttpRedactionPolicy`，分别处理 Header、query/form 和
 结构化 body。它的 builder、`HttpRedactionPolicyBuilder::new()` 与 `Default::default()`
-都不带应用字段规则，但每个上下文都会捕获同一份创建时的全局 floor 快照。应用层 allow
-规则无法绕过已启用的 floor。要在保守 HTTP 快照上扩展，使用
-`HttpRedactionPolicy::builder_from_default()`。`.load_default()` 会替换此前所有 header、query、
-body、行为、预算和 floor 设置。
+都不带应用字段规则，并在每个上下文使用标准 floor。应用层 allow 规则无法绕过已启用的
+floor。要在保守 HTTP 快照上扩展，使用 `HttpRedactionPolicy::default().to_builder()`。
+Builder 不会隐式读取全局状态。
 `HttpRedactionPolicy::default()` 和 `HttpRedactor::default()` 仍使用这一保守快照。
 
 `HttpRedactor` 应用该快照。`BodyCapture` 提供借用字节和真实完整性元数据（`complete`、
@@ -385,27 +385,29 @@ body、行为、预算和 floor 设置。
 
 | 输入 | 默认安全行为 | 使用的配置 |
 | --- | --- | --- |
-| URL query、用户名、密码、fragment | 遮盖已配置字段和敏感 URL 组成部分 | `raise_query`、query 策略、`UrlPathPolicy` |
-| form 与 Header | 遮盖已配置字段，且输出有界 | `raise_header`、`raise_query` |
-| JSON、NDJSON、form body、multipart | 解析完整输入；不安全、超深或截断时失败时默认遮盖 | `raise_body`、`BodyBudget`、`JsonDepthBudget` |
+| URL query、用户名、密码、fragment | 遮盖已配置字段和敏感 URL 组成部分 | `raise(HttpFieldContext::Query, ...)`、query 策略、`UrlPathPolicy` |
+| form 与 Header | 遮盖已配置字段，且输出有界 | `raise(HttpFieldContext::Header, ...)`、`raise(HttpFieldContext::Query, ...)` |
+| JSON、NDJSON、form body、multipart | 解析完整输入；不安全、超深或截断时失败时默认遮盖 | `raise(HttpFieldContext::Body, ...)`、`BodyBudget`、`JsonDepthBudget` |
 | 不透明文本、无 key JSON、URL path | 默认采取保守策略 | 仅在接受风险后显式使用 `PassThrough` 或 `Preserve` |
 | 非 UTF-8 body | 返回二进制摘要，绝不暴露原始字节 | `BodyRedactionStatus::Binary` |
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.4", features = ["http"] }
+qubit-redact = { version = "0.5", features = ["http"] }
 http = "1.4"
 ```
 
 ```rust
 use http::{HeaderMap, HeaderValue};
 use qubit_redact::Sensitivity;
-use qubit_redact::http::{BodyCapture, HttpRedactionPolicy, HttpRedactor};
+use qubit_redact::http::{
+    BodyCapture, HttpFieldContext, HttpRedactionPolicy, HttpRedactor,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = HttpRedactionPolicy::builder_from_default()
-        .raise_body("password", Sensitivity::Secret)
-        .raise_query("api_key", Sensitivity::Secret)
+    let policy = HttpRedactionPolicy::default().to_builder()
+        .raise(HttpFieldContext::Body, "password", Sensitivity::Secret)
+        .raise(HttpFieldContext::Query, "api_key", Sensitivity::Secret)
         .build()?;
     let redactor = HttpRedactor::new(policy);
 
@@ -429,24 +431,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`HttpRedactionPolicyBuilder` 提供 `raise_header`、`raise_query` 和 `raise_body` 等
-上下文规则。无效或截断的结构化输入会安全关闭。
+`HttpRedactionPolicyBuilder` 通过带 `HttpFieldContext` 的统一 `raise` 方法配置
+Header、query 和 body 规则。无效或截断的结构化输入会安全关闭。
 
 运行时诊断可读取 `BodyRedaction::status()`、`is_truncated()`、`captured_len()` 和
 `omitted_len()`。`BodyRedactionStatus::Redacted(reason)` 会给出结构化或可见表示不安全的原因。
 
 ## 8. 迁移到 0.5
 
-0.5 有意删除了语义含混和重复的 API：
+0.5 有意删除了分离的全局默认 API 和语义含混的标量结果：
 
-- `RedactionPolicy::builder()` 改为 `RedactionPolicy::empty_builder()`。
-- `HttpRedactionPolicy::builder()` 改为 `HttpRedactionPolicy::empty_builder()`。
-- policy 和 rules 快照改用 `application_sensitive_rules()` 与
-  `application_allow_rules()`；最低保护规则通过 `floor()` 查看，不再提供混合规则视图。
-- `header_policy()`、`query_policy()`、`body_policy()` 改为 `header_rules()`、
-  `query_rules()`、`body_rules()`。
-- `qubit_http::LogRedactionPolicy`、`LogRedactionPolicyBuilder`、`LogRedactor`
-  已删除；`qubit_http` 不再重导出 HTTP 脱敏类型。
+- 使用一个 `GlobalRedactionConfig`，不再分别安装 policy 和 floor 全局默认值。
+- 使用 `RedactionPolicy::builder()` 与 `RedactionPolicy::default().to_builder()`；
+  Builder 不会隐式读取全局状态。
+- 字段标量使用 `redact_field()`，其 `FieldRedaction` 会区分已遮盖、允许展示和未知直通。
+- HTTP Builder 使用 `HttpFieldContext` 和统一的 `raise`、`allow_exact`、`floor_for`、
+  `disable_floor_for` 方法。
 
 HTTP policy 和 redactor 必须直接从 `qubit_redact` 导入：
 
@@ -454,7 +454,7 @@ HTTP policy 和 redactor 必须直接从 `qubit_redact` 导入：
 use qubit_http::HttpClientOptions;
 use qubit_redact::http::{HttpRedactionPolicy, HttpRedactor};
 
-let policy = HttpRedactionPolicy::builder_from_default().build()?;
+let policy = HttpRedactionPolicy::default().to_builder().build()?;
 let _redactor = HttpRedactor::new(policy.clone());
 let mut options = HttpClientOptions::default();
 options.log_redaction_policy = policy;
@@ -475,7 +475,7 @@ options.log_redaction_policy = policy;
 | 可控字段仍然可见 | 添加显式规则；未知字段会原样通过。 |
 | 后缀规则披露范围过大 | 优先改用精确规则，或删除后缀 allow 规则。 |
 | 策略构建失败 | 检查返回的 `PolicyError`，不要回退到宽松策略。 |
-| 全局默认策略已安装 | 处理 `GlobalDefaultAlreadySet`；需要隔离时传递显式策略。 |
+| 全局配置已安装 | 处理 `GlobalRedactionConfigAlreadyInstalled`；需要隔离时传递显式策略。 |
 | 结构化 body 不合法或已截断 | 记录安全结果，并检查 `BodyRedactionStatus::Redacted(reason)`。 |
 | 日志行包含控制字符或 Unicode 行序字符 | 通过 `escape_for_log()` 跨过标量日志边界。 |
 | 需要内存擦除 | 不要依赖 `RedactMut`；使用专门的 zeroization 设计。 |

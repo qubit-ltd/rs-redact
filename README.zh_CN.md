@@ -22,14 +22,14 @@ Qubit Redact 用于防止敏感信息经 Rust 诊断信息泄露，包括日志�
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
+qubit-redact = "0.5"
 ```
 
 ```rust
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::empty_builder()
+    let policy = RedactionPolicy::builder()
         .raise("user_id", Sensitivity::Low)
         .raise("phone_number", Sensitivity::Medium)
         .raise("credit_card", Sensitivity::High)
@@ -37,13 +37,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
     let redactor = Redactor::new(policy);
 
-    assert_eq!(redactor.redact("user_id", "alpine42").as_str(), "al****42");
-    assert_eq!(redactor.redact("phone_number", "13800138000").as_str(), "*******0");
-    assert_eq!(redactor.redact("credit_card", "4111111111111111").as_str(), "****");
-    assert_eq!(redactor.redact("api_key", "sk_live_123").as_str(), "<redacted>");
+    assert_eq!(redactor.redact_field("user_id", "alpine42").as_str(), "al****42");
+    assert_eq!(redactor.redact_field("phone_number", "13800138000").as_str(), "*******0");
+    assert_eq!(redactor.redact_field("credit_card", "4111111111111111").as_str(), "****");
+    assert_eq!(redactor.redact_field("api_key", "sk_live_123").as_str(), "<redacted>");
 
     let safe = redactor
-        .redact("display_name", "Alice\nAdmin")
+        .redact_field("display_name", "Alice\nAdmin")
         .escape_for_log();
     assert_eq!(safe.to_string(), "Alice\\nAdmin");
     Ok(())
@@ -69,8 +69,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 需求 | Cargo 配置 |
 | --- | --- |
-| 标量、Map、进程和文本 core 能力 | `qubit-redact = "0.4"` |
-| 领域对象 derive | 添加 `qubit-redact-derive = "0.4"`。 |
+| 标量、Map、进程和文本 core 能力 | `qubit-redact = "0.5"` |
+| 领域对象 derive | 添加 `qubit-redact-derive = "0.5"`。 |
 | 序列化脱敏视图 | 启用 `serde`，并直接声明 `serde` 依赖。 |
 | 脱敏 `serde_json::Value` 或 JSON 文本字段 | 启用 `json`；应用使用时直接添加 `serde_json`。 |
 | HTTP 诊断 | 启用 `http`；应用使用其类型时直接添加 `http`。 |
@@ -78,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```toml
 [dependencies]
 # 仅启用 HTTP 诊断
-qubit-redact = { version = "0.4", features = ["http"] }
+qubit-redact = { version = "0.5", features = ["http"] }
 http = "1.4"
 ```
 
@@ -87,8 +87,8 @@ http = "1.4"
 - 未知字段名默认原样通过。需要在边界遮盖所有未分类字段时，设置
   `UnknownFieldPolicy::Redact(Sensitivity::Secret)`；`classify_field()` 仍会报告 `Unknown`。
 - 应用层 allow 规则无法绕过已启用的 `RedactionFloor`。
-  `RedactionPolicy::empty_builder()` 使用空应用规则和创建时的全局 floor 快照；
-  常规扩展默认策略应使用 `builder_from_default()`。`disable_floor()` 会有意关闭全部
+  `RedactionPolicy::builder()` 使用空应用规则和创建时的全局 floor 快照；
+  常规扩展默认策略应使用 `RedactionPolicy::default().to_builder()`。`disable_floor()` 会有意关闭全部
   floor，只应由明确承担该安全决策的调用方使用。
 - 进程级 floor 和 policy 默认值只能安装一次，只影响未来快照；既有 policy 与 redactor
   永不随之改变。

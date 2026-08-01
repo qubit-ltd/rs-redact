@@ -8,4 +8,4 @@ publish = false
 
 [dependencies]
 qubit-redact-derive = { path = "../../../.." }
-redaction-runtime = { package = "qubit-redact", path = "../../../../../", version = "0.4", default-features = false }
+redaction-runtime = { package = "qubit-redact", path = "../../../../../", version = "0.5", default-features = false }
