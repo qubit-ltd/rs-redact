@@ -17,13 +17,17 @@ use qubit_redact::{
 /// output budget.
 fn amplified_mask_redactor() -> HttpRedactor {
     let replacement = "X\n".repeat(512 * 1024);
-    let body_policy = RedactionPolicy::builder_from_default()
+    let body_policy = RedactionPolicy::empty_builder()
+        .disable_floor()
+        .raise("password", Sensitivity::Secret)
+        .raise("api_key", Sensitivity::Secret)
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .build()
         .expect("the body policy is valid");
     let budget = BodyBudget::new(4096, 64).expect("the output can contain the marker");
-    let policy = HttpRedactionPolicy::builder()
-        .body_policy(body_policy)
+    let policy = HttpRedactionPolicy::empty_builder()
+        .body_rules(body_policy.rules().clone())
+        .disable_body_floor()
         .body_budget(budget)
         .build()
         .expect("the HTTP policy is valid");
@@ -71,7 +75,7 @@ fn test_structured_formats_bound_amplified_masks() {
 #[test]
 fn test_bounded_output_keeps_utf8_and_marker_complete() {
     let budget = BodyBudget::new(64, 14).expect("the output can contain the marker");
-    let policy = HttpRedactionPolicy::builder()
+    let policy = HttpRedactionPolicy::empty_builder()
         .body_budget(budget)
         .text_body_policy(qubit_redact::http::TextBodyPolicy::PassThrough)
         .build()
@@ -88,7 +92,7 @@ fn test_bounded_output_keeps_utf8_and_marker_complete() {
 #[test]
 fn test_late_truncation_backs_up_to_utf8_boundary() {
     let budget = BodyBudget::new(64, 15).expect("the output can contain the marker");
-    let policy = HttpRedactionPolicy::builder()
+    let policy = HttpRedactionPolicy::empty_builder()
         .body_budget(budget)
         .text_body_policy(qubit_redact::http::TextBodyPolicy::PassThrough)
         .build()
@@ -105,7 +109,7 @@ fn test_late_truncation_backs_up_to_utf8_boundary() {
 #[test]
 fn test_source_truncation_can_use_marker_only_budget() {
     let budget = BodyBudget::new(1, 11).expect("the output can contain the marker");
-    let policy = HttpRedactionPolicy::builder()
+    let policy = HttpRedactionPolicy::empty_builder()
         .body_budget(budget)
         .text_body_policy(qubit_redact::http::TextBodyPolicy::PassThrough)
         .build()

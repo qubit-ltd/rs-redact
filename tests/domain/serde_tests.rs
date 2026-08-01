@@ -285,7 +285,7 @@ impl Write for FailAfter {
 
 /// Builds the deterministic policy used by serialization tests.
 fn policy() -> RedactionPolicy {
-    RedactionPolicy::builder()
+    RedactionPolicy::empty_builder()
         .raise("api_key", Sensitivity::Secret)
         .build()
         .expect("the field rule is valid")

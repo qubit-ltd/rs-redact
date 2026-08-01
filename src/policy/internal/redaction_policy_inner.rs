@@ -13,7 +13,7 @@ use crate::policy::{FieldNameMatching, MaskingPolicy, Sensitivity, UnknownFieldP
 
 /// Complete immutable state shared by policy clones.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::policy) struct RedactionPolicyInner {
+pub(crate) struct RedactionPolicyInner {
     /// Canonical sensitive fields and their levels.
     pub(in crate::policy) sensitive: BTreeMap<String, Sensitivity>,
     /// Canonical fields allowed only as complete names.

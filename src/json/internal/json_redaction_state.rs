@@ -9,14 +9,16 @@
 
 use serde_json::Value;
 
-use crate::{RedactionPolicy, Sensitivity};
+use crate::{JsonDepthBudget, RedactionPolicy, RedactionRules, Sensitivity};
 
 use super::{JsonRedactionOutcome, JsonUnkeyedValuePolicy};
 
 /// Mutable state shared by one JSON tree traversal.
 pub(crate) struct JsonRedactionState<'policy, 'budget, 'marker> {
-    /// Immutable field and masking policy.
-    policy: &'policy RedactionPolicy,
+    /// Immutable field and masking rules.
+    rules: &'policy RedactionRules,
+    /// Maximum recursion depth for the operation boundary.
+    json_depth_budget: JsonDepthBudget,
     /// Handling for scalars without an object-key context.
     unkeyed: JsonUnkeyedValuePolicy<'marker>,
     /// Aggregate bytes remaining for newly generated masks.
@@ -28,7 +30,8 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ///
     /// # Parameters
     ///
-    /// * policy - Immutable policy used to classify object keys.
+    /// * rules - Immutable field rules used to classify object keys.
+    /// * json_depth_budget - Maximum recursive container depth.
     /// * unkeyed - Handling selected for scalars without a key.
     /// * remaining_mask_bytes - Shared aggregate generated-mask budget.
     ///
@@ -37,15 +40,32 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// Mutable traversal state borrowing all operation inputs.
     #[inline(always)]
     pub(crate) const fn new(
-        policy: &'policy RedactionPolicy,
+        rules: &'policy RedactionRules,
+        json_depth_budget: JsonDepthBudget,
         unkeyed: JsonUnkeyedValuePolicy<'marker>,
         remaining_mask_bytes: &'budget mut usize,
     ) -> Self {
         Self {
-            policy,
+            rules,
+            json_depth_budget,
             unkeyed,
             remaining_mask_bytes,
         }
+    }
+
+    /// Creates traversal state from one complete policy snapshot.
+    #[inline(always)]
+    pub(crate) const fn from_policy(
+        policy: &'policy RedactionPolicy,
+        unkeyed: JsonUnkeyedValuePolicy<'marker>,
+        remaining_mask_bytes: &'budget mut usize,
+    ) -> Self {
+        Self::new(
+            policy.rules(),
+            policy.json_depth_budget(),
+            unkeyed,
+            remaining_mask_bytes,
+        )
     }
 
     /// Redacts one complete JSON tree.
@@ -78,10 +98,10 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         has_field: bool,
         depth: usize,
     ) -> JsonRedactionOutcome {
-        if depth >= self.policy.json_depth_budget().max_depth()
+        if depth >= self.json_depth_budget.max_depth()
             && matches!(value, Value::Object(_) | Value::Array(_))
         {
-            self.mask_keyed_value(value, Sensitivity::Secret);
+            self.mask_keyed_value(value, Sensitivity::Secret, self.rules.masking());
             return JsonRedactionOutcome::default();
         }
         match value {
@@ -110,8 +130,9 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ) -> JsonRedactionOutcome {
         let mut outcome = JsonRedactionOutcome::default();
         for (key, value) in values {
-            if let Some(level) = self.policy.sensitivity_for(key) {
-                self.mask_keyed_value(value, level);
+            let resolved = self.rules.resolve_field(key);
+            if let (Some(level), Some(masking)) = (resolved.sensitivity, resolved.masking) {
+                self.mask_keyed_value(value, level, masking);
             } else {
                 outcome.merge(self.redact_value(value, true, depth.saturating_add(1)));
             }
@@ -175,17 +196,17 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ///
     /// * value - Sensitive value replaced in place.
     /// * level - Sensitivity selecting the masking rule.
-    fn mask_keyed_value(&mut self, value: &mut Value, level: Sensitivity) {
+    fn mask_keyed_value(
+        &mut self,
+        value: &mut Value,
+        level: Sensitivity,
+        masking: &crate::MaskingPolicy,
+    ) {
         let masked = match value {
-            Value::String(text) => self
-                .policy
-                .masking()
+            Value::String(text) => masking
                 .mask_bounded(level, text, *self.remaining_mask_bytes)
                 .into_owned(),
-            _ => self
-                .policy
-                .masking()
-                .mask_opaque_bounded(level, *self.remaining_mask_bytes),
+            _ => masking.mask_opaque_bounded(level, *self.remaining_mask_bytes),
         };
         *self.remaining_mask_bytes = self.remaining_mask_bytes.saturating_sub(masked.len());
         *value = Value::String(masked);

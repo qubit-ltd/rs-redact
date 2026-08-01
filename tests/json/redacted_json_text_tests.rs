@@ -15,7 +15,7 @@ use qubit_redact::{
 /// Verifies the constructor preserves the borrowed text and policy behavior.
 #[test]
 fn test_redacted_json_text_new_constructs_borrowed_view() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .allow_canonical_exact("name")
         .build()
         .expect("the policy should build");
@@ -27,7 +27,7 @@ fn test_redacted_json_text_new_constructs_borrowed_view() {
 /// Verifies display emits compact, parseable JSON rather than Rust debug text.
 #[test]
 fn test_redacted_json_text_display_is_compact_valid_json() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("password", Sensitivity::Secret)
         .build()
         .expect("the policy should build");
@@ -54,7 +54,7 @@ fn test_redacted_json_text_display_is_compact_valid_json() {
 /// Verifies diagnostic formatting refuses oversized JSON before parsing it.
 #[test]
 fn test_redacted_json_text_diagnostic_input_budget_fails_closed() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .diagnostic_budget(
             DiagnosticBudget::new(16, 128).expect("the diagnostic budget should be valid"),
         )
@@ -76,7 +76,7 @@ fn test_redacted_json_text_diagnostic_input_budget_fails_closed() {
 fn test_redacted_json_text_display_uses_diagnostic_output_budget() {
     let budget = DiagnosticBudget::new(256, DiagnosticBudget::MIN_OUTPUT_BYTES)
         .expect("the diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .diagnostic_budget(budget)
         .allow_canonical_exact("name")
         .build()
@@ -96,7 +96,7 @@ fn test_redacted_json_text_display_uses_diagnostic_output_budget() {
 /// safe shallow siblings.
 #[test]
 fn test_redacted_json_text_fails_closed_at_depth_budget() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .build()
@@ -115,7 +115,7 @@ fn test_redacted_json_text_fails_closed_at_depth_budget() {
 /// Verifies alternate debug formatting remains log-safe after pretty rendering.
 #[test]
 fn test_redacted_json_text_debug_preserves_alternate_formatting() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("password", Sensitivity::Secret)
         .build()
         .expect("the policy should build");
@@ -131,7 +131,7 @@ fn test_redacted_json_text_debug_preserves_alternate_formatting() {
 /// Verifies in-place JSON text redaction produces compact valid JSON.
 #[test]
 fn test_redact_json_text_in_place_masks_and_compacts_valid_json() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("password", Sensitivity::Secret)
         .build()
         .expect("the policy should build");
@@ -151,7 +151,7 @@ fn test_redact_json_text_in_place_masks_and_compacts_valid_json() {
 /// Verifies invalid JSON text never reaches formatting or mutation output.
 #[test]
 fn test_redacted_json_text_fails_closed_for_invalid_input() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .mask(
             Sensitivity::Secret,
             qubit_redact::MaskPolicy::fixed("[invalid-json]"),
@@ -175,7 +175,7 @@ fn test_redacted_json_text_fails_closed_for_invalid_input() {
 #[cfg(feature = "serde")]
 #[test]
 fn test_redacted_json_text_serde_preserves_outer_string_shape() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("token", Sensitivity::Secret)
         .build()
         .expect("the policy should build");

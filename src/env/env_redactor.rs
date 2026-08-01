@@ -220,14 +220,13 @@ impl EnvRedactor {
     fn redact_os_pair_bounded(&self, name: &OsStr, value: &OsStr, max_mask_bytes: usize) -> String {
         let pair = match (name.to_str(), value.to_str()) {
             (Some(name), Some(value)) => {
-                let value = match self.redactor.policy().sensitivity_for(name) {
-                    Some(level) => self
-                        .redactor
-                        .policy()
-                        .masking()
+                let resolved = self.redactor.policy().resolve_field(name);
+                let value = match (resolved.sensitivity, resolved.masking) {
+                    (Some(level), Some(masking)) => masking
                         .mask_bounded(level, value, max_mask_bytes)
                         .into_owned(),
-                    None => value.to_owned(),
+                    (None, None) => value.to_owned(),
+                    _ => unreachable!("a resolved sensitivity always has a mask"),
                 };
                 RedactedEnvPair::new(log_safe_owned(name.to_owned()), log_safe_owned(value))
             }

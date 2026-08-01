@@ -9,16 +9,21 @@
 
 use std::{error::Error, fmt};
 
-use super::Sensitivity;
+use super::{PolicyLocation, Sensitivity};
 
 /// Error returned when a redaction policy contains an invalid rule.
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PolicyError {
     /// A supplied field name is empty after canonicalization.
-    EmptyFieldName,
+    EmptyFieldName {
+        /// Location where the invalid field was configured.
+        location: PolicyLocation,
+    },
     /// A fixed mask has an empty replacement at the indicated level.
     EmptyFixedReplacement {
+        /// Location where the fixed mask was configured.
+        location: PolicyLocation,
         /// Sensitivity level containing the invalid fixed mask.
         level: Sensitivity,
     },
@@ -40,12 +45,13 @@ impl fmt::Display for PolicyError {
     /// Returns [`fmt::Error`] when the destination rejects a write.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyFieldName => {
-                formatter.write_str("field name is empty after canonicalization")
-            }
-            Self::EmptyFixedReplacement { level } => write!(
+            Self::EmptyFieldName { location } => write!(
                 formatter,
-                "fixed mask replacement for {level:?} sensitivity is empty",
+                "field name is empty after canonicalization in {location}",
+            ),
+            Self::EmptyFixedReplacement { location, level } => write!(
+                formatter,
+                "fixed mask replacement for {level:?} sensitivity is empty in {location}",
             ),
         }
     }

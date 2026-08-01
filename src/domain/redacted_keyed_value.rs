@@ -82,12 +82,13 @@ impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValue<'_, '_, T> {
     /// complete representation.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        match self.policy.sensitivity_for(self.key) {
-            Some(level) => Debug::fmt(
-                &self.value.redact_value(level, self.policy.masking()),
-                formatter,
-            ),
-            None => self.value.fmt_redacted(self.policy, formatter),
+        let resolved = self.policy.resolve_field(self.key);
+        match (resolved.sensitivity, resolved.masking) {
+            (Some(level), Some(masking)) => {
+                Debug::fmt(&self.value.redact_value(level, masking), formatter)
+            }
+            (None, None) => self.value.fmt_redacted(self.policy, formatter),
+            _ => unreachable!("a resolved sensitivity always has a mask"),
         }
     }
 }
@@ -140,16 +141,17 @@ impl<T: RedactValue + crate::domain::RedactSerialize + ?Sized> serde::Serialize
     where
         S: serde::Serializer,
     {
-        match self.policy.sensitivity_for(self.key) {
-            Some(level) => serde::Serialize::serialize(
-                &self.value.redact_value(level, self.policy.masking()),
-                serializer,
-            ),
-            None => crate::domain::RedactSerialize::serialize_redacted(
+        let resolved = self.policy.resolve_field(self.key);
+        match (resolved.sensitivity, resolved.masking) {
+            (Some(level), Some(masking)) => {
+                serde::Serialize::serialize(&self.value.redact_value(level, masking), serializer)
+            }
+            (None, None) => crate::domain::RedactSerialize::serialize_redacted(
                 self.value,
                 self.policy,
                 serializer,
             ),
+            _ => unreachable!("a resolved sensitivity always has a mask"),
         }
     }
 }

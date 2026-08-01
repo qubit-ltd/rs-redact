@@ -12,11 +12,11 @@ use std::{borrow::Cow, collections::BTreeMap};
 use http::{HeaderMap, HeaderValue};
 use url::Url;
 
-use crate::{LogSafeText, Redactor, Sensitivity};
+use crate::{LogSafeText, Sensitivity};
 
 use super::{
     BodyBudget, BodyCapture, BodyRedaction, BodyRedactionReason, BodyRedactionStatus,
-    HttpRedactionPolicy, RedactedHeaders, TextBodyPolicy, UrlPathPolicy,
+    FieldRedactor, HttpRedactionPolicy, RedactedHeaders, TextBodyPolicy, UrlPathPolicy,
     internal::{
         BoundedLogWriter, ParsedBody, content_type, diagnostic_text, form, json, markers,
         multipart,
@@ -33,12 +33,6 @@ const MAX_NESTED_URL_DEPTH: usize = 8;
 pub struct HttpRedactor {
     /// Complete immutable HTTP behavior snapshot.
     policy: HttpRedactionPolicy,
-    /// Field redactor for headers.
-    header_redactor: Redactor,
-    /// Field redactor for query strings and forms.
-    query_redactor: Redactor,
-    /// Field redactor for structured body values.
-    body_redactor: Redactor,
 }
 
 impl HttpRedactor {
@@ -53,12 +47,7 @@ impl HttpRedactor {
     /// A unified HTTP redactor with independent field contexts.
     #[inline]
     pub fn new(policy: HttpRedactionPolicy) -> Self {
-        Self {
-            header_redactor: Redactor::new(policy.header_policy().clone()),
-            query_redactor: Redactor::new(policy.query_policy().clone()),
-            body_redactor: Redactor::new(policy.body_policy().clone()),
-            policy,
-        }
+        Self { policy }
     }
 
     /// Returns the immutable HTTP policy snapshot.
@@ -69,6 +58,21 @@ impl HttpRedactor {
     #[inline(always)]
     pub const fn policy(&self) -> &HttpRedactionPolicy {
         &self.policy
+    }
+
+    /// Borrows the header field-rule executor for the current operation.
+    fn header_field_redactor(&self) -> FieldRedactor<'_> {
+        FieldRedactor::new(self.policy.header_rules())
+    }
+
+    /// Borrows the query field-rule executor for the current operation.
+    fn query_field_redactor(&self) -> FieldRedactor<'_> {
+        FieldRedactor::new(self.policy.query_rules())
+    }
+
+    /// Borrows the structured-body field-rule executor for the current operation.
+    fn body_field_redactor(&self) -> FieldRedactor<'_> {
+        FieldRedactor::new(self.policy.body_rules())
     }
 
     /// Redacts a parsed URL into log-safe text.
@@ -152,7 +156,11 @@ impl HttpRedactor {
         }
         let output_limit = self.policy.diagnostic_budget().max_output_bytes();
         let text = if form::is_valid(input.as_bytes()) {
-            form::redact_bounded(&self.query_redactor, input.as_bytes(), output_limit)
+            form::redact_bounded(
+                &FieldRedactor::new(self.policy.query_rules()),
+                input.as_bytes(),
+                output_limit,
+            )
         } else {
             markers::INVALID_FORM.to_string()
         };
@@ -330,7 +338,7 @@ impl HttpRedactor {
             let rendered = value.to_str().unwrap_or("<non-utf8>");
             let remaining = writer.remaining_bytes();
             if value.is_sensitive() {
-                let redacted = self.header_redactor.policy().masking().mask_bounded(
+                let redacted = self.header_field_redactor().mask_bounded(
                     Sensitivity::Secret,
                     rendered,
                     remaining,
@@ -338,7 +346,7 @@ impl HttpRedactor {
                 let _ = writer.write_str(redacted.as_ref());
             } else {
                 let redacted = self
-                    .header_redactor
+                    .header_field_redactor()
                     .redact_bounded(name, rendered, remaining);
                 let _ = writer.write_str(redacted.as_str());
             }
@@ -417,27 +425,21 @@ impl HttpRedactor {
         }
         if !output.username().is_empty() {
             let masked = self
-                .query_redactor
-                .policy()
-                .masking()
+                .query_field_redactor()
                 .mask_bounded(Sensitivity::High, output.username(), output_limit)
                 .into_owned();
             let _ = output.set_username(&masked);
         }
         if let Some(password) = output.password() {
             let masked = self
-                .query_redactor
-                .policy()
-                .masking()
+                .query_field_redactor()
                 .mask_bounded(Sensitivity::Secret, password, output_limit)
                 .into_owned();
             let _ = output.set_password(Some(&masked));
         }
         if let Some(fragment) = output.fragment() {
             let masked = self
-                .query_redactor
-                .policy()
-                .masking()
+                .query_field_redactor()
                 .mask_bounded(Sensitivity::High, fragment, output_limit)
                 .into_owned();
             output.set_fragment(Some(&masked));
@@ -449,7 +451,7 @@ impl HttpRedactor {
                 for (key, value) in url.query_pairs() {
                     let remaining = query_limit.saturating_sub(redacted_query.len());
                     let value = self
-                        .query_redactor
+                        .query_field_redactor()
                         .redact_bounded(&key, &value, remaining)
                         .into_inner();
                     let value = self.redact_nested_url_value(value, depth);
@@ -546,10 +548,11 @@ impl HttpRedactor {
             }
             if let Some(boundary) = boundary.as_deref()
                 && let Some((text, passed, rendered_truncated)) = multipart::redact(
-                    &self.body_redactor,
+                    &self.body_field_redactor(),
                     boundary,
                     *require_form_data,
                     bounded,
+                    self.policy.json_depth_budget(),
                     self.policy.text_body_policy(),
                     self.policy.unkeyed_json_value_policy(),
                     self.policy.body_budget().max_output_bytes(),
@@ -617,8 +620,9 @@ impl HttpRedactor {
             );
         };
         let passed = json::redact(
-            &self.body_redactor,
+            &self.body_field_redactor(),
             &mut value,
+            self.policy.json_depth_budget(),
             self.policy.unkeyed_json_value_policy(),
             self.policy.body_budget().max_output_bytes(),
         );
@@ -674,8 +678,9 @@ impl HttpRedactor {
             );
         }
         match json::redact_ndjson(
-            &self.body_redactor,
+            &self.body_field_redactor(),
             bounded,
+            self.policy.json_depth_budget(),
             self.policy.unkeyed_json_value_policy(),
             self.policy.body_budget().max_output_bytes(),
         ) {
@@ -727,7 +732,7 @@ impl HttpRedactor {
         }
         ParsedBody::new(
             form::redact_bounded(
-                &self.body_redactor,
+                &self.body_field_redactor(),
                 bounded,
                 self.policy.body_budget().max_output_bytes(),
             ),

@@ -21,11 +21,10 @@ fn test_unkeyed_json_value_policy_default_is_redact() {
         UnkeyedJsonValuePolicy::Redact,
     );
 }
-
 /// Verifies the HTTP policy builder accepts the explicit pass-through opt-in.
 #[test]
 fn test_unkeyed_json_value_policy_builder_accepts_pass_through() {
-    let policy = HttpRedactionPolicy::builder()
+    let policy = HttpRedactionPolicy::empty_builder()
         .unkeyed_json_value_policy(UnkeyedJsonValuePolicy::PassThrough)
         .build()
         .expect("HTTP redaction policy should be valid");

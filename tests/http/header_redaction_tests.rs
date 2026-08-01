@@ -18,13 +18,13 @@ use qubit_redact::{
 
 /// Builds an HTTP redactor with visible test headers and finite diagnostics.
 fn redactor_with_diagnostic_budget(input: usize, output: usize) -> HttpRedactor {
-    let header_policy = RedactionPolicy::builder()
+    let header_policy = RedactionPolicy::empty_builder()
         .build()
         .expect("the empty header policy should be valid");
     let budget = DiagnosticBudget::new(input, output)
         .expect("test diagnostic budgets satisfy the public lower bounds");
-    let policy = HttpRedactionPolicy::builder()
-        .header_policy(header_policy)
+    let policy = HttpRedactionPolicy::empty_builder()
+        .header_rules(header_policy.rules().clone())
         .diagnostic_budget(budget)
         .build()
         .expect("the HTTP policy should be valid");

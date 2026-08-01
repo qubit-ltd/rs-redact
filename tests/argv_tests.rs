@@ -16,14 +16,14 @@ use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 use proptest::prelude::{prop_assert, prop_assert_eq, proptest};
 
 use qubit_redact::{
-    DiagnosticBudget, RedactionPolicy, Redactor, Sensitivity,
+    DiagnosticBudget, MaskPolicy, RedactionFloor, RedactionPolicy, Redactor, Sensitivity,
     argv::{ArgvItem, ArgvRedactor},
 };
 
 /// Creates a redactor with deliberately small diagnostic limits.
 fn bounded_redactor() -> ArgvRedactor {
     let budget = DiagnosticBudget::new(8, 64).expect("the small diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .diagnostic_budget(budget)
         .build()
         .expect("the bounded policy should be valid");
@@ -177,10 +177,11 @@ fn test_redact_heuristically_keeps_empty_sensitive_inline_value() {
     );
 }
 
-/// Verifies exact matching does not classify a prefixed assignment name.
+/// Verifies the default floor protects a suffix-matched assignment even when
+/// application matching is exact.
 #[test]
-fn test_redact_heuristically_exact_policy_keeps_prefixed_assignment() {
-    let policy = RedactionPolicy::builder()
+fn test_redact_heuristically_floor_masks_prefixed_assignment_with_exact_application_matching() {
+    let policy = RedactionPolicy::empty_builder()
         .matching(qubit_redact::FieldNameMatching::Exact)
         .build()
         .expect("the exact-only argv policy should be valid");
@@ -193,7 +194,7 @@ fn test_redact_heuristically_exact_policy_keeps_prefixed_assignment() {
         ArgvRedactor::new(Redactor::new(policy))
             .redact_heuristically(items)
             .to_string(),
-        r#"["env", "OPENAI_API_KEY=abcdef"]"#,
+        r#"["env", "OPENAI_API_KEY=****"]"#,
     );
 }
 
@@ -325,7 +326,7 @@ fn test_redact_heuristically_does_not_parse_explicit_sensitive_options() {
 /// Verifies a custom immutable policy is honored by the adapter.
 #[test]
 fn test_new_uses_custom_redaction_policy() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("tenant_flag", Sensitivity::Secret)
         .build()
         .expect("the custom argv policy should be valid");
@@ -446,6 +447,29 @@ fn test_redact_heuristically_masks_value_after_non_utf8_option() {
             .to_string(),
         r#"["cmd", "<redacted>", "<redacted>"]"#,
     );
+}
+
+/// Verifies separate option values retain the floor-selected masking policy.
+#[test]
+fn test_redact_heuristically_uses_floor_mask_for_pending_option_value() {
+    let floor = RedactionFloor::empty_builder()
+        .raise("password", Sensitivity::High)
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[floor]"))
+        .build()
+        .expect("the floor should build");
+    let policy = RedactionPolicy::empty_builder()
+        .floor(floor)
+        .raise("password", Sensitivity::Secret)
+        .build()
+        .expect("the policy should build");
+    let rendered = ArgvRedactor::new(Redactor::new(policy))
+        .redact_heuristically([
+            ArgvItem::plain(OsStr::new("--password")),
+            ArgvItem::plain(OsStr::new("value")),
+        ])
+        .to_string();
+
+    assert_eq!(rendered, r#"["--password", "[floor]"]"#);
 }
 
 proptest! {

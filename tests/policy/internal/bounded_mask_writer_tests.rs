@@ -16,12 +16,14 @@ use qubit_redact::{
 /// Redacts one sensitive JSON value with the supplied mask policy.
 #[cfg(feature = "http")]
 fn redact_json_value(mask: MaskPolicy, value: &str, max_output: usize) -> String {
-    let body_policy = RedactionPolicy::builder_from_default()
+    let body_policy = RedactionPolicy::empty_builder()
+        .disable_floor()
+        .raise("password", Sensitivity::Secret)
         .mask(Sensitivity::Secret, mask)
         .build()
         .expect("the body policy is valid");
-    let policy = HttpRedactionPolicy::builder()
-        .body_policy(body_policy)
+    let policy = HttpRedactionPolicy::empty_builder()
+        .body_rules(body_policy.rules().clone())
         .body_budget(BodyBudget::new(4096, max_output).expect("the budget is valid"))
         .build()
         .expect("the HTTP policy is valid");
@@ -39,12 +41,14 @@ fn redact_json_value(mask: MaskPolicy, value: &str, max_output: usize) -> String
 #[test]
 fn test_fixed_mask_respects_output_budget() {
     let replacement = "x".repeat(1024 * 1024);
-    let body_policy = RedactionPolicy::builder_from_default()
+    let body_policy = RedactionPolicy::empty_builder()
+        .disable_floor()
+        .raise("password", Sensitivity::Secret)
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .build()
         .expect("the body policy is valid");
-    let policy = HttpRedactionPolicy::builder()
-        .body_policy(body_policy)
+    let policy = HttpRedactionPolicy::empty_builder()
+        .body_rules(body_policy.rules().clone())
         .body_budget(BodyBudget::new(4096, 64).expect("the budget is valid"))
         .build()
         .expect("the HTTP policy is valid");

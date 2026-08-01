@@ -144,7 +144,7 @@ impl Write for FixedBuffer {
 fn amplified_policy() -> RedactionPolicy {
     let replacement = "X".repeat(1024 * 1024);
     let budget = DiagnosticBudget::new(4096, 128).expect("the diagnostic budget should be valid");
-    RedactionPolicy::builder()
+    RedactionPolicy::empty_builder()
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .diagnostic_budget(budget)

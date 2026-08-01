@@ -41,8 +41,9 @@ where
     #[inline]
     fn redact_map_in_place(&mut self, policy: &RedactionPolicy) {
         for (key, value) in self {
-            if let Some(level) = policy.sensitivity_for(key.as_ref()) {
-                value.redact_value_in_place(level, policy.masking());
+            let resolved = policy.resolve_field(key.as_ref());
+            if let (Some(level), Some(masking)) = (resolved.sensitivity, resolved.masking) {
+                value.redact_value_in_place(level, masking);
             }
         }
     }

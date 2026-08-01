@@ -37,7 +37,7 @@ fn benchmark_unmatched_url_delimiters(criterion: &mut Criterion) {
 ///
 /// A redactor using the validated benchmark policy.
 fn redactor_with_budget(budget: BodyBudget) -> HttpRedactor {
-    let policy = HttpRedactionPolicy::builder()
+    let policy = HttpRedactionPolicy::empty_builder()
         .body_budget(budget)
         .build()
         .expect("benchmark HTTP policy is valid");
@@ -54,7 +54,7 @@ fn redactor_with_budget(budget: BodyBudget) -> HttpRedactor {
 ///
 /// A redactor using the validated benchmark policy.
 fn redactor_with_diagnostic_budget(budget: DiagnosticBudget) -> HttpRedactor {
-    let policy = HttpRedactionPolicy::builder()
+    let policy = HttpRedactionPolicy::empty_builder()
         .diagnostic_budget(budget)
         .build()
         .expect("benchmark HTTP policy is valid");

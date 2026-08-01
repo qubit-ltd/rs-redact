@@ -29,7 +29,7 @@ impl fmt::Display for GlobalDefaultAlreadySet {
     /// Returns [`fmt::Error`] when the destination rejects a write.
     #[inline(always)]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("the global default redaction policy is already set")
+        formatter.write_str("the requested global redaction default is already set")
     }
 }
 

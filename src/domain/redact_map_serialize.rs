@@ -81,8 +81,9 @@ where
     {
         let mut map = serializer.serialize_map(None)?;
         for (key, value) in self {
-            if let Some(level) = policy.sensitivity_for(key.as_ref()) {
-                let redacted = value.redact_value(level, policy.masking());
+            let resolved = policy.resolve_field(key.as_ref());
+            if let (Some(level), Some(masking)) = (resolved.sensitivity, resolved.masking) {
+                let redacted = value.redact_value(level, masking);
                 map.serialize_entry(key, &redacted)?;
             } else {
                 map.serialize_entry(key, value)?;

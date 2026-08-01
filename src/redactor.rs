@@ -65,9 +65,11 @@ impl Redactor {
     #[must_use = "use the returned redacted value"]
     #[inline]
     pub fn redact<'a>(&self, field: &str, value: &'a str) -> RedactedText<'a> {
-        let value = match self.policy.sensitivity_for(field) {
-            Some(level) => self.policy.masking().mask(level, value),
-            None => Cow::Borrowed(value),
+        let resolved = self.policy.resolve_field(field);
+        let value = match (resolved.sensitivity, resolved.masking) {
+            (Some(level), Some(masking)) => masking.mask(level, value),
+            (None, None) => Cow::Borrowed(value),
+            _ => unreachable!("a resolved sensitivity always has a mask"),
         };
         RedactedText::new(value)
     }
@@ -123,35 +125,6 @@ impl Redactor {
         value: &'value T,
     ) -> RedactedKeyedValue<'value, '_, T> {
         RedactedKeyedValue::new(key, value, &self.policy)
-    }
-
-    /// Redacts one value while bounding any allocated mask.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `'a` - Lifetime of the input and any borrowed redacted result.
-    ///
-    /// # Parameters
-    ///
-    /// * `field` - Raw field name to classify.
-    /// * `value` - Field value to redact when sensitive.
-    /// * `max_bytes` - Maximum bytes allocated for a generated mask.
-    ///
-    /// # Returns
-    ///
-    /// Typed redacted text whose owned mask does not exceed `max_bytes`.
-    #[cfg(feature = "http")]
-    pub(crate) fn redact_bounded<'a>(
-        &self,
-        field: &str,
-        value: &'a str,
-        max_bytes: usize,
-    ) -> RedactedText<'a> {
-        let value = match self.policy.sensitivity_for(field) {
-            Some(level) => self.policy.masking().mask_bounded(level, value, max_bytes),
-            None => Cow::Borrowed(value),
-        };
-        RedactedText::new(value)
     }
 
     /// Creates a redacted copy of a text-keyed, mutable text-valued map.

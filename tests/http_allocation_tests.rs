@@ -184,9 +184,9 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
     let output_limit = 128;
     let diagnostic_budget = DiagnosticBudget::new(4096, output_limit)
         .expect("the diagnostic budget can contain every marker");
-    let policy = HttpRedactionPolicy::builder()
-        .header_policy(amplified_policy.clone())
-        .query_policy(amplified_policy)
+    let policy = HttpRedactionPolicy::empty_builder()
+        .header_rules(amplified_policy.rules().clone())
+        .query_rules(amplified_policy.rules().clone())
         .diagnostic_budget(diagnostic_budget)
         .build()
         .expect("the amplified HTTP policy is valid");
@@ -225,7 +225,7 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
         .lock()
         .expect("allocation measurement lock should not be poisoned");
     let replacement = "X".repeat(64 * 1024);
-    let mut builder = RedactionPolicy::builder()
+    let mut builder = RedactionPolicy::empty_builder()
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement));
     for index in 0..700 {
@@ -234,8 +234,8 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
     let body_policy = builder.build().expect("the amplified body policy is valid");
     let output_limit = 64 * 1024;
     let body_budget = BodyBudget::new(128 * 1024, output_limit).expect("the body budget is valid");
-    let policy = HttpRedactionPolicy::builder()
-        .body_policy(body_policy)
+    let policy = HttpRedactionPolicy::empty_builder()
+        .body_rules(body_policy.rules().clone())
         .body_budget(body_budget)
         .build()
         .expect("the HTTP policy is valid");
@@ -272,7 +272,7 @@ fn test_unkeyed_json_redaction_respects_mask_budget() {
     );
     let output_limit = BodyBudget::MIN_OUTPUT_BYTES;
     let body_budget = BodyBudget::new(body.len(), output_limit).expect("the body budget is valid");
-    let policy = HttpRedactionPolicy::builder()
+    let policy = HttpRedactionPolicy::empty_builder()
         .body_budget(body_budget)
         .build()
         .expect("the HTTP policy is valid");

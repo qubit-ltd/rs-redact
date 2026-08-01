@@ -33,7 +33,7 @@
 //! use std::collections::HashMap;
 //! use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 //!
-//! let policy = RedactionPolicy::builder()
+//! let policy = RedactionPolicy::empty_builder()
 //!     .raise("tenant_secret", Sensitivity::Secret)
 //!     .build()?;
 //! let source = HashMap::from([
@@ -54,7 +54,7 @@
 //! ```
 //! use qubit_redact::{RedactionPolicy, Sensitivity};
 //!
-//! let application_default = RedactionPolicy::builder()
+//! let application_default = RedactionPolicy::empty_builder()
 //!     .raise("tenant_secret", Sensitivity::Secret)
 //!     .build()?;
 //! RedactionPolicy::set_global_default(application_default)?;
@@ -96,7 +96,7 @@
 //!     metadata: HashMap<String, String>,
 //! }
 //!
-//! let policy = RedactionPolicy::builder()
+//! let policy = RedactionPolicy::empty_builder()
 //!     .raise("api_key", Sensitivity::Secret)
 //!     .build()?;
 //! let account = Account {
@@ -244,8 +244,8 @@
 //!
 //! # JSON values
 //!
-//! With the `json` feature, [`RedactedJson`], [`RedactedJsonText`], and
-//! [`redact_json_text_in_place`] share the [`JsonDepthBudget`] stored in their
+//! With the `json` feature, `RedactedJson`, `RedactedJsonText`, and
+//! `redact_json_text_in_place` share the `JsonDepthBudget` stored in their
 //! immutable [`RedactionPolicy`] snapshot. The default maximum depth is 128;
 //! an over-depth object or array is replaced with the policy's opaque Secret
 //! mask without visiting its descendants.
@@ -300,8 +300,9 @@ pub use json::{RedactedJson, RedactedJsonText, redact_json_text_in_place};
 pub use policy::{
     AllowRule, DiagnosticBudget, DiagnosticBudgetError, DiagnosticInputBudget, FieldClassification,
     FieldMatchKind, FieldNameMatching, GlobalDefaultAlreadySet, MaskPolicy, MaskingPolicy,
-    PolicyError, RedactionPolicy, RedactionPolicyBuilder, SensitiveFieldPreset, SensitiveFieldRule,
-    Sensitivity, UnknownFieldPolicy,
+    PolicyError, PolicyLocation, RedactionFloor, RedactionFloorBuilder, RedactionFloorState,
+    RedactionPolicy, RedactionPolicyBuilder, RedactionRules, SensitiveFieldPreset,
+    SensitiveFieldRule, Sensitivity, UnknownFieldPolicy,
 };
 #[cfg(feature = "json")]
 pub use policy::{JsonDepthBudget, JsonDepthBudgetError};

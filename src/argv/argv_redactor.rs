@@ -13,6 +13,11 @@ use crate::{DiagnosticInputBudget, Redactor, Sensitivity};
 
 use super::{ArgvItem, RedactedArgv, redacted_argv_builder::TRUNCATED_ITEM};
 
+struct PendingField {
+    field: String,
+    exact: bool,
+}
+
 /// Applies one immutable redaction policy to argument vectors.
 #[must_use = "use the redactor to produce a safe argv rendering"]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -176,7 +181,7 @@ impl ArgvRedactor {
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
         let mut rendered = RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
-        let mut pending_sensitivity = None;
+        let mut pending_field = None;
 
         for item in items {
             if !input_budget.reserve(item.value().as_encoded_bytes().len()) {
@@ -184,13 +189,13 @@ impl ArgvRedactor {
                 break;
             }
             if let Some(level) = item.sensitivity() {
-                pending_sensitivity = None;
+                pending_field = None;
                 if !rendered.push(&self.mask_os_value(item.value(), level)) {
                     break;
                 }
                 continue;
             }
-            if !rendered.push(&self.redact_plain_item(item.value(), &mut pending_sensitivity)) {
+            if !rendered.push(&self.redact_plain_item(item.value(), &mut pending_field)) {
                 break;
             }
         }
@@ -248,24 +253,29 @@ impl ArgvRedactor {
     /// # Returns
     ///
     /// The redacted owned rendering of `value`.
-    fn redact_plain_item(
-        &self,
-        value: &OsStr,
-        pending_sensitivity: &mut Option<Sensitivity>,
-    ) -> String {
+    fn redact_plain_item(&self, value: &OsStr, pending_field: &mut Option<PendingField>) -> String {
         let Some(value) = value.to_str() else {
-            let encoded = value.as_encoded_bytes();
-            let may_take_separate_value = encoded.starts_with(b"-") && !encoded.contains(&b'=');
-            *pending_sensitivity = may_take_separate_value.then_some(Sensitivity::Secret);
+            *pending_field = Some(PendingField {
+                field: String::new(),
+                exact: false,
+            });
             return self.mask_opaque_value();
         };
 
-        let option_sensitivity = self.option_sensitivity(value);
-        if let Some(pending) = pending_sensitivity.take() {
-            if let Some(level) = option_sensitivity {
-                *pending_sensitivity = Some(level);
+        let option = self.option_field(value);
+        if let Some(pending) = pending_field.take() {
+            if let Some((field, exact)) = option
+                && self.option_is_sensitive(field, exact)
+            {
+                *pending_field = Some(PendingField {
+                    field: field.to_owned(),
+                    exact,
+                });
             }
-            return self.mask_utf8_value(value, pending);
+            if pending.field.is_empty() {
+                return self.mask_opaque_value();
+            }
+            return self.mask_pending_value(&pending, value);
         }
         if let Some(value) = self.redact_assignment(value) {
             return value;
@@ -276,8 +286,13 @@ impl ArgvRedactor {
         if let Some(value) = self.redact_jvm_property(value) {
             return value;
         }
-        if let Some(level) = option_sensitivity {
-            *pending_sensitivity = Some(level);
+        if let Some((field, exact)) = option
+            && self.option_is_sensitive(field, exact)
+        {
+            *pending_field = Some(PendingField {
+                field: field.to_owned(),
+                exact,
+            });
         }
         value.to_owned()
     }
@@ -292,12 +307,23 @@ impl ArgvRedactor {
     ///
     /// `Some(level)` for a configured option name, or `None` otherwise.
     #[inline]
-    fn option_sensitivity(&self, value: &str) -> Option<Sensitivity> {
+    fn option_field<'a>(&self, value: &'a str) -> Option<(&'a str, bool)> {
         let name = option_name(value)?;
         if value.starts_with("--") {
-            self.redactor.policy().sensitivity_for(name)
+            Some((name, false))
         } else {
-            self.redactor.policy().sensitivity_for_exact(name)
+            Some((name, true))
+        }
+    }
+
+    fn option_is_sensitive(&self, field: &str, exact: bool) -> bool {
+        if exact {
+            self.redactor
+                .policy()
+                .sensitivity_for_exact(field)
+                .is_some()
+        } else {
+            self.redactor.policy().sensitivity_for(field).is_some()
         }
     }
 
@@ -318,8 +344,7 @@ impl ArgvRedactor {
         if name.is_empty() {
             return None;
         }
-        let level = self.redactor.policy().sensitivity_for(name)?;
-        let redacted = self.mask_utf8_value(raw_value, level);
+        let redacted = self.mask_field_value(name, raw_value)?;
         Some(format!("{name}={redacted}"))
     }
 
@@ -340,8 +365,7 @@ impl ArgvRedactor {
         }
         let (left, raw_value) = value.split_once('=')?;
         let name = option_name(left)?;
-        let level = self.redactor.policy().sensitivity_for(name)?;
-        let redacted = self.mask_utf8_value(raw_value, level);
+        let redacted = self.mask_field_value(name, raw_value)?;
         Some(format!("{left}={redacted}"))
     }
 
@@ -360,28 +384,37 @@ impl ArgvRedactor {
         if name.is_empty() {
             return None;
         }
-        let level = self.redactor.policy().sensitivity_for(name)?;
-        let redacted = self.mask_utf8_value(raw_value, level);
+        let redacted = self.mask_field_value(name, raw_value)?;
         Some(format!("-D{name}={redacted}"))
     }
 
-    /// Masks one valid UTF-8 value at an explicit sensitivity level.
-    ///
-    /// # Parameters
-    ///
-    /// * `value` - Valid UTF-8 value to mask.
-    /// * `level` - Masking level to apply.
-    ///
-    /// # Returns
-    ///
-    /// The configured mask as an owned string.
-    #[inline(always)]
-    fn mask_utf8_value(&self, value: &str, level: Sensitivity) -> String {
-        self.redactor
-            .policy()
-            .masking()
-            .mask_bounded(level, value, self.mask_output_limit())
-            .into_owned()
+    fn mask_pending_value(&self, pending: &PendingField, value: &str) -> String {
+        let resolved = if pending.exact {
+            self.redactor.policy().resolve_field_exact(&pending.field)
+        } else {
+            self.redactor.policy().resolve_field(&pending.field)
+        };
+        match (resolved.sensitivity, resolved.masking) {
+            (Some(level), Some(masking)) => masking
+                .mask_bounded(level, value, self.mask_output_limit())
+                .into_owned(),
+            (None, None) => value.to_owned(),
+            _ => unreachable!("a resolved sensitivity always has a mask"),
+        }
+    }
+
+    /// Masks one field value using its atomic field-resolution result.
+    fn mask_field_value(&self, field: &str, value: &str) -> Option<String> {
+        let resolved = self.redactor.policy().resolve_field(field);
+        match (resolved.sensitivity, resolved.masking) {
+            (Some(level), Some(masking)) => Some(
+                masking
+                    .mask_bounded(level, value, self.mask_output_limit())
+                    .into_owned(),
+            ),
+            (None, None) => None,
+            _ => unreachable!("a resolved sensitivity always has a mask"),
+        }
     }
 
     /// Produces the configured secret replacement without reading opaque bytes.

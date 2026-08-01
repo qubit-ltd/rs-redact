@@ -27,7 +27,7 @@ fn test_redacted_json_masks_sensitive_object_values_recursively() {
             "visible",
         ],
     });
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("password", Sensitivity::Secret)
         .raise("token", Sensitivity::High)
         .raise("api_key", Sensitivity::Secret)
@@ -47,7 +47,7 @@ fn test_redacted_json_masks_sensitive_object_values_recursively() {
 #[test]
 fn test_redacted_json_uses_unknown_field_fallback() {
     let value = json!({"new_field": "raw", "public": "visible"});
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::High))
         .allow_canonical_exact("public")
         .build()
@@ -64,7 +64,7 @@ fn test_redacted_json_uses_unknown_field_fallback() {
 #[test]
 fn test_redacted_json_preserves_pretty_formatter_semantics() {
     let value = json!({"password": "raw", "name": "Ada"});
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("password", Sensitivity::Secret)
         .build()
         .expect("the policy should build");
@@ -84,7 +84,7 @@ fn test_redacted_json_masks_sensitive_non_string_values() {
         "secret_object": {"nested": "raw"},
         "visible": false,
     });
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("secret_number", Sensitivity::Secret)
         .raise("secret_object", Sensitivity::Secret)
         .build()
@@ -105,7 +105,7 @@ fn test_redacted_json_fails_closed_at_depth_budget() {
         "shallow": "visible",
         "nested": {"deeper": {"secret": "raw-depth-secret"}},
     });
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .build()
@@ -125,7 +125,7 @@ fn test_redacted_json_fails_closed_at_depth_budget() {
 #[test]
 fn test_redacted_json_serde_preserves_json_value_shape() {
     let value = json!({"password": "raw", "name": "Ada"});
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("password", Sensitivity::Secret)
         .build()
         .expect("the policy should build");
@@ -147,7 +147,7 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
         "shallow": "visible",
         "nested": {"secret": "raw-depth-secret"},
     });
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .build()

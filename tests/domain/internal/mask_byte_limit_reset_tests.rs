@@ -37,7 +37,8 @@ fn test_mask_byte_limit_reset_restores_unbounded_state_after_panic() {
     }));
     assert!(result.is_err());
 
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
+        .disable_floor()
         .raise("password", Sensitivity::Low)
         .mask(Sensitivity::Low, MaskPolicy::preserve_suffix(16, "****", 0))
         .build()

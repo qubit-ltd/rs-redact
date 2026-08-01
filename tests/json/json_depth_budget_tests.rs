@@ -30,7 +30,7 @@ fn test_json_depth_budget_validates_positive_depth() {
 #[test]
 fn test_redaction_policy_preserves_json_depth_budget() {
     let budget = JsonDepthBudget::new(3).expect("the depth budget is valid");
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .json_depth_budget(budget)
         .build()
         .expect("the policy should build");

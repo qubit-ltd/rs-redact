@@ -21,7 +21,8 @@ pub(crate) struct RedactionLimits {
 }
 
 impl RedactionLimits {
-    /// Constructs limits from a validated diagnostic and optional JSON depth limit.
+    /// Constructs limits from a validated diagnostic and optional JSON depth
+    /// limit.
     #[inline]
     pub(crate) const fn new(
         diagnostic_budget: DiagnosticBudget,

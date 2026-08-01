@@ -15,7 +15,7 @@ use qubit_redact::{
 /// Verifies explicit mutation preserves complete JSON beyond diagnostic limits.
 #[test]
 fn test_redact_json_text_in_place_is_not_limited_by_diagnostic_budget() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .diagnostic_budget(
             DiagnosticBudget::new(16, 64).expect("the diagnostic budget should be valid"),
         )
@@ -37,7 +37,7 @@ fn test_redact_json_text_in_place_is_not_limited_by_diagnostic_budget() {
 /// safety budget even though byte-oriented diagnostic limits do not apply.
 #[test]
 fn test_redact_json_text_in_place_obeys_json_depth_budget() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .build()

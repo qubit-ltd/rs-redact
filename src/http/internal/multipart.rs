@@ -9,7 +9,7 @@
 
 use std::io::Write;
 
-use crate::Redactor;
+use crate::{JsonDepthBudget, http::FieldRedactor};
 
 use super::{BoundedBodyWriter, MultipartPartMetadata, content_type, form, json, markers};
 use crate::http::{TextBodyPolicy, UnkeyedJsonValuePolicy};
@@ -33,10 +33,11 @@ use crate::http::{TextBodyPolicy, UnkeyedJsonValuePolicy};
 /// malformed input.
 #[must_use]
 pub(in crate::http) fn redact(
-    redactor: &Redactor,
+    redactor: &FieldRedactor<'_>,
     boundary: &str,
     require_form_data: bool,
     bytes: &[u8],
+    json_depth_budget: JsonDepthBudget,
     text_policy: TextBodyPolicy,
     unkeyed_policy: UnkeyedJsonValuePolicy,
     max_mask_bytes: usize,
@@ -56,6 +57,7 @@ pub(in crate::http) fn redact(
         let (line, part_passed, part_truncated) = redact_part(
             redactor,
             part,
+            json_depth_budget,
             text_policy,
             unkeyed_policy,
             require_form_data,
@@ -96,8 +98,9 @@ pub(in crate::http) fn redact(
 /// for malformed input.
 #[must_use]
 fn redact_part(
-    redactor: &Redactor,
+    redactor: &FieldRedactor<'_>,
     segment: &[u8],
+    json_depth_budget: JsonDepthBudget,
     text_policy: TextBodyPolicy,
     unkeyed_policy: UnkeyedJsonValuePolicy,
     require_form_data: bool,
@@ -125,23 +128,26 @@ fn redact_part(
         (markers::MULTIPART_FILE.to_string(), false, false)
     } else if name == markers::MULTIPART_UNNAMED {
         (markers::MULTIPART_PART.to_string(), false, false)
-    } else if redactor.policy().sensitivity_for(name).is_some() {
-        let body = std::str::from_utf8(body).ok()?;
-        let value = redactor
-            .redact_bounded(name, body, *remaining_mask_bytes)
-            .into_owned();
-        *remaining_mask_bytes = remaining_mask_bytes.saturating_sub(value.len());
-        (value, false, false)
     } else {
-        redact_non_sensitive_part(
-            redactor,
-            body,
-            metadata.content_type(),
-            text_policy,
-            unkeyed_policy,
-            remaining_mask_bytes,
-            max_output_bytes,
-        )?
+        let body_text = std::str::from_utf8(body).ok()?;
+        if let Some(value) =
+            redactor.redact_bounded_if_sensitive(name, body_text, *remaining_mask_bytes)
+        {
+            let value = value.into_owned();
+            *remaining_mask_bytes = remaining_mask_bytes.saturating_sub(value.len());
+            (value, false, false)
+        } else {
+            redact_non_sensitive_part(
+                redactor,
+                body,
+                json_depth_budget,
+                metadata.content_type(),
+                text_policy,
+                unkeyed_policy,
+                remaining_mask_bytes,
+                max_output_bytes,
+            )?
+        }
     };
     if truncated {
         return Some((String::new(), passed, true));
@@ -167,8 +173,9 @@ fn redact_part(
 /// for invalid UTF-8, JSON, or serialization.
 #[must_use]
 fn redact_non_sensitive_part(
-    redactor: &Redactor,
+    redactor: &FieldRedactor<'_>,
     body: &[u8],
+    json_depth_budget: JsonDepthBudget,
     part_type: Option<&str>,
     text_policy: TextBodyPolicy,
     unkeyed_policy: UnkeyedJsonValuePolicy,
@@ -182,6 +189,7 @@ fn redact_non_sensitive_part(
             let passed = json::redact_with_remaining(
                 redactor,
                 &mut value,
+                json_depth_budget,
                 unkeyed_policy,
                 remaining_mask_bytes,
             );
@@ -191,6 +199,7 @@ fn redact_non_sensitive_part(
         Some(value) if content_type::is_ndjson(value) => json::redact_ndjson_with_remaining(
             redactor,
             body,
+            json_depth_budget,
             unkeyed_policy,
             remaining_mask_bytes,
             max_output_bytes,

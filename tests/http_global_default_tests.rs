@@ -16,7 +16,7 @@ use qubit_redact::{DiagnosticBudget, RedactionPolicy, http::HttpRedactionPolicy}
 #[test]
 fn test_http_policy_defaults_preserve_global_diagnostic_budget() {
     let expected = DiagnosticBudget::new(64, 64).expect("the diagnostic budget should be valid");
-    let custom = RedactionPolicy::builder()
+    let custom = RedactionPolicy::empty_builder()
         .diagnostic_budget(expected)
         .build()
         .expect("the custom global policy should be valid");

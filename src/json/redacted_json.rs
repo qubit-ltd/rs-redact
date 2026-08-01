@@ -144,16 +144,17 @@ impl serde::Serialize for RedactedJson<'_, '_> {
             Value::Object(values) => {
                 let mut output = serializer.serialize_map(Some(values.len()))?;
                 for (key, value) in values {
-                    if let Some(sensitivity) = self.policy.sensitivity_for(key) {
+                    let resolved = self.policy.resolve_field(key);
+                    if let (Some(sensitivity), Some(masking)) =
+                        (resolved.sensitivity, resolved.masking)
+                    {
                         match value {
                             Value::String(text) => {
-                                let redacted =
-                                    text.redact_value(sensitivity, self.policy.masking());
+                                let redacted = text.redact_value(sensitivity, masking);
                                 output.serialize_entry(key, &redacted)?;
                             }
                             _ => {
-                                let redacted =
-                                    RedactedValue::opaque(sensitivity, self.policy.masking());
+                                let redacted = RedactedValue::opaque(sensitivity, masking);
                                 output.serialize_entry(key, &redacted)?;
                             }
                         }
@@ -197,8 +198,10 @@ fn fmt_json(view: &RedactedJson<'_, '_>, formatter: &mut fmt::Formatter<'_>) -> 
         Value::Object(values) => {
             let mut output = formatter.debug_map();
             for (key, value) in values {
-                if let Some(sensitivity) = view.policy.sensitivity_for(key) {
-                    fmt_masked_entry(&mut output, key, value, sensitivity, view.policy);
+                let resolved = view.policy.resolve_field(key);
+                if let (Some(sensitivity), Some(masking)) = (resolved.sensitivity, resolved.masking)
+                {
+                    fmt_masked_entry(&mut output, key, value, sensitivity, masking);
                 } else {
                     output.entry(key, &view.nested(value));
                 }
@@ -217,21 +220,21 @@ fn fmt_json(view: &RedactedJson<'_, '_>, formatter: &mut fmt::Formatter<'_>) -> 
 /// * key - Original object key preserved in output.
 /// * value - Sensitive value to replace.
 /// * sensitivity - Level selecting the configured mask.
-/// * policy - Immutable masking configuration.
+/// * masking - Masking configuration selected by atomic field resolution.
 fn fmt_masked_entry(
     output: &mut fmt::DebugMap<'_, '_>,
     key: &str,
     value: &Value,
     sensitivity: crate::Sensitivity,
-    policy: &RedactionPolicy,
+    masking: &crate::MaskingPolicy,
 ) {
     match value {
         Value::String(text) => {
-            let redacted = text.redact_value(sensitivity, policy.masking());
+            let redacted = text.redact_value(sensitivity, masking);
             output.entry(&key, &redacted);
         }
         _ => {
-            let redacted = RedactedValue::opaque(sensitivity, policy.masking());
+            let redacted = RedactedValue::opaque(sensitivity, masking);
             output.entry(&key, &redacted);
         }
     };

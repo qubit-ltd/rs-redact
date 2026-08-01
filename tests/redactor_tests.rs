@@ -14,7 +14,7 @@ use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 /// Verifies an explicit sensitivity cannot be bypassed by a field allow rule.
 #[test]
 fn test_redact_at_ignores_field_allow_rules() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .allow_canonical_exact("password")
         .build()
         .expect("the policy is valid");

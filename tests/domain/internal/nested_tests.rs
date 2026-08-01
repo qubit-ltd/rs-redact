@@ -37,7 +37,7 @@ struct Session {
 /// Verifies every nested container receives the same explicit policy.
 #[test]
 fn test_nested_uses_the_same_explicit_policy_for_every_container() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[strict]"))
         .build()
         .expect("the fixed replacement is valid");

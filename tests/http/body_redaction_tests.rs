@@ -10,7 +10,7 @@
 use std::fmt::Display;
 
 use qubit_redact::{
-    LogSafeText, PolicyError, RedactionPolicy, Sensitivity,
+    LogSafeText, PolicyError, PolicyLocation, RedactionPolicy, Sensitivity,
     http::{
         BodyBudget, BodyCapture, BodyRedaction, BodyRedactionReason, BodyRedactionStatus,
         HttpRedactionPolicy, HttpRedactor,
@@ -45,9 +45,9 @@ const fn alternate_is_truncated(_body: &BodyRedaction) -> bool {
 fn test_http_redaction_policy_default_uses_safe_values() {
     let policy = HttpRedactionPolicy::default();
 
-    assert_eq!(policy.header_policy(), &RedactionPolicy::default(),);
-    assert_eq!(policy.query_policy(), &RedactionPolicy::default());
-    assert_eq!(policy.body_policy(), &RedactionPolicy::default());
+    assert_eq!(policy.header_rules(), RedactionPolicy::default().rules(),);
+    assert_eq!(policy.query_rules(), RedactionPolicy::default().rules());
+    assert_eq!(policy.body_rules(), RedactionPolicy::default().rules());
     assert_eq!(policy.body_budget().max_input_bytes(), 16 * 1024);
     assert_eq!(policy.body_budget().max_output_bytes(), 64 * 1024);
 }
@@ -55,47 +55,46 @@ fn test_http_redaction_policy_default_uses_safe_values() {
 /// Verifies the HTTP builder has no field rules.
 #[test]
 fn test_http_redaction_policy_builder_has_no_field_rules() {
-    let policy = HttpRedactionPolicy::builder()
+    let policy = HttpRedactionPolicy::empty_builder()
+        .disable_floor()
         .build()
         .expect("HTTP redaction policy should be valid");
 
-    assert_eq!(
-        policy.header_policy().sensitivity_for("authorization"),
-        None
-    );
-    assert_eq!(policy.query_policy().sensitivity_for("password"), None);
-    assert_eq!(policy.body_policy().sensitivity_for("password"), None);
+    assert_eq!(policy.header_rules().sensitivity_for("authorization"), None);
+    assert_eq!(policy.query_rules().sensitivity_for("password"), None);
+    assert_eq!(policy.body_rules().sensitivity_for("password"), None);
 }
 
 /// Verifies each HTTP context can receive an independent immutable snapshot.
 #[test]
 fn test_http_redaction_policy_builder_overrides_each_context() {
     let base = RedactionPolicy::default();
-    let header = RedactionPolicy::builder()
+    let header = RedactionPolicy::empty_builder()
         .raise("header_secret", Sensitivity::Secret)
         .build()
         .expect("header policy should be valid");
-    let query = RedactionPolicy::builder()
+    let query = RedactionPolicy::empty_builder()
         .raise("query_secret", Sensitivity::Secret)
         .build()
         .expect("query policy should be valid");
-    let body = RedactionPolicy::builder()
+    let body = RedactionPolicy::empty_builder()
         .raise("body_secret", Sensitivity::Secret)
         .build()
         .expect("body policy should be valid");
     let budget = BodyBudget::new(32, 48).expect("budget should be valid");
 
-    let policy = HttpRedactionPolicy::builder_from(base)
-        .header_policy(header.clone())
-        .query_policy(query.clone())
-        .body_policy(body.clone())
+    let policy = HttpRedactionPolicy::builder_from(&base)
+        .disable_floor()
+        .header_rules(header.rules().clone())
+        .query_rules(query.rules().clone())
+        .body_rules(body.rules().clone())
         .body_budget(budget)
         .build()
         .expect("HTTP redaction policy should be valid");
 
-    assert_eq!(policy.header_policy(), &header);
-    assert_eq!(policy.query_policy(), &query);
-    assert_eq!(policy.body_policy(), &body);
+    assert_eq!(policy.header_rules(), header.rules());
+    assert_eq!(policy.query_rules(), query.rules());
+    assert_eq!(policy.body_rules(), body.rules());
     assert_eq!(policy.body_budget(), budget);
 }
 
@@ -103,11 +102,12 @@ fn test_http_redaction_policy_builder_overrides_each_context() {
 /// HTTP field context.
 #[test]
 fn test_http_redaction_policy_builder_configures_context_rules() {
-    let base = RedactionPolicy::builder()
+    let base = RedactionPolicy::empty_builder()
         .build()
         .expect("empty base policy should be valid");
 
-    let policy = HttpRedactionPolicy::builder_from(base)
+    let policy = HttpRedactionPolicy::builder_from(&base)
+        .disable_floor()
         .raise_header("header_secret", Sensitivity::High)
         .override_header("header_secret", Sensitivity::Low)
         .raise_header("visible_header", Sensitivity::Secret)
@@ -130,51 +130,49 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
         .expect("independent HTTP context rules should be valid");
 
     assert_eq!(
-        policy.header_policy().sensitivity_for("header_secret"),
+        policy.header_rules().sensitivity_for("header_secret"),
         Some(Sensitivity::Low),
     );
     assert_eq!(
-        policy.query_policy().sensitivity_for("query_secret"),
+        policy.query_rules().sensitivity_for("query_secret"),
         Some(Sensitivity::Medium),
     );
     assert_eq!(
-        policy.body_policy().sensitivity_for("body_secret"),
+        policy.body_rules().sensitivity_for("body_secret"),
         Some(Sensitivity::High),
     );
     assert_eq!(
-        policy.header_policy().sensitivity_for("visible_header"),
+        policy.header_rules().sensitivity_for("visible_header"),
         None,
     );
-    assert_eq!(policy.query_policy().sensitivity_for("visible_query"), None,);
-    assert_eq!(policy.body_policy().sensitivity_for("visible_body"), None,);
+    assert_eq!(policy.query_rules().sensitivity_for("visible_query"), None,);
+    assert_eq!(policy.body_rules().sensitivity_for("visible_body"), None,);
     assert_eq!(
         policy
-            .header_policy()
+            .header_rules()
             .sensitivity_for("tenant_visible_header"),
         Some(Sensitivity::Secret),
     );
     assert_eq!(
-        policy
-            .query_policy()
-            .sensitivity_for("tenant_visible_query"),
+        policy.query_rules().sensitivity_for("tenant_visible_query"),
         Some(Sensitivity::Secret),
     );
     assert_eq!(
-        policy.body_policy().sensitivity_for("tenant_visible_body"),
+        policy.body_rules().sensitivity_for("tenant_visible_body"),
         Some(Sensitivity::Secret),
     );
     assert_eq!(
         policy
-            .header_policy()
+            .header_rules()
             .sensitivity_for("tenant_public_header"),
         None,
     );
     assert_eq!(
-        policy.query_policy().sensitivity_for("tenant_public_query"),
+        policy.query_rules().sensitivity_for("tenant_public_query"),
         None,
     );
     assert_eq!(
-        policy.body_policy().sensitivity_for("tenant_public_body"),
+        policy.body_rules().sensitivity_for("tenant_public_body"),
         None,
     );
 }
@@ -184,10 +182,12 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
 #[test]
 fn test_http_redaction_policy_builder_reports_invalid_context_rule() {
     assert_eq!(
-        HttpRedactionPolicy::builder()
+        HttpRedactionPolicy::empty_builder()
             .raise_header("---", Sensitivity::High)
             .build(),
-        Err(PolicyError::EmptyFieldName),
+        Err(PolicyError::EmptyFieldName {
+            location: PolicyLocation::HttpHeader,
+        }),
     );
 }
 

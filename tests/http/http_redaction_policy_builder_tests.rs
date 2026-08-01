@@ -1,376 +1,113 @@
 // =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
+//    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Tests for [`HttpRedactionPolicyBuilder`](qubit_redact::http::HttpRedactionPolicyBuilder).
 
 use qubit_redact::{
-    PolicyError, RedactionPolicy, Sensitivity,
-    http::{
-        DiagnosticBudget, HttpRedactionPolicy, HttpRedactionPolicyBuilder, JsonDepthBudget,
-        TextBodyPolicy, UnkeyedJsonValuePolicy, UrlPathPolicy,
-    },
+    PolicyError, PolicyLocation, RedactionFloor, RedactionFloorState, RedactionPolicy, Sensitivity,
+    http::{DiagnosticBudget, HttpRedactionPolicy, JsonDepthBudget},
 };
 
-/// Alternate body-policy setter used as an unselected function target.
-fn alternate_body_policy(
-    builder: HttpRedactionPolicyBuilder,
-    _policy: RedactionPolicy,
-) -> HttpRedactionPolicyBuilder {
-    builder
-}
-
-/// Alternate URL-path setter used as an unselected function target.
-const fn alternate_url_path_policy(
-    builder: HttpRedactionPolicyBuilder,
-    _policy: UrlPathPolicy,
-) -> HttpRedactionPolicyBuilder {
-    builder
-}
-
-/// Alternate text-body setter used as an unselected function target.
-const fn alternate_text_body_policy(
-    builder: HttpRedactionPolicyBuilder,
-    _policy: TextBodyPolicy,
-) -> HttpRedactionPolicyBuilder {
-    builder
-}
-
-/// Alternate unkeyed-value setter used as an unselected function target.
-const fn alternate_unkeyed_json_value_policy(
-    builder: HttpRedactionPolicyBuilder,
-    _policy: UnkeyedJsonValuePolicy,
-) -> HttpRedactionPolicyBuilder {
-    builder
-}
-
-/// Builds an HTTP policy whose three contexts inherit exact and suffix allows.
-fn inherited_allow_policy() -> HttpRedactionPolicy {
-    let base = RedactionPolicy::builder()
-        .raise("access_token", Sensitivity::Secret)
-        .raise("session_token", Sensitivity::High)
-        .allow_canonical_exact("access_token")
-        .allow_suffix("session_token")
-        .build()
-        .expect("the base policy should be valid");
-    HttpRedactionPolicy::builder()
-        .header_policy(base.clone())
-        .query_policy(base.clone())
-        .body_policy(base)
-        .build()
-        .expect("the HTTP policy should be valid")
-}
-
-/// Verifies that ordinary HTTP builders have empty field policies while the
-/// explicit default entry point copies the conservative snapshot.
+/// Verifies an empty builder owns independently configurable rule snapshots.
 #[test]
-fn test_http_redaction_policy_builder_is_empty_and_default_is_explicit() {
-    let builder = HttpRedactionPolicy::builder()
+fn test_empty_builder_uses_three_rule_snapshots() {
+    let policy = HttpRedactionPolicy::empty_builder()
+        .disable_floor()
+        .raise_header("header-secret", Sensitivity::High)
+        .raise_query("query-secret", Sensitivity::Secret)
+        .raise_body("body-secret", Sensitivity::Medium)
         .build()
-        .expect("the empty HTTP policy should be valid");
-    let constructed = HttpRedactionPolicyBuilder::new()
-        .build()
-        .expect("the constructed empty HTTP policy should be valid");
-    let defaulted = HttpRedactionPolicyBuilder::default()
-        .build()
-        .expect("the default empty HTTP policy should be valid");
-    let from_default = HttpRedactionPolicy::builder_from_default()
-        .build()
-        .expect("the default HTTP policy should be valid");
+        .expect("the HTTP policy should be valid");
 
     assert_eq!(
-        builder.header_policy().sensitivity_for("authorization"),
-        None
-    );
-    assert_eq!(builder.query_policy().sensitivity_for("password"), None);
-    assert_eq!(builder.body_policy().sensitivity_for("password"), None);
-    assert_eq!(constructed, builder);
-    assert_eq!(defaulted, builder);
-    assert_eq!(
-        from_default
-            .header_policy()
-            .sensitivity_for("authorization"),
+        policy.header_rules().sensitivity_for("header-secret"),
         Some(Sensitivity::High)
     );
     assert_eq!(
-        from_default.query_policy().sensitivity_for("password"),
+        policy.query_rules().sensitivity_for("query-secret"),
         Some(Sensitivity::Secret)
     );
     assert_eq!(
-        from_default.body_policy().sensitivity_for("password"),
-        Some(Sensitivity::Secret)
+        policy.body_rules().sensitivity_for("body-secret"),
+        Some(Sensitivity::Medium)
     );
 }
 
-/// Verifies that loading defaults replaces every HTTP builder component.
+/// Verifies context validation errors identify their source.
 #[test]
-fn test_http_redaction_policy_builder_load_default_replaces_existing_state() {
-    let policy = HttpRedactionPolicy::builder()
-        .raise_body("custom_only", Sensitivity::Secret)
+fn test_build_reports_context_policy_location() {
+    assert_eq!(
+        HttpRedactionPolicy::empty_builder()
+            .raise_query("---", Sensitivity::High)
+            .build(),
+        Err(PolicyError::EmptyFieldName {
+            location: PolicyLocation::HttpQuery
+        }),
+    );
+    assert_eq!(
+        HttpRedactionPolicy::empty_builder()
+            .raise_body("---", Sensitivity::High)
+            .build(),
+        Err(PolicyError::EmptyFieldName {
+            location: PolicyLocation::HttpBody
+        }),
+    );
+}
+
+/// Verifies global and context-specific floor calls are last-call-wins.
+#[test]
+fn test_floor_configuration_is_independent_and_last_call_wins() {
+    let floor = RedactionFloor::empty_builder()
+        .raise("floor-secret", Sensitivity::Secret)
+        .build()
+        .expect("the floor should be valid");
+    let policy = HttpRedactionPolicy::empty_builder()
+        .floor(floor.clone())
+        .disable_query_floor()
+        .body_floor(floor)
+        .disable_body_floor()
+        .build()
+        .expect("the HTTP policy should be valid");
+
+    assert_eq!(
+        policy.header_rules().floor_state(),
+        RedactionFloorState::Explicit
+    );
+    assert_eq!(
+        policy.query_rules().floor_state(),
+        RedactionFloorState::Disabled
+    );
+    assert_eq!(
+        policy.body_rules().floor_state(),
+        RedactionFloorState::Disabled
+    );
+}
+
+/// Verifies replacement rules and resource budgets copy without coupling.
+#[test]
+fn test_builder_from_policy_preserves_rules_and_independent_budgets() {
+    let base = RedactionPolicy::empty_builder()
+        .raise("base-secret", Sensitivity::Secret)
+        .build()
+        .expect("the policy should be valid");
+    let diagnostic_budget = DiagnosticBudget::new(128, 256).expect("valid diagnostic budget");
+    let json_depth_budget = JsonDepthBudget::new(7).expect("valid JSON depth budget");
+    let policy = HttpRedactionPolicy::builder_from(&base)
+        .diagnostic_budget(diagnostic_budget)
+        .json_depth_budget(json_depth_budget)
+        .build()
+        .expect("the HTTP policy should be valid");
+    let rebuilt = HttpRedactionPolicy::builder_from_default()
         .load_default()
         .build()
         .expect("the default HTTP policy should be valid");
 
-    assert_eq!(policy, HttpRedactionPolicy::default());
-    assert_eq!(policy.body_policy().sensitivity_for("custom_only"), None);
-}
-
-/// Verifies the remaining replacement and behavior setters reach the built
-/// immutable policy.
-#[test]
-fn test_http_redaction_policy_builder_sets_body_and_behavior_policies() {
-    let body = RedactionPolicy::builder()
-        .raise("body-secret", Sensitivity::High)
-        .build()
-        .expect("the body policy should be valid");
-    let selected = usize::from(std::process::id() == 0);
-    let body_policy: [fn(HttpRedactionPolicyBuilder, RedactionPolicy) -> HttpRedactionPolicyBuilder;
-        2] = [
-        HttpRedactionPolicyBuilder::body_policy,
-        alternate_body_policy,
-    ];
-    let url_path_policy: [fn(
-        HttpRedactionPolicyBuilder,
-        UrlPathPolicy,
-    ) -> HttpRedactionPolicyBuilder; 2] = [
-        HttpRedactionPolicyBuilder::url_path_policy,
-        alternate_url_path_policy,
-    ];
-    let text_body_policy: [fn(
-        HttpRedactionPolicyBuilder,
-        TextBodyPolicy,
-    ) -> HttpRedactionPolicyBuilder; 2] = [
-        HttpRedactionPolicyBuilder::text_body_policy,
-        alternate_text_body_policy,
-    ];
-    let unkeyed_json_value_policy: [fn(
-        HttpRedactionPolicyBuilder,
-        UnkeyedJsonValuePolicy,
-    ) -> HttpRedactionPolicyBuilder; 2] = [
-        HttpRedactionPolicyBuilder::unkeyed_json_value_policy,
-        alternate_unkeyed_json_value_policy,
-    ];
-    let builder = body_policy[selected](HttpRedactionPolicy::builder(), body.clone());
-    let builder = url_path_policy[selected](builder, UrlPathPolicy::Preserve);
-    let builder = text_body_policy[selected](builder, TextBodyPolicy::PassThrough);
-    let policy = unkeyed_json_value_policy[selected](builder, UnkeyedJsonValuePolicy::PassThrough)
-        .build()
-        .expect("the HTTP policy should be valid");
-
-    assert_eq!(policy.body_policy(), &body);
-    assert_eq!(policy.url_path_policy(), UrlPathPolicy::Preserve);
-    assert_eq!(policy.text_body_policy(), TextBodyPolicy::PassThrough);
-    assert_eq!(
-        policy.unkeyed_json_value_policy(),
-        UnkeyedJsonValuePolicy::PassThrough,
-    );
-}
-
-/// Verifies custom diagnostic limits survive building and rebuilding a policy.
-#[test]
-fn test_http_redaction_policy_builder_preserves_diagnostic_budget() {
-    let budget =
-        DiagnosticBudget::new(128, 256).expect("the custom diagnostic budget should be valid");
-    let policy = HttpRedactionPolicy::builder()
-        .diagnostic_budget(budget)
-        .build()
-        .expect("the HTTP policy should be valid");
-    let rebuilt = HttpRedactionPolicyBuilder::from_policy(&policy)
-        .build()
-        .expect("the copied HTTP policy should be valid");
-
-    assert_eq!(policy.diagnostic_budget(), budget);
-    assert_eq!(rebuilt, policy);
-}
-
-/// Verifies custom JSON depth limits survive building and rebuilding a policy.
-#[test]
-fn test_http_redaction_policy_builder_preserves_json_depth_budget() {
-    let budget = JsonDepthBudget::new(7).expect("the JSON depth budget is valid");
-    let policy = HttpRedactionPolicy::builder()
-        .json_depth_budget(budget)
-        .build()
-        .expect("the HTTP policy should be valid");
-    let rebuilt = HttpRedactionPolicyBuilder::from_policy(&policy)
-        .build()
-        .expect("the copied HTTP policy should be valid");
-
-    assert_eq!(policy.json_depth_budget(), budget);
-    assert_eq!(rebuilt, policy);
-}
-
-/// Verifies diagnostic limits remain independent from component-policy setter
-/// order.
-#[test]
-fn test_http_redaction_policy_builder_keeps_diagnostic_budget_independent() {
-    let selected = DiagnosticBudget::new(128, 256).expect("the selected budget should be valid");
-    let replaced =
-        DiagnosticBudget::new(512, 1024).expect("the replacement budget should be valid");
-    let body = RedactionPolicy::builder()
-        .diagnostic_budget(replaced)
-        .build()
-        .expect("the body policy should be valid");
-
-    let budget_before_body = HttpRedactionPolicy::builder()
-        .diagnostic_budget(selected)
-        .body_policy(body.clone())
-        .build()
-        .expect("the HTTP policy should be valid");
-    let budget_after_body = HttpRedactionPolicy::builder()
-        .body_policy(body)
-        .diagnostic_budget(selected)
-        .build()
-        .expect("the HTTP policy should be valid");
-
-    assert_eq!(budget_before_body.diagnostic_budget(), selected);
-    assert_eq!(budget_after_body.diagnostic_budget(), selected);
-}
-
-/// Verifies validation reaches invalid query and body builders after earlier
-/// contexts succeed.
-#[test]
-fn test_http_redaction_policy_builder_validates_each_context_in_order() {
-    let invalid_query = HttpRedactionPolicy::builder()
-        .raise_query("---", Sensitivity::High)
-        .build();
-    let invalid_body = HttpRedactionPolicy::builder()
-        .raise_body("---", Sensitivity::High)
-        .build();
-
-    assert_eq!(invalid_query, Err(PolicyError::EmptyFieldName));
-    assert_eq!(invalid_body, Err(PolicyError::EmptyFieldName));
-}
-
-/// Verifies context-specific builders can revoke inherited allow rules.
-#[test]
-fn test_http_redaction_policy_builder_removes_inherited_allow_rules() {
-    let policy = HttpRedactionPolicyBuilder::from_policy(&inherited_allow_policy())
-        .remove_header_allow_exact("access-token")
-        .remove_query_allow_suffix("session-token")
-        .clear_body_allow_rules()
-        .build()
-        .expect("the rebuilt HTTP policy should be valid");
-
-    assert_eq!(
-        policy.header_policy().sensitivity_for("access_token"),
-        Some(Sensitivity::Secret),
-    );
-    assert_eq!(
-        policy
-            .query_policy()
-            .sensitivity_for("request_session_token"),
-        Some(Sensitivity::High),
-    );
-    assert_eq!(
-        policy.body_policy().sensitivity_for("access_token"),
-        Some(Sensitivity::Secret),
-    );
-    assert_eq!(
-        policy
-            .body_policy()
-            .sensitivity_for("request_session_token"),
-        Some(Sensitivity::High),
-    );
-}
-
-/// Verifies every context-specific allow-rule revocation reaches its matching
-/// field policy without changing the other allow rule.
-#[test]
-fn test_http_redaction_policy_builder_revokes_each_remaining_allow_rule() {
-    let original = inherited_allow_policy();
-
-    let header_suffix = HttpRedactionPolicyBuilder::from_policy(&original)
-        .remove_header_allow_suffix("session-token")
-        .build()
-        .expect("the rebuilt header policy should be valid");
-    assert_eq!(
-        header_suffix
-            .header_policy()
-            .sensitivity_for("request_session_token"),
-        Some(Sensitivity::High),
-    );
-    assert_eq!(
-        header_suffix
-            .header_policy()
-            .sensitivity_for("access_token"),
-        None
-    );
-
-    let header_clear = HttpRedactionPolicyBuilder::from_policy(&original)
-        .clear_header_allow_rules()
-        .build()
-        .expect("the rebuilt header policy should be valid");
-    assert_eq!(
-        header_clear.header_policy().sensitivity_for("access_token"),
-        Some(Sensitivity::Secret),
-    );
-    assert_eq!(
-        header_clear
-            .header_policy()
-            .sensitivity_for("request_session_token"),
-        Some(Sensitivity::High),
-    );
-
-    let query_exact = HttpRedactionPolicyBuilder::from_policy(&original)
-        .remove_query_allow_exact("access-token")
-        .build()
-        .expect("the rebuilt query policy should be valid");
-    assert_eq!(
-        query_exact.query_policy().sensitivity_for("access_token"),
-        Some(Sensitivity::Secret),
-    );
-    assert_eq!(
-        query_exact
-            .query_policy()
-            .sensitivity_for("request_session_token"),
-        None,
-    );
-
-    let query_clear = HttpRedactionPolicyBuilder::from_policy(&original)
-        .clear_query_allow_rules()
-        .build()
-        .expect("the rebuilt query policy should be valid");
-    assert_eq!(
-        query_clear.query_policy().sensitivity_for("access_token"),
-        Some(Sensitivity::Secret),
-    );
-    assert_eq!(
-        query_clear
-            .query_policy()
-            .sensitivity_for("request_session_token"),
-        Some(Sensitivity::High),
-    );
-
-    let body_exact = HttpRedactionPolicyBuilder::from_policy(&original)
-        .remove_body_allow_exact("access-token")
-        .build()
-        .expect("the rebuilt body policy should be valid");
-    assert_eq!(
-        body_exact.body_policy().sensitivity_for("access_token"),
-        Some(Sensitivity::Secret),
-    );
-    assert_eq!(
-        body_exact
-            .body_policy()
-            .sensitivity_for("request_session_token"),
-        None,
-    );
-
-    let body_suffix = HttpRedactionPolicyBuilder::from_policy(&original)
-        .remove_body_allow_suffix("session-token")
-        .build()
-        .expect("the rebuilt body policy should be valid");
-    assert_eq!(
-        body_suffix.body_policy().sensitivity_for("access_token"),
-        None
-    );
-    assert_eq!(
-        body_suffix
-            .body_policy()
-            .sensitivity_for("request_session_token"),
-        Some(Sensitivity::High),
-    );
+    assert_eq!(policy.header_rules(), base.rules());
+    assert_eq!(policy.query_rules(), base.rules());
+    assert_eq!(policy.body_rules(), base.rules());
+    assert_eq!(policy.diagnostic_budget(), diagnostic_budget);
+    assert_eq!(policy.json_depth_budget(), json_depth_budget);
+    assert_eq!(rebuilt, HttpRedactionPolicy::default());
 }

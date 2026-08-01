@@ -23,7 +23,7 @@ use qubit_redact::{
 #[test]
 fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
     let budget = DiagnosticBudget::new(8, 64).expect("the small diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .diagnostic_budget(budget)
         .build()
         .expect("the bounded policy should be valid");
@@ -42,7 +42,7 @@ fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
 #[test]
 fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
     let budget = DiagnosticBudget::new(8, 64).expect("the small diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .diagnostic_budget(budget)
         .build()
         .expect("the bounded policy should be valid");
@@ -112,7 +112,7 @@ fn test_redact_pair_ignores_empty_canonical_name() {
 /// Verifies the longest matching suffix determines the sensitivity level.
 #[test]
 fn test_redact_pair_resolves_longest_suffix_match() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("key", Sensitivity::Low)
         .raise("api_key", Sensitivity::High)
         .build()
@@ -128,7 +128,8 @@ fn test_redact_pair_resolves_longest_suffix_match() {
 /// Verifies an exact-only policy keeps a merely prefixed environment name.
 #[test]
 fn test_redact_pair_honors_exact_matching_policy() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
+        .disable_floor()
         .matching(FieldNameMatching::Exact)
         .build()
         .expect("the exact-only environment policy should be valid");
@@ -193,7 +194,7 @@ fn test_redact_pair_escapes_non_sensitive_name_and_value() {
 /// Verifies custom field rules are resolved through the injected policy.
 #[test]
 fn test_new_uses_custom_redaction_policy() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("tenant_value", Sensitivity::Secret)
         .build()
         .expect("the custom environment policy should be valid");

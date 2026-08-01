@@ -9,7 +9,7 @@
 
 use form_urlencoded::byte_serialize;
 
-use crate::Redactor;
+use crate::http::FieldRedactor;
 
 /// Reports whether every form component decodes unambiguously as UTF-8.
 ///
@@ -48,7 +48,7 @@ pub(in crate::http) fn is_valid(input: &[u8]) -> bool {
 /// the caller can detect and mark truncation.
 #[must_use]
 pub(in crate::http) fn redact_bounded(
-    redactor: &Redactor,
+    redactor: &FieldRedactor<'_>,
     input: &[u8],
     max_output_bytes: usize,
 ) -> String {

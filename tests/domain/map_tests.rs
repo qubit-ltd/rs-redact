@@ -56,7 +56,7 @@ struct CountedEvent {
 /// Verifies marked maps use the view policy without changing their source.
 #[test]
 fn test_map_uses_view_policy_lazily_and_unmarked_map_stays_plain() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .raise("tenant_secret", Sensitivity::Secret)
         .build()
         .expect("the field rule is valid");

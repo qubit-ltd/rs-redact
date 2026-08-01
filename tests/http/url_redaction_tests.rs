@@ -17,7 +17,7 @@ use url::Url;
 fn redactor_with_diagnostic_budget(input: usize, output: usize) -> HttpRedactor {
     let budget = DiagnosticBudget::new(input, output)
         .expect("test diagnostic budgets satisfy the public lower bounds");
-    let policy = HttpRedactionPolicy::builder()
+    let policy = HttpRedactionPolicy::empty_builder()
         .diagnostic_budget(budget)
         .build()
         .expect("HTTP redaction policy should be valid");
@@ -215,15 +215,18 @@ fn test_nested_url_detection_covers_malformed_and_bounded_decoding() {
 #[test]
 /// Verifies that url redaction preserves authoritative mask output.
 fn test_url_redaction_preserves_authoritative_mask_output() {
-    let query_policy = RedactionPolicy::builder_from_default()
+    let query_policy = RedactionPolicy::empty_builder()
+        .disable_floor()
+        .raise("password", Sensitivity::Secret)
         .mask(
             Sensitivity::Secret,
             MaskPolicy::fixed("https://mask.invalid/private"),
         )
         .build()
         .expect("query policy should be valid");
-    let policy = HttpRedactionPolicy::builder()
-        .query_policy(query_policy)
+    let policy = HttpRedactionPolicy::empty_builder()
+        .query_rules(query_policy.rules().clone())
+        .disable_query_floor()
         .build()
         .expect("HTTP policy should be valid");
     let result =

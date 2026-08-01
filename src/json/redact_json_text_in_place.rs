@@ -52,7 +52,7 @@ pub(crate) fn redacted_json_text(text: &str, policy: &RedactionPolicy) -> String
         return opaque_secret(policy);
     };
     let mut remaining_mask_bytes = usize::MAX;
-    let mut state = JsonRedactionState::new(
+    let mut state = JsonRedactionState::from_policy(
         policy,
         JsonUnkeyedValuePolicy::PassThrough,
         &mut remaining_mask_bytes,

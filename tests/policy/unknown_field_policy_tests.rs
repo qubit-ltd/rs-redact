@@ -12,7 +12,7 @@ use qubit_redact::{RedactionPolicy, Sensitivity, UnknownFieldPolicy};
 /// Verifies the default policy leaves unclassified fields visible.
 #[test]
 fn test_unknown_field_policy_defaults_to_pass_through() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .build()
         .expect("the empty policy should build");
 
@@ -28,7 +28,7 @@ fn test_unknown_field_policy_defaults_to_pass_through() {
 /// classification or explicit allow and sensitive rules.
 #[test]
 fn test_unknown_field_policy_applies_after_explicit_rules() {
-    let policy = RedactionPolicy::builder()
+    let policy = RedactionPolicy::empty_builder()
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::High))
         .raise("configured", Sensitivity::Secret)
         .allow_canonical_exact("public")
@@ -47,7 +47,7 @@ fn test_unknown_field_policy_applies_after_explicit_rules() {
 /// Verifies policy copies retain the configured unknown-field fallback.
 #[test]
 fn test_unknown_field_policy_is_preserved_by_builder_from() {
-    let base = RedactionPolicy::builder()
+    let base = RedactionPolicy::empty_builder()
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Medium))
         .build()
         .expect("the base policy should build");

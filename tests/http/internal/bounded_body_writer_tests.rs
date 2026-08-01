@@ -12,13 +12,12 @@ use qubit_redact::http::{BodyBudget, BodyCapture, HttpRedactionPolicy, HttpRedac
 
 /// Builds a redactor with a deliberately small rendered-body budget.
 fn redactor_with_output_limit(max_output_bytes: usize) -> HttpRedactor {
-    let policy = HttpRedactionPolicy::builder()
+    let policy = HttpRedactionPolicy::empty_builder()
         .body_budget(BodyBudget::new(4096, max_output_bytes).expect("the body budget is valid"))
         .build()
         .expect("the HTTP policy is valid");
     HttpRedactor::new(policy)
 }
-
 /// Verifies bounded JSON rendering reports truncation without exposing a
 /// partially rendered secret.
 #[test]

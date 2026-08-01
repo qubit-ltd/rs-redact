@@ -23,14 +23,14 @@ const fn alternate_sensitivity(_rule: &SensitiveFieldRule<'static>) -> Sensitivi
 #[test]
 fn test_sensitive_field_rule_exposes_configuration() {
     let policy: &'static RedactionPolicy = Box::leak(Box::new(
-        RedactionPolicy::builder()
+        RedactionPolicy::empty_builder()
             .raise("tenant_secret", Sensitivity::High)
             .build()
             .expect("the configured rule should be valid"),
     ));
     let rule = std::hint::black_box(
         policy
-            .sensitive_rules()
+            .application_sensitive_rules()
             .next()
             .expect("the configured sensitive rule should be visible"),
     );

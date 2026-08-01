@@ -8,606 +8,365 @@
 //! Builder for immutable HTTP redaction policy snapshots.
 
 use crate::{
-    DiagnosticBudget, JsonDepthBudget, PolicyError, RedactionPolicy, RedactionPolicyBuilder,
-    Sensitivity,
+    DiagnosticBudget, JsonDepthBudget, PolicyError, PolicyLocation, RedactionFloor,
+    RedactionFloorState, RedactionPolicy, RedactionRules, Sensitivity,
+    policy::RedactionRulesBuilder,
 };
 
 use super::{
     BodyBudget, HttpRedactionPolicy, TextBodyPolicy, UnkeyedJsonValuePolicy, UrlPathPolicy,
 };
 
+/// Construction state for a single HTTP field context.
+#[derive(Debug, Clone)]
+struct ContextRulesBuilder {
+    rules: RedactionRulesBuilder,
+    floor: Option<RedactionFloor>,
+    floor_state: RedactionFloorState,
+}
+
+impl ContextRulesBuilder {
+    /// Creates empty application rules inheriting `floor`.
+    fn empty(location: PolicyLocation, floor: RedactionFloor) -> Self {
+        Self {
+            rules: RedactionRulesBuilder::empty(location),
+            floor: Some(floor),
+            floor_state: RedactionFloorState::GlobalDefault,
+        }
+    }
+
+    /// Copies an immutable rules snapshot while assigning validation location.
+    fn from_rules(rules: &RedactionRules, location: PolicyLocation) -> Self {
+        Self {
+            rules: RedactionRulesBuilder::from_inner(&rules.clone_application(), location),
+            floor: rules.floor().cloned(),
+            floor_state: rules.floor_state(),
+        }
+    }
+
+    /// Replaces the floor snapshot.
+    fn with_floor(mut self, floor: RedactionFloor) -> Self {
+        self.floor = Some(floor);
+        self.floor_state = RedactionFloorState::Explicit;
+        self
+    }
+
+    /// Disables the floor snapshot.
+    fn disable_floor(mut self) -> Self {
+        self.floor = None;
+        self.floor_state = RedactionFloorState::Disabled;
+        self
+    }
+
+    /// Builds the immutable rules snapshot.
+    fn build(self) -> Result<RedactionRules, PolicyError> {
+        Ok(RedactionRules::new(
+            self.rules.build_inner()?,
+            self.floor,
+            self.floor_state,
+        ))
+    }
+}
+
 /// Mutable construction state for an [`HttpRedactionPolicy`].
 #[must_use]
 #[derive(Debug, Clone)]
 pub struct HttpRedactionPolicyBuilder {
-    /// Header-field policy construction state.
-    header: RedactionPolicyBuilder,
-    /// Query and form field-policy construction state.
-    query: RedactionPolicyBuilder,
-    /// Structured-body field-policy construction state.
-    body: RedactionPolicyBuilder,
-    /// Visibility choice for non-root URL paths.
+    header: ContextRulesBuilder,
+    query: ContextRulesBuilder,
+    body: ContextRulesBuilder,
     url_path_policy: UrlPathPolicy,
-    /// Visibility choice for opaque UTF-8 text bodies.
     text_body_policy: TextBodyPolicy,
-    /// Visibility choice for unkeyed JSON scalars.
     unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
-    /// Finite body parser-input and log-output limits.
     body_budget: BodyBudget,
-    /// Finite limits for HTTP diagnostics outside captured bodies.
     diagnostic_budget: DiagnosticBudget,
+    json_depth_budget: JsonDepthBudget,
 }
 
 impl HttpRedactionPolicyBuilder {
-    /// Creates a builder with empty field policies and default HTTP behavior.
-    ///
-    /// # Returns
-    ///
-    /// A builder with fail-closed behavior choices and finite default limits.
-    #[inline]
+    /// Creates empty application rules using a single global-floor snapshot.
     pub fn new() -> Self {
-        Self::empty()
-    }
-
-    /// Creates a builder with empty field policies and default HTTP behavior.
-    ///
-    /// # Returns
-    ///
-    /// A builder with fail-closed behavior choices and finite default limits.
-    #[inline]
-    pub(super) fn empty() -> Self {
+        let floor = RedactionFloor::global_default();
         Self {
-            header: RedactionPolicyBuilder::empty(),
-            query: RedactionPolicyBuilder::empty(),
-            body: RedactionPolicyBuilder::empty(),
+            header: ContextRulesBuilder::empty(PolicyLocation::HttpHeader, floor.clone()),
+            query: ContextRulesBuilder::empty(PolicyLocation::HttpQuery, floor.clone()),
+            body: ContextRulesBuilder::empty(PolicyLocation::HttpBody, floor),
             url_path_policy: UrlPathPolicy::default(),
             text_body_policy: TextBodyPolicy::default(),
             unkeyed_json_value_policy: UnkeyedJsonValuePolicy::default(),
             body_budget: BodyBudget::default(),
             diagnostic_budget: DiagnosticBudget::default(),
+            json_depth_budget: JsonDepthBudget::default(),
         }
     }
 
-    /// Replaces this builder with the current default HTTP policy snapshot.
-    ///
-    /// # Returns
-    ///
-    /// A mutable copy of `HttpRedactionPolicy::default`.
-    ///
-    /// # Warning
-    ///
-    /// This replaces every builder component, including the header, query, and
-    /// body policies, behavior choices, and budgets. Call this method before
-    /// adding application-specific configuration.
-    #[inline]
+    /// Replaces every component with the current default HTTP snapshot.
     pub fn load_default(self) -> Self {
         Self::from_policy(&HttpRedactionPolicy::default())
     }
 
-    /// Creates a builder by copying a complete immutable HTTP policy.
-    ///
-    /// # Parameters
-    ///
-    /// * `policy` - HTTP policy whose fields, behaviors, and budgets are
-    ///   copied.
-    ///
-    /// # Returns
-    ///
-    /// Mutable construction state equivalent to `policy`.
-    #[inline]
+    /// Copies a complete immutable HTTP policy.
     pub fn from_policy(policy: &HttpRedactionPolicy) -> Self {
         Self {
-            header: RedactionPolicy::builder_from(policy.header_policy()),
-            query: RedactionPolicy::builder_from(policy.query_policy()),
-            body: RedactionPolicy::builder_from(policy.body_policy()),
+            header: ContextRulesBuilder::from_rules(
+                policy.header_rules(),
+                PolicyLocation::HttpHeader,
+            ),
+            query: ContextRulesBuilder::from_rules(policy.query_rules(), PolicyLocation::HttpQuery),
+            body: ContextRulesBuilder::from_rules(policy.body_rules(), PolicyLocation::HttpBody),
             url_path_policy: policy.url_path_policy(),
             text_body_policy: policy.text_body_policy(),
             unkeyed_json_value_policy: policy.unkeyed_json_value_policy(),
             body_budget: policy.body_budget(),
             diagnostic_budget: policy.diagnostic_budget(),
+            json_depth_budget: policy.json_depth_budget(),
         }
     }
 
-    /// Creates a builder with three mutable copies of `base`.
-    ///
-    /// # Parameters
-    ///
-    /// * `base` - Field policy copied for all three HTTP contexts.
-    ///
-    /// # Returns
-    ///
-    /// A builder with fail-closed behavior choices and finite default limits.
-    #[inline]
-    pub(super) fn from_base_policy(base: RedactionPolicy) -> Self {
+    /// Creates three context copies from one complete field policy.
+    pub(crate) fn from_base_policy(policy: &RedactionPolicy) -> Self {
         Self {
-            header: RedactionPolicy::builder_from(&base),
-            query: RedactionPolicy::builder_from(&base),
-            body: RedactionPolicy::builder_from(&base),
+            header: ContextRulesBuilder::from_rules(policy.rules(), PolicyLocation::HttpHeader),
+            query: ContextRulesBuilder::from_rules(policy.rules(), PolicyLocation::HttpQuery),
+            body: ContextRulesBuilder::from_rules(policy.rules(), PolicyLocation::HttpBody),
             url_path_policy: UrlPathPolicy::default(),
             text_body_policy: TextBodyPolicy::default(),
             unkeyed_json_value_policy: UnkeyedJsonValuePolicy::default(),
             body_budget: BodyBudget::default(),
-            diagnostic_budget: base.diagnostic_budget(),
+            diagnostic_budget: policy.diagnostic_budget(),
+            json_depth_budget: policy.json_depth_budget(),
         }
     }
 
-    /// Replaces the header-field policy snapshot.
-    ///
-    /// # Parameters
-    ///
-    /// * `policy` - Immutable policy used for HTTP headers.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline(always)]
-    pub fn header_policy(mut self, policy: RedactionPolicy) -> Self {
-        self.header = RedactionPolicy::builder_from(&policy);
+    /// Replaces header rules.
+    pub fn header_rules(mut self, rules: RedactionRules) -> Self {
+        self.header = ContextRulesBuilder::from_rules(&rules, PolicyLocation::HttpHeader);
+        self
+    }
+    /// Replaces query and form rules.
+    pub fn query_rules(mut self, rules: RedactionRules) -> Self {
+        self.query = ContextRulesBuilder::from_rules(&rules, PolicyLocation::HttpQuery);
+        self
+    }
+    /// Replaces structured-body rules.
+    pub fn body_rules(mut self, rules: RedactionRules) -> Self {
+        self.body = ContextRulesBuilder::from_rules(&rules, PolicyLocation::HttpBody);
         self
     }
 
-    /// Replaces the query and form field-policy snapshot.
+    /// Sets one floor for every HTTP context.
+    pub fn floor(mut self, floor: RedactionFloor) -> Self {
+        self.header = self.header.with_floor(floor.clone());
+        self.query = self.query.with_floor(floor.clone());
+        self.body = self.body.with_floor(floor);
+        self
+    }
+    /// Sets the header floor.
+    pub fn header_floor(mut self, floor: RedactionFloor) -> Self {
+        self.header = self.header.with_floor(floor);
+        self
+    }
+    /// Sets the query and form floor.
+    pub fn query_floor(mut self, floor: RedactionFloor) -> Self {
+        self.query = self.query.with_floor(floor);
+        self
+    }
+    /// Sets the structured-body floor.
+    pub fn body_floor(mut self, floor: RedactionFloor) -> Self {
+        self.body = self.body.with_floor(floor);
+        self
+    }
+    /// Disables every context floor.
     ///
-    /// # Parameters
+    /// # Security
+    /// This explicitly removes all minimum HTTP field protection.
+    pub fn disable_floor(mut self) -> Self {
+        self.header = self.header.disable_floor();
+        self.query = self.query.disable_floor();
+        self.body = self.body.disable_floor();
+        self
+    }
+    /// Disables the header floor.
     ///
-    /// * `policy` - Immutable policy used for query and form fields.
+    /// # Security
+    /// This explicitly removes minimum header protection.
+    pub fn disable_header_floor(mut self) -> Self {
+        self.header = self.header.disable_floor();
+        self
+    }
+    /// Disables the query and form floor.
     ///
-    /// # Returns
+    /// # Security
+    /// This explicitly removes minimum query protection.
+    pub fn disable_query_floor(mut self) -> Self {
+        self.query = self.query.disable_floor();
+        self
+    }
+    /// Disables the structured-body floor.
     ///
-    /// The updated builder.
-    #[inline(always)]
-    pub fn query_policy(mut self, policy: RedactionPolicy) -> Self {
-        self.query = RedactionPolicy::builder_from(&policy);
+    /// # Security
+    /// This explicitly removes minimum body protection.
+    pub fn disable_body_floor(mut self) -> Self {
+        self.body = self.body.disable_floor();
         self
     }
 
-    /// Replaces the structured-body field-policy snapshot.
-    ///
-    /// # Parameters
-    ///
-    /// * `policy` - Immutable policy used for fields inside HTTP bodies.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
-    pub fn body_policy(mut self, policy: RedactionPolicy) -> Self {
-        self.body = RedactionPolicy::builder_from(&policy);
-        self
-    }
-
-    /// Raises one header field to at least `level`.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Header name to canonicalize.
-    /// * `level` - Minimum sensitivity level.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Applies header application rules.
     pub fn raise_header(mut self, name: &str, level: Sensitivity) -> Self {
-        self.header = self.header.raise(name, level);
+        self.header.rules = self.header.rules.raise(name, level);
         self
     }
-
-    /// Replaces one header field's sensitivity with `level`.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Header name to canonicalize.
-    /// * `level` - Explicit replacement sensitivity.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Overrides one header application sensitivity.
     pub fn override_header(mut self, name: &str, level: Sensitivity) -> Self {
-        self.header = self.header.override_level(name, level);
+        self.header.rules = self.header.rules.override_level(name, level);
         self
     }
-
-    /// Allows one exact header name to remain visible.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Exact header name to allow after canonicalization.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Allows one exact header application name.
     pub fn allow_header_exact(mut self, name: &str) -> Self {
-        self.header = self.header.allow_canonical_exact(name);
+        self.header.rules = self.header.rules.allow_canonical_exact(name);
         self
     }
-
-    /// Allows one header name at token-suffix boundaries.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Header suffix to allow after canonicalization.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Allows one header application suffix.
     pub fn allow_header_suffix(mut self, name: &str) -> Self {
-        self.header = self.header.allow_suffix(name);
+        self.header.rules = self.header.rules.allow_suffix(name);
         self
     }
-
-    /// Removes one exact header allow rule.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Header name whose exact allow rule is removed.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Removes an exact header allow rule.
     pub fn remove_header_allow_exact(mut self, name: &str) -> Self {
-        self.header = self.header.remove_allow_canonical_exact(name);
+        self.header.rules = self.header.rules.remove_allow_canonical_exact(name);
         self
     }
-
-    /// Removes one token-suffix header allow rule.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Header suffix whose allow rule is removed.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Removes a header suffix allow rule.
     pub fn remove_header_allow_suffix(mut self, name: &str) -> Self {
-        self.header = self.header.remove_allow_suffix(name);
+        self.header.rules = self.header.rules.remove_allow_suffix(name);
         self
     }
-
-    /// Removes every header allow rule.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Removes all header allow rules.
     pub fn clear_header_allow_rules(mut self) -> Self {
-        self.header = self.header.clear_allow_rules();
+        self.header.rules = self.header.rules.clear_allow_rules();
         self
     }
 
-    /// Raises one query or form field to at least `level`.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Query field name to canonicalize.
-    /// * `level` - Minimum sensitivity level.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Applies query application rules.
     pub fn raise_query(mut self, name: &str, level: Sensitivity) -> Self {
-        self.query = self.query.raise(name, level);
+        self.query.rules = self.query.rules.raise(name, level);
         self
     }
-
-    /// Replaces one query or form field's sensitivity with `level`.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Query field name to canonicalize.
-    /// * `level` - Explicit replacement sensitivity.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Overrides one query application sensitivity.
     pub fn override_query(mut self, name: &str, level: Sensitivity) -> Self {
-        self.query = self.query.override_level(name, level);
+        self.query.rules = self.query.rules.override_level(name, level);
         self
     }
-
-    /// Allows one exact query or form field name to remain visible.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Exact query field name to allow after canonicalization.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Allows one exact query application name.
     pub fn allow_query_exact(mut self, name: &str) -> Self {
-        self.query = self.query.allow_canonical_exact(name);
+        self.query.rules = self.query.rules.allow_canonical_exact(name);
         self
     }
-
-    /// Allows one query or form field at token-suffix boundaries.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Query field suffix to allow after canonicalization.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Allows one query application suffix.
     pub fn allow_query_suffix(mut self, name: &str) -> Self {
-        self.query = self.query.allow_suffix(name);
+        self.query.rules = self.query.rules.allow_suffix(name);
         self
     }
-
-    /// Removes one exact query or form-field allow rule.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Query or form-field name whose exact allow rule is removed.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Removes an exact query allow rule.
     pub fn remove_query_allow_exact(mut self, name: &str) -> Self {
-        self.query = self.query.remove_allow_canonical_exact(name);
+        self.query.rules = self.query.rules.remove_allow_canonical_exact(name);
         self
     }
-
-    /// Removes one token-suffix query or form-field allow rule.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Query or form-field suffix whose allow rule is removed.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Removes a query suffix allow rule.
     pub fn remove_query_allow_suffix(mut self, name: &str) -> Self {
-        self.query = self.query.remove_allow_suffix(name);
+        self.query.rules = self.query.rules.remove_allow_suffix(name);
         self
     }
-
-    /// Removes every query and form-field allow rule.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Removes all query allow rules.
     pub fn clear_query_allow_rules(mut self) -> Self {
-        self.query = self.query.clear_allow_rules();
+        self.query.rules = self.query.rules.clear_allow_rules();
         self
     }
 
-    /// Raises one structured-body field to at least `level`.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Body field name to canonicalize.
-    /// * `level` - Minimum sensitivity level.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Applies structured-body application rules.
     pub fn raise_body(mut self, name: &str, level: Sensitivity) -> Self {
-        self.body = self.body.raise(name, level);
+        self.body.rules = self.body.rules.raise(name, level);
         self
     }
-
-    /// Replaces one structured-body field's sensitivity with `level`.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Body field name to canonicalize.
-    /// * `level` - Explicit replacement sensitivity.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Overrides one structured-body application sensitivity.
     pub fn override_body(mut self, name: &str, level: Sensitivity) -> Self {
-        self.body = self.body.override_level(name, level);
+        self.body.rules = self.body.rules.override_level(name, level);
         self
     }
-
-    /// Allows one exact structured-body field name to remain visible.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Exact body field name to allow after canonicalization.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Allows one exact structured-body application name.
     pub fn allow_body_exact(mut self, name: &str) -> Self {
-        self.body = self.body.allow_canonical_exact(name);
+        self.body.rules = self.body.rules.allow_canonical_exact(name);
         self
     }
-
-    /// Allows one structured-body field at token-suffix boundaries.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Body field suffix to allow after canonicalization.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Allows one structured-body application suffix.
     pub fn allow_body_suffix(mut self, name: &str) -> Self {
-        self.body = self.body.allow_suffix(name);
+        self.body.rules = self.body.rules.allow_suffix(name);
         self
     }
-
-    /// Removes one exact structured-body allow rule.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Body-field name whose exact allow rule is removed.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Removes an exact structured-body allow rule.
     pub fn remove_body_allow_exact(mut self, name: &str) -> Self {
-        self.body = self.body.remove_allow_canonical_exact(name);
+        self.body.rules = self.body.rules.remove_allow_canonical_exact(name);
         self
     }
-
-    /// Removes one token-suffix structured-body allow rule.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Body-field suffix whose allow rule is removed.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Removes a structured-body suffix allow rule.
     pub fn remove_body_allow_suffix(mut self, name: &str) -> Self {
-        self.body = self.body.remove_allow_suffix(name);
+        self.body.rules = self.body.rules.remove_allow_suffix(name);
         self
     }
-
-    /// Removes every structured-body allow rule.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Removes all structured-body allow rules.
     pub fn clear_body_allow_rules(mut self) -> Self {
-        self.body = self.body.clear_allow_rules();
+        self.body.rules = self.body.rules.clear_allow_rules();
         self
     }
 
-    /// Replaces the URL path visibility choice.
-    ///
-    /// # Parameters
-    ///
-    /// * `policy` - Visibility behavior for non-root URL paths.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Replaces URL path handling.
     pub const fn url_path_policy(mut self, policy: UrlPathPolicy) -> Self {
         self.url_path_policy = policy;
         self
     }
-
-    /// Replaces the opaque text-body visibility choice.
-    ///
-    /// # Parameters
-    ///
-    /// * `policy` - Visibility behavior for opaque UTF-8 body text.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Replaces opaque text-body handling.
     pub const fn text_body_policy(mut self, policy: TextBodyPolicy) -> Self {
         self.text_body_policy = policy;
         self
     }
-
-    /// Replaces the unkeyed JSON scalar visibility choice.
-    ///
-    /// # Parameters
-    ///
-    /// * `policy` - Visibility behavior for JSON values without field names.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline]
+    /// Replaces unkeyed JSON value handling.
     pub const fn unkeyed_json_value_policy(mut self, policy: UnkeyedJsonValuePolicy) -> Self {
         self.unkeyed_json_value_policy = policy;
         self
     }
-
-    /// Replaces the maximum recursion depth for structured JSON bodies.
-    ///
-    /// # Parameters
-    ///
-    /// * `budget` - Previously validated recursive container-depth limit.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline(always)]
-    pub fn json_depth_budget(mut self, budget: JsonDepthBudget) -> Self {
-        self.body = self.body.json_depth_budget(budget);
+    /// Replaces the structured JSON depth limit.
+    pub const fn json_depth_budget(mut self, budget: JsonDepthBudget) -> Self {
+        self.json_depth_budget = budget;
         self
     }
-
-    /// Replaces the finite hard body limits.
-    ///
-    /// # Parameters
-    ///
-    /// * `budget` - Previously checked parser-input and output byte limits.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline(always)]
+    /// Replaces the body byte limits.
     pub const fn body_budget(mut self, budget: BodyBudget) -> Self {
         self.body_budget = budget;
         self
     }
-
-    /// Replaces the finite hard HTTP diagnostic limits.
-    ///
-    /// # Parameters
-    ///
-    /// * `budget` - Previously checked diagnostic input and output byte limits.
-    ///
-    /// # Returns
-    ///
-    /// The updated builder.
-    #[inline(always)]
-    pub fn diagnostic_budget(mut self, budget: DiagnosticBudget) -> Self {
+    /// Replaces diagnostic limits.
+    pub const fn diagnostic_budget(mut self, budget: DiagnosticBudget) -> Self {
         self.diagnostic_budget = budget;
         self
     }
 
-    /// Validates all field rules and builds the complete HTTP policy.
-    ///
-    /// # Returns
-    ///
-    /// A complete immutable HTTP policy snapshot.
-    ///
-    /// # Errors
-    ///
-    /// Returns the first [`PolicyError`] found while validating the header,
-    /// query, and body policy builders in that order.
+    /// Builds the complete HTTP policy, validating header, query, then body.
     pub fn build(self) -> Result<HttpRedactionPolicy, PolicyError> {
-        let header = self.header.build()?;
-        let query = self.query.build()?;
-        let body = self.body.build()?;
         Ok(HttpRedactionPolicy::from_parts(
-            header,
-            query,
-            body,
+            self.header.build()?,
+            self.query.build()?,
+            self.body.build()?,
+            self.diagnostic_budget,
+            self.body_budget,
+            self.json_depth_budget,
             self.url_path_policy,
             self.text_body_policy,
             self.unkeyed_json_value_policy,
-            self.body_budget,
-        )
-        .with_diagnostic_budget(self.diagnostic_budget))
+        ))
     }
 }
 
 impl Default for HttpRedactionPolicyBuilder {
-    /// Creates the same empty construction state as [`Self::new`].
-    ///
-    /// # Returns
-    ///
-    /// A builder with empty field policies and default HTTP behavior.
     fn default() -> Self {
         Self::new()
     }

@@ -14,6 +14,6 @@ use qubit_redact::GlobalDefaultAlreadySet;
 fn test_global_default_already_set_display_is_descriptive() {
     assert_eq!(
         GlobalDefaultAlreadySet.to_string(),
-        "the global default redaction policy is already set",
+        "the requested global redaction default is already set",
     );
 }
