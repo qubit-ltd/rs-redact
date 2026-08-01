@@ -7,11 +7,7 @@
 // =============================================================================
 //! Log-safe rendering of one redacted environment pair.
 
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
-};
+use std::fmt::{self, Display, Formatter};
 
 use crate::LogSafeText;
 
@@ -37,10 +33,7 @@ impl RedactedEnvPair {
     ///
     /// A pair that renders in `NAME=VALUE` form.
     #[inline(always)]
-    pub(super) const fn new(
-        name: LogSafeText<'static>,
-        value: LogSafeText<'static>,
-    ) -> Self {
+    pub(super) const fn new(name: LogSafeText<'static>, value: LogSafeText<'static>) -> Self {
         Self { name, value }
     }
 }

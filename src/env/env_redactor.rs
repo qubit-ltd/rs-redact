@@ -7,19 +7,10 @@
 // =============================================================================
 //! Environment-variable pair and assignment redaction.
 
-use std::{
-    borrow::Cow,
-    ffi::OsStr,
-    fmt::Write as _,
-};
+use std::{borrow::Cow, ffi::OsStr, fmt::Write as _};
 
 use crate::{
-    DiagnosticInputBudget,
-    LogOutputLimit,
-    LogSafeText,
-    RedactedText,
-    Redactor,
-    Sensitivity,
+    DiagnosticInputBudget, LogOutputLimit, LogSafeText, RedactedText, Redactor, Sensitivity,
     text::internal::BoundedLogEscapeWriter,
 };
 
@@ -93,11 +84,7 @@ impl EnvRedactor {
     /// # Returns
     ///
     /// A fail-closed, log-safe pair rendered as `NAME=VALUE`.
-    pub fn redact_os_pair(
-        &self,
-        name: &OsStr,
-        value: &OsStr,
-    ) -> RedactedEnvPair {
+    pub fn redact_os_pair(&self, name: &OsStr, value: &OsStr) -> RedactedEnvPair {
         match (name.to_str(), value.to_str()) {
             (Some(name), Some(value)) => self.redact_pair(name, value),
             _ => {
@@ -131,8 +118,7 @@ impl EnvRedactor {
     where
         I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
     {
-        let mut input_budget =
-            self.redactor.policy().diagnostic_budget().input_budget();
+        let mut input_budget = self.redactor.policy().diagnostic_budget().input_budget();
         self.redact_os_pairs_with_input_budget(pairs, &mut input_budget)
     }
 
@@ -179,11 +165,7 @@ impl EnvRedactor {
                 write_debug_item(&mut writer, &mut has_item, "<truncated>");
                 break;
             }
-            let pair = self.redact_os_pair_bounded(
-                name,
-                value,
-                budget.max_output_bytes(),
-            );
+            let pair = self.redact_os_pair_bounded(name, value, budget.max_output_bytes());
             write_debug_item(&mut writer, &mut has_item, &pair);
         }
         if !writer.is_truncated() {
@@ -206,8 +188,7 @@ impl EnvRedactor {
     /// A log-safe pair rendered as `NAME=VALUE`.
     #[inline]
     pub fn redact_assignment(&self, assignment: &str) -> RedactedEnvPair {
-        let (name, value) =
-            assignment.split_once('=').unwrap_or((assignment, ""));
+        let (name, value) = assignment.split_once('=').unwrap_or((assignment, ""));
         self.redact_pair(name, value)
     }
 
@@ -236,12 +217,7 @@ impl EnvRedactor {
     /// # Returns
     ///
     /// A log-safe assignment whose mask allocation fits `max_mask_bytes`.
-    fn redact_os_pair_bounded(
-        &self,
-        name: &OsStr,
-        value: &OsStr,
-        max_mask_bytes: usize,
-    ) -> String {
+    fn redact_os_pair_bounded(&self, name: &OsStr, value: &OsStr, max_mask_bytes: usize) -> String {
         let pair = match (name.to_str(), value.to_str()) {
             (Some(name), Some(value)) => {
                 let value = match self.redactor.policy().sensitivity_for(name) {
@@ -253,18 +229,15 @@ impl EnvRedactor {
                         .into_owned(),
                     None => value.to_owned(),
                 };
-                RedactedEnvPair::new(
-                    log_safe_owned(name.to_owned()),
-                    log_safe_owned(value),
-                )
+                RedactedEnvPair::new(log_safe_owned(name.to_owned()), log_safe_owned(value))
             }
             _ => RedactedEnvPair::new(
                 log_safe_owned(name.to_string_lossy().into_owned()),
                 log_safe_owned(
-                    self.redactor.policy().masking().mask_opaque_bounded(
-                        Sensitivity::Secret,
-                        max_mask_bytes,
-                    ),
+                    self.redactor
+                        .policy()
+                        .masking()
+                        .mask_opaque_bounded(Sensitivity::Secret, max_mask_bytes),
                 ),
             ),
         };
@@ -305,11 +278,7 @@ fn log_safe_owned(value: String) -> LogSafeText<'static> {
 /// * `writer` - Escaped bounded output destination.
 /// * `has_item` - Whether a preceding list item has already been rendered.
 /// * `item` - Redacted assignment safe to format.
-fn write_debug_item(
-    writer: &mut BoundedLogEscapeWriter,
-    has_item: &mut bool,
-    item: &str,
-) {
+fn write_debug_item(writer: &mut BoundedLogEscapeWriter, has_item: &mut bool, item: &str) {
     if *has_item {
         let _ = writer.write_str(", ");
     }

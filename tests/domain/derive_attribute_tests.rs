@@ -203,10 +203,7 @@ fn test_enum_variants_preserve_shapes_and_redact_selected_fields() {
         inner: Inner {
             secret: String::from("raw-nested"),
         },
-        metadata: HashMap::from([(
-            String::from("token"),
-            String::from("raw-map"),
-        )]),
+        metadata: HashMap::from([(String::from("token"), String::from("raw-map"))]),
     };
     let AuditEvent::Named { ignored, .. } = &named else {
         unreachable!("the constructed variant is named");

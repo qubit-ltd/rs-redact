@@ -7,23 +7,11 @@
 // =============================================================================
 //! Shared bounded construction of log-safe diagnostic text.
 
-use std::{
-    borrow::Cow,
-    fmt,
-    fmt::Write as _,
-};
+use std::{borrow::Cow, fmt, fmt::Write as _};
 
-use crate::{
-    DiagnosticBudget,
-    DiagnosticInputBudget,
-    LogOutputLimit,
-};
+use crate::{DiagnosticBudget, DiagnosticInputBudget, LogOutputLimit};
 
-use super::{
-    DiagnosticWriteStatus,
-    LogSafeText,
-    internal::BoundedLogEscapeWriter,
-};
+use super::{DiagnosticWriteStatus, LogSafeText, internal::BoundedLogEscapeWriter};
 
 /// Builds one log-safe diagnostic while sharing input and output budgets.
 ///
@@ -94,9 +82,7 @@ impl DiagnosticLogBuilder {
         }
         match fmt::write(&mut self.writer, arguments) {
             Ok(()) => Ok(DiagnosticWriteStatus::Complete),
-            Err(_) if self.writer.is_truncated() => {
-                Ok(DiagnosticWriteStatus::Truncated)
-            }
+            Err(_) if self.writer.is_truncated() => Ok(DiagnosticWriteStatus::Truncated),
             Err(error) => Err(error),
         }
     }
@@ -112,10 +98,7 @@ impl DiagnosticLogBuilder {
     /// `Complete` when the fragment fit, or `Truncated` after the marker was
     /// emitted.
     #[inline]
-    pub fn push_safe(
-        &mut self,
-        text: &LogSafeText<'_>,
-    ) -> DiagnosticWriteStatus {
+    pub fn push_safe(&mut self, text: &LogSafeText<'_>) -> DiagnosticWriteStatus {
         if self.writer.is_truncated() {
             return DiagnosticWriteStatus::Truncated;
         }

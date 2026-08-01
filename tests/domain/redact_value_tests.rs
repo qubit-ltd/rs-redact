@@ -9,13 +9,7 @@
 
 use std::borrow::Cow;
 
-use qubit_redact::{
-    MaskPolicy,
-    MaskingPolicy,
-    RedactValue,
-    RedactedValue,
-    Sensitivity,
-};
+use qubit_redact::{MaskPolicy, MaskingPolicy, RedactValue, RedactedValue, Sensitivity};
 
 /// Creates a masking policy whose secret mask contains a log control.
 ///
@@ -23,8 +17,7 @@ use qubit_redact::{
 ///
 /// A policy useful for verifying log escaping after masking.
 fn create_control_masking_policy() -> MaskingPolicy {
-    MaskingPolicy::default()
-        .with_policy(Sensitivity::Secret, MaskPolicy::fixed("masked\nvalue"))
+    MaskingPolicy::default().with_policy(Sensitivity::Secret, MaskPolicy::fixed("masked\nvalue"))
 }
 
 /// Verifies support for all borrowed and owned string forms.
@@ -60,8 +53,7 @@ fn test_redact_value_preserves_option_shape() {
     let none: Option<String> = None;
 
     let redacted_some = some.redact_value(Sensitivity::Secret, &masking);
-    let redacted_borrowed =
-        borrowed.redact_value(Sensitivity::Secret, &masking);
+    let redacted_borrowed = borrowed.redact_value(Sensitivity::Secret, &masking);
     let redacted_cow = cow.redact_value(Sensitivity::Secret, &masking);
     let redacted_none = none.redact_value(Sensitivity::Secret, &masking);
 
@@ -81,8 +73,7 @@ fn test_redact_value_preserves_option_shape() {
 fn test_redacted_value_display_is_log_safe() {
     let masking = create_control_masking_policy();
     let value = "raw-secret".redact_value(Sensitivity::Secret, &masking);
-    let optional =
-        Some("raw-secret").redact_value(Sensitivity::Secret, &masking);
+    let optional = Some("raw-secret").redact_value(Sensitivity::Secret, &masking);
 
     assert_eq!(format!("{value:?}"), "\"masked\\nvalue\"");
     assert_eq!(value.to_string(), r"masked\nvalue");

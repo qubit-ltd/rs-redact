@@ -7,18 +7,9 @@
 // =============================================================================
 //! Byte-bounded display adapter for an already-redacted view.
 
-use std::fmt::{
-    self,
-    Debug,
-    Display,
-    Formatter,
-    Write as _,
-};
+use std::fmt::{self, Debug, Display, Formatter, Write as _};
 
-use crate::{
-    LogOutputLimit,
-    text::internal::BoundedLogEscapeWriter,
-};
+use crate::{LogOutputLimit, text::internal::BoundedLogEscapeWriter};
 
 use super::internal::with_mask_byte_limit;
 
@@ -98,9 +89,7 @@ fn format_bounded(
     formatter: &mut Formatter<'_>,
 ) -> fmt::Result {
     let mut writer = BoundedLogEscapeWriter::new(limit);
-    let result = with_mask_byte_limit(limit.max_bytes(), || {
-        write!(&mut writer, "{value:?}")
-    });
+    let result = with_mask_byte_limit(limit.max_bytes(), || write!(&mut writer, "{value:?}"));
     if result.is_err() && !writer.is_truncated() {
         return Err(fmt::Error);
     }

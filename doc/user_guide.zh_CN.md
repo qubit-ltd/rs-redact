@@ -130,7 +130,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let policy = RedactionPolicy::builder()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
         .raise("license_key", Sensitivity::High)
-        .allow_exact("public_token")
+        .allow_canonical_exact("public_token")
         .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))
         .build()?;
     let redactor = Redactor::new(policy);

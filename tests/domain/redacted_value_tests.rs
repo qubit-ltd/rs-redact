@@ -7,18 +7,9 @@
 // =============================================================================
 //! Tests for [`RedactedValue`](qubit_redact::RedactedValue).
 
-use std::fmt::{
-    self,
-    Write,
-};
+use std::fmt::{self, Write};
 
-use qubit_redact::{
-    MaskPolicy,
-    MaskingPolicy,
-    RedactValue,
-    RedactedValue,
-    Sensitivity,
-};
+use qubit_redact::{MaskPolicy, MaskingPolicy, RedactValue, RedactedValue, Sensitivity};
 
 /// Verifies redacted scalar values have a log-safe display representation.
 #[test]

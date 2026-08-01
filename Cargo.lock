@@ -540,16 +540,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-redact"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "201010068486afc7742321fcde406ed82ca33c0312e33e4b9bff49a7627c2833"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "qubit-redact"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "criterion",
  "form_urlencoded",
@@ -565,11 +556,11 @@ dependencies = [
 
 [[package]]
 name = "qubit-redact-derive"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
- "qubit-redact 0.3.0",
+ "qubit-redact",
  "quote",
  "serde",
  "serde_json",

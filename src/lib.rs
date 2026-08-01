@@ -291,61 +291,24 @@ pub mod text;
 
 pub use argv::ArgvRedactor;
 pub use domain::{
-    BoundedRedactedDisplay,
-    Redact,
-    RedactMapValue,
-    RedactMapValueMut,
-    RedactMut,
-    RedactValue,
-    RedactValueMut,
-    Redacted,
-    RedactedKeyedMap,
-    RedactedKeyedValue,
-    RedactedMap,
-    RedactedValue,
+    BoundedRedactedDisplay, Redact, RedactMapValue, RedactMapValueMut, RedactMut, RedactValue,
+    RedactValueMut, Redacted, RedactedKeyedMap, RedactedKeyedValue, RedactedMap, RedactedValue,
 };
 pub use env::EnvRedactor;
 #[cfg(feature = "json")]
-pub use json::{
-    RedactedJson,
-    RedactedJsonText,
-    redact_json_text_in_place,
-};
+pub use json::{RedactedJson, RedactedJsonText, redact_json_text_in_place};
 pub use policy::{
-    AllowRule,
-    DiagnosticBudget,
-    DiagnosticBudgetError,
-    DiagnosticInputBudget,
-    FieldClassification,
-    FieldMatchKind,
-    FieldNameMatching,
-    GlobalDefaultAlreadySet,
-    MaskPolicy,
-    MaskingPolicy,
-    PolicyError,
-    RedactionPolicy,
-    RedactionPolicyBuilder,
-    SensitiveFieldPreset,
-    SensitiveFieldRule,
-    Sensitivity,
-    UnknownFieldPolicy,
+    AllowRule, DiagnosticBudget, DiagnosticBudgetError, DiagnosticInputBudget, FieldClassification,
+    FieldMatchKind, FieldNameMatching, GlobalDefaultAlreadySet, MaskPolicy, MaskingPolicy,
+    PolicyError, RedactionPolicy, RedactionPolicyBuilder, SensitiveFieldPreset, SensitiveFieldRule,
+    Sensitivity, UnknownFieldPolicy,
 };
 #[cfg(feature = "json")]
-pub use policy::{
-    JsonDepthBudget,
-    JsonDepthBudgetError,
-};
+pub use policy::{JsonDepthBudget, JsonDepthBudgetError};
 pub use redactor::Redactor;
 pub use text::{
-    BoundedLogSafeDisplay,
-    DiagnosticLogBuilder,
-    DiagnosticWriteStatus,
-    LogOutputLimit,
-    LogOutputLimitError,
-    LogSafeText,
-    RedactedDebug,
-    RedactedText,
-    redacted_debug,
+    BoundedLogSafeDisplay, DiagnosticLogBuilder, DiagnosticWriteStatus, LogOutputLimit,
+    LogOutputLimitError, LogSafeText, RedactedDebug, RedactedText, redacted_debug,
 };
 
 #[cfg(feature = "serde")]

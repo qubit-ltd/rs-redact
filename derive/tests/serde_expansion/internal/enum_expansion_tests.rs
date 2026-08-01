@@ -44,11 +44,9 @@ fn test_serde_enum_dispatch_rejects_selected_skipped_variants() {
             "cannot serialize skipped redacted variant `Named`",
         ),
         (
-            serde_json::to_value(
-                SkippedVariants::Tuple(String::from("raw")).redacted(),
-            )
-            .expect_err("a selected skipped tuple variant is rejected")
-            .to_string(),
+            serde_json::to_value(SkippedVariants::Tuple(String::from("raw")).redacted())
+                .expect_err("a selected skipped tuple variant is rejected")
+                .to_string(),
             "cannot serialize skipped redacted variant `Tuple`",
         ),
         (

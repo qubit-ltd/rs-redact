@@ -7,25 +7,17 @@
 // =============================================================================
 //! Tests for immutable redaction policies and rule matching.
 
-use proptest::{
-    prop_assert_eq,
-    proptest,
-};
+use proptest::{prop_assert_eq, proptest};
 use qubit_redact::{
-    FieldNameMatching,
-    MaskPolicy,
-    PolicyError,
-    RedactionPolicy,
-    RedactionPolicyBuilder,
-    SensitiveFieldPreset,
-    Sensitivity,
+    FieldNameMatching, MaskPolicy, PolicyError, RedactionPolicy, RedactionPolicyBuilder,
+    SensitiveFieldPreset, Sensitivity,
 };
 
 /// Verifies that an exact allow rule does not allow a contextual suffix.
 #[test]
 fn test_exact_allow_does_not_allow_contextual_suffix() {
     let policy = RedactionPolicy::builder_from_default()
-        .allow_exact("access_token")
+        .allow_canonical_exact("access_token")
         .build()
         .expect("the exact allow rule should be valid");
 
@@ -150,9 +142,7 @@ fn test_builder_load_default_replaces_existing_state_and_error() {
         .raise("", Sensitivity::High)
         .load_default()
         .build()
-        .expect(
-            "the complete default replacement should clear the prior error",
-        );
+        .expect("the complete default replacement should clear the prior error");
 
     assert_eq!(policy, RedactionPolicy::default());
     assert_eq!(policy.sensitivity_for("custom_only"), None);
@@ -167,7 +157,7 @@ fn test_builder_from_copies_complete_policy_snapshot() {
         .raise("tenant_secret", Sensitivity::Secret)
         .raise("public_token", Sensitivity::High)
         .raise("diagnostic_token", Sensitivity::Medium)
-        .allow_exact("public_token")
+        .allow_canonical_exact("public_token")
         .allow_suffix("diagnostic_token")
         .build()
         .expect("the complete base policy should be valid");
@@ -189,16 +179,16 @@ fn test_builder_from_copies_complete_policy_snapshot() {
     assert_eq!(copied.sensitivity_for("OPENAI_TENANT_SECRET"), None);
     assert_eq!(copied.sensitivity_for("public_token"), None);
     assert_eq!(copied.sensitivity_for("diagnostic_token"), None);
+    assert!(
+        sensitive.iter().any(|rule| {
+            rule.field() == "publictoken" && rule.sensitivity() == Sensitivity::High
+        })
+    );
     assert!(sensitive.iter().any(|rule| {
-        rule.field() == "publictoken" && rule.sensitivity() == Sensitivity::High
-    }));
-    assert!(sensitive.iter().any(|rule| {
-        rule.field() == "diagnostictoken"
-            && rule.sensitivity() == Sensitivity::Medium
+        rule.field() == "diagnostictoken" && rule.sensitivity() == Sensitivity::Medium
     }));
     assert!(allowed.iter().any(|rule| {
-        rule.field() == "publictoken"
-            && rule.matching() == FieldNameMatching::Exact
+        rule.field() == "publictoken" && rule.matching() == FieldNameMatching::Exact
     }));
     assert!(allowed.iter().any(|rule| {
         rule.field() == "diagnostictoken"
@@ -249,7 +239,9 @@ fn test_build_rejects_empty_canonical_field_names() {
         RedactionPolicy::builder()
             .override_level(" _-.[ ] ", Sensitivity::High)
             .build(),
-        RedactionPolicy::builder().allow_exact(" _-.[ ] ").build(),
+        RedactionPolicy::builder()
+            .allow_canonical_exact(" _-.[ ] ")
+            .build(),
         RedactionPolicy::builder().allow_suffix(" _-.[ ] ").build(),
     ] {
         assert_eq!(result, Err(PolicyError::EmptyFieldName));
@@ -317,7 +309,7 @@ fn test_builder_and_policy_error_display() {
 fn test_rule_views_expose_canonical_configuration() {
     let policy = RedactionPolicy::builder()
         .raise("Tenant-Token", Sensitivity::High)
-        .allow_exact("Public Token")
+        .allow_canonical_exact("Public Token")
         .allow_suffix("Diagnostic.Token")
         .build()
         .expect("the policy rules should be valid");

@@ -10,10 +10,7 @@
 use proc_macro::TokenStream;
 use syn::DeriveInput;
 
-use crate::{
-    redact_mut_expansion,
-    runtime_path,
-};
+use crate::{redact_mut_expansion, runtime_path};
 
 /// Parses and expands one `RedactMut` derive invocation.
 ///
@@ -28,9 +25,8 @@ use crate::{
 pub(crate) fn derive(input: TokenStream) -> TokenStream {
     syn::parse::<DeriveInput>(input)
         .and_then(|input| {
-            runtime_path::resolve(&input).and_then(|runtime| {
-                redact_mut_expansion::expand(&input, &runtime)
-            })
+            runtime_path::resolve(&input)
+                .and_then(|runtime| redact_mut_expansion::expand(&input, &runtime))
         })
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()

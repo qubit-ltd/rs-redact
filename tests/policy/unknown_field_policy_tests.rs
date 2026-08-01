@@ -7,11 +7,7 @@
 // =============================================================================
 //! Tests for unknown-field fallback policy behavior.
 
-use qubit_redact::{
-    RedactionPolicy,
-    Sensitivity,
-    UnknownFieldPolicy,
-};
+use qubit_redact::{RedactionPolicy, Sensitivity, UnknownFieldPolicy};
 
 /// Verifies the default policy leaves unclassified fields visible.
 #[test]
@@ -35,7 +31,7 @@ fn test_unknown_field_policy_applies_after_explicit_rules() {
     let policy = RedactionPolicy::builder()
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::High))
         .raise("configured", Sensitivity::Secret)
-        .allow_exact("public")
+        .allow_canonical_exact("public")
         .build()
         .expect("the fallback policy should build");
 

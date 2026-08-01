@@ -7,14 +7,8 @@
 // =============================================================================
 //! Integration tests for derived JSON text fields.
 
-use qubit_redact::{
-    Redact as _,
-    RedactMut as _,
-};
-use qubit_redact_derive::{
-    Redact,
-    RedactMut,
-};
+use qubit_redact::{Redact as _, RedactMut as _};
+use qubit_redact_derive::{Redact, RedactMut};
 
 /// Immutable record storing JSON in a string field.
 #[derive(Redact)]

@@ -8,11 +8,7 @@
 //! Tests for [`FieldClassification`](qubit_redact::FieldClassification).
 
 use qubit_redact::{
-    FieldClassification,
-    FieldMatchKind,
-    FieldNameMatching,
-    RedactionPolicy,
-    Sensitivity,
+    FieldClassification, FieldMatchKind, FieldNameMatching, RedactionPolicy, Sensitivity,
 };
 
 /// Verifies exact and suffix-sensitive results expose their matched rule.
@@ -33,8 +29,7 @@ fn test_field_classification_explains_sensitive_matches() {
     assert!(!exact.is_allowed());
     assert!(!exact.is_unknown());
 
-    let suffix =
-        std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
+    let suffix = std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
     assert_eq!(suffix.sensitivity(), Some(Sensitivity::Medium));
     assert_eq!(suffix.matched_field(), Some("accesstoken"));
     assert_eq!(suffix.match_kind(), Some(FieldMatchKind::TokenSuffix));
@@ -46,7 +41,7 @@ fn test_field_classification_explains_allow_precedence() {
     let policy = std::hint::black_box(
         RedactionPolicy::builder()
             .raise("access_token", Sensitivity::Secret)
-            .allow_exact("access_token")
+            .allow_canonical_exact("access_token")
             .allow_suffix("access_token")
             .build()
             .expect("the conflicting policy should be valid"),
@@ -59,8 +54,7 @@ fn test_field_classification_explains_allow_precedence() {
     assert!(exact.is_allowed());
     assert!(!exact.is_unknown());
 
-    let suffix =
-        std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
+    let suffix = std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
     assert_eq!(suffix.sensitivity(), None);
     assert_eq!(suffix.matched_field(), Some("accesstoken"));
     assert_eq!(suffix.match_kind(), Some(FieldMatchKind::TokenSuffix));
@@ -115,7 +109,7 @@ fn test_field_classification_matches_sensitivity_for() {
         .raise("token", Sensitivity::Secret)
         .raise("access_token", Sensitivity::Medium)
         .raise("tenant_secret", Sensitivity::High)
-        .allow_exact("tenant_secret")
+        .allow_canonical_exact("tenant_secret")
         .allow_suffix("public_token")
         .build()
         .expect("the parity policy should be valid");

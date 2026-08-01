@@ -7,17 +7,14 @@
 // =============================================================================
 //! Tests for [`AllowRule`](qubit_redact::AllowRule) views.
 
-use qubit_redact::{
-    FieldNameMatching,
-    RedactionPolicy,
-};
+use qubit_redact::{FieldNameMatching, RedactionPolicy};
 
 /// Verifies an exact allow rule is exposed with its canonical field name.
 #[test]
 fn test_allow_rule_exposes_exact_field_and_matching_mode() {
     let policy = std::hint::black_box(
         RedactionPolicy::builder()
-            .allow_exact("public-token")
+            .allow_canonical_exact("public-token")
             .build()
             .expect("the allow rule should be valid"),
     );

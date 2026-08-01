@@ -7,10 +7,7 @@
 // =============================================================================
 //! Black-box tests for runtime path resolution.
 
-use std::{
-    env,
-    path::PathBuf,
-};
+use std::{env, path::PathBuf};
 
 mod support;
 
@@ -24,8 +21,7 @@ fn test_runtime_path_resolves_direct_dependency() {
 #[test]
 fn test_runtime_path_reports_missing_dependency() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let manifest =
-        manifest_dir.join("tests/fixtures/crates/runtime_missing/Cargo.toml");
+    let manifest = manifest_dir.join("tests/fixtures/crates/runtime_missing/Cargo.toml");
     let target_dir = manifest_dir.join("../target/runtime-missing-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = support::isolated_cargo::command(&cargo)
@@ -51,8 +47,7 @@ fn test_runtime_path_reports_missing_dependency() {
 #[test]
 fn test_runtime_path_resolves_itself() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let manifest =
-        manifest_dir.join("tests/fixtures/crates/runtime_itself/Cargo.toml");
+    let manifest = manifest_dir.join("tests/fixtures/crates/runtime_itself/Cargo.toml");
     let target_dir = manifest_dir.join("../target/runtime-itself-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = support::isolated_cargo::command(&cargo)

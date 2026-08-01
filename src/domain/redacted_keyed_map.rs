@@ -8,24 +8,13 @@
 //! Lazy borrowed view of a map whose values support recursive redaction.
 
 use std::{
-    fmt::{
-        self,
-        Debug,
-        Display,
-        Formatter,
-        Write as _,
-    },
+    fmt::{self, Debug, Display, Formatter, Write as _},
     marker::PhantomData,
 };
 
 use crate::{
-    BoundedRedactedDisplay,
-    LogOutputLimit,
-    Redact,
-    RedactValue,
-    RedactedKeyedValue,
-    RedactionPolicy,
-    text::internal::LogEscapeWriter,
+    BoundedRedactedDisplay, LogOutputLimit, Redact, RedactValue, RedactedKeyedValue,
+    RedactionPolicy, text::internal::LogEscapeWriter,
 };
 
 /// A lazy map view that classifies each value by its key before recursion.
@@ -41,12 +30,7 @@ use crate::{
 /// * `K` - Runtime key type used for field classification.
 /// * `V` - Value type recursively rendered through redaction.
 #[must_use = "format the recursive keyed redaction view"]
-pub struct RedactedKeyedMap<
-    'a,
-    M: ?Sized,
-    K: ?Sized = String,
-    V: ?Sized = String,
-> {
+pub struct RedactedKeyedMap<'a, M: ?Sized, K: ?Sized = String, V: ?Sized = String> {
     /// Map borrowed without traversal.
     map: &'a M,
     /// Immutable policy snapshot shared by every keyed value view.
@@ -87,10 +71,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
     /// A display-only adapter that owns this recursive keyed map view.
     #[must_use = "format the bounded recursive keyed map display adapter"]
     #[inline(always)]
-    pub const fn with_output_limit(
-        self,
-        limit: LogOutputLimit,
-    ) -> BoundedRedactedDisplay<Self> {
+    pub const fn with_output_limit(self, limit: LogOutputLimit) -> BoundedRedactedDisplay<Self> {
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -107,11 +88,8 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
     }
 }
 
-impl<
-    M: ?Sized,
-    K: AsRef<str> + Debug + ?Sized,
-    V: Redact + RedactValue + ?Sized,
-> Debug for RedactedKeyedMap<'_, M, K, V>
+impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Debug
+    for RedactedKeyedMap<'_, M, K, V>
 where
     for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
 {
@@ -142,11 +120,8 @@ where
     }
 }
 
-impl<
-    M: ?Sized,
-    K: AsRef<str> + Debug + ?Sized,
-    V: Redact + RedactValue + ?Sized,
-> Display for RedactedKeyedMap<'_, M, K, V>
+impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Display
+    for RedactedKeyedMap<'_, M, K, V>
 where
     for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
 {

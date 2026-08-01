@@ -13,20 +13,14 @@ use serde_json::Value;
 
 use crate::{
     Redactor,
-    json::internal::{
-        JsonRedactionState,
-        JsonUnkeyedValuePolicy,
-    },
+    json::internal::{JsonRedactionState, JsonUnkeyedValuePolicy},
 };
 
 use crate::http::UnkeyedJsonValuePolicy;
 
 use super::{
     BoundedBodyWriter,
-    markers::{
-        TRUNCATED,
-        UNKEYED_JSON,
-    },
+    markers::{TRUNCATED, UNKEYED_JSON},
 };
 
 /// Redacts a JSON tree and reports whether an unkeyed scalar passed through.
@@ -73,9 +67,7 @@ pub(in crate::http) fn redact_with_remaining(
     remaining_mask_bytes: &mut usize,
 ) -> bool {
     let unkeyed = match unkeyed {
-        UnkeyedJsonValuePolicy::PassThrough => {
-            JsonUnkeyedValuePolicy::PassThrough
-        }
+        UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
         UnkeyedJsonValuePolicy::Redact => JsonUnkeyedValuePolicy::Redact {
             marker: UNKEYED_JSON,
             truncated_marker: TRUNCATED,
@@ -179,12 +171,7 @@ pub(in crate::http) fn redact_ndjson_with_remaining(
             continue;
         }
         let mut value = serde_json::from_str(line).ok()?;
-        passed |= redact_with_remaining(
-            redactor,
-            &mut value,
-            unkeyed,
-            remaining_mask_bytes,
-        );
+        passed |= redact_with_remaining(redactor, &mut value, unkeyed, remaining_mask_bytes);
         if serde_json::to_writer(&mut output, &value).is_err() {
             return output.into_string().map(|text| (text, passed, true));
         }

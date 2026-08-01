@@ -7,12 +7,7 @@
 // =============================================================================
 //! Black-box tests for runtime crate-path resolution.
 
-use std::{
-    env,
-    ffi::OsString,
-    path::PathBuf,
-    process::Output,
-};
+use std::{env, ffi::OsString, path::PathBuf, process::Output};
 
 /// Runs Cargo against one isolated runtime-path fixture.
 ///

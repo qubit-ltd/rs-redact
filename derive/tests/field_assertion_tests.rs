@@ -12,7 +12,5 @@ mod support;
 /// Verifies missing nested capabilities produce a compile-time assertion.
 #[test]
 fn test_field_assertion_rejects_missing_nested_capability() {
-    support::assertions::assert_compile_fail(
-        "tests/fixtures/fail/nested_without_redact.rs",
-    );
+    support::assertions::assert_compile_fail("tests/fixtures/fail/nested_without_redact.rs");
 }

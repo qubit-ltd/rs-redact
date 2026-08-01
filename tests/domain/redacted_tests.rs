@@ -10,12 +10,7 @@
 use std::fmt;
 
 use qubit_redact::{
-    DiagnosticBudget,
-    MaskPolicy,
-    Redact,
-    RedactValue,
-    RedactionPolicy,
-    Sensitivity,
+    DiagnosticBudget, MaskPolicy, Redact, RedactValue, RedactionPolicy, Sensitivity,
 };
 
 /// Account with a manually implemented redacted representation.
@@ -119,9 +114,8 @@ fn test_redacted_with_policy_output_limit_uses_policy_budget() {
         password: "raw-secret".to_owned(),
         note: "visible diagnostic text".to_owned(),
     };
-    let budget =
-        DiagnosticBudget::new(1024, DiagnosticBudget::MIN_OUTPUT_BYTES)
-            .expect("the minimum bounded output should be valid");
+    let budget = DiagnosticBudget::new(1024, DiagnosticBudget::MIN_OUTPUT_BYTES)
+        .expect("the minimum bounded output should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()

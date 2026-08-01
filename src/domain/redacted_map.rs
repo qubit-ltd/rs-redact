@@ -8,21 +8,12 @@
 //! Lazy borrowed view of a string-valued map-like container.
 
 use std::{
-    fmt::{
-        self,
-        Debug,
-        Display,
-        Formatter,
-        Write as _,
-    },
+    fmt::{self, Debug, Display, Formatter, Write as _},
     marker::PhantomData,
 };
 
 use crate::{
-    BoundedRedactedDisplay,
-    LogOutputLimit,
-    RedactMapValue,
-    RedactionPolicy,
+    BoundedRedactedDisplay, LogOutputLimit, RedactMapValue, RedactionPolicy,
     text::internal::LogEscapeWriter,
 };
 
@@ -74,10 +65,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     ///
     /// A display-only adapter that owns this redacted map view.
     #[inline(always)]
-    pub const fn with_output_limit(
-        self,
-        limit: LogOutputLimit,
-    ) -> BoundedRedactedDisplay<Self> {
+    pub const fn with_output_limit(self, limit: LogOutputLimit) -> BoundedRedactedDisplay<Self> {
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -94,9 +82,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     }
 }
 
-impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug
-    for RedactedMap<'_, M, K, V>
-{
+impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug for RedactedMap<'_, M, K, V> {
     /// Formats the map by classifying every value with its corresponding key.
     ///
     /// # Parameters
@@ -117,9 +103,7 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug
     }
 }
 
-impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
-    for RedactedMap<'_, M, K, V>
-{
+impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display for RedactedMap<'_, M, K, V> {
     /// Formats compact redacted debug output and escapes it for plain-text
     /// logs.
     ///
@@ -143,8 +127,8 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
 }
 
 #[cfg(feature = "serde")]
-impl<M: crate::domain::RedactMapSerialize<K, V> + ?Sized, K: ?Sized, V: ?Sized>
-    serde::Serialize for RedactedMap<'_, M, K, V>
+impl<M: crate::domain::RedactMapSerialize<K, V> + ?Sized, K: ?Sized, V: ?Sized> serde::Serialize
+    for RedactedMap<'_, M, K, V>
 {
     /// Serializes values after classifying each one by its runtime key.
     ///

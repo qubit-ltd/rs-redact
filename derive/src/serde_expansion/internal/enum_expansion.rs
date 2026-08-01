@@ -12,19 +12,14 @@ use quote::quote;
 use syn::Path;
 
 use crate::{
-    internal::{
-        FieldsData,
-        VariantData,
-    },
+    internal::{FieldsData, VariantData},
     serde_container_attributes::SerdeContainerAttributes,
     serde_enum_representation::SerdeEnumRepresentation,
 };
 
 use super::{
-    adjacently_tagged::adjacent_variant_arm,
-    externally_tagged::external_variant_arm,
-    internally_tagged::internal_variant_arm,
-    untagged::untagged_variant_arm,
+    adjacently_tagged::adjacent_variant_arm, externally_tagged::external_variant_arm,
+    internally_tagged::internal_variant_arm, untagged::untagged_variant_arm,
 };
 
 /// Generates redacted serialization for an enum representation.
@@ -60,42 +55,28 @@ pub(super) fn enum_body(
             }
             match container_attributes.representation() {
                 SerdeEnumRepresentation::ExternallyTagged => {
-                    external_variant_arm(
-                        type_name,
-                        variant,
-                        runtime,
-                        serde,
-                        container_attributes,
-                    )
+                    external_variant_arm(type_name, variant, runtime, serde, container_attributes)
                 }
-                SerdeEnumRepresentation::InternallyTagged { tag } => {
-                    internal_variant_arm(
-                        type_name,
-                        variant,
-                        runtime,
-                        serde,
-                        container_attributes,
-                        tag,
-                    )
-                }
-                SerdeEnumRepresentation::AdjacentlyTagged { tag, content } => {
-                    adjacent_variant_arm(
-                        type_name,
-                        variant,
-                        runtime,
-                        serde,
-                        container_attributes,
-                        tag,
-                        content,
-                    )
-                }
-                SerdeEnumRepresentation::Untagged => untagged_variant_arm(
+                SerdeEnumRepresentation::InternallyTagged { tag } => internal_variant_arm(
                     type_name,
                     variant,
                     runtime,
                     serde,
                     container_attributes,
+                    tag,
                 ),
+                SerdeEnumRepresentation::AdjacentlyTagged { tag, content } => adjacent_variant_arm(
+                    type_name,
+                    variant,
+                    runtime,
+                    serde,
+                    container_attributes,
+                    tag,
+                    content,
+                ),
+                SerdeEnumRepresentation::Untagged => {
+                    untagged_variant_arm(type_name, variant, runtime, serde, container_attributes)
+                }
             }
         })
         .collect::<syn::Result<Vec<_>>>()?;
@@ -120,8 +101,7 @@ pub(super) fn enum_body(
 fn skipped_variant_arm(variant: &VariantData<'_>, serde: &Path) -> TokenStream {
     let variant_name = &variant.variant().ident;
     let pattern = wildcard_variant_pattern(variant);
-    let message =
-        format!("cannot serialize skipped redacted variant `{variant_name}`",);
+    let message = format!("cannot serialize skipped redacted variant `{variant_name}`",);
     quote! {
         Self::#variant_name #pattern => ::core::result::Result::Err(
             <__QubitRedactSerializer::Error as #serde::ser::Error>::custom(#message),

@@ -8,11 +8,7 @@
 //! Tests for content-type dispatch.
 
 use http::HeaderValue;
-use qubit_redact::http::{
-    BodyCapture,
-    BodyRedactionStatus,
-    HttpRedactor,
-};
+use qubit_redact::http::{BodyCapture, BodyRedactionStatus, HttpRedactor};
 
 /// Verifies JSON content types select structured redaction.
 #[test]

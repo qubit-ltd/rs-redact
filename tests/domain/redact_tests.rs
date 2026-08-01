@@ -9,10 +9,7 @@
 
 use std::fmt;
 
-use qubit_redact::{
-    Redact,
-    RedactionPolicy,
-};
+use qubit_redact::{Redact, RedactionPolicy};
 
 /// Minimal domain value used to verify the borrowed redacted view contract.
 struct TestDomainValue;

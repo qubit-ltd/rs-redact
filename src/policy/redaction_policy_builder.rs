@@ -7,25 +7,12 @@
 // =============================================================================
 //! Mutable builder for immutable redaction policies.
 
-use std::collections::{
-    BTreeMap,
-    BTreeSet,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    DiagnosticBudget,
-    FieldNameMatching,
-    MaskPolicy,
-    MaskingPolicy,
-    PolicyError,
-    RedactionPolicy,
-    SensitiveFieldPreset,
-    Sensitivity,
-    UnknownFieldPolicy,
-    internal::{
-        RedactionPolicyInner,
-        canonicalize_field_name,
-    },
+    DiagnosticBudget, FieldNameMatching, MaskPolicy, MaskingPolicy, PolicyError, RedactionPolicy,
+    SensitiveFieldPreset, Sensitivity, UnknownFieldPolicy,
+    internal::{RedactionPolicyInner, canonicalize_field_name},
 };
 
 #[cfg(feature = "json")]
@@ -175,10 +162,7 @@ impl RedactionPolicyBuilder {
     ///
     /// The updated builder.
     #[inline(always)]
-    pub const fn unknown_field_policy(
-        mut self,
-        policy: UnknownFieldPolicy,
-    ) -> Self {
+    pub const fn unknown_field_policy(mut self, policy: UnknownFieldPolicy) -> Self {
         self.unknown_field_policy = policy;
         self
     }
@@ -252,7 +236,7 @@ impl RedactionPolicyBuilder {
     /// # Returns
     ///
     /// The updated builder.
-    pub fn allow_exact(mut self, field: &str) -> Self {
+    pub fn allow_canonical_exact(mut self, field: &str) -> Self {
         let Some(field) = self.canonical_field(field) else {
             return self;
         };
@@ -286,7 +270,7 @@ impl RedactionPolicyBuilder {
     /// # Returns
     ///
     /// The updated builder. Removing an absent rule has no effect.
-    pub fn remove_allow_exact(mut self, field: &str) -> Self {
+    pub fn remove_allow_canonical_exact(mut self, field: &str) -> Self {
         let Some(field) = self.canonical_field(field) else {
             return self;
         };

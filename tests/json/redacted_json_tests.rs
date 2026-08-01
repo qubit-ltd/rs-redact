@@ -8,12 +8,7 @@
 //! Tests for borrowed JSON value redaction.
 
 use qubit_redact::{
-    JsonDepthBudget,
-    MaskPolicy,
-    RedactedJson,
-    RedactionPolicy,
-    Sensitivity,
-    UnknownFieldPolicy,
+    JsonDepthBudget, MaskPolicy, RedactedJson, RedactionPolicy, Sensitivity, UnknownFieldPolicy,
 };
 use serde_json::json;
 
@@ -54,7 +49,7 @@ fn test_redacted_json_uses_unknown_field_fallback() {
     let value = json!({"new_field": "raw", "public": "visible"});
     let policy = RedactionPolicy::builder()
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::High))
-        .allow_exact("public")
+        .allow_canonical_exact("public")
         .build()
         .expect("the fallback policy should build");
 
@@ -111,9 +106,7 @@ fn test_redacted_json_fails_closed_at_depth_budget() {
         "nested": {"deeper": {"secret": "raw-depth-secret"}},
     });
     let policy = RedactionPolicy::builder()
-        .json_depth_budget(
-            JsonDepthBudget::new(1).expect("the depth budget is valid"),
-        )
+        .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .build()
         .expect("the policy should build");
@@ -155,9 +148,7 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
         "nested": {"secret": "raw-depth-secret"},
     });
     let policy = RedactionPolicy::builder()
-        .json_depth_budget(
-            JsonDepthBudget::new(1).expect("the depth budget is valid"),
-        )
+        .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .build()
         .expect("the policy should build");

@@ -8,33 +8,17 @@
 //! Immutable `Redact` implementation generation.
 
 use proc_macro2::TokenStream;
-use quote::{
-    format_ident,
-    quote,
-    quote_spanned,
-};
-use syn::{
-    DeriveInput,
-    Path,
-    spanned::Spanned,
-};
+use quote::{format_ident, quote, quote_spanned};
+use syn::{DeriveInput, Path, spanned::Spanned};
 
 use crate::{
     container_attributes::ContainerAttributes,
     field_assertion,
     field_mode::FieldMode,
-    format_expansion,
-    input_model,
-    internal::{
-        ContainerData,
-        FieldsData,
-        NamedField,
-        UnnamedField,
-        VariantData,
-    },
+    format_expansion, input_model,
+    internal::{ContainerData, FieldsData, NamedField, UnnamedField, VariantData},
     serde_container_attributes::SerdeContainerAttributes,
-    serde_expansion,
-    serde_path,
+    serde_expansion, serde_path,
 };
 
 /// Expands a struct into its runtime `Redact` implementation.
@@ -52,24 +36,15 @@ use crate::{
 ///
 /// Returns a targeted syntax error when container or field controls are
 /// invalid or when Serde controls conflict with the input shape.
-pub(crate) fn expand(
-    input: &DeriveInput,
-    runtime: &Path,
-) -> syn::Result<TokenStream> {
+pub(crate) fn expand(input: &DeriveInput, runtime: &Path) -> syn::Result<TokenStream> {
     let container_attributes = ContainerAttributes::parse(input)?;
-    let model = input_model::parse(
-        input,
-        "Redact",
-        container_attributes.serde_enabled(),
-    )?;
+    let model = input_model::parse(input, "Redact", container_attributes.serde_enabled())?;
     let serde = container_attributes
         .serde_enabled()
         .then(|| serde_path::resolve(input))
         .transpose()?;
-    let serde_container_attributes = SerdeContainerAttributes::parse(
-        input,
-        container_attributes.serde_enabled(),
-    )?;
+    let serde_container_attributes =
+        SerdeContainerAttributes::parse(input, container_attributes.serde_enabled())?;
     let serde_impl = serde_expansion::expand(
         input,
         runtime,
@@ -87,11 +62,9 @@ pub(crate) fn expand(
             enum_format_body(&input.ident, variants, runtime),
         ),
     };
-    let format_impl =
-        format_expansion::expand(input, runtime, &container_attributes);
+    let format_impl = format_expansion::expand(input, runtime, &container_attributes);
     let name = &input.ident;
-    let (impl_generics, type_generics, where_clause) =
-        input.generics.split_for_impl();
+    let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
 
     Ok(quote! {
         impl #impl_generics #runtime::Redact for #name #type_generics #where_clause {
@@ -168,18 +141,10 @@ fn immutable_assertions(
 /// # Returns
 ///
 /// A complete formatter expression for named, tuple, or unit structs.
-fn format_body(
-    type_name: &syn::Ident,
-    fields: &FieldsData<'_>,
-    runtime: &Path,
-) -> TokenStream {
+fn format_body(type_name: &syn::Ident, fields: &FieldsData<'_>, runtime: &Path) -> TokenStream {
     match fields {
-        FieldsData::Named(fields) => {
-            named_format_body(type_name, fields, runtime)
-        }
-        FieldsData::Unnamed(fields) => {
-            unnamed_format_body(type_name, fields, runtime)
-        }
+        FieldsData::Named(fields) => named_format_body(type_name, fields, runtime),
+        FieldsData::Unnamed(fields) => unnamed_format_body(type_name, fields, runtime),
         FieldsData::Unit => quote! {
             formatter.write_str(stringify!(#type_name))
         },
@@ -349,8 +314,7 @@ fn enum_immutable_assertions(
                     .iter()
                     .map(|parsed| {
                         let field_name = parsed.identifier().to_string();
-                        let context =
-                            variant_field_context(variant_name, &field_name);
+                        let context = variant_field_context(variant_name, &field_name);
                         field_assertion::immutable(
                             type_name,
                             parsed.field(),
@@ -364,8 +328,7 @@ fn enum_immutable_assertions(
                     .iter()
                     .map(|parsed| {
                         let field_name = parsed.index().index.to_string();
-                        let context =
-                            variant_field_context(variant_name, &field_name);
+                        let context = variant_field_context(variant_name, &field_name);
                         field_assertion::immutable(
                             type_name,
                             parsed.field(),
@@ -580,9 +543,6 @@ fn enum_unnamed_format_arm(
 ///
 /// A stable variant-qualified field context.
 #[inline]
-fn variant_field_context(
-    variant_name: &syn::Ident,
-    field_name: &str,
-) -> String {
+fn variant_field_context(variant_name: &syn::Ident, field_name: &str) -> String {
     format!("{variant_name}_{field_name}")
 }

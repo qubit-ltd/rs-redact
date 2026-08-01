@@ -8,20 +8,12 @@
 //! Builder for immutable HTTP redaction policy snapshots.
 
 use crate::{
-    DiagnosticBudget,
-    JsonDepthBudget,
-    PolicyError,
-    RedactionPolicy,
-    RedactionPolicyBuilder,
+    DiagnosticBudget, JsonDepthBudget, PolicyError, RedactionPolicy, RedactionPolicyBuilder,
     Sensitivity,
 };
 
 use super::{
-    BodyBudget,
-    HttpRedactionPolicy,
-    TextBodyPolicy,
-    UnkeyedJsonValuePolicy,
-    UrlPathPolicy,
+    BodyBudget, HttpRedactionPolicy, TextBodyPolicy, UnkeyedJsonValuePolicy, UrlPathPolicy,
 };
 
 /// Mutable construction state for an [`HttpRedactionPolicy`].
@@ -227,7 +219,7 @@ impl HttpRedactionPolicyBuilder {
     /// The updated builder.
     #[inline]
     pub fn allow_header_exact(mut self, name: &str) -> Self {
-        self.header = self.header.allow_exact(name);
+        self.header = self.header.allow_canonical_exact(name);
         self
     }
 
@@ -257,7 +249,7 @@ impl HttpRedactionPolicyBuilder {
     /// The updated builder.
     #[inline]
     pub fn remove_header_allow_exact(mut self, name: &str) -> Self {
-        self.header = self.header.remove_allow_exact(name);
+        self.header = self.header.remove_allow_canonical_exact(name);
         self
     }
 
@@ -330,7 +322,7 @@ impl HttpRedactionPolicyBuilder {
     /// The updated builder.
     #[inline]
     pub fn allow_query_exact(mut self, name: &str) -> Self {
-        self.query = self.query.allow_exact(name);
+        self.query = self.query.allow_canonical_exact(name);
         self
     }
 
@@ -360,7 +352,7 @@ impl HttpRedactionPolicyBuilder {
     /// The updated builder.
     #[inline]
     pub fn remove_query_allow_exact(mut self, name: &str) -> Self {
-        self.query = self.query.remove_allow_exact(name);
+        self.query = self.query.remove_allow_canonical_exact(name);
         self
     }
 
@@ -433,7 +425,7 @@ impl HttpRedactionPolicyBuilder {
     /// The updated builder.
     #[inline]
     pub fn allow_body_exact(mut self, name: &str) -> Self {
-        self.body = self.body.allow_exact(name);
+        self.body = self.body.allow_canonical_exact(name);
         self
     }
 
@@ -463,7 +455,7 @@ impl HttpRedactionPolicyBuilder {
     /// The updated builder.
     #[inline]
     pub fn remove_body_allow_exact(mut self, name: &str) -> Self {
-        self.body = self.body.remove_allow_exact(name);
+        self.body = self.body.remove_allow_canonical_exact(name);
         self
     }
 
@@ -533,10 +525,7 @@ impl HttpRedactionPolicyBuilder {
     ///
     /// The updated builder.
     #[inline]
-    pub const fn unkeyed_json_value_policy(
-        mut self,
-        policy: UnkeyedJsonValuePolicy,
-    ) -> Self {
+    pub const fn unkeyed_json_value_policy(mut self, policy: UnkeyedJsonValuePolicy) -> Self {
         self.unkeyed_json_value_policy = policy;
         self
     }

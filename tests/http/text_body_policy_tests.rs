@@ -7,10 +7,7 @@
 // =============================================================================
 //! Tests for [`TextBodyPolicy`](qubit_redact::http::TextBodyPolicy).
 
-use qubit_redact::http::{
-    HttpRedactionPolicy,
-    TextBodyPolicy,
-};
+use qubit_redact::http::{HttpRedactionPolicy, TextBodyPolicy};
 
 /// Verifies opaque text is redacted by default.
 #[test]

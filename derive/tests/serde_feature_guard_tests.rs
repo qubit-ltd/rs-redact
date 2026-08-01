@@ -7,10 +7,7 @@
 // =============================================================================
 //! Verifies the serde feature guard in an isolated Cargo workspace.
 
-use std::{
-    env,
-    path::PathBuf,
-};
+use std::{env, path::PathBuf};
 
 mod support;
 
@@ -18,8 +15,7 @@ mod support;
 #[test]
 fn test_serde_feature_guard_is_single_and_targeted() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let manifest =
-        manifest_dir.join("tests/fixtures/crates/serde_disabled/Cargo.toml");
+    let manifest = manifest_dir.join("tests/fixtures/crates/serde_disabled/Cargo.toml");
     let target_dir = manifest_dir.join("../target/serde-disabled-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = support::isolated_cargo::command(&cargo)

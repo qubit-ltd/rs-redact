@@ -8,11 +8,7 @@
 //! Tests for parser output propagated through HTTP body redaction.
 
 use http::HeaderValue;
-use qubit_redact::http::{
-    BodyCapture,
-    BodyRedactionStatus,
-    HttpRedactor,
-};
+use qubit_redact::http::{BodyCapture, BodyRedactionStatus, HttpRedactor};
 
 /// Verifies structured parser output retains its status through final
 /// rendering.

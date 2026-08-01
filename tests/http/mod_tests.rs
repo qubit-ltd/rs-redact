@@ -8,10 +8,7 @@
 //! Tests for the public HTTP module boundary.
 
 use http::HeaderValue;
-use qubit_redact::http::{
-    BodyCapture,
-    HttpRedactor,
-};
+use qubit_redact::http::{BodyCapture, HttpRedactor};
 
 /// Verifies the module reexports compose into structured body redaction.
 #[test]

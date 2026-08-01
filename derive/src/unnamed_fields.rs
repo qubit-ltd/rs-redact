@@ -7,16 +7,10 @@
 // =============================================================================
 //! Tuple-field attribute parsing shared by structs and enum variants.
 
-use syn::{
-    FieldsUnnamed,
-    Ident,
-    Index,
-};
+use syn::{FieldsUnnamed, Ident, Index};
 
 use crate::{
-    field_attributes::FieldAttributes,
-    internal::UnnamedField,
-    serde_attributes::SerdeAttributes,
+    field_attributes::FieldAttributes, internal::UnnamedField, serde_attributes::SerdeAttributes,
 };
 
 /// Parses every unnamed field in source order.
@@ -50,14 +44,9 @@ pub(crate) fn parse<'a>(
         .enumerate()
         .map(|(position, field)| {
             let field_name = position.to_string();
-            let attributes =
-                FieldAttributes::parse(field, type_name, &field_name)?;
-            let serde_attributes = SerdeAttributes::parse(
-                field,
-                type_name,
-                &field_name,
-                serde_enabled,
-            )?;
+            let attributes = FieldAttributes::parse(field, type_name, &field_name)?;
+            let serde_attributes =
+                SerdeAttributes::parse(field, type_name, &field_name, serde_enabled)?;
             Ok(UnnamedField::new(
                 field,
                 Index::from(position),

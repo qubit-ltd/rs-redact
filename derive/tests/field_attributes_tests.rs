@@ -12,7 +12,5 @@ mod support;
 /// Verifies mutually exclusive field modes are rejected.
 #[test]
 fn test_field_attributes_reject_conflicting_modes() {
-    support::assertions::assert_compile_fail(
-        "tests/fixtures/fail/conflicting_modes.rs",
-    );
+    support::assertions::assert_compile_fail("tests/fixtures/fail/conflicting_modes.rs");
 }
