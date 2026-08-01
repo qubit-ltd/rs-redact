@@ -46,7 +46,10 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
-//! A process-wide default can be installed exactly once.
+//! An application can install a process-wide default exactly once during its
+//! assembly or initialization phase. Libraries and ordinary runtime code must
+//! not call the `set_global_default` methods. This setup must happen before
+//! components that use default snapshots are created.
 //! [`RedactionPolicy::empty_builder`] starts without application field rules
 //! while capturing the current global floor; use
 //! [`RedactionPolicy::builder_from_default`] to copy the current default
@@ -253,7 +256,7 @@
 //!
 //! # HTTP bodies
 //!
-//! Enable this API with `qubit-redact = { version = "0.5", features = ["http"]
+//! Enable this API with `qubit-redact = { version = "0.4", features = ["http"]
 //! }`. `http::BodyCapture` makes completeness explicit, and the returned
 //! `http::BodyRedaction` implements [`std::fmt::Display`] with bounded,
 //! log-safe output.
