@@ -64,3 +64,19 @@ fn test_redact_json_text_in_place_obeys_json_depth_budget() {
     assert_eq!(value["nested"], "[depth-limit]");
     assert!(!text.contains("raw-depth-secret"));
 }
+
+/// Verifies strict explicit transformation masks root and array scalars.
+#[test]
+fn test_redact_json_text_in_place_masks_strict_unkeyed_scalars() {
+    let policy = RedactionPolicy::strict();
+    let mut root = String::from("\"root-secret\"");
+    let mut array = String::from("[\"array-secret\",42,true]");
+
+    redact_json_text_in_place(&mut root, &policy);
+    redact_json_text_in_place(&mut array, &policy);
+
+    assert!(!root.contains("root-secret"));
+    assert!(!array.contains("array-secret"));
+    assert!(!array.contains("42"));
+    assert!(!array.contains("true"));
+}

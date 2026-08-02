@@ -7,8 +7,6 @@
 // =============================================================================
 //! Mutable builder for immutable redaction policies.
 
-#[cfg(feature = "json")]
-use super::JsonDepthBudget;
 use super::{
     DiagnosticBudget,
     FieldNameMatching,
@@ -24,6 +22,11 @@ use super::{
     Sensitivity,
     UnknownFieldPolicy,
 };
+#[cfg(feature = "json")]
+use super::{
+    JsonDepthBudget,
+    UnkeyedJsonValuePolicy,
+};
 
 /// Mutable construction state for an immutable [`RedactionPolicy`].
 #[must_use]
@@ -35,6 +38,8 @@ pub struct RedactionPolicyBuilder {
     diagnostic_budget: DiagnosticBudget,
     #[cfg(feature = "json")]
     json_depth_budget: JsonDepthBudget,
+    #[cfg(feature = "json")]
+    unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
 }
 
 impl RedactionPolicyBuilder {
@@ -47,6 +52,8 @@ impl RedactionPolicyBuilder {
             diagnostic_budget: DiagnosticBudget::default(),
             #[cfg(feature = "json")]
             json_depth_budget: JsonDepthBudget::default(),
+            #[cfg(feature = "json")]
+            unkeyed_json_value_policy: UnkeyedJsonValuePolicy::PassThrough,
         }
     }
     pub(super) fn from_policy(policy: &RedactionPolicy) -> Self {
@@ -60,6 +67,8 @@ impl RedactionPolicyBuilder {
             diagnostic_budget: policy.diagnostic_budget(),
             #[cfg(feature = "json")]
             json_depth_budget: policy.json_depth_budget(),
+            #[cfg(feature = "json")]
+            unkeyed_json_value_policy: policy.unkeyed_json_value_policy(),
         }
     }
 
@@ -111,6 +120,11 @@ impl RedactionPolicyBuilder {
 
     /// Raises application sensitivity for `field` to at least `level`.
     ///
+    /// Repeated calls for the same canonical field are monotonic. When several
+    /// differently named rules match one input field, final resolution uses
+    /// the strongest matching sensitivity. For example, `token = Secret` and
+    /// `access_token = Medium` resolve `OPENAI_ACCESS_TOKEN` to `Secret`.
+    ///
     /// # Errors
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
@@ -126,7 +140,8 @@ impl RedactionPolicyBuilder {
 
     /// Replaces the application sensitivity for `field` with `level`.
     ///
-    /// This does not weaken an enabled floor.
+    /// This replaces only the same canonical rule. It does not weaken an
+    /// enabled floor or a stronger overlapping rule with another name.
     ///
     /// # Errors
     ///
@@ -234,6 +249,16 @@ impl RedactionPolicyBuilder {
         self
     }
 
+    /// Sets behavior for root and array JSON scalar values.
+    #[cfg(feature = "json")]
+    pub const fn unkeyed_json_value_policy(
+        mut self,
+        policy: UnkeyedJsonValuePolicy,
+    ) -> Self {
+        self.unkeyed_json_value_policy = policy;
+        self
+    }
+
     /// Validates and returns the immutable policy snapshot.
     ///
     /// # Errors
@@ -248,6 +273,8 @@ impl RedactionPolicyBuilder {
             self.diagnostic_budget,
             #[cfg(feature = "json")]
             self.json_depth_budget,
+            #[cfg(feature = "json")]
+            self.unkeyed_json_value_policy,
         ))
     }
 }
