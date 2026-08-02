@@ -7,11 +7,7 @@
 // =============================================================================
 //! Tests for internal policy composition through the public builder.
 
-use qubit_redact::{
-    FieldNameMatching,
-    RedactionPolicy,
-    Sensitivity,
-};
+use qubit_redact::{FieldNameMatching, RedactionPolicy, Sensitivity};
 
 /// Verifies canonical storage and candidate matching compose consistently.
 #[test]
@@ -19,6 +15,7 @@ fn test_policy_internal_components_share_canonical_state() {
     let policy = RedactionPolicy::builder()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
         .raise("access-token", Sensitivity::High)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the canonicalized rule is valid");
 

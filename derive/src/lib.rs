@@ -38,9 +38,12 @@ use proc_macro::TokenStream;
 /// Named, tuple, and unit structs are accepted, as are enums with named,
 /// tuple, and unit variants. Unmarked fields use ordinary `Debug` by default;
 /// masking, recursion, map processing, and omission require explicit field
-/// attributes. Add `#[redact(require_explicit)]` to require every field to
-/// select a mode, and use `#[redact(plain)]` for fields that should remain
-/// visible.
+/// attributes. This derive macro deliberately does not infer which fields are
+/// sensitive: type owners must classify newly added fields and choose the
+/// appropriate attributes. Add `#[redact(require_explicit)]` as an opt-in
+/// review aid to require every field to select a mode, and use
+/// `#[redact(plain)]` for fields that should remain visible. It is not an
+/// automatic privacy guarantee.
 ///
 /// # Parameters
 ///

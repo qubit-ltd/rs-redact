@@ -8,12 +8,8 @@
 //! Tests for complete HTTP policy construction state.
 
 use qubit_redact::{
-    RedactionPolicy,
-    Sensitivity,
-    http::{
-        HttpFieldContext,
-        HttpRedactionPolicy,
-    },
+    RedactionPolicy, Sensitivity,
+    http::{HttpFieldContext, HttpRedactionPolicy},
 };
 
 /// Verifies complete policy construction retains distinct rule snapshots for
@@ -23,6 +19,7 @@ fn test_http_redaction_policy_parts_keep_context_rules_distinct() {
     let header_rules = RedactionPolicy::builder()
         .disable_floor()
         .raise("header_only", Sensitivity::High)
+        .expect("the test builder input should be valid")
         .build()
         .expect("header rules should be valid")
         .rules()
@@ -30,6 +27,7 @@ fn test_http_redaction_policy_parts_keep_context_rules_distinct() {
     let query_rules = RedactionPolicy::builder()
         .disable_floor()
         .raise("query_only", Sensitivity::High)
+        .expect("the test builder input should be valid")
         .build()
         .expect("query rules should be valid")
         .rules()
@@ -37,6 +35,7 @@ fn test_http_redaction_policy_parts_keep_context_rules_distinct() {
     let body_rules = RedactionPolicy::builder()
         .disable_floor()
         .raise("body_only", Sensitivity::High)
+        .expect("the test builder input should be valid")
         .build()
         .expect("body rules should be valid")
         .rules()

@@ -9,14 +9,7 @@
 
 use std::fmt;
 
-use qubit_redact::{
-    Redact,
-    RedactValue,
-    RedactedValue,
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-};
+use qubit_redact::{Redact, RedactValue, RedactedValue, RedactionPolicy, Redactor, Sensitivity};
 
 #[cfg(feature = "serde")]
 use qubit_redact::domain::RedactSerialize;
@@ -127,6 +120,7 @@ fn nested_value() -> NestedValue {
 fn test_redact_keyed_masks_sensitive_text_for_debug_and_display() {
     let policy = RedactionPolicy::builder()
         .raise("tenant_secret", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the test policy should be valid");
     let redactor = Redactor::new(policy);
@@ -144,6 +138,7 @@ fn test_redact_keyed_masks_sensitive_text_for_debug_and_display() {
 fn test_redact_keyed_masks_sensitive_non_text_value() {
     let policy = RedactionPolicy::builder()
         .raise("tenant_secret", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the test policy should be valid");
     let value = nested_value();
@@ -185,16 +180,17 @@ fn test_redact_keyed_preserves_key() {
 fn test_redact_keyed_serializes_sensitive_and_recursive_values() {
     let policy = RedactionPolicy::builder()
         .raise("tenant_secret", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the test policy should be valid");
     let value = nested_value();
     let redactor = Redactor::new(policy);
     let sensitive = redactor.redact_keyed("tenant_secret", &value);
     let visible = redactor.redact_keyed("display_name", &value);
-    let sensitive_json = serde_json::to_string(&sensitive)
-        .expect("the redacted value should serialize");
-    let visible_json = serde_json::to_string(&visible)
-        .expect("the recursive value should serialize");
+    let sensitive_json =
+        serde_json::to_string(&sensitive).expect("the redacted value should serialize");
+    let visible_json =
+        serde_json::to_string(&visible).expect("the recursive value should serialize");
 
     assert_eq!(sensitive_json, "\"<redacted>\"");
     assert!(visible_json.contains("visible-label"));

@@ -9,18 +9,11 @@
 
 use std::{
     fmt,
-    sync::{
-        Arc,
-        LazyLock,
-    },
+    sync::{Arc, LazyLock},
 };
 
 use super::internal::RedactionPolicyInner;
-use super::{
-    RedactionFloorBuilder,
-    SensitiveFieldPreset,
-    SensitiveFieldRule,
-};
+use super::{RedactionFloorBuilder, SensitiveFieldPreset, SensitiveFieldRule};
 
 /// Immutable minimum field-protection rules.
 ///
@@ -44,7 +37,9 @@ static STANDARD_FLOOR: LazyLock<RedactionFloor> = LazyLock::new(|| {
         builder = builder.include_preset(preset);
     }
     for &(field, level) in super::redaction_policy::STANDARD_EXTRA_FIELDS {
-        builder = builder.raise(field, level);
+        builder = builder
+            .raise(field, level)
+            .expect("built-in standard floor fields must be valid");
     }
     builder
         .build()
@@ -77,9 +72,7 @@ impl RedactionFloor {
     }
 
     /// Iterates the floor's canonical sensitive rules.
-    pub fn sensitive_rules(
-        &self,
-    ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
+    pub fn sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
         self.inner
             .sensitive
             .iter()

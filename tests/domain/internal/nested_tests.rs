@@ -7,12 +7,7 @@
 // =============================================================================
 //! Tests for explicit recursive domain-object redaction.
 
-use qubit_redact::{
-    MaskPolicy,
-    Redact,
-    RedactionPolicy,
-    Sensitivity,
-};
+use qubit_redact::{MaskPolicy, Redact, RedactionPolicy, Sensitivity};
 use qubit_redact_derive::Redact;
 
 /// Sensitive nested credential.
@@ -44,6 +39,7 @@ struct Session {
 fn test_nested_uses_the_same_explicit_policy_for_every_container() {
     let policy = RedactionPolicy::builder()
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[strict]"))
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the fixed replacement is valid");
     let session = Session {

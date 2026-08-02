@@ -8,12 +8,7 @@
 //! Tests for borrowed JSON value redaction.
 
 use qubit_redact::{
-    JsonDepthBudget,
-    MaskPolicy,
-    RedactedJson,
-    RedactionPolicy,
-    Sensitivity,
-    UnknownFieldPolicy,
+    JsonDepthBudget, MaskPolicy, RedactedJson, RedactionPolicy, Sensitivity, UnknownFieldPolicy,
 };
 use serde_json::json;
 
@@ -34,8 +29,11 @@ fn test_redacted_json_masks_sensitive_object_values_recursively() {
     });
     let policy = RedactionPolicy::builder()
         .raise("password", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .raise("token", Sensitivity::High)
+        .expect("the test builder input should be valid")
         .raise("api_key", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the policy should build");
 
@@ -55,6 +53,7 @@ fn test_redacted_json_uses_unknown_field_fallback() {
     let policy = RedactionPolicy::builder()
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::High))
         .allow_canonical_exact("public")
+        .expect("the test builder input should be valid")
         .build()
         .expect("the fallback policy should build");
 
@@ -71,6 +70,7 @@ fn test_redacted_json_preserves_pretty_formatter_semantics() {
     let value = json!({"password": "raw", "name": "Ada"});
     let policy = RedactionPolicy::builder()
         .raise("password", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the policy should build");
 
@@ -91,7 +91,9 @@ fn test_redacted_json_masks_sensitive_non_string_values() {
     });
     let policy = RedactionPolicy::builder()
         .raise("secret_number", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .raise("secret_object", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the policy should build");
 
@@ -111,10 +113,9 @@ fn test_redacted_json_fails_closed_at_depth_budget() {
         "nested": {"deeper": {"secret": "raw-depth-secret"}},
     });
     let policy = RedactionPolicy::builder()
-        .json_depth_budget(
-            JsonDepthBudget::new(1).expect("the depth budget is valid"),
-        )
+        .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the policy should build");
 
@@ -134,6 +135,7 @@ fn test_redacted_json_serde_preserves_json_value_shape() {
     let value = json!({"password": "raw", "name": "Ada"});
     let policy = RedactionPolicy::builder()
         .raise("password", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the policy should build");
 
@@ -156,8 +158,11 @@ fn test_redacted_json_serde_masks_sensitive_non_string_values_opaquely() {
     });
     let policy = RedactionPolicy::builder()
         .raise("secret_object", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .raise("secret_number", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[opaque]"))
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the policy should build");
 
@@ -183,10 +188,9 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
         "nested": {"secret": "raw-depth-secret"},
     });
     let policy = RedactionPolicy::builder()
-        .json_depth_budget(
-            JsonDepthBudget::new(1).expect("the depth budget is valid"),
-        )
+        .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the policy should build");
 

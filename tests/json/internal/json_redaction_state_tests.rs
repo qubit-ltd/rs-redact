@@ -8,11 +8,7 @@
 //! Tests for public effects of JSON redaction traversal state.
 
 #[cfg(feature = "serde")]
-use qubit_redact::{
-    RedactedJson,
-    RedactionPolicy,
-    Sensitivity,
-};
+use qubit_redact::{RedactedJson, RedactionPolicy, Sensitivity};
 #[cfg(feature = "serde")]
 use serde_json::json;
 
@@ -22,6 +18,7 @@ use serde_json::json;
 fn test_json_redaction_state_recurses_through_nested_values() {
     let policy = RedactionPolicy::builder()
         .raise("token", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the policy should build");
     let value = json!({"items": [{"token": "raw"}, {"name": "Ada"}]});
