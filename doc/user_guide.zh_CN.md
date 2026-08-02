@@ -33,10 +33,10 @@ use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let policy = RedactionPolicy::builder()
-        .raise("user_id", Sensitivity::Low)
-        .raise("phone_number", Sensitivity::Medium)
-        .raise("credit_card", Sensitivity::High)
-        .raise("api_key", Sensitivity::Secret)
+        .raise("user_id", Sensitivity::Low)?
+        .raise("phone_number", Sensitivity::Medium)?
+        .raise("credit_card", Sensitivity::High)?
+        .raise("api_key", Sensitivity::Secret)?
         .build()?;
     let redactor = Redactor::new(policy);
     let user_id = "alpine42";
@@ -135,10 +135,10 @@ use qubit_redact::{
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let policy = RedactionPolicy::builder()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
-        .raise("tenant_reference", Sensitivity::High)
-        .raise("tenant_visible", Sensitivity::High)
-        .allow_canonical_exact("tenant_visible")
-        .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))
+        .raise("tenant_reference", Sensitivity::High)?
+        .raise("tenant_visible", Sensitivity::High)?
+        .allow_canonical_exact("tenant_visible")?
+        .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))?
         .build()?;
     let redactor = Redactor::new(policy);
 
@@ -172,10 +172,10 @@ use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let policy = RedactionPolicy::builder()
-        .raise("user_id", Sensitivity::Low)
-        .raise("phone_number", Sensitivity::Medium)
-        .raise("credit_card", Sensitivity::High)
-        .raise("api_key", Sensitivity::Secret)
+        .raise("user_id", Sensitivity::Low)?
+        .raise("phone_number", Sensitivity::Medium)?
+        .raise("credit_card", Sensitivity::High)?
+        .raise("api_key", Sensitivity::Secret)?
         .build()?;
     let source = HashMap::from([
         ("user_id".to_owned(), "alpine42".to_owned()),
@@ -412,8 +412,8 @@ use qubit_redact::http::{
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let policy = HttpRedactionPolicy::default().to_builder()
-        .raise(HttpFieldContext::Body, "password", Sensitivity::Secret)
-        .raise(HttpFieldContext::Query, "api_key", Sensitivity::Secret)
+        .raise(HttpFieldContext::Body, "password", Sensitivity::Secret)?
+        .raise(HttpFieldContext::Query, "api_key", Sensitivity::Secret)?
         .build()?;
     let redactor = HttpRedactor::new(policy);
 

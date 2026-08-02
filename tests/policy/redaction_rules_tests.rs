@@ -8,13 +8,8 @@
 //! Tests for immutable redaction rule behavior.
 
 use qubit_redact::{
-    FieldClassification,
-    FieldMatchKind,
-    FieldNameMatching,
-    RedactionPolicy,
-    RedactionRules,
-    Sensitivity,
-    UnknownFieldPolicy,
+    FieldClassification, FieldMatchKind, FieldNameMatching, RedactionPolicy, RedactionRules,
+    Sensitivity, UnknownFieldPolicy,
 };
 
 /// Verifies exact allow rules win only for exact candidates before suffix
@@ -23,7 +18,9 @@ use qubit_redact::{
 fn test_redaction_rules_exact_allow_does_not_hide_suffix_sensitive_rule() {
     let policy = RedactionPolicy::builder()
         .raise("access_token", Sensitivity::High)
+        .expect("the test builder input should be valid")
         .allow_canonical_exact("access_token")
+        .expect("the test builder input should be valid")
         .matching(FieldNameMatching::ExactOrTokenSuffix)
         .build()
         .expect("the policy rules should be valid");
@@ -68,8 +65,7 @@ fn test_redaction_rules_expose_application_matching_and_unknown_policy() {
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low))
         .build()
         .expect("the application rules should be valid");
-    let matching: fn(&RedactionRules) -> FieldNameMatching =
-        RedactionRules::matching;
+    let matching: fn(&RedactionRules) -> FieldNameMatching = RedactionRules::matching;
     let unknown_field_policy: fn(&RedactionRules) -> UnknownFieldPolicy =
         RedactionRules::unknown_field_policy;
 

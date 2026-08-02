@@ -7,20 +7,10 @@
 // =============================================================================
 //! Tests for borrowed HTTP field-rule execution.
 
-use http::{
-    HeaderMap,
-    HeaderValue,
-};
+use http::{HeaderMap, HeaderValue};
 use qubit_redact::{
-    MaskPolicy,
-    RedactionFloor,
-    RedactionPolicy,
-    Sensitivity,
-    http::{
-        HttpFieldContext,
-        HttpRedactionPolicy,
-        HttpRedactor,
-    },
+    MaskPolicy, RedactionFloor, RedactionPolicy, Sensitivity,
+    http::{HttpFieldContext, HttpRedactionPolicy, HttpRedactor},
 };
 
 /// Verifies header field execution uses the shared mask table atomically.
@@ -28,15 +18,18 @@ use qubit_redact::{
 fn test_field_redactor_uses_application_mask_for_header_rule() {
     let floor = RedactionFloor::builder()
         .raise("tenant_token", Sensitivity::Low)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the floor should be valid");
     let application = RedactionPolicy::builder()
         .disable_floor()
         .raise("tenant_token", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .mask(
             Sensitivity::Secret,
             MaskPolicy::fixed("[application-secret]"),
         )
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the application policy should be valid");
     let policy = HttpRedactionPolicy::builder()
@@ -48,6 +41,7 @@ fn test_field_redactor_uses_application_mask_for_header_rule() {
             Sensitivity::Secret,
             MaskPolicy::fixed("[application-secret]"),
         )
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the HTTP policy should be valid");
     let mut headers = HeaderMap::new();

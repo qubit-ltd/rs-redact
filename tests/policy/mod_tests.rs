@@ -7,16 +7,14 @@
 // =============================================================================
 //! Tests for the public policy module boundary.
 
-use qubit_redact::{
-    RedactionPolicy,
-    Sensitivity,
-};
+use qubit_redact::{RedactionPolicy, Sensitivity};
 
 /// Verifies builder and immutable policy reexports compose.
 #[test]
 fn test_policy_module_reexports_compose() {
     let policy = RedactionPolicy::builder()
         .raise("token", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the module-level policy rule is valid");
 

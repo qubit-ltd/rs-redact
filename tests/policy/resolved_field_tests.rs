@@ -7,28 +7,25 @@
 // =============================================================================
 //! Tests for atomic two-layer field resolution.
 
-use qubit_redact::{
-    MaskPolicy,
-    RedactionFloor,
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-};
+use qubit_redact::{MaskPolicy, RedactionFloor, RedactionPolicy, Redactor, Sensitivity};
 
 /// Verifies a floor only raises sensitivity and uses the policy mask table.
 #[test]
 fn test_resolved_field_uses_application_mask_at_floor_level() {
     let floor = RedactionFloor::builder()
         .raise("tenant_secret", Sensitivity::Low)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the floor should be valid");
     let policy = RedactionPolicy::builder()
         .floor(floor)
         .raise("tenant_secret", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .mask(
             Sensitivity::Secret,
             MaskPolicy::fixed("[application-secret]"),
         )
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the application policy should be valid");
 

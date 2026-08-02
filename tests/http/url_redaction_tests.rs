@@ -6,29 +6,15 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use proptest::prelude::{
-    prop_assert,
-    prop_assert_eq,
-    proptest,
-};
+use proptest::prelude::{prop_assert, prop_assert_eq, proptest};
 use qubit_redact::{
-    MaskPolicy,
-    RedactionPolicy,
-    Sensitivity,
-    http::{
-        DiagnosticBudget,
-        HttpFieldContext,
-        HttpRedactionPolicy,
-        HttpRedactor,
-    },
+    MaskPolicy, RedactionPolicy, Sensitivity,
+    http::{DiagnosticBudget, HttpFieldContext, HttpRedactionPolicy, HttpRedactor},
 };
 use url::Url;
 
 /// Builds an HTTP redactor with explicit finite diagnostic limits.
-fn redactor_with_diagnostic_budget(
-    input: usize,
-    output: usize,
-) -> HttpRedactor {
+fn redactor_with_diagnostic_budget(input: usize, output: usize) -> HttpRedactor {
     let budget = DiagnosticBudget::new(input, output)
         .expect("test diagnostic budgets satisfy the public lower bounds");
     let policy = HttpRedactionPolicy::builder()
@@ -42,8 +28,7 @@ fn redactor_with_diagnostic_budget(
 /// exposing any source prefix.
 #[test]
 fn test_url_and_form_diagnostics_fail_closed_at_input_limit() {
-    let redactor =
-        std::hint::black_box(redactor_with_diagnostic_budget(16, 128));
+    let redactor = std::hint::black_box(redactor_with_diagnostic_budget(16, 128));
     let marker = "<redacted: diagnostic limit exceeded>";
     let url = Url::parse("https://example.test/?password=source-secret")
         .expect("the test URL should be valid");
@@ -57,9 +42,7 @@ fn test_url_and_form_diagnostics_fail_closed_at_input_limit() {
     );
     assert_eq!(
         redactor
-            .redact_urls_in_text(
-                "failed at https://example.test/?password=source-secret",
-            )
+            .redact_urls_in_text("failed at https://example.test/?password=source-secret",)
             .as_ref(),
         marker,
     );
@@ -75,8 +58,7 @@ fn test_url_and_form_diagnostics_fail_closed_at_input_limit() {
 fn test_diagnostic_output_budget_is_log_safe_and_utf8_bounded() {
     let output_limit = DiagnosticBudget::MIN_OUTPUT_BYTES + 5;
     let redactor = redactor_with_diagnostic_budget(128, output_limit);
-    let result =
-        redactor.redact_urls_in_text("你\n你你你你你你你你你你你你你你你");
+    let result = redactor.redact_urls_in_text("你\n你你你你你你你你你你你你你你你");
 
     assert!(result.as_ref().len() <= output_limit);
     assert!(result.as_ref().ends_with("<truncated>"));
@@ -110,8 +92,7 @@ fn test_url_and_form_redaction_fail_closed_on_malformed_input() {
         redactor.redact_form("password=secret&bad=%").as_ref(),
         "<redacted: invalid URL-encoded form>",
     );
-    let url = redactor
-        .redact_url_str("https://example.test/private?password=secret&bad=%");
+    let url = redactor.redact_url_str("https://example.test/private?password=secret&bad=%");
     assert!(!url.as_ref().contains("secret"));
     assert!(url.as_ref().contains("invalid%20URL-encoded%20query"));
 }
@@ -119,8 +100,7 @@ fn test_url_and_form_redaction_fail_closed_on_malformed_input() {
 #[test]
 /// Verifies that diagnostic text redaction keeps non url text.
 fn test_diagnostic_text_redaction_keeps_non_url_text() {
-    let result = HttpRedactor::default()
-        .redact_urls_in_text("opaque diagnostic message");
+    let result = HttpRedactor::default().redact_urls_in_text("opaque diagnostic message");
 
     assert_eq!(result.as_ref(), "opaque diagnostic message");
 }
@@ -145,9 +125,8 @@ fn test_diagnostic_text_redaction_masks_urls_and_preserves_punctuation() {
 /// Verifies that diagnostic text redaction handles overlapping schemes and
 /// braces.
 fn test_diagnostic_text_redaction_handles_overlapping_schemes_and_braces() {
-    let result = HttpRedactor::default().redact_urls_in_text(
-        "http://example.test/https://nested.test/{visible}}",
-    );
+    let result = HttpRedactor::default()
+        .redact_urls_in_text("http://example.test/https://nested.test/{visible}}");
 
     assert!(result.as_ref().ends_with('}'));
     assert!(result.as_ref().contains("http://example.test/"));
@@ -229,8 +208,7 @@ fn test_nested_url_detection_covers_malformed_and_bounded_decoding() {
     for _ in 0..7 {
         non_url = non_url.replace('%', "%25");
     }
-    let result = redactor
-        .redact_url_str(&format!("https://outer.test/?next={non_url}",));
+    let result = redactor.redact_url_str(&format!("https://outer.test/?next={non_url}",));
     assert!(result.as_ref().contains("next="));
 }
 
@@ -240,10 +218,12 @@ fn test_url_redaction_preserves_authoritative_mask_output() {
     let query_policy = RedactionPolicy::builder()
         .disable_floor()
         .raise("password", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .mask(
             Sensitivity::Secret,
             MaskPolicy::fixed("https://mask.invalid/private"),
         )
+        .expect("the test mask policy should be valid")
         .build()
         .expect("query policy should be valid");
     let policy = HttpRedactionPolicy::builder()
@@ -252,11 +232,12 @@ fn test_url_redaction_preserves_authoritative_mask_output() {
             Sensitivity::Secret,
             MaskPolicy::fixed("https://mask.invalid/private"),
         )
+        .expect("the test mask policy should be valid")
         .disable_floor_for(HttpFieldContext::Query)
         .build()
         .expect("HTTP policy should be valid");
-    let result = HttpRedactor::new(policy)
-        .redact_url_str("https://outer.test/?password=raw-secret");
+    let result =
+        HttpRedactor::new(policy).redact_url_str("https://outer.test/?password=raw-secret");
 
     assert!(!result.as_ref().contains("raw-secret"));
     assert!(
@@ -269,8 +250,7 @@ fn test_url_redaction_preserves_authoritative_mask_output() {
 #[test]
 /// Verifies that url redaction fails closed at percent decoding limit.
 fn test_url_redaction_fails_closed_at_percent_decoding_limit() {
-    let mut nested =
-        "https://nested-user:nested-secret@inner.test/private".to_owned();
+    let mut nested = "https://nested-user:nested-secret@inner.test/private".to_owned();
     for _ in 0..10 {
         nested = nested
             .replace('%', "%25")
@@ -293,8 +273,7 @@ fn test_url_redaction_fails_closed_at_percent_decoding_limit() {
 #[test]
 /// Verifies that url redaction fails closed at nested url recursion limit.
 fn test_url_redaction_fails_closed_at_nested_url_recursion_limit() {
-    let mut nested =
-        "https://deep-user:deep-secret@inner.test/private".to_owned();
+    let mut nested = "https://deep-user:deep-secret@inner.test/private".to_owned();
     for layer in 0..10 {
         let encoded = nested
             .replace('%', "%25")
@@ -322,8 +301,7 @@ fn test_url_redaction_fails_closed_at_nested_url_recursion_limit() {
 #[test]
 /// Verifies that diagnostic text redaction fails closed on incomplete url.
 fn test_diagnostic_text_redaction_fails_closed_on_incomplete_url() {
-    let result = HttpRedactor::default()
-        .redact_urls_in_text("failed near https:// and plain text");
+    let result = HttpRedactor::default().redact_urls_in_text("failed near https:// and plain text");
 
     assert_eq!(
         result.as_ref(),
@@ -334,8 +312,7 @@ fn test_diagnostic_text_redaction_fails_closed_on_incomplete_url() {
 #[test]
 /// Verifies that diagnostic text redaction keeps balanced ipv6 host brackets.
 fn test_diagnostic_text_redaction_keeps_balanced_ipv6_host_brackets() {
-    let result =
-        HttpRedactor::default().redact_urls_in_text("connect http://[::1]");
+    let result = HttpRedactor::default().redact_urls_in_text("connect http://[::1]");
 
     assert_eq!(result.as_ref(), "connect http://[::1]/");
 }
@@ -356,9 +333,8 @@ fn test_diagnostic_text_redaction_preserves_long_unmatched_delimiter_suffix() {
 #[test]
 /// Verifies that diagnostic text redaction escapes log controls once.
 fn test_diagnostic_text_redaction_escapes_log_controls_once() {
-    let result = HttpRedactor::default().redact_urls_in_text(
-        "first\tHTTP://alice:secret@example.test/path?password=raw\nsecond",
-    );
+    let result = HttpRedactor::default()
+        .redact_urls_in_text("first\tHTTP://alice:secret@example.test/path?password=raw\nsecond");
 
     assert_eq!(
         result.as_ref(),

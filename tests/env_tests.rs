@@ -10,32 +10,19 @@
 mod env;
 
 #[cfg(unix)]
-use std::{
-    ffi::OsString,
-    os::unix::ffi::OsStringExt,
-};
+use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
-use proptest::prelude::{
-    prop_assert,
-    prop_assert_eq,
-    proptest,
-};
+use proptest::prelude::{prop_assert, prop_assert_eq, proptest};
 
 use qubit_redact::{
-    DiagnosticBudget,
-    FieldNameMatching,
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-    env::EnvRedactor,
+    DiagnosticBudget, FieldNameMatching, RedactionPolicy, Redactor, Sensitivity, env::EnvRedactor,
 };
 
 /// Verifies aggregate environment rendering stops before inspecting a pair
 /// that exceeds the configured input budget.
 #[test]
 fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
-    let budget = DiagnosticBudget::new(8, 64)
-        .expect("the small diagnostic budget should be valid");
+    let budget = DiagnosticBudget::new(8, 64).expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()
@@ -54,8 +41,7 @@ fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
 /// Verifies aggregate environment rendering stops at the final output budget.
 #[test]
 fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
-    let budget = DiagnosticBudget::new(8, 64)
-        .expect("the small diagnostic budget should be valid");
+    let budget = DiagnosticBudget::new(8, 64).expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()
@@ -64,10 +50,7 @@ fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
 
     let rendered = redactor
         .redact_os_pairs(vec![
-            (
-                std::ffi::OsStr::new(""),
-                std::ffi::OsStr::new("")
-            );
+            (std::ffi::OsStr::new(""), std::ffi::OsStr::new(""));
             128
         ])
         .to_string();
@@ -131,7 +114,9 @@ fn test_redact_pair_ignores_empty_canonical_name() {
 fn test_redact_pair_resolves_longest_suffix_match() {
     let policy = RedactionPolicy::builder()
         .raise("key", Sensitivity::Low)
+        .expect("the test builder input should be valid")
         .raise("api_key", Sensitivity::High)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the overlapping environment policy should be valid");
     let redactor = EnvRedactor::new(Redactor::new(policy));
@@ -213,6 +198,7 @@ fn test_redact_pair_escapes_non_sensitive_name_and_value() {
 fn test_new_uses_custom_redaction_policy() {
     let policy = RedactionPolicy::builder()
         .raise("tenant_value", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the custom environment policy should be valid");
     let redactor = EnvRedactor::new(Redactor::new(policy));

@@ -9,17 +9,10 @@
 
 use std::{
     borrow::Cow,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
+    fmt::{self, Display, Formatter},
 };
 
-use crate::{
-    DiagnosticBudget,
-    LogSafeText,
-};
+use crate::{DiagnosticBudget, LogSafeText};
 
 use super::redacted_argv_builder::RedactedArgvBuilder;
 
@@ -60,6 +53,16 @@ impl RedactedArgv {
         Self {
             rendered: LogSafeText::from_escaped(Cow::Owned(rendered)),
         }
+    }
+
+    /// Borrows the already escaped diagnostic representation.
+    ///
+    /// The returned text is safe to append through
+    /// [`crate::DiagnosticLogBuilder::push_safe`]. Callers remain responsible
+    /// for applying any enclosing output budget.
+    #[inline(always)]
+    pub const fn as_log_safe_text(&self) -> &LogSafeText<'static> {
+        &self.rendered
     }
 }
 

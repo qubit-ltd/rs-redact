@@ -8,18 +8,8 @@
 //! Tests for [`HttpRedactionPolicyBuilder`](qubit_redact::http::HttpRedactionPolicyBuilder).
 
 use qubit_redact::{
-    PolicyError,
-    PolicyLocation,
-    RedactionFloor,
-    RedactionPolicy,
-    Sensitivity,
-    http::{
-        BodyBudget,
-        DiagnosticBudget,
-        HttpFieldContext,
-        HttpRedactionPolicy,
-        JsonDepthBudget,
-    },
+    PolicyError, PolicyLocation, RedactionFloor, RedactionPolicy, Sensitivity,
+    http::{BodyBudget, DiagnosticBudget, HttpFieldContext, HttpRedactionPolicy, JsonDepthBudget},
 };
 
 /// Verifies an empty builder owns independently configurable rule snapshots.
@@ -28,8 +18,11 @@ fn test_builder_uses_three_rule_snapshots() {
     let policy = HttpRedactionPolicy::builder()
         .disable_all_floors()
         .raise(HttpFieldContext::Header, "header-secret", Sensitivity::High)
+        .expect("the test builder input should be valid")
         .raise(HttpFieldContext::Query, "query-secret", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .raise(HttpFieldContext::Body, "body-secret", Sensitivity::Medium)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the HTTP policy should be valid");
 
@@ -47,48 +40,48 @@ fn test_builder_uses_three_rule_snapshots() {
     );
 }
 
-/// Verifies shared HTTP masking errors report their own policy location.
+/// Verifies shared HTTP masking errors report their own policy location
+/// immediately.
 #[test]
-fn test_shared_mask_validation_reports_http_masking_location() {
+fn test_mask_reports_http_masking_location_immediately() {
     let result = HttpRedactionPolicy::builder()
-        .mask(Sensitivity::Secret, qubit_redact::MaskPolicy::fixed(""))
-        .build();
+        .mask(Sensitivity::Secret, qubit_redact::MaskPolicy::fixed(""));
 
     assert_eq!(
-        result,
-        Err(PolicyError::EmptyFixedReplacement {
+        result.expect_err("an empty fixed mask must fail immediately"),
+        PolicyError::EmptyFixedReplacement {
             location: PolicyLocation::HttpMasking,
             level: Sensitivity::Secret,
-        })
+        }
     );
 }
 
-/// Verifies context validation errors identify their source.
+/// Verifies context validation errors identify their source immediately.
 #[test]
-fn test_build_reports_context_policy_location() {
+fn test_setters_report_context_policy_location_immediately() {
     assert_eq!(
         HttpRedactionPolicy::builder()
             .raise(HttpFieldContext::Header, "---", Sensitivity::High)
-            .build(),
-        Err(PolicyError::EmptyFieldName {
+            .expect_err("an empty header field name must fail immediately"),
+        PolicyError::EmptyFieldName {
             location: PolicyLocation::HttpHeader
-        }),
+        },
     );
     assert_eq!(
         HttpRedactionPolicy::builder()
             .raise(HttpFieldContext::Query, "---", Sensitivity::High)
-            .build(),
-        Err(PolicyError::EmptyFieldName {
+            .expect_err("an empty query field name must fail immediately"),
+        PolicyError::EmptyFieldName {
             location: PolicyLocation::HttpQuery
-        }),
+        },
     );
     assert_eq!(
         HttpRedactionPolicy::builder()
             .raise(HttpFieldContext::Body, "---", Sensitivity::High)
-            .build(),
-        Err(PolicyError::EmptyFieldName {
+            .expect_err("an empty body field name must fail immediately"),
+        PolicyError::EmptyFieldName {
             location: PolicyLocation::HttpBody
-        }),
+        },
     );
 }
 
@@ -97,6 +90,7 @@ fn test_build_reports_context_policy_location() {
 fn test_floor_configuration_is_independent_and_last_call_wins() {
     let shared_floor = RedactionFloor::builder()
         .raise("shared-floor-secret", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the floor should be valid");
     let policy = HttpRedactionPolicy::builder()
@@ -122,10 +116,12 @@ fn test_floor_configuration_is_independent_and_last_call_wins() {
 
     let header_floor = RedactionFloor::builder()
         .raise("header-floor-secret", Sensitivity::High)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the header floor should be valid");
     let global_floor = RedactionFloor::builder()
         .raise("global-floor-secret", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the global floor should be valid");
     let global_last = HttpRedactionPolicy::builder()
@@ -153,13 +149,12 @@ fn test_floor_configuration_is_independent_and_last_call_wins() {
 fn test_builder_from_policy_preserves_rules_and_independent_budgets() {
     let base = RedactionPolicy::builder()
         .raise("base-secret", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the policy should be valid");
-    let diagnostic_budget =
-        DiagnosticBudget::new(128, 256).expect("valid diagnostic budget");
+    let diagnostic_budget = DiagnosticBudget::new(128, 256).expect("valid diagnostic budget");
     let body_budget = BodyBudget::new(64, 128).expect("valid body budget");
-    let json_depth_budget =
-        JsonDepthBudget::new(7).expect("valid JSON depth budget");
+    let json_depth_budget = JsonDepthBudget::new(7).expect("valid JSON depth budget");
     let policy = HttpRedactionPolicy::builder_from(&base)
         .diagnostic_budget(diagnostic_budget)
         .body_budget(body_budget)
