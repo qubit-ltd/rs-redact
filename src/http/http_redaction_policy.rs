@@ -9,11 +9,21 @@
 
 use std::sync::Arc;
 
-use crate::{DiagnosticBudget, JsonDepthBudget, MaskingPolicy, RedactionPolicy, RedactionRules};
+use crate::{
+    DiagnosticBudget,
+    JsonDepthBudget,
+    MaskingPolicy,
+    RedactionPolicy,
+    RedactionRules,
+};
 
 use super::http_redaction_policy_parts::HttpRedactionPolicyParts;
 use super::{
-    BodyBudget, HttpRedactionPolicyBuilder, TextBodyPolicy, UnkeyedJsonValuePolicy, UrlPathPolicy,
+    BodyBudget,
+    HttpRedactionPolicyBuilder,
+    TextBodyPolicy,
+    UnkeyedJsonValuePolicy,
+    UrlPathPolicy,
 };
 
 /// Combines HTTP field rules, behavior choices, and resource limits.
@@ -145,6 +155,8 @@ impl Default for HttpRedactionPolicy {
     /// Creates a policy snapshot from the current global configuration.
     #[inline(always)]
     fn default() -> Self {
-        crate::GlobalRedactionConfig::current().http_policy().clone()
+        crate::GlobalRedactionConfig::current()
+            .http_policy()
+            .clone()
     }
 }

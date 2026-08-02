@@ -14,7 +14,6 @@ use qubit_redact::http::{
 };
 use qubit_redact::{
     RedactionFloor,
-    RedactionFloorState,
     Sensitivity,
 };
 
@@ -69,14 +68,6 @@ fn test_http_redaction_policy_exposes_independent_context_rules_and_floors() {
         .build()
         .expect("the HTTP policy should be valid");
 
-    assert_eq!(
-        policy.header_rules().floor_state(),
-        RedactionFloorState::Explicit
-    );
-    assert_eq!(
-        policy.query_rules().floor_state(),
-        RedactionFloorState::Disabled
-    );
     assert_eq!(
         policy.body_rules().sensitivity_for("body-secret"),
         Some(Sensitivity::High)

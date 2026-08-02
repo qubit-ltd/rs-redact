@@ -96,9 +96,10 @@ http = "1.4"
   the default policy semantics.
 - Application allow rules never bypass an enabled `RedactionFloor`. Use
   `RedactionPolicy::builder()` for empty application rules with the standard
-  floor, and use `RedactionPolicy::default().to_builder()` for the normal
-  "extend defaults" path. `disable_floor()` intentionally removes every
-  floor and is appropriate only when the caller owns that security decision.
+  floor; this builder is deterministic and never reads global state. Use
+  `RedactionPolicy::default().to_builder()` for the normal "extend defaults"
+  path. `disable_floor()` intentionally removes every floor and is appropriate
+  only when the caller owns that security decision.
 - Install one `GlobalRedactionConfig` during application assembly. It affects
   only future snapshots; already-built policies and redactors never change.
 - `redact_field()` returns `FieldRedaction`, which distinguishes masked values

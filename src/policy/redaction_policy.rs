@@ -7,15 +7,27 @@
 // =============================================================================
 //! Immutable field-classification, masking, and diagnostic policy.
 
-use std::sync::{Arc, LazyLock};
+use std::sync::{
+    Arc,
+    LazyLock,
+};
 
 #[cfg(feature = "json")]
 use super::JsonDepthBudget;
 use super::redaction_limits::RedactionLimits;
 use super::{
-    AllowRule, DiagnosticBudget, FieldClassification, FieldNameMatching, MaskingPolicy,
-    RedactionFloor, RedactionFloorState, RedactionPolicyBuilder, RedactionRules,
-    SensitiveFieldRule, Sensitivity, UnknownFieldPolicy, internal::RedactionPolicyInner,
+    AllowRule,
+    DiagnosticBudget,
+    FieldClassification,
+    FieldNameMatching,
+    MaskingPolicy,
+    RedactionFloor,
+    RedactionPolicyBuilder,
+    RedactionRules,
+    SensitiveFieldRule,
+    Sensitivity,
+    UnknownFieldPolicy,
+    internal::RedactionPolicyInner,
 };
 
 /// Built-in sensitive fields not owned by a named preset.
@@ -43,7 +55,6 @@ static STANDARD_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
                 unknown_field_policy: UnknownFieldPolicy::PassThrough,
             },
             Some(RedactionFloor::standard()),
-            RedactionFloorState::Explicit,
         ),
         MaskingPolicy::default(),
         DiagnosticBudget::default(),
@@ -59,10 +70,11 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
                 allow_exact: Default::default(),
                 allow_suffix: Default::default(),
                 matching: FieldNameMatching::ExactOrTokenSuffix,
-                unknown_field_policy: UnknownFieldPolicy::Redact(Sensitivity::Secret),
+                unknown_field_policy: UnknownFieldPolicy::Redact(
+                    Sensitivity::Secret,
+                ),
             },
             Some(RedactionFloor::standard()),
-            RedactionFloorState::Explicit,
         ),
         MaskingPolicy::default(),
         DiagnosticBudget::default(),
@@ -109,8 +121,7 @@ impl RedactionPolicy {
 
     /// Creates a builder that exactly copies `self`.
     ///
-    /// The copy includes application rules, limits, the attached floor, and
-    /// its [`RedactionFloorState`].
+    /// The copy includes application rules, limits, and the attached floor.
     #[inline]
     pub fn to_builder(&self) -> RedactionPolicyBuilder {
         RedactionPolicyBuilder::from_policy(self)
@@ -165,12 +176,6 @@ impl RedactionPolicy {
         self.rules.floor()
     }
 
-    /// Returns how this policy's current floor snapshot was obtained.
-    #[inline]
-    pub const fn floor_state(&self) -> RedactionFloorState {
-        self.rules.floor_state()
-    }
-
     /// Replaces the floor for this immutable policy.
     pub fn with_floor(mut self, floor: RedactionFloor) -> Self {
         self.rules = self.rules.with_floor(floor);
@@ -192,7 +197,10 @@ impl RedactionPolicy {
     /// This is useful for diagnostics about configured application rules. Use
     /// [`Self::sensitivity_for`] for the final security decision.
     #[inline]
-    pub fn classify_field<'a>(&'a self, field: &str) -> FieldClassification<'a> {
+    pub fn classify_field<'a>(
+        &'a self,
+        field: &str,
+    ) -> FieldClassification<'a> {
         self.rules.classify_field(field)
     }
 
@@ -208,13 +216,19 @@ impl RedactionPolicy {
 
     /// Resolves final sensitivity with exact-only field matching.
     #[inline]
-    pub(crate) fn sensitivity_for_exact(&self, field: &str) -> Option<Sensitivity> {
+    pub(crate) fn sensitivity_for_exact(
+        &self,
+        field: &str,
+    ) -> Option<Sensitivity> {
         self.rules.sensitivity_for_exact(field)
     }
 
     /// Resolves final sensitivity with exact-only field matching.
     #[inline]
-    pub(crate) fn resolve_field_exact(&self, field: &str) -> super::ResolvedField {
+    pub(crate) fn resolve_field_exact(
+        &self,
+        field: &str,
+    ) -> super::ResolvedField {
         self.rules.resolve_field_exact(field)
     }
 
@@ -249,7 +263,9 @@ impl RedactionPolicy {
     /// Use [`Self::floor`] to inspect the independent minimum-protection
     /// rules.
     #[inline]
-    pub fn application_sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
+    pub fn application_sensitive_rules(
+        &self,
+    ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
         self.rules.application_sensitive_rules()
     }
 
@@ -257,7 +273,9 @@ impl RedactionPolicy {
     ///
     /// These rules never bypass an enabled floor.
     #[inline]
-    pub fn application_allow_rules(&self) -> impl Iterator<Item = AllowRule<'_>> {
+    pub fn application_allow_rules(
+        &self,
+    ) -> impl Iterator<Item = AllowRule<'_>> {
         self.rules.application_allow_rules()
     }
 

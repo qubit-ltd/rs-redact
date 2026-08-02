@@ -7,10 +7,19 @@
 // =============================================================================
 //! Tests for immutable redaction policies and rule matching.
 
-use proptest::{prop_assert_eq, proptest};
+use proptest::{
+    prop_assert_eq,
+    proptest,
+};
 use qubit_redact::{
-    FieldNameMatching, MaskPolicy, PolicyError, PolicyLocation, RedactionPolicy,
-    RedactionPolicyBuilder, SensitiveFieldPreset, Sensitivity,
+    FieldNameMatching,
+    MaskPolicy,
+    PolicyError,
+    PolicyLocation,
+    RedactionPolicy,
+    RedactionPolicyBuilder,
+    SensitiveFieldPreset,
+    Sensitivity,
 };
 
 /// Verifies that an exact allow rule does not allow a contextual suffix.
@@ -128,7 +137,8 @@ fn test_builder_is_empty_and_default_based_builder_is_explicit() {
         .raise("tenant_id", Sensitivity::Low)
         .build()
         .expect("the default empty policy should be valid");
-    let from_default = RedactionPolicy::default().to_builder()
+    let from_default = RedactionPolicy::default()
+        .to_builder()
         .raise("tenant_id", Sensitivity::Low)
         .build()
         .expect("the default-based policy should be valid");
@@ -137,10 +147,6 @@ fn test_builder_is_empty_and_default_based_builder_is_explicit() {
         .build()
         .expect("the copied policy should be valid");
 
-    assert_eq!(
-        builder.floor_state(),
-        qubit_redact::RedactionFloorState::Explicit
-    );
     assert_eq!(
         builder.sensitivity_for("password"),
         Some(Sensitivity::Secret)
@@ -168,13 +174,13 @@ fn test_builder_is_empty_and_default_based_builder_is_explicit() {
     );
 }
 
-/// Verifies that copying the current snapshot replaces every prior builder state.
+/// Verifies that copying the current snapshot replaces every prior builder
+/// state.
 #[test]
 fn test_builder_from_snapshot_replaces_existing_state_and_error() {
-    let policy = RedactionPolicy::default()
-        .to_builder()
-        .build()
-        .expect("the complete default replacement should clear the prior error");
+    let policy = RedactionPolicy::default().to_builder().build().expect(
+        "the complete default replacement should clear the prior error",
+    );
 
     assert_eq!(policy, RedactionPolicy::default());
     assert_eq!(policy.sensitivity_for("custom_only"), None);
@@ -212,16 +218,16 @@ fn test_builder_from_copies_complete_policy_snapshot() {
     assert_eq!(copied.sensitivity_for("OPENAI_TENANT_SECRET"), None);
     assert_eq!(copied.sensitivity_for("public_token"), None);
     assert_eq!(copied.sensitivity_for("diagnostic_token"), None);
-    assert!(
-        sensitive.iter().any(|rule| {
-            rule.field() == "publictoken" && rule.sensitivity() == Sensitivity::High
-        })
-    );
     assert!(sensitive.iter().any(|rule| {
-        rule.field() == "diagnostictoken" && rule.sensitivity() == Sensitivity::Medium
+        rule.field() == "publictoken" && rule.sensitivity() == Sensitivity::High
+    }));
+    assert!(sensitive.iter().any(|rule| {
+        rule.field() == "diagnostictoken"
+            && rule.sensitivity() == Sensitivity::Medium
     }));
     assert!(allowed.iter().any(|rule| {
-        rule.field() == "publictoken" && rule.matching() == FieldNameMatching::Exact
+        rule.field() == "publictoken"
+            && rule.matching() == FieldNameMatching::Exact
     }));
     assert!(allowed.iter().any(|rule| {
         rule.field() == "diagnostictoken"
@@ -276,9 +282,7 @@ fn test_build_rejects_empty_canonical_field_names() {
         RedactionPolicy::builder()
             .allow_canonical_exact(" _-.[ ] ")
             .build(),
-        RedactionPolicy::builder()
-            .allow_suffix(" _-.[ ] ")
-            .build(),
+        RedactionPolicy::builder().allow_suffix(" _-.[ ] ").build(),
     ] {
         assert_eq!(
             result,

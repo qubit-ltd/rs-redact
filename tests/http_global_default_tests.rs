@@ -10,21 +10,25 @@
 #![cfg(feature = "http")]
 
 use qubit_redact::{
-    DiagnosticBudget, GlobalRedactionConfig, RedactionPolicy, http::HttpRedactionPolicy,
+    DiagnosticBudget,
+    GlobalRedactionConfig,
+    RedactionPolicy,
+    http::HttpRedactionPolicy,
 };
 
 /// Verifies HTTP defaults and explicitly loaded builders preserve a global
 /// diagnostic budget snapshot.
 #[test]
 fn test_http_policy_defaults_preserve_global_diagnostic_budget() {
-    let expected = DiagnosticBudget::new(64, 64).expect("the diagnostic budget should be valid");
+    let expected = DiagnosticBudget::new(64, 64)
+        .expect("the diagnostic budget should be valid");
     let custom = RedactionPolicy::builder()
         .diagnostic_budget(expected)
         .build()
         .expect("the custom global policy should be valid");
-    GlobalRedactionConfig::from_policy(custom)
-        .install()
-        .expect("this isolated test process installs the global configuration once");
+    GlobalRedactionConfig::from_policy(custom).install().expect(
+        "this isolated test process installs the global configuration once",
+    );
 
     let default_policy = HttpRedactionPolicy::default();
     let builder_policy = HttpRedactionPolicy::default()
