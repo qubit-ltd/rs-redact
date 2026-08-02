@@ -7,6 +7,8 @@
 // =============================================================================
 //! Tests for [`RedactionPolicyBuilder`](qubit_redact::RedactionPolicyBuilder).
 
+#[cfg(feature = "json")]
+use qubit_redact::UnkeyedJsonValuePolicy;
 use qubit_redact::{
     DiagnosticBudget,
     MaskPolicy,
@@ -15,7 +17,6 @@ use qubit_redact::{
     RedactionPolicy,
     Sensitivity,
 };
-
 /// Verifies invalid field names fail at the setter that receives them.
 #[test]
 fn test_redaction_policy_builder_rejects_invalid_field_immediately() {
@@ -75,6 +76,28 @@ fn test_redaction_policy_builder_preserves_diagnostic_budget() {
             .build()
             .expect("copied policy should build"),
         policy,
+    );
+}
+
+/// Verifies the builder preserves the root and array scalar JSON policy.
+#[cfg(feature = "json")]
+#[test]
+fn test_redaction_policy_builder_preserves_unkeyed_json_policy() {
+    let policy = RedactionPolicy::builder()
+        .unkeyed_json_value_policy(UnkeyedJsonValuePolicy::Redact)
+        .build()
+        .expect("the JSON policy should build");
+
+    assert_eq!(
+        policy.unkeyed_json_value_policy(),
+        UnkeyedJsonValuePolicy::Redact,
+    );
+    assert_eq!(
+        RedactionPolicy::builder_from(&policy)
+            .build()
+            .expect("the copied JSON policy should build")
+            .unkeyed_json_value_policy(),
+        UnkeyedJsonValuePolicy::Redact,
     );
 }
 
