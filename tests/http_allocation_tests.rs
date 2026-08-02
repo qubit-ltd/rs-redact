@@ -39,6 +39,7 @@ use qubit_redact::{
         BodyBudget,
         BodyCapture,
         DiagnosticBudget,
+        HttpFieldContext,
         HttpRedactionPolicy,
         HttpRedactor,
     },
@@ -204,7 +205,8 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
     );
 
     let replacement = "X".repeat(1024 * 1024);
-    let amplified_policy = RedactionPolicy::default().to_builder()
+    let amplified_policy = RedactionPolicy::default()
+        .to_builder()
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .build()
@@ -213,8 +215,8 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
     let diagnostic_budget = DiagnosticBudget::new(4096, output_limit)
         .expect("the diagnostic budget can contain every marker");
     let policy = HttpRedactionPolicy::builder()
-        .header_rules(amplified_policy.rules().clone())
-        .query_rules(amplified_policy.rules().clone())
+        .rules(HttpFieldContext::Header, amplified_policy.rules().clone())
+        .rules(HttpFieldContext::Query, amplified_policy.rules().clone())
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .diagnostic_budget(diagnostic_budget)
@@ -275,7 +277,7 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
     let body_budget = BodyBudget::new(128 * 1024, output_limit)
         .expect("the body budget is valid");
     let policy = HttpRedactionPolicy::builder()
-        .body_rules(body_policy.rules().clone())
+        .rules(HttpFieldContext::Body, body_policy.rules().clone())
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .body_budget(body_budget)

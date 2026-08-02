@@ -17,6 +17,7 @@ use qubit_redact::{
     RedactionPolicy,
     Sensitivity,
     http::{
+        HttpFieldContext,
         HttpRedactionPolicy,
         HttpRedactor,
     },
@@ -39,7 +40,10 @@ fn test_field_redactor_uses_application_mask_for_header_rule() {
         .build()
         .expect("the application policy should be valid");
     let policy = HttpRedactionPolicy::builder()
-        .header_rules(application.rules().clone().with_floor(floor))
+        .rules(
+            HttpFieldContext::Header,
+            application.rules().clone().with_floor(floor),
+        )
         .mask(
             Sensitivity::Secret,
             MaskPolicy::fixed("[application-secret]"),

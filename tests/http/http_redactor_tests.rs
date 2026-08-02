@@ -27,6 +27,7 @@ use qubit_redact::{
     http::{
         BodyBudget,
         BodyCapture,
+        HttpFieldContext,
         HttpRedactionPolicy,
         HttpRedactor,
         TextBodyPolicy,
@@ -157,7 +158,7 @@ fn test_native_sensitive_header_wins_over_allow_rule() {
         .build()
         .expect("the allow-only test policy is valid");
     let policy = HttpRedactionPolicy::builder()
-        .header_rules(allowed.rules().clone())
+        .rules(HttpFieldContext::Header, allowed.rules().clone())
         .build()
         .expect("HTTP redaction policy should be valid");
     let redactor = HttpRedactor::new(policy);
@@ -585,9 +586,9 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
         .expect("the test masking policy is valid");
     assert_eq!(body_policy.masking(), &masking);
     let policy = HttpRedactionPolicy::builder()
-        .body_rules(body_policy.rules().clone())
+        .rules(HttpFieldContext::Body, body_policy.rules().clone())
         .mask(Sensitivity::Secret, MaskPolicy::fixed("SECRET"))
-        .disable_body_floor()
+        .disable_floor_for(HttpFieldContext::Body)
         .unkeyed_json_value_policy(
             qubit_redact::http::UnkeyedJsonValuePolicy::PassThrough,
         )
@@ -627,8 +628,8 @@ fn test_json_policy_masks_sensitive_non_strings_as_opaque_values() {
         .build()
         .expect("the body policy should be valid");
     let policy = HttpRedactionPolicy::builder()
-        .disable_body_floor()
-        .body_rules(body_policy.rules().clone())
+        .disable_floor_for(HttpFieldContext::Body)
+        .rules(HttpFieldContext::Body, body_policy.rules().clone())
         .mask(
             Sensitivity::Secret,
             MaskPolicy::preserve_edges(1, 1, "OPAQUE", 0),
@@ -674,7 +675,8 @@ fn test_json_policy_fails_closed_at_depth_budget() {
 #[test]
 /// Verifies that multipart handles nested formats text unknown and empty.
 fn test_multipart_handles_nested_formats_text_unknown_and_empty() {
-    let policy = HttpRedactionPolicy::default().to_builder()
+    let policy = HttpRedactionPolicy::default()
+        .to_builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
         .expect("HTTP redaction policy should be valid");

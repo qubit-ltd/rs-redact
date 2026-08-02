@@ -17,6 +17,7 @@ use qubit_redact::{
     Sensitivity,
     http::{
         DiagnosticBudget,
+        HttpFieldContext,
         HttpRedactionPolicy,
         HttpRedactor,
     },
@@ -246,12 +247,12 @@ fn test_url_redaction_preserves_authoritative_mask_output() {
         .build()
         .expect("query policy should be valid");
     let policy = HttpRedactionPolicy::builder()
-        .query_rules(query_policy.rules().clone())
+        .rules(HttpFieldContext::Query, query_policy.rules().clone())
         .mask(
             Sensitivity::Secret,
             MaskPolicy::fixed("https://mask.invalid/private"),
         )
-        .disable_query_floor()
+        .disable_floor_for(HttpFieldContext::Query)
         .build()
         .expect("HTTP policy should be valid");
     let result = HttpRedactor::new(policy)

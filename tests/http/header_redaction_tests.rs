@@ -23,6 +23,7 @@ use qubit_redact::{
     RedactionPolicy,
     http::{
         DiagnosticBudget,
+        HttpFieldContext,
         HttpRedactionPolicy,
         HttpRedactor,
     },
@@ -39,7 +40,7 @@ fn redactor_with_diagnostic_budget(
     let budget = DiagnosticBudget::new(input, output)
         .expect("test diagnostic budgets satisfy the public lower bounds");
     let policy = HttpRedactionPolicy::builder()
-        .header_rules(header_policy.rules().clone())
+        .rules(HttpFieldContext::Header, header_policy.rules().clone())
         .diagnostic_budget(budget)
         .build()
         .expect("the HTTP policy should be valid");

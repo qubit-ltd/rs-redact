@@ -9,6 +9,7 @@
 
 use qubit_redact::http::{
     DiagnosticBudget,
+    HttpFieldContext,
     HttpRedactionPolicy,
 };
 use qubit_redact::{
@@ -26,6 +27,32 @@ fn test_http_redaction_policy_default_has_input_budget() {
     assert_eq!(policy.diagnostic_budget(), DiagnosticBudget::default());
 }
 
+/// Verifies the strict preset applies the unknown-field fallback to all HTTP
+/// field contexts while retaining conservative body handling.
+#[test]
+fn test_http_redaction_policy_strict_preset_redacts_unknown_fields() {
+    let policy = HttpRedactionPolicy::strict();
+
+    for rules in [
+        policy.header_rules(),
+        policy.query_rules(),
+        policy.body_rules(),
+    ] {
+        assert_eq!(
+            rules.unknown_field_policy(),
+            qubit_redact::UnknownFieldPolicy::Redact(Sensitivity::Secret),
+        );
+    }
+    assert_eq!(
+        policy.text_body_policy(),
+        qubit_redact::http::TextBodyPolicy::Redact,
+    );
+    assert_eq!(
+        policy.unkeyed_json_value_policy(),
+        qubit_redact::http::UnkeyedJsonValuePolicy::Redact,
+    );
+}
+
 /// Verifies each HTTP field context owns only rules and can independently
 /// replace the inherited floor snapshot.
 #[test]
@@ -35,10 +62,10 @@ fn test_http_redaction_policy_exposes_independent_context_rules_and_floors() {
         .build()
         .expect("the floor should be valid");
     let policy = HttpRedactionPolicy::builder()
-        .header_floor(floor)
-        .disable_query_floor()
-        .disable_body_floor()
-        .raise_body("body-secret", Sensitivity::High)
+        .floor_for(HttpFieldContext::Header, floor)
+        .disable_floor_for(HttpFieldContext::Query)
+        .disable_floor_for(HttpFieldContext::Body)
+        .raise(HttpFieldContext::Body, "body-secret", Sensitivity::High)
         .build()
         .expect("the HTTP policy should be valid");
 

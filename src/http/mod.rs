@@ -14,6 +14,7 @@ mod body_capture_error;
 mod body_redaction;
 mod body_redaction_reason;
 mod body_redaction_status;
+mod context_rules_builder;
 mod field_redactor;
 mod http_field_context;
 mod http_redaction_policy;

@@ -21,6 +21,7 @@ use qubit_redact::{
         BodyRedaction,
         BodyRedactionReason,
         BodyRedactionStatus,
+        HttpFieldContext,
         HttpRedactionPolicy,
         HttpRedactor,
     },
@@ -65,7 +66,7 @@ fn test_http_redaction_policy_default_uses_safe_values() {
 #[test]
 fn test_http_redaction_policy_builder_has_no_field_rules() {
     let policy = HttpRedactionPolicy::builder()
-        .disable_floor()
+        .disable_all_floors()
         .build()
         .expect("HTTP redaction policy should be valid");
 
@@ -93,10 +94,10 @@ fn test_http_redaction_policy_builder_overrides_each_context() {
     let budget = BodyBudget::new(32, 48).expect("budget should be valid");
 
     let policy = HttpRedactionPolicy::builder_from(&base)
-        .disable_floor()
-        .header_rules(header.rules().clone())
-        .query_rules(query.rules().clone())
-        .body_rules(body.rules().clone())
+        .disable_all_floors()
+        .rules(HttpFieldContext::Header, header.rules().clone())
+        .rules(HttpFieldContext::Query, query.rules().clone())
+        .rules(HttpFieldContext::Body, body.rules().clone())
         .body_budget(budget)
         .build()
         .expect("HTTP redaction policy should be valid");
@@ -116,25 +117,49 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
         .expect("empty base policy should be valid");
 
     let policy = HttpRedactionPolicy::builder_from(&base)
-        .disable_floor()
-        .raise_header("header_secret", Sensitivity::High)
-        .override_header("header_secret", Sensitivity::Low)
-        .raise_header("visible_header", Sensitivity::Secret)
-        .allow_header_exact("visible_header")
-        .raise_header("public_header", Sensitivity::Secret)
-        .allow_header_suffix("public_header")
-        .raise_query("query_secret", Sensitivity::Secret)
-        .override_query("query_secret", Sensitivity::Medium)
-        .raise_query("visible_query", Sensitivity::Secret)
-        .allow_query_exact("visible_query")
-        .raise_query("public_query", Sensitivity::Secret)
-        .allow_query_suffix("public_query")
-        .raise_body("body_secret", Sensitivity::Secret)
-        .override_body("body_secret", Sensitivity::High)
-        .raise_body("visible_body", Sensitivity::Secret)
-        .allow_body_exact("visible_body")
-        .raise_body("public_body", Sensitivity::Secret)
-        .allow_body_suffix("public_body")
+        .disable_all_floors()
+        .raise(HttpFieldContext::Header, "header_secret", Sensitivity::High)
+        .override_level(
+            HttpFieldContext::Header,
+            "header_secret",
+            Sensitivity::Low,
+        )
+        .raise(
+            HttpFieldContext::Header,
+            "visible_header",
+            Sensitivity::Secret,
+        )
+        .allow_exact(HttpFieldContext::Header, "visible_header")
+        .raise(
+            HttpFieldContext::Header,
+            "public_header",
+            Sensitivity::Secret,
+        )
+        .allow_suffix(HttpFieldContext::Header, "public_header")
+        .raise(HttpFieldContext::Query, "query_secret", Sensitivity::Secret)
+        .override_level(
+            HttpFieldContext::Query,
+            "query_secret",
+            Sensitivity::Medium,
+        )
+        .raise(
+            HttpFieldContext::Query,
+            "visible_query",
+            Sensitivity::Secret,
+        )
+        .allow_exact(HttpFieldContext::Query, "visible_query")
+        .raise(HttpFieldContext::Query, "public_query", Sensitivity::Secret)
+        .allow_suffix(HttpFieldContext::Query, "public_query")
+        .raise(HttpFieldContext::Body, "body_secret", Sensitivity::Secret)
+        .override_level(
+            HttpFieldContext::Body,
+            "body_secret",
+            Sensitivity::High,
+        )
+        .raise(HttpFieldContext::Body, "visible_body", Sensitivity::Secret)
+        .allow_exact(HttpFieldContext::Body, "visible_body")
+        .raise(HttpFieldContext::Body, "public_body", Sensitivity::Secret)
+        .allow_suffix(HttpFieldContext::Body, "public_body")
         .build()
         .expect("independent HTTP context rules should be valid");
 
@@ -192,7 +217,7 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
 fn test_http_redaction_policy_builder_reports_invalid_context_rule() {
     assert_eq!(
         HttpRedactionPolicy::builder()
-            .raise_header("---", Sensitivity::High)
+            .raise(HttpFieldContext::Header, "---", Sensitivity::High)
             .build(),
         Err(PolicyError::EmptyFieldName {
             location: PolicyLocation::HttpHeader,

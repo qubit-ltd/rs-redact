@@ -15,6 +15,7 @@ use qubit_redact::{
     http::{
         BodyBudget,
         BodyCapture,
+        HttpFieldContext,
         HttpRedactionPolicy,
         HttpRedactor,
     },
@@ -34,7 +35,7 @@ fn redact_json_value(
         .build()
         .expect("the body policy is valid");
     let policy = HttpRedactionPolicy::builder()
-        .body_rules(body_policy.rules().clone())
+        .rules(HttpFieldContext::Body, body_policy.rules().clone())
         .mask(Sensitivity::Secret, mask)
         .body_budget(
             BodyBudget::new(4096, max_output).expect("the budget is valid"),
@@ -62,7 +63,7 @@ fn test_fixed_mask_respects_output_budget() {
         .build()
         .expect("the body policy is valid");
     let policy = HttpRedactionPolicy::builder()
-        .body_rules(body_policy.rules().clone())
+        .rules(HttpFieldContext::Body, body_policy.rules().clone())
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .body_budget(BodyBudget::new(4096, 64).expect("the budget is valid"))
         .build()

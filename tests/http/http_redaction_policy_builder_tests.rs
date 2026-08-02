@@ -8,9 +8,18 @@
 //! Tests for [`HttpRedactionPolicyBuilder`](qubit_redact::http::HttpRedactionPolicyBuilder).
 
 use qubit_redact::{
-    PolicyError, PolicyLocation, RedactionFloor, RedactionFloorState, RedactionPolicy, Sensitivity,
+    PolicyError,
+    PolicyLocation,
+    RedactionFloor,
+    RedactionFloorState,
+    RedactionPolicy,
+    Sensitivity,
     http::{
-        BodyBudget, DiagnosticBudget, HttpFieldContext, HttpRedactionPolicy, JsonDepthBudget,
+        BodyBudget,
+        DiagnosticBudget,
+        HttpFieldContext,
+        HttpRedactionPolicy,
+        JsonDepthBudget,
     },
 };
 
@@ -60,7 +69,7 @@ fn test_shared_mask_validation_reports_http_masking_location() {
 fn test_build_reports_context_policy_location() {
     assert_eq!(
         HttpRedactionPolicy::builder()
-            .raise_header("---", Sensitivity::High)
+            .raise(HttpFieldContext::Header, "---", Sensitivity::High)
             .build(),
         Err(PolicyError::EmptyFieldName {
             location: PolicyLocation::HttpHeader
@@ -68,7 +77,7 @@ fn test_build_reports_context_policy_location() {
     );
     assert_eq!(
         HttpRedactionPolicy::builder()
-            .raise_query("---", Sensitivity::High)
+            .raise(HttpFieldContext::Query, "---", Sensitivity::High)
             .build(),
         Err(PolicyError::EmptyFieldName {
             location: PolicyLocation::HttpQuery
@@ -76,7 +85,7 @@ fn test_build_reports_context_policy_location() {
     );
     assert_eq!(
         HttpRedactionPolicy::builder()
-            .raise_body("---", Sensitivity::High)
+            .raise(HttpFieldContext::Body, "---", Sensitivity::High)
             .build(),
         Err(PolicyError::EmptyFieldName {
             location: PolicyLocation::HttpBody
@@ -92,10 +101,10 @@ fn test_floor_configuration_is_independent_and_last_call_wins() {
         .build()
         .expect("the floor should be valid");
     let policy = HttpRedactionPolicy::builder()
-        .floor(shared_floor.clone())
-        .disable_query_floor()
-        .body_floor(shared_floor)
-        .disable_body_floor()
+        .floor_all(shared_floor.clone())
+        .disable_floor_for(HttpFieldContext::Query)
+        .floor_for(HttpFieldContext::Body, shared_floor)
+        .disable_floor_for(HttpFieldContext::Body)
         .build()
         .expect("the HTTP policy should be valid");
 
@@ -121,9 +130,9 @@ fn test_floor_configuration_is_independent_and_last_call_wins() {
         .build()
         .expect("the global floor should be valid");
     let global_last = HttpRedactionPolicy::builder()
-        .header_floor(header_floor)
-        .disable_query_floor()
-        .floor(global_floor)
+        .floor_for(HttpFieldContext::Header, header_floor)
+        .disable_floor_for(HttpFieldContext::Query)
+        .floor_all(global_floor)
         .build()
         .expect("the global-last HTTP policy should be valid");
 
@@ -148,9 +157,11 @@ fn test_builder_from_policy_preserves_rules_and_independent_budgets() {
         .raise("base-secret", Sensitivity::Secret)
         .build()
         .expect("the policy should be valid");
-    let diagnostic_budget = DiagnosticBudget::new(128, 256).expect("valid diagnostic budget");
+    let diagnostic_budget =
+        DiagnosticBudget::new(128, 256).expect("valid diagnostic budget");
     let body_budget = BodyBudget::new(64, 128).expect("valid body budget");
-    let json_depth_budget = JsonDepthBudget::new(7).expect("valid JSON depth budget");
+    let json_depth_budget =
+        JsonDepthBudget::new(7).expect("valid JSON depth budget");
     let policy = HttpRedactionPolicy::builder_from(&base)
         .diagnostic_budget(diagnostic_budget)
         .body_budget(body_budget)

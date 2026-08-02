@@ -15,6 +15,7 @@ use qubit_redact::{
     http::{
         BodyBudget,
         BodyCapture,
+        HttpFieldContext,
         HttpRedactionPolicy,
         HttpRedactor,
     },
@@ -34,9 +35,9 @@ fn amplified_mask_redactor() -> HttpRedactor {
     let budget =
         BodyBudget::new(4096, 64).expect("the output can contain the marker");
     let policy = HttpRedactionPolicy::builder()
-        .body_rules(body_policy.rules().clone())
+        .rules(HttpFieldContext::Body, body_policy.rules().clone())
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
-        .disable_body_floor()
+        .disable_floor_for(HttpFieldContext::Body)
         .body_budget(budget)
         .build()
         .expect("the HTTP policy is valid");

@@ -10,7 +10,10 @@
 use qubit_redact::{
     RedactionPolicy,
     Sensitivity,
-    http::HttpRedactionPolicy,
+    http::{
+        HttpFieldContext,
+        HttpRedactionPolicy,
+    },
 };
 
 /// Verifies complete policy construction retains distinct rule snapshots for
@@ -39,9 +42,9 @@ fn test_http_redaction_policy_parts_keep_context_rules_distinct() {
         .rules()
         .clone();
     let policy = HttpRedactionPolicy::builder()
-        .header_rules(header_rules)
-        .query_rules(query_rules)
-        .body_rules(body_rules)
+        .rules(HttpFieldContext::Header, header_rules)
+        .rules(HttpFieldContext::Query, query_rules)
+        .rules(HttpFieldContext::Body, body_rules)
         .build()
         .expect("the complete HTTP policy should be valid");
 
