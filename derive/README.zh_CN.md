@@ -24,8 +24,8 @@ Qubit Redact Derive 为 [`qubit-redact`](https://crates.io/crates/qubit-redact)
 
 ```toml
 [dependencies]
-qubit-redact = "0.5"
-qubit-redact-derive = "0.5"
+qubit-redact = "0.6"
+qubit-redact-derive = "0.6"
 ```
 
 ```rust
@@ -101,8 +101,8 @@ fn main() {
 
 ```toml
 [dependencies]
-redaction = { package = "qubit-redact", version = "0.5" }
-qubit-redact-derive = "0.5"
+redaction = { package = "qubit-redact", version = "0.6" }
+qubit-redact-derive = "0.6"
 ```
 
 使用 `#[redact(serde)]` 时，启用运行时 crate 的 `serde` feature，并直接声明
@@ -110,8 +110,8 @@ qubit-redact-derive = "0.5"
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5", features = ["serde"] }
-qubit-redact-derive = "0.5"
+qubit-redact = { version = "0.6", features = ["serde"] }
+qubit-redact-derive = "0.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
