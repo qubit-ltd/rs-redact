@@ -437,8 +437,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`HttpRedactionPolicyBuilder` 通过带 `HttpFieldContext` 的统一 `raise` 方法配置
-Header、query 和 body 规则。无效或截断的结构化输入会安全关闭。
+`HttpRedactionPolicyBuilder` 通过带 `HttpFieldContext` 的规则、floor、敏感度和
+allow-list 方法配置 Header、query 和 body。无效或截断的结构化输入会安全关闭。
 
 运行时诊断可读取 `BodyRedaction::status()`、`is_truncated()`、`captured_len()` 和
 `omitted_len()`。`BodyRedactionStatus::Redacted(reason)` 会给出结构化或可见表示不安全的原因。
@@ -451,8 +451,10 @@ Header、query 和 body 规则。无效或截断的结构化输入会安全关�
 - 使用 `RedactionPolicy::builder()` 与 `RedactionPolicy::default().to_builder()`；
   Builder 不会隐式读取全局状态。
 - 字段标量使用 `redact_field()`，其 `FieldRedaction` 会区分已遮盖、允许展示和未知直通。
-- HTTP Builder 使用 `HttpFieldContext` 和统一的 `raise`、`allow_exact`、`floor_for`、
-  `disable_floor_for` 方法。
+- HTTP Builder 使用 `HttpFieldContext` 和统一的 `rules`、`raise`、`override_level`、
+  `allow_exact`、`allow_suffix`、`remove_allow_exact`、`remove_allow_suffix`、
+  `clear_allow_rules`、`floor_for`、`disable_floor_for` 方法；所有 context 共用的
+  决策使用 `floor_all()` 或 `disable_all_floors()`。
 
 HTTP policy 和 redactor 必须直接从 `qubit_redact` 导入：
 

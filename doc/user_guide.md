@@ -478,9 +478,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`HttpRedactionPolicyBuilder` offers one context-aware `raise` method for
-header, query, and body rules. Invalid or truncated structured input fails
-closed.
+`HttpRedactionPolicyBuilder` offers context-aware rule, floor, sensitivity,
+and allow-list methods for header, query, and body rules. Invalid or
+truncated structured input fails closed.
 
 For operational diagnostics, inspect `BodyRedaction::status()`,
 `is_truncated()`, `captured_len()`, and `omitted_len()`. A
@@ -499,9 +499,10 @@ ambiguous scalar result:
 - Use `redact_field()` for field-sensitive values. It returns `FieldRedaction`,
   which distinguishes masked values from allowed and unknown pass-through.
 - Use `HttpFieldContext` with the generic HTTP builder methods (`rules`,
-  `raise`, `override_level`, `allow_exact`, `allow_suffix`, `floor_for`, and
-  `disable_floor_for`). Use `floor_all()` or `disable_all_floors()` for a
-  shared decision across all HTTP contexts.
+  `raise`, `override_level`, `allow_exact`, `allow_suffix`,
+  `remove_allow_exact`, `remove_allow_suffix`, `clear_allow_rules`,
+  `floor_for`, and `disable_floor_for`). Use `floor_all()` or
+  `disable_all_floors()` for a shared decision across all HTTP contexts.
 
 Import the canonical HTTP policy and redactor directly from `qubit_redact`:
 
