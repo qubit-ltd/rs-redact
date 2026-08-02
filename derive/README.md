@@ -60,6 +60,10 @@ fn main() {
 `Redact` creates a borrowed view. The original `Credentials` value remains
 available to application logic.
 
+For types whose fields must all be reviewed explicitly, add
+`#[redact(require_explicit)]`. Mark intentionally visible fields with
+`#[redact(plain)]`; the default behavior remains unchanged for existing types.
+
 ## Choose a Derive
 
 | Need | Derive | Result |
@@ -79,6 +83,7 @@ Field attributes select exactly one handling mode:
 | Attribute | Effect |
 | --- | --- |
 | `#[redact(level = "low|medium|high|secret")]` | Masks the field with the specified runtime sensitivity. |
+| `#[redact(plain)]` | Keeps the field visible and documents the intentional pass-through. |
 | `#[redact(skip)]` | Omits the field from the redacted view. |
 | `#[redact(nested)]` | Delegates redaction to the nested value. |
 | `#[redact(map)]` | Redacts text-keyed map values using their keys and the complete runtime policy. |
@@ -91,9 +96,11 @@ Container attributes are opt-in controls:
 | `#[redact(debug)]` | Generates redacted `Debug` for the original type. |
 | `#[redact(display)]` | Generates redacted `Display` for the original type. |
 | `#[redact(serde)]` | Generates serialization support for `Redacted<T>`. |
+| `#[redact(require_explicit)]` | Requires every field to select one field mode; it does not change the default behavior. |
 
-Unmarked fields use their ordinary `Debug` representation. They are neither
-masked nor recursively traversed.
+Unmarked fields use their ordinary `Debug` representation by default. They are
+neither masked nor recursively traversed. `require_explicit` changes only the
+derive invocation where it is written.
 
 ## Dependencies and Features
 
@@ -128,7 +135,9 @@ redacted JSON view, rewrites the string as compact redacted JSON for
   in-place operation that you use. They cannot protect unrelated log calls or
   serialization paths.
 - An unmarked field uses its own `Debug` output. Mark every field whose
-  representation can disclose sensitive data.
+  representation can disclose sensitive data, or opt into
+  `#[redact(require_explicit)]` and use `#[redact(plain)]` for intentional
+  pass-through fields.
 - `skip` omits a value from the redacted representation; it does not erase
   the original value.
 - `RedactMut` performs logical replacement only. It does not erase released

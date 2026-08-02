@@ -53,6 +53,10 @@ fn main() {
 
 `Redact` 创建借用视图，原始 `Credentials` 仍可供应用逻辑使用。
 
+如果一个类型要求所有字段都经过显式审查，可添加
+`#[redact(require_explicit)]`。有意保持可见的字段使用 `#[redact(plain)]`；不添加
+该容器属性时，现有默认语义保持不变。
+
 ## 如何选择派生宏
 
 | 需求 | 派生宏 | 结果 |
@@ -72,6 +76,7 @@ fn main() {
 | 属性 | 效果 |
 | --- | --- |
 | `#[redact(level = "low|medium|high|secret")]` | 使用指定运行时敏感等级掩码该字段。 |
+| `#[redact(plain)]` | 保持字段可见，并记录这是有意的直通。 |
 | `#[redact(skip)]` | 从脱敏视图中省略该字段。 |
 | `#[redact(nested)]` | 将脱敏委托给嵌套值。 |
 | `#[redact(map)]` | 使用文本 key 和完整运行时策略处理 Map 的值。 |
@@ -84,8 +89,10 @@ fn main() {
 | `#[redact(debug)]` | 为原类型生成脱敏 `Debug`。 |
 | `#[redact(display)]` | 为原类型生成脱敏 `Display`。 |
 | `#[redact(serde)]` | 为 `Redacted<T>` 生成序列化支持。 |
+| `#[redact(require_explicit)]` | 要求每个字段选择一种字段模式；只影响当前 derive，不改变默认语义。 |
 
-未标记字段使用其普通 `Debug` 表示，既不会被掩码，也不会被递归遍历。
+未标记字段默认使用其普通 `Debug` 表示，既不会被掩码，也不会被递归遍历。
+`require_explicit` 只改变写有该容器属性的 derive 调用。
 
 ## 依赖与 feature
 
@@ -115,7 +122,8 @@ serde_json = "1"
 ## 安全边界
 
 - 宏只保护实际使用的脱敏视图、生成格式化或显式原地操作，无法保护无关的日志调用或序列化路径。
-- 未标记字段使用自身的 `Debug` 输出；应标记表示中可能泄露敏感数据的每个字段。
+- 未标记字段使用自身的 `Debug` 输出；应标记表示中可能泄露敏感数据的每个字段，
+  或选择 `#[redact(require_explicit)]` 并为有意直通的字段使用 `#[redact(plain)]`。
 - `skip` 只从脱敏表示中省略值，不会擦除原始值。
 - `RedactMut` 只做逻辑替换，不会擦除已释放的分配内存、别名、副本或借用后备存储。
 - `debug` 和 `display` 使用进程级默认策略；调用点需要策略隔离时，应显式使用

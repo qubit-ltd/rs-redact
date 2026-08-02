@@ -57,7 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 诊断输入 | 工具 | 返回结果与日志边界 |
 | --- | --- | --- |
-| 具名标量值 | `Redactor::redact` | `RedactedText`；写入纯文本日志前调用 `escape_for_log()`。 |
+| 具名标量值 | `Redactor::redact_field` | `RedactedText`；写入纯文本日志前调用 `escape_for_log()`。 |
 | 文本 key Map | `Redactor::redact_map` 或 `redact_map_in_place` | 返回副本或修改原 Map；最终日志格式仍需由调用方处理。 |
 | Rust struct 或 enum | `Redact` derive | 借用的 `Redacted<T>` 视图，支持安全格式化。 |
 | 必须逻辑替换的值 | `RedactMut` derive | 已修改对象；这不等于内存擦除。 |
@@ -86,6 +86,7 @@ http = "1.4"
 
 - 未知字段名默认原样通过。需要在边界遮盖所有未分类字段时，设置
   `UnknownFieldPolicy::Redact(Sensitivity::Secret)`；`classify_field()` 仍会报告 `Unknown`。
+  `RedactionPolicy::strict()` 提供这一边界预设，但不会改变默认策略语义。
 - 应用层 allow 规则无法绕过已启用的 `RedactionFloor`。
   `RedactionPolicy::builder()` 使用空应用规则和创建时的全局 floor 快照；
   常规扩展默认策略应使用 `RedactionPolicy::default().to_builder()`。`disable_floor()` 会有意关闭全部
@@ -93,6 +94,8 @@ http = "1.4"
 - 进程级 floor 和 policy 默认值只能安装一次，只影响未来快照；既有 policy 与 redactor
   永不随之改变。
 - `RedactedText` 故意不实现 `Display`。值脱敏与日志转义是两层不同保证。
+- 需要让领域对象或 Map 视图受策略诊断预算限制时，调用
+  `with_policy_output_limit()`；其 `Debug` 和 `Display` 输出都会有界且适合日志。
 - `RedactMut` 只替换逻辑值，不会擦除已释放的分配内存、别名、副本或借用后备存储。
 - JSON 脱敏到达 `JsonDepthBudget` 后，会用策略的 Secret 不透明掩码替换超深子树；
   默认最大深度为 128。

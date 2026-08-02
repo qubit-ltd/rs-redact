@@ -69,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | Diagnostic input | Primary tool | Result and logging boundary |
 | --- | --- | --- |
-| Named scalar value | `Redactor::redact` | `RedactedText`, then `LogSafeText` for plain-text logs |
+| Named scalar value | `Redactor::redact_field` | `RedactedText`, then `LogSafeText` for plain-text logs |
 | Text-keyed map | `Redactor::redact_map` or `redact_map_in_place` | A copied or mutated map; choose the final logging format explicitly |
 | Rust struct or enum | `Redact` derive | `Redacted<T>` view |
 | Value requiring logical replacement | `RedactMut` derive | Mutated value; not memory erasure |
@@ -105,12 +105,16 @@ field safety decisions come from `sensitivity_for()` and the redaction APIs,
 which combine the application layer with the floor. `UnknownFieldPolicy`
 defaults to `PassThrough`; set `Redact(Sensitivity::Secret)` when an
 unclassified field must be masked without changing the observable
-`classify_field()` result. `Redactor` owns one snapshot and applies it
-consistently.
+`classify_field()` result. `RedactionPolicy::strict()` provides this boundary
+preset while leaving the default policy unchanged. `Redactor` owns one
+snapshot and applies it consistently.
 
 `RedactedText` means field-sensitive redaction occurred. It intentionally does
 not implement `Display`: call `escape_for_log()` before a plain-text log
 boundary to obtain `LogSafeText`.
+
+Call `with_policy_output_limit()` on a redacted domain or map view when the
+policy diagnostic budget must also bound `Debug` and `Display` output.
 
 | API | Starting state | Use it when |
 | --- | --- | --- |
@@ -257,8 +261,10 @@ value must always render as `<redacted>` and must never call its own `Debug`.
 ## 4. Redact domain objects with `Redact` and `RedactMut`
 
 Add `qubit-redact-derive` to define redaction at field boundaries. `level` masks
-a field, `nested` recurses, `map` classifies map values by key, and `skip` omits
-a field from redacted representations.
+a field, `plain` documents intentional visibility, `nested` recurses, `map`
+classifies map values by key, and `skip` omits a field from redacted
+representations. Add `#[redact(require_explicit)]` when every field must select
+one of these modes; the default behavior remains unchanged.
 
 ```toml
 [dependencies]
@@ -492,8 +498,10 @@ ambiguous scalar result:
   `RedactionPolicy::default().to_builder()`; builders never read global state.
 - Use `redact_field()` for field-sensitive values. It returns `FieldRedaction`,
   which distinguishes masked values from allowed and unknown pass-through.
-- Use `HttpFieldContext` with the generic HTTP builder methods (`raise`,
-  `allow_exact`, `floor_for`, and `disable_floor_for`).
+- Use `HttpFieldContext` with the generic HTTP builder methods (`rules`,
+  `raise`, `override_level`, `allow_exact`, `allow_suffix`, `floor_for`, and
+  `disable_floor_for`). Use `floor_all()` or `disable_all_floors()` for a
+  shared decision across all HTTP contexts.
 
 Import the canonical HTTP policy and redactor directly from `qubit_redact`:
 
@@ -510,10 +518,14 @@ options.log_redaction_policy = policy;
 ## Security boundaries and verification
 
 - Unknown field names pass through unless `UnknownFieldPolicy::Redact(...)` is
-  configured. Add rules for every controlled field name; this library is not a
+  configured. `RedactionPolicy::strict()` is a ready-to-use boundary preset
+  that masks unknown fields at `Sensitivity::Secret`; the default policy is
+  unchanged. Add rules for every controlled field name; this library is not a
   general secret detector.
 - Allow rules deliberately reveal data and take precedence. Prefer exact rules.
 - Never format `RedactedText` directly; call `escape_for_log()` first.
+- Call `with_policy_output_limit()` when a redacted domain or map view must be
+  bounded by its diagnostic budget.
 - Do not use `RedactMut` as a memory-erasure mechanism.
 - Enable `TextBodyPolicy::PassThrough`, `UnkeyedJsonValuePolicy::PassThrough`,
   or `UrlPathPolicy::Preserve` only after accepting their disclosure risk.

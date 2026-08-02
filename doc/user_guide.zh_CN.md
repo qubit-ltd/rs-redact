@@ -66,7 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 诊断输入 | 首选工具 | 返回结果与日志边界 |
 | --- | --- | --- |
-| 具名标量值 | `Redactor::redact` | `RedactedText`；写入纯文本日志前转为 `LogSafeText` |
+| 具名标量值 | `Redactor::redact_field` | `RedactedText`；写入纯文本日志前转为 `LogSafeText` |
 | 文本 key Map | `Redactor::redact_map` 或 `redact_map_in_place` | 返回副本或修改原 Map；显式选择最终日志格式 |
 | Rust struct 或 enum | `Redact` derive | `Redacted<T>` 视图 |
 | 需要逻辑替换的值 | `RedactMut` derive | 已修改对象；不等于内存擦除 |
@@ -96,10 +96,15 @@ http = "1.4"
 `classify_field()` 只解释应用层为何得到 **Sensitive**（遮盖）、显式例外的
 **Allowed**（允许展示）或 **Unknown**；最终安全裁决由 `sensitivity_for()` 和脱敏 API 完成，
 它们会合并应用层和 floor。`UnknownFieldPolicy` 默认是 `PassThrough`；边界必须遮盖未分类字段时设置
-`Redact(Sensitivity::Secret)`，而 `classify_field()` 仍报告 `Unknown`。`Redactor` 始终使用同一份快照。
+`Redact(Sensitivity::Secret)`，而 `classify_field()` 仍报告 `Unknown`。
+`RedactionPolicy::strict()` 提供这一边界预设，但不会改变默认策略语义。
+`Redactor` 始终使用同一份快照。
 
 `RedactedText` 只表示“已按字段规则处理”，它故意不实现 `Display`。写入纯文本日志前，
 必须调用 `escape_for_log()` 得到可安全显示的 `LogSafeText`。
+
+领域对象或 Map 视图需要受策略诊断预算限制时，调用
+`with_policy_output_limit()`；其 `Debug` 和 `Display` 输出都会有界且适合日志。
 
 | API | 初始状态 | 适用场景 |
 | --- | --- | --- |
@@ -230,8 +235,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 4. 用 `Redact` 和 `RedactMut` 处理领域对象
 
-添加 `qubit-redact-derive` 后，可在字段边界声明语义：`level` 遮盖字段，`nested`
-递归，`map` 按 key 处理 Map 值，`skip` 从脱敏表示中省略字段。
+添加 `qubit-redact-derive` 后，可在字段边界声明语义：`level` 遮盖字段，`plain`
+记录有意直通，`nested` 递归，`map` 按 key 处理 Map 值，`skip` 从脱敏表示中省略字段。
+需要每个字段都显式选择模式时，添加 `#[redact(require_explicit)]`；默认语义保持不变。
 
 ```toml
 [dependencies]
@@ -462,10 +468,13 @@ options.log_redaction_policy = policy;
 
 ## 安全边界与验证
 
-- 未知字段默认原样通过，除非配置 `UnknownFieldPolicy::Redact(...)`；为所有可控字段名配置规则。
-  本库不是通用秘密探测器。
+- 未知字段默认原样通过，除非配置 `UnknownFieldPolicy::Redact(...)`。
+  `RedactionPolicy::strict()` 提供以 `Sensitivity::Secret` 遮盖未知字段的边界预设，默认策略语义不变；
+  为所有可控字段名配置规则。本库不是通用秘密探测器。
 - 允许规则会有意披露数据且优先级更高；优先使用精确允许规则。
 - 不要直接格式化 `RedactedText`；先调用 `escape_for_log()`。
+- 领域对象或 Map 视图需要受诊断预算限制时，调用
+  `with_policy_output_limit()`；其 `Debug` 和 `Display` 输出都会有界且适合日志。
 - 不要把 `RedactMut` 当作内存擦除机制。
 - 只有接受披露风险后，才启用 `TextBodyPolicy::PassThrough`、
   `UnkeyedJsonValuePolicy::PassThrough` 或 `UrlPathPolicy::Preserve`。

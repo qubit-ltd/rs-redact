@@ -62,7 +62,7 @@ The original value remains available to application logic. Call
 
 | Diagnostic input | Tool | Result and logging boundary |
 | --- | --- | --- |
-| Named scalar value | `Redactor::redact` | `RedactedText`; call `escape_for_log()` for plain-text logs. |
+| Named scalar value | `Redactor::redact_field` | `RedactedText`; call `escape_for_log()` for plain-text logs. |
 | Text-keyed map | `Redactor::redact_map` or `redact_map_in_place` | A copied or mutated map; apply the final logging format yourself. |
 | Rust struct or enum | `Redact` derive | Borrowed `Redacted<T>` view with safe formatting. |
 | Value that must be logically replaced | `RedactMut` derive | Mutated value; this is not memory erasure. |
@@ -92,6 +92,8 @@ http = "1.4"
 - Unknown field names pass through by default. Set
   `UnknownFieldPolicy::Redact(Sensitivity::Secret)` when a boundary must mask
   every unclassified field; `classify_field()` still reports `Unknown`.
+  `RedactionPolicy::strict()` provides this boundary preset without changing
+  the default policy semantics.
 - Application allow rules never bypass an enabled `RedactionFloor`. Use
   `RedactionPolicy::builder()` for empty application rules with the standard
   floor, and use `RedactionPolicy::default().to_builder()` for the normal
@@ -103,6 +105,9 @@ http = "1.4"
   from allowed and unknown pass-through values.
 - `RedactedText` is not displayable by design. Redaction and log escaping are
   separate guarantees.
+- Use `with_policy_output_limit()` when a redacted domain or map view must be
+  bounded by the policy diagnostic budget; its `Debug` and `Display` output is
+  both bounded and log-safe.
 - `RedactMut` replaces logical values only. It does not erase released
   allocations, aliases, copies, or borrowed backing storage.
 - JSON redaction stops at `JsonDepthBudget` and replaces an over-depth subtree
