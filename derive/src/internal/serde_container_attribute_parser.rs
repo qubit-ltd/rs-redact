@@ -18,6 +18,7 @@ use syn::{
 };
 
 use crate::{
+    internal::parse_serialize_name,
     serde_container_attributes::SerdeContainerAttributes,
     serde_rename_rule::SerdeRenameRule,
 };
@@ -32,10 +33,16 @@ pub(crate) struct SerdeContainerAttributeParser<'input> {
     input: &'input DeriveInput,
     /// Optional explicit serialized container name.
     name: Option<String>,
+    /// Whether direct or directional container rename occurred.
+    name_seen: bool,
     /// Optional struct-field or enum-variant rename rule.
     rename_all: Option<SerdeRenameRule>,
+    /// Whether direct or directional `rename_all` occurred.
+    rename_all_seen: bool,
     /// Optional enum variant-field rename rule.
     rename_all_fields: Option<SerdeRenameRule>,
+    /// Whether direct or directional `rename_all_fields` occurred.
+    rename_all_fields_seen: bool,
     /// Optional internal or adjacent enum tag.
     tag: Option<LitStr>,
     /// Optional adjacent enum content key.
@@ -90,8 +97,11 @@ impl<'input> SerdeContainerAttributeParser<'input> {
         Self {
             input,
             name: None,
+            name_seen: false,
             rename_all: None,
+            rename_all_seen: false,
             rename_all_fields: None,
+            rename_all_fields_seen: false,
             tag: None,
             content: None,
             untagged: None,
@@ -157,12 +167,19 @@ impl<'input> SerdeContainerAttributeParser<'input> {
         meta: syn::meta::ParseNestedMeta<'_>,
     ) -> syn::Result<()> {
         if meta.path.is_ident("rename") {
-            parse_name(&meta, &self.input.ident, "rename", &mut self.name)
+            parse_name(
+                &meta,
+                &self.input.ident,
+                "rename",
+                &mut self.name_seen,
+                &mut self.name,
+            )
         } else if meta.path.is_ident("rename_all") {
             parse_rule(
                 &meta,
                 &self.input.ident,
                 "rename_all",
+                &mut self.rename_all_seen,
                 &mut self.rename_all,
             )
         } else if meta.path.is_ident("rename_all_fields") {
@@ -197,6 +214,7 @@ impl<'input> SerdeContainerAttributeParser<'input> {
             &meta,
             &self.input.ident,
             "rename_all_fields",
+            &mut self.rename_all_fields_seen,
             &mut self.rename_all_fields,
         )
     }
@@ -363,16 +381,16 @@ fn parse_name(
     meta: &syn::meta::ParseNestedMeta<'_>,
     type_name: &Ident,
     name: &str,
+    seen: &mut bool,
     output: &mut Option<String>,
 ) -> syn::Result<()> {
-    if output.is_some() {
+    if *seen {
         return Err(meta.error(format!(
             "Redact serde for `{type_name}` repeats `{name}`",
         )));
     }
-    let mut literal = None;
-    parse_literal(meta, type_name, name, &mut literal)?;
-    *output = literal.map(|literal| literal.value());
+    *output = parse_serialize_name(meta, name)?.map(|literal| literal.value());
+    *seen = true;
     Ok(())
 }
 
@@ -392,15 +410,18 @@ fn parse_rule(
     meta: &syn::meta::ParseNestedMeta<'_>,
     type_name: &Ident,
     name: &str,
+    seen: &mut bool,
     output: &mut Option<SerdeRenameRule>,
 ) -> syn::Result<()> {
-    if output.is_some() {
+    if *seen {
         return Err(meta.error(format!(
             "Redact serde for `{type_name}` repeats `{name}`",
         )));
     }
-    let literal: LitStr = meta.value()?.parse()?;
-    *output = Some(SerdeRenameRule::parse(&literal)?);
+    *output = parse_serialize_name(meta, name)?
+        .map(|literal| SerdeRenameRule::parse(&literal))
+        .transpose()?;
+    *seen = true;
     Ok(())
 }
 

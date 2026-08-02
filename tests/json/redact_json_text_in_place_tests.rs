@@ -8,7 +8,11 @@
 //! Tests for explicit JSON text transformation.
 
 use qubit_redact::{
-    DiagnosticBudget, JsonDepthBudget, MaskPolicy, RedactionPolicy, Sensitivity,
+    DiagnosticBudget,
+    JsonDepthBudget,
+    MaskPolicy,
+    RedactionPolicy,
+    Sensitivity,
     redact_json_text_in_place,
 };
 
@@ -17,13 +21,15 @@ use qubit_redact::{
 fn test_redact_json_text_in_place_is_not_limited_by_diagnostic_budget() {
     let policy = RedactionPolicy::builder()
         .diagnostic_budget(
-            DiagnosticBudget::new(16, 64).expect("the diagnostic budget should be valid"),
+            DiagnosticBudget::new(16, 64)
+                .expect("the diagnostic budget should be valid"),
         )
         .raise("password", Sensitivity::Secret)
         .expect("the test builder input should be valid")
         .build()
         .expect("the policy should build");
-    let mut text = format!(r#"{{"name":"{}","password":"raw"}}"#, "a".repeat(128));
+    let mut text =
+        format!(r#"{{"name":"{}","password":"raw"}}"#, "a".repeat(128));
 
     redact_json_text_in_place(&mut text, &policy);
 
@@ -39,12 +45,16 @@ fn test_redact_json_text_in_place_is_not_limited_by_diagnostic_budget() {
 #[test]
 fn test_redact_json_text_in_place_obeys_json_depth_budget() {
     let policy = RedactionPolicy::builder()
-        .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
+        .json_depth_budget(
+            JsonDepthBudget::new(1).expect("the depth budget is valid"),
+        )
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .expect("the test mask policy should be valid")
         .build()
         .expect("the policy should build");
-    let mut text = r#"{"shallow":"visible","nested":{"secret":"raw-depth-secret"}}"#.to_owned();
+    let mut text =
+        r#"{"shallow":"visible","nested":{"secret":"raw-depth-secret"}}"#
+            .to_owned();
 
     redact_json_text_in_place(&mut text, &policy);
 
@@ -53,4 +63,20 @@ fn test_redact_json_text_in_place_obeys_json_depth_budget() {
     assert_eq!(value["shallow"], "visible");
     assert_eq!(value["nested"], "[depth-limit]");
     assert!(!text.contains("raw-depth-secret"));
+}
+
+/// Verifies strict explicit transformation masks root and array scalars.
+#[test]
+fn test_redact_json_text_in_place_masks_strict_unkeyed_scalars() {
+    let policy = RedactionPolicy::strict();
+    let mut root = String::from("\"root-secret\"");
+    let mut array = String::from("[\"array-secret\",42,true]");
+
+    redact_json_text_in_place(&mut root, &policy);
+    redact_json_text_in_place(&mut array, &policy);
+
+    assert!(!root.contains("root-secret"));
+    assert!(!array.contains("array-secret"));
+    assert!(!array.contains("42"));
+    assert!(!array.contains("true"));
 }

@@ -152,9 +152,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 测试或多个安全边界应传递显式策略快照。
 
 字段名会被规范化。使用 `FieldNameMatching::ExactOrTokenSuffix` 时，`api_key` 规则可
-匹配 `request_api_key`；精确匹配范围最窄。`raise` 不会降低敏感等级，
-`override_level` 则有意替换它。精确 allow 规则只影响一个规范字段；后缀 allow 规则可能
-放行带前缀字段，必须经过安全审查。
+匹配 `request_api_key`；精确匹配范围最窄。
+
+`raise(field, level)` 有两层“只升不降”语义：同一规范键被多次配置时保留最高等级；一个
+输入同时命中多个不同规则时，最终也取所有命中规则的最高等级。例如 `token = Secret`、
+`access_token = Medium` 都会匹配 `OPENAI_ACCESS_TOKEN`，最终结果是 `Secret`，不会因
+更长的 `access_token` 规则降为 `Medium`。`override_level("access_token", Medium)` 只
+替换 `access_token` 这一条规则，不能绕过仍然命中的 `token = Secret`。它适合明确修正
+同一规则的配置值，不是降低重叠规则整体保护等级的工具。
+
+allow 判定与 sensitive 等级归并是两件事：精确 allow 规则只影响一个规范字段；后缀
+allow 规则可能放行带前缀字段，必须经过安全审查。未被 allow 放行时，才对全部匹配的
+sensitive 规则取最高等级；启用的 floor 仍独立生效。
 
 当边界已知某值敏感而与字段名无关时，使用 `Redactor::redact_at(level, value)`。它直接
 应用指定掩码，因此 allow 规则不能暴露该值。
@@ -165,6 +174,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 `FieldRedaction`。`redact_map` 返回保持原集合类型的副本，
 `redact_map_in_place` 原地替换敏感值。支持文本 key 的 `HashMap`、`BTreeMap` 和
 `indexmap::IndexMap`。
+
+它只根据 `field` 分类，不会扫描 `value` 的内容。例如
+`redact_field("error", "request failed: password=raw-secret")` 中，如果 `error` 没有
+敏感规则，整段 value 会原样通过；库不会从字符串里自动识别 `password=`。已解析数据应
+拆成 `redact_field("password", password)` 等结构化字段。来源不可信的完整错误文本应
+使用固定安全摘要并把原错误保留在 `Error::source()`，或者在确实需要输出一个不透明值时
+使用 `redact_at(Sensitivity::Secret, text)`。
 
 ```rust
 use std::collections::HashMap;

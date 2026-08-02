@@ -293,6 +293,7 @@ mod private;
 mod redactor;
 mod serde_feature_gate;
 pub mod text;
+pub mod uri;
 
 pub use argv::ArgvRedactor;
 pub use domain::{
@@ -348,6 +349,7 @@ pub use policy::{
 pub use policy::{
     JsonDepthBudget,
     JsonDepthBudgetError,
+    UnkeyedJsonValuePolicy,
 };
 pub use redactor::Redactor;
 pub use text::{

@@ -7,10 +7,20 @@
 // =============================================================================
 //! Tests for borrowed HTTP field-rule execution.
 
-use http::{HeaderMap, HeaderValue};
+use http::{
+    HeaderMap,
+    HeaderValue,
+};
 use qubit_redact::{
-    MaskPolicy, RedactionFloor, RedactionPolicy, Sensitivity,
-    http::{HttpFieldContext, HttpRedactionPolicy, HttpRedactor},
+    MaskPolicy,
+    RedactionFloor,
+    RedactionPolicy,
+    Sensitivity,
+    http::{
+        HttpFieldContext,
+        HttpRedactionPolicy,
+        HttpRedactor,
+    },
 };
 
 /// Verifies header field execution uses the shared mask table atomically.

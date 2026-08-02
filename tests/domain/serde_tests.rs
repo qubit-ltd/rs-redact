@@ -8,11 +8,22 @@
 //! Tests for optional serialization of redacted domain views.
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    io::{self, Write},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    io::{
+        self,
+        Write,
+    },
 };
 
-use qubit_redact::{Redact, RedactedMap, RedactionPolicy, Sensitivity};
+use qubit_redact::{
+    Redact,
+    RedactedMap,
+    RedactionPolicy,
+    Sensitivity,
+};
 use qubit_redact_derive::Redact;
 use serde::Serialize;
 
@@ -297,7 +308,10 @@ fn account() -> ApiAccount {
     ApiAccount {
         account_id: 9,
         password: Some("raw-password".to_owned()),
-        metadata: BTreeMap::from([("api_key".to_owned(), "raw-api-key".to_owned())]),
+        metadata: BTreeMap::from([(
+            "api_key".to_owned(),
+            "raw-api-key".to_owned(),
+        )]),
         internal_note: "raw-internal".to_owned(),
         nickname: None,
         profile: Profile {
@@ -360,8 +374,8 @@ fn test_redacted_serde_rename_all_matches_serde() {
                 HTTP_status: "raw-status".to_owned(),
                 some_value: "plain-value".to_owned(),
             };
-            let raw =
-                serde_json::to_value(&value).expect("raw rename_all serialization should succeed");
+            let raw = serde_json::to_value(&value)
+                .expect("raw rename_all serialization should succeed");
             let redacted = serde_json::to_value(value.redacted_with(&policy()))
                 .expect("redacted rename_all serialization should succeed");
 
@@ -384,6 +398,41 @@ fn test_redacted_serde_rename_all_matches_serde() {
     assert_rule!("SCREAMING-KEBAB-CASE");
 }
 
+/// Verifies directional Serde names use only the serialization branch and
+/// remain identical to Serde's own output.
+#[test]
+fn test_redacted_serde_directional_renames_match_serde() {
+    #[derive(Redact, Serialize)]
+    #[redact(serde)]
+    #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
+    struct DirectionalRecord {
+        /// Explicit serialized name differs from its deserialization alias.
+        #[serde(rename(
+            serialize = "wireSecret",
+            deserialize = "legacy_secret"
+        ))]
+        #[redact(level = "secret")]
+        secret_value: String,
+        /// A deserialize-only alias must not change serialization.
+        #[serde(rename(deserialize = "legacy_plain"))]
+        plain_value: String,
+    }
+
+    let value = DirectionalRecord {
+        secret_value: "raw-secret".to_owned(),
+        plain_value: "visible".to_owned(),
+    };
+    let raw = serde_json::to_value(&value)
+        .expect("raw directional serialization should succeed");
+    let redacted = serde_json::to_value(value.redacted_with(&policy()))
+        .expect("redacted directional serialization should succeed");
+
+    assert_eq!(object_keys(&redacted), object_keys(&raw));
+    assert!(redacted.get("wireSecret").is_some());
+    assert_eq!(redacted["plainValue"], "visible");
+    assert!(!redacted.to_string().contains("raw-secret"));
+}
+
 /// Verifies redacted serialization preserves shape and excludes raw secrets.
 #[test]
 fn test_redacted_serde_preserves_shape_and_never_serializes_raw_values() {
@@ -391,7 +440,8 @@ fn test_redacted_serde_preserves_shape_and_never_serializes_raw_values() {
 
     let json = serde_json::to_string(&value.redacted_with(&policy()))
         .expect("redacted serialization succeeds");
-    let raw = serde_json::to_string(&value).expect("raw serialization succeeds");
+    let raw =
+        serde_json::to_string(&value).expect("raw serialization succeeds");
 
     assert!(json.contains(r#""accountId":9"#));
     assert!(json.contains(r#""wire_name":"Alice""#));
@@ -426,8 +476,11 @@ fn test_redacted_serde_serializes_explicit_none_as_null() {
 /// Verifies downstream serializer errors propagate unchanged.
 #[test]
 fn test_redacted_serde_propagates_serializer_errors() {
-    let error = serde_json::to_writer(FailingWriter, &account().redacted_with(&policy()))
-        .expect_err("the writer rejects serialization");
+    let error = serde_json::to_writer(
+        FailingWriter,
+        &account().redacted_with(&policy()),
+    )
+    .expect_err("the writer rejects serialization");
 
     assert!(error.is_io());
 }
@@ -461,13 +514,15 @@ fn test_redacted_serde_preserves_absent_and_empty_nested_containers() {
 /// Verifies map serializer errors propagate while opening and writing entries.
 #[test]
 fn test_redacted_map_serde_propagates_serializer_errors() {
-    let metadata = BTreeMap::from([("api_key".to_owned(), "raw-api-key".to_owned())]);
+    let metadata =
+        BTreeMap::from([("api_key".to_owned(), "raw-api-key".to_owned())]);
     let redacted = RedactedMap::new(&metadata, policy());
 
     let open_error = serde_json::to_writer(FailingWriter, &redacted)
         .expect_err("the writer rejects the opening map delimiter");
-    let entry_error = serde_json::to_writer(FailAfter { remaining: 1 }, &redacted)
-        .expect_err("the writer rejects the first map entry");
+    let entry_error =
+        serde_json::to_writer(FailAfter { remaining: 1 }, &redacted)
+            .expect_err("the writer rejects the first map entry");
 
     assert!(open_error.is_io());
     assert!(entry_error.is_io());
@@ -507,12 +562,12 @@ fn test_redacted_serde_supports_unnamed_and_unit_structs() {
         String::from("raw-skipped"),
     );
 
-    let newtype_json =
-        serde_json::to_value(newtype.redacted()).expect("redacted newtype serialization succeeds");
-    let tuple_json =
-        serde_json::to_value(tuple.redacted()).expect("redacted tuple serialization succeeds");
-    let unit_json =
-        serde_json::to_value(SerdeMarker.redacted()).expect("redacted unit serialization succeeds");
+    let newtype_json = serde_json::to_value(newtype.redacted())
+        .expect("redacted newtype serialization succeeds");
+    let tuple_json = serde_json::to_value(tuple.redacted())
+        .expect("redacted tuple serialization succeeds");
+    let unit_json = serde_json::to_value(SerdeMarker.redacted())
+        .expect("redacted unit serialization succeeds");
 
     assert_eq!(newtype_json, serde_json::json!("<redacted>"));
     assert_eq!(tuple_json, serde_json::json!(["<redacted>", "shown"]));
@@ -575,8 +630,9 @@ fn test_redacted_serde_supports_internally_tagged_enums() {
     });
     let profile_json = serde_json::to_value(profile.redacted())
         .expect("redacted internally tagged newtype serialization succeeds");
-    let optional_json = serde_json::to_value(InternalMessage::Optional(None).redacted())
-        .expect("omitted internally tagged newtype serialization succeeds");
+    let optional_json =
+        serde_json::to_value(InternalMessage::Optional(None).redacted())
+            .expect("omitted internally tagged newtype serialization succeeds");
 
     assert_eq!(
         record_json,
@@ -651,12 +707,15 @@ fn test_redacted_serde_supports_untagged_enums() {
 #[test]
 fn test_redacted_serde_preserves_empty_container_shapes() {
     let newtype = EmptyNewtype("raw-newtype".to_owned());
-    let external_newtype = ExternalEmptyMessage::EmptyNewtype("raw-external".to_owned());
+    let external_newtype =
+        ExternalEmptyMessage::EmptyNewtype("raw-external".to_owned());
     let external_named = ExternalEmptyMessage::EmptyNamed {
         hidden: "raw-named".to_owned(),
     };
-    let external_tuple =
-        ExternalEmptyMessage::EmptyTuple("raw-first".to_owned(), "raw-second".to_owned());
+    let external_tuple = ExternalEmptyMessage::EmptyTuple(
+        "raw-first".to_owned(),
+        "raw-second".to_owned(),
+    );
     let internal = InternalEmptyMessage::Empty("raw-internal".to_owned());
     let adjacent_named = AdjacentEmptyMessage::Named {
         hidden: "raw-adjacent-named".to_owned(),
@@ -665,12 +724,15 @@ fn test_redacted_serde_preserves_empty_container_shapes() {
         "raw-adjacent-first".to_owned(),
         "raw-adjacent-second".to_owned(),
     );
-    let adjacent_newtype = AdjacentEmptyMessage::Newtype("raw-adjacent".to_owned());
-    let untagged_empty = UntaggedNewtypeMessage::Empty("raw-untagged".to_owned());
+    let adjacent_newtype =
+        AdjacentEmptyMessage::Newtype("raw-adjacent".to_owned());
+    let untagged_empty =
+        UntaggedNewtypeMessage::Empty("raw-untagged".to_owned());
     let untagged_value = UntaggedNewtypeMessage::Value("visible".to_owned());
 
     assert_eq!(
-        serde_json::to_value(newtype.redacted()).expect("empty newtype serialization succeeds"),
+        serde_json::to_value(newtype.redacted())
+            .expect("empty newtype serialization succeeds"),
         serde_json::Value::Null,
     );
     assert_eq!(
@@ -737,11 +799,13 @@ fn test_redacted_serde_rejects_selected_skipped_variant() {
 /// Verifies skipped tuple and unit variants use the same rejection policy.
 #[test]
 fn test_redacted_serde_rejects_skipped_tuple_and_unit_variants() {
-    let hidden_tuple = ExternalEmptyMessage::HiddenTuple("raw-hidden".to_owned());
+    let hidden_tuple =
+        ExternalEmptyMessage::HiddenTuple("raw-hidden".to_owned());
     let tuple_error = serde_json::to_string(&hidden_tuple.redacted())
         .expect_err("selected skipped tuple variants must fail");
-    let unit_error = serde_json::to_string(&ExternalEmptyMessage::HiddenUnit.redacted())
-        .expect_err("selected skipped unit variants must fail");
+    let unit_error =
+        serde_json::to_string(&ExternalEmptyMessage::HiddenUnit.redacted())
+            .expect_err("selected skipped unit variants must fail");
 
     assert!(!tuple_error.to_string().contains("raw-hidden"));
     assert_eq!(

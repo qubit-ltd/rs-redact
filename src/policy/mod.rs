@@ -34,6 +34,8 @@ mod resolved_field;
 mod sensitive_field_preset;
 mod sensitive_field_rule;
 mod sensitivity;
+#[cfg(feature = "json")]
+mod unkeyed_json_value_policy;
 mod unknown_field_policy;
 
 pub use allow_rule::AllowRule;
@@ -61,4 +63,6 @@ pub(crate) use resolved_field::ResolvedField;
 pub use sensitive_field_preset::SensitiveFieldPreset;
 pub use sensitive_field_rule::SensitiveFieldRule;
 pub use sensitivity::Sensitivity;
+#[cfg(feature = "json")]
+pub use unkeyed_json_value_policy::UnkeyedJsonValuePolicy;
 pub use unknown_field_policy::UnknownFieldPolicy;

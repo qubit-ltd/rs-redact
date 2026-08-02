@@ -10,10 +10,20 @@
 use std::fmt::Display;
 
 use qubit_redact::{
-    LogSafeText, PolicyError, PolicyLocation, RedactionPolicy, Sensitivity,
+    LogSafeText,
+    PolicyError,
+    PolicyLocation,
+    RedactionPolicy,
+    Sensitivity,
     http::{
-        BodyBudget, BodyCapture, BodyRedaction, BodyRedactionReason, BodyRedactionStatus,
-        HttpFieldContext, HttpRedactionPolicy, HttpRedactor,
+        BodyBudget,
+        BodyCapture,
+        BodyRedaction,
+        BodyRedactionReason,
+        BodyRedactionStatus,
+        HttpFieldContext,
+        HttpRedactionPolicy,
+        HttpRedactor,
     },
 };
 
@@ -113,7 +123,11 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
         .disable_all_floors()
         .raise(HttpFieldContext::Header, "header_secret", Sensitivity::High)
         .expect("the test builder input should be valid")
-        .override_level(HttpFieldContext::Header, "header_secret", Sensitivity::Low)
+        .override_level(
+            HttpFieldContext::Header,
+            "header_secret",
+            Sensitivity::Low,
+        )
         .expect("the test builder input should be valid")
         .raise(
             HttpFieldContext::Header,
@@ -133,7 +147,11 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
         .expect("the test builder input should be valid")
         .raise(HttpFieldContext::Query, "query_secret", Sensitivity::Secret)
         .expect("the test builder input should be valid")
-        .override_level(HttpFieldContext::Query, "query_secret", Sensitivity::Medium)
+        .override_level(
+            HttpFieldContext::Query,
+            "query_secret",
+            Sensitivity::Medium,
+        )
         .expect("the test builder input should be valid")
         .raise(
             HttpFieldContext::Query,
@@ -149,7 +167,11 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
         .expect("the test builder input should be valid")
         .raise(HttpFieldContext::Body, "body_secret", Sensitivity::Secret)
         .expect("the test builder input should be valid")
-        .override_level(HttpFieldContext::Body, "body_secret", Sensitivity::High)
+        .override_level(
+            HttpFieldContext::Body,
+            "body_secret",
+            Sensitivity::High,
+        )
         .expect("the test builder input should be valid")
         .raise(HttpFieldContext::Body, "visible_body", Sensitivity::Secret)
         .expect("the test builder input should be valid")
@@ -212,7 +234,8 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
 
 /// Verifies invalid context rules fail at the setter that receives them.
 #[test]
-fn test_http_redaction_policy_builder_rejects_invalid_context_rule_immediately() {
+fn test_http_redaction_policy_builder_rejects_invalid_context_rule_immediately()
+{
     assert_eq!(
         HttpRedactionPolicy::builder()
             .raise(HttpFieldContext::Header, "---", Sensitivity::High)
@@ -234,8 +257,10 @@ fn test_body_redaction_public_types_are_available() {
         BodyRedactionStatus::Binary,
     ];
     let _: Option<BodyRedaction> = None;
-    let _: for<'a> fn(&'a BodyRedaction) -> &'a LogSafeText<'static> = BodyRedaction::log_safe_text;
-    let _: fn(BodyRedaction) -> LogSafeText<'static> = BodyRedaction::into_log_safe_text;
+    let _: for<'a> fn(&'a BodyRedaction) -> &'a LogSafeText<'static> =
+        BodyRedaction::log_safe_text;
+    let _: fn(BodyRedaction) -> LogSafeText<'static> =
+        BodyRedaction::into_log_safe_text;
     let _: fn(&BodyRedaction) -> BodyRedactionStatus = BodyRedaction::status;
     let _: fn(&BodyRedaction) -> usize = BodyRedaction::captured_len;
     let _: fn(&BodyRedaction) -> Option<usize> = BodyRedaction::source_len;
@@ -251,11 +276,14 @@ fn test_body_redaction_public_types_are_available() {
 #[test]
 fn test_body_redaction_queries_expose_captured_metadata() {
     let body = HttpRedactor::default().redact_body(
-        BodyCapture::truncated(b"visible", Some(10)).expect("the capture metadata should be valid"),
+        BodyCapture::truncated(b"visible", Some(10))
+            .expect("the capture metadata should be valid"),
         None,
     );
     let selected = usize::from(std::process::id() == 0);
-    let log_safe_text: [for<'a> fn(&'a BodyRedaction) -> &'a LogSafeText<'static>; 2] =
+    let log_safe_text: [for<'a> fn(
+        &'a BodyRedaction,
+    ) -> &'a LogSafeText<'static>; 2] =
         [BodyRedaction::log_safe_text, alternate_log_safe_text];
     let captured_len: [fn(&BodyRedaction) -> usize; 2] =
         [BodyRedaction::captured_len, alternate_captured_len];

@@ -15,11 +15,15 @@ use syn::{
     Path,
 };
 
+use crate::internal::parse_serialize_name;
+
 /// Serde controls that preserve the generated redacted structure.
 #[must_use]
 pub(crate) struct SerdeAttributes {
     /// Explicit serialized field name.
     rename: Option<String>,
+    /// Whether any serialization or deserialization rename was declared.
+    rename_seen: bool,
     /// Whether the field is always omitted.
     skip: bool,
     /// Predicate deciding whether the raw field is omitted.
@@ -56,6 +60,7 @@ impl SerdeAttributes {
     ) -> syn::Result<Self> {
         let mut parsed = Self {
             rename: None,
+            rename_seen: false,
             skip: false,
             skip_serializing_if: None,
         };
@@ -77,13 +82,14 @@ impl SerdeAttributes {
             };
             attribute.parse_nested_meta(|meta| {
                 if meta.path.is_ident("rename") {
-                    if parsed.rename.is_some() {
+                    if parsed.rename_seen {
                         return Err(meta.error(format!(
                             "Redact serde for `{type_name}` field `{field_name}` repeats `rename`",
                         )));
                     }
-                    let literal: LitStr = meta.value()?.parse()?;
-                    parsed.rename = Some(literal.value());
+                    parsed.rename = parse_serialize_name(&meta, "rename")?
+                        .map(|literal| literal.value());
+                    parsed.rename_seen = true;
                 } else if meta.path.is_ident("skip") || meta.path.is_ident("skip_serializing") {
                     if !meta.input.is_empty() {
                         return Err(meta.error(format!(

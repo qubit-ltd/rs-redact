@@ -9,11 +9,18 @@
 
 use std::{
     fmt,
-    sync::{Arc, LazyLock},
+    sync::{
+        Arc,
+        LazyLock,
+    },
 };
 
 use super::internal::RedactionPolicyInner;
-use super::{RedactionFloorBuilder, SensitiveFieldPreset, SensitiveFieldRule};
+use super::{
+    RedactionFloorBuilder,
+    SensitiveFieldPreset,
+    SensitiveFieldRule,
+};
 
 /// Immutable minimum field-protection rules.
 ///
@@ -72,7 +79,9 @@ impl RedactionFloor {
     }
 
     /// Iterates the floor's canonical sensitive rules.
-    pub fn sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
+    pub fn sensitive_rules(
+        &self,
+    ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
         self.inner
             .sensitive
             .iter()

@@ -12,8 +12,6 @@ use std::sync::{
     LazyLock,
 };
 
-#[cfg(feature = "json")]
-use super::JsonDepthBudget;
 use super::redaction_limits::RedactionLimits;
 use super::{
     AllowRule,
@@ -28,6 +26,11 @@ use super::{
     Sensitivity,
     UnknownFieldPolicy,
     internal::RedactionPolicyInner,
+};
+#[cfg(feature = "json")]
+use super::{
+    JsonDepthBudget,
+    UnkeyedJsonValuePolicy,
 };
 
 /// Built-in sensitive fields not owned by a named preset.
@@ -60,6 +63,8 @@ static STANDARD_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
         DiagnosticBudget::default(),
         #[cfg(feature = "json")]
         JsonDepthBudget::default(),
+        #[cfg(feature = "json")]
+        UnkeyedJsonValuePolicy::PassThrough,
     )
 });
 static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
@@ -80,6 +85,8 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
         DiagnosticBudget::default(),
         #[cfg(feature = "json")]
         JsonDepthBudget::default(),
+        #[cfg(feature = "json")]
+        UnkeyedJsonValuePolicy::Redact,
     )
 });
 /// Immutable redaction policy.
@@ -89,6 +96,8 @@ pub struct RedactionPolicy {
     rules: RedactionRules,
     masking: Arc<MaskingPolicy>,
     limits: RedactionLimits,
+    #[cfg(feature = "json")]
+    unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
 }
 
 impl RedactionPolicy {
@@ -139,6 +148,8 @@ impl RedactionPolicy {
         masking: MaskingPolicy,
         diagnostic_budget: DiagnosticBudget,
         #[cfg(feature = "json")] json_depth_budget: JsonDepthBudget,
+        #[cfg(feature = "json")]
+        unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
     ) -> Self {
         Self {
             rules,
@@ -148,6 +159,8 @@ impl RedactionPolicy {
                 #[cfg(feature = "json")]
                 json_depth_budget,
             ),
+            #[cfg(feature = "json")]
+            unkeyed_json_value_policy,
         }
     }
 
@@ -162,6 +175,13 @@ impl RedactionPolicy {
     #[inline]
     pub const fn json_depth_budget(&self) -> JsonDepthBudget {
         self.limits.json_depth_budget()
+    }
+
+    /// Returns the behavior for root and array JSON scalar values.
+    #[cfg(feature = "json")]
+    #[inline]
+    pub const fn unkeyed_json_value_policy(&self) -> UnkeyedJsonValuePolicy {
+        self.unkeyed_json_value_policy
     }
     /// Returns the immutable field rules without diagnostic resource limits.
     #[inline]

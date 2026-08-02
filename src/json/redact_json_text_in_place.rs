@@ -61,9 +61,21 @@ pub(crate) fn redacted_json_text(
         return opaque_secret(policy);
     };
     let mut remaining_mask_bytes = usize::MAX;
+    let unkeyed = match policy.unkeyed_json_value_policy() {
+        crate::UnkeyedJsonValuePolicy::PassThrough => {
+            JsonUnkeyedValuePolicy::PassThrough
+        }
+        crate::UnkeyedJsonValuePolicy::Redact => {
+            let marker = policy.masking().mask_opaque(Sensitivity::Secret);
+            JsonUnkeyedValuePolicy::Redact {
+                marker,
+                truncated_marker: marker,
+            }
+        }
+    };
     let mut state = JsonRedactionState::from_policy(
         policy,
-        JsonUnkeyedValuePolicy::PassThrough,
+        unkeyed,
         &mut remaining_mask_bytes,
     );
     let _ = state.redact(&mut value);
