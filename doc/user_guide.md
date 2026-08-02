@@ -510,35 +510,6 @@ For operational diagnostics, inspect `BodyRedaction::status()`,
 `BodyRedactionStatus::Redacted(reason)` value reports why a structured or
 visible representation was unsafe.
 
-## 8. Migrate to 0.5
-
-Version 0.5 intentionally removes the split global-default APIs and the
-ambiguous scalar result:
-
-- Install one `GlobalRedactionConfig` instead of calling separate policy and
-  floor global-default methods.
-- Use `RedactionPolicy::builder()` and
-  `RedactionPolicy::default().to_builder()`; builders never read global state.
-- Use `redact_field()` for field-sensitive values. It returns `FieldRedaction`,
-  which distinguishes masked values from allowed and unknown pass-through.
-- Use `HttpFieldContext` with the generic HTTP builder methods (`rules`,
-  `raise`, `override_level`, `allow_exact`, `allow_suffix`,
-  `remove_allow_exact`, `remove_allow_suffix`, `clear_allow_rules`,
-  `floor_for`, and `disable_floor_for`). Use `floor_all()` or
-  `disable_all_floors()` for a shared decision across all HTTP contexts.
-
-Import the canonical HTTP policy and redactor directly from `qubit_redact`:
-
-```rust,ignore
-use qubit_http::HttpClientOptions;
-use qubit_redact::http::{HttpRedactionPolicy, HttpRedactor};
-
-let policy = HttpRedactionPolicy::default().to_builder().build()?;
-let _redactor = HttpRedactor::new(policy.clone());
-let mut options = HttpClientOptions::default();
-options.log_redaction_policy = policy;
-```
-
 ## Security boundaries and verification
 
 - Unknown field names pass through unless `UnknownFieldPolicy::Redact(...)` is

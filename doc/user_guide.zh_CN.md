@@ -459,31 +459,6 @@ allow-list 方法配置 Header、query 和 body。无效或截断的结构化输
 运行时诊断可读取 `BodyRedaction::status()`、`is_truncated()`、`captured_len()` 和
 `omitted_len()`。`BodyRedactionStatus::Redacted(reason)` 会给出结构化或可见表示不安全的原因。
 
-## 8. 迁移到 0.5
-
-0.5 有意删除了分离的全局默认 API 和语义含混的标量结果：
-
-- 使用一个 `GlobalRedactionConfig`，不再分别安装 policy 和 floor 全局默认值。
-- 使用 `RedactionPolicy::builder()` 与 `RedactionPolicy::default().to_builder()`；
-  Builder 不会隐式读取全局状态。
-- 字段标量使用 `redact_field()`，其 `FieldRedaction` 会区分已遮盖、允许展示和未知直通。
-- HTTP Builder 使用 `HttpFieldContext` 和统一的 `rules`、`raise`、`override_level`、
-  `allow_exact`、`allow_suffix`、`remove_allow_exact`、`remove_allow_suffix`、
-  `clear_allow_rules`、`floor_for`、`disable_floor_for` 方法；所有 context 共用的
-  决策使用 `floor_all()` 或 `disable_all_floors()`。
-
-HTTP policy 和 redactor 必须直接从 `qubit_redact` 导入：
-
-```rust,ignore
-use qubit_http::HttpClientOptions;
-use qubit_redact::http::{HttpRedactionPolicy, HttpRedactor};
-
-let policy = HttpRedactionPolicy::default().to_builder().build()?;
-let _redactor = HttpRedactor::new(policy.clone());
-let mut options = HttpClientOptions::default();
-options.log_redaction_policy = policy;
-```
-
 ## 安全边界与验证
 
 - 未知字段默认原样通过，除非配置 `UnknownFieldPolicy::Redact(...)`。
