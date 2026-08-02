@@ -8,8 +8,18 @@
 //! Tests for [`HttpRedactionPolicyBuilder`](qubit_redact::http::HttpRedactionPolicyBuilder).
 
 use qubit_redact::{
-    PolicyError, PolicyLocation, RedactionFloor, RedactionPolicy, Sensitivity,
-    http::{BodyBudget, DiagnosticBudget, HttpFieldContext, HttpRedactionPolicy, JsonDepthBudget},
+    PolicyError,
+    PolicyLocation,
+    RedactionFloor,
+    RedactionPolicy,
+    Sensitivity,
+    http::{
+        BodyBudget,
+        DiagnosticBudget,
+        HttpFieldContext,
+        HttpRedactionPolicy,
+        JsonDepthBudget,
+    },
 };
 
 /// Verifies an empty builder owns independently configurable rule snapshots.
@@ -152,9 +162,11 @@ fn test_builder_from_policy_preserves_rules_and_independent_budgets() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the policy should be valid");
-    let diagnostic_budget = DiagnosticBudget::new(128, 256).expect("valid diagnostic budget");
+    let diagnostic_budget =
+        DiagnosticBudget::new(128, 256).expect("valid diagnostic budget");
     let body_budget = BodyBudget::new(64, 128).expect("valid body budget");
-    let json_depth_budget = JsonDepthBudget::new(7).expect("valid JSON depth budget");
+    let json_depth_budget =
+        JsonDepthBudget::new(7).expect("valid JSON depth budget");
     let policy = HttpRedactionPolicy::builder_from(&base)
         .diagnostic_budget(diagnostic_budget)
         .body_budget(body_budget)

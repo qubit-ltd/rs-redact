@@ -40,11 +40,11 @@ error: Redact serde for `InvalidTuple` field `0` expects `#[serde(...)]`
 73 | struct InvalidTuple(#[serde] String);
    |                     ^^^^^^^^
 
-error: expected `=`
-  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:80:19
+error: Redact serde expects `rename = "..."` or `rename(serialize = "...", deserialize = "...")`
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:80:13
    |
 80 |     #[serde(rename)]
-   |                   ^
+   |             ^^^^^^
 
 error: expected string literal
   --> tests/fixtures/fail/invalid_serde_field_attributes.rs:89:22

@@ -259,10 +259,33 @@ fn sensitivity_inner(
     allow: bool,
 ) -> Option<Sensitivity> {
     match classify_inner(inner, field, matching, allow) {
-        FieldClassification::Sensitive { rule, .. } => Some(rule.sensitivity()),
         FieldClassification::Allowed { .. } => None,
-        FieldClassification::Unknown => {
-            inner.unknown_field_policy.sensitivity()
+        FieldClassification::Sensitive { .. }
+        | FieldClassification::Unknown => {
+            strongest_sensitive_match(inner, field, matching)
+                .or_else(|| inner.unknown_field_policy.sensitivity())
         }
     }
+}
+
+/// Returns the strongest sensitivity among every matching field candidate.
+fn strongest_sensitive_match(
+    inner: &RedactionPolicyInner,
+    field: &str,
+    matching: FieldNameMatching,
+) -> Option<Sensitivity> {
+    let mut strongest: Option<Sensitivity> = None;
+    let _ = visit_canonical_field_candidates(
+        field,
+        matching,
+        |_is_exact, candidate| {
+            if let Some(level) = inner.sensitive.get(candidate) {
+                strongest = Some(
+                    strongest.map_or(*level, |current| current.max(*level)),
+                );
+            }
+            ControlFlow::<()>::Continue(())
+        },
+    );
+    strongest
 }

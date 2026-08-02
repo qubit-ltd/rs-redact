@@ -8,7 +8,11 @@
 //! Tests for [`FieldClassification`](qubit_redact::FieldClassification).
 
 use qubit_redact::{
-    FieldClassification, FieldMatchKind, FieldNameMatching, RedactionPolicy, Sensitivity,
+    FieldClassification,
+    FieldMatchKind,
+    FieldNameMatching,
+    RedactionPolicy,
+    Sensitivity,
 };
 
 /// Verifies exact and suffix-sensitive results expose their matched rule.
@@ -31,7 +35,8 @@ fn test_field_classification_explains_sensitive_matches() {
     assert!(!exact.is_allowed());
     assert!(!exact.is_unknown());
 
-    let suffix = std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
+    let suffix =
+        std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
     assert_eq!(suffix.sensitivity(), Some(Sensitivity::Medium));
     assert_eq!(suffix.matched_field(), Some("accesstoken"));
     assert_eq!(suffix.match_kind(), Some(FieldMatchKind::TokenSuffix));
@@ -59,7 +64,8 @@ fn test_field_classification_explains_allow_precedence() {
     assert!(exact.is_allowed());
     assert!(!exact.is_unknown());
 
-    let suffix = std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
+    let suffix =
+        std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
     assert_eq!(suffix.sensitivity(), None);
     assert_eq!(suffix.matched_field(), Some("accesstoken"));
     assert_eq!(suffix.match_kind(), Some(FieldMatchKind::TokenSuffix));
@@ -108,10 +114,10 @@ fn test_field_classification_reports_exact_suffix_allow_match() {
     }
 }
 
-/// Verifies explainable classification remains behaviorally identical to the
-/// established sensitivity lookup.
+/// Verifies classification explains the most specific rule while final
+/// sensitivity retains the strongest overlapping protection.
 #[test]
-fn test_field_classification_matches_sensitivity_for() {
+fn test_field_classification_is_distinct_from_final_sensitivity() {
     let policy = RedactionPolicy::builder()
         .disable_floor()
         .raise("token", Sensitivity::Secret)
@@ -127,21 +133,14 @@ fn test_field_classification_matches_sensitivity_for() {
         .build()
         .expect("the parity policy should be valid");
 
-    for field in [
-        "",
-        "ordinary",
-        "token",
-        "access_token",
-        "OPENAI_ACCESS_TOKEN",
-        "tenant_secret",
-        "prefix_tenant_secret",
-        "public_token",
-        "prefix_public_token",
-    ] {
-        assert_eq!(
-            policy.sensitivity_for(field),
-            policy.classify_field(field).sensitivity(),
-            "classification parity failed for {field:?}",
-        );
-    }
+    assert_eq!(
+        policy.classify_field("OPENAI_ACCESS_TOKEN").sensitivity(),
+        Some(Sensitivity::Medium),
+    );
+    assert_eq!(
+        policy.sensitivity_for("OPENAI_ACCESS_TOKEN"),
+        Some(Sensitivity::Secret),
+    );
+    assert_eq!(policy.sensitivity_for("tenant_secret"), None);
+    assert_eq!(policy.sensitivity_for("prefix_public_token"), None);
 }

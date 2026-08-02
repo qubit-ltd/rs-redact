@@ -7,7 +7,10 @@
 // =============================================================================
 //! Tests for [`AllowRule`](qubit_redact::AllowRule) views.
 
-use qubit_redact::{FieldNameMatching, RedactionPolicy};
+use qubit_redact::{
+    FieldNameMatching,
+    RedactionPolicy,
+};
 
 /// Verifies an exact allow rule is exposed with its canonical field name.
 #[test]

@@ -8,7 +8,12 @@
 //! Tests for borrowed JSON value redaction.
 
 use qubit_redact::{
-    JsonDepthBudget, MaskPolicy, RedactedJson, RedactionPolicy, Sensitivity, UnknownFieldPolicy,
+    JsonDepthBudget,
+    MaskPolicy,
+    RedactedJson,
+    RedactionPolicy,
+    Sensitivity,
+    UnknownFieldPolicy,
 };
 use serde_json::json;
 
@@ -44,6 +49,42 @@ fn test_redacted_json_masks_sensitive_object_values_recursively() {
     assert!(!output.contains("raw-key"));
     assert!(output.contains("Ada"));
     assert!(output.contains("visible"));
+}
+
+/// Verifies strict policy masks root and array scalars but not keyed values
+/// that an explicit allow rule releases.
+#[test]
+fn test_redacted_json_strict_masks_only_unkeyed_scalars() {
+    let root = json!("root-secret");
+    let array = json!(["array-secret", {"public": "visible"}]);
+    let policy = RedactionPolicy::strict()
+        .to_builder()
+        .allow_canonical_exact("public")
+        .expect("the public field should be valid")
+        .build()
+        .expect("the strict policy should build");
+
+    let root_output = format!("{:?}", RedactedJson::new(&root, &policy));
+    let array_output = format!("{:?}", RedactedJson::new(&array, &policy));
+
+    assert!(!root_output.contains("root-secret"));
+    assert!(!array_output.contains("array-secret"));
+    assert!(array_output.contains("visible"));
+}
+
+/// Verifies standard policy preserves unkeyed JSON scalars for compatibility.
+#[test]
+fn test_redacted_json_standard_preserves_unkeyed_scalars() {
+    let value = json!(["visible", 42, true]);
+
+    let output = format!(
+        "{:?}",
+        RedactedJson::new(&value, &RedactionPolicy::standard()),
+    );
+
+    assert!(output.contains("visible"));
+    assert!(output.contains("42"));
+    assert!(output.contains("true"));
 }
 
 /// Verifies fallback policy protects otherwise unclassified JSON object keys.
@@ -113,7 +154,9 @@ fn test_redacted_json_fails_closed_at_depth_budget() {
         "nested": {"deeper": {"secret": "raw-depth-secret"}},
     });
     let policy = RedactionPolicy::builder()
-        .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
+        .json_depth_budget(
+            JsonDepthBudget::new(1).expect("the depth budget is valid"),
+        )
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .expect("the test mask policy should be valid")
         .build()
@@ -188,7 +231,9 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
         "nested": {"secret": "raw-depth-secret"},
     });
     let policy = RedactionPolicy::builder()
-        .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
+        .json_depth_budget(
+            JsonDepthBudget::new(1).expect("the depth budget is valid"),
+        )
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .expect("the test mask policy should be valid")
         .build()

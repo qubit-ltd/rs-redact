@@ -8,8 +8,13 @@
 //! Tests for immutable redaction rule behavior.
 
 use qubit_redact::{
-    FieldClassification, FieldMatchKind, FieldNameMatching, RedactionPolicy, RedactionRules,
-    Sensitivity, UnknownFieldPolicy,
+    FieldClassification,
+    FieldMatchKind,
+    FieldNameMatching,
+    RedactionPolicy,
+    RedactionRules,
+    Sensitivity,
+    UnknownFieldPolicy,
 };
 
 /// Verifies exact allow rules win only for exact candidates before suffix
@@ -65,7 +70,8 @@ fn test_redaction_rules_expose_application_matching_and_unknown_policy() {
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low))
         .build()
         .expect("the application rules should be valid");
-    let matching: fn(&RedactionRules) -> FieldNameMatching = RedactionRules::matching;
+    let matching: fn(&RedactionRules) -> FieldNameMatching =
+        RedactionRules::matching;
     let unknown_field_policy: fn(&RedactionRules) -> UnknownFieldPolicy =
         RedactionRules::unknown_field_policy;
 
@@ -73,5 +79,26 @@ fn test_redaction_rules_expose_application_matching_and_unknown_policy() {
     assert_eq!(
         unknown_field_policy(policy.rules()),
         UnknownFieldPolicy::Redact(Sensitivity::Low),
+    );
+}
+
+/// Verifies the floor also retains the strongest overlapping sensitive rule.
+#[test]
+fn test_redaction_rules_floor_resolves_overlaps_to_strongest_level() {
+    let floor = qubit_redact::RedactionFloor::builder()
+        .raise("token", Sensitivity::Secret)
+        .expect("the shorter floor rule should be valid")
+        .raise("access_token", Sensitivity::Medium)
+        .expect("the longer floor rule should be valid")
+        .build()
+        .expect("the overlapping floor should be valid");
+    let policy = RedactionPolicy::builder()
+        .floor(floor)
+        .build()
+        .expect("the policy should be valid");
+
+    assert_eq!(
+        policy.sensitivity_for("OPENAI_ACCESS_TOKEN"),
+        Some(Sensitivity::Secret),
     );
 }

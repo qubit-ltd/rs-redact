@@ -9,7 +9,12 @@
 
 use std::collections::BTreeMap;
 
-use qubit_redact::{GlobalRedactionConfig, Redact, RedactionPolicy, Sensitivity};
+use qubit_redact::{
+    GlobalRedactionConfig,
+    Redact,
+    RedactionPolicy,
+    Sensitivity,
+};
 use qubit_redact_derive::Redact;
 
 /// Event whose map uses the process-wide redaction configuration.
@@ -32,7 +37,10 @@ fn test_map_uses_global_redaction_config() {
         .install()
         .expect("this test process installs the global configuration once");
     let event = Event {
-        metadata: BTreeMap::from([("tenant_secret".to_owned(), "raw-global-secret".to_owned())]),
+        metadata: BTreeMap::from([(
+            "tenant_secret".to_owned(),
+            "raw-global-secret".to_owned(),
+        )]),
     };
 
     let rendered = format!("{:?}", event.redacted());

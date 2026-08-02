@@ -19,6 +19,7 @@ mod header_redaction_tests;
 mod http_redaction_policy_builder_tests;
 mod http_redaction_policy_parts_tests;
 mod http_redaction_policy_tests;
+mod http_redactor;
 mod http_redactor_tests;
 mod internal;
 mod mod_tests;

@@ -33,6 +33,8 @@ pub struct RedactedJson<'value, 'policy> {
     policy: &'policy RedactionPolicy,
     /// Current recursive container depth measured from the root.
     depth: usize,
+    /// Whether a scalar at this node lacks an object-field key.
+    unkeyed: bool,
 }
 
 impl<'value, 'policy> RedactedJson<'value, 'policy> {
@@ -55,6 +57,7 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
             value,
             policy,
             depth: 0,
+            unkeyed: true,
         }
     }
 
@@ -71,11 +74,13 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     fn nested<'nested>(
         &self,
         value: &'nested Value,
+        unkeyed: bool,
     ) -> RedactedJson<'nested, 'policy> {
         RedactedJson {
             value,
             policy: self.policy,
             depth: self.depth.saturating_add(1),
+            unkeyed,
         }
     }
 
@@ -99,6 +104,15 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     #[inline(always)]
     fn depth_limit_mask(&self) -> RedactedValue<'_> {
         RedactedValue::opaque(crate::Sensitivity::Secret, self.policy.masking())
+    }
+
+    /// Reports whether the current scalar must use the opaque Secret mask.
+    #[inline(always)]
+    fn redact_unkeyed_scalar(&self) -> bool {
+        self.unkeyed
+            && self.policy.unkeyed_json_value_policy()
+                == crate::UnkeyedJsonValuePolicy::Redact
+            && !matches!(self.value, Value::Array(_) | Value::Object(_))
     }
 }
 
@@ -155,7 +169,7 @@ impl serde::Serialize for RedactedJson<'_, '_> {
                 let mut output =
                     serializer.serialize_seq(Some(values.len()))?;
                 for value in values {
-                    output.serialize_element(&self.nested(value))?;
+                    output.serialize_element(&self.nested(value, true))?;
                 }
                 output.end()
             }
@@ -183,12 +197,19 @@ impl serde::Serialize for RedactedJson<'_, '_> {
                             }
                         },
                         ResolvedField::PassThrough => {
-                            output.serialize_entry(key, &self.nested(value))?;
+                            output.serialize_entry(
+                                key,
+                                &self.nested(value, false),
+                            )?;
                         }
                     }
                 }
                 output.end()
             }
+            _ if self.redact_unkeyed_scalar() => serde::Serialize::serialize(
+                &self.depth_limit_mask(),
+                serializer,
+            ),
             value => serde::Serialize::serialize(value, serializer),
         }
     }
@@ -219,7 +240,7 @@ fn fmt_json(
         Value::Array(values) => {
             let mut output = formatter.debug_list();
             for value in values {
-                output.entry(&view.nested(value));
+                output.entry(&view.nested(value, true));
             }
             output.finish()
         }
@@ -238,11 +259,14 @@ fn fmt_json(
                         );
                     }
                     ResolvedField::PassThrough => {
-                        output.entry(key, &view.nested(value));
+                        output.entry(key, &view.nested(value, false));
                     }
                 }
             }
             output.finish()
+        }
+        _ if view.redact_unkeyed_scalar() => {
+            fmt::Debug::fmt(&view.depth_limit_mask(), formatter)
         }
         value => fmt::Debug::fmt(value, formatter),
     }

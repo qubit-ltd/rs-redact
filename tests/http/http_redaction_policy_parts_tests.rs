@@ -8,8 +8,12 @@
 //! Tests for complete HTTP policy construction state.
 
 use qubit_redact::{
-    RedactionPolicy, Sensitivity,
-    http::{HttpFieldContext, HttpRedactionPolicy},
+    RedactionPolicy,
+    Sensitivity,
+    http::{
+        HttpFieldContext,
+        HttpRedactionPolicy,
+    },
 };
 
 /// Verifies complete policy construction retains distinct rule snapshots for

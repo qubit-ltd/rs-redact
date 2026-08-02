@@ -8,21 +8,27 @@
 //! Whitelisted Serde variant attributes for redacted serialization.
 
 use syn::{
-    LitStr,
     Meta,
     Token,
     Variant,
 };
 
-use crate::serde_rename_rule::SerdeRenameRule;
+use crate::{
+    internal::parse_serialize_name,
+    serde_rename_rule::SerdeRenameRule,
+};
 
 /// Validated variant name, field rename rule, and skip state.
 #[must_use]
 pub(crate) struct SerdeVariantAttributes {
     /// Explicit serialized variant name.
     rename: Option<String>,
+    /// Whether a directional or direct variant rename was declared.
+    rename_seen: bool,
     /// Variant-local named-field rename rule.
     rename_all: Option<SerdeRenameRule>,
+    /// Whether a directional or direct field rename rule was declared.
+    rename_all_seen: bool,
     /// Whether serialization of this variant is forbidden.
     skip: bool,
 }
@@ -55,7 +61,9 @@ impl SerdeVariantAttributes {
     ) -> syn::Result<Self> {
         let mut parsed = Self {
             rename: None,
+            rename_seen: false,
             rename_all: None,
+            rename_all_seen: false,
             skip: false,
         };
         if !enabled {
@@ -76,23 +84,29 @@ impl SerdeVariantAttributes {
             };
             attribute.parse_nested_meta(|meta| {
                 if meta.path.is_ident("rename") {
-                    if parsed.rename.is_some() {
+                    if parsed.rename_seen {
                         return Err(meta.error(format!(
                             "Redact serde for `{type_name}` variant `{}` repeats `rename`",
                             variant.ident,
                         )));
                     }
-                    let literal: LitStr = meta.value()?.parse()?;
-                    parsed.rename = Some(literal.value());
+                    parsed.rename = parse_serialize_name(&meta, "rename")?
+                        .map(|literal| literal.value());
+                    parsed.rename_seen = true;
                 } else if meta.path.is_ident("rename_all") {
-                    if parsed.rename_all.is_some() {
+                    if parsed.rename_all_seen {
                         return Err(meta.error(format!(
                             "Redact serde for `{type_name}` variant `{}` repeats `rename_all`",
                             variant.ident,
                         )));
                     }
-                    let literal: LitStr = meta.value()?.parse()?;
-                    parsed.rename_all = Some(SerdeRenameRule::parse(&literal)?);
+                    parsed.rename_all = parse_serialize_name(
+                        &meta,
+                        "rename_all",
+                    )?
+                    .map(|literal| SerdeRenameRule::parse(&literal))
+                    .transpose()?;
+                    parsed.rename_all_seen = true;
                 } else if meta.path.is_ident("skip")
                     || meta.path.is_ident("skip_serializing")
                 {

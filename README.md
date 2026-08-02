@@ -27,7 +27,7 @@ explicit log-safe boundary.
 
 ```toml
 [dependencies]
-qubit-redact = "0.5"
+qubit-redact = "0.6"
 ```
 
 ```rust
@@ -74,8 +74,8 @@ The original value remains available to application logic. Call
 
 | Need | Cargo configuration |
 | --- | --- |
-| Core scalar, map, process, and text support | `qubit-redact = "0.5"` |
-| Domain-object derives | Add `qubit-redact-derive = "0.5"`. |
+| Core scalar, map, process, and text support | `qubit-redact = "0.6"` |
+| Domain-object derives | Add `qubit-redact-derive = "0.6"`. |
 | Serialize redacted views | Enable `serde` and declare `serde` directly. |
 | Redact `serde_json::Value` or JSON text fields | Enable `json`; add `serde_json` directly when your application uses it. |
 | HTTP diagnostics | Enable `http`; add `http` directly when your application uses its types. |
@@ -83,7 +83,7 @@ The original value remains available to application logic. Call
 ```toml
 [dependencies]
 # HTTP diagnostics only
-qubit-redact = { version = "0.5", features = ["http"] }
+qubit-redact = { version = "0.6", features = ["http"] }
 http = "1.4"
 ```
 

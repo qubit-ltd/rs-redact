@@ -30,8 +30,8 @@ Add the runtime and derive crates together:
 
 ```toml
 [dependencies]
-qubit-redact = "0.5"
-qubit-redact-derive = "0.5"
+qubit-redact = "0.6"
+qubit-redact-derive = "0.6"
 ```
 
 ```rust
@@ -109,8 +109,8 @@ derive crate discovers Cargo renames, so this also works:
 
 ```toml
 [dependencies]
-redaction = { package = "qubit-redact", version = "0.5" }
-qubit-redact-derive = "0.5"
+redaction = { package = "qubit-redact", version = "0.6" }
+qubit-redact-derive = "0.6"
 ```
 
 To use `#[redact(serde)]`, enable the runtime crate's `serde` feature and
@@ -118,8 +118,8 @@ declare `serde` directly:
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5", features = ["serde"] }
-qubit-redact-derive = "0.5"
+qubit-redact = { version = "0.6", features = ["serde"] }
+qubit-redact-derive = "0.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```

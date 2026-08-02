@@ -92,6 +92,38 @@ enum UntaggedCoverage {
     Value(String),
 }
 
+/// Directional field rename uses only the serialization branch.
+#[derive(Redact)]
+#[redact(serde)]
+#[serde(rename(serialize = "DirectionalRecord", deserialize = "InputRecord"))]
+struct DirectionalRecord {
+    /// Explicit directional serialized name.
+    #[serde(rename(serialize = "outputValue", deserialize = "inputValue"))]
+    value: String,
+    /// A deserialize-only rename leaves the serialized Rust field name intact.
+    #[serde(rename(deserialize = "legacyValue"))]
+    plain_value: String,
+}
+
+/// Directional container and variant rules use their serialization branches.
+#[derive(Redact)]
+#[redact(serde)]
+#[serde(
+    rename_all(serialize = "snake_case", deserialize = "camelCase"),
+    rename_all_fields(serialize = "camelCase", deserialize = "snake_case")
+)]
+enum DirectionalEnum {
+    /// Variant-local directionality covers rename and named-field rules.
+    #[serde(
+        rename(serialize = "ready_output", deserialize = "readyInput"),
+        rename_all(serialize = "kebab-case", deserialize = "camelCase")
+    )]
+    ReadyValue {
+        /// Field name transformed by the serialization-side variant rule.
+        field_value: String,
+    },
+}
+
 macro_rules! rename_enum {
     ($name:ident, $rule:literal) => {
         /// Enum using one supported variant rename rule.

@@ -22,7 +22,7 @@ Qubit Redact 用于防止敏感信息经 Rust 诊断信息泄露，包括日志�
 
 ```toml
 [dependencies]
-qubit-redact = "0.5"
+qubit-redact = "0.6"
 ```
 
 ```rust
@@ -69,8 +69,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 需求 | Cargo 配置 |
 | --- | --- |
-| 标量、Map、进程和文本 core 能力 | `qubit-redact = "0.5"` |
-| 领域对象 derive | 添加 `qubit-redact-derive = "0.5"`。 |
+| 标量、Map、进程和文本 core 能力 | `qubit-redact = "0.6"` |
+| 领域对象 derive | 添加 `qubit-redact-derive = "0.6"`。 |
 | 序列化脱敏视图 | 启用 `serde`，并直接声明 `serde` 依赖。 |
 | 脱敏 `serde_json::Value` 或 JSON 文本字段 | 启用 `json`；应用使用时直接添加 `serde_json`。 |
 | HTTP 诊断 | 启用 `http`；应用使用其类型时直接添加 `http`。 |
@@ -78,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```toml
 [dependencies]
 # 仅启用 HTTP 诊断
-qubit-redact = { version = "0.5", features = ["http"] }
+qubit-redact = { version = "0.6", features = ["http"] }
 http = "1.4"
 ```
 

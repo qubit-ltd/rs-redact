@@ -7,7 +7,10 @@
 // =============================================================================
 //! Tests for policy state used by public field matching.
 
-use qubit_redact::{RedactionPolicy, Sensitivity};
+use qubit_redact::{
+    RedactionPolicy,
+    Sensitivity,
+};
 
 /// Verifies internal policy state supports normalized public lookup.
 #[test]

@@ -168,9 +168,23 @@ security boundaries need isolation.
 
 Field names are canonicalized. With `FieldNameMatching::ExactOrTokenSuffix`, a
 rule for `api_key` can match `request_api_key`; exact matching has the narrowest
-scope. `raise` never lowers sensitivity, while `override_level` intentionally
-replaces it. Exact allow rules affect one canonical field; suffix allow rules
-can reveal prefixed fields and need a security review.
+scope.
+
+`raise(field, level)` is monotonic in two ways. Repeated configuration of the
+same canonical key retains its highest level, and final resolution takes the
+highest level among all differently named rules that match the input. For
+example, `token = Secret` and `access_token = Medium` both match
+`OPENAI_ACCESS_TOKEN`, so its final sensitivity is `Secret`.
+`override_level("access_token", Medium)` replaces only that canonical rule; it
+does not bypass the overlapping `token = Secret` rule. Use it to correct one
+rule's configured level, not to lower the aggregate protection of overlapping
+rules.
+
+Allow resolution is separate from sensitive-level aggregation. Exact allow
+rules affect one canonical field; suffix allow rules can reveal prefixed fields
+and need a security review. If an allow rule does not release the field, every
+matching sensitive rule contributes to the maximum; an enabled floor remains
+independently effective.
 
 Use `Redactor::redact_at(level, value)` at a boundary that already knows a value
 is sensitive independently of its field name. It applies that mask directly, so
@@ -184,6 +198,15 @@ an allow rule cannot expose the value.
 the same collection type; `redact_map_in_place` updates sensitive values in an
 existing map. Text-keyed `HashMap`, `BTreeMap`, and `indexmap::IndexMap` are
 supported.
+
+It classifies only `field`; it does not scan `value`. For example,
+`redact_field("error", "request failed: password=raw-secret")` passes the whole
+value through when `error` has no sensitive rule—the library does not discover
+the embedded `password=` syntax. Redact parsed data as structured fields. For
+an untrusted complete error string, expose a fixed safe summary and retain the
+original error through `Error::source()`, or use
+`redact_at(Sensitivity::Secret, text)` when the entire opaque value must be
+treated as sensitive.
 
 ```rust
 use std::collections::HashMap;

@@ -7,12 +7,22 @@
 // =============================================================================
 //! Shared construction kernel for application rules and floors.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 use super::{
-    FieldNameMatching, PolicyError, PolicyLocation, SensitiveFieldPreset, Sensitivity,
+    FieldNameMatching,
+    PolicyError,
+    PolicyLocation,
+    SensitiveFieldPreset,
+    Sensitivity,
     UnknownFieldPolicy,
-    internal::{RedactionPolicyInner, canonicalize_field_name},
+    internal::{
+        RedactionPolicyInner,
+        canonicalize_field_name,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -37,7 +47,10 @@ impl RedactionRulesBuilder {
         }
     }
 
-    pub(crate) fn from_inner(inner: &RedactionPolicyInner, location: PolicyLocation) -> Self {
+    pub(crate) fn from_inner(
+        inner: &RedactionPolicyInner,
+        location: PolicyLocation,
+    ) -> Self {
         Self {
             sensitive: inner.sensitive.clone(),
             allow_exact: inner.allow_exact.clone(),
@@ -60,7 +73,11 @@ impl RedactionRulesBuilder {
                 .expect("built-in sensitive field presets must be valid");
         }
     }
-    pub(crate) fn raise(&mut self, field: &str, level: Sensitivity) -> Result<(), PolicyError> {
+    pub(crate) fn raise(
+        &mut self,
+        field: &str,
+        level: Sensitivity,
+    ) -> Result<(), PolicyError> {
         let field = self.canonical_field(field)?;
         self.sensitive
             .entry(field)
@@ -77,22 +94,34 @@ impl RedactionRulesBuilder {
         self.sensitive.insert(field, level);
         Ok(())
     }
-    pub(crate) fn allow_canonical_exact(&mut self, field: &str) -> Result<(), PolicyError> {
+    pub(crate) fn allow_canonical_exact(
+        &mut self,
+        field: &str,
+    ) -> Result<(), PolicyError> {
         let field = self.canonical_field(field)?;
         self.allow_exact.insert(field);
         Ok(())
     }
-    pub(crate) fn allow_suffix(&mut self, field: &str) -> Result<(), PolicyError> {
+    pub(crate) fn allow_suffix(
+        &mut self,
+        field: &str,
+    ) -> Result<(), PolicyError> {
         let field = self.canonical_field(field)?;
         self.allow_suffix.insert(field);
         Ok(())
     }
-    pub(crate) fn remove_allow_canonical_exact(&mut self, field: &str) -> Result<(), PolicyError> {
+    pub(crate) fn remove_allow_canonical_exact(
+        &mut self,
+        field: &str,
+    ) -> Result<(), PolicyError> {
         let field = self.canonical_field(field)?;
         self.allow_exact.remove(&field);
         Ok(())
     }
-    pub(crate) fn remove_allow_suffix(&mut self, field: &str) -> Result<(), PolicyError> {
+    pub(crate) fn remove_allow_suffix(
+        &mut self,
+        field: &str,
+    ) -> Result<(), PolicyError> {
         let field = self.canonical_field(field)?;
         self.allow_suffix.remove(&field);
         Ok(())
@@ -107,7 +136,9 @@ impl RedactionRulesBuilder {
     ) -> Result<(), PolicyError> {
         Self::checked_canonical_field(field, location).map(|_| ())
     }
-    pub(crate) fn build_inner(self) -> Result<RedactionPolicyInner, PolicyError> {
+    pub(crate) fn build_inner(
+        self,
+    ) -> Result<RedactionPolicyInner, PolicyError> {
         Ok(RedactionPolicyInner {
             sensitive: self.sensitive,
             allow_exact: self.allow_exact,
