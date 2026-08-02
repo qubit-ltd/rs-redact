@@ -55,9 +55,9 @@ fn test_suffix_allow_is_explicitly_broad() {
     assert_eq!(policy.sensitivity_for("OPENAI_ACCESS_TOKEN"), None);
 }
 
-/// Verifies that a longer candidate wins before its shorter token suffix.
+/// Verifies overlapping sensitive rules resolve to the strongest level.
 #[test]
-fn test_longest_rule_wins_before_shorter_token() {
+fn test_overlapping_sensitive_rules_resolve_to_strongest_level() {
     let policy = RedactionPolicy::builder()
         .disable_floor()
         .override_level("token", Sensitivity::Secret)
@@ -70,7 +70,7 @@ fn test_longest_rule_wins_before_shorter_token() {
 
     assert_eq!(
         policy.sensitivity_for("OPENAI_ACCESS_TOKEN"),
-        Some(Sensitivity::Medium),
+        Some(Sensitivity::Secret),
     );
 }
 

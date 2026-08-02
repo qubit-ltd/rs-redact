@@ -7,10 +7,7 @@
 // =============================================================================
 //! Process-wide redaction configuration snapshots.
 
-use std::sync::{
-    LazyLock,
-    OnceLock,
-};
+use std::sync::OnceLock;
 
 use crate::RedactionPolicy;
 use crate::global_redaction_config_already_installed::GlobalRedactionConfigAlreadyInstalled;
@@ -33,8 +30,6 @@ pub struct GlobalRedactionConfig {
     http_policy: HttpRedactionPolicy,
 }
 
-static STANDARD_CONFIG: LazyLock<GlobalRedactionConfig> =
-    LazyLock::new(GlobalRedactionConfig::standard);
 static GLOBAL_CONFIG: OnceLock<GlobalRedactionConfig> = OnceLock::new();
 
 impl GlobalRedactionConfig {
@@ -72,20 +67,25 @@ impl GlobalRedactionConfig {
 
     /// Installs this application-level configuration exactly once.
     ///
-    /// Install during application assembly before creating default-derived
-    /// policies. This does not retroactively affect existing snapshots, and
-    /// library crates should leave installation to their host application.
+    /// Install during application assembly before any call to [`Self::current`]
+    /// or creation of a default-derived policy. The first read freezes the
+    /// standard configuration in the same one-time slot, so a later install
+    /// fails instead of creating split process-wide defaults. This does not
+    /// retroactively affect explicit policy snapshots, and library crates
+    /// should leave installation to their host application.
     pub fn install(self) -> Result<(), GlobalRedactionConfigAlreadyInstalled> {
         GLOBAL_CONFIG
             .set(self)
             .map_err(|_| GlobalRedactionConfigAlreadyInstalled)
     }
 
-    /// Returns the installed configuration, or the standard configuration
-    /// when no installation has occurred.
+    /// Returns the installed configuration.
+    ///
+    /// The first call freezes the standard configuration when the application
+    /// has not installed one yet. Any later [`Self::install`] then fails.
     #[inline]
     pub fn current() -> &'static Self {
-        GLOBAL_CONFIG.get().unwrap_or(&STANDARD_CONFIG)
+        GLOBAL_CONFIG.get_or_init(Self::standard)
     }
 
     /// Returns the core redaction policy snapshot.

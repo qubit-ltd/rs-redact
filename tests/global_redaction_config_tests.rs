@@ -15,10 +15,10 @@ use qubit_redact::{
     Sensitivity,
 };
 
-/// Verifies atomic installation and deterministic builder snapshots.
+/// Verifies startup installation and deterministic explicit snapshots.
 #[test]
 fn test_global_config_is_installed_once_and_snapshotted() {
-    let before = RedactionPolicy::default();
+    let before = RedactionPolicy::standard();
     let before_builder = RedactionPolicy::builder();
     let floor = RedactionFloor::builder()
         .raise("tenant_floor_blob", Sensitivity::Secret)

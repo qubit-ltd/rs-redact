@@ -81,3 +81,24 @@ fn test_redaction_rules_expose_application_matching_and_unknown_policy() {
         UnknownFieldPolicy::Redact(Sensitivity::Low),
     );
 }
+
+/// Verifies the floor also retains the strongest overlapping sensitive rule.
+#[test]
+fn test_redaction_rules_floor_resolves_overlaps_to_strongest_level() {
+    let floor = qubit_redact::RedactionFloor::builder()
+        .raise("token", Sensitivity::Secret)
+        .expect("the shorter floor rule should be valid")
+        .raise("access_token", Sensitivity::Medium)
+        .expect("the longer floor rule should be valid")
+        .build()
+        .expect("the overlapping floor should be valid");
+    let policy = RedactionPolicy::builder()
+        .floor(floor)
+        .build()
+        .expect("the policy should be valid");
+
+    assert_eq!(
+        policy.sensitivity_for("OPENAI_ACCESS_TOKEN"),
+        Some(Sensitivity::Secret),
+    );
+}
