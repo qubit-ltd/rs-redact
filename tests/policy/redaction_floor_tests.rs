@@ -7,10 +7,21 @@
 // =============================================================================
 //! External tests for minimum redaction floors.
 
-use proptest::{prop_assert, prop_assert_eq, proptest};
+use proptest::{
+    prop_assert,
+    prop_assert_eq,
+    proptest,
+};
 use qubit_redact::{
-    FieldNameMatching, MaskPolicy, PolicyError, PolicyLocation, RedactionFloor,
-    RedactionFloorState, RedactionPolicy, Redactor, Sensitivity, UnknownFieldPolicy,
+    FieldNameMatching,
+    MaskPolicy,
+    PolicyError,
+    PolicyLocation,
+    RedactionFloor,
+    RedactionPolicy,
+    Redactor,
+    Sensitivity,
+    UnknownFieldPolicy,
 };
 
 #[test]
@@ -28,7 +39,6 @@ fn test_floor_overrides_application_exact_allow() {
         policy.sensitivity_for("access_token"),
         Some(Sensitivity::High)
     );
-    assert_eq!(policy.floor_state(), RedactionFloorState::Explicit);
 }
 
 /// Verifies that a suffix allow cannot bypass a matching floor rule.
@@ -67,7 +77,9 @@ fn test_floor_only_raises_sensitivity_when_application_level_is_higher() {
         Some(Sensitivity::Secret),
     );
     assert_eq!(
-        Redactor::new(policy).redact_field("credential", "value").as_str(),
+        Redactor::new(policy)
+            .redact_field("credential", "value")
+            .as_str(),
         "[application]"
     );
 }
@@ -153,7 +165,6 @@ fn test_disable_floor_is_last_call_wins() {
         .build()
         .expect("the policy should build");
     assert_eq!(policy.sensitivity_for("credential"), None);
-    assert_eq!(policy.floor_state(), RedactionFloorState::Disabled);
 }
 
 /// Verifies replacing a disabled floor restores explicit protection.
@@ -169,7 +180,6 @@ fn test_with_floor_after_disable_floor_is_last_call_wins() {
         .build()
         .expect("the policy should build");
 
-    assert_eq!(policy.floor_state(), RedactionFloorState::Explicit);
     assert_eq!(
         policy.sensitivity_for("credential"),
         Some(Sensitivity::High),
@@ -177,9 +187,9 @@ fn test_with_floor_after_disable_floor_is_last_call_wins() {
 }
 
 /// Verifies disabled floor snapshots are copied and default copying replaces
-/// the complete floor state.
+/// the complete floor configuration.
 #[test]
-fn test_builder_copy_and_standard_preserve_or_replace_floor_state() {
+fn test_builder_copy_and_standard_preserve_or_replace_floor_configuration() {
     let disabled = RedactionPolicy::builder()
         .disable_floor()
         .raise("application_only", Sensitivity::High)
@@ -193,13 +203,8 @@ fn test_builder_copy_and_standard_preserve_or_replace_floor_state() {
         .build()
         .expect("the default-reset policy should build");
 
-    assert_eq!(copied.floor_state(), RedactionFloorState::Disabled);
     assert_eq!(copied, disabled);
     assert_eq!(reset, RedactionPolicy::default());
-    assert_eq!(
-        reset.floor_state(),
-        RedactionPolicy::default().floor_state()
-    );
 }
 
 /// Verifies public rule views keep application rules and floor rules separate.
@@ -258,7 +263,8 @@ fn test_floor_validation_reports_floor_location() {
 /// active global floor contract.
 #[test]
 fn test_floor_default_builder_snapshot_and_display_are_consistent() {
-    let from_default = RedactionFloor::default().to_builder()
+    let from_default = RedactionFloor::default()
+        .to_builder()
         .build()
         .expect("the default-derived floor should build");
     let default_floor = RedactionFloor::default();

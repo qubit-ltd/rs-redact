@@ -22,7 +22,6 @@ mod mod_tests;
 mod policy_error_tests;
 mod policy_location_tests;
 mod redaction_floor_builder_tests;
-mod redaction_floor_state_tests;
 mod redaction_floor_tests;
 mod redaction_limits_tests;
 mod redaction_policy_builder_tests;
