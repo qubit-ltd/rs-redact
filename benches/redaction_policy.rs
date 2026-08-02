@@ -31,7 +31,8 @@ use qubit_redact::{
     Sensitivity,
 };
 
-/// Compares the default-configuration snapshot path with a direct standard clone.
+/// Compares the default-configuration snapshot path with a direct standard
+/// clone.
 fn benchmark_policy_snapshot(criterion: &mut Criterion) {
     let mut group = criterion.benchmark_group("policy_snapshot");
     group.bench_function("default", |bencher| {

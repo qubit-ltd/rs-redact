@@ -8,7 +8,11 @@
 //! Tests for typed scalar field-redaction results.
 
 use qubit_redact::{
-    FieldRedaction, PassThroughReason, RedactionPolicy, Redactor, Sensitivity,
+    FieldRedaction,
+    PassThroughReason,
+    RedactionPolicy,
+    Redactor,
+    Sensitivity,
 };
 
 /// Verifies masked fields expose a typed masked result.
@@ -45,8 +49,14 @@ fn test_redact_field_reports_pass_through_reason() {
     let allowed = redactor.redact_field("display_name", "Alice");
     let unknown = redactor.redact_field("other", "visible");
 
-    assert_eq!(allowed.pass_through_reason(), Some(PassThroughReason::Allowed));
-    assert_eq!(unknown.pass_through_reason(), Some(PassThroughReason::Unknown));
+    assert_eq!(
+        allowed.pass_through_reason(),
+        Some(PassThroughReason::Allowed)
+    );
+    assert_eq!(
+        unknown.pass_through_reason(),
+        Some(PassThroughReason::Unknown)
+    );
     assert!(!allowed.is_masked());
     assert!(!unknown.is_masked());
 }
