@@ -3,17 +3,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
-//    Licensed under the Apache License, Version 2.0 (the "License");
-//    you may not use this file except in compliance with the License.
-//    You may obtain a copy of the License at
-//
-//        http://www.apache.org/licenses/LICENSE-2.0
-//
-//    Unless required by applicable law or agreed to in writing, software
-//    distributed under the License is distributed on an "AS IS" BASIS,
-//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//    See the License for the specific language governing permissions and
-//    limitations under the License.
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Tests for directional Serde-name parsing.
 
@@ -43,11 +33,9 @@ fn parse_rename(attribute: Attribute) -> syn::Result<Option<String>> {
     let mut serialized_name = None;
     attribute.parse_nested_meta(|meta| {
         if meta.path.is_ident("rename") {
-            serialized_name = serde_directional_name::parse_serialize_name(
-                &meta,
-                "rename",
-            )?
-            .map(|literal| literal.value());
+            serialized_name =
+                serde_directional_name::parse_serialize_name(&meta, "rename")?
+                    .map(|literal| literal.value());
         }
         Ok(())
     })?;
@@ -98,10 +86,8 @@ fn test_parse_serialize_name_rejects_invalid_directional_controls() {
 
     let mut serialized_name = None;
     let parser = syn::meta::parser(|meta| {
-        serialized_name = serde_directional_name::parse_serialize_name(
-            &meta,
-            "rename",
-        )?;
+        serialized_name =
+            serde_directional_name::parse_serialize_name(&meta, "rename")?;
         Ok(())
     });
     let error = parser
