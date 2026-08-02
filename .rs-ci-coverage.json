@@ -19,7 +19,8 @@
       "src/text/log_safe_text.rs"
     ],
     "qubit-redact-derive": [
-      "src/internal/crate_path.rs"
+      "src/internal/crate_path.rs",
+      "src/internal/serde_directional_name.rs"
     ]
   }
 }

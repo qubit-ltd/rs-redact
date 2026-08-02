@@ -246,3 +246,21 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
     assert_eq!(output["nested"], "[depth-limit]");
     assert!(!output.to_string().contains("raw-depth-secret"));
 }
+
+/// Verifies Serde output covers arrays, nested pass-through values, and
+/// unkeyed scalar redaction.
+#[cfg(feature = "serde")]
+#[test]
+fn test_redacted_json_serde_handles_arrays_and_unkeyed_scalars() {
+    let array = json!(["visible", {"nested": [1, 2]}]);
+    let standard = RedactionPolicy::standard();
+    let serialized = serde_json::to_value(RedactedJson::new(&array, &standard))
+        .expect("the array should serialize");
+    assert_eq!(serialized, array);
+
+    let strict = RedactionPolicy::strict();
+    let scalar = json!("root-secret");
+    let serialized = serde_json::to_value(RedactedJson::new(&scalar, &strict))
+        .expect("the scalar should serialize");
+    assert_ne!(serialized, scalar);
+}
