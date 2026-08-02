@@ -398,6 +398,41 @@ fn test_redacted_serde_rename_all_matches_serde() {
     assert_rule!("SCREAMING-KEBAB-CASE");
 }
 
+/// Verifies directional Serde names use only the serialization branch and
+/// remain identical to Serde's own output.
+#[test]
+fn test_redacted_serde_directional_renames_match_serde() {
+    #[derive(Redact, Serialize)]
+    #[redact(serde)]
+    #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
+    struct DirectionalRecord {
+        /// Explicit serialized name differs from its deserialization alias.
+        #[serde(rename(
+            serialize = "wireSecret",
+            deserialize = "legacy_secret"
+        ))]
+        #[redact(level = "secret")]
+        secret_value: String,
+        /// A deserialize-only alias must not change serialization.
+        #[serde(rename(deserialize = "legacy_plain"))]
+        plain_value: String,
+    }
+
+    let value = DirectionalRecord {
+        secret_value: "raw-secret".to_owned(),
+        plain_value: "visible".to_owned(),
+    };
+    let raw = serde_json::to_value(&value)
+        .expect("raw directional serialization should succeed");
+    let redacted = serde_json::to_value(value.redacted_with(&policy()))
+        .expect("redacted directional serialization should succeed");
+
+    assert_eq!(object_keys(&redacted), object_keys(&raw));
+    assert!(redacted.get("wireSecret").is_some());
+    assert_eq!(redacted["plainValue"], "visible");
+    assert!(!redacted.to_string().contains("raw-secret"));
+}
+
 /// Verifies redacted serialization preserves shape and excludes raw secrets.
 #[test]
 fn test_redacted_serde_preserves_shape_and_never_serializes_raw_values() {
