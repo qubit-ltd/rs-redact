@@ -1,6 +1,6 @@
 # Qubit Redact User Guide
 
-[README](../README.md) · [中文用户手册](user_guide.zh_CN.md) · [Runtime API](https://docs.rs/qubit-redact) · [Derive README](../derive/README.md)
+[README](../README.md) · [中文用户手册](user_guide.zh_CN.md) · [Runtime API](https://docs.rs/qubit-redact) · [Derive README](../derive/README.md) · [Derive User Guide](../derive/doc/user_guide.md)
 
 Qubit Redact is a policy-driven Rust library for preventing sensitive values from
 leaking through diagnostics: structured fields and maps, Rust domain objects,
@@ -283,11 +283,16 @@ value must always render as `<redacted>` and must never call its own `Debug`.
 
 ## 4. Redact domain objects with `Redact` and `RedactMut`
 
-Add `qubit-redact-derive` to define redaction at field boundaries. `level` masks
-a field, `plain` documents intentional visibility, `nested` recurses, `map`
-classifies map values by key, and `skip` omits a field from redacted
-representations. Add `#[redact(require_explicit)]` when every field must select
-one of these modes; the default behavior remains unchanged.
+`qubit-redact-derive` provides procedural macros that apply the runtime policy
+to Rust structs and enums. `Redact` creates a borrowed view for diagnostics;
+`RedactMut` explicitly replaces logical values when an owned value is required.
+At field boundaries, `level` masks a field, `plain` documents intentional
+visibility, `nested` recurses, `map` classifies map values by key, and `skip`
+omits a field from redacted representations. Add
+`#[redact(require_explicit)]` when every field must select one of these modes;
+the default behavior remains unchanged. See the [derive README](../derive/README.md)
+and [derive User Guide](../derive/doc/user_guide.md) for the complete macro
+reference and examples.
 
 ```toml
 [dependencies]
@@ -328,8 +333,7 @@ allocations, aliases, copies, or borrowed backing storage; use a dedicated
 zeroization strategy when memory erasure is required.
 
 Plain fields are never traversed implicitly. Derives support named, tuple, and
-unit structs plus enums with those variant shapes. See the [derive README](../derive/README.md)
-for the complete attribute and Serde compatibility rules.
+unit structs plus enums with those variant shapes.
 
 ### Serialize a redacted view with Serde
 
@@ -509,35 +513,6 @@ For operational diagnostics, inspect `BodyRedaction::status()`,
 `is_truncated()`, `captured_len()`, and `omitted_len()`. A
 `BodyRedactionStatus::Redacted(reason)` value reports why a structured or
 visible representation was unsafe.
-
-## 8. Migrate to 0.5
-
-Version 0.5 intentionally removes the split global-default APIs and the
-ambiguous scalar result:
-
-- Install one `GlobalRedactionConfig` instead of calling separate policy and
-  floor global-default methods.
-- Use `RedactionPolicy::builder()` and
-  `RedactionPolicy::default().to_builder()`; builders never read global state.
-- Use `redact_field()` for field-sensitive values. It returns `FieldRedaction`,
-  which distinguishes masked values from allowed and unknown pass-through.
-- Use `HttpFieldContext` with the generic HTTP builder methods (`rules`,
-  `raise`, `override_level`, `allow_exact`, `allow_suffix`,
-  `remove_allow_exact`, `remove_allow_suffix`, `clear_allow_rules`,
-  `floor_for`, and `disable_floor_for`). Use `floor_all()` or
-  `disable_all_floors()` for a shared decision across all HTTP contexts.
-
-Import the canonical HTTP policy and redactor directly from `qubit_redact`:
-
-```rust,ignore
-use qubit_http::HttpClientOptions;
-use qubit_redact::http::{HttpRedactionPolicy, HttpRedactor};
-
-let policy = HttpRedactionPolicy::default().to_builder().build()?;
-let _redactor = HttpRedactor::new(policy.clone());
-let mut options = HttpClientOptions::default();
-options.log_redaction_policy = policy;
-```
 
 ## Security boundaries and verification
 

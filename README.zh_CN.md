@@ -53,6 +53,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 原始值仍可供应用逻辑使用。把标量结果写入纯文本日志前，必须调用
 `escape_for_log()`。
 
+## Derive 支持
+
+`qubit-redact-derive` 提供过程派生宏，用于将脱敏策略应用到 Rust struct 和 enum。
+`Redact` 为诊断信息创建借用的 `Redacted<T>` 视图；需要拥有式值时，`RedactMut`
+执行显式的逻辑替换。它与 `qubit-redact` 运行时 crate 配合使用；完整的字段属性和
+Serde/JSON 集成说明请参阅 [derive README](derive/README.zh_CN.md) 和
+[derive 用户手册](derive/doc/user_guide.zh_CN.md)。
+
 ## 如何选择工具
 
 | 诊断输入 | 工具 | 返回结果与日志边界 |
@@ -108,7 +116,8 @@ http = "1.4"
 
 - [English User Guide](doc/user_guide.md) 和[中文用户手册](doc/user_guide.zh_CN.md)
 - [Runtime API 文档](https://docs.rs/qubit-redact)
-- [derive crate README](derive/README.zh_CN.md)：字段属性和 serde 支持
+- [qubit-redact-derive README](derive/README.zh_CN.md)：字段属性和 serde 支持
+- [qubit-redact-derive 用户手册](derive/doc/user_guide.zh_CN.md)
 - [derive crate API 文档](https://docs.rs/qubit-redact-derive)
 
 ## 测试
