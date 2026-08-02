@@ -58,6 +58,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 The original value remains available to application logic. Call
 `escape_for_log()` before writing a scalar result to a plain-text log sink.
 
+## Derive Support
+
+`qubit-redact-derive` provides procedural macros for applying redaction policies
+to Rust structs and enums. `Redact` creates a borrowed `Redacted<T>` view for
+diagnostics, while `RedactMut` performs an explicit logical replacement when an
+owned value is required. Use it with the `qubit-redact` runtime crate; the
+complete field attributes and Serde/JSON integration are covered in the
+[derive README](derive/README.md) and [derive User Guide](derive/doc/user_guide.md).
+
 ## Choose a Tool
 
 | Diagnostic input | Tool | Result and logging boundary |
@@ -121,7 +130,8 @@ http = "1.4"
 
 - [English User Guide](doc/user_guide.md) and [中文用户手册](doc/user_guide.zh_CN.md)
 - [Runtime API documentation](https://docs.rs/qubit-redact)
-- [Derive crate README](derive/README.md) for field attributes and serde support
+- [qubit-redact-derive README](derive/README.md) for field attributes and serde support
+- [qubit-redact-derive User Guide](derive/doc/user_guide.md)
 - [Derive crate API documentation](https://docs.rs/qubit-redact-derive)
 
 ## Testing

@@ -1,6 +1,6 @@
 # Qubit Redact 用户手册
 
-[README](../README.zh_CN.md) · [English User Guide](user_guide.md) · [Runtime API](https://docs.rs/qubit-redact) · [derive README](../derive/README.zh_CN.md)
+[README](../README.zh_CN.md) · [English User Guide](user_guide.md) · [Runtime API](https://docs.rs/qubit-redact) · [derive README](../derive/README.zh_CN.md) · [derive 用户手册](../derive/doc/user_guide.zh_CN.md)
 
 Qubit Redact 是一个策略驱动的 Rust 脱敏库，用于防止敏感值经诊断信息泄露：
 结构化字段和 Map、领域对象、进程参数、环境变量，以及可选的 HTTP 数据都在其覆盖范围内。
@@ -251,9 +251,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 4. 用 `Redact` 和 `RedactMut` 处理领域对象
 
-添加 `qubit-redact-derive` 后，可在字段边界声明语义：`level` 遮盖字段，`plain`
-记录有意直通，`nested` 递归，`map` 按 key 处理 Map 值，`skip` 从脱敏表示中省略字段。
-需要每个字段都显式选择模式时，添加 `#[redact(require_explicit)]`；默认语义保持不变。
+`qubit-redact-derive` 提供过程派生宏，将运行时策略应用到 Rust struct 和 enum。
+`Redact` 为诊断信息创建借用视图；需要拥有式值时，`RedactMut` 显式替换逻辑值。
+在字段边界，`level` 遮盖字段，`plain` 记录有意直通，`nested` 递归，`map` 按 key
+处理 Map 值，`skip` 从脱敏表示中省略字段。需要每个字段都显式选择模式时，添加
+`#[redact(require_explicit)]`；默认语义保持不变。完整的宏参考和示例请参阅
+[derive README](../derive/README.zh_CN.md) 和
+[derive 用户手册](../derive/doc/user_guide.zh_CN.md)。
 
 ```toml
 [dependencies]
@@ -293,7 +297,7 @@ fn main() {
 擦除时请使用专门的 zeroization 方案。
 
 普通字段绝不会被隐式遍历。derive 支持具名、tuple、unit struct 以及具有这些 variant
-形态的 enum。完整属性和 Serde 兼容规则请参阅 [derive README](../derive/README.zh_CN.md)。
+形态的 enum。
 
 ### 使用 Serde 序列化脱敏视图
 
