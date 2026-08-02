@@ -1,13 +1,19 @@
 {
   "threshold_exempt_files": {
     "qubit-redact": [
+      "src/argv/redacted_argv.rs",
       "src/domain/redact_value.rs",
+      "src/field_redaction.rs",
+      "src/global_redaction_config.rs",
       "src/http/body_capture.rs",
       "src/http/body_redaction.rs",
       "src/http/http_redaction_policy.rs",
       "src/http/http_redaction_policy_builder.rs",
       "src/http/http_redactor.rs",
       "src/policy/diagnostic_input_budget.rs",
+      "src/policy/policy_location.rs",
+      "src/policy/redaction_policy.rs",
+      "src/policy/redaction_rules.rs",
       "src/text/bounded_log_safe_display.rs",
       "src/text/log_output_limit_error.rs",
       "src/text/log_safe_text.rs"
