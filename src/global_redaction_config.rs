@@ -7,10 +7,7 @@
 // =============================================================================
 //! Process-wide redaction configuration snapshots.
 
-use std::sync::{
-    LazyLock,
-    OnceLock,
-};
+use std::sync::{LazyLock, OnceLock};
 
 use crate::RedactionPolicy;
 use crate::global_redaction_config_already_installed::GlobalRedactionConfigAlreadyInstalled;
@@ -18,7 +15,13 @@ use crate::global_redaction_config_already_installed::GlobalRedactionConfigAlrea
 #[cfg(feature = "http")]
 use crate::http::HttpRedactionPolicy;
 
-/// Immutable process-wide defaults for redaction components.
+/// Immutable optional process-wide defaults for redaction components.
+///
+/// Applications that choose to use this configuration should install it once
+/// during startup, before constructing default-derived policy snapshots. An
+/// installed value affects only future snapshots; it never mutates policies
+/// that already exist. Libraries must not install or replace their host
+/// application's global configuration.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GlobalRedactionConfig {
@@ -56,15 +59,16 @@ impl GlobalRedactionConfig {
     /// Replaces the derived HTTP policy with an explicit policy.
     #[cfg(feature = "http")]
     #[inline]
-    pub fn with_http_policy(
-        mut self,
-        http_policy: HttpRedactionPolicy,
-    ) -> Self {
+    pub fn with_http_policy(mut self, http_policy: HttpRedactionPolicy) -> Self {
         self.http_policy = http_policy;
         self
     }
 
-    /// Installs this configuration exactly once for the current process.
+    /// Installs this application-level configuration exactly once.
+    ///
+    /// Install during application assembly before creating default-derived
+    /// policies. This does not retroactively affect existing snapshots, and
+    /// library crates should leave installation to their host application.
     pub fn install(self) -> Result<(), GlobalRedactionConfigAlreadyInstalled> {
         GLOBAL_CONFIG
             .set(self)

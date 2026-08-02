@@ -34,7 +34,7 @@
 //! use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 //!
 //! let policy = RedactionPolicy::builder()
-//!     .raise("tenant_secret", Sensitivity::Secret)
+//!     .raise("tenant_secret", Sensitivity::Secret)?
 //!     .build()?;
 //! let source = HashMap::from([
 //!     ("tenant_secret".to_owned(), "raw".to_owned()),
@@ -56,7 +56,7 @@
 //! use qubit_redact::{GlobalRedactionConfig, RedactionPolicy, Sensitivity};
 //!
 //! let application_default = RedactionPolicy::builder()
-//!     .raise("tenant_secret", Sensitivity::Secret)
+//!     .raise("tenant_secret", Sensitivity::Secret)?
 //!     .build()?;
 //! GlobalRedactionConfig::from_policy(application_default).install()?;
 //! let snapshot = RedactionPolicy::default();
@@ -98,7 +98,7 @@
 //! }
 //!
 //! let policy = RedactionPolicy::builder()
-//!     .raise("api_key", Sensitivity::Secret)
+//!     .raise("api_key", Sensitivity::Secret)?
 //!     .build()?;
 //! let account = Account {
 //!     id: 1,

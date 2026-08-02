@@ -7,23 +7,18 @@
 // =============================================================================
 //! Tests for the shared application-rule construction kernel.
 
-use qubit_redact::{
-    PolicyError,
-    PolicyLocation,
-    RedactionPolicy,
-    Sensitivity,
-};
+use qubit_redact::{PolicyError, PolicyLocation, RedactionPolicy, Sensitivity};
 
-/// Verifies the application facade reports validation errors from the rules
-/// construction context.
+/// Verifies the application facade reports validation errors immediately from
+/// the rules construction context.
 #[test]
-fn test_rules_builder_reports_rules_location_for_invalid_field() {
+fn test_rules_builder_reports_rules_location_for_invalid_field_immediately() {
     assert_eq!(
         RedactionPolicy::builder()
             .raise(" -_[] ", Sensitivity::High)
-            .build(),
-        Err(PolicyError::EmptyFieldName {
+            .expect_err("an empty canonical field name must fail immediately"),
+        PolicyError::EmptyFieldName {
             location: PolicyLocation::Rules,
-        }),
+        },
     );
 }

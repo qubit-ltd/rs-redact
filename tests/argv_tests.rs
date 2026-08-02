@@ -11,34 +11,18 @@ mod argv;
 
 use std::ffi::OsStr;
 #[cfg(unix)]
-use std::{
-    ffi::OsString,
-    os::unix::ffi::OsStringExt,
-};
+use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
-use proptest::prelude::{
-    prop_assert,
-    prop_assert_eq,
-    proptest,
-};
+use proptest::prelude::{prop_assert, prop_assert_eq, proptest};
 
 use qubit_redact::{
-    DiagnosticBudget,
-    MaskPolicy,
-    RedactionFloor,
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-    argv::{
-        ArgvItem,
-        ArgvRedactor,
-    },
+    DiagnosticBudget, MaskPolicy, RedactionFloor, RedactionPolicy, Redactor, Sensitivity,
+    argv::{ArgvItem, ArgvRedactor},
 };
 
 /// Creates a redactor with deliberately small diagnostic limits.
 fn bounded_redactor() -> ArgvRedactor {
-    let budget = DiagnosticBudget::new(8, 64)
-        .expect("the small diagnostic budget should be valid");
+    let budget = DiagnosticBudget::new(8, 64).expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_budget(budget)
         .build()
@@ -103,8 +87,7 @@ fn test_redact_items_does_not_guess_plain_item_roles() {
 /// Verifies that heuristic classification applies only to remaining plain
 /// items.
 #[test]
-fn test_redact_heuristically_preserves_explicit_levels_and_matches_plain_options()
- {
+fn test_redact_heuristically_preserves_explicit_levels_and_matches_plain_options() {
     let items = [
         ArgvItem::plain(OsStr::new("tool")),
         ArgvItem::plain(OsStr::new("--password")),
@@ -198,7 +181,7 @@ fn test_redact_heuristically_keeps_empty_sensitive_inline_value() {
 /// application matching is exact.
 #[test]
 fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_application_matching()
- {
+{
     let policy = RedactionPolicy::builder()
         .matching(qubit_redact::FieldNameMatching::Exact)
         .build()
@@ -219,12 +202,13 @@ fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_app
 /// Verifies an exact single-dash option resolves application-only rules when
 /// the caller deliberately disables the floor.
 #[test]
-fn test_redact_heuristically_uses_application_rule_for_exact_single_dash_option()
- {
+fn test_redact_heuristically_uses_application_rule_for_exact_single_dash_option() {
     let policy = RedactionPolicy::builder()
         .disable_floor()
         .raise("tenant_secret", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the application-only argv policy should be valid");
     let items = [
@@ -370,6 +354,7 @@ fn test_redact_heuristically_does_not_parse_explicit_sensitive_options() {
 fn test_new_uses_custom_redaction_policy() {
     let policy = RedactionPolicy::builder()
         .raise("tenant_flag", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the custom argv policy should be valid");
     let redactor = ArgvRedactor::new(Redactor::new(policy));
@@ -496,12 +481,15 @@ fn test_redact_heuristically_masks_value_after_non_utf8_option() {
 fn test_redact_heuristically_uses_application_mask_for_pending_option_value() {
     let floor = RedactionFloor::builder()
         .raise("password", Sensitivity::High)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
     let policy = RedactionPolicy::builder()
         .floor(floor)
         .raise("password", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the policy should build");
     let rendered = ArgvRedactor::new(Redactor::new(policy))
@@ -516,16 +504,18 @@ fn test_redact_heuristically_uses_application_mask_for_pending_option_value() {
 
 /// Verifies exact single-dash options use the shared policy mask.
 #[test]
-fn test_redact_heuristically_uses_application_mask_for_exact_single_dash_option()
- {
+fn test_redact_heuristically_uses_application_mask_for_exact_single_dash_option() {
     let floor = RedactionFloor::builder()
         .raise("tenant_secret", Sensitivity::High)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
     let policy = RedactionPolicy::builder()
         .floor(floor)
         .raise("tenant_secret", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the policy should build");
     let rendered = ArgvRedactor::new(Redactor::new(policy))

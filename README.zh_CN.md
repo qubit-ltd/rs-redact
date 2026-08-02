@@ -30,10 +30,10 @@ use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let policy = RedactionPolicy::builder()
-        .raise("user_id", Sensitivity::Low)
-        .raise("phone_number", Sensitivity::Medium)
-        .raise("credit_card", Sensitivity::High)
-        .raise("api_key", Sensitivity::Secret)
+        .raise("user_id", Sensitivity::Low)?
+        .raise("phone_number", Sensitivity::Medium)?
+        .raise("credit_card", Sensitivity::High)?
+        .raise("api_key", Sensitivity::Secret)?
         .build()?;
     let redactor = Redactor::new(policy);
 

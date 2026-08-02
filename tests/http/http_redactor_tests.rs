@@ -6,30 +6,15 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use http::{
-    HeaderMap,
-    HeaderValue,
-};
+use http::{HeaderMap, HeaderValue};
 use proptest::{
     collection,
-    prelude::{
-        any,
-        prop_assert,
-        proptest,
-    },
+    prelude::{any, prop_assert, proptest},
 };
 use qubit_redact::{
-    DiagnosticBudget,
-    JsonDepthBudget,
-    MaskPolicy,
-    RedactionPolicy,
-    Sensitivity,
+    DiagnosticBudget, JsonDepthBudget, MaskPolicy, RedactionPolicy, Sensitivity,
     http::{
-        BodyBudget,
-        BodyCapture,
-        HttpFieldContext,
-        HttpRedactionPolicy,
-        HttpRedactor,
+        BodyBudget, BodyCapture, HttpFieldContext, HttpRedactionPolicy, HttpRedactor,
         TextBodyPolicy,
     },
 };
@@ -37,8 +22,8 @@ use url::Url;
 
 /// Builds an HTTP redactor with explicit finite body limits.
 fn redactor_with_budget(input: usize, output: usize) -> HttpRedactor {
-    let budget = BodyBudget::new(input, output)
-        .expect("test budgets satisfy the public lower bounds");
+    let budget =
+        BodyBudget::new(input, output).expect("test budgets satisfy the public lower bounds");
     let policy = HttpRedactionPolicy::builder()
         .body_budget(budget)
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -51,9 +36,8 @@ fn redactor_with_budget(input: usize, output: usize) -> HttpRedactor {
 /// Verifies that http redactor covers url headers and body.
 fn test_http_redactor_covers_url_headers_and_body() {
     let redactor = HttpRedactor::default();
-    let url =
-        Url::parse("https://user:secret@example.test/private?api_key=raw")
-            .expect("the test URL is valid");
+    let url = Url::parse("https://user:secret@example.test/private?api_key=raw")
+        .expect("the test URL is valid");
     let mut headers = HeaderMap::new();
     headers.insert("authorization", HeaderValue::from_static("Bearer raw"));
 
@@ -123,8 +107,7 @@ fn test_source_truncation_is_reported_even_when_payload_fits() {
     let redactor = redactor_with_budget(64, 64);
     let capture = BodyCapture::truncated(b"ok", Some(9))
         .expect("the declared source length exceeds the captured prefix");
-    let body = redactor
-        .redact_body(capture, Some(&HeaderValue::from_static("text/plain")));
+    let body = redactor.redact_body(capture, Some(&HeaderValue::from_static("text/plain")));
 
     assert_eq!(body.captured_len(), 2);
     assert_eq!(body.source_len(), Some(9));
@@ -155,6 +138,7 @@ fn test_input_budget_metadata_is_exact_and_output_is_bounded() {
 fn test_native_sensitive_header_wins_over_allow_rule() {
     let allowed = RedactionPolicy::builder()
         .allow_canonical_exact("x-visible")
+        .expect("the test builder input should be valid")
         .build()
         .expect("the allow-only test policy is valid");
     let policy = HttpRedactionPolicy::builder()
@@ -184,8 +168,7 @@ fn test_structured_body_status_and_fail_closed_cases() {
         BodyCapture::complete(br#"{"password":"secret""#),
         Some(&json_type),
     );
-    let scalar = redactor
-        .redact_body(BodyCapture::complete(br#""secret""#), Some(&json_type));
+    let scalar = redactor.redact_body(BodyCapture::complete(br#""secret""#), Some(&json_type));
 
     assert_eq!(
         malformed.status(),
@@ -201,11 +184,10 @@ fn test_structured_body_status_and_fail_closed_cases() {
 /// Verifies that multipart redacts file and sensitive field.
 fn test_multipart_redacts_file_and_sensitive_field() {
     let body = b"--boundary\r\nContent-Disposition: form-data; name=\"upload\"; filename=\"secret.txt\"\r\nContent-Type: text/plain\r\n\r\nfile-secret\r\n--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nfield-secret\r\n--boundary--\r\n";
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
 
-    let result = HttpRedactor::default()
-        .redact_body(BodyCapture::complete(body), Some(&content_type));
+    let result =
+        HttpRedactor::default().redact_body(BodyCapture::complete(body), Some(&content_type));
 
     assert_eq!(
         result.status(),
@@ -219,13 +201,11 @@ fn test_multipart_redacts_file_and_sensitive_field() {
 #[test]
 /// Verifies that malformed and truncated multipart fail closed.
 fn test_malformed_and_truncated_multipart_fail_closed() {
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let malformed =
         b"--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nsecret";
     let redactor = HttpRedactor::default();
-    let complete = redactor
-        .redact_body(BodyCapture::complete(malformed), Some(&content_type));
+    let complete = redactor.redact_body(BodyCapture::complete(malformed), Some(&content_type));
     let truncated = redactor.redact_body(
         BodyCapture::truncated(malformed, None)
             .expect("unknown-length truncated captures are valid"),
@@ -245,8 +225,7 @@ fn test_multipart_rejects_invalid_header_parameter_grammar() {
         .build()
         .expect("HTTP redaction policy should be valid");
     let redactor = HttpRedactor::new(policy);
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=b");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=b");
     let dispositions: [&[u8]; 11] = [
         b"form-data; bad name=value; name=note",
         b"form-data; name=note value",
@@ -264,12 +243,9 @@ fn test_multipart_rejects_invalid_header_parameter_grammar() {
     for disposition in dispositions {
         let mut body = b"--b\r\nContent-Disposition: ".to_vec();
         body.extend_from_slice(disposition);
-        body.extend_from_slice(
-            b"\r\nContent-Type: text/plain\r\n\r\nraw-secret\r\n--b--\r\n",
-        );
+        body.extend_from_slice(b"\r\nContent-Type: text/plain\r\n\r\nraw-secret\r\n--b--\r\n");
 
-        let result = redactor
-            .redact_body(BodyCapture::complete(&body), Some(&content_type));
+        let result = redactor.redact_body(BodyCapture::complete(&body), Some(&content_type));
 
         assert_eq!(
             result.status(),
@@ -291,18 +267,15 @@ fn test_multipart_form_data_requires_exact_disposition_token() {
         .build()
         .expect("HTTP redaction policy should be valid");
     let redactor = HttpRedactor::new(policy);
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=b");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=b");
     let dispositions = ["form data; name=note", "attachment; name=note"];
 
     for disposition in dispositions {
         let body = format!(
             "--b\r\nContent-Disposition: {disposition}\r\nContent-Type: text/plain\r\n\r\npass-through-secret\r\n--b--\r\n",
         );
-        let result = redactor.redact_body(
-            BodyCapture::complete(body.as_bytes()),
-            Some(&content_type),
-        );
+        let result =
+            redactor.redact_body(BodyCapture::complete(body.as_bytes()), Some(&content_type));
 
         assert_eq!(
             result.status(),
@@ -324,17 +297,14 @@ fn test_multipart_mixed_allows_missing_but_rejects_malformed_disposition() {
         .expect("HTTP redaction policy should be valid");
     let redactor = HttpRedactor::new(policy);
     let content_type = HeaderValue::from_static("multipart/mixed; boundary=b");
-    let unnamed =
-        b"--b\r\nContent-Type: text/plain\r\n\r\nunnamed-secret\r\n--b--\r\n";
+    let unnamed = b"--b\r\nContent-Type: text/plain\r\n\r\nunnamed-secret\r\n--b--\r\n";
     let named = b"--b\r\nContent-Disposition: attachment; name=note\r\nContent-Type: text/plain\r\n\r\nvisible\r\n--b--\r\n";
     let malformed = b"--b\r\nContent-Disposition: form data; name=note\r\nContent-Type: text/plain\r\n\r\nmalformed-secret\r\n--b--\r\n";
 
-    let unnamed_result = redactor
-        .redact_body(BodyCapture::complete(unnamed), Some(&content_type));
-    let named_result =
-        redactor.redact_body(BodyCapture::complete(named), Some(&content_type));
-    let malformed_result = redactor
-        .redact_body(BodyCapture::complete(malformed), Some(&content_type));
+    let unnamed_result = redactor.redact_body(BodyCapture::complete(unnamed), Some(&content_type));
+    let named_result = redactor.redact_body(BodyCapture::complete(named), Some(&content_type));
+    let malformed_result =
+        redactor.redact_body(BodyCapture::complete(malformed), Some(&content_type));
 
     assert_eq!(
         unnamed_result.status(),
@@ -370,13 +340,10 @@ fn test_multipart_boundary_allows_internal_space_but_not_trailing_space() {
         .expect("HTTP redaction policy should be valid");
     let redactor = HttpRedactor::new(policy);
     let body = b"--a b\r\nContent-Disposition: form-data; name=note\r\nContent-Type: text/plain\r\n\r\nvisible\r\n--a b--\r\n";
-    let valid_type =
-        HeaderValue::from_static("multipart/form-data; boundary=\"a b\"");
-    let invalid_type =
-        HeaderValue::from_static("multipart/form-data; boundary=\"a \"");
+    let valid_type = HeaderValue::from_static("multipart/form-data; boundary=\"a b\"");
+    let invalid_type = HeaderValue::from_static("multipart/form-data; boundary=\"a \"");
 
-    let valid =
-        redactor.redact_body(BodyCapture::complete(body), Some(&valid_type));
+    let valid = redactor.redact_body(BodyCapture::complete(body), Some(&valid_type));
     let invalid = redactor.redact_body(
         BodyCapture::complete(b"pass-through-secret"),
         Some(&invalid_type),
@@ -404,12 +371,10 @@ fn test_multipart_rejects_malformed_part_content_type_parameters() {
         .build()
         .expect("HTTP redaction policy should be valid");
     let redactor = HttpRedactor::new(policy);
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=b");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=b");
     let body = b"--b\r\nContent-Disposition: form-data; name=note\r\nContent-Type: text/plain; charset\r\n\r\npass-through-secret\r\n--b--\r\n";
 
-    let result =
-        redactor.redact_body(BodyCapture::complete(body), Some(&content_type));
+    let result = redactor.redact_body(BodyCapture::complete(body), Some(&content_type));
 
     assert_eq!(
         result.status(),
@@ -423,15 +388,13 @@ fn test_multipart_rejects_malformed_part_content_type_parameters() {
 #[test]
 /// Verifies that body dispatch covers empty binary unsupported and invalid
 /// content type.
-fn test_body_dispatch_covers_empty_binary_unsupported_and_invalid_content_type()
-{
+fn test_body_dispatch_covers_empty_binary_unsupported_and_invalid_content_type() {
     let redactor = HttpRedactor::default();
     let empty = redactor.redact_body(BodyCapture::complete(b""), None);
     let binary = redactor.redact_body(BodyCapture::complete(b"\xff\xfe"), None);
-    let unsupported =
-        redactor.redact_body(BodyCapture::complete(b"visible-secret"), None);
-    let invalid_type = HeaderValue::from_bytes(b"\xff")
-        .expect("HTTP permits opaque non-UTF-8 header bytes");
+    let unsupported = redactor.redact_body(BodyCapture::complete(b"visible-secret"), None);
+    let invalid_type =
+        HeaderValue::from_bytes(b"\xff").expect("HTTP permits opaque non-UTF-8 header bytes");
     let invalid = redactor.redact_body(
         BodyCapture::complete(b"visible-secret"),
         Some(&invalid_type),
@@ -478,8 +441,8 @@ fn test_redact_body_with_content_type_text_dispatches_and_fails_closed() {
 /// parser classification.
 #[test]
 fn test_redact_body_rejects_content_type_beyond_diagnostic_input_budget() {
-    let diagnostic_budget = DiagnosticBudget::new(8, 64)
-        .expect("the small diagnostic budget should be valid");
+    let diagnostic_budget =
+        DiagnosticBudget::new(8, 64).expect("the small diagnostic budget should be valid");
     let policy = HttpRedactionPolicy::builder()
         .diagnostic_budget(diagnostic_budget)
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -513,12 +476,9 @@ fn test_redact_body_rejects_content_type_beyond_diagnostic_input_budget() {
 fn test_ndjson_and_form_body_redaction_cover_valid_and_invalid_inputs() {
     let redactor = HttpRedactor::default();
     let ndjson_type = HeaderValue::from_static("application/x-ndjson");
-    let form_type =
-        HeaderValue::from_static("application/x-www-form-urlencoded");
+    let form_type = HeaderValue::from_static("application/x-www-form-urlencoded");
     let ndjson = redactor.redact_body(
-        BodyCapture::complete(
-            b"{\"password\":\"secret\"}\n\n{\"mode\":\"ok\"}\n",
-        ),
+        BodyCapture::complete(b"{\"password\":\"secret\"}\n\n{\"mode\":\"ok\"}\n"),
         Some(&ndjson_type),
     );
     let invalid_ndjson = redactor.redact_body(
@@ -526,8 +486,7 @@ fn test_ndjson_and_form_body_redaction_cover_valid_and_invalid_inputs() {
         Some(&ndjson_type),
     );
     let truncated_ndjson = redactor.redact_body(
-        BodyCapture::truncated(b"{}", None)
-            .expect("unknown-length truncated captures are valid"),
+        BodyCapture::truncated(b"{}", None).expect("unknown-length truncated captures are valid"),
         Some(&ndjson_type),
     );
     let form = redactor.redact_body(
@@ -581,29 +540,27 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
     let body_policy = RedactionPolicy::builder()
         .disable_floor()
         .raise("password", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .mask(Sensitivity::Secret, MaskPolicy::fixed("SECRET"))
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the test masking policy is valid");
     assert_eq!(body_policy.masking(), &masking);
     let policy = HttpRedactionPolicy::builder()
         .rules(HttpFieldContext::Body, body_policy.rules().clone())
         .mask(Sensitivity::Secret, MaskPolicy::fixed("SECRET"))
+        .expect("the test mask policy should be valid")
         .disable_floor_for(HttpFieldContext::Body)
-        .unkeyed_json_value_policy(
-            qubit_redact::http::UnkeyedJsonValuePolicy::PassThrough,
-        )
+        .unkeyed_json_value_policy(qubit_redact::http::UnkeyedJsonValuePolicy::PassThrough)
         .build()
         .expect("HTTP redaction policy should be valid");
     let redactor = HttpRedactor::new(policy);
     let json_type = HeaderValue::from_static("application/json");
     let object = redactor.redact_body(
-        BodyCapture::complete(
-            br#"{"password":{"nested":true},"items":[{"password":42}]}"#,
-        ),
+        BodyCapture::complete(br#"{"password":{"nested":true},"items":[{"password":42}]}"#),
         Some(&json_type),
     );
-    let scalar =
-        redactor.redact_body(BodyCapture::complete(b"42"), Some(&json_type));
+    let scalar = redactor.redact_body(BodyCapture::complete(b"42"), Some(&json_type));
 
     assert!(!object.to_string().contains("nested"));
     assert!(!object.to_string().contains("42"));
@@ -621,10 +578,12 @@ fn test_json_policy_masks_sensitive_non_strings_as_opaque_values() {
     let body_policy = RedactionPolicy::builder()
         .disable_floor()
         .raise("password", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .mask(
             Sensitivity::Secret,
             MaskPolicy::preserve_edges(1, 1, "OPAQUE", 0),
         )
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the body policy should be valid");
     let policy = HttpRedactionPolicy::builder()
@@ -634,6 +593,7 @@ fn test_json_policy_masks_sensitive_non_strings_as_opaque_values() {
             Sensitivity::Secret,
             MaskPolicy::preserve_edges(1, 1, "OPAQUE", 0),
         )
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the HTTP policy should be valid");
     let json_type = HeaderValue::from_static("application/json");
@@ -658,9 +618,7 @@ fn test_json_policy_fails_closed_at_depth_budget() {
     assert_eq!(policy.json_depth_budget(), budget);
     let redactor = HttpRedactor::new(policy);
     let body = redactor.redact_body(
-        BodyCapture::complete(
-            br#"{"shallow":"visible","nested":{"secret":"raw-depth-secret"}}"#,
-        ),
+        BodyCapture::complete(br#"{"shallow":"visible","nested":{"secret":"raw-depth-secret"}}"#),
         Some(&HeaderValue::from_static("application/json")),
     );
     let output = body.to_string();
@@ -681,11 +639,9 @@ fn test_multipart_handles_nested_formats_text_unknown_and_empty() {
         .build()
         .expect("HTTP redaction policy should be valid");
     let redactor = HttpRedactor::new(policy);
-    let content_type =
-        HeaderValue::from_static("multipart/mixed; boundary=boundary");
+    let content_type = HeaderValue::from_static("multipart/mixed; boundary=boundary");
     let body = b"--boundary\r\nContent-Disposition: form-data; name=\"profile\"\r\nContent-Type: application/json\r\n\r\n{\"password\":\"secret\"}\r\n--boundary\r\nContent-Disposition: form-data; name=\"events\"\r\nContent-Type: application/x-ndjson\r\n\r\n{\"password\":\"secret\"}\n\r\n--boundary\r\nContent-Disposition: form-data; name=\"params\"\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\npassword=secret\r\n--boundary\r\nContent-Disposition: form-data; name=\"note\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n--boundary\r\nContent-Disposition: form-data; name=\"opaque\"\r\nContent-Type: application/octet-stream\r\n\r\nsecret\r\n--boundary--\r\n";
-    let result =
-        redactor.redact_body(BodyCapture::complete(body), Some(&content_type));
+    let result = redactor.redact_body(BodyCapture::complete(body), Some(&content_type));
     let empty = redactor.redact_body(
         BodyCapture::complete(b"--boundary--\r\n"),
         Some(&content_type),
@@ -769,9 +725,7 @@ fn test_malformed_content_type_grammar_fails_closed_before_dispatch() {
 /// Verifies that ndjson unkeyed pass through reports passed through.
 fn test_ndjson_unkeyed_pass_through_reports_passed_through() {
     let policy = HttpRedactionPolicy::builder()
-        .unkeyed_json_value_policy(
-            qubit_redact::http::UnkeyedJsonValuePolicy::PassThrough,
-        )
+        .unkeyed_json_value_policy(qubit_redact::http::UnkeyedJsonValuePolicy::PassThrough)
         .build()
         .expect("HTTP redaction policy should be valid");
     let body = HttpRedactor::new(policy).redact_body(
@@ -794,8 +748,7 @@ fn test_multipart_metadata_and_framing_fail_closed() {
         .build()
         .expect("HTTP redaction policy should be valid");
     let redactor = HttpRedactor::new(policy);
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=b");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=b");
     let cases: [(&str, &[u8]); 8] = [
         (
             "duplicate disposition",
@@ -833,14 +786,11 @@ fn test_multipart_metadata_and_framing_fail_closed() {
 
     for (label, body) in cases {
         let selected_type = if label == "duplicate boundary" {
-            HeaderValue::from_static(
-                "multipart/form-data; boundary=b; boundary=other",
-            )
+            HeaderValue::from_static("multipart/form-data; boundary=b; boundary=other")
         } else {
             content_type.clone()
         };
-        let result = redactor
-            .redact_body(BodyCapture::complete(body), Some(&selected_type));
+        let result = redactor.redact_body(BodyCapture::complete(body), Some(&selected_type));
 
         let expected_reason = if label == "duplicate boundary" {
             qubit_redact::http::BodyRedactionReason::InvalidContentType
@@ -865,12 +815,10 @@ fn test_multipart_blank_name_extended_filename_and_non_utf8_file_are_safe() {
         .build()
         .expect("HTTP redaction policy should be valid");
     let redactor = HttpRedactor::new(policy);
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=b");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=b");
     let body = b"--b\r\nContent-Disposition: form-data; name=\"   \"\r\nContent-Type: text/plain\r\n\r\nblank-secret\r\n--b\r\nContent-Disposition: form-data; name=attachment; filename*=UTF-8''secret.txt\r\nContent-Type: text/plain\r\n\r\nfile-secret\xff\r\n--b--\r\n";
 
-    let result =
-        redactor.redact_body(BodyCapture::complete(body), Some(&content_type));
+    let result = redactor.redact_body(BodyCapture::complete(body), Some(&content_type));
 
     assert!(result.to_string().contains("<unnamed>"));
     assert!(result.to_string().contains("<redacted: file part>"));
@@ -882,13 +830,12 @@ fn test_multipart_blank_name_extended_filename_and_non_utf8_file_are_safe() {
 #[test]
 /// Verifies that multipart accepts valid quoted pairs and unknown parameters.
 fn test_multipart_accepts_valid_quoted_pairs_and_unknown_parameters() {
-    let content_type = HeaderValue::from_static(
-        "multipart/form-data; charset=utf-8; boundary=\"b\"",
-    );
+    let content_type =
+        HeaderValue::from_static("multipart/form-data; charset=utf-8; boundary=\"b\"");
     let body = b"--b\r\nContent-Disposition: form-data; name=note; size=6; filename=\"alice\\\";report.txt\"\r\n\r\nfile-secret\r\n--b--\r\n";
 
-    let result = HttpRedactor::default()
-        .redact_body(BodyCapture::complete(body), Some(&content_type));
+    let result =
+        HttpRedactor::default().redact_body(BodyCapture::complete(body), Some(&content_type));
     let unicode_body = "--b\r\nContent-Disposition: form-data; name=\"nøté\"; x=\"a\\ø\"\r\n\r\nvisible\r\n--b--\r\n";
     let unicode_result = HttpRedactor::default().redact_body(
         BodyCapture::complete(unicode_body.as_bytes()),
@@ -908,12 +855,11 @@ fn test_multipart_accepts_valid_quoted_pairs_and_unknown_parameters() {
 #[test]
 /// Verifies that multipart covers strict line and part policy branches.
 fn test_multipart_covers_strict_line_and_part_policy_branches() {
-    let multipart_type =
-        HeaderValue::from_static("multipart/form-data; boundary=b");
+    let multipart_type = HeaderValue::from_static("multipart/form-data; boundary=b");
     let default_redactor = HttpRedactor::default();
     let structured = b"--b\r\nContent-Disposition: form-data; name=document\r\nContent-Type: application/json\r\n\r\n{\"password\":\"secret\"}\r\n--b\r\n \t\r\n--b\r\nContent-Disposition: form-data; name=note\r\nContent-Type: text/plain\r\n\r\ntext-secret\r\n--b\r\nContent-Disposition: form-data; name=plain\r\n\r\nplain-secret\r\n--b--\r\n";
-    let result = default_redactor
-        .redact_body(BodyCapture::complete(structured), Some(&multipart_type));
+    let result =
+        default_redactor.redact_body(BodyCapture::complete(structured), Some(&multipart_type));
 
     assert_eq!(
         result.status(),
@@ -926,8 +872,7 @@ fn test_multipart_covers_strict_line_and_part_policy_branches() {
         .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
         .expect("HTTP redaction policy should be valid");
-    let lf_only =
-        b"--b\nContent-Disposition: form-data; name=plain\n\nvisible\n--b--\n";
+    let lf_only = b"--b\nContent-Disposition: form-data; name=plain\n\nvisible\n--b--\n";
     let passed = HttpRedactor::new(pass_policy)
         .redact_body(BodyCapture::complete(lf_only), Some(&multipart_type));
 
@@ -942,8 +887,7 @@ fn test_multipart_covers_strict_line_and_part_policy_branches() {
 /// Verifies that multipart invalid nested json and sensitive non utf8 fail
 /// closed.
 fn test_multipart_invalid_nested_json_and_sensitive_non_utf8_fail_closed() {
-    let content_type =
-        HeaderValue::from_static("multipart/form-data; boundary=b");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=b");
     let bodies: [(&str, &[u8]); 2] = [
         (
             "invalid nested JSON",
@@ -956,8 +900,8 @@ fn test_multipart_invalid_nested_json_and_sensitive_non_utf8_fail_closed() {
     ];
 
     for (label, body) in bodies {
-        let result = HttpRedactor::default()
-            .redact_body(BodyCapture::complete(body), Some(&content_type));
+        let result =
+            HttpRedactor::default().redact_body(BodyCapture::complete(body), Some(&content_type));
 
         assert_eq!(
             result.status(),

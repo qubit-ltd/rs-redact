@@ -7,20 +7,9 @@
 // =============================================================================
 //! Tests for restoring bounded-mask state after formatting exits abnormally.
 
-use std::{
-    collections::BTreeMap,
-    fmt,
-    panic::AssertUnwindSafe,
-};
+use std::{collections::BTreeMap, fmt, panic::AssertUnwindSafe};
 
-use qubit_redact::{
-    LogOutputLimit,
-    MaskPolicy,
-    Redact,
-    RedactedMap,
-    RedactionPolicy,
-    Sensitivity,
-};
+use qubit_redact::{LogOutputLimit, MaskPolicy, Redact, RedactedMap, RedactionPolicy, Sensitivity};
 
 /// Redacted value that aborts formatting after bounded state has been entered.
 struct PanickingRedact;
@@ -39,8 +28,7 @@ impl Redact for PanickingRedact {
 /// Verifies a formatting panic cannot retain a stale bounded-mask ceiling.
 #[test]
 fn test_mask_byte_limit_reset_restores_unbounded_state_after_panic() {
-    let limit = LogOutputLimit::new(14)
-        .expect("the bounded rendering limit should be valid");
+    let limit = LogOutputLimit::new(14).expect("the bounded rendering limit should be valid");
     let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
         let _ = PanickingRedact
             .redacted()
@@ -52,7 +40,9 @@ fn test_mask_byte_limit_reset_restores_unbounded_state_after_panic() {
     let policy = RedactionPolicy::builder()
         .disable_floor()
         .raise("password", Sensitivity::Low)
+        .expect("the test builder input should be valid")
         .mask(Sensitivity::Low, MaskPolicy::preserve_suffix(16, "****", 0))
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the masking policy should be valid");
     let values = BTreeMap::from([("password", "abcdefghijklmnopqrstuvwxyz")]);

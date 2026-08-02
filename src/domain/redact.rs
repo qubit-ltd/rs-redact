@@ -7,20 +7,17 @@
 // =============================================================================
 //! Non-destructive redaction contract for domain objects.
 
-use std::fmt::{
-    self,
-    Formatter,
-};
+use std::fmt::{self, Formatter};
 
-use crate::{
-    Redacted,
-    RedactionPolicy,
-};
+use crate::{Redacted, RedactionPolicy};
 
 /// Formats a domain object through an explicit immutable redaction policy.
 ///
 /// Implementations must write only the redacted representation from
 /// [`Self::fmt_redacted`]. The original object remains unchanged.
+/// Domain owners remain responsible for deciding which fields are sensitive
+/// and for selecting the redaction boundary. This trait does not infer that a
+/// newly added field needs redaction.
 pub trait Redact {
     /// Creates a borrowed view using a snapshot of the current default policy.
     ///
@@ -73,9 +70,5 @@ pub trait Redact {
     /// Returns [`fmt::Error`] when the destination formatter cannot accept the
     /// complete representation.
     #[doc(hidden)]
-    fn fmt_redacted(
-        &self,
-        policy: &RedactionPolicy,
-        formatter: &mut Formatter<'_>,
-    ) -> fmt::Result;
+    fn fmt_redacted(&self, policy: &RedactionPolicy, formatter: &mut Formatter<'_>) -> fmt::Result;
 }

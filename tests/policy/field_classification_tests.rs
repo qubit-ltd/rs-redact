@@ -8,11 +8,7 @@
 //! Tests for [`FieldClassification`](qubit_redact::FieldClassification).
 
 use qubit_redact::{
-    FieldClassification,
-    FieldMatchKind,
-    FieldNameMatching,
-    RedactionPolicy,
-    Sensitivity,
+    FieldClassification, FieldMatchKind, FieldNameMatching, RedactionPolicy, Sensitivity,
 };
 
 /// Verifies exact and suffix-sensitive results expose their matched rule.
@@ -21,7 +17,9 @@ fn test_field_classification_explains_sensitive_matches() {
     let policy = std::hint::black_box(
         RedactionPolicy::builder()
             .raise("token", Sensitivity::Secret)
+            .expect("the test builder input should be valid")
             .raise("access_token", Sensitivity::Medium)
+            .expect("the test builder input should be valid")
             .build()
             .expect("the sensitivity policy should be valid"),
     );
@@ -33,8 +31,7 @@ fn test_field_classification_explains_sensitive_matches() {
     assert!(!exact.is_allowed());
     assert!(!exact.is_unknown());
 
-    let suffix =
-        std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
+    let suffix = std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
     assert_eq!(suffix.sensitivity(), Some(Sensitivity::Medium));
     assert_eq!(suffix.matched_field(), Some("accesstoken"));
     assert_eq!(suffix.match_kind(), Some(FieldMatchKind::TokenSuffix));
@@ -46,8 +43,11 @@ fn test_field_classification_explains_allow_precedence() {
     let policy = std::hint::black_box(
         RedactionPolicy::builder()
             .raise("access_token", Sensitivity::Secret)
+            .expect("the test builder input should be valid")
             .allow_canonical_exact("access_token")
+            .expect("the test builder input should be valid")
             .allow_suffix("access_token")
+            .expect("the test builder input should be valid")
             .build()
             .expect("the conflicting policy should be valid"),
     );
@@ -59,8 +59,7 @@ fn test_field_classification_explains_allow_precedence() {
     assert!(exact.is_allowed());
     assert!(!exact.is_unknown());
 
-    let suffix =
-        std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
+    let suffix = std::hint::black_box(policy.classify_field("OPENAI_ACCESS_TOKEN"));
     assert_eq!(suffix.sensitivity(), None);
     assert_eq!(suffix.matched_field(), Some("accesstoken"));
     assert_eq!(suffix.match_kind(), Some(FieldMatchKind::TokenSuffix));
@@ -93,7 +92,9 @@ fn test_field_classification_reports_unknown_fields() {
 fn test_field_classification_reports_exact_suffix_allow_match() {
     let policy = RedactionPolicy::builder()
         .raise("access_token", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .allow_suffix("access_token")
+        .expect("the test builder input should be valid")
         .build()
         .expect("the conflicting policy should be valid");
 
@@ -114,10 +115,15 @@ fn test_field_classification_matches_sensitivity_for() {
     let policy = RedactionPolicy::builder()
         .disable_floor()
         .raise("token", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .raise("access_token", Sensitivity::Medium)
+        .expect("the test builder input should be valid")
         .raise("tenant_secret", Sensitivity::High)
+        .expect("the test builder input should be valid")
         .allow_canonical_exact("tenant_secret")
+        .expect("the test builder input should be valid")
         .allow_suffix("public_token")
+        .expect("the test builder input should be valid")
         .build()
         .expect("the parity policy should be valid");
 

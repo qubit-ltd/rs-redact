@@ -7,16 +7,14 @@
 // =============================================================================
 //! Tests for field-name normalization used by policy matching.
 
-use qubit_redact::{
-    RedactionPolicy,
-    Sensitivity,
-};
+use qubit_redact::{RedactionPolicy, Sensitivity};
 
 /// Verifies that every supported separator produces the same canonical name.
 #[test]
 fn test_canonicalize_field_name_normalizes_supported_separators() {
     let policy = RedactionPolicy::builder()
         .raise("access_token", Sensitivity::High)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the normalized field rule should be valid");
     for name in [

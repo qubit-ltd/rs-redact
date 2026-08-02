@@ -10,19 +10,9 @@
 #[cfg(feature = "json")]
 use super::JsonDepthBudget;
 use super::{
-    DiagnosticBudget,
-    FieldNameMatching,
-    MaskPolicy,
-    MaskingPolicy,
-    PolicyError,
-    PolicyLocation,
-    RedactionFloor,
-    RedactionPolicy,
-    RedactionRules,
-    RedactionRulesBuilder,
-    SensitiveFieldPreset,
-    Sensitivity,
-    UnknownFieldPolicy,
+    DiagnosticBudget, FieldNameMatching, MaskPolicy, MaskingPolicy, PolicyError, PolicyLocation,
+    RedactionFloor, RedactionPolicy, RedactionRules, RedactionRulesBuilder, SensitiveFieldPreset,
+    Sensitivity, UnknownFieldPolicy,
 };
 
 /// Mutable construction state for an immutable [`RedactionPolicy`].
@@ -111,46 +101,74 @@ impl RedactionPolicyBuilder {
 
     /// Raises application sensitivity for `field` to at least `level`.
     ///
-    /// Invalid field names are recorded and returned by [`Self::build`].
-    pub fn raise(mut self, field: &str, level: Sensitivity) -> Self {
-        self.rules.raise(field, level);
-        self
+    /// # Errors
+    ///
+    /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
+    /// application-rule name.
+    pub fn raise(mut self, field: &str, level: Sensitivity) -> Result<Self, PolicyError> {
+        self.rules.raise(field, level)?;
+        Ok(self)
     }
 
     /// Replaces the application sensitivity for `field` with `level`.
     ///
     /// This does not weaken an enabled floor.
-    pub fn override_level(mut self, field: &str, level: Sensitivity) -> Self {
-        self.rules.override_level(field, level);
-        self
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
+    /// application-rule name.
+    pub fn override_level(mut self, field: &str, level: Sensitivity) -> Result<Self, PolicyError> {
+        self.rules.override_level(field, level)?;
+        Ok(self)
     }
 
     /// Allows one canonical exact application field name.
     ///
     /// An enabled floor remains independently effective for the same field.
-    pub fn allow_canonical_exact(mut self, field: &str) -> Self {
-        self.rules.allow_canonical_exact(field);
-        self
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
+    /// application-rule name.
+    pub fn allow_canonical_exact(mut self, field: &str) -> Result<Self, PolicyError> {
+        self.rules.allow_canonical_exact(field)?;
+        Ok(self)
     }
 
     /// Allows one application field-name token suffix.
     ///
     /// An enabled floor remains independently effective for matching fields.
-    pub fn allow_suffix(mut self, field: &str) -> Self {
-        self.rules.allow_suffix(field);
-        self
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
+    /// application-rule name.
+    pub fn allow_suffix(mut self, field: &str) -> Result<Self, PolicyError> {
+        self.rules.allow_suffix(field)?;
+        Ok(self)
     }
 
     /// Removes the exact application allow rule for `field` when present.
-    pub fn remove_allow_canonical_exact(mut self, field: &str) -> Self {
-        self.rules.remove_allow_canonical_exact(field);
-        self
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
+    /// application-rule name.
+    pub fn remove_allow_canonical_exact(mut self, field: &str) -> Result<Self, PolicyError> {
+        self.rules.remove_allow_canonical_exact(field)?;
+        Ok(self)
     }
 
     /// Removes the suffix application allow rule for `field` when present.
-    pub fn remove_allow_suffix(mut self, field: &str) -> Self {
-        self.rules.remove_allow_suffix(field);
-        self
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
+    /// application-rule name.
+    pub fn remove_allow_suffix(mut self, field: &str) -> Result<Self, PolicyError> {
+        self.rules.remove_allow_suffix(field)?;
+        Ok(self)
     }
 
     /// Removes every application allow rule.
@@ -160,9 +178,16 @@ impl RedactionPolicyBuilder {
     }
 
     /// Sets the application masking policy for values at `level`.
-    pub fn mask(mut self, level: Sensitivity, policy: MaskPolicy) -> Self {
-        self.masking = self.masking.with_policy(level, policy);
-        self
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError::EmptyFixedReplacement`] when `policy` supplies
+    /// an empty fixed replacement.
+    pub fn mask(mut self, level: Sensitivity, policy: MaskPolicy) -> Result<Self, PolicyError> {
+        let masking = self.masking.with_policy(level, policy);
+        masking.validate(PolicyLocation::Rules)?;
+        self.masking = masking;
+        Ok(self)
     }
 
     /// Sets the ordinary diagnostic input and output limits.
@@ -182,8 +207,7 @@ impl RedactionPolicyBuilder {
     ///
     /// # Errors
     ///
-    /// Returns the first deferred [`PolicyError`] from application-rule
-    /// validation.
+    /// Returns a [`PolicyError`] when final policy validation fails.
     pub fn build(self) -> Result<RedactionPolicy, PolicyError> {
         let rules = RedactionRules::new(self.rules.build_inner()?, self.floor);
         self.masking.validate(PolicyLocation::Rules)?;

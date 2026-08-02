@@ -10,23 +10,22 @@
 #![cfg(feature = "json")]
 
 use qubit_redact::{
-    MaskPolicy,
-    RedactionFloor,
-    RedactionPolicy,
-    Sensitivity,
-    redact_json_text_in_place,
+    MaskPolicy, RedactionFloor, RedactionPolicy, Sensitivity, redact_json_text_in_place,
 };
 
 #[test]
 fn test_json_uses_policy_mask_for_floor_matched_key() {
     let floor = RedactionFloor::builder()
         .raise("credential", Sensitivity::Low)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
     let policy = RedactionPolicy::builder()
         .floor(floor)
         .raise("credential", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the policy should build");
     let mut value = r#"{"credential":"value"}"#.to_owned();

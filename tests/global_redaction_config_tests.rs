@@ -8,10 +8,7 @@
 //! Tests for process-wide redaction configuration installation.
 
 use qubit_redact::{
-    GlobalRedactionConfig,
-    GlobalRedactionConfigAlreadyInstalled,
-    RedactionFloor,
-    RedactionPolicy,
+    GlobalRedactionConfig, GlobalRedactionConfigAlreadyInstalled, RedactionFloor, RedactionPolicy,
     Sensitivity,
 };
 
@@ -22,11 +19,13 @@ fn test_global_config_is_installed_once_and_snapshotted() {
     let before_builder = RedactionPolicy::builder();
     let floor = RedactionFloor::builder()
         .raise("tenant_floor_blob", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the custom floor should be valid");
     let custom = RedactionPolicy::builder()
         .floor(floor)
         .raise("tenant_protected_blob", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the custom policy should be valid");
 

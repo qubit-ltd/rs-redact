@@ -7,15 +7,8 @@
 // =============================================================================
 //! Tests for [`HttpRedactionPolicy`](qubit_redact::http::HttpRedactionPolicy).
 
-use qubit_redact::http::{
-    DiagnosticBudget,
-    HttpFieldContext,
-    HttpRedactionPolicy,
-};
-use qubit_redact::{
-    RedactionFloor,
-    Sensitivity,
-};
+use qubit_redact::http::{DiagnosticBudget, HttpFieldContext, HttpRedactionPolicy};
+use qubit_redact::{RedactionFloor, Sensitivity};
 
 /// Verifies the default HTTP policy has a non-zero body input budget.
 #[test]
@@ -58,6 +51,7 @@ fn test_http_redaction_policy_strict_preset_redacts_unknown_fields() {
 fn test_http_redaction_policy_exposes_independent_context_rules_and_floors() {
     let floor = RedactionFloor::builder()
         .raise("floor-secret", Sensitivity::Secret)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the floor should be valid");
     let policy = HttpRedactionPolicy::builder()
@@ -65,6 +59,7 @@ fn test_http_redaction_policy_exposes_independent_context_rules_and_floors() {
         .disable_floor_for(HttpFieldContext::Query)
         .disable_floor_for(HttpFieldContext::Body)
         .raise(HttpFieldContext::Body, "body-secret", Sensitivity::High)
+        .expect("the test builder input should be valid")
         .build()
         .expect("the HTTP policy should be valid");
 

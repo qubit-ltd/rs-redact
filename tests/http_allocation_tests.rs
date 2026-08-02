@@ -10,37 +10,17 @@
 #![cfg(feature = "http")]
 
 use std::{
-    alloc::{
-        GlobalAlloc,
-        Layout,
-        System,
-    },
+    alloc::{GlobalAlloc, Layout, System},
     cell::Cell,
-    sync::atomic::{
-        AtomicBool,
-        AtomicUsize,
-        Ordering,
-    },
-    sync::{
-        Arc,
-        Mutex,
-    },
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+    sync::{Arc, Mutex},
 };
 
-use http::{
-    HeaderMap,
-    HeaderValue,
-};
+use http::{HeaderMap, HeaderValue};
 use qubit_redact::{
-    MaskPolicy,
-    RedactionPolicy,
-    Sensitivity,
+    MaskPolicy, RedactionPolicy, Sensitivity,
     http::{
-        BodyBudget,
-        BodyCapture,
-        DiagnosticBudget,
-        HttpFieldContext,
-        HttpRedactionPolicy,
+        BodyBudget, BodyCapture, DiagnosticBudget, HttpFieldContext, HttpRedactionPolicy,
         HttpRedactor,
     },
 };
@@ -83,12 +63,7 @@ unsafe impl GlobalAlloc for MeasuringAllocator {
     }
 
     /// Resizes an allocation through the system allocator and records it.
-    unsafe fn realloc(
-        &self,
-        pointer: *mut u8,
-        layout: Layout,
-        new_size: usize,
-    ) -> *mut u8 {
+    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         record_allocation(new_size);
         // SAFETY: All arguments are forwarded unchanged to the system
         // allocator.
@@ -173,9 +148,8 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
         .expect("allocation measurement lock should not be poisoned");
     let redactor = HttpRedactor::default();
 
-    let (result, largest, _) = measure_allocations(|| {
-        redactor.redact_url_str("https://example.test/")
-    });
+    let (result, largest, _) =
+        measure_allocations(|| redactor.redact_url_str("https://example.test/"));
 
     assert_eq!(result.as_ref(), "https://example.test/");
     assert!(
@@ -208,7 +182,9 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
     let amplified_policy = RedactionPolicy::default()
         .to_builder()
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
+        .expect("the test mask policy should be valid")
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
+        .expect("the test mask policy should be valid")
         .build()
         .expect("the amplified redaction policy is valid");
     let output_limit = 128;
@@ -218,34 +194,29 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
         .rules(HttpFieldContext::Header, amplified_policy.rules().clone())
         .rules(HttpFieldContext::Query, amplified_policy.rules().clone())
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
+        .expect("the test mask policy should be valid")
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
+        .expect("the test mask policy should be valid")
         .diagnostic_budget(diagnostic_budget)
         .build()
         .expect("the amplified HTTP policy is valid");
     let redactor = HttpRedactor::new(policy);
     let repeated_form = ["password=form-secret"; 32].join("&");
     let repeated_query = ["password=query-secret"; 32].join("&");
-    let repeated_url = format!(
-        "https://user:password@example.test/?{repeated_query}#fragment",
-    );
+    let repeated_url = format!("https://user:password@example.test/?{repeated_query}#fragment",);
     let mut sensitive_header = HeaderValue::from_static("header-secret");
     sensitive_header.set_sensitive(true);
     let mut headers = HeaderMap::new();
     headers.insert("x-secret", sensitive_header);
 
-    let (url, url_largest, _) =
-        measure_allocations(|| redactor.redact_url_str(&repeated_url));
-    let (form, form_largest, _) =
-        measure_allocations(|| redactor.redact_form(&repeated_form));
-    let (headers, header_largest, _) =
-        measure_allocations(|| redactor.redact_headers(&headers));
+    let (url, url_largest, _) = measure_allocations(|| redactor.redact_url_str(&repeated_url));
+    let (form, form_largest, _) = measure_allocations(|| redactor.redact_form(&repeated_form));
+    let (headers, header_largest, _) = measure_allocations(|| redactor.redact_headers(&headers));
 
     for rendered in [url.as_ref(), form.as_ref(), &headers.to_string()] {
         assert!(rendered.len() <= output_limit, "{rendered:?}");
         assert!(rendered.ends_with("<truncated>"), "{rendered:?}");
-        for source_secret in
-            ["query-secret", "form-secret", "header-secret", "fragment"]
-        {
+        for source_secret in ["query-secret", "form-secret", "header-secret", "fragment"] {
             assert!(!rendered.contains(source_secret), "{rendered:?}");
         }
     }
@@ -266,20 +237,23 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
     let replacement = "X".repeat(64 * 1024);
     let mut builder = RedactionPolicy::builder()
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
-        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement));
+        .expect("the test mask policy should be valid")
+        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
+        .expect("the test mask policy should be valid");
     for index in 0..700 {
-        builder =
-            builder.raise(&format!("password_{index}"), Sensitivity::Secret);
+        builder = builder
+            .raise(&format!("password_{index}"), Sensitivity::Secret)
+            .expect("generated amplified body field must be valid");
     }
-    let body_policy =
-        builder.build().expect("the amplified body policy is valid");
+    let body_policy = builder.build().expect("the amplified body policy is valid");
     let output_limit = 64 * 1024;
-    let body_budget = BodyBudget::new(128 * 1024, output_limit)
-        .expect("the body budget is valid");
+    let body_budget = BodyBudget::new(128 * 1024, output_limit).expect("the body budget is valid");
     let policy = HttpRedactionPolicy::builder()
         .rules(HttpFieldContext::Body, body_policy.rules().clone())
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
+        .expect("the test mask policy should be valid")
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
+        .expect("the test mask policy should be valid")
         .body_budget(body_budget)
         .build()
         .expect("the HTTP policy is valid");
@@ -292,10 +266,7 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
     let content_type = HeaderValue::from_static("application/json");
 
     let (result, largest, _) = measure_allocations(|| {
-        redactor.redact_body(
-            BodyCapture::complete(body.as_bytes()),
-            Some(&content_type),
-        )
+        redactor.redact_body(BodyCapture::complete(body.as_bytes()), Some(&content_type))
     });
 
     assert!(result.to_string().len() <= output_limit);
@@ -318,8 +289,7 @@ fn test_unkeyed_json_redaction_respects_mask_budget() {
         std::iter::repeat_n("0", 256).collect::<Vec<_>>().join(","),
     );
     let output_limit = BodyBudget::MIN_OUTPUT_BYTES;
-    let body_budget = BodyBudget::new(body.len(), output_limit)
-        .expect("the body budget is valid");
+    let body_budget = BodyBudget::new(body.len(), output_limit).expect("the body budget is valid");
     let policy = HttpRedactionPolicy::builder()
         .body_budget(body_budget)
         .build()
@@ -328,10 +298,7 @@ fn test_unkeyed_json_redaction_respects_mask_budget() {
     let content_type = HeaderValue::from_static("application/json");
 
     let (result, _, allocation_count) = measure_allocations(|| {
-        redactor.redact_body(
-            BodyCapture::complete(body.as_bytes()),
-            Some(&content_type),
-        )
+        redactor.redact_body(BodyCapture::complete(body.as_bytes()), Some(&content_type))
     });
 
     assert_eq!(result.to_string(), "<truncated>");
