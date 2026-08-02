@@ -8,8 +8,11 @@
 //! Tests for process-wide redaction configuration installation.
 
 use qubit_redact::{
-    GlobalRedactionConfig, GlobalRedactionConfigAlreadyInstalled, RedactionFloor,
-    RedactionPolicy, Sensitivity,
+    GlobalRedactionConfig,
+    GlobalRedactionConfigAlreadyInstalled,
+    RedactionFloor,
+    RedactionPolicy,
+    Sensitivity,
 };
 
 /// Verifies atomic installation and deterministic builder snapshots.
@@ -48,7 +51,10 @@ fn test_global_config_is_installed_once_and_snapshotted() {
             .sensitivity_for("tenant_floor_blob"),
         None,
     );
-    assert_eq!(RedactionPolicy::standard().sensitivity_for("tenant_floor_blob"), None);
+    assert_eq!(
+        RedactionPolicy::standard().sensitivity_for("tenant_floor_blob"),
+        None
+    );
     assert_eq!(
         GlobalRedactionConfig::standard().install(),
         Err(GlobalRedactionConfigAlreadyInstalled),

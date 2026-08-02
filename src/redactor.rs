@@ -8,8 +8,14 @@
 //! Stateless redaction operations backed by an immutable policy.
 
 use crate::{
-    FieldClassification, FieldRedaction, PassThroughReason, RedactMapValueMut,
-    RedactedKeyedValue, RedactedText, RedactionPolicy, Sensitivity,
+    FieldClassification,
+    FieldRedaction,
+    PassThroughReason,
+    RedactMapValueMut,
+    RedactedKeyedValue,
+    RedactedText,
+    RedactionPolicy,
+    Sensitivity,
     policy::ResolvedField,
 };
 
@@ -67,18 +73,29 @@ impl Redactor {
     /// values while borrowing safe input where possible.
     #[must_use = "use the returned redacted value"]
     #[inline]
-    pub fn redact_field<'a>(&self, field: &str, value: &'a str) -> FieldRedaction<'a> {
+    pub fn redact_field<'a>(
+        &self,
+        field: &str,
+        value: &'a str,
+    ) -> FieldRedaction<'a> {
         let resolved = self.policy.resolve_field(field);
         match resolved {
-            ResolvedField::Sensitive { sensitivity } => FieldRedaction::Masked {
-                value: RedactedText::new(self.policy.masking().mask(sensitivity, value)),
-                sensitivity,
-            },
+            ResolvedField::Sensitive { sensitivity } => {
+                FieldRedaction::Masked {
+                    value: RedactedText::new(
+                        self.policy.masking().mask(sensitivity, value),
+                    ),
+                    sensitivity,
+                }
+            }
             ResolvedField::PassThrough => FieldRedaction::PassedThrough {
                 value,
                 reason: match self.policy.classify_field(field) {
-                    FieldClassification::Allowed { .. } => PassThroughReason::Allowed,
-                    FieldClassification::Sensitive { .. } | FieldClassification::Unknown => {
+                    FieldClassification::Allowed { .. } => {
+                        PassThroughReason::Allowed
+                    }
+                    FieldClassification::Sensitive { .. }
+                    | FieldClassification::Unknown => {
                         PassThroughReason::Unknown
                     }
                 },
@@ -105,7 +122,11 @@ impl Redactor {
     /// Typed redacted text produced by the configured mask for `level`.
     #[must_use = "use the returned redacted value"]
     #[inline]
-    pub fn redact_at<'a>(&self, level: Sensitivity, value: &'a str) -> RedactedText<'a> {
+    pub fn redact_at<'a>(
+        &self,
+        level: Sensitivity,
+        value: &'a str,
+    ) -> RedactedText<'a> {
         RedactedText::new(self.policy.masking().mask(level, value))
     }
 

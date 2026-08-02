@@ -47,25 +47,25 @@ impl RedactionFloorBuilder {
 
     /// Adds every sensitive field in one preset.
     pub fn include_preset(mut self, preset: SensitiveFieldPreset) -> Self {
-        self.rules = self.rules.include_preset(preset);
+        self.rules.include_preset(preset);
         self
     }
 
     /// Raises `field` to at least `level`.
     pub fn raise(mut self, field: &str, level: Sensitivity) -> Self {
-        self.rules = self.rules.raise(field, level);
+        self.rules.raise(field, level);
         self
     }
 
     /// Sets field-name matching behavior.
     pub fn matching(mut self, matching: FieldNameMatching) -> Self {
-        self.rules = self.rules.matching(matching);
+        self.rules.matching(matching);
         self
     }
 
     /// Sets the fallback for fields without an explicit floor rule.
     pub fn unknown_field_policy(mut self, policy: UnknownFieldPolicy) -> Self {
-        self.rules = self.rules.unknown_field_policy(policy);
+        self.rules.unknown_field_policy(policy);
         self
     }
 

@@ -18,7 +18,6 @@ use super::{
     FieldMatchKind,
     FieldNameMatching,
     RedactionFloor,
-    RedactionFloorState,
     ResolvedField,
     SensitiveFieldRule,
     Sensitivity,
@@ -35,19 +34,16 @@ use super::{
 pub struct RedactionRules {
     application: Arc<RedactionPolicyInner>,
     floor: Option<RedactionFloor>,
-    floor_state: RedactionFloorState,
 }
 
 impl RedactionRules {
     pub(crate) fn new(
         application: RedactionPolicyInner,
         floor: Option<RedactionFloor>,
-        floor_state: RedactionFloorState,
     ) -> Self {
         Self {
             application: Arc::new(application),
             floor,
-            floor_state,
         }
     }
 
@@ -57,16 +53,9 @@ impl RedactionRules {
         self.floor.as_ref()
     }
 
-    /// Returns the origin state of this snapshot's floor.
-    #[inline]
-    pub const fn floor_state(&self) -> RedactionFloorState {
-        self.floor_state
-    }
-
-    /// Replaces the floor and marks it as explicitly configured.
+    /// Replaces the floor for this rules snapshot.
     pub fn with_floor(mut self, floor: RedactionFloor) -> Self {
         self.floor = Some(floor);
-        self.floor_state = RedactionFloorState::Explicit;
         self
     }
 
@@ -78,7 +67,6 @@ impl RedactionRules {
     /// only when the caller intentionally accepts responsibility for doing so.
     pub fn disable_floor(mut self) -> Self {
         self.floor = None;
-        self.floor_state = RedactionFloorState::Disabled;
         self
     }
 

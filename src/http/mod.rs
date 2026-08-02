@@ -27,7 +27,12 @@ mod text_body_policy;
 mod unkeyed_json_value_policy;
 mod url_path_policy;
 
-pub use crate::{DiagnosticBudget, DiagnosticBudgetError, JsonDepthBudget, JsonDepthBudgetError};
+pub use crate::{
+    DiagnosticBudget,
+    DiagnosticBudgetError,
+    JsonDepthBudget,
+    JsonDepthBudgetError,
+};
 pub use body_budget::BodyBudget;
 pub use body_budget_error::BodyBudgetError;
 pub use body_capture::BodyCapture;
@@ -36,9 +41,9 @@ pub use body_redaction::BodyRedaction;
 pub use body_redaction_reason::BodyRedactionReason;
 pub use body_redaction_status::BodyRedactionStatus;
 pub(in crate::http) use field_redactor::FieldRedactor;
+pub use http_field_context::HttpFieldContext;
 pub use http_redaction_policy::HttpRedactionPolicy;
 pub use http_redaction_policy_builder::HttpRedactionPolicyBuilder;
-pub use http_field_context::HttpFieldContext;
 pub use http_redactor::HttpRedactor;
 pub use redacted_headers::RedactedHeaders;
 pub use text_body_policy::TextBodyPolicy;

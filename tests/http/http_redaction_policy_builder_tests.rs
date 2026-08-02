@@ -11,7 +11,6 @@ use qubit_redact::{
     PolicyError,
     PolicyLocation,
     RedactionFloor,
-    RedactionFloorState,
     RedactionPolicy,
     Sensitivity,
     http::{
@@ -109,16 +108,16 @@ fn test_floor_configuration_is_independent_and_last_call_wins() {
         .expect("the HTTP policy should be valid");
 
     assert_eq!(
-        policy.header_rules().floor_state(),
-        RedactionFloorState::Explicit
+        policy.header_rules().sensitivity_for("shared-floor-secret"),
+        Some(Sensitivity::Secret),
     );
     assert_eq!(
-        policy.query_rules().floor_state(),
-        RedactionFloorState::Disabled
+        policy.query_rules().sensitivity_for("shared-floor-secret"),
+        None,
     );
     assert_eq!(
-        policy.body_rules().floor_state(),
-        RedactionFloorState::Disabled
+        policy.body_rules().sensitivity_for("shared-floor-secret"),
+        None,
     );
 
     let header_floor = RedactionFloor::builder()
@@ -141,7 +140,6 @@ fn test_floor_configuration_is_independent_and_last_call_wins() {
         global_last.query_rules(),
         global_last.body_rules(),
     ] {
-        assert_eq!(rules.floor_state(), RedactionFloorState::Explicit);
         assert_eq!(
             rules.sensitivity_for("global-floor-secret"),
             Some(Sensitivity::Secret),

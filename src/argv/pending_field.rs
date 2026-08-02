@@ -5,6 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+// qubit-style: allow source-test-pair
 //! Pending option metadata used by heuristic argv redaction.
 
 /// Option metadata waiting for its separate value.
