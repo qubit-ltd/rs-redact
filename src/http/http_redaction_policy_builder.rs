@@ -10,16 +10,28 @@
 use std::sync::Arc;
 
 use crate::{
-    DiagnosticBudget, JsonDepthBudget, MaskPolicy, MaskingPolicy, PolicyError,
-    PolicyLocation, RedactionFloor, RedactionPolicy, RedactionRules, Sensitivity,
+    DiagnosticBudget,
+    JsonDepthBudget,
+    MaskPolicy,
+    MaskingPolicy,
+    PolicyError,
+    PolicyLocation,
+    RedactionFloor,
+    RedactionPolicy,
+    RedactionRules,
+    Sensitivity,
     policy::RedactionRulesBuilder,
 };
 
 use super::context_rules_builder::ContextRulesBuilder;
 use super::http_redaction_policy_parts::HttpRedactionPolicyParts;
 use super::{
-    BodyBudget, HttpFieldContext, HttpRedactionPolicy, TextBodyPolicy,
-    UnkeyedJsonValuePolicy, UrlPathPolicy,
+    BodyBudget,
+    HttpFieldContext,
+    HttpRedactionPolicy,
+    TextBodyPolicy,
+    UnkeyedJsonValuePolicy,
+    UrlPathPolicy,
 };
 
 /// Mutable construction state for an [`HttpRedactionPolicy`].
@@ -43,8 +55,14 @@ impl HttpRedactionPolicyBuilder {
     pub fn new() -> Self {
         let floor = RedactionFloor::standard();
         Self {
-            header: ContextRulesBuilder::empty(PolicyLocation::HttpHeader, floor.clone()),
-            query: ContextRulesBuilder::empty(PolicyLocation::HttpQuery, floor.clone()),
+            header: ContextRulesBuilder::empty(
+                PolicyLocation::HttpHeader,
+                floor.clone(),
+            ),
+            query: ContextRulesBuilder::empty(
+                PolicyLocation::HttpQuery,
+                floor.clone(),
+            ),
             body: ContextRulesBuilder::empty(PolicyLocation::HttpBody, floor),
             masking: MaskingPolicy::default(),
             url_path_policy: UrlPathPolicy::default(),
@@ -63,8 +81,14 @@ impl HttpRedactionPolicyBuilder {
                 policy.header_rules(),
                 PolicyLocation::HttpHeader,
             ),
-            query: ContextRulesBuilder::from_rules(policy.query_rules(), PolicyLocation::HttpQuery),
-            body: ContextRulesBuilder::from_rules(policy.body_rules(), PolicyLocation::HttpBody),
+            query: ContextRulesBuilder::from_rules(
+                policy.query_rules(),
+                PolicyLocation::HttpQuery,
+            ),
+            body: ContextRulesBuilder::from_rules(
+                policy.body_rules(),
+                PolicyLocation::HttpBody,
+            ),
             masking: policy.masking().clone(),
             url_path_policy: policy.url_path_policy(),
             text_body_policy: policy.text_body_policy(),
@@ -78,9 +102,18 @@ impl HttpRedactionPolicyBuilder {
     /// Creates three context copies from one complete field policy.
     pub(crate) fn from_base_policy(policy: &RedactionPolicy) -> Self {
         Self {
-            header: ContextRulesBuilder::from_rules(policy.rules(), PolicyLocation::HttpHeader),
-            query: ContextRulesBuilder::from_rules(policy.rules(), PolicyLocation::HttpQuery),
-            body: ContextRulesBuilder::from_rules(policy.rules(), PolicyLocation::HttpBody),
+            header: ContextRulesBuilder::from_rules(
+                policy.rules(),
+                PolicyLocation::HttpHeader,
+            ),
+            query: ContextRulesBuilder::from_rules(
+                policy.rules(),
+                PolicyLocation::HttpQuery,
+            ),
+            body: ContextRulesBuilder::from_rules(
+                policy.rules(),
+                PolicyLocation::HttpBody,
+            ),
             masking: policy.masking().clone(),
             url_path_policy: UrlPathPolicy::default(),
             text_body_policy: TextBodyPolicy::default(),
@@ -92,7 +125,10 @@ impl HttpRedactionPolicyBuilder {
     }
 
     /// Returns mutable construction state for one HTTP field context.
-    fn context_mut(&mut self, context: HttpFieldContext) -> &mut ContextRulesBuilder {
+    fn context_mut(
+        &mut self,
+        context: HttpFieldContext,
+    ) -> &mut ContextRulesBuilder {
         match context {
             HttpFieldContext::Header => &mut self.header,
             HttpFieldContext::Query => &mut self.query,
@@ -101,29 +137,40 @@ impl HttpRedactionPolicyBuilder {
     }
 
     /// Replaces rules for one HTTP field context.
-    pub fn rules(mut self, context: HttpFieldContext, rules: RedactionRules) -> Self {
-        *self.context_mut(context) = ContextRulesBuilder::from_rules(&rules, context.location());
+    pub fn rules(
+        mut self,
+        context: HttpFieldContext,
+        rules: RedactionRules,
+    ) -> Self {
+        *self.context_mut(context) =
+            ContextRulesBuilder::from_rules(&rules, context.location());
         self
     }
 
     /// Sets a floor for one HTTP field context.
-    pub fn floor_for(mut self, context: HttpFieldContext, floor: RedactionFloor) -> Self {
-        let context_rules = self.context_mut(context).clone().with_floor(floor);
-        *self.context_mut(context) = context_rules;
+    pub fn floor_for(
+        mut self,
+        context: HttpFieldContext,
+        floor: RedactionFloor,
+    ) -> Self {
+        self.context_mut(context).with_floor(floor);
         self
     }
 
     /// Disables the floor for one HTTP field context.
     pub fn disable_floor_for(mut self, context: HttpFieldContext) -> Self {
-        let context_rules = self.context_mut(context).clone().disable_floor();
-        *self.context_mut(context) = context_rules;
+        self.context_mut(context).disable_floor();
         self
     }
 
     /// Raises one field's application sensitivity in a selected context.
-    pub fn raise(mut self, context: HttpFieldContext, name: &str, level: Sensitivity) -> Self {
-        let rules = self.context_mut(context).rules.clone().raise(name, level);
-        self.context_mut(context).rules = rules;
+    pub fn raise(
+        mut self,
+        context: HttpFieldContext,
+        name: &str,
+        level: Sensitivity,
+    ) -> Self {
+        self.context_mut(context).rules.raise(name, level);
         self
     }
 
@@ -134,75 +181,71 @@ impl HttpRedactionPolicyBuilder {
         name: &str,
         level: Sensitivity,
     ) -> Self {
-        let rules = self
-            .context_mut(context)
-            .rules
-            .clone()
-            .override_level(name, level);
-        self.context_mut(context).rules = rules;
+        self.context_mut(context).rules.override_level(name, level);
         self
     }
 
     /// Adds an exact allow rule in a selected context.
-    pub fn allow_exact(mut self, context: HttpFieldContext, name: &str) -> Self {
-        let rules = self
-            .context_mut(context)
-            .rules
-            .clone()
-            .allow_canonical_exact(name);
-        self.context_mut(context).rules = rules;
+    pub fn allow_exact(
+        mut self,
+        context: HttpFieldContext,
+        name: &str,
+    ) -> Self {
+        self.context_mut(context).rules.allow_canonical_exact(name);
         self
     }
 
     /// Adds a suffix allow rule in a selected context.
-    pub fn allow_suffix(mut self, context: HttpFieldContext, name: &str) -> Self {
-        let rules = self.context_mut(context).rules.clone().allow_suffix(name);
-        self.context_mut(context).rules = rules;
+    pub fn allow_suffix(
+        mut self,
+        context: HttpFieldContext,
+        name: &str,
+    ) -> Self {
+        self.context_mut(context).rules.allow_suffix(name);
         self
     }
 
     /// Removes an exact allow rule in a selected context.
-    pub fn remove_allow_exact(mut self, context: HttpFieldContext, name: &str) -> Self {
-        let rules = self
-            .context_mut(context)
+    pub fn remove_allow_exact(
+        mut self,
+        context: HttpFieldContext,
+        name: &str,
+    ) -> Self {
+        self.context_mut(context)
             .rules
-            .clone()
             .remove_allow_canonical_exact(name);
-        self.context_mut(context).rules = rules;
         self
     }
 
     /// Removes a suffix allow rule in a selected context.
-    pub fn remove_allow_suffix(mut self, context: HttpFieldContext, name: &str) -> Self {
-        let rules = self
-            .context_mut(context)
-            .rules
-            .clone()
-            .remove_allow_suffix(name);
-        self.context_mut(context).rules = rules;
+    pub fn remove_allow_suffix(
+        mut self,
+        context: HttpFieldContext,
+        name: &str,
+    ) -> Self {
+        self.context_mut(context).rules.remove_allow_suffix(name);
         self
     }
 
     /// Removes every application allow rule in a selected context.
     pub fn clear_allow_rules(mut self, context: HttpFieldContext) -> Self {
-        let rules = self.context_mut(context).rules.clone().clear_allow_rules();
-        self.context_mut(context).rules = rules;
+        self.context_mut(context).rules.clear_allow_rules();
         self
     }
 
     /// Sets the same floor for every HTTP context.
     pub fn floor_all(mut self, floor: RedactionFloor) -> Self {
-        self.header = self.header.with_floor(floor.clone());
-        self.query = self.query.with_floor(floor.clone());
-        self.body = self.body.with_floor(floor);
+        self.header.with_floor(floor.clone());
+        self.query.with_floor(floor.clone());
+        self.body.with_floor(floor);
         self
     }
 
     /// Disables every HTTP context floor.
     pub fn disable_all_floors(mut self) -> Self {
-        self.header = self.header.disable_floor();
-        self.query = self.query.disable_floor();
-        self.body = self.body.disable_floor();
+        self.header.disable_floor();
+        self.query.disable_floor();
+        self.body.disable_floor();
         self
     }
 
@@ -231,7 +274,10 @@ impl HttpRedactionPolicyBuilder {
         self
     }
     /// Replaces unkeyed JSON value handling.
-    pub const fn unkeyed_json_value_policy(mut self, policy: UnkeyedJsonValuePolicy) -> Self {
+    pub const fn unkeyed_json_value_policy(
+        mut self,
+        policy: UnkeyedJsonValuePolicy,
+    ) -> Self {
         self.unkeyed_json_value_policy = policy;
         self
     }

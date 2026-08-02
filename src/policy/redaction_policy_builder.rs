@@ -10,9 +10,19 @@
 #[cfg(feature = "json")]
 use super::JsonDepthBudget;
 use super::{
-    DiagnosticBudget, FieldNameMatching, MaskPolicy, MaskingPolicy, PolicyError, PolicyLocation,
-    RedactionFloor, RedactionFloorState, RedactionPolicy, RedactionRules, RedactionRulesBuilder,
-    SensitiveFieldPreset, Sensitivity, UnknownFieldPolicy,
+    DiagnosticBudget,
+    FieldNameMatching,
+    MaskPolicy,
+    MaskingPolicy,
+    PolicyError,
+    PolicyLocation,
+    RedactionFloor,
+    RedactionPolicy,
+    RedactionRules,
+    RedactionRulesBuilder,
+    SensitiveFieldPreset,
+    Sensitivity,
+    UnknownFieldPolicy,
 };
 
 /// Mutable construction state for an immutable [`RedactionPolicy`].
@@ -22,7 +32,6 @@ pub struct RedactionPolicyBuilder {
     rules: RedactionRulesBuilder,
     masking: MaskingPolicy,
     floor: Option<RedactionFloor>,
-    floor_state: RedactionFloorState,
     diagnostic_budget: DiagnosticBudget,
     #[cfg(feature = "json")]
     json_depth_budget: JsonDepthBudget,
@@ -35,7 +44,6 @@ impl RedactionPolicyBuilder {
             rules: RedactionRulesBuilder::empty(PolicyLocation::Rules),
             masking: MaskingPolicy::default(),
             floor: Some(RedactionFloor::standard()),
-            floor_state: RedactionFloorState::Explicit,
             diagnostic_budget: DiagnosticBudget::default(),
             #[cfg(feature = "json")]
             json_depth_budget: JsonDepthBudget::default(),
@@ -49,7 +57,6 @@ impl RedactionPolicyBuilder {
             ),
             masking: policy.masking().clone(),
             floor: policy.rules().floor().cloned(),
-            floor_state: policy.rules().floor_state(),
             diagnostic_budget: policy.diagnostic_budget(),
             #[cfg(feature = "json")]
             json_depth_budget: policy.json_depth_budget(),
@@ -71,7 +78,6 @@ impl RedactionPolicyBuilder {
     /// This is last-call-wins with [`Self::disable_floor`].
     pub fn floor(mut self, floor: RedactionFloor) -> Self {
         self.floor = Some(floor);
-        self.floor_state = RedactionFloorState::Explicit;
         self
     }
     /// Disables every floor, including the standard floor.
@@ -82,25 +88,24 @@ impl RedactionPolicyBuilder {
     /// intentional, reviewed decision by the policy owner.
     pub fn disable_floor(mut self) -> Self {
         self.floor = None;
-        self.floor_state = RedactionFloorState::Disabled;
         self
     }
 
     /// Sets application field-name matching behavior.
     pub fn matching(mut self, matching: FieldNameMatching) -> Self {
-        self.rules = self.rules.matching(matching);
+        self.rules.matching(matching);
         self
     }
 
     /// Sets the application fallback for unclassified fields.
     pub fn unknown_field_policy(mut self, policy: UnknownFieldPolicy) -> Self {
-        self.rules = self.rules.unknown_field_policy(policy);
+        self.rules.unknown_field_policy(policy);
         self
     }
 
     /// Adds every sensitive field defined by `preset` to application rules.
     pub fn include_preset(mut self, preset: SensitiveFieldPreset) -> Self {
-        self.rules = self.rules.include_preset(preset);
+        self.rules.include_preset(preset);
         self
     }
 
@@ -108,7 +113,7 @@ impl RedactionPolicyBuilder {
     ///
     /// Invalid field names are recorded and returned by [`Self::build`].
     pub fn raise(mut self, field: &str, level: Sensitivity) -> Self {
-        self.rules = self.rules.raise(field, level);
+        self.rules.raise(field, level);
         self
     }
 
@@ -116,7 +121,7 @@ impl RedactionPolicyBuilder {
     ///
     /// This does not weaken an enabled floor.
     pub fn override_level(mut self, field: &str, level: Sensitivity) -> Self {
-        self.rules = self.rules.override_level(field, level);
+        self.rules.override_level(field, level);
         self
     }
 
@@ -124,7 +129,7 @@ impl RedactionPolicyBuilder {
     ///
     /// An enabled floor remains independently effective for the same field.
     pub fn allow_canonical_exact(mut self, field: &str) -> Self {
-        self.rules = self.rules.allow_canonical_exact(field);
+        self.rules.allow_canonical_exact(field);
         self
     }
 
@@ -132,25 +137,25 @@ impl RedactionPolicyBuilder {
     ///
     /// An enabled floor remains independently effective for matching fields.
     pub fn allow_suffix(mut self, field: &str) -> Self {
-        self.rules = self.rules.allow_suffix(field);
+        self.rules.allow_suffix(field);
         self
     }
 
     /// Removes the exact application allow rule for `field` when present.
     pub fn remove_allow_canonical_exact(mut self, field: &str) -> Self {
-        self.rules = self.rules.remove_allow_canonical_exact(field);
+        self.rules.remove_allow_canonical_exact(field);
         self
     }
 
     /// Removes the suffix application allow rule for `field` when present.
     pub fn remove_allow_suffix(mut self, field: &str) -> Self {
-        self.rules = self.rules.remove_allow_suffix(field);
+        self.rules.remove_allow_suffix(field);
         self
     }
 
     /// Removes every application allow rule.
     pub fn clear_allow_rules(mut self) -> Self {
-        self.rules = self.rules.clear_allow_rules();
+        self.rules.clear_allow_rules();
         self
     }
 
@@ -180,7 +185,7 @@ impl RedactionPolicyBuilder {
     /// Returns the first deferred [`PolicyError`] from application-rule
     /// validation.
     pub fn build(self) -> Result<RedactionPolicy, PolicyError> {
-        let rules = RedactionRules::new(self.rules.build_inner()?, self.floor, self.floor_state);
+        let rules = RedactionRules::new(self.rules.build_inner()?, self.floor);
         self.masking.validate(PolicyLocation::Rules)?;
         Ok(RedactionPolicy::from_rules(
             rules,

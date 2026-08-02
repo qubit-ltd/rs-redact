@@ -64,79 +64,59 @@ impl RedactionRulesBuilder {
         }
     }
 
-    pub(crate) fn matching(mut self, matching: FieldNameMatching) -> Self {
+    pub(crate) fn matching(&mut self, matching: FieldNameMatching) {
         self.matching = matching;
-        self
     }
-    pub(crate) fn unknown_field_policy(
-        mut self,
-        policy: UnknownFieldPolicy,
-    ) -> Self {
+    pub(crate) fn unknown_field_policy(&mut self, policy: UnknownFieldPolicy) {
         self.unknown_field_policy = policy;
-        self
     }
-    pub(crate) fn include_preset(
-        mut self,
-        preset: SensitiveFieldPreset,
-    ) -> Self {
+    pub(crate) fn include_preset(&mut self, preset: SensitiveFieldPreset) {
         for &(field, level) in preset.fields() {
-            self = self.raise(field, level);
+            self.raise(field, level);
         }
-        self
     }
-    pub(crate) fn raise(mut self, field: &str, level: Sensitivity) -> Self {
+    pub(crate) fn raise(&mut self, field: &str, level: Sensitivity) {
         let Some(field) = self.canonical_field(field) else {
-            return self;
+            return;
         };
         self.sensitive
             .entry(field)
             .and_modify(|old| *old = (*old).max(level))
             .or_insert(level);
-        self
     }
-    pub(crate) fn override_level(
-        mut self,
-        field: &str,
-        level: Sensitivity,
-    ) -> Self {
+    pub(crate) fn override_level(&mut self, field: &str, level: Sensitivity) {
         let Some(field) = self.canonical_field(field) else {
-            return self;
+            return;
         };
         self.sensitive.insert(field, level);
-        self
     }
-    pub(crate) fn allow_canonical_exact(mut self, field: &str) -> Self {
+    pub(crate) fn allow_canonical_exact(&mut self, field: &str) {
         let Some(field) = self.canonical_field(field) else {
-            return self;
+            return;
         };
         self.allow_exact.insert(field);
-        self
     }
-    pub(crate) fn allow_suffix(mut self, field: &str) -> Self {
+    pub(crate) fn allow_suffix(&mut self, field: &str) {
         let Some(field) = self.canonical_field(field) else {
-            return self;
+            return;
         };
         self.allow_suffix.insert(field);
-        self
     }
-    pub(crate) fn remove_allow_canonical_exact(mut self, field: &str) -> Self {
+    pub(crate) fn remove_allow_canonical_exact(&mut self, field: &str) {
         let Some(field) = self.canonical_field(field) else {
-            return self;
+            return;
         };
         self.allow_exact.remove(&field);
-        self
     }
-    pub(crate) fn remove_allow_suffix(mut self, field: &str) -> Self {
+    pub(crate) fn remove_allow_suffix(&mut self, field: &str) {
         let Some(field) = self.canonical_field(field) else {
-            return self;
+            return;
         };
         self.allow_suffix.remove(&field);
-        self
     }
-    pub(crate) fn clear_allow_rules(mut self) -> Self {
+    pub(crate) fn clear_allow_rules(&mut self) {
         self.allow_exact.clear();
         self.allow_suffix.clear();
-        self
     }
     pub(crate) fn validate_field_name(
         field: &str,
