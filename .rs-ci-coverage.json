@@ -8,7 +8,6 @@
       "src/http/http_redaction_policy_builder.rs",
       "src/http/http_redactor.rs",
       "src/policy/diagnostic_input_budget.rs",
-      "src/policy/global_default_already_set.rs",
       "src/text/bounded_log_safe_display.rs",
       "src/text/log_output_limit_error.rs",
       "src/text/log_safe_text.rs"
