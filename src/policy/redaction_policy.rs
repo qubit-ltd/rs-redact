@@ -51,6 +51,25 @@ static STANDARD_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
         JsonDepthBudget::default(),
     )
 });
+static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
+    RedactionPolicy::from_rules(
+        RedactionRules::new(
+            RedactionPolicyInner {
+                sensitive: Default::default(),
+                allow_exact: Default::default(),
+                allow_suffix: Default::default(),
+                matching: FieldNameMatching::ExactOrTokenSuffix,
+                unknown_field_policy: UnknownFieldPolicy::Redact(Sensitivity::Secret),
+            },
+            Some(RedactionFloor::standard()),
+            RedactionFloorState::Explicit,
+        ),
+        MaskingPolicy::default(),
+        DiagnosticBudget::default(),
+        #[cfg(feature = "json")]
+        JsonDepthBudget::default(),
+    )
+});
 /// Immutable redaction policy.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,6 +88,16 @@ impl RedactionPolicy {
     #[inline]
     pub fn standard() -> Self {
         STANDARD_POLICY.clone()
+    }
+
+    /// Returns a strict boundary policy whose unknown fields are masked at
+    /// [`Sensitivity::Secret`] in addition to the standard floor.
+    ///
+    /// This preset is intended for untrusted external boundaries. It is more
+    /// protective than [`Self::standard`] but may reduce diagnostic detail.
+    #[inline]
+    pub fn strict() -> Self {
+        STRICT_POLICY.clone()
     }
 
     /// Creates a deterministic builder with no application rules and the

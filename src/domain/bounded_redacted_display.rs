@@ -22,7 +22,7 @@ use crate::{
 
 use super::internal::with_mask_byte_limit;
 
-/// A redacted display view whose log-safe output cannot exceed a byte limit.
+/// A redacted formatting view whose log-safe output cannot exceed a byte limit.
 ///
 /// The limit includes the complete `<truncated>` marker. Truncation preserves
 /// UTF-8 character boundaries and never splits a generated escape sequence.
@@ -48,7 +48,7 @@ impl<D> BoundedRedactedDisplay<D> {
     ///
     /// # Returns
     ///
-    /// A display-only bounded adapter.
+    /// A bounded adapter implementing both `Debug` and `Display`.
     #[inline(always)]
     pub(crate) const fn new(value: D, limit: LogOutputLimit) -> Self {
         Self { value, limit }
@@ -57,6 +57,27 @@ impl<D> BoundedRedactedDisplay<D> {
 
 impl<D: Debug> Display for BoundedRedactedDisplay<D> {
     /// Writes escaped redacted output within the configured byte budget.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination formatting context.
+    ///
+    /// # Returns
+    ///
+    /// The formatter result for the bounded output.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when redacted formatting or the destination
+    /// rejects output.
+    #[inline(always)]
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        format_bounded(&self.value, self.limit, formatter)
+    }
+}
+
+impl<D: Debug> Debug for BoundedRedactedDisplay<D> {
+    /// Writes the same bounded, log-safe representation as [`Display`].
     ///
     /// # Parameters
     ///

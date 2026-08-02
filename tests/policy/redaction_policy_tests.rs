@@ -97,6 +97,21 @@ fn test_standard_and_default_contain_presets_and_extra_fields() {
     }
 }
 
+/// Verifies the strict preset redacts unknown application fields.
+#[test]
+fn test_strict_preset_redacts_unknown_fields() {
+    let policy = RedactionPolicy::strict();
+
+    assert_eq!(
+        policy.unknown_field_policy(),
+        qubit_redact::UnknownFieldPolicy::Redact(Sensitivity::Secret),
+    );
+    assert_eq!(
+        policy.sensitivity_for("custom_field"),
+        Some(Sensitivity::Secret)
+    );
+}
+
 /// Verifies that ordinary builders have empty application rules and the
 /// standard floor.
 #[test]

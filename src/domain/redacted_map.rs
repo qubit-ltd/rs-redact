@@ -72,7 +72,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     ///
     /// # Returns
     ///
-    /// A display-only adapter that owns this redacted map view.
+    /// A bounded formatting adapter that owns this redacted map view.
     #[inline(always)]
     pub const fn with_output_limit(
         self,
@@ -85,7 +85,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     ///
     /// # Returns
     ///
-    /// A display-only adapter bounded by this view's diagnostic output budget.
+    /// A formatting adapter bounded by this view's diagnostic output budget.
     #[must_use = "format the bounded redacted map display adapter"]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {

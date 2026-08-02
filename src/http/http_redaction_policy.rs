@@ -46,6 +46,18 @@ impl HttpRedactionPolicy {
         HttpRedactionPolicyBuilder::from_base_policy(base)
     }
 
+    /// Returns a strict boundary policy for untrusted HTTP data.
+    ///
+    /// Unknown header, query, and structured-body fields are masked at
+    /// [`crate::Sensitivity::Secret`]. Opaque text, unkeyed JSON values, URL
+    /// paths, and all resource budgets retain their conservative defaults.
+    #[inline]
+    pub fn strict() -> Self {
+        Self::builder_from(&RedactionPolicy::strict())
+            .build()
+            .expect("the built-in strict HTTP policy must be valid")
+    }
+
     /// Creates a builder that exactly copies `self`.
     #[inline(always)]
     pub fn to_builder(&self) -> HttpRedactionPolicyBuilder {

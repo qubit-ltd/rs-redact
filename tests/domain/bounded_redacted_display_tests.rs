@@ -87,6 +87,23 @@ fn test_bounded_redacted_display_preserves_complete_output() {
     assert_eq!(actual, expected);
 }
 
+/// Verifies the bounded adapter also constrains debug formatting.
+#[test]
+fn test_bounded_redacted_display_debug_is_bounded() {
+    let value = DiagnosticText {
+        value: "content exceeds the minimum budget",
+    };
+
+    let actual = format!(
+        "{:?}",
+        value
+            .redacted()
+            .with_output_limit(limit(LogOutputLimit::MINIMUM)),
+    );
+
+    assert_eq!(actual, "<truncated>");
+}
+
 /// Verifies the minimum budget emits only the complete truncation marker.
 #[test]
 fn test_bounded_redacted_display_uses_marker_only_at_minimum() {
