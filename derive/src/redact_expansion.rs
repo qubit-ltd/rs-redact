@@ -61,6 +61,7 @@ pub(crate) fn expand(
         input,
         "Redact",
         container_attributes.serde_enabled(),
+        container_attributes.require_explicit(),
     )?;
     let serde = container_attributes
         .serde_enabled()

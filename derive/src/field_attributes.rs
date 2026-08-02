@@ -50,6 +50,7 @@ impl FieldAttributes {
         field: &Field,
         type_name: &Ident,
         field_name: &str,
+        require_explicit: bool,
     ) -> syn::Result<Self> {
         let mut selected = None;
         for attribute in &field.attrs {
@@ -61,7 +62,7 @@ impl FieldAttributes {
                     attribute,
                     type_name,
                     field_name,
-                    "expected `#[redact(level = \"...\")]`, `#[redact(skip)]`, \
+                    "expected `#[redact(plain)]`, `#[redact(level = \"...\")]`, `#[redact(skip)]`, \
                      `#[redact(nested)]`, or `#[redact(map)]`",
                 ));
             };
@@ -70,7 +71,7 @@ impl FieldAttributes {
                     attribute,
                     type_name,
                     field_name,
-                    "empty `#[redact()]` is not allowed; choose `level = \"...\"`, `skip`, \
+                    "empty `#[redact()]` is not allowed; choose `plain`, `level = \"...\"`, `skip`, \
                      `nested`, or `map`",
                 ));
             }
@@ -79,9 +80,20 @@ impl FieldAttributes {
                 select_mode(&meta, type_name, field_name, &mut selected, mode)
             })?;
         }
-        Ok(Self {
-            mode: selected.unwrap_or(FieldMode::Plain),
-        })
+        let mode = match selected {
+            Some(mode) => mode,
+            None if require_explicit => {
+                return Err(field_error(
+                    field,
+                    type_name,
+                    field_name,
+                    "requires an explicit mode; use `plain`, `level = \"...\"`, `skip`, \
+                     `nested`, `map`, or `json`",
+                ));
+            }
+            None => FieldMode::Plain,
+        };
+        Ok(Self { mode })
     }
 
     /// Returns the unique formatting mode selected for the field.
@@ -116,7 +128,15 @@ fn parse_mode(
     type_name: &Ident,
     field_name: &str,
 ) -> syn::Result<FieldMode> {
-    if meta.path.is_ident("level") {
+    if meta.path.is_ident("plain") {
+        require_bare(
+            meta,
+            type_name,
+            field_name,
+            "bare `plain` without arguments",
+        )?;
+        Ok(FieldMode::Plain)
+    } else if meta.path.is_ident("level") {
         if !meta.input.peek(Token![=]) {
             return Err(meta.error(format!(
                 "Redact derive for `{type_name}` field `{field_name}` requires \
@@ -164,7 +184,7 @@ fn parse_mode(
         let key = meta.path.to_token_stream().to_string();
         Err(meta.error(format!(
             "Redact derive for `{type_name}` field `{field_name}` has unknown \
-             attribute `{key}`; use `level = \"...\"`, `skip`, `nested`, `map`, or `json`",
+             attribute `{key}`; use `plain`, `level = \"...\"`, `skip`, `nested`, `map`, or `json`",
         )))
     }
 }
@@ -222,7 +242,7 @@ fn select_mode(
     if selected.is_some() {
         return Err(meta.error(format!(
             "Redact derive for `{type_name}` field `{field_name}` has conflicting or \
-             repeated modes; choose exactly one of `level = \"...\"`, `skip`, \
+             repeated modes; choose exactly one of `plain`, `level = \"...\"`, `skip`, \
              `nested`, `map`, or `json`; map values are classified by runtime key and the \
              complete policy",
         )));

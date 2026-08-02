@@ -1,0 +1,6 @@
+error: Redact derive for `MissingMode` field `visible`: requires an explicit mode; use `plain`, `level = "..."`, `skip`, `nested`, `map`, or `json`
+  --> tests/fixtures/fail/require_explicit_missing.rs:16:5
+   |
+16 | /     /// This field must be annotated with `#[redact(plain)]` or another mode.
+17 | |     visible: String,
+   | |___________________^

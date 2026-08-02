@@ -43,6 +43,7 @@ pub(crate) fn parse<'a>(
     fields: &'a FieldsUnnamed,
     type_name: &Ident,
     serde_enabled: bool,
+    require_explicit: bool,
 ) -> syn::Result<Vec<UnnamedField<'a>>> {
     fields
         .unnamed
@@ -50,8 +51,12 @@ pub(crate) fn parse<'a>(
         .enumerate()
         .map(|(position, field)| {
             let field_name = position.to_string();
-            let attributes =
-                FieldAttributes::parse(field, type_name, &field_name)?;
+            let attributes = FieldAttributes::parse(
+                field,
+                type_name,
+                &field_name,
+                require_explicit,
+            )?;
             let serde_attributes = SerdeAttributes::parse(
                 field,
                 type_name,

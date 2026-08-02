@@ -35,6 +35,7 @@ use crate::{
 /// * `input` - Complete derive input to validate.
 /// * `derive_name` - Derive name used in targeted shape diagnostics.
 /// * `serde_enabled` - Whether supported serde controls are validated.
+/// * `require_explicit` - Whether every field must select a mode explicitly.
 ///
 /// # Returns
 ///
@@ -47,12 +48,14 @@ pub(crate) fn parse<'a>(
     input: &'a DeriveInput,
     derive_name: &str,
     serde_enabled: bool,
+    require_explicit: bool,
 ) -> syn::Result<ContainerData<'a>> {
     match &input.data {
         Data::Struct(data) => Ok(ContainerData::Struct(parse_fields(
             &data.fields,
             &input.ident,
             serde_enabled,
+            require_explicit,
         )?)),
         Data::Enum(data) => {
             let variants = data
@@ -69,6 +72,7 @@ pub(crate) fn parse<'a>(
                         &variant.fields,
                         &input.ident,
                         serde_enabled,
+                        require_explicit,
                     )?;
                     Ok(VariantData::new(
                         variant,
@@ -110,16 +114,23 @@ fn parse_fields<'a>(
     fields: &'a Fields,
     type_name: &syn::Ident,
     serde_enabled: bool,
+    require_explicit: bool,
 ) -> syn::Result<FieldsData<'a>> {
     match fields {
         Fields::Named(fields) => Ok(FieldsData::Named(named_fields::parse(
             fields,
             type_name,
             serde_enabled,
+            require_explicit,
         )?)),
-        Fields::Unnamed(fields) => Ok(FieldsData::Unnamed(
-            unnamed_fields::parse(fields, type_name, serde_enabled)?,
-        )),
+        Fields::Unnamed(fields) => {
+            Ok(FieldsData::Unnamed(unnamed_fields::parse(
+                fields,
+                type_name,
+                serde_enabled,
+                require_explicit,
+            )?))
+        }
         Fields::Unit => Ok(FieldsData::Unit),
     }
 }

@@ -22,6 +22,8 @@ pub(crate) struct ContainerAttributes {
     display: bool,
     /// Whether redacted serde integration was requested.
     serde: bool,
+    /// Whether every field must declare an explicit redaction mode.
+    require_explicit: bool,
 }
 
 impl ContainerAttributes {
@@ -43,6 +45,7 @@ impl ContainerAttributes {
         let mut debug = false;
         let mut display = false;
         let mut serde = false;
+        let mut require_explicit = false;
         for attribute in &input.attrs {
             if !attribute.path().is_ident("redact") {
                 continue;
@@ -51,7 +54,7 @@ impl ContainerAttributes {
                 return Err(syn::Error::new_spanned(
                     attribute,
                     format!(
-                        "Redact derive for `{}` expects `#[redact(debug, display, serde)]` on the container",
+                        "Redact derive for `{}` expects `#[redact(debug, display, serde, require_explicit)]` on the container",
                         input.ident,
                     ),
                 ));
@@ -61,7 +64,8 @@ impl ContainerAttributes {
                     attribute,
                     format!(
                         "Redact derive for `{}` does not allow an empty container attribute; use \
-                         `#[redact(debug)]`, `#[redact(display)]`, or `#[redact(serde)]`",
+                         `#[redact(debug)]`, `#[redact(display)]`, `#[redact(serde)]`, or \
+                         `#[redact(require_explicit)]`",
                         input.ident,
                     ),
                 ));
@@ -73,10 +77,12 @@ impl ContainerAttributes {
                     &mut display
                 } else if meta.path.is_ident("serde") {
                     &mut serde
+                } else if meta.path.is_ident("require_explicit") {
+                    &mut require_explicit
                 } else {
                     return Err(meta.error(format!(
                         "Redact derive for `{}` has unknown container attribute; use \
-                         `debug`, `display`, or `serde`",
+                         `debug`, `display`, `serde`, or `require_explicit`",
                         input.ident,
                     )));
                 };
@@ -110,6 +116,7 @@ impl ContainerAttributes {
             debug,
             display,
             serde,
+            require_explicit,
         })
     }
 
@@ -144,5 +151,16 @@ impl ContainerAttributes {
     #[inline(always)]
     pub(crate) const fn serde_enabled(&self) -> bool {
         self.serde
+    }
+
+    /// Returns whether every field must select an explicit redaction mode.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the `require_explicit` container option was present.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) const fn require_explicit(&self) -> bool {
+        self.require_explicit
     }
 }

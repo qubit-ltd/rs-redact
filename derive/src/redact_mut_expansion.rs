@@ -52,8 +52,13 @@ pub(crate) fn expand(
     input: &DeriveInput,
     runtime: &Path,
 ) -> syn::Result<TokenStream> {
-    let _ = ContainerAttributes::parse(input)?;
-    let model = input_model::parse(input, "RedactMut", false)?;
+    let container_attributes = ContainerAttributes::parse(input)?;
+    let model = input_model::parse(
+        input,
+        "RedactMut",
+        false,
+        container_attributes.require_explicit(),
+    )?;
     let (mutable_assertions, mutations) = match &model {
         ContainerData::Struct(fields) => (
             mutable_assertions(&input.ident, fields, runtime),

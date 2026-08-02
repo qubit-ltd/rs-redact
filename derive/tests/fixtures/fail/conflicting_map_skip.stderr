@@ -1,4 +1,4 @@
-error: Redact derive for `Record` field `values` has conflicting or repeated modes; choose exactly one of `level = "..."`, `skip`, `nested`, `map`, or `json`; map values are classified by runtime key and the complete policy
+error: Redact derive for `Record` field `values` has conflicting or repeated modes; choose exactly one of `plain`, `level = "..."`, `skip`, `nested`, `map`, or `json`; map values are classified by runtime key and the complete policy
   --> tests/fixtures/fail/conflicting_map_skip.rs:18:19
    |
 18 |     #[redact(map, skip)]

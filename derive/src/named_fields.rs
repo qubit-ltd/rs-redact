@@ -46,6 +46,7 @@ pub(crate) fn parse<'a>(
     fields: &'a FieldsNamed,
     type_name: &Ident,
     serde_enabled: bool,
+    require_explicit: bool,
 ) -> syn::Result<Vec<NamedField<'a>>> {
     fields
         .named
@@ -56,8 +57,12 @@ pub(crate) fn parse<'a>(
                 .as_ref()
                 .expect("syn named fields always have identifiers");
             let field_name = identifier.to_string();
-            let attributes =
-                FieldAttributes::parse(field, type_name, &field_name)?;
+            let attributes = FieldAttributes::parse(
+                field,
+                type_name,
+                &field_name,
+                require_explicit,
+            )?;
             let serde_attributes = SerdeAttributes::parse(
                 field,
                 type_name,
