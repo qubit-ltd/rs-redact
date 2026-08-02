@@ -10,8 +10,14 @@
 use std::sync::Arc;
 
 use super::{
-    FieldNameMatching, PolicyError, PolicyLocation, RedactionFloor, RedactionRulesBuilder,
-    SensitiveFieldPreset, Sensitivity, UnknownFieldPolicy,
+    FieldNameMatching,
+    PolicyError,
+    PolicyLocation,
+    RedactionFloor,
+    RedactionRulesBuilder,
+    SensitiveFieldPreset,
+    Sensitivity,
+    UnknownFieldPolicy,
 };
 
 /// Builder for a [`RedactionFloor`].
@@ -32,7 +38,10 @@ impl RedactionFloorBuilder {
     /// Copies every field rule from `floor`.
     pub(super) fn from_floor(floor: &RedactionFloor) -> Self {
         Self {
-            rules: RedactionRulesBuilder::from_inner(&floor.inner, PolicyLocation::Floor),
+            rules: RedactionRulesBuilder::from_inner(
+                &floor.inner,
+                PolicyLocation::Floor,
+            ),
         }
     }
 
@@ -48,7 +57,11 @@ impl RedactionFloorBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// floor-rule name.
-    pub fn raise(mut self, field: &str, level: Sensitivity) -> Result<Self, PolicyError> {
+    pub fn raise(
+        mut self,
+        field: &str,
+        level: Sensitivity,
+    ) -> Result<Self, PolicyError> {
         self.rules.raise(field, level)?;
         Ok(self)
     }

@@ -10,14 +10,27 @@
 use std::sync::Arc;
 
 use crate::{
-    DiagnosticBudget, JsonDepthBudget, MaskPolicy, MaskingPolicy, PolicyError, PolicyLocation,
-    RedactionFloor, RedactionPolicy, RedactionRules, Sensitivity, policy::RedactionRulesBuilder,
+    DiagnosticBudget,
+    JsonDepthBudget,
+    MaskPolicy,
+    MaskingPolicy,
+    PolicyError,
+    PolicyLocation,
+    RedactionFloor,
+    RedactionPolicy,
+    RedactionRules,
+    Sensitivity,
+    policy::RedactionRulesBuilder,
 };
 
 use super::context_rules_builder::ContextRulesBuilder;
 use super::http_redaction_policy_parts::HttpRedactionPolicyParts;
 use super::{
-    BodyBudget, HttpFieldContext, HttpRedactionPolicy, TextBodyPolicy, UnkeyedJsonValuePolicy,
+    BodyBudget,
+    HttpFieldContext,
+    HttpRedactionPolicy,
+    TextBodyPolicy,
+    UnkeyedJsonValuePolicy,
     UrlPathPolicy,
 };
 
@@ -42,8 +55,14 @@ impl HttpRedactionPolicyBuilder {
     pub fn new() -> Self {
         let floor = RedactionFloor::standard();
         Self {
-            header: ContextRulesBuilder::empty(PolicyLocation::HttpHeader, floor.clone()),
-            query: ContextRulesBuilder::empty(PolicyLocation::HttpQuery, floor.clone()),
+            header: ContextRulesBuilder::empty(
+                PolicyLocation::HttpHeader,
+                floor.clone(),
+            ),
+            query: ContextRulesBuilder::empty(
+                PolicyLocation::HttpQuery,
+                floor.clone(),
+            ),
             body: ContextRulesBuilder::empty(PolicyLocation::HttpBody, floor),
             masking: MaskingPolicy::default(),
             url_path_policy: UrlPathPolicy::default(),
@@ -62,8 +81,14 @@ impl HttpRedactionPolicyBuilder {
                 policy.header_rules(),
                 PolicyLocation::HttpHeader,
             ),
-            query: ContextRulesBuilder::from_rules(policy.query_rules(), PolicyLocation::HttpQuery),
-            body: ContextRulesBuilder::from_rules(policy.body_rules(), PolicyLocation::HttpBody),
+            query: ContextRulesBuilder::from_rules(
+                policy.query_rules(),
+                PolicyLocation::HttpQuery,
+            ),
+            body: ContextRulesBuilder::from_rules(
+                policy.body_rules(),
+                PolicyLocation::HttpBody,
+            ),
             masking: policy.masking().clone(),
             url_path_policy: policy.url_path_policy(),
             text_body_policy: policy.text_body_policy(),
@@ -77,9 +102,18 @@ impl HttpRedactionPolicyBuilder {
     /// Creates three context copies from one complete field policy.
     pub(crate) fn from_base_policy(policy: &RedactionPolicy) -> Self {
         Self {
-            header: ContextRulesBuilder::from_rules(policy.rules(), PolicyLocation::HttpHeader),
-            query: ContextRulesBuilder::from_rules(policy.rules(), PolicyLocation::HttpQuery),
-            body: ContextRulesBuilder::from_rules(policy.rules(), PolicyLocation::HttpBody),
+            header: ContextRulesBuilder::from_rules(
+                policy.rules(),
+                PolicyLocation::HttpHeader,
+            ),
+            query: ContextRulesBuilder::from_rules(
+                policy.rules(),
+                PolicyLocation::HttpQuery,
+            ),
+            body: ContextRulesBuilder::from_rules(
+                policy.rules(),
+                PolicyLocation::HttpBody,
+            ),
             masking: policy.masking().clone(),
             url_path_policy: UrlPathPolicy::default(),
             text_body_policy: TextBodyPolicy::default(),
@@ -91,7 +125,10 @@ impl HttpRedactionPolicyBuilder {
     }
 
     /// Returns mutable construction state for one HTTP field context.
-    fn context_mut(&mut self, context: HttpFieldContext) -> &mut ContextRulesBuilder {
+    fn context_mut(
+        &mut self,
+        context: HttpFieldContext,
+    ) -> &mut ContextRulesBuilder {
         match context {
             HttpFieldContext::Header => &mut self.header,
             HttpFieldContext::Query => &mut self.query,
@@ -100,13 +137,22 @@ impl HttpRedactionPolicyBuilder {
     }
 
     /// Replaces rules for one HTTP field context.
-    pub fn rules(mut self, context: HttpFieldContext, rules: RedactionRules) -> Self {
-        *self.context_mut(context) = ContextRulesBuilder::from_rules(&rules, context.location());
+    pub fn rules(
+        mut self,
+        context: HttpFieldContext,
+        rules: RedactionRules,
+    ) -> Self {
+        *self.context_mut(context) =
+            ContextRulesBuilder::from_rules(&rules, context.location());
         self
     }
 
     /// Sets a floor for one HTTP field context.
-    pub fn floor_for(mut self, context: HttpFieldContext, floor: RedactionFloor) -> Self {
+    pub fn floor_for(
+        mut self,
+        context: HttpFieldContext,
+        floor: RedactionFloor,
+    ) -> Self {
         self.context_mut(context).with_floor(floor);
         self
     }
@@ -208,12 +254,19 @@ impl HttpRedactionPolicyBuilder {
     }
 
     /// Validates a field name in the selected HTTP context.
-    pub fn validate_field_name(context: HttpFieldContext, name: &str) -> Result<(), PolicyError> {
+    pub fn validate_field_name(
+        context: HttpFieldContext,
+        name: &str,
+    ) -> Result<(), PolicyError> {
         RedactionRulesBuilder::validate_field_name(name, context.location())
     }
 
     /// Sets the shared mask policy for values at `level`.
-    pub fn mask(mut self, level: Sensitivity, policy: MaskPolicy) -> Result<Self, PolicyError> {
+    pub fn mask(
+        mut self,
+        level: Sensitivity,
+        policy: MaskPolicy,
+    ) -> Result<Self, PolicyError> {
         let masking = self.masking.with_policy(level, policy);
         masking.validate(PolicyLocation::HttpMasking)?;
         self.masking = masking;
@@ -231,7 +284,10 @@ impl HttpRedactionPolicyBuilder {
         self
     }
     /// Replaces unkeyed JSON value handling.
-    pub const fn unkeyed_json_value_policy(mut self, policy: UnkeyedJsonValuePolicy) -> Self {
+    pub const fn unkeyed_json_value_policy(
+        mut self,
+        policy: UnkeyedJsonValuePolicy,
+    ) -> Self {
         self.unkeyed_json_value_policy = policy;
         self
     }

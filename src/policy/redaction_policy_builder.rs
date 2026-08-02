@@ -10,9 +10,19 @@
 #[cfg(feature = "json")]
 use super::JsonDepthBudget;
 use super::{
-    DiagnosticBudget, FieldNameMatching, MaskPolicy, MaskingPolicy, PolicyError, PolicyLocation,
-    RedactionFloor, RedactionPolicy, RedactionRules, RedactionRulesBuilder, SensitiveFieldPreset,
-    Sensitivity, UnknownFieldPolicy,
+    DiagnosticBudget,
+    FieldNameMatching,
+    MaskPolicy,
+    MaskingPolicy,
+    PolicyError,
+    PolicyLocation,
+    RedactionFloor,
+    RedactionPolicy,
+    RedactionRules,
+    RedactionRulesBuilder,
+    SensitiveFieldPreset,
+    Sensitivity,
+    UnknownFieldPolicy,
 };
 
 /// Mutable construction state for an immutable [`RedactionPolicy`].
@@ -105,7 +115,11 @@ impl RedactionPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// application-rule name.
-    pub fn raise(mut self, field: &str, level: Sensitivity) -> Result<Self, PolicyError> {
+    pub fn raise(
+        mut self,
+        field: &str,
+        level: Sensitivity,
+    ) -> Result<Self, PolicyError> {
         self.rules.raise(field, level)?;
         Ok(self)
     }
@@ -118,7 +132,11 @@ impl RedactionPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// application-rule name.
-    pub fn override_level(mut self, field: &str, level: Sensitivity) -> Result<Self, PolicyError> {
+    pub fn override_level(
+        mut self,
+        field: &str,
+        level: Sensitivity,
+    ) -> Result<Self, PolicyError> {
         self.rules.override_level(field, level)?;
         Ok(self)
     }
@@ -131,7 +149,10 @@ impl RedactionPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// application-rule name.
-    pub fn allow_canonical_exact(mut self, field: &str) -> Result<Self, PolicyError> {
+    pub fn allow_canonical_exact(
+        mut self,
+        field: &str,
+    ) -> Result<Self, PolicyError> {
         self.rules.allow_canonical_exact(field)?;
         Ok(self)
     }
@@ -155,7 +176,10 @@ impl RedactionPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// application-rule name.
-    pub fn remove_allow_canonical_exact(mut self, field: &str) -> Result<Self, PolicyError> {
+    pub fn remove_allow_canonical_exact(
+        mut self,
+        field: &str,
+    ) -> Result<Self, PolicyError> {
         self.rules.remove_allow_canonical_exact(field)?;
         Ok(self)
     }
@@ -166,7 +190,10 @@ impl RedactionPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// application-rule name.
-    pub fn remove_allow_suffix(mut self, field: &str) -> Result<Self, PolicyError> {
+    pub fn remove_allow_suffix(
+        mut self,
+        field: &str,
+    ) -> Result<Self, PolicyError> {
         self.rules.remove_allow_suffix(field)?;
         Ok(self)
     }
@@ -183,7 +210,11 @@ impl RedactionPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFixedReplacement`] when `policy` supplies
     /// an empty fixed replacement.
-    pub fn mask(mut self, level: Sensitivity, policy: MaskPolicy) -> Result<Self, PolicyError> {
+    pub fn mask(
+        mut self,
+        level: Sensitivity,
+        policy: MaskPolicy,
+    ) -> Result<Self, PolicyError> {
         let masking = self.masking.with_policy(level, policy);
         masking.validate(PolicyLocation::Rules)?;
         self.masking = masking;

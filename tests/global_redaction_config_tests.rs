@@ -8,7 +8,10 @@
 //! Tests for process-wide redaction configuration installation.
 
 use qubit_redact::{
-    GlobalRedactionConfig, GlobalRedactionConfigAlreadyInstalled, RedactionFloor, RedactionPolicy,
+    GlobalRedactionConfig,
+    GlobalRedactionConfigAlreadyInstalled,
+    RedactionFloor,
+    RedactionPolicy,
     Sensitivity,
 };
 

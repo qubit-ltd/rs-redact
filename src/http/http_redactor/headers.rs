@@ -9,10 +9,15 @@
 
 use std::collections::BTreeMap;
 
-use http::{HeaderMap, HeaderValue};
+use http::{
+    HeaderMap,
+    HeaderValue,
+};
 
 /// Groups repeated header values under deterministically ordered names.
-pub(super) fn group_values(headers: &HeaderMap) -> BTreeMap<&str, Vec<&HeaderValue>> {
+pub(super) fn group_values(
+    headers: &HeaderMap,
+) -> BTreeMap<&str, Vec<&HeaderValue>> {
     let mut values = BTreeMap::<&str, Vec<&HeaderValue>>::new();
     for (name, value) in headers {
         values.entry(name.as_str()).or_default().push(value);

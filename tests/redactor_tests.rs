@@ -7,9 +7,16 @@
 // =============================================================================
 //! Integration tests for [`Redactor`](qubit_redact::Redactor).
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
-use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
+use qubit_redact::{
+    RedactionPolicy,
+    Redactor,
+    Sensitivity,
+};
 
 /// Verifies an explicit sensitivity cannot be bypassed by a field allow rule.
 #[test]

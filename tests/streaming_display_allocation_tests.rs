@@ -8,14 +8,25 @@
 //! Allocation regression tests for streaming redacted display.
 
 use std::{
-    alloc::{GlobalAlloc, Layout, System},
+    alloc::{
+        GlobalAlloc,
+        Layout,
+        System,
+    },
     cell::Cell,
     collections::BTreeMap,
-    fmt::{self, Write},
+    fmt::{
+        self,
+        Write,
+    },
     sync::Mutex,
 };
 
-use qubit_redact::{Redact, RedactedMap, RedactionPolicy};
+use qubit_redact::{
+    Redact,
+    RedactedMap,
+    RedactionPolicy,
+};
 
 /// Serializes allocation-counting sections within this integration-test binary.
 static TEST_LOCK: Mutex<()> = Mutex::new(());
@@ -53,7 +64,12 @@ unsafe impl GlobalAlloc for CountingAllocator {
     }
 
     /// Resizes an allocation through the system allocator and records it.
-    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+    unsafe fn realloc(
+        &self,
+        pointer: *mut u8,
+        layout: Layout,
+        new_size: usize,
+    ) -> *mut u8 {
         record_allocation();
         // SAFETY: All arguments are forwarded unchanged to the system
         // allocator.
@@ -158,7 +174,8 @@ fn test_redacted_displays_stream_without_allocation() {
     let mut output = FixedBuffer::new();
 
     let allocations = measured_allocations(|| {
-        write!(&mut output, "{view}").expect("the fixed output buffer can hold the record");
+        write!(&mut output, "{view}")
+            .expect("the fixed output buffer can hold the record");
     });
 
     assert_eq!(allocations, 0);
@@ -167,7 +184,8 @@ fn test_redacted_displays_stream_without_allocation() {
     let mut output = FixedBuffer::new();
 
     let allocations = measured_allocations(|| {
-        write!(&mut output, "{view}").expect("the fixed output buffer can hold the map");
+        write!(&mut output, "{view}")
+            .expect("the fixed output buffer can hold the map");
     });
 
     assert_eq!(allocations, 0);
@@ -187,7 +205,8 @@ fn test_nonempty_redacted_map_streams_without_allocation() {
     let mut output = FixedBuffer::new();
 
     let allocations = measured_allocations(|| {
-        write!(&mut output, "{view}").expect("the fixed output buffer can hold the visible map");
+        write!(&mut output, "{view}")
+            .expect("the fixed output buffer can hold the visible map");
     });
 
     assert_eq!(allocations, 0);

@@ -8,7 +8,12 @@
 //! Tests for borrowed JSON value redaction.
 
 use qubit_redact::{
-    JsonDepthBudget, MaskPolicy, RedactedJson, RedactionPolicy, Sensitivity, UnknownFieldPolicy,
+    JsonDepthBudget,
+    MaskPolicy,
+    RedactedJson,
+    RedactionPolicy,
+    Sensitivity,
+    UnknownFieldPolicy,
 };
 use serde_json::json;
 
@@ -113,7 +118,9 @@ fn test_redacted_json_fails_closed_at_depth_budget() {
         "nested": {"deeper": {"secret": "raw-depth-secret"}},
     });
     let policy = RedactionPolicy::builder()
-        .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
+        .json_depth_budget(
+            JsonDepthBudget::new(1).expect("the depth budget is valid"),
+        )
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .expect("the test mask policy should be valid")
         .build()
@@ -188,7 +195,9 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
         "nested": {"secret": "raw-depth-secret"},
     });
     let policy = RedactionPolicy::builder()
-        .json_depth_budget(JsonDepthBudget::new(1).expect("the depth budget is valid"))
+        .json_depth_budget(
+            JsonDepthBudget::new(1).expect("the depth budget is valid"),
+        )
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .expect("the test mask policy should be valid")
         .build()

@@ -7,7 +7,10 @@
 // =============================================================================
 //! Process-wide redaction configuration snapshots.
 
-use std::sync::{LazyLock, OnceLock};
+use std::sync::{
+    LazyLock,
+    OnceLock,
+};
 
 use crate::RedactionPolicy;
 use crate::global_redaction_config_already_installed::GlobalRedactionConfigAlreadyInstalled;
@@ -59,7 +62,10 @@ impl GlobalRedactionConfig {
     /// Replaces the derived HTTP policy with an explicit policy.
     #[cfg(feature = "http")]
     #[inline]
-    pub fn with_http_policy(mut self, http_policy: HttpRedactionPolicy) -> Self {
+    pub fn with_http_policy(
+        mut self,
+        http_policy: HttpRedactionPolicy,
+    ) -> Self {
         self.http_policy = http_policy;
         self
     }

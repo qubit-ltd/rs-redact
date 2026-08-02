@@ -7,10 +7,21 @@
 // =============================================================================
 //! External tests for minimum redaction floors.
 
-use proptest::{prop_assert, prop_assert_eq, proptest};
+use proptest::{
+    prop_assert,
+    prop_assert_eq,
+    proptest,
+};
 use qubit_redact::{
-    FieldNameMatching, MaskPolicy, PolicyError, PolicyLocation, RedactionFloor, RedactionPolicy,
-    Redactor, Sensitivity, UnknownFieldPolicy,
+    FieldNameMatching,
+    MaskPolicy,
+    PolicyError,
+    PolicyLocation,
+    RedactionFloor,
+    RedactionPolicy,
+    Redactor,
+    Sensitivity,
+    UnknownFieldPolicy,
 };
 
 #[test]

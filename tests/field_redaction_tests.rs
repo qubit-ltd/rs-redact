@@ -7,7 +7,13 @@
 // =============================================================================
 //! Tests for typed scalar field-redaction results.
 
-use qubit_redact::{FieldRedaction, PassThroughReason, RedactionPolicy, Redactor, Sensitivity};
+use qubit_redact::{
+    FieldRedaction,
+    PassThroughReason,
+    RedactionPolicy,
+    Redactor,
+    Sensitivity,
+};
 
 /// Verifies masked fields expose a typed masked result.
 #[test]

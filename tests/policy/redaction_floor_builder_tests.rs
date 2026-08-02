@@ -7,7 +7,12 @@
 // =============================================================================
 //! Tests for [`RedactionFloorBuilder`](qubit_redact::RedactionFloorBuilder).
 
-use qubit_redact::{FieldNameMatching, RedactionFloor, Sensitivity, UnknownFieldPolicy};
+use qubit_redact::{
+    FieldNameMatching,
+    RedactionFloor,
+    Sensitivity,
+    UnknownFieldPolicy,
+};
 
 /// Verifies copying a floor preserves every builder-owned rule choice.
 #[test]

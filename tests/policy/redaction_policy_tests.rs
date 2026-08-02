@@ -7,10 +7,19 @@
 // =============================================================================
 //! Tests for immutable redaction policies and rule matching.
 
-use proptest::{prop_assert_eq, proptest};
+use proptest::{
+    prop_assert_eq,
+    proptest,
+};
 use qubit_redact::{
-    FieldNameMatching, MaskPolicy, PolicyError, PolicyLocation, RedactionPolicy,
-    RedactionPolicyBuilder, SensitiveFieldPreset, Sensitivity,
+    FieldNameMatching,
+    MaskPolicy,
+    PolicyError,
+    PolicyLocation,
+    RedactionPolicy,
+    RedactionPolicyBuilder,
+    SensitiveFieldPreset,
+    Sensitivity,
 };
 
 /// Verifies that an exact allow rule does not allow a contextual suffix.
@@ -179,10 +188,9 @@ fn test_builder_is_empty_and_default_based_builder_is_explicit() {
 /// state.
 #[test]
 fn test_builder_from_snapshot_replaces_existing_state_and_error() {
-    let policy = RedactionPolicy::default()
-        .to_builder()
-        .build()
-        .expect("the complete default replacement should clear the prior error");
+    let policy = RedactionPolicy::default().to_builder().build().expect(
+        "the complete default replacement should clear the prior error",
+    );
 
     assert_eq!(policy, RedactionPolicy::default());
     assert_eq!(policy.sensitivity_for("custom_only"), None);
@@ -226,16 +234,16 @@ fn test_builder_from_copies_complete_policy_snapshot() {
     assert_eq!(copied.sensitivity_for("OPENAI_TENANT_SECRET"), None);
     assert_eq!(copied.sensitivity_for("public_token"), None);
     assert_eq!(copied.sensitivity_for("diagnostic_token"), None);
-    assert!(
-        sensitive.iter().any(|rule| {
-            rule.field() == "publictoken" && rule.sensitivity() == Sensitivity::High
-        })
-    );
     assert!(sensitive.iter().any(|rule| {
-        rule.field() == "diagnostictoken" && rule.sensitivity() == Sensitivity::Medium
+        rule.field() == "publictoken" && rule.sensitivity() == Sensitivity::High
+    }));
+    assert!(sensitive.iter().any(|rule| {
+        rule.field() == "diagnostictoken"
+            && rule.sensitivity() == Sensitivity::Medium
     }));
     assert!(allowed.iter().any(|rule| {
-        rule.field() == "publictoken" && rule.matching() == FieldNameMatching::Exact
+        rule.field() == "publictoken"
+            && rule.matching() == FieldNameMatching::Exact
     }));
     assert!(allowed.iter().any(|rule| {
         rule.field() == "diagnostictoken"
@@ -287,7 +295,8 @@ fn test_mask_replaces_one_masking_policy() {
 fn test_setters_reject_empty_canonical_field_names() {
     for result in [
         RedactionPolicy::builder().raise(" _-.[ ] ", Sensitivity::High),
-        RedactionPolicy::builder().override_level(" _-.[ ] ", Sensitivity::High),
+        RedactionPolicy::builder()
+            .override_level(" _-.[ ] ", Sensitivity::High),
         RedactionPolicy::builder().allow_canonical_exact(" _-.[ ] "),
         RedactionPolicy::builder().allow_suffix(" _-.[ ] "),
     ] {
@@ -318,7 +327,8 @@ fn test_validate_field_name_accepts_canonicalizable_names_and_rejects_empty() {
 /// Verifies that fixed masks require a non-empty replacement immediately.
 #[test]
 fn test_mask_rejects_empty_fixed_replacement_immediately() {
-    let result = RedactionPolicy::builder().mask(Sensitivity::High, MaskPolicy::fixed(""));
+    let result = RedactionPolicy::builder()
+        .mask(Sensitivity::High, MaskPolicy::fixed(""));
 
     assert_eq!(
         result.expect_err("an empty fixed mask must fail immediately"),
