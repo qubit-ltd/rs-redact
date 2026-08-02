@@ -57,6 +57,12 @@ impl Redactor {
     ///
     /// Unknown and explicitly allowed fields retain a borrow of `value`.
     /// Sensitive fields return the value produced by the configured mask.
+    /// This method classifies only `field`; it never scans `value` for secret
+    /// syntax. Do not pass an arbitrary error message or complete diagnostic
+    /// under a generic field name and expect embedded credentials to be found.
+    /// Use structured fields, [`Self::redact_at`] for an opaque value whose
+    /// sensitivity is already known, or a fixed safe public summary with the
+    /// original error retained only as an error source.
     ///
     /// # Type Parameters
     ///
