@@ -88,11 +88,13 @@ http = "1.4"
   `UnknownFieldPolicy::Redact(Sensitivity::Secret)`；`classify_field()` 仍会报告 `Unknown`。
   `RedactionPolicy::strict()` 提供这一边界预设，但不会改变默认策略语义。
 - 应用层 allow 规则无法绕过已启用的 `RedactionFloor`。
-  `RedactionPolicy::builder()` 使用空应用规则和创建时的全局 floor 快照；
-  常规扩展默认策略应使用 `RedactionPolicy::default().to_builder()`。`disable_floor()` 会有意关闭全部
+  `RedactionPolicy::builder()` 使用空应用规则和标准 floor；该 builder
+  是确定性的，不会读取全局状态。扩展默认策略应使用
+  `RedactionPolicy::default().to_builder()`。`disable_floor()` 会有意关闭全部
   floor，只应由明确承担该安全决策的调用方使用。
 - 进程级 floor 和 policy 默认值只能安装一次，只影响未来快照；既有 policy 与 redactor
   永不随之改变。
+- `redact_field()` 返回 `FieldRedaction`，区分已遮盖、允许直通和未知字段直通。
 - `RedactedText` 故意不实现 `Display`。值脱敏与日志转义是两层不同保证。
 - 需要让领域对象或 Map 视图受策略诊断预算限制时，调用
   `with_policy_output_limit()`；其 `Debug` 和 `Display` 输出都会有界且适合日志。
