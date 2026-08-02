@@ -9,6 +9,7 @@
 
 use std::borrow::Cow;
 
+pub use crate::pass_through_reason::PassThroughReason;
 use crate::{LogSafeText, RedactedText, Sensitivity};
 
 /// Explains whether a field value was masked or intentionally passed through.
@@ -29,16 +30,6 @@ pub enum FieldRedaction<'a> {
         /// Why the policy retained the value.
         reason: PassThroughReason,
     },
-}
-
-/// Reason a field value was retained without masking.
-#[must_use]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PassThroughReason {
-    /// An application allow rule permitted the field.
-    Allowed,
-    /// No rule classified the field and the fallback is pass-through.
-    Unknown,
 }
 
 impl<'a> FieldRedaction<'a> {

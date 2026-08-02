@@ -19,13 +19,9 @@ use crate::{
 use super::{
     ArgvItem,
     RedactedArgv,
+    pending_field::PendingField,
     redacted_argv_builder::TRUNCATED_ITEM,
 };
-
-struct PendingField {
-    field: String,
-    exact: bool,
-}
 
 /// Applies one immutable redaction policy to argument vectors.
 #[must_use = "use the redactor to produce a safe argv rendering"]

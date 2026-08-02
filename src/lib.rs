@@ -279,12 +279,14 @@ pub mod argv;
 pub mod domain;
 pub mod env;
 mod field_redaction;
+mod global_redaction_config_already_installed;
 mod global_redaction_config;
 #[cfg(feature = "http")]
 pub mod http;
 #[cfg(feature = "json")]
 pub mod json;
 mod json_feature_gate;
+mod pass_through_reason;
 pub mod policy;
 #[cfg(feature = "serde")]
 mod private;
@@ -310,10 +312,8 @@ pub use policy::{
 #[cfg(feature = "json")]
 pub use policy::{JsonDepthBudget, JsonDepthBudgetError};
 pub use redactor::Redactor;
-pub use global_redaction_config::{
-    GlobalRedactionConfig,
-    GlobalRedactionConfigAlreadyInstalled,
-};
+pub use global_redaction_config::GlobalRedactionConfig;
+pub use global_redaction_config_already_installed::GlobalRedactionConfigAlreadyInstalled;
 pub use field_redaction::{FieldRedaction, PassThroughReason};
 pub use text::{
     BoundedLogSafeDisplay, DiagnosticLogBuilder, DiagnosticWriteStatus, LogOutputLimit,

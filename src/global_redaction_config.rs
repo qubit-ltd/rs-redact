@@ -7,9 +7,10 @@
 // =============================================================================
 //! Process-wide redaction configuration snapshots.
 
-use std::{error::Error, fmt, sync::{LazyLock, OnceLock}};
+use std::sync::{LazyLock, OnceLock};
 
 use crate::RedactionPolicy;
+use crate::global_redaction_config_already_installed::GlobalRedactionConfigAlreadyInstalled;
 
 #[cfg(feature = "http")]
 use crate::http::HttpRedactionPolicy;
@@ -22,18 +23,6 @@ pub struct GlobalRedactionConfig {
     #[cfg(feature = "http")]
     http_policy: HttpRedactionPolicy,
 }
-
-/// Error returned when the process-wide redaction configuration is installed twice.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct GlobalRedactionConfigAlreadyInstalled;
-
-impl fmt::Display for GlobalRedactionConfigAlreadyInstalled {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("the global redaction configuration is already installed")
-    }
-}
-
-impl Error for GlobalRedactionConfigAlreadyInstalled {}
 
 static STANDARD_CONFIG: LazyLock<GlobalRedactionConfig> =
     LazyLock::new(GlobalRedactionConfig::standard);
