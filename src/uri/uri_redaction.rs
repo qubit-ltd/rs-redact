@@ -41,11 +41,11 @@ impl UriRedaction {
         &self.text
     }
 
-    /// Consumes the result and returns an owned log-safe string.
+    /// Consumes the result and returns typed log-safe text.
     #[must_use = "consume the result to obtain safe text"]
     #[inline]
-    pub fn into_log_safe_text(self) -> String {
-        self.text.into_owned()
+    pub fn into_log_safe_text(self) -> LogSafeText<'static> {
+        self.text
     }
 
     /// Returns the overall processing status.

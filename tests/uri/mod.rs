@@ -7,8 +7,8 @@
 // =============================================================================
 //! Mirrored integration tests for URI helpers.
 
-mod percent_encoded_field_name_tests;
-
+#[cfg(feature = "uri")]
+mod internal;
 #[cfg(feature = "uri")]
 mod uri_component_tests;
 #[cfg(feature = "uri")]

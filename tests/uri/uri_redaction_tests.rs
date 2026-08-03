@@ -9,6 +9,7 @@
 
 use qubit_redact::{
     UriComponent,
+    UriRedactionReason,
     UriRedactionStatus,
     UriRedactor,
 };
@@ -21,5 +22,12 @@ fn test_uri_redaction_result_exposes_safe_metadata() {
 
     assert_eq!(UriRedactionStatus::Redacted, result.status());
     assert!(result.has_sensitive_component(UriComponent::Password));
+    assert!(result.has_sensitive_components());
+    assert!(result.has_reason(UriRedactionReason::SensitiveComponent(
+        UriComponent::Password,
+    )));
+    assert!(!result.reasons().is_empty());
+    assert!(!result.is_truncated());
+    assert!(format!("{result:?}").contains("UriRedaction"));
     assert!(!result.to_string().contains("secret"));
 }

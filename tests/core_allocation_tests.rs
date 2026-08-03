@@ -46,6 +46,12 @@ use qubit_redact::{
     env::EnvRedactor,
 };
 
+#[cfg(feature = "uri")]
+use qubit_redact::{
+    UriRedactionPolicy,
+    UriRedactor,
+};
+
 /// Serializes allocation measurements inside this integration-test binary.
 static ALLOCATION_TEST_LOCK: Mutex<()> = Mutex::new(());
 thread_local! {
@@ -297,5 +303,40 @@ fn test_bounded_environment_avoids_amplified_mask_allocation() {
     assert!(
         largest < 4096,
         "bounded environment copied an amplified mask: {largest}",
+    );
+}
+
+/// Verifies URI rendering never materializes one amplified mask per query.
+#[cfg(feature = "uri")]
+#[test]
+fn test_bounded_uri_avoids_amplified_mask_allocation() {
+    let _guard = allocation_test_lock();
+    let replacement = "X".repeat(1024 * 1024);
+    let budget = DiagnosticBudget::new(4096, 128)
+        .expect("the diagnostic budget should be valid");
+    let core = RedactionPolicy::default()
+        .to_builder()
+        .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
+        .expect("the high mask policy should be valid")
+        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
+        .expect("the secret mask policy should be valid")
+        .diagnostic_budget(budget)
+        .build()
+        .expect("the core policy should be valid");
+    let uri_policy = UriRedactionPolicy::builder_from(&core)
+        .build()
+        .expect("the URI policy should be valid");
+    let redactor = UriRedactor::new(uri_policy);
+    let query = ["password=query-secret"; 32].join("&");
+    let input = format!("https://user:password@example.test/?{query}#fragment");
+
+    let (result, largest) =
+        measure_largest_allocation(|| redactor.redact_uri_str(&input));
+
+    assert!(result.is_truncated());
+    assert!(result.log_safe_text().as_ref().len() <= 128);
+    assert!(
+        largest <= 4096,
+        "URI redaction copied an amplified mask: {largest}",
     );
 }
