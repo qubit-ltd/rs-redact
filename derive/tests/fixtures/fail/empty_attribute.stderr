@@ -1,5 +1,0 @@
-error: Redact derive for `Record` field `value`: empty `#[redact()]` is not allowed; choose `plain`, `level = "..."`, `skip`, `nested`, or `map`
-  --> tests/fixtures/fail/empty_attribute.rs:16:5
-   |
-16 |     #[redact()]
-   |     ^^^^^^^^^^^

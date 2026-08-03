@@ -1,5 +1,0 @@
-error: Redact derive for `Record` field `value` has conflicting or repeated modes; choose exactly one of `plain`, `level = "..."`, `skip`, `nested`, `map`, or `json`; map values are classified by runtime key and the complete policy
-  --> tests/fixtures/fail/duplicate_attribute.rs:17:14
-   |
-17 |     #[redact(skip)]
-   |              ^^^^
