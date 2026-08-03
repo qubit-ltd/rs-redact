@@ -19,6 +19,9 @@ use super::{
 /// This type deliberately does not implement [`std::fmt::Display`]. Plain-text
 /// log sinks must first call [`Self::escape_for_log`] so that controls and
 /// bidirectional formatting characters cannot manipulate rendered log output.
+/// Its [`std::fmt::Debug`] implementation is retained for interactive
+/// debugging and displays the already-processed value; it is not a substitute
+/// for crossing the explicit plain-text log boundary.
 ///
 /// ```compile_fail
 /// use qubit_redact::Redactor;

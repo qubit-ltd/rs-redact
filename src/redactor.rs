@@ -42,6 +42,14 @@ impl Redactor {
         Self { policy }
     }
 
+    /// Creates a redactor with the strict policy for untrusted scalar data.
+    ///
+    /// Unknown fields are masked at [`Sensitivity::Secret`].
+    #[inline]
+    pub fn strict() -> Self {
+        Self::new(RedactionPolicy::strict())
+    }
+
     /// Returns the immutable policy used by this redactor.
     ///
     /// # Returns

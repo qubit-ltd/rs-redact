@@ -62,3 +62,13 @@ fn test_redact_field_reports_pass_through_reason() {
     assert!(!allowed.is_masked());
     assert!(!unknown.is_masked());
 }
+
+/// Verifies Debug remains available for inspecting processed field results.
+#[test]
+fn test_redact_field_debug_is_available() {
+    let result = Redactor::default().redact_field("password", "raw");
+    let debug = format!("{result:?}");
+
+    assert!(debug.contains("Masked"));
+    assert!(debug.contains("<redacted>"));
+}
