@@ -89,6 +89,10 @@ complete field attributes and Serde/JSON integration are covered in the
 | Redact `serde_json::Value` or JSON text fields | Enable `json`; add `serde_json` directly when your application uses it. |
 | HTTP diagnostics | Enable `http`; add `http` directly when your application uses its types. |
 
+The derive `#[redact(json)]` mode keeps JSON text fields as their outer Rust
+`String` type. When combined with `#[redact(serde)]`, the redacted value is
+still serialized as a JSON string.
+
 ```toml
 [dependencies]
 # HTTP diagnostics only

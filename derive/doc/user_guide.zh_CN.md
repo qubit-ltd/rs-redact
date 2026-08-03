@@ -37,6 +37,10 @@ serde_json = "1"
 `serde` feature 只在使用 `#[redact(serde)]` 时需要；基本的 `Redact` 与
 `RedactMut` derive 不要求 Serde。
 
+使用 `#[redact(json)]` 时，还要启用运行时的 `json` feature。一个 derive 同时使用
+JSON 脱敏和 Serde 时，应同时启用两个 feature：
+`qubit-redact = { version = "0.6", features = ["serde", "json"] }`。
+
 ## 核心概念
 
 `Redact` 和 `RedactMut` 既是宏名也是运行时 trait 名，应分别导入以明确边界：
@@ -101,6 +105,7 @@ fn main() {
 | `skip` | 省略字段。 | 保持字段不变。 | 无。 |
 | `nested` | 通过嵌套值的 `Redact` 实现格式化。 | 调用嵌套的 `RedactMut`。 | `Redact` / `RedactMut`。 |
 | `map` | 使用 key 和完整策略处理文本 key Map 的值。 | 原地处理这些 Map 值。 | `RedactMapValue` / `RedactMapValueMut`。 |
+| `json` | 递归脱敏存储在 `String` 中的 JSON 文本；无效 JSON 会被不透明替换。 | 将 `String` 改写为紧凑的脱敏 JSON。 | 运行时 `json` feature。 |
 
 敏感等级拼写区分大小写且必须小写；仅接受 `low`、`medium`、`high` 和 `secret`。
 
@@ -139,6 +144,9 @@ fn main() {
 
 不要期待未标记字段被发现或递归检查。字段包含领域对象时使用 `nested`；字段是支持的
 文本 key Map 时使用 `map`。
+
+`json` 用于外层 Rust 类型为 `String` 的字段。它按 key 递归处理对象成员，并保持字段为
+JSON 字符串；不会把字段转换为 `serde_json::Value`。无效 JSON 会被策略的不透明掩码替换。
 
 ## 3. 支持的 struct 与 enum
 
@@ -299,8 +307,9 @@ qubit-redact-derive = "0.6"
 | --- | --- |
 | 无法解析运行时 crate | 直接添加 `qubit-redact`，或修正其 Cargo 重命名。 |
 | `#[redact(serde)]` 提示缺少 feature | 启用 `qubit-redact = { features = ["serde"] }`。 |
+| `#[redact(json)]` 提示缺少 feature | 启用 `qubit-redact = { features = ["json"] }`；字段必须是 `String`。 |
 | 派生 package 中 Serde 导入失败 | 直接添加具有所需 derive feature 的 `serde` 依赖。 |
-| 属性被拒绝 | 每个字段只使用一种模式：`level = "..."`、`skip`、`nested` 或 `map`；容器控制项必须是裸属性。 |
+| 属性被拒绝 | 每个字段只使用一种模式：`level = "..."`、`skip`、`nested`、`map` 或 `json`；容器控制项必须是裸属性。 |
 | trait-bound 错误指向字段 | 选择该字段类型支持的模式，或实现所需运行时 trait。 |
 | union 被拒绝 | 只在受支持的 struct 与 enum 形态上派生。 |
 

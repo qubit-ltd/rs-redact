@@ -39,6 +39,10 @@ serde_json = "1"
 The `serde` feature is needed only for `#[redact(serde)]`. Without it, the
 basic `Redact` and `RedactMut` derives have no Serde requirement.
 
+For `#[redact(json)]`, enable the runtime `json` feature as well. When a
+derive uses both JSON redaction and Serde, enable both features:
+`qubit-redact = { version = "0.6", features = ["serde", "json"] }`.
+
 ## Core concepts
 
 `Redact` and `RedactMut` are both macro names and runtime trait names.
@@ -109,6 +113,7 @@ using an empty `#[redact()]` attribute is a compile error.
 | `skip` | Omits the field. | Leaves the field unchanged. | None. |
 | `nested` | Formats the nested value through its `Redact` implementation. | Calls nested `RedactMut`. | `Redact` / `RedactMut`. |
 | `map` | Redacts text-keyed map values with keys and the full policy. | Redacts those map values in place. | `RedactMapValue` / `RedactMapValueMut`. |
+| `json` | Recursively redacts JSON text stored in a `String`; invalid JSON is replaced opaquely. | Rewrites the `String` as compact redacted JSON. | Runtime `json` feature. |
 
 Sensitivity spelling is lowercase and exact. These are the only accepted
 literals: `low`, `medium`, `high`, and `secret`.
@@ -149,6 +154,11 @@ fn main() {
 Do not expect unmarked fields to be discovered or recursively inspected. If a
 field contains a domain object, use `nested`; if it is a supported text-keyed
 map, use `map`.
+
+`json` is intended for fields whose outer Rust type is `String`. It redacts
+object members by key and keeps the field as a JSON string; it does not turn
+the field into a `serde_json::Value`. Invalid JSON is replaced by the policy's
+opaque mask.
 
 ## 3. Supported structs and enums
 
@@ -317,8 +327,9 @@ runtime dependency: add it directly to the package that uses the derive.
 | --- | --- |
 | The runtime crate cannot be resolved | Add `qubit-redact` as a direct dependency, or correct its Cargo rename. |
 | `#[redact(serde)]` reports a missing feature | Enable `qubit-redact = { features = ["serde"] }`. |
+| `#[redact(json)]` reports a missing feature | Enable `qubit-redact = { features = ["json"] }`; the field must be a `String`. |
 | Serde imports fail in the derived package | Add a direct `serde` dependency with the required derive feature. |
-| An attribute is rejected | Use exactly one field mode: `level = "..."`, `skip`, `nested`, or `map`; use bare container controls. |
+| An attribute is rejected | Use exactly one field mode: `level = "..."`, `skip`, `nested`, `map`, or `json`; use bare container controls. |
 | A trait-bound error points at a field | Choose a mode supported by that field type, or implement the required runtime trait. |
 | A union is rejected | Derive only on supported struct and enum forms. |
 

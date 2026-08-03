@@ -83,6 +83,9 @@ Serde/JSON 集成说明请参阅 [derive README](derive/README.zh_CN.md) 和
 | 脱敏 `serde_json::Value` 或 JSON 文本字段 | 启用 `json`；应用使用时直接添加 `serde_json`。 |
 | HTTP 诊断 | 启用 `http`；应用使用其类型时直接添加 `http`。 |
 
+derive 的 `#[redact(json)]` 模式会保持 JSON 文本字段的外层 Rust `String` 类型。
+与 `#[redact(serde)]` 组合时，脱敏值仍会序列化为 JSON 字符串。
+
 ```toml
 [dependencies]
 # 仅启用 HTTP 诊断
