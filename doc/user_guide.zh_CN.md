@@ -109,9 +109,9 @@ http = "1.4"
 
 | API | 初始状态 | 适用场景 |
 | --- | --- | --- |
-| `RedactionPolicy::default()` | 当前保守的进程级默认快照 | 接受应用已安装的默认策略。 |
+| `RedactionPolicy::default()` | 当前标准进程级默认快照 | 接受应用已安装的默认策略。 |
 | `RedactionPolicy::builder()` | 空应用规则加标准 floor | 需要由当前调用点定义应用规则且保留 floor。 |
-| `RedactionPolicy::default().to_builder()` | 当前默认快照的副本 | 需要在保守默认策略上扩展。 |
+| `RedactionPolicy::default().to_builder()` | 当前默认快照的副本 | 需要在标准默认策略上扩展。 |
 | `GlobalRedactionConfig::install()` | 每个进程只能安装一次 | 应用初始化代码拥有默认策略快照。 |
 
 可用 `include_preset(SensitiveFieldPreset::...)` 向显式策略加入内置的凭据、凭据容器、
@@ -398,9 +398,11 @@ fn main() {
 可选 `http` feature 提供不可变 `HttpRedactionPolicy`，分别处理 Header、query/form 和
 结构化 body。它的 builder、`HttpRedactionPolicyBuilder::new()` 与 `Default::default()`
 都不带应用字段规则，并在每个上下文使用标准 floor。应用层 allow 规则无法绕过已启用的
-floor。要在保守 HTTP 快照上扩展，使用 `HttpRedactionPolicy::default().to_builder()`。
+floor。要在标准 HTTP 快照上扩展，使用 `HttpRedactionPolicy::default().to_builder()`。
 Builder 不会隐式读取全局状态。
-`HttpRedactionPolicy::default()` 和 `HttpRedactor::default()` 仍使用这一保守快照。
+`HttpRedactionPolicy::default()` 和 `HttpRedactor::default()` 的标准策略保留
+URL path 以便诊断；当 URL path 可能包含敏感标识符时，请使用
+`HttpRedactionPolicy::strict()` 或显式设置 `UrlPathPolicy::Redact`。
 
 `HttpRedactor` 应用该快照。`BodyCapture` 提供借用字节和真实完整性元数据（`complete`、
 `prefix` 或截断 capture），因此库不会读取网络流。`BodyBudget` 限制检查和渲染的 body
@@ -415,7 +417,8 @@ Builder 不会隐式读取全局状态。
 | URL query、用户名、密码、fragment | 遮盖已配置字段和敏感 URL 组成部分 | `raise(HttpFieldContext::Query, ...)`、query 策略、`UrlPathPolicy` |
 | form 与 Header | 遮盖已配置字段，且输出有界 | `raise(HttpFieldContext::Header, ...)`、`raise(HttpFieldContext::Query, ...)` |
 | JSON、NDJSON、form body、multipart | 解析完整输入；不安全、超深或截断时失败时默认遮盖 | `raise(HttpFieldContext::Body, ...)`、`BodyBudget`、`JsonDepthBudget` |
-| 不透明文本、无 key JSON、URL path | 默认采取保守策略 | 仅在接受风险后显式使用 `PassThrough` 或 `Preserve` |
+| 不透明文本、无 key JSON | 默认采取保守策略 | 仅在接受风险后显式使用 `PassThrough` |
+| URL path | 标准策略保留，strict 策略脱敏 | `UrlPathPolicy::Redact` 或 `HttpRedactionPolicy::strict()` |
 | 非 UTF-8 body | 返回二进制摘要，绝不暴露原始字节 | `BodyRedactionStatus::Binary` |
 
 ```toml

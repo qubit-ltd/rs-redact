@@ -13,12 +13,25 @@ use qubit_redact::http::{
     UrlPathPolicy,
 };
 
-/// Verifies URL paths are redacted by default.
+/// Verifies URL paths remain visible under the standard default.
 #[test]
-fn test_url_path_policy_default_is_redact() {
-    assert_eq!(UrlPathPolicy::default(), UrlPathPolicy::Redact);
+fn test_url_path_policy_default_is_preserve() {
+    assert_eq!(UrlPathPolicy::default(), UrlPathPolicy::Preserve);
     assert_eq!(
         HttpRedactionPolicy::default().url_path_policy(),
+        UrlPathPolicy::Preserve,
+    );
+}
+
+/// Verifies strict HTTP redaction explicitly hides non-root URL paths.
+#[test]
+fn test_url_path_policy_strict_is_redact() {
+    assert_eq!(
+        HttpRedactionPolicy::strict().url_path_policy(),
+        UrlPathPolicy::Redact,
+    );
+    assert_eq!(
+        HttpRedactor::strict().policy().url_path_policy(),
         UrlPathPolicy::Redact,
     );
 }

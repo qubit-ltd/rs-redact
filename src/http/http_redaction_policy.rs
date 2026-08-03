@@ -65,11 +65,13 @@ impl HttpRedactionPolicy {
     /// Returns a strict boundary policy for untrusted HTTP data.
     ///
     /// Unknown header, query, and structured-body fields are masked at
-    /// [`crate::Sensitivity::Secret`]. Opaque text, unkeyed JSON values, URL
-    /// paths, and all resource budgets retain their conservative defaults.
+    /// [`crate::Sensitivity::Secret`]. Opaque text, unkeyed JSON values, and
+    /// URL paths are redacted, while all resource budgets retain their
+    /// conservative limits.
     #[inline]
     pub fn strict() -> Self {
         Self::builder_from(&RedactionPolicy::strict())
+            .url_path_policy(UrlPathPolicy::Redact)
             .build()
             .expect("the built-in strict HTTP policy must be valid")
     }
