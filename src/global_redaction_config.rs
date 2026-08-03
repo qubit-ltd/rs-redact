@@ -20,10 +20,12 @@ use crate::uri::UriRedactionPolicy;
 /// Immutable optional process-wide defaults for redaction components.
 ///
 /// Applications that choose to use this configuration should install it once
-/// during startup, before constructing default-derived policy snapshots. An
-/// installed value affects only future snapshots; it never mutates policies
-/// that already exist. Libraries must not install or replace their host
-/// application's global configuration.
+/// during startup, before constructing default-derived policy snapshots. A
+/// call to any default policy or redactor constructor can be the first read
+/// and therefore freezes the built-in configuration if installation has not
+/// happened yet. An installed value affects only future snapshots; it never
+/// mutates policies that already exist. Libraries must not install or replace
+/// their host application's global configuration.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GlobalRedactionConfig {
@@ -37,7 +39,7 @@ pub struct GlobalRedactionConfig {
 static GLOBAL_CONFIG: OnceLock<GlobalRedactionConfig> = OnceLock::new();
 
 impl GlobalRedactionConfig {
-    /// Returns the built-in conservative configuration.
+    /// Returns the built-in standard configuration.
     #[inline]
     pub fn standard() -> Self {
         Self::from_policy(RedactionPolicy::standard())
@@ -84,11 +86,11 @@ impl GlobalRedactionConfig {
     /// Installs this application-level configuration exactly once.
     ///
     /// Install during application assembly before any call to [`Self::current`]
-    /// or creation of a default-derived policy. The first read freezes the
-    /// standard configuration in the same one-time slot, so a later install
-    /// fails instead of creating split process-wide defaults. This does not
-    /// retroactively affect explicit policy snapshots, and library crates
-    /// should leave installation to their host application.
+    /// or creation of a default-derived policy or redactor. The first read
+    /// freezes the standard configuration in the same one-time slot, so a
+    /// later install fails instead of creating split process-wide defaults.
+    /// This does not retroactively affect explicit policy snapshots, and
+    /// library crates should leave installation to their host application.
     pub fn install(self) -> Result<(), GlobalRedactionConfigAlreadyInstalled> {
         GLOBAL_CONFIG
             .set(self)
@@ -98,7 +100,9 @@ impl GlobalRedactionConfig {
     /// Returns the installed configuration.
     ///
     /// The first call freezes the standard configuration when the application
-    /// has not installed one yet. Any later [`Self::install`] then fails.
+    /// has not installed one yet. Default policy and redactor constructors
+    /// that read this value have the same effect. Any later [`Self::install`]
+    /// then fails.
     #[inline]
     pub fn current() -> &'static Self {
         GLOBAL_CONFIG.get_or_init(Self::standard)
