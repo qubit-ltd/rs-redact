@@ -18,6 +18,18 @@ use qubit_redact::{
     Sensitivity,
 };
 
+/// Verifies the strict constructor masks fields that the standard policy leaves
+/// unknown and visible.
+#[test]
+fn test_strict_redactor_masks_unknown_fields() {
+    let standard = Redactor::default().redact_field("request_id", "raw");
+    let strict = Redactor::strict().redact_field("request_id", "raw");
+
+    assert!(!standard.is_masked());
+    assert!(strict.is_masked());
+    assert_eq!(strict.as_str(), "<redacted>");
+}
+
 /// Verifies an explicit sensitivity cannot be bypassed by a field allow rule.
 #[test]
 fn test_redact_at_ignores_field_allow_rules() {

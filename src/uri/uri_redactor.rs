@@ -18,7 +18,6 @@ use std::{
 use fluent_uri::Uri;
 
 use crate::{
-    GlobalRedactionConfig,
     RedactedText,
     Sensitivity,
     policy::ResolvedField,
@@ -257,7 +256,7 @@ impl Default for UriRedactor {
     /// Creates a redactor from the process-wide URI policy snapshot.
     #[inline]
     fn default() -> Self {
-        Self::new(GlobalRedactionConfig::current().uri_policy().clone())
+        Self::new(UriRedactionPolicy::default())
     }
 }
 

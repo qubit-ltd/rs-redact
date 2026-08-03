@@ -119,9 +119,9 @@ policy diagnostic budget must also bound `Debug` and `Display` output.
 
 | API | Starting state | Use it when |
 | --- | --- | --- |
-| `RedactionPolicy::default()` | Current conservative process-wide snapshot | You accept the application's installed default. |
+| `RedactionPolicy::default()` | Current standard process-wide snapshot | You accept the application's installed default. |
 | `RedactionPolicy::builder()` | Empty application rules plus the standard floor | You need application rules defined at this call site while retaining the floor. |
-| `RedactionPolicy::default().to_builder()` | Copy of the current default snapshot | You want to extend the conservative default. |
+| `RedactionPolicy::default().to_builder()` | Copy of the current default snapshot | You want to extend the standard default. |
 | `GlobalRedactionConfig::install()` | Installs once per process | Application startup owns the default policy snapshot. |
 
 Use `include_preset(SensitiveFieldPreset::...)` to add the built-in credential,
@@ -443,10 +443,11 @@ headers, query/form fields, and structured bodies. Its builder,
 `HttpRedactionPolicyBuilder::new()`, and `Default::default()` start with no
 application field rules and the standard floor in each context. Application
 allow rules cannot bypass an enabled floor.
-Use `HttpRedactionPolicy::default().to_builder()` when extending the
-conservative HTTP snapshot. The builder does not load global state implicitly.
-`HttpRedactionPolicy::default()` and `HttpRedactor::default()` continue to use
-that conservative snapshot.
+Use `HttpRedactionPolicy::default().to_builder()` when extending the standard
+HTTP snapshot. The builder does not load global state implicitly.
+`HttpRedactionPolicy::default()` and `HttpRedactor::default()` preserve URL
+paths for diagnostic usefulness; use `HttpRedactionPolicy::strict()` or set
+`UrlPathPolicy::Redact` when URL paths may contain sensitive identifiers.
 
 `HttpRedactor` applies that snapshot. `BodyCapture` supplies borrowed bytes and
 truthful completeness metadata (`complete`, `prefix`, or a truncated capture),
@@ -463,7 +464,8 @@ outcome. No result exposes a raw-body escape hatch.
 | URL query, username, password, fragment | Redacts configured fields and sensitive URL components | `raise(HttpFieldContext::Query, ...)`, query policy, `UrlPathPolicy` |
 | Form and headers | Redacts configured fields; output is bounded | `raise(HttpFieldContext::Header, ...)`, `raise(HttpFieldContext::Query, ...)` |
 | JSON, NDJSON, form body, multipart | Parses complete input and fails closed when unsafe, over-depth, or truncated | `raise(HttpFieldContext::Body, ...)`, `BodyBudget`, `JsonDepthBudget` |
-| Opaque text, unkeyed JSON, URL path | Conservative by default | Explicit `PassThrough` or `Preserve` only after risk review |
+| Opaque text, unkeyed JSON | Conservative by default | Explicit `PassThrough` only after risk review |
+| URL path | Preserved by the standard policy; redacted by strict policy | `UrlPathPolicy::Redact` or `HttpRedactionPolicy::strict()` |
 | Non-UTF-8 body | Returns a binary summary, never raw bytes | `BodyRedactionStatus::Binary` |
 
 ```toml

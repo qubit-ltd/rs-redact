@@ -17,6 +17,10 @@ use crate::{
 };
 
 /// Explains whether a field value was masked or intentionally passed through.
+///
+/// [`std::fmt::Debug`] remains available for inspecting the policy result
+/// during debugging. Plain-text log sinks should consume
+/// [`Self::escape_for_log`] instead of formatting this enum directly.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FieldRedaction<'a> {

@@ -101,7 +101,7 @@ pub struct RedactionPolicy {
 }
 
 impl RedactionPolicy {
-    /// Returns the fixed built-in conservative policy.
+    /// Returns the fixed built-in standard policy.
     ///
     /// Its application rules are empty and its explicit floor is
     /// [`RedactionFloor::standard`], so it never observes later process-wide

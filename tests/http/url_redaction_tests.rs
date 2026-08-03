@@ -365,20 +365,21 @@ fn test_diagnostic_text_redaction_escapes_log_controls_once() {
 
     assert_eq!(
         result.as_ref(),
-        "first\\thttp://****:%3Credacted%3E@example.test/%3Credacted%3E?password=%3Credacted%3E\\nsecond",
+        "first\\thttp://****:%3Credacted%3E@example.test/path?password=%3Credacted%3E\\nsecond",
     );
 }
 
 proptest! {
     #[test]
-    /// Checks across generated inputs that url redaction never leaks sensitive components.
+    /// Checks across generated inputs that strict URL redaction never leaks
+    /// sensitive components.
     fn test_url_redaction_never_leaks_sensitive_components(
         secret in "[A-Za-z0-9]{8,64}",
     ) {
         let input = format!(
             "https://{secret}:{secret}@example.test/{secret}?password={secret}#{secret}",
         );
-        let result = HttpRedactor::default().redact_url_str(&input);
+        let result = HttpRedactor::strict().redact_url_str(&input);
 
         prop_assert!(!result.as_ref().contains(&secret));
     }
