@@ -25,7 +25,7 @@ Qubit Redact 是一个策略驱动的 Rust 脱敏库，用于防止敏感值经�
 
 ```toml
 [dependencies]
-qubit-redact = "0.5"
+qubit-redact = "0.6"
 ```
 
 ```rust
@@ -82,8 +82,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5", features = ["serde", "http"] }
-qubit-redact-derive = "0.5"
+qubit-redact = { version = "0.6", features = ["serde", "http"] }
+qubit-redact-derive = "0.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 http = "1.4"
@@ -261,8 +261,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```toml
 [dependencies]
-qubit-redact = "0.5"
-qubit-redact-derive = "0.5"
+qubit-redact = "0.6"
+qubit-redact-derive = "0.6"
 ```
 
 ```rust
@@ -313,8 +313,8 @@ fn main() {
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5", features = ["serde"] }
-qubit-redact-derive = "0.5"
+qubit-redact = { version = "0.6", features = ["serde"] }
+qubit-redact-derive = "0.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -419,7 +419,7 @@ Builder 不会隐式读取全局状态。
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5", features = ["http"] }
+qubit-redact = { version = "0.6", features = ["http"] }
 http = "1.4"
 ```
 
