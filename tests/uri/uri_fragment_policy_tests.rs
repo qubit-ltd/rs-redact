@@ -5,6 +5,12 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Integration tests for URI redaction.
+//! Tests for URI fragment handling policy.
 
-mod uri;
+use qubit_redact::UriFragmentPolicy;
+
+/// Verifies fragments default to fail-closed redaction.
+#[test]
+fn test_fragment_policy_defaults_to_redact() {
+    assert_eq!(UriFragmentPolicy::Redact, UriFragmentPolicy::default());
+}

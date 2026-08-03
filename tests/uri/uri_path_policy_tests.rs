@@ -5,6 +5,12 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Integration tests for URI redaction.
+//! Tests for URI path handling policy.
 
-mod uri;
+use qubit_redact::UriPathPolicy;
+
+/// Verifies paths remain visible unless explicitly configured otherwise.
+#[test]
+fn test_path_policy_defaults_to_preserve() {
+    assert_eq!(UriPathPolicy::Preserve, UriPathPolicy::default());
+}

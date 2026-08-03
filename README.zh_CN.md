@@ -16,6 +16,8 @@ Qubit Redact 用于防止敏感信息经 Rust 诊断信息泄露，包括日志�
 - 有类型的结果明确区分“值已脱敏”和“文本可安全写入日志”。
 - 不合法或已截断的结构化 HTTP 输入会失败时默认遮盖（fail closed）；有限预算限制检查、
   输出、JSON 递归深度和信息披露。
+- URI 脱敏保留原始 scheme、authority、path、query 顺序和编码，同时按核心策略分别处理
+  username/password、query 值以及可配置的 path/fragment 边界。
 - 默认 feature 集为空，核心 crate 没有外部运行时依赖。
 
 ## 快速开始
@@ -72,6 +74,7 @@ Serde/JSON 集成说明请参阅 [derive README](https://github.com/qubit-ltd/rs
 | 命令行参数 | `ArgvRedactor` | 可安全显示的 `RedactedArgv`。 |
 | 环境变量 pair | `EnvRedactor` | `RedactedEnvPair` 或 `LogSafeText`。 |
 | URL、form、Header 或捕获的 body | `HttpRedactor` | 有界、日志安全的 HTTP 结果类型。 |
+| URI 字符串 | `UriRedactor`（`uri` feature） | 带组件原因的结构化日志安全结果。 |
 
 ## Cargo Features
 
@@ -82,6 +85,7 @@ Serde/JSON 集成说明请参阅 [derive README](https://github.com/qubit-ltd/rs
 | 序列化脱敏视图 | 启用 `serde`，并直接声明 `serde` 依赖。 |
 | 脱敏 `serde_json::Value` 或 JSON 文本字段 | 启用 `json`；应用使用时直接添加 `serde_json`。 |
 | HTTP 诊断 | 启用 `http`；应用使用其类型时直接添加 `http`。 |
+| 策略驱动 URI 脱敏 | 启用 `uri`；它与 `http` 相互独立。 |
 
 derive 的 `#[redact(json)]` 模式会保持 JSON 文本字段的外层 Rust `String` 类型。
 与 `#[redact(serde)]` 组合时，脱敏值仍会序列化为 JSON 字符串。
@@ -91,6 +95,9 @@ derive 的 `#[redact(json)]` 模式会保持 JSON 文本字段的外层 Rust `St
 # 仅启用 HTTP 诊断
 qubit-redact = { version = "0.6", features = ["http"] }
 http = "1.4"
+
+# 不启用 HTTP，仅使用 URI 诊断
+# qubit-redact = { version = "0.6", features = ["uri"] }
 ```
 
 ## 安全边界
@@ -110,6 +117,10 @@ http = "1.4"
 - 需要让领域对象或 Map 视图受策略诊断预算限制时，调用
   `with_policy_output_limit()`；其 `Debug` 和 `Display` 输出都会有界且适合日志。
 - `RedactMut` 只替换逻辑值，不会擦除已释放的分配内存、别名、副本或借用后备存储。
+- URI 脱敏通过 `qubit_redact::uri::UriRedactor` 显式启用。userinfo 只在第一个原始 `:`
+  处分割；用户名使用 `username` 字段规则，密码使用 `password` 字段规则。query key
+  会严格解码后分类，未遮盖的值保留原始百分号编码。URI 语法无效或 query 组件无法解码时
+  返回固定标记。
 - JSON 脱敏到达 `JsonDepthBudget` 后，会用策略的 Secret 不透明掩码替换超深子树；
   默认最大深度为 128。
 - HTTP 脱敏只处理调用方提供的 capture，绝不会自行读取或缓存网络 body。

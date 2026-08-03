@@ -114,6 +114,52 @@ fn benchmark_field_classification(criterion: &mut Criterion) {
     group.finish();
 }
 
+/// Measures scalar field redaction for unknown, allowed, and sensitive fields.
+fn benchmark_field_redaction(criterion: &mut Criterion) {
+    let unknown = Redactor::default();
+    let allowed_policy = RedactionPolicy::builder()
+        .disable_floor()
+        .allow_canonical_exact("display_name")
+        .expect("benchmark allow rule must be valid")
+        .build()
+        .expect("benchmark allow policy must be valid");
+    let allowed = Redactor::new(allowed_policy);
+    let sensitive_policy = RedactionPolicy::builder()
+        .disable_floor()
+        .raise("password", Sensitivity::Secret)
+        .expect("benchmark sensitive rule must be valid")
+        .build()
+        .expect("benchmark sensitive policy must be valid");
+    let sensitive = Redactor::new(sensitive_policy);
+    let mut group = criterion.benchmark_group("field_redaction");
+
+    group.bench_function("unknown", |bencher| {
+        bencher.iter(|| {
+            black_box(unknown.redact_field(
+                black_box("bench_plain_identifier"),
+                black_box("representative-value"),
+            ))
+        });
+    });
+    group.bench_function("allowed", |bencher| {
+        bencher.iter(|| {
+            black_box(allowed.redact_field(
+                black_box("display_name"),
+                black_box("representative-value"),
+            ))
+        });
+    });
+    group.bench_function("sensitive", |bencher| {
+        bencher.iter(|| {
+            black_box(sensitive.redact_field(
+                black_box("password"),
+                black_box("representative-value"),
+            ))
+        });
+    });
+    group.finish();
+}
+
 /// Measures preserved-mask rendering on long ASCII and Unicode values.
 fn benchmark_preserved_masks(criterion: &mut Criterion) {
     let ascii = "a".repeat(1024 * 1024);
@@ -267,6 +313,7 @@ criterion_group!(
     benches,
     benchmark_policy_snapshot,
     benchmark_field_classification,
+    benchmark_field_redaction,
     benchmark_preserved_masks,
     benchmark_map_redaction,
 );

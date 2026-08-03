@@ -14,6 +14,8 @@ use crate::global_redaction_config_already_installed::GlobalRedactionConfigAlrea
 
 #[cfg(feature = "http")]
 use crate::http::HttpRedactionPolicy;
+#[cfg(feature = "uri")]
+use crate::uri::UriRedactionPolicy;
 
 /// Immutable optional process-wide defaults for redaction components.
 ///
@@ -28,6 +30,8 @@ pub struct GlobalRedactionConfig {
     policy: RedactionPolicy,
     #[cfg(feature = "http")]
     http_policy: HttpRedactionPolicy,
+    #[cfg(feature = "uri")]
+    uri_policy: UriRedactionPolicy,
 }
 
 static GLOBAL_CONFIG: OnceLock<GlobalRedactionConfig> = OnceLock::new();
@@ -41,8 +45,8 @@ impl GlobalRedactionConfig {
 
     /// Creates a configuration from a core policy.
     ///
-    /// When the `http` feature is enabled, the HTTP policy is derived from
-    /// the supplied core policy.
+    /// When the `http` or `uri` feature is enabled, the corresponding policy
+    /// is derived from the supplied core policy.
     #[inline]
     pub fn from_policy(policy: RedactionPolicy) -> Self {
         Self {
@@ -50,6 +54,10 @@ impl GlobalRedactionConfig {
             http_policy: HttpRedactionPolicy::builder_from(&policy)
                 .build()
                 .expect("a policy snapshot must produce a valid HTTP policy"),
+            #[cfg(feature = "uri")]
+            uri_policy: UriRedactionPolicy::builder_from(&policy)
+                .build()
+                .expect("a policy snapshot must produce a valid URI policy"),
             policy,
         }
     }
@@ -62,6 +70,14 @@ impl GlobalRedactionConfig {
         http_policy: HttpRedactionPolicy,
     ) -> Self {
         self.http_policy = http_policy;
+        self
+    }
+
+    /// Replaces the derived URI policy with an explicit policy.
+    #[cfg(feature = "uri")]
+    #[inline]
+    pub fn with_uri_policy(mut self, uri_policy: UriRedactionPolicy) -> Self {
+        self.uri_policy = uri_policy;
         self
     }
 
@@ -99,6 +115,13 @@ impl GlobalRedactionConfig {
     #[inline]
     pub const fn http_policy(&self) -> &HttpRedactionPolicy {
         &self.http_policy
+    }
+
+    /// Returns the URI redaction policy snapshot.
+    #[cfg(feature = "uri")]
+    #[inline]
+    pub const fn uri_policy(&self) -> &UriRedactionPolicy {
+        &self.uri_policy
     }
 }
 

@@ -1,5 +1,0 @@
-error: Redact serde for `Event` cannot combine `untagged` with `tag` or `content`
-  --> tests/fixtures/domain_serde/fail/serde_conflicting_tags.rs:15:23
-   |
-15 | #[serde(tag = "kind", untagged)]
-   |                       ^^^^^^^^

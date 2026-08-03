@@ -7,12 +7,10 @@
 // =============================================================================
 //! Unified immutable HTTP redaction façade.
 
-use std::{
-    borrow::Cow,
-    collections::BTreeMap,
-};
+use std::borrow::Cow;
 
 mod body;
+mod diagnostics;
 mod headers;
 mod url_rules;
 
@@ -290,97 +288,6 @@ impl HttpRedactor {
             content_type,
             invalid_content_type,
         )
-    }
-
-    /// Checks the complete header input against the diagnostic budget.
-    ///
-    /// # Parameters
-    ///
-    /// * `headers` - Header map whose names and values would be inspected.
-    ///
-    /// # Returns
-    ///
-    /// `true` when every header fits within the configured input limit.
-    fn headers_fit_input_budget(&self, headers: &HeaderMap) -> bool {
-        let input_limit = self.policy.diagnostic_budget().max_input_bytes();
-        let mut input_bytes = 0_usize;
-        for (name, value) in headers {
-            input_bytes = input_bytes
-                .saturating_add(name.as_str().len())
-                .saturating_add(value.as_bytes().len());
-            if input_bytes > input_limit {
-                return false;
-            }
-        }
-        true
-    }
-
-    /// Writes all deterministically grouped headers to a bounded writer.
-    ///
-    /// # Parameters
-    ///
-    /// * `writer` - Bounded log-safe output destination.
-    /// * `values` - Ordered header groups to redact and render.
-    fn write_grouped_headers(
-        &self,
-        writer: &mut BoundedLogWriter,
-        values: BTreeMap<&str, Vec<&HeaderValue>>,
-    ) {
-        for (name_index, (name, header_values)) in
-            values.into_iter().enumerate()
-        {
-            if name_index > 0 {
-                let _ = writer.write_str("\n");
-            }
-            let _ = writer.write_str(name);
-            let _ = writer.write_str(": [");
-            self.write_header_values(writer, name, &header_values);
-            if writer.is_full() {
-                break;
-            }
-            let _ = writer.write_str("]");
-        }
-    }
-
-    /// Redacts and writes every value for one header name.
-    ///
-    /// Native sensitive values always use Secret masking before name-based
-    /// policy evaluation.
-    ///
-    /// # Parameters
-    ///
-    /// * `writer` - Bounded log-safe output destination.
-    /// * `name` - Canonical HTTP header name.
-    /// * `values` - Header values in their original map order.
-    fn write_header_values(
-        &self,
-        writer: &mut BoundedLogWriter,
-        name: &str,
-        values: &[&HeaderValue],
-    ) {
-        for (value_index, value) in values.iter().enumerate() {
-            if writer.is_full() {
-                break;
-            }
-            if value_index > 0 {
-                let _ = writer.write_str(", ");
-            }
-            let rendered = value.to_str().unwrap_or("<non-utf8>");
-            let remaining = writer.remaining_bytes();
-            if value.is_sensitive() {
-                let redacted = self.header_field_redactor().mask_bounded(
-                    Sensitivity::Secret,
-                    rendered,
-                    remaining,
-                );
-                let _ = writer.write_str(redacted.as_ref());
-            } else {
-                let redacted = self
-                    .header_field_redactor()
-                    .redact_bounded(name, rendered, remaining);
-                let _ = writer.write_str(redacted.as_str());
-            }
-        }
     }
 
     /// Redacts a checked body capture after normalizing Content-Type input.
@@ -886,50 +793,6 @@ impl HttpRedactor {
             omitted_len,
             truncated,
         )
-    }
-
-    /// Reports whether a diagnostic input exceeds the configured hard limit.
-    ///
-    /// # Parameters
-    ///
-    /// * `input_bytes` - Number of source bytes the operation would inspect.
-    ///
-    /// # Returns
-    ///
-    /// `true` when the input must fail closed without further processing.
-    fn diagnostic_input_exceeded(&self, input_bytes: usize) -> bool {
-        input_bytes > self.policy.diagnostic_budget().max_input_bytes()
-    }
-
-    /// Returns the fixed log-safe diagnostic-limit marker.
-    ///
-    /// # Returns
-    ///
-    /// A marker containing no source prefix.
-    #[inline(always)]
-    fn diagnostic_limit_exceeded() -> LogSafeText<'static> {
-        LogSafeText::from_escaped(Cow::Borrowed(
-            markers::DIAGNOSTIC_LIMIT_EXCEEDED,
-        ))
-    }
-
-    /// Escapes and bounds one normally redacted HTTP diagnostic.
-    ///
-    /// # Parameters
-    ///
-    /// * `text` - Redacted diagnostic text before log escaping.
-    ///
-    /// # Returns
-    ///
-    /// Owned log-safe text within the configured output limit.
-    fn finish_diagnostic(&self, text: String) -> LogSafeText<'static> {
-        let mut writer = BoundedLogWriter::new(
-            self.policy.diagnostic_budget().max_output_bytes(),
-            false,
-        );
-        let _ = writer.write_str(&text);
-        let (text, _) = writer.finish();
-        LogSafeText::from_escaped(Cow::Owned(text))
     }
 }
 

@@ -7,6 +7,8 @@
 // =============================================================================
 //! Tests for [`RedactValueMut`](qubit_redact::RedactValueMut).
 
+use std::borrow::Cow;
+
 use qubit_redact::{
     MaskingPolicy,
     RedactValueMut,
@@ -20,4 +22,21 @@ fn test_redact_value_mut_replaces_owned_string() {
     value.redact_value_in_place(Sensitivity::Secret, &MaskingPolicy::default());
 
     assert_eq!(value, "<redacted>");
+}
+
+/// Verifies borrowed and absent values remain unchanged when masking borrows.
+#[test]
+fn test_redact_value_mut_preserves_empty_and_absent_values() {
+    let mut text = String::new();
+    let mut cow = Cow::Borrowed("");
+    let mut absent: Option<String> = None;
+    let masking = MaskingPolicy::default();
+
+    text.redact_value_in_place(Sensitivity::Secret, &masking);
+    cow.redact_value_in_place(Sensitivity::Secret, &masking);
+    absent.redact_value_in_place(Sensitivity::Secret, &masking);
+
+    assert!(text.is_empty());
+    assert!(cow.is_empty());
+    assert!(absent.is_none());
 }
