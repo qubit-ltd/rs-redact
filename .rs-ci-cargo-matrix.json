@@ -33,12 +33,6 @@
       "name": "all-root",
       "commands": ["check", "test", "doc", "clippy"],
       "allFeatures": true
-    },
-    {
-      "name": "derive-all",
-      "commands": ["check", "test", "doc", "clippy"],
-      "packages": ["qubit-redact-derive"],
-      "allFeatures": true
     }
   ]
 }
