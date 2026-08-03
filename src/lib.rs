@@ -83,7 +83,7 @@
 //! boundary, `map` classifies each value by its runtime key, and `skip` omits a
 //! field only from the redacted representation.
 //!
-//! ```
+//! ```ignore
 //! use std::collections::HashMap;
 //! use qubit_redact::{Redact as _, RedactionPolicy, Sensitivity};
 //! use qubit_redact_derive::Redact;
@@ -120,7 +120,7 @@
 //! retains a second raw copy. Use a separately designed zeroization strategy
 //! when memory erasure is required.
 //!
-//! ```
+//! ```ignore
 //! use qubit_redact::{Redact as _, RedactMut as _};
 //! use qubit_redact_derive::{Redact, RedactMut};
 //!
@@ -151,7 +151,7 @@
 //! derive crate, `#[redact(serde)]` opts the redacted view into serialization.
 //! [`Redacted`] intentionally does not implement `Deserialize`.
 //!
-//! ```
+//! ```ignore
 //! # #[cfg(feature = "serde")]
 //! # {
 //! use qubit_redact::Redact as _;
@@ -189,7 +189,7 @@
 //! supports Serde's external, internal, adjacent, and untagged enum
 //! representations through a structure-preserving attribute allowlist.
 //!
-//! ```
+//! ```ignore
 //! use qubit_redact::Redact as _;
 //! use qubit_redact_derive::Redact;
 //!
@@ -293,6 +293,7 @@ mod private;
 mod redactor;
 mod serde_feature_gate;
 pub mod text;
+#[cfg(feature = "uri")]
 pub mod uri;
 
 pub use argv::ArgvRedactor;

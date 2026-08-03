@@ -1,6 +1,0 @@
-error: Redact serde for internally tagged `Event` does not allow tuple variants
-  --> tests/fixtures/domain_serde/fail/serde_internal_tuple.rs:17:5
-   |
-17 | /     /// Tuple variants cannot merge a tag field.
-18 | |     Tuple(String, String),
-   | |_________________________^

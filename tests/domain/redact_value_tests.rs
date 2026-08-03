@@ -47,6 +47,12 @@ fn test_redact_value_supports_string_forms() {
         assert_eq!(format!("{value:?}"), "\"<redacted>\"");
         assert_eq!(value.to_string(), "<redacted>");
     }
+    let explicit_reference = <&str as RedactValue>::redact_value(
+        &slice,
+        Sensitivity::Secret,
+        &masking,
+    );
+    assert_eq!(explicit_reference.to_string(), "<redacted>");
     assert_eq!(string, "raw-secret");
 }
 
@@ -64,6 +70,17 @@ fn test_redact_value_preserves_option_shape() {
         borrowed.redact_value(Sensitivity::Secret, &masking);
     let redacted_cow = cow.redact_value(Sensitivity::Secret, &masking);
     let redacted_none = none.redact_value(Sensitivity::Secret, &masking);
+    let explicit_borrowed = <Option<&str> as RedactValue>::redact_value(
+        &borrowed,
+        Sensitivity::Secret,
+        &masking,
+    );
+    let explicit_none: Option<&str> = None;
+    let explicit_none = <Option<&str> as RedactValue>::redact_value(
+        &explicit_none,
+        Sensitivity::Secret,
+        &masking,
+    );
 
     assert_eq!(format!("{redacted_some:?}"), "Some(\"<redacted>\")");
     assert_eq!(redacted_some.to_string(), "Some(<redacted>)");
@@ -71,6 +88,8 @@ fn test_redact_value_preserves_option_shape() {
     assert_eq!(format!("{redacted_cow:?}"), "Some(\"<redacted>\")");
     assert_eq!(format!("{redacted_none:?}"), "None");
     assert_eq!(redacted_none.to_string(), "None");
+    assert_eq!(explicit_borrowed.to_string(), "Some(<redacted>)");
+    assert_eq!(explicit_none.to_string(), "None");
     assert!(matches!(redacted_some, RedactedValue::Some(_)));
     assert!(matches!(redacted_none, RedactedValue::None));
     assert_eq!(some.as_deref(), Some("raw-secret"));

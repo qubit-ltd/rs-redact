@@ -43,6 +43,20 @@ fn test_redacted_value_opaque_uses_configured_complete_replacement() {
     assert_eq!(value.to_string(), "OPAQUE");
 }
 
+/// Verifies the absent optional representation keeps both output protocols.
+#[test]
+fn test_redacted_value_none_preserves_optional_shape() {
+    let value = RedactedValue::None;
+
+    assert_eq!(format!("{value:?}"), "None");
+    assert_eq!(value.to_string(), "None");
+    #[cfg(feature = "serde")]
+    assert_eq!(
+        serde_json::to_value(&value).expect("none should serialize"),
+        serde_json::Value::Null,
+    );
+}
+
 /// Writer that rejects a configured write operation.
 struct FailingWriter {
     /// One-based write operation that should fail.

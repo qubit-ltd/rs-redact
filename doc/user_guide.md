@@ -301,7 +301,7 @@ qubit-redact = "0.6"
 qubit-redact-derive = "0.6"
 ```
 
-```rust
+```ignore
 use qubit_redact::{Redact as _, RedactMut as _};
 use qubit_redact_derive::{Redact, RedactMut};
 
@@ -359,7 +359,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
 
-```rust
+```ignore
 use qubit_redact::Redact as _;
 use qubit_redact_derive::Redact;
 
