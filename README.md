@@ -65,7 +65,7 @@ to Rust structs and enums. `Redact` creates a borrowed `Redacted<T>` view for
 diagnostics, while `RedactMut` performs an explicit logical replacement when an
 owned value is required. Use it with the `qubit-redact` runtime crate; the
 complete field attributes and Serde/JSON integration are covered in the
-[derive README](derive/README.md) and [derive User Guide](derive/doc/user_guide.md).
+[derive README](https://github.com/qubit-ltd/rs-redact-derive/blob/main/README.md) and [derive User Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.md).
 
 ## Choose a Tool
 
@@ -134,8 +134,8 @@ http = "1.4"
 
 - [English User Guide](doc/user_guide.md) and [中文用户手册](doc/user_guide.zh_CN.md)
 - [Runtime API documentation](https://docs.rs/qubit-redact)
-- [qubit-redact-derive README](derive/README.md) for field attributes and serde support
-- [qubit-redact-derive User Guide](derive/doc/user_guide.md)
+- [qubit-redact-derive README](https://github.com/qubit-ltd/rs-redact-derive/blob/main/README.md) for field attributes and serde support
+- [qubit-redact-derive User Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.md)
 - [Derive crate API documentation](https://docs.rs/qubit-redact-derive)
 
 ## Testing
