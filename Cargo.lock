@@ -557,7 +557,7 @@ dependencies = [
 [[package]]
 name = "qubit-redact-derive"
 version = "0.6.0"
-source = "git+https://github.com/qubit-ltd/rs-redact-derive?branch=dev-starfish#b3a8b47c53c908a1531af9d560d5b9354bd77a46"
+source = "git+https://github.com/qubit-ltd/rs-redact-derive?branch=dev-starfish#edbbbec3781adbdbb2b082e80531b2f414844a91"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
