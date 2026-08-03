@@ -30,6 +30,20 @@
       "features": ["http"]
     },
     {
+      "name": "uri",
+      "commands": ["check", "test", "doc"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["uri"]
+    },
+    {
+      "name": "http-uri",
+      "commands": ["check", "test", "doc"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["http", "uri"]
+    },
+    {
       "name": "all-root",
       "commands": ["check", "test", "doc", "clippy"],
       "allFeatures": true

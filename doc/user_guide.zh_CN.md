@@ -13,6 +13,7 @@ Qubit Redact 是一个策略驱动的 Rust 脱敏库，用于防止敏感值经�
 - [领域对象](#4-用-redact-和-redactmut-处理领域对象)
 - [进程诊断](#5-用-argvredactor-处理命令行参数)
 - [HTTP 诊断](#7-用-httpredactor-处理-http-诊断)
+- [URI 诊断](#8-用-uriredactor-处理-uri-诊断)
 - [安全边界与排查](#安全边界与验证)
 
 ## 它解决什么问题
@@ -462,6 +463,27 @@ allow-list 方法配置 Header、query 和 body。无效或截断的结构化输
 
 运行时诊断可读取 `BodyRedaction::status()`、`is_truncated()`、`captured_len()` 和
 `omitted_len()`。`BodyRedactionStatus::Redacted(reason)` 会给出结构化或可见表示不安全的原因。
+
+## 8. 用 `UriRedactor` 处理 URI 诊断
+
+可选 `uri` feature 提供基于解析器的 URI facade，且不会隐式启用 `http`：
+
+```toml
+qubit-redact = { version = "0.6", features = ["uri"] }
+```
+
+`UriRedactor` 保留可见组件的原始 scheme、host、port、path、query 顺序和百分号编码。
+userinfo 只在第一个原始、未编码的 `:` 处分割：用户名按 `username` 字段分类，密码按
+`password` 字段分类。标准策略下只有用户名的 authority 默认可见，也可以通过同一套核心
+策略规则允许或遮盖。
+
+query 的 key 和 value 会严格解码后再做策略判断；`+` 保持为字面加号，第一个 `=` 才是
+pair 分隔符，未遮盖的值保留原始编码，已遮盖的值重新做 URI 编码。path 默认保留，fragment
+默认遮盖，两者都可通过 `UriRedactionPolicyBuilder` 配置。语法无效、query UTF-8 无法解码
+或输入超预算时返回 `<invalid URI>`，不会保留原始 URI 文本。
+
+`UriRedaction` 提供日志安全文本、状态、已变更组件、原因和输出截断元数据；其 `Debug` 和
+`Display` 只渲染安全结果。
 
 ## 安全边界与验证
 

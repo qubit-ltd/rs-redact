@@ -40,9 +40,11 @@ http = [
     "dep:http",
     "dep:url",
 ]
+uri = ["dep:fluent-uri"]
 
 [dependencies]
 form_urlencoded = { version = "1.2", optional = true }
+fluent-uri = { version = "0.4.1", optional = true }
 http = { version = "1.5", optional = true }
 serde = { version = "1.0", optional = true }
 serde_json = { version = "1.0", optional = true }

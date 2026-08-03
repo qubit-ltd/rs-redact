@@ -14,6 +14,7 @@ process arguments, environment variables, and optional HTTP data.
 - [Domain objects](#4-redact-domain-objects-with-redact-and-redactmut)
 - [Process diagnostics](#5-redact-command-arguments-with-argvredactor)
 - [HTTP diagnostics](#7-redact-http-diagnostics-with-httpredactor)
+- [URI diagnostics](#8-redact-uri-diagnostics-with-uriredactor)
 - [Security checklist and troubleshooting](#security-boundaries-and-verification)
 
 ## What it solves
@@ -513,6 +514,33 @@ For operational diagnostics, inspect `BodyRedaction::status()`,
 `is_truncated()`, `captured_len()`, and `omitted_len()`. A
 `BodyRedactionStatus::Redacted(reason)` value reports why a structured or
 visible representation was unsafe.
+
+## 8. Redact URI diagnostics with `UriRedactor`
+
+The optional `uri` feature adds a parser-backed URI facade without enabling
+the HTTP feature:
+
+```toml
+qubit-redact = { version = "0.6", features = ["uri"] }
+```
+
+`UriRedactor` preserves raw scheme, host, port, path, query order, and
+percent-encoding for visible components. Userinfo is split only at the first
+raw, unencoded `:`: the username uses the `username` field rule and the
+password uses `password`. A username-only authority is visible under the
+standard policy and can be allowed or masked by the same core policy rules.
+
+Query keys and values are decoded strictly for policy decisions. `+` remains a
+literal plus, the first `=` separates a pair, and unmasked values retain their
+original raw spelling. Masked values are URI-encoded again. Paths are
+preserved by default; fragments are redacted by default and both choices are
+configurable through `UriRedactionPolicyBuilder`. Invalid syntax, undecodable
+query UTF-8, or an input budget violation return `<invalid URI>` without
+retaining source text.
+
+`UriRedaction` exposes log-safe text, status, changed components, reasons, and
+output truncation metadata. Its `Debug` and `Display` implementations render
+only that safe result.
 
 ## Security boundaries and verification
 

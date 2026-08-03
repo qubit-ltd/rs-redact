@@ -363,6 +363,18 @@ pub use text::{
     RedactedText,
     redacted_debug,
 };
+#[cfg(feature = "uri")]
+pub use uri::{
+    UriComponent,
+    UriFragmentPolicy,
+    UriPathPolicy,
+    UriRedaction,
+    UriRedactionPolicy,
+    UriRedactionPolicyBuilder,
+    UriRedactionReason,
+    UriRedactionStatus,
+    UriRedactor,
+};
 
 #[cfg(feature = "serde")]
 #[doc(hidden)]

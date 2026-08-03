@@ -20,6 +20,9 @@ explicit log-safe boundary.
   a plain-text log.
 - Malformed or truncated structured HTTP input fails closed, and finite budgets
   bound inspection, output, JSON recursion, and disclosure.
+- URI redaction preserves raw scheme, authority, path, query order, and
+  encoding while applying the core policy independently to username/password,
+  query values, and configurable path/fragment boundaries.
 - The default feature set is empty; the core crate has no external runtime
   dependencies.
 
@@ -78,6 +81,7 @@ complete field attributes and Serde/JSON integration are covered in the
 | Command arguments | `ArgvRedactor` | `RedactedArgv`, safe to display. |
 | Environment pairs | `EnvRedactor` | `RedactedEnvPair` or `LogSafeText`. |
 | URL, form, headers, or captured body | `HttpRedactor` | Bounded, log-safe HTTP result types. |
+| URI string | `UriRedactor` (`uri` feature) | Structured, log-safe result with component reasons. |
 
 ## Cargo Features
 
@@ -88,6 +92,7 @@ complete field attributes and Serde/JSON integration are covered in the
 | Serialize redacted views | Enable `serde` and declare `serde` directly. |
 | Redact `serde_json::Value` or JSON text fields | Enable `json`; add `serde_json` directly when your application uses it. |
 | HTTP diagnostics | Enable `http`; add `http` directly when your application uses its types. |
+| Policy-driven URI redaction | Enable `uri`; this is independent from `http`. |
 
 The derive `#[redact(json)]` mode keeps JSON text fields as their outer Rust
 `String` type. When combined with `#[redact(serde)]`, the redacted value is
@@ -98,6 +103,9 @@ still serialized as a JSON string.
 # HTTP diagnostics only
 qubit-redact = { version = "0.6", features = ["http"] }
 http = "1.4"
+
+# URI diagnostics without the HTTP feature
+# qubit-redact = { version = "0.6", features = ["uri"] }
 ```
 
 ## Safety Boundaries
@@ -129,6 +137,11 @@ http = "1.4"
 - HTTP redaction accepts only caller-provided captures. It never reads or
   buffers a network body itself. Import `HttpRedactionPolicy` from
   `qubit_redact::http`, not from an HTTP client crate.
+- URI redaction is opt-in through `qubit_redact::uri::UriRedactor`. Userinfo is
+  split only at the first raw `:`; username uses the `username` field rule and
+  password uses `password`. Query keys are decoded strictly for classification,
+  while unmasked values retain their original percent-encoded spelling. Invalid
+  URI syntax or undecodable query components return a fixed marker.
 
 ## Learn More
 
