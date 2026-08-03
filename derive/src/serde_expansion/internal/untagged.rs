@@ -100,7 +100,13 @@ pub(super) fn untagged_variant_arm(
         }
         FieldsData::Unnamed(fields) if fields.len() == 1 => {
             let (pattern, setups, _conditions, carriers) =
-                enum_unnamed_parts(type_name, rust_name, fields, runtime);
+                enum_unnamed_parts(
+                    type_name,
+                    rust_name,
+                    variant.index(),
+                    fields,
+                    runtime,
+                );
             if carriers.is_empty() {
                 quote! {
                     Self::#rust_name #pattern => {
@@ -123,7 +129,13 @@ pub(super) fn untagged_variant_arm(
         }
         FieldsData::Unnamed(fields) => {
             let (pattern, setups, conditions, carriers) =
-                enum_unnamed_parts(type_name, rust_name, fields, runtime);
+                enum_unnamed_parts(
+                    type_name,
+                    rust_name,
+                    variant.index(),
+                    fields,
+                    runtime,
+                );
             let count_conditions = &conditions;
             let calls = conditions
                 .iter()

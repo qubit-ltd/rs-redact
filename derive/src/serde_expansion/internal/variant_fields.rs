@@ -99,7 +99,11 @@ pub(super) fn enum_named_parts(
             .rename()
             .map_or(default_name, str::to_owned);
         let raw = quote_spanned!(field.span()=> #identifier);
-        let context = field_context(Some(variant_name), &raw_name);
+        let context = field_context(
+            Some(variant_name),
+            Some(variant.index()),
+            &raw_name,
+        );
         let carrier = format_ident!("__qubit_redact_serialized_{position}");
         let value = serialized_carrier(
             type_name,
@@ -136,6 +140,7 @@ pub(super) fn enum_named_parts(
 ///
 /// * `type_name` - Enum receiving the generated serialization implementation.
 /// * `variant_name` - Variant owning the fields.
+/// * `variant_index` - Zero-based declaration index of the owning variant.
 /// * `fields` - Parsed positional fields in declaration order.
 /// * `runtime` - Resolved path to the runtime crate.
 ///
@@ -146,6 +151,7 @@ pub(super) fn enum_named_parts(
 pub(super) fn enum_unnamed_parts(
     type_name: &syn::Ident,
     variant_name: &syn::Ident,
+    variant_index: u32,
     fields: &[UnnamedField<'_>],
     runtime: &Path,
 ) -> (
@@ -188,7 +194,11 @@ pub(super) fn enum_unnamed_parts(
         }
         let field = parsed.field();
         let field_name = parsed.index().index.to_string();
-        let context = field_context(Some(variant_name), &field_name);
+        let context = field_context(
+            Some(variant_name),
+            Some(variant_index),
+            &field_name,
+        );
         let carrier = format_ident!("__qubit_redact_serialized_{position}");
         let raw = quote_spanned!(field.span()=> #binding);
         let value = serialized_carrier(

@@ -131,7 +131,7 @@ fn named_struct_body(
             str::to_owned,
         );
         let raw = quote_spanned!(field.span()=> &self.#identifier);
-        let context = field_context(None, &raw_name);
+        let context = field_context(None, None, &raw_name);
         let carrier = format_ident!("__qubit_redact_serialized_{position}");
         let value = serialized_carrier(
             type_name,
@@ -216,7 +216,7 @@ fn newtype_struct_body(
     let field = parsed.field();
     let index = parsed.index();
     let raw = quote_spanned!(field.span()=> &self.#index);
-    let context = field_context(None, &index.index.to_string());
+    let context = field_context(None, None, &index.index.to_string());
     let value = serialized_carrier(
         type_name,
         field,
@@ -273,7 +273,7 @@ fn tuple_struct_body(
         let field = parsed.field();
         let index = parsed.index();
         let raw = quote_spanned!(field.span()=> &self.#index);
-        let context = field_context(None, &index.index.to_string());
+    let context = field_context(None, None, &index.index.to_string());
         let carrier = format_ident!("__qubit_redact_serialized_{position}");
         let value = serialized_carrier(
             type_name,

@@ -19,6 +19,7 @@ use crate::{
     internal::{
         ContainerData,
         FieldsData,
+        VariantData,
     },
     serde_container_attributes::SerdeContainerAttributes,
 };
@@ -130,7 +131,7 @@ fn serialization_assertions(
                 fields_serialization_assertions(
                     type_name,
                     variant.fields(),
-                    Some(&variant.variant().ident),
+                    Some(variant),
                     runtime,
                 )
             })
@@ -144,7 +145,7 @@ fn serialization_assertions(
 ///
 /// * `type_name` - Type receiving the hidden serialization implementation.
 /// * `fields` - Parsed fields requiring capability assertions.
-/// * `variant_name` - Owning variant for enum fields, or `None` for structs.
+/// * `variant` - Owning variant for enum fields, or `None` for structs.
 /// * `runtime` - Resolved path to the runtime crate.
 ///
 /// # Returns
@@ -153,7 +154,7 @@ fn serialization_assertions(
 fn fields_serialization_assertions(
     type_name: &syn::Ident,
     fields: &FieldsData<'_>,
-    variant_name: Option<&syn::Ident>,
+    variant: Option<&VariantData<'_>>,
     runtime: &Path,
 ) -> Vec<TokenStream> {
     match fields {
@@ -161,7 +162,11 @@ fn fields_serialization_assertions(
             .iter()
             .map(|parsed| {
                 let field_name = parsed.identifier().to_string();
-                let context = field_context(variant_name, &field_name);
+                let context = field_context(
+                    variant.map(|item| &item.variant().ident),
+                    variant.map(VariantData::index),
+                    &field_name,
+                );
                 field_assertion::serialization(
                     type_name,
                     parsed.field(),
@@ -175,7 +180,11 @@ fn fields_serialization_assertions(
             .iter()
             .map(|parsed| {
                 let field_name = parsed.index().index.to_string();
-                let context = field_context(variant_name, &field_name);
+                let context = field_context(
+                    variant.map(|item| &item.variant().ident),
+                    variant.map(VariantData::index),
+                    &field_name,
+                );
                 field_assertion::serialization(
                     type_name,
                     parsed.field(),

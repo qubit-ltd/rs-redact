@@ -145,6 +145,7 @@ pub(super) fn raw_identifier(identifier: &syn::Ident) -> String {
 /// # Parameters
 ///
 /// * `variant_name` - Owning variant, or `None` for a struct field.
+/// * `variant_index` - Zero-based declaration index of the owning variant.
 /// * `field_name` - Field identifier or positional index.
 ///
 /// # Returns
@@ -153,10 +154,15 @@ pub(super) fn raw_identifier(identifier: &syn::Ident) -> String {
 #[inline]
 pub(super) fn field_context(
     variant_name: Option<&syn::Ident>,
+    variant_index: Option<u32>,
     field_name: &str,
 ) -> String {
     variant_name.map_or_else(
         || field_name.to_owned(),
-        |variant| format!("{variant}_{field_name}"),
+        |variant| {
+            let index = variant_index
+                .expect("enum variant field contexts require a declaration index");
+            format!("{variant}_{index}_{field_name}")
+        },
     )
 }

@@ -350,8 +350,11 @@ fn enum_immutable_assertions(
                     .iter()
                     .map(|parsed| {
                         let field_name = parsed.identifier().to_string();
-                        let context =
-                            variant_field_context(variant_name, &field_name);
+                        let context = variant_field_context(
+                            variant.index(),
+                            variant_name,
+                            &field_name,
+                        );
                         field_assertion::immutable(
                             type_name,
                             parsed.field(),
@@ -365,8 +368,11 @@ fn enum_immutable_assertions(
                     .iter()
                     .map(|parsed| {
                         let field_name = parsed.index().index.to_string();
-                        let context =
-                            variant_field_context(variant_name, &field_name);
+                        let context = variant_field_context(
+                            variant.index(),
+                            variant_name,
+                            &field_name,
+                        );
                         field_assertion::immutable(
                             type_name,
                             parsed.field(),
@@ -401,10 +407,22 @@ fn enum_format_body(
         let variant_name = &variant.variant().ident;
         match variant.fields() {
             FieldsData::Named(fields) => {
-                enum_named_format_arm(type_name, variant_name, fields, runtime)
+                enum_named_format_arm(
+                    type_name,
+                    variant.index(),
+                    variant_name,
+                    fields,
+                    runtime,
+                )
             }
             FieldsData::Unnamed(fields) => {
-                enum_unnamed_format_arm(type_name, variant_name, fields, runtime)
+                enum_unnamed_format_arm(
+                    type_name,
+                    variant.index(),
+                    variant_name,
+                    fields,
+                    runtime,
+                )
             }
             FieldsData::Unit => quote! {
                 Self::#variant_name => formatter.write_str(stringify!(#variant_name)),
@@ -423,6 +441,7 @@ fn enum_format_body(
 /// # Parameters
 ///
 /// * `type_name` - Enum receiving the generated implementation.
+/// * `variant_index` - Zero-based declaration index of the owning variant.
 /// * `variant_name` - Variant name shown in formatter output.
 /// * `fields` - Parsed named fields in source order.
 ///
@@ -431,6 +450,7 @@ fn enum_format_body(
 /// A match arm using `DebugStruct` semantics.
 fn enum_named_format_arm(
     type_name: &syn::Ident,
+    variant_index: u32,
     variant_name: &syn::Ident,
     fields: &[NamedField<'_>],
     runtime: &Path,
@@ -453,7 +473,8 @@ fn enum_named_format_arm(
                 .field(#field_name, #identifier)
             },
             FieldMode::Level(_) | FieldMode::Nested | FieldMode::Map => {
-                let context = variant_field_context(variant_name, &field_name);
+                let context =
+                    variant_field_context(variant_index, variant_name, &field_name);
                 let helper = field_assertion::helper_name(
                     type_name,
                     field,
@@ -465,7 +486,8 @@ fn enum_named_format_arm(
                 }
             }
             FieldMode::Json => {
-                let context = variant_field_context(variant_name, &field_name);
+                let context =
+                    variant_field_context(variant_index, variant_name, &field_name);
                 let helper = field_assertion::helper_name(
                     type_name,
                     field,
@@ -495,6 +517,7 @@ fn enum_named_format_arm(
 /// # Parameters
 ///
 /// * `type_name` - Enum receiving the generated implementation.
+/// * `variant_index` - Zero-based declaration index of the owning variant.
 /// * `variant_name` - Variant name shown in formatter output.
 /// * `fields` - Parsed positional fields in source order.
 ///
@@ -503,6 +526,7 @@ fn enum_named_format_arm(
 /// A match arm using `DebugTuple` semantics.
 fn enum_unnamed_format_arm(
     type_name: &syn::Ident,
+    variant_index: u32,
     variant_name: &syn::Ident,
     fields: &[UnnamedField<'_>],
     runtime: &Path,
@@ -533,7 +557,8 @@ fn enum_unnamed_format_arm(
             },
             FieldMode::Level(_) | FieldMode::Nested | FieldMode::Map => {
                 let field_name = parsed.index().index.to_string();
-                let context = variant_field_context(variant_name, &field_name);
+                let context =
+                    variant_field_context(variant_index, variant_name, &field_name);
                 let helper = field_assertion::helper_name(
                     type_name,
                     field,
@@ -546,7 +571,8 @@ fn enum_unnamed_format_arm(
             }
             FieldMode::Json => {
                 let field_name = parsed.index().index.to_string();
-                let context = variant_field_context(variant_name, &field_name);
+                let context =
+                    variant_field_context(variant_index, variant_name, &field_name);
                 let helper = field_assertion::helper_name(
                     type_name,
                     field,
@@ -575,6 +601,7 @@ fn enum_unnamed_format_arm(
 /// # Parameters
 ///
 /// * `variant_name` - Owning enum variant.
+/// * `variant_index` - Zero-based declaration index of the owning variant.
 /// * `field_name` - Field identifier or positional index.
 ///
 /// # Returns
@@ -582,8 +609,9 @@ fn enum_unnamed_format_arm(
 /// A stable variant-qualified field context.
 #[inline]
 fn variant_field_context(
+    variant_index: u32,
     variant_name: &syn::Ident,
     field_name: &str,
 ) -> String {
-    format!("{variant_name}_{field_name}")
+    format!("{variant_name}_{variant_index}_{field_name}")
 }
