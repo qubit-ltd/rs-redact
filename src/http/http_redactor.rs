@@ -75,6 +75,15 @@ impl HttpRedactor {
         Self { policy }
     }
 
+    /// Creates a redactor with the strict policy for untrusted HTTP data.
+    ///
+    /// The strict snapshot masks unknown structured fields and redacts
+    /// non-root URL paths while retaining the configured resource limits.
+    #[inline]
+    pub fn strict() -> Self {
+        Self::new(HttpRedactionPolicy::strict())
+    }
+
     /// Returns the immutable HTTP policy snapshot.
     ///
     /// # Returns
@@ -104,7 +113,7 @@ impl HttpRedactor {
     /// Redacts a parsed URL into log-safe text.
     ///
     /// User information, passwords, fragments, sensitive query values, and
-    /// non-root paths under the default policy never reach the result.
+    /// non-root paths under a strict policy never reach the result.
     /// Complete HTTP URLs used as non-sensitive query values are redacted
     /// recursively under fixed nesting and percent-decoding limits; exceeding
     /// either limit fails closed.

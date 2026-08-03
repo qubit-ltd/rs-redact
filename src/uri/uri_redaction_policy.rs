@@ -85,14 +85,11 @@ impl UriRedactionPolicy {
 }
 
 impl Default for UriRedactionPolicy {
-    /// Creates the standard URI policy: visible usernames, preserved paths,
-    /// and redacted passwords, sensitive query values, and fragments.
+    /// Creates a URI policy snapshot from the current global configuration.
     #[inline]
     fn default() -> Self {
-        Self::new(
-            RedactionPolicy::default(),
-            UriPathPolicy::default(),
-            UriFragmentPolicy::default(),
-        )
+        crate::GlobalRedactionConfig::current()
+            .uri_policy()
+            .clone()
     }
 }

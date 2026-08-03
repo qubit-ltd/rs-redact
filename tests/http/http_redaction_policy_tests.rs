@@ -50,6 +50,10 @@ fn test_http_redaction_policy_strict_preset_redacts_unknown_fields() {
         policy.unkeyed_json_value_policy(),
         qubit_redact::http::UnkeyedJsonValuePolicy::Redact,
     );
+    assert_eq!(
+        policy.url_path_policy(),
+        qubit_redact::http::UrlPathPolicy::Redact,
+    );
 }
 
 /// Verifies each HTTP field context owns only rules and can independently
