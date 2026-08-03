@@ -368,6 +368,7 @@ pub use text::{
 pub use uri::{
     UriComponent,
     UriFragmentPolicy,
+    UriInspection,
     UriPathPolicy,
     UriRedaction,
     UriRedactionPolicy,
