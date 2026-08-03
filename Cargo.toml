@@ -40,9 +40,11 @@ http = [
     "dep:http",
     "dep:url",
 ]
+uri = ["dep:fluent-uri"]
 
 [dependencies]
 form_urlencoded = { version = "1.2", optional = true }
+fluent-uri = { version = "0.4.1", optional = true }
 http = { version = "1.5", optional = true }
 serde = { version = "1.0", optional = true }
 serde_json = { version = "1.0", optional = true }
@@ -52,13 +54,8 @@ url = { version = "2.5", optional = true }
 criterion = { version = "0.8", default-features = false }
 indexmap = "2.14"
 proptest = "1.11"
-qubit-redact-derive = {
-    git = "https://github.com/qubit-ltd/rs-redact-derive",
-    branch = "dev-starfish",
-}
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-trybuild = "1.0"
 
 [[bench]]
 name = "redaction_policy"
@@ -68,6 +65,11 @@ harness = false
 name = "http_diagnostics"
 harness = false
 required-features = ["http"]
+
+[[bench]]
+name = "uri_diagnostics"
+harness = false
+required-features = ["uri"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

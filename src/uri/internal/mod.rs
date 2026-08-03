@@ -5,12 +5,10 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for internal domain serialization support.
+//! Private URI rendering helpers.
 
-#[cfg(feature = "serde")]
-mod internally_tagged_serializer_tests;
-mod mask_byte_limit_reset_tests;
-mod mask_byte_limit_tests;
-mod nested_tests;
-mod redact_mut_tests;
-mod redacted_serialize_tests;
+mod bounded_uri_writer;
+mod uri_component_writer;
+
+pub(super) use bounded_uri_writer::BoundedUriWriter;
+pub(super) use uri_component_writer::UriComponentWriter;

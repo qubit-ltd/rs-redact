@@ -5,8 +5,25 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Parser-neutral URI component helpers.
+//! Policy-driven URI redaction.
 
-mod percent_encoded_field_name;
-
-pub use percent_encoded_field_name::decode_percent_encoded_field_name;
+mod internal;
+mod uri_component;
+mod uri_fragment_policy;
+mod uri_path_policy;
+mod uri_redaction;
+mod uri_redaction_policy;
+mod uri_redaction_policy_builder;
+mod uri_redaction_policy_inner;
+mod uri_redaction_reason;
+mod uri_redaction_status;
+mod uri_redactor;
+pub use uri_component::UriComponent;
+pub use uri_fragment_policy::UriFragmentPolicy;
+pub use uri_path_policy::UriPathPolicy;
+pub use uri_redaction::UriRedaction;
+pub use uri_redaction_policy::UriRedactionPolicy;
+pub use uri_redaction_policy_builder::UriRedactionPolicyBuilder;
+pub use uri_redaction_reason::UriRedactionReason;
+pub use uri_redaction_status::UriRedactionStatus;
+pub use uri_redactor::UriRedactor;

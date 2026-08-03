@@ -1,5 +1,0 @@
-error: Redact serde for `Record` field `secret` does not support `serialize_with` because it can change structure or bypass redaction; use only `rename`, `skip`, `skip_serializing`, or `skip_serializing_if`
-  --> tests/fixtures/domain_serde/fail/serde_serialize_with.rs:17:13
-   |
-17 |     #[serde(serialize_with = "serialize_secret")]
-   |             ^^^^^^^^^^^^^^

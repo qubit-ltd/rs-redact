@@ -14,6 +14,11 @@ use http::{
     HeaderValue,
 };
 
+use crate::Sensitivity;
+
+use super::HttpRedactor;
+use crate::http::internal::BoundedLogWriter;
+
 /// Groups repeated header values under deterministically ordered names.
 pub(super) fn group_values(
     headers: &HeaderMap,
@@ -23,4 +28,75 @@ pub(super) fn group_values(
         values.entry(name.as_str()).or_default().push(value);
     }
     values
+}
+
+impl HttpRedactor {
+    /// Checks the complete header input against the diagnostic budget.
+    pub(super) fn headers_fit_input_budget(&self, headers: &HeaderMap) -> bool {
+        let input_limit = self.policy().diagnostic_budget().max_input_bytes();
+        let mut input_bytes = 0_usize;
+        for (name, value) in headers {
+            input_bytes = input_bytes
+                .saturating_add(name.as_str().len())
+                .saturating_add(value.as_bytes().len());
+            if input_bytes > input_limit {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Writes deterministically grouped headers to a bounded writer.
+    pub(super) fn write_grouped_headers(
+        &self,
+        writer: &mut BoundedLogWriter,
+        values: BTreeMap<&str, Vec<&HeaderValue>>,
+    ) {
+        for (name_index, (name, header_values)) in
+            values.into_iter().enumerate()
+        {
+            if name_index > 0 {
+                let _ = writer.write_str("\n");
+            }
+            let _ = writer.write_str(name);
+            let _ = writer.write_str(": [");
+            self.write_header_values(writer, name, &header_values);
+            if writer.is_full() {
+                break;
+            }
+            let _ = writer.write_str("]");
+        }
+    }
+
+    /// Redacts and writes every value for one header name.
+    fn write_header_values(
+        &self,
+        writer: &mut BoundedLogWriter,
+        name: &str,
+        values: &[&HeaderValue],
+    ) {
+        for (value_index, value) in values.iter().enumerate() {
+            if writer.is_full() {
+                break;
+            }
+            if value_index > 0 {
+                let _ = writer.write_str(", ");
+            }
+            let rendered = value.to_str().unwrap_or("<non-utf8>");
+            let remaining = writer.remaining_bytes();
+            if value.is_sensitive() {
+                let redacted = self.header_field_redactor().mask_bounded(
+                    Sensitivity::Secret,
+                    rendered,
+                    remaining,
+                );
+                let _ = writer.write_str(redacted.as_ref());
+            } else {
+                let redacted = self
+                    .header_field_redactor()
+                    .redact_bounded(name, rendered, remaining);
+                let _ = writer.write_str(redacted.as_str());
+            }
+        }
+    }
 }

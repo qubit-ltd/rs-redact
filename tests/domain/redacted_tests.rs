@@ -18,6 +18,9 @@ use qubit_redact::{
     Sensitivity,
 };
 
+#[cfg(feature = "serde")]
+use qubit_redact::domain::RedactSerialize;
+
 /// Account with a manually implemented redacted representation.
 struct ManualAccount {
     /// Public identifier that remains visible.
@@ -46,6 +49,32 @@ impl Redact for ManualAccount {
             )
             .field("note", &self.note)
             .finish()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl RedactSerialize for ManualAccount {
+    /// Serializes the same masked account value through the serde hook.
+    fn serialize_redacted<S>(
+        &self,
+        policy: &RedactionPolicy,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+
+        let mut state = serializer.serialize_struct("ManualAccount", 3)?;
+        state.serialize_field("id", &self.id)?;
+        state.serialize_field(
+            "password",
+            &self
+                .password
+                .redact_value(Sensitivity::Secret, policy.masking()),
+        )?;
+        state.serialize_field("note", &self.note)?;
+        state.end()
     }
 }
 
@@ -135,4 +164,26 @@ fn test_redacted_with_policy_output_limit_uses_policy_budget() {
 
     assert!(output.len() <= budget.max_output_bytes());
     assert!(output.ends_with("<truncated>"));
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn test_redacted_view_serializes_through_the_explicit_policy() {
+    let account = ManualAccount {
+        id: 13,
+        password: "raw-secret".to_owned(),
+        note: "visible".to_owned(),
+    };
+    let policy = RedactionPolicy::builder()
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[serde]"))
+        .expect("the test mask policy should be valid")
+        .build()
+        .expect("the fixed masking policy should build");
+
+    let serialized = serde_json::to_value(account.redacted_with(&policy))
+        .expect("the redacted view should serialize");
+
+    assert_eq!(serialized["id"], 13);
+    assert_eq!(serialized["password"], "[serde]");
+    assert_eq!(serialized["note"], "visible");
 }
