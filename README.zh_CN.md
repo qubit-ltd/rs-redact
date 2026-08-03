@@ -58,8 +58,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 `qubit-redact-derive` 提供过程派生宏，用于将脱敏策略应用到 Rust struct 和 enum。
 `Redact` 为诊断信息创建借用的 `Redacted<T>` 视图；需要拥有式值时，`RedactMut`
 执行显式的逻辑替换。它与 `qubit-redact` 运行时 crate 配合使用；完整的字段属性和
-Serde/JSON 集成说明请参阅 [derive README](derive/README.zh_CN.md) 和
-[derive 用户手册](derive/doc/user_guide.zh_CN.md)。
+Serde/JSON 集成说明请参阅 [derive README](https://github.com/qubit-ltd/rs-redact-derive/blob/main/README.zh_CN.md) 和
+[derive 用户手册](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.zh_CN.md)。
 
 ## 如何选择工具
 
@@ -82,6 +82,9 @@ Serde/JSON 集成说明请参阅 [derive README](derive/README.zh_CN.md) 和
 | 序列化脱敏视图 | 启用 `serde`，并直接声明 `serde` 依赖。 |
 | 脱敏 `serde_json::Value` 或 JSON 文本字段 | 启用 `json`；应用使用时直接添加 `serde_json`。 |
 | HTTP 诊断 | 启用 `http`；应用使用其类型时直接添加 `http`。 |
+
+derive 的 `#[redact(json)]` 模式会保持 JSON 文本字段的外层 Rust `String` 类型。
+与 `#[redact(serde)]` 组合时，脱敏值仍会序列化为 JSON 字符串。
 
 ```toml
 [dependencies]
@@ -116,8 +119,8 @@ http = "1.4"
 
 - [English User Guide](doc/user_guide.md) 和[中文用户手册](doc/user_guide.zh_CN.md)
 - [Runtime API 文档](https://docs.rs/qubit-redact)
-- [qubit-redact-derive README](derive/README.zh_CN.md)：字段属性和 serde 支持
-- [qubit-redact-derive 用户手册](derive/doc/user_guide.zh_CN.md)
+- [qubit-redact-derive README](https://github.com/qubit-ltd/rs-redact-derive/blob/main/README.zh_CN.md)：字段属性和 serde 支持
+- [qubit-redact-derive 用户手册](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.zh_CN.md)
 - [derive crate API 文档](https://docs.rs/qubit-redact-derive)
 
 ## 测试

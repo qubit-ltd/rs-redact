@@ -1,5 +1,0 @@
-error: Redact derive for `Account` field `password` has unknown attribute `mask`; use `plain`, `level = "..."`, `skip`, `nested`, `map`, or `json`
-  --> tests/fixtures/fail/unknown_attribute.rs:16:14
-   |
-16 |     #[redact(mask)]
-   |              ^^^^

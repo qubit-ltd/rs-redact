@@ -1,7 +1,0 @@
-error: #[redact(json)] requires the `json` feature of qubit-redact
-  --> tests/fixtures/fail/json_without_feature.rs:13:10
-   |
-13 | #[derive(Redact)]
-   |          ^^^^^^
-   |
-   = note: this error originates in the macro `::qubit_redact::__qubit_redact_json` which comes from the expansion of the derive macro `Redact` (in Nightly builds, run with -Z macro-backtrace for more info)

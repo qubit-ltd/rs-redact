@@ -557,15 +557,12 @@ dependencies = [
 [[package]]
 name = "qubit-redact-derive"
 version = "0.6.0"
+source = "git+https://github.com/qubit-ltd/rs-redact-derive?branch=dev-starfish#edbbbec3781adbdbb2b082e80531b2f414844a91"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
- "qubit-redact",
  "quote",
- "serde",
- "serde_json",
  "syn 2.0.119",
- "trybuild",
 ]
 
 [[package]]
@@ -900,9 +897,9 @@ checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 
 [[package]]
 name = "trybuild"
-version = "1.0.118"
+version = "1.0.120"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06649c6f63d86604ba0c8950d5a1829fc9a17afd70fc6629f481d75b6a624c78"
+checksum = "1e605bf6b39357663d8ba4e984f8be8da8df6bb32e81031d6889024ea8fd68e4"
 dependencies = [
  "glob",
  "serde",

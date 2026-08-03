@@ -1,6 +1,6 @@
 # Qubit Redact User Guide
 
-[README](../README.md) · [中文用户手册](user_guide.zh_CN.md) · [Runtime API](https://docs.rs/qubit-redact) · [Derive README](../derive/README.md) · [Derive User Guide](../derive/doc/user_guide.md)
+[README](../README.md) · [中文用户手册](user_guide.zh_CN.md) · [Runtime API](https://docs.rs/qubit-redact) · [Derive README](https://github.com/qubit-ltd/rs-redact-derive/blob/main/README.md) · [Derive User Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.md)
 
 Qubit Redact is a policy-driven Rust library for preventing sensitive values from
 leaking through diagnostics: structured fields and maps, Rust domain objects,
@@ -290,8 +290,8 @@ At field boundaries, `level` masks a field, `plain` documents intentional
 visibility, `nested` recurses, `map` classifies map values by key, and `skip`
 omits a field from redacted representations. Add
 `#[redact(require_explicit)]` when every field must select one of these modes;
-the default behavior remains unchanged. See the [derive README](../derive/README.md)
-and [derive User Guide](../derive/doc/user_guide.md) for the complete macro
+the default behavior remains unchanged. See the [derive README](https://github.com/qubit-ltd/rs-redact-derive/blob/main/README.md)
+and [derive User Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.md) for the complete macro
 reference and examples.
 
 ```toml

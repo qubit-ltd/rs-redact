@@ -1,9 +1,0 @@
-error[E0119]: conflicting implementations of trait `Debug` for type `Record`
-  --> tests/fixtures/fail/debug_trait_conflict.rs:13:17
-   |
-13 | #[derive(Debug, Redact)]
-   |          -----  ^^^^^^ conflicting implementation for `Record`
-   |          |
-   |          first implementation here
-   |
-   = note: this error originates in the derive macro `Redact` (in Nightly builds, run with -Z macro-backtrace for more info)
