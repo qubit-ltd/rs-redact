@@ -28,7 +28,7 @@ diagnostic value.
 
 ```toml
 [dependencies]
-qubit-redact = "0.5"
+qubit-redact = "0.6"
 ```
 
 ```rust
@@ -87,8 +87,8 @@ shown by its section and run `cargo run`.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5", features = ["serde", "http"] }
-qubit-redact-derive = "0.5"
+qubit-redact = { version = "0.6", features = ["serde", "http"] }
+qubit-redact-derive = "0.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 http = "1.4"
@@ -296,8 +296,8 @@ reference and examples.
 
 ```toml
 [dependencies]
-qubit-redact = "0.5"
-qubit-redact-derive = "0.5"
+qubit-redact = "0.6"
+qubit-redact-derive = "0.6"
 ```
 
 ```rust
@@ -352,8 +352,8 @@ an existing implementation of the same trait.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5", features = ["serde"] }
-qubit-redact-derive = "0.5"
+qubit-redact = { version = "0.6", features = ["serde"] }
+qubit-redact-derive = "0.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -467,7 +467,7 @@ outcome. No result exposes a raw-body escape hatch.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5", features = ["http"] }
+qubit-redact = { version = "0.6", features = ["http"] }
 http = "1.4"
 ```
 
