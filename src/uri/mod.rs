@@ -10,6 +10,7 @@
 mod internal;
 mod uri_component;
 mod uri_fragment_policy;
+mod uri_inspection;
 mod uri_path_policy;
 mod uri_redaction;
 mod uri_redaction_policy;
@@ -20,6 +21,7 @@ mod uri_redaction_status;
 mod uri_redactor;
 pub use uri_component::UriComponent;
 pub use uri_fragment_policy::UriFragmentPolicy;
+pub use uri_inspection::UriInspection;
 pub use uri_path_policy::UriPathPolicy;
 pub use uri_redaction::UriRedaction;
 pub use uri_redaction_policy::UriRedactionPolicy;

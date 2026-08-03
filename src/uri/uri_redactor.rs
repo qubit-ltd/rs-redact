@@ -27,6 +27,7 @@ use crate::{
 use super::{
     UriComponent,
     UriFragmentPolicy,
+    UriInspection,
     UriPathPolicy,
     UriRedaction,
     UriRedactionPolicy,
@@ -175,6 +176,81 @@ impl UriRedactor {
             truncated,
         }
     }
+
+    /// Inspects one absolute URI and returns metadata without rendering text.
+    ///
+    /// Parsing, strict percent decoding, and component classification follow
+    /// the same URI policy as [`Self::redact_uri_str`]. The input budget still
+    /// applies, while the output budget and truncation behavior do not.
+    #[must_use = "use the structured URI inspection result"]
+    pub fn inspect_uri_str(&self, input: &str) -> UriInspection {
+        let budget = self.policy.redaction_policy().diagnostic_budget();
+        if input.len() > budget.max_input_bytes() {
+            return invalid_inspection(UriRedactionReason::InputLimitExceeded);
+        }
+
+        let parsed = match Uri::<&str>::parse(input) {
+            Ok(parsed) => parsed,
+            Err(_) => {
+                return invalid_inspection(UriRedactionReason::InvalidUri);
+            }
+        };
+        let mut reasons = Vec::new();
+        let mut components = Vec::new();
+
+        if let Some(authority) = parsed.authority()
+            && inspect_authority(
+                authority.as_str(),
+                &self.policy,
+                &mut reasons,
+                &mut components,
+            )
+            .is_err()
+        {
+            return invalid_inspection(UriRedactionReason::InvalidUri);
+        }
+
+        let path = parsed.path().as_str();
+        if self.policy.path_policy() == UriPathPolicy::Redact
+            && !path.is_empty()
+            && path != "/"
+        {
+            mark_component(UriComponent::Path, &mut reasons, &mut components);
+        }
+
+        if let Some(query) = parsed.query()
+            && let Err(reason) = inspect_query(
+                query.as_str(),
+                &self.policy,
+                &mut reasons,
+                &mut components,
+            )
+        {
+            return invalid_inspection(reason);
+        }
+
+        if let Some(fragment) = parsed.fragment()
+            && self.policy.fragment_policy() == UriFragmentPolicy::Redact
+            && !fragment.as_str().is_empty()
+        {
+            mark_component(
+                UriComponent::Fragment,
+                &mut reasons,
+                &mut components,
+            );
+        }
+
+        let status = if components.is_empty() {
+            UriRedactionStatus::PassedThrough
+        } else {
+            UriRedactionStatus::Redacted
+        };
+        UriInspection {
+            status,
+            reasons,
+            components,
+        }
+    }
 }
 
 impl Default for UriRedactor {
@@ -235,6 +311,65 @@ fn redact_authority(
     Ok(())
 }
 
+/// Inspects userinfo without allocating a rendered URI.
+fn inspect_authority(
+    authority: &str,
+    policy: &UriRedactionPolicy,
+    reasons: &mut Vec<UriRedactionReason>,
+    components: &mut Vec<UriComponent>,
+) -> Result<(), ()> {
+    let Some((userinfo, _host)) = authority.rsplit_once('@') else {
+        return Ok(());
+    };
+    let Some((username, password)) = userinfo.split_once(':') else {
+        inspect_userinfo_value(
+            userinfo,
+            "username",
+            UriComponent::Username,
+            policy,
+            reasons,
+            components,
+        )?;
+        return Ok(());
+    };
+    inspect_userinfo_value(
+        username,
+        "username",
+        UriComponent::Username,
+        policy,
+        reasons,
+        components,
+    )?;
+    inspect_userinfo_value(
+        password,
+        "password",
+        UriComponent::Password,
+        policy,
+        reasons,
+        components,
+    )?;
+    Ok(())
+}
+
+/// Applies a named field policy to one userinfo component without rendering.
+fn inspect_userinfo_value(
+    raw: &str,
+    field: &str,
+    component: UriComponent,
+    policy: &UriRedactionPolicy,
+    reasons: &mut Vec<UriRedactionReason>,
+    components: &mut Vec<UriComponent>,
+) -> Result<(), ()> {
+    decode_uri_component(raw).map_err(|_| ())?;
+    if matches!(
+        policy.redaction_policy().resolve_field(field),
+        ResolvedField::Sensitive { .. }
+    ) {
+        mark_component(component, reasons, components);
+    }
+    Ok(())
+}
+
 /// Applies a named field policy to one raw userinfo component.
 fn redact_userinfo_value(
     raw: &str,
@@ -290,6 +425,33 @@ fn redact_query(
             ResolvedField::PassThrough => {
                 rendered.write_str(pair);
             }
+        }
+    }
+    Ok(())
+}
+
+/// Inspects query fields after strict percent decoding without rendering.
+fn inspect_query(
+    query: &str,
+    policy: &UriRedactionPolicy,
+    reasons: &mut Vec<UriRedactionReason>,
+    components: &mut Vec<UriComponent>,
+) -> Result<(), UriRedactionReason> {
+    for pair in query.split('&') {
+        let Some((raw_key, raw_value)) = pair.split_once('=') else {
+            decode_uri_component(pair)
+                .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+            continue;
+        };
+        let key = decode_uri_component(raw_key)
+            .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+        decode_uri_component(raw_value)
+            .map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
+        if matches!(
+            policy.redaction_policy().resolve_field(&key),
+            ResolvedField::Sensitive { .. }
+        ) {
+            mark_component(UriComponent::Query, reasons, components);
         }
     }
     Ok(())
@@ -387,6 +549,15 @@ fn invalid_result(reason: UriRedactionReason) -> UriRedaction {
         reasons: vec![reason],
         components: Vec::new(),
         truncated: false,
+    }
+}
+
+/// Builds metadata for malformed or over-budget input.
+fn invalid_inspection(reason: UriRedactionReason) -> UriInspection {
+    UriInspection {
+        status: UriRedactionStatus::Invalid,
+        reasons: vec![reason],
+        components: Vec::new(),
     }
 }
 

@@ -14,6 +14,8 @@ mod uri_component_tests;
 #[cfg(feature = "uri")]
 mod uri_fragment_policy_tests;
 #[cfg(feature = "uri")]
+mod uri_inspection_tests;
+#[cfg(feature = "uri")]
 mod uri_path_policy_tests;
 #[cfg(feature = "uri")]
 mod uri_redaction_policy_builder_tests;
