@@ -17,7 +17,6 @@ use qubit_redact::{
     UriComponent,
     UriFragmentPolicy,
     UriPathPolicy,
-    RedactionPolicy,
     UriRedactionReason,
     UriRedactionStatus,
     UriRedactor,
@@ -110,7 +109,8 @@ fuzz_target!(|data: &[u8]| {
         first.log_safe_text().as_ref().len()
             <= default_redactor
                 .policy()
-                .limits().diagnostic_event()
+                .limits()
+                .diagnostic_event()
                 .max_output_bytes()
     );
 
