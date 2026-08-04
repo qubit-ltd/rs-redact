@@ -14,7 +14,6 @@ use std::{
 };
 
 use crate::{
-    DiagnosticInputBudget,
     LogOutputLimit,
     LogSafeText,
     RedactedText,
@@ -24,6 +23,7 @@ use crate::{
     policy::ResolvedField,
     text::internal::BoundedLogEscapeWriter,
 };
+use crate::policy::{DiagnosticInputBudget, OutputCharge};
 
 use super::RedactedEnvPair;
 
@@ -87,20 +87,37 @@ impl EnvRedactor {
         value: &str,
         session: &RedactionSession<'_>,
     ) -> RedactedEnvPair {
+        const FALLBACK: &str = "<redacted>=<redacted>";
+        if !session.consume_input(name.len().saturating_add(value.len())) {
+            return match session
+                .charge_output_or_fallback(FALLBACK.len(), FALLBACK.len())
+            {
+                OutputCharge::Complete => {
+                    RedactedEnvPair::from_rendered(FALLBACK.to_owned())
+                }
+                OutputCharge::Fallback | OutputCharge::Exhausted => {
+                    RedactedEnvPair::from_rendered(String::new())
+                }
+            };
+        }
         let value = self
             .redactor
-            .redact_field_with_session(session, name, value)
+            .redact_field(name, value)
             .into_owned();
         let name = log_safe_owned(name.to_owned());
         let pair = RedactedEnvPair::new(name, log_safe_owned(value));
         let rendered = pair.to_string();
-        if session.consume_output(rendered.len()) {
-            return pair;
+        match session
+            .charge_output_or_fallback(rendered.len(), FALLBACK.len())
+        {
+            OutputCharge::Complete => pair,
+            OutputCharge::Fallback => {
+                RedactedEnvPair::from_rendered(FALLBACK.to_owned())
+            }
+            OutputCharge::Exhausted => {
+                RedactedEnvPair::from_rendered(String::new())
+            }
         }
-        RedactedEnvPair::new(
-            log_safe_owned("<redacted>".to_owned()),
-            log_safe_owned("<redacted>".to_owned()),
-        )
     }
 
     /// Redacts one environment pair whose components may not be UTF-8.
@@ -182,10 +199,13 @@ impl EnvRedactor {
                 consumed
             },
         );
-        if session.consume_output(result.as_str().len()) {
-            result
-        } else {
-            log_safe_owned("<redacted: diagnostic limit exceeded>".to_owned())
+        const LIMIT_MARKER: &str = "<redacted: diagnostic limit exceeded>";
+        match session
+            .charge_output_or_fallback(result.as_str().len(), LIMIT_MARKER.len())
+        {
+            OutputCharge::Complete => result,
+            OutputCharge::Fallback => log_safe_owned(LIMIT_MARKER.to_owned()),
+            OutputCharge::Exhausted => log_safe_owned(String::new()),
         }
     }
 
@@ -206,7 +226,7 @@ impl EnvRedactor {
     ///
     /// A debug-style log-safe list, ending with `<truncated>` when the next
     /// pair cannot be inspected within the shared budget.
-    pub fn redact_os_pairs_with_input_budget<'a, I>(
+    pub(crate) fn redact_os_pairs_with_input_budget<'a, I>(
         &self,
         pairs: I,
         input_budget: &mut DiagnosticInputBudget,

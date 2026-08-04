@@ -42,7 +42,7 @@ mod unknown_field_policy;
 pub use allow_rule::AllowRule;
 pub use diagnostic_budget::InputOutputLimit;
 pub use diagnostic_budget_error::DiagnosticBudgetError;
-pub use diagnostic_input_budget::DiagnosticInputBudget;
+pub(crate) use diagnostic_input_budget::DiagnosticInputBudget;
 pub use field_classification::FieldClassification;
 pub use field_match_kind::FieldMatchKind;
 pub use field_name_matching::FieldNameMatching;
@@ -62,11 +62,10 @@ pub use redaction_policy_builder::RedactionPolicyBuilder;
 pub use redaction_rules::RedactionRules;
 pub(crate) use redaction_rules_builder::RedactionRulesBuilder;
 pub use redaction_session::{
-    DiagnosticBudget,
-    DiagnosticBudgetScope,
     RedactionSession,
     RedactionSessionKind,
 };
+pub(crate) use redaction_session::OutputCharge;
 pub(crate) use resolved_field::ResolvedField;
 pub use sensitive_field_preset::SensitiveFieldPreset;
 pub use sensitive_field_rule::SensitiveFieldRule;

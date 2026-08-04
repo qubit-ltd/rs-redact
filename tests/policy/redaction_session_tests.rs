@@ -23,10 +23,9 @@ use qubit_redact::{
     RedactionSession,
 };
 
-/// Verifies a diagnostic session shares input and output consumption with a
-/// child scope.
+/// Verifies a diagnostic session shares cumulative input consumption.
 #[test]
-fn test_diagnostic_session_shares_budget_with_scope() {
+fn test_diagnostic_session_shares_input_budget() {
     let limit = InputOutputLimit::new(8, 64)
         .expect("the test input/output limit should be valid");
     let policy = RedactionPolicy::builder()
@@ -36,17 +35,9 @@ fn test_diagnostic_session_shares_budget_with_scope() {
     let session = RedactionSession::diagnostic(&policy);
 
     assert!(session.consume_input(3));
-    assert!(session.consume_output(4));
-    {
-        let child_limit = InputOutputLimit::new(2, 37)
-            .expect("the child limit should be valid");
-        let mut child = session.scope(child_limit);
-        assert!(child.consume_input(2));
-        assert!(child.consume_output(37));
-    }
-
+    assert!(session.consume_input(2));
     assert_eq!(session.remaining_input_bytes(), 3);
-    assert_eq!(session.remaining_output_bytes(), 23);
+    assert_eq!(session.remaining_output_bytes(), 64);
 }
 
 /// Verifies input exhaustion still leaves room for a fail-closed marker.
@@ -62,5 +53,5 @@ fn test_diagnostic_session_rejects_consumption_after_exhaustion() {
 
     assert!(!session.consume_input(4));
     assert!(session.is_exhausted());
-    assert!(session.consume_output(1));
+    assert_eq!(session.remaining_output_bytes(), 64);
 }

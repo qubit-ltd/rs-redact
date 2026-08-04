@@ -19,7 +19,7 @@ use crate::{
     RedactionPolicy,
     RedactionSession,
     Sensitivity,
-    policy::ResolvedField,
+    policy::{OutputCharge, ResolvedField},
 };
 
 /// Applies one immutable policy to scalar values and string maps.
@@ -113,15 +113,7 @@ impl Redactor {
         value: &'a str,
     ) -> FieldRedaction<'a> {
         if !session.consume_input(field.len().saturating_add(value.len())) {
-            return FieldRedaction::Masked {
-                value: RedactedText::new(Cow::Owned(
-                    self.policy
-                        .masking()
-                        .mask_opaque(Sensitivity::Secret)
-                        .to_owned(),
-                )),
-                sensitivity: Sensitivity::Secret,
-            };
+            return self.fallback_field(session);
         }
         let resolved = self.policy.resolve_field(field);
         match resolved {
@@ -133,25 +125,26 @@ impl Redactor {
                     max_bytes,
                 );
                 let mask_len = masked.len();
-                if !session.consume_output(mask_len) {
-                    return FieldRedaction::Masked {
-                        value: RedactedText::new(Cow::Owned(
-                            self.policy
-                                .masking()
-                                .mask_opaque(Sensitivity::Secret)
-                                .to_owned(),
-                        )),
+                let fallback = self.opaque_mask();
+                match session
+                    .charge_output_or_fallback(mask_len, fallback.len())
+                {
+                    OutputCharge::Complete => FieldRedaction::Masked {
+                        value: RedactedText::new(masked),
+                        sensitivity,
+                    },
+                    OutputCharge::Fallback => FieldRedaction::Masked {
+                        value: RedactedText::new(Cow::Owned(fallback.to_owned())),
                         sensitivity: Sensitivity::Secret,
-                    };
-                }
-                FieldRedaction::Masked {
-                    value: RedactedText::new(masked),
-                    sensitivity,
+                    },
+                    OutputCharge::Exhausted => FieldRedaction::Masked {
+                        value: RedactedText::new(Cow::Owned(String::new())),
+                        sensitivity: Sensitivity::Secret,
+                    },
                 }
             }
-            ResolvedField::PassThrough => FieldRedaction::PassedThrough {
-                value,
-                reason: match self.policy.classify_field(field) {
+            ResolvedField::PassThrough => {
+                let reason = match self.policy.classify_field(field) {
                     FieldClassification::Allowed { .. } => {
                         PassThroughReason::Allowed
                     }
@@ -159,8 +152,27 @@ impl Redactor {
                     | FieldClassification::Unknown => {
                         PassThroughReason::Unknown
                     }
-                },
-            },
+                };
+                match session.charge_output_or_fallback(
+                    value.len(),
+                    self.opaque_mask().len(),
+                ) {
+                    OutputCharge::Complete => FieldRedaction::PassedThrough {
+                        value,
+                        reason,
+                    },
+                    OutputCharge::Fallback => FieldRedaction::Masked {
+                        value: RedactedText::new(Cow::Owned(
+                            self.opaque_mask().to_owned(),
+                        )),
+                        sensitivity: Sensitivity::Secret,
+                    },
+                    OutputCharge::Exhausted => FieldRedaction::Masked {
+                        value: RedactedText::new(Cow::Owned(String::new())),
+                        sensitivity: Sensitivity::Secret,
+                    },
+                }
+            }
         }
     }
 
@@ -201,12 +213,7 @@ impl Redactor {
         value: &'a str,
     ) -> RedactedText<'a> {
         if !session.consume_input(value.len()) {
-            return RedactedText::new(Cow::Owned(
-                self.policy
-                    .masking()
-                    .mask_opaque(Sensitivity::Secret)
-                    .to_owned(),
-            ));
+            return self.fallback_text(session);
         }
         let masked = self.policy.masking().mask_bounded(
             level,
@@ -214,15 +221,51 @@ impl Redactor {
             session.remaining_output_bytes(),
         );
         let length = masked.len();
-        if !session.consume_output(length) {
-            return RedactedText::new(Cow::Owned(
-                self.policy
-                    .masking()
-                    .mask_opaque(Sensitivity::Secret)
-                    .to_owned(),
-            ));
+        let fallback = self.opaque_mask();
+        match session.charge_output_or_fallback(length, fallback.len()) {
+            OutputCharge::Complete => RedactedText::new(masked),
+            OutputCharge::Fallback => {
+                RedactedText::new(Cow::Owned(fallback.to_owned()))
+            }
+            OutputCharge::Exhausted => {
+                RedactedText::new(Cow::Owned(String::new()))
+            }
         }
-        RedactedText::new(masked)
+    }
+
+    /// Returns the policy's opaque Secret mask.
+    #[inline(always)]
+    fn opaque_mask(&self) -> &str {
+        self.policy.masking().mask_opaque(Sensitivity::Secret)
+    }
+
+    /// Charges one fail-closed scalar fallback through the shared session.
+    fn fallback_text<'a>(
+        &self,
+        session: &RedactionSession<'_>,
+    ) -> RedactedText<'a> {
+        let fallback = self.opaque_mask();
+        match session
+            .charge_output_or_fallback(fallback.len(), fallback.len())
+        {
+            OutputCharge::Complete => {
+                RedactedText::new(Cow::Owned(fallback.to_owned()))
+            }
+            OutputCharge::Fallback | OutputCharge::Exhausted => {
+                RedactedText::new(Cow::Owned(String::new()))
+            }
+        }
+    }
+
+    /// Wraps a charged fail-closed scalar fallback as a field result.
+    fn fallback_field<'a>(
+        &self,
+        session: &RedactionSession<'_>,
+    ) -> FieldRedaction<'a> {
+        FieldRedaction::Masked {
+            value: self.fallback_text(session),
+            sensitivity: Sensitivity::Secret,
+        }
     }
 
     /// Creates a lazy redacted view selected by an external key.

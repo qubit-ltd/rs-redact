@@ -8,10 +8,7 @@
 //! Hard input and output limits for redacted diagnostics.
 // qubit-style: allow type-file-name
 
-use super::{
-    DiagnosticBudgetError,
-    DiagnosticInputBudget,
-};
+use super::DiagnosticBudgetError;
 
 /// Bounds both inspected diagnostic bytes and produced log-safe bytes.
 #[must_use]
@@ -86,15 +83,6 @@ impl InputOutputLimit {
         self.max_output_bytes
     }
 
-    /// Creates independent input accounting for one diagnostic rendering.
-    ///
-    /// # Returns
-    ///
-    /// A mutable budget initialized from this diagnostic's input limit.
-    #[inline(always)]
-    pub const fn input_budget(self) -> DiagnosticInputBudget {
-        DiagnosticInputBudget::new(self.max_input_bytes)
-    }
 }
 
 impl Default for InputOutputLimit {

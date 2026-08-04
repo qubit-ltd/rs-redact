@@ -25,10 +25,40 @@ use qubit_redact::{
     FieldNameMatching,
     InputOutputLimit,
     RedactionPolicy,
+    RedactionSession,
     Redactor,
     Sensitivity,
     env::EnvRedactor,
 };
+
+/// Verifies eager environment-pair results are charged exactly once and never
+/// emit unbudgeted fallback text after cumulative exhaustion.
+#[test]
+fn test_redact_pair_session_respects_cumulative_output_limit() {
+    let limit = InputOutputLimit::new(4, InputOutputLimit::MIN_OUTPUT_BYTES)
+        .expect("the marker-sized operation limit should be valid");
+    let policy = RedactionPolicy::builder()
+        .ordinary_operation(limit)
+        .build()
+        .expect("the bounded policy should be valid");
+    let redactor = EnvRedactor::new(Redactor::new(policy));
+    let session = RedactionSession::operation(redactor.redactor().policy());
+
+    let rendered: Vec<_> = (0..4)
+        .map(|_| {
+            redactor
+                .redact_pair_with_session("PASSWORD", "raw-secret", &session)
+                .to_string()
+        })
+        .collect();
+
+    assert!(rendered.iter().any(String::is_empty));
+    assert!(
+        rendered.iter().map(String::len).sum::<usize>()
+            <= limit.max_output_bytes()
+    );
+    assert_eq!(session.remaining_output_bytes(), 0);
+}
 
 /// Verifies aggregate environment rendering stops before inspecting a pair
 /// that exceeds the configured input budget.

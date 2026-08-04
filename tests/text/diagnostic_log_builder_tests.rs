@@ -78,18 +78,6 @@ fn test_diagnostic_builder_safe_append_reports_current_and_prior_truncation() {
     assert_eq!(builder.push_safe(&safe), DiagnosticWriteStatus::Truncated);
 }
 
-/// Verifies input accounting remains shared with downstream redactors.
-#[test]
-fn test_diagnostic_builder_exposes_shared_input_budget() {
-    let budget = InputOutputLimit::new(3, 64)
-        .expect("the diagnostic budget should be valid");
-    let mut builder = DiagnosticLogBuilder::new(budget);
-
-    assert!(builder.input_budget().reserve(2));
-    assert!(!builder.input_budget().reserve(2));
-    assert_eq!(builder.input_budget().remaining_input_bytes(), 0);
-}
-
 /// Verifies formatting arguments are not evaluated after truncation.
 #[test]
 fn test_diagnostic_builder_stops_after_truncation() {

@@ -26,6 +26,7 @@ use crate::{
     RedactionSession,
     Sensitivity,
 };
+use crate::policy::OutputCharge;
 
 use super::{
     BodyBudget,
@@ -323,7 +324,7 @@ impl HttpRedactor {
         session: &RedactionSession<'_>,
     ) -> LogSafeText<'static> {
         if !session.consume_input(url.as_str().len()) {
-            return Self::diagnostic_limit_exceeded();
+            return session_diagnostic_limit_exceeded(session);
         }
         charge_session_output(session, self.redact_url(url))
     }
@@ -336,7 +337,7 @@ impl HttpRedactor {
         session: &RedactionSession<'_>,
     ) -> LogSafeText<'static> {
         if !session.consume_input(text.len()) {
-            return Self::diagnostic_limit_exceeded();
+            return session_diagnostic_limit_exceeded(session);
         }
         charge_session_output(session, self.redact_urls_in_text(text))
     }
@@ -349,7 +350,7 @@ impl HttpRedactor {
         session: &RedactionSession<'_>,
     ) -> LogSafeText<'static> {
         if !session.consume_input(input.len()) {
-            return Self::diagnostic_limit_exceeded();
+            return session_diagnostic_limit_exceeded(session);
         }
         charge_session_output(session, self.redact_url_str(input))
     }
@@ -362,7 +363,7 @@ impl HttpRedactor {
         session: &RedactionSession<'_>,
     ) -> LogSafeText<'static> {
         if !session.consume_input(input.len()) {
-            return Self::diagnostic_limit_exceeded();
+            return session_diagnostic_limit_exceeded(session);
         }
         charge_session_output(session, self.redact_form(input))
     }
@@ -381,7 +382,9 @@ impl HttpRedactor {
             })
             .fold(0_usize, usize::saturating_add);
         if !session.consume_input(input_bytes) {
-            return RedactedHeaders::new(Self::diagnostic_limit_exceeded());
+            return RedactedHeaders::new(session_diagnostic_limit_exceeded(
+                session,
+            ));
         }
         charge_header_output(session, self.redact_headers(headers))
     }
@@ -398,7 +401,8 @@ impl HttpRedactor {
             content_type.map_or(0, |value| value.as_bytes().len()),
         );
         if !session.consume_input(input_bytes) {
-            return session_limited_body(capture);
+            let text = session_diagnostic_limit_exceeded(session).into_owned();
+            return session_limited_body(capture, text);
         }
         charge_body_output(session, self.redact_body(capture, content_type))
     }
@@ -916,11 +920,35 @@ fn charge_session_output(
     session: &RedactionSession<'_>,
     value: LogSafeText<'static>,
 ) -> LogSafeText<'static> {
-    if session.consume_output(value.as_str().len()) {
-        value
-    } else {
-        HttpRedactor::diagnostic_limit_exceeded()
+    match session.charge_output_or_fallback(
+        value.as_str().len(),
+        markers::DIAGNOSTIC_LIMIT_EXCEEDED.len(),
+    ) {
+        OutputCharge::Complete => value,
+        OutputCharge::Fallback => HttpRedactor::diagnostic_limit_exceeded(),
+        OutputCharge::Exhausted => empty_log_safe_text(),
     }
+}
+
+/// Charges the diagnostic-limit marker itself, returning empty safe text when
+/// a prior eager fragment left insufficient room for the complete marker.
+fn session_diagnostic_limit_exceeded(
+    session: &RedactionSession<'_>,
+) -> LogSafeText<'static> {
+    match session.charge_output_or_fallback(
+        markers::DIAGNOSTIC_LIMIT_EXCEEDED.len(),
+        markers::DIAGNOSTIC_LIMIT_EXCEEDED.len(),
+    ) {
+        OutputCharge::Complete => HttpRedactor::diagnostic_limit_exceeded(),
+        OutputCharge::Fallback | OutputCharge::Exhausted => {
+            empty_log_safe_text()
+        }
+    }
+}
+
+/// Constructs an empty typed safe fragment after cumulative output exhaustion.
+fn empty_log_safe_text() -> LogSafeText<'static> {
+    LogSafeText::from_escaped(Cow::Borrowed(""))
 }
 
 /// Charges a safe header result to the shared session.
@@ -928,10 +956,17 @@ fn charge_header_output(
     session: &RedactionSession<'_>,
     value: RedactedHeaders,
 ) -> RedactedHeaders {
-    if session.consume_output(value.log_safe_text().as_str().len()) {
-        value
-    } else {
-        RedactedHeaders::new(HttpRedactor::diagnostic_limit_exceeded())
+    match session.charge_output_or_fallback(
+        value.log_safe_text().as_str().len(),
+        markers::DIAGNOSTIC_LIMIT_EXCEEDED.len(),
+    ) {
+        OutputCharge::Complete => value,
+        OutputCharge::Fallback => {
+            RedactedHeaders::new(HttpRedactor::diagnostic_limit_exceeded())
+        }
+        OutputCharge::Exhausted => {
+            RedactedHeaders::new(empty_log_safe_text())
+        }
     }
 }
 
@@ -940,20 +975,31 @@ fn charge_body_output(
     session: &RedactionSession<'_>,
     value: BodyRedaction,
 ) -> BodyRedaction {
-    if session.consume_output(value.log_safe_text().as_str().len()) {
-        value
-    } else {
-        session_limited_body(BodyCapture::complete(b""))
+    match session.charge_output_or_fallback(
+        value.log_safe_text().as_str().len(),
+        markers::DIAGNOSTIC_LIMIT_EXCEEDED.len(),
+    ) {
+        OutputCharge::Complete => value,
+        OutputCharge::Fallback => session_limited_body(
+            BodyCapture::complete(b""),
+            markers::DIAGNOSTIC_LIMIT_EXCEEDED.to_owned(),
+        ),
+        OutputCharge::Exhausted => {
+            session_limited_body(BodyCapture::complete(b""), String::new())
+        }
     }
 }
 
 /// Constructs a body result that contains no source bytes after a budget
 /// failure.
-fn session_limited_body(capture: BodyCapture<'_>) -> BodyRedaction {
+fn session_limited_body(
+    capture: BodyCapture<'_>,
+    text: String,
+) -> BodyRedaction {
     BodyRedaction::new(
-        markers::DIAGNOSTIC_LIMIT_EXCEEDED.to_owned(),
+        text,
         BodyRedactionStatus::Redacted(
-            BodyRedactionReason::UnsupportedMediaType,
+            BodyRedactionReason::DiagnosticBudgetExceeded,
         ),
         0,
         capture.total_len(),

@@ -20,6 +20,7 @@ use crate::{
     Sensitivity,
     text::internal::BoundedLogEscapeWriter,
 };
+use crate::policy::OutputCharge;
 
 use super::{
     RedactedJson,
@@ -191,10 +192,7 @@ impl<'text, 'session, 'policy>
     fn render(&self) -> String {
         let policy = self.session.policy();
         if !self.session.consume_input(self.text.len()) {
-            return policy
-                .masking()
-                .mask_opaque(Sensitivity::Secret)
-                .to_owned();
+            return self.fallback();
         }
         let mut rendered = String::new();
         if fmt::write(
@@ -203,18 +201,33 @@ impl<'text, 'session, 'policy>
         )
         .is_err()
         {
-            return policy
-                .masking()
-                .mask_opaque(Sensitivity::Secret)
-                .to_owned();
+            return self.fallback();
         }
-        if !self.session.consume_output(rendered.len()) {
-            return policy
-                .masking()
-                .mask_opaque(Sensitivity::Secret)
-                .to_owned();
+        let fallback = policy.masking().mask_opaque(Sensitivity::Secret);
+        match self.session.charge_output_or_fallback(
+            rendered.len(),
+            fallback.len(),
+        ) {
+            OutputCharge::Complete => rendered,
+            OutputCharge::Fallback => fallback.to_owned(),
+            OutputCharge::Exhausted => String::new(),
         }
-        rendered
+    }
+
+    /// Charges one opaque fallback or returns no bytes after exhaustion.
+    fn fallback(&self) -> String {
+        let fallback = self
+            .session
+            .policy()
+            .masking()
+            .mask_opaque(Sensitivity::Secret);
+        match self
+            .session
+            .charge_output_or_fallback(fallback.len(), fallback.len())
+        {
+            OutputCharge::Complete => fallback.to_owned(),
+            OutputCharge::Fallback | OutputCharge::Exhausted => String::new(),
+        }
     }
 }
 
