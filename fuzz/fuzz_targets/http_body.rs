@@ -95,7 +95,7 @@ fn assert_structured_secret_is_redacted(selector: u8, data: &[u8]) {
             HeaderValue::from_static("application/x-ndjson"),
         ),
     };
-    let result = HttpRedactor::default()
+    let result = HttpRedactor::strict()
         .redact_body(BodyCapture::complete(&body), Some(&content_type));
     assert!(!result.log_safe_text().as_ref().contains(FUZZ_SECRET));
 }
@@ -145,7 +145,7 @@ fn assert_malformed_structured_secret_is_redacted(selector: u8) {
         ),
     };
 
-    let result = HttpRedactor::default()
+    let result = HttpRedactor::strict()
         .redact_body(BodyCapture::complete(&body), Some(&content_type));
     assert!(!result.log_safe_text().as_ref().contains(FUZZ_SECRET));
 }
