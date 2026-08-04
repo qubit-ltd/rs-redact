@@ -2,21 +2,35 @@
   "threshold_exempt_files": {
     "qubit-redact": [
       "src/argv/redacted_argv.rs",
+      "src/domain/bounded_redacted_display.rs",
       "src/domain/redact_value.rs",
+      "src/domain/redacted.rs",
+      "src/domain/redacted_keyed_map.rs",
+      "src/domain/redacted_keyed_value.rs",
+      "src/domain/redacted_map.rs",
       "src/field_redaction.rs",
-      "src/global_redaction_config.rs",
       "src/http/body_capture.rs",
       "src/http/body_redaction.rs",
+      "src/http/context_rules_builder.rs",
       "src/http/http_redaction_policy.rs",
       "src/http/http_redaction_policy_builder.rs",
       "src/http/http_redactor.rs",
+      "src/json/redacted_json.rs",
+      "src/json/redacted_json_text.rs",
       "src/policy/diagnostic_input_budget.rs",
       "src/policy/policy_location.rs",
+      "src/policy/redaction_limits.rs",
       "src/policy/redaction_policy.rs",
+      "src/policy/redaction_policy_builder.rs",
       "src/policy/redaction_rules.rs",
+      "src/policy/redaction_session.rs",
+      "src/redactor.rs",
       "src/text/bounded_log_safe_display.rs",
       "src/text/log_output_limit_error.rs",
-      "src/text/log_safe_text.rs"
+      "src/text/log_safe_text.rs",
+      "src/uri/uri_inspection.rs",
+      "src/uri/uri_redaction_policy_builder.rs",
+      "src/uri/uri_redactor.rs"
     ]
   }
 }
