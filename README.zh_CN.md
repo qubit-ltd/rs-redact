@@ -113,7 +113,7 @@ derive 的 `#[redact(json)]` 模式会保持 JSON 文本字段的外层 Rust `St
 [dependencies]
 # 仅启用 HTTP 诊断
 qubit-redact = { version = "0.6", features = ["http"] }
-http = "1.4"
+http = "1.5"
 
 # 不启用 HTTP，仅使用 URI 诊断
 # qubit-redact = { version = "0.6", features = ["uri"] }
