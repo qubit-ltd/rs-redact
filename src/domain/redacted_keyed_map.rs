@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Lazy borrowed view of a map whose values support recursive redaction.
+// qubit-style: allow multiple-public-types
 
 use std::{
     fmt::{

@@ -15,6 +15,7 @@ use super::InputOutputLimit;
 #[cfg(feature = "http")]
 use crate::http::BodyBudget;
 
+/// Immutable limits that bound diagnostic and ordinary redaction work.
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RedactionLimits {

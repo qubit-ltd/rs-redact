@@ -14,10 +14,10 @@ use http::{
     HeaderValue,
 };
 use libfuzzer_sys::fuzz_target;
+use qubit_redact::RedactionPolicy;
 use qubit_redact::http::{
-    InputOutputLimit,
-    RedactionPolicy,
     HttpRedactor,
+    InputOutputLimit,
 };
 use url::Url;
 

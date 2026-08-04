@@ -16,6 +16,7 @@
 //    limitations under the License.
 // =============================================================================
 //! Operation-scoped mutable accounting for bounded redaction.
+// qubit-style: allow multiple-public-types
 
 use std::cell::RefCell;
 

@@ -126,8 +126,8 @@ impl RedactionPolicy {
     ///
     /// The policy is copied into a process-wide immutable slot. If the slot
     /// was already read or installed, the rejected policy is returned through
-    /// [`InstallGlobalPolicyError::into_policy`]. Libraries should leave this
-    /// operation to their host application.
+    /// [`crate::InstallGlobalPolicyError::into_policy`]. Libraries should leave
+    /// this operation to their host application.
     pub fn install_global(
         policy: Self,
     ) -> Result<(), crate::InstallGlobalPolicyError> {

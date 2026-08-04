@@ -1,0 +1,10 @@
+# Public wrapper pairs deliberately share their implementation files because
+# each session wrapper exists solely to render its corresponding primary view.
+multiple-public-types | src/domain/redacted.rs | The session view is the primary view's shared-budget formatting adapter.
+multiple-public-types | src/domain/redacted_keyed_map.rs | The session view is the primary keyed-map view's shared-budget formatting adapter.
+multiple-public-types | src/domain/redacted_keyed_value.rs | The session view is the primary keyed-value view's shared-budget formatting adapter.
+multiple-public-types | src/domain/redacted_map.rs | The session view is the primary map view's shared-budget formatting adapter.
+multiple-public-types | src/json/redacted_json.rs | The session view is the primary JSON view's shared-budget formatting adapter.
+multiple-public-types | src/json/redacted_json_text.rs | The session view is the primary JSON-text view's shared-budget formatting adapter.
+multiple-public-types | src/policy/redaction_policy_builder.rs | Builder views are inseparable mutable projections of the root builder.
+multiple-public-types | src/policy/redaction_session.rs | Session budget types form one shared accounting model.
