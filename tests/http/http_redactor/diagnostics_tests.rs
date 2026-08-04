@@ -7,19 +7,21 @@
 // =============================================================================
 //! Tests for shared HTTP diagnostic budget helpers.
 
-use qubit_redact::http::{
-    DiagnosticBudget,
-    HttpRedactionPolicy,
-    HttpRedactor,
+use qubit_redact::{
+    RedactionPolicy,
+    http::{
+        HttpRedactor,
+        InputOutputLimit,
+    },
 };
 
 /// Verifies diagnostic input limits return the fixed safe marker.
 #[test]
 fn test_diagnostic_input_limit_returns_fixed_marker() {
-    let budget = DiagnosticBudget::new(16, 128)
+    let budget = InputOutputLimit::new(16, 128)
         .expect("test diagnostic budget should satisfy minimums");
-    let policy = HttpRedactionPolicy::builder()
-        .diagnostic_budget(budget)
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(budget)
         .build()
         .expect("HTTP policy should be valid");
     let redactor = HttpRedactor::new(policy);

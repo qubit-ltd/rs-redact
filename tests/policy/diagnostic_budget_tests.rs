@@ -5,17 +5,17 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`DiagnosticBudget`](qubit_redact::DiagnosticBudget).
+//! Tests for [`InputOutputLimit`](qubit_redact::InputOutputLimit).
 
 use qubit_redact::{
-    DiagnosticBudget,
     DiagnosticBudgetError,
+    InputOutputLimit,
 };
 
 /// Verifies the default diagnostic limits remain finite and explicit.
 #[test]
 fn test_diagnostic_budget_default_uses_safe_limits() {
-    let budget = DiagnosticBudget::default();
+    let budget = InputOutputLimit::default();
 
     assert_eq!(budget.max_input_bytes(), 16 * 1024);
     assert_eq!(budget.max_output_bytes(), 64 * 1024);
@@ -25,21 +25,21 @@ fn test_diagnostic_budget_default_uses_safe_limits() {
 #[test]
 fn test_diagnostic_budget_new_rejects_invalid_limits() {
     assert_eq!(
-        DiagnosticBudget::new(0, 64),
+        InputOutputLimit::new(0, 64),
         Err(DiagnosticBudgetError::ZeroInput),
     );
     assert_eq!(
-        DiagnosticBudget::new(16, 0),
+        InputOutputLimit::new(16, 0),
         Err(DiagnosticBudgetError::OutputTooSmall {
-            minimum: DiagnosticBudget::MIN_OUTPUT_BYTES,
+            minimum: InputOutputLimit::MIN_OUTPUT_BYTES,
             actual: 0,
         }),
     );
     assert_eq!(
-        DiagnosticBudget::new(16, DiagnosticBudget::MIN_OUTPUT_BYTES - 1),
+        InputOutputLimit::new(16, InputOutputLimit::MIN_OUTPUT_BYTES - 1),
         Err(DiagnosticBudgetError::OutputTooSmall {
-            minimum: DiagnosticBudget::MIN_OUTPUT_BYTES,
-            actual: DiagnosticBudget::MIN_OUTPUT_BYTES - 1,
+            minimum: InputOutputLimit::MIN_OUTPUT_BYTES,
+            actual: InputOutputLimit::MIN_OUTPUT_BYTES - 1,
         }),
     );
 }
@@ -47,12 +47,12 @@ fn test_diagnostic_budget_new_rejects_invalid_limits() {
 /// Verifies that a valid budget preserves both hard byte limits.
 #[test]
 fn test_diagnostic_budget_new_preserves_limits() {
-    let budget = DiagnosticBudget::new(16, DiagnosticBudget::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::new(16, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the minimum diagnostic output budget should be valid");
 
     assert_eq!(budget.max_input_bytes(), 16);
     assert_eq!(
         budget.max_output_bytes(),
-        DiagnosticBudget::MIN_OUTPUT_BYTES
+        InputOutputLimit::MIN_OUTPUT_BYTES
     );
 }

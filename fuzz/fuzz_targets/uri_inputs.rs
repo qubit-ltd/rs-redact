@@ -10,14 +10,14 @@
 use fluent_uri::Uri;
 use libfuzzer_sys::fuzz_target;
 use qubit_redact::{
-    DiagnosticBudget,
+    InputOutputLimit,
     MaskPolicy,
     RedactionPolicy,
     Sensitivity,
     UriComponent,
     UriFragmentPolicy,
     UriPathPolicy,
-    UriRedactionPolicy,
+    RedactionPolicy,
     UriRedactionReason,
     UriRedactionStatus,
     UriRedactor,
@@ -110,19 +110,18 @@ fuzz_target!(|data: &[u8]| {
         first.log_safe_text().as_ref().len()
             <= default_redactor
                 .policy()
-                .redaction_policy()
-                .diagnostic_budget()
+                .limits().diagnostic_event()
                 .max_output_bytes()
     );
 
-    let budget = DiagnosticBudget::new(INPUT_LIMIT, OUTPUT_LIMIT)
+    let budget = InputOutputLimit::new(INPUT_LIMIT, OUTPUT_LIMIT)
         .expect("the URI fuzz budget is valid");
     let core = RedactionPolicy::default()
         .to_builder()
-        .diagnostic_budget(budget)
+        .diagnostic_event(budget)
         .build()
         .expect("the core fuzz policy is valid");
-    let policy = UriRedactionPolicy::builder_from(&core)
+    let policy = RedactionPolicy::builder_from(&core)
         .path_policy(UriPathPolicy::Redact)
         .fragment_policy(UriFragmentPolicy::Redact)
         .build()
@@ -144,8 +143,8 @@ fuzz_target!(|data: &[u8]| {
 
     let custom_core = RedactionPolicy::default()
         .to_builder()
-        .diagnostic_budget(
-            DiagnosticBudget::new(INPUT_LIMIT, INPUT_LIMIT)
+        .diagnostic_event(
+            InputOutputLimit::new(INPUT_LIMIT, INPUT_LIMIT)
                 .expect("the custom URI fuzz budget is valid"),
         )
         .mask(Sensitivity::Secret, MaskPolicy::fixed("密\n/?#%"))
@@ -154,7 +153,7 @@ fuzz_target!(|data: &[u8]| {
         .expect("the custom high mask is valid")
         .build()
         .expect("the custom URI fuzz policy is valid");
-    let custom_policy = UriRedactionPolicy::builder_from(&custom_core)
+    let custom_policy = RedactionPolicy::builder_from(&custom_core)
         .path_policy(UriPathPolicy::Redact)
         .fragment_policy(UriFragmentPolicy::Redact)
         .build()

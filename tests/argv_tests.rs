@@ -23,7 +23,7 @@ use proptest::prelude::{
 };
 
 use qubit_redact::{
-    DiagnosticBudget,
+    InputOutputLimit,
     MaskPolicy,
     RedactionFloor,
     RedactionPolicy,
@@ -37,10 +37,10 @@ use qubit_redact::{
 
 /// Creates a redactor with deliberately small diagnostic limits.
 fn bounded_redactor() -> ArgvRedactor {
-    let budget = DiagnosticBudget::new(8, 64)
+    let budget = InputOutputLimit::new(8, 64)
         .expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
-        .diagnostic_budget(budget)
+        .diagnostic_event(budget)
         .build()
         .expect("the bounded policy should be valid");
     ArgvRedactor::new(Redactor::new(policy))

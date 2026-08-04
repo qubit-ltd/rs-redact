@@ -15,6 +15,7 @@ use std::fmt::{
 use crate::{
     Redacted,
     RedactionPolicy,
+    RedactionSession,
 };
 
 /// Formats a domain object through an explicit immutable redaction policy.
@@ -64,7 +65,8 @@ pub trait Redact {
     ///
     /// # Parameters
     ///
-    /// * `policy` - Complete policy snapshot governing this representation.
+    /// * `session` - Shared diagnostic session governing this representation
+    ///   and all nested values.
     /// * `formatter` - Destination formatting context.
     ///
     /// # Returns
@@ -78,7 +80,7 @@ pub trait Redact {
     #[doc(hidden)]
     fn fmt_redacted(
         &self,
-        policy: &RedactionPolicy,
+        session: &RedactionSession<'_>,
         formatter: &mut Formatter<'_>,
     ) -> fmt::Result;
 }

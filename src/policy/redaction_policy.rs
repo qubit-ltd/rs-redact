@@ -10,12 +10,12 @@
 use std::sync::{
     Arc,
     LazyLock,
+    OnceLock,
 };
 
 use super::redaction_limits::RedactionLimits;
 use super::{
     AllowRule,
-    DiagnosticBudget,
     FieldClassification,
     FieldNameMatching,
     MaskingPolicy,
@@ -60,9 +60,15 @@ static STANDARD_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
             Some(RedactionFloor::standard()),
         ),
         MaskingPolicy::default(),
-        DiagnosticBudget::default(),
-        #[cfg(feature = "json")]
-        JsonDepthBudget::default(),
+        RedactionLimits::default(),
+        #[cfg(feature = "http")]
+        crate::http::HttpPolicyBuilder::new()
+            .build()
+            .expect("the built-in HTTP policy must be valid"),
+        #[cfg(feature = "uri")]
+        crate::uri::UriPolicyBuilder::new()
+            .build()
+            .expect("the built-in URI policy must be valid"),
         #[cfg(feature = "json")]
         UnkeyedJsonValuePolicy::PassThrough,
     )
@@ -82,13 +88,24 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
             Some(RedactionFloor::standard()),
         ),
         MaskingPolicy::default(),
-        DiagnosticBudget::default(),
-        #[cfg(feature = "json")]
-        JsonDepthBudget::default(),
+        RedactionLimits::default(),
+        #[cfg(feature = "http")]
+        {
+            let mut http = crate::http::HttpPolicyBuilder::new();
+            http.url_path_mut(crate::http::UrlPathPolicy::Redact);
+            http.text_body_mut(crate::http::TextBodyPolicy::Redact);
+            http.build()
+                .expect("the built-in HTTP policy must be valid")
+        },
+        #[cfg(feature = "uri")]
+        crate::uri::UriPolicyBuilder::new()
+            .build()
+            .expect("the built-in URI policy must be valid"),
         #[cfg(feature = "json")]
         UnkeyedJsonValuePolicy::Redact,
     )
 });
+static GLOBAL_POLICY: OnceLock<RedactionPolicy> = OnceLock::new();
 /// Immutable redaction policy.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,11 +113,39 @@ pub struct RedactionPolicy {
     rules: RedactionRules,
     masking: Arc<MaskingPolicy>,
     limits: RedactionLimits,
+    #[cfg(feature = "http")]
+    http: Arc<crate::http::HttpPolicy>,
+    #[cfg(feature = "uri")]
+    uri: Arc<crate::uri::UriPolicy>,
     #[cfg(feature = "json")]
     unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
 }
 
 impl RedactionPolicy {
+    /// Installs the application-owned default policy exactly once.
+    ///
+    /// The policy is copied into a process-wide immutable slot. If the slot
+    /// was already read or installed, the rejected policy is returned through
+    /// [`InstallGlobalPolicyError::into_policy`]. Libraries should leave this
+    /// operation to their host application.
+    pub fn install_global(
+        policy: Self,
+    ) -> Result<(), crate::InstallGlobalPolicyError> {
+        GLOBAL_POLICY
+            .set(policy)
+            .map_err(crate::InstallGlobalPolicyError)
+    }
+
+    /// Returns the process-wide default policy snapshot.
+    ///
+    /// The first read freezes [`Self::standard`] when no policy was installed
+    /// beforehand. This initialization order is intentional and is documented
+    /// in the user guide.
+    #[inline]
+    pub fn global() -> &'static Self {
+        GLOBAL_POLICY.get_or_init(Self::standard)
+    }
+
     /// Returns the fixed built-in standard policy.
     ///
     /// Its application rules are empty and its explicit floor is
@@ -146,28 +191,99 @@ impl RedactionPolicy {
     pub(crate) fn from_rules(
         rules: RedactionRules,
         masking: MaskingPolicy,
-        diagnostic_budget: DiagnosticBudget,
-        #[cfg(feature = "json")] json_depth_budget: JsonDepthBudget,
+        limits: RedactionLimits,
+        #[cfg(feature = "http")] http: crate::http::HttpPolicy,
+        #[cfg(feature = "uri")] uri: crate::uri::UriPolicy,
         #[cfg(feature = "json")]
         unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
     ) -> Self {
         Self {
             rules,
             masking: Arc::new(masking),
-            limits: RedactionLimits::new(
-                diagnostic_budget,
-                #[cfg(feature = "json")]
-                json_depth_budget,
-            ),
+            limits,
+            #[cfg(feature = "http")]
+            http: Arc::new(http),
+            #[cfg(feature = "uri")]
+            uri: Arc::new(uri),
             #[cfg(feature = "json")]
             unkeyed_json_value_policy,
         }
     }
 
-    /// Returns the input and output limits for ordinary diagnostics.
+    /// Returns all static limits used by this policy.
     #[inline]
-    pub const fn diagnostic_budget(&self) -> DiagnosticBudget {
-        self.limits.diagnostic_budget()
+    pub const fn limits(&self) -> &RedactionLimits {
+        &self.limits
+    }
+
+    /// Returns the unified HTTP context policy.
+    #[cfg(feature = "http")]
+    #[inline]
+    pub fn http(&self) -> &crate::http::HttpPolicy {
+        self.http.as_ref()
+    }
+
+    /// Returns the unified URI context policy.
+    #[cfg(feature = "uri")]
+    #[inline]
+    pub fn uri(&self) -> &crate::uri::UriPolicy {
+        self.uri.as_ref()
+    }
+
+    /// Returns the HTTP header field rules.
+    #[cfg(feature = "http")]
+    #[inline]
+    pub fn header_rules(&self) -> &RedactionRules {
+        self.http.header_rules()
+    }
+
+    /// Returns the HTTP query field rules.
+    #[cfg(feature = "http")]
+    #[inline]
+    pub fn query_rules(&self) -> &RedactionRules {
+        self.http.query_rules()
+    }
+
+    /// Returns the HTTP body field rules.
+    #[cfg(feature = "http")]
+    #[inline]
+    pub fn body_rules(&self) -> &RedactionRules {
+        self.http.body_rules()
+    }
+
+    /// Returns the HTTP URL path policy.
+    #[cfg(feature = "http")]
+    #[inline]
+    pub fn url_path_policy(&self) -> crate::http::UrlPathPolicy {
+        self.http.url_path_policy()
+    }
+
+    /// Returns the HTTP text-body policy.
+    #[cfg(feature = "http")]
+    #[inline]
+    pub fn text_body_policy(&self) -> crate::http::TextBodyPolicy {
+        self.http.text_body_policy()
+    }
+
+    /// Returns the HTTP body byte budget.
+    #[cfg(feature = "http")]
+    #[inline]
+    pub fn body_budget(&self) -> crate::http::BodyBudget {
+        self.limits.http_body()
+    }
+
+    /// Returns the URI path policy.
+    #[cfg(feature = "uri")]
+    #[inline]
+    pub fn path_policy(&self) -> crate::uri::UriPathPolicy {
+        self.uri.path_policy()
+    }
+
+    /// Returns the URI fragment policy.
+    #[cfg(feature = "uri")]
+    #[inline]
+    pub fn fragment_policy(&self) -> crate::uri::UriFragmentPolicy {
+        self.uri.fragment_policy()
     }
 
     /// Returns the maximum JSON nesting depth for JSON redaction.
@@ -186,6 +302,12 @@ impl RedactionPolicy {
     /// Returns the immutable field rules without diagnostic resource limits.
     #[inline]
     pub const fn rules(&self) -> &RedactionRules {
+        &self.rules
+    }
+
+    /// Returns the base field policy view.
+    #[inline]
+    pub const fn fields(&self) -> &RedactionRules {
         &self.rules
     }
 
@@ -308,6 +430,6 @@ impl RedactionPolicy {
 
 impl Default for RedactionPolicy {
     fn default() -> Self {
-        crate::GlobalRedactionConfig::current().policy().clone()
+        Self::global().clone()
     }
 }

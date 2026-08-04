@@ -36,12 +36,12 @@ qubit-redact = "0.6"
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
-        .raise("user_id", Sensitivity::Low)?
-        .raise("phone_number", Sensitivity::Medium)?
-        .raise("credit_card", Sensitivity::High)?
-        .raise("api_key", Sensitivity::Secret)?
-        .build()?;
+    let mut builder = RedactionPolicy::builder();
+    builder.fields().raise("user_id", Sensitivity::Low)?;
+    builder.fields().raise("phone_number", Sensitivity::Medium)?;
+    builder.fields().raise("credit_card", Sensitivity::High)?;
+    builder.fields().raise("api_key", Sensitivity::Secret)?;
+    let policy = builder.build()?;
     let redactor = Redactor::new(policy);
     let user_id = "alpine42";
     let phone_number = "13800138000";
@@ -97,9 +97,9 @@ http = "1.4"
 
 ## Core concepts
 
-A `RedactionPolicy` is an immutable snapshot of application field rules, an
-optional minimum `RedactionFloor`, matching behavior, masks, unknown-field
-behavior, diagnostic budgets, and, with the `json` feature, a
+A `RedactionPolicy` is one immutable snapshot of base field rules, HTTP/URI
+context overrides, an optional minimum `RedactionFloor`, matching behavior,
+one masking table, and static limits. With the `json` feature it also carries a
 `JsonDepthBudget`. `classify_field()` explains the application layer only:
 **Sensitive**, **Allowed** by an explicit exception, or **Unknown**. Final
 field safety decisions come from `sensitivity_for()` and the redaction APIs,
@@ -114,15 +114,23 @@ snapshot and applies it consistently.
 not implement `Display`: call `escape_for_log()` before a plain-text log
 boundary to obtain `LogSafeText`.
 
-Call `with_policy_output_limit()` on a redacted domain or map view when the
-policy diagnostic budget must also bound `Debug` and `Display` output.
+Redacted domain and map views use the policy diagnostic output budget for
+`Debug` by default. Call `with_policy_output_limit()` when both `Debug` and
+`Display` output must be explicitly bounded by that same budget. Derived nested
+values, maps, JSON text, and adapter sessions share one non-cloneable
+`RedactionSession`, so a nested value cannot reset the parent's budget.
+
+`InputOutputLimit` is the immutable limit stored in a policy. Runtime
+`DiagnosticBudget` accounting tracks one operation or diagnostic event. Input
+and output allowances are independent: once input is exhausted, the remaining
+output can still be used for a safe truncation marker.
 
 | API | Starting state | Use it when |
 | --- | --- | --- |
 | `RedactionPolicy::default()` | Current standard process-wide snapshot | You accept the application's installed default. |
 | `RedactionPolicy::builder()` | Empty application rules plus the standard floor | You need application rules defined at this call site while retaining the floor. |
 | `RedactionPolicy::default().to_builder()` | Copy of the current default snapshot | You want to extend the standard default. |
-| `GlobalRedactionConfig::install()` | Installs once per process | Application startup owns the default policy snapshot. |
+| `RedactionPolicy::install_global()` | Installs once per process | Application startup owns the default policy snapshot. |
 
 Use `include_preset(SensitiveFieldPreset::...)` to add the built-in credential,
 credential-container, auth-token, HTTP, or session field groups to an explicit
@@ -133,7 +141,7 @@ policy. Use `classify_field()` when a policy test or diagnostic must explain a
 
 `RedactionPolicy::builder()` starts with no application sensitive or
 allow rules and uses the standard floor. `RedactionPolicy::default()` reads
-the current `GlobalRedactionConfig` snapshot. Use
+the current process-wide snapshot. Use
 `RedactionPolicy::default().to_builder()` to extend that snapshot; use
 `disable_floor()` only when the caller intentionally accepts removal of all
 minimum protection. An application allow rule never bypasses an enabled floor.
@@ -148,13 +156,15 @@ use qubit_redact::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .fields()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
         .raise("tenant_reference", Sensitivity::High)?
         .raise("tenant_visible", Sensitivity::High)?
-        .allow_canonical_exact("tenant_visible")?
-        .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))?
-        .build()?;
+        .allow_exact("tenant_visible")?
+        .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))?;
+    let policy = builder.build()?;
     let redactor = Redactor::new(policy);
 
     assert_eq!(redactor.redact_field("TENANT_REFERENCE", "abc").as_str(), "[hidden]");
@@ -163,8 +173,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-Install `GlobalRedactionConfig` only during application startup. Installation
-succeeds once per process; prefer explicit policy snapshots when tests or
+Install the global policy only during application startup:
+
+```rust
+use qubit_redact::{RedactionPolicy, Sensitivity};
+
+let mut builder = RedactionPolicy::builder();
+builder.fields().raise("api_key", Sensitivity::Secret)?;
+let policy = builder.build()?;
+RedactionPolicy::install_global(policy)?;
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Installation succeeds once per process. If `global()` or `default()` is read
+first, the standard policy is frozen and a later installation returns
+`InstallGlobalPolicyError`. Prefer explicit policy snapshots when tests or
 security boundaries need isolation.
 
 Field names are canonicalized. With `FieldNameMatching::ExactOrTokenSuffix`, a
@@ -412,7 +435,11 @@ fn main() {
 ```
 
 `RedactedArgv` is safe to display. Input and output are bounded by the policy's
-`DiagnosticBudget`.
+`InputOutputLimit`.
+
+When rendering an argument collection, the collection framing is retained even
+if the shared input budget is exhausted before the first item can be read; in
+that case the safe result may be `['<truncated>']`.
 
 ## 6. Redact environment variables with `EnvRedactor`
 
@@ -438,21 +465,21 @@ budget and stops with a truncation marker instead of reading excess input.
 
 ## 7. Redact HTTP diagnostics with `HttpRedactor`
 
-The optional `http` feature provides an immutable `HttpRedactionPolicy` for
-headers, query/form fields, and structured bodies. Its builder,
-`HttpRedactionPolicyBuilder::new()`, and `Default::default()` start with no
-application field rules and the standard floor in each context. Application
-allow rules cannot bypass an enabled floor.
-Use `HttpRedactionPolicy::default().to_builder()` when extending the standard
-HTTP snapshot. The builder does not load global state implicitly.
-`HttpRedactionPolicy::default()` and `HttpRedactor::default()` preserve URL
-paths for diagnostic usefulness; use `HttpRedactionPolicy::strict()` or set
+The optional `http` feature provides an immutable root `RedactionPolicy` for
+headers, query/form fields, and structured bodies. Its `http()` view stores
+only context differences; base-field rules, masking, and limits remain on the
+same policy. `RedactionPolicy::builder()` starts with no application field
+rules and the standard floor. Application allow rules cannot bypass an
+enabled floor. Use `RedactionPolicy::default().to_builder()` when extending
+the standard snapshot; the builder does not load global state implicitly.
+`RedactionPolicy::default()` and `HttpRedactor::default()` preserve URL
+paths for diagnostic usefulness; use `RedactionPolicy::strict()` or set
 `UrlPathPolicy::Redact` when URL paths may contain sensitive identifiers.
 
 `HttpRedactor` applies that snapshot. `BodyCapture` supplies borrowed bytes and
 truthful completeness metadata (`complete`, `prefix`, or a truncated capture),
 so the library never reads a network stream. `BodyBudget` limits inspected and
-rendered body bytes; `DiagnosticBudget` separately limits URLs, forms, headers,
+rendered body bytes; `InputOutputLimit` separately limits URLs, forms, headers,
 and URL-bearing text; `JsonDepthBudget` bounds JSON and NDJSON recursion.
 `BodyRedaction` is the bounded log-safe result;
 `BodyRedactionStatus` tells whether it was structured, passed through,
@@ -461,11 +488,11 @@ outcome. No result exposes a raw-body escape hatch.
 
 | Input | Default safety behavior | Configure with |
 | --- | --- | --- |
-| URL query, username, password, fragment | Redacts configured fields and sensitive URL components | `raise(HttpFieldContext::Query, ...)`, query policy, `UrlPathPolicy` |
-| Form and headers | Redacts configured fields; output is bounded | `raise(HttpFieldContext::Header, ...)`, `raise(HttpFieldContext::Query, ...)` |
-| JSON, NDJSON, form body, multipart | Parses complete input and fails closed when unsafe, over-depth, or truncated | `raise(HttpFieldContext::Body, ...)`, `BodyBudget`, `JsonDepthBudget` |
+| URL query, username, password, fragment | Redacts configured fields and sensitive URL components | `builder.http().query().raise(...)`, `builder.uri()`, `UrlPathPolicy` |
+| Form and headers | Redacts configured fields; output is bounded | `builder.http().header()` and `builder.http().query()` |
+| JSON, NDJSON, form body, multipart | Parses complete input and fails closed when unsafe, over-depth, or truncated | `builder.http().body()`, `builder.limits()`, `JsonDepthBudget` |
 | Opaque text, unkeyed JSON | Conservative by default | Explicit `PassThrough` only after risk review |
-| URL path | Preserved by the standard policy; redacted by strict policy | `UrlPathPolicy::Redact` or `HttpRedactionPolicy::strict()` |
+| URL path | Preserved by the standard policy; redacted by strict policy | `UrlPathPolicy::Redact` or `RedactionPolicy::strict()` |
 | Non-UTF-8 body | Returns a binary summary, never raw bytes | `BodyRedactionStatus::Binary` |
 
 ```toml
@@ -476,16 +503,20 @@ http = "1.4"
 
 ```rust
 use http::{HeaderMap, HeaderValue};
-use qubit_redact::Sensitivity;
-use qubit_redact::http::{
-    BodyCapture, HttpFieldContext, HttpRedactionPolicy, HttpRedactor,
-};
+use qubit_redact::{RedactionPolicy, Sensitivity};
+use qubit_redact::http::{BodyCapture, HttpRedactor};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = HttpRedactionPolicy::default().to_builder()
-        .raise(HttpFieldContext::Body, "password", Sensitivity::Secret)?
-        .raise(HttpFieldContext::Query, "api_key", Sensitivity::Secret)?
-        .build()?;
+    let mut builder = RedactionPolicy::default().to_builder();
+    builder
+        .http()
+        .body()
+        .raise("password", Sensitivity::Secret)?;
+    builder
+        .http()
+        .query()
+        .raise("api_key", Sensitivity::Secret)?;
+    let policy = builder.build()?;
     let redactor = HttpRedactor::new(policy);
 
     let url = redactor.redact_url_str(
@@ -508,9 +539,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`HttpRedactionPolicyBuilder` offers context-aware rule, floor, sensitivity,
-and allow-list methods for header, query, and body rules. Invalid or
-truncated structured input fails closed.
+One `RedactionPolicyBuilder` offers context-aware rule, floor, sensitivity,
+and allow-list methods through `http().header()`, `http().query()`, and
+`http().body()`. Configure the shared static limits through `limits()`.
+Invalid or truncated structured input fails closed.
 
 For operational diagnostics, inspect `BodyRedaction::status()`,
 `is_truncated()`, `captured_len()`, and `omitted_len()`. A
@@ -536,7 +568,8 @@ Query keys and values are decoded strictly for policy decisions. `+` remains a
 literal plus, the first `=` separates a pair, and unmasked values retain their
 original raw spelling. Masked values are URI-encoded again. Paths are
 preserved by default; fragments are redacted by default and both choices are
-configurable through `UriRedactionPolicyBuilder`. Invalid syntax, undecodable
+configurable through `builder.uri().path(...)` and `builder.uri().fragment(...)`.
+Invalid syntax, undecodable
 query UTF-8, or an input budget violation return `<invalid URI>` without
 retaining source text.
 
@@ -564,7 +597,7 @@ only that safe result.
 | A controlled field remained visible | Add an explicit rule; unknown fields pass through. |
 | A suffix rule exposed too much | Prefer an exact rule, or remove the suffix allow rule. |
 | A policy fails to build | Inspect the returned `PolicyError`; do not replace it with a permissive fallback. |
-| A global configuration is already installed | Handle `GlobalRedactionConfigAlreadyInstalled`; pass an explicit policy where isolation matters. |
+| A global policy is already installed | Handle `InstallGlobalPolicyError`; pass an explicit policy where isolation matters. |
 | A structured body is malformed or truncated | Log the safe result and inspect `BodyRedactionStatus::Redacted(reason)`. |
 | A log line contains controls or Unicode line separators | Cross the scalar boundary with `escape_for_log()`. |
 | Memory erasure is required | Do not rely on `RedactMut`; use a dedicated zeroization design. |

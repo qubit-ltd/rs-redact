@@ -22,17 +22,23 @@ use crate::{
 /// It deliberately owns no policy snapshot: [`super::HttpRedactor`] is the
 /// sole HTTP policy owner and supplies context rules for each operation.
 pub(in crate::http) struct FieldRedactor<'a> {
-    rules: &'a RedactionRules,
+    base_rules: &'a RedactionRules,
+    context_rules: &'a RedactionRules,
     masking: &'a MaskingPolicy,
 }
 
 impl<'a> FieldRedactor<'a> {
     /// Borrows `rules` for one HTTP redaction operation.
     pub(in crate::http) const fn new(
-        rules: &'a RedactionRules,
+        base_rules: &'a RedactionRules,
+        context_rules: &'a RedactionRules,
         masking: &'a MaskingPolicy,
     ) -> Self {
-        Self { rules, masking }
+        Self {
+            base_rules,
+            context_rules,
+            masking,
+        }
     }
 
     /// Masks a classified value without allocating beyond `max_bytes`.
@@ -65,7 +71,10 @@ impl<'a> FieldRedactor<'a> {
         value: &'value str,
         max_bytes: usize,
     ) -> Option<RedactedText<'value>> {
-        let resolved = self.rules.resolve_field(field);
+        let resolved = stronger(
+            self.base_rules.resolve_field(field),
+            self.context_rules.resolve_field(field),
+        );
         match resolved {
             ResolvedField::Sensitive { sensitivity } => {
                 Some(RedactedText::new(self.masking.mask_bounded(
@@ -89,12 +98,43 @@ impl<'a> FieldRedactor<'a> {
     }
 
     /// Returns the borrowed immutable rule snapshot.
-    pub(in crate::http) const fn rules(&self) -> &'a RedactionRules {
-        self.rules
+    pub(in crate::http) const fn base_rules(&self) -> &'a RedactionRules {
+        self.base_rules
+    }
+
+    /// Returns the context-specific rule overrides for the current operation.
+    pub(in crate::http) const fn context_rules(&self) -> &'a RedactionRules {
+        self.context_rules
     }
 
     /// Returns the shared mask table for the current HTTP operation.
     pub(in crate::http) const fn masking(&self) -> &'a MaskingPolicy {
         self.masking
+    }
+}
+
+/// Combines a base decision with a context enhancement without permitting the
+/// context to lower the base protection level.
+fn stronger(base: ResolvedField, context: ResolvedField) -> ResolvedField {
+    match (base, context) {
+        (
+            ResolvedField::Sensitive { sensitivity: base },
+            ResolvedField::Sensitive {
+                sensitivity: context,
+            },
+        ) => ResolvedField::Sensitive {
+            sensitivity: base.max(context),
+        },
+        (
+            ResolvedField::Sensitive { sensitivity },
+            ResolvedField::PassThrough,
+        )
+        | (
+            ResolvedField::PassThrough,
+            ResolvedField::Sensitive { sensitivity },
+        ) => ResolvedField::Sensitive { sensitivity },
+        (ResolvedField::PassThrough, ResolvedField::PassThrough) => {
+            ResolvedField::PassThrough
+        }
     }
 }

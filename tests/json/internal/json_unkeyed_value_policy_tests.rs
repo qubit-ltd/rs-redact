@@ -16,7 +16,7 @@ use qubit_redact::http::{
     HttpRedactor,
 };
 
-/// Verifies the default policy redacts unkeyed JSON scalar values.
+/// Verifies the standard policy preserves unkeyed JSON scalar values.
 #[cfg(feature = "http")]
 #[test]
 fn test_json_unkeyed_value_policy_redacts_root_scalar_by_default() {
@@ -26,6 +26,6 @@ fn test_json_unkeyed_value_policy_redacts_root_scalar_by_default() {
         Some(&content_type),
     );
 
-    assert_eq!(body.status(), BodyRedactionStatus::Structured);
-    assert!(!body.to_string().contains("raw-root-value"));
+    assert_eq!(body.status(), BodyRedactionStatus::PassedThrough);
+    assert_eq!(body.to_string(), r#""raw-root-value""#);
 }

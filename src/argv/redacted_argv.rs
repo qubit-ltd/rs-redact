@@ -17,7 +17,7 @@ use std::{
 };
 
 use crate::{
-    DiagnosticBudget,
+    InputOutputLimit,
     LogSafeText,
 };
 
@@ -42,7 +42,7 @@ impl RedactedArgv {
     ///
     /// An empty byte-bounded argv rendering builder.
     #[inline]
-    pub(super) fn builder(budget: DiagnosticBudget) -> RedactedArgvBuilder {
+    pub(super) fn builder(budget: InputOutputLimit) -> RedactedArgvBuilder {
         RedactedArgvBuilder::new(budget)
     }
 

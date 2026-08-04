@@ -9,10 +9,12 @@
 
 use std::io::Write;
 
-use crate::http::{
-    FieldRedactor,
-    HttpRedactionPolicy,
-    TextBodyPolicy,
+use crate::{
+    RedactionPolicy,
+    http::{
+        FieldRedactor,
+        TextBodyPolicy,
+    },
 };
 
 use super::{
@@ -44,7 +46,7 @@ pub(in crate::http) fn redact(
     boundary: &str,
     require_form_data: bool,
     bytes: &[u8],
-    policy: &HttpRedactionPolicy,
+    policy: &RedactionPolicy,
 ) -> Option<(String, bool, bool)> {
     let parts = part_segments(bytes, boundary)?;
     let has_parts = !parts.is_empty();
@@ -100,7 +102,7 @@ pub(in crate::http) fn redact(
 fn redact_part(
     redactor: &FieldRedactor<'_>,
     segment: &[u8],
-    policy: &HttpRedactionPolicy,
+    policy: &RedactionPolicy,
     require_form_data: bool,
     remaining_mask_bytes: &mut usize,
 ) -> Option<(String, bool, bool)> {
@@ -174,7 +176,7 @@ fn redact_part(
 fn redact_non_sensitive_part(
     redactor: &FieldRedactor<'_>,
     body: &[u8],
-    policy: &HttpRedactionPolicy,
+    policy: &RedactionPolicy,
     part_type: Option<&str>,
     remaining_mask_bytes: &mut usize,
 ) -> Option<(String, bool, bool)> {

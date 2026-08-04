@@ -16,6 +16,8 @@ Qubit Redact 用于防止敏感信息经 Rust 诊断信息泄露，包括日志�
 - 有类型的结果明确区分“值已脱敏”和“文本可安全写入日志”。
 - 不合法或已截断的结构化 HTTP 输入会失败时默认遮盖（fail closed）；有限预算限制检查、
   输出、JSON 递归深度和信息披露。
+- 一个不可变的 `RedactionPolicy` 统一拥有基础字段、HTTP/URI 上下文覆盖、掩码和静态
+  限制。嵌套诊断值共享同一个 `RedactionSession`，子值不能重置父级预算。
 - URI 脱敏保留原始 scheme、authority、path、query 顺序和编码，同时按核心策略分别处理
   username/password、query 值以及可配置的 path/fragment 边界。
 - 默认 feature 集为空，核心 crate 没有外部运行时依赖。
@@ -31,12 +33,12 @@ qubit-redact = "0.6"
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
-        .raise("user_id", Sensitivity::Low)?
-        .raise("phone_number", Sensitivity::Medium)?
-        .raise("credit_card", Sensitivity::High)?
-        .raise("api_key", Sensitivity::Secret)?
-        .build()?;
+    let mut builder = RedactionPolicy::builder();
+    builder.fields().raise("user_id", Sensitivity::Low)?;
+    builder.fields().raise("phone_number", Sensitivity::Medium)?;
+    builder.fields().raise("credit_card", Sensitivity::High)?;
+    builder.fields().raise("api_key", Sensitivity::Secret)?;
+    let policy = builder.build()?;
     let redactor = Redactor::new(policy);
 
     assert_eq!(redactor.redact_field("user_id", "alpine42").as_str(), "al****42");
@@ -54,6 +56,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 原始值仍可供应用逻辑使用。把标量结果写入纯文本日志前，必须调用
 `escape_for_log()`。
+
+如果需要进程级默认策略，应在第一次调用 `RedactionPolicy::global()` 或
+`RedactionPolicy::default()` 前安装已经构建好的策略：
+
+```rust
+use qubit_redact::{RedactionPolicy, Sensitivity};
+
+let mut builder = RedactionPolicy::builder();
+builder.fields().raise("api_key", Sensitivity::Secret)?;
+let policy = builder.build()?;
+RedactionPolicy::install_global(policy)?;
+let snapshot = RedactionPolicy::default();
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+如果没有安装策略，第一次读取全局/默认策略时会冻结标准策略；之后再安装会返回
+`InstallGlobalPolicyError`。已有快照不会改变。
 
 ## Derive 支持
 
@@ -110,8 +129,18 @@ http = "1.4"
   是确定性的，不会读取全局状态。扩展默认策略应使用
   `RedactionPolicy::default().to_builder()`。`disable_floor()` 会有意关闭全部
   floor，只应由明确承担该安全决策的调用方使用。
-- 进程级 floor 和 policy 默认值只能安装一次，只影响未来快照；既有 policy 与 redactor
-  永不随之改变。
+- 所有配置统一通过 `RedactionPolicyBuilder` 完成：使用 `fields()`、`http()`、`uri()` 和
+  `limits()` 访问可变分区视图。上下文规则可以增加保护，但不能降低基础字段更强的决策。
+  一个策略只有一套 masking 和 limits。
+- 使用 `RedactionPolicy::install_global()` 在应用组装阶段安装一次全局策略。它只影响
+  后续快照；既有 policy 与 redactor 永不随之改变。如果尚未安装，第一次读取 `global()`
+  或 `default()` 会冻结标准策略。
+- 脱敏领域对象/Map 视图的 `Debug` 默认使用策略的
+  `limits().diagnostic_event()` 输出预算。派生嵌套值、Map、JSON 文本和显式 adapter
+  session 共享同一个 `RedactionSession`，子值不能隐式取得一份新预算。
+- `InputOutputLimit` 是不可变策略设置；`DiagnosticBudget` 和 `RedactionSession` 是
+  每个 operation 或 diagnostic event 使用的、不可克隆的运行时计量对象。输入预算耗尽后，
+  仍可使用剩余输出预算写入安全的截断标记。
 - `redact_field()` 返回 `FieldRedaction`，区分已遮盖、允许直通和未知字段直通。
 - `RedactedText` 故意不实现 `Display`。值脱敏与日志转义是两层不同保证。
 - 需要让领域对象或 Map 视图受策略诊断预算限制时，调用
@@ -123,8 +152,8 @@ http = "1.4"
   返回固定标记。
 - JSON 脱敏到达 `JsonDepthBudget` 后，会用策略的 Secret 不透明掩码替换超深子树；
   默认最大深度为 128。
-- HTTP 脱敏只处理调用方提供的 capture，绝不会自行读取或缓存网络 body。
-  `HttpRedactionPolicy` 应从 `qubit_redact::http` 导入，而非 HTTP 客户端 crate。
+- HTTP 脱敏只处理调用方提供的 capture，绝不会自行读取或缓存网络 body。HTTP 行为配置在
+  根部 `RedactionPolicy` 上，由 `HttpRedactor` 使用该快照。
 
 ## 深入了解
 

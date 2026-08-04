@@ -8,10 +8,9 @@
 //! Integration tests for metadata-only URI inspection.
 
 use qubit_redact::{
-    DiagnosticBudget,
+    InputOutputLimit,
     RedactionPolicy,
     UriComponent,
-    UriRedactionPolicy,
     UriRedactionReason,
     UriRedactionStatus,
     UriRedactor,
@@ -56,13 +55,13 @@ fn test_uri_redactor_inspect_uri_str_fails_closed() {
 fn test_uri_redactor_inspect_uri_str_ignores_output_budget() {
     let core = RedactionPolicy::default()
         .to_builder()
-        .diagnostic_budget(
-            DiagnosticBudget::new(4096, 64)
+        .diagnostic_event(
+            InputOutputLimit::new(4096, 64)
                 .expect("the diagnostic budget is valid"),
         )
         .build()
         .expect("the core policy is valid");
-    let policy = UriRedactionPolicy::builder_from(&core)
+    let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("the URI policy is valid");
     let input =

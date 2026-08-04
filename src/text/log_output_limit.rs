@@ -8,7 +8,7 @@
 //! Validated byte limits for bounded log output.
 
 use crate::{
-    DiagnosticBudget,
+    InputOutputLimit,
     LogOutputLimitError,
 };
 
@@ -61,10 +61,10 @@ impl LogOutputLimit {
     }
 }
 
-impl From<DiagnosticBudget> for LogOutputLimit {
+impl From<InputOutputLimit> for LogOutputLimit {
     /// Converts a diagnostic budget into its compatible log-output limit.
     ///
-    /// [`DiagnosticBudget`] guarantees an output bound large enough for every
+    /// [`InputOutputLimit`] guarantees an output bound large enough for every
     /// [`LogOutputLimit`].
     ///
     /// # Parameters
@@ -75,7 +75,7 @@ impl From<DiagnosticBudget> for LogOutputLimit {
     ///
     /// A compatible validated log-output limit.
     #[inline(always)]
-    fn from(budget: DiagnosticBudget) -> Self {
+    fn from(budget: InputOutputLimit) -> Self {
         Self {
             max_bytes: budget.max_output_bytes(),
         }

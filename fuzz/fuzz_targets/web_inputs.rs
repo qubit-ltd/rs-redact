@@ -15,8 +15,8 @@ use http::{
 };
 use libfuzzer_sys::fuzz_target;
 use qubit_redact::http::{
-    DiagnosticBudget,
-    HttpRedactionPolicy,
+    InputOutputLimit,
+    RedactionPolicy,
     HttpRedactor,
 };
 use url::Url;
@@ -87,10 +87,10 @@ fn assert_malformed_structured_secret_is_redacted() {
 ///   inputs.
 fn assert_diagnostic_outputs_are_bounded(data: &[u8]) {
     let budget =
-        DiagnosticBudget::new(DIAGNOSTIC_INPUT_LIMIT, DIAGNOSTIC_OUTPUT_LIMIT)
+        InputOutputLimit::new(DIAGNOSTIC_INPUT_LIMIT, DIAGNOSTIC_OUTPUT_LIMIT)
             .expect("the fixed fuzz diagnostic budget is valid");
-    let policy = HttpRedactionPolicy::builder()
-        .diagnostic_budget(budget)
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(budget)
         .build()
         .expect("the fixed fuzz HTTP policy is valid");
     let redactor = HttpRedactor::new(policy);

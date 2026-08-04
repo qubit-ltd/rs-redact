@@ -7,7 +7,10 @@
 // =============================================================================
 //! Lazy recursive formatting for an already parsed JSON value.
 
-use std::fmt;
+use std::fmt::{
+    self,
+    Write as _,
+};
 
 use serde_json::Value;
 
@@ -18,10 +21,16 @@ use serde::ser::{
 };
 
 use crate::{
+    LogOutputLimit,
     RedactValue as _,
     RedactedValue,
     RedactionPolicy,
+    RedactionSession,
     policy::ResolvedField,
+    text::internal::{
+        BoundedLogEscapeWriter,
+        LogEscapeWriter,
+    },
 };
 
 /// A borrowed JSON value rendered with policy-aware object-key redaction.
@@ -212,6 +221,74 @@ impl serde::Serialize for RedactedJson<'_, '_> {
             ),
             value => serde::Serialize::serialize(value, serializer),
         }
+    }
+}
+
+/// A nested parsed JSON view that reuses one diagnostic session.
+#[must_use = "format the nested redacted JSON view"]
+pub struct RedactedJsonSession<'value, 'session, 'policy> {
+    /// Parsed JSON borrowed without cloning.
+    value: &'value Value,
+    /// Shared diagnostic session for the enclosing representation.
+    session: &'session RedactionSession<'policy>,
+}
+
+impl<'value, 'session, 'policy> RedactedJsonSession<'value, 'session, 'policy> {
+    /// Creates a parsed JSON view using an existing diagnostic session.
+    #[inline(always)]
+    pub fn new(
+        value: &'value Value,
+        session: &'session RedactionSession<'policy>,
+    ) -> Self {
+        Self { value, session }
+    }
+
+    /// Returns an opaque fallback when the shared output budget cannot accept
+    /// another JSON fragment.
+    #[inline]
+    fn opaque(&self) -> &str {
+        self.session
+            .policy()
+            .masking()
+            .mask_opaque(crate::Sensitivity::Secret)
+    }
+
+    /// Formats the parsed JSON through a bounded writer and charges the
+    /// resulting fragment to the enclosing diagnostic session.
+    fn render(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let remaining = self.session.remaining_output_bytes();
+        let Some(limit) = LogOutputLimit::new(remaining).ok() else {
+            return formatter.write_str(self.opaque());
+        };
+        let mut writer = BoundedLogEscapeWriter::new(limit);
+        let view = RedactedJson::new(self.value, self.session.policy());
+        let _ = if formatter.alternate() {
+            write!(&mut writer, "{view:#?}")
+        } else {
+            write!(&mut writer, "{view:?}")
+        };
+        let rendered = writer.finish();
+        if !self.session.consume_output(rendered.len()) {
+            return formatter.write_str(self.opaque());
+        }
+        formatter.write_str(&rendered)
+    }
+}
+
+impl fmt::Debug for RedactedJsonSession<'_, '_, '_> {
+    /// Formats parsed JSON through the shared diagnostic session.
+    #[inline]
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.render(formatter)
+    }
+}
+
+impl fmt::Display for RedactedJsonSession<'_, '_, '_> {
+    /// Escapes the shared-session JSON representation for plain-text logs.
+    #[inline]
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut writer = LogEscapeWriter::new(formatter);
+        write!(&mut writer, "{self:?}")
     }
 }
 

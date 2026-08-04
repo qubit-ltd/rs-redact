@@ -127,3 +127,97 @@ fn format_bounded(
     }
     formatter.write_str(&writer.finish())
 }
+
+/// Formats a redacted debug value with the policy output limit while preserving
+/// the caller's alternate-debug flag.
+///
+/// Unlike [`format_bounded`], this helper preserves the native `Debug` output
+/// rather than applying log escaping. The redacted value is still bounded
+/// before it reaches the caller's formatter.
+pub(super) fn format_debug_bounded(
+    value: &dyn Debug,
+    limit: LogOutputLimit,
+    formatter: &mut Formatter<'_>,
+) -> fmt::Result {
+    let mut writer = BoundedDebugWriter::new(limit);
+    let result = with_mask_byte_limit(limit.max_bytes(), || {
+        if formatter.alternate() {
+            write!(&mut writer, "{value:#?}")
+        } else {
+            write!(&mut writer, "{value:?}")
+        }
+    });
+    if result.is_err() && !writer.is_truncated() {
+        return Err(fmt::Error);
+    }
+    formatter.write_str(&writer.finish())
+}
+
+/// Retains a bounded native debug prefix and appends the truncation marker.
+struct BoundedDebugWriter {
+    output: String,
+    limit: usize,
+    truncated: bool,
+}
+
+impl BoundedDebugWriter {
+    /// Creates an empty bounded debug writer.
+    fn new(limit: LogOutputLimit) -> Self {
+        Self {
+            output: String::new(),
+            limit: limit.max_bytes(),
+            truncated: false,
+        }
+    }
+
+    /// Returns whether a write exceeded the configured limit.
+    fn is_truncated(&self) -> bool {
+        self.truncated
+    }
+
+    /// Finishes the bounded output with a complete truncation marker.
+    fn finish(mut self) -> String {
+        if self.truncated {
+            let marker = "<truncated>";
+            let prefix_limit = self.limit.saturating_sub(marker.len());
+            self.output.truncate(prefix_limit.min(self.output.len()));
+            self.output.push_str(marker);
+        }
+        self.output
+    }
+}
+
+impl fmt::Write for BoundedDebugWriter {
+    /// Appends a complete UTF-8 prefix or marks the output truncated.
+    fn write_str(&mut self, value: &str) -> fmt::Result {
+        if self.truncated {
+            return Err(fmt::Error);
+        }
+        let next_len = self.output.len().saturating_add(value.len());
+        if next_len <= self.limit {
+            self.output.push_str(value);
+            return Ok(());
+        }
+
+        let payload_limit = self.limit.saturating_sub("<truncated>".len());
+        let remaining = payload_limit.saturating_sub(self.output.len());
+        if remaining > 0 {
+            let prefix = value
+                .get(..remaining)
+                .or_else(|| value.get(..floor_char_boundary(value, remaining)))
+                .unwrap_or_default();
+            self.output.push_str(prefix);
+        }
+        self.truncated = true;
+        Err(fmt::Error)
+    }
+}
+
+/// Returns the greatest UTF-8 boundary not greater than `limit`.
+fn floor_char_boundary(value: &str, limit: usize) -> usize {
+    let mut boundary = limit.min(value.len());
+    while boundary > 0 && !value.is_char_boundary(boundary) {
+        boundary -= 1;
+    }
+    boundary
+}

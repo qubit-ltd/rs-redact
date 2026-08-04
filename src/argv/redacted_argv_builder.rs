@@ -10,7 +10,7 @@
 use std::fmt::Write as _;
 
 use crate::{
-    DiagnosticBudget,
+    InputOutputLimit,
     LogOutputLimit,
     text::internal::BoundedLogEscapeWriter,
 };
@@ -39,7 +39,7 @@ impl RedactedArgvBuilder {
     ///
     /// An empty byte-bounded argv rendering builder.
     #[inline]
-    pub(super) fn new(budget: DiagnosticBudget) -> Self {
+    pub(super) fn new(budget: InputOutputLimit) -> Self {
         let limit = LogOutputLimit::from(budget);
         let mut writer = BoundedLogEscapeWriter::new(limit);
         let _ = writer.write_str("[");

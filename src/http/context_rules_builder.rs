@@ -24,14 +24,11 @@ pub(super) struct ContextRulesBuilder {
 }
 
 impl ContextRulesBuilder {
-    /// Creates empty application rules inheriting `floor`.
-    pub(super) fn empty(
-        location: PolicyLocation,
-        floor: RedactionFloor,
-    ) -> Self {
+    /// Creates empty context overrides.
+    pub(super) fn empty(location: PolicyLocation) -> Self {
         Self {
             rules: RedactionRulesBuilder::empty(location),
-            floor: Some(floor),
+            floor: None,
         }
     }
 

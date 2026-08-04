@@ -11,6 +11,7 @@ use std::ffi::OsStr;
 
 use crate::{
     DiagnosticInputBudget,
+    RedactionSession,
     Redactor,
     Sensitivity,
     policy::ResolvedField,
@@ -79,9 +80,8 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut input_budget =
-            self.redactor.policy().diagnostic_budget().input_budget();
-        self.redact_items_with_input_budget(items, &mut input_budget)
+        let session = RedactionSession::diagnostic(self.redactor.policy());
+        self.redact_items_with_session(items, &session)
     }
 
     /// Redacts explicitly classified values using shared input accounting.
@@ -112,8 +112,9 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut rendered =
-            RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
+        let mut rendered = RedactedArgv::builder(
+            self.redactor.policy().limits().diagnostic_event(),
+        );
         for item in items {
             if !input_budget.reserve(item.value().as_encoded_bytes().len()) {
                 let _ = rendered.push(TRUNCATED_ITEM);
@@ -155,9 +156,65 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut input_budget =
-            self.redactor.policy().diagnostic_budget().input_budget();
-        self.redact_heuristically_with_input_budget(items, &mut input_budget)
+        let session = RedactionSession::diagnostic(self.redactor.policy());
+        self.redact_heuristically_with_session(items, &session)
+    }
+
+    /// Redacts explicit items while sharing cumulative input and output
+    /// accounting with other diagnostic adapters.
+    pub fn redact_items_with_session<'a, I>(
+        &self,
+        items: I,
+        session: &RedactionSession<'_>,
+    ) -> RedactedArgv
+    where
+        I: IntoIterator<Item = ArgvItem<'a>>,
+    {
+        self.render_with_session(items, session, |redactor, items, budget| {
+            redactor.redact_items_with_input_budget(items, budget)
+        })
+    }
+
+    /// Redacts explicit and heuristic items through a shared diagnostic
+    /// session.
+    pub fn redact_heuristically_with_session<'a, I>(
+        &self,
+        items: I,
+        session: &RedactionSession<'_>,
+    ) -> RedactedArgv
+    where
+        I: IntoIterator<Item = ArgvItem<'a>>,
+    {
+        self.render_with_session(items, session, |redactor, items, budget| {
+            redactor.redact_heuristically_with_input_budget(items, budget)
+        })
+    }
+
+    fn render_with_session<'a, I, F>(
+        &self,
+        items: I,
+        session: &RedactionSession<'_>,
+        render: F,
+    ) -> RedactedArgv
+    where
+        I: IntoIterator<Item = ArgvItem<'a>>,
+        F: FnOnce(&Self, I, &mut DiagnosticInputBudget) -> RedactedArgv,
+    {
+        let available = session.remaining_input_bytes();
+        let mut input_budget = DiagnosticInputBudget::new(available);
+        let result = render(self, items, &mut input_budget);
+        let consumed =
+            available.saturating_sub(input_budget.remaining_input_bytes());
+        if input_budget.remaining_input_bytes() == 0 {
+            let _ = session.consume_input(available);
+        } else {
+            let _ = session.consume_input(consumed);
+        }
+        if session.consume_output(result.as_log_safe_text().as_str().len()) {
+            result
+        } else {
+            RedactedArgv::from_rendered(TRUNCATED_ITEM.to_owned())
+        }
     }
 
     /// Redacts explicit and heuristic values using shared input accounting.
@@ -188,8 +245,9 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut rendered =
-            RedactedArgv::builder(self.redactor.policy().diagnostic_budget());
+        let mut rendered = RedactedArgv::builder(
+            self.redactor.policy().limits().diagnostic_event(),
+        );
         let mut pending_field = None;
 
         for item in items {
@@ -461,7 +519,8 @@ impl ArgvRedactor {
     fn mask_output_limit(&self) -> usize {
         self.redactor
             .policy()
-            .diagnostic_budget()
+            .limits()
+            .diagnostic_event()
             .max_output_bytes()
     }
 }

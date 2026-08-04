@@ -134,7 +134,7 @@ impl Redact for SafeRecord {
     /// Writes the safe diagnostic representation.
     fn fmt_redacted(
         &self,
-        _policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter

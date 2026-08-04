@@ -19,6 +19,8 @@ use fluent_uri::Uri;
 
 use crate::{
     RedactedText,
+    RedactionPolicy,
+    RedactionSession,
     Sensitivity,
     policy::ResolvedField,
 };
@@ -29,7 +31,6 @@ use super::{
     UriInspection,
     UriPathPolicy,
     UriRedaction,
-    UriRedactionPolicy,
     UriRedactionReason,
     UriRedactionStatus,
 };
@@ -45,20 +46,20 @@ const INVALID_URI: &str = "<invalid URI>";
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UriRedactor {
-    policy: UriRedactionPolicy,
+    policy: RedactionPolicy,
 }
 
 impl UriRedactor {
     /// Creates a URI redactor from an explicit immutable policy.
     #[inline]
-    pub const fn new(policy: UriRedactionPolicy) -> Self {
+    pub const fn new(policy: RedactionPolicy) -> Self {
         Self { policy }
     }
 
     /// Returns the immutable URI policy snapshot.
     #[must_use = "use the URI policy snapshot"]
     #[inline]
-    pub const fn policy(&self) -> &UriRedactionPolicy {
+    pub const fn policy(&self) -> &RedactionPolicy {
         &self.policy
     }
 
@@ -70,11 +71,7 @@ impl UriRedactor {
     #[must_use = "use the structured URI redaction result"]
     pub fn redact_uri_str(&self, input: &str) -> UriRedaction {
         if input.len()
-            > self
-                .policy
-                .redaction_policy()
-                .diagnostic_budget()
-                .max_input_bytes()
+            > self.policy.limits().diagnostic_event().max_input_bytes()
         {
             return invalid_result(UriRedactionReason::InputLimitExceeded);
         }
@@ -86,10 +83,7 @@ impl UriRedactor {
         let mut reasons = Vec::new();
         let mut components = Vec::new();
         let mut rendered = BoundedUriWriter::new(
-            self.policy
-                .redaction_policy()
-                .diagnostic_budget()
-                .max_output_bytes(),
+            self.policy.limits().diagnostic_event().max_output_bytes(),
         );
         let scheme = parsed.scheme().as_str();
         let scheme_end = scheme.len() + 1;
@@ -183,7 +177,7 @@ impl UriRedactor {
     /// applies, while the output budget and truncation behavior do not.
     #[must_use = "use the structured URI inspection result"]
     pub fn inspect_uri_str(&self, input: &str) -> UriInspection {
-        let budget = self.policy.redaction_policy().diagnostic_budget();
+        let budget = self.policy.limits().diagnostic_event();
         if input.len() > budget.max_input_bytes() {
             return invalid_inspection(UriRedactionReason::InputLimitExceeded);
         }
@@ -250,20 +244,51 @@ impl UriRedactor {
             components,
         }
     }
+
+    /// Redacts one URI while consuming a shared diagnostic session.
+    #[must_use = "use the session-bounded URI result"]
+    pub fn redact_uri_str_with_session(
+        &self,
+        input: &str,
+        session: &RedactionSession<'_>,
+    ) -> UriRedaction {
+        if !session.consume_input(input.len()) {
+            return invalid_result(UriRedactionReason::InputLimitExceeded);
+        }
+        let result = self.redact_uri_str(input);
+        if session.consume_output(result.log_safe_text().as_str().len()) {
+            result
+        } else {
+            invalid_result(UriRedactionReason::OutputTruncated)
+        }
+    }
+
+    /// Inspects one URI while consuming a shared diagnostic input budget.
+    #[must_use = "use the session-bounded URI inspection"]
+    pub fn inspect_uri_str_with_session(
+        &self,
+        input: &str,
+        session: &RedactionSession<'_>,
+    ) -> UriInspection {
+        if !session.consume_input(input.len()) {
+            return invalid_inspection(UriRedactionReason::InputLimitExceeded);
+        }
+        self.inspect_uri_str(input)
+    }
 }
 
 impl Default for UriRedactor {
     /// Creates a redactor from the process-wide URI policy snapshot.
     #[inline]
     fn default() -> Self {
-        Self::new(UriRedactionPolicy::default())
+        Self::new(RedactionPolicy::default())
     }
 }
 
 /// Redacts userinfo while preserving the authority's raw host and port.
 fn redact_authority(
     authority: &str,
-    policy: &UriRedactionPolicy,
+    policy: &RedactionPolicy,
     reasons: &mut Vec<UriRedactionReason>,
     components: &mut Vec<UriComponent>,
     rendered: &mut BoundedUriWriter,
@@ -313,7 +338,7 @@ fn redact_authority(
 /// Inspects userinfo without allocating a rendered URI.
 fn inspect_authority(
     authority: &str,
-    policy: &UriRedactionPolicy,
+    policy: &RedactionPolicy,
     reasons: &mut Vec<UriRedactionReason>,
     components: &mut Vec<UriComponent>,
 ) -> Result<(), ()> {
@@ -355,15 +380,12 @@ fn inspect_userinfo_value(
     raw: &str,
     field: &str,
     component: UriComponent,
-    policy: &UriRedactionPolicy,
+    policy: &RedactionPolicy,
     reasons: &mut Vec<UriRedactionReason>,
     components: &mut Vec<UriComponent>,
 ) -> Result<(), ()> {
     decode_uri_component(raw).map_err(|_| ())?;
-    if matches!(
-        policy.redaction_policy().resolve_field(field),
-        ResolvedField::Sensitive { .. }
-    ) {
+    if matches!(policy.resolve_field(field), ResolvedField::Sensitive { .. }) {
         mark_component(component, reasons, components);
     }
     Ok(())
@@ -374,13 +396,13 @@ fn redact_userinfo_value(
     raw: &str,
     field: &str,
     component: UriComponent,
-    policy: &UriRedactionPolicy,
+    policy: &RedactionPolicy,
     reasons: &mut Vec<UriRedactionReason>,
     components: &mut Vec<UriComponent>,
     rendered: &mut BoundedUriWriter,
 ) -> Result<(), ()> {
     let decoded = decode_uri_component(raw).map_err(|_| ())?;
-    match policy.redaction_policy().resolve_field(field) {
+    match policy.resolve_field(field) {
         ResolvedField::Sensitive { sensitivity } => {
             mark_component(component, reasons, components);
             write_sensitive_value(policy, sensitivity, &decoded, rendered);
@@ -395,7 +417,7 @@ fn redact_userinfo_value(
 /// Redacts query values after strict percent decoding.
 fn redact_query(
     query: &str,
-    policy: &UriRedactionPolicy,
+    policy: &RedactionPolicy,
     reasons: &mut Vec<UriRedactionReason>,
     components: &mut Vec<UriComponent>,
     rendered: &mut BoundedUriWriter,
@@ -414,7 +436,7 @@ fn redact_query(
             .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
         let value = decode_uri_component(raw_value)
             .map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
-        match policy.redaction_policy().resolve_field(&key) {
+        match policy.resolve_field(&key) {
             ResolvedField::Sensitive { sensitivity } => {
                 mark_component(UriComponent::Query, reasons, components);
                 rendered.write_str(raw_key);
@@ -432,7 +454,7 @@ fn redact_query(
 /// Inspects query fields after strict percent decoding without rendering.
 fn inspect_query(
     query: &str,
-    policy: &UriRedactionPolicy,
+    policy: &RedactionPolicy,
     reasons: &mut Vec<UriRedactionReason>,
     components: &mut Vec<UriComponent>,
 ) -> Result<(), UriRedactionReason> {
@@ -446,10 +468,8 @@ fn inspect_query(
             .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
         decode_uri_component(raw_value)
             .map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
-        if matches!(
-            policy.redaction_policy().resolve_field(&key),
-            ResolvedField::Sensitive { .. }
-        ) {
+        if matches!(policy.resolve_field(&key), ResolvedField::Sensitive { .. })
+        {
             mark_component(UriComponent::Query, reasons, components);
         }
     }
@@ -480,7 +500,7 @@ fn decode_uri_component(raw: &str) -> Result<String, ()> {
 
 /// Streams one sensitive value through URI encoding and the bounded writer.
 fn write_sensitive_value(
-    policy: &UriRedactionPolicy,
+    policy: &RedactionPolicy,
     sensitivity: Sensitivity,
     value: &str,
     rendered: &mut BoundedUriWriter,
@@ -490,7 +510,6 @@ fn write_sensitive_value(
     }
     let mut writer = UriComponentWriter::new(rendered);
     let _ = policy
-        .redaction_policy()
         .masking()
         .for_level(sensitivity)
         .write_masked(value, &mut writer);
@@ -498,7 +517,7 @@ fn write_sensitive_value(
 
 /// Writes an opaque replacement without allocating beyond the output budget.
 fn write_opaque_mask(
-    policy: &UriRedactionPolicy,
+    policy: &RedactionPolicy,
     sensitivity: Sensitivity,
     rendered: &mut BoundedUriWriter,
 ) {
@@ -506,13 +525,8 @@ fn write_opaque_mask(
         return;
     }
     let mut writer = UriComponentWriter::new(rendered);
-    let _ = writer.write_str(
-        policy
-            .redaction_policy()
-            .masking()
-            .for_level(sensitivity)
-            .opaque_mask(),
-    );
+    let _ =
+        writer.write_str(policy.masking().for_level(sensitivity).opaque_mask());
 }
 
 /// Converts one hexadecimal ASCII byte to its numeric value.

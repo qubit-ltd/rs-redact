@@ -18,12 +18,6 @@ mod uri_inspection_tests;
 #[cfg(feature = "uri")]
 mod uri_path_policy_tests;
 #[cfg(feature = "uri")]
-mod uri_redaction_policy_builder_tests;
-#[cfg(feature = "uri")]
-mod uri_redaction_policy_inner_tests;
-#[cfg(feature = "uri")]
-mod uri_redaction_policy_tests;
-#[cfg(feature = "uri")]
 mod uri_redaction_reason_tests;
 #[cfg(feature = "uri")]
 mod uri_redaction_status_tests;

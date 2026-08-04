@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 
 use indexmap::IndexMap;
 use qubit_redact::{
-    DiagnosticBudget,
+    InputOutputLimit,
     RedactedMap,
     RedactionPolicy,
 };
@@ -49,10 +49,10 @@ fn test_redacted_map_with_policy_output_limit_uses_policy_budget() {
         "visible diagnostic text".repeat(4),
     )]);
     let budget =
-        DiagnosticBudget::new(1024, DiagnosticBudget::MIN_OUTPUT_BYTES)
+        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the minimum bounded output should be valid");
     let policy = RedactionPolicy::builder()
-        .diagnostic_budget(budget)
+        .diagnostic_event(budget)
         .build()
         .expect("the diagnostic budget should build a policy");
 

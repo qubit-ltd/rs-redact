@@ -28,7 +28,7 @@ use super::internal::{
 ///
 /// This explicit data transformation parses and allocates the complete JSON
 /// value. It intentionally does not apply
-/// [`DiagnosticBudget`](crate::DiagnosticBudget), which only bounds diagnostic
+/// [`InputOutputLimit`](crate::InputOutputLimit), which only bounds diagnostic
 /// rendering; callers processing untrusted input must enforce their own
 /// request-size limit before calling this function. The policy's
 /// [`JsonDepthBudget`](crate::JsonDepthBudget) always applies and replaces an

@@ -18,6 +18,7 @@ use crate::{
     LogOutputLimit,
     LogSafeText,
     RedactedText,
+    RedactionSession,
     Redactor,
     Sensitivity,
     policy::ResolvedField,
@@ -74,9 +75,32 @@ impl EnvRedactor {
     /// A log-safe pair rendered as `NAME=VALUE`.
     #[inline]
     pub fn redact_pair(&self, name: &str, value: &str) -> RedactedEnvPair {
-        let value = self.redactor.redact_field(name, value).into_owned();
+        let session = RedactionSession::operation(self.redactor.policy());
+        self.redact_pair_with_session(name, value, &session)
+    }
+
+    /// Redacts one UTF-8 pair through a shared operation session.
+    #[must_use = "use the returned redacted environment pair"]
+    pub fn redact_pair_with_session(
+        &self,
+        name: &str,
+        value: &str,
+        session: &RedactionSession<'_>,
+    ) -> RedactedEnvPair {
+        let value = self
+            .redactor
+            .redact_field_with_session(session, name, value)
+            .into_owned();
         let name = log_safe_owned(name.to_owned());
-        RedactedEnvPair::new(name, log_safe_owned(value))
+        let pair = RedactedEnvPair::new(name, log_safe_owned(value));
+        let rendered = pair.to_string();
+        if session.consume_output(rendered.len()) {
+            return pair;
+        }
+        RedactedEnvPair::new(
+            log_safe_owned("<redacted>".to_owned()),
+            log_safe_owned("<redacted>".to_owned()),
+        )
     }
 
     /// Redacts one environment pair whose components may not be UTF-8.
@@ -132,9 +156,37 @@ impl EnvRedactor {
     where
         I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
     {
-        let mut input_budget =
-            self.redactor.policy().diagnostic_budget().input_budget();
-        self.redact_os_pairs_with_input_budget(pairs, &mut input_budget)
+        let session = RedactionSession::diagnostic(self.redactor.policy());
+        self.redact_os_pairs_with_session(pairs, &session)
+    }
+
+    /// Redacts environment pairs through one cumulative diagnostic session.
+    pub fn redact_os_pairs_with_session<'a, I>(
+        &self,
+        pairs: I,
+        session: &RedactionSession<'_>,
+    ) -> LogSafeText<'static>
+    where
+        I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
+    {
+        let available = session.remaining_input_bytes();
+        let mut input_budget = DiagnosticInputBudget::new(available);
+        let result =
+            self.redact_os_pairs_with_input_budget(pairs, &mut input_budget);
+        let consumed =
+            available.saturating_sub(input_budget.remaining_input_bytes());
+        let _ = session.consume_input(
+            if input_budget.remaining_input_bytes() == 0 {
+                available
+            } else {
+                consumed
+            },
+        );
+        if session.consume_output(result.as_str().len()) {
+            result
+        } else {
+            log_safe_owned("<redacted: diagnostic limit exceeded>".to_owned())
+        }
     }
 
     /// Redacts environment pairs using shared source-byte accounting.
@@ -162,7 +214,7 @@ impl EnvRedactor {
     where
         I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
     {
-        let budget = self.redactor.policy().diagnostic_budget();
+        let budget = self.redactor.policy().limits().diagnostic_event();
         let limit = LogOutputLimit::from(budget);
         let mut writer = BoundedLogEscapeWriter::new(limit);
         let _ = writer.write_str("[");

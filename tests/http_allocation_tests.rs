@@ -38,10 +38,8 @@ use qubit_redact::{
     http::{
         BodyBudget,
         BodyCapture,
-        DiagnosticBudget,
-        HttpFieldContext,
-        HttpRedactionPolicy,
         HttpRedactor,
+        InputOutputLimit,
     },
 };
 
@@ -179,7 +177,7 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
 
     assert_eq!(result.as_ref(), "https://example.test/");
     assert!(
-        largest < DiagnosticBudget::default().max_output_bytes(),
+        largest < InputOutputLimit::default().max_output_bytes(),
         "largest allocation unexpectedly reserved the output ceiling: {largest}",
     );
 
@@ -214,16 +212,11 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
         .build()
         .expect("the amplified redaction policy is valid");
     let output_limit = 128;
-    let diagnostic_budget = DiagnosticBudget::new(4096, output_limit)
+    let diagnostic_budget = InputOutputLimit::new(4096, output_limit)
         .expect("the diagnostic budget can contain every marker");
-    let policy = HttpRedactionPolicy::builder()
-        .rules(HttpFieldContext::Header, amplified_policy.rules().clone())
-        .rules(HttpFieldContext::Query, amplified_policy.rules().clone())
-        .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
-        .expect("the test mask policy should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
-        .expect("the test mask policy should be valid")
-        .diagnostic_budget(diagnostic_budget)
+    let policy = amplified_policy
+        .to_builder()
+        .diagnostic_event(diagnostic_budget)
         .build()
         .expect("the amplified HTTP policy is valid");
     let redactor = HttpRedactor::new(policy);
@@ -283,12 +276,8 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
     let output_limit = 64 * 1024;
     let body_budget = BodyBudget::new(128 * 1024, output_limit)
         .expect("the body budget is valid");
-    let policy = HttpRedactionPolicy::builder()
-        .rules(HttpFieldContext::Body, body_policy.rules().clone())
-        .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
-        .expect("the test mask policy should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
-        .expect("the test mask policy should be valid")
+    let policy = body_policy
+        .to_builder()
         .body_budget(body_budget)
         .build()
         .expect("the HTTP policy is valid");
@@ -329,7 +318,7 @@ fn test_unkeyed_json_redaction_respects_mask_budget() {
     let output_limit = BodyBudget::MIN_OUTPUT_BYTES;
     let body_budget = BodyBudget::new(body.len(), output_limit)
         .expect("the body budget is valid");
-    let policy = HttpRedactionPolicy::builder()
+    let policy = RedactionPolicy::builder()
         .body_budget(body_budget)
         .build()
         .expect("the HTTP policy is valid");

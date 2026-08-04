@@ -13,7 +13,7 @@ use std::{
 };
 
 use qubit_redact::{
-    DiagnosticBudget,
+    InputOutputLimit,
     LogOutputLimit,
     Redact,
     RedactValue,
@@ -35,16 +35,17 @@ impl Redact for NestedValue {
     /// Formats the nested value without exposing its secret.
     fn fmt_redacted(
         &self,
-        policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter
             .debug_struct("NestedValue")
             .field(
                 "secret",
-                &self
-                    .secret
-                    .redact_value(Sensitivity::Secret, policy.masking()),
+                &self.secret.redact_value(
+                    Sensitivity::Secret,
+                    _session.policy().masking(),
+                ),
             )
             .field("label", &self.label)
             .finish()
@@ -56,7 +57,7 @@ impl RedactValue for NestedValue {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
-        masking: &'a qubit_redact::MaskingPolicy,
+        masking: &qubit_redact::MaskingPolicy,
     ) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }
@@ -99,11 +100,11 @@ fn test_redacted_keyed_map_recursively_redacts_unclassified_values() {
 #[test]
 fn test_redacted_keyed_map_display_and_bounded_adapters() {
     let map = BTreeMap::from([(String::from("profile"), nested_value())]);
-    let output_limit = DiagnosticBudget::MIN_OUTPUT_BYTES;
-    let budget = DiagnosticBudget::new(1024, output_limit)
+    let output_limit = InputOutputLimit::MIN_OUTPUT_BYTES;
+    let budget = InputOutputLimit::new(1024, output_limit)
         .expect("the test diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
-        .diagnostic_budget(budget)
+        .diagnostic_event(budget)
         .build()
         .expect("the keyed map policy should build");
 

@@ -8,12 +8,12 @@
 //! Tests for bounded-body truncation markers.
 
 use http::HeaderValue;
+use qubit_redact::RedactionPolicy;
 use qubit_redact::http::{
     BodyBudget,
     BodyCapture,
-    DiagnosticBudget,
-    HttpRedactionPolicy,
     HttpRedactor,
+    InputOutputLimit,
     TextBodyPolicy,
 };
 
@@ -22,7 +22,7 @@ use qubit_redact::http::{
 fn test_markers_append_truncation_marker() {
     let budget = BodyBudget::new(64, BodyBudget::MIN_OUTPUT_BYTES)
         .expect("the minimum output budget should be valid");
-    let policy = HttpRedactionPolicy::builder()
+    let policy = RedactionPolicy::builder()
         .body_budget(budget)
         .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
@@ -39,10 +39,10 @@ fn test_markers_append_truncation_marker() {
 /// Verifies the minimum diagnostic budget can contain its fixed limit marker.
 #[test]
 fn test_diagnostic_limit_marker_matches_minimum_budget() {
-    let budget = DiagnosticBudget::new(1, DiagnosticBudget::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the minimum diagnostic output budget should be valid");
-    let policy = HttpRedactionPolicy::builder()
-        .diagnostic_budget(budget)
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(budget)
         .build()
         .expect("the HTTP policy should be valid");
     let rendered = HttpRedactor::new(policy)
@@ -50,5 +50,5 @@ fn test_diagnostic_limit_marker_matches_minimum_budget() {
         .to_string();
 
     assert_eq!(rendered, "<redacted: diagnostic limit exceeded>");
-    assert_eq!(rendered.len(), DiagnosticBudget::MIN_OUTPUT_BYTES);
+    assert_eq!(rendered.len(), InputOutputLimit::MIN_OUTPUT_BYTES);
 }

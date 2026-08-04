@@ -17,7 +17,9 @@ use crate::domain::RedactSerialize;
 use crate::{
     Redact,
     RedactMut,
+    RedactedSessionView,
     RedactionPolicy,
+    RedactionSession,
 };
 
 impl<T: Redact> Redact for Option<T> {
@@ -25,7 +27,7 @@ impl<T: Redact> Redact for Option<T> {
     ///
     /// # Parameters
     ///
-    /// * `policy` - Complete policy shared with a present nested value.
+    /// * `session` - Shared diagnostic session for a present nested value.
     /// * `formatter` - Destination formatting context.
     ///
     /// # Returns
@@ -39,13 +41,13 @@ impl<T: Redact> Redact for Option<T> {
     #[inline]
     fn fmt_redacted(
         &self,
-        policy: &RedactionPolicy,
+        session: &RedactionSession<'_>,
         formatter: &mut Formatter<'_>,
     ) -> fmt::Result {
         match self {
             Some(value) => formatter
                 .debug_tuple("Some")
-                .field(&value.redacted_with(policy))
+                .field(&RedactedSessionView::new(value, session))
                 .finish(),
             None => formatter.write_str("None"),
         }
@@ -57,7 +59,7 @@ impl<T: Redact + ?Sized> Redact for Box<T> {
     ///
     /// # Parameters
     ///
-    /// * `policy` - Complete policy forwarded to the boxed value.
+    /// * `session` - Shared diagnostic session forwarded to the boxed value.
     /// * `formatter` - Destination formatting context.
     ///
     /// # Returns
@@ -70,10 +72,10 @@ impl<T: Redact + ?Sized> Redact for Box<T> {
     #[inline(always)]
     fn fmt_redacted(
         &self,
-        policy: &RedactionPolicy,
+        session: &RedactionSession<'_>,
         formatter: &mut Formatter<'_>,
     ) -> fmt::Result {
-        self.as_ref().fmt_redacted(policy, formatter)
+        self.as_ref().fmt_redacted(session, formatter)
     }
 }
 
@@ -82,7 +84,7 @@ impl<T: Redact> Redact for Vec<T> {
     ///
     /// # Parameters
     ///
-    /// * `policy` - Complete policy shared by every item.
+    /// * `session` - Shared diagnostic session used by every item.
     /// * `formatter` - Destination formatting context.
     ///
     /// # Returns
@@ -95,12 +97,12 @@ impl<T: Redact> Redact for Vec<T> {
     #[inline]
     fn fmt_redacted(
         &self,
-        policy: &RedactionPolicy,
+        session: &RedactionSession<'_>,
         formatter: &mut Formatter<'_>,
     ) -> fmt::Result {
         let mut list = formatter.debug_list();
         for value in self {
-            list.entry(&value.redacted_with(policy));
+            list.entry(&RedactedSessionView::new(value, session));
         }
         list.finish()
     }

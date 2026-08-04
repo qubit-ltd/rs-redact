@@ -24,7 +24,7 @@ impl Redact for NestedValue {
     /// Writes the nested value's safe representation.
     fn fmt_redacted(
         &self,
-        _policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter.write_str("NestedValue { secret: <redacted> }")

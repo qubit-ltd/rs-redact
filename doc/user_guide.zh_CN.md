@@ -33,12 +33,12 @@ qubit-redact = "0.6"
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
-        .raise("user_id", Sensitivity::Low)?
-        .raise("phone_number", Sensitivity::Medium)?
-        .raise("credit_card", Sensitivity::High)?
-        .raise("api_key", Sensitivity::Secret)?
-        .build()?;
+    let mut builder = RedactionPolicy::builder();
+    builder.fields().raise("user_id", Sensitivity::Low)?;
+    builder.fields().raise("phone_number", Sensitivity::Medium)?;
+    builder.fields().raise("credit_card", Sensitivity::High)?;
+    builder.fields().raise("api_key", Sensitivity::Secret)?;
+    let policy = builder.build()?;
     let redactor = Redactor::new(policy);
     let user_id = "alpine42";
     let phone_number = "13800138000";
@@ -92,8 +92,9 @@ http = "1.4"
 
 ## 核心概念
 
-`RedactionPolicy` 是应用字段规则、可选最低 `RedactionFloor`、匹配方式、掩码、未知字段行为、
-诊断预算，以及启用 `json` feature 时 `JsonDepthBudget` 的不可变快照。
+`RedactionPolicy` 是一份不可变快照，统一包含基础字段规则、HTTP/URI 上下文覆盖、可选最低
+`RedactionFloor`、匹配方式、一套掩码表和静态限制；启用 `json` feature 时还包含
+`JsonDepthBudget`。`http()` 和 `uri()` 视图只保存相对于基础规则的上下文差异。
 `classify_field()` 只解释应用层为何得到 **Sensitive**（遮盖）、显式例外的
 **Allowed**（允许展示）或 **Unknown**；最终安全裁决由 `sensitivity_for()` 和脱敏 API 完成，
 它们会合并应用层和 floor。`UnknownFieldPolicy` 默认是 `PassThrough`；边界必须遮盖未分类字段时设置
@@ -104,15 +105,20 @@ http = "1.4"
 `RedactedText` 只表示“已按字段规则处理”，它故意不实现 `Display`。写入纯文本日志前，
 必须调用 `escape_for_log()` 得到可安全显示的 `LogSafeText`。
 
-领域对象或 Map 视图需要受策略诊断预算限制时，调用
-`with_policy_output_limit()`；其 `Debug` 和 `Display` 输出都会有界且适合日志。
+领域对象或 Map 视图的 `Debug` 默认使用策略诊断输出预算。需要让 `Debug` 和 `Display`
+都明确受该预算限制时，调用 `with_policy_output_limit()`。派生的嵌套对象、Map、JSON 文本
+和适配器会共享一个不可克隆的 `RedactionSession`，不会通过嵌套调用重置父级预算。
+
+`InputOutputLimit` 是存储在策略中的不可变限制；运行时由
+`DiagnosticBudget` 记录一次普通操作或诊断事件的消耗。输入和输出限额彼此独立：输入耗尽后，
+仍可使用剩余输出预算写入安全的截断标记。
 
 | API | 初始状态 | 适用场景 |
 | --- | --- | --- |
 | `RedactionPolicy::default()` | 当前标准进程级默认快照 | 接受应用已安装的默认策略。 |
 | `RedactionPolicy::builder()` | 空应用规则加标准 floor | 需要由当前调用点定义应用规则且保留 floor。 |
 | `RedactionPolicy::default().to_builder()` | 当前默认快照的副本 | 需要在标准默认策略上扩展。 |
-| `GlobalRedactionConfig::install()` | 每个进程只能安装一次 | 应用初始化代码拥有默认策略快照。 |
+| `RedactionPolicy::install_global()` | 每个进程只能安装一次 | 应用初始化代码拥有默认策略快照。 |
 
 可用 `include_preset(SensitiveFieldPreset::...)` 向显式策略加入内置的凭据、凭据容器、
 认证令牌、HTTP 或会话字段组。策略测试或诊断需要解释决策时，使用
@@ -121,7 +127,7 @@ http = "1.4"
 ## 1. 用 `RedactionPolicy` 配置规则
 
 `RedactionPolicy::builder()` 从空应用敏感/allow 规则和标准 floor 开始。
-`RedactionPolicy::default()` 读取当前 `GlobalRedactionConfig` 快照；扩展该快照时使用
+`RedactionPolicy::default()` 读取当前进程级默认快照；扩展该快照时使用
 `RedactionPolicy::default().to_builder()`。只有调用方明确承担取消最低保护的风险时才可
 使用 `disable_floor()`；应用层 allow 规则无法绕过启用的 floor。Builder 不会隐式读取全局状态。
 `raise` 不会降低既有等级；需要有意替换时使用
@@ -134,13 +140,15 @@ use qubit_redact::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .fields()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
         .raise("tenant_reference", Sensitivity::High)?
         .raise("tenant_visible", Sensitivity::High)?
-        .allow_canonical_exact("tenant_visible")?
-        .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))?
-        .build()?;
+        .allow_exact("tenant_visible")?
+        .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))?;
+    let policy = builder.build()?;
     let redactor = Redactor::new(policy);
 
     assert_eq!(redactor.redact_field("TENANT_REFERENCE", "abc").as_str(), "[hidden]");
@@ -149,8 +157,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`GlobalRedactionConfig::install` 只应在应用初始化时调用，且每个进程只能成功一次。
-测试或多个安全边界应传递显式策略快照。
+全局策略只应在应用初始化时安装：
+
+```rust
+use qubit_redact::{RedactionPolicy, Sensitivity};
+
+let mut builder = RedactionPolicy::builder();
+builder.fields().raise("api_key", Sensitivity::Secret)?;
+let policy = builder.build()?;
+RedactionPolicy::install_global(policy)?;
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+每个进程只能成功安装一次。如果先读取 `global()` 或 `default()`，标准策略就会被冻结，
+后续安装会返回 `InstallGlobalPolicyError`。测试或多个安全边界应传递显式策略快照。
 
 字段名会被规范化。使用 `FieldNameMatching::ExactOrTokenSuffix` 时，`api_key` 规则可
 匹配 `request_api_key`；精确匹配范围最窄。
@@ -370,7 +390,10 @@ fn main() {
 }
 ```
 
-返回的 `RedactedArgv` 可安全显示；输入和输出受策略中的 `DiagnosticBudget` 限制。
+返回的 `RedactedArgv` 可安全显示；输入和输出受策略中的 `InputOutputLimit` 限制。
+
+渲染参数集合时，即使共享输入预算在读取第一个元素前就已耗尽，也会保留集合外框；此时安全结果
+可能是 `['<truncated>']`。
 
 ## 6. 用 `EnvRedactor` 处理环境变量
 
@@ -395,18 +418,18 @@ fn main() {
 
 ## 7. 用 `HttpRedactor` 处理 HTTP 诊断
 
-可选 `http` feature 提供不可变 `HttpRedactionPolicy`，分别处理 Header、query/form 和
-结构化 body。它的 builder、`HttpRedactionPolicyBuilder::new()` 与 `Default::default()`
-都不带应用字段规则，并在每个上下文使用标准 floor。应用层 allow 规则无法绕过已启用的
-floor。要在标准 HTTP 快照上扩展，使用 `HttpRedactionPolicy::default().to_builder()`。
-Builder 不会隐式读取全局状态。
-`HttpRedactionPolicy::default()` 和 `HttpRedactor::default()` 的标准策略保留
+可选 `http` feature 提供统一的不可变 `RedactionPolicy`，分别处理 Header、query/form 和
+结构化 body。它的 `http()` 视图只保存 HTTP 上下文差异；基础字段规则、掩码和限制仍位于
+同一份策略中。`RedactionPolicy::builder()` 不带应用字段规则并使用标准 floor。应用层
+allow 规则无法绕过已启用的 floor。要在标准快照上扩展，使用
+`RedactionPolicy::default().to_builder()`。Builder 不会隐式读取全局状态。
+`RedactionPolicy::default()` 和 `HttpRedactor::default()` 的标准策略保留
 URL path 以便诊断；当 URL path 可能包含敏感标识符时，请使用
-`HttpRedactionPolicy::strict()` 或显式设置 `UrlPathPolicy::Redact`。
+`RedactionPolicy::strict()` 或显式设置 `UrlPathPolicy::Redact`。
 
 `HttpRedactor` 应用该快照。`BodyCapture` 提供借用字节和真实完整性元数据（`complete`、
 `prefix` 或截断 capture），因此库不会读取网络流。`BodyBudget` 限制检查和渲染的 body
-字节；`DiagnosticBudget` 单独限制 URL、form、header 和含 URL 的文本；
+字节；`InputOutputLimit` 单独限制 URL、form、header 和含 URL 的文本；
 `JsonDepthBudget` 限制 JSON 和 NDJSON 的递归深度。`BodyRedaction`
 是有界日志安全结果；`BodyRedactionStatus` 说明其为结构化成功、策略放行、安全关闭、
 二进制或空结果，`BodyRedactionReason` 则解释安全关闭的原因。所有结果都不提供原始 body
@@ -414,11 +437,11 @@ URL path 以便诊断；当 URL path 可能包含敏感标识符时，请使用
 
 | 输入 | 默认安全行为 | 使用的配置 |
 | --- | --- | --- |
-| URL query、用户名、密码、fragment | 遮盖已配置字段和敏感 URL 组成部分 | `raise(HttpFieldContext::Query, ...)`、query 策略、`UrlPathPolicy` |
-| form 与 Header | 遮盖已配置字段，且输出有界 | `raise(HttpFieldContext::Header, ...)`、`raise(HttpFieldContext::Query, ...)` |
-| JSON、NDJSON、form body、multipart | 解析完整输入；不安全、超深或截断时失败时默认遮盖 | `raise(HttpFieldContext::Body, ...)`、`BodyBudget`、`JsonDepthBudget` |
+| URL query、用户名、密码、fragment | 遮盖已配置字段和敏感 URL 组成部分 | `builder.http().query().raise(...)`、`builder.uri()`、`UrlPathPolicy` |
+| form 与 Header | 遮盖已配置字段，且输出有界 | `builder.http().header()`、`builder.http().query()` |
+| JSON、NDJSON、form body、multipart | 解析完整输入；不安全、超深或截断时失败时默认遮盖 | `builder.http().body()`、`builder.limits()`、`JsonDepthBudget` |
 | 不透明文本、无 key JSON | 默认采取保守策略 | 仅在接受风险后显式使用 `PassThrough` |
-| URL path | 标准策略保留，strict 策略脱敏 | `UrlPathPolicy::Redact` 或 `HttpRedactionPolicy::strict()` |
+| URL path | 标准策略保留，strict 策略脱敏 | `UrlPathPolicy::Redact` 或 `RedactionPolicy::strict()` |
 | 非 UTF-8 body | 返回二进制摘要，绝不暴露原始字节 | `BodyRedactionStatus::Binary` |
 
 ```toml
@@ -429,16 +452,14 @@ http = "1.4"
 
 ```rust
 use http::{HeaderMap, HeaderValue};
-use qubit_redact::Sensitivity;
-use qubit_redact::http::{
-    BodyCapture, HttpFieldContext, HttpRedactionPolicy, HttpRedactor,
-};
+use qubit_redact::{RedactionPolicy, Sensitivity};
+use qubit_redact::http::{BodyCapture, HttpRedactor};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = HttpRedactionPolicy::default().to_builder()
-        .raise(HttpFieldContext::Body, "password", Sensitivity::Secret)?
-        .raise(HttpFieldContext::Query, "api_key", Sensitivity::Secret)?
-        .build()?;
+    let mut builder = RedactionPolicy::default().to_builder();
+    builder.http().body().raise("password", Sensitivity::Secret)?;
+    builder.http().query().raise("api_key", Sensitivity::Secret)?;
+    let policy = builder.build()?;
     let redactor = HttpRedactor::new(policy);
 
     let url = redactor.redact_url_str(
@@ -461,8 +482,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`HttpRedactionPolicyBuilder` 通过带 `HttpFieldContext` 的规则、floor、敏感度和
-allow-list 方法配置 Header、query 和 body。无效或截断的结构化输入会安全关闭。
+一个 `RedactionPolicyBuilder` 通过 `http().header()`、`http().query()` 和
+`http().body()` 提供上下文规则、floor、敏感度和 allow-list 配置；共享的静态限制通过
+`limits()` 配置。无效或截断的结构化输入会安全关闭。
 
 运行时诊断可读取 `BodyRedaction::status()`、`is_truncated()`、`captured_len()` 和
 `omitted_len()`。`BodyRedactionStatus::Redacted(reason)` 会给出结构化或可见表示不安全的原因。
@@ -482,7 +504,7 @@ userinfo 只在第一个原始、未编码的 `:` 处分割：用户名按 `user
 
 query 的 key 和 value 会严格解码后再做策略判断；`+` 保持为字面加号，第一个 `=` 才是
 pair 分隔符，未遮盖的值保留原始编码，已遮盖的值重新做 URI 编码。path 默认保留，fragment
-默认遮盖，两者都可通过 `UriRedactionPolicyBuilder` 配置。语法无效、query UTF-8 无法解码
+默认遮盖，两者都可通过 `RedactionPolicyBuilder` 配置。语法无效、query UTF-8 无法解码
 或输入超预算时返回 `<invalid URI>`，不会保留原始 URI 文本。
 
 `UriRedaction` 提供日志安全文本、状态、已变更组件、原因和输出截断元数据；其 `Debug` 和
@@ -506,7 +528,7 @@ pair 分隔符，未遮盖的值保留原始编码，已遮盖的值重新做 UR
 | 可控字段仍然可见 | 添加显式规则；未知字段会原样通过。 |
 | 后缀规则披露范围过大 | 优先改用精确规则，或删除后缀 allow 规则。 |
 | 策略构建失败 | 检查返回的 `PolicyError`，不要回退到宽松策略。 |
-| 全局配置已安装 | 处理 `GlobalRedactionConfigAlreadyInstalled`；需要隔离时传递显式策略。 |
+| 全局策略已安装 | 处理 `InstallGlobalPolicyError`；需要隔离时传递显式策略。 |
 | 结构化 body 不合法或已截断 | 记录安全结果，并检查 `BodyRedactionStatus::Redacted(reason)`。 |
 | 日志行包含控制字符或 Unicode 行序字符 | 通过 `escape_for_log()` 跨过标量日志边界。 |
 | 需要内存擦除 | 不要依赖 `RedactMut`；使用专门的 zeroization 设计。 |

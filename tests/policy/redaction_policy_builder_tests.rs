@@ -10,7 +10,7 @@
 #[cfg(feature = "json")]
 use qubit_redact::UnkeyedJsonValuePolicy;
 use qubit_redact::{
-    DiagnosticBudget,
+    InputOutputLimit,
     MaskPolicy,
     PolicyError,
     PolicyLocation,
@@ -64,13 +64,13 @@ fn test_redaction_policy_builder_builds_configured_rule() {
 #[test]
 fn test_redaction_policy_builder_preserves_diagnostic_budget() {
     let budget =
-        DiagnosticBudget::new(128, 256).expect("the test budget is valid");
+        InputOutputLimit::new(128, 256).expect("the test budget is valid");
     let policy = RedactionPolicy::builder()
-        .diagnostic_budget(budget)
+        .diagnostic_event(budget)
         .build()
         .expect("the policy should build");
 
-    assert_eq!(policy.diagnostic_budget(), budget);
+    assert_eq!(policy.limits().diagnostic_event(), budget);
     assert_eq!(
         RedactionPolicy::builder_from(&policy)
             .build()

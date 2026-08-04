@@ -9,10 +9,7 @@
 
 use std::fmt;
 
-use qubit_redact::{
-    Redact,
-    RedactionPolicy,
-};
+use qubit_redact::Redact;
 
 /// Minimal domain value used to verify the borrowed redacted view contract.
 struct TestDomainValue;
@@ -21,7 +18,7 @@ impl Redact for TestDomainValue {
     /// Writes a fixed redacted representation without consulting source data.
     fn fmt_redacted(
         &self,
-        _policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter.write_str("TestDomainValue { secret: <redacted> }")
