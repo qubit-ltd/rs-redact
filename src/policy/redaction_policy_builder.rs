@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Mutable builder for immutable redaction policies.
+// qubit-style: allow multiple-public-types
 
 use super::{
     FieldNameMatching,

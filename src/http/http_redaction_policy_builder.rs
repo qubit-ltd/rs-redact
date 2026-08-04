@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Builder for immutable HTTP redaction policy snapshots.
+// qubit-style: allow type-file-name
 
 use crate::{
     PolicyError,

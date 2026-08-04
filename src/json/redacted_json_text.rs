@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Lazy fail-closed formatting for JSON stored as text.
+// qubit-style: allow multiple-public-types
 
 use std::fmt::{
     self,

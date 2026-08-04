@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Shared immutable state for URI redaction policies.
+// qubit-style: allow type-file-name
 
 use super::{
     UriFragmentPolicy,

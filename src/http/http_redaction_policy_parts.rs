@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Complete private construction state for an HTTP redaction policy.
+// qubit-style: allow type-file-name
 
 use crate::RedactionRules;
 

@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Mutable builder for URI redaction policies.
+// qubit-style: allow type-file-name
 
 use crate::PolicyError;
 

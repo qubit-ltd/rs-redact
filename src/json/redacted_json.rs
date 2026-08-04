@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Lazy recursive formatting for an already parsed JSON value.
+// qubit-style: allow multiple-public-types
 
 use std::fmt::{
     self,
