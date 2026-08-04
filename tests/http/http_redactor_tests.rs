@@ -27,7 +27,6 @@ use qubit_redact::{
     http::{
         BodyBudget,
         BodyCapture,
-        HttpFieldContext,
         HttpRedactor,
         TextBodyPolicy,
     },
@@ -157,8 +156,12 @@ fn test_native_sensitive_header_wins_over_allow_rule() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the allow-only test policy is valid");
-    let policy = RedactionPolicy::builder()
-        .http_rules(HttpFieldContext::Header, allowed.rules().clone())
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .http()
+        .header()
+        .replace_rules(allowed.rules().clone());
+    let policy = builder
         .build()
         .expect("HTTP redaction policy should be valid");
     let redactor = HttpRedactor::new(policy);
@@ -587,14 +590,18 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
         .build()
         .expect("the test masking policy is valid");
     assert_eq!(body_policy.masking(), &masking);
-    let policy = RedactionPolicy::builder()
-        .http_rules(HttpFieldContext::Body, body_policy.rules().clone())
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .http()
+        .body()
+        .replace_rules(body_policy.rules().clone())
+        .disable_floor();
+    builder.http().unkeyed_json(
+        qubit_redact::http::UnkeyedJsonValuePolicy::PassThrough,
+    );
+    let policy = builder
         .mask(Sensitivity::Secret, MaskPolicy::fixed("SECRET"))
         .expect("the test mask policy should be valid")
-        .http_disable_floor_for(HttpFieldContext::Body)
-        .unkeyed_json_value_policy(
-            qubit_redact::http::UnkeyedJsonValuePolicy::PassThrough,
-        )
         .build()
         .expect("HTTP redaction policy should be valid");
     let redactor = HttpRedactor::new(policy);
@@ -632,9 +639,13 @@ fn test_json_policy_masks_sensitive_non_strings_as_opaque_values() {
         .expect("the test mask policy should be valid")
         .build()
         .expect("the body policy should be valid");
-    let policy = RedactionPolicy::builder()
-        .http_disable_floor_for(HttpFieldContext::Body)
-        .http_rules(HttpFieldContext::Body, body_policy.rules().clone())
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .http()
+        .body()
+        .replace_rules(body_policy.rules().clone())
+        .disable_floor();
+    let policy = builder
         .mask(
             Sensitivity::Secret,
             MaskPolicy::preserve_edges(1, 1, "OPAQUE", 0),

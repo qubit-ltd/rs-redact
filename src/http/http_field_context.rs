@@ -13,7 +13,7 @@ use crate::PolicyLocation;
 /// Selects one HTTP field namespace for policy configuration.
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum HttpFieldContext {
+pub(crate) enum HttpFieldContext {
     /// HTTP header names.
     Header,
     /// Query-string and form names.

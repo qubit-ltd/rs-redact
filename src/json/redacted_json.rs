@@ -33,6 +33,7 @@ use crate::{
         LogEscapeWriter,
     },
 };
+use crate::policy::OutputCharge;
 
 /// A borrowed JSON value rendered with policy-aware object-key redaction.
 #[must_use = "format or serialize the redacted JSON view"]
@@ -259,7 +260,7 @@ impl<'value, 'session, 'policy> RedactedJsonSession<'value, 'session, 'policy> {
     fn render(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let remaining = self.session.remaining_output_bytes();
         let Some(limit) = LogOutputLimit::new(remaining).ok() else {
-            return formatter.write_str(self.opaque());
+            return self.write_fallback(formatter);
         };
         let mut writer = BoundedLogEscapeWriter::new(limit);
         let view = RedactedJson::new(self.value, self.session.policy());
@@ -269,10 +270,29 @@ impl<'value, 'session, 'policy> RedactedJsonSession<'value, 'session, 'policy> {
             write!(&mut writer, "{view:?}")
         };
         let rendered = writer.finish();
-        if !self.session.consume_output(rendered.len()) {
-            return formatter.write_str(self.opaque());
+        match self.session.charge_output_or_fallback(
+            rendered.len(),
+            self.opaque().len(),
+        ) {
+            OutputCharge::Complete => formatter.write_str(&rendered),
+            OutputCharge::Fallback => formatter.write_str(self.opaque()),
+            OutputCharge::Exhausted => Ok(()),
         }
-        formatter.write_str(&rendered)
+    }
+
+    /// Writes one charged opaque fallback, or nothing after output exhaustion.
+    fn write_fallback(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        let fallback = self.opaque();
+        match self
+            .session
+            .charge_output_or_fallback(fallback.len(), fallback.len())
+        {
+            OutputCharge::Complete => formatter.write_str(fallback),
+            OutputCharge::Fallback | OutputCharge::Exhausted => Ok(()),
+        }
     }
 }
 

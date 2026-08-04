@@ -21,7 +21,6 @@ use qubit_redact::{
         BodyRedaction,
         BodyRedactionReason,
         BodyRedactionStatus,
-        HttpFieldContext,
         HttpRedactor,
     },
 };
@@ -95,12 +94,19 @@ fn test_http_redaction_policy_builder_overrides_each_context() {
         .expect("body policy should be valid");
     let budget = BodyBudget::new(32, 48).expect("budget should be valid");
 
-    let policy = RedactionPolicy::builder_from(&base)
-        .http_disable_all_floors()
-        .http_rules(HttpFieldContext::Header, header.rules().clone())
-        .http_rules(HttpFieldContext::Query, query.rules().clone())
-        .http_rules(HttpFieldContext::Body, body.rules().clone())
-        .body_budget(budget)
+    let mut builder = RedactionPolicy::builder_from(&base);
+    builder.http().disable_all_floors();
+    builder
+        .http()
+        .header()
+        .replace_rules(header.rules().clone());
+    builder
+        .http()
+        .query()
+        .replace_rules(query.rules().clone());
+    builder.http().body().replace_rules(body.rules().clone());
+    builder.limits().http_body(budget);
+    let policy = builder
         .build()
         .expect("HTTP redaction policy should be valid");
 
@@ -118,80 +124,54 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
         .build()
         .expect("empty base policy should be valid");
 
-    let policy = RedactionPolicy::builder_from(&base)
-        .http_disable_all_floors()
-        .http_raise(
-            HttpFieldContext::Header,
-            "header_secret",
-            Sensitivity::High,
-        )
+    let mut builder = RedactionPolicy::builder_from(&base);
+    builder.http().disable_all_floors();
+    builder
+        .http()
+        .header()
+        .raise("header_secret", Sensitivity::High)
         .expect("the test builder input should be valid")
-        .http_override_level(
-            HttpFieldContext::Header,
-            "header_secret",
-            Sensitivity::Low,
-        )
+        .override_level("header_secret", Sensitivity::Low)
         .expect("the test builder input should be valid")
-        .http_raise(
-            HttpFieldContext::Header,
-            "visible_header",
-            Sensitivity::Secret,
-        )
+        .raise("visible_header", Sensitivity::Secret)
         .expect("the test builder input should be valid")
-        .http_allow_exact(HttpFieldContext::Header, "visible_header")
+        .allow_exact("visible_header")
         .expect("the test builder input should be valid")
-        .http_raise(
-            HttpFieldContext::Header,
-            "public_header",
-            Sensitivity::Secret,
-        )
+        .raise("public_header", Sensitivity::Secret)
         .expect("the test builder input should be valid")
-        .http_allow_suffix(HttpFieldContext::Header, "public_header")
+        .allow_suffix("public_header")
+        .expect("the test builder input should be valid");
+    builder
+        .http()
+        .query()
+        .raise("query_secret", Sensitivity::Secret)
         .expect("the test builder input should be valid")
-        .http_raise(
-            HttpFieldContext::Query,
-            "query_secret",
-            Sensitivity::Secret,
-        )
+        .override_level("query_secret", Sensitivity::Medium)
         .expect("the test builder input should be valid")
-        .http_override_level(
-            HttpFieldContext::Query,
-            "query_secret",
-            Sensitivity::Medium,
-        )
+        .raise("visible_query", Sensitivity::Secret)
         .expect("the test builder input should be valid")
-        .http_raise(
-            HttpFieldContext::Query,
-            "visible_query",
-            Sensitivity::Secret,
-        )
+        .allow_exact("visible_query")
         .expect("the test builder input should be valid")
-        .http_allow_exact(HttpFieldContext::Query, "visible_query")
+        .raise("public_query", Sensitivity::Secret)
         .expect("the test builder input should be valid")
-        .http_raise(
-            HttpFieldContext::Query,
-            "public_query",
-            Sensitivity::Secret,
-        )
+        .allow_suffix("public_query")
+        .expect("the test builder input should be valid");
+    builder
+        .http()
+        .body()
+        .raise("body_secret", Sensitivity::Secret)
         .expect("the test builder input should be valid")
-        .http_allow_suffix(HttpFieldContext::Query, "public_query")
+        .override_level("body_secret", Sensitivity::High)
         .expect("the test builder input should be valid")
-        .http_raise(HttpFieldContext::Body, "body_secret", Sensitivity::Secret)
+        .raise("visible_body", Sensitivity::Secret)
         .expect("the test builder input should be valid")
-        .http_override_level(
-            HttpFieldContext::Body,
-            "body_secret",
-            Sensitivity::High,
-        )
+        .allow_exact("visible_body")
         .expect("the test builder input should be valid")
-        .http_raise(HttpFieldContext::Body, "visible_body", Sensitivity::Secret)
+        .raise("public_body", Sensitivity::Secret)
         .expect("the test builder input should be valid")
-        .http_allow_exact(HttpFieldContext::Body, "visible_body")
-        .expect("the test builder input should be valid")
-        .http_raise(HttpFieldContext::Body, "public_body", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .http_allow_suffix(HttpFieldContext::Body, "public_body")
-        .expect("the test builder input should be valid")
+        .allow_suffix("public_body")
+        .expect("the test builder input should be valid");
+    let policy = builder
         .build()
         .expect("independent HTTP context rules should be valid");
 
@@ -247,10 +227,14 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
 #[test]
 fn test_http_redaction_policy_builder_rejects_invalid_context_rule_immediately()
 {
+    let mut builder = RedactionPolicy::builder();
     assert_eq!(
-        RedactionPolicy::builder()
-            .http_raise(HttpFieldContext::Header, "---", Sensitivity::High)
-            .expect_err("an empty header field name must fail immediately"),
+        builder
+            .http()
+            .header()
+            .raise("---", Sensitivity::High)
+            .err()
+            .expect("an empty header field name must fail immediately"),
         PolicyError::EmptyFieldName {
             location: PolicyLocation::HttpHeader,
         },

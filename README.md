@@ -64,8 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 The original value remains available to application logic. Call
 `escape_for_log()` before writing a scalar result to a plain-text log sink.
 
-For a process-wide default, install the completed policy before the first call
-to `RedactionPolicy::global()` or `RedactionPolicy::default()`:
+Install a process-wide default during application assembly:
 
 ```rust
 use qubit_redact::{RedactionPolicy, Sensitivity};
@@ -78,9 +77,17 @@ let snapshot = RedactionPolicy::default();
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-If no policy is installed, the first global/default read freezes the standard
-policy and later installation returns `InstallGlobalPolicyError`. Existing
-snapshots never change.
+If no policy is installed, global/default reads use the fixed standard policy.
+They do not prevent a later `install_global()` call. Existing snapshots never
+change when a policy is installed later.
+
+> **Warning:** `install_global()` belongs only in executable application
+> assembly. Call it once after the final policy is built and before workers or
+> request processing start; libraries must never call it. Objects created
+> before installation may snapshot the standard policy permanently. Create any
+> object that requires the application policy after installation, or inject the
+> policy explicitly. The fallback supports initialization ordering and is not
+> runtime reconfiguration.
 
 ## Derive Support
 
@@ -148,16 +155,16 @@ http = "1.5"
   decision. The policy has one masking table and one limit set.
 - Install one global policy with `RedactionPolicy::install_global()` during
   application assembly. It affects only future snapshots; already-built
-  policies and redactors never change. The first `global()` or `default()` read
-  freezes the standard policy when installation has not happened yet.
+  policies and redactors never change. Before installation, `global()` and
+  `default()` use the fixed standard policy without occupying the install slot.
 - `Debug` for redacted domain/map views uses the policy's
   `limits().diagnostic_event()` output budget by default. Derived nested values,
   maps, JSON text, and explicit adapter sessions share the same
   `RedactionSession`; a child cannot obtain a fresh budget silently.
-- `InputOutputLimit` is the immutable policy setting; `DiagnosticBudget` and
-  `RedactionSession` are the non-cloneable runtime accounting objects used for
-  one operation or diagnostic event. Input exhaustion can still reserve the
-  remaining output needed for a safe truncation marker.
+- `InputOutputLimit` is the immutable policy setting; `RedactionSession` is the
+  non-cloneable runtime accounting object used for one operation or diagnostic
+  event. Reuse one session across adapters. Output accounting is committed by
+  those adapters so fallback markers cannot bypass the cumulative limit.
 - `redact_field()` returns `FieldRedaction`, which distinguishes masked values
   from allowed and unknown pass-through values.
 - `RedactedText` is not displayable by design. Redaction and log escaping are

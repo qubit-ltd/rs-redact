@@ -5,17 +5,20 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Regression test for first-read global configuration freezing.
+//! Regression test for reading the fallback global configuration before setup.
 
 use qubit_redact::RedactionPolicy;
 
-/// Verifies a first default read freezes the same global slot used by install.
+/// Verifies a fallback read does not prevent the application from installing
+/// its policy during later setup.
 #[test]
-fn test_current_freezes_standard_config_before_late_install() {
+fn test_fallback_read_does_not_block_later_installation() {
     let before = RedactionPolicy::global().clone();
 
-    let result = RedactionPolicy::install_global(RedactionPolicy::strict());
+    RedactionPolicy::install_global(RedactionPolicy::strict())
+        .expect("a fallback read must not occupy the global policy slot");
 
-    assert!(result.is_err());
-    assert_eq!(RedactionPolicy::global(), &before);
+    assert_eq!(before, RedactionPolicy::standard());
+    assert_eq!(RedactionPolicy::global(), &RedactionPolicy::strict());
+    assert_eq!(RedactionPolicy::default(), RedactionPolicy::strict());
 }

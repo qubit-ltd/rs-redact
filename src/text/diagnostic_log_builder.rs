@@ -14,7 +14,6 @@ use std::{
 };
 
 use crate::{
-    DiagnosticInputBudget,
     InputOutputLimit,
     LogOutputLimit,
 };
@@ -25,46 +24,31 @@ use super::{
     internal::BoundedLogEscapeWriter,
 };
 
-/// Builds one log-safe diagnostic while sharing input and output budgets.
+/// Builds one log-safe diagnostic under a final output budget.
 ///
 /// This type guarantees log-structure escaping and a bounded final rendering;
 /// it does not perform redaction. Callers must append already-redacted values
 /// or redacted formatting views when constructing a diagnostic.
 #[must_use = "finish the diagnostic into log-safe text"]
 pub struct DiagnosticLogBuilder {
-    input_budget: DiagnosticInputBudget,
     writer: BoundedLogEscapeWriter,
 }
 
 impl DiagnosticLogBuilder {
-    /// Creates a builder from one complete diagnostic budget.
+    /// Creates a builder from one diagnostic output budget.
     ///
     /// # Parameters
     ///
-    /// * `budget` - Shared source-input and final-output limits.
+    /// * `budget` - Policy limit whose output bound applies to this rendering.
     ///
     /// # Returns
     ///
-    /// An empty builder with independent input accounting and bounded output.
+    /// An empty builder with bounded output.
     #[inline]
     pub fn new(budget: InputOutputLimit) -> Self {
         Self {
-            input_budget: budget.input_budget(),
             writer: BoundedLogEscapeWriter::new(LogOutputLimit::from(budget)),
         }
-    }
-
-    /// Borrows the shared source-input budget.
-    ///
-    /// Reserve bytes before inspecting each untrusted diagnostic segment. A
-    /// failed reservation permanently exhausts the input budget.
-    ///
-    /// # Returns
-    ///
-    /// The mutable input accounting shared by this diagnostic.
-    #[inline(always)]
-    pub fn input_budget(&mut self) -> &mut DiagnosticInputBudget {
-        &mut self.input_budget
     }
 
     /// Appends a formatted fragment after streaming log-control escaping.

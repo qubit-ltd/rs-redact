@@ -17,3 +17,13 @@ fn test_body_redaction_reason_exposes_opaque_text_variant() {
         BodyRedactionReason::OpaqueText,
     );
 }
+
+/// Verifies callers can distinguish shared-session exhaustion from media-type
+/// dispatch failures.
+#[test]
+fn test_body_redaction_reason_exposes_diagnostic_budget_variant() {
+    assert_eq!(
+        BodyRedactionReason::DiagnosticBudgetExceeded,
+        BodyRedactionReason::DiagnosticBudgetExceeded,
+    );
+}

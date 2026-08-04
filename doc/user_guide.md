@@ -120,14 +120,15 @@ Redacted domain and map views use the policy diagnostic output budget for
 values, maps, JSON text, and adapter sessions share one non-cloneable
 `RedactionSession`, so a nested value cannot reset the parent's budget.
 
-`InputOutputLimit` is the immutable limit stored in a policy. Runtime
-`DiagnosticBudget` accounting tracks one operation or diagnostic event. Input
-and output allowances are independent: once input is exhausted, the remaining
-output can still be used for a safe truncation marker.
+`InputOutputLimit` is the immutable limit stored in a policy. One runtime
+`RedactionSession` tracks an operation or diagnostic event. Callers may charge
+custom inspected input through `consume_input()`; redaction adapters commit
+their own output atomically, including any fallback marker, so eager fragments
+cannot exceed the cumulative output allowance.
 
 | API | Starting state | Use it when |
 | --- | --- | --- |
-| `RedactionPolicy::default()` | Current standard process-wide snapshot | You accept the application's installed default. |
+| `RedactionPolicy::default()` | Installed process-wide snapshot, or fixed standard policy | You accept the application's current default. |
 | `RedactionPolicy::builder()` | Empty application rules plus the standard floor | You need application rules defined at this call site while retaining the floor. |
 | `RedactionPolicy::default().to_builder()` | Copy of the current default snapshot | You want to extend the standard default. |
 | `RedactionPolicy::install_global()` | Installs once per process | Application startup owns the default policy snapshot. |
@@ -141,7 +142,8 @@ policy. Use `classify_field()` when a policy test or diagnostic must explain a
 
 `RedactionPolicy::builder()` starts with no application sensitive or
 allow rules and uses the standard floor. `RedactionPolicy::default()` reads
-the current process-wide snapshot. Use
+the installed process-wide snapshot, or the fixed standard policy before one
+is installed. Use
 `RedactionPolicy::default().to_builder()` to extend that snapshot; use
 `disable_floor()` only when the caller intentionally accepts removal of all
 minimum protection. An application allow rule never bypasses an enabled floor.
@@ -275,8 +277,9 @@ With the `json` feature, `RedactedJson`, `RedactedJsonText`, and
 The root has depth zero; when another object or array would reach the configured
 maximum, that complete subtree is replaced with the policy's opaque Secret mask
 without visiting its descendants. The default maximum depth is 128. Configure a
-smaller positive limit with `RedactionPolicyBuilder::json_depth_budget` when an
-input boundary requires it.
+smaller positive limit with
+`RedactionPolicyBuilder::limits().json_depth(...)` when an input boundary
+requires it.
 
 ## 3. Make redacted text safe for logs
 

@@ -52,9 +52,14 @@
 //! assembly or initialization. Builders are deterministic and never read
 //! process-wide state; use `RedactionPolicy::default().to_builder()` when an
 //! explicit extension of the installed snapshot is needed. Existing policy
-//! snapshots never change. The first call to `RedactionPolicy::global()` or
-//! `RedactionPolicy::default()` freezes the standard snapshot if no global
-//! policy has been installed yet.
+//! snapshots never change. Before an application installs a global policy,
+//! `RedactionPolicy::global()` and `RedactionPolicy::default()` return the
+//! fixed standard policy without preventing later installation.
+//! This fallback supports dependency construction during application assembly;
+//! it is not runtime reconfiguration. The executable, never a library, owns the
+//! single installation and should complete it before starting concurrent work.
+//! Anything created earlier keeps its standard-policy snapshot. Construct
+//! policy-sensitive objects afterward or inject the application policy.
 //!
 //! ```
 //! use qubit_redact::{RedactionPolicy, Sensitivity};
@@ -339,9 +344,7 @@ pub use json::{
 };
 pub use policy::{
     AllowRule,
-    DiagnosticBudget,
     DiagnosticBudgetError,
-    DiagnosticInputBudget,
     FieldClassification,
     FieldMatchKind,
     FieldNameMatching,

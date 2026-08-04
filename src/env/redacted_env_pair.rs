@@ -7,10 +7,13 @@
 // =============================================================================
 //! Log-safe rendering of one redacted environment pair.
 
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
+use std::{
+    borrow::Cow,
+    fmt::{
+        self,
+        Display,
+        Formatter,
+    },
 };
 
 use crate::LogSafeText;
@@ -19,10 +22,8 @@ use crate::LogSafeText;
 #[must_use = "render the redacted pair instead of the original environment value"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactedEnvPair {
-    /// Escaped environment-variable name.
-    name: LogSafeText<'static>,
-    /// Redacted and escaped environment-variable value.
-    value: LogSafeText<'static>,
+    /// Complete escaped `NAME=VALUE` representation.
+    rendered: LogSafeText<'static>,
 }
 
 impl RedactedEnvPair {
@@ -37,11 +38,19 @@ impl RedactedEnvPair {
     ///
     /// A pair that renders in `NAME=VALUE` form.
     #[inline(always)]
-    pub(super) const fn new(
+    pub(super) fn new(
         name: LogSafeText<'static>,
         value: LogSafeText<'static>,
     ) -> Self {
-        Self { name, value }
+        Self::from_rendered(format!("{}={}", name.as_str(), value.as_str()))
+    }
+
+    /// Creates a pair from a complete, already escaped representation.
+    #[inline(always)]
+    pub(super) fn from_rendered(rendered: String) -> Self {
+        Self {
+            rendered: LogSafeText::from_escaped(Cow::Owned(rendered)),
+        }
     }
 }
 
@@ -61,6 +70,6 @@ impl Display for RedactedEnvPair {
     /// Returns [`fmt::Error`] when the destination formatter rejects output.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}={}", self.name, self.value)
+        Display::fmt(&self.rendered, formatter)
     }
 }

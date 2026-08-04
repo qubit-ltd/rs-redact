@@ -10,12 +10,12 @@
 use std::ffi::OsStr;
 
 use crate::{
-    DiagnosticInputBudget,
     RedactionSession,
     Redactor,
     Sensitivity,
     policy::ResolvedField,
 };
+use crate::policy::{DiagnosticInputBudget, OutputCharge};
 
 use super::{
     ArgvItem,
@@ -104,7 +104,7 @@ impl ArgvRedactor {
     ///
     /// A log-safe rendering in input order, ending with `<truncated>` when the
     /// next item cannot be inspected within the shared budget.
-    pub fn redact_items_with_input_budget<'a, I>(
+    pub(crate) fn redact_items_with_input_budget<'a, I>(
         &self,
         items: I,
         input_budget: &mut DiagnosticInputBudget,
@@ -210,10 +210,17 @@ impl ArgvRedactor {
         } else {
             let _ = session.consume_input(consumed);
         }
-        if session.consume_output(result.as_log_safe_text().as_str().len()) {
-            result
-        } else {
-            RedactedArgv::from_rendered(TRUNCATED_ITEM.to_owned())
+        match session.charge_output_or_fallback(
+            result.as_log_safe_text().as_str().len(),
+            TRUNCATED_ITEM.len(),
+        ) {
+            OutputCharge::Complete => result,
+            OutputCharge::Fallback => {
+                RedactedArgv::from_rendered(TRUNCATED_ITEM.to_owned())
+            }
+            OutputCharge::Exhausted => {
+                RedactedArgv::from_rendered(String::new())
+            }
         }
     }
 
@@ -237,7 +244,7 @@ impl ArgvRedactor {
     ///
     /// A log-safe rendering in input order, ending with `<truncated>` when the
     /// next item cannot be inspected within the shared budget.
-    pub fn redact_heuristically_with_input_budget<'a, I>(
+    pub(crate) fn redact_heuristically_with_input_budget<'a, I>(
         &self,
         items: I,
         input_budget: &mut DiagnosticInputBudget,

@@ -104,98 +104,6 @@ impl RedactionPolicyBuilder {
         LimitsBuilder { builder: self }
     }
 
-    /// Replaces one HTTP context's field rules.
-    #[cfg(feature = "http")]
-    pub fn http_rules(
-        mut self,
-        context: crate::http::HttpFieldContext,
-        rules: RedactionRules,
-    ) -> Self {
-        self.http.rules_mut(context, rules);
-        self
-    }
-
-    /// Raises one HTTP context field's minimum sensitivity.
-    #[cfg(feature = "http")]
-    pub fn http_raise(
-        mut self,
-        context: crate::http::HttpFieldContext,
-        field: &str,
-        level: Sensitivity,
-    ) -> Result<Self, PolicyError> {
-        self.http.raise_mut(context, field, level)?;
-        Ok(self)
-    }
-
-    /// Replaces one HTTP context field rule without weakening base protection.
-    #[cfg(feature = "http")]
-    pub fn http_override_level(
-        mut self,
-        context: crate::http::HttpFieldContext,
-        field: &str,
-        level: Sensitivity,
-    ) -> Result<Self, PolicyError> {
-        self.http.override_level_mut(context, field, level)?;
-        Ok(self)
-    }
-
-    /// Adds one exact allow rule to an HTTP context.
-    #[cfg(feature = "http")]
-    pub fn http_allow_exact(
-        mut self,
-        context: crate::http::HttpFieldContext,
-        field: &str,
-    ) -> Result<Self, PolicyError> {
-        self.http.allow_exact_mut(context, field)?;
-        Ok(self)
-    }
-
-    /// Adds one suffix allow rule to an HTTP context.
-    #[cfg(feature = "http")]
-    pub fn http_allow_suffix(
-        mut self,
-        context: crate::http::HttpFieldContext,
-        field: &str,
-    ) -> Result<Self, PolicyError> {
-        self.http.allow_suffix_mut(context, field)?;
-        Ok(self)
-    }
-
-    /// Sets a floor for one HTTP context.
-    #[cfg(feature = "http")]
-    pub fn http_floor_for(
-        mut self,
-        context: crate::http::HttpFieldContext,
-        floor: RedactionFloor,
-    ) -> Self {
-        self.http.floor_mut(context, floor);
-        self
-    }
-
-    /// Disables the explicit floor for one HTTP context.
-    #[cfg(feature = "http")]
-    pub fn http_disable_floor_for(
-        mut self,
-        context: crate::http::HttpFieldContext,
-    ) -> Self {
-        self.http.disable_floor_mut(context);
-        self
-    }
-
-    /// Sets the same floor for all HTTP contexts.
-    #[cfg(feature = "http")]
-    pub fn http_floor_all(mut self, floor: RedactionFloor) -> Self {
-        self.http.floor_all_mut(floor);
-        self
-    }
-
-    /// Disables every explicit HTTP context floor.
-    #[cfg(feature = "http")]
-    pub fn http_disable_all_floors(mut self) -> Self {
-        self.http.disable_all_floors_mut();
-        self
-    }
-
     /// Validates that `field` has a non-empty canonical application-rule name.
     ///
     /// # Errors
@@ -688,6 +596,12 @@ pub struct HttpContextBuilderView<'a> {
 
 #[cfg(feature = "http")]
 impl HttpContextBuilderView<'_> {
+    /// Replaces all rules for this HTTP field context.
+    pub fn replace_rules(&mut self, rules: RedactionRules) -> &mut Self {
+        self.builder.rules_mut(self.context, rules);
+        self
+    }
+
     /// Raises a context field's minimum sensitivity.
     pub fn raise(
         &mut self,

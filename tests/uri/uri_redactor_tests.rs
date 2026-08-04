@@ -12,6 +12,7 @@ use qubit_redact::{
     LogSafeText,
     MaskPolicy,
     RedactionPolicy,
+    RedactionSession,
     Sensitivity,
     UriFragmentPolicy,
     UriPathPolicy,
@@ -19,6 +20,41 @@ use qubit_redact::{
     UriRedactionStatus,
     UriRedactor,
 };
+
+/// Verifies repeated URI session fallbacks never exceed the cumulative output
+/// limit, including when insufficient bytes remain for another complete marker.
+#[test]
+fn test_uri_session_fallbacks_respect_cumulative_output_limit() {
+    let budget = InputOutputLimit::new(8, InputOutputLimit::MIN_OUTPUT_BYTES)
+        .expect("the marker-sized diagnostic budget should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(budget)
+        .build()
+        .expect("URI policy should be valid");
+    let redactor = UriRedactor::new(policy);
+    let session = RedactionSession::diagnostic(redactor.policy());
+
+    let rendered: Vec<_> = (0..4)
+        .map(|_| {
+            redactor
+                .redact_uri_str_with_session(
+                    "https://example.test/?password=secret",
+                    &session,
+                )
+                .into_log_safe_text()
+                .into_owned()
+        })
+        .collect();
+
+    assert_eq!(rendered[0], "<invalid URI>");
+    assert_eq!(rendered[1], "<invalid URI>");
+    assert!(rendered[2].is_empty());
+    assert!(rendered[3].is_empty());
+    assert!(
+        rendered.iter().map(String::len).sum::<usize>()
+            <= budget.max_output_bytes()
+    );
+}
 
 /// Verifies that the default URI policy exposes usernames but masks passwords.
 #[test]

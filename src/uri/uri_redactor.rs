@@ -24,6 +24,7 @@ use crate::{
     Sensitivity,
     policy::ResolvedField,
 };
+use crate::policy::OutputCharge;
 
 use super::{
     UriComponent,
@@ -253,13 +254,23 @@ impl UriRedactor {
         session: &RedactionSession<'_>,
     ) -> UriRedaction {
         if !session.consume_input(input.len()) {
-            return invalid_result(UriRedactionReason::InputLimitExceeded);
+            return session_invalid_result(
+                session,
+                UriRedactionReason::InputLimitExceeded,
+            );
         }
         let result = self.redact_uri_str(input);
-        if session.consume_output(result.log_safe_text().as_str().len()) {
-            result
-        } else {
-            invalid_result(UriRedactionReason::OutputTruncated)
+        match session.charge_output_or_fallback(
+            result.log_safe_text().as_str().len(),
+            INVALID_URI.len(),
+        ) {
+            OutputCharge::Complete => result,
+            OutputCharge::Fallback => {
+                invalid_result(UriRedactionReason::OutputTruncated)
+            }
+            OutputCharge::Exhausted => empty_invalid_result(
+                UriRedactionReason::OutputTruncated,
+            ),
         }
     }
 
@@ -562,6 +573,31 @@ fn invalid_result(reason: UriRedactionReason) -> UriRedaction {
         reasons: vec![reason],
         components: Vec::new(),
         truncated: false,
+    }
+}
+
+/// Charges the invalid-URI marker once for a shared diagnostic session.
+fn session_invalid_result(
+    session: &RedactionSession<'_>,
+    reason: UriRedactionReason,
+) -> UriRedaction {
+    match session.charge_output_or_fallback(INVALID_URI.len(), INVALID_URI.len())
+    {
+        OutputCharge::Complete => invalid_result(reason),
+        OutputCharge::Fallback | OutputCharge::Exhausted => {
+            empty_invalid_result(reason)
+        }
+    }
+}
+
+/// Preserves fail-closed metadata without emitting bytes after exhaustion.
+fn empty_invalid_result(reason: UriRedactionReason) -> UriRedaction {
+    UriRedaction {
+        text: safe_text(String::new()),
+        status: UriRedactionStatus::Invalid,
+        reasons: vec![reason],
+        components: Vec::new(),
+        truncated: true,
     }
 }
 

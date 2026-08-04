@@ -13,7 +13,7 @@
 /// so later diagnostic segments cannot inspect additional source bytes.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DiagnosticInputBudget {
+pub(crate) struct DiagnosticInputBudget {
     /// Source bytes still available for inspection.
     remaining_input_bytes: usize,
     /// Whether a reservation has exhausted or exceeded the budget.
@@ -31,7 +31,7 @@ impl DiagnosticInputBudget {
     ///
     /// A budget with all bytes available for reservation.
     #[inline(always)]
-    pub const fn new(max_input_bytes: usize) -> Self {
+    pub(crate) const fn new(max_input_bytes: usize) -> Self {
         Self {
             remaining_input_bytes: max_input_bytes,
             exhausted: false,
@@ -49,7 +49,7 @@ impl DiagnosticInputBudget {
     /// `true` when the full segment fits and may be inspected. `false` when
     /// the segment must be skipped; this permanently exhausts the budget.
     #[inline]
-    pub fn reserve(&mut self, input_bytes: usize) -> bool {
+    pub(crate) fn reserve(&mut self, input_bytes: usize) -> bool {
         if self.exhausted || input_bytes > self.remaining_input_bytes {
             self.remaining_input_bytes = 0;
             self.exhausted = true;
@@ -67,7 +67,7 @@ impl DiagnosticInputBudget {
     /// The remaining source-byte allowance, or zero after exhaustion.
     #[must_use]
     #[inline(always)]
-    pub const fn remaining_input_bytes(&self) -> usize {
+    pub(crate) const fn remaining_input_bytes(&self) -> usize {
         self.remaining_input_bytes
     }
 }
