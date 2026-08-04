@@ -166,6 +166,12 @@ impl RedactionPolicy {
         STRICT_POLICY.clone()
     }
 
+    /// Creates a builder initialized from the process-wide default snapshot.
+    #[inline]
+    pub fn builder_from_default() -> RedactionPolicyBuilder {
+        Self::builder_from(&Self::default())
+    }
+
     /// Creates a deterministic builder with no application rules and the
     /// standard minimum-protection floor.
     #[inline]

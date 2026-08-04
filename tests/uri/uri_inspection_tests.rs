@@ -27,11 +27,13 @@ fn test_uri_redactor_inspect_uri_str_reports_metadata() {
     assert!(inspection.has_sensitive_component(UriComponent::Password));
     assert!(inspection.has_sensitive_component(UriComponent::Query));
     assert!(inspection.has_sensitive_component(UriComponent::Fragment));
+    assert!(!inspection.has_sensitive_component(UriComponent::Path));
     assert!(
         inspection.has_reason(UriRedactionReason::SensitiveComponent(
             UriComponent::Password,
         ))
     );
+    assert!(!inspection.has_reason(UriRedactionReason::InvalidUri));
 }
 
 /// Verifies inspection preserves strict invalid-input classification.

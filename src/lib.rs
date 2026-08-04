@@ -262,7 +262,7 @@
 //!
 //! # HTTP bodies
 //!
-//! Enable this API with `qubit-redact = { version = "0.6", features = ["http"]
+//! Enable this API with `qubit-redact = { version = "0.4", features = ["http"]
 //! }`. `http::BodyCapture` makes completeness explicit, and the returned
 //! `http::BodyRedaction` implements [`std::fmt::Display`] with bounded,
 //! log-safe output.

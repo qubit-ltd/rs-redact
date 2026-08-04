@@ -31,7 +31,7 @@ impl DiagnosticInputBudget {
     ///
     /// A budget with all bytes available for reservation.
     #[inline(always)]
-    pub(crate) const fn new(max_input_bytes: usize) -> Self {
+    pub const fn new(max_input_bytes: usize) -> Self {
         Self {
             remaining_input_bytes: max_input_bytes,
             exhausted: false,

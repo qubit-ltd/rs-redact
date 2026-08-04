@@ -33,7 +33,7 @@ explicit log-safe boundary.
 
 ```toml
 [dependencies]
-qubit-redact = "0.6"
+qubit-redact = "0.4"
 ```
 
 ```rust
@@ -108,8 +108,8 @@ complete field attributes and Serde/JSON integration are covered in the
 
 | Need | Cargo configuration |
 | --- | --- |
-| Core scalar, map, process, and text support | `qubit-redact = "0.6"` |
-| Domain-object derives | Add `qubit-redact-derive = "0.6"`. |
+| Core scalar, map, process, and text support | `qubit-redact = "0.4"` |
+| Domain-object derives | Add `qubit-redact-derive = "0.4"`. |
 | Serialize redacted views | Enable `serde` and declare `serde` directly. |
 | Redact `serde_json::Value` or JSON text fields | Enable `json`; add `serde_json` directly when your application uses it. |
 | HTTP diagnostics | Enable `http`; add `http` directly when your application uses its types. |
@@ -122,11 +122,11 @@ still serialized as a JSON string.
 ```toml
 [dependencies]
 # HTTP diagnostics only
-qubit-redact = { version = "0.6", features = ["http"] }
+qubit-redact = { version = "0.4", features = ["http"] }
 http = "1.5"
 
 # URI diagnostics without the HTTP feature
-# qubit-redact = { version = "0.6", features = ["uri"] }
+# qubit-redact = { version = "0.4", features = ["uri"] }
 ```
 
 ## Safety Boundaries
