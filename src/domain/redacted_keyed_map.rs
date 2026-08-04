@@ -23,9 +23,15 @@ use crate::{
     LogOutputLimit,
     Redact,
     RedactValue,
-    RedactedKeyedValue,
+    RedactedKeyedValueSession,
     RedactionPolicy,
+    RedactionSession,
     text::internal::LogEscapeWriter,
+};
+
+use super::{
+    bounded_redacted_display::format_debug_bounded,
+    internal::mask_byte_limit,
 };
 
 /// A lazy map view that classifies each value by its key before recursion.
@@ -102,7 +108,8 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
     #[must_use = "format the bounded recursive keyed map display adapter"]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit = LogOutputLimit::from(self.policy.diagnostic_budget());
+        let limit =
+            LogOutputLimit::from(self.policy.limits().diagnostic_event());
         BoundedRedactedDisplay::new(self, limit)
     }
 }
@@ -131,14 +138,90 @@ where
     /// completed map.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        let session = RedactionSession::diagnostic(&self.policy);
+        let view = RedactedKeyedMapSession::new(self.map, &session);
+        if mask_byte_limit().is_some() {
+            return Debug::fmt(&view, formatter);
+        }
+        format_debug_bounded(
+            &view,
+            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
+            formatter,
+        )
+    }
+}
+
+/// A nested keyed-map view that reuses an existing diagnostic session.
+#[must_use = "format the nested keyed redaction view"]
+pub struct RedactedKeyedMapSession<
+    'map,
+    'session,
+    'policy,
+    M: ?Sized,
+    K: ?Sized = String,
+    V: ?Sized = String,
+> {
+    map: &'map M,
+    session: &'session RedactionSession<'policy>,
+    marker: PhantomData<fn() -> (*const K, *const V)>,
+}
+
+impl<'map, 'session, 'policy, M: ?Sized, K: ?Sized, V: ?Sized>
+    RedactedKeyedMapSession<'map, 'session, 'policy, M, K, V>
+{
+    /// Creates a nested keyed-map view using an existing diagnostic session.
+    #[inline(always)]
+    pub fn new(
+        map: &'map M,
+        session: &'session RedactionSession<'policy>,
+    ) -> Self {
+        Self {
+            map,
+            session,
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<
+    M: ?Sized,
+    K: AsRef<str> + Debug + ?Sized,
+    V: Redact + RedactValue + ?Sized,
+> Debug for RedactedKeyedMapSession<'_, '_, '_, M, K, V>
+where
+    for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
+{
+    /// Formats each entry through the existing keyed diagnostic session.
+    #[inline]
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut output = formatter.debug_map();
         for (key, value) in self.map {
             output.entry(
                 &key,
-                &RedactedKeyedValue::new(key.as_ref(), value, &self.policy),
+                &RedactedKeyedValueSession::new(
+                    key.as_ref(),
+                    value,
+                    self.session,
+                ),
             );
         }
         output.finish()
+    }
+}
+
+impl<
+    M: ?Sized,
+    K: AsRef<str> + Debug + ?Sized,
+    V: Redact + RedactValue + ?Sized,
+> Display for RedactedKeyedMapSession<'_, '_, '_, M, K, V>
+where
+    for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
+{
+    /// Escapes nested keyed-map debug output for plain-text logs.
+    #[inline]
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        let mut writer = LogEscapeWriter::new(formatter);
+        write!(&mut writer, "{self:?}")
     }
 }
 
@@ -167,7 +250,9 @@ where
     /// log-safe representation.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        let session = RedactionSession::diagnostic(&self.policy);
+        let view = RedactedKeyedMapSession::new(self.map, &session);
         let mut writer = LogEscapeWriter::new(formatter);
-        write!(&mut writer, "{self:?}")
+        write!(&mut writer, "{view:?}")
     }
 }

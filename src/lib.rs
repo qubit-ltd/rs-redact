@@ -33,9 +33,11 @@
 //! use std::collections::HashMap;
 //! use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 //!
-//! let policy = RedactionPolicy::builder()
-//!     .raise("tenant_secret", Sensitivity::Secret)?
-//!     .build()?;
+//! let mut builder = RedactionPolicy::builder();
+//! builder
+//!     .fields()
+//!     .raise("tenant_secret", Sensitivity::Secret)?;
+//! let policy = builder.build()?;
 //! let source = HashMap::from([
 //!     ("tenant_secret".to_owned(), "raw".to_owned()),
 //!     ("display_name".to_owned(), "Alice".to_owned()),
@@ -46,19 +48,23 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
-//! An application can install one process-wide [`GlobalRedactionConfig`]
-//! during assembly or initialization. Builders are deterministic and never
-//! read process-wide state; use `GlobalRedactionConfig::current().policy()
-//! .to_builder()` when an explicit extension of the installed snapshot is
-//! needed. Existing policy snapshots never change.
+//! An application can install one process-wide [`RedactionPolicy`] during
+//! assembly or initialization. Builders are deterministic and never read
+//! process-wide state; use `RedactionPolicy::default().to_builder()` when an
+//! explicit extension of the installed snapshot is needed. Existing policy
+//! snapshots never change. The first call to `RedactionPolicy::global()` or
+//! `RedactionPolicy::default()` freezes the standard snapshot if no global
+//! policy has been installed yet.
 //!
 //! ```
-//! use qubit_redact::{GlobalRedactionConfig, RedactionPolicy, Sensitivity};
+//! use qubit_redact::{RedactionPolicy, Sensitivity};
 //!
-//! let application_default = RedactionPolicy::builder()
-//!     .raise("tenant_secret", Sensitivity::Secret)?
-//!     .build()?;
-//! GlobalRedactionConfig::from_policy(application_default).install()?;
+//! let mut builder = RedactionPolicy::builder();
+//! builder
+//!     .fields()
+//!     .raise("tenant_secret", Sensitivity::Secret)?;
+//! let application_default = builder.build()?;
+//! RedactionPolicy::install_global(application_default)?;
 //! let snapshot = RedactionPolicy::default();
 //! assert_eq!(snapshot.sensitivity_for("tenant_secret"), Some(Sensitivity::Secret));
 //! # Ok::<(), Box<dyn std::error::Error>>(())
@@ -97,9 +103,9 @@
 //!     metadata: HashMap<String, String>,
 //! }
 //!
-//! let policy = RedactionPolicy::builder()
-//!     .raise("api_key", Sensitivity::Secret)?
-//!     .build()?;
+//! let mut builder = RedactionPolicy::builder();
+//! builder.fields().raise("api_key", Sensitivity::Secret)?;
+//! let policy = builder.build()?;
 //! let account = Account {
 //!     id: 1,
 //!     password: "raw-password".to_owned(),
@@ -181,8 +187,11 @@
 //!
 //! `debug` and `display` are opt-in implementations on the original type and
 //! use the process-wide default policy. Plain fields remain ordinary `Debug`
-//! values. Do not request an implementation already supplied by the type,
-//! such as combining `#[derive(Debug)]` with `#[redact(debug)]`.
+//! values. Redacted `Debug` output uses the policy's diagnostic output budget
+//! by default; call `with_policy_output_limit()` when `Display` output must be
+//! bounded by an explicit policy limit as well. Do not request an
+//! implementation already supplied by the type, such as combining
+//! `#[derive(Debug)]` with `#[redact(debug)]`.
 //!
 //! Derives support named, tuple, and unit structs, plus enums with named,
 //! tuple, and unit variants. With `#[redact(serde)]`, redacted serialization
@@ -220,7 +229,7 @@
 //!
 //! # Process diagnostics
 //!
-//! Process adapters use the [`DiagnosticBudget`] in their [`RedactionPolicy`]
+//! Process adapters use the [`InputOutputLimit`] in their [`RedactionPolicy`]
 //! snapshot. They stop before inspecting argv or environment input beyond the
 //! input limit and truncate their final log-safe list at the output limit.
 //!
@@ -279,10 +288,9 @@ pub mod argv;
 pub mod domain;
 pub mod env;
 mod field_redaction;
-mod global_redaction_config;
-mod global_redaction_config_already_installed;
 #[cfg(feature = "http")]
 pub mod http;
+mod install_global_policy_error;
 #[cfg(feature = "json")]
 pub mod json;
 mod json_feature_gate;
@@ -307,8 +315,12 @@ pub use domain::{
     RedactValueMut,
     Redacted,
     RedactedKeyedMap,
+    RedactedKeyedMapSession,
     RedactedKeyedValue,
+    RedactedKeyedValueSession,
     RedactedMap,
+    RedactedMapSession,
+    RedactedSessionView,
     RedactedValue,
 };
 pub use env::EnvRedactor;
@@ -316,12 +328,13 @@ pub use field_redaction::{
     FieldRedaction,
     PassThroughReason,
 };
-pub use global_redaction_config::GlobalRedactionConfig;
-pub use global_redaction_config_already_installed::GlobalRedactionConfigAlreadyInstalled;
+pub use install_global_policy_error::InstallGlobalPolicyError;
 #[cfg(feature = "json")]
 pub use json::{
     RedactedJson,
+    RedactedJsonSession,
     RedactedJsonText,
+    RedactedJsonTextSession,
     redact_json_text_in_place,
 };
 pub use policy::{
@@ -332,15 +345,19 @@ pub use policy::{
     FieldClassification,
     FieldMatchKind,
     FieldNameMatching,
+    InputOutputLimit,
     MaskPolicy,
     MaskingPolicy,
     PolicyError,
     PolicyLocation,
     RedactionFloor,
     RedactionFloorBuilder,
+    RedactionLimits,
     RedactionPolicy,
     RedactionPolicyBuilder,
     RedactionRules,
+    RedactionSession,
+    RedactionSessionKind,
     SensitiveFieldPreset,
     SensitiveFieldRule,
     Sensitivity,
@@ -370,9 +387,8 @@ pub use uri::{
     UriFragmentPolicy,
     UriInspection,
     UriPathPolicy,
+    UriPolicy,
     UriRedaction,
-    UriRedactionPolicy,
-    UriRedactionPolicyBuilder,
     UriRedactionReason,
     UriRedactionStatus,
     UriRedactor,

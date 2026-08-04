@@ -18,11 +18,18 @@ use std::{
 };
 
 use crate::{
+    LogOutputLimit,
     Redact,
     RedactValue,
     RedactionPolicy,
+    RedactionSession,
     policy::ResolvedField,
     text::internal::LogEscapeWriter,
+};
+
+use super::{
+    bounded_redacted_display::format_debug_bounded,
+    internal::mask_byte_limit,
 };
 
 /// A borrowed value rendered according to a separate field key.
@@ -97,16 +104,75 @@ impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValue<'_, '_, T> {
     /// complete representation.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        let resolved = self.policy.resolve_field(self.key);
+        let session = RedactionSession::diagnostic(self.policy);
+        let view =
+            RedactedKeyedValueSession::new(self.key, self.value, &session);
+        if mask_byte_limit().is_some() {
+            return Debug::fmt(&view, formatter);
+        }
+        format_debug_bounded(
+            &view,
+            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
+            formatter,
+        )
+    }
+}
+
+/// A keyed value view that reuses one diagnostic session.
+#[must_use = "format the keyed redacted value view"]
+pub struct RedactedKeyedValueSession<'value, 'session, 'policy, T: ?Sized> {
+    key: &'value str,
+    value: &'value T,
+    session: &'session RedactionSession<'policy>,
+}
+
+impl<'value, 'session, 'policy, T: ?Sized>
+    RedactedKeyedValueSession<'value, 'session, 'policy, T>
+{
+    /// Creates a keyed view borrowing an existing diagnostic session.
+    #[inline(always)]
+    pub fn new(
+        key: &'value str,
+        value: &'value T,
+        session: &'session RedactionSession<'policy>,
+    ) -> Self {
+        Self {
+            key,
+            value,
+            session,
+        }
+    }
+}
+
+impl<T: Redact + RedactValue + ?Sized> Debug
+    for RedactedKeyedValueSession<'_, '_, '_, T>
+{
+    /// Formats the value through its selected classification and shared
+    /// session.
+    #[inline]
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        let policy = self.session.policy();
+        let resolved = policy.resolve_field(self.key);
         match resolved {
             ResolvedField::Sensitive { sensitivity } => Debug::fmt(
-                &self.value.redact_value(sensitivity, self.policy.masking()),
+                &self.value.redact_value(sensitivity, policy.masking()),
                 formatter,
             ),
             ResolvedField::PassThrough => {
-                self.value.fmt_redacted(self.policy, formatter)
+                self.value.fmt_redacted(self.session, formatter)
             }
         }
+    }
+}
+
+impl<T: Redact + RedactValue + ?Sized> Display
+    for RedactedKeyedValueSession<'_, '_, '_, T>
+{
+    /// Escapes the selected redacted representation for plain-text logs.
+    #[inline]
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        let mut writer = LogEscapeWriter::new(formatter);
+        write!(&mut writer, "{self:?}")
     }
 }
 
@@ -129,8 +195,11 @@ impl<T: Redact + RedactValue + ?Sized> Display
     /// complete escaped representation.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        let session = RedactionSession::diagnostic(self.policy);
+        let view =
+            RedactedKeyedValueSession::new(self.key, self.value, &session);
         let mut writer = LogEscapeWriter::new(formatter);
-        write!(&mut writer, "{self:?}")
+        write!(&mut writer, "{view:?}")
     }
 }
 

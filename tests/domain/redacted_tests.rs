@@ -10,7 +10,7 @@
 use std::fmt;
 
 use qubit_redact::{
-    DiagnosticBudget,
+    InputOutputLimit,
     MaskPolicy,
     Redact,
     RedactValue,
@@ -35,7 +35,7 @@ impl Redact for ManualAccount {
     /// Formats the account while masking its password.
     fn fmt_redacted(
         &self,
-        policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter
@@ -43,9 +43,10 @@ impl Redact for ManualAccount {
             .field("id", &self.id)
             .field(
                 "password",
-                &self
-                    .password
-                    .redact_value(Sensitivity::Secret, policy.masking()),
+                &self.password.redact_value(
+                    Sensitivity::Secret,
+                    _session.policy().masking(),
+                ),
             )
             .field("note", &self.note)
             .finish()
@@ -141,6 +142,28 @@ fn test_redacted_debug_preserves_pretty_flag() {
     assert!(!display.contains('\n'));
 }
 
+/// Verifies ordinary debug formatting uses the policy diagnostic output limit.
+#[test]
+fn test_redacted_debug_uses_policy_output_limit_by_default() {
+    let account = ManualAccount {
+        id: 12,
+        password: "raw-secret".to_owned(),
+        note: "visible diagnostic text".to_owned(),
+    };
+    let budget =
+        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
+            .expect("the minimum diagnostic output limit should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(budget)
+        .build()
+        .expect("the diagnostic budget should build a policy");
+
+    let output = format!("{:?}", account.redacted_with(&policy));
+
+    assert!(output.len() <= budget.max_output_bytes());
+    assert!(output.ends_with("<truncated>"));
+}
+
 /// Verifies a view can derive its output bound from its policy snapshot.
 #[test]
 fn test_redacted_with_policy_output_limit_uses_policy_budget() {
@@ -150,10 +173,10 @@ fn test_redacted_with_policy_output_limit_uses_policy_budget() {
         note: "visible diagnostic text".to_owned(),
     };
     let budget =
-        DiagnosticBudget::new(1024, DiagnosticBudget::MIN_OUTPUT_BYTES)
+        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the minimum bounded output should be valid");
     let policy = RedactionPolicy::builder()
-        .diagnostic_budget(budget)
+        .diagnostic_event(budget)
         .build()
         .expect("the diagnostic budget should build a policy");
 

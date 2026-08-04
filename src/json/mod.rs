@@ -14,5 +14,11 @@ mod redacted_json;
 mod redacted_json_text;
 
 pub use redact_json_text_in_place::redact_json_text_in_place;
-pub use redacted_json::RedactedJson;
-pub use redacted_json_text::RedactedJsonText;
+pub use redacted_json::{
+    RedactedJson,
+    RedactedJsonSession,
+};
+pub use redacted_json_text::{
+    RedactedJsonText,
+    RedactedJsonTextSession,
+};

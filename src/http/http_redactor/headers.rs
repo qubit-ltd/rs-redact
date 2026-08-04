@@ -33,7 +33,8 @@ pub(super) fn group_values(
 impl HttpRedactor {
     /// Checks the complete header input against the diagnostic budget.
     pub(super) fn headers_fit_input_budget(&self, headers: &HeaderMap) -> bool {
-        let input_limit = self.policy().diagnostic_budget().max_input_bytes();
+        let input_limit =
+            self.policy().limits().diagnostic_event().max_input_bytes();
         let mut input_bytes = 0_usize;
         for (name, value) in headers {
             input_bytes = input_bytes

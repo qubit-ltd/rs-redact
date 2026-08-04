@@ -7,9 +7,9 @@
 // =============================================================================
 //! Tests for [`TextBodyPolicy`](qubit_redact::http::TextBodyPolicy).
 
-use qubit_redact::http::{
-    HttpRedactionPolicy,
-    TextBodyPolicy,
+use qubit_redact::{
+    RedactionPolicy,
+    http::TextBodyPolicy,
 };
 
 /// Verifies opaque text is redacted by default.
@@ -17,14 +17,14 @@ use qubit_redact::http::{
 fn test_text_body_policy_default_is_redact() {
     assert_eq!(TextBodyPolicy::default(), TextBodyPolicy::Redact);
     assert_eq!(
-        HttpRedactionPolicy::default().text_body_policy(),
+        RedactionPolicy::default().text_body_policy(),
         TextBodyPolicy::Redact,
     );
 }
 /// Verifies the HTTP policy builder accepts the explicit pass-through opt-in.
 #[test]
 fn test_text_body_policy_builder_accepts_pass_through() {
-    let policy = HttpRedactionPolicy::builder()
+    let policy = RedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
         .expect("HTTP redaction policy should be valid");

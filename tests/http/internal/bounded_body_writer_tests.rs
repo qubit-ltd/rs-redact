@@ -8,16 +8,16 @@
 //! Tests for bounded structured HTTP body rendering.
 
 use http::HeaderValue;
+use qubit_redact::RedactionPolicy;
 use qubit_redact::http::{
     BodyBudget,
     BodyCapture,
-    HttpRedactionPolicy,
     HttpRedactor,
 };
 
 /// Builds a redactor with a deliberately small rendered-body budget.
 fn redactor_with_output_limit(max_output_bytes: usize) -> HttpRedactor {
-    let policy = HttpRedactionPolicy::builder()
+    let policy = RedactionPolicy::builder()
         .body_budget(
             BodyBudget::new(4096, max_output_bytes)
                 .expect("the body budget is valid"),

@@ -25,8 +25,10 @@ use super::{
 
 /// Mutable state shared by one JSON tree traversal.
 pub(crate) struct JsonRedactionState<'policy, 'budget, 'marker> {
-    /// Immutable field rules.
-    rules: &'policy RedactionRules,
+    /// Immutable base field rules.
+    base_rules: &'policy RedactionRules,
+    /// Context-specific field enhancements.
+    context_rules: &'policy RedactionRules,
     /// Single mask table used for every sensitivity level.
     masking: &'policy MaskingPolicy,
     /// Maximum recursion depth for the operation boundary.
@@ -52,14 +54,16 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// Mutable traversal state borrowing all operation inputs.
     #[inline(always)]
     pub(crate) const fn new(
-        rules: &'policy RedactionRules,
+        base_rules: &'policy RedactionRules,
+        context_rules: &'policy RedactionRules,
         masking: &'policy MaskingPolicy,
         json_depth_budget: JsonDepthBudget,
         unkeyed: JsonUnkeyedValuePolicy<'marker>,
         remaining_mask_bytes: &'budget mut usize,
     ) -> Self {
         Self {
-            rules,
+            base_rules,
+            context_rules,
             masking,
             json_depth_budget,
             unkeyed,
@@ -75,6 +79,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         remaining_mask_bytes: &'budget mut usize,
     ) -> Self {
         Self::new(
+            policy.rules(),
             policy.rules(),
             policy.masking(),
             policy.json_depth_budget(),
@@ -146,7 +151,10 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ) -> JsonRedactionOutcome {
         let mut outcome = JsonRedactionOutcome::default();
         for (key, value) in values {
-            let resolved = self.rules.resolve_field(key);
+            let resolved = stronger(
+                self.base_rules.resolve_field(key),
+                self.context_rules.resolve_field(key),
+            );
             match resolved {
                 ResolvedField::Sensitive { sensitivity } => {
                     self.mask_keyed_value(value, sensitivity);
@@ -272,5 +280,30 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         *self.remaining_mask_bytes =
             self.remaining_mask_bytes.saturating_sub(selected.len());
         selected.to_owned()
+    }
+}
+
+/// Combines the base policy and a context enhancement monotonically.
+fn stronger(base: ResolvedField, context: ResolvedField) -> ResolvedField {
+    match (base, context) {
+        (
+            ResolvedField::Sensitive { sensitivity: base },
+            ResolvedField::Sensitive {
+                sensitivity: context,
+            },
+        ) => ResolvedField::Sensitive {
+            sensitivity: base.max(context),
+        },
+        (
+            ResolvedField::Sensitive { sensitivity },
+            ResolvedField::PassThrough,
+        )
+        | (
+            ResolvedField::PassThrough,
+            ResolvedField::Sensitive { sensitivity },
+        ) => ResolvedField::Sensitive { sensitivity },
+        (ResolvedField::PassThrough, ResolvedField::PassThrough) => {
+            ResolvedField::PassThrough
+        }
     }
 }

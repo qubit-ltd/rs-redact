@@ -8,9 +8,9 @@
 //! Tests for safe diagnostic body text.
 
 use http::HeaderValue;
+use qubit_redact::RedactionPolicy;
 use qubit_redact::http::{
     BodyCapture,
-    HttpRedactionPolicy,
     HttpRedactor,
     TextBodyPolicy,
 };
@@ -18,7 +18,7 @@ use qubit_redact::http::{
 /// Verifies diagnostic text escapes line controls before display.
 #[test]
 fn test_diagnostic_text_escapes_newline() {
-    let policy = HttpRedactionPolicy::builder()
+    let policy = RedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
         .expect("the HTTP policy should be valid");

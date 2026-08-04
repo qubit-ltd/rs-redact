@@ -7,10 +7,12 @@
 // =============================================================================
 //! Tests for [`UrlPathPolicy`](qubit_redact::http::UrlPathPolicy).
 
-use qubit_redact::http::{
-    HttpRedactionPolicy,
-    HttpRedactor,
-    UrlPathPolicy,
+use qubit_redact::{
+    RedactionPolicy,
+    http::{
+        HttpRedactor,
+        UrlPathPolicy,
+    },
 };
 
 /// Verifies URL paths remain visible under the standard default.
@@ -18,7 +20,7 @@ use qubit_redact::http::{
 fn test_url_path_policy_default_is_preserve() {
     assert_eq!(UrlPathPolicy::default(), UrlPathPolicy::Preserve);
     assert_eq!(
-        HttpRedactionPolicy::default().url_path_policy(),
+        RedactionPolicy::default().url_path_policy(),
         UrlPathPolicy::Preserve,
     );
 }
@@ -27,7 +29,7 @@ fn test_url_path_policy_default_is_preserve() {
 #[test]
 fn test_url_path_policy_strict_is_redact() {
     assert_eq!(
-        HttpRedactionPolicy::strict().url_path_policy(),
+        RedactionPolicy::strict().url_path_policy(),
         UrlPathPolicy::Redact,
     );
     assert_eq!(
@@ -38,7 +40,7 @@ fn test_url_path_policy_strict_is_redact() {
 /// Verifies the preserve opt-in retains a complete path without a query.
 #[test]
 fn test_url_path_policy_preserve_keeps_complete_path() {
-    let policy = HttpRedactionPolicy::builder()
+    let policy = RedactionPolicy::builder()
         .url_path_policy(UrlPathPolicy::Preserve)
         .build()
         .expect("HTTP redaction policy should be valid");

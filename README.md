@@ -20,6 +20,9 @@ explicit log-safe boundary.
   a plain-text log.
 - Malformed or truncated structured HTTP input fails closed, and finite budgets
   bound inspection, output, JSON recursion, and disclosure.
+- One immutable `RedactionPolicy` owns base fields, HTTP/URI context overrides,
+  masking, and static limits. Nested diagnostic values reuse one
+  `RedactionSession`, so a child cannot reset the parent's budget.
 - URI redaction preserves raw scheme, authority, path, query order, and
   encoding while applying the core policy independently to username/password,
   query values, and configurable path/fragment boundaries.
@@ -37,12 +40,12 @@ qubit-redact = "0.6"
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
-        .raise("user_id", Sensitivity::Low)?
-        .raise("phone_number", Sensitivity::Medium)?
-        .raise("credit_card", Sensitivity::High)?
-        .raise("api_key", Sensitivity::Secret)?
-        .build()?;
+    let mut builder = RedactionPolicy::builder();
+    builder.fields().raise("user_id", Sensitivity::Low)?;
+    builder.fields().raise("phone_number", Sensitivity::Medium)?;
+    builder.fields().raise("credit_card", Sensitivity::High)?;
+    builder.fields().raise("api_key", Sensitivity::Secret)?;
+    let policy = builder.build()?;
     let redactor = Redactor::new(policy);
 
     assert_eq!(redactor.redact_field("user_id", "alpine42").as_str(), "al****42");
@@ -60,6 +63,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 The original value remains available to application logic. Call
 `escape_for_log()` before writing a scalar result to a plain-text log sink.
+
+For a process-wide default, install the completed policy before the first call
+to `RedactionPolicy::global()` or `RedactionPolicy::default()`:
+
+```rust
+use qubit_redact::{RedactionPolicy, Sensitivity};
+
+let mut builder = RedactionPolicy::builder();
+builder.fields().raise("api_key", Sensitivity::Secret)?;
+let policy = builder.build()?;
+RedactionPolicy::install_global(policy)?;
+let snapshot = RedactionPolicy::default();
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+If no policy is installed, the first global/default read freezes the standard
+policy and later installation returns `InstallGlobalPolicyError`. Existing
+snapshots never change.
 
 ## Derive Support
 
@@ -121,8 +142,22 @@ http = "1.4"
   `RedactionPolicy::default().to_builder()` for the normal "extend defaults"
   path. `disable_floor()` intentionally removes every floor and is appropriate
   only when the caller owns that security decision.
-- Install one `GlobalRedactionConfig` during application assembly. It affects
-  only future snapshots; already-built policies and redactors never change.
+- Configure all concerns through one `RedactionPolicyBuilder`: use
+  `fields()`, `http()`, `uri()`, and `limits()` as mutable partition views.
+  Context rules can add protection but cannot lower a stronger base-field
+  decision. The policy has one masking table and one limit set.
+- Install one global policy with `RedactionPolicy::install_global()` during
+  application assembly. It affects only future snapshots; already-built
+  policies and redactors never change. The first `global()` or `default()` read
+  freezes the standard policy when installation has not happened yet.
+- `Debug` for redacted domain/map views uses the policy's
+  `limits().diagnostic_event()` output budget by default. Derived nested values,
+  maps, JSON text, and explicit adapter sessions share the same
+  `RedactionSession`; a child cannot obtain a fresh budget silently.
+- `InputOutputLimit` is the immutable policy setting; `DiagnosticBudget` and
+  `RedactionSession` are the non-cloneable runtime accounting objects used for
+  one operation or diagnostic event. Input exhaustion can still reserve the
+  remaining output needed for a safe truncation marker.
 - `redact_field()` returns `FieldRedaction`, which distinguishes masked values
   from allowed and unknown pass-through values.
 - `RedactedText` is not displayable by design. Redaction and log escaping are
@@ -135,8 +170,8 @@ http = "1.4"
 - JSON redaction stops at `JsonDepthBudget` and replaces an over-depth subtree
   with the policy's opaque Secret mask. The default maximum depth is 128.
 - HTTP redaction accepts only caller-provided captures. It never reads or
-  buffers a network body itself. Import `HttpRedactionPolicy` from
-  `qubit_redact::http`, not from an HTTP client crate.
+  buffers a network body itself. Configure HTTP behavior on the root
+  `RedactionPolicy`; `HttpRedactor` consumes that snapshot.
 - URI redaction is opt-in through `qubit_redact::uri::UriRedactor`. Userinfo is
   split only at the first raw `:`; username uses the `username` field rule and
   password uses `password`. Query keys are decoded strictly for classification,

@@ -8,7 +8,7 @@
 //! Tests for JSON text redaction and fail-closed fallback.
 
 use qubit_redact::{
-    DiagnosticBudget,
+    InputOutputLimit,
     JsonDepthBudget,
     MaskPolicy,
     RedactedJsonText,
@@ -65,8 +65,8 @@ fn test_redacted_json_text_display_is_compact_valid_json() {
 #[test]
 fn test_redacted_json_text_diagnostic_input_budget_fails_closed() {
     let policy = RedactionPolicy::builder()
-        .diagnostic_budget(
-            DiagnosticBudget::new(16, 128)
+        .diagnostic_event(
+            InputOutputLimit::new(16, 128)
                 .expect("the diagnostic budget should be valid"),
         )
         .mask(
@@ -86,10 +86,10 @@ fn test_redacted_json_text_diagnostic_input_budget_fails_closed() {
 /// Verifies display applies the configured diagnostic output limit.
 #[test]
 fn test_redacted_json_text_display_uses_diagnostic_output_budget() {
-    let budget = DiagnosticBudget::new(256, DiagnosticBudget::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::new(256, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
-        .diagnostic_budget(budget)
+        .diagnostic_event(budget)
         .allow_canonical_exact("name")
         .expect("the test builder input should be valid")
         .build()

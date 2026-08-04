@@ -56,10 +56,12 @@ impl<'a> RedactedValue<'a> {
     ///
     /// # Returns
     ///
-    /// A plain redacted value that borrows the configured opaque replacement.
+    /// A plain redacted value containing the configured opaque replacement.
     #[inline(always)]
-    pub fn opaque(level: Sensitivity, masking: &'a MaskingPolicy) -> Self {
-        Self::Text(RedactedText::new(Cow::Borrowed(masking.mask_opaque(level))))
+    pub fn opaque(level: Sensitivity, masking: &MaskingPolicy) -> Self {
+        Self::Text(RedactedText::new(Cow::Owned(
+            masking.mask_opaque(level).to_owned(),
+        )))
     }
 }
 

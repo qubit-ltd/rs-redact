@@ -15,14 +15,14 @@ use super::{
 /// Bounds both inspected diagnostic bytes and produced log-safe bytes.
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DiagnosticBudget {
+pub struct InputOutputLimit {
     /// Maximum number of source bytes a diagnostic redactor may inspect.
     max_input_bytes: usize,
     /// Maximum number of bytes in the final log-safe rendering.
     max_output_bytes: usize,
 }
 
-impl DiagnosticBudget {
+impl InputOutputLimit {
     /// Smallest output limit that can contain the diagnostic-limit marker.
     pub const MIN_OUTPUT_BYTES: usize =
         "<redacted: diagnostic limit exceeded>".len();
@@ -96,7 +96,7 @@ impl DiagnosticBudget {
     }
 }
 
-impl Default for DiagnosticBudget {
+impl Default for InputOutputLimit {
     /// Returns conservative 16 KiB input and 64 KiB output limits.
     ///
     /// # Returns

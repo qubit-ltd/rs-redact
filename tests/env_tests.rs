@@ -22,8 +22,8 @@ use proptest::prelude::{
 };
 
 use qubit_redact::{
-    DiagnosticBudget,
     FieldNameMatching,
+    InputOutputLimit,
     RedactionPolicy,
     Redactor,
     Sensitivity,
@@ -34,10 +34,10 @@ use qubit_redact::{
 /// that exceeds the configured input budget.
 #[test]
 fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
-    let budget = DiagnosticBudget::new(8, 64)
+    let budget = InputOutputLimit::new(8, 64)
         .expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
-        .diagnostic_budget(budget)
+        .diagnostic_event(budget)
         .build()
         .expect("the bounded policy should be valid");
     let redactor = EnvRedactor::new(Redactor::new(policy));
@@ -54,10 +54,10 @@ fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
 /// Verifies aggregate environment rendering stops at the final output budget.
 #[test]
 fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
-    let budget = DiagnosticBudget::new(8, 64)
+    let budget = InputOutputLimit::new(8, 64)
         .expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
-        .diagnostic_budget(budget)
+        .diagnostic_event(budget)
         .build()
         .expect("the bounded policy should be valid");
     let redactor = EnvRedactor::new(Redactor::new(policy));

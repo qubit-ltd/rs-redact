@@ -7,62 +7,46 @@
 // =============================================================================
 //! Mutable builder for URI redaction policies.
 
-use crate::{
-    PolicyError,
-    RedactionPolicy,
-};
+use crate::PolicyError;
 
 use super::{
     UriFragmentPolicy,
     UriPathPolicy,
-    UriRedactionPolicy,
+    UriPolicy,
 };
 
 /// Mutable construction state for an immutable URI policy.
 #[must_use]
 #[derive(Debug, Clone)]
-pub struct UriRedactionPolicyBuilder {
-    redaction_policy: RedactionPolicy,
+pub struct UriPolicyBuilder {
     path_policy: UriPathPolicy,
     fragment_policy: UriFragmentPolicy,
 }
 
-impl UriRedactionPolicyBuilder {
-    /// Creates a builder from the current core policy snapshot.
+impl UriPolicyBuilder {
+    /// Creates a builder for URI-specific behavior.
     #[inline]
     pub fn new() -> Self {
         Self {
-            redaction_policy: RedactionPolicy::default(),
             path_policy: UriPathPolicy::default(),
             fragment_policy: UriFragmentPolicy::default(),
         }
     }
 
-    /// Creates a builder from an explicit core policy.
-    #[inline]
-    pub fn from_policy(policy: &RedactionPolicy) -> Self {
+    /// Creates a builder that copies an existing URI context snapshot.
+    pub(crate) fn from_policy(policy: &UriPolicy) -> Self {
         Self {
-            redaction_policy: policy.clone(),
-            path_policy: UriPathPolicy::default(),
-            fragment_policy: UriFragmentPolicy::default(),
-        }
-    }
-
-    /// Creates a builder that copies an existing URI policy.
-    #[inline]
-    pub fn from_uri_policy(policy: &UriRedactionPolicy) -> Self {
-        Self {
-            redaction_policy: policy.redaction_policy().clone(),
             path_policy: policy.path_policy(),
             fragment_policy: policy.fragment_policy(),
         }
     }
 
-    /// Replaces the core policy used for field classification and masking.
-    #[inline]
-    pub fn redaction_policy(mut self, policy: RedactionPolicy) -> Self {
-        self.redaction_policy = policy;
-        self
+    pub(crate) fn path_policy_mut(&mut self, policy: UriPathPolicy) {
+        self.path_policy = policy;
+    }
+
+    pub(crate) fn fragment_policy_mut(&mut self, policy: UriFragmentPolicy) {
+        self.fragment_policy = policy;
     }
 
     /// Replaces the path handling policy.
@@ -84,16 +68,12 @@ impl UriRedactionPolicyBuilder {
     /// The core policy is already validated when supplied, so this builder
     /// currently has no additional error cases.
     #[inline]
-    pub fn build(self) -> Result<UriRedactionPolicy, PolicyError> {
-        Ok(UriRedactionPolicy::new(
-            self.redaction_policy,
-            self.path_policy,
-            self.fragment_policy,
-        ))
+    pub(crate) fn build(self) -> Result<UriPolicy, PolicyError> {
+        Ok(UriPolicy::new(self.path_policy, self.fragment_policy))
     }
 }
 
-impl Default for UriRedactionPolicyBuilder {
+impl Default for UriPolicyBuilder {
     /// Creates a builder with standard URI handling defaults.
     #[inline]
     fn default() -> Self {

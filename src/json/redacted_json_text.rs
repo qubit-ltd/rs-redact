@@ -15,6 +15,7 @@ use std::fmt::{
 use crate::{
     LogOutputLimit,
     RedactionPolicy,
+    RedactionSession,
     Sensitivity,
     text::internal::BoundedLogEscapeWriter,
 };
@@ -63,7 +64,8 @@ impl<'text, 'policy> RedactedJsonText<'text, 'policy> {
     /// True when the text exceeds the policy input limit.
     #[inline(always)]
     const fn exceeds_diagnostic_input_budget(&self) -> bool {
-        self.text.len() > self.policy.diagnostic_budget().max_input_bytes()
+        self.text.len()
+            > self.policy.limits().diagnostic_event().max_input_bytes()
     }
 
     /// Returns the configured opaque replacement for unsafe JSON text.
@@ -108,7 +110,7 @@ impl fmt::Debug for RedactedJsonText<'_, '_> {
     /// Returns a formatting error when the destination rejects output.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut writer = BoundedLogEscapeWriter::new(LogOutputLimit::from(
-            self.policy.diagnostic_budget(),
+            self.policy.limits().diagnostic_event(),
         ));
         if self.exceeds_diagnostic_input_budget() {
             let _ = write!(&mut writer, "{:?}", self.opaque_secret());
@@ -157,10 +159,77 @@ impl fmt::Display for RedactedJsonText<'_, '_> {
     /// Returns a formatting error when the destination rejects output.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut writer = BoundedLogEscapeWriter::new(LogOutputLimit::from(
-            self.policy.diagnostic_budget(),
+            self.policy.limits().diagnostic_event(),
         ));
         let _ = writer.write_str(&self.diagnostic_json_text());
         formatter.write_str(&writer.finish())
+    }
+}
+
+/// A nested JSON text view that accounts against an existing diagnostic
+/// session.
+#[must_use = "format the nested redacted JSON text view"]
+pub struct RedactedJsonTextSession<'text, 'session, 'policy> {
+    text: &'text str,
+    session: &'session RedactionSession<'policy>,
+}
+
+impl<'text, 'session, 'policy>
+    RedactedJsonTextSession<'text, 'session, 'policy>
+{
+    /// Creates a JSON text view borrowing an existing diagnostic session.
+    #[inline(always)]
+    pub fn new(
+        text: &'text str,
+        session: &'session RedactionSession<'policy>,
+    ) -> Self {
+        Self { text, session }
+    }
+
+    /// Renders the nested JSON text while consuming session input and output.
+    fn render(&self) -> String {
+        let policy = self.session.policy();
+        if !self.session.consume_input(self.text.len()) {
+            return policy
+                .masking()
+                .mask_opaque(Sensitivity::Secret)
+                .to_owned();
+        }
+        let mut rendered = String::new();
+        if fmt::write(
+            &mut rendered,
+            format_args!("{:?}", RedactedJsonText::new(self.text, policy),),
+        )
+        .is_err()
+        {
+            return policy
+                .masking()
+                .mask_opaque(Sensitivity::Secret)
+                .to_owned();
+        }
+        if !self.session.consume_output(rendered.len()) {
+            return policy
+                .masking()
+                .mask_opaque(Sensitivity::Secret)
+                .to_owned();
+        }
+        rendered
+    }
+}
+
+impl fmt::Debug for RedactedJsonTextSession<'_, '_, '_> {
+    /// Formats nested JSON text through the shared session.
+    #[inline]
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.render())
+    }
+}
+
+impl fmt::Display for RedactedJsonTextSession<'_, '_, '_> {
+    /// Escapes nested JSON text through the shared session.
+    #[inline]
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.render())
     }
 }
 

@@ -7,8 +7,6 @@
 // =============================================================================
 //! Shared immutable state for URI redaction policies.
 
-use crate::RedactionPolicy;
-
 use super::{
     UriFragmentPolicy,
     UriPathPolicy,
@@ -16,8 +14,7 @@ use super::{
 
 /// Shared immutable URI policy state.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct UriRedactionPolicyInner {
-    pub(crate) redaction_policy: RedactionPolicy,
+pub(crate) struct UriPolicyInner {
     pub(crate) path_policy: UriPathPolicy,
     pub(crate) fragment_policy: UriFragmentPolicy,
 }
