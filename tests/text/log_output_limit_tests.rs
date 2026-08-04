@@ -8,7 +8,7 @@
 //! Tests for [`LogOutputLimit`](qubit_redact::LogOutputLimit).
 
 use qubit_redact::{
-    DiagnosticBudget,
+    InputOutputLimit,
     LogOutputLimit,
 };
 
@@ -34,7 +34,7 @@ fn test_log_output_limit_accepts_minimum_budget() {
 /// revalidating its already-compatible output bound.
 #[test]
 fn test_log_output_limit_from_diagnostic_budget_preserves_output_limit() {
-    let budget = DiagnosticBudget::new(64, 128)
+    let budget = InputOutputLimit::new(64, 128)
         .expect("the diagnostic budget should be valid");
     let limit = LogOutputLimit::from(budget);
 

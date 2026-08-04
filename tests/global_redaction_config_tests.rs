@@ -8,8 +8,6 @@
 //! Tests for process-wide redaction configuration installation.
 
 use qubit_redact::{
-    GlobalRedactionConfig,
-    GlobalRedactionConfigAlreadyInstalled,
     RedactionFloor,
     RedactionPolicy,
     Sensitivity,
@@ -32,11 +30,10 @@ fn test_global_config_is_installed_once_and_snapshotted() {
         .build()
         .expect("the custom policy should be valid");
 
-    GlobalRedactionConfig::from_policy(custom.clone())
-        .install()
+    RedactionPolicy::install_global(custom.clone())
         .expect("the first global configuration installation should succeed");
 
-    assert_eq!(GlobalRedactionConfig::current().policy(), &custom);
+    assert_eq!(RedactionPolicy::global(), &custom);
     assert_eq!(RedactionPolicy::default(), custom);
     assert_eq!(before.sensitivity_for("tenant_protected_blob"), None);
     assert_eq!(
@@ -58,7 +55,9 @@ fn test_global_config_is_installed_once_and_snapshotted() {
         None
     );
     assert_eq!(
-        GlobalRedactionConfig::standard().install(),
-        Err(GlobalRedactionConfigAlreadyInstalled),
+        RedactionPolicy::install_global(RedactionPolicy::standard())
+            .expect_err("the global policy can only be installed once")
+            .to_string(),
+        "the global redaction policy is already installed",
     );
 }

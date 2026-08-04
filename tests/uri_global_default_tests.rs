@@ -20,23 +20,29 @@
 #![cfg(feature = "uri")]
 
 use qubit_redact::{
-    GlobalRedactionConfig, RedactionPolicy,
-    uri::{UriFragmentPolicy, UriPathPolicy, UriRedactionPolicy, UriRedactor},
+    RedactionPolicy,
+    UriFragmentPolicy,
+    UriPathPolicy,
+    UriRedactor,
 };
 
 /// Verifies URI defaults preserve the complete installed policy snapshot.
 #[test]
 fn test_uri_policy_defaults_preserve_global_snapshot() {
-    let expected = UriRedactionPolicy::builder_from(&RedactionPolicy::standard())
-        .path_policy(UriPathPolicy::Redact)
-        .fragment_policy(UriFragmentPolicy::Preserve)
-        .build()
-        .expect("the custom URI policy should be valid");
-    GlobalRedactionConfig::standard()
-        .with_uri_policy(expected.clone())
-        .install()
-        .expect("this isolated test process installs the global configuration once");
+    let expected = {
+        let mut builder =
+            RedactionPolicy::builder_from(&RedactionPolicy::standard());
+        builder
+            .uri()
+            .path(UriPathPolicy::Redact)
+            .fragment(UriFragmentPolicy::Preserve);
+        builder
+            .build()
+            .expect("the custom URI policy should be valid")
+    };
+    RedactionPolicy::install_global(expected.clone())
+        .expect("this isolated test process installs the global policy once");
 
-    assert_eq!(UriRedactionPolicy::default(), expected);
+    assert_eq!(RedactionPolicy::default(), expected);
     assert_eq!(UriRedactor::default().policy(), &expected);
 }

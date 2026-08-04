@@ -7,12 +7,12 @@
 // =============================================================================
 //! Tests for [`UnkeyedJsonValuePolicy`](qubit_redact::http::UnkeyedJsonValuePolicy).
 
-use qubit_redact::http::{
-    HttpRedactionPolicy,
-    UnkeyedJsonValuePolicy,
+use qubit_redact::{
+    RedactionPolicy,
+    http::UnkeyedJsonValuePolicy,
 };
 
-/// Verifies unkeyed JSON scalar values are redacted by default.
+/// Verifies the standard policy preserves unkeyed JSON scalar values.
 #[test]
 fn test_unkeyed_json_value_policy_default_is_redact() {
     assert_eq!(
@@ -20,14 +20,14 @@ fn test_unkeyed_json_value_policy_default_is_redact() {
         UnkeyedJsonValuePolicy::Redact,
     );
     assert_eq!(
-        HttpRedactionPolicy::default().unkeyed_json_value_policy(),
-        UnkeyedJsonValuePolicy::Redact,
+        RedactionPolicy::default().unkeyed_json_value_policy(),
+        UnkeyedJsonValuePolicy::PassThrough,
     );
 }
 /// Verifies the HTTP policy builder accepts the explicit pass-through opt-in.
 #[test]
 fn test_unkeyed_json_value_policy_builder_accepts_pass_through() {
-    let policy = HttpRedactionPolicy::builder()
+    let policy = RedactionPolicy::builder()
         .unkeyed_json_value_policy(UnkeyedJsonValuePolicy::PassThrough)
         .build()
         .expect("HTTP redaction policy should be valid");

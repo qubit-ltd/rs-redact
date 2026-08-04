@@ -7,13 +7,13 @@
 // =============================================================================
 //! Tests for shared diagnostic input-budget consumption.
 
-use qubit_redact::DiagnosticBudget;
+use qubit_redact::InputOutputLimit;
 
 /// Verifies a shared input budget becomes permanently exhausted after an
 /// oversized reservation.
 #[test]
 fn test_diagnostic_input_budget_stops_after_oversized_reservation() {
-    let mut budget = DiagnosticBudget::new(3, 64)
+    let mut budget = InputOutputLimit::new(3, 64)
         .expect("the small diagnostic budget should be valid")
         .input_budget();
 

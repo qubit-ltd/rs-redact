@@ -29,7 +29,7 @@ impl Redact for PanickingRedact {
     /// Panics to exercise scope-guard restoration during redacted formatting.
     fn fmt_redacted(
         &self,
-        _policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         _formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         panic!("intentional formatting panic")

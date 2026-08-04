@@ -39,7 +39,7 @@ impl Redact for DebugDiagnosticText<'_> {
     /// Writes the configured text using the standard debug string format.
     fn fmt_redacted(
         &self,
-        _policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         fmt::Debug::fmt(&self.value, formatter)
@@ -50,7 +50,7 @@ impl Redact for DiagnosticText<'_> {
     /// Writes the configured diagnostic text.
     fn fmt_redacted(
         &self,
-        _policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter.write_str(self.value)
@@ -203,7 +203,7 @@ impl Redact for RepeatedDiagnostic {
     /// Writes many safe pieces and propagates the first destination error.
     fn fmt_redacted(
         &self,
-        _policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         for _ in 0..1_000_000 {

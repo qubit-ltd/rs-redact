@@ -23,8 +23,11 @@ use crate::{
     LogOutputLimit,
     RedactMapValue,
     RedactionPolicy,
+    RedactionSession,
     text::internal::LogEscapeWriter,
 };
+
+use super::internal::mask_byte_limit;
 
 /// A lazy map view that classifies values by their runtime keys.
 ///
@@ -89,7 +92,8 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     #[must_use = "format the bounded redacted map display adapter"]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit = LogOutputLimit::from(self.policy.diagnostic_budget());
+        let limit =
+            LogOutputLimit::from(self.policy.limits().diagnostic_event());
         BoundedRedactedDisplay::new(self, limit)
     }
 }
@@ -113,7 +117,69 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug
     /// completed map.
     #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        self.map.fmt_redacted_map(&self.policy, formatter)
+        let session = RedactionSession::diagnostic(&self.policy);
+        let view = RedactedMapSession::new(self.map, &session);
+        if mask_byte_limit().is_some() {
+            return Debug::fmt(&view, formatter);
+        }
+        super::bounded_redacted_display::format_debug_bounded(
+            &view,
+            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
+            formatter,
+        )
+    }
+}
+
+/// A nested map view that reuses one diagnostic session.
+#[must_use = "format the nested redacted map view"]
+pub struct RedactedMapSession<
+    'map,
+    'session,
+    'policy,
+    M: ?Sized,
+    K: ?Sized = String,
+    V: ?Sized = String,
+> {
+    map: &'map M,
+    session: &'session RedactionSession<'policy>,
+    marker: PhantomData<fn() -> (*const K, *const V)>,
+}
+
+impl<'map, 'session, 'policy, M: ?Sized, K: ?Sized, V: ?Sized>
+    RedactedMapSession<'map, 'session, 'policy, M, K, V>
+{
+    /// Creates a nested map view using an existing diagnostic session.
+    #[inline(always)]
+    pub fn new(
+        map: &'map M,
+        session: &'session RedactionSession<'policy>,
+    ) -> Self {
+        Self {
+            map,
+            session,
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug
+    for RedactedMapSession<'_, '_, '_, M, K, V>
+{
+    /// Formats map entries through the existing diagnostic session.
+    #[inline(always)]
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        self.map.fmt_redacted_map(self.session, formatter)
+    }
+}
+
+impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
+    for RedactedMapSession<'_, '_, '_, M, K, V>
+{
+    /// Escapes the nested map representation for plain-text logs.
+    #[inline(always)]
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        let mut writer = LogEscapeWriter::new(formatter);
+        write!(&mut writer, "{self:?}")
     }
 }
 
@@ -137,8 +203,10 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
     /// log-safe representation.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        let session = RedactionSession::diagnostic(&self.policy);
+        let view = RedactedMapSession::new(self.map, &session);
         let mut writer = LogEscapeWriter::new(formatter);
-        write!(&mut writer, "{self:?}")
+        write!(&mut writer, "{view:?}")
     }
 }
 

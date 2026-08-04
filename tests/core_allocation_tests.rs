@@ -31,7 +31,7 @@ use std::{
 };
 
 use qubit_redact::{
-    DiagnosticBudget,
+    InputOutputLimit,
     LogOutputLimit,
     MaskPolicy,
     Redact,
@@ -47,10 +47,7 @@ use qubit_redact::{
 };
 
 #[cfg(feature = "uri")]
-use qubit_redact::{
-    UriRedactionPolicy,
-    UriRedactor,
-};
+use qubit_redact::UriRedactor;
 
 /// Serializes allocation measurements inside this integration-test binary.
 static ALLOCATION_TEST_LOCK: Mutex<()> = Mutex::new(());
@@ -174,14 +171,14 @@ impl Write for FixedBuffer {
 /// Builds a policy whose fixed sensitive replacement is deliberately large.
 fn amplified_policy() -> RedactionPolicy {
     let replacement = "X".repeat(1024 * 1024);
-    let budget = DiagnosticBudget::new(4096, 128)
+    let budget = InputOutputLimit::new(4096, 128)
         .expect("the diagnostic budget should be valid");
     RedactionPolicy::builder()
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
         .expect("the test mask policy should be valid")
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .expect("the test mask policy should be valid")
-        .diagnostic_budget(budget)
+        .diagnostic_event(budget)
         .build()
         .expect("the amplified policy should be valid")
 }
@@ -200,7 +197,7 @@ impl Redact for NestedBoundedMap<'_> {
     /// Renders the inner map with its independently requested output limit.
     fn fmt_redacted(
         &self,
-        _policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         write!(
@@ -312,7 +309,7 @@ fn test_bounded_environment_avoids_amplified_mask_allocation() {
 fn test_bounded_uri_avoids_amplified_mask_allocation() {
     let _guard = allocation_test_lock();
     let replacement = "X".repeat(1024 * 1024);
-    let budget = DiagnosticBudget::new(4096, 128)
+    let budget = InputOutputLimit::new(4096, 128)
         .expect("the diagnostic budget should be valid");
     let core = RedactionPolicy::default()
         .to_builder()
@@ -320,10 +317,10 @@ fn test_bounded_uri_avoids_amplified_mask_allocation() {
         .expect("the high mask policy should be valid")
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .expect("the secret mask policy should be valid")
-        .diagnostic_budget(budget)
+        .diagnostic_event(budget)
         .build()
         .expect("the core policy should be valid");
-    let uri_policy = UriRedactionPolicy::builder_from(&core)
+    let uri_policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("the URI policy should be valid");
     let redactor = UriRedactor::new(uri_policy);

@@ -93,7 +93,8 @@ pub(in crate::http) fn redact_with_remaining(
         },
     };
     JsonRedactionState::new(
-        redactor.rules(),
+        redactor.base_rules(),
+        redactor.context_rules(),
         redactor.masking(),
         json_depth_budget,
         unkeyed,

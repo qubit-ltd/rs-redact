@@ -10,10 +10,11 @@
 #[cfg(feature = "http")]
 use http::HeaderValue;
 #[cfg(feature = "http")]
+use qubit_redact::RedactionPolicy;
+#[cfg(feature = "http")]
 use qubit_redact::http::{
     BodyCapture,
     BodyRedactionStatus,
-    HttpRedactionPolicy,
     HttpRedactor,
     UnkeyedJsonValuePolicy,
 };
@@ -22,7 +23,7 @@ use qubit_redact::http::{
 #[cfg(feature = "http")]
 #[test]
 fn test_json_redaction_outcome_reports_unkeyed_pass_through() {
-    let policy = HttpRedactionPolicy::builder()
+    let policy = RedactionPolicy::builder()
         .unkeyed_json_value_policy(UnkeyedJsonValuePolicy::PassThrough)
         .build()
         .expect("the HTTP policy should build");

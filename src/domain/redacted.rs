@@ -20,8 +20,12 @@ use crate::{
     LogOutputLimit,
     Redact,
     RedactionPolicy,
+    RedactionSession,
     text::internal::LogEscapeWriter,
 };
+
+use super::bounded_redacted_display::format_debug_bounded;
+use super::internal::mask_byte_limit;
 
 /// A lazy non-destructive redacted view of a domain object.
 ///
@@ -81,7 +85,8 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     #[must_use = "format the bounded redacted display adapter"]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit = LogOutputLimit::from(self.policy.diagnostic_budget());
+        let limit =
+            LogOutputLimit::from(self.policy.limits().diagnostic_event());
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -157,7 +162,53 @@ impl<T: Redact + ?Sized> Debug for Redacted<'_, T> {
     /// redacted representation.
     #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        self.value.fmt_redacted(&self.policy, formatter)
+        let session = RedactionSession::diagnostic(&self.policy);
+        if mask_byte_limit().is_some() {
+            return self.value.fmt_redacted(&session, formatter);
+        }
+        let view = RedactedSessionView::new(self.value, &session);
+        format_debug_bounded(
+            &view,
+            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
+            formatter,
+        )
+    }
+}
+
+/// A nested redacted view that reuses an existing diagnostic session.
+#[must_use = "format the nested redacted view"]
+pub struct RedactedSessionView<'value, 'session, 'policy, T: ?Sized> {
+    value: &'value T,
+    session: &'session RedactionSession<'policy>,
+}
+
+impl<'value, 'session, 'policy, T: ?Sized>
+    RedactedSessionView<'value, 'session, 'policy, T>
+{
+    /// Creates a nested view borrowing the shared session.
+    #[inline(always)]
+    pub fn new(
+        value: &'value T,
+        session: &'session RedactionSession<'policy>,
+    ) -> Self {
+        Self { value, session }
+    }
+}
+
+impl<T: Redact + ?Sized> Debug for RedactedSessionView<'_, '_, '_, T> {
+    /// Formats the nested value through the existing session.
+    #[inline(always)]
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        self.value.fmt_redacted(self.session, formatter)
+    }
+}
+
+impl<T: Redact + ?Sized> Display for RedactedSessionView<'_, '_, '_, T> {
+    /// Escapes the nested redacted representation for plain-text logs.
+    #[inline(always)]
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        let mut writer = LogEscapeWriter::new(formatter);
+        write!(&mut writer, "{self:?}")
     }
 }
 
@@ -182,7 +233,9 @@ impl<T: Redact + ?Sized> Display for Redacted<'_, T> {
     /// log-safe representation.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        let session = RedactionSession::diagnostic(&self.policy);
+        let view = RedactedSessionView::new(self.value, &session);
         let mut writer = LogEscapeWriter::new(formatter);
-        write!(&mut writer, "{self:?}")
+        write!(&mut writer, "{view:?}")
     }
 }

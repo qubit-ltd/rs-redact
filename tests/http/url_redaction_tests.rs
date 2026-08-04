@@ -16,10 +16,9 @@ use qubit_redact::{
     RedactionPolicy,
     Sensitivity,
     http::{
-        DiagnosticBudget,
         HttpFieldContext,
-        HttpRedactionPolicy,
         HttpRedactor,
+        InputOutputLimit,
     },
 };
 use url::Url;
@@ -29,10 +28,10 @@ fn redactor_with_diagnostic_budget(
     input: usize,
     output: usize,
 ) -> HttpRedactor {
-    let budget = DiagnosticBudget::new(input, output)
+    let budget = InputOutputLimit::new(input, output)
         .expect("test diagnostic budgets satisfy the public lower bounds");
-    let policy = HttpRedactionPolicy::builder()
-        .diagnostic_budget(budget)
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(budget)
         .build()
         .expect("HTTP redaction policy should be valid");
     HttpRedactor::new(policy)
@@ -73,7 +72,7 @@ fn test_url_and_form_diagnostics_fail_closed_at_input_limit() {
 /// boundary under the configured output limit.
 #[test]
 fn test_diagnostic_output_budget_is_log_safe_and_utf8_bounded() {
-    let output_limit = DiagnosticBudget::MIN_OUTPUT_BYTES + 5;
+    let output_limit = InputOutputLimit::MIN_OUTPUT_BYTES + 5;
     let redactor = redactor_with_diagnostic_budget(128, output_limit);
     let result =
         redactor.redact_urls_in_text("你\n你你你你你你你你你你你你你你你");
@@ -248,14 +247,14 @@ fn test_url_redaction_preserves_authoritative_mask_output() {
         .expect("the test mask policy should be valid")
         .build()
         .expect("query policy should be valid");
-    let policy = HttpRedactionPolicy::builder()
-        .rules(HttpFieldContext::Query, query_policy.rules().clone())
+    let policy = RedactionPolicy::builder()
+        .http_rules(HttpFieldContext::Query, query_policy.rules().clone())
         .mask(
             Sensitivity::Secret,
             MaskPolicy::fixed("https://mask.invalid/private"),
         )
         .expect("the test mask policy should be valid")
-        .disable_floor_for(HttpFieldContext::Query)
+        .http_disable_floor_for(HttpFieldContext::Query)
         .build()
         .expect("HTTP policy should be valid");
     let result = HttpRedactor::new(policy)

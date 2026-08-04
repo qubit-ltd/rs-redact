@@ -8,16 +8,16 @@
 //! Tests for [`DiagnosticWriteStatus`](qubit_redact::DiagnosticWriteStatus).
 
 use qubit_redact::{
-    DiagnosticBudget,
     DiagnosticLogBuilder,
     DiagnosticWriteStatus,
+    InputOutputLimit,
 };
 
 /// Verifies a fragment that fits reports completion.
 #[test]
 fn test_diagnostic_write_status_reports_complete_fragment() {
     let budget =
-        DiagnosticBudget::new(128, 64).expect("the test budget is valid");
+        InputOutputLimit::new(128, 64).expect("the test budget is valid");
     let mut builder = DiagnosticLogBuilder::new(budget);
 
     assert_eq!(
@@ -29,7 +29,7 @@ fn test_diagnostic_write_status_reports_complete_fragment() {
 /// Verifies a fragment beyond the output budget reports truncation.
 #[test]
 fn test_diagnostic_write_status_reports_truncated_fragment() {
-    let budget = DiagnosticBudget::new(128, DiagnosticBudget::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::new(128, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the test budget is valid");
     let mut builder = DiagnosticLogBuilder::new(budget);
 

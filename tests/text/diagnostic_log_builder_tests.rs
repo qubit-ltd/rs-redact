@@ -10,16 +10,16 @@
 use std::fmt;
 
 use qubit_redact::{
-    DiagnosticBudget,
     DiagnosticLogBuilder,
     DiagnosticWriteStatus,
+    InputOutputLimit,
     Redactor,
 };
 
 /// Verifies formatted fragments share one escaped output budget.
 #[test]
 fn test_diagnostic_builder_escapes_and_shares_output_budget() {
-    let budget = DiagnosticBudget::new(128, 40)
+    let budget = InputOutputLimit::new(128, 40)
         .expect("the diagnostic budget should be valid");
     let mut builder = DiagnosticLogBuilder::new(budget);
 
@@ -46,7 +46,7 @@ fn test_diagnostic_builder_escapes_and_shares_output_budget() {
 /// Verifies a safe fragment can be appended without losing the shared bound.
 #[test]
 fn test_diagnostic_builder_appends_safe_text() {
-    let budget = DiagnosticBudget::new(128, 64)
+    let budget = InputOutputLimit::new(128, 64)
         .expect("the diagnostic budget should be valid");
     let safe = Redactor::default()
         .redact_field("message", "line\nnext")
@@ -61,7 +61,7 @@ fn test_diagnostic_builder_appends_safe_text() {
 /// when a later append is skipped.
 #[test]
 fn test_diagnostic_builder_safe_append_reports_current_and_prior_truncation() {
-    let budget = DiagnosticBudget::new(128, DiagnosticBudget::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::new(128, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the diagnostic budget should be valid");
     let safe = Redactor::default()
         .redact_field(
@@ -81,7 +81,7 @@ fn test_diagnostic_builder_safe_append_reports_current_and_prior_truncation() {
 /// Verifies input accounting remains shared with downstream redactors.
 #[test]
 fn test_diagnostic_builder_exposes_shared_input_budget() {
-    let budget = DiagnosticBudget::new(3, 64)
+    let budget = InputOutputLimit::new(3, 64)
         .expect("the diagnostic budget should be valid");
     let mut builder = DiagnosticLogBuilder::new(budget);
 
@@ -101,7 +101,7 @@ fn test_diagnostic_builder_stops_after_truncation() {
         }
     }
 
-    let budget = DiagnosticBudget::new(128, DiagnosticBudget::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::new(128, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the diagnostic budget should be valid");
     let mut builder = DiagnosticLogBuilder::new(budget);
 
@@ -128,7 +128,7 @@ fn test_diagnostic_builder_propagates_formatter_error() {
         }
     }
 
-    let budget = DiagnosticBudget::new(128, 64)
+    let budget = InputOutputLimit::new(128, 64)
         .expect("the diagnostic budget should be valid");
     let mut builder = DiagnosticLogBuilder::new(budget);
 

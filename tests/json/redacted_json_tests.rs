@@ -11,7 +11,9 @@ use qubit_redact::{
     JsonDepthBudget,
     MaskPolicy,
     RedactedJson,
+    RedactedJsonSession,
     RedactionPolicy,
+    RedactionSession,
     Sensitivity,
     UnknownFieldPolicy,
 };
@@ -120,6 +122,31 @@ fn test_redacted_json_preserves_pretty_formatter_semantics() {
     assert!(output.contains('\n'));
     assert!(!output.contains("raw"));
     assert!(output.contains("Ada"));
+}
+
+/// Verifies nested parsed JSON views consume one shared diagnostic budget.
+#[test]
+fn test_redacted_json_session_uses_shared_output_budget() {
+    let value = json!({
+        "message": "diagnostic text that exceeds one fragment",
+    });
+    let budget = qubit_redact::InputOutputLimit::new(
+        1024,
+        qubit_redact::InputOutputLimit::MIN_OUTPUT_BYTES,
+    )
+    .expect("the diagnostic budget should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(budget)
+        .build()
+        .expect("the policy should build");
+    let session = RedactionSession::diagnostic(&policy);
+
+    let first = format!("{:?}", RedactedJsonSession::new(&value, &session));
+    let second = format!("{:?}", RedactedJsonSession::new(&value, &session));
+
+    assert!(first.len() <= budget.max_output_bytes());
+    assert!(first.ends_with("<truncated>"));
+    assert_eq!(second, policy.masking().mask_opaque(Sensitivity::Secret));
 }
 
 /// Verifies sensitive non-string JSON values never retain their debug form.

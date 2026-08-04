@@ -36,7 +36,7 @@ impl Redact for TextValue {
     /// Formats the visible text without adding nested redaction rules.
     fn fmt_redacted(
         &self,
-        _policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         fmt::Debug::fmt(&self.0, formatter)
@@ -48,7 +48,7 @@ impl RedactValue for TextValue {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
-        masking: &'a qubit_redact::MaskingPolicy,
+        masking: &qubit_redact::MaskingPolicy,
     ) -> RedactedValue<'a> {
         self.0.redact_value(level, masking)
     }
@@ -58,16 +58,17 @@ impl Redact for NestedValue {
     /// Formats the nested value without exposing its secret.
     fn fmt_redacted(
         &self,
-        policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter
             .debug_struct("NestedValue")
             .field(
                 "secret",
-                &self
-                    .secret
-                    .redact_value(Sensitivity::Secret, policy.masking()),
+                &self.secret.redact_value(
+                    Sensitivity::Secret,
+                    _session.policy().masking(),
+                ),
             )
             .field("label", &self.label)
             .finish()
@@ -79,7 +80,7 @@ impl RedactValue for NestedValue {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
-        masking: &'a qubit_redact::MaskingPolicy,
+        masking: &qubit_redact::MaskingPolicy,
     ) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }

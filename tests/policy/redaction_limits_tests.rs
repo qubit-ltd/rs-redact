@@ -8,7 +8,7 @@
 //! Tests for policy redaction limit propagation.
 
 use qubit_redact::{
-    DiagnosticBudget,
+    InputOutputLimit,
     RedactionPolicy,
 };
 
@@ -16,18 +16,19 @@ use qubit_redact::{
 #[test]
 fn test_redaction_limits_preserve_policy_diagnostic_budget() {
     let budget =
-        DiagnosticBudget::new(128, 256).expect("the test budget is valid");
+        InputOutputLimit::new(128, 256).expect("the test budget is valid");
     let policy = RedactionPolicy::builder()
-        .diagnostic_budget(budget)
+        .diagnostic_event(budget)
         .build()
         .expect("the policy should build with the configured budget");
 
-    assert_eq!(policy.diagnostic_budget(), budget);
+    assert_eq!(policy.limits().diagnostic_event(), budget);
     assert_eq!(
         RedactionPolicy::builder_from(&policy)
             .build()
             .expect("the copied policy should build")
-            .diagnostic_budget(),
+            .limits()
+            .diagnostic_event(),
         budget,
     );
 }

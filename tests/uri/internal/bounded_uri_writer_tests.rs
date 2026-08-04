@@ -8,23 +8,22 @@
 //! Black-box tests for bounded URI output.
 
 use qubit_redact::{
-    DiagnosticBudget,
+    InputOutputLimit,
     RedactionPolicy,
-    UriRedactionPolicy,
     UriRedactor,
 };
 
 /// Verifies URI output remains UTF-8 and reserves the complete marker.
 #[test]
 fn test_bounded_uri_output_keeps_utf8_and_marker_complete() {
-    let budget = DiagnosticBudget::new(4096, 37)
+    let budget = InputOutputLimit::new(4096, 37)
         .expect("the output can contain the marker");
     let core = RedactionPolicy::default()
         .to_builder()
-        .diagnostic_budget(budget)
+        .diagnostic_event(budget)
         .build()
         .expect("the core policy is valid");
-    let policy = UriRedactionPolicy::builder_from(&core)
+    let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("the URI policy is valid");
     let input = format!("https://example.test/{}", "%E4%BD%A0".repeat(32));
@@ -60,7 +59,7 @@ fn test_bounded_uri_output_percent_encodes_unicode_masks() {
         .expect("the mask policy is valid")
         .build()
         .expect("the core policy is valid");
-    let policy = UriRedactionPolicy::builder_from(&core)
+    let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("the URI policy is valid");
     let result = UriRedactor::new(policy)

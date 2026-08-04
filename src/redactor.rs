@@ -7,6 +7,8 @@
 // =============================================================================
 //! Stateless redaction operations backed by an immutable policy.
 
+use std::borrow::Cow;
+
 use crate::{
     FieldClassification,
     FieldRedaction,
@@ -15,6 +17,7 @@ use crate::{
     RedactedKeyedValue,
     RedactedText,
     RedactionPolicy,
+    RedactionSession,
     Sensitivity,
     policy::ResolvedField,
 };
@@ -92,13 +95,57 @@ impl Redactor {
         field: &str,
         value: &'a str,
     ) -> FieldRedaction<'a> {
+        let session = RedactionSession::operation(&self.policy);
+        self.redact_field_with_session(&session, field, value)
+    }
+
+    /// Redacts one field while consuming the supplied operation session.
+    ///
+    /// This is the composition entry point for diagnostics that contain more
+    /// than one field-producing adapter. Input accounting happens before the
+    /// value is inspected, and generated masks are charged to the same
+    /// session.
+    #[must_use = "use the returned redacted value"]
+    pub fn redact_field_with_session<'a>(
+        &self,
+        session: &RedactionSession<'_>,
+        field: &str,
+        value: &'a str,
+    ) -> FieldRedaction<'a> {
+        if !session.consume_input(field.len().saturating_add(value.len())) {
+            return FieldRedaction::Masked {
+                value: RedactedText::new(Cow::Owned(
+                    self.policy
+                        .masking()
+                        .mask_opaque(Sensitivity::Secret)
+                        .to_owned(),
+                )),
+                sensitivity: Sensitivity::Secret,
+            };
+        }
         let resolved = self.policy.resolve_field(field);
         match resolved {
             ResolvedField::Sensitive { sensitivity } => {
+                let max_bytes = session.remaining_output_bytes();
+                let masked = self.policy.masking().mask_bounded(
+                    sensitivity,
+                    value,
+                    max_bytes,
+                );
+                let mask_len = masked.len();
+                if !session.consume_output(mask_len) {
+                    return FieldRedaction::Masked {
+                        value: RedactedText::new(Cow::Owned(
+                            self.policy
+                                .masking()
+                                .mask_opaque(Sensitivity::Secret)
+                                .to_owned(),
+                        )),
+                        sensitivity: Sensitivity::Secret,
+                    };
+                }
                 FieldRedaction::Masked {
-                    value: RedactedText::new(
-                        self.policy.masking().mask(sensitivity, value),
-                    ),
+                    value: RedactedText::new(masked),
                     sensitivity,
                 }
             }
@@ -141,7 +188,41 @@ impl Redactor {
         level: Sensitivity,
         value: &'a str,
     ) -> RedactedText<'a> {
-        RedactedText::new(self.policy.masking().mask(level, value))
+        let session = RedactionSession::operation(&self.policy);
+        self.redact_at_with_session(&session, level, value)
+    }
+
+    /// Redacts an explicitly sensitive value through an existing session.
+    #[must_use = "use the returned redacted value"]
+    pub fn redact_at_with_session<'a>(
+        &self,
+        session: &RedactionSession<'_>,
+        level: Sensitivity,
+        value: &'a str,
+    ) -> RedactedText<'a> {
+        if !session.consume_input(value.len()) {
+            return RedactedText::new(Cow::Owned(
+                self.policy
+                    .masking()
+                    .mask_opaque(Sensitivity::Secret)
+                    .to_owned(),
+            ));
+        }
+        let masked = self.policy.masking().mask_bounded(
+            level,
+            value,
+            session.remaining_output_bytes(),
+        );
+        let length = masked.len();
+        if !session.consume_output(length) {
+            return RedactedText::new(Cow::Owned(
+                self.policy
+                    .masking()
+                    .mask_opaque(Sensitivity::Secret)
+                    .to_owned(),
+            ));
+        }
+        RedactedText::new(masked)
     }
 
     /// Creates a lazy redacted view selected by an external key.

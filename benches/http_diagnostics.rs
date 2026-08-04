@@ -20,12 +20,12 @@ use http::{
     HeaderMap,
     HeaderValue,
 };
-use qubit_redact::http::{
-    BodyBudget,
-    BodyCapture,
-    DiagnosticBudget,
-    HttpRedactionPolicy,
-    HttpRedactor,
+use qubit_redact::InputOutputLimit;
+use qubit_redact::{
+    RedactionPolicy,
+    http::BodyBudget,
+    http::BodyCapture,
+    http::HttpRedactor,
 };
 
 /// Measures URL suffix handling with many unmatched closing delimiters.
@@ -55,7 +55,7 @@ fn benchmark_unmatched_url_delimiters(criterion: &mut Criterion) {
 ///
 /// A redactor using the validated benchmark policy.
 fn redactor_with_budget(budget: BodyBudget) -> HttpRedactor {
-    let policy = HttpRedactionPolicy::builder()
+    let policy = RedactionPolicy::builder()
         .body_budget(budget)
         .build()
         .expect("benchmark HTTP policy is valid");
@@ -71,9 +71,9 @@ fn redactor_with_budget(budget: BodyBudget) -> HttpRedactor {
 /// # Returns
 ///
 /// A redactor using the validated benchmark policy.
-fn redactor_with_diagnostic_budget(budget: DiagnosticBudget) -> HttpRedactor {
-    let policy = HttpRedactionPolicy::builder()
-        .diagnostic_budget(budget)
+fn redactor_with_diagnostic_budget(budget: InputOutputLimit) -> HttpRedactor {
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(budget)
         .build()
         .expect("benchmark HTTP policy is valid");
     HttpRedactor::new(policy)
@@ -83,7 +83,7 @@ fn redactor_with_diagnostic_budget(budget: DiagnosticBudget) -> HttpRedactor {
 fn benchmark_diagnostic_budgets(criterion: &mut Criterion) {
     const INPUT_LIMIT: usize = 4_096;
     let redactor = redactor_with_diagnostic_budget(
-        DiagnosticBudget::new(INPUT_LIMIT, 512)
+        InputOutputLimit::new(INPUT_LIMIT, 512)
             .expect("benchmark diagnostic budget is valid"),
     );
     let sizes = [

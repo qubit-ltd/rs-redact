@@ -20,7 +20,8 @@ use crate::http::internal::{
 impl HttpRedactor {
     /// Reports whether a diagnostic input exceeds the hard input limit.
     pub(super) fn diagnostic_input_exceeded(&self, input_bytes: usize) -> bool {
-        input_bytes > self.policy().diagnostic_budget().max_input_bytes()
+        input_bytes
+            > self.policy().limits().diagnostic_event().max_input_bytes()
     }
 
     /// Returns the fixed log-safe diagnostic-limit marker.
@@ -36,7 +37,7 @@ impl HttpRedactor {
         text: String,
     ) -> LogSafeText<'static> {
         let mut writer = BoundedLogWriter::new(
-            self.policy().diagnostic_budget().max_output_bytes(),
+            self.policy().limits().diagnostic_event().max_output_bytes(),
             false,
         );
         let _ = writer.write_str(&text);

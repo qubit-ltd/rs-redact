@@ -14,8 +14,8 @@ use std::{
 };
 
 use crate::{
-    DiagnosticBudget,
     DiagnosticInputBudget,
+    InputOutputLimit,
     LogOutputLimit,
 };
 
@@ -47,7 +47,7 @@ impl DiagnosticLogBuilder {
     ///
     /// An empty builder with independent input accounting and bounded output.
     #[inline]
-    pub fn new(budget: DiagnosticBudget) -> Self {
+    pub fn new(budget: InputOutputLimit) -> Self {
         Self {
             input_budget: budget.input_budget(),
             writer: BoundedLogEscapeWriter::new(LogOutputLimit::from(budget)),

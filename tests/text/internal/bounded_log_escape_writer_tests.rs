@@ -12,7 +12,6 @@ use std::fmt;
 use qubit_redact::{
     LogOutputLimit,
     Redact,
-    RedactionPolicy,
 };
 
 /// Redacted value whose escaped representation exceeds the test budget.
@@ -22,7 +21,7 @@ impl Redact for LongUnsafeDiagnostic {
     /// Writes a prefix, one control, and an overlong suffix.
     fn fmt_redacted(
         &self,
-        _policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter.write_str("ab\nremaining-long")
@@ -36,7 +35,7 @@ impl Redact for FailingDiagnostic {
     /// Returns a formatting error without writing output.
     fn fmt_redacted(
         &self,
-        _policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         _formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         Err(fmt::Error)
@@ -50,7 +49,7 @@ impl Redact for FixedDiagnostic {
     /// Writes the fixed representation exactly as supplied.
     fn fmt_redacted(
         &self,
-        _policy: &RedactionPolicy,
+        _session: &qubit_redact::RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter.write_str(self.0)

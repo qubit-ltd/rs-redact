@@ -15,7 +15,7 @@ use std::fmt::{
 
 use crate::{
     RedactValue,
-    RedactionPolicy,
+    RedactionSession,
     policy::ResolvedField,
 };
 
@@ -44,7 +44,7 @@ pub trait RedactMapValue<K: ?Sized, V: ?Sized> {
     #[doc(hidden)]
     fn fmt_redacted_map(
         &self,
-        policy: &RedactionPolicy,
+        session: &RedactionSession<'_>,
         formatter: &mut Formatter<'_>,
     ) -> fmt::Result;
 }
@@ -73,9 +73,10 @@ where
     #[inline]
     fn fmt_redacted_map(
         &self,
-        policy: &RedactionPolicy,
+        session: &RedactionSession<'_>,
         formatter: &mut Formatter<'_>,
     ) -> fmt::Result {
+        let policy = session.policy();
         let mut map = formatter.debug_map();
         for (key, value) in self {
             let resolved = policy.resolve_field(key.as_ref());

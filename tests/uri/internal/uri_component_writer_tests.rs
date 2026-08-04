@@ -11,7 +11,6 @@ use qubit_redact::{
     MaskPolicy,
     RedactionPolicy,
     Sensitivity,
-    UriRedactionPolicy,
     UriRedactor,
 };
 
@@ -26,7 +25,7 @@ fn test_uri_component_writer_encodes_mask_fragments() {
         .expect("the mask is valid")
         .build()
         .expect("the policy is valid");
-    let policy = UriRedactionPolicy::builder_from(&core)
+    let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("the URI policy is valid");
     let result = UriRedactor::new(policy)

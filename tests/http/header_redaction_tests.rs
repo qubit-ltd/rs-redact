@@ -22,10 +22,9 @@ use proptest::prelude::{
 use qubit_redact::{
     RedactionPolicy,
     http::{
-        DiagnosticBudget,
         HttpFieldContext,
-        HttpRedactionPolicy,
         HttpRedactor,
+        InputOutputLimit,
     },
 };
 
@@ -37,11 +36,11 @@ fn redactor_with_diagnostic_budget(
     let header_policy = RedactionPolicy::builder()
         .build()
         .expect("the empty header policy should be valid");
-    let budget = DiagnosticBudget::new(input, output)
+    let budget = InputOutputLimit::new(input, output)
         .expect("test diagnostic budgets satisfy the public lower bounds");
-    let policy = HttpRedactionPolicy::builder()
-        .rules(HttpFieldContext::Header, header_policy.rules().clone())
-        .diagnostic_budget(budget)
+    let policy = RedactionPolicy::builder()
+        .http_rules(HttpFieldContext::Header, header_policy.rules().clone())
+        .diagnostic_event(budget)
         .build()
         .expect("the HTTP policy should be valid");
     HttpRedactor::new(policy)
@@ -119,11 +118,11 @@ fn test_header_redaction_is_sorted_stable_and_output_bounded() {
 
     let bounded = redactor_with_diagnostic_budget(
         256,
-        DiagnosticBudget::MIN_OUTPUT_BYTES + 4,
+        InputOutputLimit::MIN_OUTPUT_BYTES + 4,
     )
     .redact_headers(&headers)
     .to_string();
-    assert!(bounded.len() <= DiagnosticBudget::MIN_OUTPUT_BYTES + 4,);
+    assert!(bounded.len() <= InputOutputLimit::MIN_OUTPUT_BYTES + 4,);
     assert!(bounded.ends_with("<truncated>"));
 }
 
