@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Lazy redaction view selected by an external field key.
+// qubit-style: allow multiple-public-types
 
 use std::{
     fmt::Write as _,

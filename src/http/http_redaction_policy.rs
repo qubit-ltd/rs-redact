@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Immutable policy snapshot for every HTTP redaction context.
+// qubit-style: allow type-file-name
 
 use std::sync::Arc;
 

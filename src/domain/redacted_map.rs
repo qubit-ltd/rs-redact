@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Lazy borrowed view of a string-valued map-like container.
+// qubit-style: allow multiple-public-types
 
 use std::{
     fmt::{
