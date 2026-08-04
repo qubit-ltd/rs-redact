@@ -26,7 +26,7 @@ Qubit Redact 是一个策略驱动的 Rust 脱敏库，用于防止敏感值经�
 
 ```toml
 [dependencies]
-qubit-redact = "0.6"
+qubit-redact = "0.4"
 ```
 
 ```rust
@@ -83,8 +83,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6", features = ["serde", "http"] }
-qubit-redact-derive = "0.6"
+qubit-redact = { version = "0.4", features = ["serde", "http"] }
+qubit-redact-derive = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 http = "1.5"
@@ -282,8 +282,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```toml
 [dependencies]
-qubit-redact = "0.6"
-qubit-redact-derive = "0.6"
+qubit-redact = "0.4"
+qubit-redact-derive = "0.4"
 ```
 
 ```ignore
@@ -334,8 +334,8 @@ fn main() {
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6", features = ["serde"] }
-qubit-redact-derive = "0.6"
+qubit-redact = { version = "0.4", features = ["serde"] }
+qubit-redact-derive = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -446,7 +446,7 @@ URL path 以便诊断；当 URL path 可能包含敏感标识符时，请使用
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6", features = ["http"] }
+qubit-redact = { version = "0.4", features = ["http"] }
 http = "1.5"
 ```
 
@@ -494,7 +494,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 可选 `uri` feature 提供基于解析器的 URI facade，且不会隐式启用 `http`：
 
 ```toml
-qubit-redact = { version = "0.6", features = ["uri"] }
+qubit-redact = { version = "0.4", features = ["uri"] }
 ```
 
 `UriRedactor` 保留可见组件的原始 scheme、host、port、path、query 顺序和百分号编码。

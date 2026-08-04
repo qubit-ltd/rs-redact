@@ -29,7 +29,7 @@ diagnostic value.
 
 ```toml
 [dependencies]
-qubit-redact = "0.6"
+qubit-redact = "0.4"
 ```
 
 ```rust
@@ -88,8 +88,8 @@ shown by its section and run `cargo run`.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6", features = ["serde", "http"] }
-qubit-redact-derive = "0.6"
+qubit-redact = { version = "0.4", features = ["serde", "http"] }
+qubit-redact-derive = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 http = "1.5"
@@ -323,8 +323,8 @@ reference and examples.
 
 ```toml
 [dependencies]
-qubit-redact = "0.6"
-qubit-redact-derive = "0.6"
+qubit-redact = "0.4"
+qubit-redact-derive = "0.4"
 ```
 
 ```ignore
@@ -379,8 +379,8 @@ an existing implementation of the same trait.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6", features = ["serde"] }
-qubit-redact-derive = "0.6"
+qubit-redact = { version = "0.4", features = ["serde"] }
+qubit-redact-derive = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -500,7 +500,7 @@ outcome. No result exposes a raw-body escape hatch.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6", features = ["http"] }
+qubit-redact = { version = "0.4", features = ["http"] }
 http = "1.5"
 ```
 
@@ -558,7 +558,7 @@ The optional `uri` feature adds a parser-backed URI facade without enabling
 the HTTP feature:
 
 ```toml
-qubit-redact = { version = "0.6", features = ["uri"] }
+qubit-redact = { version = "0.4", features = ["uri"] }
 ```
 
 `UriRedactor` preserves raw scheme, host, port, path, query order, and
