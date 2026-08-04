@@ -92,7 +92,7 @@ qubit-redact = { version = "0.6", features = ["serde", "http"] }
 qubit-redact-derive = "0.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-http = "1.4"
+http = "1.5"
 ```
 
 ## Core concepts
@@ -498,7 +498,7 @@ outcome. No result exposes a raw-body escape hatch.
 ```toml
 [dependencies]
 qubit-redact = { version = "0.6", features = ["http"] }
-http = "1.4"
+http = "1.5"
 ```
 
 ```rust

@@ -87,7 +87,7 @@ qubit-redact = { version = "0.6", features = ["serde", "http"] }
 qubit-redact-derive = "0.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-http = "1.4"
+http = "1.5"
 ```
 
 ## 核心概念
@@ -447,7 +447,7 @@ URL path 以便诊断；当 URL path 可能包含敏感标识符时，请使用
 ```toml
 [dependencies]
 qubit-redact = { version = "0.6", features = ["http"] }
-http = "1.4"
+http = "1.5"
 ```
 
 ```rust

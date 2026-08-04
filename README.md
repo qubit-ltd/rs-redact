@@ -123,7 +123,7 @@ still serialized as a JSON string.
 [dependencies]
 # HTTP diagnostics only
 qubit-redact = { version = "0.6", features = ["http"] }
-http = "1.4"
+http = "1.5"
 
 # URI diagnostics without the HTTP feature
 # qubit-redact = { version = "0.6", features = ["uri"] }
