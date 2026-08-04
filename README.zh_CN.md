@@ -71,8 +71,13 @@ let snapshot = RedactionPolicy::default();
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-如果没有安装策略，第一次读取全局/默认策略时会冻结标准策略；之后再安装会返回
-`InstallGlobalPolicyError`。已有快照不会改变。
+如果没有安装策略，全局/默认策略读取会使用固定的标准策略，但不会占用全局安装槽。
+之后仍可调用 `install_global()`；已有快照不会因后续安装而改变。
+
+> **警告：** `install_global()` 只能由可执行应用在组装初始化阶段调用。应用应在最终
+> 策略构建完成后、启动 worker 或请求处理之前调用一次；库不得调用它。安装前创建的
+> 对象可能永久持有标准策略快照。必须使用应用策略的对象应在安装后创建，或显式注入
+> 策略。安装前 fallback 只用于解决初始化顺序，不是运行时重配置机制。
 
 ## Derive 支持
 
@@ -133,14 +138,14 @@ http = "1.5"
   `limits()` 访问可变分区视图。上下文规则可以增加保护，但不能降低基础字段更强的决策。
   一个策略只有一套 masking 和 limits。
 - 使用 `RedactionPolicy::install_global()` 在应用组装阶段安装一次全局策略。它只影响
-  后续快照；既有 policy 与 redactor 永不随之改变。如果尚未安装，第一次读取 `global()`
-  或 `default()` 会冻结标准策略。
+  后续快照；既有 policy 与 redactor 永不随之改变。如果尚未安装，`global()` 或
+  `default()` 读取固定标准策略，但不会占用安装槽。
 - 脱敏领域对象/Map 视图的 `Debug` 默认使用策略的
   `limits().diagnostic_event()` 输出预算。派生嵌套值、Map、JSON 文本和显式 adapter
   session 共享同一个 `RedactionSession`，子值不能隐式取得一份新预算。
-- `InputOutputLimit` 是不可变策略设置；`DiagnosticBudget` 和 `RedactionSession` 是
-  每个 operation 或 diagnostic event 使用的、不可克隆的运行时计量对象。输入预算耗尽后，
-  仍可使用剩余输出预算写入安全的截断标记。
+- `InputOutputLimit` 是不可变策略设置；`RedactionSession` 是每个 operation 或
+  diagnostic event 使用的、不可克隆的运行时计量对象。多个 adapter 应复用同一个
+  session；输出由 adapter 提交计量，fallback 标记不能绕过累计上限。
 - `redact_field()` 返回 `FieldRedaction`，区分已遮盖、允许直通和未知字段直通。
 - `RedactedText` 故意不实现 `Display`。值脱敏与日志转义是两层不同保证。
 - 需要让领域对象或 Map 视图受策略诊断预算限制时，调用

@@ -124,10 +124,26 @@ pub struct RedactionPolicy {
 impl RedactionPolicy {
     /// Installs the application-owned default policy exactly once.
     ///
-    /// The policy is copied into a process-wide immutable slot. If the slot
-    /// was already read or installed, the rejected policy is returned through
+    /// The policy is copied into a process-wide immutable slot. Reading
+    /// [`Self::global`] before installation only observes [`Self::standard`]
+    /// and does not occupy this slot. If a policy was already installed, the
+    /// rejected policy is returned through
     /// [`crate::InstallGlobalPolicyError::into_policy`]. Libraries should leave
     /// this operation to their host application.
+    ///
+    /// # Warning
+    ///
+    /// This is application-assembly configuration, not runtime reconfiguration.
+    /// The executable should call it at most once, after constructing the final
+    /// policy and before starting workers or request processing. Library crates
+    /// must never call it. Calling it from feature code, tests sharing one
+    /// process, or after concurrent application work has begun is a lifecycle
+    /// error even though the type system cannot distinguish those call sites.
+    ///
+    /// Objects created before installation may already own a snapshot of
+    /// [`Self::standard`]. They intentionally keep that snapshot after
+    /// installation. Any object that must use the application policy must be
+    /// created after this call or receive the policy explicitly.
     pub fn install_global(
         policy: Self,
     ) -> Result<(), crate::InstallGlobalPolicyError> {
@@ -138,12 +154,22 @@ impl RedactionPolicy {
 
     /// Returns the process-wide default policy snapshot.
     ///
-    /// The first read freezes [`Self::standard`] when no policy was installed
-    /// beforehand. This initialization order is intentional and is documented
-    /// in the user guide.
+    /// Returns the installed policy when available; otherwise returns the
+    /// fixed standard policy without changing global installation state.
+    /// Existing policy and redactor snapshots are unaffected by a later global
+    /// installation.
+    ///
+    /// # Warning
+    ///
+    /// The pre-installation fallback exists so application assembly may safely
+    /// construct dependencies that consult redaction defaults before the host
+    /// has finalized its policy. It is not a runtime configuration mechanism.
+    /// A caller that requires the application policy must either run after
+    /// [`Self::install_global`] or use an explicitly injected policy. Never
+    /// assume that a value returned before installation will change afterward.
     #[inline]
     pub fn global() -> &'static Self {
-        GLOBAL_POLICY.get_or_init(Self::standard)
+        GLOBAL_POLICY.get().unwrap_or(&STANDARD_POLICY)
     }
 
     /// Returns the fixed built-in standard policy.
@@ -435,6 +461,15 @@ impl RedactionPolicy {
 }
 
 impl Default for RedactionPolicy {
+    /// Clones the currently visible process default.
+    ///
+    /// # Warning
+    ///
+    /// Before application assembly calls [`Self::install_global`], this clones
+    /// [`Self::standard`]. The clone is a permanent snapshot and will not be
+    /// updated by a later installation. Policy-sensitive objects that require
+    /// application configuration must be constructed after installation or be
+    /// given an explicit policy.
     fn default() -> Self {
         Self::global().clone()
     }

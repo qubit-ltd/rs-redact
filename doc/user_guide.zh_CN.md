@@ -109,13 +109,13 @@ http = "1.5"
 都明确受该预算限制时，调用 `with_policy_output_limit()`。派生的嵌套对象、Map、JSON 文本
 和适配器会共享一个不可克隆的 `RedactionSession`，不会通过嵌套调用重置父级预算。
 
-`InputOutputLimit` 是存储在策略中的不可变限制；运行时由
-`DiagnosticBudget` 记录一次普通操作或诊断事件的消耗。输入和输出限额彼此独立：输入耗尽后，
-仍可使用剩余输出预算写入安全的截断标记。
+`InputOutputLimit` 是存储在策略中的不可变限制；运行时由一个 `RedactionSession`
+记录一次普通操作或诊断事件。调用方可以用 `consume_input()` 计量自行检查的输入；输出由
+脱敏 adapter 连同 fallback 标记原子提交，因此 eager 片段不能超过累计输出上限。
 
 | API | 初始状态 | 适用场景 |
 | --- | --- | --- |
-| `RedactionPolicy::default()` | 当前标准进程级默认快照 | 接受应用已安装的默认策略。 |
+| `RedactionPolicy::default()` | 已安装的进程级快照，或固定标准策略 | 接受应用当前的默认策略。 |
 | `RedactionPolicy::builder()` | 空应用规则加标准 floor | 需要由当前调用点定义应用规则且保留 floor。 |
 | `RedactionPolicy::default().to_builder()` | 当前默认快照的副本 | 需要在标准默认策略上扩展。 |
 | `RedactionPolicy::install_global()` | 每个进程只能安装一次 | 应用初始化代码拥有默认策略快照。 |
@@ -127,7 +127,7 @@ http = "1.5"
 ## 1. 用 `RedactionPolicy` 配置规则
 
 `RedactionPolicy::builder()` 从空应用敏感/allow 规则和标准 floor 开始。
-`RedactionPolicy::default()` 读取当前进程级默认快照；扩展该快照时使用
+`RedactionPolicy::default()` 读取已安装的进程级默认快照；尚未安装时读取固定标准策略。扩展该快照时使用
 `RedactionPolicy::default().to_builder()`。只有调用方明确承担取消最低保护的风险时才可
 使用 `disable_floor()`；应用层 allow 规则无法绕过启用的 floor。Builder 不会隐式读取全局状态。
 `raise` 不会降低既有等级；需要有意替换时使用
@@ -169,8 +169,8 @@ RedactionPolicy::install_global(policy)?;
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-每个进程只能成功安装一次。如果先读取 `global()` 或 `default()`，标准策略就会被冻结，
-后续安装会返回 `InstallGlobalPolicyError`。测试或多个安全边界应传递显式策略快照。
+每个进程只能成功安装一次。安装前读取 `global()` 或 `default()` 只会取得固定标准策略，
+不会阻止后续安装。测试或多个安全边界应传递显式策略快照。
 
 字段名会被规范化。使用 `FieldNameMatching::ExactOrTokenSuffix` 时，`api_key` 规则可
 匹配 `request_api_key`；精确匹配范围最窄。
@@ -243,7 +243,7 @@ Map；应通过领域类型定义明确的替换语义。
 `redact_json_text_in_place` 都使用不可变策略中的 `JsonDepthBudget`。根节点深度为 0；
 下一个 object 或 array 到达配置上限时，整个子树会在不访问后代的情况下替换成策略的
 Secret 不透明掩码。默认最大深度为 128；需要更小的正数限制时，使用
-`RedactionPolicyBuilder::json_depth_budget` 配置。
+`RedactionPolicyBuilder::limits().json_depth(...)` 配置。
 
 ## 3. 将脱敏文本安全写入日志
 

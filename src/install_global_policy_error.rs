@@ -25,7 +25,7 @@ use std::{
 use crate::RedactionPolicy;
 
 /// Owns the policy that could not be installed because a global policy was
-/// already frozen.
+/// already installed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstallGlobalPolicyError(pub(crate) RedactionPolicy);
 
