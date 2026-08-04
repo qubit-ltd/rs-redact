@@ -10,18 +10,25 @@
 use qubit_redact::{
     RedactionPolicy,
     Sensitivity,
-    http::HttpFieldContext,
 };
 
 /// Verifies complete HTTP policy assembly retains independent context rules.
 #[test]
 fn test_http_policy_parts_keep_context_rules_independent() {
-    let policy = RedactionPolicy::default()
-        .to_builder()
-        .http_raise(HttpFieldContext::Header, "x-api-key", Sensitivity::Secret)
+    let mut builder = RedactionPolicy::default().to_builder();
+    builder
+        .http()
+        .header()
+        .raise("x-api-key", Sensitivity::Secret)
         .expect("the header rule must be valid")
-        .http_raise(HttpFieldContext::Query, "access_token", Sensitivity::High)
+        ;
+    builder
+        .http()
+        .query()
+        .raise("access_token", Sensitivity::High)
         .expect("the query rule must be valid")
+        ;
+    let policy = builder
         .build()
         .expect("the configured policy must be valid");
 

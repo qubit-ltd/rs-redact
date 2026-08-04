@@ -22,7 +22,6 @@ use proptest::prelude::{
 use qubit_redact::{
     RedactionPolicy,
     http::{
-        HttpFieldContext,
         HttpRedactor,
         InputOutputLimit,
     },
@@ -38,9 +37,13 @@ fn redactor_with_diagnostic_budget(
         .expect("the empty header policy should be valid");
     let budget = InputOutputLimit::new(input, output)
         .expect("test diagnostic budgets satisfy the public lower bounds");
-    let policy = RedactionPolicy::builder()
-        .http_rules(HttpFieldContext::Header, header_policy.rules().clone())
-        .diagnostic_event(budget)
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .http()
+        .header()
+        .replace_rules(header_policy.rules().clone());
+    builder.limits().diagnostic_event(budget);
+    let policy = builder
         .build()
         .expect("the HTTP policy should be valid");
     HttpRedactor::new(policy)

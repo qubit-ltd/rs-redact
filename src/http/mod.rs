@@ -41,7 +41,7 @@ pub use body_redaction::BodyRedaction;
 pub use body_redaction_reason::BodyRedactionReason;
 pub use body_redaction_status::BodyRedactionStatus;
 pub(in crate::http) use field_redactor::FieldRedactor;
-pub use http_field_context::HttpFieldContext;
+pub(crate) use http_field_context::HttpFieldContext;
 pub use http_redaction_policy::HttpPolicy;
 pub(crate) use http_redaction_policy_builder::HttpPolicyBuilder;
 pub use http_redactor::HttpRedactor;

@@ -15,7 +15,6 @@ use qubit_redact::{
     http::{
         BodyBudget,
         BodyCapture,
-        HttpFieldContext,
         HttpRedactor,
     },
 };
@@ -35,13 +34,17 @@ fn redact_json_value(
         .expect("the test mask policy should be valid")
         .build()
         .expect("the body policy is valid");
-    let policy = RedactionPolicy::builder()
-        .http_rules(HttpFieldContext::Body, body_policy.rules().clone())
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .http()
+        .body()
+        .replace_rules(body_policy.rules().clone());
+    builder.limits().http_body(
+        BodyBudget::new(4096, max_output).expect("the budget is valid"),
+    );
+    let policy = builder
         .mask(Sensitivity::Secret, mask)
         .expect("the test mask policy should be valid")
-        .body_budget(
-            BodyBudget::new(4096, max_output).expect("the budget is valid"),
-        )
         .build()
         .expect("the HTTP policy is valid");
     let body = format!(r#"{{"password":"{value}"}}"#);
@@ -66,11 +69,17 @@ fn test_fixed_mask_respects_output_budget() {
         .expect("the test mask policy should be valid")
         .build()
         .expect("the body policy is valid");
-    let policy = RedactionPolicy::builder()
-        .http_rules(HttpFieldContext::Body, body_policy.rules().clone())
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .http()
+        .body()
+        .replace_rules(body_policy.rules().clone());
+    builder
+        .limits()
+        .http_body(BodyBudget::new(4096, 64).expect("the budget is valid"));
+    let policy = builder
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .expect("the test mask policy should be valid")
-        .body_budget(BodyBudget::new(4096, 64).expect("the budget is valid"))
         .build()
         .expect("the HTTP policy is valid");
     let result = HttpRedactor::new(policy).redact_body(
