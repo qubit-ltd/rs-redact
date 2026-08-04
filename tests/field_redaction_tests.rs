@@ -33,8 +33,12 @@ fn test_redact_field_reports_masked_result() {
             ..
         }
     ));
+    assert!(result.is_masked());
     assert_eq!(result.as_str(), "<redacted>");
     assert_eq!(result.sensitivity(), Some(Sensitivity::Secret));
+    assert_eq!(result.pass_through_reason(), None);
+    assert_eq!(result.clone().escape_for_log().as_str(), "<redacted>");
+    assert_eq!(result.into_owned(), "<redacted>");
 }
 
 /// Verifies allowed and unknown fields expose why their values were retained.
@@ -61,6 +65,10 @@ fn test_redact_field_reports_pass_through_reason() {
     );
     assert!(!allowed.is_masked());
     assert!(!unknown.is_masked());
+    assert_eq!(allowed.as_str(), "Alice");
+    assert_eq!(allowed.sensitivity(), None);
+    assert_eq!(allowed.into_owned(), "Alice");
+    assert_eq!(unknown.escape_for_log().as_str(), "visible");
 }
 
 /// Verifies Debug remains available for inspecting processed field results.
