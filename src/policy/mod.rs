@@ -61,11 +61,11 @@ pub use redaction_policy::RedactionPolicy;
 pub use redaction_policy_builder::RedactionPolicyBuilder;
 pub use redaction_rules::RedactionRules;
 pub(crate) use redaction_rules_builder::RedactionRulesBuilder;
+pub(crate) use redaction_session::OutputCharge;
 pub use redaction_session::{
     RedactionSession,
     RedactionSessionKind,
 };
-pub(crate) use redaction_session::OutputCharge;
 pub(crate) use resolved_field::ResolvedField;
 pub use sensitive_field_preset::SensitiveFieldPreset;
 pub use sensitive_field_rule::SensitiveFieldRule;

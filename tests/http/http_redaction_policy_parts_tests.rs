@@ -20,14 +20,12 @@ fn test_http_policy_parts_keep_context_rules_independent() {
         .http()
         .header()
         .raise("x-api-key", Sensitivity::Secret)
-        .expect("the header rule must be valid")
-        ;
+        .expect("the header rule must be valid");
     builder
         .http()
         .query()
         .raise("access_token", Sensitivity::High)
-        .expect("the query rule must be valid")
-        ;
+        .expect("the query rule must be valid");
     let policy = builder
         .build()
         .expect("the configured policy must be valid");

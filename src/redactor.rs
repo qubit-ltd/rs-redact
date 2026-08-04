@@ -19,7 +19,10 @@ use crate::{
     RedactionPolicy,
     RedactionSession,
     Sensitivity,
-    policy::{OutputCharge, ResolvedField},
+    policy::{
+        OutputCharge,
+        ResolvedField,
+    },
 };
 
 /// Applies one immutable policy to scalar values and string maps.
@@ -134,7 +137,9 @@ impl Redactor {
                         sensitivity,
                     },
                     OutputCharge::Fallback => FieldRedaction::Masked {
-                        value: RedactedText::new(Cow::Owned(fallback.to_owned())),
+                        value: RedactedText::new(Cow::Owned(
+                            fallback.to_owned(),
+                        )),
                         sensitivity: Sensitivity::Secret,
                     },
                     OutputCharge::Exhausted => FieldRedaction::Masked {
@@ -157,10 +162,9 @@ impl Redactor {
                     value.len(),
                     self.opaque_mask().len(),
                 ) {
-                    OutputCharge::Complete => FieldRedaction::PassedThrough {
-                        value,
-                        reason,
-                    },
+                    OutputCharge::Complete => {
+                        FieldRedaction::PassedThrough { value, reason }
+                    }
                     OutputCharge::Fallback => FieldRedaction::Masked {
                         value: RedactedText::new(Cow::Owned(
                             self.opaque_mask().to_owned(),
@@ -245,8 +249,7 @@ impl Redactor {
         session: &RedactionSession<'_>,
     ) -> RedactedText<'a> {
         let fallback = self.opaque_mask();
-        match session
-            .charge_output_or_fallback(fallback.len(), fallback.len())
+        match session.charge_output_or_fallback(fallback.len(), fallback.len())
         {
             OutputCharge::Complete => {
                 RedactedText::new(Cow::Owned(fallback.to_owned()))

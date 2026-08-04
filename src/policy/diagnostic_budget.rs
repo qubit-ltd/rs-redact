@@ -82,7 +82,6 @@ impl InputOutputLimit {
     pub const fn max_output_bytes(self) -> usize {
         self.max_output_bytes
     }
-
 }
 
 impl Default for InputOutputLimit {

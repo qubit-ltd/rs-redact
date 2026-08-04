@@ -13,6 +13,10 @@ use std::{
     fmt::Write as _,
 };
 
+use crate::policy::{
+    DiagnosticInputBudget,
+    OutputCharge,
+};
 use crate::{
     LogOutputLimit,
     LogSafeText,
@@ -23,7 +27,6 @@ use crate::{
     policy::ResolvedField,
     text::internal::BoundedLogEscapeWriter,
 };
-use crate::policy::{DiagnosticInputBudget, OutputCharge};
 
 use super::RedactedEnvPair;
 
@@ -100,15 +103,11 @@ impl EnvRedactor {
                 }
             };
         }
-        let value = self
-            .redactor
-            .redact_field(name, value)
-            .into_owned();
+        let value = self.redactor.redact_field(name, value).into_owned();
         let name = log_safe_owned(name.to_owned());
         let pair = RedactedEnvPair::new(name, log_safe_owned(value));
         let rendered = pair.to_string();
-        match session
-            .charge_output_or_fallback(rendered.len(), FALLBACK.len())
+        match session.charge_output_or_fallback(rendered.len(), FALLBACK.len())
         {
             OutputCharge::Complete => pair,
             OutputCharge::Fallback => {
@@ -200,9 +199,10 @@ impl EnvRedactor {
             },
         );
         const LIMIT_MARKER: &str = "<redacted: diagnostic limit exceeded>";
-        match session
-            .charge_output_or_fallback(result.as_str().len(), LIMIT_MARKER.len())
-        {
+        match session.charge_output_or_fallback(
+            result.as_str().len(),
+            LIMIT_MARKER.len(),
+        ) {
             OutputCharge::Complete => result,
             OutputCharge::Fallback => log_safe_owned(LIMIT_MARKER.to_owned()),
             OutputCharge::Exhausted => log_safe_owned(String::new()),

@@ -222,5 +222,4 @@ impl<'policy> RedactionSession<'policy> {
     pub fn is_exhausted(&self) -> bool {
         self.budget.borrow().is_exhausted()
     }
-
 }

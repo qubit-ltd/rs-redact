@@ -17,6 +17,7 @@ use std::{
 
 use fluent_uri::Uri;
 
+use crate::policy::OutputCharge;
 use crate::{
     RedactedText,
     RedactionPolicy,
@@ -24,7 +25,6 @@ use crate::{
     Sensitivity,
     policy::ResolvedField,
 };
-use crate::policy::OutputCharge;
 
 use super::{
     UriComponent,
@@ -268,9 +268,9 @@ impl UriRedactor {
             OutputCharge::Fallback => {
                 invalid_result(UriRedactionReason::OutputTruncated)
             }
-            OutputCharge::Exhausted => empty_invalid_result(
-                UriRedactionReason::OutputTruncated,
-            ),
+            OutputCharge::Exhausted => {
+                empty_invalid_result(UriRedactionReason::OutputTruncated)
+            }
         }
     }
 
@@ -581,7 +581,8 @@ fn session_invalid_result(
     session: &RedactionSession<'_>,
     reason: UriRedactionReason,
 ) -> UriRedaction {
-    match session.charge_output_or_fallback(INVALID_URI.len(), INVALID_URI.len())
+    match session
+        .charge_output_or_fallback(INVALID_URI.len(), INVALID_URI.len())
     {
         OutputCharge::Complete => invalid_result(reason),
         OutputCharge::Fallback | OutputCharge::Exhausted => {

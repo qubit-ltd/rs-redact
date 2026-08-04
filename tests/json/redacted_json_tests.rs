@@ -147,7 +147,9 @@ fn test_redacted_json_session_uses_shared_output_budget() {
     assert!(first.len() <= budget.max_output_bytes());
     assert!(first.ends_with("<truncated>"));
     assert!(second.is_empty());
-    assert!(first.len().saturating_add(second.len()) <= budget.max_output_bytes());
+    assert!(
+        first.len().saturating_add(second.len()) <= budget.max_output_bytes()
+    );
     assert_eq!(session.remaining_output_bytes(), 0);
 }
 

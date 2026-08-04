@@ -21,6 +21,7 @@ use serde::ser::{
     SerializeSeq as _,
 };
 
+use crate::policy::OutputCharge;
 use crate::{
     LogOutputLimit,
     RedactValue as _,
@@ -33,7 +34,6 @@ use crate::{
         LogEscapeWriter,
     },
 };
-use crate::policy::OutputCharge;
 
 /// A borrowed JSON value rendered with policy-aware object-key redaction.
 #[must_use = "format or serialize the redacted JSON view"]
@@ -270,10 +270,10 @@ impl<'value, 'session, 'policy> RedactedJsonSession<'value, 'session, 'policy> {
             write!(&mut writer, "{view:?}")
         };
         let rendered = writer.finish();
-        match self.session.charge_output_or_fallback(
-            rendered.len(),
-            self.opaque().len(),
-        ) {
+        match self
+            .session
+            .charge_output_or_fallback(rendered.len(), self.opaque().len())
+        {
             OutputCharge::Complete => formatter.write_str(&rendered),
             OutputCharge::Fallback => formatter.write_str(self.opaque()),
             OutputCharge::Exhausted => Ok(()),

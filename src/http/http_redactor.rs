@@ -20,13 +20,13 @@ use http::{
 };
 use url::Url;
 
+use crate::policy::OutputCharge;
 use crate::{
     LogSafeText,
     RedactionPolicy,
     RedactionSession,
     Sensitivity,
 };
-use crate::policy::OutputCharge;
 
 use super::{
     BodyBudget,
@@ -964,9 +964,7 @@ fn charge_header_output(
         OutputCharge::Fallback => {
             RedactedHeaders::new(HttpRedactor::diagnostic_limit_exceeded())
         }
-        OutputCharge::Exhausted => {
-            RedactedHeaders::new(empty_log_safe_text())
-        }
+        OutputCharge::Exhausted => RedactedHeaders::new(empty_log_safe_text()),
     }
 }
 

@@ -596,9 +596,9 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
         .body()
         .replace_rules(body_policy.rules().clone())
         .disable_floor();
-    builder.http().unkeyed_json(
-        qubit_redact::http::UnkeyedJsonValuePolicy::PassThrough,
-    );
+    builder
+        .http()
+        .unkeyed_json(qubit_redact::http::UnkeyedJsonValuePolicy::PassThrough);
     let policy = builder
         .mask(Sensitivity::Secret, MaskPolicy::fixed("SECRET"))
         .expect("the test mask policy should be valid")

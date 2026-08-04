@@ -16,9 +16,7 @@ use qubit_redact::{
     RedactionFloor,
     RedactionPolicy,
     Sensitivity,
-    http::{
-        HttpRedactor,
-    },
+    http::HttpRedactor,
 };
 
 /// Verifies header field execution uses the shared mask table atomically.
@@ -41,9 +39,10 @@ fn test_field_redactor_uses_application_mask_for_header_rule() {
         .build()
         .expect("the application policy should be valid");
     let mut builder = RedactionPolicy::builder();
-    builder.http().header().replace_rules(
-        application.rules().clone().with_floor(floor),
-    );
+    builder
+        .http()
+        .header()
+        .replace_rules(application.rules().clone().with_floor(floor));
     let policy = builder
         .mask(
             Sensitivity::Secret,

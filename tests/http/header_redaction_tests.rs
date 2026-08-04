@@ -43,9 +43,7 @@ fn redactor_with_diagnostic_budget(
         .header()
         .replace_rules(header_policy.rules().clone());
     builder.limits().diagnostic_event(budget);
-    let policy = builder
-        .build()
-        .expect("the HTTP policy should be valid");
+    let policy = builder.build().expect("the HTTP policy should be valid");
     HttpRedactor::new(policy)
 }
 

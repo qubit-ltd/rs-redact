@@ -7,7 +7,11 @@
 // =============================================================================
 //! Tests for shared diagnostic input-budget consumption.
 
-use qubit_redact::{InputOutputLimit, RedactionPolicy, RedactionSession};
+use qubit_redact::{
+    InputOutputLimit,
+    RedactionPolicy,
+    RedactionSession,
+};
 
 /// Verifies a shared input budget becomes permanently exhausted after an
 /// oversized reservation.

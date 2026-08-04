@@ -100,10 +100,7 @@ fn test_http_redaction_policy_builder_overrides_each_context() {
         .http()
         .header()
         .replace_rules(header.rules().clone());
-    builder
-        .http()
-        .query()
-        .replace_rules(query.rules().clone());
+    builder.http().query().replace_rules(query.rules().clone());
     builder.http().body().replace_rules(body.rules().clone());
     builder.limits().http_body(budget);
     let policy = builder

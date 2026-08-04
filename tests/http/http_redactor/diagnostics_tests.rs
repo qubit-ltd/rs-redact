@@ -60,17 +60,11 @@ fn test_session_fallback_markers_respect_cumulative_output_limit() {
         &session,
     );
 
-    assert_eq!(
-        first.as_str(),
-        "<redacted: diagnostic limit exceeded>",
-    );
+    assert_eq!(first.as_str(), "<redacted: diagnostic limit exceeded>",);
     assert!(second.as_str().is_empty());
     assert_eq!(session.remaining_output_bytes(), 0);
     assert!(
-        first
-            .as_str()
-            .len()
-            .saturating_add(second.as_str().len())
+        first.as_str().len().saturating_add(second.as_str().len())
             <= budget.max_output_bytes()
     );
 }

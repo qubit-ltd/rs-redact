@@ -13,6 +13,7 @@ use std::fmt::{
     Write as _,
 };
 
+use crate::policy::OutputCharge;
 use crate::{
     LogOutputLimit,
     RedactionPolicy,
@@ -20,7 +21,6 @@ use crate::{
     Sensitivity,
     text::internal::BoundedLogEscapeWriter,
 };
-use crate::policy::OutputCharge;
 
 use super::{
     RedactedJson,
@@ -204,10 +204,10 @@ impl<'text, 'session, 'policy>
             return self.fallback();
         }
         let fallback = policy.masking().mask_opaque(Sensitivity::Secret);
-        match self.session.charge_output_or_fallback(
-            rendered.len(),
-            fallback.len(),
-        ) {
+        match self
+            .session
+            .charge_output_or_fallback(rendered.len(), fallback.len())
+        {
             OutputCharge::Complete => rendered,
             OutputCharge::Fallback => fallback.to_owned(),
             OutputCharge::Exhausted => String::new(),
