@@ -23,6 +23,7 @@
       "src/policy/redaction_session.rs",
       "src/redactor.rs",
       "src/text/log_output_limit_error.rs",
+      "src/text/internal/log_escape_writer.rs",
       "src/text/log_safe_text.rs",
       "src/uri/uri_inspection.rs",
       "src/uri/uri_redaction_policy_builder.rs",

@@ -41,9 +41,9 @@ fn test_redacted_map_supports_index_map_without_runtime_coupling() {
     );
 }
 
-/// Verifies map views can derive an output bound from their policy snapshot.
+/// Verifies map display uses its policy output budget by default.
 #[test]
-fn test_redacted_map_with_policy_output_limit_uses_policy_budget() {
+fn test_redacted_map_display_uses_policy_output_limit_by_default() {
     let map = BTreeMap::from([(
         String::from("label"),
         "visible diagnostic text".repeat(4),
@@ -56,9 +56,7 @@ fn test_redacted_map_with_policy_output_limit_uses_policy_budget() {
         .build()
         .expect("the diagnostic budget should build a policy");
 
-    let output = RedactedMap::new(&map, policy)
-        .with_policy_output_limit()
-        .to_string();
+    let output = RedactedMap::new(&map, policy).to_string();
 
     assert!(output.len() <= budget.max_output_bytes());
     assert!(output.ends_with("<truncated>"));

@@ -13,7 +13,10 @@ use qubit_redact::{
     DiagnosticLogBuilder,
     DiagnosticWriteStatus,
     InputOutputLimit,
+    RedactionPolicy,
+    RedactionSession,
     Redactor,
+    Sensitivity,
 };
 
 /// Verifies formatted fragments share one escaped output budget.
@@ -55,6 +58,50 @@ fn test_diagnostic_builder_appends_safe_text() {
 
     assert_eq!(builder.push_safe(&safe), DiagnosticWriteStatus::Complete,);
     assert_eq!(builder.finish().as_str(), "line\\nnext");
+}
+
+/// Verifies field helpers share session accounting and escape visible controls.
+#[test]
+fn test_diagnostic_builder_pushes_redacted_fields_with_shared_session() {
+    let budget = InputOutputLimit::new(18, 64)
+        .expect("the diagnostic budget should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(budget)
+        .build()
+        .expect("the diagnostic policy should build");
+    let session = RedactionSession::diagnostic(&policy);
+    let mut builder = DiagnosticLogBuilder::new(budget);
+
+    assert_eq!(
+        builder.push_redacted_field(&session, "message", "line\nnext"),
+        DiagnosticWriteStatus::Complete,
+    );
+    assert_eq!(
+        builder.push_redacted_field(&session, "password", "raw"),
+        DiagnosticWriteStatus::Complete,
+    );
+
+    assert_eq!(builder.finish().as_str(), "line\\nnext<redacted>");
+    assert!(session.is_exhausted());
+}
+
+/// Verifies explicit-level helpers use the configured mask and shared budget.
+#[test]
+fn test_diagnostic_builder_pushes_explicitly_sensitive_values() {
+    let budget = InputOutputLimit::new(128, 64)
+        .expect("the diagnostic budget should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(budget)
+        .build()
+        .expect("the diagnostic policy should build");
+    let session = RedactionSession::diagnostic(&policy);
+    let mut builder = DiagnosticLogBuilder::new(budget);
+
+    assert_eq!(
+        builder.push_redacted_at(&session, Sensitivity::Secret, "raw\nsecret"),
+        DiagnosticWriteStatus::Complete,
+    );
+    assert_eq!(builder.finish().as_str(), "<redacted>");
 }
 
 /// Verifies safe fragments report truncation both when they exhaust output and

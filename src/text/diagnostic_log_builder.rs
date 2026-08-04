@@ -16,6 +16,9 @@ use std::{
 use crate::{
     InputOutputLimit,
     LogOutputLimit,
+    RedactionSession,
+    Redactor,
+    Sensitivity,
 };
 
 use super::{
@@ -26,9 +29,9 @@ use super::{
 
 /// Builds one log-safe diagnostic under a final output budget.
 ///
-/// This type guarantees log-structure escaping and a bounded final rendering;
-/// it does not perform redaction. Callers must append already-redacted values
-/// or redacted formatting views when constructing a diagnostic.
+/// This type guarantees log-structure escaping and a bounded final rendering.
+/// Callers can append already-safe values or redact scalar fields through a
+/// shared [`RedactionSession`].
 #[must_use = "finish the diagnostic into log-safe text"]
 pub struct DiagnosticLogBuilder {
     writer: BoundedLogEscapeWriter,
@@ -109,6 +112,49 @@ impl DiagnosticLogBuilder {
         } else {
             DiagnosticWriteStatus::Complete
         }
+    }
+
+    /// Redacts and appends one field through a shared diagnostic session.
+    ///
+    /// The field and value are not inspected after this builder has truncated.
+    /// The session supplies the policy and accumulates input and generated-mask
+    /// output across every redacted fragment in the enclosing event.
+    pub fn push_redacted_field(
+        &mut self,
+        session: &RedactionSession<'_>,
+        field: &str,
+        value: &str,
+    ) -> DiagnosticWriteStatus {
+        if self.writer.is_truncated() {
+            return DiagnosticWriteStatus::Truncated;
+        }
+        let redactor = Redactor::new(session.policy().clone());
+        let text = redactor
+            .redact_field_with_session(session, field, value)
+            .escape_for_log();
+        self.push_safe(&text)
+    }
+
+    /// Redacts and appends one explicitly sensitive value through a shared
+    /// diagnostic session.
+    ///
+    /// The value is not inspected after this builder has truncated. The
+    /// explicit sensitivity bypasses field-name classification while retaining
+    /// the session's cumulative resource accounting.
+    pub fn push_redacted_at(
+        &mut self,
+        session: &RedactionSession<'_>,
+        level: Sensitivity,
+        value: &str,
+    ) -> DiagnosticWriteStatus {
+        if self.writer.is_truncated() {
+            return DiagnosticWriteStatus::Truncated;
+        }
+        let redactor = Redactor::new(session.policy().clone());
+        let text = redactor
+            .redact_at_with_session(session, level, value)
+            .escape_for_log();
+        self.push_safe(&text)
     }
 
     /// Reports whether the final output has been truncated.

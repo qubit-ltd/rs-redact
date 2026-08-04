@@ -148,8 +148,8 @@ http = "1.5"
   session；输出由 adapter 提交计量，fallback 标记不能绕过累计上限。
 - `redact_field()` 返回 `FieldRedaction`，区分已遮盖、允许直通和未知字段直通。
 - `RedactedText` 故意不实现 `Display`。值脱敏与日志转义是两层不同保证。
-- 需要让领域对象或 Map 视图受策略诊断预算限制时，调用
-  `with_policy_output_limit()`；其 `Debug` 和 `Display` 输出都会有界且适合日志。
+- 领域对象或 Map 视图的 `Debug` 与日志安全 `Display` 默认都受策略诊断输出预算限制；
+  需要不同的显式限制时使用 `with_output_limit()`。
 - `RedactMut` 只替换逻辑值，不会擦除已释放的分配内存、别名、副本或借用后备存储。
 - URI 脱敏通过 `qubit_redact::uri::UriRedactor` 显式启用。userinfo 只在第一个原始 `:`
   处分割；用户名使用 `username` 字段规则，密码使用 `password` 字段规则。query key

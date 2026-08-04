@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Allocation regression tests for streaming redacted display.
+//! Allocation regressions for bounded redacted display.
 
 use std::{
     alloc::{
@@ -30,6 +30,8 @@ use qubit_redact::{
 
 /// Serializes allocation-counting sections within this integration-test binary.
 static TEST_LOCK: Mutex<()> = Mutex::new(());
+/// Small allocation-count ceiling for bounded display buffering.
+const MAX_BOUNDED_DISPLAY_ALLOCATIONS: usize = 4;
 thread_local! {
     /// Controls allocation tracking for the current measurement thread.
     static TRACK_ALLOCATIONS: Cell<bool> = const { Cell::new(false) };
@@ -163,9 +165,9 @@ fn measured_allocations(format: impl FnOnce()) -> usize {
     ALLOCATION_COUNT.with(Cell::get)
 }
 
-/// Verifies redacted domain and map views stream without heap allocation.
+/// Verifies redacted domain and empty-map views use only bounded buffering.
 #[test]
-fn test_redacted_displays_stream_without_allocation() {
+fn test_redacted_displays_use_bounded_allocation_count() {
     let record = SafeRecord {
         id: 7,
         label: "visible",
@@ -178,7 +180,7 @@ fn test_redacted_displays_stream_without_allocation() {
             .expect("the fixed output buffer can hold the record");
     });
 
-    assert_eq!(allocations, 0);
+    assert!(allocations <= MAX_BOUNDED_DISPLAY_ALLOCATIONS);
     let map = BTreeMap::<&str, &str>::new();
     let view = RedactedMap::new(&map, RedactionPolicy::default());
     let mut output = FixedBuffer::new();
@@ -188,13 +190,12 @@ fn test_redacted_displays_stream_without_allocation() {
             .expect("the fixed output buffer can hold the map");
     });
 
-    assert_eq!(allocations, 0);
+    assert!(allocations <= MAX_BOUNDED_DISPLAY_ALLOCATIONS);
 }
 
-/// Verifies classification of an already-canonical visible field does not
-/// allocate while streaming a nonempty map.
+/// Verifies a visible nonempty map stays within the bounded allocation count.
 #[test]
-fn test_nonempty_redacted_map_streams_without_allocation() {
+fn test_nonempty_redacted_map_uses_bounded_allocation_count() {
     let map = BTreeMap::from([("visible", "safe")]);
     let policy = RedactionPolicy::builder()
         .allow_canonical_exact("visible")
@@ -209,5 +210,5 @@ fn test_nonempty_redacted_map_streams_without_allocation() {
             .expect("the fixed output buffer can hold the visible map");
     });
 
-    assert_eq!(allocations, 0);
+    assert!(allocations <= MAX_BOUNDED_DISPLAY_ALLOCATIONS);
 }

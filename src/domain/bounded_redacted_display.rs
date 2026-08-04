@@ -113,7 +113,7 @@ impl<D: Debug> Debug for BoundedRedactedDisplay<D> {
 ///
 /// Returns [`fmt::Error`] when redacted formatting or the destination rejects
 /// output.
-fn format_bounded(
+pub(super) fn format_bounded(
     value: &dyn Debug,
     limit: LogOutputLimit,
     formatter: &mut Formatter<'_>,

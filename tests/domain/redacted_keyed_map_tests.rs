@@ -119,8 +119,8 @@ fn test_redacted_keyed_map_display_and_bounded_adapters() {
         .with_policy_output_limit()
         .to_string();
 
-    assert!(display.contains("visible-label"));
-    assert!(!display.contains("nested-secret"));
+    assert!(display.len() <= output_limit);
+    assert!(display.ends_with("<truncated>"));
     assert!(bounded.len() <= output_limit);
     assert!(bounded.ends_with("<truncated>"));
     assert!(policy_bounded.len() <= output_limit);

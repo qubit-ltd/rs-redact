@@ -169,9 +169,9 @@ http = "1.5"
   from allowed and unknown pass-through values.
 - `RedactedText` is not displayable by design. Redaction and log escaping are
   separate guarantees.
-- Use `with_policy_output_limit()` when a redacted domain or map view must be
-  bounded by the policy diagnostic budget; its `Debug` and `Display` output is
-  both bounded and log-safe.
+- Redacted domain and map views apply the policy diagnostic output budget to
+  both `Debug` and log-safe `Display` by default. Use `with_output_limit()` to
+  select a different explicit limit.
 - `RedactMut` replaces logical values only. It does not erase released
   allocations, aliases, copies, or borrowed backing storage.
 - JSON redaction stops at `JsonDepthBudget` and replaces an over-depth subtree

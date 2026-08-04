@@ -25,7 +25,10 @@ use crate::{
     text::internal::LogEscapeWriter,
 };
 
-use super::bounded_redacted_display::format_debug_bounded;
+use super::bounded_redacted_display::{
+    format_bounded,
+    format_debug_bounded,
+};
 use super::internal::mask_byte_limit;
 
 /// A lazy non-destructive redacted view of a domain object.
@@ -214,7 +217,7 @@ impl<T: Redact + ?Sized> Display for RedactedSessionView<'_, '_, '_, T> {
 }
 
 impl<T: Redact + ?Sized> Display for Redacted<'_, T> {
-    /// Writes a compact redacted debug representation escaped for logs.
+    /// Writes a bounded compact redacted debug representation escaped for logs.
     ///
     /// Redacted debug output is escaped directly into the destination without
     /// constructing an intermediate [`String`]. This implementation never
@@ -236,7 +239,10 @@ impl<T: Redact + ?Sized> Display for Redacted<'_, T> {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let session = RedactionSession::diagnostic(&self.policy);
         let view = RedactedSessionView::new(self.value, &session);
-        let mut writer = LogEscapeWriter::new(formatter);
-        write!(&mut writer, "{view:?}")
+        format_bounded(
+            &view,
+            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
+            formatter,
+        )
     }
 }

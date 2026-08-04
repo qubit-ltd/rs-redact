@@ -10,6 +10,7 @@
 use std::fmt;
 
 use qubit_redact::{
+    InputOutputLimit,
     Redact,
     RedactValue,
     RedactedValue,
@@ -27,6 +28,25 @@ struct NestedValue {
     secret: String,
     /// Visible descriptive text.
     label: String,
+}
+
+/// Verifies keyed-value display uses its policy output budget by default.
+#[test]
+fn test_redact_keyed_display_uses_policy_output_limit_by_default() {
+    let budget =
+        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
+            .expect("the minimum diagnostic output limit should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(budget)
+        .build()
+        .expect("the test policy should be valid");
+    let redactor = Redactor::new(policy);
+    let value = TextValue("visible diagnostic text".repeat(4));
+
+    let output = redactor.redact_keyed("display_name", &value).to_string();
+
+    assert!(output.len() <= budget.max_output_bytes());
+    assert!(output.ends_with("<truncated>"));
 }
 
 /// Textual value that supports both keyed masking and recursive formatting.

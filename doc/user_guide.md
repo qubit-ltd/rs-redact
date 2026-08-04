@@ -114,11 +114,11 @@ snapshot and applies it consistently.
 not implement `Display`: call `escape_for_log()` before a plain-text log
 boundary to obtain `LogSafeText`.
 
-Redacted domain and map views use the policy diagnostic output budget for
-`Debug` by default. Call `with_policy_output_limit()` when both `Debug` and
-`Display` output must be explicitly bounded by that same budget. Derived nested
-values, maps, JSON text, and adapter sessions share one non-cloneable
-`RedactionSession`, so a nested value cannot reset the parent's budget.
+Redacted domain and map views use the policy diagnostic output budget for both
+`Debug` and log-safe `Display` by default. Call `with_output_limit()` to select
+a different explicit limit. Derived nested values, maps, JSON text, and adapter
+sessions share one non-cloneable `RedactionSession`, so a nested value cannot
+reset the parent's budget.
 
 `InputOutputLimit` is the immutable limit stored in a policy. One runtime
 `RedactionSession` tracks an operation or diagnostic event. Callers may charge
@@ -187,10 +187,11 @@ RedactionPolicy::install_global(policy)?;
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-Installation succeeds once per process. If `global()` or `default()` is read
-first, the standard policy is frozen and a later installation returns
-`InstallGlobalPolicyError`. Prefer explicit policy snapshots when tests or
-security boundaries need isolation.
+Installation succeeds once per process. Reading `global()` or `default()`
+before installation returns the standard fallback without occupying the
+installation slot. Existing snapshots do not change after a later installation.
+Prefer explicit policy snapshots when tests or security boundaries need
+isolation.
 
 Field names are canonicalized. With `FieldNameMatching::ExactOrTokenSuffix`, a
 rule for `api_key` can match `request_api_key`; exact matching has the narrowest
@@ -589,8 +590,8 @@ only that safe result.
   general secret detector.
 - Allow rules deliberately reveal data and take precedence. Prefer exact rules.
 - Never format `RedactedText` directly; call `escape_for_log()` first.
-- Call `with_policy_output_limit()` when a redacted domain or map view must be
-  bounded by its diagnostic budget.
+- Redacted domain and map `Debug` and `Display` views are bounded by their
+  diagnostic budget; use `with_output_limit()` for a different explicit limit.
 - Do not use `RedactMut` as a memory-erasure mechanism.
 - Enable `TextBodyPolicy::PassThrough`, `UnkeyedJsonValuePolicy::PassThrough`,
   or `UrlPathPolicy::Preserve` only after accepting their disclosure risk.

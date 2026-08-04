@@ -31,6 +31,7 @@ use crate::{
 };
 
 use super::{
+    bounded_redacted_display::format_bounded,
     bounded_redacted_display::format_debug_bounded,
     internal::mask_byte_limit,
 };
@@ -234,8 +235,8 @@ impl<
 where
     for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
 {
-    /// Formats compact redacted debug output and escapes it for plain-text
-    /// logs.
+    /// Formats bounded compact redacted debug output and escapes it for
+    /// plain-text logs.
     ///
     /// # Parameters
     ///
@@ -253,7 +254,10 @@ where
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let session = RedactionSession::diagnostic(&self.policy);
         let view = RedactedKeyedMapSession::new(self.map, &session);
-        let mut writer = LogEscapeWriter::new(formatter);
-        write!(&mut writer, "{view:?}")
+        format_bounded(
+            &view,
+            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
+            formatter,
+        )
     }
 }

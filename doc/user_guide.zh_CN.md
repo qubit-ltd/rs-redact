@@ -105,8 +105,8 @@ http = "1.5"
 `RedactedText` 只表示“已按字段规则处理”，它故意不实现 `Display`。写入纯文本日志前，
 必须调用 `escape_for_log()` 得到可安全显示的 `LogSafeText`。
 
-领域对象或 Map 视图的 `Debug` 默认使用策略诊断输出预算。需要让 `Debug` 和 `Display`
-都明确受该预算限制时，调用 `with_policy_output_limit()`。派生的嵌套对象、Map、JSON 文本
+领域对象或 Map 视图的 `Debug` 与日志安全 `Display` 默认都使用策略诊断输出预算；
+需要不同的显式限制时调用 `with_output_limit()`。派生的嵌套对象、Map、JSON 文本
 和适配器会共享一个不可克隆的 `RedactionSession`，不会通过嵌套调用重置父级预算。
 
 `InputOutputLimit` 是存储在策略中的不可变限制；运行时由一个 `RedactionSession`
@@ -517,8 +517,8 @@ pair 分隔符，未遮盖的值保留原始编码，已遮盖的值重新做 UR
   为所有可控字段名配置规则。本库不是通用秘密探测器。
 - 允许规则会有意披露数据且优先级更高；优先使用精确允许规则。
 - 不要直接格式化 `RedactedText`；先调用 `escape_for_log()`。
-- 领域对象或 Map 视图需要受诊断预算限制时，调用
-  `with_policy_output_limit()`；其 `Debug` 和 `Display` 输出都会有界且适合日志。
+- 领域对象或 Map 视图的 `Debug` 与 `Display` 默认受诊断预算限制；需要不同的显式限制时
+  调用 `with_output_limit()`。
 - 不要把 `RedactMut` 当作内存擦除机制。
 - 只有接受披露风险后，才启用 `TextBodyPolicy::PassThrough`、
   `UnkeyedJsonValuePolicy::PassThrough` 或 `UrlPathPolicy::Preserve`。

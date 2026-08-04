@@ -28,6 +28,7 @@ use crate::{
     text::internal::LogEscapeWriter,
 };
 
+use super::bounded_redacted_display::format_bounded;
 use super::internal::mask_byte_limit;
 
 /// A lazy map view that classifies values by their runtime keys.
@@ -187,8 +188,8 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
 impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
     for RedactedMap<'_, M, K, V>
 {
-    /// Formats compact redacted debug output and escapes it for plain-text
-    /// logs.
+    /// Formats bounded compact redacted debug output and escapes it for
+    /// plain-text logs.
     ///
     /// # Parameters
     ///
@@ -206,8 +207,11 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let session = RedactionSession::diagnostic(&self.policy);
         let view = RedactedMapSession::new(self.map, &session);
-        let mut writer = LogEscapeWriter::new(formatter);
-        write!(&mut writer, "{view:?}")
+        format_bounded(
+            &view,
+            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
+            formatter,
+        )
     }
 }
 

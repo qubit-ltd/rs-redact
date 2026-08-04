@@ -29,6 +29,7 @@ use crate::{
 };
 
 use super::{
+    bounded_redacted_display::format_bounded,
     bounded_redacted_display::format_debug_bounded,
     internal::mask_byte_limit,
 };
@@ -180,7 +181,8 @@ impl<T: Redact + RedactValue + ?Sized> Display
 impl<T: Redact + RedactValue + ?Sized> Display
     for RedactedKeyedValue<'_, '_, T>
 {
-    /// Formats the selected redacted representation for a plain-text log.
+    /// Formats the selected redacted representation for a bounded plain-text
+    /// log.
     ///
     /// # Parameters
     ///
@@ -199,8 +201,11 @@ impl<T: Redact + RedactValue + ?Sized> Display
         let session = RedactionSession::diagnostic(self.policy);
         let view =
             RedactedKeyedValueSession::new(self.key, self.value, &session);
-        let mut writer = LogEscapeWriter::new(formatter);
-        write!(&mut writer, "{view:?}")
+        format_bounded(
+            &view,
+            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
+            formatter,
+        )
     }
 }
 

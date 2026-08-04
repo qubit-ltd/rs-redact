@@ -192,9 +192,9 @@
 //!
 //! `debug` and `display` are opt-in implementations on the original type and
 //! use the process-wide default policy. Plain fields remain ordinary `Debug`
-//! values. Redacted `Debug` output uses the policy's diagnostic output budget
-//! by default; call `with_policy_output_limit()` when `Display` output must be
-//! bounded by an explicit policy limit as well. Do not request an
+//! values. Redacted `Debug` and `Display` output use the policy's diagnostic
+//! output budget by default. Use `with_output_limit()` to select a different
+//! explicit limit. Do not request an
 //! implementation already supplied by the type, such as combining
 //! `#[derive(Debug)]` with `#[redact(debug)]`.
 //!

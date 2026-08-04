@@ -164,9 +164,9 @@ fn test_redacted_debug_uses_policy_output_limit_by_default() {
     assert!(output.ends_with("<truncated>"));
 }
 
-/// Verifies a view can derive its output bound from its policy snapshot.
+/// Verifies display uses the policy output budget by default.
 #[test]
-fn test_redacted_with_policy_output_limit_uses_policy_budget() {
+fn test_redacted_display_uses_policy_output_limit_by_default() {
     let account = ManualAccount {
         id: 12,
         password: "raw-secret".to_owned(),
@@ -180,10 +180,7 @@ fn test_redacted_with_policy_output_limit_uses_policy_budget() {
         .build()
         .expect("the diagnostic budget should build a policy");
 
-    let output = account
-        .redacted_with(&policy)
-        .with_policy_output_limit()
-        .to_string();
+    let output = account.redacted_with(&policy).to_string();
 
     assert!(output.len() <= budget.max_output_bytes());
     assert!(output.ends_with("<truncated>"));
