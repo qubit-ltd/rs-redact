@@ -20,8 +20,9 @@ use crate::{
     RedactValue,
     RedactionPolicy,
     RedactionSession,
-    policy::ResolvedField,
 };
+#[cfg(feature = "serde")]
+use crate::policy::ResolvedField;
 
 use super::{
     bounded_redacted_display::format_bounded,

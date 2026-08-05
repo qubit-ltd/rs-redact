@@ -373,17 +373,19 @@ mod views {
     use super::{
         FieldNameMatching,
         InputOutputLimit,
-        JsonDepthBudget,
         MaskPolicy,
         PolicyError,
         PolicyLocation,
         RedactionFloor,
         RedactionPolicyBuilder,
-        RedactionRules,
         SensitiveFieldPreset,
         Sensitivity,
         UnknownFieldPolicy,
     };
+    #[cfg(feature = "http")]
+    use super::RedactionRules;
+    #[cfg(feature = "json")]
+    use super::JsonDepthBudget;
 
     /// Mutable view over the base field policy.
     #[must_use]
@@ -745,11 +747,15 @@ mod views {
 
 pub use views::{
     FieldsBuilder,
+    LimitsBuilder,
+};
+#[cfg(feature = "http")]
+pub use views::{
     HttpContextBuilderView,
     HttpPolicyBuilderView,
-    LimitsBuilder,
-    UriPolicyBuilderView,
 };
+#[cfg(feature = "uri")]
+pub use views::UriPolicyBuilderView;
 
 impl Default for RedactionPolicyBuilder {
     fn default() -> Self {
