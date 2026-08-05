@@ -6,14 +6,12 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Borrowed, policy-snapshot view of a domain object.
-// qubit-style: allow multiple-public-types
 
 use std::fmt::{
     self,
     Debug,
     Display,
     Formatter,
-    Write as _,
 };
 
 use crate::{
@@ -22,7 +20,6 @@ use crate::{
     Redact,
     RedactionPolicy,
     RedactionSession,
-    text::internal::LogEscapeWriter,
 };
 
 use super::bounded_redacted_display::{
@@ -179,42 +176,60 @@ impl<T: Redact + ?Sized> Debug for Redacted<'_, T> {
     }
 }
 
-/// A nested redacted view that reuses an existing diagnostic session.
-#[must_use = "format the nested redacted view"]
-pub struct RedactedSessionView<'value, 'session, 'policy, T: ?Sized> {
-    value: &'value T,
-    session: &'session RedactionSession<'policy>,
-}
+mod session_view {
+    use std::fmt::{
+        self,
+        Debug,
+        Display,
+        Formatter,
+        Write as _,
+    };
 
-impl<'value, 'session, 'policy, T: ?Sized>
-    RedactedSessionView<'value, 'session, 'policy, T>
-{
-    /// Creates a nested view borrowing the shared session.
-    #[inline(always)]
-    pub fn new(
+    use crate::{
+        Redact,
+        RedactionSession,
+        text::internal::LogEscapeWriter,
+    };
+
+    /// A nested redacted view that reuses an existing diagnostic session.
+    #[must_use = "format the nested redacted view"]
+    pub struct RedactedSessionView<'value, 'session, 'policy, T: ?Sized> {
         value: &'value T,
         session: &'session RedactionSession<'policy>,
-    ) -> Self {
-        Self { value, session }
+    }
+
+    impl<'value, 'session, 'policy, T: ?Sized>
+        RedactedSessionView<'value, 'session, 'policy, T>
+    {
+        /// Creates a nested view borrowing the shared session.
+        #[inline(always)]
+        pub fn new(
+            value: &'value T,
+            session: &'session RedactionSession<'policy>,
+        ) -> Self {
+            Self { value, session }
+        }
+    }
+
+    impl<T: Redact + ?Sized> Debug for RedactedSessionView<'_, '_, '_, T> {
+        /// Formats the nested value through the existing session.
+        #[inline(always)]
+        fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+            self.value.fmt_redacted(self.session, formatter)
+        }
+    }
+
+    impl<T: Redact + ?Sized> Display for RedactedSessionView<'_, '_, '_, T> {
+        /// Escapes the nested redacted representation for plain-text logs.
+        #[inline(always)]
+        fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+            let mut writer = LogEscapeWriter::new(formatter);
+            write!(&mut writer, "{self:?}")
+        }
     }
 }
 
-impl<T: Redact + ?Sized> Debug for RedactedSessionView<'_, '_, '_, T> {
-    /// Formats the nested value through the existing session.
-    #[inline(always)]
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        self.value.fmt_redacted(self.session, formatter)
-    }
-}
-
-impl<T: Redact + ?Sized> Display for RedactedSessionView<'_, '_, '_, T> {
-    /// Escapes the nested redacted representation for plain-text logs.
-    #[inline(always)]
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        let mut writer = LogEscapeWriter::new(formatter);
-        write!(&mut writer, "{self:?}")
-    }
-}
+pub use session_view::RedactedSessionView;
 
 impl<T: Redact + ?Sized> Display for Redacted<'_, T> {
     /// Writes a bounded compact redacted debug representation escaped for logs.

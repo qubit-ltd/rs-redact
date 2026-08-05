@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Lazy borrowed view of a map whose values support recursive redaction.
-// qubit-style: allow multiple-public-types
 
 use std::{
     fmt::{
@@ -24,7 +23,6 @@ use crate::{
     LogOutputLimit,
     Redact,
     RedactValue,
-    RedactedKeyedValueSession,
     RedactionPolicy,
     RedactionSession,
     text::internal::LogEscapeWriter,
@@ -153,63 +151,84 @@ where
     }
 }
 
-/// A nested keyed-map view that reuses an existing diagnostic session.
-#[must_use = "format the nested keyed redaction view"]
-pub struct RedactedKeyedMapSession<
-    'map,
-    'session,
-    'policy,
-    M: ?Sized,
-    K: ?Sized = String,
-    V: ?Sized = String,
-> {
-    map: &'map M,
-    session: &'session RedactionSession<'policy>,
-    marker: PhantomData<fn() -> (*const K, *const V)>,
-}
+mod session_view {
+    use std::{
+        fmt::{
+            self,
+            Debug,
+            Formatter,
+        },
+        marker::PhantomData,
+    };
 
-impl<'map, 'session, 'policy, M: ?Sized, K: ?Sized, V: ?Sized>
-    RedactedKeyedMapSession<'map, 'session, 'policy, M, K, V>
-{
-    /// Creates a nested keyed-map view using an existing diagnostic session.
-    #[inline(always)]
-    pub fn new(
+    use crate::{
+        Redact,
+        RedactValue,
+        RedactedKeyedValueSession,
+        RedactionSession,
+    };
+
+    /// A nested keyed-map view that reuses an existing diagnostic session.
+    #[must_use = "format the nested keyed redaction view"]
+    pub struct RedactedKeyedMapSession<
+        'map,
+        'session,
+        'policy,
+        M: ?Sized,
+        K: ?Sized = String,
+        V: ?Sized = String,
+    > {
         map: &'map M,
         session: &'session RedactionSession<'policy>,
-    ) -> Self {
-        Self {
-            map,
-            session,
-            marker: PhantomData,
+        marker: PhantomData<fn() -> (*const K, *const V)>,
+    }
+
+    impl<'map, 'session, 'policy, M: ?Sized, K: ?Sized, V: ?Sized>
+        RedactedKeyedMapSession<'map, 'session, 'policy, M, K, V>
+    {
+        /// Creates a nested keyed-map view using an existing diagnostic
+        /// session.
+        #[inline(always)]
+        pub fn new(
+            map: &'map M,
+            session: &'session RedactionSession<'policy>,
+        ) -> Self {
+            Self {
+                map,
+                session,
+                marker: PhantomData,
+            }
+        }
+    }
+
+    impl<
+        M: ?Sized,
+        K: AsRef<str> + Debug + ?Sized,
+        V: Redact + RedactValue + ?Sized,
+    > Debug for RedactedKeyedMapSession<'_, '_, '_, M, K, V>
+    where
+        for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
+    {
+        /// Formats each entry through the existing keyed diagnostic session.
+        #[inline]
+        fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+            let mut output = formatter.debug_map();
+            for (key, value) in self.map {
+                output.entry(
+                    &key,
+                    &RedactedKeyedValueSession::new(
+                        key.as_ref(),
+                        value,
+                        self.session,
+                    ),
+                );
+            }
+            output.finish()
         }
     }
 }
 
-impl<
-    M: ?Sized,
-    K: AsRef<str> + Debug + ?Sized,
-    V: Redact + RedactValue + ?Sized,
-> Debug for RedactedKeyedMapSession<'_, '_, '_, M, K, V>
-where
-    for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
-{
-    /// Formats each entry through the existing keyed diagnostic session.
-    #[inline]
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        let mut output = formatter.debug_map();
-        for (key, value) in self.map {
-            output.entry(
-                &key,
-                &RedactedKeyedValueSession::new(
-                    key.as_ref(),
-                    value,
-                    self.session,
-                ),
-            );
-        }
-        output.finish()
-    }
-}
+pub use session_view::RedactedKeyedMapSession;
 
 impl<
     M: ?Sized,

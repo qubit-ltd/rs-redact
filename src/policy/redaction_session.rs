@@ -16,7 +16,6 @@
 //    limitations under the License.
 // =============================================================================
 //! Operation-scoped mutable accounting for bounded redaction.
-// qubit-style: allow multiple-public-types
 
 use std::cell::RefCell;
 
@@ -25,114 +24,130 @@ use super::{
     RedactionPolicy,
 };
 
-/// Mutable input/output accounting for one redaction event.
-///
-/// A budget is intentionally not cloneable. Callers must pass the same
-/// instance through every component that contributes to one diagnostic
-/// rendering so that a child cannot reset the parent's allowance.
-#[must_use]
-#[derive(Debug)]
-pub(crate) struct DiagnosticBudget {
-    remaining_input_bytes: usize,
-    remaining_output_bytes: usize,
-    input_exhausted: bool,
-    output_exhausted: bool,
-}
+mod budget {
+    use super::InputOutputLimit;
 
-/// Result of charging an eagerly returned diagnostic fragment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum OutputCharge {
-    /// The complete fragment was charged and may be returned.
-    Complete,
-    /// The complete fragment did not fit, but one fallback marker was charged.
-    Fallback,
-    /// Neither the fragment nor its fallback can be emitted within the budget.
-    Exhausted,
-}
-
-impl DiagnosticBudget {
-    /// Creates runtime accounting from an immutable input/output limit.
-    #[must_use = "retain the runtime budget for accounting"]
-    #[inline]
-    pub(crate) const fn new(limit: InputOutputLimit) -> Self {
-        Self {
-            remaining_input_bytes: limit.max_input_bytes(),
-            remaining_output_bytes: limit.max_output_bytes(),
-            input_exhausted: false,
-            output_exhausted: false,
-        }
+    /// Mutable input/output accounting for one redaction event.
+    ///
+    /// A budget is intentionally not cloneable. Callers must pass the same
+    /// instance through every component that contributes to one diagnostic
+    /// rendering so that a child cannot reset the parent's allowance.
+    #[must_use]
+    #[derive(Debug)]
+    pub(crate) struct DiagnosticBudget {
+        remaining_input_bytes: usize,
+        remaining_output_bytes: usize,
+        input_exhausted: bool,
+        output_exhausted: bool,
     }
 
-    /// Reserves input bytes before inspecting source data.
-    #[inline]
-    pub(crate) fn consume_input(&mut self, bytes: usize) -> bool {
-        if self.input_exhausted || bytes > self.remaining_input_bytes {
-            self.input_exhausted = true;
-            self.remaining_input_bytes = 0;
-            return false;
-        }
-        self.remaining_input_bytes -= bytes;
-        if self.remaining_input_bytes == 0 {
-            self.input_exhausted = true;
-        }
-        true
+    /// Result of charging an eagerly returned diagnostic fragment.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum OutputCharge {
+        /// The complete fragment was charged and may be returned.
+        Complete,
+        /// The complete fragment did not fit, but one fallback marker was
+        /// charged.
+        Fallback,
+        /// Neither the fragment nor its fallback can be emitted within the
+        /// budget.
+        Exhausted,
     }
 
-    /// Atomically charges either a complete fragment or its terminal fallback.
-    fn charge_output_or_fallback(
-        &mut self,
-        bytes: usize,
-        fallback_bytes: usize,
-    ) -> OutputCharge {
-        if !self.output_exhausted && bytes <= self.remaining_output_bytes {
-            self.remaining_output_bytes -= bytes;
-            self.output_exhausted = self.remaining_output_bytes == 0;
-            return OutputCharge::Complete;
+    impl DiagnosticBudget {
+        /// Creates runtime accounting from an immutable input/output limit.
+        #[must_use = "retain the runtime budget for accounting"]
+        #[inline]
+        pub(crate) const fn new(limit: InputOutputLimit) -> Self {
+            Self {
+                remaining_input_bytes: limit.max_input_bytes(),
+                remaining_output_bytes: limit.max_output_bytes(),
+                input_exhausted: false,
+                output_exhausted: false,
+            }
         }
-        if !self.output_exhausted
-            && fallback_bytes <= self.remaining_output_bytes
-        {
+
+        /// Reserves input bytes before inspecting source data.
+        #[inline]
+        pub(crate) fn consume_input(&mut self, bytes: usize) -> bool {
+            if self.input_exhausted || bytes > self.remaining_input_bytes {
+                self.input_exhausted = true;
+                self.remaining_input_bytes = 0;
+                return false;
+            }
+            self.remaining_input_bytes -= bytes;
+            if self.remaining_input_bytes == 0 {
+                self.input_exhausted = true;
+            }
+            true
+        }
+
+        /// Atomically charges either a complete fragment or its terminal
+        /// fallback.
+        pub(crate) fn charge_output_or_fallback(
+            &mut self,
+            bytes: usize,
+            fallback_bytes: usize,
+        ) -> OutputCharge {
+            if !self.output_exhausted && bytes <= self.remaining_output_bytes {
+                self.remaining_output_bytes -= bytes;
+                self.output_exhausted = self.remaining_output_bytes == 0;
+                return OutputCharge::Complete;
+            }
+            if !self.output_exhausted
+                && fallback_bytes <= self.remaining_output_bytes
+            {
+                self.remaining_output_bytes = 0;
+                self.output_exhausted = true;
+                return OutputCharge::Fallback;
+            }
             self.remaining_output_bytes = 0;
             self.output_exhausted = true;
-            return OutputCharge::Fallback;
+            OutputCharge::Exhausted
         }
-        self.remaining_output_bytes = 0;
-        self.output_exhausted = true;
-        OutputCharge::Exhausted
-    }
 
-    /// Returns the input bytes still available for inspection.
-    #[must_use]
-    #[inline]
-    pub(crate) const fn remaining_input_bytes(&self) -> usize {
-        self.remaining_input_bytes
-    }
+        /// Returns the input bytes still available for inspection.
+        #[must_use]
+        #[inline]
+        pub(crate) const fn remaining_input_bytes(&self) -> usize {
+            self.remaining_input_bytes
+        }
 
-    /// Returns the output bytes still available for rendering.
-    #[must_use]
-    #[inline]
-    pub(crate) const fn remaining_output_bytes(&self) -> usize {
-        self.remaining_output_bytes
-    }
+        /// Returns the output bytes still available for rendering.
+        #[must_use]
+        #[inline]
+        pub(crate) const fn remaining_output_bytes(&self) -> usize {
+            self.remaining_output_bytes
+        }
 
-    /// Returns whether this event can no longer accept input or output.
-    #[must_use]
-    #[inline]
-    pub(crate) const fn is_exhausted(&self) -> bool {
-        self.input_exhausted || self.output_exhausted
+        /// Returns whether this event can no longer accept input or output.
+        #[must_use]
+        #[inline]
+        pub(crate) const fn is_exhausted(&self) -> bool {
+            self.input_exhausted || self.output_exhausted
+        }
     }
 }
 
-/// Identifies whether a session is an ordinary operation or a diagnostic
-/// event.
-#[must_use]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RedactionSessionKind {
-    /// An independent ordinary redaction operation.
-    Operation,
-    /// A diagnostic representation with bounded output.
-    Diagnostic,
+pub(crate) use budget::{
+    DiagnosticBudget,
+    OutputCharge,
+};
+
+mod session_kind {
+    /// Identifies whether a session is an ordinary operation or a diagnostic
+    /// event.
+    #[must_use]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum RedactionSessionKind {
+        /// An independent ordinary redaction operation.
+        Operation,
+        /// A diagnostic representation with bounded output.
+        Diagnostic,
+    }
 }
+
+pub use session_kind::RedactionSessionKind;
 
 /// Carries one immutable policy and one mutable budget through a redaction
 /// operation.

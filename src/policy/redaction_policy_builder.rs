@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Mutable builder for immutable redaction policies.
-// qubit-style: allow multiple-public-types
 
 use super::{
     FieldNameMatching,
@@ -370,348 +369,387 @@ impl RedactionPolicyBuilder {
     }
 }
 
-/// Mutable view over the base field policy.
-#[must_use]
-pub struct FieldsBuilder<'a> {
-    builder: &'a mut RedactionPolicyBuilder,
-}
+mod views {
+    use super::{
+        FieldNameMatching,
+        InputOutputLimit,
+        JsonDepthBudget,
+        MaskPolicy,
+        PolicyError,
+        PolicyLocation,
+        RedactionFloor,
+        RedactionPolicyBuilder,
+        RedactionRules,
+        SensitiveFieldPreset,
+        Sensitivity,
+        UnknownFieldPolicy,
+    };
 
-impl FieldsBuilder<'_> {
-    /// Sets field-name matching for the base policy.
-    pub fn matching(&mut self, matching: FieldNameMatching) -> &mut Self {
-        self.builder.rules.matching(matching);
-        self
+    /// Mutable view over the base field policy.
+    #[must_use]
+    pub struct FieldsBuilder<'a> {
+        pub(super) builder: &'a mut RedactionPolicyBuilder,
     }
 
-    /// Sets the base fallback for unknown fields.
-    pub fn unknown_field_policy(
-        &mut self,
-        policy: UnknownFieldPolicy,
-    ) -> &mut Self {
-        self.builder.rules.unknown_field_policy(policy);
-        self
-    }
+    impl FieldsBuilder<'_> {
+        /// Sets field-name matching for the base policy.
+        pub fn matching(&mut self, matching: FieldNameMatching) -> &mut Self {
+            self.builder.rules.matching(matching);
+            self
+        }
 
-    /// Includes all fields from a built-in sensitive preset.
-    pub fn include_preset(
-        &mut self,
-        preset: SensitiveFieldPreset,
-    ) -> &mut Self {
-        self.builder.rules.include_preset(preset);
-        self
-    }
+        /// Sets the base fallback for unknown fields.
+        pub fn unknown_field_policy(
+            &mut self,
+            policy: UnknownFieldPolicy,
+        ) -> &mut Self {
+            self.builder.rules.unknown_field_policy(policy);
+            self
+        }
 
-    /// Raises a base field's minimum sensitivity.
-    pub fn raise(
-        &mut self,
-        field: &str,
-        level: Sensitivity,
-    ) -> Result<&mut Self, PolicyError> {
-        self.builder.rules.raise(field, level)?;
-        Ok(self)
-    }
+        /// Includes all fields from a built-in sensitive preset.
+        pub fn include_preset(
+            &mut self,
+            preset: SensitiveFieldPreset,
+        ) -> &mut Self {
+            self.builder.rules.include_preset(preset);
+            self
+        }
 
-    /// Replaces one base field rule without weakening floors.
-    pub fn override_level(
-        &mut self,
-        field: &str,
-        level: Sensitivity,
-    ) -> Result<&mut Self, PolicyError> {
-        self.builder.rules.override_level(field, level)?;
-        Ok(self)
-    }
+        /// Raises a base field's minimum sensitivity.
+        pub fn raise(
+            &mut self,
+            field: &str,
+            level: Sensitivity,
+        ) -> Result<&mut Self, PolicyError> {
+            self.builder.rules.raise(field, level)?;
+            Ok(self)
+        }
 
-    /// Adds a base exact allow rule.
-    pub fn allow_exact(
-        &mut self,
-        field: &str,
-    ) -> Result<&mut Self, PolicyError> {
-        self.builder.rules.allow_canonical_exact(field)?;
-        Ok(self)
-    }
+        /// Replaces one base field rule without weakening floors.
+        pub fn override_level(
+            &mut self,
+            field: &str,
+            level: Sensitivity,
+        ) -> Result<&mut Self, PolicyError> {
+            self.builder.rules.override_level(field, level)?;
+            Ok(self)
+        }
 
-    /// Adds a base suffix allow rule.
-    pub fn allow_suffix(
-        &mut self,
-        field: &str,
-    ) -> Result<&mut Self, PolicyError> {
-        self.builder.rules.allow_suffix(field)?;
-        Ok(self)
-    }
+        /// Adds a base exact allow rule.
+        pub fn allow_exact(
+            &mut self,
+            field: &str,
+        ) -> Result<&mut Self, PolicyError> {
+            self.builder.rules.allow_canonical_exact(field)?;
+            Ok(self)
+        }
 
-    /// Removes a base exact allow rule.
-    pub fn remove_allow_exact(
-        &mut self,
-        field: &str,
-    ) -> Result<&mut Self, PolicyError> {
-        self.builder.rules.remove_allow_canonical_exact(field)?;
-        Ok(self)
-    }
+        /// Adds a base suffix allow rule.
+        pub fn allow_suffix(
+            &mut self,
+            field: &str,
+        ) -> Result<&mut Self, PolicyError> {
+            self.builder.rules.allow_suffix(field)?;
+            Ok(self)
+        }
 
-    /// Removes a base suffix allow rule.
-    pub fn remove_allow_suffix(
-        &mut self,
-        field: &str,
-    ) -> Result<&mut Self, PolicyError> {
-        self.builder.rules.remove_allow_suffix(field)?;
-        Ok(self)
-    }
+        /// Removes a base exact allow rule.
+        pub fn remove_allow_exact(
+            &mut self,
+            field: &str,
+        ) -> Result<&mut Self, PolicyError> {
+            self.builder.rules.remove_allow_canonical_exact(field)?;
+            Ok(self)
+        }
 
-    /// Removes all base allow rules.
-    pub fn clear_allow_rules(&mut self) -> &mut Self {
-        self.builder.rules.clear_allow_rules();
-        self
-    }
+        /// Removes a base suffix allow rule.
+        pub fn remove_allow_suffix(
+            &mut self,
+            field: &str,
+        ) -> Result<&mut Self, PolicyError> {
+            self.builder.rules.remove_allow_suffix(field)?;
+            Ok(self)
+        }
 
-    /// Replaces the base minimum-protection floor.
-    pub fn floor(&mut self, floor: RedactionFloor) -> &mut Self {
-        self.builder.floor = Some(floor);
-        self
-    }
+        /// Removes all base allow rules.
+        pub fn clear_allow_rules(&mut self) -> &mut Self {
+            self.builder.rules.clear_allow_rules();
+            self
+        }
 
-    /// Disables the base floor explicitly.
-    pub fn disable_floor(&mut self) -> &mut Self {
-        self.builder.floor = None;
-        self
-    }
+        /// Replaces the base minimum-protection floor.
+        pub fn floor(&mut self, floor: RedactionFloor) -> &mut Self {
+            self.builder.floor = Some(floor);
+            self
+        }
 
-    /// Replaces one shared masking level.
-    pub fn mask(
-        &mut self,
-        level: Sensitivity,
-        policy: MaskPolicy,
-    ) -> Result<&mut Self, PolicyError> {
-        let masking = self.builder.masking.clone().with_policy(level, policy);
-        masking.validate(PolicyLocation::Rules)?;
-        self.builder.masking = masking;
-        Ok(self)
-    }
-}
+        /// Disables the base floor explicitly.
+        pub fn disable_floor(&mut self) -> &mut Self {
+            self.builder.floor = None;
+            self
+        }
 
-/// Mutable view over all HTTP context differences.
-#[cfg(feature = "http")]
-#[must_use]
-pub struct HttpPolicyBuilderView<'a> {
-    builder: &'a mut RedactionPolicyBuilder,
-}
-
-/// Mutable view over URI-specific behavior.
-#[cfg(feature = "uri")]
-#[must_use]
-pub struct UriPolicyBuilderView<'a> {
-    builder: &'a mut crate::uri::UriPolicyBuilder,
-}
-
-#[cfg(feature = "uri")]
-impl UriPolicyBuilderView<'_> {
-    /// Sets URI path visibility.
-    pub fn path(&mut self, policy: crate::uri::UriPathPolicy) -> &mut Self {
-        self.builder.path_policy_mut(policy);
-        self
-    }
-
-    /// Sets URI fragment visibility.
-    pub fn fragment(
-        &mut self,
-        policy: crate::uri::UriFragmentPolicy,
-    ) -> &mut Self {
-        self.builder.fragment_policy_mut(policy);
-        self
-    }
-}
-
-#[cfg(feature = "http")]
-impl HttpPolicyBuilderView<'_> {
-    /// Returns the header context view.
-    pub fn header(&mut self) -> HttpContextBuilderView<'_> {
-        HttpContextBuilderView {
-            builder: &mut self.builder.http,
-            context: crate::http::HttpFieldContext::Header,
+        /// Replaces one shared masking level.
+        pub fn mask(
+            &mut self,
+            level: Sensitivity,
+            policy: MaskPolicy,
+        ) -> Result<&mut Self, PolicyError> {
+            let masking =
+                self.builder.masking.clone().with_policy(level, policy);
+            masking.validate(PolicyLocation::Rules)?;
+            self.builder.masking = masking;
+            Ok(self)
         }
     }
 
-    /// Returns the query/form context view.
-    pub fn query(&mut self) -> HttpContextBuilderView<'_> {
-        HttpContextBuilderView {
-            builder: &mut self.builder.http,
-            context: crate::http::HttpFieldContext::Query,
-        }
-    }
-
-    /// Returns the structured-body context view.
-    pub fn body(&mut self) -> HttpContextBuilderView<'_> {
-        HttpContextBuilderView {
-            builder: &mut self.builder.http,
-            context: crate::http::HttpFieldContext::Body,
-        }
-    }
-
-    /// Sets URL path visibility for HTTP diagnostics.
-    pub fn url_path(
-        &mut self,
-        policy: crate::http::UrlPathPolicy,
-    ) -> &mut Self {
-        self.builder.http.url_path_mut(policy);
-        self
-    }
-
-    /// Sets opaque text-body visibility for HTTP diagnostics.
-    pub fn text_body(
-        &mut self,
-        policy: crate::http::TextBodyPolicy,
-    ) -> &mut Self {
-        self.builder.http.text_body_mut(policy);
-        self
-    }
-
-    /// Sets the same floor for every HTTP field context.
-    pub fn floor_all(&mut self, floor: RedactionFloor) -> &mut Self {
-        self.builder.http.floor_all_mut(floor);
-        self
-    }
-
-    /// Disables every HTTP field-context floor explicitly.
-    pub fn disable_all_floors(&mut self) -> &mut Self {
-        self.builder.http.disable_all_floors_mut();
-        self
-    }
-
-    /// Sets the handling of root and array JSON scalar values in HTTP bodies.
-    pub fn unkeyed_json(
-        &mut self,
-        policy: crate::http::UnkeyedJsonValuePolicy,
-    ) -> &mut Self {
-        self.builder.unkeyed_json_value_policy = policy;
-        self
-    }
-}
-
-/// Mutable view over one HTTP field context.
-#[cfg(feature = "http")]
-#[must_use]
-pub struct HttpContextBuilderView<'a> {
-    builder: &'a mut crate::http::HttpPolicyBuilder,
-    context: crate::http::HttpFieldContext,
-}
-
-#[cfg(feature = "http")]
-impl HttpContextBuilderView<'_> {
-    /// Replaces all rules for this HTTP field context.
-    pub fn replace_rules(&mut self, rules: RedactionRules) -> &mut Self {
-        self.builder.rules_mut(self.context, rules);
-        self
-    }
-
-    /// Raises a context field's minimum sensitivity.
-    pub fn raise(
-        &mut self,
-        field: &str,
-        level: Sensitivity,
-    ) -> Result<&mut Self, PolicyError> {
-        self.builder.raise_mut(self.context, field, level)?;
-        Ok(self)
-    }
-
-    /// Replaces a context field rule without weakening the base policy.
-    pub fn override_level(
-        &mut self,
-        field: &str,
-        level: Sensitivity,
-    ) -> Result<&mut Self, PolicyError> {
-        self.builder
-            .override_level_mut(self.context, field, level)?;
-        Ok(self)
-    }
-
-    /// Adds a context exact allow rule; the base policy still applies.
-    pub fn allow_exact(
-        &mut self,
-        field: &str,
-    ) -> Result<&mut Self, PolicyError> {
-        self.builder.allow_exact_mut(self.context, field)?;
-        Ok(self)
-    }
-
-    /// Adds a context suffix allow rule; the base policy still applies.
-    pub fn allow_suffix(
-        &mut self,
-        field: &str,
-    ) -> Result<&mut Self, PolicyError> {
-        self.builder.allow_suffix_mut(self.context, field)?;
-        Ok(self)
-    }
-
-    /// Removes a context exact allow rule.
-    pub fn remove_allow_exact(
-        &mut self,
-        field: &str,
-    ) -> Result<&mut Self, PolicyError> {
-        self.builder.remove_allow_exact_mut(self.context, field)?;
-        Ok(self)
-    }
-
-    /// Removes a context suffix allow rule.
-    pub fn remove_allow_suffix(
-        &mut self,
-        field: &str,
-    ) -> Result<&mut Self, PolicyError> {
-        self.builder.remove_allow_suffix_mut(self.context, field)?;
-        Ok(self)
-    }
-
-    /// Removes all context allow rules.
-    pub fn clear_allow_rules(&mut self) -> &mut Self {
-        self.builder.clear_allow_rules_mut(self.context);
-        self
-    }
-
-    /// Adds a context floor. Base protection remains independently effective.
-    pub fn floor(&mut self, floor: RedactionFloor) -> &mut Self {
-        self.builder.floor_mut(self.context, floor);
-        self
-    }
-
-    /// Disables this context's explicit floor.
-    pub fn disable_floor(&mut self) -> &mut Self {
-        self.builder.disable_floor_mut(self.context);
-        self
-    }
-}
-
-/// Mutable view over policy limits.
-#[must_use]
-pub struct LimitsBuilder<'a> {
-    builder: &'a mut RedactionPolicyBuilder,
-}
-
-impl LimitsBuilder<'_> {
-    /// Sets the cumulative diagnostic-event limit.
-    pub fn diagnostic_event(&mut self, limit: InputOutputLimit) -> &mut Self {
-        self.builder.limits = self.builder.limits.with_diagnostic_event(limit);
-        self
-    }
-
-    /// Sets the independent ordinary-operation limit.
-    pub fn ordinary_operation(&mut self, limit: InputOutputLimit) -> &mut Self {
-        self.builder.limits =
-            self.builder.limits.with_ordinary_operation(limit);
-        self
-    }
-
-    /// Sets the local HTTP body limit.
+    /// Mutable view over all HTTP context differences.
     #[cfg(feature = "http")]
-    pub fn http_body(&mut self, limit: crate::http::BodyBudget) -> &mut Self {
-        self.builder.limits = self.builder.limits.with_http_body(limit);
-        self
+    #[must_use]
+    pub struct HttpPolicyBuilderView<'a> {
+        pub(super) builder: &'a mut RedactionPolicyBuilder,
     }
 
-    /// Sets the JSON recursion-depth limit.
-    #[cfg(feature = "json")]
-    pub fn json_depth(&mut self, limit: JsonDepthBudget) -> &mut Self {
-        self.builder.limits = self.builder.limits.with_json_depth_budget(limit);
-        self
+    /// Mutable view over URI-specific behavior.
+    #[cfg(feature = "uri")]
+    #[must_use]
+    pub struct UriPolicyBuilderView<'a> {
+        pub(super) builder: &'a mut crate::uri::UriPolicyBuilder,
+    }
+
+    #[cfg(feature = "uri")]
+    impl UriPolicyBuilderView<'_> {
+        /// Sets URI path visibility.
+        pub fn path(&mut self, policy: crate::uri::UriPathPolicy) -> &mut Self {
+            self.builder.path_policy_mut(policy);
+            self
+        }
+
+        /// Sets URI fragment visibility.
+        pub fn fragment(
+            &mut self,
+            policy: crate::uri::UriFragmentPolicy,
+        ) -> &mut Self {
+            self.builder.fragment_policy_mut(policy);
+            self
+        }
+    }
+
+    #[cfg(feature = "http")]
+    impl HttpPolicyBuilderView<'_> {
+        /// Returns the header context view.
+        pub fn header(&mut self) -> HttpContextBuilderView<'_> {
+            HttpContextBuilderView {
+                builder: &mut self.builder.http,
+                context: crate::http::HttpFieldContext::Header,
+            }
+        }
+
+        /// Returns the query/form context view.
+        pub fn query(&mut self) -> HttpContextBuilderView<'_> {
+            HttpContextBuilderView {
+                builder: &mut self.builder.http,
+                context: crate::http::HttpFieldContext::Query,
+            }
+        }
+
+        /// Returns the structured-body context view.
+        pub fn body(&mut self) -> HttpContextBuilderView<'_> {
+            HttpContextBuilderView {
+                builder: &mut self.builder.http,
+                context: crate::http::HttpFieldContext::Body,
+            }
+        }
+
+        /// Sets URL path visibility for HTTP diagnostics.
+        pub fn url_path(
+            &mut self,
+            policy: crate::http::UrlPathPolicy,
+        ) -> &mut Self {
+            self.builder.http.url_path_mut(policy);
+            self
+        }
+
+        /// Sets opaque text-body visibility for HTTP diagnostics.
+        pub fn text_body(
+            &mut self,
+            policy: crate::http::TextBodyPolicy,
+        ) -> &mut Self {
+            self.builder.http.text_body_mut(policy);
+            self
+        }
+
+        /// Sets the same floor for every HTTP field context.
+        pub fn floor_all(&mut self, floor: RedactionFloor) -> &mut Self {
+            self.builder.http.floor_all_mut(floor);
+            self
+        }
+
+        /// Disables every HTTP field-context floor explicitly.
+        pub fn disable_all_floors(&mut self) -> &mut Self {
+            self.builder.http.disable_all_floors_mut();
+            self
+        }
+
+        /// Sets the handling of root and array JSON scalar values in HTTP
+        /// bodies.
+        pub fn unkeyed_json(
+            &mut self,
+            policy: crate::http::UnkeyedJsonValuePolicy,
+        ) -> &mut Self {
+            self.builder.unkeyed_json_value_policy = policy;
+            self
+        }
+    }
+
+    /// Mutable view over one HTTP field context.
+    #[cfg(feature = "http")]
+    #[must_use]
+    pub struct HttpContextBuilderView<'a> {
+        builder: &'a mut crate::http::HttpPolicyBuilder,
+        context: crate::http::HttpFieldContext,
+    }
+
+    #[cfg(feature = "http")]
+    impl HttpContextBuilderView<'_> {
+        /// Replaces all rules for this HTTP field context.
+        pub fn replace_rules(&mut self, rules: RedactionRules) -> &mut Self {
+            self.builder.rules_mut(self.context, rules);
+            self
+        }
+
+        /// Raises a context field's minimum sensitivity.
+        pub fn raise(
+            &mut self,
+            field: &str,
+            level: Sensitivity,
+        ) -> Result<&mut Self, PolicyError> {
+            self.builder.raise_mut(self.context, field, level)?;
+            Ok(self)
+        }
+
+        /// Replaces a context field rule without weakening the base policy.
+        pub fn override_level(
+            &mut self,
+            field: &str,
+            level: Sensitivity,
+        ) -> Result<&mut Self, PolicyError> {
+            self.builder
+                .override_level_mut(self.context, field, level)?;
+            Ok(self)
+        }
+
+        /// Adds a context exact allow rule; the base policy still applies.
+        pub fn allow_exact(
+            &mut self,
+            field: &str,
+        ) -> Result<&mut Self, PolicyError> {
+            self.builder.allow_exact_mut(self.context, field)?;
+            Ok(self)
+        }
+
+        /// Adds a context suffix allow rule; the base policy still applies.
+        pub fn allow_suffix(
+            &mut self,
+            field: &str,
+        ) -> Result<&mut Self, PolicyError> {
+            self.builder.allow_suffix_mut(self.context, field)?;
+            Ok(self)
+        }
+
+        /// Removes a context exact allow rule.
+        pub fn remove_allow_exact(
+            &mut self,
+            field: &str,
+        ) -> Result<&mut Self, PolicyError> {
+            self.builder.remove_allow_exact_mut(self.context, field)?;
+            Ok(self)
+        }
+
+        /// Removes a context suffix allow rule.
+        pub fn remove_allow_suffix(
+            &mut self,
+            field: &str,
+        ) -> Result<&mut Self, PolicyError> {
+            self.builder.remove_allow_suffix_mut(self.context, field)?;
+            Ok(self)
+        }
+
+        /// Removes all context allow rules.
+        pub fn clear_allow_rules(&mut self) -> &mut Self {
+            self.builder.clear_allow_rules_mut(self.context);
+            self
+        }
+
+        /// Adds a context floor. Base protection remains independently
+        /// effective.
+        pub fn floor(&mut self, floor: RedactionFloor) -> &mut Self {
+            self.builder.floor_mut(self.context, floor);
+            self
+        }
+
+        /// Disables this context's explicit floor.
+        pub fn disable_floor(&mut self) -> &mut Self {
+            self.builder.disable_floor_mut(self.context);
+            self
+        }
+    }
+
+    /// Mutable view over policy limits.
+    #[must_use]
+    pub struct LimitsBuilder<'a> {
+        pub(super) builder: &'a mut RedactionPolicyBuilder,
+    }
+
+    impl LimitsBuilder<'_> {
+        /// Sets the cumulative diagnostic-event limit.
+        pub fn diagnostic_event(
+            &mut self,
+            limit: InputOutputLimit,
+        ) -> &mut Self {
+            self.builder.limits =
+                self.builder.limits.with_diagnostic_event(limit);
+            self
+        }
+
+        /// Sets the independent ordinary-operation limit.
+        pub fn ordinary_operation(
+            &mut self,
+            limit: InputOutputLimit,
+        ) -> &mut Self {
+            self.builder.limits =
+                self.builder.limits.with_ordinary_operation(limit);
+            self
+        }
+
+        /// Sets the local HTTP body limit.
+        #[cfg(feature = "http")]
+        pub fn http_body(
+            &mut self,
+            limit: crate::http::BodyBudget,
+        ) -> &mut Self {
+            self.builder.limits = self.builder.limits.with_http_body(limit);
+            self
+        }
+
+        /// Sets the JSON recursion-depth limit.
+        #[cfg(feature = "json")]
+        pub fn json_depth(&mut self, limit: JsonDepthBudget) -> &mut Self {
+            self.builder.limits =
+                self.builder.limits.with_json_depth_budget(limit);
+            self
+        }
     }
 }
+
+pub use views::{
+    FieldsBuilder,
+    HttpContextBuilderView,
+    HttpPolicyBuilderView,
+    LimitsBuilder,
+    UriPolicyBuilderView,
+};
 
 impl Default for RedactionPolicyBuilder {
     fn default() -> Self {

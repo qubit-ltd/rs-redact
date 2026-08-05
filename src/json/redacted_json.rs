@@ -6,12 +6,8 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Lazy recursive formatting for an already parsed JSON value.
-// qubit-style: allow multiple-public-types
 
-use std::fmt::{
-    self,
-    Write as _,
-};
+use std::fmt;
 
 use serde_json::Value;
 
@@ -21,18 +17,11 @@ use serde::ser::{
     SerializeSeq as _,
 };
 
-use crate::policy::OutputCharge;
 use crate::{
-    LogOutputLimit,
     RedactValue as _,
     RedactedValue,
     RedactionPolicy,
-    RedactionSession,
     policy::ResolvedField,
-    text::internal::{
-        BoundedLogEscapeWriter,
-        LogEscapeWriter,
-    },
 };
 
 /// A borrowed JSON value rendered with policy-aware object-key redaction.
@@ -226,92 +215,115 @@ impl serde::Serialize for RedactedJson<'_, '_> {
     }
 }
 
-/// A nested parsed JSON view that reuses one diagnostic session.
-#[must_use = "format the nested redacted JSON view"]
-pub struct RedactedJsonSession<'value, 'session, 'policy> {
-    /// Parsed JSON borrowed without cloning.
-    value: &'value Value,
-    /// Shared diagnostic session for the enclosing representation.
-    session: &'session RedactionSession<'policy>,
-}
+mod session_view {
+    use std::fmt::{
+        self,
+        Write as _,
+    };
 
-impl<'value, 'session, 'policy> RedactedJsonSession<'value, 'session, 'policy> {
-    /// Creates a parsed JSON view using an existing diagnostic session.
-    #[inline(always)]
-    pub fn new(
+    use serde_json::Value;
+
+    use crate::{
+        LogOutputLimit,
+        RedactedJson,
+        RedactionSession,
+        policy::OutputCharge,
+        text::internal::{
+            BoundedLogEscapeWriter,
+            LogEscapeWriter,
+        },
+    };
+
+    /// A nested parsed JSON view that reuses one diagnostic session.
+    #[must_use = "format the nested redacted JSON view"]
+    pub struct RedactedJsonSession<'value, 'session, 'policy> {
+        /// Parsed JSON borrowed without cloning.
         value: &'value Value,
+        /// Shared diagnostic session for the enclosing representation.
         session: &'session RedactionSession<'policy>,
-    ) -> Self {
-        Self { value, session }
     }
 
-    /// Returns an opaque fallback when the shared output budget cannot accept
-    /// another JSON fragment.
-    #[inline]
-    fn opaque(&self) -> &str {
-        self.session
-            .policy()
-            .masking()
-            .mask_opaque(crate::Sensitivity::Secret)
-    }
+    impl<'value, 'session, 'policy> RedactedJsonSession<'value, 'session, 'policy> {
+        /// Creates a parsed JSON view using an existing diagnostic session.
+        #[inline(always)]
+        pub fn new(
+            value: &'value Value,
+            session: &'session RedactionSession<'policy>,
+        ) -> Self {
+            Self { value, session }
+        }
 
-    /// Formats the parsed JSON through a bounded writer and charges the
-    /// resulting fragment to the enclosing diagnostic session.
-    fn render(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let remaining = self.session.remaining_output_bytes();
-        let Some(limit) = LogOutputLimit::new(remaining).ok() else {
-            return self.write_fallback(formatter);
-        };
-        let mut writer = BoundedLogEscapeWriter::new(limit);
-        let view = RedactedJson::new(self.value, self.session.policy());
-        let _ = if formatter.alternate() {
-            write!(&mut writer, "{view:#?}")
-        } else {
-            write!(&mut writer, "{view:?}")
-        };
-        let rendered = writer.finish();
-        match self
-            .session
-            .charge_output_or_fallback(rendered.len(), self.opaque().len())
-        {
-            OutputCharge::Complete => formatter.write_str(&rendered),
-            OutputCharge::Fallback => formatter.write_str(self.opaque()),
-            OutputCharge::Exhausted => Ok(()),
+        /// Returns an opaque fallback when the shared output budget cannot
+        /// accept another JSON fragment.
+        #[inline]
+        fn opaque(&self) -> &str {
+            self.session
+                .policy()
+                .masking()
+                .mask_opaque(crate::Sensitivity::Secret)
+        }
+
+        /// Formats the parsed JSON through a bounded writer and charges the
+        /// resulting fragment to the enclosing diagnostic session.
+        fn render(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let remaining = self.session.remaining_output_bytes();
+            let Some(limit) = LogOutputLimit::new(remaining).ok() else {
+                return self.write_fallback(formatter);
+            };
+            let mut writer = BoundedLogEscapeWriter::new(limit);
+            let view = RedactedJson::new(self.value, self.session.policy());
+            let _ = if formatter.alternate() {
+                write!(&mut writer, "{view:#?}")
+            } else {
+                write!(&mut writer, "{view:?}")
+            };
+            let rendered = writer.finish();
+            match self
+                .session
+                .charge_output_or_fallback(rendered.len(), self.opaque().len())
+            {
+                OutputCharge::Complete => formatter.write_str(&rendered),
+                OutputCharge::Fallback => formatter.write_str(self.opaque()),
+                OutputCharge::Exhausted => Ok(()),
+            }
+        }
+
+        /// Writes one charged opaque fallback, or nothing after output
+        /// exhaustion.
+        fn write_fallback(
+            &self,
+            formatter: &mut fmt::Formatter<'_>,
+        ) -> fmt::Result {
+            let fallback = self.opaque();
+            match self
+                .session
+                .charge_output_or_fallback(fallback.len(), fallback.len())
+            {
+                OutputCharge::Complete => formatter.write_str(fallback),
+                OutputCharge::Fallback | OutputCharge::Exhausted => Ok(()),
+            }
         }
     }
 
-    /// Writes one charged opaque fallback, or nothing after output exhaustion.
-    fn write_fallback(
-        &self,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let fallback = self.opaque();
-        match self
-            .session
-            .charge_output_or_fallback(fallback.len(), fallback.len())
-        {
-            OutputCharge::Complete => formatter.write_str(fallback),
-            OutputCharge::Fallback | OutputCharge::Exhausted => Ok(()),
+    impl fmt::Debug for RedactedJsonSession<'_, '_, '_> {
+        /// Formats parsed JSON through the shared diagnostic session.
+        #[inline]
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            self.render(formatter)
+        }
+    }
+
+    impl fmt::Display for RedactedJsonSession<'_, '_, '_> {
+        /// Escapes the shared-session JSON representation for plain-text logs.
+        #[inline]
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let mut writer = LogEscapeWriter::new(formatter);
+            write!(&mut writer, "{self:?}")
         }
     }
 }
 
-impl fmt::Debug for RedactedJsonSession<'_, '_, '_> {
-    /// Formats parsed JSON through the shared diagnostic session.
-    #[inline]
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.render(formatter)
-    }
-}
-
-impl fmt::Display for RedactedJsonSession<'_, '_, '_> {
-    /// Escapes the shared-session JSON representation for plain-text logs.
-    #[inline]
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut writer = LogEscapeWriter::new(formatter);
-        write!(&mut writer, "{self:?}")
-    }
-}
+pub use session_view::RedactedJsonSession;
 
 /// Recursively formats one JSON node with policy-aware object keys.
 ///

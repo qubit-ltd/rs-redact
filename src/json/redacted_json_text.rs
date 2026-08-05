@@ -6,18 +6,15 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Lazy fail-closed formatting for JSON stored as text.
-// qubit-style: allow multiple-public-types
 
 use std::fmt::{
     self,
     Write as _,
 };
 
-use crate::policy::OutputCharge;
 use crate::{
     LogOutputLimit,
     RedactionPolicy,
-    RedactionSession,
     Sensitivity,
     text::internal::BoundedLogEscapeWriter,
 };
@@ -168,84 +165,100 @@ impl fmt::Display for RedactedJsonText<'_, '_> {
     }
 }
 
-/// A nested JSON text view that accounts against an existing diagnostic
-/// session.
-#[must_use = "format the nested redacted JSON text view"]
-pub struct RedactedJsonTextSession<'text, 'session, 'policy> {
-    text: &'text str,
-    session: &'session RedactionSession<'policy>,
-}
+mod session_view {
+    use std::fmt;
 
-impl<'text, 'session, 'policy>
-    RedactedJsonTextSession<'text, 'session, 'policy>
-{
-    /// Creates a JSON text view borrowing an existing diagnostic session.
-    #[inline(always)]
-    pub fn new(
+    use crate::{
+        RedactedJsonText,
+        RedactionSession,
+        Sensitivity,
+        policy::OutputCharge,
+    };
+
+    /// A nested JSON text view that accounts against an existing diagnostic
+    /// session.
+    #[must_use = "format the nested redacted JSON text view"]
+    pub struct RedactedJsonTextSession<'text, 'session, 'policy> {
         text: &'text str,
         session: &'session RedactionSession<'policy>,
-    ) -> Self {
-        Self { text, session }
     }
 
-    /// Renders the nested JSON text while consuming session input and output.
-    fn render(&self) -> String {
-        let policy = self.session.policy();
-        if !self.session.consume_input(self.text.len()) {
-            return self.fallback();
+    impl<'text, 'session, 'policy>
+        RedactedJsonTextSession<'text, 'session, 'policy>
+    {
+        /// Creates a JSON text view borrowing an existing diagnostic session.
+        #[inline(always)]
+        pub fn new(
+            text: &'text str,
+            session: &'session RedactionSession<'policy>,
+        ) -> Self {
+            Self { text, session }
         }
-        let mut rendered = String::new();
-        if fmt::write(
-            &mut rendered,
-            format_args!("{:?}", RedactedJsonText::new(self.text, policy),),
-        )
-        .is_err()
-        {
-            return self.fallback();
+
+        /// Renders the nested JSON text while consuming session input and
+        /// output.
+        fn render(&self) -> String {
+            let policy = self.session.policy();
+            if !self.session.consume_input(self.text.len()) {
+                return self.fallback();
+            }
+            let mut rendered = String::new();
+            if fmt::write(
+                &mut rendered,
+                format_args!("{:?}", RedactedJsonText::new(self.text, policy),),
+            )
+            .is_err()
+            {
+                return self.fallback();
+            }
+            let fallback = policy.masking().mask_opaque(Sensitivity::Secret);
+            match self
+                .session
+                .charge_output_or_fallback(rendered.len(), fallback.len())
+            {
+                OutputCharge::Complete => rendered,
+                OutputCharge::Fallback => fallback.to_owned(),
+                OutputCharge::Exhausted => String::new(),
+            }
         }
-        let fallback = policy.masking().mask_opaque(Sensitivity::Secret);
-        match self
-            .session
-            .charge_output_or_fallback(rendered.len(), fallback.len())
-        {
-            OutputCharge::Complete => rendered,
-            OutputCharge::Fallback => fallback.to_owned(),
-            OutputCharge::Exhausted => String::new(),
+
+        /// Charges one opaque fallback or returns no bytes after exhaustion.
+        fn fallback(&self) -> String {
+            let fallback = self
+                .session
+                .policy()
+                .masking()
+                .mask_opaque(Sensitivity::Secret);
+            match self
+                .session
+                .charge_output_or_fallback(fallback.len(), fallback.len())
+            {
+                OutputCharge::Complete => fallback.to_owned(),
+                OutputCharge::Fallback | OutputCharge::Exhausted => {
+                    String::new()
+                }
+            }
         }
     }
 
-    /// Charges one opaque fallback or returns no bytes after exhaustion.
-    fn fallback(&self) -> String {
-        let fallback = self
-            .session
-            .policy()
-            .masking()
-            .mask_opaque(Sensitivity::Secret);
-        match self
-            .session
-            .charge_output_or_fallback(fallback.len(), fallback.len())
-        {
-            OutputCharge::Complete => fallback.to_owned(),
-            OutputCharge::Fallback | OutputCharge::Exhausted => String::new(),
+    impl fmt::Debug for RedactedJsonTextSession<'_, '_, '_> {
+        /// Formats nested JSON text through the shared session.
+        #[inline]
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str(&self.render())
+        }
+    }
+
+    impl fmt::Display for RedactedJsonTextSession<'_, '_, '_> {
+        /// Escapes nested JSON text through the shared session.
+        #[inline]
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str(&self.render())
         }
     }
 }
 
-impl fmt::Debug for RedactedJsonTextSession<'_, '_, '_> {
-    /// Formats nested JSON text through the shared session.
-    #[inline]
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.render())
-    }
-}
-
-impl fmt::Display for RedactedJsonTextSession<'_, '_, '_> {
-    /// Escapes nested JSON text through the shared session.
-    #[inline]
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.render())
-    }
-}
+pub use session_view::RedactedJsonTextSession;
 
 #[cfg(feature = "serde")]
 impl serde::Serialize for RedactedJsonText<'_, '_> {

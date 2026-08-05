@@ -58,7 +58,14 @@ pub use redaction_floor::RedactionFloor;
 pub use redaction_floor_builder::RedactionFloorBuilder;
 pub use redaction_limits::RedactionLimits;
 pub use redaction_policy::RedactionPolicy;
-pub use redaction_policy_builder::RedactionPolicyBuilder;
+pub use redaction_policy_builder::{
+    FieldsBuilder,
+    HttpContextBuilderView,
+    HttpPolicyBuilderView,
+    LimitsBuilder,
+    RedactionPolicyBuilder,
+    UriPolicyBuilderView,
+};
 pub use redaction_rules::RedactionRules;
 pub(crate) use redaction_rules_builder::RedactionRulesBuilder;
 pub(crate) use redaction_session::OutputCharge;
