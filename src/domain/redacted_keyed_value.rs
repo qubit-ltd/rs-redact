@@ -14,6 +14,8 @@ use std::fmt::{
     Formatter,
 };
 
+#[cfg(feature = "serde")]
+use crate::policy::ResolvedField;
 use crate::{
     LogOutputLimit,
     Redact,
@@ -21,8 +23,6 @@ use crate::{
     RedactionPolicy,
     RedactionSession,
 };
-#[cfg(feature = "serde")]
-use crate::policy::ResolvedField;
 
 use super::{
     bounded_redacted_display::format_bounded,
