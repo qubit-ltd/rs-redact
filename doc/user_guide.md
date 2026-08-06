@@ -73,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | Named scalar value | `Redactor::redact_field` | `RedactedText`, then `LogSafeText` for plain-text logs |
 | Text-keyed map | `Redactor::redact_map` or `redact_map_in_place` | A copied or mutated map; choose the final logging format explicitly |
 | Rust struct or enum | `Redact` derive | `Redacted<T>` view |
-| Value requiring logical replacement | `RedactMut` derive | Mutated value; not memory erasure |
+| Value requiring logical replacement | `Redact` derive | The generated `RedactMut` capability mutates the value; not memory erasure |
 | Command arguments | `ArgvRedactor` | `RedactedArgv` |
 | Environment pairs | `EnvRedactor` | `RedactedEnvPair` or `LogSafeText` |
 | URL, form, headers, captured body | `HttpRedactor` | Log-safe HTTP result types |
@@ -309,11 +309,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 Use `redacted_debug(value)` in a custom `Debug` implementation when a captured
 value must always render as `<redacted>` and must never call its own `Debug`.
 
-## 4. Redact domain objects with `Redact` and `RedactMut`
+## 4. Redact domain objects with `Redact`
 
-`qubit-redact-derive` provides procedural macros that apply the runtime policy
-to Rust structs and enums. `Redact` creates a borrowed view for diagnostics;
-`RedactMut` explicitly replaces logical values when an owned value is required.
+`qubit-redact-derive` provides a `Redact` derive that applies the runtime
+policy to Rust structs and enums. It creates a borrowed view for diagnostics
+and generates `RedactMut` by default so logical values can be explicitly
+replaced when an owned value is required.
 At field boundaries, `level` masks a field, `plain` documents intentional
 visibility, `nested` recurses, `map` classifies map values by key, and `skip`
 omits a field from redacted representations. Add
@@ -330,9 +331,9 @@ qubit-redact-derive = "0.4"
 
 ```ignore
 use qubit_redact::{Redact as _, RedactMut as _};
-use qubit_redact_derive::{Redact, RedactMut};
+use qubit_redact_derive::Redact;
 
-#[derive(Clone, Redact, RedactMut)]
+#[derive(Clone, Redact)]
 struct Credentials {
     user: String,
     #[redact(level = "secret")]
@@ -363,10 +364,12 @@ zeroization strategy when memory erasure is required.
 Plain fields are never traversed implicitly. Derives support named, tuple, and
 unit structs plus enums with those variant shapes.
 
-### Serialize a redacted view with Serde
+### Serialize a domain object or view with Serde
 
 Serialization is opt-in: enable the `serde` feature, declare `serde` directly,
-and add `#[redact(serde)]`. `Redacted` does not implement `Deserialize`.
+and add `#[redact(serde)]`. Direct serialization of the original type is
+redacted; `Redacted` also supports policy-aware serialization and does not
+implement `Deserialize`.
 
 For a `String` that stores JSON, enable the `json` feature and use
 `#[redact(json)]`. It recursively applies the policy to JSON object keys,
@@ -406,12 +409,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         token: "raw-token".to_owned(),
         internal_note: "operator-only".to_owned(),
     };
-    let json = serde_json::to_string(&event.redacted())?;
+    let json = serde_json::to_string(&event)?;
     assert!(!json.contains("raw-token"));
     assert!(!json.contains("operator-only"));
     Ok(())
 }
 ```
+
+Direct serialization uses the process-wide default policy. Serialize
+`event.redacted_with(&policy)` when an explicit policy snapshot is required.
+`#[redact(serde)]` generates `Serialize`, not `Deserialize`.
 
 ## 5. Redact command arguments with `ArgvRedactor`
 

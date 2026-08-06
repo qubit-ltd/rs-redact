@@ -105,7 +105,7 @@ complete field attributes and Serde/JSON integration are covered in the
 | Named scalar value | `Redactor::redact_field` | `RedactedText`; call `escape_for_log()` for plain-text logs. |
 | Text-keyed map | `Redactor::redact_map` or `redact_map_in_place` | A copied or mutated map; apply the final logging format yourself. |
 | Rust struct or enum | `Redact` derive | Borrowed `Redacted<T>` view with safe formatting. |
-| Value that must be logically replaced | `RedactMut` derive | Mutated value; this is not memory erasure. |
+| Value that must be logically replaced | `Redact` derive | The generated `RedactMut` capability mutates the value; this is not memory erasure. |
 | Command arguments | `ArgvRedactor` | `RedactedArgv`, safe to display. |
 | Environment pairs | `EnvRedactor` | `RedactedEnvPair` or `LogSafeText`. |
 | URL, form, headers, or captured body | `HttpRedactor` | Bounded, log-safe HTTP result types. |
@@ -117,7 +117,7 @@ complete field attributes and Serde/JSON integration are covered in the
 | --- | --- |
 | Core scalar, map, process, and text support | `qubit-redact = "0.4"` |
 | Domain-object derives | Add `qubit-redact-derive = "0.4"`. |
-| Serialize redacted views | Enable `serde` and declare `serde` directly. |
+| Serialize redacted domain objects or views | Enable `serde` and declare `serde` directly. `#[redact(serde)]` makes direct serialization redacted. |
 | Redact `serde_json::Value` or JSON text fields | Enable `json`; add `serde_json` directly when your application uses it. |
 | HTTP diagnostics | Enable `http`; add `http` directly when your application uses its types. |
 | Policy-driven URI redaction | Enable `uri`; this is independent from `http`. |

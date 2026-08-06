@@ -94,7 +94,7 @@ Serde/JSON 集成说明请参阅 [derive README](https://github.com/qubit-ltd/rs
 | 具名标量值 | `Redactor::redact_field` | `RedactedText`；写入纯文本日志前调用 `escape_for_log()`。 |
 | 文本 key Map | `Redactor::redact_map` 或 `redact_map_in_place` | 返回副本或修改原 Map；最终日志格式仍需由调用方处理。 |
 | Rust struct 或 enum | `Redact` derive | 借用的 `Redacted<T>` 视图，支持安全格式化。 |
-| 必须逻辑替换的值 | `RedactMut` derive | 已修改对象；这不等于内存擦除。 |
+| 必须逻辑替换的值 | `Redact` derive | 使用同一 derive 生成的 `RedactMut` 修改对象；这不等于内存擦除。 |
 | 命令行参数 | `ArgvRedactor` | 可安全显示的 `RedactedArgv`。 |
 | 环境变量 pair | `EnvRedactor` | `RedactedEnvPair` 或 `LogSafeText`。 |
 | URL、form、Header 或捕获的 body | `HttpRedactor` | 有界、日志安全的 HTTP 结果类型。 |
@@ -106,7 +106,7 @@ Serde/JSON 集成说明请参阅 [derive README](https://github.com/qubit-ltd/rs
 | --- | --- |
 | 标量、Map、进程和文本 core 能力 | `qubit-redact = "0.4"` |
 | 领域对象 derive | 添加 `qubit-redact-derive = "0.4"`。 |
-| 序列化脱敏视图 | 启用 `serde`，并直接声明 `serde` 依赖。 |
+| 序列化脱敏领域对象或视图 | 启用 `serde`，并直接声明 `serde` 依赖；`#[redact(serde)]` 让直接序列化也自动脱敏。 |
 | 脱敏 `serde_json::Value` 或 JSON 文本字段 | 启用 `json`；应用使用时直接添加 `serde_json`。 |
 | HTTP 诊断 | 启用 `http`；应用使用其类型时直接添加 `http`。 |
 | 策略驱动 URI 脱敏 | 启用 `uri`；它与 `http` 相互独立。 |

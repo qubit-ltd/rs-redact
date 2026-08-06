@@ -133,15 +133,15 @@
 //!
 //! ```ignore
 //! use qubit_redact::{Redact as _, RedactMut as _};
-//! use qubit_redact_derive::{Redact, RedactMut};
+//! use qubit_redact_derive::Redact;
 //!
-//! #[derive(Clone, Redact, RedactMut)]
+//! #[derive(Clone, Redact)]
 //! struct Secret {
 //!     #[redact(level = "secret")]
 //!     value: String,
 //! }
 //!
-//! #[derive(Clone, Redact, RedactMut)]
+//! #[derive(Clone, Redact)]
 //! struct Envelope {
 //!     #[redact(nested)]
 //!     secret: Secret,
@@ -159,8 +159,10 @@
 //! ```
 //!
 //! With the `serde` feature, a direct `serde` dependency, and the companion
-//! derive crate, `#[redact(serde)]` opts the redacted view into serialization.
-//! [`Redacted`] intentionally does not implement `Deserialize`.
+//! derive crate, `#[redact(serde)]` makes direct serialization of the original
+//! type use its redacted representation. [`Redacted`] also supports
+//! policy-aware serialization and intentionally does not implement
+//! `Deserialize`.
 //!
 //! ```ignore
 //! # #[cfg(feature = "serde")]
@@ -181,7 +183,7 @@
 //!     token: "raw-token".to_owned(),
 //!     internal_note: "not serialized".to_owned(),
 //! };
-//! let json = serde_json::to_string(&value.redacted())?;
+//! let json = serde_json::to_string(&value)?;
 //! assert!(!json.contains("raw-token"));
 //! assert!(!json.contains("internal_note"));
 //! assert!(!format!("{value:?}").contains("raw-token"));

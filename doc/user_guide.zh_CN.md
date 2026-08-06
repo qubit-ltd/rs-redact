@@ -70,7 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 具名标量值 | `Redactor::redact_field` | `RedactedText`；写入纯文本日志前转为 `LogSafeText` |
 | 文本 key Map | `Redactor::redact_map` 或 `redact_map_in_place` | 返回副本或修改原 Map；显式选择最终日志格式 |
 | Rust struct 或 enum | `Redact` derive | `Redacted<T>` 视图 |
-| 需要逻辑替换的值 | `RedactMut` derive | 已修改对象；不等于内存擦除 |
+| 需要逻辑替换的值 | `Redact` derive | 使用同一 derive 生成的 `RedactMut` 修改对象；不等于内存擦除 |
 | 命令行参数 | `ArgvRedactor` | `RedactedArgv` |
 | 环境变量 pair | `EnvRedactor` | `RedactedEnvPair` 或 `LogSafeText` |
 | URL、form、Header、捕获的 body | `HttpRedactor` | 日志安全 HTTP 结果类型 |
@@ -270,10 +270,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 在自定义 `Debug` 实现中，如捕获值必须固定显示为 `<redacted>`，请使用
 `redacted_debug(value)`；它不会调用被包装值自己的 `Debug` 实现。
 
-## 4. 用 `Redact` 和 `RedactMut` 处理领域对象
+## 4. 用 `Redact` 处理领域对象
 
-`qubit-redact-derive` 提供过程派生宏，将运行时策略应用到 Rust struct 和 enum。
-`Redact` 为诊断信息创建借用视图；需要拥有式值时，`RedactMut` 显式替换逻辑值。
+`qubit-redact-derive` 提供 `Redact` 过程派生宏，将运行时策略应用到 Rust struct 和
+enum。它为诊断信息创建借用视图，并默认生成 `RedactMut`，需要拥有式值时可以显式替换
+逻辑值。
 在字段边界，`level` 遮盖字段，`plain` 记录有意直通，`nested` 递归，`map` 按 key
 处理 Map 值，`skip` 从脱敏表示中省略字段。需要每个字段都显式选择模式时，添加
 `#[redact(require_explicit)]`；默认语义保持不变。完整的宏参考和示例请参阅
@@ -288,9 +289,9 @@ qubit-redact-derive = "0.4"
 
 ```ignore
 use qubit_redact::{Redact as _, RedactMut as _};
-use qubit_redact_derive::{Redact, RedactMut};
+use qubit_redact_derive::Redact;
 
-#[derive(Clone, Redact, RedactMut)]
+#[derive(Clone, Redact)]
 struct Credentials {
     user: String,
     #[redact(level = "secret")]
@@ -320,10 +321,11 @@ fn main() {
 普通字段绝不会被隐式遍历。derive 支持具名、tuple、unit struct 以及具有这些 variant
 形态的 enum。
 
-### 使用 Serde 序列化脱敏视图
+### 使用 Serde 序列化领域对象或脱敏视图
 
 序列化必须显式 opt-in：启用 `serde` feature，在使用方直接声明 `serde`，并添加
-`#[redact(serde)]`。`Redacted` 不实现 `Deserialize`。
+`#[redact(serde)]`。原类型直接序列化时会自动脱敏；`Redacted` 仍支持策略感知的
+序列化，但不实现 `Deserialize`。
 
 若 `String` 存储 JSON，启用 `json` feature 并使用 `#[redact(json)]`。它按 JSON
 对象 key 递归应用策略，`Redact` 格式化脱敏视图，`RedactMut` 改写为紧凑脱敏 JSON；
@@ -360,12 +362,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         token: "raw-token".to_owned(),
         internal_note: "operator-only".to_owned(),
     };
-    let json = serde_json::to_string(&event.redacted())?;
+    let json = serde_json::to_string(&event)?;
     assert!(!json.contains("raw-token"));
     assert!(!json.contains("operator-only"));
     Ok(())
 }
 ```
+
+直接序列化使用进程级默认策略；需要显式策略快照时，序列化
+`event.redacted_with(&policy)`。`#[redact(serde)]` 生成 `Serialize`，不生成
+`Deserialize`。
 
 ## 5. 用 `ArgvRedactor` 处理命令行参数
 
