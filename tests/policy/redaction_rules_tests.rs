@@ -7,16 +7,14 @@
 // =============================================================================
 //! Tests for immutable redaction rule behavior.
 
-use qubit_redact::{
-    FieldClassification,
-    FieldMatchKind,
-    FieldNameMatching,
-    RedactionPolicy,
-    RedactionRules,
-    Sensitivity,
-    UnknownFieldPolicy,
-};
-
+use qubit_redact::FieldClassification;
+use qubit_redact::FieldMatchKind;
+use qubit_redact::FieldNameMatching;
+use qubit_redact::RedactionFloor;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionRules;
+use qubit_redact::Sensitivity;
+use qubit_redact::UnknownFieldPolicy;
 /// Verifies exact allow rules win only for exact candidates before suffix
 /// rules.
 #[test]
@@ -85,7 +83,7 @@ fn test_redaction_rules_expose_application_matching_and_unknown_policy() {
 /// Verifies the floor also retains the strongest overlapping sensitive rule.
 #[test]
 fn test_redaction_rules_floor_resolves_overlaps_to_strongest_level() {
-    let floor = qubit_redact::RedactionFloor::builder()
+    let floor = RedactionFloor::builder()
         .raise("token", Sensitivity::Secret)
         .expect("the shorter floor rule should be valid")
         .raise("access_token", Sensitivity::Medium)

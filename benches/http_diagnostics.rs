@@ -9,24 +9,18 @@
 
 use std::hint::black_box;
 
-use criterion::{
-    BenchmarkId,
-    Criterion,
-    Throughput,
-    criterion_group,
-    criterion_main,
-};
-use http::{
-    HeaderMap,
-    HeaderValue,
-};
+use criterion::BenchmarkId;
+use criterion::Criterion;
+use criterion::Throughput;
+use criterion::criterion_group;
+use criterion::criterion_main;
+use http::HeaderMap;
+use http::HeaderValue;
 use qubit_redact::InputOutputLimit;
-use qubit_redact::{
-    RedactionPolicy,
-    http::BodyBudget,
-    http::BodyCapture,
-    http::HttpRedactor,
-};
+use qubit_redact::RedactionPolicy;
+use qubit_redact::http::BodyBudget;
+use qubit_redact::http::BodyCapture;
+use qubit_redact::http::HttpRedactor;
 
 /// Measures URL suffix handling with many unmatched closing delimiters.
 fn benchmark_unmatched_url_delimiters(criterion: &mut Criterion) {

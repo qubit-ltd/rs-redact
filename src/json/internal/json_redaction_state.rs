@@ -7,21 +7,17 @@
 // =============================================================================
 //! Stateful bounded traversal for mutable JSON redaction.
 
+use serde_json::Map;
 use serde_json::Value;
 
-use crate::{
-    JsonDepthBudget,
-    MaskingPolicy,
-    RedactionPolicy,
-    RedactionRules,
-    Sensitivity,
-    policy::ResolvedField,
-};
-
-use super::{
-    JsonRedactionOutcome,
-    JsonUnkeyedValuePolicy,
-};
+use super::JsonRedactionOutcome;
+use super::JsonUnkeyedValuePolicy;
+use crate::JsonDepthBudget;
+use crate::MaskingPolicy;
+use crate::RedactionPolicy;
+use crate::RedactionRules;
+use crate::Sensitivity;
+use crate::policy::ResolvedField;
 
 /// Mutable state shared by one JSON tree traversal.
 pub(crate) struct JsonRedactionState<'policy, 'budget, 'marker> {
@@ -146,7 +142,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// Aggregate outcome for every traversed child.
     fn redact_object(
         &mut self,
-        values: &mut serde_json::Map<String, Value>,
+        values: &mut Map<String, Value>,
         depth: usize,
     ) -> JsonRedactionOutcome {
         let mut outcome = JsonRedactionOutcome::default();

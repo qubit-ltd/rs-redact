@@ -7,12 +7,9 @@
 // =============================================================================
 //! Tests for immutable URI policy accessors.
 
-use qubit_redact::{
-    RedactionPolicy,
-    UriFragmentPolicy,
-    UriPathPolicy,
-};
-
+use qubit_redact::RedactionPolicy;
+use qubit_redact::UriFragmentPolicy;
+use qubit_redact::UriPathPolicy;
 /// Verifies the URI snapshot exposes its default path and fragment choices.
 #[test]
 fn test_uri_policy_exposes_default_behavior() {

@@ -8,10 +8,8 @@
 //! Shared immutable state for URI redaction policies.
 // qubit-style: allow type-file-name
 
-use super::{
-    UriFragmentPolicy,
-    UriPathPolicy,
-};
+use super::UriFragmentPolicy;
+use super::UriPathPolicy;
 
 /// Shared immutable URI policy state.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -7,20 +7,15 @@
 // =============================================================================
 //! Byte-bounded display adapter for an already-redacted view.
 
-use std::fmt::{
-    self,
-    Debug,
-    Display,
-    Formatter,
-    Write as _,
-};
-
-use crate::{
-    LogOutputLimit,
-    text::internal::BoundedLogEscapeWriter,
-};
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Write as _;
 
 use super::internal::with_mask_byte_limit;
+use crate::LogOutputLimit;
+use crate::text::internal::BoundedLogEscapeWriter;
 
 /// A redacted formatting view whose log-safe output cannot exceed a byte limit.
 ///

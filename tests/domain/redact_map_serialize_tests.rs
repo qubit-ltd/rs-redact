@@ -8,19 +8,16 @@
 //! Tests for serde redaction of map values.
 
 #[cfg(feature = "serde")]
-use std::{
-    collections::BTreeMap,
-    io::{
-        self,
-        Write,
-    },
-};
+use std::collections::BTreeMap;
+#[cfg(feature = "serde")]
+use std::io;
+#[cfg(feature = "serde")]
+use std::io::Write;
 
 #[cfg(feature = "serde")]
-use qubit_redact::{
-    RedactedMap,
-    RedactionPolicy,
-};
+use qubit_redact::RedactedMap;
+#[cfg(feature = "serde")]
+use qubit_redact::RedactionPolicy;
 
 #[cfg(feature = "serde")]
 struct FailingWriter;

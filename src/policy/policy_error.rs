@@ -7,15 +7,11 @@
 // =============================================================================
 //! Errors reported while building a redaction policy.
 
-use std::{
-    error::Error,
-    fmt,
-};
+use std::error::Error;
+use std::fmt;
 
-use super::{
-    PolicyLocation,
-    Sensitivity,
-};
+use super::PolicyLocation;
+use super::Sensitivity;
 
 /// Error returned when a redaction policy contains an invalid rule.
 #[non_exhaustive]

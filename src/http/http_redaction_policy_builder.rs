@@ -8,21 +8,16 @@
 //! Builder for immutable HTTP redaction policy snapshots.
 // qubit-style: allow type-file-name
 
-use crate::{
-    PolicyError,
-    PolicyLocation,
-    RedactionFloor,
-    RedactionRules,
-    Sensitivity,
-};
-
+use super::HttpFieldContext;
+use super::TextBodyPolicy;
+use super::UrlPathPolicy;
 use super::context_rules_builder::ContextRulesBuilder;
 use super::http_redaction_policy_parts::HttpPolicyParts;
-use super::{
-    HttpFieldContext,
-    TextBodyPolicy,
-    UrlPathPolicy,
-};
+use crate::PolicyError;
+use crate::PolicyLocation;
+use crate::RedactionFloor;
+use crate::RedactionRules;
+use crate::Sensitivity;
 
 /// Mutable construction state for an [`HttpPolicy`].
 #[must_use]

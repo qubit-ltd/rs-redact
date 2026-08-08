@@ -7,19 +7,14 @@
 // =============================================================================
 //! Tests for [`RedactedValue`](qubit_redact::RedactedValue).
 
-use std::fmt::{
-    self,
-    Write,
-};
+use std::fmt;
+use std::fmt::Write;
 
-use qubit_redact::{
-    MaskPolicy,
-    MaskingPolicy,
-    RedactValue,
-    RedactedValue,
-    Sensitivity,
-};
-
+use qubit_redact::MaskPolicy;
+use qubit_redact::MaskingPolicy;
+use qubit_redact::RedactValue;
+use qubit_redact::RedactedValue;
+use qubit_redact::Sensitivity;
 /// Verifies redacted scalar values have a log-safe display representation.
 #[test]
 fn test_redacted_value_displays_masked_secret() {

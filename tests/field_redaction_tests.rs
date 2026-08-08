@@ -7,14 +7,11 @@
 // =============================================================================
 //! Tests for typed scalar field-redaction results.
 
-use qubit_redact::{
-    FieldRedaction,
-    PassThroughReason,
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-};
-
+use qubit_redact::FieldRedaction;
+use qubit_redact::PassThroughReason;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
 /// Verifies masked fields expose a typed masked result.
 #[test]
 fn test_redact_field_reports_masked_result() {

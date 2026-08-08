@@ -9,23 +9,16 @@
 
 use std::ffi::OsStr;
 
-use crate::policy::{
-    DiagnosticInputBudget,
-    OutputCharge,
-};
-use crate::{
-    RedactionSession,
-    Redactor,
-    Sensitivity,
-    policy::ResolvedField,
-};
-
-use super::{
-    ArgvItem,
-    RedactedArgv,
-    pending_field::PendingField,
-    redacted_argv_builder::TRUNCATED_ITEM,
-};
+use super::ArgvItem;
+use super::RedactedArgv;
+use super::pending_field::PendingField;
+use super::redacted_argv_builder::TRUNCATED_ITEM;
+use crate::RedactionSession;
+use crate::Redactor;
+use crate::Sensitivity;
+use crate::policy::DiagnosticInputBudget;
+use crate::policy::OutputCharge;
+use crate::policy::ResolvedField;
 
 /// Applies one immutable redaction policy to argument vectors.
 #[must_use = "use the redactor to produce a safe argv rendering"]

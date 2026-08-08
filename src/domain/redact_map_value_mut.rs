@@ -7,11 +7,9 @@
 // =============================================================================
 //! Logical in-place redaction contract for text-valued map-like containers.
 
-use crate::{
-    RedactValueMut,
-    RedactionPolicy,
-    policy::ResolvedField,
-};
+use crate::RedactValueMut;
+use crate::RedactionPolicy;
+use crate::policy::ResolvedField;
 
 /// Redacts map values in place after classifying each value by its runtime key.
 ///

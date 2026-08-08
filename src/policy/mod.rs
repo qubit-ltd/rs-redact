@@ -58,25 +58,20 @@ pub use redaction_floor::RedactionFloor;
 pub use redaction_floor_builder::RedactionFloorBuilder;
 pub use redaction_limits::RedactionLimits;
 pub use redaction_policy::RedactionPolicy;
+pub use redaction_policy_builder::FieldsBuilder;
+#[cfg(feature = "http")]
+pub use redaction_policy_builder::HttpContextBuilderView;
+#[cfg(feature = "http")]
+pub use redaction_policy_builder::HttpPolicyBuilderView;
+pub use redaction_policy_builder::LimitsBuilder;
+pub use redaction_policy_builder::RedactionPolicyBuilder;
 #[cfg(feature = "uri")]
 pub use redaction_policy_builder::UriPolicyBuilderView;
-pub use redaction_policy_builder::{
-    FieldsBuilder,
-    LimitsBuilder,
-    RedactionPolicyBuilder,
-};
-#[cfg(feature = "http")]
-pub use redaction_policy_builder::{
-    HttpContextBuilderView,
-    HttpPolicyBuilderView,
-};
 pub use redaction_rules::RedactionRules;
 pub(crate) use redaction_rules_builder::RedactionRulesBuilder;
 pub(crate) use redaction_session::OutputCharge;
-pub use redaction_session::{
-    RedactionSession,
-    RedactionSessionKind,
-};
+pub use redaction_session::RedactionSession;
+pub use redaction_session::RedactionSessionKind;
 pub(crate) use resolved_field::ResolvedField;
 pub use sensitive_field_preset::SensitiveFieldPreset;
 pub use sensitive_field_rule::SensitiveFieldRule;

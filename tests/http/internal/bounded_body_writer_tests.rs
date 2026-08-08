@@ -9,12 +9,9 @@
 
 use http::HeaderValue;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::http::{
-    BodyBudget,
-    BodyCapture,
-    HttpRedactor,
-};
-
+use qubit_redact::http::BodyBudget;
+use qubit_redact::http::BodyCapture;
+use qubit_redact::http::HttpRedactor;
 /// Builds a redactor with a deliberately small rendered-body budget.
 fn redactor_with_output_limit(max_output_bytes: usize) -> HttpRedactor {
     let policy = RedactionPolicy::builder()

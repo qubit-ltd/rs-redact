@@ -7,14 +7,10 @@
 // =============================================================================
 //! Error returned for an undersized bounded log-output limit.
 
-use std::{
-    error::Error,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
-};
+use std::error::Error;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
 use crate::LogOutputLimit;
 

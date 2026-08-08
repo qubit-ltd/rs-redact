@@ -8,17 +8,17 @@
 //! Regression tests for bounded mask rendering.
 
 #[cfg(feature = "http")]
-use qubit_redact::{
-    MaskPolicy,
-    RedactionPolicy,
-    Sensitivity,
-    http::{
-        BodyBudget,
-        BodyCapture,
-        HttpRedactor,
-    },
-};
-
+use qubit_redact::MaskPolicy;
+#[cfg(feature = "http")]
+use qubit_redact::RedactionPolicy;
+#[cfg(feature = "http")]
+use qubit_redact::Sensitivity;
+#[cfg(feature = "http")]
+use qubit_redact::http::BodyBudget;
+#[cfg(feature = "http")]
+use qubit_redact::http::BodyCapture;
+#[cfg(feature = "http")]
+use qubit_redact::http::HttpRedactor;
 /// Redacts one sensitive JSON value with the supplied mask policy.
 #[cfg(feature = "http")]
 fn redact_json_value(

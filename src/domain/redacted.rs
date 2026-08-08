@@ -7,26 +7,19 @@
 // =============================================================================
 //! Borrowed, policy-snapshot view of a domain object.
 
-use std::fmt::{
-    self,
-    Debug,
-    Display,
-    Formatter,
-};
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
-use crate::{
-    BoundedRedactedDisplay,
-    LogOutputLimit,
-    Redact,
-    RedactionPolicy,
-    RedactionSession,
-};
-
-use super::bounded_redacted_display::{
-    format_bounded,
-    format_debug_bounded,
-};
+use super::bounded_redacted_display::format_bounded;
+use super::bounded_redacted_display::format_debug_bounded;
 use super::internal::mask_byte_limit;
+use crate::BoundedRedactedDisplay;
+use crate::LogOutputLimit;
+use crate::Redact;
+use crate::RedactionPolicy;
+use crate::RedactionSession;
 
 /// A lazy non-destructive redacted view of a domain object.
 ///
@@ -177,19 +170,15 @@ impl<T: Redact + ?Sized> Debug for Redacted<'_, T> {
 }
 
 mod session_view {
-    use std::fmt::{
-        self,
-        Debug,
-        Display,
-        Formatter,
-        Write as _,
-    };
+    use std::fmt;
+    use std::fmt::Debug;
+    use std::fmt::Display;
+    use std::fmt::Formatter;
+    use std::fmt::Write as _;
 
-    use crate::{
-        Redact,
-        RedactionSession,
-        text::internal::LogEscapeWriter,
-    };
+    use crate::Redact;
+    use crate::RedactionSession;
+    use crate::text::internal::LogEscapeWriter;
 
     /// A nested redacted view that reuses an existing diagnostic session.
     #[must_use = "format the nested redacted view"]

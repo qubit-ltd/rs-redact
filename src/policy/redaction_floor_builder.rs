@@ -9,16 +9,14 @@
 
 use std::sync::Arc;
 
-use super::{
-    FieldNameMatching,
-    PolicyError,
-    PolicyLocation,
-    RedactionFloor,
-    RedactionRulesBuilder,
-    SensitiveFieldPreset,
-    Sensitivity,
-    UnknownFieldPolicy,
-};
+use super::FieldNameMatching;
+use super::PolicyError;
+use super::PolicyLocation;
+use super::RedactionFloor;
+use super::RedactionRulesBuilder;
+use super::SensitiveFieldPreset;
+use super::Sensitivity;
+use super::UnknownFieldPolicy;
 
 /// Builder for a [`RedactionFloor`].
 #[must_use]

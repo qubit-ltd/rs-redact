@@ -14,45 +14,34 @@ mod diagnostics;
 mod headers;
 mod url_rules;
 
-use http::{
-    HeaderMap,
-    HeaderValue,
-};
+use http::HeaderMap;
+use http::HeaderValue;
 use url::Url;
 
+use super::BodyBudget;
+use super::BodyCapture;
+use super::BodyRedaction;
+use super::BodyRedactionReason;
+use super::BodyRedactionStatus;
+use super::FieldRedactor;
+use super::RedactedHeaders;
+use super::TextBodyPolicy;
+use super::UrlPathPolicy;
+use super::internal::BoundedLogWriter;
+use super::internal::ParsedBody;
+use super::internal::content_type;
+use super::internal::diagnostic_text;
+use super::internal::form;
+use super::internal::json;
+use super::internal::markers;
+use super::internal::multipart;
+use super::internal::nested_url;
+use super::internal::nested_url::NestedUrl;
+use crate::LogSafeText;
+use crate::RedactionPolicy;
+use crate::RedactionSession;
+use crate::Sensitivity;
 use crate::policy::OutputCharge;
-use crate::{
-    LogSafeText,
-    RedactionPolicy,
-    RedactionSession,
-    Sensitivity,
-};
-
-use super::{
-    BodyBudget,
-    BodyCapture,
-    BodyRedaction,
-    BodyRedactionReason,
-    BodyRedactionStatus,
-    FieldRedactor,
-    RedactedHeaders,
-    TextBodyPolicy,
-    UrlPathPolicy,
-    internal::{
-        BoundedLogWriter,
-        ParsedBody,
-        content_type,
-        diagnostic_text,
-        form,
-        json,
-        markers,
-        multipart,
-        nested_url::{
-            self,
-            NestedUrl,
-        },
-    },
-};
 
 /// Applies one immutable HTTP policy to URLs, forms, headers, and bodies.
 #[must_use = "use the redactor to produce safe HTTP diagnostics"]

@@ -7,11 +7,9 @@
 // =============================================================================
 //! Metadata returned by URI inspection.
 
-use super::{
-    UriComponent,
-    UriRedactionReason,
-    UriRedactionStatus,
-};
+use super::UriComponent;
+use super::UriRedactionReason;
+use super::UriRedactionStatus;
 
 /// URI processing metadata without rendering or retaining URI text.
 #[must_use]

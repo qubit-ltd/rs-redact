@@ -7,21 +7,14 @@
 // =============================================================================
 //! Log-safe rendering of a redacted argument vector.
 
-use std::{
-    borrow::Cow,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
-};
-
-use crate::{
-    InputOutputLimit,
-    LogSafeText,
-};
+use std::borrow::Cow;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
 use super::redacted_argv_builder::RedactedArgvBuilder;
+use crate::InputOutputLimit;
+use crate::LogSafeText;
 
 /// A redacted argv rendering that is safe for a single-line text log.
 #[must_use = "render the redacted argv instead of the original arguments"]

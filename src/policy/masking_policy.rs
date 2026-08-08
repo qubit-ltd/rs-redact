@@ -9,12 +9,10 @@
 
 use std::borrow::Cow;
 
-use super::{
-    MaskPolicy,
-    PolicyError,
-    PolicyLocation,
-    Sensitivity,
-};
+use super::MaskPolicy;
+use super::PolicyError;
+use super::PolicyLocation;
+use super::Sensitivity;
 
 /// Mask policies assigned to all supported sensitivity levels.
 #[must_use]

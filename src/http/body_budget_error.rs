@@ -7,14 +7,10 @@
 // =============================================================================
 //! Validation errors for HTTP body budgets.
 
-use std::{
-    error::Error,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
-};
+use std::error::Error;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
 /// Reports which hard body-budget invariant was violated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

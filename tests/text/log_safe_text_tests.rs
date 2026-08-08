@@ -8,7 +8,6 @@
 //! Tests for [`LogSafeText`](qubit_redact::LogSafeText).
 
 use qubit_redact::Redactor;
-
 /// Verifies log-safe text displays its already escaped contents.
 #[test]
 fn test_log_safe_text_displays_escaped_contents() {

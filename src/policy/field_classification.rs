@@ -7,12 +7,10 @@
 // =============================================================================
 //! Explainable borrowed results from field-policy classification.
 
-use super::{
-    AllowRule,
-    FieldMatchKind,
-    SensitiveFieldRule,
-    Sensitivity,
-};
+use super::AllowRule;
+use super::FieldMatchKind;
+use super::SensitiveFieldRule;
+use super::Sensitivity;
 
 /// Explains why a field is sensitive, allowed, or unknown to a policy.
 ///

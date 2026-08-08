@@ -7,12 +7,9 @@
 // =============================================================================
 //! Tests for process-wide redaction configuration installation.
 
-use qubit_redact::{
-    RedactionFloor,
-    RedactionPolicy,
-    Sensitivity,
-};
-
+use qubit_redact::RedactionFloor;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
 /// Verifies startup installation and deterministic explicit snapshots.
 #[test]
 fn test_global_config_is_installed_once_and_snapshotted() {

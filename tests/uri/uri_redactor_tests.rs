@@ -7,20 +7,18 @@
 // =============================================================================
 //! Integration tests for policy-driven URI redaction.
 
-use qubit_redact::{
-    InputOutputLimit,
-    LogSafeText,
-    MaskPolicy,
-    RedactionPolicy,
-    RedactionSession,
-    Sensitivity,
-    UriFragmentPolicy,
-    UriPathPolicy,
-    UriRedactionReason,
-    UriRedactionStatus,
-    UriRedactor,
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::LogSafeText;
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionSession;
+use qubit_redact::Sensitivity;
+use qubit_redact::UriComponent;
+use qubit_redact::UriFragmentPolicy;
+use qubit_redact::UriPathPolicy;
+use qubit_redact::UriRedactionReason;
+use qubit_redact::UriRedactionStatus;
+use qubit_redact::UriRedactor;
 /// Verifies repeated URI session fallbacks never exceed the cumulative output
 /// limit, including when insufficient bytes remain for another complete marker.
 #[test]
@@ -71,13 +69,9 @@ fn test_uri_redactor_redacts_password_but_preserves_username() {
         "https://alice:%3Credacted%3E@example.test/private?password=%3Credacted%3E#****",
     );
     assert_eq!(result.status(), UriRedactionStatus::Redacted);
-    assert!(
-        result.has_sensitive_component(qubit_redact::UriComponent::Password)
-    );
-    assert!(result.has_sensitive_component(qubit_redact::UriComponent::Query));
-    assert!(
-        result.has_sensitive_component(qubit_redact::UriComponent::Fragment)
-    );
+    assert!(result.has_sensitive_component(UriComponent::Password));
+    assert!(result.has_sensitive_component(UriComponent::Query));
+    assert!(result.has_sensitive_component(UriComponent::Fragment));
 }
 
 /// Verifies username and password use independent core field rules.
@@ -105,12 +99,8 @@ fn test_uri_redactor_applies_username_policy_and_keeps_encoded_colon() {
         "https://alice%3Ateam:%3Credacted%3E@example.test/private",
     );
     assert_eq!(result.status(), UriRedactionStatus::Redacted);
-    assert!(
-        result.has_sensitive_component(qubit_redact::UriComponent::Password)
-    );
-    assert!(
-        !result.has_sensitive_component(qubit_redact::UriComponent::Username)
-    );
+    assert!(result.has_sensitive_component(UriComponent::Password));
+    assert!(!result.has_sensitive_component(UriComponent::Username));
 }
 
 /// Verifies query values are decoded before masking and raw order is retained.
@@ -137,7 +127,7 @@ fn test_uri_redactor_masks_query_after_decoding_and_preserves_order() {
         "https://example.test/path?keep=a%2Fb&token=x%20y&keep=last",
     );
     assert_eq!(result.status(), UriRedactionStatus::Redacted);
-    assert!(result.has_sensitive_component(qubit_redact::UriComponent::Query));
+    assert!(result.has_sensitive_component(UriComponent::Query));
 }
 
 /// Verifies malformed syntax and undecodable query keys fail closed.
@@ -171,10 +161,8 @@ fn test_uri_redaction_policy_configures_path_and_fragment_boundaries() {
         result.log_safe_text().as_str(),
         "https://example.test/%3Credacted%3E#debug",
     );
-    assert!(result.has_sensitive_component(qubit_redact::UriComponent::Path));
-    assert!(
-        !result.has_sensitive_component(qubit_redact::UriComponent::Fragment)
-    );
+    assert!(result.has_sensitive_component(UriComponent::Path));
+    assert!(!result.has_sensitive_component(UriComponent::Fragment));
 }
 
 /// Verifies consuming a URI result preserves the typed log-safe boundary.

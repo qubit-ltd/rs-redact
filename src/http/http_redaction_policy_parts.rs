@@ -8,12 +8,9 @@
 //! Complete private construction state for an HTTP redaction policy.
 // qubit-style: allow type-file-name
 
+use super::TextBodyPolicy;
+use super::UrlPathPolicy;
 use crate::RedactionRules;
-
-use super::{
-    TextBodyPolicy,
-    UrlPathPolicy,
-};
 
 /// Complete private construction state for an HTTP redaction policy.
 pub(super) struct HttpPolicyParts {

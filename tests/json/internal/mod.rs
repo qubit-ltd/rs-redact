@@ -7,6 +7,8 @@
 // =============================================================================
 //! Tests covering JSON traversal internals through their public behavior.
 
+#[cfg(feature = "http")]
 mod json_redaction_outcome_tests;
 mod json_redaction_state_tests;
+#[cfg(feature = "http")]
 mod json_unkeyed_value_policy_tests;

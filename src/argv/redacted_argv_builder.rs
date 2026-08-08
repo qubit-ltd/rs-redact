@@ -9,13 +9,10 @@
 
 use std::fmt::Write as _;
 
-use crate::{
-    InputOutputLimit,
-    LogOutputLimit,
-    text::internal::BoundedLogEscapeWriter,
-};
-
 use super::RedactedArgv;
+use crate::InputOutputLimit;
+use crate::LogOutputLimit;
+use crate::text::internal::BoundedLogEscapeWriter;
 
 /// Marker rendered as one argv item after diagnostic input is exhausted.
 pub(super) const TRUNCATED_ITEM: &str = "<truncated>";

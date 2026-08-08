@@ -7,12 +7,9 @@
 // =============================================================================
 //! Tests for [`DiagnosticWriteStatus`](qubit_redact::DiagnosticWriteStatus).
 
-use qubit_redact::{
-    DiagnosticLogBuilder,
-    DiagnosticWriteStatus,
-    InputOutputLimit,
-};
-
+use qubit_redact::DiagnosticLogBuilder;
+use qubit_redact::DiagnosticWriteStatus;
+use qubit_redact::InputOutputLimit;
 /// Verifies a fragment that fits reports completion.
 #[test]
 fn test_diagnostic_write_status_reports_complete_fragment() {

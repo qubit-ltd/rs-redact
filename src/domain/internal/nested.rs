@@ -7,20 +7,19 @@
 // =============================================================================
 //! Container implementations for explicit nested redaction.
 
-use std::fmt::{
-    self,
-    Formatter,
-};
+use std::fmt;
+use std::fmt::Formatter;
 
 #[cfg(feature = "serde")]
+use serde::Serializer;
+
+use crate::Redact;
+use crate::RedactMut;
+use crate::RedactedSessionView;
+use crate::RedactionPolicy;
+use crate::RedactionSession;
+#[cfg(feature = "serde")]
 use crate::domain::RedactSerialize;
-use crate::{
-    Redact,
-    RedactMut,
-    RedactedSessionView,
-    RedactionPolicy,
-    RedactionSession,
-};
 
 impl<T: Redact> Redact for Option<T> {
     /// Formats `None` directly or a redacted `Some` value with the same policy.
@@ -176,7 +175,7 @@ impl<T: RedactSerialize> RedactSerialize for Option<T> {
         serializer: S,
     ) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         match self {
             Some(value) => serializer
@@ -213,7 +212,7 @@ impl<T: RedactSerialize + ?Sized> RedactSerialize for Box<T> {
         serializer: S,
     ) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         self.as_ref().serialize_redacted(policy, serializer)
     }
@@ -246,7 +245,7 @@ impl<T: RedactSerialize> RedactSerialize for Vec<T> {
         serializer: S,
     ) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         use serde::ser::SerializeSeq;
 

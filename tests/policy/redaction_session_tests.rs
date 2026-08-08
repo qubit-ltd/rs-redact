@@ -7,12 +7,9 @@
 // =============================================================================
 //! Tests for operation-scoped redaction budgets.
 
-use qubit_redact::{
-    InputOutputLimit,
-    RedactionPolicy,
-    RedactionSession,
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionSession;
 /// Verifies a diagnostic session shares cumulative input consumption.
 #[test]
 fn test_diagnostic_session_shares_input_budget() {

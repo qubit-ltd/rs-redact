@@ -9,18 +9,16 @@
 
 use fluent_uri::Uri;
 use libfuzzer_sys::fuzz_target;
-use qubit_redact::{
-    InputOutputLimit,
-    MaskPolicy,
-    RedactionPolicy,
-    Sensitivity,
-    UriComponent,
-    UriFragmentPolicy,
-    UriPathPolicy,
-    UriRedactionReason,
-    UriRedactionStatus,
-    UriRedactor,
-};
+use qubit_redact::InputOutputLimit;
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
+use qubit_redact::UriComponent;
+use qubit_redact::UriFragmentPolicy;
+use qubit_redact::UriPathPolicy;
+use qubit_redact::UriRedactionReason;
+use qubit_redact::UriRedactionStatus;
+use qubit_redact::UriRedactor;
 
 const INPUT_LIMIT: usize = 4096;
 const OUTPUT_LIMIT: usize = 128;

@@ -7,16 +7,13 @@
 // =============================================================================
 //! Hidden serialization hook for redacted text-valued maps.
 
-use serde::{
-    Serialize,
-    ser::SerializeMap,
-};
+use serde::Serialize;
+use serde::Serializer;
+use serde::ser::SerializeMap;
 
-use crate::{
-    RedactValue,
-    RedactionPolicy,
-    policy::ResolvedField,
-};
+use crate::RedactValue;
+use crate::RedactionPolicy;
+use crate::policy::ResolvedField;
 
 /// Serializes map values after classifying them by runtime key.
 ///
@@ -50,7 +47,7 @@ pub trait RedactMapSerialize<K: ?Sized, V: ?Sized> {
         serializer: S,
     ) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer;
+        S: Serializer;
 }
 
 impl<M: ?Sized, K: ?Sized, V: ?Sized> RedactMapSerialize<K, V> for M
@@ -84,7 +81,7 @@ where
         serializer: S,
     ) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         let mut map = serializer.serialize_map(None)?;
         for (key, value) in self {

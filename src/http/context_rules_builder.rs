@@ -8,13 +8,11 @@
 // qubit-style: allow source-test-pair
 //! Construction state for one HTTP field-policy context.
 
-use crate::{
-    PolicyError,
-    PolicyLocation,
-    RedactionFloor,
-    RedactionRules,
-    policy::RedactionRulesBuilder,
-};
+use crate::PolicyError;
+use crate::PolicyLocation;
+use crate::RedactionFloor;
+use crate::RedactionRules;
+use crate::policy::RedactionRulesBuilder;
 
 /// Construction state for a single HTTP field context.
 #[derive(Debug, Clone)]

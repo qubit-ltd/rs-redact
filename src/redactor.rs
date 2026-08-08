@@ -9,21 +9,17 @@
 
 use std::borrow::Cow;
 
-use crate::{
-    FieldClassification,
-    FieldRedaction,
-    PassThroughReason,
-    RedactMapValueMut,
-    RedactedKeyedValue,
-    RedactedText,
-    RedactionPolicy,
-    RedactionSession,
-    Sensitivity,
-    policy::{
-        OutputCharge,
-        ResolvedField,
-    },
-};
+use crate::FieldClassification;
+use crate::FieldRedaction;
+use crate::PassThroughReason;
+use crate::RedactMapValueMut;
+use crate::RedactedKeyedValue;
+use crate::RedactedText;
+use crate::RedactionPolicy;
+use crate::RedactionSession;
+use crate::Sensitivity;
+use crate::policy::OutputCharge;
+use crate::policy::ResolvedField;
 
 /// Applies one immutable policy to scalar values and string maps.
 #[must_use]

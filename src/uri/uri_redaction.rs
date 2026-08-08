@@ -7,20 +7,15 @@
 // =============================================================================
 //! Structured URI redaction results.
 
-use std::fmt::{
-    self,
-    Debug,
-    Display,
-    Formatter,
-};
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
+use super::UriComponent;
+use super::UriRedactionReason;
+use super::UriRedactionStatus;
 use crate::LogSafeText;
-
-use super::{
-    UriComponent,
-    UriRedactionReason,
-    UriRedactionStatus,
-};
 
 /// A log-safe URI together with explainable processing metadata.
 #[must_use]

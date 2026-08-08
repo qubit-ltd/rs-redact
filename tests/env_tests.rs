@@ -9,28 +9,21 @@
 
 mod env;
 
+use std::ffi::OsString;
 #[cfg(unix)]
-use std::{
-    ffi::OsString,
-    os::unix::ffi::OsStringExt,
-};
+use std::os::unix::ffi::OsStringExt;
 
-use proptest::prelude::{
-    prop_assert,
-    prop_assert_eq,
-    proptest,
-};
-
-use qubit_redact::{
-    FieldNameMatching,
-    InputOutputLimit,
-    RedactionPolicy,
-    RedactionSession,
-    Redactor,
-    Sensitivity,
-    env::EnvRedactor,
-};
-
+use proptest::prelude::prop_assert;
+use proptest::prelude::prop_assert_eq;
+use proptest::prelude::proptest;
+#[cfg(unix)]
+use qubit_redact::FieldNameMatching;
+use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionSession;
+use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
+use qubit_redact::env::EnvRedactor;
 /// Verifies eager environment-pair results are charged exactly once and never
 /// emit unbudgeted fallback text after cumulative exhaustion.
 #[test]

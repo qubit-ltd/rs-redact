@@ -7,18 +7,12 @@
 // =============================================================================
 //! Bounded streaming log-control escaping.
 
-use std::fmt::{
-    self,
-    Write,
-};
+use std::fmt;
+use std::fmt::Write;
 
-use crate::{
-    LogOutputLimit,
-    text::{
-        log_escape::encode_log_safe_character,
-        log_output_limit::TRUNCATION_MARKER,
-    },
-};
+use crate::LogOutputLimit;
+use crate::text::log_escape::encode_log_safe_character;
+use crate::text::log_output_limit::TRUNCATION_MARKER;
 
 /// Escapes log-unsafe characters into a byte-bounded owned string.
 pub(crate) struct BoundedLogEscapeWriter {

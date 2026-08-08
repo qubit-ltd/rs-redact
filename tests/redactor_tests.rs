@@ -7,19 +7,14 @@
 // =============================================================================
 //! Integration tests for [`Redactor`](qubit_redact::Redactor).
 
-use std::collections::{
-    BTreeMap,
-    HashMap,
-};
+use std::collections::BTreeMap;
+use std::collections::HashMap;
 
-use qubit_redact::{
-    InputOutputLimit,
-    RedactionPolicy,
-    RedactionSession,
-    Redactor,
-    Sensitivity,
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionSession;
+use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
 /// Verifies repeated core-session fallbacks are charged and eventually become
 /// empty rather than exceeding the cumulative output limit.
 #[test]

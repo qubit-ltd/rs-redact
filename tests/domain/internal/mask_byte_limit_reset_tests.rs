@@ -7,21 +7,17 @@
 // =============================================================================
 //! Tests for restoring bounded-mask state after formatting exits abnormally.
 
-use std::{
-    collections::BTreeMap,
-    fmt,
-    panic::AssertUnwindSafe,
-};
+use std::collections::BTreeMap;
+use std::fmt;
+use std::panic::AssertUnwindSafe;
 
-use qubit_redact::{
-    LogOutputLimit,
-    MaskPolicy,
-    Redact,
-    RedactedMap,
-    RedactionPolicy,
-    Sensitivity,
-};
-
+use qubit_redact::LogOutputLimit;
+use qubit_redact::MaskPolicy;
+use qubit_redact::Redact;
+use qubit_redact::RedactedMap;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionSession;
+use qubit_redact::Sensitivity;
 /// Redacted value that aborts formatting after bounded state has been entered.
 struct PanickingRedact;
 
@@ -29,7 +25,7 @@ impl Redact for PanickingRedact {
     /// Panics to exercise scope-guard restoration during redacted formatting.
     fn fmt_redacted(
         &self,
-        _session: &qubit_redact::RedactionSession<'_>,
+        _session: &RedactionSession<'_>,
         _formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         panic!("intentional formatting panic")

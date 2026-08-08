@@ -7,16 +7,12 @@
 // =============================================================================
 //! Non-destructive redaction contract for domain objects.
 
-use std::fmt::{
-    self,
-    Formatter,
-};
+use std::fmt;
+use std::fmt::Formatter;
 
-use crate::{
-    Redacted,
-    RedactionPolicy,
-    RedactionSession,
-};
+use crate::Redacted;
+use crate::RedactionPolicy;
+use crate::RedactionSession;
 
 /// Formats a domain object through an explicit immutable redaction policy.
 ///

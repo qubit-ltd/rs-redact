@@ -7,13 +7,10 @@
 // =============================================================================
 //! Tests for URI component mask encoding through the public redactor.
 
-use qubit_redact::{
-    MaskPolicy,
-    RedactionPolicy,
-    Sensitivity,
-    UriRedactor,
-};
-
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
+use qubit_redact::UriRedactor;
 /// Verifies Unicode, controls, and URI delimiters are percent encoded.
 #[test]
 fn test_uri_component_writer_encodes_mask_fragments() {

@@ -7,16 +7,11 @@
 // =============================================================================
 //! Tests for [`RedactMapValue`](qubit_redact::RedactMapValue).
 
-use std::{
-    borrow::Cow,
-    collections::BTreeMap,
-};
+use std::borrow::Cow;
+use std::collections::BTreeMap;
 
-use qubit_redact::{
-    RedactedMap,
-    RedactionPolicy,
-};
-
+use qubit_redact::RedactedMap;
+use qubit_redact::RedactionPolicy;
 /// Verifies map formatting classifies values using their runtime keys.
 #[test]
 fn test_redact_map_value_masks_sensitive_map_entry() {

@@ -7,13 +7,9 @@
 // =============================================================================
 //! Parsed metadata for one multipart part.
 
-use super::{
-    content_type,
-    header_parameter::{
-        leading_token,
-        parse_parameters,
-    },
-};
+use super::content_type;
+use super::header_parameter::leading_token;
+use super::header_parameter::parse_parameters;
 
 /// Holds the field identity, filename evidence, and media type of one part.
 ///

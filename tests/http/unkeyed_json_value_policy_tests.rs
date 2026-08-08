@@ -7,11 +7,8 @@
 // =============================================================================
 //! Tests for [`UnkeyedJsonValuePolicy`](qubit_redact::http::UnkeyedJsonValuePolicy).
 
-use qubit_redact::{
-    RedactionPolicy,
-    http::UnkeyedJsonValuePolicy,
-};
-
+use qubit_redact::RedactionPolicy;
+use qubit_redact::http::UnkeyedJsonValuePolicy;
 /// Verifies the standard policy preserves unkeyed JSON scalar values.
 #[test]
 fn test_unkeyed_json_value_policy_default_is_redact() {

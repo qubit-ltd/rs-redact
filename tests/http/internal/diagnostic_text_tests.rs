@@ -9,12 +9,9 @@
 
 use http::HeaderValue;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::http::{
-    BodyCapture,
-    HttpRedactor,
-    TextBodyPolicy,
-};
-
+use qubit_redact::http::BodyCapture;
+use qubit_redact::http::HttpRedactor;
+use qubit_redact::http::TextBodyPolicy;
 /// Verifies diagnostic text escapes line controls before display.
 #[test]
 fn test_diagnostic_text_escapes_newline() {

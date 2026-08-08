@@ -9,14 +9,9 @@
 
 use std::ffi::OsStr;
 
-use qubit_redact::{
-    Sensitivity,
-    argv::{
-        ArgvItem,
-        ArgvRedactor,
-    },
-};
-
+use qubit_redact::Sensitivity;
+use qubit_redact::argv::ArgvItem;
+use qubit_redact::argv::ArgvRedactor;
 /// Verifies the module reexports compose into a safe redacted argv view.
 #[test]
 fn test_argv_module_reexports_compose() {

@@ -312,93 +312,92 @@ pub mod text;
 pub mod uri;
 
 pub use argv::ArgvRedactor;
-pub use domain::{
-    BoundedRedactedDisplay,
-    Redact,
-    RedactMapValue,
-    RedactMapValueMut,
-    RedactMut,
-    RedactValue,
-    RedactValueMut,
-    Redacted,
-    RedactedKeyedMap,
-    RedactedKeyedMapSession,
-    RedactedKeyedValue,
-    RedactedKeyedValueSession,
-    RedactedMap,
-    RedactedMapSession,
-    RedactedSessionView,
-    RedactedValue,
-};
+pub use domain::BoundedRedactedDisplay;
+pub use domain::Redact;
+pub use domain::RedactMapValue;
+pub use domain::RedactMapValueMut;
+pub use domain::RedactMut;
+pub use domain::RedactValue;
+pub use domain::RedactValueMut;
+pub use domain::Redacted;
+pub use domain::RedactedKeyedMap;
+pub use domain::RedactedKeyedMapSession;
+pub use domain::RedactedKeyedValue;
+pub use domain::RedactedKeyedValueSession;
+pub use domain::RedactedMap;
+pub use domain::RedactedMapSession;
+pub use domain::RedactedSessionView;
+pub use domain::RedactedValue;
 pub use env::EnvRedactor;
-pub use field_redaction::{
-    FieldRedaction,
-    PassThroughReason,
-};
+pub use field_redaction::FieldRedaction;
+pub use field_redaction::PassThroughReason;
 pub use install_global_policy_error::InstallGlobalPolicyError;
 #[cfg(feature = "json")]
-pub use json::{
-    RedactedJson,
-    RedactedJsonSession,
-    RedactedJsonText,
-    RedactedJsonTextSession,
-    redact_json_text_in_place,
-};
-pub use policy::{
-    AllowRule,
-    DiagnosticBudgetError,
-    FieldClassification,
-    FieldMatchKind,
-    FieldNameMatching,
-    InputOutputLimit,
-    MaskPolicy,
-    MaskingPolicy,
-    PolicyError,
-    PolicyLocation,
-    RedactionFloor,
-    RedactionFloorBuilder,
-    RedactionLimits,
-    RedactionPolicy,
-    RedactionPolicyBuilder,
-    RedactionRules,
-    RedactionSession,
-    RedactionSessionKind,
-    SensitiveFieldPreset,
-    SensitiveFieldRule,
-    Sensitivity,
-    UnknownFieldPolicy,
-};
+pub use json::RedactedJson;
 #[cfg(feature = "json")]
-pub use policy::{
-    JsonDepthBudget,
-    JsonDepthBudgetError,
-    UnkeyedJsonValuePolicy,
-};
-pub use redactor::Redactor;
-pub use text::{
-    BoundedLogSafeDisplay,
-    DiagnosticLogBuilder,
-    DiagnosticWriteStatus,
-    LogOutputLimit,
-    LogOutputLimitError,
-    LogSafeText,
-    RedactedDebug,
-    RedactedText,
-    redacted_debug,
-};
-#[cfg(feature = "uri")]
-pub use uri::{
-    UriComponent,
-    UriFragmentPolicy,
-    UriInspection,
-    UriPathPolicy,
-    UriPolicy,
-    UriRedaction,
-    UriRedactionReason,
-    UriRedactionStatus,
-    UriRedactor,
-};
-
+pub use json::RedactedJsonSession;
+#[cfg(feature = "json")]
+pub use json::RedactedJsonText;
+#[cfg(feature = "json")]
+pub use json::RedactedJsonTextSession;
+#[cfg(feature = "json")]
+pub use json::redact_json_text_in_place;
+pub use policy::AllowRule;
+pub use policy::DiagnosticBudgetError;
+pub use policy::FieldClassification;
+pub use policy::FieldMatchKind;
+pub use policy::FieldNameMatching;
+pub use policy::InputOutputLimit;
+#[cfg(feature = "json")]
+pub use policy::JsonDepthBudget;
+#[cfg(feature = "json")]
+pub use policy::JsonDepthBudgetError;
+pub use policy::MaskPolicy;
+pub use policy::MaskingPolicy;
+pub use policy::PolicyError;
+pub use policy::PolicyLocation;
+pub use policy::RedactionFloor;
+pub use policy::RedactionFloorBuilder;
+pub use policy::RedactionLimits;
+pub use policy::RedactionPolicy;
+pub use policy::RedactionPolicyBuilder;
+pub use policy::RedactionRules;
+pub use policy::RedactionSession;
+pub use policy::RedactionSessionKind;
+pub use policy::SensitiveFieldPreset;
+pub use policy::SensitiveFieldRule;
+pub use policy::Sensitivity;
+#[cfg(feature = "json")]
+pub use policy::UnkeyedJsonValuePolicy;
+pub use policy::UnknownFieldPolicy;
 #[cfg(feature = "serde")]
 #[doc(hidden)]
 pub use private::__private;
+pub use redactor::Redactor;
+pub use text::BoundedLogSafeDisplay;
+pub use text::DiagnosticLogBuilder;
+pub use text::DiagnosticWriteStatus;
+pub use text::LogOutputLimit;
+pub use text::LogOutputLimitError;
+pub use text::LogSafeText;
+pub use text::RedactedDebug;
+pub use text::RedactedText;
+pub use text::redacted_debug;
+#[cfg(feature = "uri")]
+pub use uri::UriComponent;
+#[cfg(feature = "uri")]
+pub use uri::UriFragmentPolicy;
+#[cfg(feature = "uri")]
+pub use uri::UriInspection;
+#[cfg(feature = "uri")]
+pub use uri::UriPathPolicy;
+#[cfg(feature = "uri")]
+pub use uri::UriPolicy;
+#[cfg(feature = "uri")]
+pub use uri::UriRedaction;
+#[cfg(feature = "uri")]
+pub use uri::UriRedactionReason;
+#[cfg(feature = "uri")]
+pub use uri::UriRedactionStatus;
+#[cfg(feature = "uri")]
+pub use uri::UriRedactor;

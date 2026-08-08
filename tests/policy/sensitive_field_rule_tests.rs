@@ -7,12 +7,9 @@
 // =============================================================================
 //! Tests for [`SensitiveFieldRule`](qubit_redact::SensitiveFieldRule) views.
 
-use qubit_redact::{
-    RedactionPolicy,
-    SensitiveFieldRule,
-    Sensitivity,
-};
-
+use qubit_redact::RedactionPolicy;
+use qubit_redact::SensitiveFieldRule;
+use qubit_redact::Sensitivity;
 /// Alternate field query used as an unselected function-pointer target.
 const fn alternate_field(_rule: &SensitiveFieldRule<'static>) -> &'static str {
     "alternate"

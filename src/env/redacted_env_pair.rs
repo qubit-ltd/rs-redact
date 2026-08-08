@@ -7,14 +7,10 @@
 // =============================================================================
 //! Log-safe rendering of one redacted environment pair.
 
-use std::{
-    borrow::Cow,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
-};
+use std::borrow::Cow;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
 use crate::LogSafeText;
 

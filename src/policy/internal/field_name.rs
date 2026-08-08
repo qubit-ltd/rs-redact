@@ -7,10 +7,8 @@
 // =============================================================================
 //! Canonical field-name and semantic token-suffix generation.
 
-use std::{
-    borrow::Cow,
-    ops::ControlFlow,
-};
+use std::borrow::Cow;
+use std::ops::ControlFlow;
 
 use crate::policy::FieldNameMatching;
 

@@ -8,10 +8,8 @@
 //! Algorithms for masking one sensitive value.
 
 use std::borrow::Cow;
-use std::fmt::{
-    self,
-    Write,
-};
+use std::fmt;
+use std::fmt::Write;
 
 use super::internal::BoundedMaskWriter;
 

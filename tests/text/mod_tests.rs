@@ -8,7 +8,6 @@
 //! Tests for the public text module boundary.
 
 use qubit_redact::Redactor;
-
 /// Verifies redacted and log-safe text reexports compose at the log boundary.
 #[test]
 fn test_text_module_reexports_compose() {

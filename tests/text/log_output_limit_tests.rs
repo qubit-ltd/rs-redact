@@ -7,11 +7,8 @@
 // =============================================================================
 //! Tests for [`LogOutputLimit`](qubit_redact::LogOutputLimit).
 
-use qubit_redact::{
-    InputOutputLimit,
-    LogOutputLimit,
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::LogOutputLimit;
 /// Verifies a valid limit preserves its configured byte count.
 #[test]
 fn test_log_output_limit_preserves_valid_budget() {

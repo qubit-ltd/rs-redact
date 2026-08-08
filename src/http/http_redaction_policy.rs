@@ -10,13 +10,10 @@
 
 use std::sync::Arc;
 
-use crate::RedactionRules;
-
+use super::TextBodyPolicy;
+use super::UrlPathPolicy;
 use super::http_redaction_policy_parts::HttpPolicyParts;
-use super::{
-    TextBodyPolicy,
-    UrlPathPolicy,
-};
+use crate::RedactionRules;
 
 /// Combines HTTP field rules, behavior choices, and resource limits.
 #[must_use]

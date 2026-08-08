@@ -9,18 +9,14 @@
 
 use std::hint::black_box;
 
-use criterion::{
-    BenchmarkId,
-    Criterion,
-    Throughput,
-    criterion_group,
-    criterion_main,
-};
-use qubit_redact::{
-    InputOutputLimit,
-    RedactionPolicy,
-    UriRedactor,
-};
+use criterion::BenchmarkId;
+use criterion::Criterion;
+use criterion::Throughput;
+use criterion::criterion_group;
+use criterion::criterion_main;
+use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::UriRedactor;
 
 /// Builds a URI redactor with the benchmark's fixed diagnostic budget.
 fn benchmark_redactor() -> UriRedactor {

@@ -7,29 +7,23 @@
 // =============================================================================
 //! Benchmarks policy snapshot creation and field classification.
 
-use std::{
-    collections::BTreeMap,
-    hint::black_box,
-};
+use std::collections::BTreeMap;
+use std::hint::black_box;
 
-use criterion::{
-    BatchSize,
-    BenchmarkId,
-    Criterion,
-    Throughput,
-    criterion_group,
-    criterion_main,
-};
-use qubit_redact::{
-    FieldNameMatching,
-    LogOutputLimit,
-    MaskPolicy,
-    RedactedMap,
-    RedactionFloor,
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-};
+use criterion::BatchSize;
+use criterion::BenchmarkId;
+use criterion::Criterion;
+use criterion::Throughput;
+use criterion::criterion_group;
+use criterion::criterion_main;
+use qubit_redact::FieldNameMatching;
+use qubit_redact::LogOutputLimit;
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactedMap;
+use qubit_redact::RedactionFloor;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
 
 /// Compares the default-configuration snapshot path with a direct standard
 /// clone.

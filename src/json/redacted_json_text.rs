@@ -7,22 +7,15 @@
 // =============================================================================
 //! Lazy fail-closed formatting for JSON stored as text.
 
-use std::fmt::{
-    self,
-    Write as _,
-};
+use std::fmt;
+use std::fmt::Write as _;
 
-use crate::{
-    LogOutputLimit,
-    RedactionPolicy,
-    Sensitivity,
-    text::internal::BoundedLogEscapeWriter,
-};
-
-use super::{
-    RedactedJson,
-    redact_json_text_in_place::redacted_json_text,
-};
+use super::RedactedJson;
+use super::redact_json_text_in_place::redacted_json_text;
+use crate::LogOutputLimit;
+use crate::RedactionPolicy;
+use crate::Sensitivity;
+use crate::text::internal::BoundedLogEscapeWriter;
 
 /// JSON text rendered with recursive object-key redaction.
 ///
@@ -168,12 +161,10 @@ impl fmt::Display for RedactedJsonText<'_, '_> {
 mod session_view {
     use std::fmt;
 
-    use crate::{
-        RedactedJsonText,
-        RedactionSession,
-        Sensitivity,
-        policy::OutputCharge,
-    };
+    use crate::RedactedJsonText;
+    use crate::RedactionSession;
+    use crate::Sensitivity;
+    use crate::policy::OutputCharge;
 
     /// A nested JSON text view that accounts against an existing diagnostic
     /// session.

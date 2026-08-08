@@ -7,16 +7,13 @@
 // =============================================================================
 //! Tests for JSON text redaction and fail-closed fallback.
 
-use qubit_redact::{
-    InputOutputLimit,
-    JsonDepthBudget,
-    MaskPolicy,
-    RedactedJsonText,
-    RedactionPolicy,
-    Sensitivity,
-    redact_json_text_in_place,
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::JsonDepthBudget;
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactedJsonText;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
+use qubit_redact::redact_json_text_in_place;
 /// Verifies the constructor preserves the borrowed text and policy behavior.
 #[test]
 fn test_redacted_json_text_new_constructs_borrowed_view() {
@@ -69,10 +66,7 @@ fn test_redacted_json_text_diagnostic_input_budget_fails_closed() {
             InputOutputLimit::new(16, 128)
                 .expect("the diagnostic budget should be valid"),
         )
-        .mask(
-            Sensitivity::Secret,
-            qubit_redact::MaskPolicy::fixed("[input-limit]"),
-        )
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[input-limit]"))
         .expect("the test mask policy should be valid")
         .build()
         .expect("the policy should build");
@@ -172,10 +166,7 @@ fn test_redact_json_text_in_place_masks_and_compacts_valid_json() {
 #[test]
 fn test_redacted_json_text_fails_closed_for_invalid_input() {
     let policy = RedactionPolicy::builder()
-        .mask(
-            Sensitivity::Secret,
-            qubit_redact::MaskPolicy::fixed("[invalid-json]"),
-        )
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[invalid-json]"))
         .expect("the test mask policy should be valid")
         .build()
         .expect("the policy should build");

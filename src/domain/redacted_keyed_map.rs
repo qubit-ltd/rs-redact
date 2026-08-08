@@ -7,32 +7,23 @@
 // =============================================================================
 //! Lazy borrowed view of a map whose values support recursive redaction.
 
-use std::{
-    fmt::{
-        self,
-        Debug,
-        Display,
-        Formatter,
-        Write as _,
-    },
-    marker::PhantomData,
-};
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Write as _;
+use std::marker::PhantomData;
 
-use crate::{
-    BoundedRedactedDisplay,
-    LogOutputLimit,
-    Redact,
-    RedactValue,
-    RedactionPolicy,
-    RedactionSession,
-    text::internal::LogEscapeWriter,
-};
-
-use super::{
-    bounded_redacted_display::format_bounded,
-    bounded_redacted_display::format_debug_bounded,
-    internal::mask_byte_limit,
-};
+use super::bounded_redacted_display::format_bounded;
+use super::bounded_redacted_display::format_debug_bounded;
+use super::internal::mask_byte_limit;
+use crate::BoundedRedactedDisplay;
+use crate::LogOutputLimit;
+use crate::Redact;
+use crate::RedactValue;
+use crate::RedactionPolicy;
+use crate::RedactionSession;
+use crate::text::internal::LogEscapeWriter;
 
 /// A lazy map view that classifies each value by its key before recursion.
 ///
@@ -152,21 +143,15 @@ where
 }
 
 mod session_view {
-    use std::{
-        fmt::{
-            self,
-            Debug,
-            Formatter,
-        },
-        marker::PhantomData,
-    };
+    use std::fmt;
+    use std::fmt::Debug;
+    use std::fmt::Formatter;
+    use std::marker::PhantomData;
 
-    use crate::{
-        Redact,
-        RedactValue,
-        RedactedKeyedValueSession,
-        RedactionSession,
-    };
+    use crate::Redact;
+    use crate::RedactValue;
+    use crate::RedactedKeyedValueSession;
+    use crate::RedactionSession;
 
     /// A nested keyed-map view that reuses an existing diagnostic session.
     #[must_use = "format the nested keyed redaction view"]

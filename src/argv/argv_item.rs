@@ -7,10 +7,8 @@
 // =============================================================================
 //! One argument and the sensitivity known by its caller.
 
-use std::{
-    ffi::OsStr,
-    fmt,
-};
+use std::ffi::OsStr;
+use std::fmt;
 
 use crate::Sensitivity;
 

@@ -7,11 +7,9 @@
 // =============================================================================
 //! Minimal Content-Type classification.
 
-use super::header_parameter::{
-    is_token_byte,
-    leading_value,
-    parse_parameters,
-};
+use super::header_parameter::is_token_byte;
+use super::header_parameter::leading_value;
+use super::header_parameter::parse_parameters;
 
 /// One strict, once-parsed Content-Type classification.
 #[must_use]

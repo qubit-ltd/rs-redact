@@ -9,16 +9,12 @@
 
 use std::fmt::Write;
 
-use http::{
-    HeaderMap,
-    HeaderValue,
-};
+use http::HeaderMap;
+use http::HeaderValue;
 use libfuzzer_sys::fuzz_target;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::http::{
-    HttpRedactor,
-    InputOutputLimit,
-};
+use qubit_redact::http::HttpRedactor;
+use qubit_redact::http::InputOutputLimit;
 use url::Url;
 
 const FUZZ_SECRET: &str = "qubit-fuzz-secret-7f54a19c";

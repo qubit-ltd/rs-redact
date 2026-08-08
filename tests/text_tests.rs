@@ -10,7 +10,6 @@
 mod text;
 
 use qubit_redact::Redactor;
-
 /// Verifies that log escaping covers controls, separators, and every Unicode
 /// bidirectional formatting control.
 #[test]

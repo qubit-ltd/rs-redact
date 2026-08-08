@@ -9,11 +9,8 @@
 
 #![cfg(feature = "http")]
 
-use qubit_redact::{
-    InputOutputLimit,
-    RedactionPolicy,
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactionPolicy;
 /// Verifies HTTP defaults and explicitly loaded builders preserve a global
 /// diagnostic budget snapshot.
 #[test]

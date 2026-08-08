@@ -11,30 +11,22 @@ mod argv;
 
 use std::ffi::OsStr;
 #[cfg(unix)]
-use std::{
-    ffi::OsString,
-    os::unix::ffi::OsStringExt,
-};
+use std::ffi::OsString;
+#[cfg(unix)]
+use std::os::unix::ffi::OsStringExt;
 
-use proptest::prelude::{
-    prop_assert,
-    prop_assert_eq,
-    proptest,
-};
-
-use qubit_redact::{
-    InputOutputLimit,
-    MaskPolicy,
-    RedactionFloor,
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-    argv::{
-        ArgvItem,
-        ArgvRedactor,
-    },
-};
-
+use proptest::prelude::prop_assert;
+use proptest::prelude::prop_assert_eq;
+use proptest::prelude::proptest;
+use qubit_redact::FieldNameMatching;
+use qubit_redact::InputOutputLimit;
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionFloor;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
+use qubit_redact::argv::ArgvItem;
+use qubit_redact::argv::ArgvRedactor;
 /// Creates a redactor with deliberately small diagnostic limits.
 fn bounded_redactor() -> ArgvRedactor {
     let budget = InputOutputLimit::new(8, 64)
@@ -200,7 +192,7 @@ fn test_redact_heuristically_keeps_empty_sensitive_inline_value() {
 fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_application_matching()
  {
     let policy = RedactionPolicy::builder()
-        .matching(qubit_redact::FieldNameMatching::Exact)
+        .matching(FieldNameMatching::Exact)
         .build()
         .expect("the exact-only argv policy should be valid");
     let items = [

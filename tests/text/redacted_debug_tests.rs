@@ -7,16 +7,11 @@
 // =============================================================================
 //! Tests for [`RedactedDebug`](qubit_redact::RedactedDebug).
 
-use qubit_redact::{
-    RedactedDebug,
-    redacted_debug,
-};
+use qubit_redact::RedactedDebug;
+use qubit_redact::redacted_debug;
 
-use super::internal::{
-    NoDebug,
-    PanicDebug,
-};
-
+use super::internal::NoDebug;
+use super::internal::PanicDebug;
 /// Wraps a borrowed value while preserving its explicit lifetime.
 ///
 /// # Parameters

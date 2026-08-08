@@ -7,19 +7,13 @@
 // =============================================================================
 //! Text that is safe to render at a plain-text log boundary.
 
-use std::{
-    borrow::Cow,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
-};
+use std::borrow::Cow;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
-use super::{
-    BoundedLogSafeDisplay,
-    LogOutputLimit,
-};
+use super::BoundedLogSafeDisplay;
+use super::LogOutputLimit;
 
 /// Redacted text whose log-structure and bidirectional controls are escaped.
 ///

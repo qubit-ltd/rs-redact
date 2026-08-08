@@ -8,6 +8,7 @@
 //! Strict URL-encoded form parsing.
 
 use form_urlencoded::byte_serialize;
+use form_urlencoded::parse;
 
 use crate::http::FieldRedactor;
 
@@ -54,7 +55,7 @@ pub(in crate::http) fn redact_bounded(
 ) -> String {
     let intermediate_limit = max_output_bytes.saturating_add(1);
     let mut output = String::new();
-    for (key, value) in form_urlencoded::parse(input) {
+    for (key, value) in parse(input) {
         let remaining = intermediate_limit.saturating_sub(output.len());
         let value =
             redactor.redact_bounded(key.as_ref(), value.as_ref(), remaining);

@@ -7,28 +7,21 @@
 // =============================================================================
 //! Environment-variable pair and assignment redaction.
 
-use std::{
-    borrow::Cow,
-    ffi::OsStr,
-    fmt::Write as _,
-};
-
-use crate::policy::{
-    DiagnosticInputBudget,
-    OutputCharge,
-};
-use crate::{
-    LogOutputLimit,
-    LogSafeText,
-    RedactedText,
-    RedactionSession,
-    Redactor,
-    Sensitivity,
-    policy::ResolvedField,
-    text::internal::BoundedLogEscapeWriter,
-};
+use std::borrow::Cow;
+use std::ffi::OsStr;
+use std::fmt::Write as _;
 
 use super::RedactedEnvPair;
+use crate::LogOutputLimit;
+use crate::LogSafeText;
+use crate::RedactedText;
+use crate::RedactionSession;
+use crate::Redactor;
+use crate::Sensitivity;
+use crate::policy::DiagnosticInputBudget;
+use crate::policy::OutputCharge;
+use crate::policy::ResolvedField;
+use crate::text::internal::BoundedLogEscapeWriter;
 
 /// Applies one immutable redaction policy to environment-variable values.
 #[must_use = "use the redactor to produce safe environment diagnostics"]

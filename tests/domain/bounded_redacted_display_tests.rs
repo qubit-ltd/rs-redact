@@ -7,22 +7,16 @@
 // =============================================================================
 //! Tests for bounded display of already-redacted views.
 
-use std::{
-    collections::BTreeMap,
-    fmt,
-    sync::atomic::{
-        AtomicUsize,
-        Ordering,
-    },
-};
+use std::collections::BTreeMap;
+use std::fmt;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
-use qubit_redact::{
-    LogOutputLimit,
-    Redact,
-    RedactedMap,
-    RedactionPolicy,
-};
-
+use qubit_redact::LogOutputLimit;
+use qubit_redact::Redact;
+use qubit_redact::RedactedMap;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionSession;
 /// Value whose redacted representation writes caller-selected safe text.
 struct DiagnosticText<'a> {
     /// Text written through the redacted formatting contract.
@@ -39,7 +33,7 @@ impl Redact for DebugDiagnosticText<'_> {
     /// Writes the configured text using the standard debug string format.
     fn fmt_redacted(
         &self,
-        _session: &qubit_redact::RedactionSession<'_>,
+        _session: &RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         fmt::Debug::fmt(&self.value, formatter)
@@ -50,7 +44,7 @@ impl Redact for DiagnosticText<'_> {
     /// Writes the configured diagnostic text.
     fn fmt_redacted(
         &self,
-        _session: &qubit_redact::RedactionSession<'_>,
+        _session: &RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter.write_str(self.value)
@@ -203,7 +197,7 @@ impl Redact for RepeatedDiagnostic {
     /// Writes many safe pieces and propagates the first destination error.
     fn fmt_redacted(
         &self,
-        _session: &qubit_redact::RedactionSession<'_>,
+        _session: &RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         for _ in 0..1_000_000 {

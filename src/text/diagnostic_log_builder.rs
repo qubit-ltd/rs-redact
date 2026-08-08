@@ -7,25 +7,18 @@
 // =============================================================================
 //! Shared bounded construction of log-safe diagnostic text.
 
-use std::{
-    borrow::Cow,
-    fmt,
-    fmt::Write as _,
-};
+use std::borrow::Cow;
+use std::fmt;
+use std::fmt::Write as _;
 
-use crate::{
-    InputOutputLimit,
-    LogOutputLimit,
-    RedactionSession,
-    Redactor,
-    Sensitivity,
-};
-
-use super::{
-    DiagnosticWriteStatus,
-    LogSafeText,
-    internal::BoundedLogEscapeWriter,
-};
+use super::DiagnosticWriteStatus;
+use super::LogSafeText;
+use super::internal::BoundedLogEscapeWriter;
+use crate::InputOutputLimit;
+use crate::LogOutputLimit;
+use crate::RedactionSession;
+use crate::Redactor;
+use crate::Sensitivity;
 
 /// Builds one log-safe diagnostic under a final output budget.
 ///

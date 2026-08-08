@@ -8,7 +8,6 @@
 //! Tests for [`BodyCaptureError`](qubit_redact::http::BodyCaptureError).
 
 use qubit_redact::http::BodyCaptureError;
-
 /// Verifies invalid source-length metadata has a stable error message.
 #[test]
 fn test_body_capture_error_describes_invalid_total_length() {

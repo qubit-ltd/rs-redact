@@ -7,14 +7,10 @@
 // =============================================================================
 //! Validation errors for JSON recursion-depth budgets.
 
-use std::{
-    error::Error,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
-};
+use std::error::Error;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
 /// Reports which JSON recursion-depth invariant was violated.
 #[non_exhaustive]

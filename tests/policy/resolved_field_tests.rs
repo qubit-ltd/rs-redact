@@ -7,14 +7,11 @@
 // =============================================================================
 //! Tests for atomic two-layer field resolution.
 
-use qubit_redact::{
-    MaskPolicy,
-    RedactionFloor,
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-};
-
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionFloor;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
 /// Verifies a floor only raises sensitivity and uses the policy mask table.
 #[test]
 fn test_resolved_field_uses_application_mask_at_floor_level() {

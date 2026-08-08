@@ -10,12 +10,9 @@
 use std::collections::BTreeMap;
 
 use indexmap::IndexMap;
-use qubit_redact::{
-    InputOutputLimit,
-    RedactedMap,
-    RedactionPolicy,
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactedMap;
+use qubit_redact::RedactionPolicy;
 /// Verifies a redacted map keeps non-sensitive values visible.
 #[test]
 fn test_redacted_map_preserves_visible_value() {

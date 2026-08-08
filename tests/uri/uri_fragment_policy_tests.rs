@@ -8,7 +8,6 @@
 //! Tests for URI fragment handling policy.
 
 use qubit_redact::UriFragmentPolicy;
-
 /// Verifies fragments default to fail-closed redaction.
 #[test]
 fn test_fragment_policy_defaults_to_redact() {

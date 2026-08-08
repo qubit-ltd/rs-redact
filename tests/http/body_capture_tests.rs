@@ -7,11 +7,8 @@
 // =============================================================================
 //! Tests for [`BodyCapture`](qubit_redact::http::BodyCapture).
 
-use qubit_redact::http::{
-    BodyCapture,
-    BodyCaptureError,
-};
-
+use qubit_redact::http::BodyCapture;
+use qubit_redact::http::BodyCaptureError;
 /// Verifies capture errors describe both conflicting byte counts.
 #[test]
 fn test_body_capture_error_display_describes_invalid_total() {

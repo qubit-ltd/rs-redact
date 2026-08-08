@@ -8,8 +8,8 @@
 use std::ffi::OsStr;
 
 use qubit_redact::ArgvRedactor;
+use qubit_redact::Sensitivity;
 use qubit_redact::argv::ArgvItem;
-
 /// Verifies that the argv redactor masks a heuristic password value.
 #[test]
 fn test_argv_redactor_masks_password_value() {
@@ -35,7 +35,7 @@ fn test_argv_redactor_supports_documented_heuristic_forms() {
             ArgvItem::plain(OsStr::new("PASSWORD=assignment")),
             ArgvItem::sensitive(
                 OsStr::new("authoritative"),
-                qubit_redact::Sensitivity::Secret,
+                Sensitivity::Secret,
             ),
         ])
         .to_string();
@@ -84,17 +84,14 @@ fn test_argv_redactor_keeps_documented_unsupported_forms_plain() {
 fn test_argv_redactor_masks_unsupported_forms_when_explicitly_sensitive() {
     let rendered = ArgvRedactor::default()
         .redact_heuristically([
-            ArgvItem::sensitive(
-                OsStr::new("-pSECRET"),
-                qubit_redact::Sensitivity::Secret,
-            ),
+            ArgvItem::sensitive(OsStr::new("-pSECRET"), Sensitivity::Secret),
             ArgvItem::sensitive(
                 OsStr::new("-Dpassword=SECRET"),
-                qubit_redact::Sensitivity::Secret,
+                Sensitivity::Secret,
             ),
             ArgvItem::sensitive(
                 OsStr::new("echo --password shell-secret"),
-                qubit_redact::Sensitivity::Secret,
+                Sensitivity::Secret,
             ),
         ])
         .to_string();

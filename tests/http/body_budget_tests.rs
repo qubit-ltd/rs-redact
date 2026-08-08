@@ -7,11 +7,8 @@
 // =============================================================================
 //! Tests for [`BodyBudget`](qubit_redact::http::BodyBudget).
 
-use qubit_redact::http::{
-    BodyBudget,
-    BodyBudgetError,
-};
-
+use qubit_redact::http::BodyBudget;
+use qubit_redact::http::BodyBudgetError;
 /// Verifies budget errors implement the standard error contract precisely.
 #[test]
 fn test_body_budget_error_display_describes_invalid_limit() {

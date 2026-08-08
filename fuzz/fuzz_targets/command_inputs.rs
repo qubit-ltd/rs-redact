@@ -14,11 +14,9 @@ use std::fmt::Write;
 use std::os::unix::ffi::OsStringExt;
 
 use libfuzzer_sys::fuzz_target;
-use qubit_redact::{
-    ArgvRedactor,
-    EnvRedactor,
-    argv::ArgvItem,
-};
+use qubit_redact::ArgvRedactor;
+use qubit_redact::EnvRedactor;
+use qubit_redact::argv::ArgvItem;
 
 const FUZZ_SECRET: &str = "qubit-fuzz-secret-7f54a19c";
 

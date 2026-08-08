@@ -8,7 +8,6 @@
 //! Tests for [`PolicyLocation`](qubit_redact::PolicyLocation).
 
 use qubit_redact::PolicyLocation;
-
 /// Verifies each public policy context has a stable display label.
 #[test]
 fn test_policy_location_display_identifies_each_context() {

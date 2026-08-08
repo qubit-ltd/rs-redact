@@ -7,11 +7,8 @@
 // =============================================================================
 //! Tests for the public policy module boundary.
 
-use qubit_redact::{
-    RedactionPolicy,
-    Sensitivity,
-};
-
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
 /// Verifies builder and immutable policy reexports compose.
 #[test]
 fn test_policy_module_reexports_compose() {

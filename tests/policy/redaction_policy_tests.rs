@@ -7,21 +7,17 @@
 // =============================================================================
 //! Tests for immutable redaction policies and rule matching.
 
-use proptest::{
-    prop_assert_eq,
-    proptest,
-};
-use qubit_redact::{
-    FieldNameMatching,
-    MaskPolicy,
-    PolicyError,
-    PolicyLocation,
-    RedactionPolicy,
-    RedactionPolicyBuilder,
-    SensitiveFieldPreset,
-    Sensitivity,
-};
-
+use proptest::prop_assert_eq;
+use proptest::proptest;
+use qubit_redact::FieldNameMatching;
+use qubit_redact::MaskPolicy;
+use qubit_redact::PolicyError;
+use qubit_redact::PolicyLocation;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionPolicyBuilder;
+use qubit_redact::SensitiveFieldPreset;
+use qubit_redact::Sensitivity;
+use qubit_redact::UnknownFieldPolicy;
 /// Verifies that an exact allow rule does not allow a contextual suffix.
 #[test]
 fn test_exact_allow_does_not_allow_contextual_suffix() {
@@ -119,7 +115,7 @@ fn test_strict_preset_redacts_unknown_fields() {
 
     assert_eq!(
         policy.unknown_field_policy(),
-        qubit_redact::UnknownFieldPolicy::Redact(Sensitivity::Secret),
+        UnknownFieldPolicy::Redact(Sensitivity::Secret),
     );
     assert_eq!(
         policy.sensitivity_for("custom_field"),

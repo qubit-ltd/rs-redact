@@ -7,22 +7,18 @@
 // =============================================================================
 //! External tests for minimum redaction floors.
 
-use proptest::{
-    prop_assert,
-    prop_assert_eq,
-    proptest,
-};
-use qubit_redact::{
-    FieldNameMatching,
-    MaskPolicy,
-    PolicyError,
-    PolicyLocation,
-    RedactionFloor,
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-    UnknownFieldPolicy,
-};
+use proptest::prop_assert;
+use proptest::prop_assert_eq;
+use proptest::proptest;
+use qubit_redact::FieldNameMatching;
+use qubit_redact::MaskPolicy;
+use qubit_redact::PolicyError;
+use qubit_redact::PolicyLocation;
+use qubit_redact::RedactionFloor;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
+use qubit_redact::UnknownFieldPolicy;
 
 #[test]
 fn test_floor_overrides_application_exact_allow() {

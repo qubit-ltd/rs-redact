@@ -9,21 +9,14 @@
 
 #![cfg(all(feature = "http", feature = "uri"))]
 
-use qubit_redact::{
-    InputOutputLimit,
-    RedactionPolicy,
-    Sensitivity,
-    http::{
-        HttpRedactor,
-        UrlPathPolicy,
-    },
-    uri::{
-        UriFragmentPolicy,
-        UriPathPolicy,
-        UriRedactor,
-    },
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
+use qubit_redact::http::HttpRedactor;
+use qubit_redact::http::UrlPathPolicy;
+use qubit_redact::uri::UriFragmentPolicy;
+use qubit_redact::uri::UriPathPolicy;
+use qubit_redact::uri::UriRedactor;
 /// Verifies that context views share one policy and cannot lower base safety.
 #[test]
 fn test_unified_policy_views_share_configuration_and_protection() {

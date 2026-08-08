@@ -9,22 +9,15 @@
 
 use std::io::Write;
 
-use crate::{
-    RedactionPolicy,
-    http::{
-        FieldRedactor,
-        TextBodyPolicy,
-    },
-};
-
-use super::{
-    BoundedBodyWriter,
-    MultipartPartMetadata,
-    content_type,
-    form,
-    json,
-    markers,
-};
+use super::BoundedBodyWriter;
+use super::MultipartPartMetadata;
+use super::content_type;
+use super::form;
+use super::json;
+use super::markers;
+use crate::RedactionPolicy;
+use crate::http::FieldRedactor;
+use crate::http::TextBodyPolicy;
 
 /// Redacts one complete multipart body into a deterministic summary.
 ///

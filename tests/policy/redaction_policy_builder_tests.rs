@@ -7,16 +7,14 @@
 // =============================================================================
 //! Tests for [`RedactionPolicyBuilder`](qubit_redact::RedactionPolicyBuilder).
 
+use qubit_redact::InputOutputLimit;
+use qubit_redact::MaskPolicy;
+use qubit_redact::PolicyError;
+use qubit_redact::PolicyLocation;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
 #[cfg(feature = "json")]
 use qubit_redact::UnkeyedJsonValuePolicy;
-use qubit_redact::{
-    InputOutputLimit,
-    MaskPolicy,
-    PolicyError,
-    PolicyLocation,
-    RedactionPolicy,
-    Sensitivity,
-};
 /// Verifies invalid field names fail at the setter that receives them.
 #[test]
 fn test_redaction_policy_builder_rejects_invalid_field_immediately() {

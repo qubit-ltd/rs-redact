@@ -8,7 +8,6 @@
 //! Regression test for reading the fallback global configuration before setup.
 
 use qubit_redact::RedactionPolicy;
-
 /// Verifies a fallback read does not prevent the application from installing
 /// its policy during later setup.
 #[test]

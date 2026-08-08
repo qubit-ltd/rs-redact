@@ -7,16 +7,11 @@
 // =============================================================================
 //! Tests for [`RedactMapValueMut`](qubit_redact::RedactMapValueMut).
 
-use std::{
-    borrow::Cow,
-    collections::BTreeMap,
-};
+use std::borrow::Cow;
+use std::collections::BTreeMap;
 
-use qubit_redact::{
-    RedactMapValueMut,
-    RedactionPolicy,
-};
-
+use qubit_redact::RedactMapValueMut;
+use qubit_redact::RedactionPolicy;
 /// Verifies in-place map redaction replaces only sensitive values.
 #[test]
 fn test_redact_map_value_mut_replaces_sensitive_value() {

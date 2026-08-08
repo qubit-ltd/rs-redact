@@ -9,10 +9,8 @@
 
 use std::cell::RefCell;
 
-use super::{
-    InputOutputLimit,
-    RedactionPolicy,
-};
+use super::InputOutputLimit;
+use super::RedactionPolicy;
 
 mod budget {
     use super::InputOutputLimit;
@@ -119,10 +117,8 @@ mod budget {
     }
 }
 
-pub(crate) use budget::{
-    DiagnosticBudget,
-    OutputCharge,
-};
+pub(crate) use budget::DiagnosticBudget;
+pub(crate) use budget::OutputCharge;
 
 mod session_kind {
     /// Identifies whether a session is an ordinary operation or a diagnostic

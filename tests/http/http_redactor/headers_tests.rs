@@ -7,12 +7,9 @@
 // =============================================================================
 //! Tests for deterministic header grouping.
 
-use http::{
-    HeaderMap,
-    HeaderValue,
-};
+use http::HeaderMap;
+use http::HeaderValue;
 use qubit_redact::http::HttpRedactor;
-
 /// Verifies repeated values remain grouped beneath their sorted header name.
 #[test]
 fn test_headers_group_repeated_values_in_insertion_order() {

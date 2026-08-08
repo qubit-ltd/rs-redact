@@ -7,11 +7,8 @@
 // =============================================================================
 //! Tests for [`InputOutputLimit`](qubit_redact::InputOutputLimit).
 
-use qubit_redact::{
-    DiagnosticBudgetError,
-    InputOutputLimit,
-};
-
+use qubit_redact::DiagnosticBudgetError;
+use qubit_redact::InputOutputLimit;
 /// Verifies the default diagnostic limits remain finite and explicit.
 #[test]
 fn test_diagnostic_budget_default_uses_safe_limits() {

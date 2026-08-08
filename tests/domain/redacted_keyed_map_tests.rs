@@ -7,22 +7,19 @@
 // =============================================================================
 //! Tests for [`RedactedKeyedMap`](qubit_redact::RedactedKeyedMap).
 
-use std::{
-    collections::BTreeMap,
-    fmt,
-};
+use std::collections::BTreeMap;
+use std::fmt;
 
-use qubit_redact::{
-    InputOutputLimit,
-    LogOutputLimit,
-    Redact,
-    RedactValue,
-    RedactedKeyedMap,
-    RedactedValue,
-    RedactionPolicy,
-    Sensitivity,
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::LogOutputLimit;
+use qubit_redact::MaskingPolicy;
+use qubit_redact::Redact;
+use qubit_redact::RedactValue;
+use qubit_redact::RedactedKeyedMap;
+use qubit_redact::RedactedValue;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionSession;
+use qubit_redact::Sensitivity;
 /// Nested diagnostic value whose secret must be recursively redacted.
 struct NestedValue {
     /// Secret nested value.
@@ -35,7 +32,7 @@ impl Redact for NestedValue {
     /// Formats the nested value without exposing its secret.
     fn fmt_redacted(
         &self,
-        _session: &qubit_redact::RedactionSession<'_>,
+        _session: &RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter
@@ -57,7 +54,7 @@ impl RedactValue for NestedValue {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
-        masking: &qubit_redact::MaskingPolicy,
+        masking: &MaskingPolicy,
     ) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }

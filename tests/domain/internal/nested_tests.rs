@@ -9,14 +9,14 @@
 
 use std::fmt;
 
-use qubit_redact::{
-    Redact,
-    RedactionPolicy,
-};
-
+#[cfg(feature = "serde")]
+use qubit_redact::__private::RedactedSerialize;
+use qubit_redact::Redact;
+use qubit_redact::RedactMut;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionSession;
 #[cfg(feature = "serde")]
 use qubit_redact::domain::RedactSerialize;
-
 /// Minimal nested value with a fixed safe representation.
 struct NestedValue;
 
@@ -24,14 +24,14 @@ impl Redact for NestedValue {
     /// Writes the nested value's safe representation.
     fn fmt_redacted(
         &self,
-        _session: &qubit_redact::RedactionSession<'_>,
+        _session: &RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter.write_str("NestedValue { secret: <redacted> }")
     }
 }
 
-impl qubit_redact::RedactMut for NestedValue {
+impl RedactMut for NestedValue {
     /// Keeps this display-only test value unchanged during mutation.
     fn redact_in_place_with(&mut self, _policy: &RedactionPolicy) {}
 }
@@ -85,10 +85,10 @@ fn test_nested_mutation_delegates_through_all_containers() {
     let mut values = vec![NestedValue, NestedValue];
     let mut absent: Option<NestedValue> = None;
 
-    qubit_redact::RedactMut::redact_in_place_with(&mut option, &policy);
-    qubit_redact::RedactMut::redact_in_place_with(&mut boxed, &policy);
-    qubit_redact::RedactMut::redact_in_place_with(&mut values, &policy);
-    qubit_redact::RedactMut::redact_in_place_with(&mut absent, &policy);
+    RedactMut::redact_in_place_with(&mut option, &policy);
+    RedactMut::redact_in_place_with(&mut boxed, &policy);
+    RedactMut::redact_in_place_with(&mut values, &policy);
+    RedactMut::redact_in_place_with(&mut absent, &policy);
 }
 
 #[cfg(feature = "serde")]
@@ -100,30 +100,23 @@ fn test_nested_serialization_delegates_through_all_containers() {
     let boxed = Box::new(NestedValue);
     let values = vec![NestedValue, NestedValue];
 
-    let serialized = serde_json::to_value(
-        qubit_redact::__private::RedactedSerialize::new(&value, &policy),
-    )
-    .expect("present option should serialize");
+    let serialized =
+        serde_json::to_value(RedactedSerialize::new(&value, &policy))
+            .expect("present option should serialize");
     assert_eq!(serialized, serde_json::json!("NestedValue"));
     assert_eq!(
-        serde_json::to_value(qubit_redact::__private::RedactedSerialize::new(
-            &absent, &policy,
-        ))
-        .expect("absent option should serialize"),
+        serde_json::to_value(RedactedSerialize::new(&absent, &policy,))
+            .expect("absent option should serialize"),
         serde_json::Value::Null,
     );
     assert_eq!(
-        serde_json::to_value(qubit_redact::__private::RedactedSerialize::new(
-            &boxed, &policy,
-        ))
-        .expect("boxed value should serialize"),
+        serde_json::to_value(RedactedSerialize::new(&boxed, &policy,))
+            .expect("boxed value should serialize"),
         serde_json::json!("NestedValue"),
     );
     assert_eq!(
-        serde_json::to_value(qubit_redact::__private::RedactedSerialize::new(
-            &values, &policy,
-        ))
-        .expect("sequence should serialize"),
+        serde_json::to_value(RedactedSerialize::new(&values, &policy,))
+            .expect("sequence should serialize"),
         serde_json::json!(["NestedValue", "NestedValue"]),
     );
 }

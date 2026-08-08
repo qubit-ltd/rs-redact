@@ -7,10 +7,8 @@
 // =============================================================================
 //! Error returned when a process-wide policy is installed twice.
 
-use std::{
-    error::Error,
-    fmt,
-};
+use std::error::Error;
+use std::fmt;
 
 use crate::RedactionPolicy;
 

@@ -8,7 +8,6 @@
 //! Tests for [`FieldMatchKind`](qubit_redact::FieldMatchKind).
 
 use qubit_redact::FieldMatchKind;
-
 /// Verifies exact and token-suffix matches remain distinct public outcomes.
 #[test]
 fn test_field_match_kind_distinguishes_exact_and_token_suffix() {

@@ -9,12 +9,9 @@
 
 use std::collections::BTreeMap;
 
-use qubit_redact::{
-    LogOutputLimit,
-    RedactedMap,
-    RedactionPolicy,
-};
-
+use qubit_redact::LogOutputLimit;
+use qubit_redact::RedactedMap;
+use qubit_redact::RedactionPolicy;
 /// Verifies bounded rendering keeps sensitive map values hidden and bounded.
 #[test]
 fn test_mask_byte_limit_keeps_sensitive_map_output_bounded() {

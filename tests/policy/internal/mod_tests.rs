@@ -7,12 +7,9 @@
 // =============================================================================
 //! Tests for internal policy composition through the public builder.
 
-use qubit_redact::{
-    FieldNameMatching,
-    RedactionPolicy,
-    Sensitivity,
-};
-
+use qubit_redact::FieldNameMatching;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
 /// Verifies canonical storage and candidate matching compose consistently.
 #[test]
 fn test_policy_internal_components_share_canonical_state() {

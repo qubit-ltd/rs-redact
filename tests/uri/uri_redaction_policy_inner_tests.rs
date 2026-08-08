@@ -7,12 +7,9 @@
 // =============================================================================
 //! Tests for URI policy snapshot isolation.
 
-use qubit_redact::{
-    RedactionPolicy,
-    UriFragmentPolicy,
-    UriPathPolicy,
-};
-
+use qubit_redact::RedactionPolicy;
+use qubit_redact::UriFragmentPolicy;
+use qubit_redact::UriPathPolicy;
 /// Verifies URI policy snapshots retain their own immutable behavior state.
 #[test]
 fn test_uri_policy_inner_keeps_built_snapshot_immutable() {

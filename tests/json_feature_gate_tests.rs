@@ -9,7 +9,8 @@
 
 #![cfg(feature = "json")]
 
-qubit_redact::__qubit_redact_json! {
+use qubit_redact::__qubit_redact_json;
+__qubit_redact_json! {
     const JSON_FEATURE_GATE_MARKER: &str = "json";
 }
 

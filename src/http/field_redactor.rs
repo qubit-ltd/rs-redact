@@ -9,13 +9,11 @@
 
 use std::borrow::Cow;
 
-use crate::{
-    MaskingPolicy,
-    RedactedText,
-    RedactionRules,
-    Sensitivity,
-    policy::ResolvedField,
-};
+use crate::MaskingPolicy;
+use crate::RedactedText;
+use crate::RedactionRules;
+use crate::Sensitivity;
+use crate::policy::ResolvedField;
 
 /// Borrowed field-rule executor used within one HTTP redaction call.
 ///

@@ -7,11 +7,9 @@
 // =============================================================================
 //! Immutable execution limits used while rendering redacted output.
 
+use super::InputOutputLimit;
 #[cfg(feature = "json")]
 use super::JsonDepthBudget;
-
-use super::InputOutputLimit;
-
 #[cfg(feature = "http")]
 use crate::http::BodyBudget;
 

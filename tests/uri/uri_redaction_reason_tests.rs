@@ -7,11 +7,8 @@
 // =============================================================================
 //! Tests for URI redaction reason values.
 
-use qubit_redact::{
-    UriComponent,
-    UriRedactionReason,
-};
-
+use qubit_redact::UriComponent;
+use qubit_redact::UriRedactionReason;
 /// Verifies sensitive component reasons carry their component identity.
 #[test]
 fn test_uri_reason_identifies_sensitive_component() {

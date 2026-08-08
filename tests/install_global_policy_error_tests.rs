@@ -8,7 +8,6 @@
 //! Tests for global-policy installation errors.
 
 use qubit_redact::RedactionPolicy;
-
 /// Verifies a rejected global policy remains recoverable by the caller.
 #[test]
 fn test_install_global_policy_error_returns_rejected_policy() {

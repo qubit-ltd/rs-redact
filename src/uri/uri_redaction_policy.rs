@@ -10,11 +10,9 @@
 
 use std::sync::Arc;
 
+use super::UriFragmentPolicy;
+use super::UriPathPolicy;
 use super::uri_redaction_policy_inner::UriPolicyInner;
-use super::{
-    UriFragmentPolicy,
-    UriPathPolicy,
-};
 
 /// Immutable URI policy that delegates field decisions to the core policy.
 #[must_use]

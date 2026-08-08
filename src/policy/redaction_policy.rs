@@ -7,31 +7,26 @@
 // =============================================================================
 //! Immutable field-classification, masking, and diagnostic policy.
 
-use std::sync::{
-    Arc,
-    LazyLock,
-    OnceLock,
-};
+use std::sync::Arc;
+use std::sync::LazyLock;
+use std::sync::OnceLock;
 
-use super::redaction_limits::RedactionLimits;
-use super::{
-    AllowRule,
-    FieldClassification,
-    FieldNameMatching,
-    MaskingPolicy,
-    RedactionFloor,
-    RedactionPolicyBuilder,
-    RedactionRules,
-    SensitiveFieldRule,
-    Sensitivity,
-    UnknownFieldPolicy,
-    internal::RedactionPolicyInner,
-};
+use super::AllowRule;
+use super::FieldClassification;
+use super::FieldNameMatching;
 #[cfg(feature = "json")]
-use super::{
-    JsonDepthBudget,
-    UnkeyedJsonValuePolicy,
-};
+use super::JsonDepthBudget;
+use super::MaskingPolicy;
+use super::RedactionFloor;
+use super::RedactionPolicyBuilder;
+use super::RedactionRules;
+use super::SensitiveFieldRule;
+use super::Sensitivity;
+#[cfg(feature = "json")]
+use super::UnkeyedJsonValuePolicy;
+use super::UnknownFieldPolicy;
+use super::internal::RedactionPolicyInner;
+use super::redaction_limits::RedactionLimits;
 
 /// Built-in sensitive fields not owned by a named preset.
 pub(super) const STANDARD_EXTRA_FIELDS: &[(&str, Sensitivity)] = &[

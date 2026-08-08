@@ -9,10 +9,8 @@
 
 use std::borrow::Cow;
 
-use crate::{
-    MaskingPolicy,
-    Sensitivity,
-};
+use crate::MaskingPolicy;
+use crate::Sensitivity;
 
 /// Replaces a textual value according to one sensitivity level.
 ///

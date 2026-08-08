@@ -7,48 +7,33 @@
 // =============================================================================
 //! Allocation regressions for bounded core redaction diagnostics.
 
-use std::{
-    alloc::{
-        GlobalAlloc,
-        Layout,
-        System,
-    },
-    cell::Cell,
-    collections::BTreeMap,
-    ffi::OsStr,
-    fmt::{
-        self,
-        Write,
-    },
-    sync::{
-        Mutex,
-        MutexGuard,
-        atomic::{
-            AtomicUsize,
-            Ordering,
-        },
-    },
-};
+use std::alloc::GlobalAlloc;
+use std::alloc::Layout;
+use std::alloc::System;
+use std::cell::Cell;
+use std::collections::BTreeMap;
+use std::ffi::OsStr;
+use std::fmt;
+use std::fmt::Write;
+use std::sync::Mutex;
+use std::sync::MutexGuard;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
-use qubit_redact::{
-    InputOutputLimit,
-    LogOutputLimit,
-    MaskPolicy,
-    Redact,
-    RedactedMap,
-    RedactionPolicy,
-    Redactor,
-    Sensitivity,
-    argv::{
-        ArgvItem,
-        ArgvRedactor,
-    },
-    env::EnvRedactor,
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::LogOutputLimit;
+use qubit_redact::MaskPolicy;
+use qubit_redact::Redact;
+use qubit_redact::RedactedMap;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionSession;
+use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
 #[cfg(feature = "uri")]
 use qubit_redact::UriRedactor;
-
+use qubit_redact::argv::ArgvItem;
+use qubit_redact::argv::ArgvRedactor;
+use qubit_redact::env::EnvRedactor;
 /// Serializes allocation measurements inside this integration-test binary.
 static ALLOCATION_TEST_LOCK: Mutex<()> = Mutex::new(());
 thread_local! {
@@ -197,7 +182,7 @@ impl Redact for NestedBoundedMap<'_> {
     /// Renders the inner map with its independently requested output limit.
     fn fmt_redacted(
         &self,
-        _session: &qubit_redact::RedactionSession<'_>,
+        _session: &RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         write!(

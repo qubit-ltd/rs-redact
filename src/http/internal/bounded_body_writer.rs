@@ -7,10 +7,8 @@
 // =============================================================================
 //! Bounded byte sink for structured HTTP body rendering.
 
-use std::io::{
-    self,
-    Write,
-};
+use std::io;
+use std::io::Write;
 
 /// Accumulates UTF-8 rendering bytes without exceeding a fixed budget.
 pub(in crate::http) struct BoundedBodyWriter {

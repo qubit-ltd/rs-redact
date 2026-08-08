@@ -7,28 +7,21 @@
 // =============================================================================
 //! Lazy redaction view selected by an external field key.
 
-use std::fmt::{
-    self,
-    Debug,
-    Display,
-    Formatter,
-};
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
+use super::bounded_redacted_display::format_bounded;
+use super::bounded_redacted_display::format_debug_bounded;
+use super::internal::mask_byte_limit;
+use crate::LogOutputLimit;
+use crate::Redact;
+use crate::RedactValue;
+use crate::RedactionPolicy;
+use crate::RedactionSession;
 #[cfg(feature = "serde")]
 use crate::policy::ResolvedField;
-use crate::{
-    LogOutputLimit,
-    Redact,
-    RedactValue,
-    RedactionPolicy,
-    RedactionSession,
-};
-
-use super::{
-    bounded_redacted_display::format_bounded,
-    bounded_redacted_display::format_debug_bounded,
-    internal::mask_byte_limit,
-};
 
 /// A borrowed value rendered according to a separate field key.
 ///
@@ -117,21 +110,17 @@ impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValue<'_, '_, T> {
 }
 
 mod session_view {
-    use std::fmt::{
-        self,
-        Debug,
-        Display,
-        Formatter,
-        Write as _,
-    };
+    use std::fmt;
+    use std::fmt::Debug;
+    use std::fmt::Display;
+    use std::fmt::Formatter;
+    use std::fmt::Write as _;
 
-    use crate::{
-        Redact,
-        RedactValue,
-        RedactionSession,
-        policy::ResolvedField,
-        text::internal::LogEscapeWriter,
-    };
+    use crate::Redact;
+    use crate::RedactValue;
+    use crate::RedactionSession;
+    use crate::policy::ResolvedField;
+    use crate::text::internal::LogEscapeWriter;
 
     /// A keyed value view that reuses one diagnostic session.
     #[must_use = "format the keyed redacted value view"]

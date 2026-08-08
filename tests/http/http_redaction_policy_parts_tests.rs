@@ -7,11 +7,8 @@
 // =============================================================================
 //! Tests for complete HTTP policy assembly.
 
-use qubit_redact::{
-    RedactionPolicy,
-    Sensitivity,
-};
-
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
 /// Verifies complete HTTP policy assembly retains independent context rules.
 #[test]
 fn test_http_policy_parts_keep_context_rules_independent() {

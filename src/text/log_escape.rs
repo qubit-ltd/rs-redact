@@ -7,11 +7,9 @@
 // =============================================================================
 //! Internal escaping for typed log-safe text.
 
-use std::{
-    borrow::Cow,
-    fmt,
-    str,
-};
+use std::borrow::Cow;
+use std::fmt;
+use std::str;
 
 /// Escapes characters that can alter log structure or visual ordering.
 ///

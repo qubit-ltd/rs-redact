@@ -7,22 +7,16 @@
 // =============================================================================
 //! Redacted representation of a plain or optional textual field.
 
-use std::{
-    borrow::Cow,
-    fmt::{
-        self,
-        Debug,
-        Display,
-        Formatter,
-    },
-};
+use std::borrow::Cow;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
-use crate::{
-    LogSafeText,
-    MaskingPolicy,
-    RedactedText,
-    Sensitivity,
-};
+use crate::LogSafeText;
+use crate::MaskingPolicy;
+use crate::RedactedText;
+use crate::Sensitivity;
 
 /// Redacted text retaining its original plain or optional container shape.
 ///

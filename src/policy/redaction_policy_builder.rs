@@ -7,27 +7,24 @@
 // =============================================================================
 //! Mutable builder for immutable redaction policies.
 
-use super::{
-    FieldNameMatching,
-    InputOutputLimit,
-    MaskPolicy,
-    MaskingPolicy,
-    PolicyError,
-    PolicyLocation,
-    RedactionFloor,
-    RedactionLimits,
-    RedactionPolicy,
-    RedactionRules,
-    RedactionRulesBuilder,
-    SensitiveFieldPreset,
-    Sensitivity,
-    UnknownFieldPolicy,
-};
+use super::FieldNameMatching;
+use super::InputOutputLimit;
 #[cfg(feature = "json")]
-use super::{
-    JsonDepthBudget,
-    UnkeyedJsonValuePolicy,
-};
+use super::JsonDepthBudget;
+use super::MaskPolicy;
+use super::MaskingPolicy;
+use super::PolicyError;
+use super::PolicyLocation;
+use super::RedactionFloor;
+use super::RedactionLimits;
+use super::RedactionPolicy;
+use super::RedactionRules;
+use super::RedactionRulesBuilder;
+use super::SensitiveFieldPreset;
+use super::Sensitivity;
+#[cfg(feature = "json")]
+use super::UnkeyedJsonValuePolicy;
+use super::UnknownFieldPolicy;
 
 /// Mutable construction state for an immutable [`RedactionPolicy`].
 #[must_use]
@@ -370,22 +367,20 @@ impl RedactionPolicyBuilder {
 }
 
 mod views {
+    use super::FieldNameMatching;
+    use super::InputOutputLimit;
     #[cfg(feature = "json")]
     use super::JsonDepthBudget;
+    use super::MaskPolicy;
+    use super::PolicyError;
+    use super::PolicyLocation;
+    use super::RedactionFloor;
+    use super::RedactionPolicyBuilder;
     #[cfg(feature = "http")]
     use super::RedactionRules;
-    use super::{
-        FieldNameMatching,
-        InputOutputLimit,
-        MaskPolicy,
-        PolicyError,
-        PolicyLocation,
-        RedactionFloor,
-        RedactionPolicyBuilder,
-        SensitiveFieldPreset,
-        Sensitivity,
-        UnknownFieldPolicy,
-    };
+    use super::SensitiveFieldPreset;
+    use super::Sensitivity;
+    use super::UnknownFieldPolicy;
 
     /// Mutable view over the base field policy.
     #[must_use]
@@ -745,17 +740,14 @@ mod views {
     }
 }
 
+pub use views::FieldsBuilder;
+#[cfg(feature = "http")]
+pub use views::HttpContextBuilderView;
+#[cfg(feature = "http")]
+pub use views::HttpPolicyBuilderView;
+pub use views::LimitsBuilder;
 #[cfg(feature = "uri")]
 pub use views::UriPolicyBuilderView;
-pub use views::{
-    FieldsBuilder,
-    LimitsBuilder,
-};
-#[cfg(feature = "http")]
-pub use views::{
-    HttpContextBuilderView,
-    HttpPolicyBuilderView,
-};
 
 impl Default for RedactionPolicyBuilder {
     fn default() -> Self {

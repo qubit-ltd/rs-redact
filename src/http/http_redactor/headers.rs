@@ -9,14 +9,11 @@
 
 use std::collections::BTreeMap;
 
-use http::{
-    HeaderMap,
-    HeaderValue,
-};
-
-use crate::Sensitivity;
+use http::HeaderMap;
+use http::HeaderValue;
 
 use super::HttpRedactor;
+use crate::Sensitivity;
 use crate::http::internal::BoundedLogWriter;
 
 /// Groups repeated header values under deterministically ordered names.

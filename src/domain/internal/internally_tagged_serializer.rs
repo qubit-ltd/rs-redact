@@ -7,15 +7,12 @@
 // =============================================================================
 //! Serializer adapter for redacted internally tagged newtype variants.
 
-use serde::{
-    Serialize,
-    Serializer,
-    ser::{
-        Impossible,
-        SerializeMap,
-        SerializeStruct,
-    },
-};
+use serde::Serialize;
+use serde::Serializer;
+use serde::ser::Error;
+use serde::ser::Impossible;
+use serde::ser::SerializeMap;
+use serde::ser::SerializeStruct;
 
 /// Serializer that inserts an enum tag before map-like newtype content.
 ///
@@ -53,7 +50,7 @@ where
     ///
     /// Always constructs an error because `kind` cannot carry an internal tag.
     fn unsupported(self, kind: &str) -> S::Error {
-        <S::Error as serde::ser::Error>::custom(format_args!(
+        <S::Error as Error>::custom(format_args!(
             "cannot serialize internally tagged redacted newtype variant {}::{} containing {kind}",
             self.type_name, self.variant_identifier,
         ))

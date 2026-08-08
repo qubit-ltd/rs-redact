@@ -8,7 +8,6 @@
 //! Tests for URI component classification.
 
 use qubit_redact::UriComponent;
-
 /// Verifies URI components remain distinct and copyable.
 #[test]
 fn test_uri_components_are_distinct() {

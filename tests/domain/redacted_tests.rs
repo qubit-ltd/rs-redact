@@ -9,18 +9,19 @@
 
 use std::fmt;
 
-use qubit_redact::{
-    InputOutputLimit,
-    MaskPolicy,
-    Redact,
-    RedactValue,
-    RedactionPolicy,
-    Sensitivity,
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::MaskPolicy;
+use qubit_redact::Redact;
+use qubit_redact::RedactValue;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionSession;
+use qubit_redact::Sensitivity;
 #[cfg(feature = "serde")]
 use qubit_redact::domain::RedactSerialize;
-
+#[cfg(feature = "serde")]
+use serde::Serializer;
+#[cfg(feature = "serde")]
+use serde_json::to_value;
 /// Account with a manually implemented redacted representation.
 struct ManualAccount {
     /// Public identifier that remains visible.
@@ -35,7 +36,7 @@ impl Redact for ManualAccount {
     /// Formats the account while masking its password.
     fn fmt_redacted(
         &self,
-        _session: &qubit_redact::RedactionSession<'_>,
+        _session: &RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter
@@ -62,7 +63,7 @@ impl RedactSerialize for ManualAccount {
         serializer: S,
     ) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         use serde::ser::SerializeStruct;
 
@@ -200,7 +201,7 @@ fn test_redacted_view_serializes_through_the_explicit_policy() {
         .build()
         .expect("the fixed masking policy should build");
 
-    let serialized = serde_json::to_value(account.redacted_with(&policy))
+    let serialized = to_value(account.redacted_with(&policy))
         .expect("the redacted view should serialize");
 
     assert_eq!(serialized["id"], 13);

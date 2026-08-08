@@ -8,24 +8,20 @@
 //! Tests for the runtime internally tagged serializer adapter.
 
 #[cfg(feature = "serde")]
+use std::io;
+#[cfg(feature = "serde")]
+use std::io::Write;
+
+#[cfg(feature = "serde")]
 use qubit_redact::__private::serialize_internally_tagged;
-
 #[cfg(feature = "serde")]
-use serde::{
-    Serialize,
-    Serializer,
-    ser::{
-        SerializeMap,
-        SerializeStruct,
-    },
-};
-
+use serde::Serialize;
 #[cfg(feature = "serde")]
-use std::io::{
-    self,
-    Write,
-};
-
+use serde::Serializer;
+#[cfg(feature = "serde")]
+use serde::ser::SerializeMap;
+#[cfg(feature = "serde")]
+use serde::ser::SerializeStruct;
 /// Verifies map-like content receives the requested internal tag.
 #[cfg(feature = "serde")]
 #[test]

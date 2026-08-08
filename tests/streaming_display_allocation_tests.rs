@@ -7,27 +7,19 @@
 // =============================================================================
 //! Allocation regressions for bounded redacted display.
 
-use std::{
-    alloc::{
-        GlobalAlloc,
-        Layout,
-        System,
-    },
-    cell::Cell,
-    collections::BTreeMap,
-    fmt::{
-        self,
-        Write,
-    },
-    sync::Mutex,
-};
+use std::alloc::GlobalAlloc;
+use std::alloc::Layout;
+use std::alloc::System;
+use std::cell::Cell;
+use std::collections::BTreeMap;
+use std::fmt;
+use std::fmt::Write;
+use std::sync::Mutex;
 
-use qubit_redact::{
-    Redact,
-    RedactedMap,
-    RedactionPolicy,
-};
-
+use qubit_redact::Redact;
+use qubit_redact::RedactedMap;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionSession;
 /// Serializes allocation-counting sections within this integration-test binary.
 static TEST_LOCK: Mutex<()> = Mutex::new(());
 /// Small allocation-count ceiling for bounded display buffering.
@@ -136,7 +128,7 @@ impl Redact for SafeRecord {
     /// Writes the safe diagnostic representation.
     fn fmt_redacted(
         &self,
-        _session: &qubit_redact::RedactionSession<'_>,
+        _session: &RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter

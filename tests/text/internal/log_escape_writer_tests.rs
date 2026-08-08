@@ -7,13 +7,11 @@
 // =============================================================================
 //! Public-contract tests for the internal streaming escape writer.
 
-use std::fmt::{
-    self,
-    Write,
-};
+use std::fmt;
+use std::fmt::Write;
 
 use qubit_redact::Redact;
-
+use qubit_redact::RedactionSession;
 /// Redacted value that emits log-unsafe controls.
 struct UnsafeDiagnostic;
 
@@ -21,7 +19,7 @@ impl Redact for UnsafeDiagnostic {
     /// Writes representative log-unsafe controls.
     fn fmt_redacted(
         &self,
-        _session: &qubit_redact::RedactionSession<'_>,
+        _session: &RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter.write_str("line one\nline two\u{202e}")
@@ -35,7 +33,7 @@ impl Redact for ControlFirstDiagnostic {
     /// Writes a control before any ordinary character.
     fn fmt_redacted(
         &self,
-        _session: &qubit_redact::RedactionSession<'_>,
+        _session: &RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter.write_str("\nremaining")
@@ -49,7 +47,7 @@ impl Redact for SafeDiagnostic {
     /// Writes one ordinary character.
     fn fmt_redacted(
         &self,
-        _session: &qubit_redact::RedactionSession<'_>,
+        _session: &RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter.write_str("a")

@@ -7,18 +7,14 @@
 // =============================================================================
 //! Bounded display adapter for log-safe text.
 
-use std::fmt::{
-    self,
-    Display,
-    Formatter,
-    Write as _,
-};
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Write as _;
 
-use super::{
-    LogOutputLimit,
-    LogSafeText,
-    internal::BoundedLogEscapeWriter,
-};
+use super::LogOutputLimit;
+use super::LogSafeText;
+use super::internal::BoundedLogEscapeWriter;
 
 /// A byte-bounded rendering of text that is already safe for a log boundary.
 ///

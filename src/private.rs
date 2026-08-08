@@ -10,12 +10,8 @@
 /// Runtime implementation details used by `qubit-redact-derive` expansions.
 #[doc(hidden)]
 pub mod __private {
-    pub use crate::domain::internal::{
-        RedactedSerialize,
-        serialize_internally_tagged,
-    };
-    pub use crate::domain::{
-        RedactMapSerialize,
-        RedactSerialize,
-    };
+    pub use crate::domain::RedactMapSerialize;
+    pub use crate::domain::RedactSerialize;
+    pub use crate::domain::internal::RedactedSerialize;
+    pub use crate::domain::internal::serialize_internally_tagged;
 }

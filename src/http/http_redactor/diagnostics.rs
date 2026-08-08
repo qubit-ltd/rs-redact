@@ -9,13 +9,10 @@
 
 use std::borrow::Cow;
 
-use crate::LogSafeText;
-
 use super::HttpRedactor;
-use crate::http::internal::{
-    BoundedLogWriter,
-    markers,
-};
+use crate::LogSafeText;
+use crate::http::internal::BoundedLogWriter;
+use crate::http::internal::markers;
 
 impl HttpRedactor {
     /// Reports whether a diagnostic input exceeds the hard input limit.

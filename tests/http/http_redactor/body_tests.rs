@@ -7,12 +7,9 @@
 // =============================================================================
 //! Tests for body dispatch normalization.
 
-use qubit_redact::http::{
-    BodyCapture,
-    BodyRedactionStatus,
-    HttpRedactor,
-};
-
+use qubit_redact::http::BodyCapture;
+use qubit_redact::http::BodyRedactionStatus;
+use qubit_redact::http::HttpRedactor;
 /// Verifies whitespace-surrounded JSON is detected before body dispatch.
 #[test]
 fn test_body_dispatch_detects_whitespace_surrounded_json() {

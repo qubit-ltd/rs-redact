@@ -7,14 +7,9 @@
 // =============================================================================
 //! Tests for [`UrlPathPolicy`](qubit_redact::http::UrlPathPolicy).
 
-use qubit_redact::{
-    RedactionPolicy,
-    http::{
-        HttpRedactor,
-        UrlPathPolicy,
-    },
-};
-
+use qubit_redact::RedactionPolicy;
+use qubit_redact::http::HttpRedactor;
+use qubit_redact::http::UrlPathPolicy;
 /// Verifies URL paths remain visible under the standard default.
 #[test]
 fn test_url_path_policy_default_is_preserve() {

@@ -8,12 +8,9 @@
 //! Tests for multipart body redaction.
 
 use http::HeaderValue;
-use qubit_redact::http::{
-    BodyCapture,
-    BodyRedactionStatus,
-    HttpRedactor,
-};
-
+use qubit_redact::http::BodyCapture;
+use qubit_redact::http::BodyRedactionStatus;
+use qubit_redact::http::HttpRedactor;
 /// Verifies multipart file contents are not included in diagnostics.
 #[test]
 fn test_multipart_hides_file_content() {

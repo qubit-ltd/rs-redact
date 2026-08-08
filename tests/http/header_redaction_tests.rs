@@ -6,27 +6,16 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use http::{
-    HeaderMap,
-    HeaderValue,
-    header::{
-        AUTHORIZATION,
-        CONTENT_TYPE,
-        SET_COOKIE,
-    },
-};
-use proptest::prelude::{
-    prop_assert,
-    proptest,
-};
-use qubit_redact::{
-    RedactionPolicy,
-    http::{
-        HttpRedactor,
-        InputOutputLimit,
-    },
-};
-
+use http::HeaderMap;
+use http::HeaderValue;
+use http::header::AUTHORIZATION;
+use http::header::CONTENT_TYPE;
+use http::header::SET_COOKIE;
+use proptest::prelude::prop_assert;
+use proptest::prelude::proptest;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::http::HttpRedactor;
+use qubit_redact::http::InputOutputLimit;
 /// Builds an HTTP redactor with visible test headers and finite diagnostics.
 fn redactor_with_diagnostic_budget(
     input: usize,
@@ -47,8 +36,8 @@ fn redactor_with_diagnostic_budget(
     HttpRedactor::new(policy)
 }
 
-#[test]
 /// Verifies that header redaction groups duplicates deterministically.
+#[test]
 fn test_header_redaction_groups_duplicates_deterministically() {
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -62,8 +51,8 @@ fn test_header_redaction_groups_duplicates_deterministically() {
     assert!(!rendered.contains("theme=light"));
 }
 
-#[test]
 /// Verifies that header redaction handles non utf8 and control characters.
+#[test]
 fn test_header_redaction_handles_non_utf8_and_control_characters() {
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -145,8 +134,8 @@ fn test_header_redaction_marks_truncation_after_exact_payload_boundary() {
 }
 
 proptest! {
-    #[test]
     /// Checks across generated inputs that header name policy never leaks secret.
+    #[test]
     fn test_header_name_policy_never_leaks_secret(
         secret in "[A-Za-z0-9]{8,64}",
     ) {
@@ -162,8 +151,8 @@ proptest! {
         prop_assert!(!rendered.contains(&secret));
     }
 
-    #[test]
     /// Checks across generated inputs that native sensitive header never leaks secret.
+    #[test]
     fn test_native_sensitive_header_never_leaks_secret(
         secret in "[A-Za-z0-9]{8,64}",
     ) {

@@ -8,7 +8,6 @@
 //! Tests for the public crate name.
 
 use qubit_redact as redact;
-
 /// Verifies that public exports are available through `qubit_redact`.
 #[test]
 fn test_crate_is_named_qubit_redact() {

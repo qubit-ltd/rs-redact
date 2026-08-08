@@ -7,15 +7,13 @@
 // =============================================================================
 //! Tests for the public domain module boundary.
 
-use qubit_redact::{
-    RedactValue,
-    Sensitivity,
-};
-
+use qubit_redact::RedactValue;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
 /// Verifies reexported domain traits and values compose.
 #[test]
 fn test_domain_module_reexports_compose() {
-    let policy = qubit_redact::RedactionPolicy::standard();
+    let policy = RedactionPolicy::standard();
     let value = String::from("raw-secret");
     let redacted = value.redact_value(Sensitivity::Secret, policy.masking());
 

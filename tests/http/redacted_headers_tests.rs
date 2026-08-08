@@ -7,23 +7,14 @@
 // =============================================================================
 //! Tests for [`RedactedHeaders`](qubit_redact::http::RedactedHeaders).
 
-use std::fmt::{
-    Debug,
-    Display,
-};
+use std::fmt::Debug;
+use std::fmt::Display;
 
-use http::{
-    HeaderMap,
-    HeaderValue,
-};
-use qubit_redact::{
-    LogSafeText,
-    http::{
-        HttpRedactor,
-        RedactedHeaders,
-    },
-};
-
+use http::HeaderMap;
+use http::HeaderValue;
+use qubit_redact::LogSafeText;
+use qubit_redact::http::HttpRedactor;
+use qubit_redact::http::RedactedHeaders;
 /// Alternate text query used as an unselected function-pointer target.
 fn alternate_log_safe_text(headers: &RedactedHeaders) -> &LogSafeText<'static> {
     headers.log_safe_text()

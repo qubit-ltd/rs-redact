@@ -7,23 +7,17 @@
 // =============================================================================
 //! Shared construction kernel for application rules and floors.
 
-use std::collections::{
-    BTreeMap,
-    BTreeSet,
-};
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 
-use super::{
-    FieldNameMatching,
-    PolicyError,
-    PolicyLocation,
-    SensitiveFieldPreset,
-    Sensitivity,
-    UnknownFieldPolicy,
-    internal::{
-        RedactionPolicyInner,
-        canonicalize_field_name,
-    },
-};
+use super::FieldNameMatching;
+use super::PolicyError;
+use super::PolicyLocation;
+use super::SensitiveFieldPreset;
+use super::Sensitivity;
+use super::UnknownFieldPolicy;
+use super::internal::RedactionPolicyInner;
+use super::internal::canonicalize_field_name;
 
 #[derive(Debug, Clone)]
 pub(crate) struct RedactionRulesBuilder {

@@ -7,26 +7,20 @@
 // =============================================================================
 //! Immutable field rules and their resolved floor protection.
 
-use std::{
-    ops::ControlFlow,
-    sync::Arc,
-};
+use std::ops::ControlFlow;
+use std::sync::Arc;
 
-use super::{
-    AllowRule,
-    FieldClassification,
-    FieldMatchKind,
-    FieldNameMatching,
-    RedactionFloor,
-    ResolvedField,
-    SensitiveFieldRule,
-    Sensitivity,
-    UnknownFieldPolicy,
-    internal::{
-        RedactionPolicyInner,
-        visit_canonical_field_candidates,
-    },
-};
+use super::AllowRule;
+use super::FieldClassification;
+use super::FieldMatchKind;
+use super::FieldNameMatching;
+use super::RedactionFloor;
+use super::ResolvedField;
+use super::SensitiveFieldRule;
+use super::Sensitivity;
+use super::UnknownFieldPolicy;
+use super::internal::RedactionPolicyInner;
+use super::internal::visit_canonical_field_candidates;
 
 /// Immutable, cheap-to-clone field classification snapshot.
 #[must_use]
@@ -132,8 +126,8 @@ impl RedactionRules {
         }
     }
 
-    #[inline]
     /// Resolves final sensitivity for `field` exactly once.
+    #[inline]
     pub(crate) fn resolve_field(&self, field: &str) -> ResolvedField {
         self.resolve_field_with_matching(field, self.application.matching)
     }

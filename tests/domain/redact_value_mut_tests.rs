@@ -9,12 +9,9 @@
 
 use std::borrow::Cow;
 
-use qubit_redact::{
-    MaskingPolicy,
-    RedactValueMut,
-    Sensitivity,
-};
-
+use qubit_redact::MaskingPolicy;
+use qubit_redact::RedactValueMut;
+use qubit_redact::Sensitivity;
 /// Verifies in-place scalar redaction replaces an owned secret value.
 #[test]
 fn test_redact_value_mut_replaces_owned_string() {

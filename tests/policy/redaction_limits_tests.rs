@@ -7,11 +7,8 @@
 // =============================================================================
 //! Tests for policy redaction limit propagation.
 
-use qubit_redact::{
-    InputOutputLimit,
-    RedactionPolicy,
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactionPolicy;
 /// Verifies immutable policies preserve the configured diagnostic limits.
 #[test]
 fn test_redaction_limits_preserve_policy_diagnostic_budget() {

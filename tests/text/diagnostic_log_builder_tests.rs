@@ -9,16 +9,13 @@
 
 use std::fmt;
 
-use qubit_redact::{
-    DiagnosticLogBuilder,
-    DiagnosticWriteStatus,
-    InputOutputLimit,
-    RedactionPolicy,
-    RedactionSession,
-    Redactor,
-    Sensitivity,
-};
-
+use qubit_redact::DiagnosticLogBuilder;
+use qubit_redact::DiagnosticWriteStatus;
+use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionSession;
+use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
 /// Verifies formatted fragments share one escaped output budget.
 #[test]
 fn test_diagnostic_builder_escapes_and_shares_output_budget() {

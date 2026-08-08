@@ -10,27 +10,17 @@
 use std::io::Write;
 
 use serde_json::Value;
+use serde_json::from_str;
+use serde_json::to_writer;
 
-use crate::json::internal::{
-    JsonRedactionState,
-    JsonUnkeyedValuePolicy,
-};
-
-use crate::{
-    JsonDepthBudget,
-    http::{
-        FieldRedactor,
-        UnkeyedJsonValuePolicy,
-    },
-};
-
-use super::{
-    BoundedBodyWriter,
-    markers::{
-        TRUNCATED,
-        UNKEYED_JSON,
-    },
-};
+use super::BoundedBodyWriter;
+use super::markers::TRUNCATED;
+use super::markers::UNKEYED_JSON;
+use crate::JsonDepthBudget;
+use crate::http::FieldRedactor;
+use crate::http::UnkeyedJsonValuePolicy;
+use crate::json::internal::JsonRedactionState;
+use crate::json::internal::JsonUnkeyedValuePolicy;
 
 /// Redacts a JSON tree and reports whether an unkeyed scalar passed through.
 ///
@@ -121,7 +111,7 @@ pub(in crate::http) fn serialize_bounded(
     max_output_bytes: usize,
 ) -> Option<(String, bool)> {
     let mut writer = BoundedBodyWriter::new(max_output_bytes);
-    if serde_json::to_writer(&mut writer, value).is_err() {
+    if to_writer(&mut writer, value).is_err() {
         return writer.into_string().map(|text| (text, true));
     }
     writer.flush().ok()?;
@@ -199,7 +189,7 @@ pub(in crate::http) fn redact_ndjson_with_remaining(
         if line.trim().is_empty() {
             continue;
         }
-        let mut value = serde_json::from_str(line).ok()?;
+        let mut value = from_str(line).ok()?;
         passed |= redact_with_remaining(
             redactor,
             &mut value,
@@ -207,7 +197,7 @@ pub(in crate::http) fn redact_ndjson_with_remaining(
             unkeyed,
             remaining_mask_bytes,
         );
-        if serde_json::to_writer(&mut output, &value).is_err() {
+        if to_writer(&mut output, &value).is_err() {
             return output.into_string().map(|text| (text, passed, true));
         }
     }

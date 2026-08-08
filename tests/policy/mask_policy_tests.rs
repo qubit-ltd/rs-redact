@@ -7,16 +7,12 @@
 // =============================================================================
 //! Tests for [`MaskPolicy`](qubit_redact::MaskPolicy).
 
-use proptest::prelude::{
-    Just,
-    any,
-    prop_assert_ne,
-    prop_oneof,
-    proptest,
-};
-
+use proptest::prelude::Just;
+use proptest::prelude::any;
+use proptest::prelude::prop_assert_ne;
+use proptest::prelude::prop_oneof;
+use proptest::prelude::proptest;
 use qubit_redact::MaskPolicy;
-
 /// Verifies that a fixed policy masks non-empty values.
 #[test]
 fn test_mask_policy_fixed_masks_non_empty_value() {

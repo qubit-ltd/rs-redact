@@ -7,10 +7,8 @@
 // =============================================================================
 //! Borrowed policy-preserving wrapper for nested serialization.
 
-use crate::{
-    RedactionPolicy,
-    domain::RedactSerialize,
-};
+use crate::RedactionPolicy;
+use crate::domain::RedactSerialize;
 
 /// A nested value paired with the current explicit policy.
 ///

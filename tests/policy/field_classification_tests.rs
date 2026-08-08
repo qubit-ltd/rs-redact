@@ -7,18 +7,16 @@
 // =============================================================================
 //! Tests for observable field-classification metadata.
 
-use qubit_redact::{
-    FieldMatchKind,
-    RedactionPolicy,
-    Sensitivity,
-};
-
+use qubit_redact::FieldMatchKind;
+use qubit_redact::FieldNameMatching;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
 /// Verifies sensitive classifications expose their matched rule metadata.
 #[test]
 fn test_field_classification_exposes_sensitive_rule_metadata() {
     let policy = RedactionPolicy::builder()
         .disable_floor()
-        .matching(qubit_redact::FieldNameMatching::ExactOrTokenSuffix)
+        .matching(FieldNameMatching::ExactOrTokenSuffix)
         .raise("api_token", Sensitivity::High)
         .expect("the configured field must be valid")
         .build()

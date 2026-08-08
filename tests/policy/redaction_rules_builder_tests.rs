@@ -7,13 +7,10 @@
 // =============================================================================
 //! Tests for the shared application-rule construction kernel.
 
-use qubit_redact::{
-    PolicyError,
-    PolicyLocation,
-    RedactionPolicy,
-    Sensitivity,
-};
-
+use qubit_redact::PolicyError;
+use qubit_redact::PolicyLocation;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
 /// Verifies the application facade reports validation errors immediately from
 /// the rules construction context.
 #[test]

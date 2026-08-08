@@ -7,20 +7,14 @@
 // =============================================================================
 //! Minimum field-protection floors.
 
-use std::{
-    fmt,
-    sync::{
-        Arc,
-        LazyLock,
-    },
-};
+use std::fmt;
+use std::sync::Arc;
+use std::sync::LazyLock;
 
+use super::RedactionFloorBuilder;
+use super::SensitiveFieldPreset;
+use super::SensitiveFieldRule;
 use super::internal::RedactionPolicyInner;
-use super::{
-    RedactionFloorBuilder,
-    SensitiveFieldPreset,
-    SensitiveFieldRule,
-};
 
 /// Immutable minimum field-protection rules.
 ///

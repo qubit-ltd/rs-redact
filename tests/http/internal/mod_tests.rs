@@ -8,12 +8,9 @@
 //! Tests for internal HTTP parser dispatch through the public redactor.
 
 use http::HeaderValue;
-use qubit_redact::http::{
-    BodyCapture,
-    BodyRedactionStatus,
-    HttpRedactor,
-};
-
+use qubit_redact::http::BodyCapture;
+use qubit_redact::http::BodyRedactionStatus;
+use qubit_redact::http::HttpRedactor;
 /// Verifies format dispatch selects a structured parser for form bodies.
 #[test]
 fn test_http_internal_dispatch_selects_structured_parser() {

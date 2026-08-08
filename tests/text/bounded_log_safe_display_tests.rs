@@ -7,11 +7,8 @@
 // =============================================================================
 //! Tests for [`BoundedLogSafeDisplay`](qubit_redact::BoundedLogSafeDisplay).
 
-use qubit_redact::{
-    LogOutputLimit,
-    Redactor,
-};
-
+use qubit_redact::LogOutputLimit;
+use qubit_redact::Redactor;
 /// Verifies bounded log-safe text is truncated at the configured byte limit.
 #[test]
 fn test_bounded_log_safe_display_truncates_at_budget() {

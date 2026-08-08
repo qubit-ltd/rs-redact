@@ -9,10 +9,8 @@
 
 use std::borrow::Cow;
 
-use super::{
-    LogSafeText,
-    log_escape::escape_log_control_characters,
-};
+use super::LogSafeText;
+use super::log_escape::escape_log_control_characters;
 
 /// A value that has passed through field-sensitive redaction.
 ///

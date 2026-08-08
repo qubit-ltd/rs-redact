@@ -7,15 +7,12 @@
 // =============================================================================
 //! Tests for explicit JSON text transformation.
 
-use qubit_redact::{
-    InputOutputLimit,
-    JsonDepthBudget,
-    MaskPolicy,
-    RedactionPolicy,
-    Sensitivity,
-    redact_json_text_in_place,
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::JsonDepthBudget;
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
+use qubit_redact::redact_json_text_in_place;
 /// Verifies explicit mutation preserves complete JSON beyond diagnostic limits.
 #[test]
 fn test_redact_json_text_in_place_is_not_limited_by_diagnostic_budget() {

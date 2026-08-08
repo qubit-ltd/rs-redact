@@ -9,12 +9,10 @@
 
 use std::borrow::Cow;
 
+use crate::LogSafeText;
+use crate::RedactedText;
+use crate::Sensitivity;
 pub use crate::pass_through_reason::PassThroughReason;
-use crate::{
-    LogSafeText,
-    RedactedText,
-    Sensitivity,
-};
 
 /// Explains whether a field value was masked or intentionally passed through.
 ///

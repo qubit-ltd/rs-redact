@@ -7,39 +7,27 @@
 // =============================================================================
 //! Policy-driven URI redaction facade.
 
-use std::{
-    borrow::Cow,
-    fmt::{
-        self,
-        Write,
-    },
-};
+use std::borrow::Cow;
+use std::fmt;
+use std::fmt::Write;
 
 use fluent_uri::Uri;
 
+use super::UriComponent;
+use super::UriFragmentPolicy;
+use super::UriInspection;
+use super::UriPathPolicy;
+use super::UriRedaction;
+use super::UriRedactionReason;
+use super::UriRedactionStatus;
+use super::internal::BoundedUriWriter;
+use super::internal::UriComponentWriter;
+use crate::RedactedText;
+use crate::RedactionPolicy;
+use crate::RedactionSession;
+use crate::Sensitivity;
 use crate::policy::OutputCharge;
-use crate::{
-    RedactedText,
-    RedactionPolicy,
-    RedactionSession,
-    Sensitivity,
-    policy::ResolvedField,
-};
-
-use super::{
-    UriComponent,
-    UriFragmentPolicy,
-    UriInspection,
-    UriPathPolicy,
-    UriRedaction,
-    UriRedactionReason,
-    UriRedactionStatus,
-};
-
-use super::internal::{
-    BoundedUriWriter,
-    UriComponentWriter,
-};
+use crate::policy::ResolvedField;
 
 const INVALID_URI: &str = "<invalid URI>";
 

@@ -7,11 +7,9 @@
 // =============================================================================
 //! A debug wrapper that emits a fixed redaction marker.
 
-use std::fmt::{
-    Debug,
-    Formatter,
-    Result,
-};
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result;
 
 /// A borrowed value whose debug representation is always `<redacted>`.
 ///

@@ -10,7 +10,6 @@
 use std::error::Error;
 
 use qubit_redact::DiagnosticBudgetError;
-
 /// Verifies diagnostic budget errors implement the standard error contract.
 #[test]
 fn test_diagnostic_budget_error_describes_invalid_limits() {

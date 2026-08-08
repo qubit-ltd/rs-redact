@@ -7,15 +7,12 @@
 // =============================================================================
 //! Integration tests for metadata-only URI inspection.
 
-use qubit_redact::{
-    InputOutputLimit,
-    RedactionPolicy,
-    UriComponent,
-    UriRedactionReason,
-    UriRedactionStatus,
-    UriRedactor,
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::UriComponent;
+use qubit_redact::UriRedactionReason;
+use qubit_redact::UriRedactionStatus;
+use qubit_redact::UriRedactor;
 /// Verifies inspection reports sensitive components without producing text.
 #[test]
 fn test_uri_redactor_inspect_uri_str_reports_metadata() {

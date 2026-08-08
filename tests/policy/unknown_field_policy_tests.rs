@@ -7,12 +7,9 @@
 // =============================================================================
 //! Tests for unknown-field fallback policy behavior.
 
-use qubit_redact::{
-    RedactionPolicy,
-    Sensitivity,
-    UnknownFieldPolicy,
-};
-
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
+use qubit_redact::UnknownFieldPolicy;
 /// Verifies the default policy leaves unclassified fields visible.
 #[test]
 fn test_unknown_field_policy_defaults_to_pass_through() {

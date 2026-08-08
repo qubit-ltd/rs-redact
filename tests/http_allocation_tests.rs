@@ -9,40 +9,25 @@
 
 #![cfg(feature = "http")]
 
-use std::{
-    alloc::{
-        GlobalAlloc,
-        Layout,
-        System,
-    },
-    cell::Cell,
-    sync::atomic::{
-        AtomicBool,
-        AtomicUsize,
-        Ordering,
-    },
-    sync::{
-        Arc,
-        Mutex,
-    },
-};
+use std::alloc::GlobalAlloc;
+use std::alloc::Layout;
+use std::alloc::System;
+use std::cell::Cell;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
-use http::{
-    HeaderMap,
-    HeaderValue,
-};
-use qubit_redact::{
-    MaskPolicy,
-    RedactionPolicy,
-    Sensitivity,
-    http::{
-        BodyBudget,
-        BodyCapture,
-        HttpRedactor,
-        InputOutputLimit,
-    },
-};
-
+use http::HeaderMap;
+use http::HeaderValue;
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
+use qubit_redact::http::BodyBudget;
+use qubit_redact::http::BodyCapture;
+use qubit_redact::http::HttpRedactor;
+use qubit_redact::http::InputOutputLimit;
 thread_local! {
     /// Controls whether the current thread contributes to a measurement.
     static TRACK_ALLOCATIONS: Cell<bool> = const { Cell::new(false) };

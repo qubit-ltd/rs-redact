@@ -7,18 +7,13 @@
 // =============================================================================
 //! Log-safe bounded result of HTTP body redaction.
 
-use std::{
-    borrow::Cow,
-    fmt::{
-        self,
-        Display,
-        Formatter,
-    },
-};
-
-use crate::LogSafeText;
+use std::borrow::Cow;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
 use super::BodyRedactionStatus;
+use crate::LogSafeText;
 
 /// Holds only escaped, bounded body text plus read-only source metadata.
 #[must_use = "inspect or render the redacted body instead of discarding it"]

@@ -7,18 +7,13 @@
 // =============================================================================
 //! Tests for borrowed HTTP field-rule execution.
 
-use http::{
-    HeaderMap,
-    HeaderValue,
-};
-use qubit_redact::{
-    MaskPolicy,
-    RedactionFloor,
-    RedactionPolicy,
-    Sensitivity,
-    http::HttpRedactor,
-};
-
+use http::HeaderMap;
+use http::HeaderValue;
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionFloor;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
+use qubit_redact::http::HttpRedactor;
 /// Verifies header field execution uses the shared mask table atomically.
 #[test]
 fn test_field_redactor_uses_application_mask_for_header_rule() {

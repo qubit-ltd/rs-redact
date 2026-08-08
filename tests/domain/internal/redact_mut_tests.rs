@@ -7,21 +7,15 @@
 // =============================================================================
 //! Tests for explicit in-place redaction adapters.
 
-use qubit_redact::{
-    RedactMut,
-    RedactionPolicy,
-};
-
+use qubit_redact::RedactMut;
+use qubit_redact::RedactionPolicy;
 /// Mutable value used to verify nested in-place replacement.
 #[derive(Clone)]
 struct MutableValue(String);
 
 impl RedactMut for MutableValue {
     /// Replaces the value with the runtime's fixed redaction marker.
-    fn redact_in_place_with(
-        &mut self,
-        _policy: &qubit_redact::RedactionPolicy,
-    ) {
+    fn redact_in_place_with(&mut self, _policy: &RedactionPolicy) {
         self.0 = "<redacted>".to_owned();
     }
 }

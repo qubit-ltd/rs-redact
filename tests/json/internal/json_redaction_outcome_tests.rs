@@ -7,18 +7,13 @@
 // =============================================================================
 //! Tests for public effects of JSON redaction outcomes.
 
-#[cfg(feature = "http")]
 use http::HeaderValue;
 #[cfg(feature = "http")]
 use qubit_redact::RedactionPolicy;
-#[cfg(feature = "http")]
-use qubit_redact::http::{
-    BodyCapture,
-    BodyRedactionStatus,
-    HttpRedactor,
-    UnkeyedJsonValuePolicy,
-};
-
+use qubit_redact::http::BodyCapture;
+use qubit_redact::http::BodyRedactionStatus;
+use qubit_redact::http::HttpRedactor;
+use qubit_redact::http::UnkeyedJsonValuePolicy;
 /// Verifies an explicit unkeyed pass-through reports the matching body status.
 #[cfg(feature = "http")]
 #[test]

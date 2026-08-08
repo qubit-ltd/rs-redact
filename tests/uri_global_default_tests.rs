@@ -9,13 +9,10 @@
 
 #![cfg(feature = "uri")]
 
-use qubit_redact::{
-    RedactionPolicy,
-    UriFragmentPolicy,
-    UriPathPolicy,
-    UriRedactor,
-};
-
+use qubit_redact::RedactionPolicy;
+use qubit_redact::UriFragmentPolicy;
+use qubit_redact::UriPathPolicy;
+use qubit_redact::UriRedactor;
 /// Verifies URI defaults preserve the complete installed policy snapshot.
 #[test]
 fn test_uri_policy_defaults_preserve_global_snapshot() {

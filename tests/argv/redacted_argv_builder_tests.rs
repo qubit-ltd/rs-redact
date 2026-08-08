@@ -7,13 +7,11 @@
 // =============================================================================
 use std::ffi::OsStr;
 
-use qubit_redact::{
-    InputOutputLimit,
-    RedactionPolicy,
-    Redactor,
-    argv::ArgvItem,
-};
-
+use qubit_redact::ArgvRedactor;
+use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Redactor;
+use qubit_redact::argv::ArgvItem;
 /// Verifies the argv builder exposes its diagnostic truncation marker.
 #[test]
 fn test_redacted_argv_builder_renders_input_truncation_marker() {
@@ -23,7 +21,7 @@ fn test_redacted_argv_builder_renders_input_truncation_marker() {
         .diagnostic_event(budget)
         .build()
         .expect("the bounded policy should be valid");
-    let rendered = qubit_redact::ArgvRedactor::new(Redactor::new(policy))
+    let rendered = ArgvRedactor::new(Redactor::new(policy))
         .redact_items([ArgvItem::plain(OsStr::new("uninspected-secret"))])
         .to_string();
 

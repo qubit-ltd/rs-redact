@@ -7,26 +7,19 @@
 // =============================================================================
 //! Lazy borrowed view of a string-valued map-like container.
 
-use std::{
-    fmt::{
-        self,
-        Debug,
-        Display,
-        Formatter,
-    },
-    marker::PhantomData,
-};
-
-use crate::{
-    BoundedRedactedDisplay,
-    LogOutputLimit,
-    RedactMapValue,
-    RedactionPolicy,
-    RedactionSession,
-};
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::marker::PhantomData;
 
 use super::bounded_redacted_display::format_bounded;
 use super::internal::mask_byte_limit;
+use crate::BoundedRedactedDisplay;
+use crate::LogOutputLimit;
+use crate::RedactMapValue;
+use crate::RedactionPolicy;
+use crate::RedactionSession;
 
 /// A lazy map view that classifies values by their runtime keys.
 ///
@@ -130,22 +123,16 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug
 }
 
 mod session_view {
-    use std::{
-        fmt::{
-            self,
-            Debug,
-            Display,
-            Formatter,
-            Write as _,
-        },
-        marker::PhantomData,
-    };
+    use std::fmt;
+    use std::fmt::Debug;
+    use std::fmt::Display;
+    use std::fmt::Formatter;
+    use std::fmt::Write as _;
+    use std::marker::PhantomData;
 
-    use crate::{
-        RedactMapValue,
-        RedactionSession,
-        text::internal::LogEscapeWriter,
-    };
+    use crate::RedactMapValue;
+    use crate::RedactionSession;
+    use crate::text::internal::LogEscapeWriter;
 
     /// A nested map view that reuses one diagnostic session.
     #[must_use = "format the nested redacted map view"]

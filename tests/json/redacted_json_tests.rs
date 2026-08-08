@@ -7,18 +7,18 @@
 // =============================================================================
 //! Tests for borrowed JSON value redaction.
 
-use qubit_redact::{
-    JsonDepthBudget,
-    MaskPolicy,
-    RedactedJson,
-    RedactedJsonSession,
-    RedactionPolicy,
-    RedactionSession,
-    Sensitivity,
-    UnknownFieldPolicy,
-};
+use qubit_redact::InputOutputLimit;
+use qubit_redact::JsonDepthBudget;
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactedJson;
+use qubit_redact::RedactedJsonSession;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionSession;
+use qubit_redact::Sensitivity;
+use qubit_redact::UnknownFieldPolicy;
 use serde_json::json;
-
+#[cfg(feature = "serde")]
+use serde_json::to_value;
 /// Verifies object keys select recursive JSON redaction without altering
 /// unkeyed scalar values.
 #[test]
@@ -130,11 +130,9 @@ fn test_redacted_json_session_uses_shared_output_budget() {
     let value = json!({
         "message": "diagnostic text that exceeds one fragment",
     });
-    let budget = qubit_redact::InputOutputLimit::new(
-        1024,
-        qubit_redact::InputOutputLimit::MIN_OUTPUT_BYTES,
-    )
-    .expect("the diagnostic budget should be valid");
+    let budget =
+        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
+            .expect("the diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -213,7 +211,7 @@ fn test_redacted_json_serde_preserves_json_value_shape() {
         .build()
         .expect("the policy should build");
 
-    let serialized = serde_json::to_value(RedactedJson::new(&value, &policy))
+    let serialized = to_value(RedactedJson::new(&value, &policy))
         .expect("the redacted JSON value should serialize");
 
     assert!(serialized.is_object());
@@ -240,7 +238,7 @@ fn test_redacted_json_serde_masks_sensitive_non_string_values_opaquely() {
         .build()
         .expect("the policy should build");
 
-    let serialized = serde_json::to_value(RedactedJson::new(&value, &policy))
+    let serialized = to_value(RedactedJson::new(&value, &policy))
         .expect("the redacted JSON value should serialize");
 
     assert_eq!(
@@ -270,7 +268,7 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
         .build()
         .expect("the policy should build");
 
-    let output = serde_json::to_value(RedactedJson::new(&value, &policy))
+    let output = to_value(RedactedJson::new(&value, &policy))
         .expect("the bounded redacted view should serialize");
 
     assert_eq!(output["shallow"], "visible");
@@ -285,13 +283,13 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
 fn test_redacted_json_serde_handles_arrays_and_unkeyed_scalars() {
     let array = json!(["visible", {"nested": [1, 2]}]);
     let standard = RedactionPolicy::standard();
-    let serialized = serde_json::to_value(RedactedJson::new(&array, &standard))
+    let serialized = to_value(RedactedJson::new(&array, &standard))
         .expect("the array should serialize");
     assert_eq!(serialized, array);
 
     let strict = RedactionPolicy::strict();
     let scalar = json!("root-secret");
-    let serialized = serde_json::to_value(RedactedJson::new(&scalar, &strict))
+    let serialized = to_value(RedactedJson::new(&scalar, &strict))
         .expect("the scalar should serialize");
     assert_ne!(serialized, scalar);
 }

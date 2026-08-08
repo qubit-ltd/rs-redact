@@ -9,20 +9,20 @@
 
 use std::fmt;
 
+#[cfg(feature = "serde")]
+use serde::Serialize;
+#[cfg(feature = "serde")]
+use serde::Serializer;
+#[cfg(feature = "serde")]
+use serde::ser::SerializeMap as _;
+#[cfg(feature = "serde")]
+use serde::ser::SerializeSeq as _;
 use serde_json::Value;
 
-#[cfg(feature = "serde")]
-use serde::ser::{
-    SerializeMap as _,
-    SerializeSeq as _,
-};
-
-use crate::{
-    RedactValue as _,
-    RedactedValue,
-    RedactionPolicy,
-    policy::ResolvedField,
-};
+use crate::RedactValue as _;
+use crate::RedactedValue;
+use crate::RedactionPolicy;
+use crate::policy::ResolvedField;
 
 /// A borrowed JSON value rendered with policy-aware object-key redaction.
 #[must_use = "format or serialize the redacted JSON view"]
@@ -136,7 +136,7 @@ impl fmt::Debug for RedactedJson<'_, '_> {
 }
 
 #[cfg(feature = "serde")]
-impl serde::Serialize for RedactedJson<'_, '_> {
+impl Serialize for RedactedJson<'_, '_> {
     /// Serializes a bounded redacted view while retaining safe JSON shapes.
     ///
     /// # Type Parameters
@@ -156,13 +156,10 @@ impl serde::Serialize for RedactedJson<'_, '_> {
     /// Returns the destination serializer error unchanged.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         if self.depth_limit_reached() {
-            return serde::Serialize::serialize(
-                &self.depth_limit_mask(),
-                serializer,
-            );
+            return Serialize::serialize(&self.depth_limit_mask(), serializer);
         }
         match self.value {
             Value::Array(values) => {
@@ -206,33 +203,26 @@ impl serde::Serialize for RedactedJson<'_, '_> {
                 }
                 output.end()
             }
-            _ if self.redact_unkeyed_scalar() => serde::Serialize::serialize(
-                &self.depth_limit_mask(),
-                serializer,
-            ),
-            value => serde::Serialize::serialize(value, serializer),
+            _ if self.redact_unkeyed_scalar() => {
+                Serialize::serialize(&self.depth_limit_mask(), serializer)
+            }
+            value => Serialize::serialize(value, serializer),
         }
     }
 }
 
 mod session_view {
-    use std::fmt::{
-        self,
-        Write as _,
-    };
+    use std::fmt;
+    use std::fmt::Write as _;
 
     use serde_json::Value;
 
-    use crate::{
-        LogOutputLimit,
-        RedactedJson,
-        RedactionSession,
-        policy::OutputCharge,
-        text::internal::{
-            BoundedLogEscapeWriter,
-            LogEscapeWriter,
-        },
-    };
+    use crate::LogOutputLimit;
+    use crate::RedactedJson;
+    use crate::RedactionSession;
+    use crate::policy::OutputCharge;
+    use crate::text::internal::BoundedLogEscapeWriter;
+    use crate::text::internal::LogEscapeWriter;
 
     /// A nested parsed JSON view that reuses one diagnostic session.
     #[must_use = "format the nested redacted JSON view"]

@@ -8,17 +8,13 @@
 //! Black-box tests for bounded HTTP log rendering.
 
 use http::HeaderValue;
-use qubit_redact::{
-    MaskPolicy,
-    RedactionPolicy,
-    Sensitivity,
-    http::{
-        BodyBudget,
-        BodyCapture,
-        HttpRedactor,
-    },
-};
-
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
+use qubit_redact::http::BodyBudget;
+use qubit_redact::http::BodyCapture;
+use qubit_redact::http::HttpRedactor;
+use qubit_redact::http::TextBodyPolicy;
 /// Builds a redactor whose secret mask is intentionally much larger than its
 /// output budget.
 fn amplified_mask_redactor() -> HttpRedactor {
@@ -95,7 +91,7 @@ fn test_bounded_output_keeps_utf8_and_marker_complete() {
         BodyBudget::new(64, 14).expect("the output can contain the marker");
     let policy = RedactionPolicy::builder()
         .body_budget(budget)
-        .text_body_policy(qubit_redact::http::TextBodyPolicy::PassThrough)
+        .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
         .expect("the HTTP policy is valid");
     let result = HttpRedactor::new(policy).redact_body(
@@ -113,7 +109,7 @@ fn test_late_truncation_backs_up_to_utf8_boundary() {
         BodyBudget::new(64, 15).expect("the output can contain the marker");
     let policy = RedactionPolicy::builder()
         .body_budget(budget)
-        .text_body_policy(qubit_redact::http::TextBodyPolicy::PassThrough)
+        .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
         .expect("the HTTP policy is valid");
     let result = HttpRedactor::new(policy).redact_body(
@@ -131,7 +127,7 @@ fn test_source_truncation_can_use_marker_only_budget() {
         BodyBudget::new(1, 11).expect("the output can contain the marker");
     let policy = RedactionPolicy::builder()
         .body_budget(budget)
-        .text_body_policy(qubit_redact::http::TextBodyPolicy::PassThrough)
+        .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
         .expect("the HTTP policy is valid");
     let capture = BodyCapture::truncated(b"a", Some(2))

@@ -8,13 +8,10 @@
 //! Mutable builder for URI redaction policies.
 // qubit-style: allow type-file-name
 
+use super::UriFragmentPolicy;
+use super::UriPathPolicy;
+use super::UriPolicy;
 use crate::PolicyError;
-
-use super::{
-    UriFragmentPolicy,
-    UriPathPolicy,
-    UriPolicy,
-};
 
 /// Mutable construction state for an immutable URI policy.
 #[must_use]

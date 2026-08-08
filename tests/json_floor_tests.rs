@@ -9,13 +9,11 @@
 
 #![cfg(feature = "json")]
 
-use qubit_redact::{
-    MaskPolicy,
-    RedactionFloor,
-    RedactionPolicy,
-    Sensitivity,
-    redact_json_text_in_place,
-};
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionFloor;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
+use qubit_redact::redact_json_text_in_place;
 
 #[test]
 fn test_json_uses_policy_mask_for_floor_matched_key() {

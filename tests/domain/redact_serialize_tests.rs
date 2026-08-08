@@ -7,6 +7,9 @@
 // =============================================================================
 //! Tests for serde redaction of domain objects.
 
+#[cfg(feature = "serde")]
+use qubit_redact::RedactedValue;
+
 /// Asserts at compile time that a type implements [`serde::Serialize`].
 #[cfg(feature = "serde")]
 fn assert_serialize<T: serde::Serialize>() {}
@@ -15,5 +18,5 @@ fn assert_serialize<T: serde::Serialize>() {}
 #[cfg(feature = "serde")]
 #[test]
 fn test_redact_serialize_redacted_value_implements_serialize() {
-    assert_serialize::<qubit_redact::RedactedValue<'static>>();
+    assert_serialize::<RedactedValue<'static>>();
 }

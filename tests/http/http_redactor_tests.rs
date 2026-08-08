@@ -6,33 +6,26 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
-use http::{
-    HeaderMap,
-    HeaderValue,
-};
-use proptest::{
-    collection,
-    prelude::{
-        any,
-        prop_assert,
-        proptest,
-    },
-};
-use qubit_redact::{
-    InputOutputLimit,
-    JsonDepthBudget,
-    MaskPolicy,
-    RedactionPolicy,
-    Sensitivity,
-    http::{
-        BodyBudget,
-        BodyCapture,
-        HttpRedactor,
-        TextBodyPolicy,
-    },
-};
+use http::HeaderMap;
+use http::HeaderValue;
+use proptest::collection;
+use proptest::prelude::any;
+use proptest::prelude::prop_assert;
+use proptest::prelude::proptest;
+use qubit_redact::InputOutputLimit;
+use qubit_redact::JsonDepthBudget;
+use qubit_redact::MaskPolicy;
+use qubit_redact::MaskingPolicy;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
+use qubit_redact::http::BodyBudget;
+use qubit_redact::http::BodyCapture;
+use qubit_redact::http::BodyRedactionReason;
+use qubit_redact::http::BodyRedactionStatus;
+use qubit_redact::http::HttpRedactor;
+use qubit_redact::http::TextBodyPolicy;
+use qubit_redact::http::UnkeyedJsonValuePolicy;
 use url::Url;
-
 /// Builds an HTTP redactor with explicit finite body limits.
 fn redactor_with_budget(input: usize, output: usize) -> HttpRedactor {
     let budget = BodyBudget::new(input, output)
@@ -45,8 +38,8 @@ fn redactor_with_budget(input: usize, output: usize) -> HttpRedactor {
     HttpRedactor::new(policy)
 }
 
-#[test]
 /// Verifies that http redactor covers url headers and body.
+#[test]
 fn test_http_redactor_covers_url_headers_and_body() {
     let redactor = HttpRedactor::new(RedactionPolicy::strict());
     let url =
@@ -74,8 +67,8 @@ fn test_http_redactor_covers_url_headers_and_body() {
     assert_eq!(redacted_body.into_log_safe_text().as_ref(), rendered);
 }
 
-#[test]
 /// Verifies that body output budget applies after control escaping.
+#[test]
 fn test_body_output_budget_applies_after_control_escaping() {
     let redactor = redactor_with_budget(64, 16);
     let body = redactor.redact_body(
@@ -89,8 +82,8 @@ fn test_body_output_budget_applies_after_control_escaping() {
     assert!(body.is_truncated());
 }
 
-#[test]
 /// Verifies that minimum output budget is exact marker.
+#[test]
 fn test_minimum_output_budget_is_exact_marker() {
     let redactor = redactor_with_budget(64, BodyBudget::MIN_OUTPUT_BYTES);
     let body = redactor.redact_body(
@@ -102,8 +95,8 @@ fn test_minimum_output_budget_is_exact_marker() {
     assert_eq!(body.to_string().len(), BodyBudget::MIN_OUTPUT_BYTES);
 }
 
-#[test]
 /// Verifies that output truncation preserves multibyte utf8 boundary.
+#[test]
 fn test_output_truncation_preserves_multibyte_utf8_boundary() {
     let redactor = redactor_with_budget(64, 14);
     let body = redactor.redact_body(
@@ -115,8 +108,8 @@ fn test_output_truncation_preserves_multibyte_utf8_boundary() {
     assert_eq!(body.to_string().len(), 14);
 }
 
-#[test]
 /// Verifies that source truncation is reported even when payload fits.
+#[test]
 fn test_source_truncation_is_reported_even_when_payload_fits() {
     let redactor = redactor_with_budget(64, 64);
     let capture = BodyCapture::truncated(b"ok", Some(9))
@@ -131,8 +124,8 @@ fn test_source_truncation_is_reported_even_when_payload_fits() {
     assert_eq!(body.to_string(), "ok<truncated>");
 }
 
-#[test]
 /// Verifies that input budget metadata is exact and output is bounded.
+#[test]
 fn test_input_budget_metadata_is_exact_and_output_is_bounded() {
     let redactor = redactor_with_budget(4, 15);
     let body = redactor.redact_body(
@@ -148,8 +141,8 @@ fn test_input_budget_metadata_is_exact_and_output_is_bounded() {
     assert!(body.to_string().ends_with("<truncated>"));
 }
 
-#[test]
 /// Verifies that native sensitive header wins over allow rule.
+#[test]
 fn test_native_sensitive_header_wins_over_allow_rule() {
     let allowed = RedactionPolicy::builder()
         .allow_canonical_exact("x-visible")
@@ -178,8 +171,8 @@ fn test_native_sensitive_header_wins_over_allow_rule() {
     );
 }
 
-#[test]
 /// Verifies that structured body status and fail closed cases.
+#[test]
 fn test_structured_body_status_and_fail_closed_cases() {
     let redactor = HttpRedactor::new(RedactionPolicy::strict());
     let json_type = HeaderValue::from_static("application/json");
@@ -192,16 +185,14 @@ fn test_structured_body_status_and_fail_closed_cases() {
 
     assert_eq!(
         malformed.status(),
-        qubit_redact::http::BodyRedactionStatus::Redacted(
-            qubit_redact::http::BodyRedactionReason::InvalidJson,
-        )
+        BodyRedactionStatus::Redacted(BodyRedactionReason::InvalidJson,)
     );
     assert!(!malformed.to_string().contains("secret"));
     assert!(!scalar.to_string().contains("secret"));
 }
 
-#[test]
 /// Verifies that multipart redacts file and sensitive field.
+#[test]
 fn test_multipart_redacts_file_and_sensitive_field() {
     let body = b"--boundary\r\nContent-Disposition: form-data; name=\"upload\"; filename=\"secret.txt\"\r\nContent-Type: text/plain\r\n\r\nfile-secret\r\n--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nfield-secret\r\n--boundary--\r\n";
     let content_type =
@@ -210,17 +201,14 @@ fn test_multipart_redacts_file_and_sensitive_field() {
     let result = HttpRedactor::default()
         .redact_body(BodyCapture::complete(body), Some(&content_type));
 
-    assert_eq!(
-        result.status(),
-        qubit_redact::http::BodyRedactionStatus::Structured
-    );
+    assert_eq!(result.status(), BodyRedactionStatus::Structured);
     assert!(result.to_string().contains("<redacted: file part>"));
     assert!(!result.to_string().contains("file-secret"));
     assert!(!result.to_string().contains("field-secret"));
 }
 
-#[test]
 /// Verifies that malformed and truncated multipart fail closed.
+#[test]
 fn test_malformed_and_truncated_multipart_fail_closed() {
     let content_type =
         HeaderValue::from_static("multipart/form-data; boundary=boundary");
@@ -240,8 +228,8 @@ fn test_malformed_and_truncated_multipart_fail_closed() {
     assert!(truncated.is_truncated());
 }
 
-#[test]
 /// Verifies that multipart rejects invalid header parameter grammar.
+#[test]
 fn test_multipart_rejects_invalid_header_parameter_grammar() {
     let policy = RedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -276,8 +264,8 @@ fn test_multipart_rejects_invalid_header_parameter_grammar() {
 
         assert_eq!(
             result.status(),
-            qubit_redact::http::BodyRedactionStatus::Redacted(
-                qubit_redact::http::BodyRedactionReason::InvalidMultipart,
+            BodyRedactionStatus::Redacted(
+                BodyRedactionReason::InvalidMultipart,
             ),
             "accepted malformed disposition: {:?}",
             String::from_utf8_lossy(disposition),
@@ -286,8 +274,8 @@ fn test_multipart_rejects_invalid_header_parameter_grammar() {
     }
 }
 
-#[test]
 /// Verifies that multipart form data requires exact disposition token.
+#[test]
 fn test_multipart_form_data_requires_exact_disposition_token() {
     let policy = RedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -309,17 +297,17 @@ fn test_multipart_form_data_requires_exact_disposition_token() {
 
         assert_eq!(
             result.status(),
-            qubit_redact::http::BodyRedactionStatus::Redacted(
-                qubit_redact::http::BodyRedactionReason::InvalidMultipart,
+            BodyRedactionStatus::Redacted(
+                BodyRedactionReason::InvalidMultipart,
             ),
         );
         assert!(!result.to_string().contains("pass-through-secret"));
     }
 }
 
-#[test]
 /// Verifies that multipart mixed allows missing but rejects malformed
 /// disposition.
+#[test]
 fn test_multipart_mixed_allows_missing_but_rejects_malformed_disposition() {
     let policy = RedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -339,33 +327,25 @@ fn test_multipart_mixed_allows_missing_but_rejects_malformed_disposition() {
     let malformed_result = redactor
         .redact_body(BodyCapture::complete(malformed), Some(&content_type));
 
-    assert_eq!(
-        unnamed_result.status(),
-        qubit_redact::http::BodyRedactionStatus::Structured
-    );
+    assert_eq!(unnamed_result.status(), BodyRedactionStatus::Structured);
     assert!(
         unnamed_result
             .to_string()
             .contains("<unnamed>=<redacted: multipart part>")
     );
     assert!(!unnamed_result.to_string().contains("unnamed-secret"));
-    assert_eq!(
-        named_result.status(),
-        qubit_redact::http::BodyRedactionStatus::PassedThrough
-    );
+    assert_eq!(named_result.status(), BodyRedactionStatus::PassedThrough);
     assert!(named_result.to_string().contains("visible"));
     assert_eq!(
         malformed_result.status(),
-        qubit_redact::http::BodyRedactionStatus::Redacted(
-            qubit_redact::http::BodyRedactionReason::InvalidMultipart,
-        ),
+        BodyRedactionStatus::Redacted(BodyRedactionReason::InvalidMultipart,),
     );
     assert!(!malformed_result.to_string().contains("malformed-secret"));
 }
 
-#[test]
 /// Verifies that multipart boundary allows internal space but not trailing
 /// space.
+#[test]
 fn test_multipart_boundary_allows_internal_space_but_not_trailing_space() {
     let policy = RedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -385,22 +365,17 @@ fn test_multipart_boundary_allows_internal_space_but_not_trailing_space() {
         Some(&invalid_type),
     );
 
-    assert_eq!(
-        valid.status(),
-        qubit_redact::http::BodyRedactionStatus::PassedThrough
-    );
+    assert_eq!(valid.status(), BodyRedactionStatus::PassedThrough);
     assert!(valid.to_string().contains("visible"));
     assert_eq!(
         invalid.status(),
-        qubit_redact::http::BodyRedactionStatus::Redacted(
-            qubit_redact::http::BodyRedactionReason::InvalidMultipart,
-        ),
+        BodyRedactionStatus::Redacted(BodyRedactionReason::InvalidMultipart,),
     );
     assert!(!invalid.to_string().contains("pass-through-secret"));
 }
 
-#[test]
 /// Verifies that multipart rejects malformed part content type parameters.
+#[test]
 fn test_multipart_rejects_malformed_part_content_type_parameters() {
     let policy = RedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -416,16 +391,14 @@ fn test_multipart_rejects_malformed_part_content_type_parameters() {
 
     assert_eq!(
         result.status(),
-        qubit_redact::http::BodyRedactionStatus::Redacted(
-            qubit_redact::http::BodyRedactionReason::InvalidMultipart,
-        ),
+        BodyRedactionStatus::Redacted(BodyRedactionReason::InvalidMultipart,),
     );
     assert!(!result.to_string().contains("pass-through-secret"));
 }
 
-#[test]
 /// Verifies that body dispatch covers empty binary unsupported and invalid
 /// content type.
+#[test]
 fn test_body_dispatch_covers_empty_binary_unsupported_and_invalid_content_type()
 {
     let redactor = HttpRedactor::default();
@@ -440,15 +413,9 @@ fn test_body_dispatch_covers_empty_binary_unsupported_and_invalid_content_type()
         Some(&invalid_type),
     );
 
-    assert_eq!(
-        empty.status(),
-        qubit_redact::http::BodyRedactionStatus::Empty
-    );
+    assert_eq!(empty.status(), BodyRedactionStatus::Empty);
     assert_eq!(empty.to_string(), "");
-    assert_eq!(
-        binary.status(),
-        qubit_redact::http::BodyRedactionStatus::Binary
-    );
+    assert_eq!(binary.status(), BodyRedactionStatus::Binary);
     assert_eq!(binary.to_string(), "<binary 2 bytes>");
     assert!(!unsupported.to_string().contains("visible-secret"));
     assert!(!invalid.to_string().contains("visible-secret"));
@@ -470,9 +437,7 @@ fn test_redact_body_with_content_type_text_dispatches_and_fails_closed() {
     assert!(!structured.to_string().contains("raw"));
     assert_eq!(
         invalid.status(),
-        qubit_redact::http::BodyRedactionStatus::Redacted(
-            qubit_redact::http::BodyRedactionReason::InvalidContentType,
-        ),
+        BodyRedactionStatus::Redacted(BodyRedactionReason::InvalidContentType,),
     );
     assert!(!invalid.to_string().contains("visible-secret"));
 }
@@ -503,16 +468,16 @@ fn test_redact_body_rejects_content_type_beyond_diagnostic_input_budget() {
     for body in [native, text] {
         assert_eq!(
             body.status(),
-            qubit_redact::http::BodyRedactionStatus::Redacted(
-                qubit_redact::http::BodyRedactionReason::InvalidContentType,
+            BodyRedactionStatus::Redacted(
+                BodyRedactionReason::InvalidContentType,
             ),
         );
         assert!(!body.to_string().contains("visible-secret"));
     }
 }
 
-#[test]
 /// Verifies that ndjson and form body redaction cover valid and invalid inputs.
+#[test]
 fn test_ndjson_and_form_body_redaction_cover_valid_and_invalid_inputs() {
     let redactor = HttpRedactor::default();
     let ndjson_type = HeaderValue::from_static("application/x-ndjson");
@@ -575,11 +540,11 @@ fn test_ndjson_and_form_body_redaction_cover_valid_and_invalid_inputs() {
     assert!(!truncated_valid_prefix_form.to_string().contains("partial"));
 }
 
-#[test]
 /// Verifies that json policy handles arrays non strings and unkeyed pass
 /// through.
+#[test]
 fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
-    let masking = qubit_redact::MaskingPolicy::default()
+    let masking = MaskingPolicy::default()
         .with_policy(Sensitivity::Secret, MaskPolicy::fixed("SECRET"));
     let body_policy = RedactionPolicy::builder()
         .disable_floor()
@@ -598,7 +563,7 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
         .disable_floor();
     builder
         .http()
-        .unkeyed_json(qubit_redact::http::UnkeyedJsonValuePolicy::PassThrough);
+        .unkeyed_json(UnkeyedJsonValuePolicy::PassThrough);
     let policy = builder
         .mask(Sensitivity::Secret, MaskPolicy::fixed("SECRET"))
         .expect("the test mask policy should be valid")
@@ -617,10 +582,7 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
 
     assert!(!object.to_string().contains("nested"));
     assert!(!object.to_string().contains("42"));
-    assert_eq!(
-        scalar.status(),
-        qubit_redact::http::BodyRedactionStatus::PassedThrough
-    );
+    assert_eq!(scalar.status(), BodyRedactionStatus::PassedThrough);
     assert_eq!(scalar.to_string(), "42");
 }
 
@@ -689,8 +651,8 @@ fn test_json_policy_fails_closed_at_depth_budget() {
     assert!(!output.contains("raw-depth-secret"));
 }
 
-#[test]
 /// Verifies that multipart handles nested formats text unknown and empty.
+#[test]
 fn test_multipart_handles_nested_formats_text_unknown_and_empty() {
     let policy = RedactionPolicy::default()
         .to_builder()
@@ -711,15 +673,12 @@ fn test_multipart_handles_nested_formats_text_unknown_and_empty() {
     assert!(!result.to_string().contains("secret"));
     assert!(result.to_string().contains("hello"));
     assert!(result.to_string().contains("multipart part"));
-    assert_eq!(
-        result.status(),
-        qubit_redact::http::BodyRedactionStatus::PassedThrough
-    );
+    assert_eq!(result.status(), BodyRedactionStatus::PassedThrough);
     assert_eq!(empty.to_string(), "<multipart>\\n</multipart>");
 }
 
-#[test]
 /// Verifies that body escapes unicode line and bidirectional controls.
+#[test]
 fn test_body_escapes_unicode_line_and_bidirectional_controls() {
     let redactor = redactor_with_budget(128, 128);
     let body = redactor.redact_body(
@@ -732,8 +691,8 @@ fn test_body_escapes_unicode_line_and_bidirectional_controls() {
     assert!(!body.to_string().contains('\u{202e}'));
 }
 
-#[test]
 /// Verifies that default redactor hides opaque text and truncated json.
+#[test]
 fn test_default_redactor_hides_opaque_text_and_truncated_json() {
     let redactor = HttpRedactor::default();
     let opaque = redactor.redact_body(
@@ -751,8 +710,8 @@ fn test_default_redactor_hides_opaque_text_and_truncated_json() {
     assert!(truncated.to_string().contains("invalid or truncated JSON"));
 }
 
-#[test]
 /// Verifies that malformed content type grammar fails closed before dispatch.
+#[test]
 fn test_malformed_content_type_grammar_fails_closed_before_dispatch() {
     let redactor = redactor_with_budget(512, 512);
     let cases = [
@@ -774,21 +733,19 @@ fn test_malformed_content_type_grammar_fails_closed_before_dispatch() {
 
         assert_eq!(
             result.status(),
-            qubit_redact::http::BodyRedactionStatus::Redacted(
-                qubit_redact::http::BodyRedactionReason::InvalidContentType,
+            BodyRedactionStatus::Redacted(
+                BodyRedactionReason::InvalidContentType,
             ),
         );
         assert!(!result.to_string().contains("pass-through-secret"));
     }
 }
 
-#[test]
 /// Verifies that ndjson unkeyed pass through reports passed through.
+#[test]
 fn test_ndjson_unkeyed_pass_through_reports_passed_through() {
     let policy = RedactionPolicy::builder()
-        .unkeyed_json_value_policy(
-            qubit_redact::http::UnkeyedJsonValuePolicy::PassThrough,
-        )
+        .unkeyed_json_value_policy(UnkeyedJsonValuePolicy::PassThrough)
         .build()
         .expect("HTTP redaction policy should be valid");
     let body = HttpRedactor::new(policy).redact_body(
@@ -796,15 +753,12 @@ fn test_ndjson_unkeyed_pass_through_reports_passed_through() {
         Some(&HeaderValue::from_static("application/x-ndjson")),
     );
 
-    assert_eq!(
-        body.status(),
-        qubit_redact::http::BodyRedactionStatus::PassedThrough
-    );
+    assert_eq!(body.status(), BodyRedactionStatus::PassedThrough);
     assert!(body.to_string().contains("visible"));
 }
 
-#[test]
 /// Verifies that multipart metadata and framing fail closed.
+#[test]
 fn test_multipart_metadata_and_framing_fail_closed() {
     let policy = RedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -860,22 +814,22 @@ fn test_multipart_metadata_and_framing_fail_closed() {
             .redact_body(BodyCapture::complete(body), Some(&selected_type));
 
         let expected_reason = if label == "duplicate boundary" {
-            qubit_redact::http::BodyRedactionReason::InvalidContentType
+            BodyRedactionReason::InvalidContentType
         } else {
-            qubit_redact::http::BodyRedactionReason::InvalidMultipart
+            BodyRedactionReason::InvalidMultipart
         };
         assert_eq!(
             result.status(),
-            qubit_redact::http::BodyRedactionStatus::Redacted(expected_reason),
+            BodyRedactionStatus::Redacted(expected_reason),
             "unexpected status for {label}",
         );
         assert!(!result.to_string().contains("secret"), "{label}");
     }
 }
 
-#[test]
 /// Verifies that multipart blank name extended filename and non utf8 file are
 /// safe.
+#[test]
 fn test_multipart_blank_name_extended_filename_and_non_utf8_file_are_safe() {
     let policy = RedactionPolicy::builder()
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -896,8 +850,8 @@ fn test_multipart_blank_name_extended_filename_and_non_utf8_file_are_safe() {
     assert!(!result.to_string().contains("secret.txt"));
 }
 
-#[test]
 /// Verifies that multipart accepts valid quoted pairs and unknown parameters.
+#[test]
 fn test_multipart_accepts_valid_quoted_pairs_and_unknown_parameters() {
     let content_type = HeaderValue::from_static(
         "multipart/form-data; charset=utf-8; boundary=\"b\"",
@@ -915,15 +869,12 @@ fn test_multipart_accepts_valid_quoted_pairs_and_unknown_parameters() {
     assert!(result.to_string().contains("<redacted: file part>"));
     assert!(!result.to_string().contains("file-secret"));
     assert!(!result.to_string().contains("report.txt"));
-    assert_eq!(
-        unicode_result.status(),
-        qubit_redact::http::BodyRedactionStatus::Structured
-    );
+    assert_eq!(unicode_result.status(), BodyRedactionStatus::Structured);
     assert!(unicode_result.to_string().contains("nøté"));
 }
 
-#[test]
 /// Verifies that multipart covers strict line and part policy branches.
+#[test]
 fn test_multipart_covers_strict_line_and_part_policy_branches() {
     let multipart_type =
         HeaderValue::from_static("multipart/form-data; boundary=b");
@@ -932,10 +883,7 @@ fn test_multipart_covers_strict_line_and_part_policy_branches() {
     let result = default_redactor
         .redact_body(BodyCapture::complete(structured), Some(&multipart_type));
 
-    assert_eq!(
-        result.status(),
-        qubit_redact::http::BodyRedactionStatus::Structured
-    );
+    assert_eq!(result.status(), BodyRedactionStatus::Structured);
     assert!(!result.to_string().contains("secret"));
     assert!(result.to_string().contains("multipart text part"));
 
@@ -948,16 +896,13 @@ fn test_multipart_covers_strict_line_and_part_policy_branches() {
     let passed = HttpRedactor::new(pass_policy)
         .redact_body(BodyCapture::complete(lf_only), Some(&multipart_type));
 
-    assert_eq!(
-        passed.status(),
-        qubit_redact::http::BodyRedactionStatus::PassedThrough
-    );
+    assert_eq!(passed.status(), BodyRedactionStatus::PassedThrough);
     assert!(passed.to_string().contains("visible"));
 }
 
-#[test]
 /// Verifies that multipart invalid nested json and sensitive non utf8 fail
 /// closed.
+#[test]
 fn test_multipart_invalid_nested_json_and_sensitive_non_utf8_fail_closed() {
     let content_type =
         HeaderValue::from_static("multipart/form-data; boundary=b");
@@ -978,8 +923,8 @@ fn test_multipart_invalid_nested_json_and_sensitive_non_utf8_fail_closed() {
 
         assert_eq!(
             result.status(),
-            qubit_redact::http::BodyRedactionStatus::Redacted(
-                qubit_redact::http::BodyRedactionReason::InvalidMultipart,
+            BodyRedactionStatus::Redacted(
+                BodyRedactionReason::InvalidMultipart,
             ),
             "unexpected status for {label}",
         );
@@ -988,8 +933,8 @@ fn test_multipart_invalid_nested_json_and_sensitive_non_utf8_fail_closed() {
 }
 
 proptest! {
-    #[test]
     /// Checks across generated inputs that http body never leaks structured secret.
+    #[test]
     fn test_http_body_never_leaks_structured_secret(
         secret in "[A-Za-z0-9]{8,64}",
     ) {
@@ -1022,8 +967,8 @@ proptest! {
         }
     }
 
-    #[test]
     /// Checks across generated inputs that http body handles arbitrary bytes without panicking.
+    #[test]
     fn test_http_body_handles_arbitrary_bytes_without_panicking(
         body in collection::vec(any::<u8>(), 0..512),
     ) {

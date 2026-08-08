@@ -9,9 +9,8 @@
 
 use std::fmt;
 
-use crate::text::log_escape::encode_log_safe_character;
-
 use super::markers;
+use crate::text::log_escape::encode_log_safe_character;
 
 /// Accumulates escaped log text without exceeding a final byte budget.
 pub(in crate::http) struct BoundedLogWriter {

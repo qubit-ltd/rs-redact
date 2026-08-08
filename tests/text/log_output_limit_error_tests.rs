@@ -8,7 +8,6 @@
 //! Tests for [`LogOutputLimitError`](qubit_redact::LogOutputLimitError).
 
 use qubit_redact::LogOutputLimit;
-
 /// Verifies an undersized budget reports both requested and minimum bytes.
 #[test]
 fn test_log_output_limit_error_describes_invalid_budget() {

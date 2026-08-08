@@ -7,12 +7,11 @@
 // =============================================================================
 //! Black-box tests for bounded URI output.
 
-use qubit_redact::{
-    InputOutputLimit,
-    RedactionPolicy,
-    UriRedactor,
-};
-
+use qubit_redact::InputOutputLimit;
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
+use qubit_redact::UriRedactor;
 /// Verifies URI output remains UTF-8 and reserves the complete marker.
 #[test]
 fn test_bounded_uri_output_keeps_utf8_and_marker_complete() {
@@ -52,10 +51,7 @@ fn test_bounded_uri_output_keeps_utf8_and_marker_complete() {
 fn test_bounded_uri_output_percent_encodes_unicode_masks() {
     let core = RedactionPolicy::default()
         .to_builder()
-        .mask(
-            qubit_redact::Sensitivity::High,
-            qubit_redact::MaskPolicy::fixed("密"),
-        )
+        .mask(Sensitivity::High, MaskPolicy::fixed("密"))
         .expect("the mask policy is valid")
         .build()
         .expect("the core policy is valid");
