@@ -13,6 +13,7 @@ use qubit_redact::RedactedJson;
 use qubit_redact::RedactionPolicy;
 #[cfg(feature = "serde")]
 use qubit_redact::Sensitivity;
+#[cfg(feature = "serde")]
 use serde_json::json;
 #[cfg(feature = "serde")]
 use serde_json::to_value;
