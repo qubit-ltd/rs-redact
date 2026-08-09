@@ -34,7 +34,7 @@ pub(crate) struct JsonRedactionState<'policy, 'budget, 'marker> {
     /// Handling for scalars without an object-key context.
     unkeyed: JsonUnkeyedValuePolicy<'marker>,
     /// Aggregate accounting for newly generated masks.
-    mask_budget: Option<&'budget mut ResourceBudget<RedactionResource>>,
+    mask_budget: Option<&'budget mut ResourceBudget<RedactionResource, usize>>,
 }
 
 impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
@@ -57,7 +57,9 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         masking: &'policy MaskingPolicy,
         json_depth_limit: JsonDepthLimit,
         unkeyed: JsonUnkeyedValuePolicy<'marker>,
-        mask_budget: Option<&'budget mut ResourceBudget<RedactionResource>>,
+        mask_budget: Option<
+            &'budget mut ResourceBudget<RedactionResource, usize>,
+        >,
     ) -> Self {
         Self {
             base_rules,
@@ -74,7 +76,9 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     pub(crate) fn from_policy(
         policy: &'policy RedactionPolicy,
         unkeyed: JsonUnkeyedValuePolicy<'marker>,
-        mask_budget: Option<&'budget mut ResourceBudget<RedactionResource>>,
+        mask_budget: Option<
+            &'budget mut ResourceBudget<RedactionResource, usize>,
+        >,
     ) -> Self {
         Self::new(
             policy.rules(),
@@ -283,10 +287,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     fn remaining_mask_bytes(&self) -> usize {
         self.mask_budget
             .as_deref()
-            .map(|budget| {
-                usize::try_from(budget.remaining())
-                    .expect("mask limits originate from usize")
-            })
+            .map(|budget| budget.remaining())
             .unwrap_or(usize::MAX)
     }
 
@@ -294,24 +295,23 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     fn mask_available(&self, bytes: usize) -> bool {
         self.mask_budget
             .as_deref()
-            .is_none_or(|budget| budget.check_available(bytes as u64).is_ok())
+            .is_none_or(|budget| budget.check_available(bytes).is_ok())
     }
 
     /// Consumes a complete preauthorized generated mask when configured.
     fn consume_mask(&mut self, bytes: usize) {
         if let Some(budget) = self.mask_budget.as_deref_mut() {
             budget
-                .try_consume(bytes as u64)
+                .try_consume(bytes)
                 .expect("a preauthorized mask must remain consumable");
         }
     }
 
     /// Consumes the available portion of one bounded generated mask.
     fn consume_mask_available(&mut self, requested: usize) -> usize {
-        self.mask_budget.as_deref_mut().map_or(requested, |budget| {
-            usize::try_from(budget.consume_available(requested as u64))
-                .expect("accepted mask bytes cannot exceed a usize request")
-        })
+        self.mask_budget
+            .as_deref_mut()
+            .map_or(requested, |budget| budget.consume_available(requested))
     }
 }
 

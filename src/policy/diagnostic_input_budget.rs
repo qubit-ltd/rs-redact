@@ -8,7 +8,6 @@
 //! Shared input accounting for bounded diagnostic redaction.
 
 use qubit_budget::ResourceBudget;
-use qubit_budget::ResourceLimit;
 
 use super::RedactionResource;
 
@@ -21,7 +20,7 @@ use super::RedactionResource;
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct DiagnosticInputBudget {
     /// Source-byte budget delegated to the shared accounting primitive.
-    budget: ResourceBudget<RedactionResource>,
+    budget: ResourceBudget<RedactionResource, usize>,
     /// Whether a failed or complete reservation ended input inspection.
     closed: bool,
 }
@@ -41,7 +40,7 @@ impl DiagnosticInputBudget {
         Self {
             budget: ResourceBudget::new(
                 RedactionResource::Input,
-                ResourceLimit::new(max_input_bytes as u64),
+                max_input_bytes,
             ),
             closed: false,
         }
@@ -63,7 +62,7 @@ impl DiagnosticInputBudget {
         if self.closed {
             return false;
         }
-        if self.budget.try_consume(input_bytes as u64).is_err() {
+        if self.budget.try_consume(input_bytes).is_err() {
             self.closed = true;
             return false;
         }
@@ -74,8 +73,7 @@ impl DiagnosticInputBudget {
     #[must_use]
     #[inline(always)]
     pub(crate) fn charged_input_bytes(&self) -> usize {
-        usize::try_from(self.budget.used())
-            .expect("diagnostic input limits originate from usize")
+        self.budget.used()
     }
 
     /// Returns whether a rejected reservation has terminally closed this

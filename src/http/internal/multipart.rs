@@ -10,7 +10,6 @@
 use std::io::Write;
 
 use qubit_budget::ResourceBudget;
-use qubit_budget::ResourceLimit;
 
 use super::BoundedBodyWriter;
 use super::MultipartPartMetadata;
@@ -53,10 +52,8 @@ pub(in crate::http) fn redact(
         return Some((output.into_string()?, false, true));
     }
     let mut passed = false;
-    let mut mask_budget = ResourceBudget::new(
-        RedactionResource::Mask,
-        ResourceLimit::new(max_output_bytes as u64),
-    );
+    let mut mask_budget =
+        ResourceBudget::new(RedactionResource::Mask, max_output_bytes);
     for (index, part) in parts.into_iter().enumerate() {
         if index > 0 && output.write_all(b"\n").is_err() {
             return Some((output.into_string()?, passed, true));
@@ -104,7 +101,7 @@ fn redact_part(
     segment: &[u8],
     policy: &RedactionPolicy,
     require_form_data: bool,
-    mask_budget: &mut ResourceBudget<RedactionResource>,
+    mask_budget: &mut ResourceBudget<RedactionResource, usize>,
 ) -> Option<(String, bool, bool)> {
     let (headers, body) = split_headers_body(segment)?;
     let mut disposition = None;
@@ -139,8 +136,8 @@ fn redact_part(
             remaining_mask_bytes(mask_budget),
         ) {
             let value = value.into_owned();
-            let consumed = mask_budget.consume_available(value.len() as u64);
-            debug_assert_eq!(consumed, value.len() as u64);
+            let consumed = mask_budget.consume_available(value.len());
+            debug_assert_eq!(consumed, value.len());
             (value, false, false)
         } else {
             redact_non_sensitive_part(
@@ -178,7 +175,7 @@ fn redact_non_sensitive_part(
     body: &[u8],
     policy: &RedactionPolicy,
     part_type: Option<&str>,
-    mask_budget: &mut ResourceBudget<RedactionResource>,
+    mask_budget: &mut ResourceBudget<RedactionResource, usize>,
 ) -> Option<(String, bool, bool)> {
     let text = std::str::from_utf8(body).ok()?;
     match part_type {
@@ -214,9 +211,8 @@ fn redact_non_sensitive_part(
                     body,
                     remaining_mask_bytes(mask_budget),
                 );
-                let consumed =
-                    mask_budget.consume_available(value.len() as u64);
-                if consumed != value.len() as u64 {
+                let consumed = mask_budget.consume_available(value.len());
+                if consumed != value.len() {
                     (String::new(), false, true)
                 } else {
                     (value, false, false)
@@ -245,9 +241,10 @@ fn redact_non_sensitive_part(
 }
 
 /// Returns the mask balance as a platform string length.
-fn remaining_mask_bytes(budget: &ResourceBudget<RedactionResource>) -> usize {
-    usize::try_from(budget.remaining())
-        .expect("multipart mask limits originate from usize")
+fn remaining_mask_bytes(
+    budget: &ResourceBudget<RedactionResource, usize>,
+) -> usize {
+    budget.remaining()
 }
 
 /// Splits a complete multipart body into strict delimiter-bounded segments.

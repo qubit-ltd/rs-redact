@@ -12,7 +12,6 @@ use std::collections::BTreeMap;
 use http::HeaderMap;
 use http::HeaderValue;
 use qubit_budget::ResourceBudget;
-use qubit_budget::ResourceLimit;
 
 use super::HttpRedactor;
 use crate::Sensitivity;
@@ -35,18 +34,11 @@ impl HttpRedactor {
     pub(super) fn headers_fit_input_budget(&self, headers: &HeaderMap) -> bool {
         let mut input_budget = ResourceBudget::new(
             RedactionResource::Input,
-            ResourceLimit::new(
-                self.policy().limits().diagnostic_event().max_input_bytes()
-                    as u64,
-            ),
+            self.policy().limits().diagnostic_event().max_input_bytes(),
         );
         for (name, value) in headers {
-            if input_budget
-                .try_consume(name.as_str().len() as u64)
-                .is_err()
-                || input_budget
-                    .try_consume(value.as_bytes().len() as u64)
-                    .is_err()
+            if input_budget.try_consume(name.as_str().len()).is_err()
+                || input_budget.try_consume(value.as_bytes().len()).is_err()
             {
                 return false;
             }

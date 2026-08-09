@@ -14,7 +14,6 @@ use super::RedactionPolicy;
 
 mod budget {
     use qubit_budget::ResourceBudget;
-    use qubit_budget::ResourceLimit;
 
     use super::InputOutputLimit;
 
@@ -36,8 +35,8 @@ mod budget {
     #[must_use]
     #[derive(Debug)]
     pub(crate) struct DiagnosticBudget {
-        input_budget: ResourceBudget<RedactionResource>,
-        output_budget: ResourceBudget<RedactionResource>,
+        input_budget: ResourceBudget<RedactionResource, usize>,
+        output_budget: ResourceBudget<RedactionResource, usize>,
         input_closed: bool,
         output_closed: bool,
     }
@@ -63,11 +62,11 @@ mod budget {
             Self {
                 input_budget: ResourceBudget::new(
                     RedactionResource::Input,
-                    ResourceLimit::new(limit.max_input_bytes() as u64),
+                    limit.max_input_bytes(),
                 ),
                 output_budget: ResourceBudget::new(
                     RedactionResource::Output,
-                    ResourceLimit::new(limit.max_output_bytes() as u64),
+                    limit.max_output_bytes(),
                 ),
                 input_closed: false,
                 output_closed: false,
@@ -80,7 +79,7 @@ mod budget {
             if self.input_closed {
                 return false;
             }
-            if self.input_budget.try_consume(bytes as u64).is_err() {
+            if self.input_budget.try_consume(bytes).is_err() {
                 self.input_closed = true;
                 return false;
             }
@@ -104,14 +103,10 @@ mod budget {
             if self.output_closed {
                 return OutputCharge::Exhausted;
             }
-            if self.output_budget.try_consume(bytes as u64).is_ok() {
+            if self.output_budget.try_consume(bytes).is_ok() {
                 return OutputCharge::Complete;
             }
-            if self
-                .output_budget
-                .try_consume(fallback_bytes as u64)
-                .is_ok()
-            {
+            if self.output_budget.try_consume(fallback_bytes).is_ok() {
                 self.output_closed = true;
                 return OutputCharge::Fallback;
             }
@@ -123,16 +118,14 @@ mod budget {
         #[must_use]
         #[inline]
         pub(crate) fn remaining_input_bytes(&self) -> usize {
-            usize::try_from(self.input_budget.remaining())
-                .expect("redaction input limits originate from usize")
+            self.input_budget.remaining()
         }
 
         /// Returns the output bytes still available for rendering.
         #[must_use]
         #[inline]
         pub(crate) fn remaining_output_bytes(&self) -> usize {
-            usize::try_from(self.output_budget.remaining())
-                .expect("redaction output limits originate from usize")
+            self.output_budget.remaining()
         }
 
         /// Returns whether this event can no longer accept input or output.

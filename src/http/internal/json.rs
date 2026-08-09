@@ -10,7 +10,6 @@
 use std::io::Write;
 
 use qubit_budget::ResourceBudget;
-use qubit_budget::ResourceLimit;
 use serde_json::Value;
 use serde_json::from_str;
 use serde_json::to_writer;
@@ -45,10 +44,8 @@ pub(in crate::http) fn redact(
     unkeyed: UnkeyedJsonValuePolicy,
     max_mask_bytes: usize,
 ) -> bool {
-    let mut mask_budget = ResourceBudget::new(
-        RedactionResource::Mask,
-        ResourceLimit::new(max_mask_bytes as u64),
-    );
+    let mut mask_budget =
+        ResourceBudget::new(RedactionResource::Mask, max_mask_bytes);
     redact_with_mask_budget(
         redactor,
         value,
@@ -77,7 +74,7 @@ pub(in crate::http) fn redact_with_mask_budget(
     value: &mut Value,
     json_depth_limit: JsonDepthLimit,
     unkeyed: UnkeyedJsonValuePolicy,
-    mask_budget: &mut ResourceBudget<RedactionResource>,
+    mask_budget: &mut ResourceBudget<RedactionResource, usize>,
 ) -> bool {
     let unkeyed = match unkeyed {
         UnkeyedJsonValuePolicy::PassThrough => {
@@ -146,10 +143,8 @@ pub(in crate::http) fn redact_ndjson(
     unkeyed: UnkeyedJsonValuePolicy,
     max_mask_bytes: usize,
 ) -> Option<(String, bool, bool)> {
-    let mut mask_budget = ResourceBudget::new(
-        RedactionResource::Mask,
-        ResourceLimit::new(max_mask_bytes as u64),
-    );
+    let mut mask_budget =
+        ResourceBudget::new(RedactionResource::Mask, max_mask_bytes);
     redact_ndjson_with_mask_budget(
         redactor,
         bytes,
@@ -182,7 +177,7 @@ pub(in crate::http) fn redact_ndjson_with_mask_budget(
     bytes: &[u8],
     json_depth_limit: JsonDepthLimit,
     unkeyed: UnkeyedJsonValuePolicy,
-    mask_budget: &mut ResourceBudget<RedactionResource>,
+    mask_budget: &mut ResourceBudget<RedactionResource, usize>,
     max_output_bytes: usize,
 ) -> Option<(String, bool, bool)> {
     let text = std::str::from_utf8(bytes).ok()?;
