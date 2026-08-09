@@ -8,7 +8,11 @@
 //! Shared input accounting for bounded diagnostic redaction.
 
 use qubit_budget::ResourceBudget;
-use qubit_budget::ResourceLimit;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DiagnosticInputResource {
+    InputBytes,
+}
 
 /// Tracks source bytes consumed across one diagnostic rendering.
 ///
@@ -18,7 +22,7 @@ use qubit_budget::ResourceLimit;
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct DiagnosticInputBudget {
     /// Source-byte budget delegated to the shared accounting primitive.
-    budget: ResourceBudget,
+    budget: ResourceBudget<DiagnosticInputResource>,
     /// Whether a reservation has exhausted or exceeded the budget.
     exhausted: bool,
 }
@@ -36,7 +40,10 @@ impl DiagnosticInputBudget {
     #[inline(always)]
     pub(crate) const fn new(max_input_bytes: usize) -> Self {
         Self {
-            budget: ResourceLimit::new(max_input_bytes).budget(),
+            budget: ResourceBudget::new(
+                DiagnosticInputResource::InputBytes,
+                max_input_bytes,
+            ),
             exhausted: false,
         }
     }
@@ -57,7 +64,7 @@ impl DiagnosticInputBudget {
             self.budget.exhaust();
             return false;
         }
-        if self.budget.consume_or_exhaust((), input_bytes).is_err() {
+        if self.budget.consume_or_exhaust(input_bytes).is_err() {
             self.exhausted = true;
             return false;
         }

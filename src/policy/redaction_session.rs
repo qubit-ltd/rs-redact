@@ -14,9 +14,14 @@ use super::RedactionPolicy;
 
 mod budget {
     use qubit_budget::ResourceBudget;
-    use qubit_budget::ResourceLimit;
 
     use super::InputOutputLimit;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum DiagnosticResource {
+        InputBytes,
+        OutputBytes,
+    }
 
     /// Mutable input/output accounting for one redaction event.
     ///
@@ -26,8 +31,8 @@ mod budget {
     #[must_use]
     #[derive(Debug)]
     pub(crate) struct DiagnosticBudget {
-        input_budget: ResourceBudget,
-        output_budget: ResourceBudget,
+        input_budget: ResourceBudget<DiagnosticResource>,
+        output_budget: ResourceBudget<DiagnosticResource>,
         input_exhausted: bool,
         output_exhausted: bool,
     }
@@ -51,10 +56,14 @@ mod budget {
         #[inline]
         pub(crate) const fn new(limit: InputOutputLimit) -> Self {
             Self {
-                input_budget: ResourceLimit::new(limit.max_input_bytes())
-                    .budget(),
-                output_budget: ResourceLimit::new(limit.max_output_bytes())
-                    .budget(),
+                input_budget: ResourceBudget::new(
+                    DiagnosticResource::InputBytes,
+                    limit.max_input_bytes(),
+                ),
+                output_budget: ResourceBudget::new(
+                    DiagnosticResource::OutputBytes,
+                    limit.max_output_bytes(),
+                ),
                 input_exhausted: false,
                 output_exhausted: false,
             }
@@ -67,7 +76,7 @@ mod budget {
                 self.input_budget.exhaust();
                 return false;
             }
-            if self.input_budget.consume_or_exhaust((), bytes).is_err() {
+            if self.input_budget.consume_or_exhaust(bytes).is_err() {
                 self.input_exhausted = true;
                 return false;
             }
@@ -85,22 +94,19 @@ mod budget {
             fallback_bytes: usize,
         ) -> OutputCharge {
             if !self.output_exhausted
-                && self.output_budget.check_additional((), bytes).is_ok()
+                && self.output_budget.check_additional(bytes).is_ok()
             {
                 self.output_budget
-                    .try_consume((), bytes)
+                    .try_consume(bytes)
                     .expect("output budget check must precede consumption");
                 self.output_exhausted = self.output_budget.is_empty();
                 return OutputCharge::Complete;
             }
             if !self.output_exhausted
-                && self
-                    .output_budget
-                    .check_additional((), fallback_bytes)
-                    .is_ok()
+                && self.output_budget.check_additional(fallback_bytes).is_ok()
             {
                 self.output_budget
-                    .try_consume((), fallback_bytes)
+                    .try_consume(fallback_bytes)
                     .expect("fallback budget check must precede consumption");
                 self.output_budget.exhaust();
                 self.output_exhausted = true;
