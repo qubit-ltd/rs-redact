@@ -7,10 +7,11 @@
 // =============================================================================
 //! Bounded byte sink for structured HTTP body rendering.
 
-use qubit_budget::ResourceBudget;
-use qubit_budget::ResourceLimit;
 use std::io;
 use std::io::Write;
+
+use qubit_budget::ResourceBudget;
+use qubit_budget::ResourceLimit;
 
 use crate::policy::RedactionResource;
 
@@ -33,13 +34,13 @@ impl BoundedBodyWriter {
     ///
     /// An empty writer that grows only as accepted output is produced.
     #[inline]
-    pub(in crate::http) const fn new(max_bytes: usize) -> Self {
+    pub(in crate::http) fn new(max_bytes: usize) -> Self {
         Self {
             output: Vec::new(),
-            budget: ResourceBudget::new(ResourceLimit::bounded(
+            budget: ResourceBudget::new(
                 RedactionResource::Output,
-                max_bytes,
-            )),
+                ResourceLimit::new(max_bytes as u64),
+            ),
         }
     }
 
@@ -71,7 +72,7 @@ impl Write for BoundedBodyWriter {
     /// complete slice would exceed the configured limit. No partial slice is
     /// retained, so successful JSON serialization always retains valid UTF-8.
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        if self.budget.try_charge(buffer.len()).is_err() {
+        if self.budget.try_consume(buffer.len() as u64).is_err() {
             return Err(io::Error::from(io::ErrorKind::WriteZero));
         }
         self.output.extend_from_slice(buffer);

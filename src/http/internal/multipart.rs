@@ -7,9 +7,10 @@
 // =============================================================================
 //! Strict multipart parsing and bounded diagnostic summary rendering.
 
+use std::io::Write;
+
 use qubit_budget::ResourceBudget;
 use qubit_budget::ResourceLimit;
-use std::io::Write;
 
 use super::BoundedBodyWriter;
 use super::MultipartPartMetadata;
@@ -52,16 +53,21 @@ pub(in crate::http) fn redact(
         return Some((output.into_string()?, false, true));
     }
     let mut passed = false;
-    let mut mask_budget = ResourceBudget::new(ResourceLimit::bounded(
+    let mut mask_budget = ResourceBudget::new(
         RedactionResource::Mask,
-        max_output_bytes,
-    ));
+        ResourceLimit::new(max_output_bytes as u64),
+    );
     for (index, part) in parts.into_iter().enumerate() {
         if index > 0 && output.write_all(b"\n").is_err() {
             return Some((output.into_string()?, passed, true));
         }
-        let (line, part_passed, part_truncated) =
-            redact_part(redactor, part, policy, require_form_data, &mut mask_budget)?;
+        let (line, part_passed, part_truncated) = redact_part(
+            redactor,
+            part,
+            policy,
+            require_form_data,
+            &mut mask_budget,
+        )?;
         passed |= part_passed;
         if part_truncated || output.write_all(line.as_bytes()).is_err() {
             return Some((output.into_string()?, passed, true));
@@ -115,7 +121,11 @@ fn redact_part(
             return None;
         }
     }
-    let metadata = MultipartPartMetadata::parse(disposition, part_type, require_form_data)?;
+    let metadata = MultipartPartMetadata::parse(
+        disposition,
+        part_type,
+        require_form_data,
+    )?;
     let name = metadata.name().unwrap_or(markers::MULTIPART_UNNAMED);
     let (value, passed, truncated) = if metadata.filename().is_some() {
         (markers::MULTIPART_FILE.to_string(), false, false)
@@ -126,16 +136,20 @@ fn redact_part(
         if let Some(value) = redactor.redact_bounded_if_sensitive(
             name,
             body_text,
-            mask_budget.remaining().unwrap_or(usize::MAX),
+            remaining_mask_bytes(mask_budget),
         ) {
             let value = value.into_owned();
-            let charge = mask_budget
-                .charge_up_to(value.len())
-                .expect("an open bounded mask budget must accept its bounded mask");
-            debug_assert_eq!(charge.rejected(), 0);
+            let consumed = mask_budget.consume_available(value.len() as u64);
+            debug_assert_eq!(consumed, value.len() as u64);
             (value, false, false)
         } else {
-            redact_non_sensitive_part(redactor, body, policy, metadata.content_type(), mask_budget)?
+            redact_non_sensitive_part(
+                redactor,
+                body,
+                policy,
+                metadata.content_type(),
+                mask_budget,
+            )?
         }
     };
     if truncated {
@@ -177,43 +191,63 @@ fn redact_non_sensitive_part(
                 policy.unkeyed_json_value_policy(),
                 mask_budget,
             );
-            json::serialize_bounded(&value, policy.body_budget().max_output_bytes())
-                .map(|(text, truncated)| (text, passed, truncated))
+            json::serialize_bounded(
+                &value,
+                policy.body_budget().max_output_bytes(),
+            )
+            .map(|(text, truncated)| (text, passed, truncated))
         }
-        Some(value) if content_type::is_ndjson(value) => json::redact_ndjson_with_mask_budget(
-            redactor,
-            body,
-            policy.json_depth_limit(),
-            policy.unkeyed_json_value_policy(),
-            mask_budget,
-            policy.body_budget().max_output_bytes(),
-        ),
-        Some(value) if content_type::is_form(value) => form::is_valid(body).then(|| {
-            let value = form::redact_bounded(
+        Some(value) if content_type::is_ndjson(value) => {
+            json::redact_ndjson_with_mask_budget(
                 redactor,
                 body,
-                mask_budget.remaining().unwrap_or(usize::MAX),
-            );
-            if mask_budget.check_charge(value.len()).is_err() {
-                (String::new(), false, true)
-            } else {
-                let charge = mask_budget
-                    .charge_up_to(value.len())
-                    .expect("an open bounded mask budget must accept its bounded form");
-                debug_assert_eq!(charge.rejected(), 0);
-                (value, false, false)
+                policy.json_depth_limit(),
+                policy.unkeyed_json_value_policy(),
+                mask_budget,
+                policy.body_budget().max_output_bytes(),
+            )
+        }
+        Some(value) if content_type::is_form(value) => form::is_valid(body)
+            .then(|| {
+                let value = form::redact_bounded(
+                    redactor,
+                    body,
+                    remaining_mask_bytes(mask_budget),
+                );
+                let consumed =
+                    mask_budget.consume_available(value.len() as u64);
+                if consumed != value.len() as u64 {
+                    (String::new(), false, true)
+                } else {
+                    (value, false, false)
+                }
+            }),
+        Some(value) if content_type::is_text(value) => {
+            match policy.text_body_policy() {
+                TextBodyPolicy::Redact => {
+                    Some((markers::MULTIPART_TEXT.to_string(), false, false))
+                }
+                TextBodyPolicy::PassThrough => {
+                    Some((text.to_string(), true, false))
+                }
             }
-        }),
-        Some(value) if content_type::is_text(value) => match policy.text_body_policy() {
-            TextBodyPolicy::Redact => Some((markers::MULTIPART_TEXT.to_string(), false, false)),
-            TextBodyPolicy::PassThrough => Some((text.to_string(), true, false)),
-        },
+        }
         None => match policy.text_body_policy() {
-            TextBodyPolicy::Redact => Some((markers::MULTIPART_TEXT.to_string(), false, false)),
-            TextBodyPolicy::PassThrough => Some((text.to_string(), true, false)),
+            TextBodyPolicy::Redact => {
+                Some((markers::MULTIPART_TEXT.to_string(), false, false))
+            }
+            TextBodyPolicy::PassThrough => {
+                Some((text.to_string(), true, false))
+            }
         },
         Some(_) => Some((markers::MULTIPART_PART.to_string(), false, false)),
     }
+}
+
+/// Returns the mask balance as a platform string length.
+fn remaining_mask_bytes(budget: &ResourceBudget<RedactionResource>) -> usize {
+    usize::try_from(budget.remaining())
+        .expect("multipart mask limits originate from usize")
 }
 
 /// Splits a complete multipart body into strict delimiter-bounded segments.
@@ -289,7 +323,9 @@ fn part_segments<'a>(bytes: &'a [u8], boundary: &str) -> Option<Vec<&'a [u8]>> {
 #[must_use]
 #[inline]
 fn next_line(bytes: &[u8], position: usize) -> (usize, usize, usize) {
-    if let Some(relative) = bytes[position..].iter().position(|byte| *byte == b'\n') {
+    if let Some(relative) =
+        bytes[position..].iter().position(|byte| *byte == b'\n')
+    {
         let end = position + relative;
         let trimmed = end
             .checked_sub(1)

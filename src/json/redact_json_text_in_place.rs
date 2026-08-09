@@ -7,8 +7,6 @@
 // =============================================================================
 //! In-place conversion of JSON text to its compact redacted representation.
 
-use qubit_budget::ResourceBudget;
-use qubit_budget::ResourceLimit;
 use serde_json::Value;
 use serde_json::from_str;
 use serde_json::to_string;
@@ -17,7 +15,6 @@ use super::internal::JsonRedactionState;
 use super::internal::JsonUnkeyedValuePolicy;
 use crate::RedactionPolicy;
 use crate::Sensitivity;
-use crate::policy::RedactionResource;
 
 /// Replaces JSON text with its compact redacted representation.
 ///
@@ -53,13 +50,17 @@ pub fn redact_json_text_in_place(text: &mut String, policy: &RedactionPolicy) {
 ///
 /// Compact redacted JSON for valid input, or the configured Secret opaque mask
 /// for invalid input.
-pub(crate) fn redacted_json_text(text: &str, policy: &RedactionPolicy) -> String {
+pub(crate) fn redacted_json_text(
+    text: &str,
+    policy: &RedactionPolicy,
+) -> String {
     let Ok(mut value) = from_str::<Value>(text) else {
         return opaque_secret(policy);
     };
-    let mut mask_budget = ResourceBudget::new(ResourceLimit::unlimited(RedactionResource::Mask));
     let unkeyed = match policy.unkeyed_json_value_policy() {
-        crate::UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
+        crate::UnkeyedJsonValuePolicy::PassThrough => {
+            JsonUnkeyedValuePolicy::PassThrough
+        }
         crate::UnkeyedJsonValuePolicy::Redact => {
             let marker = policy.masking().mask_opaque(Sensitivity::Secret);
             JsonUnkeyedValuePolicy::Redact {
@@ -68,7 +69,7 @@ pub(crate) fn redacted_json_text(text: &str, policy: &RedactionPolicy) -> String
             }
         }
     };
-    let mut state = JsonRedactionState::from_policy(policy, unkeyed, &mut mask_budget);
+    let mut state = JsonRedactionState::from_policy(policy, unkeyed, None);
     let _ = state.redact(&mut value);
     to_string(&value).expect("JSON value serialization is infallible")
 }

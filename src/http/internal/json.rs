@@ -45,11 +45,17 @@ pub(in crate::http) fn redact(
     unkeyed: UnkeyedJsonValuePolicy,
     max_mask_bytes: usize,
 ) -> bool {
-    let mut mask_budget = ResourceBudget::new(ResourceLimit::bounded(
+    let mut mask_budget = ResourceBudget::new(
         RedactionResource::Mask,
-        max_mask_bytes,
-    ));
-    redact_with_mask_budget(redactor, value, json_depth_limit, unkeyed, &mut mask_budget)
+        ResourceLimit::new(max_mask_bytes as u64),
+    );
+    redact_with_mask_budget(
+        redactor,
+        value,
+        json_depth_limit,
+        unkeyed,
+        &mut mask_budget,
+    )
 }
 
 /// Redacts a JSON tree while consuming one enclosing mask budget.
@@ -74,7 +80,9 @@ pub(in crate::http) fn redact_with_mask_budget(
     mask_budget: &mut ResourceBudget<RedactionResource>,
 ) -> bool {
     let unkeyed = match unkeyed {
-        UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
+        UnkeyedJsonValuePolicy::PassThrough => {
+            JsonUnkeyedValuePolicy::PassThrough
+        }
         UnkeyedJsonValuePolicy::Redact => JsonUnkeyedValuePolicy::Redact {
             marker: UNKEYED_JSON,
             truncated_marker: TRUNCATED,
@@ -86,7 +94,7 @@ pub(in crate::http) fn redact_with_mask_budget(
         redactor.masking(),
         json_depth_limit,
         unkeyed,
-        mask_budget,
+        Some(mask_budget),
     )
     .redact(value)
     .has_passed_unkeyed()
@@ -138,10 +146,10 @@ pub(in crate::http) fn redact_ndjson(
     unkeyed: UnkeyedJsonValuePolicy,
     max_mask_bytes: usize,
 ) -> Option<(String, bool, bool)> {
-    let mut mask_budget = ResourceBudget::new(ResourceLimit::bounded(
+    let mut mask_budget = ResourceBudget::new(
         RedactionResource::Mask,
-        max_mask_bytes,
-    ));
+        ResourceLimit::new(max_mask_bytes as u64),
+    );
     redact_ndjson_with_mask_budget(
         redactor,
         bytes,
@@ -191,8 +199,13 @@ pub(in crate::http) fn redact_ndjson_with_mask_budget(
             continue;
         }
         let mut value = from_str(line).ok()?;
-        passed |=
-            redact_with_mask_budget(redactor, &mut value, json_depth_limit, unkeyed, mask_budget);
+        passed |= redact_with_mask_budget(
+            redactor,
+            &mut value,
+            json_depth_limit,
+            unkeyed,
+            mask_budget,
+        );
         if to_writer(&mut output, &value).is_err() {
             return output.into_string().map(|text| (text, passed, true));
         }

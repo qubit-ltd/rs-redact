@@ -7,7 +7,6 @@
 // =============================================================================
 //! Stateless recursion-depth limits for JSON redaction.
 
-use qubit_budget::ResourceBound;
 use qubit_budget::ResourceLimit;
 
 use super::JsonDepthLimitError;
@@ -21,17 +20,17 @@ enum JsonDepthResource {
 
 /// Stateless maximum recursive container depth inspected during JSON redaction.
 ///
-/// This is a point limit: each observed container depth is checked independently
-/// against the immutable maximum. It does not track recursion-stack occupancy,
-/// traversal history, or a resource lifecycle, so entering a container never
-/// requires a later release. Use it for JSON nesting depth; use a
-/// [`qubit_budget::ResourceBudget`] for cumulative input or output bytes.
-/// Failed checks leave this value unchanged.
+/// This is a point limit: each observed container depth is checked
+/// independently against the immutable maximum. It does not track
+/// recursion-stack occupancy, traversal history, or a resource lifecycle, so
+/// entering a container never requires a later release. Use it for JSON nesting
+/// depth; use a [`qubit_budget::ResourceBudget`] for cumulative input or output
+/// bytes. Failed checks leave this value unchanged.
 #[must_use = "use the validated limit to bound JSON redaction"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct JsonDepthLimit {
     /// Immutable point limit for recursive container depth.
-    limit: ResourceLimit<JsonDepthResource>,
+    limit: ResourceLimit,
 }
 
 impl JsonDepthLimit {
@@ -61,7 +60,7 @@ impl JsonDepthLimit {
             Err(JsonDepthLimitError::ZeroDepth)
         } else {
             Ok(Self {
-                limit: ResourceLimit::bounded(JsonDepthResource::Containers, max_depth),
+                limit: ResourceLimit::new(max_depth as u64),
             })
         }
     }
@@ -73,12 +72,8 @@ impl JsonDepthLimit {
     /// The positive depth limit measured from a root depth of zero.
     #[inline(always)]
     pub fn maximum(self) -> usize {
-        match *self.limit.bound() {
-            ResourceBound::Inclusive(maximum) => maximum,
-            ResourceBound::Unlimited => {
-                unreachable!("JSON depth limits are always finite")
-            }
-        }
+        usize::try_from(self.limit.maximum())
+            .expect("JSON depth limits originate from usize")
     }
 
     /// Checks whether one observed recursive container depth is permitted.
@@ -94,7 +89,9 @@ impl JsonDepthLimit {
     #[must_use]
     #[inline(always)]
     pub fn allows(&self, depth: usize) -> bool {
-        self.limit.check(depth).is_ok()
+        self.limit
+            .check(JsonDepthResource::Containers, depth as u64)
+            .is_ok()
     }
 }
 
@@ -107,7 +104,7 @@ impl Default for JsonDepthLimit {
     #[inline(always)]
     fn default() -> Self {
         Self {
-            limit: ResourceLimit::bounded(JsonDepthResource::Containers, Self::DEFAULT_MAX_DEPTH),
+            limit: ResourceLimit::new(Self::DEFAULT_MAX_DEPTH as u64),
         }
     }
 }

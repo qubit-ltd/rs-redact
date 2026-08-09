@@ -7,9 +7,10 @@
 // =============================================================================
 //! Byte-bounded accumulation for masked values.
 
+use std::fmt;
+
 use qubit_budget::ResourceBudget;
 use qubit_budget::ResourceLimit;
-use std::fmt;
 
 use super::super::RedactionResource;
 
@@ -34,7 +35,10 @@ impl BoundedMaskWriter {
     pub(in crate::policy) fn new(max_bytes: usize) -> Self {
         Self {
             output: String::new(),
-            budget: ResourceBudget::new(ResourceLimit::bounded(RedactionResource::Mask, max_bytes)),
+            budget: ResourceBudget::new(
+                RedactionResource::Mask,
+                ResourceLimit::new(max_bytes as u64),
+            ),
         }
     }
 
@@ -63,14 +67,14 @@ impl fmt::Write for BoundedMaskWriter {
     ///
     /// This bounded in-memory writer does not return a formatting error.
     fn write_str(&mut self, value: &str) -> fmt::Result {
-        let mut end = value
-            .len()
-            .min(self.budget.remaining().unwrap_or(usize::MAX));
+        let remaining = usize::try_from(self.budget.remaining())
+            .expect("mask limits originate from usize");
+        let mut end = value.len().min(remaining);
         while !value.is_char_boundary(end) {
             end -= 1;
         }
         self.budget
-            .try_charge(end)
+            .try_consume(end as u64)
             .expect("the bounded UTF-8 prefix must fit its mask budget");
         self.output.push_str(&value[..end]);
         Ok(())

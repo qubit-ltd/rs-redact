@@ -49,7 +49,10 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     ///
     /// A borrowed JSON redaction view.
     #[inline(always)]
-    pub const fn new(value: &'value Value, policy: &'policy RedactionPolicy) -> Self {
+    pub const fn new(
+        value: &'value Value,
+        policy: &'policy RedactionPolicy,
+    ) -> Self {
         Self {
             value,
             policy,
@@ -107,7 +110,8 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     #[inline(always)]
     fn redact_unkeyed_scalar(&self) -> bool {
         self.unkeyed
-            && self.policy.unkeyed_json_value_policy() == crate::UnkeyedJsonValuePolicy::Redact
+            && self.policy.unkeyed_json_value_policy()
+                == crate::UnkeyedJsonValuePolicy::Redact
             && !matches!(self.value, Value::Array(_) | Value::Object(_))
     }
 }
@@ -159,31 +163,41 @@ impl Serialize for RedactedJson<'_, '_> {
         }
         match self.value {
             Value::Array(values) => {
-                let mut output = serializer.serialize_seq(Some(values.len()))?;
+                let mut output =
+                    serializer.serialize_seq(Some(values.len()))?;
                 for value in values {
                     output.serialize_element(&self.nested(value, true))?;
                 }
                 output.end()
             }
             Value::Object(values) => {
-                let mut output = serializer.serialize_map(Some(values.len()))?;
+                let mut output =
+                    serializer.serialize_map(Some(values.len()))?;
                 for (key, value) in values {
                     let resolved = self.policy.resolve_field(key);
                     match resolved {
-                        ResolvedField::Sensitive { sensitivity } => match value {
+                        ResolvedField::Sensitive { sensitivity } => match value
+                        {
                             Value::String(text) => {
-                                let redacted =
-                                    text.redact_value(sensitivity, self.policy.masking());
+                                let redacted = text.redact_value(
+                                    sensitivity,
+                                    self.policy.masking(),
+                                );
                                 output.serialize_entry(key, &redacted)?;
                             }
                             _ => {
-                                let redacted =
-                                    RedactedValue::opaque(sensitivity, self.policy.masking());
+                                let redacted = RedactedValue::opaque(
+                                    sensitivity,
+                                    self.policy.masking(),
+                                );
                                 output.serialize_entry(key, &redacted)?;
                             }
                         },
                         ResolvedField::PassThrough => {
-                            output.serialize_entry(key, &self.nested(value, false))?;
+                            output.serialize_entry(
+                                key,
+                                &self.nested(value, false),
+                            )?;
                         }
                     }
                 }
@@ -222,7 +236,10 @@ mod session_view {
     impl<'value, 'session, 'policy> RedactedJsonSession<'value, 'session, 'policy> {
         /// Creates a parsed JSON view using an existing diagnostic session.
         #[inline(always)]
-        pub fn new(value: &'value Value, session: &'session RedactionSession<'policy>) -> Self {
+        pub fn new(
+            value: &'value Value,
+            session: &'session RedactionSession<'policy>,
+        ) -> Self {
             Self { value, session }
         }
 
@@ -263,7 +280,10 @@ mod session_view {
 
         /// Writes one charged opaque fallback, or nothing after output
         /// exhaustion.
-        fn write_fallback(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn write_fallback(
+            &self,
+            formatter: &mut fmt::Formatter<'_>,
+        ) -> fmt::Result {
             let fallback = self.opaque();
             match self
                 .session
@@ -309,7 +329,10 @@ pub use session_view::RedactedJsonSession;
 /// # Errors
 ///
 /// Returns a formatting error when the destination rejects output.
-fn fmt_json(view: &RedactedJson<'_, '_>, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn fmt_json(
+    view: &RedactedJson<'_, '_>,
+    formatter: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
     if view.depth_limit_reached() {
         return fmt::Debug::fmt(&view.depth_limit_mask(), formatter);
     }
@@ -342,7 +365,9 @@ fn fmt_json(view: &RedactedJson<'_, '_>, formatter: &mut fmt::Formatter<'_>) -> 
             }
             output.finish()
         }
-        _ if view.redact_unkeyed_scalar() => fmt::Debug::fmt(&view.depth_limit_mask(), formatter),
+        _ if view.redact_unkeyed_scalar() => {
+            fmt::Debug::fmt(&view.depth_limit_mask(), formatter)
+        }
         value => fmt::Debug::fmt(value, formatter),
     }
 }

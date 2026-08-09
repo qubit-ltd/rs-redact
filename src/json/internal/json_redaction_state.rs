@@ -34,7 +34,7 @@ pub(crate) struct JsonRedactionState<'policy, 'budget, 'marker> {
     /// Handling for scalars without an object-key context.
     unkeyed: JsonUnkeyedValuePolicy<'marker>,
     /// Aggregate accounting for newly generated masks.
-    mask_budget: &'budget mut ResourceBudget<RedactionResource>,
+    mask_budget: Option<&'budget mut ResourceBudget<RedactionResource>>,
 }
 
 impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
@@ -57,7 +57,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         masking: &'policy MaskingPolicy,
         json_depth_limit: JsonDepthLimit,
         unkeyed: JsonUnkeyedValuePolicy<'marker>,
-        mask_budget: &'budget mut ResourceBudget<RedactionResource>,
+        mask_budget: Option<&'budget mut ResourceBudget<RedactionResource>>,
     ) -> Self {
         Self {
             base_rules,
@@ -74,7 +74,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     pub(crate) fn from_policy(
         policy: &'policy RedactionPolicy,
         unkeyed: JsonUnkeyedValuePolicy<'marker>,
-        mask_budget: &'budget mut ResourceBudget<RedactionResource>,
+        mask_budget: Option<&'budget mut ResourceBudget<RedactionResource>>,
     ) -> Self {
         Self::new(
             policy.rules(),
@@ -125,9 +125,10 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         match value {
             Value::Object(values) => self.redact_object(values, depth),
             Value::Array(values) => self.redact_array(values, has_field, depth),
-            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
-                self.redact_scalar(value, has_field)
-            }
+            Value::Null
+            | Value::Bool(_)
+            | Value::Number(_)
+            | Value::String(_) => self.redact_scalar(value, has_field),
         }
     }
 
@@ -157,7 +158,11 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
                     self.mask_keyed_value(value, sensitivity);
                 }
                 ResolvedField::PassThrough => {
-                    outcome.merge(self.redact_value(value, true, depth.saturating_add(1)));
+                    outcome.merge(self.redact_value(
+                        value,
+                        true,
+                        depth.saturating_add(1),
+                    ));
                 }
             }
         }
@@ -183,7 +188,11 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ) -> JsonRedactionOutcome {
         let mut outcome = JsonRedactionOutcome::default();
         for value in values {
-            outcome.merge(self.redact_value(value, has_field, depth.saturating_add(1)));
+            outcome.merge(self.redact_value(
+                value,
+                has_field,
+                depth.saturating_add(1),
+            ));
         }
         outcome
     }
@@ -198,17 +207,25 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// # Returns
     ///
     /// An outcome reporting a pass-through only for unkeyed visible scalars.
-    fn redact_scalar(&mut self, value: &mut Value, has_field: bool) -> JsonRedactionOutcome {
+    fn redact_scalar(
+        &mut self,
+        value: &mut Value,
+        has_field: bool,
+    ) -> JsonRedactionOutcome {
         if has_field {
             return JsonRedactionOutcome::default();
         }
         match self.unkeyed {
-            JsonUnkeyedValuePolicy::PassThrough => JsonRedactionOutcome::passed_unkeyed(),
+            JsonUnkeyedValuePolicy::PassThrough => {
+                JsonRedactionOutcome::passed_unkeyed()
+            }
             JsonUnkeyedValuePolicy::Redact {
                 marker,
                 truncated_marker,
             } => {
-                *value = Value::String(self.take_unkeyed_marker(marker, truncated_marker));
+                *value = Value::String(
+                    self.take_unkeyed_marker(marker, truncated_marker),
+                );
                 JsonRedactionOutcome::default()
             }
         }
@@ -221,24 +238,16 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// * value - Sensitive value replaced in place.
     /// * level - Sensitivity selecting the masking rule.
     fn mask_keyed_value(&mut self, value: &mut Value, level: Sensitivity) {
+        let remaining = self.remaining_mask_bytes();
         let masked = match value {
             Value::String(text) => self
                 .masking
-                .mask_bounded(
-                    level,
-                    text,
-                    self.mask_budget.remaining().unwrap_or(usize::MAX),
-                )
+                .mask_bounded(level, text, remaining)
                 .into_owned(),
-            _ => self
-                .masking
-                .mask_opaque_bounded(level, self.mask_budget.remaining().unwrap_or(usize::MAX)),
+            _ => self.masking.mask_opaque_bounded(level, remaining),
         };
-        let charge = self
-            .mask_budget
-            .charge_up_to(masked.len())
-            .expect("an open bounded mask budget must accept its bounded mask");
-        debug_assert_eq!(charge.rejected(), 0);
+        let consumed = self.consume_mask_available(masked.len());
+        debug_assert_eq!(consumed, masked.len());
         *value = Value::String(masked);
     }
 
@@ -253,22 +262,56 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ///
     /// The preferred marker, fallback marker, or an empty replacement when no
     /// marker fits the remaining generated-mask budget.
-    fn take_unkeyed_marker(&mut self, marker: &str, truncated_marker: &str) -> String {
-        let selected = if self.mask_budget.check_charge(marker.len()).is_ok() {
+    fn take_unkeyed_marker(
+        &mut self,
+        marker: &str,
+        truncated_marker: &str,
+    ) -> String {
+        let selected = if self.mask_available(marker.len()) {
             marker
-        } else if self
-            .mask_budget
-            .check_charge(truncated_marker.len())
-            .is_ok()
-        {
+        } else if self.mask_available(truncated_marker.len()) {
             truncated_marker
         } else {
             return String::new();
         };
-        self.mask_budget
-            .try_charge(selected.len())
-            .expect("a successful marker preauthorization must be chargeable");
+        self.consume_mask(selected.len());
         selected.to_owned()
+    }
+
+    /// Returns the configured mask balance or an effectively unbounded value
+    /// when this transformation has no mask budget.
+    fn remaining_mask_bytes(&self) -> usize {
+        self.mask_budget
+            .as_deref()
+            .map(|budget| {
+                usize::try_from(budget.remaining())
+                    .expect("mask limits originate from usize")
+            })
+            .unwrap_or(usize::MAX)
+    }
+
+    /// Checks whether a complete generated mask fits the configured budget.
+    fn mask_available(&self, bytes: usize) -> bool {
+        self.mask_budget
+            .as_deref()
+            .is_none_or(|budget| budget.check_available(bytes as u64).is_ok())
+    }
+
+    /// Consumes a complete preauthorized generated mask when configured.
+    fn consume_mask(&mut self, bytes: usize) {
+        if let Some(budget) = self.mask_budget.as_deref_mut() {
+            budget
+                .try_consume(bytes as u64)
+                .expect("a preauthorized mask must remain consumable");
+        }
+    }
+
+    /// Consumes the available portion of one bounded generated mask.
+    fn consume_mask_available(&mut self, requested: usize) -> usize {
+        self.mask_budget.as_deref_mut().map_or(requested, |budget| {
+            usize::try_from(budget.consume_available(requested as u64))
+                .expect("accepted mask bytes cannot exceed a usize request")
+        })
     }
 }
 
@@ -283,10 +326,16 @@ fn stronger(base: ResolvedField, context: ResolvedField) -> ResolvedField {
         ) => ResolvedField::Sensitive {
             sensitivity: base.max(context),
         },
-        (ResolvedField::Sensitive { sensitivity }, ResolvedField::PassThrough)
-        | (ResolvedField::PassThrough, ResolvedField::Sensitive { sensitivity }) => {
-            ResolvedField::Sensitive { sensitivity }
+        (
+            ResolvedField::Sensitive { sensitivity },
+            ResolvedField::PassThrough,
+        )
+        | (
+            ResolvedField::PassThrough,
+            ResolvedField::Sensitive { sensitivity },
+        ) => ResolvedField::Sensitive { sensitivity },
+        (ResolvedField::PassThrough, ResolvedField::PassThrough) => {
+            ResolvedField::PassThrough
         }
-        (ResolvedField::PassThrough, ResolvedField::PassThrough) => ResolvedField::PassThrough,
     }
 }

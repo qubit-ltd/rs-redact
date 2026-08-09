@@ -130,8 +130,9 @@ fn test_redacted_json_session_uses_shared_output_budget() {
     let value = json!({
         "message": "diagnostic text that exceeds one fragment",
     });
-    let budget = InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
-        .expect("the diagnostic budget should be valid");
+    let budget =
+        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
+            .expect("the diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -144,7 +145,9 @@ fn test_redacted_json_session_uses_shared_output_budget() {
     assert!(first.len() <= budget.max_output_bytes());
     assert!(first.ends_with("<truncated>"));
     assert!(second.is_empty());
-    assert!(first.len().saturating_add(second.len()) <= budget.max_output_bytes());
+    assert!(
+        first.len().saturating_add(second.len()) <= budget.max_output_bytes()
+    );
     assert_eq!(session.remaining_output_bytes(), 0);
 }
 
@@ -180,7 +183,9 @@ fn test_redacted_json_fails_closed_at_depth_budget() {
         "nested": {"deeper": {"secret": "raw-depth-secret"}},
     });
     let policy = RedactionPolicy::builder()
-        .json_depth_limit(JsonDepthLimit::new(1).expect("the depth budget is valid"))
+        .json_depth_limit(
+            JsonDepthLimit::new(1).expect("the depth budget is valid"),
+        )
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .expect("the test mask policy should be valid")
         .build()
@@ -255,7 +260,9 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
         "nested": {"secret": "raw-depth-secret"},
     });
     let policy = RedactionPolicy::builder()
-        .json_depth_limit(JsonDepthLimit::new(1).expect("the depth budget is valid"))
+        .json_depth_limit(
+            JsonDepthLimit::new(1).expect("the depth budget is valid"),
+        )
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .expect("the test mask policy should be valid")
         .build()
@@ -276,13 +283,13 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
 fn test_redacted_json_serde_handles_arrays_and_unkeyed_scalars() {
     let array = json!(["visible", {"nested": [1, 2]}]);
     let standard = RedactionPolicy::standard();
-    let serialized =
-        to_value(RedactedJson::new(&array, &standard)).expect("the array should serialize");
+    let serialized = to_value(RedactedJson::new(&array, &standard))
+        .expect("the array should serialize");
     assert_eq!(serialized, array);
 
     let strict = RedactionPolicy::strict();
     let scalar = json!("root-secret");
-    let serialized =
-        to_value(RedactedJson::new(&scalar, &strict)).expect("the scalar should serialize");
+    let serialized = to_value(RedactedJson::new(&scalar, &strict))
+        .expect("the scalar should serialize");
     assert_ne!(serialized, scalar);
 }

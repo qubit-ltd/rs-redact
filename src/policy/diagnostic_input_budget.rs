@@ -7,7 +7,6 @@
 // =============================================================================
 //! Shared input accounting for bounded diagnostic redaction.
 
-use qubit_budget::BudgetState;
 use qubit_budget::ResourceBudget;
 use qubit_budget::ResourceLimit;
 
@@ -23,6 +22,8 @@ use super::RedactionResource;
 pub(crate) struct DiagnosticInputBudget {
     /// Source-byte budget delegated to the shared accounting primitive.
     budget: ResourceBudget<RedactionResource>,
+    /// Whether a failed or complete reservation ended input inspection.
+    closed: bool,
 }
 
 impl DiagnosticInputBudget {
@@ -36,12 +37,13 @@ impl DiagnosticInputBudget {
     ///
     /// A budget with all bytes available for reservation.
     #[inline(always)]
-    pub(crate) const fn new(max_input_bytes: usize) -> Self {
+    pub(crate) fn new(max_input_bytes: usize) -> Self {
         Self {
-            budget: ResourceBudget::new(ResourceLimit::bounded(
+            budget: ResourceBudget::new(
                 RedactionResource::Input,
-                max_input_bytes,
-            )),
+                ResourceLimit::new(max_input_bytes as u64),
+            ),
+            closed: false,
         }
     }
 
@@ -58,8 +60,11 @@ impl DiagnosticInputBudget {
     /// the rejected bytes.
     #[inline]
     pub(crate) fn reserve(&mut self, input_bytes: usize) -> bool {
-        if self.budget.try_charge(input_bytes).is_err() {
-            self.budget.close();
+        if self.closed {
+            return false;
+        }
+        if self.budget.try_consume(input_bytes as u64).is_err() {
+            self.closed = true;
             return false;
         }
         true
@@ -68,8 +73,9 @@ impl DiagnosticInputBudget {
     /// Returns the exact source bytes accepted before any rejected reservation.
     #[must_use]
     #[inline(always)]
-    pub(crate) const fn charged_input_bytes(&self) -> usize {
-        self.budget.charged()
+    pub(crate) fn charged_input_bytes(&self) -> usize {
+        usize::try_from(self.budget.used())
+            .expect("diagnostic input limits originate from usize")
     }
 
     /// Returns whether a rejected reservation has terminally closed this
@@ -77,6 +83,6 @@ impl DiagnosticInputBudget {
     #[must_use]
     #[inline(always)]
     pub(crate) fn is_closed(&self) -> bool {
-        self.budget.state() == BudgetState::Closed
+        self.closed
     }
 }

@@ -38,6 +38,8 @@ mod budget {
     pub(crate) struct DiagnosticBudget {
         input_budget: ResourceBudget<RedactionResource>,
         output_budget: ResourceBudget<RedactionResource>,
+        input_closed: bool,
+        output_closed: bool,
     }
 
     /// Result of charging an eagerly returned diagnostic fragment.
@@ -57,24 +59,29 @@ mod budget {
         /// Creates runtime accounting from an immutable input/output limit.
         #[must_use = "retain the runtime budget for accounting"]
         #[inline]
-        pub(crate) const fn new(limit: InputOutputLimit) -> Self {
+        pub(crate) fn new(limit: InputOutputLimit) -> Self {
             Self {
-                input_budget: ResourceBudget::new(ResourceLimit::bounded(
+                input_budget: ResourceBudget::new(
                     RedactionResource::Input,
-                    limit.max_input_bytes(),
-                )),
-                output_budget: ResourceBudget::new(ResourceLimit::bounded(
+                    ResourceLimit::new(limit.max_input_bytes() as u64),
+                ),
+                output_budget: ResourceBudget::new(
                     RedactionResource::Output,
-                    limit.max_output_bytes(),
-                )),
+                    ResourceLimit::new(limit.max_output_bytes() as u64),
+                ),
+                input_closed: false,
+                output_closed: false,
             }
         }
 
         /// Reserves input bytes before inspecting source data.
         #[inline]
         pub(crate) fn consume_input(&mut self, bytes: usize) -> bool {
-            if self.input_budget.try_charge(bytes).is_err() {
-                self.input_budget.close();
+            if self.input_closed {
+                return false;
+            }
+            if self.input_budget.try_consume(bytes as u64).is_err() {
+                self.input_closed = true;
                 return false;
             }
             true
@@ -84,7 +91,7 @@ mod budget {
         /// reservation from the shared diagnostic event.
         #[inline(always)]
         pub(crate) fn close_input(&mut self) {
-            self.input_budget.close();
+            self.input_closed = true;
         }
 
         /// Atomically charges either a complete fragment or its terminal
@@ -94,14 +101,21 @@ mod budget {
             bytes: usize,
             fallback_bytes: usize,
         ) -> OutputCharge {
-            if self.output_budget.try_charge(bytes).is_ok() {
+            if self.output_closed {
+                return OutputCharge::Exhausted;
+            }
+            if self.output_budget.try_consume(bytes as u64).is_ok() {
                 return OutputCharge::Complete;
             }
-            if self.output_budget.try_charge(fallback_bytes).is_ok() {
-                self.output_budget.close();
+            if self
+                .output_budget
+                .try_consume(fallback_bytes as u64)
+                .is_ok()
+            {
+                self.output_closed = true;
                 return OutputCharge::Fallback;
             }
-            self.output_budget.close();
+            self.output_closed = true;
             OutputCharge::Exhausted
         }
 
@@ -109,24 +123,26 @@ mod budget {
         #[must_use]
         #[inline]
         pub(crate) fn remaining_input_bytes(&self) -> usize {
-            self.input_budget.remaining().unwrap_or(usize::MAX)
+            usize::try_from(self.input_budget.remaining())
+                .expect("redaction input limits originate from usize")
         }
 
         /// Returns the output bytes still available for rendering.
         #[must_use]
         #[inline]
         pub(crate) fn remaining_output_bytes(&self) -> usize {
-            self.output_budget.remaining().unwrap_or(usize::MAX)
+            usize::try_from(self.output_budget.remaining())
+                .expect("redaction output limits originate from usize")
         }
 
         /// Returns whether this event can no longer accept input or output.
         #[must_use]
         #[inline]
         pub(crate) fn is_exhausted(&self) -> bool {
-            self.input_budget.remaining() == Some(0)
-                || self.output_budget.remaining() == Some(0)
-                || self.input_budget.state() == qubit_budget::BudgetState::Closed
-                || self.output_budget.state() == qubit_budget::BudgetState::Closed
+            self.input_closed
+                || self.output_closed
+                || self.input_budget.remaining() == 0
+                || self.output_budget.remaining() == 0
         }
     }
 }
@@ -167,7 +183,9 @@ impl<'policy> RedactionSession<'policy> {
     pub fn operation(policy: &'policy RedactionPolicy) -> Self {
         Self {
             policy,
-            budget: RefCell::new(DiagnosticBudget::new(policy.limits().ordinary_operation())),
+            budget: RefCell::new(DiagnosticBudget::new(
+                policy.limits().ordinary_operation(),
+            )),
             kind: RedactionSessionKind::Operation,
         }
     }
@@ -178,7 +196,9 @@ impl<'policy> RedactionSession<'policy> {
     pub fn diagnostic(policy: &'policy RedactionPolicy) -> Self {
         Self {
             policy,
-            budget: RefCell::new(DiagnosticBudget::new(policy.limits().diagnostic_event())),
+            budget: RefCell::new(DiagnosticBudget::new(
+                policy.limits().diagnostic_event(),
+            )),
             kind: RedactionSessionKind::Diagnostic,
         }
     }

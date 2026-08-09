@@ -89,7 +89,11 @@ impl Redactor {
     /// values while borrowing safe input where possible.
     #[must_use = "use the returned redacted value"]
     #[inline]
-    pub fn redact_field<'a>(&self, field: &str, value: &'a str) -> FieldRedaction<'a> {
+    pub fn redact_field<'a>(
+        &self,
+        field: &str,
+        value: &'a str,
+    ) -> FieldRedaction<'a> {
         let session = RedactionSession::operation(&self.policy);
         self.redact_field_with_session(&session, field, value)
     }
@@ -114,19 +118,24 @@ impl Redactor {
         match resolved {
             ResolvedField::Sensitive { sensitivity } => {
                 let max_bytes = session.remaining_output_bytes();
-                let masked = self
-                    .policy
-                    .masking()
-                    .mask_bounded(sensitivity, value, max_bytes);
+                let masked = self.policy.masking().mask_bounded(
+                    sensitivity,
+                    value,
+                    max_bytes,
+                );
                 let mask_len = masked.len();
                 let fallback = self.opaque_mask();
-                match session.charge_output_or_fallback(mask_len, fallback.len()) {
+                match session
+                    .charge_output_or_fallback(mask_len, fallback.len())
+                {
                     OutputCharge::Complete => FieldRedaction::Masked {
                         value: RedactedText::new(masked),
                         sensitivity,
                     },
                     OutputCharge::Fallback => FieldRedaction::Masked {
-                        value: RedactedText::new(Cow::Owned(fallback.to_owned())),
+                        value: RedactedText::new(Cow::Owned(
+                            fallback.to_owned(),
+                        )),
                         sensitivity: Sensitivity::Secret,
                     },
                     OutputCharge::Exhausted => FieldRedaction::Masked {
@@ -137,15 +146,25 @@ impl Redactor {
             }
             ResolvedField::PassThrough => {
                 let reason = match self.policy.classify_field(field) {
-                    FieldClassification::Allowed { .. } => PassThroughReason::Allowed,
-                    FieldClassification::Sensitive { .. } | FieldClassification::Unknown => {
+                    FieldClassification::Allowed { .. } => {
+                        PassThroughReason::Allowed
+                    }
+                    FieldClassification::Sensitive { .. }
+                    | FieldClassification::Unknown => {
                         PassThroughReason::Unknown
                     }
                 };
-                match session.charge_output_or_fallback(value.len(), self.opaque_mask().len()) {
-                    OutputCharge::Complete => FieldRedaction::PassedThrough { value, reason },
+                match session.charge_output_or_fallback(
+                    value.len(),
+                    self.opaque_mask().len(),
+                ) {
+                    OutputCharge::Complete => {
+                        FieldRedaction::PassedThrough { value, reason }
+                    }
                     OutputCharge::Fallback => FieldRedaction::Masked {
-                        value: RedactedText::new(Cow::Owned(self.opaque_mask().to_owned())),
+                        value: RedactedText::new(Cow::Owned(
+                            self.opaque_mask().to_owned(),
+                        )),
                         sensitivity: Sensitivity::Secret,
                     },
                     OutputCharge::Exhausted => FieldRedaction::Masked {
@@ -176,7 +195,11 @@ impl Redactor {
     /// Typed redacted text produced by the configured mask for `level`.
     #[must_use = "use the returned redacted value"]
     #[inline]
-    pub fn redact_at<'a>(&self, level: Sensitivity, value: &'a str) -> RedactedText<'a> {
+    pub fn redact_at<'a>(
+        &self,
+        level: Sensitivity,
+        value: &'a str,
+    ) -> RedactedText<'a> {
         let session = RedactionSession::operation(&self.policy);
         self.redact_at_with_session(&session, level, value)
     }
@@ -192,16 +215,21 @@ impl Redactor {
         if !session.consume_input(value.len()) {
             return self.fallback_text(session);
         }
-        let masked =
-            self.policy
-                .masking()
-                .mask_bounded(level, value, session.remaining_output_bytes());
+        let masked = self.policy.masking().mask_bounded(
+            level,
+            value,
+            session.remaining_output_bytes(),
+        );
         let length = masked.len();
         let fallback = self.opaque_mask();
         match session.charge_output_or_fallback(length, fallback.len()) {
             OutputCharge::Complete => RedactedText::new(masked),
-            OutputCharge::Fallback => RedactedText::new(Cow::Owned(fallback.to_owned())),
-            OutputCharge::Exhausted => RedactedText::new(Cow::Owned(String::new())),
+            OutputCharge::Fallback => {
+                RedactedText::new(Cow::Owned(fallback.to_owned()))
+            }
+            OutputCharge::Exhausted => {
+                RedactedText::new(Cow::Owned(String::new()))
+            }
         }
     }
 
@@ -212,10 +240,16 @@ impl Redactor {
     }
 
     /// Charges one fail-closed scalar fallback through the shared session.
-    fn fallback_text<'a>(&self, session: &RedactionSession<'_>) -> RedactedText<'a> {
+    fn fallback_text<'a>(
+        &self,
+        session: &RedactionSession<'_>,
+    ) -> RedactedText<'a> {
         let fallback = self.opaque_mask();
-        match session.charge_output_or_fallback(fallback.len(), fallback.len()) {
-            OutputCharge::Complete => RedactedText::new(Cow::Owned(fallback.to_owned())),
+        match session.charge_output_or_fallback(fallback.len(), fallback.len())
+        {
+            OutputCharge::Complete => {
+                RedactedText::new(Cow::Owned(fallback.to_owned()))
+            }
             OutputCharge::Fallback | OutputCharge::Exhausted => {
                 RedactedText::new(Cow::Owned(String::new()))
             }
@@ -223,7 +257,10 @@ impl Redactor {
     }
 
     /// Wraps a charged fail-closed scalar fallback as a field result.
-    fn fallback_field<'a>(&self, session: &RedactionSession<'_>) -> FieldRedaction<'a> {
+    fn fallback_field<'a>(
+        &self,
+        session: &RedactionSession<'_>,
+    ) -> FieldRedaction<'a> {
         FieldRedaction::Masked {
             value: self.fallback_text(session),
             sensitivity: Sensitivity::Secret,

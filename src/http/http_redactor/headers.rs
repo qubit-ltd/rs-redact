@@ -20,7 +20,9 @@ use crate::http::internal::BoundedLogWriter;
 use crate::policy::RedactionResource;
 
 /// Groups repeated header values under deterministically ordered names.
-pub(super) fn group_values(headers: &HeaderMap) -> BTreeMap<&str, Vec<&HeaderValue>> {
+pub(super) fn group_values(
+    headers: &HeaderMap,
+) -> BTreeMap<&str, Vec<&HeaderValue>> {
     let mut values = BTreeMap::<&str, Vec<&HeaderValue>>::new();
     for (name, value) in headers {
         values.entry(name.as_str()).or_default().push(value);
@@ -31,13 +33,20 @@ pub(super) fn group_values(headers: &HeaderMap) -> BTreeMap<&str, Vec<&HeaderVal
 impl HttpRedactor {
     /// Checks the complete header input against the diagnostic budget.
     pub(super) fn headers_fit_input_budget(&self, headers: &HeaderMap) -> bool {
-        let mut input_budget = ResourceBudget::new(ResourceLimit::bounded(
+        let mut input_budget = ResourceBudget::new(
             RedactionResource::Input,
-            self.policy().limits().diagnostic_event().max_input_bytes(),
-        ));
+            ResourceLimit::new(
+                self.policy().limits().diagnostic_event().max_input_bytes()
+                    as u64,
+            ),
+        );
         for (name, value) in headers {
-            if input_budget.try_charge(name.as_str().len()).is_err()
-                || input_budget.try_charge(value.as_bytes().len()).is_err()
+            if input_budget
+                .try_consume(name.as_str().len() as u64)
+                .is_err()
+                || input_budget
+                    .try_consume(value.as_bytes().len() as u64)
+                    .is_err()
             {
                 return false;
             }
@@ -51,7 +60,9 @@ impl HttpRedactor {
         writer: &mut BoundedLogWriter,
         values: BTreeMap<&str, Vec<&HeaderValue>>,
     ) {
-        for (name_index, (name, header_values)) in values.into_iter().enumerate() {
+        for (name_index, (name, header_values)) in
+            values.into_iter().enumerate()
+        {
             if name_index > 0 {
                 let _ = writer.write_str("\n");
             }
