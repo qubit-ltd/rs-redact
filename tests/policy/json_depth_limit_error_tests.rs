@@ -5,12 +5,12 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for JSON depth budget validation errors.
+//! Tests for JSON depth limit validation errors.
 
-use qubit_redact::JsonDepthBudgetError;
-fn test_json_depth_budget_error_is_descriptive() {
+use qubit_redact::JsonDepthLimitError;
+fn test_json_depth_limit_error_is_descriptive() {
     assert_eq!(
-        JsonDepthBudgetError::ZeroDepth.to_string(),
-        "JSON depth budget must be greater than zero",
+        JsonDepthLimitError::ZeroDepth.to_string(),
+        "JSON depth limit must be greater than zero",
     );
 }

@@ -46,5 +46,5 @@ pub use url_path_policy::UrlPathPolicy;
 
 pub use crate::DiagnosticBudgetError;
 pub use crate::InputOutputLimit;
-pub use crate::JsonDepthBudget;
-pub use crate::JsonDepthBudgetError;
+pub use crate::JsonDepthLimit;
+pub use crate::JsonDepthLimitError;

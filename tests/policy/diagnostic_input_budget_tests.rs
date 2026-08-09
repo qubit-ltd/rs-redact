@@ -10,12 +10,11 @@
 use qubit_redact::InputOutputLimit;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
-/// Verifies a shared input budget becomes permanently exhausted after an
-/// oversized reservation.
+/// Verifies an oversized reservation closes the budget without fabricating
+/// input consumption.
 #[test]
 fn test_diagnostic_input_budget_stops_after_oversized_reservation() {
-    let limit = InputOutputLimit::new(3, 64)
-        .expect("the small diagnostic budget should be valid");
+    let limit = InputOutputLimit::new(3, 64).expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
         .ordinary_operation(limit)
         .build()
@@ -25,6 +24,6 @@ fn test_diagnostic_input_budget_stops_after_oversized_reservation() {
     assert!(budget.consume_input(2));
     assert_eq!(budget.remaining_input_bytes(), 1);
     assert!(!budget.consume_input(2));
-    assert_eq!(budget.remaining_input_bytes(), 0);
+    assert_eq!(budget.remaining_input_bytes(), 1);
     assert!(!budget.consume_input(0));
 }

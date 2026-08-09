@@ -262,7 +262,7 @@
 //! # JSON values
 //!
 //! With the `json` feature, `RedactedJson`, `RedactedJsonText`, and
-//! `redact_json_text_in_place` share the `JsonDepthBudget` stored in their
+//! `redact_json_text_in_place` share the `JsonDepthLimit` stored in their
 //! immutable [`RedactionPolicy`] snapshot. The default maximum depth is 128;
 //! an over-depth object or array is replaced with the policy's opaque Secret
 //! mask without visiting its descendants.
@@ -349,9 +349,9 @@ pub use policy::FieldMatchKind;
 pub use policy::FieldNameMatching;
 pub use policy::InputOutputLimit;
 #[cfg(feature = "json")]
-pub use policy::JsonDepthBudget;
+pub use policy::JsonDepthLimit;
 #[cfg(feature = "json")]
-pub use policy::JsonDepthBudgetError;
+pub use policy::JsonDepthLimitError;
 pub use policy::MaskPolicy;
 pub use policy::MaskingPolicy;
 pub use policy::PolicyError;

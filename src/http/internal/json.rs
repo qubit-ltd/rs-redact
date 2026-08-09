@@ -9,6 +9,8 @@
 
 use std::io::Write;
 
+use qubit_budget::ResourceBudget;
+use qubit_budget::ResourceLimit;
 use serde_json::Value;
 use serde_json::from_str;
 use serde_json::to_writer;
@@ -16,11 +18,12 @@ use serde_json::to_writer;
 use super::BoundedBodyWriter;
 use super::markers::TRUNCATED;
 use super::markers::UNKEYED_JSON;
-use crate::JsonDepthBudget;
+use crate::JsonDepthLimit;
 use crate::http::FieldRedactor;
 use crate::http::UnkeyedJsonValuePolicy;
 use crate::json::internal::JsonRedactionState;
 use crate::json::internal::JsonUnkeyedValuePolicy;
+use crate::policy::RedactionResource;
 
 /// Redacts a JSON tree and reports whether an unkeyed scalar passed through.
 ///
@@ -38,18 +41,15 @@ use crate::json::internal::JsonUnkeyedValuePolicy;
 pub(in crate::http) fn redact(
     redactor: &FieldRedactor<'_>,
     value: &mut Value,
-    json_depth_budget: JsonDepthBudget,
+    json_depth_limit: JsonDepthLimit,
     unkeyed: UnkeyedJsonValuePolicy,
     max_mask_bytes: usize,
 ) -> bool {
-    let mut remaining_mask_bytes = max_mask_bytes;
-    redact_with_remaining(
-        redactor,
-        value,
-        json_depth_budget,
-        unkeyed,
-        &mut remaining_mask_bytes,
-    )
+    let mut mask_budget = ResourceBudget::new(ResourceLimit::bounded(
+        RedactionResource::Mask,
+        max_mask_bytes,
+    ));
+    redact_with_mask_budget(redactor, value, json_depth_limit, unkeyed, &mut mask_budget)
 }
 
 /// Redacts a JSON tree while consuming one enclosing mask budget.
@@ -59,24 +59,22 @@ pub(in crate::http) fn redact(
 /// * `redactor` - Structured-body field redactor.
 /// * `value` - JSON tree to mutate.
 /// * `unkeyed` - Policy for scalars without an object-field context.
-/// * `remaining_mask_bytes` - Aggregate mask bytes still available to the
+/// * `mask_budget` - Aggregate generated-mask accounting shared with the
 ///   enclosing body renderer.
 ///
 /// # Returns
 ///
 /// `true` when at least one unkeyed scalar passed through.
 #[must_use]
-pub(in crate::http) fn redact_with_remaining(
+pub(in crate::http) fn redact_with_mask_budget(
     redactor: &FieldRedactor<'_>,
     value: &mut Value,
-    json_depth_budget: JsonDepthBudget,
+    json_depth_limit: JsonDepthLimit,
     unkeyed: UnkeyedJsonValuePolicy,
-    remaining_mask_bytes: &mut usize,
+    mask_budget: &mut ResourceBudget<RedactionResource>,
 ) -> bool {
     let unkeyed = match unkeyed {
-        UnkeyedJsonValuePolicy::PassThrough => {
-            JsonUnkeyedValuePolicy::PassThrough
-        }
+        UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
         UnkeyedJsonValuePolicy::Redact => JsonUnkeyedValuePolicy::Redact {
             marker: UNKEYED_JSON,
             truncated_marker: TRUNCATED,
@@ -86,9 +84,9 @@ pub(in crate::http) fn redact_with_remaining(
         redactor.base_rules(),
         redactor.context_rules(),
         redactor.masking(),
-        json_depth_budget,
+        json_depth_limit,
         unkeyed,
-        remaining_mask_bytes,
+        mask_budget,
     )
     .redact(value)
     .has_passed_unkeyed()
@@ -136,17 +134,20 @@ pub(in crate::http) fn serialize_bounded(
 pub(in crate::http) fn redact_ndjson(
     redactor: &FieldRedactor<'_>,
     bytes: &[u8],
-    json_depth_budget: JsonDepthBudget,
+    json_depth_limit: JsonDepthLimit,
     unkeyed: UnkeyedJsonValuePolicy,
     max_mask_bytes: usize,
 ) -> Option<(String, bool, bool)> {
-    let mut remaining_mask_bytes = max_mask_bytes;
-    redact_ndjson_with_remaining(
+    let mut mask_budget = ResourceBudget::new(ResourceLimit::bounded(
+        RedactionResource::Mask,
+        max_mask_bytes,
+    ));
+    redact_ndjson_with_mask_budget(
         redactor,
         bytes,
-        json_depth_budget,
+        json_depth_limit,
         unkeyed,
-        &mut remaining_mask_bytes,
+        &mut mask_budget,
         max_mask_bytes,
     )
 }
@@ -159,7 +160,7 @@ pub(in crate::http) fn redact_ndjson(
 /// * `redactor` - Structured-body field redactor.
 /// * `bytes` - Complete NDJSON bytes.
 /// * `unkeyed` - Policy for unkeyed scalar values.
-/// * `remaining_mask_bytes` - Aggregate generated-mask budget shared with an
+/// * `mask_budget` - Aggregate generated-mask accounting shared with an
 ///   enclosing renderer.
 /// * `max_output_bytes` - Maximum rendered NDJSON bytes to retain.
 ///
@@ -168,12 +169,12 @@ pub(in crate::http) fn redact_ndjson(
 /// Redacted NDJSON, a pass-through flag, and a rendering-truncation flag, or
 /// `None` for invalid UTF-8 or JSON.
 #[must_use]
-pub(in crate::http) fn redact_ndjson_with_remaining(
+pub(in crate::http) fn redact_ndjson_with_mask_budget(
     redactor: &FieldRedactor<'_>,
     bytes: &[u8],
-    json_depth_budget: JsonDepthBudget,
+    json_depth_limit: JsonDepthLimit,
     unkeyed: UnkeyedJsonValuePolicy,
-    remaining_mask_bytes: &mut usize,
+    mask_budget: &mut ResourceBudget<RedactionResource>,
     max_output_bytes: usize,
 ) -> Option<(String, bool, bool)> {
     let text = std::str::from_utf8(bytes).ok()?;
@@ -190,13 +191,8 @@ pub(in crate::http) fn redact_ndjson_with_remaining(
             continue;
         }
         let mut value = from_str(line).ok()?;
-        passed |= redact_with_remaining(
-            redactor,
-            &mut value,
-            json_depth_budget,
-            unkeyed,
-            remaining_mask_bytes,
-        );
+        passed |=
+            redact_with_mask_budget(redactor, &mut value, json_depth_limit, unkeyed, mask_budget);
         if to_writer(&mut output, &value).is_err() {
             return output.into_string().map(|text| (text, passed, true));
         }

@@ -31,21 +31,14 @@ fn test_redactor_session_fallbacks_respect_cumulative_output_limit() {
     let rendered: Vec<_> = (0..5)
         .map(|_| {
             redactor
-                .redact_at_with_session(
-                    &session,
-                    Sensitivity::Secret,
-                    "raw-data",
-                )
+                .redact_at_with_session(&session, Sensitivity::Secret, "raw-data")
                 .into_owned()
         })
         .collect();
 
     assert!(rendered.iter().any(String::is_empty));
-    assert!(
-        rendered.iter().map(String::len).sum::<usize>()
-            <= limit.max_output_bytes()
-    );
-    assert_eq!(session.remaining_output_bytes(), 0);
+    assert!(rendered.iter().map(String::len).sum::<usize>() <= limit.max_output_bytes());
+    assert_eq!(session.remaining_output_bytes(), 7);
 }
 
 /// Verifies the strict constructor masks fields that the standard policy leaves

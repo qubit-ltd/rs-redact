@@ -16,9 +16,9 @@ mod field_match_kind;
 mod field_name_matching;
 pub(crate) mod internal;
 #[cfg(feature = "json")]
-mod json_depth_budget;
+mod json_depth_limit;
 #[cfg(feature = "json")]
-mod json_depth_budget_error;
+mod json_depth_limit_error;
 mod mask_policy;
 mod masking_policy;
 mod policy_error;
@@ -47,9 +47,9 @@ pub use field_classification::FieldClassification;
 pub use field_match_kind::FieldMatchKind;
 pub use field_name_matching::FieldNameMatching;
 #[cfg(feature = "json")]
-pub use json_depth_budget::JsonDepthBudget;
+pub use json_depth_limit::JsonDepthLimit;
 #[cfg(feature = "json")]
-pub use json_depth_budget_error::JsonDepthBudgetError;
+pub use json_depth_limit_error::JsonDepthLimitError;
 pub use mask_policy::MaskPolicy;
 pub use masking_policy::MaskingPolicy;
 pub use policy_error::PolicyError;
@@ -70,6 +70,7 @@ pub use redaction_policy_builder::UriPolicyBuilderView;
 pub use redaction_rules::RedactionRules;
 pub(crate) use redaction_rules_builder::RedactionRulesBuilder;
 pub(crate) use redaction_session::OutputCharge;
+pub(crate) use redaction_session::RedactionResource;
 pub use redaction_session::RedactionSession;
 pub use redaction_session::RedactionSessionKind;
 pub(crate) use resolved_field::ResolvedField;

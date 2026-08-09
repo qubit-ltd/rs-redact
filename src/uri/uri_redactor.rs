@@ -12,6 +12,7 @@ use std::fmt;
 use std::fmt::Write;
 
 use fluent_uri::Uri;
+use qubit_budget::ResourceLimit;
 
 use super::UriComponent;
 use super::UriFragmentPolicy;
@@ -27,6 +28,7 @@ use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::Sensitivity;
 use crate::policy::OutputCharge;
+use crate::policy::RedactionResource;
 use crate::policy::ResolvedField;
 
 const INVALID_URI: &str = "<invalid URI>";
@@ -59,9 +61,7 @@ impl UriRedactor {
     /// portion of the input URI.
     #[must_use = "use the structured URI redaction result"]
     pub fn redact_uri_str(&self, input: &str) -> UriRedaction {
-        if input.len()
-            > self.policy.limits().diagnostic_event().max_input_bytes()
-        {
+        if input_limit(&self.policy).check(input.len()).is_err() {
             return invalid_result(UriRedactionReason::InputLimitExceeded);
         }
 
@@ -71,9 +71,8 @@ impl UriRedactor {
         };
         let mut reasons = Vec::new();
         let mut components = Vec::new();
-        let mut rendered = BoundedUriWriter::new(
-            self.policy.limits().diagnostic_event().max_output_bytes(),
-        );
+        let mut rendered =
+            BoundedUriWriter::new(self.policy.limits().diagnostic_event().max_output_bytes());
         let scheme = parsed.scheme().as_str();
         let scheme_end = scheme.len() + 1;
         rendered.write_str(&input[..scheme_end]);
@@ -94,10 +93,7 @@ impl UriRedactor {
         }
 
         let path = parsed.path().as_str();
-        if self.policy.path_policy() == UriPathPolicy::Redact
-            && !path.is_empty()
-            && path != "/"
-        {
+        if self.policy.path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
             mark_component(UriComponent::Path, &mut reasons, &mut components);
             if path.starts_with('/') {
                 rendered.write_str("/%3Credacted%3E");
@@ -126,16 +122,8 @@ impl UriRedactor {
             if self.policy.fragment_policy() == UriFragmentPolicy::Redact
                 && !fragment.as_str().is_empty()
             {
-                mark_component(
-                    UriComponent::Fragment,
-                    &mut reasons,
-                    &mut components,
-                );
-                write_opaque_mask(
-                    &self.policy,
-                    Sensitivity::High,
-                    &mut rendered,
-                );
+                mark_component(UriComponent::Fragment, &mut reasons, &mut components);
+                write_opaque_mask(&self.policy, Sensitivity::High, &mut rendered);
             } else {
                 rendered.write_str(fragment.as_str());
             }
@@ -166,8 +154,7 @@ impl UriRedactor {
     /// applies, while the output budget and truncation behavior do not.
     #[must_use = "use the structured URI inspection result"]
     pub fn inspect_uri_str(&self, input: &str) -> UriInspection {
-        let budget = self.policy.limits().diagnostic_event();
-        if input.len() > budget.max_input_bytes() {
+        if input_limit(&self.policy).check(input.len()).is_err() {
             return invalid_inspection(UriRedactionReason::InputLimitExceeded);
         }
 
@@ -193,20 +180,13 @@ impl UriRedactor {
         }
 
         let path = parsed.path().as_str();
-        if self.policy.path_policy() == UriPathPolicy::Redact
-            && !path.is_empty()
-            && path != "/"
-        {
+        if self.policy.path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
             mark_component(UriComponent::Path, &mut reasons, &mut components);
         }
 
         if let Some(query) = parsed.query()
-            && let Err(reason) = inspect_query(
-                query.as_str(),
-                &self.policy,
-                &mut reasons,
-                &mut components,
-            )
+            && let Err(reason) =
+                inspect_query(query.as_str(), &self.policy, &mut reasons, &mut components)
         {
             return invalid_inspection(reason);
         }
@@ -215,11 +195,7 @@ impl UriRedactor {
             && self.policy.fragment_policy() == UriFragmentPolicy::Redact
             && !fragment.as_str().is_empty()
         {
-            mark_component(
-                UriComponent::Fragment,
-                &mut reasons,
-                &mut components,
-            );
+            mark_component(UriComponent::Fragment, &mut reasons, &mut components);
         }
 
         let status = if components.is_empty() {
@@ -242,23 +218,15 @@ impl UriRedactor {
         session: &RedactionSession<'_>,
     ) -> UriRedaction {
         if !session.consume_input(input.len()) {
-            return session_invalid_result(
-                session,
-                UriRedactionReason::InputLimitExceeded,
-            );
+            return session_invalid_result(session, UriRedactionReason::InputLimitExceeded);
         }
         let result = self.redact_uri_str(input);
-        match session.charge_output_or_fallback(
-            result.log_safe_text().as_str().len(),
-            INVALID_URI.len(),
-        ) {
+        match session
+            .charge_output_or_fallback(result.log_safe_text().as_str().len(), INVALID_URI.len())
+        {
             OutputCharge::Complete => result,
-            OutputCharge::Fallback => {
-                invalid_result(UriRedactionReason::OutputTruncated)
-            }
-            OutputCharge::Exhausted => {
-                empty_invalid_result(UriRedactionReason::OutputTruncated)
-            }
+            OutputCharge::Fallback => invalid_result(UriRedactionReason::OutputTruncated),
+            OutputCharge::Exhausted => empty_invalid_result(UriRedactionReason::OutputTruncated),
         }
     }
 
@@ -274,6 +242,18 @@ impl UriRedactor {
         }
         self.inspect_uri_str(input)
     }
+}
+
+/// Builds the stateless point limit for one complete URI input.
+///
+/// The URI facade does not accumulate input across calls; callers that compose
+/// several URI fragments use [`RedactionSession`] instead.
+#[inline(always)]
+fn input_limit(policy: &RedactionPolicy) -> ResourceLimit<RedactionResource> {
+    ResourceLimit::bounded(
+        RedactionResource::Input,
+        policy.limits().diagnostic_event().max_input_bytes(),
+    )
 }
 
 impl Default for UriRedactor {
@@ -426,13 +406,12 @@ fn redact_query(
             rendered.write_str("&");
         }
         let Some((raw_key, raw_value)) = pair.split_once('=') else {
-            decode_uri_component(pair)
-                .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+            decode_uri_component(pair).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
             rendered.write_str(pair);
             continue;
         };
-        let key = decode_uri_component(raw_key)
-            .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+        let key =
+            decode_uri_component(raw_key).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
         let value = decode_uri_component(raw_value)
             .map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
         match policy.resolve_field(&key) {
@@ -459,16 +438,13 @@ fn inspect_query(
 ) -> Result<(), UriRedactionReason> {
     for pair in query.split('&') {
         let Some((raw_key, raw_value)) = pair.split_once('=') else {
-            decode_uri_component(pair)
-                .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+            decode_uri_component(pair).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
             continue;
         };
-        let key = decode_uri_component(raw_key)
-            .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
-        decode_uri_component(raw_value)
-            .map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
-        if matches!(policy.resolve_field(&key), ResolvedField::Sensitive { .. })
-        {
+        let key =
+            decode_uri_component(raw_key).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+        decode_uri_component(raw_value).map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
+        if matches!(policy.resolve_field(&key), ResolvedField::Sensitive { .. }) {
             mark_component(UriComponent::Query, reasons, components);
         }
     }
@@ -524,8 +500,7 @@ fn write_opaque_mask(
         return;
     }
     let mut writer = UriComponentWriter::new(rendered);
-    let _ =
-        writer.write_str(policy.masking().for_level(sensitivity).opaque_mask());
+    let _ = writer.write_str(policy.masking().for_level(sensitivity).opaque_mask());
 }
 
 /// Converts one hexadecimal ASCII byte to its numeric value.
@@ -569,13 +544,9 @@ fn session_invalid_result(
     session: &RedactionSession<'_>,
     reason: UriRedactionReason,
 ) -> UriRedaction {
-    match session
-        .charge_output_or_fallback(INVALID_URI.len(), INVALID_URI.len())
-    {
+    match session.charge_output_or_fallback(INVALID_URI.len(), INVALID_URI.len()) {
         OutputCharge::Complete => invalid_result(reason),
-        OutputCharge::Fallback | OutputCharge::Exhausted => {
-            empty_invalid_result(reason)
-        }
+        OutputCharge::Fallback | OutputCharge::Exhausted => empty_invalid_result(reason),
     }
 }
 

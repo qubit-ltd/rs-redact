@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Validation errors for JSON recursion-depth budgets.
+//! Validation errors for JSON recursion-depth limits.
 
 use std::error::Error;
 use std::fmt;
@@ -15,12 +15,12 @@ use std::fmt::Formatter;
 /// Reports which JSON recursion-depth invariant was violated.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JsonDepthBudgetError {
+pub enum JsonDepthLimitError {
     /// The recursive container depth limit was zero.
     ZeroDepth,
 }
 
-impl Display for JsonDepthBudgetError {
+impl Display for JsonDepthLimitError {
     /// Writes a concise description of the violated budget invariant.
     ///
     /// # Parameters
@@ -36,10 +36,9 @@ impl Display for JsonDepthBudgetError {
     /// Returns [`fmt::Error`] when the destination rejects output.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ZeroDepth => formatter
-                .write_str("JSON depth budget must be greater than zero"),
+            Self::ZeroDepth => formatter.write_str("JSON depth limit must be greater than zero"),
         }
     }
 }
 
-impl Error for JsonDepthBudgetError {}
+impl Error for JsonDepthLimitError {}

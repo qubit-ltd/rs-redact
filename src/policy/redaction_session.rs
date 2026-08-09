@@ -14,13 +14,18 @@ use super::RedactionPolicy;
 
 mod budget {
     use qubit_budget::ResourceBudget;
+    use qubit_budget::ResourceLimit;
 
     use super::InputOutputLimit;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    enum DiagnosticResource {
-        InputBytes,
-        OutputBytes,
+    pub(crate) enum RedactionResource {
+        /// Complete source bytes inspected by one redaction operation.
+        Input,
+        /// Complete log-safe bytes emitted by one redaction operation.
+        Output,
+        /// Bytes materialized by generated masks inside a bounded renderer.
+        Mask,
     }
 
     /// Mutable input/output accounting for one redaction event.
@@ -31,10 +36,8 @@ mod budget {
     #[must_use]
     #[derive(Debug)]
     pub(crate) struct DiagnosticBudget {
-        input_budget: ResourceBudget<DiagnosticResource>,
-        output_budget: ResourceBudget<DiagnosticResource>,
-        input_exhausted: bool,
-        output_exhausted: bool,
+        input_budget: ResourceBudget<RedactionResource>,
+        output_budget: ResourceBudget<RedactionResource>,
     }
 
     /// Result of charging an eagerly returned diagnostic fragment.
@@ -56,34 +59,32 @@ mod budget {
         #[inline]
         pub(crate) const fn new(limit: InputOutputLimit) -> Self {
             Self {
-                input_budget: ResourceBudget::new(
-                    DiagnosticResource::InputBytes,
+                input_budget: ResourceBudget::new(ResourceLimit::bounded(
+                    RedactionResource::Input,
                     limit.max_input_bytes(),
-                ),
-                output_budget: ResourceBudget::new(
-                    DiagnosticResource::OutputBytes,
+                )),
+                output_budget: ResourceBudget::new(ResourceLimit::bounded(
+                    RedactionResource::Output,
                     limit.max_output_bytes(),
-                ),
-                input_exhausted: false,
-                output_exhausted: false,
+                )),
             }
         }
 
         /// Reserves input bytes before inspecting source data.
         #[inline]
         pub(crate) fn consume_input(&mut self, bytes: usize) -> bool {
-            if self.input_exhausted {
-                self.input_budget.exhaust();
+            if self.input_budget.try_charge(bytes).is_err() {
+                self.input_budget.close();
                 return false;
-            }
-            if self.input_budget.consume_or_exhaust(bytes).is_err() {
-                self.input_exhausted = true;
-                return false;
-            }
-            if self.input_budget.is_empty() {
-                self.input_exhausted = true;
             }
             true
+        }
+
+        /// Closes input accounting after a child adapter rejects an input
+        /// reservation from the shared diagnostic event.
+        #[inline(always)]
+        pub(crate) fn close_input(&mut self) {
+            self.input_budget.close();
         }
 
         /// Atomically charges either a complete fragment or its terminal
@@ -93,55 +94,46 @@ mod budget {
             bytes: usize,
             fallback_bytes: usize,
         ) -> OutputCharge {
-            if !self.output_exhausted
-                && self.output_budget.check_additional(bytes).is_ok()
-            {
-                self.output_budget
-                    .try_consume(bytes)
-                    .expect("output budget check must precede consumption");
-                self.output_exhausted = self.output_budget.is_empty();
+            if self.output_budget.try_charge(bytes).is_ok() {
                 return OutputCharge::Complete;
             }
-            if !self.output_exhausted
-                && self.output_budget.check_additional(fallback_bytes).is_ok()
-            {
-                self.output_budget
-                    .try_consume(fallback_bytes)
-                    .expect("fallback budget check must precede consumption");
-                self.output_budget.exhaust();
-                self.output_exhausted = true;
+            if self.output_budget.try_charge(fallback_bytes).is_ok() {
+                self.output_budget.close();
                 return OutputCharge::Fallback;
             }
-            self.output_budget.exhaust();
-            self.output_exhausted = true;
+            self.output_budget.close();
             OutputCharge::Exhausted
         }
 
         /// Returns the input bytes still available for inspection.
         #[must_use]
         #[inline]
-        pub(crate) const fn remaining_input_bytes(&self) -> usize {
-            self.input_budget.remaining()
+        pub(crate) fn remaining_input_bytes(&self) -> usize {
+            self.input_budget.remaining().unwrap_or(usize::MAX)
         }
 
         /// Returns the output bytes still available for rendering.
         #[must_use]
         #[inline]
-        pub(crate) const fn remaining_output_bytes(&self) -> usize {
-            self.output_budget.remaining()
+        pub(crate) fn remaining_output_bytes(&self) -> usize {
+            self.output_budget.remaining().unwrap_or(usize::MAX)
         }
 
         /// Returns whether this event can no longer accept input or output.
         #[must_use]
         #[inline]
-        pub(crate) const fn is_exhausted(&self) -> bool {
-            self.input_exhausted || self.output_exhausted
+        pub(crate) fn is_exhausted(&self) -> bool {
+            self.input_budget.remaining() == Some(0)
+                || self.output_budget.remaining() == Some(0)
+                || self.input_budget.state() == qubit_budget::BudgetState::Closed
+                || self.output_budget.state() == qubit_budget::BudgetState::Closed
         }
     }
 }
 
 pub(crate) use budget::DiagnosticBudget;
 pub(crate) use budget::OutputCharge;
+pub(crate) use budget::RedactionResource;
 
 mod session_kind {
     /// Identifies whether a session is an ordinary operation or a diagnostic
@@ -175,9 +167,7 @@ impl<'policy> RedactionSession<'policy> {
     pub fn operation(policy: &'policy RedactionPolicy) -> Self {
         Self {
             policy,
-            budget: RefCell::new(DiagnosticBudget::new(
-                policy.limits().ordinary_operation(),
-            )),
+            budget: RefCell::new(DiagnosticBudget::new(policy.limits().ordinary_operation())),
             kind: RedactionSessionKind::Operation,
         }
     }
@@ -188,9 +178,7 @@ impl<'policy> RedactionSession<'policy> {
     pub fn diagnostic(policy: &'policy RedactionPolicy) -> Self {
         Self {
             policy,
-            budget: RefCell::new(DiagnosticBudget::new(
-                policy.limits().diagnostic_event(),
-            )),
+            budget: RefCell::new(DiagnosticBudget::new(policy.limits().diagnostic_event())),
             kind: RedactionSessionKind::Diagnostic,
         }
     }
@@ -213,6 +201,16 @@ impl<'policy> RedactionSession<'policy> {
     #[inline]
     pub fn consume_input(&self, bytes: usize) -> bool {
         self.budget.borrow_mut().consume_input(bytes)
+    }
+
+    /// Stops this session from accepting any additional source bytes.
+    ///
+    /// This is used when a child diagnostic adapter has already rejected a
+    /// source reservation. Closing preserves the exact bytes accepted before
+    /// that failure and never fabricates additional consumption.
+    #[inline]
+    pub(crate) fn close_input(&self) {
+        self.budget.borrow_mut().close_input();
     }
 
     /// Charges an eager fragment or, if it does not fit, one terminal marker.

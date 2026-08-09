@@ -9,7 +9,7 @@
 
 use super::InputOutputLimit;
 #[cfg(feature = "json")]
-use super::JsonDepthBudget;
+use super::JsonDepthLimit;
 #[cfg(feature = "http")]
 use crate::http::BodyBudget;
 
@@ -26,7 +26,7 @@ pub struct RedactionLimits {
     http_body: BodyBudget,
     /// Maximum JSON recursion depth for structured redaction.
     #[cfg(feature = "json")]
-    json_depth_budget: JsonDepthBudget,
+    json_depth_limit: JsonDepthLimit,
 }
 
 impl RedactionLimits {
@@ -37,7 +37,7 @@ impl RedactionLimits {
         diagnostic_event: InputOutputLimit,
         ordinary_operation: InputOutputLimit,
         #[cfg(feature = "http")] http_body: BodyBudget,
-        #[cfg(feature = "json")] json_depth_budget: JsonDepthBudget,
+        #[cfg(feature = "json")] json_depth_limit: JsonDepthLimit,
     ) -> Self {
         Self {
             diagnostic_event,
@@ -45,7 +45,7 @@ impl RedactionLimits {
             #[cfg(feature = "http")]
             http_body,
             #[cfg(feature = "json")]
-            json_depth_budget,
+            json_depth_limit,
         }
     }
 
@@ -63,20 +63,14 @@ impl RedactionLimits {
 
     /// Returns a copy with the diagnostic-event limit replaced.
     #[inline]
-    pub(crate) const fn with_diagnostic_event(
-        mut self,
-        limit: InputOutputLimit,
-    ) -> Self {
+    pub(crate) const fn with_diagnostic_event(mut self, limit: InputOutputLimit) -> Self {
         self.diagnostic_event = limit;
         self
     }
 
     /// Returns a copy with the ordinary-operation limit replaced.
     #[inline]
-    pub(crate) const fn with_ordinary_operation(
-        mut self,
-        limit: InputOutputLimit,
-    ) -> Self {
+    pub(crate) const fn with_ordinary_operation(mut self, limit: InputOutputLimit) -> Self {
         self.ordinary_operation = limit;
         self
     }
@@ -97,18 +91,15 @@ impl RedactionLimits {
     /// Returns the hard recursion-depth limit for structured JSON redaction.
     #[cfg(feature = "json")]
     #[inline(always)]
-    pub const fn json_depth_budget(&self) -> JsonDepthBudget {
-        self.json_depth_budget
+    pub const fn json_depth_limit(&self) -> JsonDepthLimit {
+        self.json_depth_limit
     }
 
     /// Returns a copy with the JSON depth limit replaced.
     #[cfg(feature = "json")]
     #[inline]
-    pub(crate) const fn with_json_depth_budget(
-        mut self,
-        budget: JsonDepthBudget,
-    ) -> Self {
-        self.json_depth_budget = budget;
+    pub(crate) const fn with_json_depth_limit(mut self, budget: JsonDepthLimit) -> Self {
+        self.json_depth_limit = budget;
         self
     }
 }
@@ -122,7 +113,7 @@ impl Default for RedactionLimits {
             #[cfg(feature = "http")]
             http_body: BodyBudget::default(),
             #[cfg(feature = "json")]
-            json_depth_budget: JsonDepthBudget::default(),
+            json_depth_limit: JsonDepthLimit::default(),
         }
     }
 }

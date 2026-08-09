@@ -46,19 +46,15 @@ fn test_redact_pair_session_respects_cumulative_output_limit() {
         .collect();
 
     assert!(rendered.iter().any(String::is_empty));
-    assert!(
-        rendered.iter().map(String::len).sum::<usize>()
-            <= limit.max_output_bytes()
-    );
-    assert_eq!(session.remaining_output_bytes(), 0);
+    assert!(rendered.iter().map(String::len).sum::<usize>() <= limit.max_output_bytes());
+    assert_eq!(session.remaining_output_bytes(), 16);
 }
 
 /// Verifies aggregate environment rendering stops before inspecting a pair
 /// that exceeds the configured input budget.
 #[test]
 fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
-    let budget = InputOutputLimit::new(8, 64)
-        .expect("the small diagnostic budget should be valid");
+    let budget = InputOutputLimit::new(8, 64).expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -77,8 +73,7 @@ fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
 /// Verifies aggregate environment rendering stops at the final output budget.
 #[test]
 fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
-    let budget = InputOutputLimit::new(8, 64)
-        .expect("the small diagnostic budget should be valid");
+    let budget = InputOutputLimit::new(8, 64).expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -87,10 +82,7 @@ fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
 
     let rendered = redactor
         .redact_os_pairs(vec![
-            (
-                std::ffi::OsStr::new(""),
-                std::ffi::OsStr::new("")
-            );
+            (std::ffi::OsStr::new(""), std::ffi::OsStr::new(""));
             128
         ])
         .to_string();
