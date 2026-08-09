@@ -13,6 +13,9 @@ use super::InputOutputLimit;
 use super::RedactionPolicy;
 
 mod budget {
+    use qubit_budget::ResourceBudget;
+    use qubit_budget::ResourceLimit;
+
     use super::InputOutputLimit;
 
     /// Mutable input/output accounting for one redaction event.
@@ -23,8 +26,8 @@ mod budget {
     #[must_use]
     #[derive(Debug)]
     pub(crate) struct DiagnosticBudget {
-        remaining_input_bytes: usize,
-        remaining_output_bytes: usize,
+        input_budget: ResourceBudget,
+        output_budget: ResourceBudget,
         input_exhausted: bool,
         output_exhausted: bool,
     }
@@ -48,8 +51,10 @@ mod budget {
         #[inline]
         pub(crate) const fn new(limit: InputOutputLimit) -> Self {
             Self {
-                remaining_input_bytes: limit.max_input_bytes(),
-                remaining_output_bytes: limit.max_output_bytes(),
+                input_budget: ResourceLimit::new(limit.max_input_bytes())
+                    .budget(),
+                output_budget: ResourceLimit::new(limit.max_output_bytes())
+                    .budget(),
                 input_exhausted: false,
                 output_exhausted: false,
             }
@@ -58,13 +63,15 @@ mod budget {
         /// Reserves input bytes before inspecting source data.
         #[inline]
         pub(crate) fn consume_input(&mut self, bytes: usize) -> bool {
-            if self.input_exhausted || bytes > self.remaining_input_bytes {
-                self.input_exhausted = true;
-                self.remaining_input_bytes = 0;
+            if self.input_exhausted {
+                self.input_budget.exhaust();
                 return false;
             }
-            self.remaining_input_bytes -= bytes;
-            if self.remaining_input_bytes == 0 {
+            if self.input_budget.consume_or_exhaust((), bytes).is_err() {
+                self.input_exhausted = true;
+                return false;
+            }
+            if self.input_budget.is_empty() {
                 self.input_exhausted = true;
             }
             true
@@ -77,19 +84,29 @@ mod budget {
             bytes: usize,
             fallback_bytes: usize,
         ) -> OutputCharge {
-            if !self.output_exhausted && bytes <= self.remaining_output_bytes {
-                self.remaining_output_bytes -= bytes;
-                self.output_exhausted = self.remaining_output_bytes == 0;
+            if !self.output_exhausted
+                && self.output_budget.check_additional((), bytes).is_ok()
+            {
+                self.output_budget
+                    .try_consume((), bytes)
+                    .expect("output budget check must precede consumption");
+                self.output_exhausted = self.output_budget.is_empty();
                 return OutputCharge::Complete;
             }
             if !self.output_exhausted
-                && fallback_bytes <= self.remaining_output_bytes
+                && self
+                    .output_budget
+                    .check_additional((), fallback_bytes)
+                    .is_ok()
             {
-                self.remaining_output_bytes = 0;
+                self.output_budget
+                    .try_consume((), fallback_bytes)
+                    .expect("fallback budget check must precede consumption");
+                self.output_budget.exhaust();
                 self.output_exhausted = true;
                 return OutputCharge::Fallback;
             }
-            self.remaining_output_bytes = 0;
+            self.output_budget.exhaust();
             self.output_exhausted = true;
             OutputCharge::Exhausted
         }
@@ -98,14 +115,14 @@ mod budget {
         #[must_use]
         #[inline]
         pub(crate) const fn remaining_input_bytes(&self) -> usize {
-            self.remaining_input_bytes
+            self.input_budget.remaining()
         }
 
         /// Returns the output bytes still available for rendering.
         #[must_use]
         #[inline]
         pub(crate) const fn remaining_output_bytes(&self) -> usize {
-            self.remaining_output_bytes
+            self.output_budget.remaining()
         }
 
         /// Returns whether this event can no longer accept input or output.

@@ -7,15 +7,18 @@
 // =============================================================================
 //! Shared input accounting for bounded diagnostic redaction.
 
+use qubit_budget::ResourceBudget;
+use qubit_budget::ResourceLimit;
+
 /// Tracks source bytes consumed across one diagnostic rendering.
 ///
 /// Once a reservation does not fit, the budget becomes permanently exhausted
 /// so later diagnostic segments cannot inspect additional source bytes.
 #[must_use]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct DiagnosticInputBudget {
-    /// Source bytes still available for inspection.
-    remaining_input_bytes: usize,
+    /// Source-byte budget delegated to the shared accounting primitive.
+    budget: ResourceBudget,
     /// Whether a reservation has exhausted or exceeded the budget.
     exhausted: bool,
 }
@@ -33,7 +36,7 @@ impl DiagnosticInputBudget {
     #[inline(always)]
     pub(crate) const fn new(max_input_bytes: usize) -> Self {
         Self {
-            remaining_input_bytes: max_input_bytes,
+            budget: ResourceLimit::new(max_input_bytes).budget(),
             exhausted: false,
         }
     }
@@ -50,13 +53,15 @@ impl DiagnosticInputBudget {
     /// the segment must be skipped; this permanently exhausts the budget.
     #[inline]
     pub(crate) fn reserve(&mut self, input_bytes: usize) -> bool {
-        if self.exhausted || input_bytes > self.remaining_input_bytes {
-            self.remaining_input_bytes = 0;
+        if self.exhausted {
+            self.budget.exhaust();
+            return false;
+        }
+        if self.budget.consume_or_exhaust((), input_bytes).is_err() {
             self.exhausted = true;
             return false;
         }
-        self.remaining_input_bytes -= input_bytes;
-        self.exhausted = self.remaining_input_bytes == 0;
+        self.exhausted = self.budget.is_empty();
         true
     }
 
@@ -68,6 +73,6 @@ impl DiagnosticInputBudget {
     #[must_use]
     #[inline(always)]
     pub(crate) const fn remaining_input_bytes(&self) -> usize {
-        self.remaining_input_bytes
+        self.budget.remaining()
     }
 }
