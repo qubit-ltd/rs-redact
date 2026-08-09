@@ -9,22 +9,16 @@
 
 use std::borrow::Cow;
 
-use qubit_budget::ResourceLimit;
-
 use super::HttpRedactor;
 use crate::LogSafeText;
 use crate::http::internal::BoundedLogWriter;
 use crate::http::internal::markers;
-use crate::policy::RedactionResource;
 
 impl HttpRedactor {
     /// Reports whether a diagnostic input exceeds the hard input limit.
     pub(super) fn diagnostic_input_exceeded(&self, input_bytes: usize) -> bool {
-        ResourceLimit::new(
-            self.policy().limits().diagnostic_event().max_input_bytes() as u64,
-        )
-        .check(RedactionResource::Input, input_bytes as u64)
-        .is_err()
+        input_bytes
+            > self.policy().limits().diagnostic_event().max_input_bytes()
     }
 
     /// Returns the fixed log-safe diagnostic-limit marker.

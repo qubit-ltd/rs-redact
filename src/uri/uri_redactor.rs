@@ -12,7 +12,6 @@ use std::fmt;
 use std::fmt::Write;
 
 use fluent_uri::Uri;
-use qubit_budget::ResourceLimit;
 
 use super::UriComponent;
 use super::UriFragmentPolicy;
@@ -28,7 +27,6 @@ use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::Sensitivity;
 use crate::policy::OutputCharge;
-use crate::policy::RedactionResource;
 use crate::policy::ResolvedField;
 
 const INVALID_URI: &str = "<invalid URI>";
@@ -61,10 +59,7 @@ impl UriRedactor {
     /// portion of the input URI.
     #[must_use = "use the structured URI redaction result"]
     pub fn redact_uri_str(&self, input: &str) -> UriRedaction {
-        if input_limit(&self.policy)
-            .check(RedactionResource::Input, input.len() as u64)
-            .is_err()
-        {
+        if input.len() > input_limit(&self.policy) {
             return invalid_result(UriRedactionReason::InputLimitExceeded);
         }
 
@@ -169,10 +164,7 @@ impl UriRedactor {
     /// applies, while the output budget and truncation behavior do not.
     #[must_use = "use the structured URI inspection result"]
     pub fn inspect_uri_str(&self, input: &str) -> UriInspection {
-        if input_limit(&self.policy)
-            .check(RedactionResource::Input, input.len() as u64)
-            .is_err()
-        {
+        if input.len() > input_limit(&self.policy) {
             return invalid_inspection(UriRedactionReason::InputLimitExceeded);
         }
 
@@ -286,10 +278,8 @@ impl UriRedactor {
 /// The URI facade does not accumulate input across calls; callers that compose
 /// several URI fragments use [`RedactionSession`] instead.
 #[inline(always)]
-fn input_limit(policy: &RedactionPolicy) -> ResourceLimit {
-    ResourceLimit::new(
-        policy.limits().diagnostic_event().max_input_bytes() as u64
-    )
+fn input_limit(policy: &RedactionPolicy) -> usize {
+    policy.limits().diagnostic_event().max_input_bytes()
 }
 
 impl Default for UriRedactor {

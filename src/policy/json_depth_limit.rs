@@ -7,16 +7,7 @@
 // =============================================================================
 //! Stateless recursion-depth limits for JSON redaction.
 
-use qubit_budget::ResourceLimit;
-
 use super::JsonDepthLimitError;
-
-/// Resource category used by the JSON nesting-depth point limit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum JsonDepthResource {
-    /// Recursive container depth measured from the JSON root.
-    Containers,
-}
 
 /// Stateless maximum recursive container depth inspected during JSON redaction.
 ///
@@ -30,7 +21,7 @@ enum JsonDepthResource {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct JsonDepthLimit {
     /// Immutable point limit for recursive container depth.
-    limit: ResourceLimit,
+    limit: usize,
 }
 
 impl JsonDepthLimit {
@@ -59,9 +50,7 @@ impl JsonDepthLimit {
         if max_depth == 0 {
             Err(JsonDepthLimitError::ZeroDepth)
         } else {
-            Ok(Self {
-                limit: ResourceLimit::new(max_depth as u64),
-            })
+            Ok(Self { limit: max_depth })
         }
     }
 
@@ -72,8 +61,7 @@ impl JsonDepthLimit {
     /// The positive depth limit measured from a root depth of zero.
     #[inline(always)]
     pub fn maximum(self) -> usize {
-        usize::try_from(self.limit.maximum())
-            .expect("JSON depth limits originate from usize")
+        self.limit
     }
 
     /// Checks whether one observed recursive container depth is permitted.
@@ -89,9 +77,7 @@ impl JsonDepthLimit {
     #[must_use]
     #[inline(always)]
     pub fn allows(&self, depth: usize) -> bool {
-        self.limit
-            .check(JsonDepthResource::Containers, depth as u64)
-            .is_ok()
+        depth <= self.limit
     }
 }
 
@@ -104,7 +90,7 @@ impl Default for JsonDepthLimit {
     #[inline(always)]
     fn default() -> Self {
         Self {
-            limit: ResourceLimit::new(Self::DEFAULT_MAX_DEPTH as u64),
+            limit: Self::DEFAULT_MAX_DEPTH,
         }
     }
 }
