@@ -7,10 +7,10 @@
 // =============================================================================
 //! Tests for public effects of JSON redaction traversal state.
 
-use qubit_redact::RedactionPolicy;
-use qubit_redact::Sensitivity;
 #[cfg(feature = "serde")]
 use qubit_redact::RedactedJson;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
 #[cfg(feature = "serde")]
 use serde_json::json;
 #[cfg(feature = "serde")]

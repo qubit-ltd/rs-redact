@@ -132,8 +132,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
                 resource: JsonResource::Depth,
                 ..
             })
-        )
-            && matches!(value, Value::Object(_) | Value::Array(_))
+        ) && matches!(value, Value::Object(_) | Value::Array(_))
         {
             self.mask_keyed_value(value, Sensitivity::Secret);
             return JsonRedactionOutcome::default();
