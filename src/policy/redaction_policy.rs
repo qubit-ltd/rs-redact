@@ -464,7 +464,10 @@ impl Default for RedactionPolicy {
     /// [`Self::standard`]. The clone is a permanent snapshot and will not be
     /// updated by a later installation. Policy-sensitive objects that require
     /// application configuration must be constructed after installation or be
-    /// given an explicit policy.
+    /// given an explicit policy. The standard policy is only a deterministic
+    /// library baseline; the host application must configure every field that
+    /// requires stricter handling and must not infer application coverage from
+    /// this fallback snapshot.
     fn default() -> Self {
         Self::global().clone()
     }

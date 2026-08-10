@@ -60,6 +60,12 @@
 //! single installation and should complete it before starting concurrent work.
 //! Anything created earlier keeps its standard-policy snapshot. Construct
 //! policy-sensitive objects afterward or inject the application policy.
+//! The standard/default policy is only the library's deterministic baseline;
+//! it is not a claim that every application's fields are safe to pass through.
+//! The host application is responsible for installing its complete redaction
+//! policy once, or for injecting a stricter policy at each boundary whose
+//! requirements exceed that baseline. Downstream callers must not treat a
+//! default snapshot as an application-specific policy declaration.
 //!
 //! ```
 //! use qubit_redact::{RedactionPolicy, Sensitivity};
