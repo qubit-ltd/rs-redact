@@ -131,3 +131,21 @@ fn test_redact_keeps_non_sensitive_value_borrowed() {
 
     assert!(std::ptr::eq(redacted.as_str(), input.as_str()));
 }
+
+/// Verifies session output accounting uses the escaped log length.
+#[test]
+fn test_redact_field_session_charges_escaped_bytes() {
+    let limit = InputOutputLimit::new(64, InputOutputLimit::MIN_OUTPUT_BYTES)
+        .expect("the diagnostic marker-sized limit should be valid");
+    let policy = RedactionPolicy::builder()
+        .ordinary_operation(limit)
+        .build()
+        .expect("the policy should build");
+    let redactor = Redactor::new(policy);
+    let session = RedactionSession::operation(redactor.policy());
+
+    let result = redactor.redact_field_with_session(&session, "message", "a\n b");
+
+    assert!(!result.is_masked());
+    assert_eq!(session.remaining_output_bytes(), limit.max_output_bytes() - 5);
+}

@@ -114,6 +114,31 @@ impl Redactor {
         if !session.consume_input(field.len().saturating_add(value.len())) {
             return self.fallback_field(session);
         }
+        self.redact_field_after_input(session, field, value)
+    }
+
+    /// Redacts one field after a composite adapter has reserved its input.
+    pub(crate) fn redact_field_after_input<'a>(
+        &self,
+        session: &RedactionSession<'_>,
+        field: &str,
+        value: &'a str,
+    ) -> FieldRedaction<'a> {
+        let redacted = self.redact_field_after_input_unbudgeted(session, field, value);
+        self.charge_field_output(session, redacted)
+    }
+
+    /// Redacts a field after input reservation without charging its output.
+    ///
+    /// Composite adapters use this when the field is part of a larger rendered
+    /// fragment whose escaped bytes must be charged exactly once at the outer
+    /// boundary.
+    pub(crate) fn redact_field_after_input_unbudgeted<'a>(
+        &self,
+        session: &RedactionSession<'_>,
+        field: &str,
+        value: &'a str,
+    ) -> FieldRedaction<'a> {
         let resolved = self.policy.resolve_field(field);
         match resolved {
             ResolvedField::Sensitive { sensitivity } => {
@@ -123,25 +148,9 @@ impl Redactor {
                     value,
                     max_bytes,
                 );
-                let mask_len = masked.len();
-                let fallback = self.opaque_mask();
-                match session
-                    .charge_output_or_fallback(mask_len, fallback.len())
-                {
-                    OutputCharge::Complete => FieldRedaction::Masked {
-                        value: RedactedText::new(masked),
-                        sensitivity,
-                    },
-                    OutputCharge::Fallback => FieldRedaction::Masked {
-                        value: RedactedText::new(Cow::Owned(
-                            fallback.to_owned(),
-                        )),
-                        sensitivity: Sensitivity::Secret,
-                    },
-                    OutputCharge::Exhausted => FieldRedaction::Masked {
-                        value: RedactedText::new(Cow::Owned(String::new())),
-                        sensitivity: Sensitivity::Secret,
-                    },
+                FieldRedaction::Masked {
+                    value: RedactedText::new(masked),
+                    sensitivity,
                 }
             }
             ResolvedField::PassThrough => {
@@ -154,9 +163,42 @@ impl Redactor {
                         PassThroughReason::Unknown
                     }
                 };
+                FieldRedaction::PassedThrough { value, reason }
+            }
+        }
+    }
+
+    /// Charges one already-resolved field result at its escaped output size.
+    fn charge_field_output<'a>(
+        &self,
+        session: &RedactionSession<'_>,
+        redacted: FieldRedaction<'a>,
+    ) -> FieldRedaction<'a> {
+        match redacted {
+            FieldRedaction::Masked { value, sensitivity } => {
+                let fallback = self.opaque_mask();
                 match session.charge_output_or_fallback(
-                    value.len(),
-                    self.opaque_mask().len(),
+                    log_safe_len(value.as_str()),
+                    log_safe_len(fallback),
+                ) {
+                    OutputCharge::Complete => FieldRedaction::Masked {
+                        value,
+                        sensitivity,
+                    },
+                    OutputCharge::Fallback => FieldRedaction::Masked {
+                        value: RedactedText::new(Cow::Owned(fallback.to_owned())),
+                        sensitivity: Sensitivity::Secret,
+                    },
+                    OutputCharge::Exhausted => FieldRedaction::Masked {
+                        value: RedactedText::new(Cow::Owned(String::new())),
+                        sensitivity: Sensitivity::Secret,
+                    },
+                }
+            }
+            FieldRedaction::PassedThrough { value, reason } => {
+                match session.charge_output_or_fallback(
+                    log_safe_len(value),
+                    log_safe_len(self.opaque_mask()),
                 ) {
                     OutputCharge::Complete => {
                         FieldRedaction::PassedThrough { value, reason }
@@ -220,9 +262,9 @@ impl Redactor {
             value,
             session.remaining_output_bytes(),
         );
-        let length = masked.len();
+        let length = log_safe_len(masked.as_ref());
         let fallback = self.opaque_mask();
-        match session.charge_output_or_fallback(length, fallback.len()) {
+        match session.charge_output_or_fallback(length, log_safe_len(fallback)) {
             OutputCharge::Complete => RedactedText::new(masked),
             OutputCharge::Fallback => {
                 RedactedText::new(Cow::Owned(fallback.to_owned()))
@@ -245,7 +287,10 @@ impl Redactor {
         session: &RedactionSession<'_>,
     ) -> RedactedText<'a> {
         let fallback = self.opaque_mask();
-        match session.charge_output_or_fallback(fallback.len(), fallback.len())
+        match session.charge_output_or_fallback(
+            log_safe_len(fallback),
+            log_safe_len(fallback),
+        )
         {
             OutputCharge::Complete => {
                 RedactedText::new(Cow::Owned(fallback.to_owned()))
@@ -345,12 +390,25 @@ impl Redactor {
     }
 }
 
+/// Returns the exact UTF-8 byte length emitted after crossing the log boundary.
+#[inline]
+fn log_safe_len(value: &str) -> usize {
+    RedactedText::new(Cow::Borrowed(value))
+        .escape_for_log()
+        .as_str()
+        .len()
+}
+
 impl Default for Redactor {
     /// Creates a redactor from the current global redaction configuration.
     ///
     /// # Returns
     ///
     /// A redactor that is unaffected by later policy configuration attempts.
+    /// Before the application installs a global policy this is the fixed
+    /// standard baseline, not an application-specific coverage guarantee.
+    /// Applications requiring stricter handling must install their complete
+    /// policy before construction or pass an explicit policy to [`Self::new`].
     #[inline(always)]
     fn default() -> Self {
         Self::new(RedactionPolicy::default())

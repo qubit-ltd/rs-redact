@@ -53,6 +53,48 @@ fn test_redact_pair_session_respects_cumulative_output_limit() {
     assert_eq!(session.remaining_output_bytes(), 16);
 }
 
+/// Verifies a complete pair charges its escaped rendering once.
+#[test]
+fn test_redact_pair_session_charges_escaped_rendered_bytes() {
+    let limit = InputOutputLimit::new(64, 64)
+        .expect("the operation limits should be valid");
+    let policy = RedactionPolicy::builder()
+        .ordinary_operation(limit)
+        .build()
+        .expect("the policy should build");
+    let redactor = EnvRedactor::new(Redactor::new(policy));
+    let session = RedactionSession::operation(redactor.redactor().policy());
+
+    let rendered = redactor
+        .redact_pair_with_session("message", "line\nvalue", &session)
+        .to_string();
+
+    assert_eq!(session.remaining_output_bytes(), limit.max_output_bytes() - rendered.len());
+    assert!(rendered.contains("\\n"));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_redact_os_pair_with_session_charges_invalid_components() {
+    let policy = RedactionPolicy::builder()
+        .ordinary_operation(
+            InputOutputLimit::new(64, 64)
+                .expect("the operation limits should be valid"),
+        )
+        .build()
+        .expect("the policy should build");
+    let redactor = EnvRedactor::new(Redactor::new(policy));
+    let session = RedactionSession::operation(redactor.redactor().policy());
+    let name = OsString::from_vec(vec![b'N', 0xff]);
+    let value = OsString::from_vec(vec![b'v', 0xfe]);
+
+    let rendered = redactor.redact_os_pair_with_session(&name, &value, &session);
+
+    assert!(rendered.to_string().contains("<redacted>"));
+    assert!(session.remaining_input_bytes() < 64);
+    assert!(session.remaining_output_bytes() < 64);
+}
+
 /// Verifies aggregate environment rendering stops before inspecting a pair
 /// that exceeds the configured input budget.
 #[test]

@@ -96,7 +96,10 @@ impl EnvRedactor {
                 }
             };
         }
-        let value = self.redactor.redact_field(name, value).into_owned();
+        let value = self
+            .redactor
+            .redact_field_after_input_unbudgeted(session, name, value)
+            .into_owned();
         let name = log_safe_owned(name.to_owned());
         let pair = RedactedEnvPair::new(name, log_safe_owned(value));
         let rendered = pair.to_string();
@@ -132,12 +135,79 @@ impl EnvRedactor {
         name: &OsStr,
         value: &OsStr,
     ) -> RedactedEnvPair {
+        let session = RedactionSession::operation(self.redactor.policy());
+        self.redact_os_pair_with_session(name, value, &session)
+    }
+
+    /// Redacts one possibly non-UTF-8 environment pair through a shared
+    /// operation session.
+    ///
+    /// The session accounts for the encoded input bytes and the final escaped
+    /// rendered pair as one output charge. Invalid UTF-8 is handled
+    /// fail-closed: the name is rendered lossily, while the value is replaced
+    /// with the configured opaque secret marker.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Operating-system environment-variable name.
+    /// * `value` - Operating-system environment-variable value.
+    /// * `session` - Shared operation session receiving input and output
+    ///   charges.
+    ///
+    /// # Returns
+    ///
+    /// A log-safe pair rendered as `NAME=VALUE`; if the session cannot afford
+    /// the complete result, its configured fallback or an empty pair is
+    /// returned.
+    pub fn redact_os_pair_with_session(
+        &self,
+        name: &OsStr,
+        value: &OsStr,
+        session: &RedactionSession<'_>,
+    ) -> RedactedEnvPair {
         match (name.to_str(), value.to_str()) {
-            (Some(name), Some(value)) => self.redact_pair(name, value),
+            (Some(name), Some(value)) => {
+                self.redact_pair_with_session(name, value, session)
+            }
             _ => {
+                const FALLBACK: &str = "<redacted>=<redacted>";
+                let input_bytes = name
+                    .as_encoded_bytes()
+                    .len()
+                    .saturating_add(value.as_encoded_bytes().len());
+                if !session.consume_input(input_bytes) {
+                    return match session
+                        .charge_output_or_fallback(FALLBACK.len(), FALLBACK.len())
+                    {
+                        OutputCharge::Complete => {
+                            RedactedEnvPair::from_rendered(FALLBACK.to_owned())
+                        }
+                        OutputCharge::Fallback | OutputCharge::Exhausted => {
+                            RedactedEnvPair::from_rendered(String::new())
+                        }
+                    };
+                }
                 let name = log_safe_owned(name.to_string_lossy().into_owned());
-                let value = self.mask_opaque_value();
-                RedactedEnvPair::new(name, log_safe_owned(value))
+                let value = log_safe_owned(
+                    self.redactor
+                        .policy()
+                        .masking()
+                        .mask_opaque(Sensitivity::Secret)
+                        .to_owned(),
+                );
+                let pair = RedactedEnvPair::new(name, value);
+                match session.charge_output_or_fallback(
+                    pair.to_string().len(),
+                    FALLBACK.len(),
+                ) {
+                    OutputCharge::Complete => pair,
+                    OutputCharge::Fallback => {
+                        RedactedEnvPair::from_rendered(FALLBACK.to_owned())
+                    }
+                    OutputCharge::Exhausted => {
+                        RedactedEnvPair::from_rendered(String::new())
+                    }
+                }
             }
         }
     }
@@ -270,20 +340,6 @@ impl EnvRedactor {
         let (name, value) =
             assignment.split_once('=').unwrap_or((assignment, ""));
         self.redact_pair(name, value)
-    }
-
-    /// Produces the configured secret replacement without reading opaque bytes.
-    ///
-    /// # Returns
-    ///
-    /// The secret-level opaque replacement.
-    #[inline(always)]
-    fn mask_opaque_value(&self) -> String {
-        self.redactor
-            .policy()
-            .masking()
-            .mask_opaque(Sensitivity::Secret)
-            .to_owned()
     }
 
     /// Renders one environment pair while bounding any materialized mask.
