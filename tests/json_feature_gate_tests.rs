@@ -19,3 +19,9 @@ __qubit_redact_json! {
 fn test_json_feature_gate_expands_wrapped_items() {
     assert_eq!(JSON_FEATURE_GATE_MARKER, "json");
 }
+
+/// Verifies the JSON feature enables JSON-specific budget semantics upstream.
+#[test]
+fn test_json_feature_exposes_budget_json_semantics() {
+    let _: qubit_budget::JsonBudget = qubit_budget::JsonLimits::new().budget();
+}

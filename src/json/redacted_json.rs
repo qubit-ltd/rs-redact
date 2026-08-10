@@ -9,6 +9,10 @@
 
 use std::fmt;
 
+use qubit_budget::BudgetError;
+use qubit_budget::JsonBudget;
+use qubit_budget::JsonLimits;
+use qubit_budget::JsonResource;
 #[cfg(feature = "serde")]
 use serde::Serialize;
 #[cfg(feature = "serde")]
@@ -92,8 +96,16 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     /// True for an object or array at or beyond the configured maximum depth.
     #[inline(always)]
     fn depth_limit_reached(&self) -> bool {
-        self.depth >= self.policy.json_depth_limit().maximum()
-            && matches!(self.value, Value::Object(_) | Value::Array(_))
+        let limits = JsonLimits::new()
+            .with_max_depth(self.policy.json_depth_limit().maximum());
+        let budget: JsonBudget = limits.budget();
+        matches!(
+            budget.check_depth(self.depth.saturating_add(1)),
+            Err(BudgetError::LimitExceeded {
+                resource: JsonResource::Depth,
+                ..
+            })
+        ) && matches!(self.value, Value::Object(_) | Value::Array(_))
     }
 
     /// Returns the policy's opaque Secret replacement for an over-depth tree.

@@ -199,6 +199,28 @@ fn test_redacted_json_fails_closed_at_depth_budget() {
     assert!(!output.contains("deeper"));
 }
 
+/// Verifies nested JSON views retain the child container at the next depth.
+#[test]
+fn test_redacted_json_uses_root_inclusive_depth_budget() {
+    let value = json!({
+        "nested": {"deeper": {"secret": "raw-depth-secret"}},
+    });
+    let policy = RedactionPolicy::builder()
+        .json_depth_limit(
+            JsonDepthLimit::new(2).expect("the depth budget is valid"),
+        )
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
+        .expect("the test mask policy should be valid")
+        .build()
+        .expect("the policy should build");
+
+    let output = format!("{:?}", RedactedJson::new(&value, &policy));
+
+    assert!(output.contains("deeper"));
+    assert!(output.contains("[depth-limit]"));
+    assert!(!output.contains("raw-depth-secret"));
+}
+
 /// Verifies redacted JSON serializes as a JSON value rather than a JSON text
 /// string when the serde feature is enabled.
 #[cfg(feature = "serde")]

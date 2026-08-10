@@ -7,6 +7,10 @@
 // =============================================================================
 //! Stateful bounded traversal for mutable JSON redaction.
 
+use qubit_budget::BudgetError;
+use qubit_budget::JsonBudget;
+use qubit_budget::JsonLimits;
+use qubit_budget::JsonResource;
 use qubit_budget::ResourceBudget;
 use serde_json::Map;
 use serde_json::Value;
@@ -29,8 +33,8 @@ pub(crate) struct JsonRedactionState<'policy, 'budget, 'marker> {
     context_rules: &'policy RedactionRules,
     /// Single mask table used for every sensitivity level.
     masking: &'policy MaskingPolicy,
-    /// Maximum recursion depth for the operation boundary.
-    json_depth_limit: JsonDepthLimit,
+    /// JSON structure accounting for the operation boundary.
+    json_budget: JsonBudget,
     /// Handling for scalars without an object-key context.
     unkeyed: JsonUnkeyedValuePolicy<'marker>,
     /// Aggregate accounting for newly generated masks.
@@ -51,7 +55,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ///
     /// Mutable traversal state borrowing all operation inputs.
     #[inline(always)]
-    pub(crate) const fn new(
+    pub(crate) fn new(
         base_rules: &'policy RedactionRules,
         context_rules: &'policy RedactionRules,
         masking: &'policy MaskingPolicy,
@@ -65,7 +69,9 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
             base_rules,
             context_rules,
             masking,
-            json_depth_limit,
+            json_budget: JsonLimits::new()
+                .with_max_depth(json_depth_limit.maximum())
+                .budget(),
             unkeyed,
             mask_budget,
         }
@@ -120,7 +126,13 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         has_field: bool,
         depth: usize,
     ) -> JsonRedactionOutcome {
-        if depth >= self.json_depth_limit.maximum()
+        if matches!(
+            self.json_budget.check_depth(depth.saturating_add(1)),
+            Err(BudgetError::LimitExceeded {
+                resource: JsonResource::Depth,
+                ..
+            })
+        )
             && matches!(value, Value::Object(_) | Value::Array(_))
         {
             self.mask_keyed_value(value, Sensitivity::Secret);

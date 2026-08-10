@@ -33,7 +33,7 @@ doctest = true
 [features]
 default = []
 serde = ["dep:serde"]
-json = ["dep:serde_json"]
+json = ["dep:serde_json", "qubit-budget/json"]
 http = [
     "json",
     "dep:form_urlencoded",
