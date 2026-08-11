@@ -85,8 +85,12 @@ impl EnvRedactor {
     ) -> RedactedEnvPair {
         const FALLBACK: &str = "<redacted>=<redacted>";
         if !session.consume_input(name.len().saturating_add(value.len())) {
-            return match session.charge_output_or_fallback(FALLBACK.len(), FALLBACK.len()) {
-                OutputCharge::Complete => RedactedEnvPair::from_rendered(FALLBACK.to_owned()),
+            return match session
+                .charge_output_or_fallback(FALLBACK.len(), FALLBACK.len())
+            {
+                OutputCharge::Complete => {
+                    RedactedEnvPair::from_rendered(FALLBACK.to_owned())
+                }
                 OutputCharge::Fallback | OutputCharge::Exhausted => {
                     RedactedEnvPair::from_rendered(String::new())
                 }
@@ -99,10 +103,15 @@ impl EnvRedactor {
         let name = log_safe_owned(name.to_owned());
         let pair = RedactedEnvPair::new(name, log_safe_owned(value));
         let rendered = pair.to_string();
-        match session.charge_output_or_fallback(rendered.len(), FALLBACK.len()) {
+        match session.charge_output_or_fallback(rendered.len(), FALLBACK.len())
+        {
             OutputCharge::Complete => pair,
-            OutputCharge::Fallback => RedactedEnvPair::from_rendered(FALLBACK.to_owned()),
-            OutputCharge::Exhausted => RedactedEnvPair::from_rendered(String::new()),
+            OutputCharge::Fallback => {
+                RedactedEnvPair::from_rendered(FALLBACK.to_owned())
+            }
+            OutputCharge::Exhausted => {
+                RedactedEnvPair::from_rendered(String::new())
+            }
         }
     }
 
@@ -121,7 +130,11 @@ impl EnvRedactor {
     /// # Returns
     ///
     /// A fail-closed, log-safe pair rendered as `NAME=VALUE`.
-    pub fn redact_os_pair(&self, name: &OsStr, value: &OsStr) -> RedactedEnvPair {
+    pub fn redact_os_pair(
+        &self,
+        name: &OsStr,
+        value: &OsStr,
+    ) -> RedactedEnvPair {
         let session = RedactionSession::operation(self.redactor.policy());
         self.redact_os_pair_with_session(name, value, &session)
     }
@@ -153,7 +166,9 @@ impl EnvRedactor {
         session: &RedactionSession<'_>,
     ) -> RedactedEnvPair {
         match (name.to_str(), value.to_str()) {
-            (Some(name), Some(value)) => self.redact_pair_with_session(name, value, session),
+            (Some(name), Some(value)) => {
+                self.redact_pair_with_session(name, value, session)
+            }
             _ => {
                 const FALLBACK: &str = "<redacted>=<redacted>";
                 let input_bytes = name
@@ -161,7 +176,10 @@ impl EnvRedactor {
                     .len()
                     .saturating_add(value.as_encoded_bytes().len());
                 if !session.consume_input(input_bytes) {
-                    return match session.charge_output_or_fallback(FALLBACK.len(), FALLBACK.len()) {
+                    return match session.charge_output_or_fallback(
+                        FALLBACK.len(),
+                        FALLBACK.len(),
+                    ) {
                         OutputCharge::Complete => {
                             RedactedEnvPair::from_rendered(FALLBACK.to_owned())
                         }
@@ -179,10 +197,17 @@ impl EnvRedactor {
                         .to_owned(),
                 );
                 let pair = RedactedEnvPair::new(name, value);
-                match session.charge_output_or_fallback(pair.to_string().len(), FALLBACK.len()) {
+                match session.charge_output_or_fallback(
+                    pair.to_string().len(),
+                    FALLBACK.len(),
+                ) {
                     OutputCharge::Complete => pair,
-                    OutputCharge::Fallback => RedactedEnvPair::from_rendered(FALLBACK.to_owned()),
-                    OutputCharge::Exhausted => RedactedEnvPair::from_rendered(String::new()),
+                    OutputCharge::Fallback => {
+                        RedactedEnvPair::from_rendered(FALLBACK.to_owned())
+                    }
+                    OutputCharge::Exhausted => {
+                        RedactedEnvPair::from_rendered(String::new())
+                    }
                 }
             }
         }
@@ -224,14 +249,19 @@ impl EnvRedactor {
     where
         I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
     {
-        let mut input_budget = DiagnosticInputBudget::new(session.remaining_input_bytes());
-        let result = self.redact_os_pairs_with_input_budget(pairs, &mut input_budget);
+        let mut input_budget =
+            DiagnosticInputBudget::new(session.remaining_input_bytes());
+        let result =
+            self.redact_os_pairs_with_input_budget(pairs, &mut input_budget);
         let _ = session.consume_input(input_budget.charged_input_bytes());
         if input_budget.is_closed() {
             session.close_input();
         }
         const LIMIT_MARKER: &str = "<redacted: diagnostic limit exceeded>";
-        match session.charge_output_or_fallback(result.as_str().len(), LIMIT_MARKER.len()) {
+        match session.charge_output_or_fallback(
+            result.as_str().len(),
+            LIMIT_MARKER.len(),
+        ) {
             OutputCharge::Complete => result,
             OutputCharge::Fallback => log_safe_owned(LIMIT_MARKER.to_owned()),
             OutputCharge::Exhausted => log_safe_owned(String::new()),
@@ -281,7 +311,11 @@ impl EnvRedactor {
                 write_debug_item(&mut writer, &mut has_item, "<truncated>");
                 break;
             }
-            let pair = self.redact_os_pair_bounded(name, value, budget.max_output_bytes());
+            let pair = self.redact_os_pair_bounded(
+                name,
+                value,
+                budget.max_output_bytes(),
+            );
             write_debug_item(&mut writer, &mut has_item, &pair);
         }
         if !writer.is_truncated() {
@@ -304,7 +338,8 @@ impl EnvRedactor {
     /// A log-safe pair rendered as `NAME=VALUE`.
     #[inline]
     pub fn redact_assignment(&self, assignment: &str) -> RedactedEnvPair {
-        let (name, value) = assignment.split_once('=').unwrap_or((assignment, ""));
+        let (name, value) =
+            assignment.split_once('=').unwrap_or((assignment, ""));
         self.redact_pair(name, value)
     }
 
@@ -319,7 +354,12 @@ impl EnvRedactor {
     /// # Returns
     ///
     /// A log-safe assignment whose mask allocation fits `max_mask_bytes`.
-    fn redact_os_pair_bounded(&self, name: &OsStr, value: &OsStr, max_mask_bytes: usize) -> String {
+    fn redact_os_pair_bounded(
+        &self,
+        name: &OsStr,
+        value: &OsStr,
+        max_mask_bytes: usize,
+    ) -> String {
         let pair = match (name.to_str(), value.to_str()) {
             (Some(name), Some(value)) => {
                 let resolved = self.redactor.policy().resolve_field(name);
@@ -332,15 +372,18 @@ impl EnvRedactor {
                         .into_owned(),
                     ResolvedField::PassThrough => value.to_owned(),
                 };
-                RedactedEnvPair::new(log_safe_owned(name.to_owned()), log_safe_owned(value))
+                RedactedEnvPair::new(
+                    log_safe_owned(name.to_owned()),
+                    log_safe_owned(value),
+                )
             }
             _ => RedactedEnvPair::new(
                 log_safe_owned(name.to_string_lossy().into_owned()),
                 log_safe_owned(
-                    self.redactor
-                        .policy()
-                        .masking()
-                        .mask_opaque_bounded(Sensitivity::Secret, max_mask_bytes),
+                    self.redactor.policy().masking().mask_opaque_bounded(
+                        Sensitivity::Secret,
+                        max_mask_bytes,
+                    ),
                 ),
             ),
         };
@@ -381,7 +424,11 @@ fn log_safe_owned(value: String) -> LogSafeText<'static> {
 /// * `writer` - Escaped bounded output destination.
 /// * `has_item` - Whether a preceding list item has already been rendered.
 /// * `item` - Redacted assignment safe to format.
-fn write_debug_item(writer: &mut BoundedLogEscapeWriter, has_item: &mut bool, item: &str) {
+fn write_debug_item(
+    writer: &mut BoundedLogEscapeWriter,
+    has_item: &mut bool,
+    item: &str,
+) {
     if *has_item {
         let _ = writer.write_str(", ");
     }

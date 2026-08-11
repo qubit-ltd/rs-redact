@@ -61,7 +61,8 @@ impl Redact for DiagnosticText<'_> {
 ///
 /// A validated log output limit.
 fn limit(max_bytes: usize) -> LogOutputLimit {
-    LogOutputLimit::new(max_bytes).expect("the test budget can contain the truncation marker")
+    LogOutputLimit::new(max_bytes)
+        .expect("the test budget can contain the truncation marker")
 }
 
 /// Verifies complete bounded output matches ordinary redacted display.

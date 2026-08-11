@@ -70,7 +70,12 @@ unsafe impl GlobalAlloc for MeasuringAllocator {
     }
 
     /// Resizes memory through `System` while recording the new request size.
-    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+    unsafe fn realloc(
+        &self,
+        pointer: *mut u8,
+        layout: Layout,
+        new_size: usize,
+    ) -> *mut u8 {
         record_allocation(new_size);
         // SAFETY: The original pointer, layout, and new size are forwarded.
         unsafe { System.realloc(pointer, layout, new_size) }
@@ -151,7 +156,8 @@ impl Write for FixedBuffer {
 /// Builds a policy whose fixed sensitive replacement is deliberately large.
 fn amplified_policy() -> RedactionPolicy {
     let replacement = "X".repeat(1024 * 1024);
-    let budget = InputOutputLimit::new(4096, 128).expect("the diagnostic budget should be valid");
+    let budget = InputOutputLimit::new(4096, 128)
+        .expect("the diagnostic budget should be valid");
     RedactionPolicy::builder()
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
         .expect("the test mask policy should be valid")
@@ -182,7 +188,8 @@ impl Redact for NestedBoundedMap<'_> {
         write!(
             formatter,
             "{}",
-            RedactedMap::new(self.values, self.policy.clone()).with_output_limit(self.limit),
+            RedactedMap::new(self.values, self.policy.clone())
+                .with_output_limit(self.limit),
         )
     }
 }
@@ -193,9 +200,10 @@ impl Redact for NestedBoundedMap<'_> {
 fn test_nested_bounded_display_does_not_widen_mask_allocation_limit() {
     let _guard = allocation_test_lock();
     let values = BTreeMap::from([("password", "raw-secret")]);
-    let inner_limit =
-        LogOutputLimit::new(2 * 1024 * 1024).expect("the inner output limit should be valid");
-    let outer_limit = LogOutputLimit::new(14).expect("the outer output limit should be valid");
+    let inner_limit = LogOutputLimit::new(2 * 1024 * 1024)
+        .expect("the inner output limit should be valid");
+    let outer_limit = LogOutputLimit::new(14)
+        .expect("the outer output limit should be valid");
     let nested = NestedBoundedMap {
         values: &values,
         policy: amplified_policy(),
@@ -204,7 +212,8 @@ fn test_nested_bounded_display_does_not_widen_mask_allocation_limit() {
     let view = nested.redacted().with_output_limit(outer_limit);
     let mut output = FixedBuffer::new();
 
-    let (result, largest) = measure_largest_allocation(|| write!(&mut output, "{view}"));
+    let (result, largest) =
+        measure_largest_allocation(|| write!(&mut output, "{view}"));
 
     result.expect("the nested bounded view should fit the fixed output buffer");
     assert!(
@@ -218,11 +227,14 @@ fn test_nested_bounded_display_does_not_widen_mask_allocation_limit() {
 fn test_bounded_redacted_map_avoids_amplified_mask_allocation() {
     let _guard = allocation_test_lock();
     let values = BTreeMap::from([("password", "raw-secret")]);
-    let limit = LogOutputLimit::new(128).expect("the test output limit should be valid");
-    let view = RedactedMap::new(&values, amplified_policy()).with_output_limit(limit);
+    let limit = LogOutputLimit::new(128)
+        .expect("the test output limit should be valid");
+    let view =
+        RedactedMap::new(&values, amplified_policy()).with_output_limit(limit);
     let mut output = FixedBuffer::new();
 
-    let (result, largest) = measure_largest_allocation(|| write!(&mut output, "{view}"));
+    let (result, largest) =
+        measure_largest_allocation(|| write!(&mut output, "{view}"));
 
     result.expect("the bounded map should fit the fixed output buffer");
     assert!(
@@ -262,7 +274,10 @@ fn test_bounded_environment_avoids_amplified_mask_allocation() {
 
     let (rendered, largest) = measure_largest_allocation(|| {
         redactor
-            .redact_os_pairs([(OsStr::new("PASSWORD"), OsStr::new("raw-secret"))])
+            .redact_os_pairs([(
+                OsStr::new("PASSWORD"),
+                OsStr::new("raw-secret"),
+            )])
             .to_string()
     });
 
@@ -279,7 +294,8 @@ fn test_bounded_environment_avoids_amplified_mask_allocation() {
 fn test_bounded_uri_avoids_amplified_mask_allocation() {
     let _guard = allocation_test_lock();
     let replacement = "X".repeat(1024 * 1024);
-    let budget = InputOutputLimit::new(4096, 128).expect("the diagnostic budget should be valid");
+    let budget = InputOutputLimit::new(4096, 128)
+        .expect("the diagnostic budget should be valid");
     let core = RedactionPolicy::default()
         .to_builder()
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
@@ -296,7 +312,8 @@ fn test_bounded_uri_avoids_amplified_mask_allocation() {
     let query = ["password=query-secret"; 32].join("&");
     let input = format!("https://user:password@example.test/?{query}#fragment");
 
-    let (result, largest) = measure_largest_allocation(|| redactor.redact_uri_str(&input));
+    let (result, largest) =
+        measure_largest_allocation(|| redactor.redact_uri_str(&input));
 
     assert!(result.is_truncated());
     assert!(result.log_safe_text().as_ref().len() <= 128);

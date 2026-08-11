@@ -24,7 +24,8 @@ fn test_argv_item_plain_is_rendered_without_masking() {
 /// Verifies debug output exposes metadata without the raw argument value.
 #[test]
 fn test_argv_item_debug_does_not_expose_value() {
-    let rendered = format!("{:?}", ArgvItem::plain(OsStr::new("debug-argument-secret")),);
+    let rendered =
+        format!("{:?}", ArgvItem::plain(OsStr::new("debug-argument-secret")),);
 
     assert!(!rendered.contains("debug-argument-secret"), "{rendered}");
     assert!(rendered.contains("value_len"));

@@ -58,7 +58,11 @@ impl<'value, 'policy, T: ?Sized> RedactedKeyedValue<'value, 'policy, T> {
     /// A view that never modifies the original value.
     #[must_use = "format or serialize the keyed redaction view"]
     #[inline(always)]
-    pub const fn new(key: &'value str, value: &'value T, policy: &'policy RedactionPolicy) -> Self {
+    pub const fn new(
+        key: &'value str,
+        value: &'value T,
+        policy: &'policy RedactionPolicy,
+    ) -> Self {
         Self { key, value, policy }
     }
 
@@ -92,7 +96,8 @@ impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValue<'_, '_, T> {
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let session = RedactionSession::diagnostic(self.policy);
-        let view = RedactedKeyedValueSession::new(self.key, self.value, &session);
+        let view =
+            RedactedKeyedValueSession::new(self.key, self.value, &session);
         if mask_byte_limit().is_some() {
             return Debug::fmt(&view, formatter);
         }
@@ -125,7 +130,9 @@ mod session_view {
         session: &'session RedactionSession<'policy>,
     }
 
-    impl<'value, 'session, 'policy, T: ?Sized> RedactedKeyedValueSession<'value, 'session, 'policy, T> {
+    impl<'value, 'session, 'policy, T: ?Sized>
+        RedactedKeyedValueSession<'value, 'session, 'policy, T>
+    {
         /// Creates a keyed view borrowing an existing diagnostic session.
         #[inline(always)]
         pub fn new(
@@ -141,7 +148,9 @@ mod session_view {
         }
     }
 
-    impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValueSession<'_, '_, '_, T> {
+    impl<T: Redact + RedactValue + ?Sized> Debug
+        for RedactedKeyedValueSession<'_, '_, '_, T>
+    {
         /// Formats the value through its selected classification and shared
         /// session.
         #[inline]
@@ -153,12 +162,16 @@ mod session_view {
                     &self.value.redact_value(sensitivity, policy.masking()),
                     formatter,
                 ),
-                ResolvedField::PassThrough => self.value.fmt_redacted(self.session, formatter),
+                ResolvedField::PassThrough => {
+                    self.value.fmt_redacted(self.session, formatter)
+                }
             }
         }
     }
 
-    impl<T: Redact + RedactValue + ?Sized> Display for RedactedKeyedValueSession<'_, '_, '_, T> {
+    impl<T: Redact + RedactValue + ?Sized> Display
+        for RedactedKeyedValueSession<'_, '_, '_, T>
+    {
         /// Escapes the selected redacted representation for plain-text logs.
         #[inline]
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
@@ -170,7 +183,9 @@ mod session_view {
 
 pub use session_view::RedactedKeyedValueSession;
 
-impl<T: Redact + RedactValue + ?Sized> Display for RedactedKeyedValue<'_, '_, T> {
+impl<T: Redact + RedactValue + ?Sized> Display
+    for RedactedKeyedValue<'_, '_, T>
+{
     /// Formats the selected redacted representation for a bounded plain-text
     /// log.
     ///
@@ -189,7 +204,8 @@ impl<T: Redact + RedactValue + ?Sized> Display for RedactedKeyedValue<'_, '_, T>
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let session = RedactionSession::diagnostic(self.policy);
-        let view = RedactedKeyedValueSession::new(self.key, self.value, &session);
+        let view =
+            RedactedKeyedValueSession::new(self.key, self.value, &session);
         format_bounded(
             &view,
             LogOutputLimit::from(self.policy.limits().diagnostic_event()),
@@ -226,15 +242,21 @@ impl<T: RedactValue + crate::domain::RedactSerialize + ?Sized> serde::Serialize
     {
         let resolved = self.policy.resolve_field(self.key);
         match resolved {
-            ResolvedField::Sensitive { sensitivity } => serde::Serialize::serialize(
-                &self.value.redact_value(sensitivity, self.policy.masking()),
-                serializer,
-            ),
-            ResolvedField::PassThrough => crate::domain::RedactSerialize::serialize_redacted(
-                self.value,
-                self.policy,
-                serializer,
-            ),
+            ResolvedField::Sensitive { sensitivity } => {
+                serde::Serialize::serialize(
+                    &self
+                        .value
+                        .redact_value(sensitivity, self.policy.masking()),
+                    serializer,
+                )
+            }
+            ResolvedField::PassThrough => {
+                crate::domain::RedactSerialize::serialize_redacted(
+                    self.value,
+                    self.policy,
+                    serializer,
+                )
+            }
         }
     }
 }
