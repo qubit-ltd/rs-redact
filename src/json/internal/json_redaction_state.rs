@@ -11,6 +11,7 @@ use qubit_budget::BudgetError;
 use qubit_budget::JsonResource;
 use qubit_budget::JsonValueBudget;
 use qubit_budget::JsonValueLimits;
+use qubit_budget::MeasuredBudgetError;
 use qubit_budget::ResourceBudget;
 use qubit_budget::ResourceLimit;
 use qubit_budget::StructureLimits;
@@ -36,7 +37,7 @@ pub(crate) struct JsonRedactionState<'policy, 'budget, 'marker> {
     /// Single mask table used for every sensitivity level.
     masking: &'policy MaskingPolicy,
     /// JSON structure accounting for the operation boundary.
-    json_budget: JsonValueBudget,
+    json_budget: JsonValueBudget<JsonResource, usize>,
     /// Handling for scalars without an object-key context.
     unkeyed: JsonUnkeyedValuePolicy<'marker>,
     /// Aggregate accounting for newly generated masks.
@@ -63,22 +64,23 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         masking: &'policy MaskingPolicy,
         json_depth_limit: JsonDepthLimit,
         unkeyed: JsonUnkeyedValuePolicy<'marker>,
-        mask_budget: Option<&'budget mut ResourceBudget<RedactionResource, usize>>,
+        mask_budget: Option<
+            &'budget mut ResourceBudget<RedactionResource, usize>,
+        >,
     ) -> Self {
         Self {
             base_rules,
             context_rules,
             masking,
             json_budget: JsonValueBudget::new(
-                JsonValueLimits::<JsonResource, u64>::default().with_structure_limits(
-                    StructureLimits::<JsonResource, u64>::empty().with_depth_limit(
-                        ResourceLimit::new(
-                            JsonResource::Depth,
-                            u64::try_from(json_depth_limit.maximum())
-                                .expect("JSON depth must fit in u64"),
-                        ),
+                JsonValueLimits::<JsonResource, usize>::default()
+                    .with_structure_limits(
+                        StructureLimits::<JsonResource, usize>::empty()
+                            .with_depth_limit(ResourceLimit::new(
+                                JsonResource::Depth,
+                                json_depth_limit.maximum(),
+                            )),
                     ),
-                ),
             ),
             unkeyed,
             mask_budget,
@@ -90,7 +92,9 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     pub(crate) fn from_policy(
         policy: &'policy RedactionPolicy,
         unkeyed: JsonUnkeyedValuePolicy<'marker>,
-        mask_budget: Option<&'budget mut ResourceBudget<RedactionResource, usize>>,
+        mask_budget: Option<
+            &'budget mut ResourceBudget<RedactionResource, usize>,
+        >,
     ) -> Self {
         Self::new(
             policy.rules(),
@@ -133,24 +137,20 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         depth: usize,
     ) -> JsonRedactionOutcome {
         let admission = match value {
-            Value::Object(values) => self.json_budget.enter_object(
-                u64::try_from(depth.saturating_add(1)).expect("JSON depth must fit in u64"),
-                u64::try_from(values.len()).expect("JSON object length must fit in u64"),
-            ),
-            Value::Array(values) => self.json_budget.enter_array(
-                u64::try_from(depth.saturating_add(1)).expect("JSON depth must fit in u64"),
-                u64::try_from(values.len()).expect("JSON array length must fit in u64"),
-            ),
-            _ => self.json_budget.enter_node(
-                u64::try_from(depth.saturating_add(1)).expect("JSON depth must fit in u64"),
-            ),
+            Value::Object(values) => self
+                .json_budget
+                .enter_object_usize(depth.saturating_add(1), values.len()),
+            Value::Array(values) => self
+                .json_budget
+                .enter_array_usize(depth.saturating_add(1), values.len()),
+            _ => self.json_budget.enter_node_usize(depth.saturating_add(1)),
         };
         if matches!(
             admission,
-            Err(BudgetError::LimitExceeded {
+            Err(MeasuredBudgetError::Budget(BudgetError::LimitExceeded {
                 resource: JsonResource::Depth,
                 ..
-            })
+            }))
         ) && matches!(value, Value::Object(_) | Value::Array(_))
         {
             self.mask_keyed_value(value, Sensitivity::Secret);
@@ -160,23 +160,22 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
             Value::Object(values) => self.redact_object(values, depth),
             Value::Array(values) => self.redact_array(values, has_field, depth),
             Value::String(text) => {
-                let _ = self.json_budget.consume_string_bytes(
-                    u64::try_from(text.len()).expect("JSON string length must fit in u64"),
-                );
+                let _ = self.json_budget.consume_string_bytes_usize(text.len());
                 self.redact_scalar(value, has_field)
             }
             Value::Number(number) => {
                 if self.json_budget.limits().number_bytes_limit().is_some()
                     || self.json_budget.limits().payload_bytes_limit().is_some()
                 {
-                    let _ = self.json_budget.consume_number_bytes(
-                        u64::try_from(number.to_string().len())
-                            .expect("JSON number length must fit in u64"),
-                    );
+                    let _ = self
+                        .json_budget
+                        .consume_number_bytes_usize(number.to_string().len());
                 }
                 self.redact_scalar(value, has_field)
             }
-            Value::Null | Value::Bool(_) => self.redact_scalar(value, has_field),
+            Value::Null | Value::Bool(_) => {
+                self.redact_scalar(value, has_field)
+            }
         }
     }
 
@@ -197,9 +196,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ) -> JsonRedactionOutcome {
         let mut outcome = JsonRedactionOutcome::default();
         for (key, value) in values {
-            let _ = self.json_budget.consume_key_bytes(
-                u64::try_from(key.len()).expect("JSON key length must fit in u64"),
-            );
+            let _ = self.json_budget.consume_key_bytes_usize(key.len());
             let resolved = stronger(
                 self.base_rules.resolve_field(key),
                 self.context_rules.resolve_field(key),
@@ -209,7 +206,11 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
                     self.mask_keyed_value(value, sensitivity);
                 }
                 ResolvedField::PassThrough => {
-                    outcome.merge(self.redact_value(value, true, depth.saturating_add(1)));
+                    outcome.merge(self.redact_value(
+                        value,
+                        true,
+                        depth.saturating_add(1),
+                    ));
                 }
             }
         }
@@ -235,7 +236,11 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ) -> JsonRedactionOutcome {
         let mut outcome = JsonRedactionOutcome::default();
         for value in values {
-            outcome.merge(self.redact_value(value, has_field, depth.saturating_add(1)));
+            outcome.merge(self.redact_value(
+                value,
+                has_field,
+                depth.saturating_add(1),
+            ));
         }
         outcome
     }
@@ -250,17 +255,25 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// # Returns
     ///
     /// An outcome reporting a pass-through only for unkeyed visible scalars.
-    fn redact_scalar(&mut self, value: &mut Value, has_field: bool) -> JsonRedactionOutcome {
+    fn redact_scalar(
+        &mut self,
+        value: &mut Value,
+        has_field: bool,
+    ) -> JsonRedactionOutcome {
         if has_field {
             return JsonRedactionOutcome::default();
         }
         match self.unkeyed {
-            JsonUnkeyedValuePolicy::PassThrough => JsonRedactionOutcome::passed_unkeyed(),
+            JsonUnkeyedValuePolicy::PassThrough => {
+                JsonRedactionOutcome::passed_unkeyed()
+            }
             JsonUnkeyedValuePolicy::Redact {
                 marker,
                 truncated_marker,
             } => {
-                *value = Value::String(self.take_unkeyed_marker(marker, truncated_marker));
+                *value = Value::String(
+                    self.take_unkeyed_marker(marker, truncated_marker),
+                );
                 JsonRedactionOutcome::default()
             }
         }
@@ -297,7 +310,11 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ///
     /// The preferred marker, fallback marker, or an empty replacement when no
     /// marker fits the remaining generated-mask budget.
-    fn take_unkeyed_marker(&mut self, marker: &str, truncated_marker: &str) -> String {
+    fn take_unkeyed_marker(
+        &mut self,
+        marker: &str,
+        truncated_marker: &str,
+    ) -> String {
         let selected = if self.mask_available(marker.len()) {
             marker
         } else if self.mask_available(truncated_marker.len()) {
@@ -353,10 +370,16 @@ fn stronger(base: ResolvedField, context: ResolvedField) -> ResolvedField {
         ) => ResolvedField::Sensitive {
             sensitivity: base.max(context),
         },
-        (ResolvedField::Sensitive { sensitivity }, ResolvedField::PassThrough)
-        | (ResolvedField::PassThrough, ResolvedField::Sensitive { sensitivity }) => {
-            ResolvedField::Sensitive { sensitivity }
+        (
+            ResolvedField::Sensitive { sensitivity },
+            ResolvedField::PassThrough,
+        )
+        | (
+            ResolvedField::PassThrough,
+            ResolvedField::Sensitive { sensitivity },
+        ) => ResolvedField::Sensitive { sensitivity },
+        (ResolvedField::PassThrough, ResolvedField::PassThrough) => {
+            ResolvedField::PassThrough
         }
-        (ResolvedField::PassThrough, ResolvedField::PassThrough) => ResolvedField::PassThrough,
     }
 }
