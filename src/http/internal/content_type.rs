@@ -59,8 +59,7 @@ pub(in crate::http) fn parse(value: &str) -> Option<ContentType> {
     if is_multipart_media_type(media_type) {
         return Some(ContentType::Multipart {
             boundary: validate_boundary(boundary),
-            require_form_data: media_type
-                .eq_ignore_ascii_case("multipart/form-data"),
+            require_form_data: media_type.eq_ignore_ascii_case("multipart/form-data"),
         });
     }
     if is_ndjson_media_type(media_type) {

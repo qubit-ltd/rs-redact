@@ -394,10 +394,7 @@ where
     /// Returns an underlying serializer error when the tag-only map cannot be
     /// serialized.
     #[inline]
-    fn serialize_unit_struct(
-        self,
-        _name: &'static str,
-    ) -> Result<Self::Ok, Self::Error> {
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {
         self.serialize_unit()
     }
 
@@ -513,10 +510,7 @@ where
     ///
     /// Always returns a custom unsupported-content serializer error.
     #[inline]
-    fn serialize_seq(
-        self,
-        _length: Option<usize>,
-    ) -> Result<Self::SerializeSeq, Self::Error> {
+    fn serialize_seq(self, _length: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
         Err(self.unsupported("a sequence"))
     }
 
@@ -534,10 +528,7 @@ where
     ///
     /// Always returns a custom unsupported-content serializer error.
     #[inline]
-    fn serialize_tuple(
-        self,
-        _length: usize,
-    ) -> Result<Self::SerializeTuple, Self::Error> {
+    fn serialize_tuple(self, _length: usize) -> Result<Self::SerializeTuple, Self::Error> {
         Err(self.unsupported("a tuple"))
     }
 
@@ -611,10 +602,7 @@ where
     /// Returns an underlying serializer error when the map or tag entry cannot
     /// be serialized.
     #[inline]
-    fn serialize_map(
-        self,
-        length: Option<usize>,
-    ) -> Result<Self::SerializeMap, Self::Error> {
+    fn serialize_map(self, length: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
         let mut map = self
             .serializer
             .serialize_map(length.map(|value| value + 1))?;

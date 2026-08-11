@@ -69,10 +69,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     ///
     /// A bounded formatting adapter that owns this redacted map view.
     #[inline(always)]
-    pub const fn with_output_limit(
-        self,
-        limit: LogOutputLimit,
-    ) -> BoundedRedactedDisplay<Self> {
+    pub const fn with_output_limit(self, limit: LogOutputLimit) -> BoundedRedactedDisplay<Self> {
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -84,15 +81,12 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     #[must_use = "format the bounded redacted map display adapter"]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit =
-            LogOutputLimit::from(self.policy.limits().diagnostic_event());
+        let limit = LogOutputLimit::from(self.policy.limits().diagnostic_event());
         BoundedRedactedDisplay::new(self, limit)
     }
 }
 
-impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug
-    for RedactedMap<'_, M, K, V>
-{
+impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug for RedactedMap<'_, M, K, V> {
     /// Formats the map by classifying every value with its corresponding key.
     ///
     /// # Parameters
@@ -154,10 +148,7 @@ mod session_view {
     {
         /// Creates a nested map view using an existing diagnostic session.
         #[inline(always)]
-        pub fn new(
-            map: &'map M,
-            session: &'session RedactionSession<'policy>,
-        ) -> Self {
+        pub fn new(map: &'map M, session: &'session RedactionSession<'policy>) -> Self {
             Self {
                 map,
                 session,
@@ -190,9 +181,7 @@ mod session_view {
 
 pub use session_view::RedactedMapSession;
 
-impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
-    for RedactedMap<'_, M, K, V>
-{
+impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display for RedactedMap<'_, M, K, V> {
     /// Formats bounded compact redacted debug output and escapes it for
     /// plain-text logs.
     ///
@@ -221,8 +210,8 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
 }
 
 #[cfg(feature = "serde")]
-impl<M: crate::domain::RedactMapSerialize<K, V> + ?Sized, K: ?Sized, V: ?Sized>
-    serde::Serialize for RedactedMap<'_, M, K, V>
+impl<M: crate::domain::RedactMapSerialize<K, V> + ?Sized, K: ?Sized, V: ?Sized> serde::Serialize
+    for RedactedMap<'_, M, K, V>
 {
     /// Serializes values after classifying each one by its runtime key.
     ///

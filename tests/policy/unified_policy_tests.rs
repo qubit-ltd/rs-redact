@@ -20,8 +20,8 @@ use qubit_redact::uri::UriRedactor;
 /// Verifies that context views share one policy and cannot lower base safety.
 #[test]
 fn test_unified_policy_views_share_configuration_and_protection() {
-    let diagnostic_limit = InputOutputLimit::new(128, 256)
-        .expect("the diagnostic limit should be valid");
+    let diagnostic_limit =
+        InputOutputLimit::new(128, 256).expect("the diagnostic limit should be valid");
     let mut builder = RedactionPolicy::builder();
     builder
         .fields()

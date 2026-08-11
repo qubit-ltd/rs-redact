@@ -105,13 +105,10 @@ impl Serialize for SerializerProbe {
             Self::Some => serializer.serialize_some(&"value"),
             Self::Unit => serializer.serialize_unit(),
             Self::UnitStruct => serializer.serialize_unit_struct("Inner"),
-            Self::UnitVariant => {
-                serializer.serialize_unit_variant("Inner", 0, "inner")
+            Self::UnitVariant => serializer.serialize_unit_variant("Inner", 0, "inner"),
+            Self::NewtypeStruct => {
+                serializer.serialize_newtype_struct("Inner", &serde_json::json!({"value": 1}))
             }
-            Self::NewtypeStruct => serializer.serialize_newtype_struct(
-                "Inner",
-                &serde_json::json!({"value": 1}),
-            ),
             Self::NewtypeVariant => serializer.serialize_newtype_variant(
                 "Inner",
                 0,
@@ -131,8 +128,7 @@ impl Serialize for SerializerProbe {
                 unreachable!("the adapter rejects tuple structs")
             }
             Self::TupleVariant => {
-                let _ = serializer
-                    .serialize_tuple_variant("Inner", 0, "inner", 0)?;
+                let _ = serializer.serialize_tuple_variant("Inner", 0, "inner", 0)?;
                 unreachable!("the adapter rejects tuple variants")
             }
             Self::Map => {
@@ -151,8 +147,7 @@ impl Serialize for SerializerProbe {
                 state.end()
             }
             Self::StructVariant => {
-                let _ = serializer
-                    .serialize_struct_variant("Inner", 0, "inner", 0)?;
+                let _ = serializer.serialize_struct_variant("Inner", 0, "inner", 0)?;
                 unreachable!("the adapter rejects struct variants")
             }
         }
@@ -248,8 +243,7 @@ fn test_internal_tagged_serializer_propagates_destination_errors() {
 
     for probe in cases {
         for remaining in 0..64 {
-            let mut serializer =
-                serde_json::Serializer::new(FailAfter { remaining });
+            let mut serializer = serde_json::Serializer::new(FailAfter { remaining });
             let _ = serialize_internally_tagged(
                 &mut serializer,
                 "Event",

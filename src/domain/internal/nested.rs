@@ -178,8 +178,7 @@ impl<T: RedactSerialize> RedactSerialize for Option<T> {
         S: Serializer,
     {
         match self {
-            Some(value) => serializer
-                .serialize_some(&super::RedactedSerialize::new(value, policy)),
+            Some(value) => serializer.serialize_some(&super::RedactedSerialize::new(value, policy)),
             None => serializer.serialize_none(),
         }
     }
@@ -251,9 +250,7 @@ impl<T: RedactSerialize> RedactSerialize for Vec<T> {
 
         let mut sequence = serializer.serialize_seq(Some(self.len()))?;
         for value in self {
-            sequence.serialize_element(&super::RedactedSerialize::new(
-                value, policy,
-            ))?;
+            sequence.serialize_element(&super::RedactedSerialize::new(value, policy))?;
         }
         sequence.end()
     }
