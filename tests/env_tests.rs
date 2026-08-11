@@ -69,7 +69,10 @@ fn test_redact_pair_session_charges_escaped_rendered_bytes() {
         .redact_pair_with_session("message", "line\nvalue", &session)
         .to_string();
 
-    assert_eq!(session.remaining_output_bytes(), limit.max_output_bytes() - rendered.len());
+    assert_eq!(
+        session.remaining_output_bytes(),
+        limit.max_output_bytes() - rendered.len()
+    );
     assert!(rendered.contains("\\n"));
 }
 
@@ -88,7 +91,8 @@ fn test_redact_os_pair_with_session_charges_invalid_components() {
     let name = OsString::from_vec(vec![b'N', 0xff]);
     let value = OsString::from_vec(vec![b'v', 0xfe]);
 
-    let rendered = redactor.redact_os_pair_with_session(&name, &value, &session);
+    let rendered =
+        redactor.redact_os_pair_with_session(&name, &value, &session);
 
     assert!(rendered.to_string().contains("<redacted>"));
     assert!(session.remaining_input_bytes() < 64);

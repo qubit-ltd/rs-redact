@@ -124,7 +124,8 @@ impl Redactor {
         field: &str,
         value: &'a str,
     ) -> FieldRedaction<'a> {
-        let redacted = self.redact_field_after_input_unbudgeted(session, field, value);
+        let redacted =
+            self.redact_field_after_input_unbudgeted(session, field, value);
         self.charge_field_output(session, redacted)
     }
 
@@ -181,12 +182,13 @@ impl Redactor {
                     log_safe_len(value.as_str()),
                     log_safe_len(fallback),
                 ) {
-                    OutputCharge::Complete => FieldRedaction::Masked {
-                        value,
-                        sensitivity,
-                    },
+                    OutputCharge::Complete => {
+                        FieldRedaction::Masked { value, sensitivity }
+                    }
                     OutputCharge::Fallback => FieldRedaction::Masked {
-                        value: RedactedText::new(Cow::Owned(fallback.to_owned())),
+                        value: RedactedText::new(Cow::Owned(
+                            fallback.to_owned(),
+                        )),
                         sensitivity: Sensitivity::Secret,
                     },
                     OutputCharge::Exhausted => FieldRedaction::Masked {
@@ -264,7 +266,8 @@ impl Redactor {
         );
         let length = log_safe_len(masked.as_ref());
         let fallback = self.opaque_mask();
-        match session.charge_output_or_fallback(length, log_safe_len(fallback)) {
+        match session.charge_output_or_fallback(length, log_safe_len(fallback))
+        {
             OutputCharge::Complete => RedactedText::new(masked),
             OutputCharge::Fallback => {
                 RedactedText::new(Cow::Owned(fallback.to_owned()))
@@ -290,8 +293,7 @@ impl Redactor {
         match session.charge_output_or_fallback(
             log_safe_len(fallback),
             log_safe_len(fallback),
-        )
-        {
+        ) {
             OutputCharge::Complete => {
                 RedactedText::new(Cow::Owned(fallback.to_owned()))
             }

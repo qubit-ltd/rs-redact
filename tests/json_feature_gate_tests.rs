@@ -9,6 +9,8 @@
 
 #![cfg(feature = "json")]
 
+use qubit_budget::JsonValueBudget;
+use qubit_budget::JsonValueLimits;
 use qubit_redact::__qubit_redact_json;
 __qubit_redact_json! {
     const JSON_FEATURE_GATE_MARKER: &str = "json";
@@ -23,5 +25,5 @@ fn test_json_feature_gate_expands_wrapped_items() {
 /// Verifies the JSON feature enables JSON-specific budget semantics upstream.
 #[test]
 fn test_json_feature_exposes_budget_json_semantics() {
-    let _: qubit_budget::JsonBudget = qubit_budget::JsonLimits::new().budget();
+    let _: JsonValueBudget = JsonValueBudget::new(JsonValueLimits::default());
 }

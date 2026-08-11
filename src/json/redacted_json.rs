@@ -10,9 +10,11 @@
 use std::fmt;
 
 use qubit_budget::BudgetError;
-use qubit_budget::JsonBudget;
-use qubit_budget::JsonLimits;
 use qubit_budget::JsonResource;
+use qubit_budget::JsonValueBudget;
+use qubit_budget::JsonValueLimits;
+use qubit_budget::ResourceLimit;
+use qubit_budget::StructureLimits;
 #[cfg(feature = "serde")]
 use serde::Serialize;
 #[cfg(feature = "serde")]
@@ -96,9 +98,13 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     /// True for an object or array at or beyond the configured maximum depth.
     #[inline(always)]
     fn depth_limit_reached(&self) -> bool {
-        let limits = JsonLimits::new()
-            .with_max_depth(self.policy.json_depth_limit().maximum());
-        let budget: JsonBudget = limits.budget();
+        let limits = JsonValueLimits::default().with_structure_limits(
+            StructureLimits::empty().with_depth_limit(ResourceLimit::new(
+                JsonResource::Depth,
+                self.policy.json_depth_limit().maximum(),
+            )),
+        );
+        let budget = JsonValueBudget::new(limits);
         matches!(
             budget.check_depth(self.depth.saturating_add(1)),
             Err(BudgetError::LimitExceeded {

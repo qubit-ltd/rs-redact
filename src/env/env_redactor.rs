@@ -176,9 +176,10 @@ impl EnvRedactor {
                     .len()
                     .saturating_add(value.as_encoded_bytes().len());
                 if !session.consume_input(input_bytes) {
-                    return match session
-                        .charge_output_or_fallback(FALLBACK.len(), FALLBACK.len())
-                    {
+                    return match session.charge_output_or_fallback(
+                        FALLBACK.len(),
+                        FALLBACK.len(),
+                    ) {
                         OutputCharge::Complete => {
                             RedactedEnvPair::from_rendered(FALLBACK.to_owned())
                         }

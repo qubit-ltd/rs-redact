@@ -144,8 +144,12 @@ fn test_redact_field_session_charges_escaped_bytes() {
     let redactor = Redactor::new(policy);
     let session = RedactionSession::operation(redactor.policy());
 
-    let result = redactor.redact_field_with_session(&session, "message", "a\n b");
+    let result =
+        redactor.redact_field_with_session(&session, "message", "a\n b");
 
     assert!(!result.is_masked());
-    assert_eq!(session.remaining_output_bytes(), limit.max_output_bytes() - 5);
+    assert_eq!(
+        session.remaining_output_bytes(),
+        limit.max_output_bytes() - 5
+    );
 }

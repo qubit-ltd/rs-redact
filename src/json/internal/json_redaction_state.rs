@@ -8,10 +8,12 @@
 //! Stateful bounded traversal for mutable JSON redaction.
 
 use qubit_budget::BudgetError;
-use qubit_budget::JsonBudget;
-use qubit_budget::JsonLimits;
 use qubit_budget::JsonResource;
+use qubit_budget::JsonValueBudget;
+use qubit_budget::JsonValueLimits;
 use qubit_budget::ResourceBudget;
+use qubit_budget::ResourceLimit;
+use qubit_budget::StructureLimits;
 use serde_json::Map;
 use serde_json::Value;
 
@@ -34,7 +36,7 @@ pub(crate) struct JsonRedactionState<'policy, 'budget, 'marker> {
     /// Single mask table used for every sensitivity level.
     masking: &'policy MaskingPolicy,
     /// JSON structure accounting for the operation boundary.
-    json_budget: JsonBudget,
+    json_budget: JsonValueBudget,
     /// Handling for scalars without an object-key context.
     unkeyed: JsonUnkeyedValuePolicy<'marker>,
     /// Aggregate accounting for newly generated masks.
@@ -69,9 +71,16 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
             base_rules,
             context_rules,
             masking,
-            json_budget: JsonLimits::new()
-                .with_max_depth(json_depth_limit.maximum())
-                .budget(),
+            json_budget: JsonValueBudget::new(
+                JsonValueLimits::default().with_structure_limits(
+                    StructureLimits::empty().with_depth_limit(
+                        ResourceLimit::new(
+                            JsonResource::Depth,
+                            json_depth_limit.maximum(),
+                        ),
+                    ),
+                ),
+            ),
             unkeyed,
             mask_budget,
         }
@@ -126,8 +135,17 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         has_field: bool,
         depth: usize,
     ) -> JsonRedactionOutcome {
+        let admission = match value {
+            Value::Object(values) => self
+                .json_budget
+                .enter_object(depth.saturating_add(1), values.len()),
+            Value::Array(values) => self
+                .json_budget
+                .enter_array(depth.saturating_add(1), values.len()),
+            _ => self.json_budget.enter_node(depth.saturating_add(1)),
+        };
         if matches!(
-            self.json_budget.check_depth(depth.saturating_add(1)),
+            admission,
             Err(BudgetError::LimitExceeded {
                 resource: JsonResource::Depth,
                 ..
@@ -140,10 +158,23 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         match value {
             Value::Object(values) => self.redact_object(values, depth),
             Value::Array(values) => self.redact_array(values, has_field, depth),
-            Value::Null
-            | Value::Bool(_)
-            | Value::Number(_)
-            | Value::String(_) => self.redact_scalar(value, has_field),
+            Value::String(text) => {
+                let _ = self.json_budget.consume_string_bytes(text.len());
+                self.redact_scalar(value, has_field)
+            }
+            Value::Number(number) => {
+                if self.json_budget.limits().number_bytes_limit().is_some()
+                    || self.json_budget.limits().payload_bytes_limit().is_some()
+                {
+                    let _ = self
+                        .json_budget
+                        .consume_number_bytes(number.to_string().len());
+                }
+                self.redact_scalar(value, has_field)
+            }
+            Value::Null | Value::Bool(_) => {
+                self.redact_scalar(value, has_field)
+            }
         }
     }
 
@@ -164,6 +195,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ) -> JsonRedactionOutcome {
         let mut outcome = JsonRedactionOutcome::default();
         for (key, value) in values {
+            let _ = self.json_budget.consume_key_bytes(key.len());
             let resolved = stronger(
                 self.base_rules.resolve_field(key),
                 self.context_rules.resolve_field(key),
