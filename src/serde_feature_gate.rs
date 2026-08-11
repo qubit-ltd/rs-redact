@@ -19,8 +19,6 @@ macro_rules! __qubit_redact_serde {
 #[macro_export]
 macro_rules! __qubit_redact_serde {
     ($($tokens:tt)*) => {
-        compile_error!(
-            "#[redact(serde)] requires the `serde` feature of qubit-redact"
-        );
+        compile_error!("#[redact(serde)] requires the `serde` feature of qubit-redact");
     };
 }

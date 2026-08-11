@@ -114,9 +114,7 @@ pub(super) fn format_bounded(
     formatter: &mut Formatter<'_>,
 ) -> fmt::Result {
     let mut writer = BoundedLogEscapeWriter::new(limit);
-    let result = with_mask_byte_limit(limit.max_bytes(), || {
-        write!(&mut writer, "{value:?}")
-    });
+    let result = with_mask_byte_limit(limit.max_bytes(), || write!(&mut writer, "{value:?}"));
     if result.is_err() && !writer.is_truncated() {
         return Err(fmt::Error);
     }

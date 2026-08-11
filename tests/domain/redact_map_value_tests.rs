@@ -16,8 +16,7 @@ use qubit_redact::RedactionPolicy;
 #[test]
 fn test_redact_map_value_masks_sensitive_map_entry() {
     let map = BTreeMap::from([(String::from("password"), String::from("raw"))]);
-    let rendered =
-        RedactedMap::new(&map, RedactionPolicy::default()).to_string();
+    let rendered = RedactedMap::new(&map, RedactionPolicy::default()).to_string();
 
     assert!(!rendered.contains("raw"));
     assert!(rendered.contains("<redacted>"));
@@ -31,8 +30,7 @@ fn test_redact_map_value_supports_borrowed_keys_and_cow_values() {
         ("password", Cow::Owned(String::from("raw"))),
     ]);
 
-    let rendered =
-        format!("{:?}", RedactedMap::new(&map, RedactionPolicy::default()),);
+    let rendered = format!("{:?}", RedactedMap::new(&map, RedactionPolicy::default()),);
 
     assert_eq!(
         rendered,
