@@ -26,8 +26,8 @@ fn test_json_redaction_state_recurses_through_nested_values() {
         .expect("the policy should build");
     let value = json!({"items": [{"token": "raw"}, {"name": "Ada"}]});
 
-    let output = to_value(RedactedJson::new(&value, &policy))
-        .expect("the redacted value should serialize");
+    let output =
+        to_value(RedactedJson::new(&value, &policy)).expect("the redacted value should serialize");
 
     assert_ne!(output["items"][0]["token"], "raw");
     assert_eq!(output["items"][1]["name"], "Ada");
@@ -37,10 +37,7 @@ fn test_json_redaction_state_recurses_through_nested_values() {
 #[test]
 fn test_json_redaction_state_uses_root_inclusive_depth_budget() {
     let shallow_policy = RedactionPolicy::builder()
-        .json_depth_limit(
-            qubit_redact::JsonDepthLimit::new(1)
-                .expect("the depth budget is valid"),
-        )
+        .json_depth_limit(qubit_redact::JsonDepthLimit::new(1).expect("the depth budget is valid"))
         .mask(
             Sensitivity::Secret,
             qubit_redact::MaskPolicy::fixed("[depth-limit]"),
@@ -49,10 +46,7 @@ fn test_json_redaction_state_uses_root_inclusive_depth_budget() {
         .build()
         .expect("the policy should build");
     let deep_policy = RedactionPolicy::builder()
-        .json_depth_limit(
-            qubit_redact::JsonDepthLimit::new(2)
-                .expect("the depth budget is valid"),
-        )
+        .json_depth_limit(qubit_redact::JsonDepthLimit::new(2).expect("the depth budget is valid"))
         .mask(
             Sensitivity::Secret,
             qubit_redact::MaskPolicy::fixed("[depth-limit]"),

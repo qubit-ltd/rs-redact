@@ -13,8 +13,7 @@ use qubit_redact::RedactionSession;
 /// Verifies a diagnostic session shares cumulative input consumption.
 #[test]
 fn test_diagnostic_session_shares_input_budget() {
-    let limit = InputOutputLimit::new(8, 64)
-        .expect("the test input/output limit should be valid");
+    let limit = InputOutputLimit::new(8, 64).expect("the test input/output limit should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(limit)
         .build()
@@ -30,8 +29,7 @@ fn test_diagnostic_session_shares_input_budget() {
 /// Verifies exact exhaustion remains distinct from terminal closure.
 #[test]
 fn test_diagnostic_session_accepts_zero_bytes_after_exact_consumption() {
-    let limit = InputOutputLimit::new(3, 64)
-        .expect("the test input/output limit should be valid");
+    let limit = InputOutputLimit::new(3, 64).expect("the test input/output limit should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(limit)
         .build()
@@ -48,8 +46,7 @@ fn test_diagnostic_session_accepts_zero_bytes_after_exact_consumption() {
 /// Verifies input exhaustion still leaves room for a fail-closed marker.
 #[test]
 fn test_diagnostic_session_rejects_consumption_after_exhaustion() {
-    let limit = InputOutputLimit::new(3, 64)
-        .expect("the test input/output limit should be valid");
+    let limit = InputOutputLimit::new(3, 64).expect("the test input/output limit should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(limit)
         .build()

@@ -20,8 +20,7 @@ use qubit_redact::UriRedactor;
 
 /// Builds a URI redactor with the benchmark's fixed diagnostic budget.
 fn benchmark_redactor() -> UriRedactor {
-    let budget = InputOutputLimit::new(4096, 256)
-        .expect("benchmark diagnostic budget is valid");
+    let budget = InputOutputLimit::new(4096, 256).expect("benchmark diagnostic budget is valid");
     let core = RedactionPolicy::default()
         .to_builder()
         .diagnostic_event(budget)
@@ -36,22 +35,20 @@ fn benchmark_redactor() -> UriRedactor {
 /// Measures URI rendering below, near, and beyond the output budget.
 fn benchmark_uri_output_budgets(criterion: &mut Criterion) {
     let redactor = benchmark_redactor();
-    let inputs = [("below", 2_usize), ("near", 12), ("over", 64)].map(
-        |(label, count)| {
-            (
-                label,
-                format!(
-                    "https://user:secret@example.test/?{}#fragment",
-                    ["password=query-secret"; 64]
-                        .iter()
-                        .take(count)
-                        .copied()
-                        .collect::<Vec<_>>()
-                        .join("&"),
-                ),
-            )
-        },
-    );
+    let inputs = [("below", 2_usize), ("near", 12), ("over", 64)].map(|(label, count)| {
+        (
+            label,
+            format!(
+                "https://user:secret@example.test/?{}#fragment",
+                ["password=query-secret"; 64]
+                    .iter()
+                    .take(count)
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join("&"),
+            ),
+        )
+    });
     let mut group = criterion.benchmark_group("uri_diagnostic_budget");
     for (label, input) in &inputs {
         group.throughput(Throughput::Bytes(input.len() as u64));
@@ -59,9 +56,7 @@ fn benchmark_uri_output_budgets(criterion: &mut Criterion) {
             BenchmarkId::new("redact", label),
             input,
             |bencher, input| {
-                bencher.iter(|| {
-                    black_box(redactor.redact_uri_str(black_box(input)))
-                });
+                bencher.iter(|| black_box(redactor.redact_uri_str(black_box(input))));
             },
         );
     }

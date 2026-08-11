@@ -108,9 +108,8 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut rendered = RedactedArgv::builder(
-            self.redactor.policy().limits().diagnostic_event(),
-        );
+        let mut rendered =
+            RedactedArgv::builder(self.redactor.policy().limits().diagnostic_event());
         for item in items {
             if !input_budget.reserve(item.value().as_encoded_bytes().len()) {
                 let _ = rendered.push(TRUNCATED_ITEM);
@@ -196,8 +195,7 @@ impl ArgvRedactor {
         I: IntoIterator<Item = ArgvItem<'a>>,
         F: FnOnce(&Self, I, &mut DiagnosticInputBudget) -> RedactedArgv,
     {
-        let mut input_budget =
-            DiagnosticInputBudget::new(session.remaining_input_bytes());
+        let mut input_budget = DiagnosticInputBudget::new(session.remaining_input_bytes());
         let result = render(self, items, &mut input_budget);
         let _ = session.consume_input(input_budget.charged_input_bytes());
         if input_budget.is_closed() {
@@ -208,12 +206,8 @@ impl ArgvRedactor {
             TRUNCATED_ITEM.len(),
         ) {
             OutputCharge::Complete => result,
-            OutputCharge::Fallback => {
-                RedactedArgv::from_rendered(TRUNCATED_ITEM.to_owned())
-            }
-            OutputCharge::Exhausted => {
-                RedactedArgv::from_rendered(String::new())
-            }
+            OutputCharge::Fallback => RedactedArgv::from_rendered(TRUNCATED_ITEM.to_owned()),
+            OutputCharge::Exhausted => RedactedArgv::from_rendered(String::new()),
         }
     }
 
@@ -245,9 +239,8 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let mut rendered = RedactedArgv::builder(
-            self.redactor.policy().limits().diagnostic_event(),
-        );
+        let mut rendered =
+            RedactedArgv::builder(self.redactor.policy().limits().diagnostic_event());
         let mut pending_field = None;
 
         for item in items {
@@ -262,9 +255,7 @@ impl ArgvRedactor {
                 }
                 continue;
             }
-            if !rendered
-                .push(&self.redact_plain_item(item.value(), &mut pending_field))
-            {
+            if !rendered.push(&self.redact_plain_item(item.value(), &mut pending_field)) {
                 break;
             }
         }
@@ -322,11 +313,7 @@ impl ArgvRedactor {
     /// # Returns
     ///
     /// The redacted owned rendering of `value`.
-    fn redact_plain_item(
-        &self,
-        value: &OsStr,
-        pending_field: &mut Option<PendingField>,
-    ) -> String {
+    fn redact_plain_item(&self, value: &OsStr, pending_field: &mut Option<PendingField>) -> String {
         let Some(value) = value.to_str() else {
             *pending_field = Some(PendingField {
                 field: String::new(),
@@ -461,11 +448,7 @@ impl ArgvRedactor {
         Some(format!("-D{name}={redacted}"))
     }
 
-    fn mask_pending_value(
-        &self,
-        pending: &PendingField,
-        value: &str,
-    ) -> String {
+    fn mask_pending_value(&self, pending: &PendingField, value: &str) -> String {
         let resolved = if pending.exact {
             self.redactor.policy().resolve_field_exact(&pending.field)
         } else {

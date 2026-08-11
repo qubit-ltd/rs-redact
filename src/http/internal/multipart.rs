@@ -52,19 +52,13 @@ pub(in crate::http) fn redact(
         return Some((output.into_string()?, false, true));
     }
     let mut passed = false;
-    let mut mask_budget =
-        ResourceBudget::new(RedactionResource::Mask, max_output_bytes);
+    let mut mask_budget = ResourceBudget::new(RedactionResource::Mask, max_output_bytes);
     for (index, part) in parts.into_iter().enumerate() {
         if index > 0 && output.write_all(b"\n").is_err() {
             return Some((output.into_string()?, passed, true));
         }
-        let (line, part_passed, part_truncated) = redact_part(
-            redactor,
-            part,
-            policy,
-            require_form_data,
-            &mut mask_budget,
-        )?;
+        let (line, part_passed, part_truncated) =
+            redact_part(redactor, part, policy, require_form_data, &mut mask_budget)?;
         passed |= part_passed;
         if part_truncated || output.write_all(line.as_bytes()).is_err() {
             return Some((output.into_string()?, passed, true));
@@ -118,11 +112,7 @@ fn redact_part(
             return None;
         }
     }
-    let metadata = MultipartPartMetadata::parse(
-        disposition,
-        part_type,
-        require_form_data,
-    )?;
+    let metadata = MultipartPartMetadata::parse(disposition, part_type, require_form_data)?;
     let name = metadata.name().unwrap_or(markers::MULTIPART_UNNAMED);
     let (value, passed, truncated) = if metadata.filename().is_some() {
         (markers::MULTIPART_FILE.to_string(), false, false)
@@ -130,23 +120,15 @@ fn redact_part(
         (markers::MULTIPART_PART.to_string(), false, false)
     } else {
         let body_text = std::str::from_utf8(body).ok()?;
-        if let Some(value) = redactor.redact_bounded_if_sensitive(
-            name,
-            body_text,
-            remaining_mask_bytes(mask_budget),
-        ) {
+        if let Some(value) =
+            redactor.redact_bounded_if_sensitive(name, body_text, remaining_mask_bytes(mask_budget))
+        {
             let value = value.into_owned();
             let consumed = mask_budget.consume_available(value.len());
             debug_assert_eq!(consumed, value.len());
             (value, false, false)
         } else {
-            redact_non_sensitive_part(
-                redactor,
-                body,
-                policy,
-                metadata.content_type(),
-                mask_budget,
-            )?
+            redact_non_sensitive_part(redactor, body, policy, metadata.content_type(), mask_budget)?
         }
     };
     if truncated {
@@ -188,62 +170,40 @@ fn redact_non_sensitive_part(
                 policy.unkeyed_json_value_policy(),
                 mask_budget,
             );
-            json::serialize_bounded(
-                &value,
-                policy.body_budget().max_output_bytes(),
-            )
-            .map(|(text, truncated)| (text, passed, truncated))
+            json::serialize_bounded(&value, policy.body_budget().max_output_bytes())
+                .map(|(text, truncated)| (text, passed, truncated))
         }
-        Some(value) if content_type::is_ndjson(value) => {
-            json::redact_ndjson_with_mask_budget(
-                redactor,
-                body,
-                policy.json_depth_limit(),
-                policy.unkeyed_json_value_policy(),
-                mask_budget,
-                policy.body_budget().max_output_bytes(),
-            )
-        }
-        Some(value) if content_type::is_form(value) => form::is_valid(body)
-            .then(|| {
-                let value = form::redact_bounded(
-                    redactor,
-                    body,
-                    remaining_mask_bytes(mask_budget),
-                );
-                let consumed = mask_budget.consume_available(value.len());
-                if consumed != value.len() {
-                    (String::new(), false, true)
-                } else {
-                    (value, false, false)
-                }
-            }),
-        Some(value) if content_type::is_text(value) => {
-            match policy.text_body_policy() {
-                TextBodyPolicy::Redact => {
-                    Some((markers::MULTIPART_TEXT.to_string(), false, false))
-                }
-                TextBodyPolicy::PassThrough => {
-                    Some((text.to_string(), true, false))
-                }
+        Some(value) if content_type::is_ndjson(value) => json::redact_ndjson_with_mask_budget(
+            redactor,
+            body,
+            policy.json_depth_limit(),
+            policy.unkeyed_json_value_policy(),
+            mask_budget,
+            policy.body_budget().max_output_bytes(),
+        ),
+        Some(value) if content_type::is_form(value) => form::is_valid(body).then(|| {
+            let value = form::redact_bounded(redactor, body, remaining_mask_bytes(mask_budget));
+            let consumed = mask_budget.consume_available(value.len());
+            if consumed != value.len() {
+                (String::new(), false, true)
+            } else {
+                (value, false, false)
             }
-        }
+        }),
+        Some(value) if content_type::is_text(value) => match policy.text_body_policy() {
+            TextBodyPolicy::Redact => Some((markers::MULTIPART_TEXT.to_string(), false, false)),
+            TextBodyPolicy::PassThrough => Some((text.to_string(), true, false)),
+        },
         None => match policy.text_body_policy() {
-            TextBodyPolicy::Redact => {
-                Some((markers::MULTIPART_TEXT.to_string(), false, false))
-            }
-            TextBodyPolicy::PassThrough => {
-                Some((text.to_string(), true, false))
-            }
+            TextBodyPolicy::Redact => Some((markers::MULTIPART_TEXT.to_string(), false, false)),
+            TextBodyPolicy::PassThrough => Some((text.to_string(), true, false)),
         },
         Some(_) => Some((markers::MULTIPART_PART.to_string(), false, false)),
     }
 }
 
 /// Returns the mask balance as a platform string length.
-fn remaining_mask_bytes(
-    budget: &ResourceBudget<RedactionResource, usize>,
-) -> usize {
+fn remaining_mask_bytes(budget: &ResourceBudget<RedactionResource, usize>) -> usize {
     budget.remaining()
 }
 
@@ -320,9 +280,7 @@ fn part_segments<'a>(bytes: &'a [u8], boundary: &str) -> Option<Vec<&'a [u8]>> {
 #[must_use]
 #[inline]
 fn next_line(bytes: &[u8], position: usize) -> (usize, usize, usize) {
-    if let Some(relative) =
-        bytes[position..].iter().position(|byte| *byte == b'\n')
-    {
+    if let Some(relative) = bytes[position..].iter().position(|byte| *byte == b'\n') {
         let end = position + relative;
         let trimmed = end
             .checked_sub(1)

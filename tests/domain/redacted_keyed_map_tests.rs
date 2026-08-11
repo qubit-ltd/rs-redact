@@ -39,10 +39,9 @@ impl Redact for NestedValue {
             .debug_struct("NestedValue")
             .field(
                 "secret",
-                &self.secret.redact_value(
-                    Sensitivity::Secret,
-                    _session.policy().masking(),
-                ),
+                &self
+                    .secret
+                    .redact_value(Sensitivity::Secret, _session.policy().masking()),
             )
             .field("label", &self.label)
             .finish()
@@ -108,8 +107,7 @@ fn test_redacted_keyed_map_display_and_bounded_adapters() {
     let display = RedactedKeyedMap::new(&map, policy.clone()).to_string();
     let bounded = RedactedKeyedMap::new(&map, policy.clone())
         .with_output_limit(
-            LogOutputLimit::new(output_limit)
-                .expect("the minimum output limit should be valid"),
+            LogOutputLimit::new(output_limit).expect("the minimum output limit should be valid"),
         )
         .to_string();
     let policy_bounded = RedactedKeyedMap::new(&map, policy)

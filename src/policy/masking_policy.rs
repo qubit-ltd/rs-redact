@@ -67,11 +67,7 @@ impl MaskingPolicy {
     ///
     /// The updated immutable masking configuration.
     #[inline]
-    pub fn with_policy(
-        mut self,
-        level: Sensitivity,
-        policy: MaskPolicy,
-    ) -> Self {
+    pub fn with_policy(mut self, level: Sensitivity, policy: MaskPolicy) -> Self {
         match level {
             Sensitivity::Low => self.low = policy,
             Sensitivity::Medium => self.medium = policy,
@@ -161,11 +157,7 @@ impl MaskingPolicy {
     /// An owned bounded prefix of the configured opaque replacement.
     #[must_use = "use the bounded opaque replacement instead of the original value"]
     #[inline(always)]
-    pub(crate) fn mask_opaque_bounded(
-        &self,
-        level: Sensitivity,
-        max_bytes: usize,
-    ) -> String {
+    pub(crate) fn mask_opaque_bounded(&self, level: Sensitivity, max_bytes: usize) -> String {
         self.for_level(level).opaque_mask_bounded(max_bytes)
     }
 
@@ -190,10 +182,7 @@ impl MaskingPolicy {
     }
 
     /// Validates fixed replacements for one policy construction location.
-    pub(crate) fn validate(
-        &self,
-        location: PolicyLocation,
-    ) -> Result<(), PolicyError> {
+    pub(crate) fn validate(&self, location: PolicyLocation) -> Result<(), PolicyError> {
         for level in [
             Sensitivity::Low,
             Sensitivity::Medium,
@@ -204,10 +193,7 @@ impl MaskingPolicy {
                 self.for_level(level),
                 MaskPolicy::Fixed { replacement } if replacement.is_empty()
             ) {
-                return Err(PolicyError::EmptyFixedReplacement {
-                    location,
-                    level,
-                });
+                return Err(PolicyError::EmptyFixedReplacement { location, level });
             }
         }
         Ok(())

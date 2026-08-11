@@ -176,9 +176,7 @@ impl<'policy> RedactionSession<'policy> {
     pub fn operation(policy: &'policy RedactionPolicy) -> Self {
         Self {
             policy,
-            budget: RefCell::new(DiagnosticBudget::new(
-                policy.limits().ordinary_operation(),
-            )),
+            budget: RefCell::new(DiagnosticBudget::new(policy.limits().ordinary_operation())),
             kind: RedactionSessionKind::Operation,
         }
     }
@@ -189,9 +187,7 @@ impl<'policy> RedactionSession<'policy> {
     pub fn diagnostic(policy: &'policy RedactionPolicy) -> Self {
         Self {
             policy,
-            budget: RefCell::new(DiagnosticBudget::new(
-                policy.limits().diagnostic_event(),
-            )),
+            budget: RefCell::new(DiagnosticBudget::new(policy.limits().diagnostic_event())),
             kind: RedactionSessionKind::Diagnostic,
         }
     }
