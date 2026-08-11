@@ -38,7 +38,12 @@ use crate::text::internal::LogEscapeWriter;
 /// * `K` - Runtime key type used for field classification.
 /// * `V` - Value type recursively rendered through redaction.
 #[must_use = "format the recursive keyed redaction view"]
-pub struct RedactedKeyedMap<'a, M: ?Sized, K: ?Sized = String, V: ?Sized = String> {
+pub struct RedactedKeyedMap<
+    'a,
+    M: ?Sized,
+    K: ?Sized = String,
+    V: ?Sized = String,
+> {
     /// Map borrowed without traversal.
     map: &'a M,
     /// Immutable policy snapshot shared by every keyed value view.
@@ -79,7 +84,10 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
     /// A bounded formatting adapter that owns this recursive keyed map view.
     #[must_use = "format the bounded recursive keyed map display adapter"]
     #[inline(always)]
-    pub const fn with_output_limit(self, limit: LogOutputLimit) -> BoundedRedactedDisplay<Self> {
+    pub const fn with_output_limit(
+        self,
+        limit: LogOutputLimit,
+    ) -> BoundedRedactedDisplay<Self> {
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -91,13 +99,17 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
     #[must_use = "format the bounded recursive keyed map display adapter"]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit = LogOutputLimit::from(self.policy.limits().diagnostic_event());
+        let limit =
+            LogOutputLimit::from(self.policy.limits().diagnostic_event());
         BoundedRedactedDisplay::new(self, limit)
     }
 }
 
-impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Debug
-    for RedactedKeyedMap<'_, M, K, V>
+impl<
+    M: ?Sized,
+    K: AsRef<str> + Debug + ?Sized,
+    V: Redact + RedactValue + ?Sized,
+> Debug for RedactedKeyedMap<'_, M, K, V>
 where
     for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
 {
@@ -162,7 +174,10 @@ mod session_view {
         /// Creates a nested keyed-map view using an existing diagnostic
         /// session.
         #[inline(always)]
-        pub fn new(map: &'map M, session: &'session RedactionSession<'policy>) -> Self {
+        pub fn new(
+            map: &'map M,
+            session: &'session RedactionSession<'policy>,
+        ) -> Self {
             Self {
                 map,
                 session,
@@ -171,8 +186,11 @@ mod session_view {
         }
     }
 
-    impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Debug
-        for RedactedKeyedMapSession<'_, '_, '_, M, K, V>
+    impl<
+        M: ?Sized,
+        K: AsRef<str> + Debug + ?Sized,
+        V: Redact + RedactValue + ?Sized,
+    > Debug for RedactedKeyedMapSession<'_, '_, '_, M, K, V>
     where
         for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
     {
@@ -183,7 +201,11 @@ mod session_view {
             for (key, value) in self.map {
                 output.entry(
                     &key,
-                    &RedactedKeyedValueSession::new(key.as_ref(), value, self.session),
+                    &RedactedKeyedValueSession::new(
+                        key.as_ref(),
+                        value,
+                        self.session,
+                    ),
                 );
             }
             output.finish()
@@ -193,8 +215,11 @@ mod session_view {
 
 pub use session_view::RedactedKeyedMapSession;
 
-impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Display
-    for RedactedKeyedMapSession<'_, '_, '_, M, K, V>
+impl<
+    M: ?Sized,
+    K: AsRef<str> + Debug + ?Sized,
+    V: Redact + RedactValue + ?Sized,
+> Display for RedactedKeyedMapSession<'_, '_, '_, M, K, V>
 where
     for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
 {
@@ -206,8 +231,11 @@ where
     }
 }
 
-impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Display
-    for RedactedKeyedMap<'_, M, K, V>
+impl<
+    M: ?Sized,
+    K: AsRef<str> + Debug + ?Sized,
+    V: Redact + RedactValue + ?Sized,
+> Display for RedactedKeyedMap<'_, M, K, V>
 where
     for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
 {

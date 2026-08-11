@@ -100,8 +100,9 @@ fn test_nested_serialization_delegates_through_all_containers() {
     let boxed = Box::new(NestedValue);
     let values = vec![NestedValue, NestedValue];
 
-    let serialized = serde_json::to_value(RedactedSerialize::new(&value, &policy))
-        .expect("present option should serialize");
+    let serialized =
+        serde_json::to_value(RedactedSerialize::new(&value, &policy))
+            .expect("present option should serialize");
     assert_eq!(serialized, serde_json::json!("NestedValue"));
     assert_eq!(
         serde_json::to_value(RedactedSerialize::new(&absent, &policy,))

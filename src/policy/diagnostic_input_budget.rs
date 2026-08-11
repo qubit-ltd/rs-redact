@@ -38,7 +38,10 @@ impl DiagnosticInputBudget {
     #[inline(always)]
     pub(crate) fn new(max_input_bytes: usize) -> Self {
         Self {
-            budget: ResourceBudget::new(RedactionResource::Input, max_input_bytes),
+            budget: ResourceBudget::new(
+                RedactionResource::Input,
+                max_input_bytes,
+            ),
             closed: false,
         }
     }
