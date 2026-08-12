@@ -216,7 +216,11 @@ impl MaskPolicy {
     /// # Returns
     ///
     /// Empty input remains borrowed; other results own at most `max_bytes`.
-    pub(crate) fn mask_bounded<'a>(&self, value: &'a str, max_bytes: usize) -> Cow<'a, str> {
+    pub(crate) fn mask_bounded<'a>(
+        &self,
+        value: &'a str,
+        max_bytes: usize,
+    ) -> Cow<'a, str> {
         if value.is_empty() {
             return Cow::Borrowed(value);
         }
@@ -259,7 +263,11 @@ impl MaskPolicy {
     /// # Errors
     ///
     /// Returns the destination formatting error unchanged.
-    pub(crate) fn write_masked<W: fmt::Write>(&self, value: &str, writer: &mut W) -> fmt::Result {
+    pub(crate) fn write_masked<W: fmt::Write>(
+        &self,
+        value: &str,
+        writer: &mut W,
+    ) -> fmt::Result {
         match self {
             Self::Fixed { replacement } => writer.write_str(replacement),
             Self::PreserveEdges {
@@ -285,9 +293,11 @@ impl MaskPolicy {
                 replacement,
                 full_mask_below_or_equal,
             } => {
-                let Some(suffix_start) =
-                    preserved_suffix_start(value, *suffix_chars, *full_mask_below_or_equal)
-                else {
+                let Some(suffix_start) = preserved_suffix_start(
+                    value,
+                    *suffix_chars,
+                    *full_mask_below_or_equal,
+                ) else {
                     return writer.write_str(replacement);
                 };
                 writer.write_str(replacement)?;
@@ -319,13 +329,17 @@ fn mask_preserving_edges(
     replacement: &str,
     full_mask_below_or_equal: usize,
 ) -> String {
-    let Some((prefix_end, suffix_start)) =
-        preserved_edge_bounds(value, prefix_chars, suffix_chars, full_mask_below_or_equal)
-    else {
+    let Some((prefix_end, suffix_start)) = preserved_edge_bounds(
+        value,
+        prefix_chars,
+        suffix_chars,
+        full_mask_below_or_equal,
+    ) else {
         return replacement.to_string();
     };
-    let mut masked =
-        String::with_capacity(prefix_end + replacement.len() + value.len() - suffix_start);
+    let mut masked = String::with_capacity(
+        prefix_end + replacement.len() + value.len() - suffix_start,
+    );
     masked.push_str(&value[..prefix_end]);
     masked.push_str(replacement);
     masked.push_str(&value[suffix_start..]);
@@ -351,11 +365,13 @@ fn mask_preserving_suffix(
     replacement: &str,
     full_mask_below_or_equal: usize,
 ) -> String {
-    let Some(suffix_start) = preserved_suffix_start(value, suffix_chars, full_mask_below_or_equal)
+    let Some(suffix_start) =
+        preserved_suffix_start(value, suffix_chars, full_mask_below_or_equal)
     else {
         return replacement.to_string();
     };
-    let mut masked = String::with_capacity(replacement.len() + value.len() - suffix_start);
+    let mut masked =
+        String::with_capacity(replacement.len() + value.len() - suffix_start);
     masked.push_str(replacement);
     masked.push_str(&value[suffix_start..]);
     masked

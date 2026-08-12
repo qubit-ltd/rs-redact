@@ -78,7 +78,8 @@ where
             let resolved = policy.resolve_field(key.as_ref());
             match resolved {
                 ResolvedField::Sensitive { sensitivity } => {
-                    let redacted = value.redact_value(sensitivity, policy.masking());
+                    let redacted =
+                        value.redact_value(sensitivity, policy.masking());
                     map.entry(&key, &redacted);
                 }
                 ResolvedField::PassThrough => {

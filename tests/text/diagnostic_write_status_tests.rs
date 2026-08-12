@@ -13,7 +13,8 @@ use qubit_redact::InputOutputLimit;
 /// Verifies a fragment that fits reports completion.
 #[test]
 fn test_diagnostic_write_status_reports_complete_fragment() {
-    let budget = InputOutputLimit::new(128, 64).expect("the test budget is valid");
+    let budget =
+        InputOutputLimit::new(128, 64).expect("the test budget is valid");
     let mut builder = DiagnosticLogBuilder::new(budget);
 
     assert_eq!(

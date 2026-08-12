@@ -31,9 +31,15 @@ impl ContextRulesBuilder {
     }
 
     /// Copies an immutable rules snapshot while assigning validation location.
-    pub(super) fn from_rules(rules: &RedactionRules, location: PolicyLocation) -> Self {
+    pub(super) fn from_rules(
+        rules: &RedactionRules,
+        location: PolicyLocation,
+    ) -> Self {
         Self {
-            rules: RedactionRulesBuilder::from_inner(&rules.clone_application(), location),
+            rules: RedactionRulesBuilder::from_inner(
+                &rules.clone_application(),
+                location,
+            ),
             floor: rules.floor().cloned(),
         }
     }
