@@ -36,7 +36,7 @@ pub(crate) struct JsonRedactionState<'policy, 'budget, 'marker> {
     /// Single mask table used for every sensitivity level.
     masking: &'policy MaskingPolicy,
     /// JSON structure accounting for the operation boundary.
-    json_budget: JsonValueBudget,
+    json_budget: JsonValueBudget<JsonResource, usize>,
     /// Handling for scalars without an object-key context.
     unkeyed: JsonUnkeyedValuePolicy<'marker>,
     /// Aggregate accounting for newly generated masks.
@@ -70,12 +70,11 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
             context_rules,
             masking,
             json_budget: JsonValueBudget::new(
-                JsonValueLimits::<JsonResource, u64>::default().with_structure_limits(
-                    StructureLimits::<JsonResource, u64>::empty().with_depth_limit(
+                JsonValueLimits::<JsonResource, usize>::default().with_structure_limits(
+                    StructureLimits::<JsonResource, usize>::empty().with_depth_limit(
                         ResourceLimit::new(
                             JsonResource::Depth,
-                            u64::try_from(json_depth_limit.maximum())
-                                .expect("JSON depth must fit in u64"),
+                            json_depth_limit.maximum(),
                         ),
                     ),
                 ),
@@ -134,15 +133,15 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ) -> JsonRedactionOutcome {
         let admission = match value {
             Value::Object(values) => self.json_budget.enter_object(
-                u64::try_from(depth.saturating_add(1)).expect("JSON depth must fit in u64"),
-                u64::try_from(values.len()).expect("JSON object length must fit in u64"),
+                depth.saturating_add(1),
+                values.len(),
             ),
             Value::Array(values) => self.json_budget.enter_array(
-                u64::try_from(depth.saturating_add(1)).expect("JSON depth must fit in u64"),
-                u64::try_from(values.len()).expect("JSON array length must fit in u64"),
+                depth.saturating_add(1),
+                values.len(),
             ),
             _ => self.json_budget.enter_node(
-                u64::try_from(depth.saturating_add(1)).expect("JSON depth must fit in u64"),
+                depth.saturating_add(1),
             ),
         };
         if matches!(
@@ -161,7 +160,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
             Value::Array(values) => self.redact_array(values, has_field, depth),
             Value::String(text) => {
                 let _ = self.json_budget.consume_string_bytes(
-                    u64::try_from(text.len()).expect("JSON string length must fit in u64"),
+                    text.len(),
                 );
                 self.redact_scalar(value, has_field)
             }
@@ -170,8 +169,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
                     || self.json_budget.limits().payload_bytes_limit().is_some()
                 {
                     let _ = self.json_budget.consume_number_bytes(
-                        u64::try_from(number.to_string().len())
-                            .expect("JSON number length must fit in u64"),
+                        number.to_string().len(),
                     );
                 }
                 self.redact_scalar(value, has_field)
@@ -198,7 +196,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         let mut outcome = JsonRedactionOutcome::default();
         for (key, value) in values {
             let _ = self.json_budget.consume_key_bytes(
-                u64::try_from(key.len()).expect("JSON key length must fit in u64"),
+                key.len(),
             );
             let resolved = stronger(
                 self.base_rules.resolve_field(key),
