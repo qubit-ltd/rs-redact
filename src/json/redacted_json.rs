@@ -10,9 +10,9 @@
 use std::fmt;
 
 use qubit_budget::BudgetError;
-use qubit_budget::JsonResource;
-use qubit_budget::JsonValueBudget;
-use qubit_budget::JsonValueLimits;
+use qubit_json::JsonResource;
+use qubit_json::JsonValueBudget;
+use qubit_json::JsonValueLimits;
 use qubit_budget::ResourceLimit;
 use qubit_budget::StructureLimits;
 #[cfg(feature = "serde")]
