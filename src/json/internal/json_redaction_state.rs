@@ -8,13 +8,13 @@
 //! Stateful bounded traversal for mutable JSON redaction.
 
 use qubit_budget::BudgetError;
-use qubit_budget::JsonResource;
-use qubit_budget::JsonValueBudget;
-use qubit_budget::JsonValueLimits;
 use qubit_budget::MeasuredBudgetError;
 use qubit_budget::ResourceBudget;
 use qubit_budget::ResourceLimit;
 use qubit_budget::StructureLimits;
+use qubit_json::JsonResource;
+use qubit_json::JsonValueBudget;
+use qubit_json::JsonValueLimits;
 use serde_json::Map;
 use serde_json::Value;
 

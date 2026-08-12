@@ -10,11 +10,11 @@
 use std::fmt;
 
 use qubit_budget::BudgetError;
-use qubit_budget::JsonResource;
-use qubit_budget::JsonValueBudget;
-use qubit_budget::JsonValueLimits;
 use qubit_budget::ResourceLimit;
 use qubit_budget::StructureLimits;
+use qubit_json::JsonResource;
+use qubit_json::JsonValueBudget;
+use qubit_json::JsonValueLimits;
 #[cfg(feature = "serde")]
 use serde::Serialize;
 #[cfg(feature = "serde")]

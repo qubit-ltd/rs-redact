@@ -269,8 +269,18 @@ dependencies = [
 
 [[package]]
 name = "qubit-budget"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
+ "thiserror",
+]
+
+[[package]]
+name = "qubit-json"
+version = "0.7.0"
+dependencies = [
+ "qubit-budget",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 
@@ -282,6 +292,7 @@ dependencies = [
  "form_urlencoded",
  "http",
  "qubit-budget",
+ "qubit-json",
  "serde_json",
  "url",
 ]
