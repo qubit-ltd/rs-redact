@@ -42,7 +42,9 @@ impl<'a, T: ?Sized> RedactedSerialize<'a, T> {
     }
 }
 
-impl<T: RedactSerialize + ?Sized> serde::Serialize for RedactedSerialize<'_, T> {
+impl<T: RedactSerialize + ?Sized> serde::Serialize
+    for RedactedSerialize<'_, T>
+{
     /// Delegates serialization to the nested redaction hook.
     ///
     /// # Type Parameters

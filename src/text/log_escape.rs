@@ -26,7 +26,9 @@ use std::str;
 /// The original `Cow` when every character is safe, preserving either its
 /// borrowed or owned form; otherwise, a newly allocated escaped string.
 #[must_use = "use the escaped value at the log boundary"]
-pub(super) fn escape_log_control_characters<'a>(value: Cow<'a, str>) -> Cow<'a, str> {
+pub(super) fn escape_log_control_characters<'a>(
+    value: Cow<'a, str>,
+) -> Cow<'a, str> {
     let Some((index, first_unsafe)) = value
         .char_indices()
         .find(|(_, character)| is_log_unsafe_character(*character))

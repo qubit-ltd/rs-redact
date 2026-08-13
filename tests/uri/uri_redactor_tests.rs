@@ -35,7 +35,10 @@ fn test_uri_session_fallbacks_respect_cumulative_output_limit() {
     let rendered: Vec<_> = (0..4)
         .map(|_| {
             redactor
-                .redact_uri_str_with_session("https://example.test/?password=secret", &session)
+                .redact_uri_str_with_session(
+                    "https://example.test/?password=secret",
+                    &session,
+                )
                 .into_log_safe_text()
                 .into_owned()
         })
@@ -45,7 +48,10 @@ fn test_uri_session_fallbacks_respect_cumulative_output_limit() {
     assert_eq!(rendered[1], "<invalid URI>");
     assert!(rendered[2].is_empty());
     assert!(rendered[3].is_empty());
-    assert!(rendered.iter().map(String::len).sum::<usize>() <= budget.max_output_bytes());
+    assert!(
+        rendered.iter().map(String::len).sum::<usize>()
+            <= budget.max_output_bytes()
+    );
 }
 
 /// Verifies that the default URI policy exposes usernames but masks passwords.
@@ -54,8 +60,9 @@ fn test_uri_redactor_redacts_password_but_preserves_username() {
     let redactor = UriRedactor::default();
     assert_eq!(format!("{redactor}"), "UriRedactor");
     assert_eq!(redactor.policy(), &RedactionPolicy::default());
-    let result =
-        redactor.redact_uri_str("https://alice:secret@example.test/private?password=raw#fragment");
+    let result = redactor.redact_uri_str(
+        "https://alice:secret@example.test/private?password=raw#fragment",
+    );
 
     assert_eq!(
         result.log_safe_text().as_str(),
@@ -84,8 +91,8 @@ fn test_uri_redactor_applies_username_policy_and_keeps_encoded_colon() {
         .build()
         .expect("URI policy is valid");
 
-    let result =
-        UriRedactor::new(policy).redact_uri_str("https://alice%3Ateam:secret@example.test/private");
+    let result = UriRedactor::new(policy)
+        .redact_uri_str("https://alice%3Ateam:secret@example.test/private");
 
     assert_eq!(
         result.log_safe_text().as_str(),
@@ -111,8 +118,9 @@ fn test_uri_redactor_masks_query_after_decoding_and_preserves_order() {
         .build()
         .expect("URI policy is valid");
 
-    let result = UriRedactor::new(policy)
-        .redact_uri_str("https://example.test/path?keep=a%2Fb&token=hello%20world&keep=last");
+    let result = UriRedactor::new(policy).redact_uri_str(
+        "https://example.test/path?keep=a%2Fb&token=hello%20world&keep=last",
+    );
 
     assert_eq!(
         result.log_safe_text().as_str(),
@@ -131,7 +139,8 @@ fn test_uri_redactor_fails_closed_for_invalid_uri_and_query_key_utf8() {
     assert_eq!(malformed.status(), UriRedactionStatus::Invalid);
     assert!(malformed.has_reason(UriRedactionReason::InvalidUri));
 
-    let invalid_key = redactor.redact_uri_str("https://example.test/?%FF=secret");
+    let invalid_key =
+        redactor.redact_uri_str("https://example.test/?%FF=secret");
     assert_eq!(invalid_key.log_safe_text().as_str(), "<invalid URI>");
     assert_eq!(invalid_key.status(), UriRedactionStatus::Invalid);
     assert!(invalid_key.has_reason(UriRedactionReason::UndecodableQueryKey));
@@ -145,7 +154,8 @@ fn test_uri_redaction_policy_configures_path_and_fragment_boundaries() {
         .fragment_policy(UriFragmentPolicy::Preserve)
         .build()
         .expect("URI policy is valid");
-    let result = UriRedactor::new(policy).redact_uri_str("https://example.test/private/path#debug");
+    let result = UriRedactor::new(policy)
+        .redact_uri_str("https://example.test/private/path#debug");
 
     assert_eq!(
         result.log_safe_text().as_str(),
@@ -172,7 +182,10 @@ fn test_uri_redaction_consuming_text_preserves_safe_type() {
 fn test_uri_redactor_validates_after_output_truncation() {
     let core = RedactionPolicy::default()
         .to_builder()
-        .diagnostic_event(InputOutputLimit::new(4096, 64).expect("the diagnostic budget is valid"))
+        .diagnostic_event(
+            InputOutputLimit::new(4096, 64)
+                .expect("the diagnostic budget is valid"),
+        )
         .build()
         .expect("the core policy is valid");
     let policy = RedactionPolicy::builder_from(&core)
@@ -235,11 +248,13 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
         "https://example.test/?keep",
     );
     for query in ["?%GG=value", "?keep=%", "?keep=%GG"] {
-        let result = redactor.redact_uri_str(&format!("https://example.test/{query}"));
+        let result =
+            redactor.redact_uri_str(&format!("https://example.test/{query}"));
         assert_eq!(result.status(), UriRedactionStatus::Invalid);
     }
 
-    let budget = InputOutputLimit::new(4096, 64).expect("the diagnostic budget is valid");
+    let budget = InputOutputLimit::new(4096, 64)
+        .expect("the diagnostic budget is valid");
     let core = RedactionPolicy::default()
         .to_builder()
         .diagnostic_event(budget)
@@ -260,7 +275,10 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
 
     let input_limited = RedactionPolicy::default()
         .to_builder()
-        .diagnostic_event(InputOutputLimit::new(4, 64).expect("the input limit policy is valid"))
+        .diagnostic_event(
+            InputOutputLimit::new(4, 64)
+                .expect("the input limit policy is valid"),
+        )
         .build()
         .expect("the input limit core policy is valid");
     let limited = UriRedactor::new(
@@ -282,13 +300,17 @@ fn test_uri_redactor_marks_truncated_final_sensitive_value() {
         .expect("the mask policy is valid")
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
         .expect("the opaque mask policy is valid")
-        .diagnostic_event(InputOutputLimit::new(4096, 37).expect("the diagnostic budget is valid"))
+        .diagnostic_event(
+            InputOutputLimit::new(4096, 37)
+                .expect("the diagnostic budget is valid"),
+        )
         .build()
         .expect("the core policy is valid");
     let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("the URI policy is valid");
-    let result = UriRedactor::new(policy).redact_uri_str("https://example.test/?password=secret");
+    let result = UriRedactor::new(policy)
+        .redact_uri_str("https://example.test/?password=secret");
 
     assert!(result.is_truncated());
     assert!(result.has_reason(UriRedactionReason::OutputTruncated));

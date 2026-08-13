@@ -65,8 +65,8 @@ fn test_json_redaction_state_recurses_through_nested_values() {
         .expect("the policy should build");
     let value = json!({"items": [{"token": "raw"}, {"name": "Ada"}]});
 
-    let output =
-        to_value(RedactedJson::new(&value, &policy)).expect("the redacted value should serialize");
+    let output = to_value(RedactedJson::new(&value, &policy))
+        .expect("the redacted value should serialize");
 
     assert_ne!(output["items"][0]["token"], "raw");
     assert_eq!(output["items"][1]["name"], "Ada");
@@ -76,13 +76,17 @@ fn test_json_redaction_state_recurses_through_nested_values() {
 #[test]
 fn test_json_redaction_state_uses_root_inclusive_depth_budget() {
     let shallow_policy = RedactionPolicy::builder()
-        .json_depth_limit(JsonDepthLimit::new(1).expect("the depth budget is valid"))
+        .json_depth_limit(
+            JsonDepthLimit::new(1).expect("the depth budget is valid"),
+        )
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .expect("the test mask policy should be valid")
         .build()
         .expect("the policy should build");
     let deep_policy = RedactionPolicy::builder()
-        .json_depth_limit(JsonDepthLimit::new(2).expect("the depth budget is valid"))
+        .json_depth_limit(
+            JsonDepthLimit::new(2).expect("the depth budget is valid"),
+        )
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .expect("the test mask policy should be valid")
         .build()
@@ -125,7 +129,8 @@ fn test_json_redaction_state_mutable_matches_lazy_redaction() {
     for value in values {
         let lazy = to_value(RedactedJson::new(&value, &policy))
             .expect("the lazy redacted view should serialize");
-        let mut text = serde_json::to_string(&value).expect("the source JSON should serialize");
+        let mut text = serde_json::to_string(&value)
+            .expect("the source JSON should serialize");
         redact_json_text_in_place(&mut text, &policy);
         let mutable = serde_json::from_str::<serde_json::Value>(&text)
             .expect("the mutable redaction should remain valid JSON");

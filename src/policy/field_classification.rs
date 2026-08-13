@@ -81,9 +81,8 @@ impl<'a> FieldClassification<'a> {
     #[must_use]
     pub const fn match_kind(self) -> Option<FieldMatchKind> {
         match self {
-            Self::Sensitive { match_kind, .. } | Self::Allowed { match_kind, .. } => {
-                Some(match_kind)
-            }
+            Self::Sensitive { match_kind, .. }
+            | Self::Allowed { match_kind, .. } => Some(match_kind),
             Self::Unknown => None,
         }
     }

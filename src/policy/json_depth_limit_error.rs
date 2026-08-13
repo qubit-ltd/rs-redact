@@ -36,7 +36,8 @@ impl Display for JsonDepthLimitError {
     /// Returns [`fmt::Error`] when the destination rejects output.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ZeroDepth => formatter.write_str("JSON depth limit must be greater than zero"),
+            Self::ZeroDepth => formatter
+                .write_str("JSON depth limit must be greater than zero"),
         }
     }
 }

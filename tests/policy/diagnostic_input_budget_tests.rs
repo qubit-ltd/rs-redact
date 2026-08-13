@@ -14,7 +14,8 @@ use qubit_redact::RedactionSession;
 /// input consumption.
 #[test]
 fn test_diagnostic_input_budget_stops_after_oversized_reservation() {
-    let limit = InputOutputLimit::new(3, 64).expect("the small diagnostic budget should be valid");
+    let limit = InputOutputLimit::new(3, 64)
+        .expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
         .ordinary_operation(limit)
         .build()

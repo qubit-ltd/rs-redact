@@ -35,8 +35,11 @@ pub trait RedactValue {
     ///
     /// A lazy typed representation preserving plain or optional container
     /// shape.
-    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy)
-    -> RedactedValue<'a>;
+    fn redact_value<'a>(
+        &'a self,
+        level: Sensitivity,
+        masking: &MaskingPolicy,
+    ) -> RedactedValue<'a>;
 }
 
 impl RedactValue for str {
