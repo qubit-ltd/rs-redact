@@ -38,6 +38,8 @@ static LARGEST_ALLOCATION: AtomicUsize = AtomicUsize::new(0);
 static ALLOCATION_COUNT: AtomicUsize = AtomicUsize::new(0);
 /// Serializes tests that share process-global allocation counters.
 static ALLOCATION_TEST_LOCK: Mutex<()> = Mutex::new(());
+/// Maximum HTTP-redaction allocations beyond parsing the same JSON body.
+const MAX_UNKEYED_REDACTION_ALLOCATION_OVERHEAD: usize = 32;
 
 /// Global allocator that records the largest narrowly scoped allocation.
 struct MeasuringAllocator;
@@ -271,8 +273,8 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
     );
 }
 
-/// Verifies unkeyed JSON redaction consumes the shared mask budget before
-/// allocating one complete marker per scalar value.
+/// Verifies unkeyed JSON redaction adds bounded work beyond JSON parsing after
+/// consuming the shared mask budget.
 #[test]
 fn test_unkeyed_json_redaction_respects_mask_budget() {
     let _lock = ALLOCATION_TEST_LOCK
@@ -295,6 +297,10 @@ fn test_unkeyed_json_redaction_respects_mask_budget() {
     let redactor = HttpRedactor::new(policy);
     let content_type = HeaderValue::from_static("application/json");
 
+    let (_, _, parser_allocations) = measure_allocations(|| {
+        serde_json::from_slice::<serde_json::Value>(body.as_bytes())
+            .expect("the allocation fixture should be valid JSON")
+    });
     let (result, _, allocation_count) = measure_allocations(|| {
         redactor.redact_body(BodyCapture::complete(body.as_bytes()), Some(&content_type))
     });
@@ -306,7 +312,7 @@ fn test_unkeyed_json_redaction_respects_mask_budget() {
         "mask exhaustion must not leak unkeyed scalar values",
     );
     assert!(
-        allocation_count < 128,
-        "unkeyed JSON redaction allocated one marker per scalar: {allocation_count}",
+        allocation_count <= parser_allocations + MAX_UNKEYED_REDACTION_ALLOCATION_OVERHEAD,
+        "unkeyed JSON redaction allocations exceeded the parser baseline: parser={parser_allocations}, total={allocation_count}",
     );
 }
