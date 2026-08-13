@@ -71,3 +71,21 @@ fn test_redact_json_text_in_place_masks_strict_unkeyed_scalars() {
     assert!(!array.contains("42"));
     assert!(!array.contains("true"));
 }
+
+/// Verifies array scalars remain unkeyed below an allowed object field.
+#[test]
+fn test_redact_json_text_in_place_masks_array_scalars_below_object_field() {
+    let policy = RedactionPolicy::strict()
+        .to_builder()
+        .allow_canonical_exact("items")
+        .expect("the object field should be valid")
+        .build()
+        .expect("the strict policy should build");
+    let mut text = r#"{"items":["raw-array-secret",42,true]}"#.to_owned();
+
+    redact_json_text_in_place(&mut text, &policy);
+
+    assert!(!text.contains("raw-array-secret"));
+    assert!(!text.contains("42"));
+    assert!(!text.contains("true"));
+}

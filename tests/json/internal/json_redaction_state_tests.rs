@@ -60,3 +60,40 @@ fn test_json_redaction_state_uses_root_inclusive_depth_budget() {
     assert_eq!(shallow, r#"{"child":"[depth-limit]"}"#);
     assert_eq!(deep, r#"{"child":{"visible":"value"}}"#);
 }
+
+/// Verifies mutable JSON text redaction matches the lazy JSON view for every
+/// supported JSON shape.
+#[cfg(feature = "serde")]
+#[test]
+fn test_json_redaction_state_mutable_matches_lazy_redaction() {
+    let policy = RedactionPolicy::strict()
+        .to_builder()
+        .allow_canonical_exact("visible")
+        .expect("the allowed object field should be valid")
+        .build()
+        .expect("the strict policy should build");
+    let values = [
+        json!("root-secret"),
+        json!(["root-array-secret", 42, true]),
+        json!({"visible": "object-scalar"}),
+        json!({"visible": ["object-array-secret", 42, true]}),
+        json!({
+            "visible": [
+                ["nested-array-secret", 42, true],
+                {"visible": "array-object-visible", "secret": "array-object-secret"}
+            ]
+        }),
+        json!({"sensitive_container": {"visible": "must-not-leak"}}),
+    ];
+
+    for value in values {
+        let lazy = to_value(RedactedJson::new(&value, &policy))
+            .expect("the lazy redacted view should serialize");
+        let mut text = serde_json::to_string(&value).expect("the source JSON should serialize");
+        redact_json_text_in_place(&mut text, &policy);
+        let mutable = serde_json::from_str::<serde_json::Value>(&text)
+            .expect("the mutable redaction should remain valid JSON");
+
+        assert_eq!(mutable, lazy, "mutable and lazy JSON redaction diverged");
+    }
+}
