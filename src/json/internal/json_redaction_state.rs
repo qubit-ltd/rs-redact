@@ -264,16 +264,20 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// * level - Sensitivity selecting the masking rule.
     fn mask_keyed_value(&mut self, value: &mut Value, level: Sensitivity) {
         let remaining = self.remaining_mask_bytes();
-        let masked = match value {
-            Value::String(text) => self
-                .masking
+        let masked = if let Value::String(text) = value {
+            self.masking
                 .mask_bounded(level, text, remaining)
-                .into_owned(),
-            _ => self.masking.mask_opaque_bounded(level, remaining),
+                .into_owned()
+        } else {
+            self.masking.mask_opaque_bounded(level, remaining)
         };
         let consumed = self.consume_mask_available(masked.len());
         debug_assert_eq!(consumed, masked.len());
-        *value = Value::String(masked);
+        if let Value::String(text) = value {
+            *text = masked;
+        } else {
+            replace_value_iteratively(value, Value::String(masked));
+        }
     }
 
     /// Replaces any JSON value with an opaque mask at the requested level.
@@ -283,7 +287,11 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
             .mask_opaque_bounded(level, self.remaining_mask_bytes());
         let consumed = self.consume_mask_available(masked.len());
         debug_assert_eq!(consumed, masked.len());
-        *value = Value::String(masked);
+        if let Value::String(text) = value {
+            *text = masked;
+        } else {
+            replace_value_iteratively(value, Value::String(masked));
+        }
     }
 
     /// Consumes the remaining budget for one unkeyed marker.
@@ -380,6 +388,33 @@ fn is_depth_rejection(error: &MeasuredBudgetError<JsonResource, usize>) -> bool 
             ..
         })
     )
+}
+
+/// Replaces a JSON value and releases its former tree without recursive drop.
+///
+/// # Parameters
+///
+/// * value - JSON slot receiving the replacement.
+/// * replacement - New value stored in the slot.
+fn replace_value_iteratively(value: &mut Value, replacement: Value) {
+    let original = std::mem::replace(value, replacement);
+    drop_value_iteratively(original);
+}
+
+/// Releases a JSON value tree by emptying every container before it drops.
+///
+/// # Parameters
+///
+/// * root - Detached JSON tree to release.
+fn drop_value_iteratively(root: Value) {
+    let mut pending = vec![root];
+    while let Some(mut value) = pending.pop() {
+        match &mut value {
+            Value::Array(values) => pending.append(values),
+            Value::Object(entries) => pending.extend(std::mem::take(entries).into_values()),
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+        }
+    }
 }
 
 /// Combines the base policy and a context enhancement monotonically.

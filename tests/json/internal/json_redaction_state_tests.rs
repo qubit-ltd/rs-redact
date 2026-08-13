@@ -18,6 +18,42 @@ use qubit_redact::redact_json_text_in_place;
 use serde_json::json;
 #[cfg(feature = "serde")]
 use serde_json::to_value;
+
+/// Verifies masking a deep sensitive container removes every descendant without
+/// making the replacement invalid JSON.
+#[cfg(feature = "serde")]
+#[test]
+fn test_json_redaction_state_masks_deep_sensitive_containers() {
+    let policy = RedactionPolicy::builder()
+        .raise("sensitive", Sensitivity::Secret)
+        .expect("the test field should be valid")
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[masked]"))
+        .expect("the test mask policy should be valid")
+        .build()
+        .expect("the policy should build");
+    let mut text = serde_json::to_string(&json!({
+        "sensitive": {
+            "object-secret": "object-secret-value",
+            "array": [
+                "array-secret-value",
+                {"nested-secret": "nested-secret-value"},
+                [[{"deep-secret": "deep-secret-value"}]]
+            ]
+        }
+    }))
+    .expect("the test JSON should serialize");
+
+    redact_json_text_in_place(&mut text, &policy);
+
+    assert_eq!(text, r#"{"sensitive":"[masked]"}"#);
+    assert!(!text.contains("object-secret-value"));
+    assert!(!text.contains("array-secret-value"));
+    assert!(!text.contains("nested-secret-value"));
+    assert!(!text.contains("deep-secret-value"));
+    serde_json::from_str::<serde_json::Value>(&text)
+        .expect("the masked value should remain valid JSON");
+}
+
 /// Verifies recursive traversal applies one policy across nested objects.
 #[cfg(feature = "serde")]
 #[test]
