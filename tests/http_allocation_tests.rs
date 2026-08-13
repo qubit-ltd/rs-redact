@@ -278,18 +278,20 @@ fn test_unkeyed_json_redaction_respects_mask_budget() {
     let _lock = ALLOCATION_TEST_LOCK
         .lock()
         .expect("allocation measurement lock should not be poisoned");
-    let body = format!(
-        "[{}]",
-        std::iter::repeat_n(r#"\"raw-unkeyed-secret\""#, 256)
-            .collect::<Vec<_>>()
-            .join(","),
-    );
+    let scalars = std::iter::repeat_n(r#"\"raw-unkeyed-secret\""#, 256)
+        .collect::<Vec<_>>()
+        .join(",");
+    let body = format!(r#"{{\"items\":[{scalars}]}}"#);
     let output_limit = BodyBudget::MIN_OUTPUT_BYTES;
     let body_budget = BodyBudget::new(body.len(), output_limit).expect("the body budget is valid");
-    let policy = RedactionPolicy::builder()
-        .body_budget(body_budget)
-        .build()
-        .expect("the HTTP policy is valid");
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .http()
+        .body()
+        .allow_exact("items")
+        .expect("the items field allow rule should be valid");
+    builder.limits().http_body(body_budget);
+    let policy = builder.build().expect("the HTTP policy is valid");
     let redactor = HttpRedactor::new(policy);
     let content_type = HeaderValue::from_static("application/json");
 
