@@ -21,7 +21,11 @@ use qubit_redact::http::BodyCapture;
 use qubit_redact::http::HttpRedactor;
 /// Redacts one sensitive JSON value with the supplied mask policy.
 #[cfg(feature = "http")]
-fn redact_json_value(mask: MaskPolicy, value: &str, max_output: usize) -> String {
+fn redact_json_value(
+    mask: MaskPolicy,
+    value: &str,
+    max_output: usize,
+) -> String {
     let body_policy = RedactionPolicy::builder()
         .disable_floor()
         .raise("password", Sensitivity::Secret)
@@ -35,9 +39,9 @@ fn redact_json_value(mask: MaskPolicy, value: &str, max_output: usize) -> String
         .http()
         .body()
         .replace_rules(body_policy.rules().clone());
-    builder
-        .limits()
-        .http_body(BodyBudget::new(4096, max_output).expect("the budget is valid"));
+    builder.limits().http_body(
+        BodyBudget::new(4096, max_output).expect("the budget is valid"),
+    );
     let policy = builder
         .mask(Sensitivity::Secret, mask)
         .expect("the test mask policy should be valid")
@@ -94,7 +98,8 @@ fn test_fixed_mask_respects_output_budget() {
 #[test]
 fn test_fixed_unicode_mask_uses_valid_utf8_prefix() {
     let replacement = "你".repeat(100);
-    let rendered = redact_json_value(MaskPolicy::fixed(&replacement), "secret", 17);
+    let rendered =
+        redact_json_value(MaskPolicy::fixed(&replacement), "secret", 17);
 
     assert_eq!(rendered, r#"{"pass<truncated>"#);
 }

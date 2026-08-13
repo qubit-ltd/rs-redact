@@ -64,7 +64,10 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     ///
     /// A bounded formatting adapter that owns this redacted view.
     #[inline(always)]
-    pub const fn with_output_limit(self, limit: LogOutputLimit) -> BoundedRedactedDisplay<Self> {
+    pub const fn with_output_limit(
+        self,
+        limit: LogOutputLimit,
+    ) -> BoundedRedactedDisplay<Self> {
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -76,7 +79,8 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     #[must_use = "format the bounded redacted display adapter"]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit = LogOutputLimit::from(self.policy.limits().diagnostic_event());
+        let limit =
+            LogOutputLimit::from(self.policy.limits().diagnostic_event());
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -104,7 +108,9 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
 }
 
 #[cfg(feature = "serde")]
-impl<T: crate::domain::RedactSerialize + ?Sized> serde::Serialize for Redacted<'_, T> {
+impl<T: crate::domain::RedactSerialize + ?Sized> serde::Serialize
+    for Redacted<'_, T>
+{
     /// Delegates serialization to the derived redaction hook.
     ///
     /// # Type Parameters
@@ -181,10 +187,15 @@ mod session_view {
         session: &'session RedactionSession<'policy>,
     }
 
-    impl<'value, 'session, 'policy, T: ?Sized> RedactedSessionView<'value, 'session, 'policy, T> {
+    impl<'value, 'session, 'policy, T: ?Sized>
+        RedactedSessionView<'value, 'session, 'policy, T>
+    {
         /// Creates a nested view borrowing the shared session.
         #[inline(always)]
-        pub fn new(value: &'value T, session: &'session RedactionSession<'policy>) -> Self {
+        pub fn new(
+            value: &'value T,
+            session: &'session RedactionSession<'policy>,
+        ) -> Self {
             Self { value, session }
         }
     }
