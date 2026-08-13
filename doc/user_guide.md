@@ -100,7 +100,7 @@ http = "1.5"
 A `RedactionPolicy` is one immutable snapshot of base field rules, HTTP/URI
 context overrides, an optional minimum `RedactionFloor`, matching behavior,
 one masking table, and static limits. With the `json` feature it also carries a
-`JsonDepthBudget`. `classify_field()` explains the application layer only:
+`JsonDepthLimit`. `classify_field()` explains the application layer only:
 **Sensitive**, **Allowed** by an explicit exception, or **Unknown**. Final
 field safety decisions come from `sensitivity_for()` and the redaction APIs,
 which combine the application layer with the floor. `UnknownFieldPolicy`
@@ -274,7 +274,7 @@ updates that collection. Neither operation turns a map into `LogSafeText`;
 choose an appropriate final formatter at the logging boundary.
 
 With the `json` feature, `RedactedJson`, `RedactedJsonText`, and
-`redact_json_text_in_place` all use the immutable policy's `JsonDepthBudget`.
+`redact_json_text_in_place` all use the immutable policy's `JsonDepthLimit`.
 The root has depth zero; when another object or array would reach the configured
 maximum, that complete subtree is replaced with the policy's opaque Secret mask
 without visiting its descendants. The default maximum depth is 128. Configure a
@@ -491,7 +491,7 @@ paths for diagnostic usefulness; use `RedactionPolicy::strict()` or set
 truthful completeness metadata (`complete`, `prefix`, or a truncated capture),
 so the library never reads a network stream. `BodyBudget` limits inspected and
 rendered body bytes; `InputOutputLimit` separately limits URLs, forms, headers,
-and URL-bearing text; `JsonDepthBudget` bounds JSON and NDJSON recursion.
+and URL-bearing text; `JsonDepthLimit` bounds JSON and NDJSON recursion.
 `BodyRedaction` is the bounded log-safe result;
 `BodyRedactionStatus` tells whether it was structured, passed through,
 fail-closed, binary, or empty, and `BodyRedactionReason` explains a fail-closed
@@ -501,7 +501,7 @@ outcome. No result exposes a raw-body escape hatch.
 | --- | --- | --- |
 | URL query, username, password, fragment | Redacts configured fields and sensitive URL components | `builder.http().query().raise(...)`, `builder.uri()`, `UrlPathPolicy` |
 | Form and headers | Redacts configured fields; output is bounded | `builder.http().header()` and `builder.http().query()` |
-| JSON, NDJSON, form body, multipart | Parses complete input and fails closed when unsafe, over-depth, or truncated | `builder.http().body()`, `builder.limits()`, `JsonDepthBudget` |
+| JSON, NDJSON, form body, multipart | Parses complete input and fails closed when unsafe, over-depth, or truncated | `builder.http().body()`, `builder.limits()`, `JsonDepthLimit` |
 | Opaque text, unkeyed JSON | Conservative by default | Explicit `PassThrough` only after risk review |
 | URL path | Preserved by the standard policy; redacted by strict policy | `UrlPathPolicy::Redact` or `RedactionPolicy::strict()` |
 | Non-UTF-8 body | Returns a binary summary, never raw bytes | `BodyRedactionStatus::Binary` |

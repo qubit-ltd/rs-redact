@@ -20,7 +20,7 @@ Qubit Redact 用于防止敏感信息经 Rust 诊断信息泄露，包括日志�
   限制。嵌套诊断值共享同一个 `RedactionSession`，子值不能重置父级预算。
 - URI 脱敏保留原始 scheme、authority、path、query 顺序和编码，同时按核心策略分别处理
   username/password、query 值以及可配置的 path/fragment 边界。
-- 默认 feature 集为空，核心 crate 没有外部运行时依赖。
+- 默认 feature 集为空；HTTP、JSON、URI 和 Serde 集成均需显式启用。
 
 ## 快速开始
 
@@ -155,7 +155,7 @@ http = "1.5"
   处分割；用户名使用 `username` 字段规则，密码使用 `password` 字段规则。query key
   会严格解码后分类，未遮盖的值保留原始百分号编码。URI 语法无效或 query 组件无法解码时
   返回固定标记。
-- JSON 脱敏到达 `JsonDepthBudget` 后，会用策略的 Secret 不透明掩码替换超深子树；
+- JSON 脱敏到达 `JsonDepthLimit` 后，会用策略的 Secret 不透明掩码替换超深子树；
   默认最大深度为 128。
 - HTTP 脱敏只处理调用方提供的 capture，绝不会自行读取或缓存网络 body。HTTP 行为配置在
   根部 `RedactionPolicy` 上，由 `HttpRedactor` 使用该快照。

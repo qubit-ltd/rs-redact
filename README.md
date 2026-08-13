@@ -26,8 +26,8 @@ explicit log-safe boundary.
 - URI redaction preserves raw scheme, authority, path, query order, and
   encoding while applying the core policy independently to username/password,
   query values, and configurable path/fragment boundaries.
-- The default feature set is empty; the core crate has no external runtime
-  dependencies.
+- The default feature set is empty; optional HTTP, JSON, URI, and Serde
+  integrations are disabled unless explicitly enabled.
 
 ## Quick Start
 
@@ -174,7 +174,7 @@ http = "1.5"
   select a different explicit limit.
 - `RedactMut` replaces logical values only. It does not erase released
   allocations, aliases, copies, or borrowed backing storage.
-- JSON redaction stops at `JsonDepthBudget` and replaces an over-depth subtree
+- JSON redaction stops at `JsonDepthLimit` and replaces an over-depth subtree
   with the policy's opaque Secret mask. The default maximum depth is 128.
 - HTTP redaction accepts only caller-provided captures. It never reads or
   buffers a network body itself. Configure HTTP behavior on the root

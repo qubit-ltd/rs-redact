@@ -94,7 +94,7 @@ http = "1.5"
 
 `RedactionPolicy` 是一份不可变快照，统一包含基础字段规则、HTTP/URI 上下文覆盖、可选最低
 `RedactionFloor`、匹配方式、一套掩码表和静态限制；启用 `json` feature 时还包含
-`JsonDepthBudget`。`http()` 和 `uri()` 视图只保存相对于基础规则的上下文差异。
+`JsonDepthLimit`。`http()` 和 `uri()` 视图只保存相对于基础规则的上下文差异。
 `classify_field()` 只解释应用层为何得到 **Sensitive**（遮盖）、显式例外的
 **Allowed**（允许展示）或 **Unknown**；最终安全裁决由 `sensitivity_for()` 和脱敏 API 完成，
 它们会合并应用层和 floor。`UnknownFieldPolicy` 默认是 `PassThrough`；边界必须遮盖未分类字段时设置
@@ -240,7 +240,7 @@ Map；应通过领域类型定义明确的替换语义。
 变成 `LogSafeText`；最终写日志时仍应选择合适的格式化方式。
 
 启用 `json` feature 后，`RedactedJson`、`RedactedJsonText` 和
-`redact_json_text_in_place` 都使用不可变策略中的 `JsonDepthBudget`。根节点深度为 0；
+`redact_json_text_in_place` 都使用不可变策略中的 `JsonDepthLimit`。根节点深度为 0；
 下一个 object 或 array 到达配置上限时，整个子树会在不访问后代的情况下替换成策略的
 Secret 不透明掩码。默认最大深度为 128；需要更小的正数限制时，使用
 `RedactionPolicyBuilder::limits().json_depth(...)` 配置。
@@ -436,7 +436,7 @@ URL path 以便诊断；当 URL path 可能包含敏感标识符时，请使用
 `HttpRedactor` 应用该快照。`BodyCapture` 提供借用字节和真实完整性元数据（`complete`、
 `prefix` 或截断 capture），因此库不会读取网络流。`BodyBudget` 限制检查和渲染的 body
 字节；`InputOutputLimit` 单独限制 URL、form、header 和含 URL 的文本；
-`JsonDepthBudget` 限制 JSON 和 NDJSON 的递归深度。`BodyRedaction`
+`JsonDepthLimit` 限制 JSON 和 NDJSON 的递归深度。`BodyRedaction`
 是有界日志安全结果；`BodyRedactionStatus` 说明其为结构化成功、策略放行、安全关闭、
 二进制或空结果，`BodyRedactionReason` 则解释安全关闭的原因。所有结果都不提供原始 body
 逃生接口。
@@ -445,7 +445,7 @@ URL path 以便诊断；当 URL path 可能包含敏感标识符时，请使用
 | --- | --- | --- |
 | URL query、用户名、密码、fragment | 遮盖已配置字段和敏感 URL 组成部分 | `builder.http().query().raise(...)`、`builder.uri()`、`UrlPathPolicy` |
 | form 与 Header | 遮盖已配置字段，且输出有界 | `builder.http().header()`、`builder.http().query()` |
-| JSON、NDJSON、form body、multipart | 解析完整输入；不安全、超深或截断时失败时默认遮盖 | `builder.http().body()`、`builder.limits()`、`JsonDepthBudget` |
+| JSON、NDJSON、form body、multipart | 解析完整输入；不安全、超深或截断时失败时默认遮盖 | `builder.http().body()`、`builder.limits()`、`JsonDepthLimit` |
 | 不透明文本、无 key JSON | 默认采取保守策略 | 仅在接受风险后显式使用 `PassThrough` |
 | URL path | 标准策略保留，strict 策略脱敏 | `UrlPathPolicy::Redact` 或 `RedactionPolicy::strict()` |
 | 非 UTF-8 body | 返回二进制摘要，绝不暴露原始字节 | `BodyRedactionStatus::Binary` |
