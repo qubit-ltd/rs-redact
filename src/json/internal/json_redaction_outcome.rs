@@ -17,6 +17,20 @@ pub(crate) struct JsonRedactionOutcome {
 }
 
 impl JsonRedactionOutcome {
+    /// Records that an unkeyed scalar remained visible during traversal.
+    #[allow(dead_code)]
+    #[inline(always)]
+    pub(crate) fn record_passed_unkeyed(&mut self) {
+        self.passed_unkeyed = true;
+    }
+
+    /// Records that traversal could not afford another unkeyed marker.
+    #[allow(dead_code)]
+    #[inline(always)]
+    pub(crate) fn record_mask_exhausted(&mut self) {
+        self.mask_exhausted = true;
+    }
+
     /// Returns an outcome for one retained unkeyed scalar.
     ///
     /// # Returns
