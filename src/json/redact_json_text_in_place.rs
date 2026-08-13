@@ -23,13 +23,11 @@ use crate::Sensitivity;
 ///
 /// # Resource Use
 ///
-/// This explicit data transformation parses and allocates the complete JSON
-/// value. It intentionally does not apply
-/// [`InputOutputLimit`](crate::InputOutputLimit), which only bounds diagnostic
-/// rendering; callers processing untrusted input must enforce their own
-/// request-size limit before calling this function. The policy's
-/// [`JsonDepthLimit`](crate::JsonDepthLimit) always applies and replaces an
-/// over-depth subtree without visiting its descendants.
+/// Redaction of the materialized [`serde_json::Value`] uses an explicit tree
+/// stack and applies [`JsonDepthLimit`](crate::JsonDepthLimit) fail closed.
+/// JSON parsing and final serialization retain the resource and recursion
+/// boundaries of `serde_json`. This guarantee does not apply to the lazy
+/// [`RedactedJson`](crate::RedactedJson) `Debug` or Serde rendering path.
 ///
 /// # Parameters
 ///
