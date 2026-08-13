@@ -139,7 +139,7 @@ fn benchmark_body_redaction(criterion: &mut Criterion) {
     let default_redactor = HttpRedactor::default();
     let tight_redactor =
         redactor_with_budget(BodyBudget::new(4_096, 64).expect("tight benchmark budget is valid"));
-    let truncated = BodyCapture::truncated(&json[..json.len() / 2], Some(json.len()))
+    let truncated = BodyCapture::truncated(&json[..json.len() / 2], json.len())
         .expect("benchmark capture truthfully reports omitted bytes");
     let mut group = criterion.benchmark_group("http_body_redaction");
 

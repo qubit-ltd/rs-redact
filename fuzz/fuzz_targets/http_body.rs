@@ -171,14 +171,11 @@ fuzz_target!(|data: &[u8]| {
         0 => BodyCapture::complete(body),
         1 => BodyCapture::truncated(
             body,
-            Some(
-                body.len()
-                    .saturating_add(usize::from(*source_selector).max(1)),
-            ),
+            body.len()
+                .saturating_add(usize::from(*source_selector).max(1)),
         )
         .expect("constructed total exceeds captured bytes"),
-        _ => BodyCapture::truncated(body, None)
-            .expect("unknown truncated captures are valid"),
+        _ => BodyCapture::truncated_unknown(body),
     };
     let redactor = HttpRedactor::default();
     let redact = || redactor.redact_body(capture, content_type.as_ref());

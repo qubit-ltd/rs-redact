@@ -125,8 +125,7 @@ fn test_source_truncation_can_use_marker_only_budget() {
         .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
         .expect("the HTTP policy is valid");
-    let capture =
-        BodyCapture::truncated(b"a", Some(2)).expect("the captured prefix has valid metadata");
+    let capture = BodyCapture::truncated(b"a", 2).expect("the captured prefix has valid metadata");
     let result = HttpRedactor::new(policy)
         .redact_body(capture, Some(&HeaderValue::from_static("text/plain")));
 

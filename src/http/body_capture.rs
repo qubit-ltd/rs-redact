@@ -120,7 +120,8 @@ impl<'a> BodyCapture<'a> {
     /// # Parameters
     ///
     /// * `bytes` - Captured prefix of the source body.
-    /// * `total_len` - Exact complete source length, or `None` when unknown.
+    /// * `total_len` - Exact complete source length, which must exceed the
+    ///   captured prefix length.
     ///
     /// # Returns
     ///
@@ -128,24 +129,20 @@ impl<'a> BodyCapture<'a> {
     ///
     /// # Errors
     ///
-    /// Returns [`BodyCaptureError::InvalidTotalLength`] when a known total is
-    /// less than or equal to the captured slice length.
+    /// Returns [`BodyCaptureError::InvalidTotalLength`] when `total_len` is
+    /// less than or equal to the captured slice length. Use
+    /// [`Self::truncated_unknown`] when the complete source length is unknown.
     #[inline]
-    pub const fn truncated(
-        bytes: &'a [u8],
-        total_len: Option<usize>,
-    ) -> Result<Self, BodyCaptureError> {
-        if let Some(total) = total_len
-            && total <= bytes.len()
-        {
+    pub const fn truncated(bytes: &'a [u8], total_len: usize) -> Result<Self, BodyCaptureError> {
+        if total_len <= bytes.len() {
             return Err(BodyCaptureError::InvalidTotalLength {
                 captured: bytes.len(),
-                total,
+                total: total_len,
             });
         }
         Ok(Self {
             bytes,
-            total_len,
+            total_len: Some(total_len),
             source_truncated: true,
         })
     }

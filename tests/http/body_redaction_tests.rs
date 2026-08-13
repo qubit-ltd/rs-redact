@@ -260,7 +260,7 @@ fn test_body_redaction_public_types_are_available() {
 #[test]
 fn test_body_redaction_queries_expose_captured_metadata() {
     let body = HttpRedactor::default().redact_body(
-        BodyCapture::truncated(b"visible", Some(10)).expect("the capture metadata should be valid"),
+        BodyCapture::truncated(b"visible", 10).expect("the capture metadata should be valid"),
         None,
     );
     let selected = usize::from(std::process::id() == 0);

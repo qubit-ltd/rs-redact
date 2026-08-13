@@ -38,7 +38,7 @@ fn test_body_capture_complete_sets_exact_metadata() {
 /// Verifies debug output exposes metadata without captured body bytes.
 #[test]
 fn test_body_capture_debug_does_not_expose_bytes() {
-    let capture = BodyCapture::truncated(b"debug-body-secret", Some(32))
+    let capture = BodyCapture::truncated(b"debug-body-secret", 32)
         .expect("the total length exceeds the captured length");
     let rendered = format!("{capture:?}");
 
@@ -55,7 +55,7 @@ fn test_body_capture_truncated_rejects_impossible_total() {
 
     for total in [0, bytes.len() - 1, bytes.len()] {
         assert_eq!(
-            BodyCapture::truncated(bytes, Some(total)),
+            BodyCapture::truncated(bytes, total),
             Err(BodyCaptureError::InvalidTotalLength {
                 captured: bytes.len(),
                 total,
@@ -68,10 +68,8 @@ fn test_body_capture_truncated_rejects_impossible_total() {
 #[test]
 fn test_body_capture_truncated_preserves_metadata() {
     let bytes = b"abcdef";
-    let known =
-        BodyCapture::truncated(bytes, Some(10)).expect("a larger total length should be valid");
-    let unknown =
-        BodyCapture::truncated(bytes, None).expect("an unknown truncated total should be valid");
+    let known = BodyCapture::truncated(bytes, 10).expect("a larger total length should be valid");
+    let unknown = BodyCapture::truncated_unknown(bytes);
 
     assert_eq!(known.bytes(), bytes);
     assert_eq!(known.captured_len(), bytes.len());

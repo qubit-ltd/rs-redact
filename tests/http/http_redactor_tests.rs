@@ -111,7 +111,7 @@ fn test_output_truncation_preserves_multibyte_utf8_boundary() {
 #[test]
 fn test_source_truncation_is_reported_even_when_payload_fits() {
     let redactor = redactor_with_budget(64, 64);
-    let capture = BodyCapture::truncated(b"ok", Some(9))
+    let capture = BodyCapture::truncated(b"ok", 9)
         .expect("the declared source length exceeds the captured prefix");
     let body = redactor.redact_body(capture, Some(&HeaderValue::from_static("text/plain")));
 
@@ -212,8 +212,7 @@ fn test_malformed_and_truncated_multipart_fail_closed() {
     let redactor = HttpRedactor::default();
     let complete = redactor.redact_body(BodyCapture::complete(malformed), Some(&content_type));
     let truncated = redactor.redact_body(
-        BodyCapture::truncated(malformed, None)
-            .expect("unknown-length truncated captures are valid"),
+        BodyCapture::truncated_unknown(malformed),
         Some(&content_type),
     );
 
@@ -461,10 +460,8 @@ fn test_ndjson_and_form_body_redaction_cover_valid_and_invalid_inputs() {
         BodyCapture::complete(b"{\"password\":\"secret\""),
         Some(&ndjson_type),
     );
-    let truncated_ndjson = redactor.redact_body(
-        BodyCapture::truncated(b"{}", None).expect("unknown-length truncated captures are valid"),
-        Some(&ndjson_type),
-    );
+    let truncated_ndjson =
+        redactor.redact_body(BodyCapture::truncated_unknown(b"{}"), Some(&ndjson_type));
     let form = redactor.redact_body(
         BodyCapture::complete(b"password=secret&mode=ok"),
         Some(&form_type),
@@ -473,14 +470,10 @@ fn test_ndjson_and_form_body_redaction_cover_valid_and_invalid_inputs() {
         BodyCapture::complete(b"password=secret&bad=%"),
         Some(&form_type),
     );
-    let truncated_invalid_form = redactor.redact_body(
-        BodyCapture::truncated(b"bad=%", None)
-            .expect("unknown-length truncated captures are valid"),
-        Some(&form_type),
-    );
+    let truncated_invalid_form =
+        redactor.redact_body(BodyCapture::truncated_unknown(b"bad=%"), Some(&form_type));
     let truncated_valid_prefix_form = redactor.redact_body(
-        BodyCapture::truncated(b"note=partial", None)
-            .expect("unknown-length truncated captures are valid"),
+        BodyCapture::truncated_unknown(b"note=partial"),
         Some(&form_type),
     );
 
@@ -660,8 +653,7 @@ fn test_default_redactor_hides_opaque_text_and_truncated_json() {
         Some(&HeaderValue::from_static("text/plain")),
     );
     let truncated = redactor.redact_body(
-        BodyCapture::truncated(br#"{"password":"secret""#, None)
-            .expect("unknown-length truncated captures are valid"),
+        BodyCapture::truncated_unknown(br#"{"password":"secret""#),
         Some(&HeaderValue::from_static("application/json")),
     );
 
