@@ -278,10 +278,10 @@ fn test_unkeyed_json_redaction_respects_mask_budget() {
     let _lock = ALLOCATION_TEST_LOCK
         .lock()
         .expect("allocation measurement lock should not be poisoned");
-    let scalars = std::iter::repeat_n(r#"\"raw-unkeyed-secret\""#, 256)
+    let scalars = std::iter::repeat_n(r#""raw-unkeyed-secret""#, 256)
         .collect::<Vec<_>>()
         .join(",");
-    let body = format!(r#"{{\"items\":[{scalars}]}}"#);
+    let body = format!(r#"{{"items":[{scalars}]}}"#);
     let output_limit = BodyBudget::MIN_OUTPUT_BYTES;
     let body_budget = BodyBudget::new(body.len(), output_limit).expect("the body budget is valid");
     let mut builder = RedactionPolicy::builder();
