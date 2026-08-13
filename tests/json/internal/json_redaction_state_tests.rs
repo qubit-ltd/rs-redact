@@ -135,8 +135,8 @@ fn test_json_redaction_state_mutable_matches_lazy_redaction() {
     for value in values {
         let lazy = to_value(RedactedJson::new(&value, &policy))
             .expect("the lazy redacted view should serialize");
-        let mut text = to_string(&value)
-            .expect("the source JSON should serialize");
+        let mut text =
+            to_string(&value).expect("the source JSON should serialize");
         redact_json_text_in_place(&mut text, &policy);
         let mutable = from_str::<Value>(&text)
             .expect("the mutable redaction should remain valid JSON");
