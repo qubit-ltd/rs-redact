@@ -31,19 +31,6 @@ impl JsonRedactionOutcome {
         self.mask_exhausted = true;
     }
 
-    /// Returns an outcome for one retained unkeyed scalar.
-    ///
-    /// # Returns
-    ///
-    /// An outcome reporting that a scalar passed through.
-    #[inline(always)]
-    pub(crate) const fn passed_unkeyed() -> Self {
-        Self {
-            passed_unkeyed: true,
-            mask_exhausted: false,
-        }
-    }
-
     /// Reports whether any traversed unkeyed scalar remained visible.
     ///
     /// # Returns
@@ -59,25 +46,5 @@ impl JsonRedactionOutcome {
     #[inline(always)]
     pub(crate) const fn is_mask_exhausted(self) -> bool {
         self.mask_exhausted
-    }
-
-    /// Creates an outcome that stops further traversal.
-    #[inline(always)]
-    pub(crate) const fn mask_exhausted() -> Self {
-        Self {
-            passed_unkeyed: false,
-            mask_exhausted: true,
-        }
-    }
-
-    /// Combines this outcome with a nested traversal result.
-    ///
-    /// # Parameters
-    ///
-    /// * other - Nested traversal result.
-    #[inline(always)]
-    pub(crate) fn merge(&mut self, other: Self) {
-        self.passed_unkeyed |= other.passed_unkeyed;
-        self.mask_exhausted |= other.mask_exhausted;
     }
 }

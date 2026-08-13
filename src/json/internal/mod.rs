@@ -9,8 +9,10 @@
 
 mod json_redaction_outcome;
 mod json_redaction_state;
+mod json_redaction_stop;
 mod json_unkeyed_value_policy;
 
 pub(crate) use json_redaction_outcome::JsonRedactionOutcome;
 pub(crate) use json_redaction_state::JsonRedactionState;
+use json_redaction_stop::JsonRedactionStop;
 pub(crate) use json_unkeyed_value_policy::JsonUnkeyedValuePolicy;
