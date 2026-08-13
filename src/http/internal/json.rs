@@ -43,16 +43,9 @@ pub(in crate::http) fn redact(
     json_depth_limit: JsonDepthLimit,
     unkeyed: UnkeyedJsonValuePolicy,
     max_mask_bytes: usize,
-) -> bool {
-    let mut mask_budget =
-        ResourceBudget::new(RedactionResource::Mask, max_mask_bytes);
-    redact_with_mask_budget(
-        redactor,
-        value,
-        json_depth_limit,
-        unkeyed,
-        &mut mask_budget,
-    )
+) -> (bool, bool) {
+    let mut mask_budget = ResourceBudget::new(RedactionResource::Mask, max_mask_bytes);
+    redact_with_mask_budget(redactor, value, json_depth_limit, unkeyed, &mut mask_budget)
 }
 
 /// Redacts a JSON tree while consuming one enclosing mask budget.
@@ -75,17 +68,15 @@ pub(in crate::http) fn redact_with_mask_budget(
     json_depth_limit: JsonDepthLimit,
     unkeyed: UnkeyedJsonValuePolicy,
     mask_budget: &mut ResourceBudget<RedactionResource, usize>,
-) -> bool {
+) -> (bool, bool) {
     let unkeyed = match unkeyed {
-        UnkeyedJsonValuePolicy::PassThrough => {
-            JsonUnkeyedValuePolicy::PassThrough
-        }
+        UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
         UnkeyedJsonValuePolicy::Redact => JsonUnkeyedValuePolicy::Redact {
             marker: UNKEYED_JSON,
             truncated_marker: TRUNCATED,
         },
     };
-    JsonRedactionState::new(
+    let outcome = JsonRedactionState::new(
         redactor.base_rules(),
         redactor.context_rules(),
         redactor.masking(),
@@ -93,8 +84,8 @@ pub(in crate::http) fn redact_with_mask_budget(
         unkeyed,
         Some(mask_budget),
     )
-    .redact(value)
-    .has_passed_unkeyed()
+    .redact(value);
+    (outcome.has_passed_unkeyed(), outcome.is_mask_exhausted())
 }
 
 /// Serializes a redacted JSON value without exceeding the rendered-body limit.
@@ -143,8 +134,7 @@ pub(in crate::http) fn redact_ndjson(
     unkeyed: UnkeyedJsonValuePolicy,
     max_mask_bytes: usize,
 ) -> Option<(String, bool, bool)> {
-    let mut mask_budget =
-        ResourceBudget::new(RedactionResource::Mask, max_mask_bytes);
+    let mut mask_budget = ResourceBudget::new(RedactionResource::Mask, max_mask_bytes);
     redact_ndjson_with_mask_budget(
         redactor,
         bytes,
@@ -194,13 +184,12 @@ pub(in crate::http) fn redact_ndjson_with_mask_budget(
             continue;
         }
         let mut value = from_str(line).ok()?;
-        passed |= redact_with_mask_budget(
-            redactor,
-            &mut value,
-            json_depth_limit,
-            unkeyed,
-            mask_budget,
-        );
+        let (line_passed, exhausted) =
+            redact_with_mask_budget(redactor, &mut value, json_depth_limit, unkeyed, mask_budget);
+        if exhausted {
+            return Some((TRUNCATED.to_string(), false, true));
+        }
+        passed |= line_passed;
         if to_writer(&mut output, &value).is_err() {
             return output.into_string().map(|text| (text, passed, true));
         }

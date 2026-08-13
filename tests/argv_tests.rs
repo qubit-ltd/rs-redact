@@ -29,8 +29,7 @@ use qubit_redact::argv::ArgvItem;
 use qubit_redact::argv::ArgvRedactor;
 /// Creates a redactor with deliberately small diagnostic limits.
 fn bounded_redactor() -> ArgvRedactor {
-    let budget = InputOutputLimit::new(8, 64)
-        .expect("the small diagnostic budget should be valid");
+    let budget = InputOutputLimit::new(8, 64).expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -95,8 +94,7 @@ fn test_redact_items_does_not_guess_plain_item_roles() {
 /// Verifies that heuristic classification applies only to remaining plain
 /// items.
 #[test]
-fn test_redact_heuristically_preserves_explicit_levels_and_matches_plain_options()
- {
+fn test_redact_heuristically_preserves_explicit_levels_and_matches_plain_options() {
     let items = [
         ArgvItem::plain(OsStr::new("tool")),
         ArgvItem::plain(OsStr::new("--password")),
@@ -190,7 +188,7 @@ fn test_redact_heuristically_keeps_empty_sensitive_inline_value() {
 /// application matching is exact.
 #[test]
 fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_application_matching()
- {
+{
     let policy = RedactionPolicy::builder()
         .matching(FieldNameMatching::Exact)
         .build()
@@ -211,8 +209,7 @@ fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_app
 /// Verifies an exact single-dash option resolves application-only rules when
 /// the caller deliberately disables the floor.
 #[test]
-fn test_redact_heuristically_uses_application_rule_for_exact_single_dash_option()
- {
+fn test_redact_heuristically_uses_application_rule_for_exact_single_dash_option() {
     let policy = RedactionPolicy::builder()
         .disable_floor()
         .raise("tenant_secret", Sensitivity::Secret)
@@ -514,8 +511,7 @@ fn test_redact_heuristically_uses_application_mask_for_pending_option_value() {
 
 /// Verifies exact single-dash options use the shared policy mask.
 #[test]
-fn test_redact_heuristically_uses_application_mask_for_exact_single_dash_option()
- {
+fn test_redact_heuristically_uses_application_mask_for_exact_single_dash_option() {
     let floor = RedactionFloor::builder()
         .raise("tenant_secret", Sensitivity::High)
         .expect("the test builder input should be valid")

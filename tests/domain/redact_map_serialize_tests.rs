@@ -58,11 +58,8 @@ impl Write for FailAfter {
 #[test]
 fn test_redact_map_serialize_masks_sensitive_value() {
     let map = BTreeMap::from([(String::from("password"), String::from("raw"))]);
-    let serialized = serde_json::to_string(&RedactedMap::new(
-        &map,
-        RedactionPolicy::default(),
-    ))
-    .expect("redacted map serialization should succeed");
+    let serialized = serde_json::to_string(&RedactedMap::new(&map, RedactionPolicy::default()))
+        .expect("redacted map serialization should succeed");
 
     assert!(!serialized.contains("raw"));
 }
@@ -77,11 +74,8 @@ fn test_redact_map_serialize_supports_borrowed_keys_and_optional_values() {
         ("secret", None),
     ]);
 
-    let serialized = serde_json::to_value(RedactedMap::new(
-        &map,
-        RedactionPolicy::default(),
-    ))
-    .expect("redacted map serialization should succeed");
+    let serialized = serde_json::to_value(RedactedMap::new(&map, RedactionPolicy::default()))
+        .expect("redacted map serialization should succeed");
 
     assert_eq!(
         serialized,
@@ -107,8 +101,6 @@ fn test_redact_map_serialize_propagates_destination_errors() {
         .expect("the map should serialize")
         .len();
     for remaining in 0..output_len {
-        assert!(
-            serde_json::to_writer(FailAfter { remaining }, &redacted).is_err()
-        );
+        assert!(serde_json::to_writer(FailAfter { remaining }, &redacted).is_err());
     }
 }

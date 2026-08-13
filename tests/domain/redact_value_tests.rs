@@ -20,8 +20,7 @@ use qubit_redact::Sensitivity;
 ///
 /// A policy useful for verifying log escaping after masking.
 fn create_control_masking_policy() -> MaskingPolicy {
-    MaskingPolicy::default()
-        .with_policy(Sensitivity::Secret, MaskPolicy::fixed("masked\nvalue"))
+    MaskingPolicy::default().with_policy(Sensitivity::Secret, MaskPolicy::fixed("masked\nvalue"))
 }
 
 /// Verifies support for all borrowed and owned string forms.
@@ -44,11 +43,8 @@ fn test_redact_value_supports_string_forms() {
         assert_eq!(format!("{value:?}"), "\"<redacted>\"");
         assert_eq!(value.to_string(), "<redacted>");
     }
-    let explicit_reference = <&str as RedactValue>::redact_value(
-        &slice,
-        Sensitivity::Secret,
-        &masking,
-    );
+    let explicit_reference =
+        <&str as RedactValue>::redact_value(&slice, Sensitivity::Secret, &masking);
     assert_eq!(explicit_reference.to_string(), "<redacted>");
     assert_eq!(string, "raw-secret");
 }
@@ -63,21 +59,14 @@ fn test_redact_value_preserves_option_shape() {
     let none: Option<String> = None;
 
     let redacted_some = some.redact_value(Sensitivity::Secret, &masking);
-    let redacted_borrowed =
-        borrowed.redact_value(Sensitivity::Secret, &masking);
+    let redacted_borrowed = borrowed.redact_value(Sensitivity::Secret, &masking);
     let redacted_cow = cow.redact_value(Sensitivity::Secret, &masking);
     let redacted_none = none.redact_value(Sensitivity::Secret, &masking);
-    let explicit_borrowed = <Option<&str> as RedactValue>::redact_value(
-        &borrowed,
-        Sensitivity::Secret,
-        &masking,
-    );
+    let explicit_borrowed =
+        <Option<&str> as RedactValue>::redact_value(&borrowed, Sensitivity::Secret, &masking);
     let explicit_none: Option<&str> = None;
-    let explicit_none = <Option<&str> as RedactValue>::redact_value(
-        &explicit_none,
-        Sensitivity::Secret,
-        &masking,
-    );
+    let explicit_none =
+        <Option<&str> as RedactValue>::redact_value(&explicit_none, Sensitivity::Secret, &masking);
 
     assert_eq!(format!("{redacted_some:?}"), "Some(\"<redacted>\")");
     assert_eq!(redacted_some.to_string(), "Some(<redacted>)");
@@ -97,8 +86,7 @@ fn test_redact_value_preserves_option_shape() {
 fn test_redacted_value_display_is_log_safe() {
     let masking = create_control_masking_policy();
     let value = "raw-secret".redact_value(Sensitivity::Secret, &masking);
-    let optional =
-        Some("raw-secret").redact_value(Sensitivity::Secret, &masking);
+    let optional = Some("raw-secret").redact_value(Sensitivity::Secret, &masking);
 
     assert_eq!(format!("{value:?}"), "\"masked\\nvalue\"");
     assert_eq!(value.to_string(), r"masked\nvalue");

@@ -9,8 +9,8 @@
 
 #![cfg(feature = "json")]
 
-use qubit_json::JsonValueBudget;
-use qubit_json::JsonValueLimits;
+use qubit_budget::json::JsonValueBudget;
+use qubit_budget::json::JsonValueLimits;
 use qubit_redact::__qubit_redact_json;
 __qubit_redact_json! {
     const JSON_FEATURE_GATE_MARKER: &str = "json";

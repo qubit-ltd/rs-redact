@@ -17,8 +17,7 @@ use qubit_redact::UriRedactor;
 #[test]
 fn test_uri_policy_defaults_preserve_global_snapshot() {
     let expected = {
-        let mut builder =
-            RedactionPolicy::builder_from(&RedactionPolicy::standard());
+        let mut builder = RedactionPolicy::builder_from(&RedactionPolicy::standard());
         builder
             .uri()
             .path(UriPathPolicy::Redact)
