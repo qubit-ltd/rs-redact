@@ -543,6 +543,27 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
     assert_eq!(scalar.to_string(), "42");
 }
 
+/// Verifies allowed object-array scalars remain unkeyed when passed through.
+#[test]
+fn test_json_object_array_unkeyed_pass_through_reports_passed_through() {
+    let policy = RedactionPolicy::strict()
+        .to_builder()
+        .allow_canonical_exact("items")
+        .expect("the object field should be valid")
+        .unkeyed_json_value_policy(UnkeyedJsonValuePolicy::PassThrough)
+        .build()
+        .expect("the strict policy should build");
+    let body = HttpRedactor::new(policy).redact_body(
+        BodyCapture::complete(br#"{"items":["visible",42,true]}"#),
+        Some(&HeaderValue::from_static("application/json")),
+    );
+
+    assert_eq!(body.status(), BodyRedactionStatus::PassedThrough);
+    assert!(body.to_string().contains("visible"));
+    assert!(body.to_string().contains("42"));
+    assert!(body.to_string().contains("true"));
+}
+
 /// Verifies sensitive structured JSON values never feed their serialized form
 /// into an edge-preserving mask.
 #[test]

@@ -280,7 +280,9 @@ fn test_unkeyed_json_redaction_respects_mask_budget() {
         .expect("allocation measurement lock should not be poisoned");
     let body = format!(
         "[{}]",
-        std::iter::repeat_n("0", 256).collect::<Vec<_>>().join(","),
+        std::iter::repeat_n(r#"\"raw-unkeyed-secret\""#, 256)
+            .collect::<Vec<_>>()
+            .join(","),
     );
     let output_limit = BodyBudget::MIN_OUTPUT_BYTES;
     let body_budget = BodyBudget::new(body.len(), output_limit).expect("the body budget is valid");
@@ -297,6 +299,10 @@ fn test_unkeyed_json_redaction_respects_mask_budget() {
 
     assert_eq!(result.to_string(), "<truncated>");
     assert!(result.is_truncated());
+    assert!(
+        !result.to_string().contains("raw-unkeyed-secret"),
+        "mask exhaustion must not leak unkeyed scalar values",
+    );
     assert!(
         allocation_count < 128,
         "unkeyed JSON redaction allocated one marker per scalar: {allocation_count}",
