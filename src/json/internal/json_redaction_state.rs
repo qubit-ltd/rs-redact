@@ -22,7 +22,6 @@ use qubit_json::tree::JsonTreeProcessor;
 use serde_json::Value;
 
 use super::JsonRedactionOutcome;
-use super::JsonRedactionStop;
 use super::JsonUnkeyedValuePolicy;
 use crate::JsonDepthLimit;
 use crate::MaskingPolicy;
@@ -31,6 +30,14 @@ use crate::RedactionRules;
 use crate::Sensitivity;
 use crate::policy::RedactionResource;
 use crate::policy::ResolvedField;
+
+mod stop {
+    /// Stops one mutable JSON traversal after the mask budget is exhausted.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) struct JsonRedactionStop;
+}
+
+use stop::JsonRedactionStop;
 
 /// Mutable state shared by one JSON tree traversal.
 pub(crate) struct JsonRedactionState<'policy, 'budget, 'marker> {

@@ -15,7 +15,13 @@ use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
 use qubit_redact::redact_json_text_in_place;
 #[cfg(feature = "serde")]
+use serde_json::Value;
+#[cfg(feature = "serde")]
+use serde_json::from_str;
+#[cfg(feature = "serde")]
 use serde_json::json;
+#[cfg(feature = "serde")]
+use serde_json::to_string;
 #[cfg(feature = "serde")]
 use serde_json::to_value;
 
@@ -31,7 +37,7 @@ fn test_json_redaction_state_masks_deep_sensitive_containers() {
         .expect("the test mask policy should be valid")
         .build()
         .expect("the policy should build");
-    let mut text = serde_json::to_string(&json!({
+    let mut text = to_string(&json!({
         "sensitive": {
             "object-secret": "object-secret-value",
             "array": [
@@ -50,7 +56,7 @@ fn test_json_redaction_state_masks_deep_sensitive_containers() {
     assert!(!text.contains("array-secret-value"));
     assert!(!text.contains("nested-secret-value"));
     assert!(!text.contains("deep-secret-value"));
-    serde_json::from_str::<serde_json::Value>(&text)
+    from_str::<Value>(&text)
         .expect("the masked value should remain valid JSON");
 }
 
@@ -129,10 +135,10 @@ fn test_json_redaction_state_mutable_matches_lazy_redaction() {
     for value in values {
         let lazy = to_value(RedactedJson::new(&value, &policy))
             .expect("the lazy redacted view should serialize");
-        let mut text = serde_json::to_string(&value)
+        let mut text = to_string(&value)
             .expect("the source JSON should serialize");
         redact_json_text_in_place(&mut text, &policy);
-        let mutable = serde_json::from_str::<serde_json::Value>(&text)
+        let mutable = from_str::<Value>(&text)
             .expect("the mutable redaction should remain valid JSON");
 
         assert_eq!(mutable, lazy, "mutable and lazy JSON redaction diverged");
