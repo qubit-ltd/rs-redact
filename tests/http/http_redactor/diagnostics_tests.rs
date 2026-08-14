@@ -8,7 +8,6 @@
 //! Tests for shared HTTP diagnostic budget helpers.
 
 use qubit_redact::RedactionPolicy;
-use qubit_redact::RedactionSession;
 use qubit_redact::http::BodyCapture;
 use qubit_redact::http::BodyRedactionReason;
 use qubit_redact::http::BodyRedactionStatus;
@@ -17,8 +16,8 @@ use qubit_redact::http::InputOutputLimit;
 /// Verifies diagnostic input limits return the fixed safe marker.
 #[test]
 fn test_diagnostic_input_limit_returns_fixed_marker() {
-    let budget = InputOutputLimit::new(16, 128)
-        .expect("test diagnostic budget should satisfy minimums");
+    let budget =
+        InputOutputLimit::new(16, 128).expect("test diagnostic budget should satisfy minimums");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -44,23 +43,20 @@ fn test_session_fallback_markers_respect_cumulative_output_limit() {
         .build()
         .expect("HTTP policy should be valid");
     let redactor = HttpRedactor::new(policy);
-    let session = RedactionSession::diagnostic(redactor.policy());
+    let mut session = redactor.session();
 
-    let first = redactor.redact_url_str_with_session(
-        "https://example.test/?password=secret",
-        &session,
-    );
-    let second = redactor.redact_url_str_with_session(
-        "https://example.test/?password=secret",
-        &session,
-    );
+    let first = session
+        .http()
+        .redact_url_str("https://example.test/?password=secret");
+    let second = session
+        .http()
+        .redact_url_str("https://example.test/?password=secret");
 
     assert_eq!(first.as_str(), "<redacted: diagnostic limit exceeded>",);
     assert!(second.as_str().is_empty());
     assert_eq!(session.remaining_output_bytes(), 0);
     assert!(
-        first.as_str().len().saturating_add(second.as_str().len())
-            <= budget.max_output_bytes()
+        first.as_str().len().saturating_add(second.as_str().len()) <= budget.max_output_bytes()
     );
 }
 
@@ -68,25 +64,21 @@ fn test_session_fallback_markers_respect_cumulative_output_limit() {
 /// an unsupported media type.
 #[test]
 fn test_session_body_input_limit_reports_budget_failure() {
-    let budget = InputOutputLimit::new(8, 128)
-        .expect("test diagnostic budget should satisfy minimums");
+    let budget =
+        InputOutputLimit::new(8, 128).expect("test diagnostic budget should satisfy minimums");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
         .expect("HTTP policy should be valid");
     let redactor = HttpRedactor::new(policy);
-    let session = RedactionSession::diagnostic(redactor.policy());
+    let mut session = redactor.session();
 
-    let result = redactor.redact_body_with_session(
-        BodyCapture::complete(br#"{"password":"secret"}"#),
-        None,
-        &session,
-    );
+    let result = session
+        .http()
+        .redact_body(BodyCapture::complete(br#"{"password":"secret"}"#), None);
 
     assert_eq!(
         result.status(),
-        BodyRedactionStatus::Redacted(
-            BodyRedactionReason::DiagnosticBudgetExceeded,
-        ),
+        BodyRedactionStatus::Redacted(BodyRedactionReason::DiagnosticBudgetExceeded,),
     );
 }

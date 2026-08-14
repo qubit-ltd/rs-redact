@@ -68,8 +68,7 @@ fn test_body_capture_truncated_rejects_impossible_total() {
 #[test]
 fn test_body_capture_truncated_preserves_metadata() {
     let bytes = b"abcdef";
-    let known = BodyCapture::truncated(bytes, 10)
-        .expect("a larger total length should be valid");
+    let known = BodyCapture::truncated(bytes, 10).expect("a larger total length should be valid");
     let unknown = BodyCapture::truncated_unknown(bytes);
 
     assert_eq!(known.bytes(), bytes);
