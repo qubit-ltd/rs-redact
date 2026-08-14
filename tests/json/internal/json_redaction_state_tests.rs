@@ -14,9 +14,7 @@ use qubit_redact::RedactedJson;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
 use qubit_redact::redact_json_text_in_place;
-#[cfg(feature = "serde")]
 use serde_json::Value;
-#[cfg(feature = "serde")]
 use serde_json::from_str;
 #[cfg(feature = "serde")]
 use serde_json::json;
@@ -105,6 +103,30 @@ fn test_json_redaction_state_uses_root_inclusive_depth_budget() {
 
     assert_eq!(shallow, r#"{"child":"[depth-limit]"}"#);
     assert_eq!(deep, r#"{"child":{"visible":"value"}}"#);
+}
+
+/// Verifies a handled depth rejection preserves earlier siblings and masks the
+/// rejected subtree before serialization.
+#[test]
+fn test_json_redaction_state_keeps_prior_sibling_when_depth_rejection_is_masked()
+ {
+    let policy = RedactionPolicy::builder()
+        .json_depth_limit(
+            JsonDepthLimit::new(1).expect("the depth limit is valid"),
+        )
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
+        .expect("the mask policy is valid")
+        .build()
+        .expect("the policy should build");
+    let mut text = r#"{"visible":"kept","child":{"secret":"raw"}}"#.to_owned();
+
+    redact_json_text_in_place(&mut text, &policy);
+
+    let value = from_str::<Value>(&text)
+        .expect("the depth-limited output should remain valid JSON");
+    assert_eq!(value["visible"], "kept");
+    assert_eq!(value["child"], "[depth-limit]");
+    assert!(!text.contains("raw"));
 }
 
 /// Verifies mutable JSON text redaction matches the lazy JSON view for every
