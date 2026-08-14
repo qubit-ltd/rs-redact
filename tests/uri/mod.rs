@@ -26,6 +26,8 @@ mod uri_redaction_policy_tests;
 #[cfg(feature = "uri")]
 mod uri_redaction_reason_tests;
 #[cfg(feature = "uri")]
+mod uri_redaction_session_tests;
+#[cfg(feature = "uri")]
 mod uri_redaction_status_tests;
 #[cfg(feature = "uri")]
 mod uri_redaction_tests;

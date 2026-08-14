@@ -33,10 +33,7 @@ fn test_argv_redactor_supports_documented_heuristic_forms() {
             ArgvItem::plain(OsStr::new("-password")),
             ArgvItem::plain(OsStr::new("separate-single")),
             ArgvItem::plain(OsStr::new("PASSWORD=assignment")),
-            ArgvItem::sensitive(
-                OsStr::new("authoritative"),
-                Sensitivity::Secret,
-            ),
+            ArgvItem::sensitive(OsStr::new("authoritative"), Sensitivity::Secret),
         ])
         .to_string();
 
@@ -55,9 +52,7 @@ fn test_argv_redactor_supports_documented_heuristic_forms() {
 #[test]
 fn test_argv_redactor_masks_sensitive_jvm_property() {
     let rendered = ArgvRedactor::default()
-        .redact_heuristically([ArgvItem::plain(OsStr::new(
-            "-Dpassword=jvm-secret",
-        ))])
+        .redact_heuristically([ArgvItem::plain(OsStr::new("-Dpassword=jvm-secret"))])
         .to_string();
 
     assert!(rendered.contains("-Dpassword=<redacted>"));
@@ -85,10 +80,7 @@ fn test_argv_redactor_masks_unsupported_forms_when_explicitly_sensitive() {
     let rendered = ArgvRedactor::default()
         .redact_heuristically([
             ArgvItem::sensitive(OsStr::new("-pSECRET"), Sensitivity::Secret),
-            ArgvItem::sensitive(
-                OsStr::new("-Dpassword=SECRET"),
-                Sensitivity::Secret,
-            ),
+            ArgvItem::sensitive(OsStr::new("-Dpassword=SECRET"), Sensitivity::Secret),
             ArgvItem::sensitive(
                 OsStr::new("echo --password shell-secret"),
                 Sensitivity::Secret,

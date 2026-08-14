@@ -34,10 +34,7 @@ impl RedactedEnvPair {
     ///
     /// A pair that renders in `NAME=VALUE` form.
     #[inline(always)]
-    pub(super) fn new(
-        name: LogSafeText<'static>,
-        value: LogSafeText<'static>,
-    ) -> Self {
+    pub(super) fn new(name: LogSafeText<'static>, value: LogSafeText<'static>) -> Self {
         Self::from_rendered(format!("{}={}", name.as_str(), value.as_str()))
     }
 

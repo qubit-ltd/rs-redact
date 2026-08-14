@@ -5,6 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+mod env_redaction_session_tests;
 mod env_redactor_tests;
 mod mod_tests;
 mod redacted_env_pair_tests;

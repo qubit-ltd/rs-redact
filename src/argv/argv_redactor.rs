@@ -12,12 +12,8 @@ use std::ffi::OsStr;
 use super::ArgvItem;
 use super::RedactedArgv;
 use super::pending_field::PendingField;
-use super::redacted_argv_builder::TRUNCATED_ITEM;
-use crate::RedactionSession;
 use crate::Redactor;
 use crate::Sensitivity;
-use crate::policy::DiagnosticInputBudget;
-use crate::policy::OutputCharge;
 use crate::policy::ResolvedField;
 
 /// Applies one immutable redaction policy to argument vectors.
@@ -76,51 +72,8 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let session = RedactionSession::diagnostic(self.redactor.policy());
-        self.redact_items_with_session(items, &session)
-    }
-
-    /// Redacts explicitly classified values using shared input accounting.
-    ///
-    /// The caller owns `input_budget` and may pass it to later diagnostic
-    /// segments, ensuring the combined rendering never inspects more source
-    /// bytes than the configured policy permits.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `'a` - Lifetime of argument values borrowed by the iterator.
-    /// * `I` - Iterator source yielding borrowed [`ArgvItem`] values.
-    ///
-    /// # Parameters
-    ///
-    /// * `items` - Borrowed argv items with optional authoritative levels.
-    /// * `input_budget` - Shared source-byte accounting for this diagnostic.
-    ///
-    /// # Returns
-    ///
-    /// A log-safe rendering in input order, ending with `<truncated>` when the
-    /// next item cannot be inspected within the shared budget.
-    pub(crate) fn redact_items_with_input_budget<'a, I>(
-        &self,
-        items: I,
-        input_budget: &mut DiagnosticInputBudget,
-    ) -> RedactedArgv
-    where
-        I: IntoIterator<Item = ArgvItem<'a>>,
-    {
-        let mut rendered = RedactedArgv::builder(
-            self.redactor.policy().limits().diagnostic_event(),
-        );
-        for item in items {
-            if !input_budget.reserve(item.value().as_encoded_bytes().len()) {
-                let _ = rendered.push(TRUNCATED_ITEM);
-                break;
-            }
-            if !rendered.push(&self.render_explicit_or_plain(item)) {
-                break;
-            }
-        }
-        rendered.finish()
+        let mut session = self.redactor.session();
+        session.argv().redact_items(items)
     }
 
     /// Redacts explicit sensitive values and heuristically classified plain
@@ -152,187 +105,55 @@ impl ArgvRedactor {
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
-        let session = RedactionSession::diagnostic(self.redactor.policy());
-        self.redact_heuristically_with_session(items, &session)
+        let mut session = self.redactor.session();
+        session.argv().redact_heuristically(items)
     }
 
-    /// Redacts explicit items while sharing cumulative input and output
-    /// accounting with other diagnostic adapters.
-    pub fn redact_items_with_session<'a, I>(
-        &self,
-        items: I,
-        session: &RedactionSession<'_>,
-    ) -> RedactedArgv
-    where
-        I: IntoIterator<Item = ArgvItem<'a>>,
-    {
-        self.render_with_session(items, session, |redactor, items, budget| {
-            redactor.redact_items_with_input_budget(items, budget)
-        })
-    }
-
-    /// Redacts explicit and heuristic items through a shared diagnostic
-    /// session.
-    pub fn redact_heuristically_with_session<'a, I>(
-        &self,
-        items: I,
-        session: &RedactionSession<'_>,
-    ) -> RedactedArgv
-    where
-        I: IntoIterator<Item = ArgvItem<'a>>,
-    {
-        self.render_with_session(items, session, |redactor, items, budget| {
-            redactor.redact_heuristically_with_input_budget(items, budget)
-        })
-    }
-
-    fn render_with_session<'a, I, F>(
-        &self,
-        items: I,
-        session: &RedactionSession<'_>,
-        render: F,
-    ) -> RedactedArgv
-    where
-        I: IntoIterator<Item = ArgvItem<'a>>,
-        F: FnOnce(&Self, I, &mut DiagnosticInputBudget) -> RedactedArgv,
-    {
-        let mut input_budget =
-            DiagnosticInputBudget::new(session.remaining_input_bytes());
-        let result = render(self, items, &mut input_budget);
-        let _ = session.consume_input(input_budget.charged_input_bytes());
-        if input_budget.is_closed() {
-            session.close_input();
-        }
-        match session.charge_output_or_fallback(
-            result.as_log_safe_text().as_str().len(),
-            TRUNCATED_ITEM.len(),
-        ) {
-            OutputCharge::Complete => result,
-            OutputCharge::Fallback => {
-                RedactedArgv::from_rendered(TRUNCATED_ITEM.to_owned())
-            }
-            OutputCharge::Exhausted => {
-                RedactedArgv::from_rendered(String::new())
-            }
-        }
-    }
-
-    /// Redacts explicit and heuristic values using shared input accounting.
-    ///
-    /// The caller owns `input_budget` and may pass it to later diagnostic
-    /// segments, ensuring the combined rendering never inspects more source
-    /// bytes than the configured policy permits.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `'a` - Lifetime of argument values borrowed by the iterator.
-    /// * `I` - Iterator source yielding borrowed [`ArgvItem`] values.
-    ///
-    /// # Parameters
-    ///
-    /// * `items` - Borrowed argv items with optional authoritative levels.
-    /// * `input_budget` - Shared source-byte accounting for this diagnostic.
-    ///
-    /// # Returns
-    ///
-    /// A log-safe rendering in input order, ending with `<truncated>` when the
-    /// next item cannot be inspected within the shared budget.
-    pub(crate) fn redact_heuristically_with_input_budget<'a, I>(
-        &self,
-        items: I,
-        input_budget: &mut DiagnosticInputBudget,
-    ) -> RedactedArgv
-    where
-        I: IntoIterator<Item = ArgvItem<'a>>,
-    {
-        let mut rendered = RedactedArgv::builder(
-            self.redactor.policy().limits().diagnostic_event(),
-        );
-        let mut pending_field = None;
-
-        for item in items {
-            if !input_budget.reserve(item.value().as_encoded_bytes().len()) {
-                let _ = rendered.push(TRUNCATED_ITEM);
-                break;
-            }
-            if let Some(level) = item.sensitivity() {
-                pending_field = None;
-                if !rendered.push(&self.mask_os_value(item.value(), level)) {
-                    break;
-                }
-                continue;
-            }
-            if !rendered
-                .push(&self.redact_plain_item(item.value(), &mut pending_field))
-            {
-                break;
-            }
-        }
-        rendered.finish()
-    }
-
-    /// Renders an item according to explicit sensitivity without heuristics.
-    ///
-    /// # Parameters
-    ///
-    /// * `item` - Item whose explicit metadata is authoritative.
-    ///
-    /// # Returns
-    ///
-    /// The masked or plain owned rendering.
+    /// Renders an item while bounding any generated mask.
     #[inline]
-    fn render_explicit_or_plain(&self, item: ArgvItem<'_>) -> String {
+    pub(super) fn render_explicit_or_plain_bounded(
+        &self,
+        item: ArgvItem<'_>,
+        max_output_bytes: usize,
+    ) -> String {
         match item.sensitivity() {
-            Some(level) => self.mask_os_value(item.value(), level),
+            Some(level) => self.mask_os_value_bounded(item.value(), level, max_output_bytes),
             None => item.value().to_string_lossy().into_owned(),
         }
     }
 
-    /// Masks an operating-system value without exposing invalid UTF-8 bytes.
-    ///
-    /// # Parameters
-    ///
-    /// * `value` - Operating-system value to mask.
-    /// * `level` - Explicit masking level for valid UTF-8 input.
-    ///
-    /// # Returns
-    ///
-    /// The configured mask, using the secret opaque replacement when `value`
-    /// is not valid UTF-8.
+    /// Masks an operating-system value with an explicit output ceiling.
     #[inline]
-    fn mask_os_value(&self, value: &OsStr, level: Sensitivity) -> String {
+    pub(super) fn mask_os_value_bounded(
+        &self,
+        value: &OsStr,
+        level: Sensitivity,
+        max_output_bytes: usize,
+    ) -> String {
         match value.to_str() {
             Some(value) => self
                 .redactor
                 .policy()
                 .masking()
-                .mask_bounded(level, value, self.mask_output_limit())
+                .mask_bounded(level, value, max_output_bytes)
                 .into_owned(),
-            None => self.mask_opaque_value(),
+            None => self.mask_opaque_value_bounded(max_output_bytes),
         }
     }
 
-    /// Redacts one plain item while updating pending-value state.
-    ///
-    /// # Parameters
-    ///
-    /// * `value` - Plain operating-system argument to inspect.
-    /// * `pending_sensitivity` - Level expected for the next separate value.
-    ///
-    /// # Returns
-    ///
-    /// The redacted owned rendering of `value`.
-    fn redact_plain_item(
+    /// Redacts one plain item with a bounded mask ceiling.
+    pub(super) fn redact_plain_item_bounded(
         &self,
         value: &OsStr,
         pending_field: &mut Option<PendingField>,
+        max_output_bytes: usize,
     ) -> String {
         let Some(value) = value.to_str() else {
             *pending_field = Some(PendingField {
                 field: String::new(),
                 exact: false,
             });
-            return self.mask_opaque_value();
+            return self.mask_opaque_value_bounded(max_output_bytes);
         };
 
         let option = self.option_field(value);
@@ -346,17 +167,17 @@ impl ArgvRedactor {
                 });
             }
             if pending.field.is_empty() {
-                return self.mask_opaque_value();
+                return self.mask_opaque_value_bounded(max_output_bytes);
             }
-            return self.mask_pending_value(&pending, value);
+            return self.mask_pending_value_bounded(&pending, value, max_output_bytes);
         }
-        if let Some(value) = self.redact_assignment(value) {
+        if let Some(value) = self.redact_assignment_bounded(value, max_output_bytes) {
             return value;
         }
-        if let Some(value) = self.redact_inline_option(value) {
+        if let Some(value) = self.redact_inline_option_bounded(value, max_output_bytes) {
             return value;
         }
-        if let Some(value) = self.redact_jvm_property(value) {
+        if let Some(value) = self.redact_jvm_property_bounded(value, max_output_bytes) {
             return value;
         }
         if let Some((field, exact)) = option
@@ -400,16 +221,8 @@ impl ArgvRedactor {
         }
     }
 
-    /// Redacts a plain `NAME=value` token when its name is sensitive.
-    ///
-    /// # Parameters
-    ///
-    /// * `value` - Plain argument that may be an assignment.
-    ///
-    /// # Returns
-    ///
-    /// `Some(rendering)` for an assignment-like argument, or `None` otherwise.
-    fn redact_assignment(&self, value: &str) -> Option<String> {
+    /// Redacts an assignment while bounding any generated mask.
+    fn redact_assignment_bounded(&self, value: &str, max_output_bytes: usize) -> Option<String> {
         if value.starts_with('-') {
             return None;
         }
@@ -417,7 +230,7 @@ impl ArgvRedactor {
         if name.is_empty() {
             return None;
         }
-        let redacted = self.mask_field_value(name, raw_value)?;
+        let redacted = self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
         Some(format!("{name}={redacted}"))
     }
 
@@ -431,40 +244,34 @@ impl ArgvRedactor {
     ///
     /// `Some(rendering)` for a sensitive long inline option, or `None`
     /// otherwise. Single-dash attached forms remain uninterpreted.
-    #[inline]
-    fn redact_inline_option(&self, value: &str) -> Option<String> {
+    /// Redacts an inline option while bounding any generated mask.
+    fn redact_inline_option_bounded(&self, value: &str, max_output_bytes: usize) -> Option<String> {
         if !value.starts_with("--") {
             return None;
         }
         let (left, raw_value) = value.split_once('=')?;
         let name = option_name(left)?;
-        let redacted = self.mask_field_value(name, raw_value)?;
+        let redacted = self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
         Some(format!("{left}={redacted}"))
     }
 
-    /// Redacts a JVM `-Dname=value` property when its name is sensitive.
-    ///
-    /// # Parameters
-    ///
-    /// * `value` - Plain argument that may be a JVM system property.
-    ///
-    /// # Returns
-    ///
-    /// `Some(rendering)` for a sensitive JVM property, or `None` otherwise.
-    fn redact_jvm_property(&self, value: &str) -> Option<String> {
+    /// Redacts a JVM property while bounding any generated mask.
+    fn redact_jvm_property_bounded(&self, value: &str, max_output_bytes: usize) -> Option<String> {
         let property = value.strip_prefix("-D")?;
         let (name, raw_value) = property.split_once('=')?;
         if name.is_empty() {
             return None;
         }
-        let redacted = self.mask_field_value(name, raw_value)?;
+        let redacted = self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
         Some(format!("-D{name}={redacted}"))
     }
 
-    fn mask_pending_value(
+    /// Masks one pending option value with a bounded mask ceiling.
+    fn mask_pending_value_bounded(
         &self,
         pending: &PendingField,
         value: &str,
+        max_output_bytes: usize,
     ) -> String {
         let resolved = if pending.exact {
             self.redactor.policy().resolve_field_exact(&pending.field)
@@ -476,52 +283,39 @@ impl ArgvRedactor {
                 .redactor
                 .policy()
                 .masking()
-                .mask_bounded(sensitivity, value, self.mask_output_limit())
+                .mask_bounded(sensitivity, value, max_output_bytes)
                 .into_owned(),
             ResolvedField::PassThrough => value.to_owned(),
         }
     }
 
-    /// Masks one field value using its atomic field-resolution result.
-    fn mask_field_value(&self, field: &str, value: &str) -> Option<String> {
+    /// Masks one classified field with a bounded mask ceiling.
+    fn mask_field_value_bounded(
+        &self,
+        field: &str,
+        value: &str,
+        max_output_bytes: usize,
+    ) -> Option<String> {
         let resolved = self.redactor.policy().resolve_field(field);
         match resolved {
             ResolvedField::Sensitive { sensitivity } => Some(
                 self.redactor
                     .policy()
                     .masking()
-                    .mask_bounded(sensitivity, value, self.mask_output_limit())
+                    .mask_bounded(sensitivity, value, max_output_bytes)
                     .into_owned(),
             ),
             ResolvedField::PassThrough => None,
         }
     }
 
-    /// Produces the configured secret replacement without reading opaque bytes.
-    ///
-    /// # Returns
-    ///
-    /// The secret-level opaque replacement.
+    /// Produces an opaque secret replacement with an explicit ceiling.
     #[inline(always)]
-    fn mask_opaque_value(&self) -> String {
+    pub(super) fn mask_opaque_value_bounded(&self, max_output_bytes: usize) -> String {
         self.redactor
             .policy()
             .masking()
-            .mask_opaque_bounded(Sensitivity::Secret, self.mask_output_limit())
-    }
-
-    /// Returns the largest mask that can contribute to one argv diagnostic.
-    ///
-    /// # Returns
-    ///
-    /// The configured final diagnostic output limit in bytes.
-    #[inline(always)]
-    fn mask_output_limit(&self) -> usize {
-        self.redactor
-            .policy()
-            .limits()
-            .diagnostic_event()
-            .max_output_bytes()
+            .mask_opaque_bounded(Sensitivity::Secret, max_output_bytes)
     }
 }
 

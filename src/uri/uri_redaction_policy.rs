@@ -36,10 +36,7 @@ impl UriPolicy {
         self.inner.fragment_policy
     }
 
-    pub(crate) fn new(
-        path_policy: UriPathPolicy,
-        fragment_policy: UriFragmentPolicy,
-    ) -> Self {
+    pub(crate) fn new(path_policy: UriPathPolicy, fragment_policy: UriFragmentPolicy) -> Self {
         Self {
             inner: Arc::new(UriPolicyInner {
                 path_policy,

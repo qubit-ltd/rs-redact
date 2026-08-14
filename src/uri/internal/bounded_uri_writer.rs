@@ -7,6 +7,7 @@
 // =============================================================================
 //! Byte-bounded URI rendering.
 
+use crate::policy::FragmentCompletion;
 use crate::text::log_escape::encode_log_safe_character;
 
 const TRUNCATED: &str = "<truncated>";
@@ -57,8 +58,7 @@ impl BoundedUriWriter {
                 .next()
                 .expect("non-empty text has a first character");
             let mut encoded = [0_u8; 12];
-            let Ok(piece) = encode_log_safe_character(character, &mut encoded)
-            else {
+            let Ok(piece) = encode_log_safe_character(character, &mut encoded) else {
                 self.truncate();
                 return false;
             };
@@ -73,8 +73,7 @@ impl BoundedUriWriter {
     /// Writes one complete percent-encoded byte atomically.
     pub(crate) fn write_percent_encoded(&mut self, byte: u8) -> bool {
         let encoded = [b'%', hex_digit(byte >> 4), hex_digit(byte & 0x0f)];
-        let piece = std::str::from_utf8(&encoded)
-            .expect("percent encoding is always valid ASCII");
+        let piece = std::str::from_utf8(&encoded).expect("percent encoding is always valid ASCII");
         self.append_piece(piece)
     }
 
@@ -84,13 +83,38 @@ impl BoundedUriWriter {
         self.truncated
     }
 
-    /// Finishes output and appends the truncation marker when needed.
-    pub(crate) fn finish(mut self) -> (String, bool) {
+    /// Finishes output and reports whether the effective bound was a domain
+    /// limit or the shared session limit.
+    pub(crate) fn finish_with_completion(
+        mut self,
+        session_limited: bool,
+    ) -> (String, FragmentCompletion) {
         if self.truncated {
+            if self.max_bytes < TRUNCATED.len() {
+                return (
+                    String::new(),
+                    if session_limited {
+                        FragmentCompletion::SessionTruncated
+                    } else {
+                        FragmentCompletion::DomainTruncated
+                    },
+                );
+            }
             self.output.truncate(self.marker_boundary);
             self.output.push_str(TRUNCATED);
         }
-        (self.output, self.truncated)
+        (
+            self.output,
+            if self.truncated {
+                if session_limited {
+                    FragmentCompletion::SessionTruncated
+                } else {
+                    FragmentCompletion::DomainTruncated
+                }
+            } else {
+                FragmentCompletion::Complete
+            },
+        )
     }
 
     /// Appends one complete escaped piece when it fits.
