@@ -73,7 +73,7 @@ impl UriRedaction {
 
     /// Returns whether `reason` was recorded.
     #[must_use]
-    #[inline]
+    #[inline(never)]
     pub fn has_reason(&self, reason: UriRedactionReason) -> bool {
         self.reasons.contains(&reason)
     }

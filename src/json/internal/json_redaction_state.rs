@@ -125,12 +125,16 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         let mut budget = JsonValueLimits::empty()
             .with_max_depth(self.json_depth_limit.maximum())
             .budget();
+        let mut transaction = budget.transaction();
         let result =
-            JsonTreeProcessor::new(&mut budget).process_mut(value, self);
+            JsonTreeProcessor::new(&mut transaction).process_mut(value, self);
         match result {
-            Ok(()) => JsonRedactionOutcome::Complete {
-                passed_unkeyed: self.passed_unkeyed,
-            },
+            Ok(()) => {
+                transaction.commit();
+                JsonRedactionOutcome::Complete {
+                    passed_unkeyed: self.passed_unkeyed,
+                }
+            }
             Err(JsonTreeProcessError::Visitor(JsonRedactionStop)) => {
                 JsonRedactionOutcome::MaskBudgetExhausted
             }
