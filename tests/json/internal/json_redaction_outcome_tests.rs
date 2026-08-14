@@ -34,7 +34,9 @@ fn test_json_redaction_outcome_distinguishes_mask_budget_exhaustion() {
     };
 
     assert!(!complete.is_mask_budget_exhausted());
-    assert!(JsonRedactionOutcome::MaskBudgetExhausted.is_mask_budget_exhausted());
+    assert!(
+        JsonRedactionOutcome::MaskBudgetExhausted.is_mask_budget_exhausted()
+    );
 }
 
 /// Verifies multiple retained unkeyed scalars aggregate into one status.
@@ -71,7 +73,9 @@ fn test_json_redaction_outcome_discards_partial_json_on_mask_exhaustion() {
     let policy = builder.build().expect("the HTTP policy should build");
     let content_type = HeaderValue::from_static("application/json");
     let body = HttpRedactor::new(policy).redact_body(
-        BodyCapture::complete(br#"{"items":["raw-unkeyed-secret","raw-unkeyed-secret"]}"#),
+        BodyCapture::complete(
+            br#"{"items":["raw-unkeyed-secret","raw-unkeyed-secret"]}"#,
+        ),
         Some(&content_type),
     );
 

@@ -41,7 +41,10 @@ impl<'a> BoundedLogSafeDisplay<'a> {
     ///
     /// A borrowed bounded display adapter.
     #[inline(always)]
-    pub(super) const fn new(value: &'a LogSafeText<'a>, limit: LogOutputLimit) -> Self {
+    pub(super) const fn new(
+        value: &'a LogSafeText<'a>,
+        limit: LogOutputLimit,
+    ) -> Self {
         Self { value, limit }
     }
 }

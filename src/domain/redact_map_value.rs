@@ -98,16 +98,20 @@ where
                     .saturating_add(RedactValue::redaction_input_bytes(value));
                 session.admit(input_bytes, domain_limit, 0)
             };
-            let RedactionAdmission::Render { max_output_bytes } = admission else {
+            let RedactionAdmission::Render { max_output_bytes } = admission
+            else {
                 break;
             };
             let resolved = session.policy().resolve_field(key);
             let completed = match resolved {
                 ResolvedField::Sensitive { sensitivity } => {
-                    let redacted = value.redact_value(sensitivity, session.policy().masking());
+                    let redacted = value
+                        .redact_value(sensitivity, session.policy().masking());
                     complete_debug(&redacted, max_output_bytes, alternate)
                 }
-                ResolvedField::PassThrough => complete_debug(&value, max_output_bytes, alternate),
+                ResolvedField::PassThrough => {
+                    complete_debug(&value, max_output_bytes, alternate)
+                }
             };
             let completion = if completed.truncated() {
                 if domain_limit < session_limit {

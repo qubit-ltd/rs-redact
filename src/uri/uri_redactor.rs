@@ -110,13 +110,20 @@ impl UriRedactor {
         }
 
         let path = parsed.path().as_str();
-        if self.policy.path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
+        if self.policy.path_policy() == UriPathPolicy::Redact
+            && !path.is_empty()
+            && path != "/"
+        {
             mark_component(UriComponent::Path, &mut reasons, &mut components);
         }
 
         if let Some(query) = parsed.query()
-            && let Err(reason) =
-                inspect_query(query.as_str(), &self.policy, &mut reasons, &mut components)
+            && let Err(reason) = inspect_query(
+                query.as_str(),
+                &self.policy,
+                &mut reasons,
+                &mut components,
+            )
         {
             return invalid_inspection(reason);
         }
@@ -125,7 +132,11 @@ impl UriRedactor {
             && self.policy.fragment_policy() == UriFragmentPolicy::Redact
             && !fragment.as_str().is_empty()
         {
-            mark_component(UriComponent::Fragment, &mut reasons, &mut components);
+            mark_component(
+                UriComponent::Fragment,
+                &mut reasons,
+                &mut components,
+            );
         }
 
         let status = if components.is_empty() {
@@ -185,12 +196,20 @@ pub(crate) fn redact_uri_str_bounded(
             );
         }
         if session_limited && rendered.is_full() {
-            return finish_uri_rendering(rendered, reasons, components, session_limited);
+            return finish_uri_rendering(
+                rendered,
+                reasons,
+                components,
+                session_limited,
+            );
         }
     }
 
     let path = parsed.path().as_str();
-    if policy.path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
+    if policy.path_policy() == UriPathPolicy::Redact
+        && !path.is_empty()
+        && path != "/"
+    {
         mark_component(UriComponent::Path, &mut reasons, &mut components);
         if path.starts_with('/') {
             rendered.write_str("/%3Credacted%3E");
@@ -201,7 +220,12 @@ pub(crate) fn redact_uri_str_bounded(
         rendered.write_str(path);
     }
     if session_limited && rendered.is_full() {
-        return finish_uri_rendering(rendered, reasons, components, session_limited);
+        return finish_uri_rendering(
+            rendered,
+            reasons,
+            components,
+            session_limited,
+        );
     }
 
     if let Some(query) = parsed.query() {
@@ -214,17 +238,32 @@ pub(crate) fn redact_uri_str_bounded(
             &mut rendered,
             session_limited,
         ) {
-            return bounded_invalid_result(reason, max_output_bytes, session_limited);
+            return bounded_invalid_result(
+                reason,
+                max_output_bytes,
+                session_limited,
+            );
         }
         if session_limited && rendered.is_full() {
-            return finish_uri_rendering(rendered, reasons, components, session_limited);
+            return finish_uri_rendering(
+                rendered,
+                reasons,
+                components,
+                session_limited,
+            );
         }
     }
 
     if let Some(fragment) = parsed.fragment() {
         rendered.write_str("#");
-        if policy.fragment_policy() == UriFragmentPolicy::Redact && !fragment.as_str().is_empty() {
-            mark_component(UriComponent::Fragment, &mut reasons, &mut components);
+        if policy.fragment_policy() == UriFragmentPolicy::Redact
+            && !fragment.as_str().is_empty()
+        {
+            mark_component(
+                UriComponent::Fragment,
+                &mut reasons,
+                &mut components,
+            );
             write_opaque_mask(policy, Sensitivity::High, &mut rendered);
         } else {
             rendered.write_str(fragment.as_str());
@@ -455,12 +494,13 @@ fn redact_query(
             rendered.write_str("&");
         }
         let Some((raw_key, raw_value)) = pair.split_once('=') else {
-            decode_uri_component(pair).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+            decode_uri_component(pair)
+                .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
             rendered.write_str(pair);
             continue;
         };
-        let key =
-            decode_uri_component(raw_key).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+        let key = decode_uri_component(raw_key)
+            .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
         let value = decode_uri_component(raw_value)
             .map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
         match policy.resolve_field(&key) {
@@ -487,13 +527,16 @@ fn inspect_query(
 ) -> Result<(), UriRedactionReason> {
     for pair in query.split('&') {
         let Some((raw_key, raw_value)) = pair.split_once('=') else {
-            decode_uri_component(pair).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+            decode_uri_component(pair)
+                .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
             continue;
         };
-        let key =
-            decode_uri_component(raw_key).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
-        decode_uri_component(raw_value).map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
-        if matches!(policy.resolve_field(&key), ResolvedField::Sensitive { .. }) {
+        let key = decode_uri_component(raw_key)
+            .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+        decode_uri_component(raw_value)
+            .map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
+        if matches!(policy.resolve_field(&key), ResolvedField::Sensitive { .. })
+        {
             mark_component(UriComponent::Query, reasons, components);
         }
     }
@@ -549,7 +592,8 @@ fn write_opaque_mask(
         return;
     }
     let mut writer = UriComponentWriter::new(rendered);
-    let _ = writer.write_str(policy.masking().for_level(sensitivity).opaque_mask());
+    let _ =
+        writer.write_str(policy.masking().for_level(sensitivity).opaque_mask());
 }
 
 /// Converts one hexadecimal ASCII byte to its numeric value.

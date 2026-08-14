@@ -10,6 +10,7 @@
 use std::fmt;
 
 use qubit_redact::InputOutputLimit;
+use qubit_redact::MaskPolicy;
 use qubit_redact::MaskingPolicy;
 use qubit_redact::Redact;
 use qubit_redact::RedactValue;
@@ -36,8 +37,9 @@ struct NestedValue {
 /// Verifies keyed-value display uses its policy output budget by default.
 #[test]
 fn test_redact_keyed_display_uses_policy_output_limit_by_default() {
-    let budget = InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
-        .expect("the minimum diagnostic output limit should be valid");
+    let budget =
+        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
+            .expect("the minimum diagnostic output limit should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -150,9 +152,10 @@ impl Redact for NestedValue {
             .debug_struct("NestedValue")
             .field(
                 "secret",
-                &self
-                    .secret
-                    .redact_value(Sensitivity::Secret, _session.policy().masking()),
+                &self.secret.redact_value(
+                    Sensitivity::Secret,
+                    _session.policy().masking(),
+                ),
             )
             .field("label", &self.label)
             .finish()
@@ -342,15 +345,16 @@ impl RedactValue for OpaqueMaskObserver {
 /// opaque replacement is materialized.
 #[test]
 fn test_redact_keyed_bounds_opaque_mask_before_materialization() {
-    let budget = InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
-        .expect("the minimum output budget should be valid");
+    let budget =
+        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
+            .expect("the minimum output budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .raise("tenant_secret", Sensitivity::Secret)
         .expect("the test field should be valid")
         .mask(
             Sensitivity::Secret,
-            qubit_redact::MaskPolicy::fixed(&"x".repeat(1_000)),
+            MaskPolicy::fixed(&"x".repeat(1_000)),
         )
         .expect("the replacement should be valid")
         .build()
@@ -428,8 +432,10 @@ fn test_redact_keyed_serializes_sensitive_and_recursive_values() {
     let redactor = Redactor::new(policy);
     let sensitive = redactor.redact_keyed("tenant_secret", &value);
     let visible = redactor.redact_keyed("display_name", &value);
-    let sensitive_json = to_string(&sensitive).expect("the redacted value should serialize");
-    let visible_json = to_string(&visible).expect("the recursive value should serialize");
+    let sensitive_json =
+        to_string(&sensitive).expect("the redacted value should serialize");
+    let visible_json =
+        to_string(&visible).expect("the recursive value should serialize");
 
     assert_eq!(sensitive_json, "\"<redacted>\"");
     assert!(visible_json.contains("visible-label"));

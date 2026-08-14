@@ -16,8 +16,8 @@ use qubit_redact::http::InputOutputLimit;
 /// Verifies diagnostic input limits return the fixed safe marker.
 #[test]
 fn test_diagnostic_input_limit_returns_fixed_marker() {
-    let budget =
-        InputOutputLimit::new(16, 128).expect("test diagnostic budget should satisfy minimums");
+    let budget = InputOutputLimit::new(16, 128)
+        .expect("test diagnostic budget should satisfy minimums");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -56,7 +56,8 @@ fn test_session_fallback_markers_respect_cumulative_output_limit() {
     assert!(second.as_str().is_empty());
     assert_eq!(session.remaining_output_bytes(), 0);
     assert!(
-        first.as_str().len().saturating_add(second.as_str().len()) <= budget.max_output_bytes()
+        first.as_str().len().saturating_add(second.as_str().len())
+            <= budget.max_output_bytes()
     );
 }
 
@@ -64,8 +65,8 @@ fn test_session_fallback_markers_respect_cumulative_output_limit() {
 /// an unsupported media type.
 #[test]
 fn test_session_body_input_limit_reports_budget_failure() {
-    let budget =
-        InputOutputLimit::new(8, 128).expect("test diagnostic budget should satisfy minimums");
+    let budget = InputOutputLimit::new(8, 128)
+        .expect("test diagnostic budget should satisfy minimums");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -79,6 +80,8 @@ fn test_session_body_input_limit_reports_budget_failure() {
 
     assert_eq!(
         result.status(),
-        BodyRedactionStatus::Redacted(BodyRedactionReason::DiagnosticBudgetExceeded,),
+        BodyRedactionStatus::Redacted(
+            BodyRedactionReason::DiagnosticBudgetExceeded,
+        ),
     );
 }

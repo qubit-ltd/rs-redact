@@ -22,6 +22,7 @@ use qubit_redact::RedactedKeyedMapResult;
 use qubit_redact::RedactedValue;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
+use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 /// Nested diagnostic value whose secret must be recursively redacted.
 struct NestedValue {
@@ -46,9 +47,10 @@ impl Redact for NestedValue {
             .debug_struct("NestedValue")
             .field(
                 "secret",
-                &self
-                    .secret
-                    .redact_value(Sensitivity::Secret, _session.policy().masking()),
+                &self.secret.redact_value(
+                    Sensitivity::Secret,
+                    _session.policy().masking(),
+                ),
             )
             .field("label", &self.label)
             .finish()
@@ -106,8 +108,11 @@ fn test_redacted_keyed_map_recursively_redacts_unclassified_values() {
 /// available and retains no session-bound formatter state.
 #[test]
 fn test_redacted_keyed_map_result_is_settled_at_creation() {
-    let map = BTreeMap::from([("label".to_owned(), FormatterBehavior { fail: false })]);
-    let redactor = qubit_redact::Redactor::default();
+    let map = BTreeMap::from([(
+        "label".to_owned(),
+        FormatterBehavior { fail: false },
+    )]);
+    let redactor = Redactor::default();
     let mut session = redactor.session();
     let result = RedactedKeyedMapResult::new(&map, &mut session);
 
@@ -130,7 +135,8 @@ fn test_redacted_keyed_map_display_and_bounded_adapters() {
     let display = RedactedKeyedMap::new(&map, policy.clone()).to_string();
     let bounded = RedactedKeyedMap::new(&map, policy.clone())
         .with_output_limit(
-            LogOutputLimit::new(output_limit).expect("the minimum output limit should be valid"),
+            LogOutputLimit::new(output_limit)
+                .expect("the minimum output limit should be valid"),
         )
         .to_string();
     let policy_bounded = RedactedKeyedMap::new(&map, policy)
@@ -239,7 +245,10 @@ impl RedactValue for FormatterBehavior {
 /// Verifies eager keyed-map completion preserves alternate debug formatting.
 #[test]
 fn test_redacted_keyed_map_preserves_alternate_debug() {
-    let map = BTreeMap::from([("label".to_owned(), FormatterBehavior { fail: false })]);
+    let map = BTreeMap::from([(
+        "label".to_owned(),
+        FormatterBehavior { fail: false },
+    )]);
     let compact = format!(
         "{:?}",
         RedactedKeyedMap::new(&map, RedactionPolicy::default())
@@ -256,7 +265,10 @@ fn test_redacted_keyed_map_preserves_alternate_debug() {
 /// Verifies eager keyed-map completion preserves a nested formatter failure.
 #[test]
 fn test_redacted_keyed_map_preserves_formatter_error() {
-    let map = BTreeMap::from([("label".to_owned(), FormatterBehavior { fail: true })]);
+    let map = BTreeMap::from([(
+        "label".to_owned(),
+        FormatterBehavior { fail: true },
+    )]);
     let view = RedactedKeyedMap::new(&map, RedactionPolicy::default());
     let mut output = String::new();
 

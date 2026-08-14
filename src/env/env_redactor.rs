@@ -86,7 +86,11 @@ impl EnvRedactor {
     /// # Returns
     ///
     /// A fail-closed, log-safe pair rendered as `NAME=VALUE`.
-    pub fn redact_os_pair(&self, name: &OsStr, value: &OsStr) -> RedactedEnvPair {
+    pub fn redact_os_pair(
+        &self,
+        name: &OsStr,
+        value: &OsStr,
+    ) -> RedactedEnvPair {
         let mut session = self.redactor.session();
         session.env().redact_os_pair(name, value)
     }
@@ -132,7 +136,8 @@ impl EnvRedactor {
     /// A log-safe pair rendered as `NAME=VALUE`.
     #[inline]
     pub fn redact_assignment(&self, assignment: &str) -> RedactedEnvPair {
-        let (name, value) = assignment.split_once('=').unwrap_or((assignment, ""));
+        let (name, value) =
+            assignment.split_once('=').unwrap_or((assignment, ""));
         self.redact_pair(name, value)
     }
 
@@ -165,15 +170,18 @@ impl EnvRedactor {
                         .into_owned(),
                     ResolvedField::PassThrough => value.to_owned(),
                 };
-                RedactedEnvPair::new(log_safe_owned(name.to_owned()), log_safe_owned(value))
+                RedactedEnvPair::new(
+                    log_safe_owned(name.to_owned()),
+                    log_safe_owned(value),
+                )
             }
             _ => RedactedEnvPair::new(
                 log_safe_owned(name.to_string_lossy().into_owned()),
                 log_safe_owned(
-                    self.redactor
-                        .policy()
-                        .masking()
-                        .mask_opaque_bounded(Sensitivity::Secret, max_mask_bytes),
+                    self.redactor.policy().masking().mask_opaque_bounded(
+                        Sensitivity::Secret,
+                        max_mask_bytes,
+                    ),
                 ),
             ),
         };

@@ -22,9 +22,9 @@ fn test_uri_session_does_not_charge_input_after_output_exhaustion() {
         .expect("the URI policy should build");
     let redactor = UriRedactor::new(policy);
     let mut session = redactor.session();
-    let _ = session
-        .uri()
-        .redact_uri_str("scheme://user:secret@example.test/private?token=secret#fragment");
+    let _ = session.uri().redact_uri_str(
+        "scheme://user:secret@example.test/private?token=secret#fragment",
+    );
     let input_before = session.remaining_input_bytes();
     let second = session.uri().redact_uri_str("scheme://unread-secret");
     assert_eq!(second.log_safe_text().as_str(), "<invalid URI>");

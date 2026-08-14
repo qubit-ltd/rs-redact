@@ -102,8 +102,13 @@ impl Redactor {
     /// values while borrowing safe input where possible.
     #[must_use = "use the returned redacted value"]
     #[inline]
-    pub fn redact_field<'a>(&self, field: &str, value: &'a str) -> FieldRedaction<'a> {
-        let mut budget = DiagnosticBudget::new(self.policy.limits().ordinary_operation());
+    pub fn redact_field<'a>(
+        &self,
+        field: &str,
+        value: &'a str,
+    ) -> FieldRedaction<'a> {
+        let mut budget =
+            DiagnosticBudget::new(self.policy.limits().ordinary_operation());
         redact_field_with_budget(&self.policy, &mut budget, field, value)
     }
 
@@ -126,8 +131,13 @@ impl Redactor {
     /// Typed redacted text produced by the configured mask for `level`.
     #[must_use = "use the returned redacted value"]
     #[inline]
-    pub fn redact_at<'a>(&self, level: Sensitivity, value: &'a str) -> RedactedText<'a> {
-        let mut budget = DiagnosticBudget::new(self.policy.limits().ordinary_operation());
+    pub fn redact_at<'a>(
+        &self,
+        level: Sensitivity,
+        value: &'a str,
+    ) -> RedactedText<'a> {
+        let mut budget =
+            DiagnosticBudget::new(self.policy.limits().ordinary_operation());
         redact_at_with_budget(&self.policy, &mut budget, level, value)
     }
 
@@ -231,8 +241,10 @@ impl RedactionSession<'_> {
         let fallback_bytes = log_safe_len(fallback);
         let input_bytes = field.len().saturating_add(value.len());
         let session_output_bytes = self.remaining_output_bytes();
-        let domain_output_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
-        let admission = self.admit(input_bytes, domain_output_limit, fallback_bytes);
+        let domain_output_limit =
+            crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
+        let admission =
+            self.admit(input_bytes, domain_output_limit, fallback_bytes);
         let RedactionAdmission::Render { max_output_bytes } = admission else {
             return admission_field_fallback(admission, fallback);
         };
@@ -277,15 +289,16 @@ impl RedactionSession<'_> {
         let fallback = opaque_mask(policy);
         let fallback_bytes = log_safe_len(fallback);
         let session_output_bytes = self.remaining_output_bytes();
-        let domain_output_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
-        let admission = self.admit(value.len(), domain_output_limit, fallback_bytes);
+        let domain_output_limit =
+            crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
+        let admission =
+            self.admit(value.len(), domain_output_limit, fallback_bytes);
         let RedactionAdmission::Render { max_output_bytes } = admission else {
             return admission_text_fallback(admission, fallback);
         };
-        let (masked, mask_truncated) =
-            policy
-                .masking()
-                .mask_bounded_with_truncation(level, value, max_output_bytes);
+        let (masked, mask_truncated) = policy
+            .masking()
+            .mask_bounded_with_truncation(level, value, max_output_bytes);
         let output_bytes = log_safe_len(masked.as_ref());
         if output_bytes <= max_output_bytes {
             let completion = if mask_truncated {
@@ -346,9 +359,11 @@ fn redact_field_unbudgeted<'value>(
     match policy.resolve_field(field) {
         ResolvedField::Sensitive { sensitivity } => {
             let (masked, truncated) =
-                policy
-                    .masking()
-                    .mask_bounded_with_truncation(sensitivity, value, max_output_bytes);
+                policy.masking().mask_bounded_with_truncation(
+                    sensitivity,
+                    value,
+                    max_output_bytes,
+                );
             (
                 FieldRedaction::Masked {
                     value: RedactedText::new(masked),
@@ -359,10 +374,11 @@ fn redact_field_unbudgeted<'value>(
         }
         ResolvedField::PassThrough => {
             let reason = match policy.classify_field(field) {
-                FieldClassification::Allowed { .. } => PassThroughReason::Allowed,
-                FieldClassification::Sensitive { .. } | FieldClassification::Unknown => {
-                    PassThroughReason::Unknown
+                FieldClassification::Allowed { .. } => {
+                    PassThroughReason::Allowed
                 }
+                FieldClassification::Sensitive { .. }
+                | FieldClassification::Unknown => PassThroughReason::Unknown,
             };
             (FieldRedaction::PassedThrough { value, reason }, false)
         }
@@ -382,10 +398,9 @@ fn redact_at_with_budget<'value>(
     let RedactionAdmission::Render { max_output_bytes } = admission else {
         return admission_text_fallback(admission, fallback);
     };
-    let (masked, mask_truncated) =
-        policy
-            .masking()
-            .mask_bounded_with_truncation(level, value, max_output_bytes);
+    let (masked, mask_truncated) = policy
+        .masking()
+        .mask_bounded_with_truncation(level, value, max_output_bytes);
     let output_bytes = log_safe_len(masked.as_ref());
     if output_bytes <= max_output_bytes {
         let completion = if mask_truncated {
@@ -411,8 +426,12 @@ fn admission_text_fallback<'value>(
     fallback: &str,
 ) -> RedactedText<'value> {
     match admission {
-        RedactionAdmission::Fallback => RedactedText::new(Cow::Owned(fallback.to_owned())),
-        RedactionAdmission::Exhausted => RedactedText::new(Cow::Owned(String::new())),
+        RedactionAdmission::Fallback => {
+            RedactedText::new(Cow::Owned(fallback.to_owned()))
+        }
+        RedactionAdmission::Exhausted => {
+            RedactedText::new(Cow::Owned(String::new()))
+        }
         RedactionAdmission::Render { .. } => {
             unreachable!("render admissions are handled before fallback")
         }
@@ -438,7 +457,10 @@ fn terminal_text_fallback<'value>(
     fallback_bytes: usize,
 ) -> RedactedText<'value> {
     if fallback_bytes <= max_output_bytes {
-        budget.commit_output(fallback_bytes, FragmentCompletion::SessionTruncated);
+        budget.commit_output(
+            fallback_bytes,
+            FragmentCompletion::SessionTruncated,
+        );
         RedactedText::new(Cow::Owned(fallback.to_owned()))
     } else {
         budget.commit_output(0, FragmentCompletion::SessionTruncated);
@@ -454,7 +476,12 @@ fn terminal_field_fallback<'value>(
     fallback_bytes: usize,
 ) -> FieldRedaction<'value> {
     FieldRedaction::Masked {
-        value: terminal_text_fallback(budget, max_output_bytes, fallback, fallback_bytes),
+        value: terminal_text_fallback(
+            budget,
+            max_output_bytes,
+            fallback,
+            fallback_bytes,
+        ),
         sensitivity: Sensitivity::Secret,
     }
 }

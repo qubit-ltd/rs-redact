@@ -62,7 +62,10 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     ///
     /// A bounded formatting adapter that owns this redacted view.
     #[inline(always)]
-    pub const fn with_output_limit(self, limit: LogOutputLimit) -> BoundedRedactedDisplay<Self> {
+    pub const fn with_output_limit(
+        self,
+        limit: LogOutputLimit,
+    ) -> BoundedRedactedDisplay<Self> {
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -74,7 +77,8 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     #[must_use = "format the bounded redacted display adapter"]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit = LogOutputLimit::from(self.policy.limits().diagnostic_event());
+        let limit =
+            LogOutputLimit::from(self.policy.limits().diagnostic_event());
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -102,7 +106,9 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
 }
 
 #[cfg(feature = "serde")]
-impl<T: crate::domain::RedactSerialize + ?Sized> serde::Serialize for Redacted<'_, T> {
+impl<T: crate::domain::RedactSerialize + ?Sized> serde::Serialize
+    for Redacted<'_, T>
+{
     /// Delegates serialization to the derived redaction hook.
     ///
     /// # Type Parameters
@@ -149,8 +155,11 @@ impl<T: Redact + ?Sized> Debug for Redacted<'_, T> {
     #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut session = RedactionSession::new(&self.policy);
-        let view =
-            RedactedResult::new_with_alternate(self.value, &mut session, formatter.alternate());
+        let view = RedactedResult::new_with_alternate(
+            self.value,
+            &mut session,
+            formatter.alternate(),
+        );
         Debug::fmt(&view, formatter)
     }
 }
@@ -184,8 +193,12 @@ mod session_view {
     impl<'value, T: Redact + ?Sized> RedactedResult<'value, T> {
         /// Completes a compact nested representation through `session`.
         #[inline(always)]
-        pub fn new(value: &'value T, session: &mut RedactionSession<'_>) -> Self {
-            Self::try_new_with_alternate(value, session, false).unwrap_or_else(Self::empty)
+        pub fn new(
+            value: &'value T,
+            session: &mut RedactionSession<'_>,
+        ) -> Self {
+            Self::try_new_with_alternate(value, session, false)
+                .unwrap_or_else(Self::empty)
         }
 
         /// Attempts to complete one nested item, rejecting exhausted sessions.
@@ -208,7 +221,8 @@ mod session_view {
             session: &mut RedactionSession<'_>,
             alternate: bool,
         ) -> Self {
-            Self::try_new_with_alternate(value, session, alternate).unwrap_or_else(Self::empty)
+            Self::try_new_with_alternate(value, session, alternate)
+                .unwrap_or_else(Self::empty)
         }
 
         fn try_new_with_alternate(
@@ -226,11 +240,17 @@ mod session_view {
             } else {
                 {
                     let input_bytes = Redact::redaction_input_bytes(value);
-                    session.admit(input_bytes, domain_limit, "<truncated>".len())
+                    session.admit(
+                        input_bytes,
+                        domain_limit,
+                        "<truncated>".len(),
+                    )
                 }
             };
             let max_output_bytes = match admission {
-                RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
+                RedactionAdmission::Render { max_output_bytes } => {
+                    max_output_bytes
+                }
                 RedactionAdmission::Fallback => {
                     return Some(Self {
                         completed: CompletedDebug::truncated_marker(),
@@ -431,8 +451,9 @@ mod session_view {
         let mut offset = 0;
         while offset < value.len() {
             let remaining = &value[offset..];
-            let piece_len = debug_escape_len(remaining)
-                .unwrap_or_else(|| remaining.chars().next().map_or(0, char::len_utf8));
+            let piece_len = debug_escape_len(remaining).unwrap_or_else(|| {
+                remaining.chars().next().map_or(0, char::len_utf8)
+            });
             if offset.saturating_add(piece_len) > limit {
                 break;
             }
@@ -460,7 +481,9 @@ mod session_view {
                     .iter()
                     .position(|byte| *byte == b'}')
                     .map(|index| index + 3)?;
-                if closing == 3 || !bytes[3..closing].iter().all(u8::is_ascii_hexdigit) {
+                if closing == 3
+                    || !bytes[3..closing].iter().all(u8::is_ascii_hexdigit)
+                {
                     return None;
                 }
                 Some(closing + 1)

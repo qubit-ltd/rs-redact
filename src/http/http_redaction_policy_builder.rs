@@ -49,8 +49,14 @@ impl HttpPolicyBuilder {
                 policy.header_rules(),
                 PolicyLocation::HttpHeader,
             ),
-            query: ContextRulesBuilder::from_rules(policy.query_rules(), PolicyLocation::HttpQuery),
-            body: ContextRulesBuilder::from_rules(policy.body_rules(), PolicyLocation::HttpBody),
+            query: ContextRulesBuilder::from_rules(
+                policy.query_rules(),
+                PolicyLocation::HttpQuery,
+            ),
+            body: ContextRulesBuilder::from_rules(
+                policy.body_rules(),
+                PolicyLocation::HttpBody,
+            ),
             url_path_policy: policy.url_path_policy(),
             text_body_policy: policy.text_body_policy(),
         }
@@ -65,7 +71,10 @@ impl HttpPolicyBuilder {
     /// # Returns
     ///
     /// The mutable rules builder for `context`.
-    fn context_mut(&mut self, context: HttpFieldContext) -> &mut ContextRulesBuilder {
+    fn context_mut(
+        &mut self,
+        context: HttpFieldContext,
+    ) -> &mut ContextRulesBuilder {
         match context {
             HttpFieldContext::Header => &mut self.header,
             HttpFieldContext::Query => &mut self.query,
@@ -79,8 +88,13 @@ impl HttpPolicyBuilder {
     ///
     /// * `context` - HTTP field context whose rules are replaced.
     /// * `rules` - Application rules to copy into the builder.
-    pub(crate) fn rules_mut(&mut self, context: HttpFieldContext, rules: RedactionRules) {
-        *self.context_mut(context) = ContextRulesBuilder::from_rules(&rules, context.location());
+    pub(crate) fn rules_mut(
+        &mut self,
+        context: HttpFieldContext,
+        rules: RedactionRules,
+    ) {
+        *self.context_mut(context) =
+            ContextRulesBuilder::from_rules(&rules, context.location());
     }
 
     /// Replaces the minimum sensitivity floor for one HTTP context.
@@ -89,7 +103,11 @@ impl HttpPolicyBuilder {
     ///
     /// * `context` - HTTP field context whose floor is changed.
     /// * `floor` - Minimum sensitivity required for that context.
-    pub(crate) fn floor_mut(&mut self, context: HttpFieldContext, floor: RedactionFloor) {
+    pub(crate) fn floor_mut(
+        &mut self,
+        context: HttpFieldContext,
+        floor: RedactionFloor,
+    ) {
         self.context_mut(context).with_floor(floor);
     }
 

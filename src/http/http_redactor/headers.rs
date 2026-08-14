@@ -19,7 +19,9 @@ use crate::http::internal::BoundedLogWriter;
 use crate::policy::RedactionResource;
 
 /// Groups repeated header values under deterministically ordered names.
-pub(super) fn group_values(headers: &HeaderMap) -> BTreeMap<&str, Vec<&HeaderValue>> {
+pub(super) fn group_values(
+    headers: &HeaderMap,
+) -> BTreeMap<&str, Vec<&HeaderValue>> {
     let mut values = BTreeMap::<&str, Vec<&HeaderValue>>::new();
     for (name, value) in headers {
         values.entry(name.as_str()).or_default().push(value);
@@ -37,7 +39,11 @@ pub(in crate::http) fn render_one(
     let mut writer = BoundedLogWriter::new(max_output_bytes, false);
     let _ = writer.write_str(name);
     let _ = writer.write_str(": [");
-    redactor.write_header_values(&mut writer, name, std::slice::from_ref(&value));
+    redactor.write_header_values(
+        &mut writer,
+        name,
+        std::slice::from_ref(&value),
+    );
     if !writer.is_full() {
         let _ = writer.write_str("]");
     }
@@ -67,7 +73,9 @@ impl HttpRedactor {
         writer: &mut BoundedLogWriter,
         values: BTreeMap<&str, Vec<&HeaderValue>>,
     ) {
-        for (name_index, (name, header_values)) in values.into_iter().enumerate() {
+        for (name_index, (name, header_values)) in
+            values.into_iter().enumerate()
+        {
             if name_index > 0 {
                 let _ = writer.write_str("\n");
             }

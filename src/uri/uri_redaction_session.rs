@@ -9,8 +9,9 @@
 
 use super::UriRedaction;
 use super::UriRedactionReason;
+use super::uri_redactor::empty_invalid_result;
+use super::uri_redactor::invalid_result;
 use super::uri_redactor::redact_uri_str_bounded;
-use super::uri_redactor::{empty_invalid_result, invalid_result};
 use crate::RedactionSession;
 use crate::policy::RedactionAdmission;
 
@@ -44,21 +45,31 @@ impl UriRedactionSession<'_, '_> {
             .limits()
             .diagnostic_event()
             .max_output_bytes();
-        let admission = self
-            .session
-            .admit(input.len(), domain_output_limit, "<invalid URI>".len());
+        let admission = self.session.admit(
+            input.len(),
+            domain_output_limit,
+            "<invalid URI>".len(),
+        );
         match admission {
-            RedactionAdmission::Fallback => invalid_result(UriRedactionReason::InputLimitExceeded),
+            RedactionAdmission::Fallback => {
+                invalid_result(UriRedactionReason::InputLimitExceeded)
+            }
             RedactionAdmission::Exhausted => {
                 empty_invalid_result(UriRedactionReason::OutputTruncated)
             }
             RedactionAdmission::Render { max_output_bytes } => {
                 let session_limited = max_output_bytes < domain_output_limit;
                 let policy = self.session.policy();
-                let (result, completion) =
-                    redact_uri_str_bounded(policy, input, max_output_bytes, session_limited);
-                self.session
-                    .commit_output(result.log_safe_text().as_str().len(), completion);
+                let (result, completion) = redact_uri_str_bounded(
+                    policy,
+                    input,
+                    max_output_bytes,
+                    session_limited,
+                );
+                self.session.commit_output(
+                    result.log_safe_text().as_str().len(),
+                    completion,
+                );
                 result
             }
         }
