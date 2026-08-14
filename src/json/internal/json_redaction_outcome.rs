@@ -7,42 +7,26 @@
 // =============================================================================
 //! Observable result of mutable JSON traversal.
 
-/// Records whether a JSON traversal retained any unkeyed scalar value.
-#[must_use]
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct JsonRedactionOutcome {
-    /// Whether at least one unkeyed scalar remained visible.
-    passed_unkeyed: bool,
-    mask_exhausted: bool,
+/// Reports whether a JSON traversal completed or exhausted its mask budget.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum JsonRedactionOutcome {
+    /// Traversal completed, optionally passing through an unkeyed scalar.
+    Complete {
+        /// Whether at least one unkeyed scalar remained visible.
+        passed_unkeyed: bool,
+    },
+    /// Traversal stopped because no complete unkeyed marker fit the budget.
+    MaskBudgetExhausted,
 }
 
 impl JsonRedactionOutcome {
-    /// Records that an unkeyed scalar remained visible during traversal.
-    #[inline(always)]
-    pub(crate) fn record_passed_unkeyed(&mut self) {
-        self.passed_unkeyed = true;
-    }
-
-    /// Records that traversal could not afford another unkeyed marker.
-    #[inline(always)]
-    pub(crate) fn record_mask_exhausted(&mut self) {
-        self.mask_exhausted = true;
-    }
-
-    /// Reports whether any traversed unkeyed scalar remained visible.
+    /// Reports whether no complete unkeyed marker remained affordable.
     ///
     /// # Returns
     ///
-    /// True when at least one unkeyed scalar passed through.
-    #[cfg_attr(not(feature = "http"), allow(dead_code))]
+    /// `true` when traversal stopped before completing all mutations.
     #[inline(always)]
-    pub(crate) const fn has_passed_unkeyed(self) -> bool {
-        self.passed_unkeyed
-    }
-
-    /// Reports whether no unkeyed marker remained affordable.
-    #[inline(always)]
-    pub(crate) const fn is_mask_exhausted(self) -> bool {
-        self.mask_exhausted
+    pub(crate) const fn is_mask_budget_exhausted(self) -> bool {
+        matches!(self, Self::MaskBudgetExhausted)
     }
 }

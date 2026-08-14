@@ -5,9 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests covering JSON traversal internals through their public behavior.
+//! Tests covering JSON traversal internals and their public behavior.
 
-#[cfg(feature = "http")]
 mod json_redaction_outcome_tests;
 mod json_redaction_state_tests;
 #[cfg(feature = "http")]

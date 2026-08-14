@@ -18,15 +18,13 @@ use qubit_redact::redact_json_text_in_place;
 fn test_redact_json_text_in_place_is_not_limited_by_diagnostic_budget() {
     let policy = RedactionPolicy::builder()
         .diagnostic_event(
-            InputOutputLimit::new(16, 64)
-                .expect("the diagnostic budget should be valid"),
+            InputOutputLimit::new(16, 64).expect("the diagnostic budget should be valid"),
         )
         .raise("password", Sensitivity::Secret)
         .expect("the test builder input should be valid")
         .build()
         .expect("the policy should build");
-    let mut text =
-        format!(r#"{{"name":"{}","password":"raw"}}"#, "a".repeat(128));
+    let mut text = format!(r#"{{"name":"{}","password":"raw"}}"#, "a".repeat(128));
 
     redact_json_text_in_place(&mut text, &policy);
 
@@ -42,16 +40,12 @@ fn test_redact_json_text_in_place_is_not_limited_by_diagnostic_budget() {
 #[test]
 fn test_redact_json_text_in_place_obeys_json_depth_limit() {
     let policy = RedactionPolicy::builder()
-        .json_depth_limit(
-            JsonDepthLimit::new(1).expect("the depth budget is valid"),
-        )
+        .json_depth_limit(JsonDepthLimit::new(1).expect("the depth budget is valid"))
         .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
         .expect("the test mask policy should be valid")
         .build()
         .expect("the policy should build");
-    let mut text =
-        r#"{"shallow":"visible","nested":{"secret":"raw-depth-secret"}}"#
-            .to_owned();
+    let mut text = r#"{"shallow":"visible","nested":{"secret":"raw-depth-secret"}}"#.to_owned();
 
     redact_json_text_in_place(&mut text, &policy);
 
