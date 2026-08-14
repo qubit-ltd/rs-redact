@@ -14,15 +14,14 @@ use crate::InputOutputLimit;
 use crate::LogOutputLimit;
 use crate::text::internal::BoundedLogEscapeWriter;
 
-/// Marker rendered as one argv item after diagnostic input is exhausted.
-pub(super) const TRUNCATED_ITEM: &str = "<truncated>";
-
 /// Streams a byte-bounded argv rendering without retaining every token.
 pub(super) struct RedactedArgvBuilder {
     /// Escaped destination for the complete debug-style list.
     writer: BoundedLogEscapeWriter,
     /// Whether at least one item has been written.
     has_item: bool,
+    /// Whether the closing delimiter has already been appended.
+    closed: bool,
 }
 
 impl RedactedArgvBuilder {
@@ -43,6 +42,7 @@ impl RedactedArgvBuilder {
         Self {
             writer,
             has_item: false,
+            closed: false,
         }
     }
 
@@ -66,6 +66,27 @@ impl RedactedArgvBuilder {
         !self.writer.is_truncated()
     }
 
+    /// Returns the current escaped output length.
+    #[inline(always)]
+    pub(super) fn len(&self) -> usize {
+        self.writer.len()
+    }
+
+    /// Reports whether the bounded writer has finalized its truncation marker.
+    #[inline(always)]
+    pub(super) fn is_truncated(&self) -> bool {
+        self.writer.is_truncated()
+    }
+
+    /// Appends the closing list delimiter before the builder is consumed.
+    #[inline(always)]
+    pub(super) fn close(&mut self) {
+        if !self.closed && !self.writer.is_truncated() {
+            let _ = self.writer.write_str("]");
+            self.closed = true;
+        }
+    }
+
     /// Completes the bounded argv rendering.
     ///
     /// # Returns
@@ -74,9 +95,7 @@ impl RedactedArgvBuilder {
     /// the output budget was exhausted.
     #[inline]
     pub(super) fn finish(mut self) -> RedactedArgv {
-        if !self.writer.is_truncated() {
-            let _ = self.writer.write_str("]");
-        }
+        self.close();
         RedactedArgv::from_rendered(self.writer.finish())
     }
 }

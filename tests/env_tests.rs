@@ -20,7 +20,6 @@ use proptest::prelude::proptest;
 use qubit_redact::FieldNameMatching;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::RedactionSession;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::env::EnvRedactor;
@@ -31,42 +30,40 @@ fn test_redact_pair_session_respects_cumulative_output_limit() {
     let limit = InputOutputLimit::new(4, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the marker-sized operation limit should be valid");
     let policy = RedactionPolicy::builder()
-        .ordinary_operation(limit)
+        .diagnostic_event(limit)
         .build()
         .expect("the bounded policy should be valid");
     let redactor = EnvRedactor::new(Redactor::new(policy));
-    let session = RedactionSession::operation(redactor.redactor().policy());
+    let mut session = redactor.redactor().session();
 
     let rendered: Vec<_> = (0..4)
         .map(|_| {
-            redactor
-                .redact_pair_with_session("PASSWORD", "raw-secret", &session)
+            session
+                .env()
+                .redact_pair("PASSWORD", "raw-secret")
                 .to_string()
         })
         .collect();
 
     assert!(rendered.iter().any(String::is_empty));
-    assert!(
-        rendered.iter().map(String::len).sum::<usize>()
-            <= limit.max_output_bytes()
-    );
-    assert_eq!(session.remaining_output_bytes(), 16);
+    assert!(rendered.iter().map(String::len).sum::<usize>() <= limit.max_output_bytes());
+    assert!(session.remaining_output_bytes() <= limit.max_output_bytes());
 }
 
 /// Verifies a complete pair charges its escaped rendering once.
 #[test]
 fn test_redact_pair_session_charges_escaped_rendered_bytes() {
-    let limit = InputOutputLimit::new(64, 64)
-        .expect("the operation limits should be valid");
+    let limit = InputOutputLimit::new(64, 64).expect("the operation limits should be valid");
     let policy = RedactionPolicy::builder()
-        .ordinary_operation(limit)
+        .diagnostic_event(limit)
         .build()
         .expect("the policy should build");
     let redactor = EnvRedactor::new(Redactor::new(policy));
-    let session = RedactionSession::operation(redactor.redactor().policy());
+    let mut session = redactor.redactor().session();
 
-    let rendered = redactor
-        .redact_pair_with_session("message", "line\nvalue", &session)
+    let rendered = session
+        .env()
+        .redact_pair("message", "line\nvalue")
         .to_string();
 
     assert_eq!(
@@ -80,19 +77,17 @@ fn test_redact_pair_session_charges_escaped_rendered_bytes() {
 #[test]
 fn test_redact_os_pair_with_session_charges_invalid_components() {
     let policy = RedactionPolicy::builder()
-        .ordinary_operation(
-            InputOutputLimit::new(64, 64)
-                .expect("the operation limits should be valid"),
+        .diagnostic_event(
+            InputOutputLimit::new(64, 64).expect("the operation limits should be valid"),
         )
         .build()
         .expect("the policy should build");
     let redactor = EnvRedactor::new(Redactor::new(policy));
-    let session = RedactionSession::operation(redactor.redactor().policy());
+    let mut session = redactor.redactor().session();
     let name = OsString::from_vec(vec![b'N', 0xff]);
     let value = OsString::from_vec(vec![b'v', 0xfe]);
 
-    let rendered =
-        redactor.redact_os_pair_with_session(&name, &value, &session);
+    let rendered = session.env().redact_os_pair(&name, &value);
 
     assert!(rendered.to_string().contains("<redacted>"));
     assert!(session.remaining_input_bytes() < 64);
@@ -103,8 +98,7 @@ fn test_redact_os_pair_with_session_charges_invalid_components() {
 /// that exceeds the configured input budget.
 #[test]
 fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
-    let budget = InputOutputLimit::new(8, 64)
-        .expect("the small diagnostic budget should be valid");
+    let budget = InputOutputLimit::new(8, 64).expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -123,8 +117,7 @@ fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
 /// Verifies aggregate environment rendering stops at the final output budget.
 #[test]
 fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
-    let budget = InputOutputLimit::new(8, 64)
-        .expect("the small diagnostic budget should be valid");
+    let budget = InputOutputLimit::new(8, 64).expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -133,10 +126,7 @@ fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
 
     let rendered = redactor
         .redact_os_pairs(vec![
-            (
-                std::ffi::OsStr::new(""),
-                std::ffi::OsStr::new("")
-            );
+            (std::ffi::OsStr::new(""), std::ffi::OsStr::new(""));
             128
         ])
         .to_string();

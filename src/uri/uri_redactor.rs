@@ -24,9 +24,8 @@ use super::internal::BoundedUriWriter;
 use super::internal::UriComponentWriter;
 use crate::RedactedText;
 use crate::RedactionPolicy;
-use crate::RedactionSession;
 use crate::Sensitivity;
-use crate::policy::OutputCharge;
+use crate::policy::FragmentCompletion;
 use crate::policy::ResolvedField;
 
 const INVALID_URI: &str = "<invalid URI>";
@@ -52,6 +51,13 @@ impl UriRedactor {
         &self.policy
     }
 
+    /// Creates a mutable diagnostic session for shared URI operations.
+    #[must_use = "retain the URI diagnostic session"]
+    #[inline]
+    pub fn session(&self) -> crate::RedactionSession<'_> {
+        crate::RedactionSession::new(&self.policy)
+    }
+
     /// Redacts one absolute URI and returns safe text plus metadata.
     ///
     /// Parsing is strict. Invalid syntax, invalid UTF-8 in a percent-encoded
@@ -62,99 +68,13 @@ impl UriRedactor {
         if input.len() > input_limit(&self.policy) {
             return invalid_result(UriRedactionReason::InputLimitExceeded);
         }
-
-        let parsed = match Uri::<&str>::parse(input) {
-            Ok(parsed) => parsed,
-            Err(_) => return invalid_result(UriRedactionReason::InvalidUri),
-        };
-        let mut reasons = Vec::new();
-        let mut components = Vec::new();
-        let mut rendered = BoundedUriWriter::new(
+        redact_uri_str_bounded(
+            &self.policy,
+            input,
             self.policy.limits().diagnostic_event().max_output_bytes(),
-        );
-        let scheme = parsed.scheme().as_str();
-        let scheme_end = scheme.len() + 1;
-        rendered.write_str(&input[..scheme_end]);
-
-        if let Some(authority) = parsed.authority() {
-            rendered.write_str("//");
-            if redact_authority(
-                authority.as_str(),
-                &self.policy,
-                &mut reasons,
-                &mut components,
-                &mut rendered,
-            )
-            .is_err()
-            {
-                return invalid_result(UriRedactionReason::InvalidUri);
-            }
-        }
-
-        let path = parsed.path().as_str();
-        if self.policy.path_policy() == UriPathPolicy::Redact
-            && !path.is_empty()
-            && path != "/"
-        {
-            mark_component(UriComponent::Path, &mut reasons, &mut components);
-            if path.starts_with('/') {
-                rendered.write_str("/%3Credacted%3E");
-            } else {
-                rendered.write_str("%3Credacted%3E");
-            }
-        } else {
-            rendered.write_str(path);
-        }
-
-        if let Some(query) = parsed.query() {
-            rendered.write_str("?");
-            if let Err(reason) = redact_query(
-                query.as_str(),
-                &self.policy,
-                &mut reasons,
-                &mut components,
-                &mut rendered,
-            ) {
-                return invalid_result(reason);
-            }
-        }
-
-        if let Some(fragment) = parsed.fragment() {
-            rendered.write_str("#");
-            if self.policy.fragment_policy() == UriFragmentPolicy::Redact
-                && !fragment.as_str().is_empty()
-            {
-                mark_component(
-                    UriComponent::Fragment,
-                    &mut reasons,
-                    &mut components,
-                );
-                write_opaque_mask(
-                    &self.policy,
-                    Sensitivity::High,
-                    &mut rendered,
-                );
-            } else {
-                rendered.write_str(fragment.as_str());
-            }
-        }
-
-        let status = if components.is_empty() {
-            UriRedactionStatus::PassedThrough
-        } else {
-            UriRedactionStatus::Redacted
-        };
-        let (safe, truncated) = rendered.finish();
-        if truncated {
-            reasons.push(UriRedactionReason::OutputTruncated);
-        }
-        UriRedaction {
-            text: safe_text(safe),
-            status,
-            reasons,
-            components,
-            truncated,
-        }
+            false,
+        )
+        .0
     }
 
     /// Inspects one absolute URI and returns metadata without rendering text.
@@ -190,20 +110,13 @@ impl UriRedactor {
         }
 
         let path = parsed.path().as_str();
-        if self.policy.path_policy() == UriPathPolicy::Redact
-            && !path.is_empty()
-            && path != "/"
-        {
+        if self.policy.path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
             mark_component(UriComponent::Path, &mut reasons, &mut components);
         }
 
         if let Some(query) = parsed.query()
-            && let Err(reason) = inspect_query(
-                query.as_str(),
-                &self.policy,
-                &mut reasons,
-                &mut components,
-            )
+            && let Err(reason) =
+                inspect_query(query.as_str(), &self.policy, &mut reasons, &mut components)
         {
             return invalid_inspection(reason);
         }
@@ -212,11 +125,7 @@ impl UriRedactor {
             && self.policy.fragment_policy() == UriFragmentPolicy::Redact
             && !fragment.as_str().is_empty()
         {
-            mark_component(
-                UriComponent::Fragment,
-                &mut reasons,
-                &mut components,
-            );
+            mark_component(UriComponent::Fragment, &mut reasons, &mut components);
         }
 
         let status = if components.is_empty() {
@@ -230,56 +139,156 @@ impl UriRedactor {
             components,
         }
     }
+}
 
-    /// Redacts one URI while consuming a shared diagnostic session.
-    #[must_use = "use the session-bounded URI result"]
-    pub fn redact_uri_str_with_session(
-        &self,
-        input: &str,
-        session: &RedactionSession<'_>,
-    ) -> UriRedaction {
-        if !session.consume_input(input.len()) {
-            return session_invalid_result(
-                session,
-                UriRedactionReason::InputLimitExceeded,
+/// Renders one URI under an explicit output ceiling and reports the source of
+/// truncation to the shared session.
+pub(crate) fn redact_uri_str_bounded(
+    policy: &RedactionPolicy,
+    input: &str,
+    max_output_bytes: usize,
+    session_limited: bool,
+) -> (UriRedaction, FragmentCompletion) {
+    let parsed = match Uri::<&str>::parse(input) {
+        Ok(parsed) => parsed,
+        Err(_) => {
+            return bounded_invalid_result(
+                UriRedactionReason::InvalidUri,
+                max_output_bytes,
+                session_limited,
             );
         }
-        let result = self.redact_uri_str(input);
-        match session.charge_output_or_fallback(
-            result.log_safe_text().as_str().len(),
-            INVALID_URI.len(),
-        ) {
-            OutputCharge::Complete => result,
-            OutputCharge::Fallback => {
-                invalid_result(UriRedactionReason::OutputTruncated)
-            }
-            OutputCharge::Exhausted => {
-                empty_invalid_result(UriRedactionReason::OutputTruncated)
-            }
+    };
+    let mut reasons = Vec::new();
+    let mut components = Vec::new();
+    let mut rendered = BoundedUriWriter::new(max_output_bytes);
+    let scheme = parsed.scheme().as_str();
+    let scheme_end = scheme.len() + 1;
+    rendered.write_str(&input[..scheme_end]);
+
+    if let Some(authority) = parsed.authority() {
+        rendered.write_str("//");
+        if redact_authority(
+            authority.as_str(),
+            policy,
+            &mut reasons,
+            &mut components,
+            &mut rendered,
+            session_limited,
+        )
+        .is_err()
+        {
+            return bounded_invalid_result(
+                UriRedactionReason::InvalidUri,
+                max_output_bytes,
+                session_limited,
+            );
+        }
+        if session_limited && rendered.is_full() {
+            return finish_uri_rendering(rendered, reasons, components, session_limited);
         }
     }
 
-    /// Inspects one URI while consuming a shared diagnostic input budget.
-    #[must_use = "use the session-bounded URI inspection"]
-    pub fn inspect_uri_str_with_session(
-        &self,
-        input: &str,
-        session: &RedactionSession<'_>,
-    ) -> UriInspection {
-        if !session.consume_input(input.len()) {
-            return invalid_inspection(UriRedactionReason::InputLimitExceeded);
+    let path = parsed.path().as_str();
+    if policy.path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
+        mark_component(UriComponent::Path, &mut reasons, &mut components);
+        if path.starts_with('/') {
+            rendered.write_str("/%3Credacted%3E");
+        } else {
+            rendered.write_str("%3Credacted%3E");
         }
-        self.inspect_uri_str(input)
+    } else {
+        rendered.write_str(path);
     }
+    if session_limited && rendered.is_full() {
+        return finish_uri_rendering(rendered, reasons, components, session_limited);
+    }
+
+    if let Some(query) = parsed.query() {
+        rendered.write_str("?");
+        if let Err(reason) = redact_query(
+            query.as_str(),
+            policy,
+            &mut reasons,
+            &mut components,
+            &mut rendered,
+            session_limited,
+        ) {
+            return bounded_invalid_result(reason, max_output_bytes, session_limited);
+        }
+        if session_limited && rendered.is_full() {
+            return finish_uri_rendering(rendered, reasons, components, session_limited);
+        }
+    }
+
+    if let Some(fragment) = parsed.fragment() {
+        rendered.write_str("#");
+        if policy.fragment_policy() == UriFragmentPolicy::Redact && !fragment.as_str().is_empty() {
+            mark_component(UriComponent::Fragment, &mut reasons, &mut components);
+            write_opaque_mask(policy, Sensitivity::High, &mut rendered);
+        } else {
+            rendered.write_str(fragment.as_str());
+        }
+    }
+
+    finish_uri_rendering(rendered, reasons, components, session_limited)
+}
+
+/// Finishes one URI rendering and records truncation metadata.
+fn finish_uri_rendering(
+    rendered: BoundedUriWriter,
+    mut reasons: Vec<UriRedactionReason>,
+    components: Vec<UriComponent>,
+    session_limited: bool,
+) -> (UriRedaction, FragmentCompletion) {
+    let status = if components.is_empty() {
+        UriRedactionStatus::PassedThrough
+    } else {
+        UriRedactionStatus::Redacted
+    };
+    let (safe, completion) = rendered.finish_with_completion(session_limited);
+    let truncated = !matches!(completion, FragmentCompletion::Complete);
+    if truncated {
+        reasons.push(UriRedactionReason::OutputTruncated);
+    }
+    (
+        UriRedaction {
+            text: safe_text(safe),
+            status,
+            reasons,
+            components,
+            truncated,
+        },
+        completion,
+    )
 }
 
 /// Builds the stateless point limit for one complete URI input.
 ///
 /// The URI facade does not accumulate input across calls; callers that compose
-/// several URI fragments use [`RedactionSession`] instead.
+/// several URI fragments use [`crate::RedactionSession`] instead.
 #[inline(always)]
 fn input_limit(policy: &RedactionPolicy) -> usize {
     policy.limits().diagnostic_event().max_input_bytes()
+}
+
+/// Produces an invalid result while respecting the effective output ceiling.
+fn bounded_invalid_result(
+    reason: UriRedactionReason,
+    max_output_bytes: usize,
+    session_limited: bool,
+) -> (UriRedaction, FragmentCompletion) {
+    if max_output_bytes < INVALID_URI.len() {
+        return (
+            empty_invalid_result(reason),
+            if session_limited {
+                FragmentCompletion::SessionTruncated
+            } else {
+                FragmentCompletion::DomainTruncated
+            },
+        );
+    }
+    (invalid_result(reason), FragmentCompletion::Complete)
 }
 
 impl Default for UriRedactor {
@@ -297,6 +306,7 @@ fn redact_authority(
     reasons: &mut Vec<UriRedactionReason>,
     components: &mut Vec<UriComponent>,
     rendered: &mut BoundedUriWriter,
+    stop_on_full: bool,
 ) -> Result<(), ()> {
     let Some((userinfo, host)) = authority.rsplit_once('@') else {
         rendered.write_str(authority);
@@ -313,6 +323,9 @@ fn redact_authority(
             rendered,
         )?;
         rendered.write_str("@");
+        if stop_on_full && rendered.is_full() {
+            return Ok(());
+        }
         rendered.write_str(host);
         return Ok(());
     };
@@ -326,6 +339,9 @@ fn redact_authority(
         rendered,
     )?;
     rendered.write_str(":");
+    if stop_on_full && rendered.is_full() {
+        return Ok(());
+    }
     redact_userinfo_value(
         password,
         "password",
@@ -336,6 +352,9 @@ fn redact_authority(
         rendered,
     )?;
     rendered.write_str("@");
+    if stop_on_full && rendered.is_full() {
+        return Ok(());
+    }
     rendered.write_str(host);
     Ok(())
 }
@@ -426,19 +445,22 @@ fn redact_query(
     reasons: &mut Vec<UriRedactionReason>,
     components: &mut Vec<UriComponent>,
     rendered: &mut BoundedUriWriter,
+    stop_on_full: bool,
 ) -> Result<(), UriRedactionReason> {
     for (index, pair) in query.split('&').enumerate() {
+        if stop_on_full && rendered.is_full() {
+            return Ok(());
+        }
         if index != 0 {
             rendered.write_str("&");
         }
         let Some((raw_key, raw_value)) = pair.split_once('=') else {
-            decode_uri_component(pair)
-                .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+            decode_uri_component(pair).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
             rendered.write_str(pair);
             continue;
         };
-        let key = decode_uri_component(raw_key)
-            .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+        let key =
+            decode_uri_component(raw_key).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
         let value = decode_uri_component(raw_value)
             .map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
         match policy.resolve_field(&key) {
@@ -465,16 +487,13 @@ fn inspect_query(
 ) -> Result<(), UriRedactionReason> {
     for pair in query.split('&') {
         let Some((raw_key, raw_value)) = pair.split_once('=') else {
-            decode_uri_component(pair)
-                .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+            decode_uri_component(pair).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
             continue;
         };
-        let key = decode_uri_component(raw_key)
-            .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
-        decode_uri_component(raw_value)
-            .map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
-        if matches!(policy.resolve_field(&key), ResolvedField::Sensitive { .. })
-        {
+        let key =
+            decode_uri_component(raw_key).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+        decode_uri_component(raw_value).map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
+        if matches!(policy.resolve_field(&key), ResolvedField::Sensitive { .. }) {
             mark_component(UriComponent::Query, reasons, components);
         }
     }
@@ -530,8 +549,7 @@ fn write_opaque_mask(
         return;
     }
     let mut writer = UriComponentWriter::new(rendered);
-    let _ =
-        writer.write_str(policy.masking().for_level(sensitivity).opaque_mask());
+    let _ = writer.write_str(policy.masking().for_level(sensitivity).opaque_mask());
 }
 
 /// Converts one hexadecimal ASCII byte to its numeric value.
@@ -560,7 +578,7 @@ fn mark_component(
 }
 
 /// Builds a fixed-marker result for malformed or over-budget input.
-fn invalid_result(reason: UriRedactionReason) -> UriRedaction {
+pub(super) fn invalid_result(reason: UriRedactionReason) -> UriRedaction {
     UriRedaction {
         text: safe_text(INVALID_URI.to_owned()),
         status: UriRedactionStatus::Invalid,
@@ -570,23 +588,8 @@ fn invalid_result(reason: UriRedactionReason) -> UriRedaction {
     }
 }
 
-/// Charges the invalid-URI marker once for a shared diagnostic session.
-fn session_invalid_result(
-    session: &RedactionSession<'_>,
-    reason: UriRedactionReason,
-) -> UriRedaction {
-    match session
-        .charge_output_or_fallback(INVALID_URI.len(), INVALID_URI.len())
-    {
-        OutputCharge::Complete => invalid_result(reason),
-        OutputCharge::Fallback | OutputCharge::Exhausted => {
-            empty_invalid_result(reason)
-        }
-    }
-}
-
 /// Preserves fail-closed metadata without emitting bytes after exhaustion.
-fn empty_invalid_result(reason: UriRedactionReason) -> UriRedaction {
+pub(super) fn empty_invalid_result(reason: UriRedactionReason) -> UriRedaction {
     UriRedaction {
         text: safe_text(String::new()),
         status: UriRedactionStatus::Invalid,

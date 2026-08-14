@@ -7,8 +7,10 @@
 // =============================================================================
 //! Redaction adapters for environment-variable diagnostics.
 
+mod env_redaction_session;
 mod env_redactor;
 mod redacted_env_pair;
 
+pub use env_redaction_session::EnvRedactionSession;
 pub use env_redactor::EnvRedactor;
 pub use redacted_env_pair::RedactedEnvPair;
