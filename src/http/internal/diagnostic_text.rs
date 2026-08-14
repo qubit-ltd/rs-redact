@@ -115,6 +115,7 @@ fn redact_token_bounded(
 /// * `output` - Destination for the redacted token.
 /// * `token` - Non-whitespace token to inspect.
 /// * `redact_url` - Renderer for successfully parsed URLs.
+#[inline(never)]
 fn redact_token(
     output: &mut String,
     token: &str,
