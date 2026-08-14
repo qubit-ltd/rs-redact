@@ -29,7 +29,7 @@ diagnostic value.
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
+qubit-redact = "0.5"
 ```
 
 ```rust
@@ -74,9 +74,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | Text-keyed map | `Redactor::redact_map` or `redact_map_in_place` | A copied or mutated map; choose the final logging format explicitly |
 | Rust struct or enum | `Redact` derive | `Redacted<T>` view |
 | Value requiring logical replacement | `Redact` derive | The generated `RedactMut` capability mutates the value; not memory erasure |
-| Command arguments | `ArgvRedactor` | `RedactedArgv` |
-| Environment pairs | `EnvRedactor` | `RedactedEnvPair` or `LogSafeText` |
-| URL, form, headers, captured body | `HttpRedactor` | Log-safe HTTP result types |
+| Command arguments | `Redactor::session().argv()` | `RedactedArgv` |
+| Environment pairs | `Redactor::session().env()` | `RedactedEnvPair` or `LogSafeText` |
+| URL, form, headers, captured body | `Redactor::session().http()` | Log-safe HTTP result types |
+| URI string | `Redactor::session().uri()` | Structured, log-safe result with component reasons |
 
 ## Installation and example requirements
 
@@ -88,8 +89,8 @@ shown by its section and run `cargo run`.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.4", features = ["serde", "http"] }
-qubit-redact-derive = "0.4"
+qubit-redact = { version = "0.5", features = ["serde", "http"] }
+qubit-redact-derive = "0.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 http = "1.5"
@@ -121,10 +122,10 @@ sessions share one non-cloneable `RedactionSession`, so a nested value cannot
 reset the parent's budget.
 
 `InputOutputLimit` is the immutable limit stored in a policy. One runtime
-`RedactionSession` tracks an operation or diagnostic event. Callers may charge
-custom inspected input through `consume_input()`; redaction adapters commit
-their own output atomically, including any fallback marker, so eager fragments
-cannot exceed the cumulative output allowance.
+`RedactionSession` tracks a diagnostic event and is shared by nested adapters.
+Adapters admit complete input before inspection and commit their own output
+atomically, including any fallback marker, so eager fragments cannot exceed the
+cumulative output allowance.
 
 | API | Starting state | Use it when |
 | --- | --- | --- |
@@ -282,6 +283,18 @@ smaller positive limit with
 `RedactionPolicyBuilder::limits().json_depth(...)` when an input boundary
 requires it.
 
+JSON text can share the same event budget as other adapters through
+`session.json()`:
+
+```rust
+use qubit_redact::Redactor;
+
+let redactor = Redactor::strict();
+let mut session = redactor.session();
+let safe = session.json().redact_text(r#"{"token":"raw-token"}"#);
+assert!(!safe.to_string().contains("raw-token"));
+```
+
 ## 3. Make redacted text safe for logs
 
 Redaction and safe log rendering are distinct guarantees. A value may be
@@ -325,8 +338,8 @@ reference and examples.
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
-qubit-redact-derive = "0.4"
+qubit-redact = "0.5"
+qubit-redact-derive = "0.5"
 ```
 
 ```ignore
@@ -383,8 +396,8 @@ an existing implementation of the same trait.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.4", features = ["serde"] }
-qubit-redact-derive = "0.4"
+qubit-redact = { version = "0.5", features = ["serde"] }
+qubit-redact-derive = "0.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -420,7 +433,7 @@ Direct serialization uses the process-wide default policy. Serialize
 `event.redacted_with(&policy)` when an explicit policy snapshot is required.
 `#[redact(serde)]` generates `Serialize`, not `Deserialize`.
 
-## 5. Redact command arguments with `ArgvRedactor`
+## 5. Redact command arguments with a shared `RedactionSession`
 
 `redact_items` trusts sensitivity supplied by `ArgvItem`.
 `redact_heuristically` also recognizes `--password value`,
@@ -430,7 +443,8 @@ payloads; mark those values explicitly.
 
 ```rust
 use std::ffi::OsStr;
-use qubit_redact::{ArgvRedactor, Sensitivity, argv::ArgvItem};
+use qubit_redact::argv::ArgvItem;
+use qubit_redact::{Redactor, Sensitivity};
 
 fn main() {
     let items = [
@@ -439,7 +453,9 @@ fn main() {
         ArgvItem::plain(OsStr::new("raw-password")),
         ArgvItem::sensitive(OsStr::new("raw-api-key"), Sensitivity::Secret),
     ];
-    let output = ArgvRedactor::default().redact_heuristically(items).to_string();
+    let redactor = Redactor::default();
+    let mut session = redactor.session();
+    let output = session.argv().redact_heuristically(items).to_string();
     assert!(!output.contains("raw-password"));
     assert!(!output.contains("raw-api-key"));
 }
@@ -452,19 +468,20 @@ When rendering an argument collection, the collection framing is retained even
 if the shared input budget is exhausted before the first item can be read; in
 that case the safe result may be `['<truncated>']`.
 
-## 6. Redact environment variables with `EnvRedactor`
+## 6. Redact environment variables with a shared `RedactionSession`
 
 `EnvRedactor` classifies a value from its variable name and returns a log-safe
 `NAME=VALUE` pair. `redact_os_pair` accepts `OsStr`; non-UTF-8 input fails
 closed to an opaque mask.
 
 ```rust
-use qubit_redact::EnvRedactor;
+use qubit_redact::Redactor;
 
 fn main() {
-    let redactor = EnvRedactor::default();
-    let password = redactor.redact_pair("PASSWORD", "raw-password");
-    let assignment = redactor.redact_assignment("API_TOKEN=raw-token");
+    let redactor = Redactor::default();
+    let mut session = redactor.session();
+    let password = session.env().redact_pair("PASSWORD", "raw-password");
+    let assignment = session.env().redact_pair("API_TOKEN", "raw-token");
 
     assert_eq!(password.to_string(), "PASSWORD=<redacted>");
     assert!(!assignment.to_string().contains("raw-token"));
@@ -474,7 +491,7 @@ fn main() {
 Use `redact_os_pairs` for a list of process variables; it shares the input
 budget and stops with a truncation marker instead of reading excess input.
 
-## 7. Redact HTTP diagnostics with `HttpRedactor`
+## 7. Redact HTTP diagnostics with `session.http()`
 
 The optional `http` feature provides an immutable root `RedactionPolicy` for
 headers, query/form fields, and structured bodies. Its `http()` view stores
@@ -508,14 +525,14 @@ outcome. No result exposes a raw-body escape hatch.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.4", features = ["http"] }
+qubit-redact = { version = "0.5", features = ["http"] }
 http = "1.5"
 ```
 
 ```rust
 use http::{HeaderMap, HeaderValue};
-use qubit_redact::{RedactionPolicy, Sensitivity};
-use qubit_redact::http::{BodyCapture, HttpRedactor};
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
+use qubit_redact::http::BodyCapture;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = RedactionPolicy::default().to_builder();
@@ -528,19 +545,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .query()
         .raise("api_key", Sensitivity::Secret)?;
     let policy = builder.build()?;
-    let redactor = HttpRedactor::new(policy);
+    let redactor = Redactor::new(policy);
 
-    let url = redactor.redact_url_str(
+    let mut session = redactor.session();
+    let url = session.http().redact_url_str(
         "https://api.example.test/login?api_key=raw-key&mode=debug",
     );
     assert!(!url.to_string().contains("raw-key"));
 
     let mut headers = HeaderMap::new();
     headers.insert("authorization", HeaderValue::from_static("Bearer raw-token"));
-    assert!(!redactor.redact_headers(&headers).to_string().contains("raw-token"));
+    assert!(!session
+        .http()
+        .redact_headers(&headers)
+        .to_string()
+        .contains("raw-token"));
 
     let content_type = HeaderValue::from_static("application/json");
-    let body = redactor.redact_body(
+    let body = session.http().redact_body(
         BodyCapture::complete(br#"{"password":"raw-password","mode":"debug"}"#),
         Some(&content_type),
     );
@@ -560,13 +582,13 @@ For operational diagnostics, inspect `BodyRedaction::status()`,
 `BodyRedactionStatus::Redacted(reason)` value reports why a structured or
 visible representation was unsafe.
 
-## 8. Redact URI diagnostics with `UriRedactor`
+## 8. Redact URI diagnostics with `session.uri()`
 
 The optional `uri` feature adds a parser-backed URI facade without enabling
 the HTTP feature:
 
 ```toml
-qubit-redact = { version = "0.4", features = ["uri"] }
+qubit-redact = { version = "0.5", features = ["uri"] }
 ```
 
 `UriRedactor` preserves raw scheme, host, port, path, query order, and
@@ -587,6 +609,17 @@ retaining source text.
 `UriRedaction` exposes log-safe text, status, changed components, reasons, and
 output truncation metadata. Its `Debug` and `Display` implementations render
 only that safe result.
+
+Use `session.uri()` when URI work is part of a larger diagnostic event:
+
+```rust
+use qubit_redact::Redactor;
+
+let redactor = Redactor::default();
+let mut session = redactor.session();
+let safe = session.uri().redact_uri_str("https://example.test/path");
+assert!(safe.log_safe_text().as_str().contains("example.test"));
+```
 
 ## Security boundaries and verification
 

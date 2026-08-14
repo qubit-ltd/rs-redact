@@ -33,7 +33,7 @@ explicit log-safe boundary.
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
+qubit-redact = "0.5"
 ```
 
 ```rust
@@ -81,6 +81,27 @@ If no policy is installed, global/default reads use the fixed standard policy.
 They do not prevent a later `install_global()` call. Existing snapshots never
 change when a policy is installed later.
 
+For one diagnostic event, create one session and reuse it across adapters. The
+session owns the shared input/output budget, so nested JSON, HTTP, URI, argv,
+and environment operations cannot silently start a fresh budget:
+
+```rust
+use std::ffi::OsStr;
+use qubit_redact::argv::ArgvItem;
+use qubit_redact::Redactor;
+
+let redactor = Redactor::strict();
+let mut session = redactor.session();
+let token = session.redact_field("token", "raw-token");
+let argv = session.argv().redact_heuristically([
+    ArgvItem::plain(OsStr::new("client")),
+    ArgvItem::plain(OsStr::new("--token")),
+    ArgvItem::plain(OsStr::new("raw-token")),
+]);
+assert!(!token.as_str().contains("raw-token"));
+assert!(!argv.to_string().contains("raw-token"));
+```
+
 > **Warning:** `install_global()` belongs only in executable application
 > assembly. Call it once after the final policy is built and before workers or
 > request processing start; libraries must never call it. Objects created
@@ -115,8 +136,8 @@ complete field attributes and Serde/JSON integration are covered in the
 
 | Need | Cargo configuration |
 | --- | --- |
-| Core scalar, map, process, and text support | `qubit-redact = "0.4"` |
-| Domain-object derives | Add `qubit-redact-derive = "0.4"`. |
+| Core scalar, map, process, and text support | `qubit-redact = "0.5"` |
+| Domain-object derives | Add `qubit-redact-derive = "0.5"`. |
 | Serialize redacted domain objects or views | Enable `serde` and declare `serde` directly. `#[redact(serde)]` makes direct serialization redacted. |
 | Redact `serde_json::Value` or JSON text fields | Enable `json`; add `serde_json` directly when your application uses it. |
 | HTTP diagnostics | Enable `http`; add `http` directly when your application uses its types. |
@@ -128,12 +149,54 @@ still serialized as a JSON string.
 
 ```toml
 [dependencies]
-# HTTP diagnostics only
-qubit-redact = { version = "0.4", features = ["http"] }
+# HTTP diagnostics (including JSON body support)
+qubit-redact = { version = "0.5", features = ["http"] }
 http = "1.5"
 
 # URI diagnostics without the HTTP feature
-# qubit-redact = { version = "0.4", features = ["uri"] }
+# qubit-redact = { version = "0.5", features = ["uri"] }
+```
+
+The `json` feature owns JSON value and JSON-text redaction. The `http` feature
+uses that capability for JSON HTTP bodies, but JSON support is not an HTTP-only
+feature and can be enabled independently.
+
+JSON text can participate in the same event budget through `session.json()`:
+
+```rust
+use qubit_redact::Redactor;
+
+let redactor = Redactor::strict();
+let mut session = redactor.session();
+let safe = session.json().redact_text(r#"{"token":"raw-token"}"#);
+assert!(!safe.to_string().contains("raw-token"));
+```
+
+HTTP body diagnostics use `session.http()`:
+
+```rust
+use http::HeaderValue;
+use qubit_redact::http::{BodyCapture, HttpRedactor};
+
+let redactor = HttpRedactor::default();
+let mut session = redactor.session();
+let content_type = HeaderValue::from_static("application/json");
+let safe = session.http().redact_body(
+    BodyCapture::complete(br#"{"password":"raw"}"#),
+    Some(&content_type),
+);
+assert!(!safe.to_string().contains("raw"));
+```
+
+URI diagnostics use `session.uri()` and return structured status/reason data:
+
+```rust
+use qubit_redact::uri::UriRedactor;
+
+let redactor = UriRedactor::default();
+let mut session = redactor.session();
+let safe = session.uri().redact_uri_str("https://example.test/path");
+assert!(safe.log_safe_text().as_str().contains("example.test"));
 ```
 
 ## Safety Boundaries

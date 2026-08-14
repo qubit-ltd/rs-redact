@@ -26,7 +26,7 @@ Qubit Redact 是一个策略驱动的 Rust 脱敏库，用于防止敏感值经�
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
+qubit-redact = "0.5"
 ```
 
 ```rust
@@ -71,9 +71,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 文本 key Map | `Redactor::redact_map` 或 `redact_map_in_place` | 返回副本或修改原 Map；显式选择最终日志格式 |
 | Rust struct 或 enum | `Redact` derive | `Redacted<T>` 视图 |
 | 需要逻辑替换的值 | `Redact` derive | 使用同一 derive 生成的 `RedactMut` 修改对象；不等于内存擦除 |
-| 命令行参数 | `ArgvRedactor` | `RedactedArgv` |
-| 环境变量 pair | `EnvRedactor` | `RedactedEnvPair` 或 `LogSafeText` |
-| URL、form、Header、捕获的 body | `HttpRedactor` | 日志安全 HTTP 结果类型 |
+| 命令行参数 | `Redactor::session().argv()` | `RedactedArgv` |
+| 环境变量 pair | `Redactor::session().env()` | `RedactedEnvPair` 或 `LogSafeText` |
+| URL、form、Header、捕获的 body | `Redactor::session().http()` | 日志安全 HTTP 结果类型 |
+| URI 字符串 | `Redactor::session().uri()` | 带组件原因的结构化日志安全结果 |
 
 ## 安装与示例运行方式
 
@@ -83,8 +84,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.4", features = ["serde", "http"] }
-qubit-redact-derive = "0.4"
+qubit-redact = { version = "0.5", features = ["serde", "http"] }
+qubit-redact-derive = "0.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 http = "1.5"
@@ -110,8 +111,8 @@ http = "1.5"
 和适配器会共享一个不可克隆的 `RedactionSession`，不会通过嵌套调用重置父级预算。
 
 `InputOutputLimit` 是存储在策略中的不可变限制；运行时由一个 `RedactionSession`
-记录一次普通操作或诊断事件。调用方可以用 `consume_input()` 计量自行检查的输入；输出由
-脱敏 adapter 连同 fallback 标记原子提交，因此 eager 片段不能超过累计输出上限。
+记录一次诊断事件，并由嵌套 adapter 共享。adapter 会在检查输入前先完成 admission，并原子
+提交自己的输出（包括 fallback 标记），因此 eager 片段不能超过累计输出预算。
 
 | API | 初始状态 | 适用场景 |
 | --- | --- | --- |
@@ -245,6 +246,17 @@ Map；应通过领域类型定义明确的替换语义。
 Secret 不透明掩码。默认最大深度为 128；需要更小的正数限制时，使用
 `RedactionPolicyBuilder::limits().json_depth(...)` 配置。
 
+JSON 文本可以通过 `session.json()` 与其他 adapter 共享同一个事件预算：
+
+```rust
+use qubit_redact::Redactor;
+
+let redactor = Redactor::strict();
+let mut session = redactor.session();
+let safe = session.json().redact_text(r#"{"token":"raw-token"}"#);
+assert!(!safe.to_string().contains("raw-token"));
+```
+
 ## 3. 将脱敏文本安全写入日志
 
 脱敏与日志安全是两层保证：即使字段允许展示，换行符或 Unicode 控制字符仍可改变日志
@@ -283,8 +295,8 @@ enum。它为诊断信息创建借用视图，并默认生成 `RedactMut`，需�
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
-qubit-redact-derive = "0.4"
+qubit-redact = "0.5"
+qubit-redact-derive = "0.5"
 ```
 
 ```ignore
@@ -336,8 +348,8 @@ fn main() {
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.4", features = ["serde"] }
-qubit-redact-derive = "0.4"
+qubit-redact = { version = "0.5", features = ["serde"] }
+qubit-redact-derive = "0.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -373,7 +385,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 `event.redacted_with(&policy)`。`#[redact(serde)]` 生成 `Serialize`，不生成
 `Deserialize`。
 
-## 5. 用 `ArgvRedactor` 处理命令行参数
+## 5. 使用共享 `RedactionSession` 处理命令行参数
 
 `redact_items` 信任 `ArgvItem` 提供的敏感等级；`redact_heuristically` 还识别
 `--password value`、`--password=value`、`-password value`、`NAME=value` 和
@@ -381,7 +393,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 use std::ffi::OsStr;
-use qubit_redact::{ArgvRedactor, Sensitivity, argv::ArgvItem};
+use qubit_redact::argv::ArgvItem;
+use qubit_redact::{Redactor, Sensitivity};
 
 fn main() {
     let items = [
@@ -390,7 +403,9 @@ fn main() {
         ArgvItem::plain(OsStr::new("raw-password")),
         ArgvItem::sensitive(OsStr::new("raw-api-key"), Sensitivity::Secret),
     ];
-    let output = ArgvRedactor::default().redact_heuristically(items).to_string();
+    let redactor = Redactor::default();
+    let mut session = redactor.session();
+    let output = session.argv().redact_heuristically(items).to_string();
     assert!(!output.contains("raw-password"));
     assert!(!output.contains("raw-api-key"));
 }
@@ -401,18 +416,19 @@ fn main() {
 渲染参数集合时，即使共享输入预算在读取第一个元素前就已耗尽，也会保留集合外框；此时安全结果
 可能是 `['<truncated>']`。
 
-## 6. 用 `EnvRedactor` 处理环境变量
+## 6. 使用共享 `RedactionSession` 处理环境变量
 
 `EnvRedactor` 通过变量名分类其值，返回日志安全的 `NAME=VALUE`。`redact_os_pair`
 接受 `OsStr`，遇到非 UTF-8 输入会安全关闭并使用不透明掩码。
 
 ```rust
-use qubit_redact::EnvRedactor;
+use qubit_redact::Redactor;
 
 fn main() {
-    let redactor = EnvRedactor::default();
-    let password = redactor.redact_pair("PASSWORD", "raw-password");
-    let assignment = redactor.redact_assignment("API_TOKEN=raw-token");
+    let redactor = Redactor::default();
+    let mut session = redactor.session();
+    let password = session.env().redact_pair("PASSWORD", "raw-password");
+    let assignment = session.env().redact_pair("API_TOKEN", "raw-token");
 
     assert_eq!(password.to_string(), "PASSWORD=<redacted>");
     assert!(!assignment.to_string().contains("raw-token"));
@@ -422,7 +438,7 @@ fn main() {
 渲染进程变量列表时使用 `redact_os_pairs`：它在整个列表中共享输入预算，超出时用截断
 标记停止，而不会继续读取原始数据。
 
-## 7. 用 `HttpRedactor` 处理 HTTP 诊断
+## 7. 使用 `session.http()` 处理 HTTP 诊断
 
 可选 `http` feature 提供统一的不可变 `RedactionPolicy`，分别处理 Header、query/form 和
 结构化 body。它的 `http()` 视图只保存 HTTP 上下文差异；基础字段规则、掩码和限制仍位于
@@ -452,33 +468,38 @@ URL path 以便诊断；当 URL path 可能包含敏感标识符时，请使用
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.4", features = ["http"] }
+qubit-redact = { version = "0.5", features = ["http"] }
 http = "1.5"
 ```
 
 ```rust
 use http::{HeaderMap, HeaderValue};
-use qubit_redact::{RedactionPolicy, Sensitivity};
-use qubit_redact::http::{BodyCapture, HttpRedactor};
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
+use qubit_redact::http::BodyCapture;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = RedactionPolicy::default().to_builder();
     builder.http().body().raise("password", Sensitivity::Secret)?;
     builder.http().query().raise("api_key", Sensitivity::Secret)?;
     let policy = builder.build()?;
-    let redactor = HttpRedactor::new(policy);
+    let redactor = Redactor::new(policy);
 
-    let url = redactor.redact_url_str(
+    let mut session = redactor.session();
+    let url = session.http().redact_url_str(
         "https://api.example.test/login?api_key=raw-key&mode=debug",
     );
     assert!(!url.to_string().contains("raw-key"));
 
     let mut headers = HeaderMap::new();
     headers.insert("authorization", HeaderValue::from_static("Bearer raw-token"));
-    assert!(!redactor.redact_headers(&headers).to_string().contains("raw-token"));
+    assert!(!session
+        .http()
+        .redact_headers(&headers)
+        .to_string()
+        .contains("raw-token"));
 
     let content_type = HeaderValue::from_static("application/json");
-    let body = redactor.redact_body(
+    let body = session.http().redact_body(
         BodyCapture::complete(br#"{"password":"raw-password","mode":"debug"}"#),
         Some(&content_type),
     );
@@ -495,12 +516,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 运行时诊断可读取 `BodyRedaction::status()`、`is_truncated()`、`captured_len()` 和
 `omitted_len()`。`BodyRedactionStatus::Redacted(reason)` 会给出结构化或可见表示不安全的原因。
 
-## 8. 用 `UriRedactor` 处理 URI 诊断
+## 8. 使用 `session.uri()` 处理 URI 诊断
 
 可选 `uri` feature 提供基于解析器的 URI facade，且不会隐式启用 `http`：
 
 ```toml
-qubit-redact = { version = "0.4", features = ["uri"] }
+qubit-redact = { version = "0.5", features = ["uri"] }
 ```
 
 `UriRedactor` 保留可见组件的原始 scheme、host、port、path、query 顺序和百分号编码。
@@ -515,6 +536,17 @@ pair 分隔符，未遮盖的值保留原始编码，已遮盖的值重新做 UR
 
 `UriRedaction` 提供日志安全文本、状态、已变更组件、原因和输出截断元数据；其 `Debug` 和
 `Display` 只渲染安全结果。
+
+当 URI 诊断属于更大的事件时，使用 `session.uri()`：
+
+```rust
+use qubit_redact::Redactor;
+
+let redactor = Redactor::default();
+let mut session = redactor.session();
+let safe = session.uri().redact_uri_str("https://example.test/path");
+assert!(safe.log_safe_text().as_str().contains("example.test"));
+```
 
 ## 安全边界与验证
 
