@@ -63,20 +63,14 @@ impl RedactionLimits {
 
     /// Returns a copy with the diagnostic-event limit replaced.
     #[inline]
-    pub(crate) const fn with_diagnostic_event(
-        mut self,
-        limit: InputOutputLimit,
-    ) -> Self {
+    pub(crate) const fn with_diagnostic_event(mut self, limit: InputOutputLimit) -> Self {
         self.diagnostic_event = limit;
         self
     }
 
     /// Returns a copy with the ordinary-operation limit replaced.
     #[inline]
-    pub(crate) const fn with_ordinary_operation(
-        mut self,
-        limit: InputOutputLimit,
-    ) -> Self {
+    pub(crate) const fn with_ordinary_operation(mut self, limit: InputOutputLimit) -> Self {
         self.ordinary_operation = limit;
         self
     }
@@ -104,10 +98,7 @@ impl RedactionLimits {
     /// Returns a copy with the JSON depth limit replaced.
     #[cfg(feature = "json")]
     #[inline]
-    pub(crate) const fn with_json_depth_limit(
-        mut self,
-        budget: JsonDepthLimit,
-    ) -> Self {
+    pub(crate) const fn with_json_depth_limit(mut self, budget: JsonDepthLimit) -> Self {
         self.json_depth_limit = budget;
         self
     }

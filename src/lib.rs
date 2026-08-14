@@ -248,19 +248,23 @@
 //!
 //! ```
 //! use std::ffi::OsStr;
-//! use qubit_redact::{ArgvRedactor, EnvRedactor, argv::ArgvItem};
+//! use qubit_redact::argv::ArgvItem;
+//! use qubit_redact::Redactor;
 //!
 //! let argv = [
 //!     ArgvItem::plain(OsStr::new("client")),
 //!     ArgvItem::plain(OsStr::new("--password")),
 //!     ArgvItem::plain(OsStr::new("raw")),
 //! ];
-//! assert!(!ArgvRedactor::default()
+//! let redactor = Redactor::strict();
+//! let mut session = redactor.session();
+//! assert!(!session
+//!     .argv()
 //!     .redact_heuristically(argv)
 //!     .to_string()
 //!     .contains("raw"));
 //! assert_eq!(
-//!     EnvRedactor::default().redact_pair("PASSWORD", "raw").to_string(),
+//!     session.env().redact_pair("PASSWORD", "raw").to_string(),
 //!     "PASSWORD=<redacted>",
 //! );
 //! ```
@@ -273,9 +277,24 @@
 //! an over-depth object or array is replaced with the policy's opaque Secret
 //! mask without visiting its descendants.
 //!
+//! JSON text can share one diagnostic budget with other adapters through
+//! [`RedactionSession::json`]:
+//!
+//! ```
+//! # #[cfg(feature = "json")]
+//! # {
+//! use qubit_redact::Redactor;
+//!
+//! let redactor = Redactor::strict();
+//! let mut session = redactor.session();
+//! let safe = session.json().redact_text(r#"{"token":"raw-token"}"#);
+//! assert!(!safe.to_string().contains("raw-token"));
+//! # }
+//! ```
+//!
 //! # HTTP bodies
 //!
-//! Enable this API with `qubit-redact = { version = "0.4", features = ["http"]
+//! Enable this API with `qubit-redact = { version = "0.5", features = ["http"]
 //! }`. `http::BodyCapture` makes completeness explicit, and the returned
 //! `http::BodyRedaction` implements [`std::fmt::Display`] with bounded,
 //! log-safe output.
@@ -287,11 +306,29 @@
 //! use qubit_redact::http::{BodyCapture, BodyRedaction, HttpRedactor};
 //!
 //! let content_type = HeaderValue::from_static("application/json");
-//! let result: BodyRedaction = HttpRedactor::default().redact_body(
+//! let redactor = HttpRedactor::default();
+//! let mut session = redactor.session();
+//! let result: BodyRedaction = session.http().redact_body(
 //!     BodyCapture::complete(br#"{"password":"raw","mode":"debug"}"#),
 //!     Some(&content_type),
 //! );
 //! assert!(!format!("{result}").contains("raw"));
+//! # }
+//! ```
+
+//!
+//! URI diagnostics use the same session model when the `uri` feature is
+//! enabled:
+//!
+//! ```
+//! # #[cfg(feature = "uri")]
+//! # {
+//! use qubit_redact::uri::UriRedactor;
+//!
+//! let redactor = UriRedactor::default();
+//! let mut session = redactor.session();
+//! let safe = session.uri().redact_uri_str("https://example.test/path");
+//! assert!(safe.log_safe_text().as_str().contains("example.test"));
 //! # }
 //! ```
 
@@ -327,25 +364,24 @@ pub use domain::RedactValue;
 pub use domain::RedactValueMut;
 pub use domain::Redacted;
 pub use domain::RedactedKeyedMap;
-pub use domain::RedactedKeyedMapSession;
+pub use domain::RedactedKeyedMapResult;
+pub use domain::RedactedKeyedResult;
 pub use domain::RedactedKeyedValue;
-pub use domain::RedactedKeyedValueSession;
 pub use domain::RedactedMap;
-pub use domain::RedactedMapSession;
-pub use domain::RedactedSessionView;
+pub use domain::RedactedMapResult;
+pub use domain::RedactedResult;
 pub use domain::RedactedValue;
 pub use env::EnvRedactor;
 pub use field_redaction::FieldRedaction;
 pub use field_redaction::PassThroughReason;
 pub use install_global_policy_error::InstallGlobalPolicyError;
 #[cfg(feature = "json")]
-pub use json::RedactedJson;
+pub use json::JsonRedactionSession;
 #[cfg(feature = "json")]
-pub use json::RedactedJsonSession;
+pub use json::RedactedJson;
 #[cfg(feature = "json")]
 pub use json::RedactedJsonText;
 #[cfg(feature = "json")]
-pub use json::RedactedJsonTextSession;
 #[cfg(feature = "json")]
 pub use json::redact_json_text_in_place;
 pub use policy::AllowRule;
@@ -369,7 +405,6 @@ pub use policy::RedactionPolicy;
 pub use policy::RedactionPolicyBuilder;
 pub use policy::RedactionRules;
 pub use policy::RedactionSession;
-pub use policy::RedactionSessionKind;
 pub use policy::SensitiveFieldPreset;
 pub use policy::SensitiveFieldRule;
 pub use policy::Sensitivity;

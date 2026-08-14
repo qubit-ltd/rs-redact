@@ -9,22 +9,27 @@
 
 use qubit_redact::InputOutputLimit;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::RedactionSession;
-/// Verifies an oversized reservation closes the budget without fabricating
-/// input consumption.
+use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
+/// Verifies an oversized reservation closes input without preventing later
+/// fail-closed output while output capacity remains.
 #[test]
 fn test_diagnostic_input_budget_stops_after_oversized_reservation() {
-    let limit = InputOutputLimit::new(3, 64)
-        .expect("the small diagnostic budget should be valid");
+    let limit = InputOutputLimit::new(3, 64).expect("the small diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
-        .ordinary_operation(limit)
+        .diagnostic_event(limit)
         .build()
         .expect("the test policy should build");
-    let budget = RedactionSession::operation(&policy);
+    let redactor = Redactor::new(policy);
+    let mut session = redactor.session();
 
-    assert!(budget.consume_input(2));
-    assert_eq!(budget.remaining_input_bytes(), 1);
-    assert!(!budget.consume_input(2));
-    assert_eq!(budget.remaining_input_bytes(), 1);
-    assert!(!budget.consume_input(0));
+    let _ = session.redact_at(Sensitivity::Secret, "ab");
+    assert_eq!(session.remaining_input_bytes(), 1);
+    let _ = session.redact_at(Sensitivity::Secret, "cd");
+    assert_eq!(session.remaining_input_bytes(), 1);
+    assert_eq!(
+        session.redact_at(Sensitivity::Secret, "").as_str(),
+        "<redacted>",
+    );
+    assert_eq!(session.remaining_input_bytes(), 1);
 }

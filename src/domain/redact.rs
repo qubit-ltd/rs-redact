@@ -22,6 +22,17 @@ use crate::RedactionSession;
 /// and for selecting the redaction boundary. This trait does not infer that a
 /// newly added field needs redaction.
 pub trait Redact {
+    /// Returns a safely computable input size reserved before formatting.
+    ///
+    /// Implementations must override this with their exact encoded or complete
+    /// structural byte length. The fail-closed default rejects rendering and
+    /// never invokes `Debug` or `Display`.
+    #[doc(hidden)]
+    #[inline(always)]
+    fn redaction_input_bytes(&self) -> usize {
+        usize::MAX
+    }
+
     /// Creates a borrowed view using a snapshot of the current default policy.
     ///
     /// # Returns
@@ -76,7 +87,7 @@ pub trait Redact {
     #[doc(hidden)]
     fn fmt_redacted(
         &self,
-        session: &RedactionSession<'_>,
+        session: &mut RedactionSession<'_>,
         formatter: &mut Formatter<'_>,
     ) -> fmt::Result;
 }

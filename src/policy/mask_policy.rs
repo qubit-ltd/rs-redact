@@ -216,17 +216,23 @@ impl MaskPolicy {
     /// # Returns
     ///
     /// Empty input remains borrowed; other results own at most `max_bytes`.
-    pub(crate) fn mask_bounded<'a>(
+    pub(crate) fn mask_bounded<'a>(&self, value: &'a str, max_bytes: usize) -> Cow<'a, str> {
+        self.mask_bounded_with_truncation(value, max_bytes).0
+    }
+
+    /// Masks a value and reports whether the byte ceiling cut the mask.
+    pub(crate) fn mask_bounded_with_truncation<'a>(
         &self,
         value: &'a str,
         max_bytes: usize,
-    ) -> Cow<'a, str> {
+    ) -> (Cow<'a, str>, bool) {
         if value.is_empty() {
-            return Cow::Borrowed(value);
+            return (Cow::Borrowed(value), false);
         }
         let mut writer = BoundedMaskWriter::new(max_bytes);
         let _ = self.write_masked(value, &mut writer);
-        Cow::Owned(writer.finish())
+        let (output, truncated) = writer.finish();
+        (Cow::Owned(output), truncated)
     }
 
     /// Returns an opaque replacement without exceeding a byte limit.
@@ -242,7 +248,7 @@ impl MaskPolicy {
     pub(crate) fn opaque_mask_bounded(&self, max_bytes: usize) -> String {
         let mut writer = BoundedMaskWriter::new(max_bytes);
         let _ = writer.write_str(self.opaque_mask());
-        writer.finish()
+        writer.finish().0
     }
 
     /// Writes a masked value directly without cloning fixed replacements.
@@ -263,11 +269,7 @@ impl MaskPolicy {
     /// # Errors
     ///
     /// Returns the destination formatting error unchanged.
-    pub(crate) fn write_masked<W: fmt::Write>(
-        &self,
-        value: &str,
-        writer: &mut W,
-    ) -> fmt::Result {
+    pub(crate) fn write_masked<W: fmt::Write>(&self, value: &str, writer: &mut W) -> fmt::Result {
         match self {
             Self::Fixed { replacement } => writer.write_str(replacement),
             Self::PreserveEdges {
@@ -293,11 +295,9 @@ impl MaskPolicy {
                 replacement,
                 full_mask_below_or_equal,
             } => {
-                let Some(suffix_start) = preserved_suffix_start(
-                    value,
-                    *suffix_chars,
-                    *full_mask_below_or_equal,
-                ) else {
+                let Some(suffix_start) =
+                    preserved_suffix_start(value, *suffix_chars, *full_mask_below_or_equal)
+                else {
                     return writer.write_str(replacement);
                 };
                 writer.write_str(replacement)?;
@@ -329,17 +329,13 @@ fn mask_preserving_edges(
     replacement: &str,
     full_mask_below_or_equal: usize,
 ) -> String {
-    let Some((prefix_end, suffix_start)) = preserved_edge_bounds(
-        value,
-        prefix_chars,
-        suffix_chars,
-        full_mask_below_or_equal,
-    ) else {
+    let Some((prefix_end, suffix_start)) =
+        preserved_edge_bounds(value, prefix_chars, suffix_chars, full_mask_below_or_equal)
+    else {
         return replacement.to_string();
     };
-    let mut masked = String::with_capacity(
-        prefix_end + replacement.len() + value.len() - suffix_start,
-    );
+    let mut masked =
+        String::with_capacity(prefix_end + replacement.len() + value.len() - suffix_start);
     masked.push_str(&value[..prefix_end]);
     masked.push_str(replacement);
     masked.push_str(&value[suffix_start..]);
@@ -365,13 +361,11 @@ fn mask_preserving_suffix(
     replacement: &str,
     full_mask_below_or_equal: usize,
 ) -> String {
-    let Some(suffix_start) =
-        preserved_suffix_start(value, suffix_chars, full_mask_below_or_equal)
+    let Some(suffix_start) = preserved_suffix_start(value, suffix_chars, full_mask_below_or_equal)
     else {
         return replacement.to_string();
     };
-    let mut masked =
-        String::with_capacity(replacement.len() + value.len() - suffix_start);
+    let mut masked = String::with_capacity(replacement.len() + value.len() - suffix_start);
     masked.push_str(replacement);
     masked.push_str(&value[suffix_start..]);
     masked

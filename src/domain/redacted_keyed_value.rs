@@ -58,11 +58,7 @@ impl<'value, 'policy, T: ?Sized> RedactedKeyedValue<'value, 'policy, T> {
     /// A view that never modifies the original value.
     #[must_use = "format or serialize the keyed redaction view"]
     #[inline(always)]
-    pub const fn new(
-        key: &'value str,
-        value: &'value T,
-        policy: &'policy RedactionPolicy,
-    ) -> Self {
+    pub const fn new(key: &'value str, value: &'value T, policy: &'policy RedactionPolicy) -> Self {
         Self { key, value, policy }
     }
 
@@ -95,9 +91,13 @@ impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValue<'_, '_, T> {
     /// complete representation.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        let session = RedactionSession::diagnostic(self.policy);
-        let view =
-            RedactedKeyedValueSession::new(self.key, self.value, &session);
+        let mut session = RedactionSession::new(self.policy);
+        let view = RedactedKeyedResult::new_with_alternate(
+            self.key,
+            self.value,
+            &mut session,
+            formatter.alternate(),
+        );
         if mask_byte_limit().is_some() {
             return Debug::fmt(&view, formatter);
         }
@@ -110,68 +110,121 @@ impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValue<'_, '_, T> {
 }
 
 mod session_view {
+    use std::cell::RefCell;
     use std::fmt;
     use std::fmt::Debug;
     use std::fmt::Display;
     use std::fmt::Formatter;
     use std::fmt::Write as _;
+    use std::marker::PhantomData;
 
     use crate::Redact;
     use crate::RedactValue;
     use crate::RedactionSession;
+    use crate::domain::internal::mask_byte_limit;
+    use crate::domain::redacted::CompletedDebug;
+    use crate::domain::redacted::complete_debug;
+    use crate::policy::FragmentCompletion;
+    use crate::policy::RedactionAdmission;
     use crate::policy::ResolvedField;
     use crate::text::internal::LogEscapeWriter;
 
-    /// A keyed value view that reuses one diagnostic session.
+    /// An eagerly completed keyed value representation.
     #[must_use = "format the keyed redacted value view"]
-    pub struct RedactedKeyedValueSession<'value, 'session, 'policy, T: ?Sized> {
-        key: &'value str,
-        value: &'value T,
-        session: &'session RedactionSession<'policy>,
+    pub struct RedactedKeyedResult<'value, T: ?Sized> {
+        completed: CompletedDebug,
+        marker: PhantomData<(&'value str, &'value T)>,
     }
 
-    impl<'value, 'session, 'policy, T: ?Sized>
-        RedactedKeyedValueSession<'value, 'session, 'policy, T>
-    {
-        /// Creates a keyed view borrowing an existing diagnostic session.
+    impl<'value, T: Redact + RedactValue + ?Sized> RedactedKeyedResult<'value, T> {
+        /// Completes a keyed value through an existing diagnostic session.
         #[inline(always)]
-        pub fn new(
+        pub fn new(key: &'value str, value: &'value T, session: &mut RedactionSession<'_>) -> Self {
+            Self::new_with_alternate(key, value, session, false)
+        }
+
+        /// Completes a keyed value while preserving alternate debug.
+        pub(crate) fn new_with_alternate(
             key: &'value str,
             value: &'value T,
-            session: &'session RedactionSession<'policy>,
+            session: &mut RedactionSession<'_>,
+            alternate: bool,
         ) -> Self {
-            Self {
-                key,
-                value,
-                session,
+            Self::try_new(key, value, session, alternate).unwrap_or_else(|| Self {
+                completed: CompletedDebug::empty(),
+                marker: PhantomData,
+            })
+        }
+
+        /// Attempts to complete one keyed item before the session exhausts.
+        pub(crate) fn try_new(
+            key: &'value str,
+            value: &'value T,
+            session: &mut RedactionSession<'_>,
+            alternate: bool,
+        ) -> Option<Self> {
+            if session.is_exhausted() {
+                return None;
             }
+            let session_limit = session.remaining_output_bytes();
+            let domain_limit = mask_byte_limit().unwrap_or(usize::MAX);
+            let admission = if session.input_is_precharged() {
+                session.admit_precharged_output(domain_limit)
+            } else {
+                let input_bytes = key
+                    .len()
+                    .saturating_add(RedactValue::redaction_input_bytes(value));
+                session.admit(input_bytes, domain_limit, "<truncated>".len())
+            };
+            let max_output_bytes = match admission {
+                RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
+                RedactionAdmission::Fallback => {
+                    return Some(Self {
+                        completed: CompletedDebug::truncated_marker(),
+                        marker: PhantomData,
+                    });
+                }
+                RedactionAdmission::Exhausted => return None,
+            };
+            let completed = {
+                let wrapper = KeyedOnce {
+                    key,
+                    value,
+                    session: RefCell::new(Some(session)),
+                };
+                complete_debug(&wrapper, max_output_bytes, alternate)
+            };
+            let completion = if completed.truncated() {
+                if domain_limit < session_limit {
+                    FragmentCompletion::DomainTruncated
+                } else {
+                    FragmentCompletion::SessionTruncated
+                }
+            } else {
+                FragmentCompletion::Complete
+            };
+            session.commit_output(completed.len(), completion);
+            Some(Self {
+                completed,
+                marker: PhantomData,
+            })
+        }
+
+        /// Returns whether the local item ceiling truncated this value.
+        pub(crate) fn is_truncated(&self) -> bool {
+            self.completed.truncated()
         }
     }
 
-    impl<T: Redact + RedactValue + ?Sized> Debug
-        for RedactedKeyedValueSession<'_, '_, '_, T>
-    {
-        /// Formats the value through its selected classification and shared
-        /// session.
+    impl<T: ?Sized> Debug for RedactedKeyedResult<'_, T> {
+        /// Writes the already-completed safe keyed representation.
         #[inline]
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-            let policy = self.session.policy();
-            let resolved = policy.resolve_field(self.key);
-            match resolved {
-                ResolvedField::Sensitive { sensitivity } => Debug::fmt(
-                    &self.value.redact_value(sensitivity, policy.masking()),
-                    formatter,
-                ),
-                ResolvedField::PassThrough => {
-                    self.value.fmt_redacted(self.session, formatter)
-                }
-            }
+            Debug::fmt(&self.completed, formatter)
         }
     }
 
-    impl<T: Redact + RedactValue + ?Sized> Display
-        for RedactedKeyedValueSession<'_, '_, '_, T>
-    {
+    impl<T: ?Sized> Display for RedactedKeyedResult<'_, T> {
         /// Escapes the selected redacted representation for plain-text logs.
         #[inline]
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
@@ -179,13 +232,36 @@ mod session_view {
             write!(&mut writer, "{self:?}")
         }
     }
+
+    /// One-shot adapter used to complete one keyed value.
+    struct KeyedOnce<'value, 'session, 'policy, T: ?Sized> {
+        key: &'value str,
+        value: &'value T,
+        session: RefCell<Option<&'session mut RedactionSession<'policy>>>,
+    }
+
+    impl<T: Redact + RedactValue + ?Sized> Debug for KeyedOnce<'_, '_, '_, T> {
+        /// Applies the selected keyed redaction exactly once.
+        fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+            let mut session = self.session.borrow_mut();
+            let session = session
+                .take()
+                .expect("the one-shot keyed adapter cannot be reused");
+            let policy = session.policy();
+            match policy.resolve_field(self.key) {
+                ResolvedField::Sensitive { sensitivity } => Debug::fmt(
+                    &self.value.redact_value(sensitivity, policy.masking()),
+                    formatter,
+                ),
+                ResolvedField::PassThrough => self.value.fmt_redacted(session, formatter),
+            }
+        }
+    }
 }
 
-pub use session_view::RedactedKeyedValueSession;
+pub use session_view::RedactedKeyedResult;
 
-impl<T: Redact + RedactValue + ?Sized> Display
-    for RedactedKeyedValue<'_, '_, T>
-{
+impl<T: Redact + RedactValue + ?Sized> Display for RedactedKeyedValue<'_, '_, T> {
     /// Formats the selected redacted representation for a bounded plain-text
     /// log.
     ///
@@ -203,9 +279,8 @@ impl<T: Redact + RedactValue + ?Sized> Display
     /// complete escaped representation.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        let session = RedactionSession::diagnostic(self.policy);
-        let view =
-            RedactedKeyedValueSession::new(self.key, self.value, &session);
+        let mut session = RedactionSession::new(self.policy);
+        let view = RedactedKeyedResult::new(self.key, self.value, &mut session);
         format_bounded(
             &view,
             LogOutputLimit::from(self.policy.limits().diagnostic_event()),
@@ -242,21 +317,15 @@ impl<T: RedactValue + crate::domain::RedactSerialize + ?Sized> serde::Serialize
     {
         let resolved = self.policy.resolve_field(self.key);
         match resolved {
-            ResolvedField::Sensitive { sensitivity } => {
-                serde::Serialize::serialize(
-                    &self
-                        .value
-                        .redact_value(sensitivity, self.policy.masking()),
-                    serializer,
-                )
-            }
-            ResolvedField::PassThrough => {
-                crate::domain::RedactSerialize::serialize_redacted(
-                    self.value,
-                    self.policy,
-                    serializer,
-                )
-            }
+            ResolvedField::Sensitive { sensitivity } => serde::Serialize::serialize(
+                &self.value.redact_value(sensitivity, self.policy.masking()),
+                serializer,
+            ),
+            ResolvedField::PassThrough => crate::domain::RedactSerialize::serialize_redacted(
+                self.value,
+                self.policy,
+                serializer,
+            ),
         }
     }
 }

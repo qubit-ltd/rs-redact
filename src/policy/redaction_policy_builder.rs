@@ -157,11 +157,7 @@ impl RedactionPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// application-rule name.
-    pub fn raise(
-        mut self,
-        field: &str,
-        level: Sensitivity,
-    ) -> Result<Self, PolicyError> {
+    pub fn raise(mut self, field: &str, level: Sensitivity) -> Result<Self, PolicyError> {
         self.rules.raise(field, level)?;
         Ok(self)
     }
@@ -175,11 +171,7 @@ impl RedactionPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// application-rule name.
-    pub fn override_level(
-        mut self,
-        field: &str,
-        level: Sensitivity,
-    ) -> Result<Self, PolicyError> {
+    pub fn override_level(mut self, field: &str, level: Sensitivity) -> Result<Self, PolicyError> {
         self.rules.override_level(field, level)?;
         Ok(self)
     }
@@ -192,10 +184,7 @@ impl RedactionPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// application-rule name.
-    pub fn allow_canonical_exact(
-        mut self,
-        field: &str,
-    ) -> Result<Self, PolicyError> {
+    pub fn allow_canonical_exact(mut self, field: &str) -> Result<Self, PolicyError> {
         self.rules.allow_canonical_exact(field)?;
         Ok(self)
     }
@@ -219,10 +208,7 @@ impl RedactionPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// application-rule name.
-    pub fn remove_allow_canonical_exact(
-        mut self,
-        field: &str,
-    ) -> Result<Self, PolicyError> {
+    pub fn remove_allow_canonical_exact(mut self, field: &str) -> Result<Self, PolicyError> {
         self.rules.remove_allow_canonical_exact(field)?;
         Ok(self)
     }
@@ -233,10 +219,7 @@ impl RedactionPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// application-rule name.
-    pub fn remove_allow_suffix(
-        mut self,
-        field: &str,
-    ) -> Result<Self, PolicyError> {
+    pub fn remove_allow_suffix(mut self, field: &str) -> Result<Self, PolicyError> {
         self.rules.remove_allow_suffix(field)?;
         Ok(self)
     }
@@ -253,11 +236,7 @@ impl RedactionPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFixedReplacement`] when `policy` supplies
     /// an empty fixed replacement.
-    pub fn mask(
-        mut self,
-        level: Sensitivity,
-        policy: MaskPolicy,
-    ) -> Result<Self, PolicyError> {
+    pub fn mask(mut self, level: Sensitivity, policy: MaskPolicy) -> Result<Self, PolicyError> {
         let masking = self.masking.with_policy(level, policy);
         masking.validate(PolicyLocation::Rules)?;
         self.masking = masking;
@@ -271,30 +250,21 @@ impl RedactionPolicyBuilder {
     }
 
     /// Sets the ordinary operation input and output limits.
-    pub const fn ordinary_operation(
-        mut self,
-        budget: InputOutputLimit,
-    ) -> Self {
+    pub const fn ordinary_operation(mut self, budget: InputOutputLimit) -> Self {
         self.limits = self.limits.with_ordinary_operation(budget);
         self
     }
 
     /// Sets HTTP URL path handling in the unified policy.
     #[cfg(feature = "http")]
-    pub fn url_path_policy(
-        mut self,
-        policy: crate::http::UrlPathPolicy,
-    ) -> Self {
+    pub fn url_path_policy(mut self, policy: crate::http::UrlPathPolicy) -> Self {
         self.http.url_path_mut(policy);
         self
     }
 
     /// Sets HTTP opaque text-body handling in the unified policy.
     #[cfg(feature = "http")]
-    pub fn text_body_policy(
-        mut self,
-        policy: crate::http::TextBodyPolicy,
-    ) -> Self {
+    pub fn text_body_policy(mut self, policy: crate::http::TextBodyPolicy) -> Self {
         self.http.text_body_mut(policy);
         self
     }
@@ -315,10 +285,7 @@ impl RedactionPolicyBuilder {
 
     /// Sets URI fragment handling in the unified policy.
     #[cfg(feature = "uri")]
-    pub fn fragment_policy(
-        mut self,
-        policy: crate::uri::UriFragmentPolicy,
-    ) -> Self {
+    pub fn fragment_policy(mut self, policy: crate::uri::UriFragmentPolicy) -> Self {
         self.uri = self.uri.fragment_policy(policy);
         self
     }
@@ -332,10 +299,7 @@ impl RedactionPolicyBuilder {
 
     /// Sets behavior for root and array JSON scalar values.
     #[cfg(feature = "json")]
-    pub const fn unkeyed_json_value_policy(
-        mut self,
-        policy: UnkeyedJsonValuePolicy,
-    ) -> Self {
+    pub const fn unkeyed_json_value_policy(mut self, policy: UnkeyedJsonValuePolicy) -> Self {
         self.unkeyed_json_value_policy = policy;
         self
     }
@@ -396,29 +360,19 @@ mod views {
         }
 
         /// Sets the base fallback for unknown fields.
-        pub fn unknown_field_policy(
-            &mut self,
-            policy: UnknownFieldPolicy,
-        ) -> &mut Self {
+        pub fn unknown_field_policy(&mut self, policy: UnknownFieldPolicy) -> &mut Self {
             self.builder.rules.unknown_field_policy(policy);
             self
         }
 
         /// Includes all fields from a built-in sensitive preset.
-        pub fn include_preset(
-            &mut self,
-            preset: SensitiveFieldPreset,
-        ) -> &mut Self {
+        pub fn include_preset(&mut self, preset: SensitiveFieldPreset) -> &mut Self {
             self.builder.rules.include_preset(preset);
             self
         }
 
         /// Raises a base field's minimum sensitivity.
-        pub fn raise(
-            &mut self,
-            field: &str,
-            level: Sensitivity,
-        ) -> Result<&mut Self, PolicyError> {
+        pub fn raise(&mut self, field: &str, level: Sensitivity) -> Result<&mut Self, PolicyError> {
             self.builder.rules.raise(field, level)?;
             Ok(self)
         }
@@ -434,37 +388,25 @@ mod views {
         }
 
         /// Adds a base exact allow rule.
-        pub fn allow_exact(
-            &mut self,
-            field: &str,
-        ) -> Result<&mut Self, PolicyError> {
+        pub fn allow_exact(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
             self.builder.rules.allow_canonical_exact(field)?;
             Ok(self)
         }
 
         /// Adds a base suffix allow rule.
-        pub fn allow_suffix(
-            &mut self,
-            field: &str,
-        ) -> Result<&mut Self, PolicyError> {
+        pub fn allow_suffix(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
             self.builder.rules.allow_suffix(field)?;
             Ok(self)
         }
 
         /// Removes a base exact allow rule.
-        pub fn remove_allow_exact(
-            &mut self,
-            field: &str,
-        ) -> Result<&mut Self, PolicyError> {
+        pub fn remove_allow_exact(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
             self.builder.rules.remove_allow_canonical_exact(field)?;
             Ok(self)
         }
 
         /// Removes a base suffix allow rule.
-        pub fn remove_allow_suffix(
-            &mut self,
-            field: &str,
-        ) -> Result<&mut Self, PolicyError> {
+        pub fn remove_allow_suffix(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
             self.builder.rules.remove_allow_suffix(field)?;
             Ok(self)
         }
@@ -493,8 +435,7 @@ mod views {
             level: Sensitivity,
             policy: MaskPolicy,
         ) -> Result<&mut Self, PolicyError> {
-            let masking =
-                self.builder.masking.clone().with_policy(level, policy);
+            let masking = self.builder.masking.clone().with_policy(level, policy);
             masking.validate(PolicyLocation::Rules)?;
             self.builder.masking = masking;
             Ok(self)
@@ -524,10 +465,7 @@ mod views {
         }
 
         /// Sets URI fragment visibility.
-        pub fn fragment(
-            &mut self,
-            policy: crate::uri::UriFragmentPolicy,
-        ) -> &mut Self {
+        pub fn fragment(&mut self, policy: crate::uri::UriFragmentPolicy) -> &mut Self {
             self.builder.fragment_policy_mut(policy);
             self
         }
@@ -560,19 +498,13 @@ mod views {
         }
 
         /// Sets URL path visibility for HTTP diagnostics.
-        pub fn url_path(
-            &mut self,
-            policy: crate::http::UrlPathPolicy,
-        ) -> &mut Self {
+        pub fn url_path(&mut self, policy: crate::http::UrlPathPolicy) -> &mut Self {
             self.builder.http.url_path_mut(policy);
             self
         }
 
         /// Sets opaque text-body visibility for HTTP diagnostics.
-        pub fn text_body(
-            &mut self,
-            policy: crate::http::TextBodyPolicy,
-        ) -> &mut Self {
+        pub fn text_body(&mut self, policy: crate::http::TextBodyPolicy) -> &mut Self {
             self.builder.http.text_body_mut(policy);
             self
         }
@@ -591,10 +523,7 @@ mod views {
 
         /// Sets the handling of root and array JSON scalar values in HTTP
         /// bodies.
-        pub fn unkeyed_json(
-            &mut self,
-            policy: crate::http::UnkeyedJsonValuePolicy,
-        ) -> &mut Self {
+        pub fn unkeyed_json(&mut self, policy: crate::http::UnkeyedJsonValuePolicy) -> &mut Self {
             self.builder.unkeyed_json_value_policy = policy;
             self
         }
@@ -617,11 +546,7 @@ mod views {
         }
 
         /// Raises a context field's minimum sensitivity.
-        pub fn raise(
-            &mut self,
-            field: &str,
-            level: Sensitivity,
-        ) -> Result<&mut Self, PolicyError> {
+        pub fn raise(&mut self, field: &str, level: Sensitivity) -> Result<&mut Self, PolicyError> {
             self.builder.raise_mut(self.context, field, level)?;
             Ok(self)
         }
@@ -638,37 +563,25 @@ mod views {
         }
 
         /// Adds a context exact allow rule; the base policy still applies.
-        pub fn allow_exact(
-            &mut self,
-            field: &str,
-        ) -> Result<&mut Self, PolicyError> {
+        pub fn allow_exact(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
             self.builder.allow_exact_mut(self.context, field)?;
             Ok(self)
         }
 
         /// Adds a context suffix allow rule; the base policy still applies.
-        pub fn allow_suffix(
-            &mut self,
-            field: &str,
-        ) -> Result<&mut Self, PolicyError> {
+        pub fn allow_suffix(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
             self.builder.allow_suffix_mut(self.context, field)?;
             Ok(self)
         }
 
         /// Removes a context exact allow rule.
-        pub fn remove_allow_exact(
-            &mut self,
-            field: &str,
-        ) -> Result<&mut Self, PolicyError> {
+        pub fn remove_allow_exact(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
             self.builder.remove_allow_exact_mut(self.context, field)?;
             Ok(self)
         }
 
         /// Removes a context suffix allow rule.
-        pub fn remove_allow_suffix(
-            &mut self,
-            field: &str,
-        ) -> Result<&mut Self, PolicyError> {
+        pub fn remove_allow_suffix(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
             self.builder.remove_allow_suffix_mut(self.context, field)?;
             Ok(self)
         }
@@ -701,31 +614,20 @@ mod views {
 
     impl LimitsBuilder<'_> {
         /// Sets the cumulative diagnostic-event limit.
-        pub fn diagnostic_event(
-            &mut self,
-            limit: InputOutputLimit,
-        ) -> &mut Self {
-            self.builder.limits =
-                self.builder.limits.with_diagnostic_event(limit);
+        pub fn diagnostic_event(&mut self, limit: InputOutputLimit) -> &mut Self {
+            self.builder.limits = self.builder.limits.with_diagnostic_event(limit);
             self
         }
 
         /// Sets the independent ordinary-operation limit.
-        pub fn ordinary_operation(
-            &mut self,
-            limit: InputOutputLimit,
-        ) -> &mut Self {
-            self.builder.limits =
-                self.builder.limits.with_ordinary_operation(limit);
+        pub fn ordinary_operation(&mut self, limit: InputOutputLimit) -> &mut Self {
+            self.builder.limits = self.builder.limits.with_ordinary_operation(limit);
             self
         }
 
         /// Sets the local HTTP body limit.
         #[cfg(feature = "http")]
-        pub fn http_body(
-            &mut self,
-            limit: crate::http::BodyBudget,
-        ) -> &mut Self {
+        pub fn http_body(&mut self, limit: crate::http::BodyBudget) -> &mut Self {
             self.builder.limits = self.builder.limits.with_http_body(limit);
             self
         }
@@ -733,8 +635,7 @@ mod views {
         /// Sets the JSON recursion-depth limit.
         #[cfg(feature = "json")]
         pub fn json_depth(&mut self, limit: JsonDepthLimit) -> &mut Self {
-            self.builder.limits =
-                self.builder.limits.with_json_depth_limit(limit);
+            self.builder.limits = self.builder.limits.with_json_depth_limit(limit);
             self
         }
     }

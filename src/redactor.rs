@@ -18,7 +18,9 @@ use crate::RedactedText;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::Sensitivity;
-use crate::policy::OutputCharge;
+use crate::policy::DiagnosticBudget;
+use crate::policy::FragmentCompletion;
+use crate::policy::RedactionAdmission;
 use crate::policy::ResolvedField;
 
 /// Applies one immutable policy to scalar values and string maps.
@@ -63,6 +65,17 @@ impl Redactor {
         &self.policy
     }
 
+    /// Creates mutable accounting for one diagnostic event.
+    ///
+    /// # Returns
+    ///
+    /// A session borrowing this redactor's immutable policy.
+    #[must_use = "retain the session for one diagnostic event"]
+    #[inline]
+    pub fn session(&self) -> RedactionSession<'_> {
+        RedactionSession::new(&self.policy)
+    }
+
     /// Redacts one value according to its field name.
     ///
     /// Unknown and explicitly allowed fields retain a borrow of `value`.
@@ -89,135 +102,9 @@ impl Redactor {
     /// values while borrowing safe input where possible.
     #[must_use = "use the returned redacted value"]
     #[inline]
-    pub fn redact_field<'a>(
-        &self,
-        field: &str,
-        value: &'a str,
-    ) -> FieldRedaction<'a> {
-        let session = RedactionSession::operation(&self.policy);
-        self.redact_field_with_session(&session, field, value)
-    }
-
-    /// Redacts one field while consuming the supplied operation session.
-    ///
-    /// This is the composition entry point for diagnostics that contain more
-    /// than one field-producing adapter. Input accounting happens before the
-    /// value is inspected, and generated masks are charged to the same
-    /// session.
-    #[must_use = "use the returned redacted value"]
-    pub fn redact_field_with_session<'a>(
-        &self,
-        session: &RedactionSession<'_>,
-        field: &str,
-        value: &'a str,
-    ) -> FieldRedaction<'a> {
-        if !session.consume_input(field.len().saturating_add(value.len())) {
-            return self.fallback_field(session);
-        }
-        self.redact_field_after_input(session, field, value)
-    }
-
-    /// Redacts one field after a composite adapter has reserved its input.
-    pub(crate) fn redact_field_after_input<'a>(
-        &self,
-        session: &RedactionSession<'_>,
-        field: &str,
-        value: &'a str,
-    ) -> FieldRedaction<'a> {
-        let redacted =
-            self.redact_field_after_input_unbudgeted(session, field, value);
-        self.charge_field_output(session, redacted)
-    }
-
-    /// Redacts a field after input reservation without charging its output.
-    ///
-    /// Composite adapters use this when the field is part of a larger rendered
-    /// fragment whose escaped bytes must be charged exactly once at the outer
-    /// boundary.
-    pub(crate) fn redact_field_after_input_unbudgeted<'a>(
-        &self,
-        session: &RedactionSession<'_>,
-        field: &str,
-        value: &'a str,
-    ) -> FieldRedaction<'a> {
-        let resolved = self.policy.resolve_field(field);
-        match resolved {
-            ResolvedField::Sensitive { sensitivity } => {
-                let max_bytes = session.remaining_output_bytes();
-                let masked = self.policy.masking().mask_bounded(
-                    sensitivity,
-                    value,
-                    max_bytes,
-                );
-                FieldRedaction::Masked {
-                    value: RedactedText::new(masked),
-                    sensitivity,
-                }
-            }
-            ResolvedField::PassThrough => {
-                let reason = match self.policy.classify_field(field) {
-                    FieldClassification::Allowed { .. } => {
-                        PassThroughReason::Allowed
-                    }
-                    FieldClassification::Sensitive { .. }
-                    | FieldClassification::Unknown => {
-                        PassThroughReason::Unknown
-                    }
-                };
-                FieldRedaction::PassedThrough { value, reason }
-            }
-        }
-    }
-
-    /// Charges one already-resolved field result at its escaped output size.
-    fn charge_field_output<'a>(
-        &self,
-        session: &RedactionSession<'_>,
-        redacted: FieldRedaction<'a>,
-    ) -> FieldRedaction<'a> {
-        match redacted {
-            FieldRedaction::Masked { value, sensitivity } => {
-                let fallback = self.opaque_mask();
-                match session.charge_output_or_fallback(
-                    log_safe_len(value.as_str()),
-                    log_safe_len(fallback),
-                ) {
-                    OutputCharge::Complete => {
-                        FieldRedaction::Masked { value, sensitivity }
-                    }
-                    OutputCharge::Fallback => FieldRedaction::Masked {
-                        value: RedactedText::new(Cow::Owned(
-                            fallback.to_owned(),
-                        )),
-                        sensitivity: Sensitivity::Secret,
-                    },
-                    OutputCharge::Exhausted => FieldRedaction::Masked {
-                        value: RedactedText::new(Cow::Owned(String::new())),
-                        sensitivity: Sensitivity::Secret,
-                    },
-                }
-            }
-            FieldRedaction::PassedThrough { value, reason } => {
-                match session.charge_output_or_fallback(
-                    log_safe_len(value),
-                    log_safe_len(self.opaque_mask()),
-                ) {
-                    OutputCharge::Complete => {
-                        FieldRedaction::PassedThrough { value, reason }
-                    }
-                    OutputCharge::Fallback => FieldRedaction::Masked {
-                        value: RedactedText::new(Cow::Owned(
-                            self.opaque_mask().to_owned(),
-                        )),
-                        sensitivity: Sensitivity::Secret,
-                    },
-                    OutputCharge::Exhausted => FieldRedaction::Masked {
-                        value: RedactedText::new(Cow::Owned(String::new())),
-                        sensitivity: Sensitivity::Secret,
-                    },
-                }
-            }
-        }
+    pub fn redact_field<'a>(&self, field: &str, value: &'a str) -> FieldRedaction<'a> {
+        let mut budget = DiagnosticBudget::new(self.policy.limits().ordinary_operation());
+        redact_field_with_budget(&self.policy, &mut budget, field, value)
     }
 
     /// Redacts one value at an explicit sensitivity level.
@@ -239,79 +126,9 @@ impl Redactor {
     /// Typed redacted text produced by the configured mask for `level`.
     #[must_use = "use the returned redacted value"]
     #[inline]
-    pub fn redact_at<'a>(
-        &self,
-        level: Sensitivity,
-        value: &'a str,
-    ) -> RedactedText<'a> {
-        let session = RedactionSession::operation(&self.policy);
-        self.redact_at_with_session(&session, level, value)
-    }
-
-    /// Redacts an explicitly sensitive value through an existing session.
-    #[must_use = "use the returned redacted value"]
-    pub fn redact_at_with_session<'a>(
-        &self,
-        session: &RedactionSession<'_>,
-        level: Sensitivity,
-        value: &'a str,
-    ) -> RedactedText<'a> {
-        if !session.consume_input(value.len()) {
-            return self.fallback_text(session);
-        }
-        let masked = self.policy.masking().mask_bounded(
-            level,
-            value,
-            session.remaining_output_bytes(),
-        );
-        let length = log_safe_len(masked.as_ref());
-        let fallback = self.opaque_mask();
-        match session.charge_output_or_fallback(length, log_safe_len(fallback))
-        {
-            OutputCharge::Complete => RedactedText::new(masked),
-            OutputCharge::Fallback => {
-                RedactedText::new(Cow::Owned(fallback.to_owned()))
-            }
-            OutputCharge::Exhausted => {
-                RedactedText::new(Cow::Owned(String::new()))
-            }
-        }
-    }
-
-    /// Returns the policy's opaque Secret mask.
-    #[inline(always)]
-    fn opaque_mask(&self) -> &str {
-        self.policy.masking().mask_opaque(Sensitivity::Secret)
-    }
-
-    /// Charges one fail-closed scalar fallback through the shared session.
-    fn fallback_text<'a>(
-        &self,
-        session: &RedactionSession<'_>,
-    ) -> RedactedText<'a> {
-        let fallback = self.opaque_mask();
-        match session.charge_output_or_fallback(
-            log_safe_len(fallback),
-            log_safe_len(fallback),
-        ) {
-            OutputCharge::Complete => {
-                RedactedText::new(Cow::Owned(fallback.to_owned()))
-            }
-            OutputCharge::Fallback | OutputCharge::Exhausted => {
-                RedactedText::new(Cow::Owned(String::new()))
-            }
-        }
-    }
-
-    /// Wraps a charged fail-closed scalar fallback as a field result.
-    fn fallback_field<'a>(
-        &self,
-        session: &RedactionSession<'_>,
-    ) -> FieldRedaction<'a> {
-        FieldRedaction::Masked {
-            value: self.fallback_text(session),
-            sensitivity: Sensitivity::Secret,
-        }
+    pub fn redact_at<'a>(&self, level: Sensitivity, value: &'a str) -> RedactedText<'a> {
+        let mut budget = DiagnosticBudget::new(self.policy.limits().ordinary_operation());
+        redact_at_with_budget(&self.policy, &mut budget, level, value)
     }
 
     /// Creates a lazy redacted view selected by an external key.
@@ -389,6 +206,306 @@ impl Redactor {
         M: RedactMapValueMut<K, V> + ?Sized,
     {
         RedactMapValueMut::redact_map_in_place(map, &self.policy);
+    }
+}
+
+impl RedactionSession<'_> {
+    /// Redacts one field through this diagnostic event's shared budget.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Raw field name to classify.
+    /// * `value` - Field value to redact when classified as sensitive.
+    ///
+    /// # Returns
+    ///
+    /// A charged field result that borrows safe input where possible.
+    #[must_use = "use the returned redacted value"]
+    pub fn redact_field<'value>(
+        &mut self,
+        field: &str,
+        value: &'value str,
+    ) -> FieldRedaction<'value> {
+        let policy = self.policy();
+        let fallback = opaque_mask(policy);
+        let fallback_bytes = log_safe_len(fallback);
+        let input_bytes = field.len().saturating_add(value.len());
+        let session_output_bytes = self.remaining_output_bytes();
+        let domain_output_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
+        let admission = self.admit(input_bytes, domain_output_limit, fallback_bytes);
+        let RedactionAdmission::Render { max_output_bytes } = admission else {
+            return admission_field_fallback(admission, fallback);
+        };
+        let (redacted, mask_truncated) =
+            redact_field_unbudgeted(policy, field, value, max_output_bytes);
+        let output_bytes = log_safe_len(redacted.as_str());
+        if output_bytes <= max_output_bytes {
+            let completion = if mask_truncated {
+                truncation_completion(domain_output_limit, session_output_bytes)
+            } else {
+                FragmentCompletion::Complete
+            };
+            self.commit_output(output_bytes, completion);
+            return redacted;
+        }
+        terminal_session_field_fallback(
+            self,
+            max_output_bytes,
+            fallback,
+            fallback_bytes,
+            truncation_completion(domain_output_limit, session_output_bytes),
+        )
+    }
+
+    /// Redacts one explicitly sensitive value through this diagnostic event.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` - Sensitivity required by the calling boundary.
+    /// * `value` - Value to mask.
+    ///
+    /// # Returns
+    ///
+    /// Charged redacted text produced by the configured mask.
+    #[must_use = "use the returned redacted value"]
+    pub fn redact_at<'value>(
+        &mut self,
+        level: Sensitivity,
+        value: &'value str,
+    ) -> RedactedText<'value> {
+        let policy = self.policy();
+        let fallback = opaque_mask(policy);
+        let fallback_bytes = log_safe_len(fallback);
+        let session_output_bytes = self.remaining_output_bytes();
+        let domain_output_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
+        let admission = self.admit(value.len(), domain_output_limit, fallback_bytes);
+        let RedactionAdmission::Render { max_output_bytes } = admission else {
+            return admission_text_fallback(admission, fallback);
+        };
+        let (masked, mask_truncated) =
+            policy
+                .masking()
+                .mask_bounded_with_truncation(level, value, max_output_bytes);
+        let output_bytes = log_safe_len(masked.as_ref());
+        if output_bytes <= max_output_bytes {
+            let completion = if mask_truncated {
+                truncation_completion(domain_output_limit, session_output_bytes)
+            } else {
+                FragmentCompletion::Complete
+            };
+            self.commit_output(output_bytes, completion);
+            return RedactedText::new(masked);
+        }
+        terminal_session_text_fallback(
+            self,
+            max_output_bytes,
+            fallback,
+            fallback_bytes,
+            truncation_completion(domain_output_limit, session_output_bytes),
+        )
+    }
+}
+
+/// Redacts one field through the supplied ordinary or diagnostic budget.
+fn redact_field_with_budget<'value>(
+    policy: &RedactionPolicy,
+    budget: &mut DiagnosticBudget,
+    field: &str,
+    value: &'value str,
+) -> FieldRedaction<'value> {
+    let fallback = opaque_mask(policy);
+    let fallback_bytes = log_safe_len(fallback);
+    let input_bytes = field.len().saturating_add(value.len());
+    let admission = budget.admit(input_bytes, usize::MAX, fallback_bytes);
+    let RedactionAdmission::Render { max_output_bytes } = admission else {
+        return admission_field_fallback(admission, fallback);
+    };
+
+    let (redacted, mask_truncated) =
+        redact_field_unbudgeted(policy, field, value, max_output_bytes);
+    let output_bytes = log_safe_len(redacted.as_str());
+    if output_bytes <= max_output_bytes {
+        let completion = if mask_truncated {
+            FragmentCompletion::SessionTruncated
+        } else {
+            FragmentCompletion::Complete
+        };
+        budget.commit_output(output_bytes, completion);
+        return redacted;
+    }
+    terminal_field_fallback(budget, max_output_bytes, fallback, fallback_bytes)
+}
+
+/// Resolves one admitted field without charging its output.
+fn redact_field_unbudgeted<'value>(
+    policy: &RedactionPolicy,
+    field: &str,
+    value: &'value str,
+    max_output_bytes: usize,
+) -> (FieldRedaction<'value>, bool) {
+    match policy.resolve_field(field) {
+        ResolvedField::Sensitive { sensitivity } => {
+            let (masked, truncated) =
+                policy
+                    .masking()
+                    .mask_bounded_with_truncation(sensitivity, value, max_output_bytes);
+            (
+                FieldRedaction::Masked {
+                    value: RedactedText::new(masked),
+                    sensitivity,
+                },
+                truncated,
+            )
+        }
+        ResolvedField::PassThrough => {
+            let reason = match policy.classify_field(field) {
+                FieldClassification::Allowed { .. } => PassThroughReason::Allowed,
+                FieldClassification::Sensitive { .. } | FieldClassification::Unknown => {
+                    PassThroughReason::Unknown
+                }
+            };
+            (FieldRedaction::PassedThrough { value, reason }, false)
+        }
+    }
+}
+
+/// Redacts one explicitly sensitive value through a supplied budget.
+fn redact_at_with_budget<'value>(
+    policy: &RedactionPolicy,
+    budget: &mut DiagnosticBudget,
+    level: Sensitivity,
+    value: &'value str,
+) -> RedactedText<'value> {
+    let fallback = opaque_mask(policy);
+    let fallback_bytes = log_safe_len(fallback);
+    let admission = budget.admit(value.len(), usize::MAX, fallback_bytes);
+    let RedactionAdmission::Render { max_output_bytes } = admission else {
+        return admission_text_fallback(admission, fallback);
+    };
+    let (masked, mask_truncated) =
+        policy
+            .masking()
+            .mask_bounded_with_truncation(level, value, max_output_bytes);
+    let output_bytes = log_safe_len(masked.as_ref());
+    if output_bytes <= max_output_bytes {
+        let completion = if mask_truncated {
+            FragmentCompletion::SessionTruncated
+        } else {
+            FragmentCompletion::Complete
+        };
+        budget.commit_output(output_bytes, completion);
+        return RedactedText::new(masked);
+    }
+    terminal_text_fallback(budget, max_output_bytes, fallback, fallback_bytes)
+}
+
+/// Returns the policy's opaque Secret mask.
+#[inline(always)]
+fn opaque_mask(policy: &RedactionPolicy) -> &str {
+    policy.masking().mask_opaque(Sensitivity::Secret)
+}
+
+/// Converts a non-render admission into fail-closed redacted text.
+fn admission_text_fallback<'value>(
+    admission: RedactionAdmission,
+    fallback: &str,
+) -> RedactedText<'value> {
+    match admission {
+        RedactionAdmission::Fallback => RedactedText::new(Cow::Owned(fallback.to_owned())),
+        RedactionAdmission::Exhausted => RedactedText::new(Cow::Owned(String::new())),
+        RedactionAdmission::Render { .. } => {
+            unreachable!("render admissions are handled before fallback")
+        }
+    }
+}
+
+/// Converts a non-render admission into a fail-closed field result.
+fn admission_field_fallback<'value>(
+    admission: RedactionAdmission,
+    fallback: &str,
+) -> FieldRedaction<'value> {
+    FieldRedaction::Masked {
+        value: admission_text_fallback(admission, fallback),
+        sensitivity: Sensitivity::Secret,
+    }
+}
+
+/// Commits a terminal scalar fallback after rendered output exceeded its cap.
+fn terminal_text_fallback<'value>(
+    budget: &mut DiagnosticBudget,
+    max_output_bytes: usize,
+    fallback: &str,
+    fallback_bytes: usize,
+) -> RedactedText<'value> {
+    if fallback_bytes <= max_output_bytes {
+        budget.commit_output(fallback_bytes, FragmentCompletion::SessionTruncated);
+        RedactedText::new(Cow::Owned(fallback.to_owned()))
+    } else {
+        budget.commit_output(0, FragmentCompletion::SessionTruncated);
+        RedactedText::new(Cow::Owned(String::new()))
+    }
+}
+
+/// Wraps a terminal scalar fallback as a field result.
+fn terminal_field_fallback<'value>(
+    budget: &mut DiagnosticBudget,
+    max_output_bytes: usize,
+    fallback: &str,
+    fallback_bytes: usize,
+) -> FieldRedaction<'value> {
+    FieldRedaction::Masked {
+        value: terminal_text_fallback(budget, max_output_bytes, fallback, fallback_bytes),
+        sensitivity: Sensitivity::Secret,
+    }
+}
+
+/// Commits a terminal scalar fallback through a diagnostic session.
+fn terminal_session_text_fallback<'value>(
+    session: &mut RedactionSession<'_>,
+    max_output_bytes: usize,
+    fallback: &str,
+    fallback_bytes: usize,
+    completion: FragmentCompletion,
+) -> RedactedText<'value> {
+    if fallback_bytes <= max_output_bytes {
+        session.commit_output(fallback_bytes, completion);
+        RedactedText::new(Cow::Owned(fallback.to_owned()))
+    } else {
+        session.commit_output(0, completion);
+        RedactedText::new(Cow::Owned(String::new()))
+    }
+}
+
+/// Wraps a session-terminal scalar fallback as a field result.
+fn terminal_session_field_fallback<'value>(
+    session: &mut RedactionSession<'_>,
+    max_output_bytes: usize,
+    fallback: &str,
+    fallback_bytes: usize,
+    completion: FragmentCompletion,
+) -> FieldRedaction<'value> {
+    FieldRedaction::Masked {
+        value: terminal_session_text_fallback(
+            session,
+            max_output_bytes,
+            fallback,
+            fallback_bytes,
+            completion,
+        ),
+        sensitivity: Sensitivity::Secret,
+    }
+}
+
+/// Distinguishes a domain-local ceiling from shared session exhaustion.
+#[inline(always)]
+fn truncation_completion(
+    domain_output_limit: usize,
+    session_output_bytes: usize,
+) -> FragmentCompletion {
+    if domain_output_limit < session_output_bytes {
+        FragmentCompletion::DomainTruncated
+    } else {
+        FragmentCompletion::SessionTruncated
     }
 }
 

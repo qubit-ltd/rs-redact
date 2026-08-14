@@ -22,8 +22,8 @@ use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
 /// Serializes allocation-counting sections within this integration-test binary.
 static TEST_LOCK: Mutex<()> = Mutex::new(());
-/// Small allocation-count ceiling for bounded display buffering.
-const MAX_BOUNDED_DISPLAY_ALLOCATIONS: usize = 4;
+/// Small allocation-count ceiling for eager bounded display completion.
+const MAX_BOUNDED_DISPLAY_ALLOCATIONS: usize = 8;
 thread_local! {
     /// Controls allocation tracking for the current measurement thread.
     static TRACK_ALLOCATIONS: Cell<bool> = const { Cell::new(false) };
@@ -58,12 +58,7 @@ unsafe impl GlobalAlloc for CountingAllocator {
     }
 
     /// Resizes an allocation through the system allocator and records it.
-    unsafe fn realloc(
-        &self,
-        pointer: *mut u8,
-        layout: Layout,
-        new_size: usize,
-    ) -> *mut u8 {
+    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         record_allocation();
         // SAFETY: All arguments are forwarded unchanged to the system
         // allocator.
@@ -128,7 +123,7 @@ impl Redact for SafeRecord {
     /// Writes the safe diagnostic representation.
     fn fmt_redacted(
         &self,
-        _session: &RedactionSession<'_>,
+        _session: &mut RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter
@@ -168,8 +163,7 @@ fn test_redacted_displays_use_bounded_allocation_count() {
     let mut output = FixedBuffer::new();
 
     let allocations = measured_allocations(|| {
-        write!(&mut output, "{view}")
-            .expect("the fixed output buffer can hold the record");
+        write!(&mut output, "{view}").expect("the fixed output buffer can hold the record");
     });
 
     assert!(allocations <= MAX_BOUNDED_DISPLAY_ALLOCATIONS);
@@ -178,8 +172,7 @@ fn test_redacted_displays_use_bounded_allocation_count() {
     let mut output = FixedBuffer::new();
 
     let allocations = measured_allocations(|| {
-        write!(&mut output, "{view}")
-            .expect("the fixed output buffer can hold the map");
+        write!(&mut output, "{view}").expect("the fixed output buffer can hold the map");
     });
 
     assert!(allocations <= MAX_BOUNDED_DISPLAY_ALLOCATIONS);
@@ -198,8 +191,7 @@ fn test_nonempty_redacted_map_uses_bounded_allocation_count() {
     let mut output = FixedBuffer::new();
 
     let allocations = measured_allocations(|| {
-        write!(&mut output, "{view}")
-            .expect("the fixed output buffer can hold the visible map");
+        write!(&mut output, "{view}").expect("the fixed output buffer can hold the visible map");
     });
 
     assert!(allocations <= MAX_BOUNDED_DISPLAY_ALLOCATIONS);

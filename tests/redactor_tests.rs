@@ -10,11 +10,49 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
+use qubit_redact::FieldRedaction;
 use qubit_redact::InputOutputLimit;
+use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::RedactionSession;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
+
+/// Verifies a mutable session uses the policy owned by its redactor.
+#[test]
+fn test_session_uses_redactor_policy_and_requires_mutable_access() {
+    let redactor = Redactor::new(RedactionPolicy::strict());
+    let mut session = redactor.session();
+    let result = session.redact_field("message", "visible");
+    assert!(matches!(result, FieldRedaction::Masked { .. }));
+}
+
+/// Verifies an output-closed session rejects work before charging more input.
+#[test]
+fn test_exhausted_session_does_not_charge_additional_input() {
+    let limit = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
+        .expect("the marker-sized diagnostic limit should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(limit)
+        .build()
+        .expect("the test policy should build");
+    let redactor = Redactor::new(policy);
+    let mut session = redactor.session();
+    let fallback = "<redacted>";
+    let fallback_capacity = limit.max_output_bytes() / fallback.len();
+    for _ in 0..fallback_capacity {
+        assert_eq!(
+            session
+                .redact_at(Sensitivity::Secret, "first-too-large")
+                .as_str(),
+            fallback,
+        );
+    }
+    let remaining = session.remaining_input_bytes();
+    let second = session.redact_at(Sensitivity::Secret, "second");
+    assert_eq!(second.as_str(), "");
+    assert_eq!(session.remaining_input_bytes(), remaining);
+}
+
 /// Verifies repeated core-session fallbacks are charged and eventually become
 /// empty rather than exceeding the cumulative output limit.
 #[test]
@@ -22,30 +60,24 @@ fn test_redactor_session_fallbacks_respect_cumulative_output_limit() {
     let limit = InputOutputLimit::new(4, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the marker-sized operation limit should be valid");
     let policy = RedactionPolicy::builder()
-        .ordinary_operation(limit)
+        .diagnostic_event(limit)
         .build()
         .expect("the policy should build");
     let redactor = Redactor::new(policy);
-    let session = RedactionSession::operation(redactor.policy());
+    let mut session = redactor.session();
 
     let rendered: Vec<_> = (0..5)
         .map(|_| {
-            redactor
-                .redact_at_with_session(
-                    &session,
-                    Sensitivity::Secret,
-                    "raw-data",
-                )
+            session
+                .redact_at(Sensitivity::Secret, "raw-data")
                 .into_owned()
         })
         .collect();
 
     assert!(rendered.iter().any(String::is_empty));
-    assert!(
-        rendered.iter().map(String::len).sum::<usize>()
-            <= limit.max_output_bytes()
-    );
-    assert_eq!(session.remaining_output_bytes(), 7);
+    let rendered_bytes = rendered.iter().map(String::len).sum::<usize>();
+    assert!(rendered_bytes <= limit.max_output_bytes());
+    assert_eq!(session.remaining_output_bytes(), 0,);
 }
 
 /// Verifies the strict constructor masks fields that the standard policy leaves
@@ -138,18 +170,41 @@ fn test_redact_field_session_charges_escaped_bytes() {
     let limit = InputOutputLimit::new(64, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the diagnostic marker-sized limit should be valid");
     let policy = RedactionPolicy::builder()
-        .ordinary_operation(limit)
+        .diagnostic_event(limit)
         .build()
         .expect("the policy should build");
     let redactor = Redactor::new(policy);
-    let session = RedactionSession::operation(redactor.policy());
+    let mut session = redactor.session();
 
-    let result =
-        redactor.redact_field_with_session(&session, "message", "a\n b");
+    let result = session.redact_field("message", "a\n b");
 
     assert!(!result.is_masked());
     assert_eq!(
         session.remaining_output_bytes(),
         limit.max_output_bytes() - 5
     );
+}
+
+/// Verifies Unicode mask truncation closes a session even when the retained
+/// prefix uses fewer bytes than the numeric byte ceiling.
+#[test]
+fn test_unicode_mask_truncation_closes_session() {
+    let limit = InputOutputLimit::new(64, InputOutputLimit::MIN_OUTPUT_BYTES)
+        .expect("the minimum output budget should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(limit)
+        .mask(Sensitivity::Secret, MaskPolicy::fixed(&"你".repeat(20)))
+        .expect("the Unicode replacement should be valid")
+        .build()
+        .expect("the Unicode mask policy should build");
+    let redactor = Redactor::new(policy);
+    let mut session = redactor.session();
+
+    let first = session.redact_at(Sensitivity::Secret, "secret");
+    let input_after_first = session.remaining_input_bytes();
+    let second = session.redact_at(Sensitivity::Secret, "another");
+
+    assert_eq!(first.as_str(), "你".repeat(limit.max_output_bytes() / 3));
+    assert_eq!(second.as_str(), "");
+    assert_eq!(session.remaining_input_bytes(), input_after_first);
 }

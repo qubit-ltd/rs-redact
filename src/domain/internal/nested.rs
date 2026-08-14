@@ -15,13 +15,20 @@ use serde::Serializer;
 
 use crate::Redact;
 use crate::RedactMut;
-use crate::RedactedSessionView;
+use crate::RedactedResult;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
 #[cfg(feature = "serde")]
 use crate::domain::RedactSerialize;
+use crate::domain::internal::debug_output_exhausted;
 
 impl<T: Redact> Redact for Option<T> {
+    fn redaction_input_bytes(&self) -> usize {
+        self.as_ref().map_or(1, |value| {
+            1_usize.saturating_add(Redact::redaction_input_bytes(value))
+        })
+    }
+
     /// Formats `None` directly or a redacted `Some` value with the same policy.
     ///
     /// # Parameters
@@ -40,13 +47,13 @@ impl<T: Redact> Redact for Option<T> {
     #[inline]
     fn fmt_redacted(
         &self,
-        session: &RedactionSession<'_>,
+        session: &mut RedactionSession<'_>,
         formatter: &mut Formatter<'_>,
     ) -> fmt::Result {
         match self {
             Some(value) => formatter
                 .debug_tuple("Some")
-                .field(&RedactedSessionView::new(value, session))
+                .field(&RedactedResult::new(value, session))
                 .finish(),
             None => formatter.write_str("None"),
         }
@@ -54,6 +61,11 @@ impl<T: Redact> Redact for Option<T> {
 }
 
 impl<T: Redact + ?Sized> Redact for Box<T> {
+    #[inline(always)]
+    fn redaction_input_bytes(&self) -> usize {
+        Redact::redaction_input_bytes(self.as_ref())
+    }
+
     /// Transparently delegates formatting to the boxed object.
     ///
     /// # Parameters
@@ -71,7 +83,7 @@ impl<T: Redact + ?Sized> Redact for Box<T> {
     #[inline(always)]
     fn fmt_redacted(
         &self,
-        session: &RedactionSession<'_>,
+        session: &mut RedactionSession<'_>,
         formatter: &mut Formatter<'_>,
     ) -> fmt::Result {
         self.as_ref().fmt_redacted(session, formatter)
@@ -79,6 +91,12 @@ impl<T: Redact + ?Sized> Redact for Box<T> {
 }
 
 impl<T: Redact> Redact for Vec<T> {
+    fn redaction_input_bytes(&self) -> usize {
+        self.iter().fold(0_usize, |bytes, value| {
+            bytes.saturating_add(Redact::redaction_input_bytes(value))
+        })
+    }
+
     /// Formats every item through a redacted view sharing the same policy.
     ///
     /// # Parameters
@@ -96,12 +114,27 @@ impl<T: Redact> Redact for Vec<T> {
     #[inline]
     fn fmt_redacted(
         &self,
-        session: &RedactionSession<'_>,
+        session: &mut RedactionSession<'_>,
         formatter: &mut Formatter<'_>,
     ) -> fmt::Result {
+        let alternate = formatter.alternate();
         let mut list = formatter.debug_list();
-        for value in self {
-            list.entry(&RedactedSessionView::new(value, session));
+        let mut values = self.iter();
+        loop {
+            if session.is_exhausted() || debug_output_exhausted() {
+                break;
+            }
+            let Some(value) = values.next() else {
+                break;
+            };
+            let Some(view) = RedactedResult::try_new(value, session, alternate) else {
+                break;
+            };
+            let truncated = view.is_truncated();
+            list.entry(&view);
+            if truncated || session.is_exhausted() || debug_output_exhausted() {
+                break;
+            }
         }
         list.finish()
     }
@@ -178,8 +211,7 @@ impl<T: RedactSerialize> RedactSerialize for Option<T> {
         S: Serializer,
     {
         match self {
-            Some(value) => serializer
-                .serialize_some(&super::RedactedSerialize::new(value, policy)),
+            Some(value) => serializer.serialize_some(&super::RedactedSerialize::new(value, policy)),
             None => serializer.serialize_none(),
         }
     }
@@ -251,9 +283,7 @@ impl<T: RedactSerialize> RedactSerialize for Vec<T> {
 
         let mut sequence = serializer.serialize_seq(Some(self.len()))?;
         for value in self {
-            sequence.serialize_element(&super::RedactedSerialize::new(
-                value, policy,
-            ))?;
+            sequence.serialize_element(&super::RedactedSerialize::new(value, policy))?;
         }
         sequence.end()
     }

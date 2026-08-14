@@ -19,6 +19,8 @@ pub(in crate::policy) struct BoundedMaskWriter {
     output: String,
     /// Exact accounting for retained masked bytes.
     budget: ResourceBudget<RedactionResource, usize>,
+    /// Whether any complete masked bytes could not be retained.
+    truncated: bool,
 }
 
 impl BoundedMaskWriter {
@@ -35,6 +37,7 @@ impl BoundedMaskWriter {
         Self {
             output: String::new(),
             budget: ResourceBudget::new(RedactionResource::Mask, max_bytes),
+            truncated: false,
         }
     }
 
@@ -43,8 +46,8 @@ impl BoundedMaskWriter {
     /// # Returns
     ///
     /// The owned masked UTF-8 prefix within the configured byte budget.
-    pub(in crate::policy) fn finish(self) -> String {
-        self.output
+    pub(in crate::policy) fn finish(self) -> (String, bool) {
+        (self.output, self.truncated)
     }
 }
 
@@ -72,6 +75,7 @@ impl fmt::Write for BoundedMaskWriter {
             .try_consume(end)
             .expect("the bounded UTF-8 prefix must fit its mask budget");
         self.output.push_str(&value[..end]);
+        self.truncated |= end < value.len();
         Ok(())
     }
 }
