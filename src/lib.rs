@@ -277,8 +277,8 @@
 //! an over-depth object or array is replaced with the policy's opaque Secret
 //! mask without visiting its descendants.
 //!
-//! JSON text can share one diagnostic budget with other adapters through
-//! [`RedactionSession::json`]:
+//! JSON text can share one diagnostic budget with other adapters through the
+//! `RedactionSession::json` method when the `json` feature is enabled:
 //!
 //! ```
 //! # #[cfg(feature = "json")]
