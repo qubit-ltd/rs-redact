@@ -1,0 +1,1 @@
+multiple-public-types | src/policy/redaction_session.rs | Resource, diagnostic budget, and session state share one transactional redaction boundary.

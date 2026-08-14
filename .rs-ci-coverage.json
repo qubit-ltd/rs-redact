@@ -10,6 +10,7 @@
       "src/env/env_redactor.rs",
       "src/field_redaction.rs",
       "src/http/body_capture.rs",
+      "src/http/internal/diagnostic_text.rs",
       "src/http/body_redaction.rs",
       "src/http/context_rules_builder.rs",
       "src/http/http_redaction_policy_builder.rs",
