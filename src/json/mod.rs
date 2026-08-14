@@ -9,12 +9,12 @@
 
 pub(crate) mod internal;
 
+mod json_redaction_session;
 mod redact_json_text_in_place;
 mod redacted_json;
 mod redacted_json_text;
 
+pub use json_redaction_session::JsonRedactionSession;
 pub use redact_json_text_in_place::redact_json_text_in_place;
 pub use redacted_json::RedactedJson;
-pub use redacted_json::RedactedJsonSession;
 pub use redacted_json_text::RedactedJsonText;
-pub use redacted_json_text::RedactedJsonTextSession;

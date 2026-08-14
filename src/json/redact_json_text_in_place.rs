@@ -10,11 +10,16 @@
 use serde_json::Value;
 use serde_json::from_str;
 use serde_json::to_string;
+use serde_json::to_writer;
+use std::io;
+use std::io::Write;
 
 use super::internal::JsonRedactionState;
 use super::internal::JsonUnkeyedValuePolicy;
 use crate::RedactionPolicy;
 use crate::Sensitivity;
+use crate::policy::RedactionResource;
+use qubit_budget::ResourceBudget;
 
 /// Replaces JSON text with its compact redacted representation.
 ///
@@ -48,17 +53,12 @@ pub fn redact_json_text_in_place(text: &mut String, policy: &RedactionPolicy) {
 ///
 /// Compact redacted JSON for valid input, or the configured Secret opaque mask
 /// for invalid input.
-pub(crate) fn redacted_json_text(
-    text: &str,
-    policy: &RedactionPolicy,
-) -> String {
+pub(crate) fn redacted_json_text(text: &str, policy: &RedactionPolicy) -> String {
     let Ok(mut value) = from_str::<Value>(text) else {
         return opaque_secret(policy);
     };
     let unkeyed = match policy.unkeyed_json_value_policy() {
-        crate::UnkeyedJsonValuePolicy::PassThrough => {
-            JsonUnkeyedValuePolicy::PassThrough
-        }
+        crate::UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
         crate::UnkeyedJsonValuePolicy::Redact => {
             let marker = policy.masking().mask_opaque(Sensitivity::Secret);
             JsonUnkeyedValuePolicy::Redact {
@@ -68,8 +68,98 @@ pub(crate) fn redacted_json_text(
         }
     };
     let mut state = JsonRedactionState::from_policy(policy, unkeyed, None);
-    let _ = state.redact(&mut value);
+    if state.redact(&mut value).is_mask_budget_exhausted() {
+        return opaque_secret(policy);
+    }
     to_string(&value).expect("JSON value serialization is infallible")
+}
+
+pub(crate) fn redacted_json_text_bounded(
+    text: &str,
+    policy: &RedactionPolicy,
+    max_output: usize,
+) -> String {
+    let Ok(mut value) = from_str::<Value>(text) else {
+        return opaque_secret(policy);
+    };
+    let unkeyed = match policy.unkeyed_json_value_policy() {
+        crate::UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
+        crate::UnkeyedJsonValuePolicy::Redact => {
+            let marker = policy.masking().mask_opaque(Sensitivity::Secret);
+            JsonUnkeyedValuePolicy::Redact {
+                marker,
+                truncated_marker: marker,
+            }
+        }
+    };
+    let mut mask_budget = ResourceBudget::new(RedactionResource::Mask, max_output);
+    if JsonRedactionState::from_policy(policy, unkeyed, Some(&mut mask_budget))
+        .redact(&mut value)
+        .is_mask_budget_exhausted()
+    {
+        return opaque_secret(policy);
+    }
+    struct Bounded(Vec<u8>, usize);
+    impl Write for Bounded {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            if self.0.len().saturating_add(bytes.len()) > self.1 {
+                return Err(io::Error::from(io::ErrorKind::WriteZero));
+            }
+            self.0.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut writer = Bounded(Vec::new(), max_output);
+    if to_writer(&mut writer, &value).is_err() {
+        return "<truncated>".to_owned();
+    }
+    String::from_utf8(writer.0).unwrap_or_else(|_| opaque_secret(policy))
+}
+
+pub(crate) fn redacted_json_value_bounded(
+    source: &Value,
+    policy: &RedactionPolicy,
+    max_output: usize,
+) -> String {
+    let mut value = source.clone();
+    let unkeyed = match policy.unkeyed_json_value_policy() {
+        crate::UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
+        crate::UnkeyedJsonValuePolicy::Redact => {
+            let marker = policy.masking().mask_opaque(Sensitivity::Secret);
+            JsonUnkeyedValuePolicy::Redact {
+                marker,
+                truncated_marker: marker,
+            }
+        }
+    };
+    let mut mask_budget = ResourceBudget::new(RedactionResource::Mask, max_output);
+    if JsonRedactionState::from_policy(policy, unkeyed, Some(&mut mask_budget))
+        .redact(&mut value)
+        .is_mask_budget_exhausted()
+    {
+        return opaque_secret(policy);
+    }
+    struct Bounded(Vec<u8>, usize);
+    impl Write for Bounded {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            if self.0.len().saturating_add(bytes.len()) > self.1 {
+                return Err(io::Error::from(io::ErrorKind::WriteZero));
+            }
+            self.0.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut writer = Bounded(Vec::new(), max_output);
+    if to_writer(&mut writer, &value).is_err() {
+        return "<truncated>".to_owned();
+    }
+    String::from_utf8(writer.0).unwrap_or_else(|_| opaque_secret(policy))
 }
 
 /// Returns the configured opaque replacement for invalid JSON text.

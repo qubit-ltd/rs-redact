@@ -19,8 +19,6 @@ macro_rules! __qubit_redact_json {
 #[macro_export]
 macro_rules! __qubit_redact_json {
     ($($tokens:tt)*) => {
-        compile_error!(
-            "#[redact(json)] requires the `json` feature of qubit-redact"
-        );
+        compile_error!("#[redact(json)] requires the `json` feature of qubit-redact");
     };
 }

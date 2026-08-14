@@ -5,15 +5,38 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for public effects of JSON redaction outcomes.
+//! Tests for JSON redaction outcome representation and public effects.
 
+#[path = "../../../src/json/internal/json_redaction_outcome.rs"]
+mod json_redaction_outcome;
+
+#[cfg(feature = "http")]
 use http::HeaderValue;
+use json_redaction_outcome::JsonRedactionOutcome;
 #[cfg(feature = "http")]
 use qubit_redact::RedactionPolicy;
+#[cfg(feature = "http")]
+use qubit_redact::http::BodyBudget;
+#[cfg(feature = "http")]
 use qubit_redact::http::BodyCapture;
+#[cfg(feature = "http")]
 use qubit_redact::http::BodyRedactionStatus;
+#[cfg(feature = "http")]
 use qubit_redact::http::HttpRedactor;
+#[cfg(feature = "http")]
 use qubit_redact::http::UnkeyedJsonValuePolicy;
+
+/// Verifies JSON traversal distinguishes complete redaction from exhaustion.
+#[test]
+fn test_json_redaction_outcome_distinguishes_mask_budget_exhaustion() {
+    let complete = JsonRedactionOutcome::Complete {
+        passed_unkeyed: false,
+    };
+
+    assert!(!complete.is_mask_budget_exhausted());
+    assert!(JsonRedactionOutcome::MaskBudgetExhausted.is_mask_budget_exhausted());
+}
+
 /// Verifies multiple retained unkeyed scalars aggregate into one status.
 #[cfg(feature = "http")]
 #[test]
@@ -30,4 +53,29 @@ fn test_json_redaction_outcome_reports_unkeyed_pass_through() {
 
     assert_eq!(body.status(), BodyRedactionStatus::PassedThrough);
     assert_eq!(body.to_string(), r#"["visible",42,true]"#);
+}
+
+/// Verifies exhausted unkeyed JSON masks discard the partially redacted body.
+#[cfg(feature = "http")]
+#[test]
+fn test_json_redaction_outcome_discards_partial_json_on_mask_exhaustion() {
+    let body_budget = BodyBudget::new(512, BodyBudget::MIN_OUTPUT_BYTES)
+        .expect("the body budget should be valid");
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .http()
+        .body()
+        .allow_exact("items")
+        .expect("the items field allow rule should be valid");
+    builder.limits().http_body(body_budget);
+    let policy = builder.build().expect("the HTTP policy should build");
+    let content_type = HeaderValue::from_static("application/json");
+    let body = HttpRedactor::new(policy).redact_body(
+        BodyCapture::complete(br#"{"items":["raw-unkeyed-secret","raw-unkeyed-secret"]}"#),
+        Some(&content_type),
+    );
+
+    assert_eq!(body.to_string(), "<truncated>");
+    assert!(body.is_truncated());
+    assert!(!body.to_string().contains("raw-unkeyed-secret"));
 }
