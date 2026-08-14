@@ -10,7 +10,6 @@
 mod allow_rule;
 mod diagnostic_budget;
 mod diagnostic_budget_error;
-mod diagnostic_input_budget;
 mod field_classification;
 mod field_match_kind;
 mod field_name_matching;
@@ -42,10 +41,11 @@ mod unknown_field_policy;
 pub use allow_rule::AllowRule;
 pub use diagnostic_budget::InputOutputLimit;
 pub use diagnostic_budget_error::DiagnosticBudgetError;
-pub(crate) use diagnostic_input_budget::DiagnosticInputBudget;
 pub use field_classification::FieldClassification;
 pub use field_match_kind::FieldMatchKind;
 pub use field_name_matching::FieldNameMatching;
+pub(crate) use internal::FragmentCompletion;
+pub(crate) use internal::RedactionAdmission;
 #[cfg(feature = "json")]
 pub use json_depth_limit::JsonDepthLimit;
 #[cfg(feature = "json")]
@@ -69,10 +69,9 @@ pub use redaction_policy_builder::RedactionPolicyBuilder;
 pub use redaction_policy_builder::UriPolicyBuilderView;
 pub use redaction_rules::RedactionRules;
 pub(crate) use redaction_rules_builder::RedactionRulesBuilder;
-pub(crate) use redaction_session::OutputCharge;
+pub(crate) use redaction_session::DiagnosticBudget;
 pub(crate) use redaction_session::RedactionResource;
 pub use redaction_session::RedactionSession;
-pub use redaction_session::RedactionSessionKind;
 pub(crate) use resolved_field::ResolvedField;
 pub use sensitive_field_preset::SensitiveFieldPreset;
 pub use sensitive_field_rule::SensitiveFieldRule;

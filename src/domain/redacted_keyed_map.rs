@@ -15,7 +15,6 @@ use std::fmt::Write as _;
 use std::marker::PhantomData;
 
 use super::bounded_redacted_display::format_bounded;
-use super::bounded_redacted_display::format_debug_bounded;
 use super::internal::mask_byte_limit;
 use crate::BoundedRedactedDisplay;
 use crate::LogOutputLimit;
@@ -38,12 +37,7 @@ use crate::text::internal::LogEscapeWriter;
 /// * `K` - Runtime key type used for field classification.
 /// * `V` - Value type recursively rendered through redaction.
 #[must_use = "format the recursive keyed redaction view"]
-pub struct RedactedKeyedMap<
-    'a,
-    M: ?Sized,
-    K: ?Sized = String,
-    V: ?Sized = String,
-> {
+pub struct RedactedKeyedMap<'a, M: ?Sized, K: ?Sized = String, V: ?Sized = String> {
     /// Map borrowed without traversal.
     map: &'a M,
     /// Immutable policy snapshot shared by every keyed value view.
@@ -84,10 +78,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
     /// A bounded formatting adapter that owns this recursive keyed map view.
     #[must_use = "format the bounded recursive keyed map display adapter"]
     #[inline(always)]
-    pub const fn with_output_limit(
-        self,
-        limit: LogOutputLimit,
-    ) -> BoundedRedactedDisplay<Self> {
+    pub const fn with_output_limit(self, limit: LogOutputLimit) -> BoundedRedactedDisplay<Self> {
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -99,17 +90,13 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
     #[must_use = "format the bounded recursive keyed map display adapter"]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit =
-            LogOutputLimit::from(self.policy.limits().diagnostic_event());
+        let limit = LogOutputLimit::from(self.policy.limits().diagnostic_event());
         BoundedRedactedDisplay::new(self, limit)
     }
 }
 
-impl<
-    M: ?Sized,
-    K: AsRef<str> + Debug + ?Sized,
-    V: Redact + RedactValue + ?Sized,
-> Debug for RedactedKeyedMap<'_, M, K, V>
+impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Debug
+    for RedactedKeyedMap<'_, M, K, V>
 where
     for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
 {
@@ -129,20 +116,21 @@ where
     /// completed map.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        let session = RedactionSession::diagnostic(&self.policy);
-        let view = RedactedKeyedMapSession::new(self.map, &session);
+        let mut session = RedactionSession::new(&self.policy);
+        let view = RedactedKeyedMapResult::new_with_alternate(
+            self.map,
+            &mut session,
+            formatter.alternate(),
+        );
         if mask_byte_limit().is_some() {
             return Debug::fmt(&view, formatter);
         }
-        format_debug_bounded(
-            &view,
-            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
-            formatter,
-        )
+        Debug::fmt(&view, formatter)
     }
 }
 
 mod session_view {
+    use std::cell::RefCell;
     use std::fmt;
     use std::fmt::Debug;
     use std::fmt::Formatter;
@@ -150,78 +138,111 @@ mod session_view {
 
     use crate::Redact;
     use crate::RedactValue;
-    use crate::RedactedKeyedValueSession;
+    use crate::RedactedKeyedResult;
     use crate::RedactionSession;
+    use crate::domain::internal::debug_output_exhausted;
+    use crate::domain::internal::mask_byte_limit;
+    use crate::domain::redacted::CompletedDebug;
+    use crate::domain::redacted::complete_debug;
 
     /// A nested keyed-map view that reuses an existing diagnostic session.
     #[must_use = "format the nested keyed redaction view"]
-    pub struct RedactedKeyedMapSession<
-        'map,
-        'session,
-        'policy,
-        M: ?Sized,
-        K: ?Sized = String,
-        V: ?Sized = String,
-    > {
-        map: &'map M,
-        session: &'session RedactionSession<'policy>,
-        marker: PhantomData<fn() -> (*const K, *const V)>,
+    pub struct RedactedKeyedMapResult<'map, M: ?Sized, K: ?Sized = String, V: ?Sized = String> {
+        completed: CompletedDebug,
+        marker: PhantomData<(&'map M, *const K, *const V)>,
     }
 
-    impl<'map, 'session, 'policy, M: ?Sized, K: ?Sized, V: ?Sized>
-        RedactedKeyedMapSession<'map, 'session, 'policy, M, K, V>
+    impl<'map, M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized>
+        RedactedKeyedMapResult<'map, M, K, V>
+    where
+        for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
     {
-        /// Creates a nested keyed-map view using an existing diagnostic
-        /// session.
+        /// Completes a nested keyed map through an existing session.
         #[inline(always)]
-        pub fn new(
+        pub fn new(map: &'map M, session: &mut RedactionSession<'_>) -> Self {
+            Self::new_with_alternate(map, session, false)
+        }
+
+        /// Completes a nested keyed map while preserving alternate debug.
+        pub(crate) fn new_with_alternate(
             map: &'map M,
-            session: &'session RedactionSession<'policy>,
+            session: &mut RedactionSession<'_>,
+            alternate: bool,
         ) -> Self {
-            Self {
+            let limit = mask_byte_limit()
+                .unwrap_or(usize::MAX)
+                .min(session.remaining_output_bytes());
+            let wrapper = KeyedMapOnce {
                 map,
-                session,
+                session: RefCell::new(Some(session)),
+                marker: PhantomData,
+            };
+            let completed = complete_debug(&wrapper, limit, alternate);
+            Self {
+                completed,
                 marker: PhantomData,
             }
         }
     }
 
-    impl<
-        M: ?Sized,
-        K: AsRef<str> + Debug + ?Sized,
-        V: Redact + RedactValue + ?Sized,
-    > Debug for RedactedKeyedMapSession<'_, '_, '_, M, K, V>
+    impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Debug
+        for RedactedKeyedMapResult<'_, M, K, V>
+    {
+        /// Writes the already-completed safe keyed-map representation.
+        #[inline]
+        fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+            Debug::fmt(&self.completed, formatter)
+        }
+    }
+
+    /// One-shot adapter used to complete a keyed map.
+    struct KeyedMapOnce<'map, 'session, 'policy, M: ?Sized, K: ?Sized, V: ?Sized> {
+        map: &'map M,
+        session: RefCell<Option<&'session mut RedactionSession<'policy>>>,
+        marker: PhantomData<fn() -> (*const K, *const V)>,
+    }
+
+    impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Debug
+        for KeyedMapOnce<'_, '_, '_, M, K, V>
     where
         for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
     {
-        /// Formats each entry through the existing keyed diagnostic session.
-        #[inline]
+        /// Applies keyed redaction to every entry exactly once.
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+            let mut session_slot = self.session.borrow_mut();
+            let session = session_slot
+                .take()
+                .expect("the one-shot keyed-map adapter cannot be reused");
+            let alternate = formatter.alternate();
             let mut output = formatter.debug_map();
-            for (key, value) in self.map {
-                output.entry(
-                    &key,
-                    &RedactedKeyedValueSession::new(
-                        key.as_ref(),
-                        value,
-                        self.session,
-                    ),
-                );
+            let mut entries = self.map.into_iter();
+            loop {
+                if session.is_exhausted() || debug_output_exhausted() {
+                    break;
+                }
+                let Some((key, value)) = entries.next() else {
+                    break;
+                };
+                let Some(view) =
+                    RedactedKeyedResult::try_new(key.as_ref(), value, session, alternate)
+                else {
+                    break;
+                };
+                let truncated = view.is_truncated();
+                output.entry(&key, &view);
+                if truncated || session.is_exhausted() || debug_output_exhausted() {
+                    break;
+                }
             }
             output.finish()
         }
     }
 }
 
-pub use session_view::RedactedKeyedMapSession;
+pub use session_view::RedactedKeyedMapResult;
 
-impl<
-    M: ?Sized,
-    K: AsRef<str> + Debug + ?Sized,
-    V: Redact + RedactValue + ?Sized,
-> Display for RedactedKeyedMapSession<'_, '_, '_, M, K, V>
-where
-    for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
+impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Display
+    for RedactedKeyedMapResult<'_, M, K, V>
 {
     /// Escapes nested keyed-map debug output for plain-text logs.
     #[inline]
@@ -231,11 +252,8 @@ where
     }
 }
 
-impl<
-    M: ?Sized,
-    K: AsRef<str> + Debug + ?Sized,
-    V: Redact + RedactValue + ?Sized,
-> Display for RedactedKeyedMap<'_, M, K, V>
+impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Display
+    for RedactedKeyedMap<'_, M, K, V>
 where
     for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
 {
@@ -256,8 +274,8 @@ where
     /// log-safe representation.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        let session = RedactionSession::diagnostic(&self.policy);
-        let view = RedactedKeyedMapSession::new(self.map, &session);
+        let mut session = RedactionSession::new(&self.policy);
+        let view = RedactedKeyedMapResult::new(self.map, &mut session);
         format_bounded(
             &view,
             LogOutputLimit::from(self.policy.limits().diagnostic_event()),

@@ -77,10 +77,7 @@ impl<'a> LogSafeText<'a> {
     /// A bounded adapter borrowing this escaped text.
     #[must_use = "format the bounded log-safe text"]
     #[inline(always)]
-    pub const fn with_output_limit(
-        &self,
-        limit: LogOutputLimit,
-    ) -> BoundedLogSafeDisplay<'_> {
+    pub const fn with_output_limit(&self, limit: LogOutputLimit) -> BoundedLogSafeDisplay<'_> {
         BoundedLogSafeDisplay::new(self, limit)
     }
 }

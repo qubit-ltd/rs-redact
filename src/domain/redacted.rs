@@ -13,8 +13,6 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 
 use super::bounded_redacted_display::format_bounded;
-use super::bounded_redacted_display::format_debug_bounded;
-use super::internal::mask_byte_limit;
 use crate::BoundedRedactedDisplay;
 use crate::LogOutputLimit;
 use crate::Redact;
@@ -64,10 +62,7 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     ///
     /// A bounded formatting adapter that owns this redacted view.
     #[inline(always)]
-    pub const fn with_output_limit(
-        self,
-        limit: LogOutputLimit,
-    ) -> BoundedRedactedDisplay<Self> {
+    pub const fn with_output_limit(self, limit: LogOutputLimit) -> BoundedRedactedDisplay<Self> {
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -79,8 +74,7 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     #[must_use = "format the bounded redacted display adapter"]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit =
-            LogOutputLimit::from(self.policy.limits().diagnostic_event());
+        let limit = LogOutputLimit::from(self.policy.limits().diagnostic_event());
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -108,9 +102,7 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
 }
 
 #[cfg(feature = "serde")]
-impl<T: crate::domain::RedactSerialize + ?Sized> serde::Serialize
-    for Redacted<'_, T>
-{
+impl<T: crate::domain::RedactSerialize + ?Sized> serde::Serialize for Redacted<'_, T> {
     /// Delegates serialization to the derived redaction hook.
     ///
     /// # Type Parameters
@@ -156,59 +148,137 @@ impl<T: Redact + ?Sized> Debug for Redacted<'_, T> {
     /// redacted representation.
     #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        let session = RedactionSession::diagnostic(&self.policy);
-        if mask_byte_limit().is_some() {
-            return self.value.fmt_redacted(&session, formatter);
-        }
-        let view = RedactedSessionView::new(self.value, &session);
-        format_debug_bounded(
-            &view,
-            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
-            formatter,
-        )
+        let mut session = RedactionSession::new(&self.policy);
+        let view =
+            RedactedResult::new_with_alternate(self.value, &mut session, formatter.alternate());
+        Debug::fmt(&view, formatter)
     }
 }
 
 mod session_view {
+    use std::cell::RefCell;
     use std::fmt;
     use std::fmt::Debug;
     use std::fmt::Display;
     use std::fmt::Formatter;
     use std::fmt::Write as _;
+    use std::marker::PhantomData;
 
     use crate::Redact;
     use crate::RedactionSession;
+    use crate::domain::internal::mark_debug_output_exhausted;
+    use crate::domain::internal::mask_byte_limit;
+    use crate::domain::internal::with_debug_output_tracking;
+    use crate::domain::internal::with_mask_byte_limit;
+    use crate::policy::FragmentCompletion;
+    use crate::policy::RedactionAdmission;
     use crate::text::internal::LogEscapeWriter;
 
-    /// A nested redacted view that reuses an existing diagnostic session.
+    /// An eagerly completed nested redacted representation.
     #[must_use = "format the nested redacted view"]
-    pub struct RedactedSessionView<'value, 'session, 'policy, T: ?Sized> {
-        value: &'value T,
-        session: &'session RedactionSession<'policy>,
+    pub struct RedactedResult<'value, T: ?Sized> {
+        completed: CompletedDebug,
+        marker: PhantomData<&'value T>,
     }
 
-    impl<'value, 'session, 'policy, T: ?Sized>
-        RedactedSessionView<'value, 'session, 'policy, T>
-    {
-        /// Creates a nested view borrowing the shared session.
+    impl<'value, T: Redact + ?Sized> RedactedResult<'value, T> {
+        /// Completes a compact nested representation through `session`.
         #[inline(always)]
-        pub fn new(
+        pub fn new(value: &'value T, session: &mut RedactionSession<'_>) -> Self {
+            Self::try_new_with_alternate(value, session, false).unwrap_or_else(Self::empty)
+        }
+
+        /// Attempts to complete one nested item, rejecting exhausted sessions.
+        pub(crate) fn try_new(
             value: &'value T,
-            session: &'session RedactionSession<'policy>,
+            session: &mut RedactionSession<'_>,
+            alternate: bool,
+        ) -> Option<Self> {
+            Self::try_new_with_alternate(value, session, alternate)
+        }
+
+        /// Returns whether this item's local output ceiling was reached.
+        pub(crate) fn is_truncated(&self) -> bool {
+            self.completed.truncated()
+        }
+
+        /// Completes a nested representation while preserving pretty debug.
+        pub(crate) fn new_with_alternate(
+            value: &'value T,
+            session: &mut RedactionSession<'_>,
+            alternate: bool,
         ) -> Self {
-            Self { value, session }
+            Self::try_new_with_alternate(value, session, alternate).unwrap_or_else(Self::empty)
+        }
+
+        fn try_new_with_alternate(
+            value: &'value T,
+            session: &mut RedactionSession<'_>,
+            alternate: bool,
+        ) -> Option<Self> {
+            if session.is_exhausted() {
+                return None;
+            }
+            let session_limit = session.remaining_output_bytes();
+            let domain_limit = mask_byte_limit().unwrap_or(usize::MAX);
+            let admission = if session.input_is_precharged() {
+                session.admit_precharged_output(domain_limit)
+            } else {
+                {
+                    let input_bytes = Redact::redaction_input_bytes(value);
+                    session.admit(input_bytes, domain_limit, "<truncated>".len())
+                }
+            };
+            let max_output_bytes = match admission {
+                RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
+                RedactionAdmission::Fallback => {
+                    return Some(Self {
+                        completed: CompletedDebug::truncated_marker(),
+                        marker: PhantomData,
+                    });
+                }
+                RedactionAdmission::Exhausted => return None,
+            };
+            let completed = {
+                let wrapper = RedactOnce {
+                    value,
+                    session: RefCell::new(Some(session)),
+                };
+                complete_debug(&wrapper, max_output_bytes, alternate)
+            };
+            let completion = if completed.truncated() {
+                if domain_limit < session_limit {
+                    FragmentCompletion::DomainTruncated
+                } else {
+                    FragmentCompletion::SessionTruncated
+                }
+            } else {
+                FragmentCompletion::Complete
+            };
+            session.commit_output(completed.len(), completion);
+            Some(Self {
+                completed,
+                marker: PhantomData,
+            })
+        }
+
+        pub(crate) fn empty() -> Self {
+            Self {
+                completed: CompletedDebug::empty(),
+                marker: PhantomData,
+            }
         }
     }
 
-    impl<T: Redact + ?Sized> Debug for RedactedSessionView<'_, '_, '_, T> {
-        /// Formats the nested value through the existing session.
+    impl<T: ?Sized> Debug for RedactedResult<'_, T> {
+        /// Writes the already-completed safe representation.
         #[inline(always)]
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-            self.value.fmt_redacted(self.session, formatter)
+            Debug::fmt(&self.completed, formatter)
         }
     }
 
-    impl<T: Redact + ?Sized> Display for RedactedSessionView<'_, '_, '_, T> {
+    impl<T: ?Sized> Display for RedactedResult<'_, T> {
         /// Escapes the nested redacted representation for plain-text logs.
         #[inline(always)]
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
@@ -216,9 +286,193 @@ mod session_view {
             write!(&mut writer, "{self:?}")
         }
     }
+
+    /// One-shot debug adapter consumed while completing a safe result.
+    struct RedactOnce<'value, 'session, 'policy, T: ?Sized> {
+        value: &'value T,
+        session: RefCell<Option<&'session mut RedactionSession<'policy>>>,
+    }
+
+    impl<T: Redact + ?Sized> Debug for RedactOnce<'_, '_, '_, T> {
+        /// Invokes the mutable redaction hook exactly once.
+        fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+            let mut session = self.session.borrow_mut();
+            let session = session
+                .take()
+                .expect("the one-shot redaction adapter cannot be reused");
+            self.value.fmt_redacted(session, formatter)
+        }
+    }
+
+    /// Owned, bounded debug result that retains a formatter failure.
+    pub(crate) struct CompletedDebug {
+        output: String,
+        valid: bool,
+        truncated: bool,
+    }
+
+    impl CompletedDebug {
+        pub(crate) fn empty() -> Self {
+            Self {
+                output: String::new(),
+                valid: true,
+                truncated: false,
+            }
+        }
+
+        /// Creates the fixed safe marker used when an eager fragment cannot
+        /// inspect its complete input.
+        pub(crate) fn truncated_marker() -> Self {
+            Self {
+                output: "<truncated>".to_owned(),
+                valid: true,
+                truncated: true,
+            }
+        }
+
+        pub(crate) fn len(&self) -> usize {
+            self.output.len()
+        }
+
+        pub(crate) fn truncated(&self) -> bool {
+            self.truncated
+        }
+    }
+
+    impl Debug for CompletedDebug {
+        fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+            if self.valid {
+                formatter.write_str(&self.output)
+            } else {
+                Err(fmt::Error)
+            }
+        }
+    }
+
+    /// Completes a debug value into a bounded owned representation.
+    pub(crate) fn complete_debug(
+        value: &dyn Debug,
+        limit: usize,
+        alternate: bool,
+    ) -> CompletedDebug {
+        let mut writer = CompletedDebugWriter::new(limit);
+        let result = with_mask_byte_limit(limit, || {
+            with_debug_output_tracking(|| {
+                if alternate {
+                    write!(&mut writer, "{value:#?}")
+                } else {
+                    write!(&mut writer, "{value:?}")
+                }
+            })
+        });
+        let truncated = writer.truncated;
+        CompletedDebug {
+            output: writer.finish(),
+            valid: result.is_ok() || truncated,
+            truncated,
+        }
+    }
+
+    /// Bounded buffer used only while completing an eager safe result.
+    struct CompletedDebugWriter {
+        output: String,
+        limit: usize,
+        truncated: bool,
+    }
+
+    impl CompletedDebugWriter {
+        /// Creates an empty bounded completion buffer.
+        fn new(limit: usize) -> Self {
+            Self {
+                output: String::with_capacity(limit),
+                limit,
+                truncated: false,
+            }
+        }
+
+        /// Finishes the buffer with a complete terminal marker when needed.
+        fn finish(mut self) -> String {
+            if self.truncated {
+                let marker = "<truncated>";
+                if self.limit < marker.len() {
+                    return String::new();
+                }
+                let prefix_limit = self.limit.saturating_sub(marker.len());
+                let end = debug_piece_boundary(&self.output, prefix_limit);
+                self.output.truncate(end);
+                self.output.push_str(marker);
+            }
+            self.output
+        }
+    }
+
+    impl fmt::Write for CompletedDebugWriter {
+        /// Retains complete UTF-8 fragments until the configured limit closes.
+        fn write_str(&mut self, value: &str) -> fmt::Result {
+            if self.truncated {
+                return Err(fmt::Error);
+            }
+            if self.output.len().saturating_add(value.len()) <= self.limit {
+                self.output.push_str(value);
+                return Ok(());
+            }
+            let payload_limit = self.limit.saturating_sub("<truncated>".len());
+            let remaining = payload_limit.saturating_sub(self.output.len());
+            let end = debug_piece_boundary(value, remaining);
+            self.output.push_str(&value[..end]);
+            self.truncated = true;
+            mark_debug_output_exhausted();
+            Err(fmt::Error)
+        }
+    }
+
+    /// Returns the longest prefix that preserves UTF-8 and debug escapes.
+    fn debug_piece_boundary(value: &str, limit: usize) -> usize {
+        let mut offset = 0;
+        while offset < value.len() {
+            let remaining = &value[offset..];
+            let piece_len = debug_escape_len(remaining)
+                .unwrap_or_else(|| remaining.chars().next().map_or(0, char::len_utf8));
+            if offset.saturating_add(piece_len) > limit {
+                break;
+            }
+            offset += piece_len;
+        }
+        offset
+    }
+
+    /// Returns one complete Rust debug escape length at the string start.
+    fn debug_escape_len(value: &str) -> Option<usize> {
+        let bytes = value.as_bytes();
+        if bytes.first() != Some(&b'\\') {
+            return None;
+        }
+        match bytes.get(1).copied()? {
+            b'\\' | b'"' | b'n' | b'r' | b't' | b'0' => Some(2),
+            b'x' if bytes.len() >= 4
+                && bytes[2].is_ascii_hexdigit()
+                && bytes[3].is_ascii_hexdigit() =>
+            {
+                Some(4)
+            }
+            b'u' if bytes.get(2) == Some(&b'{') => {
+                let closing = bytes[3..]
+                    .iter()
+                    .position(|byte| *byte == b'}')
+                    .map(|index| index + 3)?;
+                if closing == 3 || !bytes[3..closing].iter().all(u8::is_ascii_hexdigit) {
+                    return None;
+                }
+                Some(closing + 1)
+            }
+            _ => None,
+        }
+    }
 }
 
-pub use session_view::RedactedSessionView;
+pub(crate) use session_view::CompletedDebug;
+pub use session_view::RedactedResult;
+pub(crate) use session_view::complete_debug;
 
 impl<T: Redact + ?Sized> Display for Redacted<'_, T> {
     /// Writes a bounded compact redacted debug representation escaped for logs.
@@ -241,8 +495,8 @@ impl<T: Redact + ?Sized> Display for Redacted<'_, T> {
     /// log-safe representation.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        let session = RedactionSession::diagnostic(&self.policy);
-        let view = RedactedSessionView::new(self.value, &session);
+        let mut session = RedactionSession::new(&self.policy);
+        let view = RedactedResult::new(self.value, &mut session);
         format_bounded(
             &view,
             LogOutputLimit::from(self.policy.limits().diagnostic_event()),

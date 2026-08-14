@@ -9,6 +9,8 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
@@ -16,6 +18,7 @@ use qubit_redact::MaskingPolicy;
 use qubit_redact::Redact;
 use qubit_redact::RedactValue;
 use qubit_redact::RedactedKeyedMap;
+use qubit_redact::RedactedKeyedMapResult;
 use qubit_redact::RedactedValue;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
@@ -29,20 +32,23 @@ struct NestedValue {
 }
 
 impl Redact for NestedValue {
+    fn redaction_input_bytes(&self) -> usize {
+        self.secret.len().saturating_add(self.label.len())
+    }
+
     /// Formats the nested value without exposing its secret.
     fn fmt_redacted(
         &self,
-        _session: &RedactionSession<'_>,
+        _session: &mut RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter
             .debug_struct("NestedValue")
             .field(
                 "secret",
-                &self.secret.redact_value(
-                    Sensitivity::Secret,
-                    _session.policy().masking(),
-                ),
+                &self
+                    .secret
+                    .redact_value(Sensitivity::Secret, _session.policy().masking()),
             )
             .field("label", &self.label)
             .finish()
@@ -50,6 +56,10 @@ impl Redact for NestedValue {
 }
 
 impl RedactValue for NestedValue {
+    fn redaction_input_bytes(&self) -> usize {
+        self.secret.len().saturating_add(self.label.len())
+    }
+
     /// Replaces the complete nested value when its outer key is sensitive.
     fn redact_value<'a>(
         &'a self,
@@ -92,6 +102,18 @@ fn test_redacted_keyed_map_recursively_redacts_unclassified_values() {
     assert_eq!(output.matches("<redacted>").count(), 2);
 }
 
+/// Verifies keyed-map output is completed while the mutable session is
+/// available and retains no session-bound formatter state.
+#[test]
+fn test_redacted_keyed_map_result_is_settled_at_creation() {
+    let map = BTreeMap::from([("label".to_owned(), FormatterBehavior { fail: false })]);
+    let redactor = qubit_redact::Redactor::default();
+    let mut session = redactor.session();
+    let result = RedactedKeyedMapResult::new(&map, &mut session);
+
+    assert_eq!(format!("{:?}", result), "{\"label\": compact}");
+}
+
 /// Verifies keyed map displays escape log controls and both bounded adapters
 /// honor their configured output limits.
 #[test]
@@ -108,8 +130,7 @@ fn test_redacted_keyed_map_display_and_bounded_adapters() {
     let display = RedactedKeyedMap::new(&map, policy.clone()).to_string();
     let bounded = RedactedKeyedMap::new(&map, policy.clone())
         .with_output_limit(
-            LogOutputLimit::new(output_limit)
-                .expect("the minimum output limit should be valid"),
+            LogOutputLimit::new(output_limit).expect("the minimum output limit should be valid"),
         )
         .to_string();
     let policy_bounded = RedactedKeyedMap::new(&map, policy)
@@ -122,4 +143,176 @@ fn test_redacted_keyed_map_display_and_bounded_adapters() {
     assert!(bounded.ends_with("<truncated>"));
     assert!(policy_bounded.len() <= output_limit);
     assert!(policy_bounded.ends_with("<truncated>"));
+}
+
+/// Keyed-map value that records recursive formatter visits.
+struct CountingValue<'a>(&'a AtomicUsize);
+
+impl Redact for CountingValue<'_> {
+    fn redaction_input_bytes(&self) -> usize {
+        "你你你你你".len()
+    }
+
+    fn fmt_redacted(
+        &self,
+        _session: &mut RedactionSession<'_>,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        self.0.fetch_add(1, Ordering::Relaxed);
+        formatter.write_str("你你你你你")
+    }
+}
+
+impl RedactValue for CountingValue<'_> {
+    fn redaction_input_bytes(&self) -> usize {
+        "你你你你你".len()
+    }
+
+    fn redact_value<'a>(
+        &'a self,
+        level: Sensitivity,
+        masking: &MaskingPolicy,
+    ) -> RedactedValue<'a> {
+        RedactedValue::opaque(level, masking)
+    }
+}
+
+/// Verifies a local output ceiling stops visiting later keyed-map values.
+#[test]
+fn test_bounded_keyed_map_stops_after_truncated_value() {
+    let visits = AtomicUsize::new(0);
+    let map = BTreeMap::from([
+        ("a".to_owned(), CountingValue(&visits)),
+        ("b".to_owned(), CountingValue(&visits)),
+        ("c".to_owned(), CountingValue(&visits)),
+    ]);
+    let limit = LogOutputLimit::new(14).expect("the limit should be valid");
+
+    let output = RedactedKeyedMap::new(&map, RedactionPolicy::default())
+        .with_output_limit(limit)
+        .to_string();
+
+    assert!(output.ends_with("<truncated>"));
+    assert_eq!(visits.load(Ordering::Relaxed), 1);
+}
+
+/// Keyed value used to verify alternate flags and formatter failures.
+struct FormatterBehavior {
+    fail: bool,
+}
+
+impl Redact for FormatterBehavior {
+    fn redaction_input_bytes(&self) -> usize {
+        1
+    }
+
+    fn fmt_redacted(
+        &self,
+        _session: &mut RedactionSession<'_>,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        if self.fail {
+            return Err(fmt::Error);
+        }
+        formatter.write_str(if formatter.alternate() {
+            "alternate"
+        } else {
+            "compact"
+        })
+    }
+}
+
+impl RedactValue for FormatterBehavior {
+    fn redaction_input_bytes(&self) -> usize {
+        1
+    }
+
+    fn redact_value<'a>(
+        &'a self,
+        level: Sensitivity,
+        masking: &MaskingPolicy,
+    ) -> RedactedValue<'a> {
+        RedactedValue::opaque(level, masking)
+    }
+}
+
+/// Verifies eager keyed-map completion preserves alternate debug formatting.
+#[test]
+fn test_redacted_keyed_map_preserves_alternate_debug() {
+    let map = BTreeMap::from([("label".to_owned(), FormatterBehavior { fail: false })]);
+    let compact = format!(
+        "{:?}",
+        RedactedKeyedMap::new(&map, RedactionPolicy::default())
+    );
+    let alternate = format!(
+        "{:#?}",
+        RedactedKeyedMap::new(&map, RedactionPolicy::default())
+    );
+
+    assert!(compact.contains("compact"));
+    assert!(alternate.contains("alternate"));
+}
+
+/// Verifies eager keyed-map completion preserves a nested formatter failure.
+#[test]
+fn test_redacted_keyed_map_preserves_formatter_error() {
+    let map = BTreeMap::from([("label".to_owned(), FormatterBehavior { fail: true })]);
+    let view = RedactedKeyedMap::new(&map, RedactionPolicy::default());
+    let mut output = String::new();
+
+    let result = fmt::write(&mut output, format_args!("{view:?}"));
+
+    assert_eq!(result, Err(fmt::Error));
+}
+
+/// Short value used to isolate container-writer truncation at a long key.
+struct ShortCountingValue<'a>(&'a AtomicUsize);
+
+impl Redact for ShortCountingValue<'_> {
+    fn redaction_input_bytes(&self) -> usize {
+        1
+    }
+
+    fn fmt_redacted(
+        &self,
+        _session: &mut RedactionSession<'_>,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        self.0.fetch_add(1, Ordering::Relaxed);
+        formatter.write_str("x")
+    }
+}
+
+impl RedactValue for ShortCountingValue<'_> {
+    fn redaction_input_bytes(&self) -> usize {
+        1
+    }
+
+    fn redact_value<'a>(
+        &'a self,
+        level: Sensitivity,
+        masking: &MaskingPolicy,
+    ) -> RedactedValue<'a> {
+        RedactedValue::opaque(level, masking)
+    }
+}
+
+/// Verifies truncation while writing a key prevents pulling and formatting
+/// later map entries.
+#[test]
+fn test_bounded_keyed_map_stops_after_container_writer_truncates() {
+    let visits = AtomicUsize::new(0);
+    let map = BTreeMap::from([
+        ("a".repeat(100), ShortCountingValue(&visits)),
+        ("b".to_owned(), ShortCountingValue(&visits)),
+        ("c".to_owned(), ShortCountingValue(&visits)),
+    ]);
+    let limit = LogOutputLimit::new(14).expect("the limit should be valid");
+
+    let output = RedactedKeyedMap::new(&map, RedactionPolicy::default())
+        .with_output_limit(limit)
+        .to_string();
+
+    assert!(output.ends_with("<truncated>"));
+    assert_eq!(visits.load(Ordering::Relaxed), 1);
 }

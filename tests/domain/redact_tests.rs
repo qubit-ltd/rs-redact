@@ -15,10 +15,14 @@ use qubit_redact::RedactionSession;
 struct TestDomainValue;
 
 impl Redact for TestDomainValue {
+    fn redaction_input_bytes(&self) -> usize {
+        0
+    }
+
     /// Writes a fixed redacted representation without consulting source data.
     fn fmt_redacted(
         &self,
-        _session: &RedactionSession<'_>,
+        _session: &mut RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter.write_str("TestDomainValue { secret: <redacted> }")

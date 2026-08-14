@@ -17,7 +17,6 @@ use super::internal::BoundedLogEscapeWriter;
 use crate::InputOutputLimit;
 use crate::LogOutputLimit;
 use crate::RedactionSession;
-use crate::Redactor;
 use crate::Sensitivity;
 
 /// Builds one log-safe diagnostic under a final output budget.
@@ -74,9 +73,7 @@ impl DiagnosticLogBuilder {
         }
         match fmt::write(&mut self.writer, arguments) {
             Ok(()) => Ok(DiagnosticWriteStatus::Complete),
-            Err(_) if self.writer.is_truncated() => {
-                Ok(DiagnosticWriteStatus::Truncated)
-            }
+            Err(_) if self.writer.is_truncated() => Ok(DiagnosticWriteStatus::Truncated),
             Err(error) => Err(error),
         }
     }
@@ -92,10 +89,7 @@ impl DiagnosticLogBuilder {
     /// `Complete` when the fragment fit, or `Truncated` after the marker was
     /// emitted.
     #[inline]
-    pub fn push_safe(
-        &mut self,
-        text: &LogSafeText<'_>,
-    ) -> DiagnosticWriteStatus {
+    pub fn push_safe(&mut self, text: &LogSafeText<'_>) -> DiagnosticWriteStatus {
         if self.writer.is_truncated() {
             return DiagnosticWriteStatus::Truncated;
         }
@@ -114,17 +108,14 @@ impl DiagnosticLogBuilder {
     /// output across every redacted fragment in the enclosing event.
     pub fn push_redacted_field(
         &mut self,
-        session: &RedactionSession<'_>,
+        session: &mut RedactionSession<'_>,
         field: &str,
         value: &str,
     ) -> DiagnosticWriteStatus {
         if self.writer.is_truncated() {
             return DiagnosticWriteStatus::Truncated;
         }
-        let redactor = Redactor::new(session.policy().clone());
-        let text = redactor
-            .redact_field_with_session(session, field, value)
-            .escape_for_log();
+        let text = session.redact_field(field, value).escape_for_log();
         self.push_safe(&text)
     }
 
@@ -136,17 +127,14 @@ impl DiagnosticLogBuilder {
     /// the session's cumulative resource accounting.
     pub fn push_redacted_at(
         &mut self,
-        session: &RedactionSession<'_>,
+        session: &mut RedactionSession<'_>,
         level: Sensitivity,
         value: &str,
     ) -> DiagnosticWriteStatus {
         if self.writer.is_truncated() {
             return DiagnosticWriteStatus::Truncated;
         }
-        let redactor = Redactor::new(session.policy().clone());
-        let text = redactor
-            .redact_at_with_session(session, level, value)
-            .escape_for_log();
+        let text = session.redact_at(level, value).escape_for_log();
         self.push_safe(&text)
     }
 

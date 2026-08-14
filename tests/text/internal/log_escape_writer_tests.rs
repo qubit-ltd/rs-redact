@@ -16,10 +16,14 @@ use qubit_redact::RedactionSession;
 struct UnsafeDiagnostic;
 
 impl Redact for UnsafeDiagnostic {
+    fn redaction_input_bytes(&self) -> usize {
+        "line one\nline two\u{202e}".len()
+    }
+
     /// Writes representative log-unsafe controls.
     fn fmt_redacted(
         &self,
-        _session: &RedactionSession<'_>,
+        _session: &mut RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter.write_str("line one\nline two\u{202e}")
@@ -30,10 +34,14 @@ impl Redact for UnsafeDiagnostic {
 struct ControlFirstDiagnostic;
 
 impl Redact for ControlFirstDiagnostic {
+    fn redaction_input_bytes(&self) -> usize {
+        "\nremaining".len()
+    }
+
     /// Writes a control before any ordinary character.
     fn fmt_redacted(
         &self,
-        _session: &RedactionSession<'_>,
+        _session: &mut RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter.write_str("\nremaining")
@@ -44,10 +52,14 @@ impl Redact for ControlFirstDiagnostic {
 struct SafeDiagnostic;
 
 impl Redact for SafeDiagnostic {
+    fn redaction_input_bytes(&self) -> usize {
+        1
+    }
+
     /// Writes one ordinary character.
     fn fmt_redacted(
         &self,
-        _session: &RedactionSession<'_>,
+        _session: &mut RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter.write_str("a")
@@ -77,8 +89,7 @@ fn test_log_escape_writer_escapes_streamed_controls() {
 fn test_log_escape_writer_propagates_destination_failure() {
     let mut output = FailingWriter;
     let safe_result = write!(&mut output, "{}", SafeDiagnostic.redacted());
-    let escaped_result =
-        write!(&mut output, "{}", ControlFirstDiagnostic.redacted());
+    let escaped_result = write!(&mut output, "{}", ControlFirstDiagnostic.redacted());
 
     assert_eq!(safe_result, Err(fmt::Error));
     assert_eq!(escaped_result, Err(fmt::Error));

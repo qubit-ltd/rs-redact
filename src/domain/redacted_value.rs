@@ -17,6 +17,7 @@ use crate::LogSafeText;
 use crate::MaskingPolicy;
 use crate::RedactedText;
 use crate::Sensitivity;
+use crate::domain::internal::mask_byte_limit;
 
 /// Redacted text retaining its original plain or optional container shape.
 ///
@@ -53,9 +54,11 @@ impl<'a> RedactedValue<'a> {
     /// A plain redacted value containing the configured opaque replacement.
     #[inline(always)]
     pub fn opaque(level: Sensitivity, masking: &MaskingPolicy) -> Self {
-        Self::Text(RedactedText::new(Cow::Owned(
-            masking.mask_opaque(level).to_owned(),
-        )))
+        let replacement = match mask_byte_limit() {
+            Some(max_bytes) => masking.mask_opaque_bounded(level, max_bytes),
+            None => masking.mask_opaque(level).to_owned(),
+        };
+        Self::Text(RedactedText::new(Cow::Owned(replacement)))
     }
 }
 
@@ -78,9 +81,7 @@ impl Debug for RedactedValue<'_> {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Text(text) => Debug::fmt(text.as_str(), formatter),
-            Self::Some(text) => {
-                formatter.debug_tuple("Some").field(&text.as_str()).finish()
-            }
+            Self::Some(text) => formatter.debug_tuple("Some").field(&text.as_str()).finish(),
             Self::None => formatter.write_str("None"),
         }
     }

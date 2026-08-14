@@ -33,10 +33,16 @@ struct ManualAccount {
 }
 
 impl Redact for ManualAccount {
+    fn redaction_input_bytes(&self) -> usize {
+        std::mem::size_of_val(&self.id)
+            .saturating_add(self.password.len())
+            .saturating_add(self.note.len())
+    }
+
     /// Formats the account while masking its password.
     fn fmt_redacted(
         &self,
-        _session: &RedactionSession<'_>,
+        _session: &mut RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         formatter
@@ -44,10 +50,9 @@ impl Redact for ManualAccount {
             .field("id", &self.id)
             .field(
                 "password",
-                &self.password.redact_value(
-                    Sensitivity::Secret,
-                    _session.policy().masking(),
-                ),
+                &self
+                    .password
+                    .redact_value(Sensitivity::Secret, _session.policy().masking()),
             )
             .field("note", &self.note)
             .finish()
@@ -151,9 +156,8 @@ fn test_redacted_debug_uses_policy_output_limit_by_default() {
         password: "raw-secret".to_owned(),
         note: "visible diagnostic text".to_owned(),
     };
-    let budget =
-        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
-            .expect("the minimum diagnostic output limit should be valid");
+    let budget = InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
+        .expect("the minimum diagnostic output limit should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -173,9 +177,8 @@ fn test_redacted_display_uses_policy_output_limit_by_default() {
         password: "raw-secret".to_owned(),
         note: "visible diagnostic text".to_owned(),
     };
-    let budget =
-        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
-            .expect("the minimum bounded output should be valid");
+    let budget = InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
+        .expect("the minimum bounded output should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -201,8 +204,8 @@ fn test_redacted_view_serializes_through_the_explicit_policy() {
         .build()
         .expect("the fixed masking policy should build");
 
-    let serialized = to_value(account.redacted_with(&policy))
-        .expect("the redacted view should serialize");
+    let serialized =
+        to_value(account.redacted_with(&policy)).expect("the redacted view should serialize");
 
     assert_eq!(serialized["id"], 13);
     assert_eq!(serialized["password"], "[serde]");

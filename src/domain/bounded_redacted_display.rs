@@ -13,6 +13,8 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Write as _;
 
+use super::internal::mark_debug_output_exhausted;
+use super::internal::with_debug_output_tracking;
 use super::internal::with_mask_byte_limit;
 use crate::LogOutputLimit;
 use crate::text::internal::BoundedLogEscapeWriter;
@@ -115,7 +117,10 @@ pub(super) fn format_bounded(
 ) -> fmt::Result {
     let mut writer = BoundedLogEscapeWriter::new(limit);
     let result = with_mask_byte_limit(limit.max_bytes(), || {
-        write!(&mut writer, "{value:?}")
+        with_debug_output_tracking(|| {
+            let mut tracked = TrackedLogWriter(&mut writer);
+            write!(&mut tracked, "{value:?}")
+        })
     });
     if result.is_err() && !writer.is_truncated() {
         return Err(fmt::Error);
@@ -136,11 +141,13 @@ pub(super) fn format_debug_bounded(
 ) -> fmt::Result {
     let mut writer = BoundedDebugWriter::new(limit);
     let result = with_mask_byte_limit(limit.max_bytes(), || {
-        if formatter.alternate() {
-            write!(&mut writer, "{value:#?}")
-        } else {
-            write!(&mut writer, "{value:?}")
-        }
+        with_debug_output_tracking(|| {
+            if formatter.alternate() {
+                write!(&mut writer, "{value:#?}")
+            } else {
+                write!(&mut writer, "{value:?}")
+            }
+        })
     });
     if result.is_err() && !writer.is_truncated() {
         return Err(fmt::Error);
@@ -159,7 +166,7 @@ impl BoundedDebugWriter {
     /// Creates an empty bounded debug writer.
     fn new(limit: LogOutputLimit) -> Self {
         Self {
-            output: String::new(),
+            output: String::with_capacity(limit.max_bytes()),
             limit: limit.max_bytes(),
             truncated: false,
         }
@@ -175,7 +182,8 @@ impl BoundedDebugWriter {
         if self.truncated {
             let marker = "<truncated>";
             let prefix_limit = self.limit.saturating_sub(marker.len());
-            self.output.truncate(prefix_limit.min(self.output.len()));
+            self.output
+                .truncate(floor_char_boundary(&self.output, prefix_limit));
             self.output.push_str(marker);
         }
         self.output
@@ -204,7 +212,21 @@ impl fmt::Write for BoundedDebugWriter {
             self.output.push_str(prefix);
         }
         self.truncated = true;
+        mark_debug_output_exhausted();
         Err(fmt::Error)
+    }
+}
+
+/// Marks log-safe writer truncation in the active container context.
+struct TrackedLogWriter<'writer>(&'writer mut BoundedLogEscapeWriter);
+
+impl fmt::Write for TrackedLogWriter<'_> {
+    fn write_str(&mut self, value: &str) -> fmt::Result {
+        let result = self.0.write_str(value);
+        if self.0.is_truncated() {
+            mark_debug_output_exhausted();
+        }
+        result
     }
 }
 
