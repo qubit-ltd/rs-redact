@@ -9,8 +9,8 @@
 
 mod allow_rule;
 mod diagnostic_budget;
-mod diagnostic_budget_runtime;
 mod diagnostic_budget_error;
+mod diagnostic_budget_runtime;
 mod field_classification;
 mod field_match_kind;
 mod field_name_matching;
@@ -28,9 +28,9 @@ mod redaction_floor_builder;
 mod redaction_limits;
 mod redaction_policy;
 mod redaction_policy_builder;
+mod redaction_resource;
 mod redaction_rules;
 mod redaction_rules_builder;
-mod redaction_resource;
 mod redaction_session;
 mod resolved_field;
 mod sensitive_field_preset;
@@ -70,9 +70,9 @@ pub use redaction_policy_builder::LimitsBuilder;
 pub use redaction_policy_builder::RedactionPolicyBuilder;
 #[cfg(feature = "uri")]
 pub use redaction_policy_builder::UriPolicyBuilderView;
+pub(crate) use redaction_resource::RedactionResource;
 pub use redaction_rules::RedactionRules;
 pub(crate) use redaction_rules_builder::RedactionRulesBuilder;
-pub(crate) use redaction_resource::RedactionResource;
 pub use redaction_session::RedactionSession;
 pub(crate) use resolved_field::ResolvedField;
 pub use sensitive_field_preset::SensitiveFieldPreset;
