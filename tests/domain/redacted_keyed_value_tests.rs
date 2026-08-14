@@ -352,10 +352,7 @@ fn test_redact_keyed_bounds_opaque_mask_before_materialization() {
         .diagnostic_event(budget)
         .raise("tenant_secret", Sensitivity::Secret)
         .expect("the test field should be valid")
-        .mask(
-            Sensitivity::Secret,
-            MaskPolicy::fixed(&"x".repeat(1_000)),
-        )
+        .mask(Sensitivity::Secret, MaskPolicy::fixed(&"x".repeat(1_000)))
         .expect("the replacement should be valid")
         .build()
         .expect("the test policy should build");

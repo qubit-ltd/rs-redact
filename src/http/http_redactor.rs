@@ -944,10 +944,7 @@ impl HttpRedactor {
                 ),
                 TextBodyPolicy::PassThrough => {
                     let (text, truncated) =
-                        diagnostics::bound_safe_text(
-                            text,
-                            output_limit,
-                        );
+                        diagnostics::bound_safe_text(text, output_limit);
                     ParsedBody::new(
                         text,
                         BodyRedactionStatus::PassedThrough,

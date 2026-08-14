@@ -12,13 +12,13 @@ use std::fmt;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
+use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::MaskPolicy;
 use qubit_redact::Redact;
 use qubit_redact::RedactedMap;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
-use qubit_redact::InputOutputLimit;
 use qubit_redact::Sensitivity;
 /// Value whose redacted representation writes caller-selected safe text.
 struct DiagnosticText<'a> {
@@ -195,8 +195,7 @@ fn test_domain_truncation_keeps_session_open_for_later_fragments() {
             formatter: &mut fmt::Formatter<'_>,
         ) -> fmt::Result {
             for _ in 0..2 {
-                let masked = session
-                    .redact_at(Sensitivity::Secret, "secret");
+                let masked = session.redact_at(Sensitivity::Secret, "secret");
                 if !masked.as_str().is_empty() {
                     self.0.fetch_add(1, Ordering::Relaxed);
                 }
@@ -207,10 +206,7 @@ fn test_domain_truncation_keeps_session_open_for_later_fragments() {
 
     let completed = AtomicUsize::new(0);
     let policy = RedactionPolicy::builder()
-        .mask(
-            Sensitivity::Secret,
-            MaskPolicy::fixed(&"你".repeat(20)),
-        )
+        .mask(Sensitivity::Secret, MaskPolicy::fixed(&"你".repeat(20)))
         .expect("the Unicode mask should be valid")
         .build()
         .expect("the policy should build");
@@ -252,11 +248,8 @@ fn test_bounded_debug_admits_before_fmt_redacted() {
         calls: &calls,
         text: "heap input".to_owned(),
     };
-    let budget = InputOutputLimit::new(
-        1,
-        InputOutputLimit::MIN_OUTPUT_BYTES,
-    )
-    .expect("the zero-input budget should be valid");
+    let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
+        .expect("the zero-input budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -321,11 +314,9 @@ fn test_default_redact_input_contract_is_fail_closed_at_usize_max() {
         calls: &calls,
         text: "heap input".to_owned(),
     };
-    let budget = InputOutputLimit::new(
-        usize::MAX,
-        InputOutputLimit::MIN_OUTPUT_BYTES,
-    )
-    .expect("the maximum input budget should be valid");
+    let budget =
+        InputOutputLimit::new(usize::MAX, InputOutputLimit::MIN_OUTPUT_BYTES)
+            .expect("the maximum input budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
