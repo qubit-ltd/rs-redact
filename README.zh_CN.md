@@ -26,7 +26,7 @@ Qubit Redact 用于防止敏感信息经 Rust 诊断信息泄露，包括日志�
 
 ```toml
 [dependencies]
-qubit-redact = "0.4"
+qubit-redact = "0.5"
 ```
 
 ```rust
@@ -74,6 +74,26 @@ let snapshot = RedactionPolicy::default();
 如果没有安装策略，全局/默认策略读取会使用固定的标准策略，但不会占用全局安装槽。
 之后仍可调用 `install_global()`；已有快照不会因后续安装而改变。
 
+一次诊断事件应创建一个 session，并在各个 adapter 之间复用。session 持有共享的输入/输出
+预算，因此嵌套的 JSON、HTTP、URI、argv 和环境变量操作不会悄悄取得一份新预算：
+
+```rust
+use std::ffi::OsStr;
+use qubit_redact::argv::ArgvItem;
+use qubit_redact::Redactor;
+
+let redactor = Redactor::strict();
+let mut session = redactor.session();
+let token = session.redact_field("token", "raw-token");
+let argv = session.argv().redact_heuristically([
+    ArgvItem::plain(OsStr::new("client")),
+    ArgvItem::plain(OsStr::new("--token")),
+    ArgvItem::plain(OsStr::new("raw-token")),
+]);
+assert!(!token.as_str().contains("raw-token"));
+assert!(!argv.to_string().contains("raw-token"));
+```
+
 > **警告：** `install_global()` 只能由可执行应用在组装初始化阶段调用。应用应在最终
 > 策略构建完成后、启动 worker 或请求处理之前调用一次；库不得调用它。安装前创建的
 > 对象可能永久持有标准策略快照。必须使用应用策略的对象应在安装后创建，或显式注入
@@ -104,8 +124,8 @@ Serde/JSON 集成说明请参阅 [derive README](https://github.com/qubit-ltd/rs
 
 | 需求 | Cargo 配置 |
 | --- | --- |
-| 标量、Map、进程和文本 core 能力 | `qubit-redact = "0.4"` |
-| 领域对象 derive | 添加 `qubit-redact-derive = "0.4"`。 |
+| 标量、Map、进程和文本 core 能力 | `qubit-redact = "0.5"` |
+| 领域对象 derive | 添加 `qubit-redact-derive = "0.5"`。 |
 | 序列化脱敏领域对象或视图 | 启用 `serde`，并直接声明 `serde` 依赖；`#[redact(serde)]` 让直接序列化也自动脱敏。 |
 | 脱敏 `serde_json::Value` 或 JSON 文本字段 | 启用 `json`；应用使用时直接添加 `serde_json`。 |
 | HTTP 诊断 | 启用 `http`；应用使用其类型时直接添加 `http`。 |
@@ -116,12 +136,53 @@ derive 的 `#[redact(json)]` 模式会保持 JSON 文本字段的外层 Rust `St
 
 ```toml
 [dependencies]
-# 仅启用 HTTP 诊断
-qubit-redact = { version = "0.4", features = ["http"] }
+# HTTP 诊断（包含 JSON body 支持）
+qubit-redact = { version = "0.5", features = ["http"] }
 http = "1.5"
 
 # 不启用 HTTP，仅使用 URI 诊断
-# qubit-redact = { version = "0.4", features = ["uri"] }
+# qubit-redact = { version = "0.5", features = ["uri"] }
+```
+
+`json` feature 负责 JSON value 和 JSON 文本脱敏。`http` feature 会复用它处理 HTTP JSON
+body，但 JSON 能力并不属于 HTTP 专属功能，也可以独立启用。
+
+JSON 文本可以通过 `session.json()` 参与同一个事件预算：
+
+```rust
+use qubit_redact::Redactor;
+
+let redactor = Redactor::strict();
+let mut session = redactor.session();
+let safe = session.json().redact_text(r#"{"token":"raw-token"}"#);
+assert!(!safe.to_string().contains("raw-token"));
+```
+
+HTTP body 诊断通过 `session.http()`：
+
+```rust
+use http::HeaderValue;
+use qubit_redact::http::{BodyCapture, HttpRedactor};
+
+let redactor = HttpRedactor::default();
+let mut session = redactor.session();
+let content_type = HeaderValue::from_static("application/json");
+let safe = session.http().redact_body(
+    BodyCapture::complete(br#"{"password":"raw"}"#),
+    Some(&content_type),
+);
+assert!(!safe.to_string().contains("raw"));
+```
+
+URI 诊断通过 `session.uri()`，并返回带状态和原因的结构化结果：
+
+```rust
+use qubit_redact::uri::UriRedactor;
+
+let redactor = UriRedactor::default();
+let mut session = redactor.session();
+let safe = session.uri().redact_uri_str("https://example.test/path");
+assert!(safe.log_safe_text().as_str().contains("example.test"));
 ```
 
 ## 安全边界
