@@ -58,7 +58,11 @@ impl<'value, 'policy, T: ?Sized> RedactedKeyedValue<'value, 'policy, T> {
     /// A view that never modifies the original value.
     #[must_use = "format or serialize the keyed redaction view"]
     #[inline(always)]
-    pub const fn new(key: &'value str, value: &'value T, policy: &'policy RedactionPolicy) -> Self {
+    pub const fn new(
+        key: &'value str,
+        value: &'value T,
+        policy: &'policy RedactionPolicy,
+    ) -> Self {
         Self { key, value, policy }
     }
 
@@ -139,7 +143,11 @@ mod session_view {
     impl<'value, T: Redact + RedactValue + ?Sized> RedactedKeyedResult<'value, T> {
         /// Completes a keyed value through an existing diagnostic session.
         #[inline(always)]
-        pub fn new(key: &'value str, value: &'value T, session: &mut RedactionSession<'_>) -> Self {
+        pub fn new(
+            key: &'value str,
+            value: &'value T,
+            session: &mut RedactionSession<'_>,
+        ) -> Self {
             Self::new_with_alternate(key, value, session, false)
         }
 
@@ -150,9 +158,11 @@ mod session_view {
             session: &mut RedactionSession<'_>,
             alternate: bool,
         ) -> Self {
-            Self::try_new(key, value, session, alternate).unwrap_or_else(|| Self {
-                completed: CompletedDebug::empty(),
-                marker: PhantomData,
+            Self::try_new(key, value, session, alternate).unwrap_or_else(|| {
+                Self {
+                    completed: CompletedDebug::empty(),
+                    marker: PhantomData,
+                }
             })
         }
 
@@ -177,7 +187,9 @@ mod session_view {
                 session.admit(input_bytes, domain_limit, "<truncated>".len())
             };
             let max_output_bytes = match admission {
-                RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
+                RedactionAdmission::Render { max_output_bytes } => {
+                    max_output_bytes
+                }
                 RedactionAdmission::Fallback => {
                     return Some(Self {
                         completed: CompletedDebug::truncated_marker(),
@@ -253,7 +265,9 @@ mod session_view {
                     &self.value.redact_value(sensitivity, policy.masking()),
                     formatter,
                 ),
-                ResolvedField::PassThrough => self.value.fmt_redacted(session, formatter),
+                ResolvedField::PassThrough => {
+                    self.value.fmt_redacted(session, formatter)
+                }
             }
         }
     }
@@ -261,7 +275,9 @@ mod session_view {
 
 pub use session_view::RedactedKeyedResult;
 
-impl<T: Redact + RedactValue + ?Sized> Display for RedactedKeyedValue<'_, '_, T> {
+impl<T: Redact + RedactValue + ?Sized> Display
+    for RedactedKeyedValue<'_, '_, T>
+{
     /// Formats the selected redacted representation for a bounded plain-text
     /// log.
     ///
@@ -317,15 +333,21 @@ impl<T: RedactValue + crate::domain::RedactSerialize + ?Sized> serde::Serialize
     {
         let resolved = self.policy.resolve_field(self.key);
         match resolved {
-            ResolvedField::Sensitive { sensitivity } => serde::Serialize::serialize(
-                &self.value.redact_value(sensitivity, self.policy.masking()),
-                serializer,
-            ),
-            ResolvedField::PassThrough => crate::domain::RedactSerialize::serialize_redacted(
-                self.value,
-                self.policy,
-                serializer,
-            ),
+            ResolvedField::Sensitive { sensitivity } => {
+                serde::Serialize::serialize(
+                    &self
+                        .value
+                        .redact_value(sensitivity, self.policy.masking()),
+                    serializer,
+                )
+            }
+            ResolvedField::PassThrough => {
+                crate::domain::RedactSerialize::serialize_redacted(
+                    self.value,
+                    self.policy,
+                    serializer,
+                )
+            }
         }
     }
 }

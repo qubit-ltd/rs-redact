@@ -26,7 +26,9 @@ pub struct ArgvRedactionSession<'session, 'policy> {
 impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
     /// Creates a façade from a mutable diagnostic session.
     #[inline(always)]
-    pub(crate) const fn new(session: &'session mut RedactionSession<'policy>) -> Self {
+    pub(crate) const fn new(
+        session: &'session mut RedactionSession<'policy>,
+    ) -> Self {
         Self { session }
     }
 
@@ -66,7 +68,8 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
         let builder_limit = InputOutputLimit::new(usize::MAX, remaining)
             .expect("the remaining session output must be a valid limit");
         let mut builder = RedactedArgv::builder(builder_limit);
-        let renderer = ArgvRedactor::new(Redactor::new(self.session.policy().clone()));
+        let renderer =
+            ArgvRedactor::new(Redactor::new(self.session.policy().clone()));
         let mut pending = None;
         let mut iterator = items.into_iter();
 
@@ -85,18 +88,28 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
                 output_limit.max_output_bytes(),
                 TRUNCATED_LIST.len(),
             );
-            let RedactionAdmission::Render { max_output_bytes } = admission else {
+            let RedactionAdmission::Render { max_output_bytes } = admission
+            else {
                 return admission_fallback(admission);
             };
             let rendered = if heuristic {
                 if let Some(level) = item.sensitivity() {
                     pending = None;
-                    renderer.mask_os_value_bounded(item.value(), level, max_output_bytes)
+                    renderer.mask_os_value_bounded(
+                        item.value(),
+                        level,
+                        max_output_bytes,
+                    )
                 } else {
-                    renderer.redact_plain_item_bounded(item.value(), &mut pending, max_output_bytes)
+                    renderer.redact_plain_item_bounded(
+                        item.value(),
+                        &mut pending,
+                        max_output_bytes,
+                    )
                 }
             } else {
-                renderer.render_explicit_or_plain_bounded(item, max_output_bytes)
+                renderer
+                    .render_explicit_or_plain_bounded(item, max_output_bytes)
             };
             let before = builder.len();
             let complete = builder.push(&rendered);
@@ -112,8 +125,10 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
             }
         }
 
-        if self.session.remaining_output_bytes() >= 1 && !builder.is_truncated() {
-            let admission = self.session.admit(0, output_limit.max_output_bytes(), 1);
+        if self.session.remaining_output_bytes() >= 1 && !builder.is_truncated()
+        {
+            let admission =
+                self.session.admit(0, output_limit.max_output_bytes(), 1);
             if let RedactionAdmission::Render { .. } = admission {
                 let before = builder.len();
                 builder.close();
@@ -133,8 +148,12 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
 /// Converts a non-render admission into a safe argv result.
 fn admission_fallback(admission: RedactionAdmission) -> RedactedArgv {
     match admission {
-        RedactionAdmission::Fallback => RedactedArgv::from_rendered(TRUNCATED_LIST.to_owned()),
-        RedactionAdmission::Exhausted => RedactedArgv::from_rendered(String::new()),
+        RedactionAdmission::Fallback => {
+            RedactedArgv::from_rendered(TRUNCATED_LIST.to_owned())
+        }
+        RedactionAdmission::Exhausted => {
+            RedactedArgv::from_rendered(String::new())
+        }
         RedactionAdmission::Render { .. } => {
             unreachable!("render admission is handled before fallback")
         }
@@ -144,7 +163,9 @@ fn admission_fallback(admission: RedactionAdmission) -> RedactedArgv {
 impl<'policy> RedactionSession<'policy> {
     /// Creates an argv façade borrowing this diagnostic session.
     #[inline(always)]
-    pub fn argv<'session>(&'session mut self) -> ArgvRedactionSession<'session, 'policy> {
+    pub fn argv<'session>(
+        &'session mut self,
+    ) -> ArgvRedactionSession<'session, 'policy> {
         ArgvRedactionSession::new(self)
     }
 }

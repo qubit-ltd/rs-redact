@@ -73,7 +73,9 @@ impl RedactionFloor {
     }
 
     /// Iterates the floor's canonical sensitive rules.
-    pub fn sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
+    pub fn sensitive_rules(
+        &self,
+    ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
         self.inner
             .sensitive
             .iter()

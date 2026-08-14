@@ -15,6 +15,7 @@ use std::sync::atomic::Ordering;
 
 use indexmap::IndexMap;
 use qubit_redact::InputOutputLimit;
+use qubit_redact::LogOutputLimit;
 use qubit_redact::MaskingPolicy;
 use qubit_redact::RedactValue;
 use qubit_redact::RedactedMap;
@@ -58,8 +59,10 @@ impl RedactValue for FormatterBehavior {
 /// Verifies a redacted map keeps non-sensitive values visible.
 #[test]
 fn test_redacted_map_preserves_visible_value() {
-    let map = BTreeMap::from([(String::from("label"), String::from("visible"))]);
-    let rendered = RedactedMap::new(&map, RedactionPolicy::default()).to_string();
+    let map =
+        BTreeMap::from([(String::from("label"), String::from("visible"))]);
+    let rendered =
+        RedactedMap::new(&map, RedactionPolicy::default()).to_string();
 
     assert!(rendered.contains("visible"));
 }
@@ -67,7 +70,8 @@ fn test_redacted_map_preserves_visible_value() {
 /// Verifies map output is completed while the mutable session is available.
 #[test]
 fn test_redacted_map_result_is_settled_at_creation() {
-    let map = BTreeMap::from([(String::from("label"), String::from("visible"))]);
+    let map =
+        BTreeMap::from([(String::from("label"), String::from("visible"))]);
     let redactor = Redactor::default();
     let mut session = redactor.session();
     let result = RedactedMapResult::new(&map, &mut session);
@@ -80,7 +84,8 @@ fn test_redacted_map_result_is_settled_at_creation() {
 fn test_redacted_map_supports_index_map_without_runtime_coupling() {
     let map = IndexMap::from([("password", "raw"), ("label", "visible")]);
 
-    let rendered = format!("{:?}", RedactedMap::new(&map, RedactionPolicy::default()),);
+    let rendered =
+        format!("{:?}", RedactedMap::new(&map, RedactionPolicy::default()),);
 
     assert_eq!(
         rendered,
@@ -91,9 +96,13 @@ fn test_redacted_map_supports_index_map_without_runtime_coupling() {
 /// Verifies map display uses its policy output budget by default.
 #[test]
 fn test_redacted_map_display_uses_policy_output_limit_by_default() {
-    let map = BTreeMap::from([(String::from("label"), "visible diagnostic text".repeat(4))]);
-    let budget = InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
-        .expect("the minimum bounded output should be valid");
+    let map = BTreeMap::from([(
+        String::from("label"),
+        "visible diagnostic text".repeat(4),
+    )]);
+    let budget =
+        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
+            .expect("the minimum bounded output should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -203,7 +212,8 @@ fn test_bounded_redacted_map_stops_after_container_writer_truncates() {
         ("b".to_owned(), ShortCountingValue(&visits)),
         ("c".to_owned(), ShortCountingValue(&visits)),
     ]);
-    let limit = qubit_redact::LogOutputLimit::new(14).expect("the limit should be valid");
+    let limit = LogOutputLimit::new(14)
+        .expect("the limit should be valid");
 
     let output = RedactedMap::new(&map, RedactionPolicy::default())
         .with_output_limit(limit)
@@ -282,7 +292,8 @@ fn test_redacted_map_checks_output_before_iterator_next() {
         ],
         nexts: Arc::clone(&nexts),
     };
-    let limit = qubit_redact::LogOutputLimit::new(14).expect("the limit should be valid");
+    let limit = LogOutputLimit::new(14)
+        .expect("the limit should be valid");
 
     let output = RedactedMap::new(&map, RedactionPolicy::default())
         .with_output_limit(limit)

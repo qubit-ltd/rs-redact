@@ -73,7 +73,9 @@ impl DiagnosticLogBuilder {
         }
         match fmt::write(&mut self.writer, arguments) {
             Ok(()) => Ok(DiagnosticWriteStatus::Complete),
-            Err(_) if self.writer.is_truncated() => Ok(DiagnosticWriteStatus::Truncated),
+            Err(_) if self.writer.is_truncated() => {
+                Ok(DiagnosticWriteStatus::Truncated)
+            }
             Err(error) => Err(error),
         }
     }
@@ -89,7 +91,10 @@ impl DiagnosticLogBuilder {
     /// `Complete` when the fragment fit, or `Truncated` after the marker was
     /// emitted.
     #[inline]
-    pub fn push_safe(&mut self, text: &LogSafeText<'_>) -> DiagnosticWriteStatus {
+    pub fn push_safe(
+        &mut self,
+        text: &LogSafeText<'_>,
+    ) -> DiagnosticWriteStatus {
         if self.writer.is_truncated() {
             return DiagnosticWriteStatus::Truncated;
         }

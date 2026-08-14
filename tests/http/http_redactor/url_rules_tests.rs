@@ -12,7 +12,8 @@ use qubit_redact::http::HttpRedactor;
 /// secrets.
 #[test]
 fn test_url_rules_limit_nested_url_recursion() {
-    let mut nested = "https://deep-user:deep-secret@inner.test/private".to_owned();
+    let mut nested =
+        "https://deep-user:deep-secret@inner.test/private".to_owned();
     for layer in 0..10 {
         let encoded = nested
             .replace('%', "%25")

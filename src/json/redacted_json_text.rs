@@ -42,7 +42,10 @@ impl<'text, 'policy> RedactedJsonText<'text, 'policy> {
     /// # Returns
     ///
     /// A borrowed fail-closed JSON text view.
-    pub const fn new(text: &'text str, policy: &'policy RedactionPolicy) -> Self {
+    pub const fn new(
+        text: &'text str,
+        policy: &'policy RedactionPolicy,
+    ) -> Self {
         Self { text, policy }
     }
 
@@ -53,7 +56,8 @@ impl<'text, 'policy> RedactedJsonText<'text, 'policy> {
     /// True when the text exceeds the policy input limit.
     #[inline(always)]
     const fn exceeds_diagnostic_input_budget(&self) -> bool {
-        self.text.len() > self.policy.limits().diagnostic_event().max_input_bytes()
+        self.text.len()
+            > self.policy.limits().diagnostic_event().max_input_bytes()
     }
 
     /// Returns the configured opaque replacement for unsafe JSON text.
@@ -105,10 +109,18 @@ impl fmt::Debug for RedactedJsonText<'_, '_> {
         } else {
             match serde_json::from_str(self.text) {
                 Ok(value) if formatter.alternate() => {
-                    let _ = write!(&mut writer, "{:#?}", RedactedJson::new(&value, self.policy),);
+                    let _ = write!(
+                        &mut writer,
+                        "{:#?}",
+                        RedactedJson::new(&value, self.policy),
+                    );
                 }
                 Ok(value) => {
-                    let _ = write!(&mut writer, "{:?}", RedactedJson::new(&value, self.policy),);
+                    let _ = write!(
+                        &mut writer,
+                        "{:?}",
+                        RedactedJson::new(&value, self.policy),
+                    );
                 }
                 Err(_) => {
                     let _ = write!(&mut writer, "{:?}", self.opaque_secret());

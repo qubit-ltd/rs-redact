@@ -44,7 +44,8 @@ fn test_argv_session_does_not_pull_iterator_after_output_exhaustion() {
 /// Verifies list delimiters are included in shared output accounting.
 #[test]
 fn test_argv_session_charges_delimiters_across_following_operations() {
-    let limit = InputOutputLimit::new(128, 64).expect("the diagnostic limit should be valid");
+    let limit = InputOutputLimit::new(128, 64)
+        .expect("the diagnostic limit should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(limit)
         .build()

@@ -37,7 +37,12 @@ use crate::text::internal::LogEscapeWriter;
 /// * `K` - Runtime key type used for field classification.
 /// * `V` - Value type recursively rendered through redaction.
 #[must_use = "format the recursive keyed redaction view"]
-pub struct RedactedKeyedMap<'a, M: ?Sized, K: ?Sized = String, V: ?Sized = String> {
+pub struct RedactedKeyedMap<
+    'a,
+    M: ?Sized,
+    K: ?Sized = String,
+    V: ?Sized = String,
+> {
     /// Map borrowed without traversal.
     map: &'a M,
     /// Immutable policy snapshot shared by every keyed value view.
@@ -78,7 +83,10 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
     /// A bounded formatting adapter that owns this recursive keyed map view.
     #[must_use = "format the bounded recursive keyed map display adapter"]
     #[inline(always)]
-    pub const fn with_output_limit(self, limit: LogOutputLimit) -> BoundedRedactedDisplay<Self> {
+    pub const fn with_output_limit(
+        self,
+        limit: LogOutputLimit,
+    ) -> BoundedRedactedDisplay<Self> {
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -90,13 +98,17 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
     #[must_use = "format the bounded recursive keyed map display adapter"]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit = LogOutputLimit::from(self.policy.limits().diagnostic_event());
+        let limit =
+            LogOutputLimit::from(self.policy.limits().diagnostic_event());
         BoundedRedactedDisplay::new(self, limit)
     }
 }
 
-impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Debug
-    for RedactedKeyedMap<'_, M, K, V>
+impl<
+    M: ?Sized,
+    K: AsRef<str> + Debug + ?Sized,
+    V: Redact + RedactValue + ?Sized,
+> Debug for RedactedKeyedMap<'_, M, K, V>
 where
     for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
 {
@@ -147,13 +159,22 @@ mod session_view {
 
     /// A nested keyed-map view that reuses an existing diagnostic session.
     #[must_use = "format the nested keyed redaction view"]
-    pub struct RedactedKeyedMapResult<'map, M: ?Sized, K: ?Sized = String, V: ?Sized = String> {
+    pub struct RedactedKeyedMapResult<
+        'map,
+        M: ?Sized,
+        K: ?Sized = String,
+        V: ?Sized = String,
+    > {
         completed: CompletedDebug,
         marker: PhantomData<(&'map M, *const K, *const V)>,
     }
 
-    impl<'map, M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized>
-        RedactedKeyedMapResult<'map, M, K, V>
+    impl<
+        'map,
+        M: ?Sized,
+        K: AsRef<str> + Debug + ?Sized,
+        V: Redact + RedactValue + ?Sized,
+    > RedactedKeyedMapResult<'map, M, K, V>
     where
         for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
     {
@@ -185,8 +206,11 @@ mod session_view {
         }
     }
 
-    impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Debug
-        for RedactedKeyedMapResult<'_, M, K, V>
+    impl<
+        M: ?Sized,
+        K: AsRef<str> + Debug + ?Sized,
+        V: Redact + RedactValue + ?Sized,
+    > Debug for RedactedKeyedMapResult<'_, M, K, V>
     {
         /// Writes the already-completed safe keyed-map representation.
         #[inline]
@@ -196,14 +220,24 @@ mod session_view {
     }
 
     /// One-shot adapter used to complete a keyed map.
-    struct KeyedMapOnce<'map, 'session, 'policy, M: ?Sized, K: ?Sized, V: ?Sized> {
+    struct KeyedMapOnce<
+        'map,
+        'session,
+        'policy,
+        M: ?Sized,
+        K: ?Sized,
+        V: ?Sized,
+    > {
         map: &'map M,
         session: RefCell<Option<&'session mut RedactionSession<'policy>>>,
         marker: PhantomData<fn() -> (*const K, *const V)>,
     }
 
-    impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Debug
-        for KeyedMapOnce<'_, '_, '_, M, K, V>
+    impl<
+        M: ?Sized,
+        K: AsRef<str> + Debug + ?Sized,
+        V: Redact + RedactValue + ?Sized,
+    > Debug for KeyedMapOnce<'_, '_, '_, M, K, V>
     where
         for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
     {
@@ -223,14 +257,20 @@ mod session_view {
                 let Some((key, value)) = entries.next() else {
                     break;
                 };
-                let Some(view) =
-                    RedactedKeyedResult::try_new(key.as_ref(), value, session, alternate)
-                else {
+                let Some(view) = RedactedKeyedResult::try_new(
+                    key.as_ref(),
+                    value,
+                    session,
+                    alternate,
+                ) else {
                     break;
                 };
                 let truncated = view.is_truncated();
                 output.entry(&key, &view);
-                if truncated || session.is_exhausted() || debug_output_exhausted() {
+                if truncated
+                    || session.is_exhausted()
+                    || debug_output_exhausted()
+                {
                     break;
                 }
             }
@@ -241,8 +281,11 @@ mod session_view {
 
 pub use session_view::RedactedKeyedMapResult;
 
-impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Display
-    for RedactedKeyedMapResult<'_, M, K, V>
+impl<
+    M: ?Sized,
+    K: AsRef<str> + Debug + ?Sized,
+    V: Redact + RedactValue + ?Sized,
+> Display for RedactedKeyedMapResult<'_, M, K, V>
 {
     /// Escapes nested keyed-map debug output for plain-text logs.
     #[inline]
@@ -252,8 +295,11 @@ impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized
     }
 }
 
-impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Display
-    for RedactedKeyedMap<'_, M, K, V>
+impl<
+    M: ?Sized,
+    K: AsRef<str> + Debug + ?Sized,
+    V: Redact + RedactValue + ?Sized,
+> Display for RedactedKeyedMap<'_, M, K, V>
 where
     for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
 {

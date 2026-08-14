@@ -39,7 +39,8 @@ impl Redact for PanickingRedact {
 /// Verifies a formatting panic cannot retain a stale bounded-mask ceiling.
 #[test]
 fn test_mask_byte_limit_reset_restores_unbounded_state_after_panic() {
-    let limit = LogOutputLimit::new(14).expect("the bounded rendering limit should be valid");
+    let limit = LogOutputLimit::new(14)
+        .expect("the bounded rendering limit should be valid");
     let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
         let _ = PanickingRedact
             .redacted()

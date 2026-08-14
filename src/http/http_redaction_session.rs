@@ -38,7 +38,8 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     ) -> LogSafeText<'static> {
         let policy = self.session.policy();
         let fallback = markers::DIAGNOSTIC_LIMIT_EXCEEDED;
-        let domain_limit = policy.limits().diagnostic_event().max_output_bytes();
+        let domain_limit =
+            policy.limits().diagnostic_event().max_output_bytes();
         let before = self.session.remaining_output_bytes();
         match self
             .session
@@ -47,7 +48,9 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
             RedactionAdmission::Fallback => {
                 LogSafeText::from_escaped(Cow::Owned(fallback.to_owned()))
             }
-            RedactionAdmission::Exhausted => LogSafeText::from_escaped(Cow::Borrowed("")),
+            RedactionAdmission::Exhausted => {
+                LogSafeText::from_escaped(Cow::Borrowed(""))
+            }
             RedactionAdmission::Render { max_output_bytes } => {
                 let value = render(&self.redactor(), max_output_bytes);
                 let (text, truncated): (String, bool) =
@@ -98,18 +101,22 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     /// Redacts all HTTP headers.
     pub fn redact_headers(&mut self, headers: &HeaderMap) -> RedactedHeaders {
         if self.session.is_exhausted() {
-            return RedactedHeaders::new(LogSafeText::from_escaped(Cow::Borrowed("")));
+            return RedactedHeaders::new(LogSafeText::from_escaped(
+                Cow::Borrowed(""),
+            ));
         }
         let policy = self.session.policy();
         let fallback = markers::DIAGNOSTIC_LIMIT_EXCEEDED;
-        let domain_limit = policy.limits().diagnostic_event().max_output_bytes();
+        let domain_limit =
+            policy.limits().diagnostic_event().max_output_bytes();
         let redactor = self.redactor();
         let mut output = String::new();
         for (name, value) in headers {
             if self.session.is_exhausted() {
                 break;
             }
-            let input_bytes = name.as_str().len().saturating_add(value.as_bytes().len());
+            let input_bytes =
+                name.as_str().len().saturating_add(value.as_bytes().len());
             let before = self.session.remaining_output_bytes();
             match self
                 .session
@@ -122,9 +129,14 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
                 RedactionAdmission::Exhausted => break,
                 RedactionAdmission::Render { max_output_bytes } => {
                     let prefix_len = usize::from(!output.is_empty());
-                    let item_limit = max_output_bytes.saturating_sub(prefix_len);
-                    let (text, truncated) =
-                        headers::render_one(&redactor, name.as_str(), value, item_limit);
+                    let item_limit =
+                        max_output_bytes.saturating_sub(prefix_len);
+                    let (text, truncated) = headers::render_one(
+                        &redactor,
+                        name.as_str(),
+                        value,
+                        item_limit,
+                    );
                     if prefix_len != 0 {
                         output.push('\n');
                     }
@@ -152,13 +164,16 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
         capture: BodyCapture<'_>,
         content_type: Option<&HeaderValue>,
     ) -> BodyRedaction {
-        let input_bytes = capture
-            .bytes()
-            .len()
-            .saturating_add(content_type.map_or(0, |value| value.as_bytes().len()));
+        let input_bytes = capture.bytes().len().saturating_add(
+            content_type.map_or(0, |value| value.as_bytes().len()),
+        );
         let output_limit = self.session.remaining_output_bytes();
         self.body_result(input_bytes, capture, content_type, |redactor| {
-            redactor.redact_body_with_output_limit(capture, content_type, output_limit)
+            redactor.redact_body_with_output_limit(
+                capture,
+                content_type,
+                output_limit,
+            )
         })
     }
 
@@ -191,7 +206,8 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     ) -> BodyRedaction {
         let policy = self.session.policy();
         let fallback = markers::DIAGNOSTIC_LIMIT_EXCEEDED;
-        let domain_limit = policy.limits().diagnostic_event().max_output_bytes();
+        let domain_limit =
+            policy.limits().diagnostic_event().max_output_bytes();
         let before = self.session.remaining_output_bytes();
         match self
             .session
@@ -199,7 +215,9 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
         {
             RedactionAdmission::Fallback => BodyRedaction::new(
                 fallback.to_owned(),
-                BodyRedactionStatus::Redacted(BodyRedactionReason::DiagnosticBudgetExceeded),
+                BodyRedactionStatus::Redacted(
+                    BodyRedactionReason::DiagnosticBudgetExceeded,
+                ),
                 0,
                 capture.total_len(),
                 capture.total_len(),
@@ -207,7 +225,9 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
             ),
             RedactionAdmission::Exhausted => BodyRedaction::new(
                 String::new(),
-                BodyRedactionStatus::Redacted(BodyRedactionReason::DiagnosticBudgetExceeded),
+                BodyRedactionStatus::Redacted(
+                    BodyRedactionReason::DiagnosticBudgetExceeded,
+                ),
                 0,
                 capture.total_len(),
                 capture.total_len(),
@@ -216,8 +236,12 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
             RedactionAdmission::Render { max_output_bytes } => {
                 let value = render(&self.redactor());
                 let (text, rendered_truncated): (String, bool) =
-                    bound_safe_text(value.log_safe_text().as_str(), max_output_bytes);
-                let rendered_truncated = rendered_truncated || value.is_truncated();
+                    bound_safe_text(
+                        value.log_safe_text().as_str(),
+                        max_output_bytes,
+                    );
+                let rendered_truncated =
+                    rendered_truncated || value.is_truncated();
                 let completion = if rendered_truncated {
                     if max_output_bytes < before {
                         FragmentCompletion::DomainTruncated
@@ -244,7 +268,9 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
 impl<'policy> RedactionSession<'policy> {
     /// Creates the HTTP façade borrowing this session's policy and budget.
     #[inline]
-    pub fn http<'session>(&'session mut self) -> HttpRedactionSession<'session, 'policy> {
+    pub fn http<'session>(
+        &'session mut self,
+    ) -> HttpRedactionSession<'session, 'policy> {
         HttpRedactionSession { session: self }
     }
 }

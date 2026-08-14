@@ -18,6 +18,8 @@ use qubit_redact::Redact;
 use qubit_redact::RedactedMap;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
+use qubit_redact::InputOutputLimit;
+use qubit_redact::Sensitivity;
 /// Value whose redacted representation writes caller-selected safe text.
 struct DiagnosticText<'a> {
     /// Text written through the redacted formatting contract.
@@ -70,7 +72,8 @@ impl Redact for DiagnosticText<'_> {
 ///
 /// A validated log output limit.
 fn limit(max_bytes: usize) -> LogOutputLimit {
-    LogOutputLimit::new(max_bytes).expect("the test budget can contain the truncation marker")
+    LogOutputLimit::new(max_bytes)
+        .expect("the test budget can contain the truncation marker")
 }
 
 /// Verifies complete bounded output matches ordinary redacted display.
@@ -192,7 +195,8 @@ fn test_domain_truncation_keeps_session_open_for_later_fragments() {
             formatter: &mut fmt::Formatter<'_>,
         ) -> fmt::Result {
             for _ in 0..2 {
-                let masked = session.redact_at(qubit_redact::Sensitivity::Secret, "secret");
+                let masked = session
+                    .redact_at(Sensitivity::Secret, "secret");
                 if !masked.as_str().is_empty() {
                     self.0.fetch_add(1, Ordering::Relaxed);
                 }
@@ -204,7 +208,7 @@ fn test_domain_truncation_keeps_session_open_for_later_fragments() {
     let completed = AtomicUsize::new(0);
     let policy = RedactionPolicy::builder()
         .mask(
-            qubit_redact::Sensitivity::Secret,
+            Sensitivity::Secret,
             MaskPolicy::fixed(&"你".repeat(20)),
         )
         .expect("the Unicode mask should be valid")
@@ -248,14 +252,16 @@ fn test_bounded_debug_admits_before_fmt_redacted() {
         calls: &calls,
         text: "heap input".to_owned(),
     };
-    let budget =
-        qubit_redact::InputOutputLimit::new(1, qubit_redact::InputOutputLimit::MIN_OUTPUT_BYTES)
-            .expect("the zero-input budget should be valid");
+    let budget = InputOutputLimit::new(
+        1,
+        InputOutputLimit::MIN_OUTPUT_BYTES,
+    )
+    .expect("the zero-input budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
         .expect("the policy should build");
-    let output_limit = limit(qubit_redact::InputOutputLimit::MIN_OUTPUT_BYTES);
+    let output_limit = limit(InputOutputLimit::MIN_OUTPUT_BYTES);
 
     let _ = format!(
         "{:?}",
@@ -291,9 +297,9 @@ fn test_default_redact_input_contract_is_fail_closed() {
         calls: &calls,
         text: "x".repeat(1_000),
     };
-    let budget = qubit_redact::InputOutputLimit::new(
+    let budget = InputOutputLimit::new(
         std::mem::size_of_val(&value),
-        qubit_redact::InputOutputLimit::MIN_OUTPUT_BYTES,
+        InputOutputLimit::MIN_OUTPUT_BYTES,
     )
     .expect("the structural-sized budget should be valid");
     let policy = RedactionPolicy::builder()
@@ -315,9 +321,9 @@ fn test_default_redact_input_contract_is_fail_closed_at_usize_max() {
         calls: &calls,
         text: "heap input".to_owned(),
     };
-    let budget = qubit_redact::InputOutputLimit::new(
+    let budget = InputOutputLimit::new(
         usize::MAX,
-        qubit_redact::InputOutputLimit::MIN_OUTPUT_BYTES,
+        InputOutputLimit::MIN_OUTPUT_BYTES,
     )
     .expect("the maximum input budget should be valid");
     let policy = RedactionPolicy::builder()

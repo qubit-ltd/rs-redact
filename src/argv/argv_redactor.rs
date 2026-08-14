@@ -117,7 +117,11 @@ impl ArgvRedactor {
         max_output_bytes: usize,
     ) -> String {
         match item.sensitivity() {
-            Some(level) => self.mask_os_value_bounded(item.value(), level, max_output_bytes),
+            Some(level) => self.mask_os_value_bounded(
+                item.value(),
+                level,
+                max_output_bytes,
+            ),
             None => item.value().to_string_lossy().into_owned(),
         }
     }
@@ -169,15 +173,25 @@ impl ArgvRedactor {
             if pending.field.is_empty() {
                 return self.mask_opaque_value_bounded(max_output_bytes);
             }
-            return self.mask_pending_value_bounded(&pending, value, max_output_bytes);
+            return self.mask_pending_value_bounded(
+                &pending,
+                value,
+                max_output_bytes,
+            );
         }
-        if let Some(value) = self.redact_assignment_bounded(value, max_output_bytes) {
+        if let Some(value) =
+            self.redact_assignment_bounded(value, max_output_bytes)
+        {
             return value;
         }
-        if let Some(value) = self.redact_inline_option_bounded(value, max_output_bytes) {
+        if let Some(value) =
+            self.redact_inline_option_bounded(value, max_output_bytes)
+        {
             return value;
         }
-        if let Some(value) = self.redact_jvm_property_bounded(value, max_output_bytes) {
+        if let Some(value) =
+            self.redact_jvm_property_bounded(value, max_output_bytes)
+        {
             return value;
         }
         if let Some((field, exact)) = option
@@ -222,7 +236,11 @@ impl ArgvRedactor {
     }
 
     /// Redacts an assignment while bounding any generated mask.
-    fn redact_assignment_bounded(&self, value: &str, max_output_bytes: usize) -> Option<String> {
+    fn redact_assignment_bounded(
+        &self,
+        value: &str,
+        max_output_bytes: usize,
+    ) -> Option<String> {
         if value.starts_with('-') {
             return None;
         }
@@ -230,7 +248,8 @@ impl ArgvRedactor {
         if name.is_empty() {
             return None;
         }
-        let redacted = self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
+        let redacted =
+            self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
         Some(format!("{name}={redacted}"))
     }
 
@@ -245,24 +264,34 @@ impl ArgvRedactor {
     /// `Some(rendering)` for a sensitive long inline option, or `None`
     /// otherwise. Single-dash attached forms remain uninterpreted.
     /// Redacts an inline option while bounding any generated mask.
-    fn redact_inline_option_bounded(&self, value: &str, max_output_bytes: usize) -> Option<String> {
+    fn redact_inline_option_bounded(
+        &self,
+        value: &str,
+        max_output_bytes: usize,
+    ) -> Option<String> {
         if !value.starts_with("--") {
             return None;
         }
         let (left, raw_value) = value.split_once('=')?;
         let name = option_name(left)?;
-        let redacted = self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
+        let redacted =
+            self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
         Some(format!("{left}={redacted}"))
     }
 
     /// Redacts a JVM property while bounding any generated mask.
-    fn redact_jvm_property_bounded(&self, value: &str, max_output_bytes: usize) -> Option<String> {
+    fn redact_jvm_property_bounded(
+        &self,
+        value: &str,
+        max_output_bytes: usize,
+    ) -> Option<String> {
         let property = value.strip_prefix("-D")?;
         let (name, raw_value) = property.split_once('=')?;
         if name.is_empty() {
             return None;
         }
-        let redacted = self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
+        let redacted =
+            self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
         Some(format!("-D{name}={redacted}"))
     }
 
@@ -311,7 +340,10 @@ impl ArgvRedactor {
 
     /// Produces an opaque secret replacement with an explicit ceiling.
     #[inline(always)]
-    pub(super) fn mask_opaque_value_bounded(&self, max_output_bytes: usize) -> String {
+    pub(super) fn mask_opaque_value_bounded(
+        &self,
+        max_output_bytes: usize,
+    ) -> String {
         self.redactor
             .policy()
             .masking()

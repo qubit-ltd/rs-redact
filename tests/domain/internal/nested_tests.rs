@@ -13,6 +13,7 @@ use std::sync::atomic::Ordering;
 
 #[cfg(feature = "serde")]
 use qubit_redact::__private::RedactedSerialize;
+use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::Redact;
 use qubit_redact::RedactMut;
@@ -151,7 +152,8 @@ impl Redact for ShortCountingValue<'_> {
 #[test]
 fn test_bounded_vec_stops_after_container_writer_truncates() {
     let visits = AtomicUsize::new(0);
-    let values: Vec<_> = (0..100).map(|_| ShortCountingValue(&visits)).collect();
+    let values: Vec<_> =
+        (0..100).map(|_| ShortCountingValue(&visits)).collect();
     let limit = LogOutputLimit::new(14).expect("the limit should be valid");
 
     let output = values.redacted().with_output_limit(limit).to_string();
@@ -184,9 +186,9 @@ fn test_vec_admits_item_input_before_rendering() {
     let visits = AtomicUsize::new(0);
     let values = vec![OversizedInput(&visits)];
     let input_bytes = std::mem::size_of_val(&values).saturating_add(1);
-    let budget = qubit_redact::InputOutputLimit::new(
+    let budget = InputOutputLimit::new(
         input_bytes,
-        qubit_redact::InputOutputLimit::MIN_OUTPUT_BYTES,
+        InputOutputLimit::MIN_OUTPUT_BYTES,
     )
     .expect("the diagnostic budget should be valid");
     let policy = RedactionPolicy::builder()
@@ -223,9 +225,11 @@ impl Redact for ExactInputChild<'_> {
 fn test_option_does_not_double_charge_child_input() {
     let calls = AtomicUsize::new(0);
     let value = Some(ExactInputChild(&calls));
-    let budget =
-        qubit_redact::InputOutputLimit::new(6, qubit_redact::InputOutputLimit::MIN_OUTPUT_BYTES)
-            .expect("the exact aggregate input budget should be valid");
+    let budget = InputOutputLimit::new(
+        6,
+        InputOutputLimit::MIN_OUTPUT_BYTES,
+    )
+    .expect("the exact aggregate input budget should be valid");
     let policy = RedactionPolicy::builder()
         .diagnostic_event(budget)
         .build()
@@ -246,8 +250,9 @@ fn test_nested_serialization_delegates_through_all_containers() {
     let boxed = Box::new(NestedValue);
     let values = vec![NestedValue, NestedValue];
 
-    let serialized = serde_json::to_value(RedactedSerialize::new(&value, &policy))
-        .expect("present option should serialize");
+    let serialized =
+        serde_json::to_value(RedactedSerialize::new(&value, &policy))
+            .expect("present option should serialize");
     assert_eq!(serialized, serde_json::json!("NestedValue"));
     assert_eq!(
         serde_json::to_value(RedactedSerialize::new(&absent, &policy,))
