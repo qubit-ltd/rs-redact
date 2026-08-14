@@ -73,8 +73,7 @@ pub(super) fn leading_token(value: &str) -> Option<&str> {
     }
     let segments = segments(value)?;
     let leading = *segments.first()?;
-    (!leading.is_empty() && leading.bytes().all(is_token_byte))
-        .then_some(leading)
+    (!leading.is_empty() && leading.bytes().all(is_token_byte)).then_some(leading)
 }
 
 /// Returns the validated first segment before any parameters.
@@ -141,8 +140,7 @@ fn segments(value: &str) -> Option<Vec<&str>> {
 #[must_use]
 fn decode(value: &str) -> Option<String> {
     if !value.starts_with('"') {
-        return (!value.is_empty() && value.bytes().all(is_token_byte))
-            .then(|| value.to_string());
+        return (!value.is_empty() && value.bytes().all(is_token_byte)).then(|| value.to_string());
     }
     let mut result = String::new();
     let mut chars = value[1..].char_indices();
@@ -240,8 +238,7 @@ pub(super) const fn is_token_byte(byte: u8) -> bool {
 #[must_use]
 #[inline]
 const fn is_qdtext_character(character: char) -> bool {
-    matches!(character, '\t' | ' ' | '!' | '#'..='[' | ']'..='~')
-        || !character.is_ascii()
+    matches!(character, '\t' | ' ' | '!' | '#'..='[' | ']'..='~') || !character.is_ascii()
 }
 
 /// Reports whether a character is legal after a quoted-pair backslash.

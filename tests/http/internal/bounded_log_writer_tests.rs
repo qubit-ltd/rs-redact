@@ -29,8 +29,7 @@ fn amplified_mask_redactor() -> HttpRedactor {
         .expect("the test mask policy should be valid")
         .build()
         .expect("the body policy is valid");
-    let budget =
-        BodyBudget::new(4096, 64).expect("the output can contain the marker");
+    let budget = BodyBudget::new(4096, 64).expect("the output can contain the marker");
     let mut builder = RedactionPolicy::builder();
     builder
         .http()
@@ -72,8 +71,7 @@ fn test_structured_formats_bound_amplified_masks() {
     ];
 
     for (input, content_type) in cases {
-        let result = redactor
-            .redact_body(BodyCapture::complete(input), Some(&content_type));
+        let result = redactor.redact_body(BodyCapture::complete(input), Some(&content_type));
         let rendered = result.to_string();
 
         assert!(rendered.len() <= 64, "{rendered}");
@@ -87,8 +85,7 @@ fn test_structured_formats_bound_amplified_masks() {
 /// Verifies output truncation keeps UTF-8 valid and the marker complete.
 #[test]
 fn test_bounded_output_keeps_utf8_and_marker_complete() {
-    let budget =
-        BodyBudget::new(64, 14).expect("the output can contain the marker");
+    let budget = BodyBudget::new(64, 14).expect("the output can contain the marker");
     let policy = RedactionPolicy::builder()
         .body_budget(budget)
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -105,8 +102,7 @@ fn test_bounded_output_keeps_utf8_and_marker_complete() {
 /// Verifies reserving marker space backs up to a UTF-8 character boundary.
 #[test]
 fn test_late_truncation_backs_up_to_utf8_boundary() {
-    let budget =
-        BodyBudget::new(64, 15).expect("the output can contain the marker");
+    let budget = BodyBudget::new(64, 15).expect("the output can contain the marker");
     let policy = RedactionPolicy::builder()
         .body_budget(budget)
         .text_body_policy(TextBodyPolicy::PassThrough)
@@ -123,15 +119,13 @@ fn test_late_truncation_backs_up_to_utf8_boundary() {
 /// Verifies an already-truncated source can reserve the entire output budget.
 #[test]
 fn test_source_truncation_can_use_marker_only_budget() {
-    let budget =
-        BodyBudget::new(1, 11).expect("the output can contain the marker");
+    let budget = BodyBudget::new(1, 11).expect("the output can contain the marker");
     let policy = RedactionPolicy::builder()
         .body_budget(budget)
         .text_body_policy(TextBodyPolicy::PassThrough)
         .build()
         .expect("the HTTP policy is valid");
-    let capture = BodyCapture::truncated(b"a", 2)
-        .expect("the captured prefix has valid metadata");
+    let capture = BodyCapture::truncated(b"a", 2).expect("the captured prefix has valid metadata");
     let result = HttpRedactor::new(policy)
         .redact_body(capture, Some(&HeaderValue::from_static("text/plain")));
 

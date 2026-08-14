@@ -43,8 +43,7 @@ impl Display for BodyBudgetError {
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ZeroInput => formatter
-                .write_str("body input budget must be greater than zero"),
+            Self::ZeroInput => formatter.write_str("body input budget must be greater than zero"),
             Self::OutputTooSmall { minimum, actual } => write!(
                 formatter,
                 "body output budget must be at least {minimum} bytes, got {actual}",

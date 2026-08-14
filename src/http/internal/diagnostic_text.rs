@@ -9,6 +9,7 @@
 
 use url::Url;
 
+use super::BoundedLogWriter;
 use super::markers;
 
 /// Replaces HTTP URL-looking tokens while preserving surrounding text.
@@ -21,10 +22,7 @@ use super::markers;
 /// # Returns
 ///
 /// Text with recognized URLs replaced and invalid URL-looking tokens hidden.
-pub(in crate::http) fn redact(
-    text: &str,
-    redact_url: impl Fn(&Url) -> String,
-) -> String {
+pub(in crate::http) fn redact(text: &str, redact_url: impl Fn(&Url) -> String) -> String {
     let mut redacted = String::with_capacity(text.len());
     let mut token_start = None;
     for (index, character) in text.char_indices() {
@@ -43,6 +41,64 @@ pub(in crate::http) fn redact(
     redacted
 }
 
+/// Bounded URL replacement that stops writing after the output ceiling.
+pub(in crate::http) fn redact_bounded(
+    text: &str,
+    redact_url: impl Fn(&Url) -> String,
+    max_output_bytes: usize,
+) -> String {
+    let mut writer = BoundedLogWriter::new(max_output_bytes, false);
+    let mut token_start = None;
+    for (index, character) in text.char_indices() {
+        if character.is_whitespace() {
+            if let Some(start) = token_start.take() {
+                redact_token_bounded(&mut writer, &text[start..index], &redact_url);
+            }
+            let _ = writer.write_str(&character.to_string());
+        } else if token_start.is_none() {
+            token_start = Some(index);
+        }
+        if writer.is_full() {
+            break;
+        }
+    }
+    if !writer.is_full()
+        && let Some(start) = token_start
+    {
+        redact_token_bounded(&mut writer, &text[start..], &redact_url);
+    }
+    writer.finish().0
+}
+
+fn redact_token_bounded(
+    output: &mut BoundedLogWriter,
+    token: &str,
+    redact_url: &impl Fn(&Url) -> String,
+) {
+    let mut cursor = 0;
+    while !output.is_full() {
+        let Some(relative_start) = find_url_scheme_start(&token[cursor..]) else {
+            let _ = output.write_str(&token[cursor..]);
+            break;
+        };
+        let start = cursor + relative_start;
+        let _ = output.write_str(&token[cursor..start]);
+        let next_search_start = start + 1;
+        let candidate_limit = find_url_scheme_start(&token[next_search_start..])
+            .map_or(token.len(), |relative_start| {
+                next_search_start + relative_start
+            });
+        let end = url_candidate_end(&token[..candidate_limit], start);
+        let candidate = &token[start..end];
+        if let Ok(url) = Url::parse(candidate) {
+            let _ = output.write_str(&redact_url(&url));
+        } else {
+            let _ = output.write_str(markers::INVALID_URL);
+        }
+        cursor = end;
+    }
+}
+
 /// Replaces every HTTP URL-looking portion of one non-whitespace token.
 ///
 /// # Parameters
@@ -50,22 +106,17 @@ pub(in crate::http) fn redact(
 /// * `output` - Destination for the redacted token.
 /// * `token` - Non-whitespace token to inspect.
 /// * `redact_url` - Renderer for successfully parsed URLs.
-fn redact_token(
-    output: &mut String,
-    token: &str,
-    redact_url: &impl Fn(&Url) -> String,
-) {
+fn redact_token(output: &mut String, token: &str, redact_url: &impl Fn(&Url) -> String) {
     let mut cursor = 0;
     while let Some(relative_start) = find_url_scheme_start(&token[cursor..]) {
         let start = cursor + relative_start;
         output.push_str(&token[cursor..start]);
 
         let next_search_start = start + 1;
-        let candidate_limit =
-            find_url_scheme_start(&token[next_search_start..])
-                .map_or(token.len(), |relative_start| {
-                    next_search_start + relative_start
-                });
+        let candidate_limit = find_url_scheme_start(&token[next_search_start..])
+            .map_or(token.len(), |relative_start| {
+                next_search_start + relative_start
+            });
         let end = url_candidate_end(&token[..candidate_limit], start);
         let candidate = &token[start..end];
         if let Ok(url) = Url::parse(candidate) {
@@ -133,9 +184,7 @@ fn url_candidate_end(token: &str, start: usize) -> usize {
     let mut end = token.len();
     let mut unmatched_closers = unmatched_closer_counts(&token[start..]);
     while let Some((previous, character)) = previous_char_boundary(token, end) {
-        if previous <= start
-            || !is_trimmable_url_suffix(character, &mut unmatched_closers)
-        {
+        if previous <= start || !is_trimmable_url_suffix(character, &mut unmatched_closers) {
             break;
         }
         end = previous;
@@ -174,10 +223,7 @@ fn previous_char_boundary(text: &str, end: usize) -> Option<(usize, char)> {
 ///
 /// `true` for punctuation commonly adjacent to URLs in prose.
 #[inline(always)]
-fn is_trimmable_url_suffix(
-    character: char,
-    unmatched_closers: &mut [usize; 3],
-) -> bool {
+fn is_trimmable_url_suffix(character: char, unmatched_closers: &mut [usize; 3]) -> bool {
     match character {
         ')' => take_unmatched_closer(&mut unmatched_closers[0]),
         ']' => take_unmatched_closer(&mut unmatched_closers[1]),
