@@ -93,10 +93,6 @@ impl Redact for FormatterBehavior {
 }
 
 impl RedactValue for FormatterBehavior {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -118,10 +114,6 @@ impl Redact for TextValue {
 }
 
 impl RedactValue for TextValue {
-    fn redaction_input_bytes(&self) -> usize {
-        self.0.len()
-    }
-
     /// Redacts the complete textual value at the selected sensitivity.
     fn redact_value<'a>(
         &'a self,
@@ -154,10 +146,6 @@ impl Redact for NestedValue {
 }
 
 impl RedactValue for NestedValue {
-    fn redaction_input_bytes(&self) -> usize {
-        self.secret.len().saturating_add(self.label.len())
-    }
-
     /// Replaces the complete nested value when its outer key is sensitive.
     fn redact_value<'a>(
         &'a self,
@@ -320,10 +308,6 @@ impl Redact for OpaqueMaskObserver {
 }
 
 impl RedactValue for OpaqueMaskObserver {
-    fn redaction_input_bytes(&self) -> usize {
-        0
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -370,10 +354,10 @@ fn test_redact_keyed_bounds_opaque_mask_before_materialization() {
     assert!(output.len() <= budget.max_output_bytes());
 }
 
-/// Keyed value whose legacy size forecast must not affect domain rendering.
-struct OversizedKeyedInput<'a>(&'a std::sync::atomic::AtomicUsize);
+/// Keyed value that records whether domain rendering reaches its formatter.
+struct ObservedKeyedValue<'a>(&'a std::sync::atomic::AtomicUsize);
 
-impl Redact for OversizedKeyedInput<'_> {
+impl Redact for ObservedKeyedValue<'_> {
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -384,11 +368,7 @@ impl Redact for OversizedKeyedInput<'_> {
     }
 }
 
-impl RedactValue for OversizedKeyedInput<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        1_000
-    }
-
+impl RedactValue for ObservedKeyedValue<'_> {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -399,7 +379,7 @@ impl RedactValue for OversizedKeyedInput<'_> {
     }
 }
 
-/// Verifies keyed domain values ignore input-size forecasts.
+/// Verifies keyed domain rendering does not charge diagnostic input for values.
 #[test]
 fn test_redact_keyed_does_not_charge_value_input() {
     let visits = std::sync::atomic::AtomicUsize::new(0);
@@ -416,7 +396,7 @@ fn test_redact_keyed_does_not_charge_value_input() {
 
     let output = format!(
         "{:?}",
-        redactor.redact_keyed("label", &OversizedKeyedInput(&visits))
+        redactor.redact_keyed("label", &ObservedKeyedValue(&visits))
     );
 
     assert_eq!(output, "must-not-render");

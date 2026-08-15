@@ -216,10 +216,6 @@ impl Redact for CollectionValue {
 }
 
 impl RedactValue for CollectionValue {
-    fn redaction_input_bytes(&self) -> usize {
-        self.0.len()
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -425,10 +421,6 @@ impl Redact for DepthCollectionValue {
 }
 
 impl RedactValue for DepthCollectionValue {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -452,10 +444,6 @@ impl Redact for PanicKeyedValue {
 }
 
 impl RedactValue for PanicKeyedValue {
-    fn redaction_input_bytes(&self) -> usize {
-        panic!("an unadmitted keyed value must not inspect its input")
-    }
-
     fn redact_value<'a>(
         &'a self,
         _level: Sensitivity,

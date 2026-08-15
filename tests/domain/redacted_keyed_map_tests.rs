@@ -54,10 +54,6 @@ impl Redact for NestedValue {
 }
 
 impl RedactValue for NestedValue {
-    fn redaction_input_bytes(&self) -> usize {
-        self.secret.len().saturating_add(self.label.len())
-    }
-
     /// Replaces the complete nested value when its outer key is sensitive.
     fn redact_value<'a>(
         &'a self,
@@ -170,10 +166,6 @@ impl Redact for CountingValue<'_> {
 }
 
 impl RedactValue for CountingValue<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        "你你你你你".len()
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -225,10 +217,6 @@ impl Redact for FormatterBehavior {
 }
 
 impl RedactValue for FormatterBehavior {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -288,10 +276,6 @@ impl Redact for ShortCountingValue<'_> {
 }
 
 impl RedactValue for ShortCountingValue<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,

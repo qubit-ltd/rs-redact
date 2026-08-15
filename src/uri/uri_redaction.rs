@@ -20,6 +20,16 @@ use crate::RedactionCompletion;
 use crate::text::redaction_output::RedactionOutput;
 
 /// A log-safe URI together with explainable processing metadata.
+///
+/// Completion is exposed as the explicit three-state
+/// [`RedactionCompletion`] contract rather than a derived truncation boolean:
+///
+/// ```compile_fail
+/// use qubit_redact::uri::UriRedactor;
+///
+/// let result = UriRedactor::default().redact_uri_str("https://example.test");
+/// let _ = result.is_truncated();
+/// ```
 #[must_use]
 #[derive(Clone, PartialEq, Eq)]
 pub struct UriRedaction {
@@ -115,18 +125,6 @@ impl UriRedaction {
         self.reasons.contains(&reason)
     }
 
-    /// Returns whether output was shortened to fit the policy budget.
-    ///
-    /// Input-limit fallback preserves the historical `false` result because
-    /// it substitutes rejected input rather than shortening rendered output;
-    /// inspect [`Self::completion`] to observe that case as `Truncated`.
-    #[must_use]
-    #[inline]
-    pub fn is_truncated(&self) -> bool {
-        self.completion() == RedactionCompletion::Exhausted
-            || self.has_reason(UriRedactionReason::OutputTruncated)
-    }
-
     /// Returns how URI redaction completed without changing status or reasons.
     ///
     /// # Returns
@@ -153,7 +151,7 @@ impl Debug for UriRedaction {
             .field("status", &self.status)
             .field("reasons", &self.reasons)
             .field("components", &self.components)
-            .field("truncated", &self.is_truncated())
+            .field("completion", &self.completion())
             .finish()
     }
 }

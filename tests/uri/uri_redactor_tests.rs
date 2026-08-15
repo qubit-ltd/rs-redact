@@ -10,6 +10,7 @@
 use qubit_redact::InputOutputLimit;
 use qubit_redact::LogSafeText;
 use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
 use qubit_redact::uri::UriComponent;
@@ -296,7 +297,8 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
         "a".repeat(256),
     );
     let result = bounded.redact_uri_str(&long_path);
-    assert!(result.is_truncated());
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
+    assert!(result.has_reason(UriRedactionReason::OutputTruncated));
     assert!(!result.log_safe_text().as_str().contains("secret"));
 
     let input_limited = ({
@@ -315,6 +317,8 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
             .expect("the limited URI policy is valid"),
     );
     let result = limited.redact_uri_str("https://example.test/");
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
+    assert_eq!(result.status(), UriRedactionStatus::Invalid);
     assert!(result.has_reason(UriRedactionReason::InputLimitExceeded));
 }
 
@@ -346,7 +350,7 @@ fn test_uri_redactor_marks_truncated_final_sensitive_value() {
     let result = UriRedactor::new(policy)
         .redact_uri_str("https://example.test/?password=secret");
 
-    assert!(result.is_truncated());
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(result.has_reason(UriRedactionReason::OutputTruncated));
     assert!(result.log_safe_text().as_str().ends_with("<truncated>"));
     assert!(!result.log_safe_text().as_str().contains('X'));
@@ -357,7 +361,8 @@ fn test_uri_redactor_marks_truncated_final_sensitive_value() {
             .expect("the URI policy is valid"),
     )
     .redact_uri_str("https://example.test/#fragment");
-    assert!(fragment_result.is_truncated());
+    assert_eq!(fragment_result.completion(), RedactionCompletion::Truncated,);
+    assert!(fragment_result.has_reason(UriRedactionReason::OutputTruncated));
     assert!(
         fragment_result
             .log_safe_text()

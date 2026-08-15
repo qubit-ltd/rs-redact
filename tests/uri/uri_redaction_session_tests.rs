@@ -11,6 +11,7 @@ use qubit_redact::InputOutputLimit;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::uri::UriRedactionReason;
+use qubit_redact::uri::UriRedactionStatus;
 use qubit_redact::uri::UriRedactor;
 
 /// Verifies output exhaustion short-circuits later URI input admission.
@@ -33,16 +34,19 @@ fn test_uri_session_does_not_charge_input_after_output_exhaustion() {
     let input_before = session.remaining_input_bytes();
     let second = session.uri().redact_uri_str("scheme://unread-secret");
     assert_eq!(second.completion(), RedactionCompletion::Truncated);
-    assert!(!second.is_truncated());
+    assert_eq!(second.status(), UriRedactionStatus::Invalid);
+    assert!(second.has_reason(UriRedactionReason::InputLimitExceeded));
     assert_eq!(second.log_safe_text().as_str(), "<invalid URI>");
     assert_eq!(session.remaining_input_bytes(), input_before);
     let third = session.uri().redact_uri_str("https://must-not-be-read");
     assert_eq!(third.completion(), RedactionCompletion::Exhausted);
+    assert_eq!(third.status(), UriRedactionStatus::Invalid);
+    assert!(third.has_reason(UriRedactionReason::OutputTruncated));
     assert_eq!(third.log_safe_text().as_str(), "");
     assert_eq!(session.remaining_input_bytes(), input_before);
 }
 
-/// Verifies a complete safe rewrite is not reported as truncated.
+/// Verifies a complete safe rewrite reports explicit complete output.
 #[test]
 fn test_uri_session_reports_complete_safe_rewrite() {
     let budget = InputOutputLimit::new(256, 256)
