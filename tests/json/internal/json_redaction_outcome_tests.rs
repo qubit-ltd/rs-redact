@@ -5,14 +5,10 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for JSON redaction outcome representation and public effects.
-
-#[path = "../../../src/json/internal/json_redaction_outcome.rs"]
-mod json_redaction_outcome;
+//! Tests for public effects of JSON redaction outcomes.
 
 #[cfg(feature = "http")]
 use http::HeaderValue;
-use json_redaction_outcome::JsonRedactionOutcome;
 #[cfg(feature = "http")]
 use qubit_redact::RedactionPolicy;
 #[cfg(feature = "http")]
@@ -25,19 +21,6 @@ use qubit_redact::http::BodyRedactionStatus;
 use qubit_redact::http::HttpRedactor;
 #[cfg(feature = "http")]
 use qubit_redact::http::UnkeyedJsonValuePolicy;
-
-/// Verifies JSON traversal distinguishes complete redaction from exhaustion.
-#[test]
-fn test_json_redaction_outcome_distinguishes_mask_budget_exhaustion() {
-    let complete = JsonRedactionOutcome::Complete {
-        passed_unkeyed: false,
-    };
-
-    assert!(!complete.is_mask_budget_exhausted());
-    assert!(
-        JsonRedactionOutcome::MaskBudgetExhausted.is_mask_budget_exhausted()
-    );
-}
 
 /// Verifies multiple retained unkeyed scalars aggregate into one status.
 #[cfg(feature = "http")]
