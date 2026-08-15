@@ -23,17 +23,19 @@ use std::sync::atomic::Ordering;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::MaskPolicy;
-use qubit_redact::Redact;
-use qubit_redact::RedactedMap;
+#[cfg(feature = "uri")]
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
-#[cfg(feature = "uri")]
-use qubit_redact::UriRedactor;
 use qubit_redact::argv::ArgvItem;
 use qubit_redact::argv::ArgvRedactor;
+use qubit_redact::domain::Redact;
+use qubit_redact::domain::RedactedMap;
 use qubit_redact::env::EnvRedactor;
+#[cfg(feature = "uri")]
+use qubit_redact::uri::UriRedactor;
 /// Serializes allocation measurements inside this integration-test binary.
 static ALLOCATION_TEST_LOCK: Mutex<()> = Mutex::new(());
 thread_local! {
@@ -158,14 +160,21 @@ fn amplified_policy() -> RedactionPolicy {
     let replacement = "X".repeat(1024 * 1024);
     let budget = InputOutputLimit::new(4096, 128)
         .expect("the diagnostic budget should be valid");
-    RedactionPolicy::builder()
-        .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
-        .expect("the test mask policy should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
-        .expect("the test mask policy should be valid")
-        .diagnostic_event(budget)
-        .build()
-        .expect("the amplified policy should be valid")
+    ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
+            .expect("the test mask policy should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
+            .expect("the test mask policy should be valid");
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the amplified policy should be valid")
 }
 
 /// Redacted value that renders a bounded map inside an outer bounded view.
@@ -296,15 +305,21 @@ fn test_bounded_uri_avoids_amplified_mask_allocation() {
     let replacement = "X".repeat(1024 * 1024);
     let budget = InputOutputLimit::new(4096, 128)
         .expect("the diagnostic budget should be valid");
-    let core = RedactionPolicy::default()
-        .to_builder()
-        .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
-        .expect("the high mask policy should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
-        .expect("the secret mask policy should be valid")
-        .diagnostic_event(budget)
-        .build()
-        .expect("the core policy should be valid");
+    let core = ({
+        let mut builder = RedactionPolicy::default().to_builder();
+        builder
+            .fields()
+            .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
+            .expect("the high mask policy should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
+            .expect("the secret mask policy should be valid");
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the core policy should be valid");
     let uri_policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("the URI policy should be valid");
@@ -315,7 +330,7 @@ fn test_bounded_uri_avoids_amplified_mask_allocation() {
     let (result, largest) =
         measure_largest_allocation(|| redactor.redact_uri_str(&input));
 
-    assert!(result.is_truncated());
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(result.log_safe_text().as_ref().len() <= 128);
     assert!(
         largest <= 4096,

@@ -22,30 +22,37 @@ fn test_field_redactor_uses_application_mask_for_header_rule() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the floor should be valid");
-    let application = RedactionPolicy::builder()
-        .disable_floor()
-        .raise("tenant_token", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .mask(
-            Sensitivity::Secret,
-            MaskPolicy::fixed("[application-secret]"),
-        )
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the application policy should be valid");
+    let application = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .raise("tenant_token", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .mask(
+                Sensitivity::Secret,
+                MaskPolicy::fixed("[application-secret]"),
+            )
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the application policy should be valid");
     let mut builder = RedactionPolicy::builder();
     builder
         .http()
         .header()
         .replace_rules(application.rules().clone().with_floor(floor));
-    let policy = builder
+    builder
+        .fields()
         .mask(
             Sensitivity::Secret,
             MaskPolicy::fixed("[application-secret]"),
         )
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the HTTP policy should be valid");
+        .expect("the test mask policy should be valid");
+    let policy = builder.build().expect("the HTTP policy should be valid");
     let mut headers = HeaderMap::new();
     headers.insert("tenant-token", HeaderValue::from_static("source-secret"));
 

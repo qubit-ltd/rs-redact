@@ -7,8 +7,8 @@
 // =============================================================================
 use std::ffi::OsStr;
 
-use qubit_redact::ArgvRedactor;
 use qubit_redact::argv::ArgvItem;
+use qubit_redact::argv::ArgvRedactor;
 /// Verifies that rendered argv output is safe to display.
 #[test]
 fn test_redacted_argv_display_is_safe() {

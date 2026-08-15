@@ -26,6 +26,7 @@ mod redacted_map;
 mod redacted_value;
 
 pub use bounded_redacted_display::BoundedRedactedDisplay;
+pub use redact::DomainTruncated;
 pub use redact::Redact;
 #[cfg(feature = "serde")]
 #[doc(hidden)]

@@ -8,7 +8,7 @@
 //! Tests for serde redaction of domain objects.
 
 #[cfg(feature = "serde")]
-use qubit_redact::RedactedValue;
+use qubit_redact::domain::RedactedValue;
 
 /// Asserts at compile time that a type implements [`serde::Serialize`].
 #[cfg(feature = "serde")]

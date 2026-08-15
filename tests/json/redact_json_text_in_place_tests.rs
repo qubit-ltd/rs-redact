@@ -12,19 +12,24 @@ use qubit_redact::JsonDepthLimit;
 use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
-use qubit_redact::redact_json_text_in_place;
+use qubit_redact::json::redact_json_text_in_place;
 /// Verifies explicit mutation preserves complete JSON beyond diagnostic limits.
 #[test]
 fn test_redact_json_text_in_place_is_not_limited_by_diagnostic_budget() {
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(
             InputOutputLimit::new(16, 64)
                 .expect("the diagnostic budget should be valid"),
-        )
-        .raise("password", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the policy should build");
+        );
+        builder
+            .fields()
+            .raise("password", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let mut text =
         format!(r#"{{"name":"{}","password":"raw"}}"#, "a".repeat(128));
 
@@ -41,14 +46,19 @@ fn test_redact_json_text_in_place_is_not_limited_by_diagnostic_budget() {
 /// safety budget even though byte-oriented diagnostic limits do not apply.
 #[test]
 fn test_redact_json_text_in_place_obeys_json_depth_limit() {
-    let policy = RedactionPolicy::builder()
-        .json_depth_limit(
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().json_depth(
             JsonDepthLimit::new(1).expect("the depth budget is valid"),
-        )
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the policy should build");
+        );
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let mut text =
         r#"{"shallow":"visible","nested":{"secret":"raw-depth-secret"}}"#
             .to_owned();
@@ -81,12 +91,16 @@ fn test_redact_json_text_in_place_masks_strict_unkeyed_scalars() {
 /// Verifies array scalars remain unkeyed below an allowed object field.
 #[test]
 fn test_redact_json_text_in_place_masks_array_scalars_below_object_field() {
-    let policy = RedactionPolicy::strict()
-        .to_builder()
-        .allow_canonical_exact("items")
-        .expect("the object field should be valid")
-        .build()
-        .expect("the strict policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::strict().to_builder();
+        builder
+            .fields()
+            .allow_exact("items")
+            .expect("the object field should be valid");
+        builder
+    })
+    .build()
+    .expect("the strict policy should build");
     let mut text = r#"{"items":["raw-array-secret",42,true]}"#.to_owned();
 
     redact_json_text_in_place(&mut text, &policy);

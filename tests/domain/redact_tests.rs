@@ -5,20 +5,16 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for the [`Redact`](qubit_redact::Redact) domain contract.
+//! Tests for the [`Redact`](qubit_redact::domain::Redact) domain contract.
 
 use std::fmt;
 
-use qubit_redact::Redact;
 use qubit_redact::RedactionSession;
+use qubit_redact::domain::Redact;
 /// Minimal domain value used to verify the borrowed redacted view contract.
 struct TestDomainValue;
 
 impl Redact for TestDomainValue {
-    fn redaction_input_bytes(&self) -> usize {
-        0
-    }
-
     /// Writes a fixed redacted representation without consulting source data.
     fn fmt_redacted(
         &self,

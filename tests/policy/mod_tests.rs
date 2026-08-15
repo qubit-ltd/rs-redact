@@ -12,11 +12,16 @@ use qubit_redact::Sensitivity;
 /// Verifies builder and immutable policy reexports compose.
 #[test]
 fn test_policy_module_reexports_compose() {
-    let policy = RedactionPolicy::builder()
-        .raise("token", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the module-level policy rule is valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("token", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the module-level policy rule is valid");
 
     assert_eq!(policy.sensitivity_for("token"), Some(Sensitivity::Secret));
 }

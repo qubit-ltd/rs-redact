@@ -5,23 +5,23 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`RedactedKeyedValue`](qubit_redact::RedactedKeyedValue).
+//! Tests for [`RedactedKeyedValue`](qubit_redact::domain::RedactedKeyedValue).
 
 use std::fmt;
 
 use qubit_redact::InputOutputLimit;
 use qubit_redact::MaskPolicy;
 use qubit_redact::MaskingPolicy;
-use qubit_redact::Redact;
-use qubit_redact::RedactValue;
-use qubit_redact::RedactedKeyedResult;
-use qubit_redact::RedactedValue;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::Redact;
 #[cfg(feature = "serde")]
 use qubit_redact::domain::RedactSerialize;
+use qubit_redact::domain::RedactValue;
+use qubit_redact::domain::RedactedKeyedResult;
+use qubit_redact::domain::RedactedValue;
 #[cfg(feature = "serde")]
 use serde::Serializer;
 #[cfg(feature = "serde")]
@@ -40,10 +40,13 @@ fn test_redact_keyed_display_uses_policy_output_limit_by_default() {
     let budget =
         InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the minimum diagnostic output limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the test policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the test policy should be valid");
     let redactor = Redactor::new(policy);
     let value = TextValue("visible diagnostic text".repeat(4));
 
@@ -73,10 +76,6 @@ struct FormatterBehavior {
 }
 
 impl Redact for FormatterBehavior {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -94,10 +93,6 @@ impl Redact for FormatterBehavior {
 }
 
 impl RedactValue for FormatterBehavior {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -108,10 +103,6 @@ impl RedactValue for FormatterBehavior {
 }
 
 impl Redact for TextValue {
-    fn redaction_input_bytes(&self) -> usize {
-        self.0.len()
-    }
-
     /// Formats the visible text without adding nested redaction rules.
     fn fmt_redacted(
         &self,
@@ -123,10 +114,6 @@ impl Redact for TextValue {
 }
 
 impl RedactValue for TextValue {
-    fn redaction_input_bytes(&self) -> usize {
-        self.0.len()
-    }
-
     /// Redacts the complete textual value at the selected sensitivity.
     fn redact_value<'a>(
         &'a self,
@@ -138,10 +125,6 @@ impl RedactValue for TextValue {
 }
 
 impl Redact for NestedValue {
-    fn redaction_input_bytes(&self) -> usize {
-        self.secret.len().saturating_add(self.label.len())
-    }
-
     /// Formats the nested value without exposing its secret.
     fn fmt_redacted(
         &self,
@@ -163,10 +146,6 @@ impl Redact for NestedValue {
 }
 
 impl RedactValue for NestedValue {
-    fn redaction_input_bytes(&self) -> usize {
-        self.secret.len().saturating_add(self.label.len())
-    }
-
     /// Replaces the complete nested value when its outer key is sensitive.
     fn redact_value<'a>(
         &'a self,
@@ -217,11 +196,16 @@ fn nested_value() -> NestedValue {
 /// Verifies a sensitive keyed text view masks Debug and log-safe Display.
 #[test]
 fn test_redact_keyed_masks_sensitive_text_for_debug_and_display() {
-    let policy = RedactionPolicy::builder()
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the test policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the test policy should be valid");
     let redactor = Redactor::new(policy);
     let value = TextValue("raw\nsecret".to_owned());
     let view = redactor.redact_keyed("tenant_secret", &value);
@@ -235,11 +219,16 @@ fn test_redact_keyed_masks_sensitive_text_for_debug_and_display() {
 /// Verifies a sensitive keyed non-text value uses an opaque replacement.
 #[test]
 fn test_redact_keyed_masks_sensitive_non_text_value() {
-    let policy = RedactionPolicy::builder()
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the test policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the test policy should be valid");
     let value = nested_value();
     let redactor = Redactor::new(policy);
     let view = redactor.redact_keyed("tenant_secret", &value);
@@ -309,10 +298,6 @@ fn test_redact_keyed_preserves_formatter_error() {
 struct OpaqueMaskObserver;
 
 impl Redact for OpaqueMaskObserver {
-    fn redaction_input_bytes(&self) -> usize {
-        0
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -323,10 +308,6 @@ impl Redact for OpaqueMaskObserver {
 }
 
 impl RedactValue for OpaqueMaskObserver {
-    fn redaction_input_bytes(&self) -> usize {
-        0
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -348,14 +329,21 @@ fn test_redact_keyed_bounds_opaque_mask_before_materialization() {
     let budget =
         InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the minimum output budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test field should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed(&"x".repeat(1_000)))
-        .expect("the replacement should be valid")
-        .build()
-        .expect("the test policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test field should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed(&"x".repeat(1_000)))
+            .expect("the replacement should be valid");
+        builder
+    })
+    .build()
+    .expect("the test policy should build");
     let redactor = Redactor::new(policy);
 
     let output = format!(
@@ -366,10 +354,10 @@ fn test_redact_keyed_bounds_opaque_mask_before_materialization() {
     assert!(output.len() <= budget.max_output_bytes());
 }
 
-/// Keyed value whose declared input exceeds the diagnostic allowance.
-struct OversizedKeyedInput<'a>(&'a std::sync::atomic::AtomicUsize);
+/// Keyed value that records whether domain rendering reaches its formatter.
+struct ObservedKeyedValue<'a>(&'a std::sync::atomic::AtomicUsize);
 
-impl Redact for OversizedKeyedInput<'_> {
+impl Redact for ObservedKeyedValue<'_> {
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -380,11 +368,7 @@ impl Redact for OversizedKeyedInput<'_> {
     }
 }
 
-impl RedactValue for OversizedKeyedInput<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        1_000
-    }
-
+impl RedactValue for ObservedKeyedValue<'_> {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -395,36 +379,44 @@ impl RedactValue for OversizedKeyedInput<'_> {
     }
 }
 
-/// Verifies keyed values reserve key and value bytes before classification or
-/// rendering.
+/// Verifies keyed domain rendering does not charge diagnostic input for values.
 #[test]
-fn test_redact_keyed_admits_complete_input_before_rendering() {
+fn test_redact_keyed_does_not_charge_value_input() {
     let visits = std::sync::atomic::AtomicUsize::new(0);
     let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the minimum diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let redactor = Redactor::new(policy);
 
-    let _ = format!(
+    let output = format!(
         "{:?}",
-        redactor.redact_keyed("label", &OversizedKeyedInput(&visits))
+        redactor.redact_keyed("label", &ObservedKeyedValue(&visits))
     );
 
-    assert_eq!(visits.load(std::sync::atomic::Ordering::Relaxed), 0);
+    assert_eq!(output, "must-not-render");
+    assert_eq!(visits.load(std::sync::atomic::Ordering::Relaxed), 1);
 }
 
 /// Verifies keyed values serialize their selected redacted representation.
 #[cfg(feature = "serde")]
 #[test]
 fn test_redact_keyed_serializes_sensitive_and_recursive_values() {
-    let policy = RedactionPolicy::builder()
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the test policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the test policy should be valid");
     let value = nested_value();
     let redactor = Redactor::new(policy);
     let sensitive = redactor.redact_keyed("tenant_secret", &value);

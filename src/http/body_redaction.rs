@@ -14,13 +14,15 @@ use std::fmt::Formatter;
 
 use super::BodyRedactionStatus;
 use crate::LogSafeText;
+use crate::RedactionCompletion;
+use crate::text::redaction_output::RedactionOutput;
 
 /// Holds only escaped, bounded body text plus read-only source metadata.
 #[must_use = "inspect or render the redacted body instead of discarding it"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BodyRedaction {
-    /// Escaped and output-bounded diagnostic representation.
-    text: LogSafeText<'static>,
+    /// Escaped output paired with its invariant completion state.
+    output: RedactionOutput,
     /// How the diagnostic representation was produced.
     status: BodyRedactionStatus,
     /// Number of source bytes inspected after applying the input budget.
@@ -29,8 +31,6 @@ pub struct BodyRedaction {
     source_len: Option<usize>,
     /// Exact number of source bytes omitted when known.
     omitted_len: Option<usize>,
-    /// Whether capture, input budget, or output budget omitted data.
-    truncated: bool,
 }
 
 impl BodyRedaction {
@@ -43,7 +43,8 @@ impl BodyRedaction {
     /// * `captured_len` - Number of source bytes inspected.
     /// * `source_len` - Exact source length when known.
     /// * `omitted_len` - Exact number of uninspected source bytes when known.
-    /// * `truncated` - Whether source or rendered data was omitted.
+    /// * `completion` - Whether rendering completed, emitted a safe substitute,
+    ///   or exhausted the output budget.
     ///
     /// # Returns
     ///
@@ -55,15 +56,21 @@ impl BodyRedaction {
         captured_len: usize,
         source_len: Option<usize>,
         omitted_len: Option<usize>,
-        truncated: bool,
+        completion: RedactionCompletion,
     ) -> Self {
+        let text = LogSafeText::from_escaped(Cow::Owned(text));
+        let output = match completion {
+            RedactionCompletion::Complete => RedactionOutput::complete(text),
+            RedactionCompletion::Truncated => RedactionOutput::truncated(text)
+                .unwrap_or_else(RedactionOutput::exhausted),
+            RedactionCompletion::Exhausted => RedactionOutput::exhausted(),
+        };
         Self {
-            text: LogSafeText::from_escaped(Cow::Owned(text)),
+            output,
             status,
             captured_len,
             source_len,
             omitted_len,
-            truncated,
         }
     }
 
@@ -71,11 +78,12 @@ impl BodyRedaction {
     ///
     /// # Returns
     ///
-    /// A borrowed log-safe body representation including a complete
-    /// truncation marker whenever [`Self::is_truncated`] is `true`.
+    /// A borrowed log-safe body representation. A `Truncated` result contains
+    /// non-empty safe substitute text; an `Exhausted` result is empty and does
+    /// not promise that a truncation marker still fit.
     #[inline]
     pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
-        &self.text
+        self.output.log_safe_text()
     }
 
     /// Consumes this result and returns its escaped diagnostic text.
@@ -85,7 +93,7 @@ impl BodyRedaction {
     /// Owned log-safe body text including any truncation marker.
     #[inline(always)]
     pub fn into_log_safe_text(self) -> LogSafeText<'static> {
-        self.text
+        self.output.into_log_safe_text()
     }
 
     /// Returns how the body representation was produced.
@@ -130,15 +138,18 @@ impl BodyRedaction {
         self.omitted_len
     }
 
-    /// Reports whether any source or rendered data was omitted.
+    /// Returns how body redaction completed under the shared output budget.
     ///
     /// # Returns
     ///
-    /// `true` for source capture, input-budget, or output-budget truncation.
-    #[must_use]
+    /// [`RedactionCompletion::Complete`] when the full safe representation fit,
+    /// including ordinary masking; [`RedactionCompletion::Truncated`] when a
+    /// non-empty safe substitute represents omitted source or output; or
+    /// [`RedactionCompletion::Exhausted`] when no safe substitute fit and the
+    /// result is empty.
     #[inline]
-    pub const fn is_truncated(&self) -> bool {
-        self.truncated
+    pub const fn completion(&self) -> RedactionCompletion {
+        self.output.completion()
     }
 }
 
@@ -158,6 +169,6 @@ impl Display for BodyRedaction {
     /// Returns [`fmt::Error`] when the destination rejects a write.
     #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        Display::fmt(&self.text, formatter)
+        Display::fmt(self.log_safe_text(), formatter)
     }
 }

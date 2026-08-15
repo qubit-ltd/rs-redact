@@ -34,10 +34,12 @@ use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = RedactionPolicy::builder();
-    builder.fields().raise("user_id", Sensitivity::Low)?;
-    builder.fields().raise("phone_number", Sensitivity::Medium)?;
-    builder.fields().raise("credit_card", Sensitivity::High)?;
-    builder.fields().raise("api_key", Sensitivity::Secret)?;
+    builder
+        .fields()
+        .raise("user_id", Sensitivity::Low)?
+        .raise("phone_number", Sensitivity::Medium)?
+        .raise("credit_card", Sensitivity::High)?
+        .raise("api_key", Sensitivity::Secret)?;
     let policy = builder.build()?;
     let redactor = Redactor::new(policy);
 
@@ -57,8 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 原始值仍可供应用逻辑使用。把标量结果写入纯文本日志前，必须调用
 `escape_for_log()`。
 
-如果需要进程级默认策略，应在第一次调用 `RedactionPolicy::global()` 或
-`RedactionPolicy::default()` 前安装已经构建好的策略：
+如果需要进程级默认策略，应在创建必须使用应用策略的对象之前安装已经构建好的策略：
 
 ```rust
 use qubit_redact::{RedactionPolicy, Sensitivity};
@@ -72,7 +73,8 @@ let snapshot = RedactionPolicy::default();
 ```
 
 如果没有安装策略，全局/默认策略读取会使用固定的标准策略，但不会占用全局安装槽。
-之后仍可调用 `install_global()`；已有快照不会因后续安装而改变。
+提前读取后仍可调用 `install_global()`；安装只改变未来取得的快照，已有快照不会因
+后续安装而改变。
 
 一次诊断事件应创建一个 session，并在各个 adapter 之间复用。session 持有共享的输入/输出
 预算，因此嵌套的 JSON、HTTP、URI、argv 和环境变量操作不会悄悄取得一份新预算：

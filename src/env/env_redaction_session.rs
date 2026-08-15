@@ -12,12 +12,12 @@ use std::ffi::OsStr;
 use std::fmt::Write as _;
 
 use super::EnvRedactor;
+use super::RedactedEnv;
 use super::RedactedEnvPair;
 use super::env_redactor::write_debug_item;
 use crate::InputOutputLimit;
 use crate::LogOutputLimit;
 use crate::LogSafeText;
-use crate::RedactedText;
 use crate::RedactionSession;
 use crate::Redactor;
 use crate::policy::FragmentCompletion;
@@ -72,7 +72,7 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
         };
         let renderer =
             EnvRedactor::new(Redactor::new(self.session.policy().clone()));
-        let rendered =
+        let (rendered, locally_truncated) =
             renderer.redact_os_pair_bounded(name, value, max_output_bytes);
         if rendered.len() > max_output_bytes {
             let fallback = if FALLBACK_PAIR.len() <= max_output_bytes {
@@ -84,24 +84,53 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
                 fallback.len(),
                 FragmentCompletion::SessionTruncated,
             );
-            return RedactedEnvPair::from_rendered(fallback.to_owned());
+            return if fallback.is_empty() {
+                RedactedEnvPair::exhausted()
+            } else {
+                RedactedEnvPair::truncated(log_safe_rendered(
+                    fallback.to_owned(),
+                ))
+            };
         }
-        self.session
-            .commit_output(rendered.len(), FragmentCompletion::Complete);
-        RedactedEnvPair::from_rendered(rendered)
+        let completion = if locally_truncated {
+            FragmentCompletion::SessionTruncated
+        } else {
+            FragmentCompletion::Complete
+        };
+        self.session.commit_output(rendered.len(), completion);
+        if locally_truncated {
+            RedactedEnvPair::truncated(log_safe_rendered(rendered))
+        } else {
+            RedactedEnvPair::complete(log_safe_rendered(rendered))
+        }
     }
 
     /// Redacts a lazily supplied list of environment pairs.
-    pub fn redact_os_pairs<'items, I>(
-        &mut self,
-        pairs: I,
-    ) -> LogSafeText<'static>
+    ///
+    /// Pairs are admitted and pulled one at a time. A complete batch preserves
+    /// its debug-style list, a truncated batch contains non-empty safe
+    /// substitute text, and exhaustion returns empty safe text without
+    /// advancing `pairs` again.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'items` - Lifetime of names and values yielded by `pairs`.
+    /// * `I` - Iterator source yielding borrowed environment pairs.
+    ///
+    /// # Parameters
+    ///
+    /// * `pairs` - Lazily supplied environment names and values.
+    ///
+    /// # Returns
+    ///
+    /// A [`RedactedEnv`] carrying the batch text and exact completion state.
+    pub fn redact_os_pairs<'items, I>(&mut self, pairs: I) -> RedactedEnv
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
     {
         let remaining = self.session.remaining_output_bytes();
         if remaining < InputOutputLimit::MIN_OUTPUT_BYTES {
-            return log_safe_owned(String::new());
+            return RedactedEnv::exhausted();
         }
         let domain_limit = self
             .session
@@ -115,6 +144,8 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
         );
         let mut writer = BoundedLogEscapeWriter::new(writer_limit);
         let mut has_item = false;
+        let mut iterator_exhausted = false;
+        let mut locally_truncated = false;
         let mut iterator = pairs.into_iter();
 
         let open = self.session.admit(0, domain_limit, 1);
@@ -128,6 +159,7 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
 
         while !self.session.is_exhausted() {
             let Some((name, value)) = iterator.next() else {
+                iterator_exhausted = true;
                 break;
             };
             let input_bytes = name
@@ -145,26 +177,31 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
             };
             let renderer =
                 EnvRedactor::new(Redactor::new(self.session.policy().clone()));
-            let pair =
+            let (pair, pair_truncated) =
                 renderer.redact_os_pair_bounded(name, value, max_output_bytes);
+            locally_truncated |= pair_truncated;
             let before = writer.len();
             write_debug_item(&mut writer, &mut has_item, &pair);
             let complete = !writer.is_truncated();
             self.session.commit_output(
                 writer.len() - before,
-                if complete {
+                if complete && !pair_truncated {
                     FragmentCompletion::Complete
                 } else {
                     FragmentCompletion::SessionTruncated
                 },
             );
             if !complete {
-                return log_safe_owned(TRUNCATED_LIST.to_owned());
+                return RedactedEnv::truncated(log_safe_rendered(
+                    TRUNCATED_LIST.to_owned(),
+                ));
             }
         }
 
         if self.session.remaining_output_bytes() == 0 || writer.is_truncated() {
-            return log_safe_owned(TRUNCATED_LIST.to_owned());
+            return RedactedEnv::truncated(log_safe_rendered(
+                TRUNCATED_LIST.to_owned(),
+            ));
         }
         if self.session.remaining_output_bytes() >= 1 && !writer.is_truncated()
         {
@@ -182,42 +219,58 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
                 );
             }
         }
-        log_safe_owned(writer.finish())
+        let writer_truncated = writer.is_truncated();
+        let rendered = log_safe_rendered(writer.finish());
+        if locally_truncated || !iterator_exhausted || writer_truncated {
+            RedactedEnv::truncated(rendered)
+        } else {
+            RedactedEnv::complete(rendered)
+        }
     }
 }
 
 /// Converts a non-render admission into a safe pair.
 fn pair_fallback(admission: RedactionAdmission) -> RedactedEnvPair {
     match admission {
-        RedactionAdmission::Fallback => {
-            RedactedEnvPair::from_rendered(FALLBACK_PAIR.to_owned())
-        }
-        RedactionAdmission::Exhausted => {
-            RedactedEnvPair::from_rendered(String::new())
-        }
+        RedactionAdmission::Fallback => RedactedEnvPair::truncated(
+            log_safe_rendered(FALLBACK_PAIR.to_owned()),
+        ),
+        RedactionAdmission::Exhausted => RedactedEnvPair::exhausted(),
         RedactionAdmission::Render { .. } => {
             unreachable!("render admission is handled before fallback")
         }
     }
 }
 
-/// Converts a non-render admission into a safe list marker.
-fn list_fallback(admission: RedactionAdmission) -> LogSafeText<'static> {
+/// Converts a non-render admission into a completion-aware batch result.
+///
+/// Fallback admission has already charged non-empty substitute text and maps
+/// to truncation. Exhausted admission maps to empty output and callers must not
+/// advance the pending iterator.
+fn list_fallback(admission: RedactionAdmission) -> RedactedEnv {
     match admission {
         RedactionAdmission::Fallback => {
-            log_safe_owned(TRUNCATED_LIST.to_owned())
+            RedactedEnv::truncated(log_safe_rendered(TRUNCATED_LIST.to_owned()))
         }
-        RedactionAdmission::Exhausted => log_safe_owned(String::new()),
+        RedactionAdmission::Exhausted => RedactedEnv::exhausted(),
         RedactionAdmission::Render { .. } => {
             unreachable!("render admission is handled before fallback")
         }
     }
 }
 
-/// Creates an escaped owned log-safe value.
+/// Labels an already escaped rendered value as log-safe.
+///
+/// # Parameters
+///
+/// * `value` - Escaped adapter output that contains no raw source controls.
+///
+/// # Returns
+///
+/// Owned typed log-safe output without applying a second escape pass.
 #[inline(always)]
-fn log_safe_owned(value: String) -> LogSafeText<'static> {
-    RedactedText::new(Cow::Owned(value)).escape_for_log()
+fn log_safe_rendered(value: String) -> LogSafeText<'static> {
+    LogSafeText::from_escaped(Cow::Owned(value))
 }
 
 impl<'policy> RedactionSession<'policy> {

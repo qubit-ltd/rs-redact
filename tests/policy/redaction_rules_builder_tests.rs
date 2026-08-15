@@ -15,12 +15,11 @@ use qubit_redact::Sensitivity;
 /// the rules construction context.
 #[test]
 fn test_rules_builder_reports_rules_location_for_invalid_field_immediately() {
+    let mut builder = RedactionPolicy::builder();
     assert_eq!(
-        RedactionPolicy::builder()
-            .raise(" -_[] ", Sensitivity::High)
-            .expect_err("an empty canonical field name must fail immediately"),
-        PolicyError::EmptyFieldName {
+        builder.fields().raise(" -_[] ", Sensitivity::High).err(),
+        Some(PolicyError::EmptyFieldName {
             location: PolicyLocation::Rules,
-        },
+        }),
     );
 }
