@@ -51,7 +51,7 @@ impl BoundedJsonRedaction {
 /// stack and applies [`JsonDepthLimit`](crate::JsonDepthLimit) fail closed.
 /// JSON parsing and final serialization retain the resource and recursion
 /// boundaries of `serde_json`. This guarantee does not apply to the lazy
-/// [`RedactedJson`](crate::RedactedJson) `Debug` or Serde rendering path.
+/// [`RedactedJson`](crate::json::RedactedJson) `Debug` or Serde rendering path.
 ///
 /// # Parameters
 ///

@@ -100,7 +100,7 @@
 //! boundary, `map` classifies each value by its runtime key, and `skip` omits a
 //! field only from the redacted representation.
 //!
-//! ```ignore
+//! ```
 //! use std::collections::HashMap;
 //! use qubit_redact::domain::Redact as _;
 //! use qubit_redact::{RedactionPolicy, Sensitivity};
@@ -138,7 +138,7 @@
 //! retains a second raw copy. Use a separately designed zeroization strategy
 //! when memory erasure is required.
 //!
-//! ```ignore
+//! ```
 //! use qubit_redact::domain::{Redact as _, RedactMut as _};
 //! use qubit_redact_derive::Redact;
 //!
@@ -167,11 +167,12 @@
 //!
 //! With the `serde` feature, a direct `serde` dependency, and the companion
 //! derive crate, `#[redact(serde)]` makes direct serialization of the original
-//! type use its redacted representation. [`Redacted`] also supports
+//! type use its redacted representation. [`domain::Redacted`] also supports
 //! policy-aware serialization and intentionally does not implement
 //! `Deserialize`.
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # #[cfg(feature = "serde")]
 //! # {
 //! use qubit_redact::domain::Redact as _;
@@ -196,7 +197,8 @@
 //! assert!(!format!("{value:?}").contains("raw-token"));
 //! assert!(!format!("{value}").contains("raw-token"));
 //! # }
-//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! `debug` and `display` are opt-in implementations on the original type and
@@ -212,7 +214,7 @@
 //! supports Serde's external, internal, adjacent, and untagged enum
 //! representations through a structure-preserving attribute allowlist.
 //!
-//! ```ignore
+//! ```
 //! use qubit_redact::domain::Redact as _;
 //! use qubit_redact_derive::Redact;
 //!
@@ -282,6 +284,7 @@
 //! `RedactionSession::json` method when the `json` feature is enabled:
 //!
 //! ```
+//! # fn main() {
 //! # #[cfg(feature = "json")]
 //! # {
 //! use qubit_redact::Redactor;
@@ -290,6 +293,7 @@
 //! let mut session = redactor.session();
 //! let safe = session.json().redact_text(r#"{"token":"raw-token"}"#);
 //! assert!(!safe.to_string().contains("raw-token"));
+//! # }
 //! # }
 //! ```
 //!
@@ -301,6 +305,7 @@
 //! log-safe output.
 //!
 //! ```
+//! # fn main() {
 //! # #[cfg(feature = "http")]
 //! # {
 //! use http::HeaderValue;
@@ -315,6 +320,7 @@
 //! );
 //! assert!(!format!("{result}").contains("raw"));
 //! # }
+//! # }
 //! ```
 
 //!
@@ -322,6 +328,7 @@
 //! enabled:
 //!
 //! ```
+//! # fn main() {
 //! # #[cfg(feature = "uri")]
 //! # {
 //! use qubit_redact::uri::UriRedactor;
@@ -330,6 +337,7 @@
 //! let mut session = redactor.session();
 //! let safe = session.uri().redact_uri_str("https://example.test/path");
 //! assert!(safe.log_safe_text().as_str().contains("example.test"));
+//! # }
 //! # }
 //! ```
 
