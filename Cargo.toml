@@ -44,7 +44,7 @@ uri = ["dep:fluent-uri"]
 
 [dependencies]
 qubit-budget = { version = "0.4.0", path = "../rs-budget", features = ["json"] }
-qubit-json = { version = "0.7.0", path = "../rs-json", optional = true }
+qubit-json = { version = "0.8", path = "../rs-json", optional = true }
 form_urlencoded = { version = "1.2", optional = true }
 fluent-uri = { version = "0.4.1", optional = true }
 http = { version = "1.5", optional = true }
