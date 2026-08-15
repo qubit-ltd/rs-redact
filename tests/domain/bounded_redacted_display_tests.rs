@@ -33,10 +33,6 @@ struct DebugDiagnosticText<'a> {
 }
 
 impl Redact for DebugDiagnosticText<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        self.value.len()
-    }
-
     /// Writes the configured text using the standard debug string format.
     fn fmt_redacted(
         &self,
@@ -48,10 +44,6 @@ impl Redact for DebugDiagnosticText<'_> {
 }
 
 impl Redact for DiagnosticText<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        self.value.len()
-    }
-
     /// Writes the configured diagnostic text.
     fn fmt_redacted(
         &self,
@@ -157,10 +149,6 @@ fn test_eager_completion_floors_buffered_unicode_boundary() {
     struct SplitUnicode;
 
     impl Redact for SplitUnicode {
-        fn redaction_input_bytes(&self) -> usize {
-            "你好你你你你你".len()
-        }
-
         fn fmt_redacted(
             &self,
             _session: &mut RedactionSession<'_>,
@@ -185,10 +173,6 @@ fn test_domain_truncation_keeps_session_open_for_later_fragments() {
     struct TwoMasks<'a>(&'a AtomicUsize);
 
     impl Redact for TwoMasks<'_> {
-        fn redaction_input_bytes(&self) -> usize {
-            "secret".len().saturating_mul(2)
-        }
-
         fn fmt_redacted(
             &self,
             session: &mut RedactionSession<'_>,
@@ -219,17 +203,13 @@ fn test_domain_truncation_keeps_session_open_for_later_fragments() {
     assert_eq!(output, "safe");
 }
 
-/// Value that must never render when its input cannot be admitted.
+/// Value that records pure domain rendering under a tiny input budget.
 struct AdmissionObserver<'a> {
     calls: &'a AtomicUsize,
     text: String,
 }
 
 impl Redact for AdmissionObserver<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        self.text.len()
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -240,9 +220,9 @@ impl Redact for AdmissionObserver<'_> {
     }
 }
 
-/// Verifies an existing bounded-mask context does not bypass input admission.
+/// Verifies a bounded domain formatter does not charge diagnostic input.
 #[test]
-fn test_bounded_debug_admits_before_fmt_redacted() {
+fn test_bounded_debug_does_not_charge_domain_input() {
     let calls = AtomicUsize::new(0);
     let value = AdmissionObserver {
         calls: &calls,
@@ -256,15 +236,16 @@ fn test_bounded_debug_admits_before_fmt_redacted() {
         .expect("the policy should build");
     let output_limit = limit(InputOutputLimit::MIN_OUTPUT_BYTES);
 
-    let _ = format!(
+    let output = format!(
         "{:?}",
         value.redacted_with(&policy).with_output_limit(output_limit)
     );
 
-    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    assert_eq!(output, "heap input");
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
 }
 
-/// Heap-backed custom value relying on the default fail-closed contract.
+/// Heap-backed custom value used to prove there is no input forecast contract.
 struct DefaultInputContract<'a> {
     calls: &'a AtomicUsize,
     text: String,
@@ -281,10 +262,9 @@ impl Redact for DefaultInputContract<'_> {
     }
 }
 
-/// Verifies the default input contract cannot charge only pointer metadata for
-/// a heap-backed value.
+/// Verifies heap-backed domain output is bounded without charging input bytes.
 #[test]
-fn test_default_redact_input_contract_is_fail_closed() {
+fn test_domain_output_is_bounded_without_input_forecast() {
     let calls = AtomicUsize::new(0);
     let value = DefaultInputContract {
         calls: &calls,
@@ -300,15 +280,15 @@ fn test_default_redact_input_contract_is_fail_closed() {
         .build()
         .expect("the policy should build");
 
-    let _ = format!("{:?}", value.redacted_with(&policy));
+    let output = format!("{:?}", value.redacted_with(&policy));
 
-    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    assert!(output.ends_with("<truncated>"), "{output}");
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
 }
 
-/// Verifies an unlimited numeric budget cannot admit the sentinel used for an
-/// unmeasurable custom input.
+/// Verifies even a maximal input budget is untouched by domain formatting.
 #[test]
-fn test_default_redact_input_contract_is_fail_closed_at_usize_max() {
+fn test_domain_formatting_ignores_maximal_input_budget() {
     let calls = AtomicUsize::new(0);
     let value = DefaultInputContract {
         calls: &calls,
@@ -324,8 +304,8 @@ fn test_default_redact_input_contract_is_fail_closed_at_usize_max() {
 
     let output = format!("{:?}", value.redacted_with(&policy));
 
-    assert_eq!(output, "<truncated>");
-    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    assert_eq!(output, "heap input");
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
 }
 
 /// Verifies truncation treats one escaped control as an indivisible piece.
@@ -361,10 +341,6 @@ struct SplitEscapeDiagnostic {
 }
 
 impl Redact for SplitEscapeDiagnostic {
-    fn redaction_input_bytes(&self) -> usize {
-        0
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -425,10 +401,6 @@ impl RepeatedDiagnostic {
 }
 
 impl Redact for RepeatedDiagnostic {
-    fn redaction_input_bytes(&self) -> usize {
-        0
-    }
-
     /// Writes many safe pieces and propagates the first destination error.
     fn fmt_redacted(
         &self,

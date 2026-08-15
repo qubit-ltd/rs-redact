@@ -15,10 +15,6 @@ use qubit_redact::RedactionSession;
 struct TestDomainValue;
 
 impl Redact for TestDomainValue {
-    fn redaction_input_bytes(&self) -> usize {
-        0
-    }
-
     /// Writes a fixed redacted representation without consulting source data.
     fn fmt_redacted(
         &self,

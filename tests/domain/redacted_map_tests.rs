@@ -136,7 +136,7 @@ fn test_redacted_map_preserves_formatter_error() {
     assert_eq!(result, Err(fmt::Error));
 }
 
-/// Value whose pre-render input charge exceeds the diagnostic budget.
+/// Value whose legacy size forecast must not affect domain rendering.
 struct OversizedInput<'a>(&'a AtomicUsize);
 
 impl fmt::Debug for OversizedInput<'_> {
@@ -161,10 +161,9 @@ impl RedactValue for OversizedInput<'_> {
     }
 }
 
-/// Verifies an oversized map item is rejected before classification or value
-/// rendering inspects it.
+/// Verifies map domain rendering ignores value input-size forecasts.
 #[test]
-fn test_redacted_map_admits_complete_input_before_rendering() {
+fn test_redacted_map_does_not_charge_value_input() {
     let visits = AtomicUsize::new(0);
     let map = BTreeMap::from([("label", OversizedInput(&visits))]);
     let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
@@ -174,9 +173,10 @@ fn test_redacted_map_admits_complete_input_before_rendering() {
         .build()
         .expect("the policy should build");
 
-    let _ = format!("{:?}", RedactedMap::new(&map, policy));
+    let output = format!("{:?}", RedactedMap::new(&map, policy));
 
-    assert_eq!(visits.load(Ordering::Relaxed), 0);
+    assert!(output.contains("must-not-render"), "{output}");
+    assert_eq!(visits.load(Ordering::Relaxed), 1);
 }
 
 /// Short map value used to isolate container truncation at a long key.
@@ -263,6 +263,16 @@ impl<'a> Iterator for NextCountingIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.nexts.fetch_add(1, Ordering::Relaxed);
         self.entries.next().map(|(key, value)| (key, value))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.entries.size_hint()
+    }
+}
+
+impl ExactSizeIterator for NextCountingIter<'_> {
+    fn len(&self) -> usize {
+        self.entries.len()
     }
 }
 

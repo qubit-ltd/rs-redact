@@ -30,6 +30,16 @@ pub(crate) struct DiagnosticBudget {
 struct AdmittedOutput {
     max_output_bytes: usize,
     remaining_output_bytes: usize,
+    input_provenance: InputProvenance,
+}
+
+/// Describes whether an active output frame reserved nested input bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InputProvenance {
+    /// The frame's input admission covers nested fragment inspection.
+    Precharged,
+    /// The frame bounds pure domain output and covers no nested input.
+    OutputOnly,
 }
 
 impl DiagnosticBudget {
@@ -62,7 +72,7 @@ impl DiagnosticBudget {
         if input_bytes == usize::MAX {
             return self.reject_input(fallback_bytes);
         }
-        if !self.admitted_output.is_empty() {
+        if self.input_is_precharged() {
             return self.admit_precharged(domain_output_limit);
         }
         if self.output_closed || self.output_budget.remaining() == 0 {
@@ -79,6 +89,7 @@ impl DiagnosticBudget {
         self.admitted_output.push(AdmittedOutput {
             max_output_bytes,
             remaining_output_bytes: self.output_budget.remaining(),
+            input_provenance: InputProvenance::Precharged,
         });
         RedactionAdmission::Render { max_output_bytes }
     }
@@ -111,6 +122,30 @@ impl DiagnosticBudget {
         self.admitted_output.push(AdmittedOutput {
             max_output_bytes,
             remaining_output_bytes: self.output_budget.remaining(),
+            input_provenance: InputProvenance::Precharged,
+        });
+        RedactionAdmission::Render { max_output_bytes }
+    }
+
+    /// Admits output for pure domain formatting without covering nested input.
+    ///
+    /// Adapters entered beneath this frame must perform their own exact input
+    /// admission. Their precharged child frames still deduplicate output bytes
+    /// when this output-only parent later commits its completed representation.
+    pub(crate) fn admit_output_only(
+        &mut self,
+        domain_output_limit: usize,
+    ) -> RedactionAdmission {
+        if self.output_closed || self.output_budget.remaining() == 0 {
+            self.output_closed = true;
+            return RedactionAdmission::Exhausted;
+        }
+        let max_output_bytes =
+            domain_output_limit.min(self.output_budget.remaining());
+        self.admitted_output.push(AdmittedOutput {
+            max_output_bytes,
+            remaining_output_bytes: self.output_budget.remaining(),
+            input_provenance: InputProvenance::OutputOnly,
         });
         RedactionAdmission::Render { max_output_bytes }
     }
@@ -118,6 +153,14 @@ impl DiagnosticBudget {
     /// Returns whether an active parent already reserved nested input.
     #[inline(always)]
     pub(crate) fn input_is_precharged(&self) -> bool {
+        self.admitted_output.last().is_some_and(|frame| {
+            frame.input_provenance == InputProvenance::Precharged
+        })
+    }
+
+    /// Returns whether domain or adapter output is currently being completed.
+    #[inline(always)]
+    fn has_active_output(&self) -> bool {
         !self.admitted_output.is_empty()
     }
 
@@ -173,7 +216,7 @@ impl DiagnosticBudget {
     pub(crate) fn is_exhausted(&self) -> bool {
         self.output_closed
             || self.output_budget.remaining() == 0
-            || (!self.input_is_precharged()
+            || (!self.has_active_output()
                 && (self.input_closed || self.input_budget.remaining() == 0))
     }
 }
