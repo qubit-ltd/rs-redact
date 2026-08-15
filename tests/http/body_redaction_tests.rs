@@ -12,6 +12,7 @@ use std::fmt::Display;
 use qubit_redact::LogSafeText;
 use qubit_redact::PolicyError;
 use qubit_redact::PolicyLocation;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
 use qubit_redact::http::BodyBudget;
@@ -38,9 +39,9 @@ const fn alternate_omitted_len(_body: &BodyRedaction) -> Option<usize> {
     None
 }
 
-/// Alternate truncation query used as an unselected target.
-const fn alternate_is_truncated(_body: &BodyRedaction) -> bool {
-    false
+/// Alternate completion query used as an unselected target.
+const fn alternate_completion(_body: &BodyRedaction) -> RedactionCompletion {
+    RedactionCompletion::Complete
 }
 
 /// Verifies HTTP defaults use independent policy snapshots and hard budgets.
@@ -252,7 +253,8 @@ fn test_body_redaction_public_types_are_available() {
     let _: fn(&BodyRedaction) -> usize = BodyRedaction::captured_len;
     let _: fn(&BodyRedaction) -> Option<usize> = BodyRedaction::source_len;
     let _: fn(&BodyRedaction) -> Option<usize> = BodyRedaction::omitted_len;
-    let _: fn(&BodyRedaction) -> bool = BodyRedaction::is_truncated;
+    let _: fn(&BodyRedaction) -> RedactionCompletion =
+        BodyRedaction::completion;
 
     assert_display::<BodyRedaction>();
 
@@ -276,11 +278,11 @@ fn test_body_redaction_queries_expose_captured_metadata() {
         [BodyRedaction::captured_len, alternate_captured_len];
     let omitted_len: [fn(&BodyRedaction) -> Option<usize>; 2] =
         [BodyRedaction::omitted_len, alternate_omitted_len];
-    let is_truncated: [fn(&BodyRedaction) -> bool; 2] =
-        [BodyRedaction::is_truncated, alternate_is_truncated];
+    let completion: [fn(&BodyRedaction) -> RedactionCompletion; 2] =
+        [BodyRedaction::completion, alternate_completion];
 
     assert!(!log_safe_text[selected](&body).as_ref().is_empty());
     assert_eq!(captured_len[selected](&body), 7);
     assert_eq!(omitted_len[selected](&body), Some(3));
-    assert!(is_truncated[selected](&body));
+    assert_eq!(completion[selected](&body), RedactionCompletion::Truncated,);
 }

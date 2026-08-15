@@ -8,7 +8,9 @@
 //! Shared-session URI regression tests.
 
 use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
+use qubit_redact::UriRedactionReason;
 use qubit_redact::UriRedactor;
 
 /// Verifies output exhaustion short-circuits later URI input admission.
@@ -27,9 +29,54 @@ fn test_uri_session_does_not_charge_input_after_output_exhaustion() {
     );
     let input_before = session.remaining_input_bytes();
     let second = session.uri().redact_uri_str("scheme://unread-secret");
+    assert_eq!(second.completion(), RedactionCompletion::Truncated);
+    assert!(!second.is_truncated());
     assert_eq!(second.log_safe_text().as_str(), "<invalid URI>");
     assert_eq!(session.remaining_input_bytes(), input_before);
     let third = session.uri().redact_uri_str("https://must-not-be-read");
+    assert_eq!(third.completion(), RedactionCompletion::Exhausted);
     assert_eq!(third.log_safe_text().as_str(), "");
     assert_eq!(session.remaining_input_bytes(), input_before);
+}
+
+/// Verifies a complete safe rewrite is not reported as truncated.
+#[test]
+fn test_uri_session_reports_complete_safe_rewrite() {
+    let budget = InputOutputLimit::new(256, 256)
+        .expect("the diagnostic budget should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(budget)
+        .build()
+        .expect("the URI policy should build");
+    let redactor = UriRedactor::new(policy);
+    let mut session = redactor.session();
+
+    let result = session
+        .uri()
+        .redact_uri_str("https://example.test/?token=secret");
+
+    assert_eq!(result.completion(), RedactionCompletion::Complete);
+    assert!(!result.log_safe_text().as_str().contains("secret"));
+}
+
+/// Verifies a non-empty output substitute reports truncation.
+#[test]
+fn test_uri_session_reports_non_empty_output_omission_as_truncated() {
+    let budget = InputOutputLimit::new(256, InputOutputLimit::MIN_OUTPUT_BYTES)
+        .expect("the diagnostic budget should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(budget)
+        .build()
+        .expect("the URI policy should build");
+    let redactor = UriRedactor::new(policy);
+    let mut session = redactor.session();
+
+    let result = session.uri().redact_uri_str(&format!(
+        "https://example.test/{}?token=secret",
+        "a".repeat(128),
+    ));
+
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
+    assert!(result.has_reason(UriRedactionReason::OutputTruncated));
+    assert!(!result.log_safe_text().as_str().is_empty());
 }

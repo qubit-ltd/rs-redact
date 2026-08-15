@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Log-safe rendering of one redacted environment pair.
+//! Log-safe rendering of a redacted environment batch.
 
 use std::fmt;
 use std::fmt::Display;
@@ -15,44 +15,24 @@ use crate::LogSafeText;
 use crate::RedactionCompletion;
 use crate::text::redaction_output::RedactionOutput;
 
-/// One escaped environment-variable name and its redacted, escaped value.
-#[must_use = "render the redacted pair instead of the original environment value"]
+/// A bounded environment batch paired with its exact completion state.
+#[must_use = "inspect or render the redacted environment batch"]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RedactedEnvPair {
-    /// Escaped assignment paired with its exact completion state.
+pub struct RedactedEnv {
+    /// Escaped batch rendering paired with its exact completion state.
     output: RedactionOutput,
 }
 
-impl RedactedEnvPair {
-    /// Creates a redacted pair from log-safe owned components.
+impl RedactedEnv {
+    /// Creates a complete environment batch.
     ///
     /// # Parameters
     ///
-    /// * `name` - Escaped environment-variable name.
-    /// * `value` - Redacted and escaped environment-variable value.
+    /// * `rendered` - Complete escaped debug-style batch rendering.
     ///
     /// # Returns
     ///
-    /// A pair that renders in `NAME=VALUE` form.
-    #[inline(always)]
-    pub(super) fn new(
-        name: LogSafeText<'static>,
-        value: LogSafeText<'static>,
-    ) -> Self {
-        Self::complete(LogSafeText::from_escaped(
-            format!("{}={}", name.as_str(), value.as_str()).into(),
-        ))
-    }
-
-    /// Creates a complete pair from an already escaped representation.
-    ///
-    /// # Parameters
-    ///
-    /// * `rendered` - Complete escaped assignment text.
-    ///
-    /// # Returns
-    ///
-    /// A pair carrying [`RedactionCompletion::Complete`].
+    /// Safe text paired with [`RedactionCompletion::Complete`].
     #[inline(always)]
     pub(super) fn complete(rendered: LogSafeText<'static>) -> Self {
         Self {
@@ -60,16 +40,16 @@ impl RedactedEnvPair {
         }
     }
 
-    /// Creates a truncated pair from non-empty safe substitute output.
+    /// Creates a truncated environment batch.
     ///
     /// # Parameters
     ///
-    /// * `rendered` - Non-empty escaped fallback or truncation marker.
+    /// * `rendered` - Non-empty safe replacement text or truncation marker.
     ///
     /// # Returns
     ///
-    /// A truncated pair for non-empty text, or the sole valid exhausted pair
-    /// when no substitute text was emitted.
+    /// A truncated result for non-empty text, or an exhausted result when no
+    /// safe replacement was emitted.
     #[inline(always)]
     pub(super) fn truncated(rendered: LogSafeText<'static>) -> Self {
         Self {
@@ -78,7 +58,10 @@ impl RedactedEnvPair {
         }
     }
 
-    /// Creates an exhausted pair with no safe substitute text.
+    /// Creates an exhausted environment batch.
+    ///
+    /// Exhausted batches contain empty safe text and callers must not advance
+    /// their input iterator after this state is reached.
     ///
     /// # Returns
     ///
@@ -90,7 +73,7 @@ impl RedactedEnvPair {
         }
     }
 
-    /// Borrows the log-safe assignment or fallback text.
+    /// Borrows the log-safe batch rendering.
     ///
     /// # Returns
     ///
@@ -100,30 +83,34 @@ impl RedactedEnvPair {
         self.output.log_safe_text()
     }
 
-    /// Reports how pair redaction completed.
+    /// Reports how batch redaction completed.
+    ///
+    /// `Complete` means every admitted pair and delimiter was rendered.
+    /// `Truncated` means input or output was omitted but non-empty safe
+    /// replacement text was emitted. `Exhausted` means the result is empty and
+    /// the input iterator was not advanced after exhaustion.
     ///
     /// # Returns
     ///
-    /// Complete rendering, non-empty safe truncation, or empty exhaustion as
-    /// established by the shared output invariant.
+    /// The completion state paired with the batch text.
     #[inline(always)]
     pub const fn completion(&self) -> RedactionCompletion {
         self.output.completion()
     }
 
-    /// Consumes the result and returns its log-safe text.
+    /// Consumes the result and returns its log-safe batch text.
     ///
     /// # Returns
     ///
-    /// Complete or substitute assignment text, or an empty exhausted value.
+    /// Complete or substitute safe text, or an empty exhausted value.
     #[inline(always)]
     pub fn into_log_safe_text(self) -> LogSafeText<'static> {
         self.output.into_log_safe_text()
     }
 }
 
-impl Display for RedactedEnvPair {
-    /// Writes the escaped pair in `NAME=VALUE` form or its safe fallback.
+impl Display for RedactedEnv {
+    /// Writes the complete, substitute, or empty log-safe batch text.
     ///
     /// # Parameters
     ///
@@ -136,7 +123,7 @@ impl Display for RedactedEnvPair {
     /// # Errors
     ///
     /// Returns [`fmt::Error`] when the destination formatter rejects output.
-    #[inline]
+    #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(self.output.log_safe_text(), formatter)
     }

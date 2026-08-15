@@ -16,6 +16,7 @@ use qubit_redact::InputOutputLimit;
 use qubit_redact::JsonDepthLimit;
 use qubit_redact::MaskPolicy;
 use qubit_redact::MaskingPolicy;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
 use qubit_redact::http::BodyBudget;
@@ -79,7 +80,7 @@ fn test_body_output_budget_applies_after_control_escaping() {
 
     assert_eq!(rendered, "a\\nb<truncated>");
     assert!(!rendered.ends_with("\\<truncated>"));
-    assert!(body.is_truncated());
+    assert_eq!(body.completion(), RedactionCompletion::Truncated);
 }
 
 /// Verifies that minimum output budget is exact marker.
@@ -120,7 +121,7 @@ fn test_source_truncation_is_reported_even_when_payload_fits() {
     assert_eq!(body.captured_len(), 2);
     assert_eq!(body.source_len(), Some(9));
     assert_eq!(body.omitted_len(), Some(7));
-    assert!(body.is_truncated());
+    assert_eq!(body.completion(), RedactionCompletion::Truncated);
     assert_eq!(body.to_string(), "ok<truncated>");
 }
 
@@ -136,7 +137,7 @@ fn test_input_budget_metadata_is_exact_and_output_is_bounded() {
     assert_eq!(body.captured_len(), 4);
     assert_eq!(body.source_len(), Some(6));
     assert_eq!(body.omitted_len(), Some(2));
-    assert!(body.is_truncated());
+    assert_eq!(body.completion(), RedactionCompletion::Truncated);
     assert!(body.to_string().len() <= 15);
     assert!(body.to_string().ends_with("<truncated>"));
 }
@@ -224,7 +225,7 @@ fn test_malformed_and_truncated_multipart_fail_closed() {
 
     assert!(!complete.to_string().contains("secret"));
     assert!(!truncated.to_string().contains("secret"));
-    assert!(truncated.is_truncated());
+    assert_eq!(truncated.completion(), RedactionCompletion::Truncated);
 }
 
 /// Verifies that multipart rejects invalid header parameter grammar.
