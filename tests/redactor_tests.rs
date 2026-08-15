@@ -31,10 +31,13 @@ fn test_session_uses_redactor_policy_and_requires_mutable_access() {
 fn test_exhausted_session_does_not_charge_additional_input() {
     let limit = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the marker-sized diagnostic limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the test policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the test policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
     let fallback = "<redacted>";
@@ -59,10 +62,13 @@ fn test_exhausted_session_does_not_charge_additional_input() {
 fn test_redactor_session_fallbacks_respect_cumulative_output_limit() {
     let limit = InputOutputLimit::new(4, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the marker-sized operation limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
@@ -95,11 +101,16 @@ fn test_strict_redactor_masks_unknown_fields() {
 /// Verifies an explicit sensitivity cannot be bypassed by a field allow rule.
 #[test]
 fn test_redact_at_ignores_field_allow_rules() {
-    let policy = RedactionPolicy::builder()
-        .allow_canonical_exact("password")
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the policy is valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .allow_exact("password")
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy is valid");
 
     let redacted = Redactor::new(policy).redact_at(Sensitivity::Secret, "raw");
 
@@ -169,10 +180,13 @@ fn test_redact_keeps_non_sensitive_value_borrowed() {
 fn test_redact_field_session_charges_escaped_bytes() {
     let limit = InputOutputLimit::new(64, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the diagnostic marker-sized limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
@@ -191,12 +205,17 @@ fn test_redact_field_session_charges_escaped_bytes() {
 fn test_unicode_mask_truncation_closes_session() {
     let limit = InputOutputLimit::new(64, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the minimum output budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .mask(Sensitivity::Secret, MaskPolicy::fixed(&"你".repeat(20)))
-        .expect("the Unicode replacement should be valid")
-        .build()
-        .expect("the Unicode mask policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed(&"你".repeat(20)))
+            .expect("the Unicode replacement should be valid");
+        builder
+    })
+    .build()
+    .expect("the Unicode mask policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 

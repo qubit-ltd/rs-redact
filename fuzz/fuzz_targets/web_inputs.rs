@@ -85,8 +85,9 @@ fn assert_diagnostic_outputs_are_bounded(data: &[u8]) {
     let budget =
         InputOutputLimit::new(DIAGNOSTIC_INPUT_LIMIT, DIAGNOSTIC_OUTPUT_LIMIT)
             .expect("the fixed fuzz diagnostic budget is valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
+    let mut builder = RedactionPolicy::builder();
+    builder.limits().diagnostic_event(budget);
+    let policy = builder
         .build()
         .expect("the fixed fuzz HTTP policy is valid");
     let redactor = HttpRedactor::new(policy);

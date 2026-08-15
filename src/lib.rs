@@ -100,9 +100,10 @@
 //! boundary, `map` classifies each value by its runtime key, and `skip` omits a
 //! field only from the redacted representation.
 //!
-//! ```ignore
+//! ```
 //! use std::collections::HashMap;
-//! use qubit_redact::{Redact as _, RedactionPolicy, Sensitivity};
+//! use qubit_redact::domain::Redact as _;
+//! use qubit_redact::{RedactionPolicy, Sensitivity};
 //! use qubit_redact_derive::Redact;
 //!
 //! #[derive(Redact)]
@@ -137,8 +138,8 @@
 //! retains a second raw copy. Use a separately designed zeroization strategy
 //! when memory erasure is required.
 //!
-//! ```ignore
-//! use qubit_redact::{Redact as _, RedactMut as _};
+//! ```
+//! use qubit_redact::domain::{Redact as _, RedactMut as _};
 //! use qubit_redact_derive::Redact;
 //!
 //! #[derive(Clone, Redact)]
@@ -166,14 +167,15 @@
 //!
 //! With the `serde` feature, a direct `serde` dependency, and the companion
 //! derive crate, `#[redact(serde)]` makes direct serialization of the original
-//! type use its redacted representation. [`Redacted`] also supports
+//! type use its redacted representation. [`domain::Redacted`] also supports
 //! policy-aware serialization and intentionally does not implement
 //! `Deserialize`.
 //!
-//! ```ignore
+//! ```
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # #[cfg(feature = "serde")]
 //! # {
-//! use qubit_redact::Redact as _;
+//! use qubit_redact::domain::Redact as _;
 //! use qubit_redact_derive::Redact;
 //!
 //! #[derive(Redact)]
@@ -195,7 +197,8 @@
 //! assert!(!format!("{value:?}").contains("raw-token"));
 //! assert!(!format!("{value}").contains("raw-token"));
 //! # }
-//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! `debug` and `display` are opt-in implementations on the original type and
@@ -211,8 +214,8 @@
 //! supports Serde's external, internal, adjacent, and untagged enum
 //! representations through a structure-preserving attribute allowlist.
 //!
-//! ```ignore
-//! use qubit_redact::Redact as _;
+//! ```
+//! use qubit_redact::domain::Redact as _;
 //! use qubit_redact_derive::Redact;
 //!
 //! #[derive(Redact)]
@@ -281,6 +284,7 @@
 //! `RedactionSession::json` method when the `json` feature is enabled:
 //!
 //! ```
+//! # fn main() {
 //! # #[cfg(feature = "json")]
 //! # {
 //! use qubit_redact::Redactor;
@@ -289,6 +293,7 @@
 //! let mut session = redactor.session();
 //! let safe = session.json().redact_text(r#"{"token":"raw-token"}"#);
 //! assert!(!safe.to_string().contains("raw-token"));
+//! # }
 //! # }
 //! ```
 //!
@@ -300,6 +305,7 @@
 //! log-safe output.
 //!
 //! ```
+//! # fn main() {
 //! # #[cfg(feature = "http")]
 //! # {
 //! use http::HeaderValue;
@@ -314,6 +320,7 @@
 //! );
 //! assert!(!format!("{result}").contains("raw"));
 //! # }
+//! # }
 //! ```
 
 //!
@@ -321,6 +328,7 @@
 //! enabled:
 //!
 //! ```
+//! # fn main() {
 //! # #[cfg(feature = "uri")]
 //! # {
 //! use qubit_redact::uri::UriRedactor;
@@ -329,6 +337,7 @@
 //! let mut session = redactor.session();
 //! let safe = session.uri().redact_uri_str("https://example.test/path");
 //! assert!(safe.log_safe_text().as_str().contains("example.test"));
+//! # }
 //! # }
 //! ```
 
@@ -354,36 +363,9 @@ pub mod text;
 #[cfg(feature = "uri")]
 pub mod uri;
 
-pub use argv::ArgvRedactor;
-pub use domain::BoundedRedactedDisplay;
-pub use domain::Redact;
-pub use domain::RedactMapValue;
-pub use domain::RedactMapValueMut;
-pub use domain::RedactMut;
-pub use domain::RedactValue;
-pub use domain::RedactValueMut;
-pub use domain::Redacted;
-pub use domain::RedactedKeyedMap;
-pub use domain::RedactedKeyedMapResult;
-pub use domain::RedactedKeyedResult;
-pub use domain::RedactedKeyedValue;
-pub use domain::RedactedMap;
-pub use domain::RedactedMapResult;
-pub use domain::RedactedResult;
-pub use domain::RedactedValue;
-pub use env::EnvRedactor;
 pub use field_redaction::FieldRedaction;
 pub use field_redaction::PassThroughReason;
 pub use install_global_policy_error::InstallGlobalPolicyError;
-#[cfg(feature = "json")]
-pub use json::JsonRedactionSession;
-#[cfg(feature = "json")]
-pub use json::RedactedJson;
-#[cfg(feature = "json")]
-pub use json::RedactedJsonText;
-#[cfg(feature = "json")]
-#[cfg(feature = "json")]
-pub use json::redact_json_text_in_place;
 pub use policy::AllowRule;
 pub use policy::DiagnosticBudgetError;
 pub use policy::FieldClassification;
@@ -417,28 +399,10 @@ pub use private::__private;
 pub use redactor::Redactor;
 pub use text::BoundedLogSafeDisplay;
 pub use text::DiagnosticLogBuilder;
-pub use text::DiagnosticWriteStatus;
 pub use text::LogOutputLimit;
 pub use text::LogOutputLimitError;
 pub use text::LogSafeText;
 pub use text::RedactedDebug;
 pub use text::RedactedText;
+pub use text::RedactionCompletion;
 pub use text::redacted_debug;
-#[cfg(feature = "uri")]
-pub use uri::UriComponent;
-#[cfg(feature = "uri")]
-pub use uri::UriFragmentPolicy;
-#[cfg(feature = "uri")]
-pub use uri::UriInspection;
-#[cfg(feature = "uri")]
-pub use uri::UriPathPolicy;
-#[cfg(feature = "uri")]
-pub use uri::UriPolicy;
-#[cfg(feature = "uri")]
-pub use uri::UriRedaction;
-#[cfg(feature = "uri")]
-pub use uri::UriRedactionReason;
-#[cfg(feature = "uri")]
-pub use uri::UriRedactionStatus;
-#[cfg(feature = "uri")]
-pub use uri::UriRedactor;

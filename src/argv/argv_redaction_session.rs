@@ -11,6 +11,7 @@ use super::ArgvItem;
 use super::ArgvRedactor;
 use super::RedactedArgv;
 use crate::InputOutputLimit;
+use crate::LogSafeText;
 use crate::RedactionSession;
 use crate::Redactor;
 use crate::policy::FragmentCompletion;
@@ -38,7 +39,9 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
     ///
     /// Input is pulled lazily. Once the shared input or output budget is
     /// exhausted, the iterator is not advanced again and only a safe marker
-    /// or empty value is returned.
+    /// or empty value is returned. The result reports `Complete` only after
+    /// observing iterator exhaustion, `Truncated` for non-empty safe output
+    /// with any omission, and `Exhausted` for empty output.
     pub fn redact_items<'items, I>(&mut self, items: I) -> RedactedArgv
     where
         I: IntoIterator<Item = ArgvItem<'items>>,
@@ -49,7 +52,10 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
     /// Redacts explicit items and heuristically classifies plain items.
     ///
     /// Input is pulled lazily and never inspected after the shared session has
-    /// reached its terminal output or input boundary.
+    /// reached its terminal output or input boundary. The result reports
+    /// `Complete` only after observing iterator exhaustion, `Truncated` for
+    /// non-empty safe output with any omission, and `Exhausted` for empty
+    /// output.
     pub fn redact_heuristically<'items, I>(&mut self, items: I) -> RedactedArgv
     where
         I: IntoIterator<Item = ArgvItem<'items>>,
@@ -64,7 +70,7 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
     {
         let remaining = self.session.remaining_output_bytes();
         if remaining < InputOutputLimit::MIN_OUTPUT_BYTES {
-            return RedactedArgv::from_rendered(String::new());
+            return RedactedArgv::exhausted();
         }
         let output_limit = self.session.policy().limits().diagnostic_event();
         let builder_limit = InputOutputLimit::new(usize::MAX, remaining)
@@ -72,6 +78,8 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
         let mut builder = RedactedArgv::builder(builder_limit);
         let renderer =
             ArgvRedactor::new(Redactor::new(self.session.policy().clone()));
+        let mut locally_truncated = false;
+        let mut iterator_exhausted = false;
         let mut pending = None;
         let mut iterator = items.into_iter();
 
@@ -83,6 +91,7 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
 
         while !self.session.is_exhausted() {
             let Some(item) = iterator.next() else {
+                iterator_exhausted = true;
                 break;
             };
             let admission = self.session.admit(
@@ -94,7 +103,7 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
             else {
                 return admission_fallback(admission);
             };
-            let rendered = if heuristic {
+            let (rendered, item_truncated) = if heuristic {
                 if let Some(level) = item.sensitivity() {
                     pending = None;
                     renderer.mask_os_value_bounded(
@@ -113,10 +122,11 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
                 renderer
                     .render_explicit_or_plain_bounded(item, max_output_bytes)
             };
+            locally_truncated |= item_truncated;
             let before = builder.len();
             let complete = builder.push(&rendered);
             let after = builder.len();
-            let completion = if complete {
+            let completion = if complete && !item_truncated {
                 FragmentCompletion::Complete
             } else {
                 FragmentCompletion::SessionTruncated
@@ -143,19 +153,21 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
                 self.session.commit_output(after - before, completion);
             }
         }
-        builder.finish()
+        builder.finish(locally_truncated || !iterator_exhausted)
     }
 }
 
 /// Converts a non-render admission into a safe argv result.
+///
+/// Fallback admission has already charged the complete marker and therefore
+/// maps to non-empty truncated output. Exhaustion maps to the only valid empty
+/// result and does not inspect the pending iterator.
 fn admission_fallback(admission: RedactionAdmission) -> RedactedArgv {
     match admission {
-        RedactionAdmission::Fallback => {
-            RedactedArgv::from_rendered(TRUNCATED_LIST.to_owned())
-        }
-        RedactionAdmission::Exhausted => {
-            RedactedArgv::from_rendered(String::new())
-        }
+        RedactionAdmission::Fallback => RedactedArgv::truncated(
+            LogSafeText::from_escaped(TRUNCATED_LIST.to_owned().into()),
+        ),
+        RedactionAdmission::Exhausted => RedactedArgv::exhausted(),
         RedactionAdmission::Render { .. } => {
             unreachable!("render admission is handled before fallback")
         }

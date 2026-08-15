@@ -12,24 +12,22 @@ use std::borrow::Cow;
 use super::internal::mask_byte_limit;
 use crate::MaskingPolicy;
 use crate::RedactedText;
-use crate::RedactedValue;
 use crate::Sensitivity;
+use crate::domain::RedactedValue;
 
 /// Produces a borrowed or owned redacted representation of a textual value.
 ///
 /// Implementations must not format or serialize the original value before
 /// applying the selected masking policy.
+/// Input accounting is not part of this capability's public contract:
+///
+/// ```compile_fail
+/// use qubit_redact::domain::RedactValue;
+///
+/// let value = "secret";
+/// let _ = value.redaction_input_bytes();
+/// ```
 pub trait RedactValue {
-    /// Returns bytes reserved before classifying or rendering this value.
-    ///
-    /// Implementations must override this with their exact encoded or complete
-    /// structural length. The fail-closed default rejects rendering.
-    #[doc(hidden)]
-    #[inline(always)]
-    fn redaction_input_bytes(&self) -> usize {
-        usize::MAX
-    }
-
     /// Redacts this value at the requested sensitivity level.
     ///
     /// # Type Parameters
@@ -53,11 +51,6 @@ pub trait RedactValue {
 }
 
 impl RedactValue for str {
-    #[inline(always)]
-    fn redaction_input_bytes(&self) -> usize {
-        self.len()
-    }
-
     /// Redacts a string slice without invoking its formatting traits.
     ///
     /// # Type Parameters
@@ -82,11 +75,6 @@ impl RedactValue for str {
 }
 
 impl RedactValue for &str {
-    #[inline(always)]
-    fn redaction_input_bytes(&self) -> usize {
-        self.len()
-    }
-
     /// Redacts a borrowed string without invoking its formatting traits.
     ///
     /// # Type Parameters
@@ -112,11 +100,6 @@ impl RedactValue for &str {
 }
 
 impl RedactValue for String {
-    #[inline(always)]
-    fn redaction_input_bytes(&self) -> usize {
-        self.len()
-    }
-
     /// Redacts an owned string through a borrow of its contents.
     ///
     /// # Type Parameters
@@ -142,11 +125,6 @@ impl RedactValue for String {
 }
 
 impl RedactValue for Cow<'_, str> {
-    #[inline(always)]
-    fn redaction_input_bytes(&self) -> usize {
-        self.len()
-    }
-
     /// Redacts borrowed or owned cow text through its string contents.
     ///
     /// # Type Parameters
@@ -171,11 +149,6 @@ impl RedactValue for Cow<'_, str> {
 }
 
 impl RedactValue for Option<String> {
-    #[inline(always)]
-    fn redaction_input_bytes(&self) -> usize {
-        self.as_deref().map_or(0, str::len)
-    }
-
     /// Redacts an optional owned string while preserving its option shape.
     ///
     /// # Type Parameters
@@ -201,11 +174,6 @@ impl RedactValue for Option<String> {
 }
 
 impl RedactValue for Option<&str> {
-    #[inline(always)]
-    fn redaction_input_bytes(&self) -> usize {
-        self.map_or(0, str::len)
-    }
-
     /// Redacts an optional borrowed string while preserving its option shape.
     ///
     /// # Type Parameters
@@ -231,11 +199,6 @@ impl RedactValue for Option<&str> {
 }
 
 impl RedactValue for Option<Cow<'_, str>> {
-    #[inline(always)]
-    fn redaction_input_bytes(&self) -> usize {
-        self.as_deref().map_or(0, str::len)
-    }
-
     /// Redacts optional cow text while preserving its option shape.
     ///
     /// # Type Parameters

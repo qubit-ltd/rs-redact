@@ -5,16 +5,16 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`RedactedValue`](qubit_redact::RedactedValue).
+//! Tests for [`RedactedValue`](qubit_redact::domain::RedactedValue).
 
 use std::fmt;
 use std::fmt::Write;
 
 use qubit_redact::MaskPolicy;
 use qubit_redact::MaskingPolicy;
-use qubit_redact::RedactValue;
-use qubit_redact::RedactedValue;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::RedactValue;
+use qubit_redact::domain::RedactedValue;
 /// Verifies redacted scalar values have a log-safe display representation.
 #[test]
 fn test_redacted_value_displays_masked_secret() {

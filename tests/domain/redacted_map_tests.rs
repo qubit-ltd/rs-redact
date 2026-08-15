@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`RedactedMap`](qubit_redact::RedactedMap).
+//! Tests for [`RedactedMap`](qubit_redact::domain::RedactedMap).
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -17,13 +17,13 @@ use indexmap::IndexMap;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::MaskingPolicy;
-use qubit_redact::RedactValue;
-use qubit_redact::RedactedMap;
-use qubit_redact::RedactedMapResult;
-use qubit_redact::RedactedValue;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::RedactValue;
+use qubit_redact::domain::RedactedMap;
+use qubit_redact::domain::RedactedMapResult;
+use qubit_redact::domain::RedactedValue;
 
 /// Map value used to verify alternate flags and formatter failures.
 struct FormatterBehavior {
@@ -44,10 +44,6 @@ impl fmt::Debug for FormatterBehavior {
 }
 
 impl RedactValue for FormatterBehavior {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -103,10 +99,13 @@ fn test_redacted_map_display_uses_policy_output_limit_by_default() {
     let budget =
         InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the minimum bounded output should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the diagnostic budget should build a policy");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the diagnostic budget should build a policy");
 
     let output = RedactedMap::new(&map, policy).to_string();
 
@@ -136,17 +135,17 @@ fn test_redacted_map_preserves_formatter_error() {
     assert_eq!(result, Err(fmt::Error));
 }
 
-/// Value whose pre-render input charge exceeds the diagnostic budget.
-struct OversizedInput<'a>(&'a AtomicUsize);
+/// Value that records whether domain rendering reaches its formatter.
+struct ObservedInput<'a>(&'a AtomicUsize);
 
-impl fmt::Debug for OversizedInput<'_> {
+impl fmt::Debug for ObservedInput<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fetch_add(1, Ordering::Relaxed);
         formatter.write_str("must-not-render")
     }
 }
 
-impl RedactValue for OversizedInput<'_> {
+impl RedactValue for ObservedInput<'_> {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -155,28 +154,27 @@ impl RedactValue for OversizedInput<'_> {
         self.0.fetch_add(1, Ordering::Relaxed);
         RedactedValue::opaque(level, masking)
     }
-
-    fn redaction_input_bytes(&self) -> usize {
-        1_000
-    }
 }
 
-/// Verifies an oversized map item is rejected before classification or value
-/// rendering inspects it.
+/// Verifies map domain rendering does not charge diagnostic input for values.
 #[test]
-fn test_redacted_map_admits_complete_input_before_rendering() {
+fn test_redacted_map_does_not_charge_value_input() {
     let visits = AtomicUsize::new(0);
-    let map = BTreeMap::from([("label", OversizedInput(&visits))]);
+    let map = BTreeMap::from([("label", ObservedInput(&visits))]);
     let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the minimum diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
 
-    let _ = format!("{:?}", RedactedMap::new(&map, policy));
+    let output = format!("{:?}", RedactedMap::new(&map, policy));
 
-    assert_eq!(visits.load(Ordering::Relaxed), 0);
+    assert!(output.contains("must-not-render"), "{output}");
+    assert_eq!(visits.load(Ordering::Relaxed), 1);
 }
 
 /// Short map value used to isolate container truncation at a long key.
@@ -190,10 +188,6 @@ impl fmt::Debug for ShortCountingValue<'_> {
 }
 
 impl RedactValue for ShortCountingValue<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -238,10 +232,6 @@ impl fmt::Debug for PullValue {
 }
 
 impl RedactValue for PullValue {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -263,6 +253,16 @@ impl<'a> Iterator for NextCountingIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.nexts.fetch_add(1, Ordering::Relaxed);
         self.entries.next().map(|(key, value)| (key, value))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.entries.size_hint()
+    }
+}
+
+impl ExactSizeIterator for NextCountingIter<'_> {
+    fn len(&self) -> usize {
+        self.entries.len()
     }
 }
 

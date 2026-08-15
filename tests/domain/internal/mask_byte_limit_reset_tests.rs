@@ -13,19 +13,15 @@ use std::panic::AssertUnwindSafe;
 
 use qubit_redact::LogOutputLimit;
 use qubit_redact::MaskPolicy;
-use qubit_redact::Redact;
-use qubit_redact::RedactedMap;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::Redact;
+use qubit_redact::domain::RedactedMap;
 /// Redacted value that aborts formatting after bounded state has been entered.
 struct PanickingRedact;
 
 impl Redact for PanickingRedact {
-    fn redaction_input_bytes(&self) -> usize {
-        0
-    }
-
     /// Panics to exercise scope-guard restoration during redacted formatting.
     fn fmt_redacted(
         &self,
@@ -49,14 +45,21 @@ fn test_mask_byte_limit_reset_restores_unbounded_state_after_panic() {
     }));
     assert!(result.is_err());
 
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .raise("password", Sensitivity::Low)
-        .expect("the test builder input should be valid")
-        .mask(Sensitivity::Low, MaskPolicy::preserve_suffix(16, "****", 0))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the masking policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .raise("password", Sensitivity::Low)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Low, MaskPolicy::preserve_suffix(16, "****", 0))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the masking policy should be valid");
     let values = BTreeMap::from([("password", "abcdefghijklmnopqrstuvwxyz")]);
 
     let output = RedactedMap::new(&values, policy).to_string();

@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`RedactedKeyedMap`](qubit_redact::RedactedKeyedMap).
+//! Tests for [`RedactedKeyedMap`](qubit_redact::domain::RedactedKeyedMap).
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -15,15 +15,15 @@ use std::sync::atomic::Ordering;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::MaskingPolicy;
-use qubit_redact::Redact;
-use qubit_redact::RedactValue;
-use qubit_redact::RedactedKeyedMap;
-use qubit_redact::RedactedKeyedMapResult;
-use qubit_redact::RedactedValue;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::Redact;
+use qubit_redact::domain::RedactValue;
+use qubit_redact::domain::RedactedKeyedMap;
+use qubit_redact::domain::RedactedKeyedMapResult;
+use qubit_redact::domain::RedactedValue;
 /// Nested diagnostic value whose secret must be recursively redacted.
 struct NestedValue {
     /// Secret nested value.
@@ -33,10 +33,6 @@ struct NestedValue {
 }
 
 impl Redact for NestedValue {
-    fn redaction_input_bytes(&self) -> usize {
-        self.secret.len().saturating_add(self.label.len())
-    }
-
     /// Formats the nested value without exposing its secret.
     fn fmt_redacted(
         &self,
@@ -58,10 +54,6 @@ impl Redact for NestedValue {
 }
 
 impl RedactValue for NestedValue {
-    fn redaction_input_bytes(&self) -> usize {
-        self.secret.len().saturating_add(self.label.len())
-    }
-
     /// Replaces the complete nested value when its outer key is sensitive.
     fn redact_value<'a>(
         &'a self,
@@ -91,11 +83,16 @@ fn test_redacted_keyed_map_recursively_redacts_unclassified_values() {
         (String::from("profile"), nested_value()),
         (String::from("tenant_secret"), nested_value()),
     ]);
-    let policy = RedactionPolicy::builder()
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the keyed map policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the keyed map policy should build");
 
     let output = format!("{:?}", RedactedKeyedMap::new(&map, policy));
 
@@ -127,10 +124,13 @@ fn test_redacted_keyed_map_display_and_bounded_adapters() {
     let output_limit = InputOutputLimit::MIN_OUTPUT_BYTES;
     let budget = InputOutputLimit::new(1024, output_limit)
         .expect("the test diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the keyed map policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the keyed map policy should build");
 
     let display = RedactedKeyedMap::new(&map, policy.clone()).to_string();
     let bounded = RedactedKeyedMap::new(&map, policy.clone())
@@ -155,10 +155,6 @@ fn test_redacted_keyed_map_display_and_bounded_adapters() {
 struct CountingValue<'a>(&'a AtomicUsize);
 
 impl Redact for CountingValue<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        "你你你你你".len()
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -170,10 +166,6 @@ impl Redact for CountingValue<'_> {
 }
 
 impl RedactValue for CountingValue<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        "你你你你你".len()
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -208,10 +200,6 @@ struct FormatterBehavior {
 }
 
 impl Redact for FormatterBehavior {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -229,10 +217,6 @@ impl Redact for FormatterBehavior {
 }
 
 impl RedactValue for FormatterBehavior {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -281,10 +265,6 @@ fn test_redacted_keyed_map_preserves_formatter_error() {
 struct ShortCountingValue<'a>(&'a AtomicUsize);
 
 impl Redact for ShortCountingValue<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -296,10 +276,6 @@ impl Redact for ShortCountingValue<'_> {
 }
 
 impl RedactValue for ShortCountingValue<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,

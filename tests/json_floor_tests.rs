@@ -13,7 +13,7 @@ use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionFloor;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
-use qubit_redact::redact_json_text_in_place;
+use qubit_redact::json::redact_json_text_in_place;
 
 #[test]
 fn test_json_uses_policy_mask_for_floor_matched_key() {
@@ -22,14 +22,21 @@ fn test_json_uses_policy_mask_for_floor_matched_key() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::builder()
-        .floor(floor)
-        .raise("credential", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().floor(floor);
+        builder
+            .fields()
+            .raise("credential", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let mut value = r#"{"credential":"value"}"#.to_owned();
 
     redact_json_text_in_place(&mut value, &policy);

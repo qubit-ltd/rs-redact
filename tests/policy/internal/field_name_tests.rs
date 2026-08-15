@@ -12,11 +12,16 @@ use qubit_redact::Sensitivity;
 /// Verifies that every supported separator produces the same canonical name.
 #[test]
 fn test_canonicalize_field_name_normalizes_supported_separators() {
-    let policy = RedactionPolicy::builder()
-        .raise("access_token", Sensitivity::High)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the normalized field rule should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("access_token", Sensitivity::High)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the normalized field rule should be valid");
     for name in [
         "access_token",
         "access-token",

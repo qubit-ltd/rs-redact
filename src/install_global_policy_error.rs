@@ -14,14 +14,27 @@ use crate::RedactionPolicy;
 
 /// Owns the policy that could not be installed because a global policy was
 /// already installed.
+///
+/// The rejected policy is stored out of line so the error does not enlarge
+/// every successful installation result. [`Self::into_policy`] returns the
+/// original owned policy without cloning it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstallGlobalPolicyError(pub(crate) RedactionPolicy);
+pub struct InstallGlobalPolicyError(Box<RedactionPolicy>);
 
 impl InstallGlobalPolicyError {
+    /// Creates an error that owns the rejected policy without enlarging every
+    /// installation result.
+    pub(crate) fn new(policy: RedactionPolicy) -> Self {
+        Self(Box::new(policy))
+    }
+
     /// Returns the policy that was rejected by the global slot.
+    ///
+    /// This consumes the error and moves the original policy out of its
+    /// internal allocation without cloning it.
     #[must_use = "use the rejected policy or drop it explicitly"]
     pub fn into_policy(self) -> RedactionPolicy {
-        self.0
+        *self.0
     }
 }
 
