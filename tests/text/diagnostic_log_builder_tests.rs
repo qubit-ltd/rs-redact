@@ -10,8 +10,8 @@
 use std::fmt;
 
 use qubit_redact::DiagnosticLogBuilder;
-use qubit_redact::DiagnosticWriteStatus;
 use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
@@ -26,14 +26,14 @@ fn test_diagnostic_builder_escapes_and_shares_output_budget() {
         builder
             .push_fmt(format_args!("prefix\n"))
             .expect("formatting should succeed"),
-        DiagnosticWriteStatus::Complete,
+        RedactionCompletion::Complete,
     );
     assert_eq!(
         builder.push_fmt(format_args!(
             "{}",
             "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
         )),
-        Ok(DiagnosticWriteStatus::Truncated),
+        Ok(RedactionCompletion::Truncated),
     );
     assert!(builder.is_truncated());
     assert_eq!(
@@ -52,7 +52,7 @@ fn test_diagnostic_builder_appends_safe_text() {
         .escape_for_log();
     let mut builder = DiagnosticLogBuilder::new(budget);
 
-    assert_eq!(builder.push_safe(&safe), DiagnosticWriteStatus::Complete,);
+    assert_eq!(builder.push_safe(&safe), RedactionCompletion::Complete,);
     assert_eq!(builder.finish().as_str(), "line\\nnext");
 }
 
@@ -71,14 +71,48 @@ fn test_diagnostic_builder_pushes_redacted_fields_with_shared_session() {
 
     assert_eq!(
         builder.push_redacted_field(&mut session, "message", "line\nnext"),
-        DiagnosticWriteStatus::Complete,
+        RedactionCompletion::Complete,
     );
     assert_eq!(
         builder.push_redacted_field(&mut session, "password", "raw"),
-        DiagnosticWriteStatus::Complete,
+        RedactionCompletion::Truncated,
     );
 
     assert_eq!(builder.finish().as_str(), "line\\nnext<redacted>");
+    assert!(session.is_exhausted());
+}
+
+/// Verifies a session fragment with no safe output reports exhaustion.
+#[test]
+fn test_diagnostic_builder_reports_exhausted_redaction_output() {
+    let budget = InputOutputLimit::new(128, InputOutputLimit::MIN_OUTPUT_BYTES)
+        .expect("the diagnostic budget should be valid");
+    let policy = RedactionPolicy::builder()
+        .diagnostic_event(budget)
+        .build()
+        .expect("the diagnostic policy should build");
+    let redactor = Redactor::new(policy);
+    let mut session = redactor.session();
+    let mut builder = DiagnosticLogBuilder::new(budget);
+
+    for _ in 0..3 {
+        assert_eq!(
+            builder.push_redacted_at(&mut session, Sensitivity::Secret, "raw",),
+            RedactionCompletion::Complete,
+        );
+    }
+    assert_eq!(
+        builder.push_redacted_at(&mut session, Sensitivity::Secret, "raw"),
+        RedactionCompletion::Truncated,
+    );
+    assert_eq!(
+        builder.push_redacted_at(&mut session, Sensitivity::Secret, "raw"),
+        RedactionCompletion::Exhausted,
+    );
+    assert_eq!(
+        builder.finish().as_str(),
+        "<redacted><redacted><redacted><redact",
+    );
     assert!(session.is_exhausted());
 }
 
@@ -101,7 +135,7 @@ fn test_diagnostic_builder_pushes_explicitly_sensitive_values() {
             Sensitivity::Secret,
             "raw\nsecret",
         ),
-        DiagnosticWriteStatus::Complete,
+        RedactionCompletion::Complete,
     );
     assert_eq!(builder.finish().as_str(), "<redacted>");
 }
@@ -120,11 +154,11 @@ fn test_diagnostic_builder_safe_append_reports_current_and_prior_truncation() {
         .escape_for_log();
     let mut builder = DiagnosticLogBuilder::new(budget);
 
-    assert_eq!(builder.push_safe(&safe), DiagnosticWriteStatus::Truncated);
+    assert_eq!(builder.push_safe(&safe), RedactionCompletion::Truncated);
     let is_truncated: fn(&DiagnosticLogBuilder) -> bool =
         DiagnosticLogBuilder::is_truncated;
     assert!(is_truncated(&builder));
-    assert_eq!(builder.push_safe(&safe), DiagnosticWriteStatus::Truncated);
+    assert_eq!(builder.push_safe(&safe), RedactionCompletion::Truncated);
 }
 
 /// Verifies formatting arguments are not evaluated after truncation.
@@ -146,11 +180,11 @@ fn test_diagnostic_builder_stops_after_truncation() {
         builder.push_fmt(format_args!(
             "payload that cannot fit and is definitely longer than the marker"
         )),
-        Ok(DiagnosticWriteStatus::Truncated),
+        Ok(RedactionCompletion::Truncated),
     );
     assert_eq!(
         builder.push_fmt(format_args!("{}", PanicDisplay)),
-        Ok(DiagnosticWriteStatus::Truncated),
+        Ok(RedactionCompletion::Truncated),
     );
 }
 

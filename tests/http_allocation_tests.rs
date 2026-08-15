@@ -22,6 +22,7 @@ use std::sync::atomic::Ordering;
 use http::HeaderMap;
 use http::HeaderValue;
 use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
 use qubit_redact::http::BodyBudget;
@@ -328,7 +329,7 @@ fn test_unkeyed_json_redaction_respects_mask_budget() {
     });
 
     assert_eq!(result.to_string(), "<truncated>");
-    assert!(result.is_truncated());
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(
         !result.to_string().contains("raw-unkeyed-secret"),
         "mask exhaustion must not leak unkeyed scalar values",

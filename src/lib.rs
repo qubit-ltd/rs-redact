@@ -417,12 +417,12 @@ pub use private::__private;
 pub use redactor::Redactor;
 pub use text::BoundedLogSafeDisplay;
 pub use text::DiagnosticLogBuilder;
-pub use text::DiagnosticWriteStatus;
 pub use text::LogOutputLimit;
 pub use text::LogOutputLimitError;
 pub use text::LogSafeText;
 pub use text::RedactedDebug;
 pub use text::RedactedText;
+pub use text::RedactionCompletion;
 pub use text::redacted_debug;
 #[cfg(feature = "uri")]
 pub use uri::UriComponent;

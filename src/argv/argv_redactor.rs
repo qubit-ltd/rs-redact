@@ -54,7 +54,8 @@ impl ArgvRedactor {
     /// Plain items are rendered as ordinary argv values without guessing
     /// whether they are options, assignments, or option values. Non-UTF-8
     /// sensitive items are masked from an opaque sentinel so their original
-    /// bytes can never reach output.
+    /// bytes can never reach output. Items are pulled lazily and the iterator
+    /// is not advanced after the diagnostic budget is exhausted.
     ///
     /// # Type Parameters
     ///
@@ -67,7 +68,10 @@ impl ArgvRedactor {
     ///
     /// # Returns
     ///
-    /// A log-safe rendering in input order.
+    /// A log-safe rendering in input order. Its completion is `Complete` only
+    /// when the iterator's end was observed, `Truncated` when safe non-empty
+    /// output represents omitted input or output, and `Exhausted` when no safe
+    /// substitute fit.
     pub fn redact_items<'a, I>(&self, items: I) -> RedactedArgv
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
@@ -88,6 +92,8 @@ impl ArgvRedactor {
     /// delimiter does not disable recognition in later wrapper or child-command
     /// segments. A non-UTF-8 plain item is masked at [`Sensitivity::Secret`]
     /// because it cannot be classified safely.
+    /// Items are pulled lazily and the iterator is not advanced after the
+    /// diagnostic budget is exhausted.
     ///
     /// # Type Parameters
     ///
@@ -100,7 +106,10 @@ impl ArgvRedactor {
     ///
     /// # Returns
     ///
-    /// A log-safe rendering in input order.
+    /// A log-safe rendering in input order. Its completion is `Complete` only
+    /// when the iterator's end was observed, `Truncated` when safe non-empty
+    /// output represents omitted input or output, and `Exhausted` when no safe
+    /// substitute fit.
     pub fn redact_heuristically<'a, I>(&self, items: I) -> RedactedArgv
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
@@ -110,48 +119,83 @@ impl ArgvRedactor {
     }
 
     /// Renders an item while bounding any generated mask.
+    ///
+    /// # Parameters
+    ///
+    /// * `item` - Explicitly classified or plain argument item.
+    /// * `max_output_bytes` - Maximum bytes retained from a generated mask.
+    ///
+    /// # Returns
+    ///
+    /// The rendered item and whether its mask was locally shortened.
     #[inline]
     pub(super) fn render_explicit_or_plain_bounded(
         &self,
         item: ArgvItem<'_>,
         max_output_bytes: usize,
-    ) -> String {
+    ) -> (String, bool) {
         match item.sensitivity() {
             Some(level) => self.mask_os_value_bounded(
                 item.value(),
                 level,
                 max_output_bytes,
             ),
-            None => item.value().to_string_lossy().into_owned(),
+            None => (item.value().to_string_lossy().into_owned(), false),
         }
     }
 
     /// Masks an operating-system value with an explicit output ceiling.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Argument value to mask without exposing invalid UTF-8.
+    /// * `level` - Sensitivity selecting the configured mask policy.
+    /// * `max_output_bytes` - Maximum bytes retained from the mask.
+    ///
+    /// # Returns
+    ///
+    /// The bounded mask and whether the configured replacement was shortened.
     #[inline]
     pub(super) fn mask_os_value_bounded(
         &self,
         value: &OsStr,
         level: Sensitivity,
         max_output_bytes: usize,
-    ) -> String {
+    ) -> (String, bool) {
         match value.to_str() {
-            Some(value) => self
-                .redactor
-                .policy()
-                .masking()
-                .mask_bounded(level, value, max_output_bytes)
-                .into_owned(),
+            Some(value) => {
+                let (masked, truncated) = self
+                    .redactor
+                    .policy()
+                    .masking()
+                    .mask_bounded_with_truncation(
+                        level,
+                        value,
+                        max_output_bytes,
+                    );
+                (masked.into_owned(), truncated)
+            }
             None => self.mask_opaque_value_bounded(max_output_bytes),
         }
     }
 
     /// Redacts one plain item with a bounded mask ceiling.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Plain argument to classify heuristically.
+    /// * `pending_field` - Sensitive option awaiting its separate value.
+    /// * `max_output_bytes` - Maximum bytes retained from a generated mask.
+    ///
+    /// # Returns
+    ///
+    /// The rendered item and whether its generated mask was shortened.
     pub(super) fn redact_plain_item_bounded(
         &self,
         value: &OsStr,
         pending_field: &mut Option<PendingField>,
         max_output_bytes: usize,
-    ) -> String {
+    ) -> (String, bool) {
         let Some(value) = value.to_str() else {
             *pending_field = Some(PendingField {
                 field: String::new(),
@@ -202,7 +246,7 @@ impl ArgvRedactor {
                 exact,
             });
         }
-        value.to_owned()
+        (value.to_owned(), false)
     }
 
     /// Resolves sensitivity for one bare option token.
@@ -236,11 +280,14 @@ impl ArgvRedactor {
     }
 
     /// Redacts an assignment while bounding any generated mask.
+    ///
+    /// Returns the rendered assignment and local mask-truncation flag when the
+    /// assignment names a sensitive field, or `None` otherwise.
     fn redact_assignment_bounded(
         &self,
         value: &str,
         max_output_bytes: usize,
-    ) -> Option<String> {
+    ) -> Option<(String, bool)> {
         if value.starts_with('-') {
             return None;
         }
@@ -248,9 +295,9 @@ impl ArgvRedactor {
         if name.is_empty() {
             return None;
         }
-        let redacted =
+        let (redacted, truncated) =
             self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
-        Some(format!("{name}={redacted}"))
+        Some((format!("{name}={redacted}"), truncated))
     }
 
     /// Redacts a plain `--name=value` token when its name is sensitive.
@@ -261,93 +308,122 @@ impl ArgvRedactor {
     ///
     /// # Returns
     ///
-    /// `Some(rendering)` for a sensitive long inline option, or `None`
-    /// otherwise. Single-dash attached forms remain uninterpreted.
-    /// Redacts an inline option while bounding any generated mask.
+    /// `Some((rendering, truncated))` for a sensitive long inline option, or
+    /// `None` otherwise. Single-dash attached forms remain uninterpreted.
     fn redact_inline_option_bounded(
         &self,
         value: &str,
         max_output_bytes: usize,
-    ) -> Option<String> {
+    ) -> Option<(String, bool)> {
         if !value.starts_with("--") {
             return None;
         }
         let (left, raw_value) = value.split_once('=')?;
         let name = option_name(left)?;
-        let redacted =
+        let (redacted, truncated) =
             self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
-        Some(format!("{left}={redacted}"))
+        Some((format!("{left}={redacted}"), truncated))
     }
 
     /// Redacts a JVM property while bounding any generated mask.
+    ///
+    /// Returns the rendered property and local mask-truncation flag when its
+    /// field is sensitive, or `None` otherwise.
     fn redact_jvm_property_bounded(
         &self,
         value: &str,
         max_output_bytes: usize,
-    ) -> Option<String> {
+    ) -> Option<(String, bool)> {
         let property = value.strip_prefix("-D")?;
         let (name, raw_value) = property.split_once('=')?;
         if name.is_empty() {
             return None;
         }
-        let redacted =
+        let (redacted, truncated) =
             self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
-        Some(format!("-D{name}={redacted}"))
+        Some((format!("-D{name}={redacted}"), truncated))
     }
 
     /// Masks one pending option value with a bounded mask ceiling.
+    ///
+    /// Returns the rendered value and whether its mask was locally shortened.
     fn mask_pending_value_bounded(
         &self,
         pending: &PendingField,
         value: &str,
         max_output_bytes: usize,
-    ) -> String {
+    ) -> (String, bool) {
         let resolved = if pending.exact {
             self.redactor.policy().resolve_field_exact(&pending.field)
         } else {
             self.redactor.policy().resolve_field(&pending.field)
         };
         match resolved {
-            ResolvedField::Sensitive { sensitivity } => self
-                .redactor
-                .policy()
-                .masking()
-                .mask_bounded(sensitivity, value, max_output_bytes)
-                .into_owned(),
-            ResolvedField::PassThrough => value.to_owned(),
+            ResolvedField::Sensitive { sensitivity } => {
+                let (masked, truncated) = self
+                    .redactor
+                    .policy()
+                    .masking()
+                    .mask_bounded_with_truncation(
+                        sensitivity,
+                        value,
+                        max_output_bytes,
+                    );
+                (masked.into_owned(), truncated)
+            }
+            ResolvedField::PassThrough => (value.to_owned(), false),
         }
     }
 
     /// Masks one classified field with a bounded mask ceiling.
+    ///
+    /// Returns a bounded mask and its truncation flag for a sensitive field,
+    /// or `None` for pass-through fields.
     fn mask_field_value_bounded(
         &self,
         field: &str,
         value: &str,
         max_output_bytes: usize,
-    ) -> Option<String> {
+    ) -> Option<(String, bool)> {
         let resolved = self.redactor.policy().resolve_field(field);
         match resolved {
-            ResolvedField::Sensitive { sensitivity } => Some(
-                self.redactor
+            ResolvedField::Sensitive { sensitivity } => {
+                let (masked, truncated) = self
+                    .redactor
                     .policy()
                     .masking()
-                    .mask_bounded(sensitivity, value, max_output_bytes)
-                    .into_owned(),
-            ),
+                    .mask_bounded_with_truncation(
+                        sensitivity,
+                        value,
+                        max_output_bytes,
+                    );
+                Some((masked.into_owned(), truncated))
+            }
             ResolvedField::PassThrough => None,
         }
     }
 
     /// Produces an opaque secret replacement with an explicit ceiling.
+    ///
+    /// # Parameters
+    ///
+    /// * `max_output_bytes` - Maximum bytes retained from the replacement.
+    ///
+    /// # Returns
+    ///
+    /// The bounded replacement and whether it is shorter than the configured
+    /// complete opaque mask.
     #[inline(always)]
     pub(super) fn mask_opaque_value_bounded(
         &self,
         max_output_bytes: usize,
-    ) -> String {
-        self.redactor
-            .policy()
-            .masking()
-            .mask_opaque_bounded(Sensitivity::Secret, max_output_bytes)
+    ) -> (String, bool) {
+        let masking = self.redactor.policy().masking();
+        let complete_len = masking.mask_opaque(Sensitivity::Secret).len();
+        let masked =
+            masking.mask_opaque_bounded(Sensitivity::Secret, max_output_bytes);
+        let truncated = masked.len() < complete_len;
+        (masked, truncated)
     }
 }
 

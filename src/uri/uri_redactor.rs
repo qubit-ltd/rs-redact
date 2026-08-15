@@ -23,6 +23,7 @@ use super::UriRedactionStatus;
 use super::internal::BoundedUriWriter;
 use super::internal::UriComponentWriter;
 use crate::RedactedText;
+use crate::RedactionCompletion;
 use crate::RedactionPolicy;
 use crate::Sensitivity;
 use crate::policy::FragmentCompletion;
@@ -290,16 +291,48 @@ fn finish_uri_rendering(
     if truncated {
         reasons.push(UriRedactionReason::OutputTruncated);
     }
+    let public_completion = public_completion(&safe, completion);
     (
-        UriRedaction {
-            text: safe_text(safe),
+        UriRedaction::new(
+            safe_text(safe),
             status,
             reasons,
             components,
-            truncated,
-        },
+            public_completion,
+        ),
         completion,
     )
+}
+
+/// Maps internal truncation provenance to the shared public output state.
+///
+/// # Parameters
+///
+/// * `safe` - Escaped URI text produced under the effective output ceiling.
+/// * `completion` - Internal completion distinguishing domain and session
+///   truncation for budget accounting.
+///
+/// # Returns
+///
+/// `Complete` for a fully rendered URI, `Truncated` for non-empty substitute
+/// text after either truncation source, or `Exhausted` when no safe text fit.
+fn public_completion(
+    safe: &str,
+    completion: FragmentCompletion,
+) -> RedactionCompletion {
+    match completion {
+        FragmentCompletion::Complete => RedactionCompletion::Complete,
+        FragmentCompletion::DomainTruncated
+        | FragmentCompletion::SessionTruncated
+            if safe.is_empty() =>
+        {
+            RedactionCompletion::Exhausted
+        }
+        FragmentCompletion::DomainTruncated
+        | FragmentCompletion::SessionTruncated => {
+            RedactionCompletion::Truncated
+        }
+    }
 }
 
 /// Builds the stateless point limit for one complete URI input.
@@ -623,24 +656,29 @@ fn mark_component(
 
 /// Builds a fixed-marker result for malformed or over-budget input.
 pub(super) fn invalid_result(reason: UriRedactionReason) -> UriRedaction {
-    UriRedaction {
-        text: safe_text(INVALID_URI.to_owned()),
-        status: UriRedactionStatus::Invalid,
-        reasons: vec![reason],
-        components: Vec::new(),
-        truncated: false,
-    }
+    let completion = if reason == UriRedactionReason::InputLimitExceeded {
+        RedactionCompletion::Truncated
+    } else {
+        RedactionCompletion::Complete
+    };
+    UriRedaction::new(
+        safe_text(INVALID_URI.to_owned()),
+        UriRedactionStatus::Invalid,
+        vec![reason],
+        Vec::new(),
+        completion,
+    )
 }
 
 /// Preserves fail-closed metadata without emitting bytes after exhaustion.
 pub(super) fn empty_invalid_result(reason: UriRedactionReason) -> UriRedaction {
-    UriRedaction {
-        text: safe_text(String::new()),
-        status: UriRedactionStatus::Invalid,
-        reasons: vec![reason],
-        components: Vec::new(),
-        truncated: true,
-    }
+    UriRedaction::new(
+        safe_text(String::new()),
+        UriRedactionStatus::Invalid,
+        vec![reason],
+        Vec::new(),
+        RedactionCompletion::Exhausted,
+    )
 }
 
 /// Builds metadata for malformed or over-budget input.

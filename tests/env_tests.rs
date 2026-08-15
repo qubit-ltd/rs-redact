@@ -19,6 +19,7 @@ use proptest::prelude::proptest;
 #[cfg(unix)]
 use qubit_redact::FieldNameMatching;
 use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
@@ -111,10 +112,14 @@ fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
         .expect("the bounded policy should be valid");
     let redactor = EnvRedactor::new(Redactor::new(policy));
 
-    let rendered = redactor
-        .redact_os_pairs(vec![("MODE".as_ref(), "uninspected-secret".as_ref())])
-        .to_string();
+    let result = redactor.redact_os_pairs(vec![(
+        "MODE".as_ref(),
+        "uninspected-secret".as_ref(),
+    )]);
+    let rendered = result.to_string();
 
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
+    assert!(!result.log_safe_text().as_str().is_empty());
     assert!(rendered.len() <= 64, "{rendered}");
     assert!(rendered.contains("truncated"), "{rendered}");
     assert!(!rendered.contains("uninspected-secret"), "{rendered}");
@@ -149,16 +154,17 @@ fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
 /// the configured budget.
 #[test]
 fn test_redact_os_pairs_renders_complete_safe_assignments() {
-    let rendered = EnvRedactor::default()
-        .redact_os_pairs(vec![
-            (std::ffi::OsStr::new("MODE"), std::ffi::OsStr::new("debug")),
-            (
-                std::ffi::OsStr::new("PASSWORD"),
-                std::ffi::OsStr::new("secret"),
-            ),
-        ])
-        .to_string();
+    let result = EnvRedactor::default().redact_os_pairs(vec![
+        (std::ffi::OsStr::new("MODE"), std::ffi::OsStr::new("debug")),
+        (
+            std::ffi::OsStr::new("PASSWORD"),
+            std::ffi::OsStr::new("secret"),
+        ),
+    ]);
+    let rendered = result.to_string();
 
+    assert_eq!(result.completion(), RedactionCompletion::Complete);
+    assert_eq!(result.log_safe_text().as_str(), rendered);
     assert_eq!(rendered, r#"["MODE=debug", "PASSWORD=<redacted>"]"#);
 }
 

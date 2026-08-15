@@ -9,6 +9,7 @@
 
 use http::HeaderValue;
 use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
 use qubit_redact::http::BodyBudget;
@@ -78,7 +79,7 @@ fn test_structured_formats_bound_amplified_masks() {
 
         assert!(rendered.len() <= 64, "{rendered}");
         assert!(rendered.ends_with("<truncated>"), "{rendered}");
-        assert!(result.is_truncated());
+        assert_eq!(result.completion(), RedactionCompletion::Truncated);
         assert!(!rendered.contains("secret"), "{rendered}");
         assert!(!rendered.contains('\n'), "{rendered:?}");
     }

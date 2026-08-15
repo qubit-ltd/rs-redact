@@ -11,6 +11,7 @@ use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::fmt::Write as _;
 
+use super::RedactedEnv;
 use super::RedactedEnvPair;
 use crate::LogSafeText;
 use crate::RedactedText;
@@ -113,8 +114,10 @@ impl EnvRedactor {
     ///
     /// # Returns
     ///
-    /// A debug-style log-safe list of redacted assignments.
-    pub fn redact_os_pairs<'a, I>(&self, pairs: I) -> LogSafeText<'static>
+    /// A bounded batch result whose completion state distinguishes full
+    /// rendering, a non-empty safe truncation marker, and empty exhaustion.
+    /// Input is pulled lazily and is not advanced after exhaustion.
+    pub fn redact_os_pairs<'a, I>(&self, pairs: I) -> RedactedEnv
     where
         I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
     {
@@ -151,41 +154,57 @@ impl EnvRedactor {
     ///
     /// # Returns
     ///
-    /// A log-safe assignment whose mask allocation fits `max_mask_bytes`.
+    /// A log-safe assignment whose mask allocation fits `max_mask_bytes`, and
+    /// whether the configured mask was locally shortened.
     pub(super) fn redact_os_pair_bounded(
         &self,
         name: &OsStr,
         value: &OsStr,
         max_mask_bytes: usize,
-    ) -> String {
-        let pair = match (name.to_str(), value.to_str()) {
+    ) -> (String, bool) {
+        let (pair, locally_truncated) = match (name.to_str(), value.to_str()) {
             (Some(name), Some(value)) => {
                 let resolved = self.redactor.policy().resolve_field(name);
-                let value = match resolved {
-                    ResolvedField::Sensitive { sensitivity } => self
-                        .redactor
-                        .policy()
-                        .masking()
-                        .mask_bounded(sensitivity, value, max_mask_bytes)
-                        .into_owned(),
-                    ResolvedField::PassThrough => value.to_owned(),
+                let (value, locally_truncated) = match resolved {
+                    ResolvedField::Sensitive { sensitivity } => {
+                        let (masked, truncated) = self
+                            .redactor
+                            .policy()
+                            .masking()
+                            .mask_bounded_with_truncation(
+                                sensitivity,
+                                value,
+                                max_mask_bytes,
+                            );
+                        (masked.into_owned(), truncated)
+                    }
+                    ResolvedField::PassThrough => (value.to_owned(), false),
                 };
-                RedactedEnvPair::new(
-                    log_safe_owned(name.to_owned()),
-                    log_safe_owned(value),
+                (
+                    RedactedEnvPair::new(
+                        log_safe_owned(name.to_owned()),
+                        log_safe_owned(value),
+                    ),
+                    locally_truncated,
                 )
             }
-            _ => RedactedEnvPair::new(
-                log_safe_owned(name.to_string_lossy().into_owned()),
-                log_safe_owned(
-                    self.redactor.policy().masking().mask_opaque_bounded(
-                        Sensitivity::Secret,
-                        max_mask_bytes,
+            _ => {
+                let masking = self.redactor.policy().masking();
+                let complete_len =
+                    masking.mask_opaque(Sensitivity::Secret).len();
+                let masked = masking
+                    .mask_opaque_bounded(Sensitivity::Secret, max_mask_bytes);
+                let locally_truncated = masked.len() < complete_len;
+                (
+                    RedactedEnvPair::new(
+                        log_safe_owned(name.to_string_lossy().into_owned()),
+                        log_safe_owned(masked),
                     ),
-                ),
-            ),
+                    locally_truncated,
+                )
+            }
         };
-        pair.to_string()
+        (pair.to_string(), locally_truncated)
     }
 }
 

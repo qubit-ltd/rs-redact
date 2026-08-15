@@ -11,9 +11,10 @@ use std::borrow::Cow;
 use std::fmt;
 use std::fmt::Write as _;
 
-use super::DiagnosticWriteStatus;
 use super::LogSafeText;
+use super::RedactionCompletion;
 use super::internal::BoundedLogEscapeWriter;
+use super::redaction_output::RedactionOutput;
 use crate::InputOutputLimit;
 use crate::LogOutputLimit;
 use crate::RedactionSession;
@@ -57,8 +58,9 @@ impl DiagnosticLogBuilder {
     ///
     /// # Returns
     ///
-    /// `Complete` when the fragment fit, or `Truncated` after the marker was
-    /// emitted.
+    /// [`RedactionCompletion::Complete`] when the fragment fit,
+    /// [`RedactionCompletion::Truncated`] after a complete marker was emitted,
+    /// or [`RedactionCompletion::Exhausted`] when no safe output fit.
     ///
     /// # Errors
     ///
@@ -67,14 +69,14 @@ impl DiagnosticLogBuilder {
     pub fn push_fmt(
         &mut self,
         arguments: fmt::Arguments<'_>,
-    ) -> Result<DiagnosticWriteStatus, fmt::Error> {
+    ) -> Result<RedactionCompletion, fmt::Error> {
         if self.writer.is_truncated() {
-            return Ok(DiagnosticWriteStatus::Truncated);
+            return Ok(self.truncation_completion());
         }
         match fmt::write(&mut self.writer, arguments) {
-            Ok(()) => Ok(DiagnosticWriteStatus::Complete),
+            Ok(()) => Ok(RedactionCompletion::Complete),
             Err(_) if self.writer.is_truncated() => {
-                Ok(DiagnosticWriteStatus::Truncated)
+                Ok(self.truncation_completion())
             }
             Err(error) => Err(error),
         }
@@ -88,21 +90,19 @@ impl DiagnosticLogBuilder {
     ///
     /// # Returns
     ///
-    /// `Complete` when the fragment fit, or `Truncated` after the marker was
-    /// emitted.
+    /// [`RedactionCompletion::Complete`] when the fragment fit,
+    /// [`RedactionCompletion::Truncated`] after a complete marker was emitted,
+    /// or [`RedactionCompletion::Exhausted`] when no safe output fit.
     #[inline]
-    pub fn push_safe(
-        &mut self,
-        text: &LogSafeText<'_>,
-    ) -> DiagnosticWriteStatus {
+    pub fn push_safe(&mut self, text: &LogSafeText<'_>) -> RedactionCompletion {
         if self.writer.is_truncated() {
-            return DiagnosticWriteStatus::Truncated;
+            return self.truncation_completion();
         }
         let _ = self.writer.write_str(text.as_str());
         if self.writer.is_truncated() {
-            DiagnosticWriteStatus::Truncated
+            self.truncation_completion()
         } else {
-            DiagnosticWriteStatus::Complete
+            RedactionCompletion::Complete
         }
     }
 
@@ -116,12 +116,12 @@ impl DiagnosticLogBuilder {
         session: &mut RedactionSession<'_>,
         field: &str,
         value: &str,
-    ) -> DiagnosticWriteStatus {
+    ) -> RedactionCompletion {
         if self.writer.is_truncated() {
-            return DiagnosticWriteStatus::Truncated;
+            return self.truncation_completion();
         }
-        let text = session.redact_field(field, value).escape_for_log();
-        self.push_safe(&text)
+        let output = session.redact_field_output(field, value);
+        self.push_redaction_output(output)
     }
 
     /// Redacts and appends one explicitly sensitive value through a shared
@@ -135,12 +135,12 @@ impl DiagnosticLogBuilder {
         session: &mut RedactionSession<'_>,
         level: Sensitivity,
         value: &str,
-    ) -> DiagnosticWriteStatus {
+    ) -> RedactionCompletion {
         if self.writer.is_truncated() {
-            return DiagnosticWriteStatus::Truncated;
+            return self.truncation_completion();
         }
-        let text = session.redact_at(level, value).escape_for_log();
-        self.push_safe(&text)
+        let output = session.redact_at_output(level, value);
+        self.push_redaction_output(output)
     }
 
     /// Reports whether the final output has been truncated.
@@ -152,6 +152,46 @@ impl DiagnosticLogBuilder {
     #[inline]
     pub const fn is_truncated(&self) -> bool {
         self.writer.is_truncated()
+    }
+
+    /// Classifies a writer that has stopped because its output budget ended.
+    ///
+    /// # Returns
+    ///
+    /// [`RedactionCompletion::Truncated`] when non-empty safe substitute text
+    /// was emitted, or [`RedactionCompletion::Exhausted`] when the writer could
+    /// not emit any safe text.
+    #[inline]
+    fn truncation_completion(&self) -> RedactionCompletion {
+        if self.writer.len() == 0 {
+            RedactionCompletion::Exhausted
+        } else {
+            RedactionCompletion::Truncated
+        }
+    }
+
+    /// Appends one session-produced output while preserving source completion.
+    ///
+    /// # Parameters
+    ///
+    /// * `output` - Owned safe text and completion from one redacted fragment.
+    ///
+    /// # Returns
+    ///
+    /// Source completion when the append fits, or the more terminal builder
+    /// completion when this output budget truncates or emits no text.
+    fn push_redaction_output(
+        &mut self,
+        output: RedactionOutput,
+    ) -> RedactionCompletion {
+        let source_completion = output.completion();
+        let text = output.into_log_safe_text();
+        let write_completion = self.push_safe(&text);
+        match write_completion {
+            RedactionCompletion::Complete => source_completion,
+            RedactionCompletion::Truncated => RedactionCompletion::Truncated,
+            RedactionCompletion::Exhausted => RedactionCompletion::Exhausted,
+        }
     }
 
     /// Finishes the builder as an owned log-safe text value.

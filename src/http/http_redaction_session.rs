@@ -23,6 +23,7 @@ use super::http_redactor::diagnostics::bound_safe_text;
 use super::http_redactor::headers;
 use super::internal::markers;
 use crate::LogSafeText;
+use crate::RedactionCompletion;
 use crate::RedactionSession;
 use crate::policy::FragmentCompletion;
 use crate::policy::RedactionAdmission;
@@ -166,6 +167,22 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     }
 
     /// Redacts a captured HTTP body with an optional native Content-Type.
+    ///
+    /// Body and content-type byte lengths are offered to the shared budget
+    /// before the body renderer inspects their contents. Rejected input emits
+    /// a non-empty diagnostic fallback when it fits; exhausted output returns
+    /// empty text and does not invoke the renderer. Successful admission
+    /// commits only the bounded output and closes the session when the body or
+    /// session budget omits content.
+    ///
+    /// # Parameters
+    ///
+    /// * `capture` - Captured body bytes and optional source-length metadata.
+    /// * `content_type` - Parsed header value used to select body handling.
+    ///
+    /// # Returns
+    ///
+    /// A bounded body result with completion and capture metadata.
     pub fn redact_body(
         &mut self,
         capture: BodyCapture<'_>,
@@ -185,6 +202,22 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     }
 
     /// Redacts a captured HTTP body with text Content-Type.
+    ///
+    /// Body and content-type byte lengths are offered to the shared budget
+    /// before the body renderer inspects their contents. Rejected input emits
+    /// a non-empty diagnostic fallback when it fits; exhausted output returns
+    /// empty text and does not invoke the renderer. Successful admission
+    /// commits only the bounded output and closes the session when the body or
+    /// session budget omits content.
+    ///
+    /// # Parameters
+    ///
+    /// * `capture` - Captured body bytes and optional source-length metadata.
+    /// * `content_type` - Text media type used to select body handling.
+    ///
+    /// # Returns
+    ///
+    /// A bounded body result with completion and capture metadata.
     pub fn redact_body_with_content_type_text(
         &mut self,
         capture: BodyCapture<'_>,
@@ -204,6 +237,13 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
         })
     }
 
+    /// Admits one body operation before calling its potentially inspecting
+    /// renderer and commits its bounded output to the shared session.
+    ///
+    /// Fallback and exhausted admissions report zero captured bytes because
+    /// `render` is skipped. A rendered body preserves its source metadata;
+    /// either its own incomplete state or additional session bounding closes
+    /// the session and is exposed as a truncated body result.
     fn body_result(
         &mut self,
         input_bytes: usize,
@@ -228,7 +268,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
                 0,
                 capture.total_len(),
                 capture.total_len(),
-                true,
+                RedactionCompletion::Truncated,
             ),
             RedactionAdmission::Exhausted => BodyRedaction::new(
                 String::new(),
@@ -238,7 +278,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
                 0,
                 capture.total_len(),
                 capture.total_len(),
-                true,
+                RedactionCompletion::Exhausted,
             ),
             RedactionAdmission::Render { max_output_bytes } => {
                 let value = render(&self.redactor());
@@ -247,17 +287,21 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
                         value.log_safe_text().as_str(),
                         max_output_bytes,
                     );
-                let rendered_truncated =
-                    rendered_truncated || value.is_truncated();
-                let completion = if rendered_truncated {
-                    if max_output_bytes < before {
-                        FragmentCompletion::DomainTruncated
-                    } else {
-                        FragmentCompletion::SessionTruncated
-                    }
+                let body_completion = if rendered_truncated {
+                    RedactionCompletion::Truncated
                 } else {
-                    FragmentCompletion::Complete
+                    value.completion()
                 };
+                let completion =
+                    if body_completion != RedactionCompletion::Complete {
+                        if max_output_bytes < before {
+                            FragmentCompletion::DomainTruncated
+                        } else {
+                            FragmentCompletion::SessionTruncated
+                        }
+                    } else {
+                        FragmentCompletion::Complete
+                    };
                 self.session.commit_output(text.len(), completion);
                 BodyRedaction::new(
                     text,
@@ -265,7 +309,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
                     value.captured_len(),
                     value.source_len(),
                     value.omitted_len(),
-                    value.is_truncated() || rendered_truncated,
+                    body_completion,
                 )
             }
         }

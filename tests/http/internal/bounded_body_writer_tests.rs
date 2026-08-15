@@ -8,6 +8,7 @@
 //! Tests for bounded structured HTTP body rendering.
 
 use http::HeaderValue;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::http::BodyBudget;
 use qubit_redact::http::BodyCapture;
@@ -33,7 +34,7 @@ fn test_bounded_json_rendering_truncates_without_partial_secret() {
             Some(&HeaderValue::from_static("application/json")),
         );
 
-    assert!(result.is_truncated());
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(!result.to_string().contains("raw-secret"));
 }
 
@@ -48,7 +49,7 @@ fn test_bounded_ndjson_rendering_truncates_after_complete_record() {
             Some(&HeaderValue::from_static("application/x-ndjson")),
         );
 
-    assert!(result.is_truncated());
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(!result.to_string().contains("raw-secret"));
 }
 
@@ -61,7 +62,7 @@ fn test_bounded_ndjson_rendering_truncates_at_record_separator() {
             Some(&HeaderValue::from_static("application/x-ndjson")),
         );
 
-    assert!(result.is_truncated());
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
 }
 
 /// Verifies NDJSON truncates when a complete final record leaves no room for
@@ -74,7 +75,7 @@ fn test_bounded_ndjson_rendering_truncates_at_trailing_newline() {
             Some(&HeaderValue::from_static("application/x-ndjson")),
         );
 
-    assert!(result.is_truncated());
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
 }
 
 /// Verifies multipart summaries truncate when the opening marker exceeds the
@@ -89,7 +90,7 @@ fn test_bounded_multipart_rendering_truncates_before_first_part() {
             )),
         );
 
-    assert!(result.is_truncated());
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
 }
 
 /// Verifies an empty multipart summary truncates when only its opening marker
@@ -103,7 +104,7 @@ fn test_bounded_empty_multipart_rendering_truncates_at_closing_marker() {
         )),
     );
 
-    assert!(result.is_truncated());
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
 }
 
 /// Verifies multipart rendering truncates before a separator or closing marker
@@ -117,7 +118,7 @@ fn test_bounded_multipart_rendering_truncates_at_output_markers() {
             "multipart/form-data; boundary=boundary",
         )),
     );
-    assert!(separator.is_truncated());
+    assert_eq!(separator.completion(), RedactionCompletion::Truncated);
 
     let one_part = b"--boundary\r\nContent-Disposition: form-data; name=\"mode\"\r\n\r\ndebug\r\n--boundary--\r\n";
     let closing = redactor_with_output_limit(30).redact_body(
@@ -126,7 +127,7 @@ fn test_bounded_multipart_rendering_truncates_at_output_markers() {
             "multipart/form-data; boundary=boundary",
         )),
     );
-    assert!(closing.is_truncated());
+    assert_eq!(closing.completion(), RedactionCompletion::Truncated);
 }
 
 /// Verifies a nested structured multipart part propagates its truncation to
@@ -141,5 +142,5 @@ fn test_bounded_multipart_rendering_propagates_nested_truncation() {
         )),
     );
 
-    assert!(result.is_truncated());
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
 }
