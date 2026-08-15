@@ -15,20 +15,16 @@ use std::sync::atomic::Ordering;
 use qubit_redact::__private::RedactedSerialize;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
-use qubit_redact::Redact;
-use qubit_redact::RedactMut;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
+use qubit_redact::domain::Redact;
+use qubit_redact::domain::RedactMut;
 #[cfg(feature = "serde")]
 use qubit_redact::domain::RedactSerialize;
 /// Minimal nested value with a fixed safe representation.
 struct NestedValue;
 
 impl Redact for NestedValue {
-    fn redaction_input_bytes(&self) -> usize {
-        0
-    }
-
     /// Writes the nested value's safe representation.
     fn fmt_redacted(
         &self,
@@ -103,10 +99,6 @@ fn test_nested_mutation_delegates_through_all_containers() {
 struct CountingValue<'a>(&'a AtomicUsize);
 
 impl Redact for CountingValue<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        "你你你你你".len()
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -134,10 +126,6 @@ fn test_bounded_vec_stops_after_truncated_item() {
 struct ShortCountingValue<'a>(&'a AtomicUsize);
 
 impl Redact for ShortCountingValue<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -162,14 +150,10 @@ fn test_bounded_vec_stops_after_container_writer_truncates() {
     assert!(visits.load(Ordering::Relaxed) < values.len());
 }
 
-/// Item whose declared structural input cannot fit after the vector itself.
+/// Item that records whether domain vector formatting visits it.
 struct OversizedInput<'a>(&'a AtomicUsize);
 
 impl Redact for OversizedInput<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        1_000
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -180,33 +164,33 @@ impl Redact for OversizedInput<'_> {
     }
 }
 
-/// Verifies vector items reserve complete input before rendering.
+/// Verifies vector items render without consuming diagnostic input.
 #[test]
-fn test_vec_admits_item_input_before_rendering() {
+fn test_vec_does_not_charge_item_input_before_rendering() {
     let visits = AtomicUsize::new(0);
     let values = vec![OversizedInput(&visits)];
     let input_bytes = std::mem::size_of_val(&values).saturating_add(1);
     let budget =
         InputOutputLimit::new(input_bytes, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
 
-    let _ = format!("{:?}", values.redacted_with(&policy));
+    let output = format!("{:?}", values.redacted_with(&policy));
 
-    assert_eq!(visits.load(Ordering::Relaxed), 0);
+    assert_eq!(output, "[must-not-render]");
+    assert_eq!(visits.load(Ordering::Relaxed), 1);
 }
 
 /// Child whose exact input size is aggregated by its parent option.
 struct ExactInputChild<'a>(&'a AtomicUsize);
 
 impl Redact for ExactInputChild<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        5
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -225,10 +209,13 @@ fn test_option_does_not_double_charge_child_input() {
     let value = Some(ExactInputChild(&calls));
     let budget = InputOutputLimit::new(6, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the exact aggregate input budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
 
     let output = format!("{:?}", value.redacted_with(&policy));
 

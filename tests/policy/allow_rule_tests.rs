@@ -13,11 +13,16 @@ use qubit_redact::RedactionPolicy;
 #[test]
 fn test_allow_rule_exposes_exact_field_and_matching_mode() {
     let policy = std::hint::black_box(
-        RedactionPolicy::builder()
-            .allow_canonical_exact("public-token")
-            .expect("the test builder input should be valid")
-            .build()
-            .expect("the allow rule should be valid"),
+        ({
+            let mut builder = RedactionPolicy::builder();
+            builder
+                .fields()
+                .allow_exact("public-token")
+                .expect("the test builder input should be valid");
+            builder
+        })
+        .build()
+        .expect("the allow rule should be valid"),
     );
     let rule = policy
         .application_allow_rules()
@@ -31,11 +36,16 @@ fn test_allow_rule_exposes_exact_field_and_matching_mode() {
 /// Verifies a suffix allow rule exposes its broader matching mode.
 #[test]
 fn test_allow_rule_exposes_suffix_matching_mode() {
-    let policy = RedactionPolicy::builder()
-        .allow_suffix("token")
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the allow rule should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .allow_suffix("token")
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the allow rule should be valid");
     let rule = policy
         .application_allow_rules()
         .next()

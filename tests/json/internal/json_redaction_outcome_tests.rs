@@ -10,6 +10,8 @@
 #[cfg(feature = "http")]
 use http::HeaderValue;
 #[cfg(feature = "http")]
+use qubit_redact::RedactionCompletion;
+#[cfg(feature = "http")]
 use qubit_redact::RedactionPolicy;
 #[cfg(feature = "http")]
 use qubit_redact::http::BodyBudget;
@@ -63,6 +65,6 @@ fn test_json_redaction_outcome_discards_partial_json_on_mask_exhaustion() {
     );
 
     assert_eq!(body.to_string(), "<truncated>");
-    assert!(body.is_truncated());
+    assert_eq!(body.completion(), RedactionCompletion::Truncated);
     assert!(!body.to_string().contains("raw-unkeyed-secret"));
 }

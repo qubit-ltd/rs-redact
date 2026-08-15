@@ -19,11 +19,14 @@ use qubit_redact::http::TextBodyPolicy;
 fn test_markers_append_truncation_marker() {
     let budget = BodyBudget::new(64, BodyBudget::MIN_OUTPUT_BYTES)
         .expect("the minimum output budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .body_budget(budget)
-        .text_body_policy(TextBodyPolicy::PassThrough)
-        .build()
-        .expect("the HTTP policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().http_body(budget);
+        builder.http().text_body(TextBodyPolicy::PassThrough);
+        builder
+    })
+    .build()
+    .expect("the HTTP policy should be valid");
     let rendered = HttpRedactor::new(policy)
         .redact_body(
             BodyCapture::complete(b"payload larger than marker"),
@@ -38,10 +41,13 @@ fn test_markers_append_truncation_marker() {
 fn test_diagnostic_limit_marker_matches_minimum_budget() {
     let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the minimum diagnostic output budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the HTTP policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the HTTP policy should be valid");
     let rendered = HttpRedactor::new(policy)
         .redact_url_str("https://example.test/")
         .to_string();

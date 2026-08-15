@@ -9,8 +9,8 @@
 
 use std::ffi::OsStr;
 
-use qubit_redact::ArgvRedactor;
 use qubit_redact::argv::ArgvItem;
+use qubit_redact::argv::ArgvRedactor;
 /// Verifies that plain argument items are rendered unchanged by explicit mode.
 #[test]
 fn test_argv_item_plain_is_rendered_without_masking() {

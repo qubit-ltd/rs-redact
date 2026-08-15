@@ -9,6 +9,7 @@
 
 use http::HeaderValue;
 use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
 use qubit_redact::http::BodyBudget;
@@ -19,16 +20,25 @@ use qubit_redact::http::TextBodyPolicy;
 /// output budget.
 fn amplified_mask_redactor() -> HttpRedactor {
     let replacement = "X\n".repeat(512 * 1024);
-    let body_policy = RedactionPolicy::builder()
-        .disable_floor()
-        .raise("password", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .raise("api_key", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the body policy is valid");
+    let body_policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .raise("password", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .raise("api_key", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the body policy is valid");
     let budget =
         BodyBudget::new(4096, 64).expect("the output can contain the marker");
     let mut builder = RedactionPolicy::builder();
@@ -38,11 +48,11 @@ fn amplified_mask_redactor() -> HttpRedactor {
         .replace_rules(body_policy.rules().clone())
         .disable_floor();
     builder.limits().http_body(budget);
-    let policy = builder
+    builder
+        .fields()
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the HTTP policy is valid");
+        .expect("the test mask policy should be valid");
+    let policy = builder.build().expect("the HTTP policy is valid");
     HttpRedactor::new(policy)
 }
 
@@ -78,7 +88,7 @@ fn test_structured_formats_bound_amplified_masks() {
 
         assert!(rendered.len() <= 64, "{rendered}");
         assert!(rendered.ends_with("<truncated>"), "{rendered}");
-        assert!(result.is_truncated());
+        assert_eq!(result.completion(), RedactionCompletion::Truncated);
         assert!(!rendered.contains("secret"), "{rendered}");
         assert!(!rendered.contains('\n'), "{rendered:?}");
     }
@@ -89,11 +99,14 @@ fn test_structured_formats_bound_amplified_masks() {
 fn test_bounded_output_keeps_utf8_and_marker_complete() {
     let budget =
         BodyBudget::new(64, 14).expect("the output can contain the marker");
-    let policy = RedactionPolicy::builder()
-        .body_budget(budget)
-        .text_body_policy(TextBodyPolicy::PassThrough)
-        .build()
-        .expect("the HTTP policy is valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().http_body(budget);
+        builder.http().text_body(TextBodyPolicy::PassThrough);
+        builder
+    })
+    .build()
+    .expect("the HTTP policy is valid");
     let result = HttpRedactor::new(policy).redact_body(
         BodyCapture::complete("你好吗世界".as_bytes()),
         Some(&HeaderValue::from_static("text/plain")),
@@ -107,11 +120,14 @@ fn test_bounded_output_keeps_utf8_and_marker_complete() {
 fn test_late_truncation_backs_up_to_utf8_boundary() {
     let budget =
         BodyBudget::new(64, 15).expect("the output can contain the marker");
-    let policy = RedactionPolicy::builder()
-        .body_budget(budget)
-        .text_body_policy(TextBodyPolicy::PassThrough)
-        .build()
-        .expect("the HTTP policy is valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().http_body(budget);
+        builder.http().text_body(TextBodyPolicy::PassThrough);
+        builder
+    })
+    .build()
+    .expect("the HTTP policy is valid");
     let result = HttpRedactor::new(policy).redact_body(
         BodyCapture::complete("你你你你你a".as_bytes()),
         Some(&HeaderValue::from_static("text/plain")),
@@ -125,11 +141,14 @@ fn test_late_truncation_backs_up_to_utf8_boundary() {
 fn test_source_truncation_can_use_marker_only_budget() {
     let budget =
         BodyBudget::new(1, 11).expect("the output can contain the marker");
-    let policy = RedactionPolicy::builder()
-        .body_budget(budget)
-        .text_body_policy(TextBodyPolicy::PassThrough)
-        .build()
-        .expect("the HTTP policy is valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().http_body(budget);
+        builder.http().text_body(TextBodyPolicy::PassThrough);
+        builder
+    })
+    .build()
+    .expect("the HTTP policy is valid");
     let capture = BodyCapture::truncated(b"a", 2)
         .expect("the captured prefix has valid metadata");
     let result = HttpRedactor::new(policy)

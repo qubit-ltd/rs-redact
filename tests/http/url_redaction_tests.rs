@@ -22,10 +22,13 @@ fn redactor_with_diagnostic_budget(
 ) -> HttpRedactor {
     let budget = InputOutputLimit::new(input, output)
         .expect("test diagnostic budgets satisfy the public lower bounds");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("HTTP redaction policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("HTTP redaction policy should be valid");
     HttpRedactor::new(policy)
 }
 
@@ -228,31 +231,38 @@ fn test_nested_url_detection_covers_malformed_and_bounded_decoding() {
 /// Verifies that url redaction preserves authoritative mask output.
 #[test]
 fn test_url_redaction_preserves_authoritative_mask_output() {
-    let query_policy = RedactionPolicy::builder()
-        .disable_floor()
-        .raise("password", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .mask(
-            Sensitivity::Secret,
-            MaskPolicy::fixed("https://mask.invalid/private"),
-        )
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("query policy should be valid");
+    let query_policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .raise("password", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .mask(
+                Sensitivity::Secret,
+                MaskPolicy::fixed("https://mask.invalid/private"),
+            )
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("query policy should be valid");
     let mut builder = RedactionPolicy::builder();
     builder
         .http()
         .query()
         .replace_rules(query_policy.rules().clone())
         .disable_floor();
-    let policy = builder
+    builder
+        .fields()
         .mask(
             Sensitivity::Secret,
             MaskPolicy::fixed("https://mask.invalid/private"),
         )
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("HTTP policy should be valid");
+        .expect("the test mask policy should be valid");
+    let policy = builder.build().expect("HTTP policy should be valid");
     let result = HttpRedactor::new(policy)
         .redact_url_str("https://outer.test/?password=raw-secret");
 

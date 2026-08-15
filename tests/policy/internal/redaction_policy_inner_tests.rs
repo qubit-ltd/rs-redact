@@ -12,11 +12,16 @@ use qubit_redact::Sensitivity;
 /// Verifies internal policy state supports normalized public lookup.
 #[test]
 fn test_redaction_policy_inner_normalizes_field_name_for_lookup() {
-    let policy = RedactionPolicy::builder()
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the configured rule should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the configured rule should be valid");
 
     assert_eq!(
         policy.sensitivity_for("tenant-secret"),

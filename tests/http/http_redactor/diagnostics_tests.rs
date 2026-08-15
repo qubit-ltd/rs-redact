@@ -18,10 +18,13 @@ use qubit_redact::http::InputOutputLimit;
 fn test_diagnostic_input_limit_returns_fixed_marker() {
     let budget = InputOutputLimit::new(16, 128)
         .expect("test diagnostic budget should satisfy minimums");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("HTTP policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("HTTP policy should be valid");
     let redactor = HttpRedactor::new(policy);
 
     assert_eq!(
@@ -38,10 +41,13 @@ fn test_diagnostic_input_limit_returns_fixed_marker() {
 fn test_session_fallback_markers_respect_cumulative_output_limit() {
     let budget = InputOutputLimit::new(8, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the marker-sized diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("HTTP policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("HTTP policy should be valid");
     let redactor = HttpRedactor::new(policy);
     let mut session = redactor.session();
 
@@ -67,10 +73,13 @@ fn test_session_fallback_markers_respect_cumulative_output_limit() {
 fn test_session_body_input_limit_reports_budget_failure() {
     let budget = InputOutputLimit::new(8, 128)
         .expect("test diagnostic budget should satisfy minimums");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("HTTP policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("HTTP policy should be valid");
     let redactor = HttpRedactor::new(policy);
     let mut session = redactor.session();
 

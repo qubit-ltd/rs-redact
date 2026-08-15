@@ -999,7 +999,11 @@ impl HttpRedactor {
             captured_len,
             source_len,
             omitted_len,
-            truncated,
+            if truncated {
+                crate::RedactionCompletion::Truncated
+            } else {
+                crate::RedactionCompletion::Complete
+            },
         )
     }
 }

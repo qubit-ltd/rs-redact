@@ -15,9 +15,9 @@ use std::io;
 use std::io::Write;
 
 #[cfg(feature = "serde")]
-use qubit_redact::RedactedMap;
-#[cfg(feature = "serde")]
 use qubit_redact::RedactionPolicy;
+#[cfg(feature = "serde")]
+use qubit_redact::domain::RedactedMap;
 
 #[cfg(feature = "serde")]
 struct FailingWriter;

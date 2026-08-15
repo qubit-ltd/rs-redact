@@ -14,6 +14,8 @@ use std::io::Write;
 use serde_json::Value;
 use serde_json::to_writer;
 
+use super::JsonRedactionOutput;
+use super::redact_json_text_in_place::BoundedJsonRedaction;
 use super::redact_json_text_in_place::redacted_json_text_bounded;
 use super::redact_json_text_in_place::redacted_json_value_bounded;
 use crate::LogSafeText;
@@ -23,6 +25,7 @@ use crate::RedactionSession;
 use crate::Sensitivity;
 use crate::policy::FragmentCompletion;
 use crate::policy::RedactionAdmission;
+use crate::text::redaction_output::RedactionOutput;
 
 /// Feature-gated JSON operations sharing one mutable diagnostic session.
 #[must_use = "use the session-bounded JSON result"]
@@ -31,11 +34,20 @@ pub struct JsonRedactionSession<'session, 'policy> {
 }
 
 impl JsonRedactionSession<'_, '_> {
+    /// Admits one JSON fragment and maps its bounded rendering into the shared
+    /// session completion model.
+    ///
+    /// Admission happens before `raw` is invoked. Input rejection emits the
+    /// configured non-empty opaque fallback when it fits and transitions the
+    /// session to truncated; output exhaustion skips `raw`, returns empty
+    /// output, and leaves the session closed to later reads. A rendered result
+    /// commits exactly its escaped byte length and closes the session when
+    /// either JSON processing or final output bounding omitted content.
     fn redact_owned(
         &mut self,
         input_bytes: usize,
-        raw: impl FnOnce(&RedactionPolicy, usize) -> String,
-    ) -> LogSafeText<'static> {
+        raw: impl FnOnce(&RedactionPolicy, usize) -> BoundedJsonRedaction,
+    ) -> JsonRedactionOutput {
         let policy = self.session.policy();
         let fallback = policy.masking().mask_opaque(Sensitivity::Secret);
         let domain_limit =
@@ -45,21 +57,23 @@ impl JsonRedactionSession<'_, '_> {
             .session
             .admit(input_bytes, domain_limit, fallback.len())
         {
-            RedactionAdmission::Fallback => {
-                LogSafeText::from_escaped(Cow::Owned(fallback.to_owned()))
-            }
+            RedactionAdmission::Fallback => JsonRedactionOutput::new(
+                RedactionOutput::truncated(LogSafeText::from_escaped(
+                    Cow::Owned(fallback.to_owned()),
+                ))
+                .unwrap_or_else(RedactionOutput::exhausted),
+            ),
             RedactionAdmission::Exhausted => {
-                LogSafeText::from_escaped(Cow::Borrowed(""))
+                JsonRedactionOutput::new(RedactionOutput::exhausted())
             }
             RedactionAdmission::Render { max_output_bytes } => {
-                let rendered = raw(policy, max_output_bytes);
+                let (rendered, raw_truncated) =
+                    raw(policy, max_output_bytes).into_parts();
                 let escaped =
                     RedactedText::new(Cow::Owned(rendered)).escape_for_log();
                 let (text, mut truncated) =
                     bound_safe_text(escaped.as_str(), max_output_bytes);
-                if escaped.as_str() == "<truncated>" {
-                    truncated = true;
-                }
+                truncated |= raw_truncated;
                 let completion = if truncated {
                     if max_output_bytes < before {
                         FragmentCompletion::DomainTruncated
@@ -70,15 +84,38 @@ impl JsonRedactionSession<'_, '_> {
                     FragmentCompletion::Complete
                 };
                 self.session.commit_output(text.len(), completion);
-                LogSafeText::from_escaped(Cow::Owned(text))
+                let text = LogSafeText::from_escaped(Cow::Owned(text));
+                let output = if truncated {
+                    RedactionOutput::truncated(text)
+                        .unwrap_or_else(RedactionOutput::exhausted)
+                } else {
+                    RedactionOutput::complete(text)
+                };
+                JsonRedactionOutput::new(output)
             }
         }
     }
 
     /// Redacts an already parsed JSON value into compact, log-safe JSON text.
-    pub fn redact_value(&mut self, value: &Value) -> LogSafeText<'static> {
+    ///
+    /// The serialized input size is counted before admission unless the
+    /// session is already exhausted. After exhaustion this method returns an
+    /// empty [`crate::RedactionCompletion::Exhausted`] result without
+    /// traversing or serializing `value`. Successful admission performs JSON
+    /// redaction, commits the bounded output, and may transition the shared
+    /// session to truncated when a mask or output budget omits content.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Materialized JSON value to count, redact, and serialize.
+    ///
+    /// # Returns
+    ///
+    /// A compact log-safe result carrying `Complete`, `Truncated`, or
+    /// `Exhausted` completion.
+    pub fn redact_value(&mut self, value: &Value) -> JsonRedactionOutput {
         if self.session.is_exhausted() {
-            return LogSafeText::from_escaped(Cow::Borrowed(""));
+            return JsonRedactionOutput::new(RedactionOutput::exhausted());
         }
         let input_bytes = count_json_bytes(value);
         self.redact_owned(input_bytes, |policy, limit| {
@@ -87,7 +124,23 @@ impl JsonRedactionSession<'_, '_> {
     }
 
     /// Parses and redacts JSON text into compact, log-safe JSON text.
-    pub fn redact_text(&mut self, text: &str) -> LogSafeText<'static> {
+    ///
+    /// The text byte length is offered to the shared budget before parsing or
+    /// redaction. Rejected input therefore cannot be parsed: the method emits
+    /// a safe fallback when one fits, or empty exhausted output otherwise.
+    /// Once output exhaustion closes the session, later calls stop before
+    /// invoking the parser. Successful admission commits only the bounded,
+    /// escaped output and reports any budget-caused omission as truncated.
+    ///
+    /// # Parameters
+    ///
+    /// * `text` - JSON source whose byte length is charged on admission.
+    ///
+    /// # Returns
+    ///
+    /// A compact log-safe result carrying `Complete`, `Truncated`, or
+    /// `Exhausted` completion.
+    pub fn redact_text(&mut self, text: &str) -> JsonRedactionOutput {
         self.redact_owned(text.len(), |policy, limit| {
             redacted_json_text_bounded(text, policy, limit)
         })
@@ -113,11 +166,26 @@ fn count_json_bytes(value: &Value) -> usize {
     }
 }
 
+/// Bounds already escaped JSON text without emitting a partial marker.
+///
+/// # Parameters
+///
+/// * `text` - Log-safe JSON text to retain when it fits.
+/// * `max_bytes` - Effective output ceiling for this session fragment.
+///
+/// # Returns
+///
+/// The complete text and `false` when it fits, a marker-terminated prefix and
+/// `true` when the complete marker fits, or empty text and `true` when even the
+/// marker cannot fit. The empty case is mapped to `Exhausted` by the caller.
 fn bound_safe_text(text: &str, max_bytes: usize) -> (String, bool) {
     if text.len() <= max_bytes {
         return (text.to_owned(), false);
     }
     let marker = "<truncated>";
+    if max_bytes < marker.len() {
+        return (String::new(), true);
+    }
     let payload_limit = max_bytes.saturating_sub(marker.len());
     let mut output = String::with_capacity(max_bytes);
     for character in text.chars() {

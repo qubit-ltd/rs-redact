@@ -13,19 +13,20 @@ use qubit_redact::Sensitivity;
 /// Verifies startup installation and deterministic explicit snapshots.
 #[test]
 fn test_global_config_is_installed_once_and_snapshotted() {
-    let before = RedactionPolicy::standard();
+    let before = RedactionPolicy::default();
     let before_builder = RedactionPolicy::builder();
     let floor = RedactionFloor::builder()
         .raise("tenant_floor_blob", Sensitivity::Secret)
         .expect("the test builder input should be valid")
         .build()
         .expect("the custom floor should be valid");
-    let custom = RedactionPolicy::builder()
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .fields()
         .floor(floor)
         .raise("tenant_protected_blob", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the custom policy should be valid");
+        .expect("the test builder input should be valid");
+    let custom = builder.build().expect("the custom policy should be valid");
 
     RedactionPolicy::install_global(custom.clone())
         .expect("the first global configuration installation should succeed");
@@ -51,10 +52,12 @@ fn test_global_config_is_installed_once_and_snapshotted() {
         RedactionPolicy::standard().sensitivity_for("tenant_floor_blob"),
         None
     );
+    let rejected = RedactionPolicy::strict();
+    let error = RedactionPolicy::install_global(rejected.clone())
+        .expect_err("the global policy can only be installed once");
     assert_eq!(
-        RedactionPolicy::install_global(RedactionPolicy::standard())
-            .expect_err("the global policy can only be installed once")
-            .to_string(),
-        "the global redaction policy is already installed",
+        error.to_string(),
+        "the global redaction policy is already installed"
     );
+    assert_eq!(error.into_policy(), rejected);
 }

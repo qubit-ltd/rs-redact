@@ -26,14 +26,21 @@ fn redact_json_value(
     value: &str,
     max_output: usize,
 ) -> String {
-    let body_policy = RedactionPolicy::builder()
-        .disable_floor()
-        .raise("password", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .mask(Sensitivity::Secret, mask.clone())
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the body policy is valid");
+    let body_policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .raise("password", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, mask.clone())
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the body policy is valid");
     let mut builder = RedactionPolicy::builder();
     builder
         .http()
@@ -42,11 +49,11 @@ fn redact_json_value(
     builder.limits().http_body(
         BodyBudget::new(4096, max_output).expect("the budget is valid"),
     );
-    let policy = builder
+    builder
+        .fields()
         .mask(Sensitivity::Secret, mask)
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the HTTP policy is valid");
+        .expect("the test mask policy should be valid");
+    let policy = builder.build().expect("the HTTP policy is valid");
     let body = format!(r#"{{"password":"{value}"}}"#);
     HttpRedactor::new(policy)
         .redact_body(
@@ -61,14 +68,21 @@ fn redact_json_value(
 #[test]
 fn test_fixed_mask_respects_output_budget() {
     let replacement = "x".repeat(1024 * 1024);
-    let body_policy = RedactionPolicy::builder()
-        .disable_floor()
-        .raise("password", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the body policy is valid");
+    let body_policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .raise("password", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the body policy is valid");
     let mut builder = RedactionPolicy::builder();
     builder
         .http()
@@ -77,11 +91,11 @@ fn test_fixed_mask_respects_output_budget() {
     builder
         .limits()
         .http_body(BodyBudget::new(4096, 64).expect("the budget is valid"));
-    let policy = builder
+    builder
+        .fields()
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the HTTP policy is valid");
+        .expect("the test mask policy should be valid");
+    let policy = builder.build().expect("the HTTP policy is valid");
     let result = HttpRedactor::new(policy).redact_body(
         BodyCapture::complete(br#"{"password":"secret"}"#),
         Some(&http::HeaderValue::from_static("application/json")),
