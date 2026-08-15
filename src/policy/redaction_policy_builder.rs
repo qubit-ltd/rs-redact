@@ -7,6 +7,7 @@
 // =============================================================================
 //! Mutable builder for immutable redaction policies.
 
+use super::DomainRedactionLimits;
 use super::FieldNameMatching;
 use super::InputOutputLimit;
 #[cfg(feature = "json")]
@@ -367,6 +368,7 @@ impl RedactionPolicyBuilder {
 }
 
 mod views {
+    use super::DomainRedactionLimits;
     use super::FieldNameMatching;
     use super::InputOutputLimit;
     #[cfg(feature = "json")]
@@ -700,6 +702,12 @@ mod views {
     }
 
     impl LimitsBuilder<'_> {
+        /// Sets the cumulative domain-structure traversal limits.
+        pub fn domain(&mut self, limits: DomainRedactionLimits) -> &mut Self {
+            self.builder.limits = self.builder.limits.with_domain(limits);
+            self
+        }
+
         /// Sets the cumulative diagnostic-event limit.
         pub fn diagnostic_event(
             &mut self,

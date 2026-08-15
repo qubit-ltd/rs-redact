@@ -73,10 +73,6 @@ struct FormatterBehavior {
 }
 
 impl Redact for FormatterBehavior {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -108,10 +104,6 @@ impl RedactValue for FormatterBehavior {
 }
 
 impl Redact for TextValue {
-    fn redaction_input_bytes(&self) -> usize {
-        self.0.len()
-    }
-
     /// Formats the visible text without adding nested redaction rules.
     fn fmt_redacted(
         &self,
@@ -138,10 +130,6 @@ impl RedactValue for TextValue {
 }
 
 impl Redact for NestedValue {
-    fn redaction_input_bytes(&self) -> usize {
-        self.secret.len().saturating_add(self.label.len())
-    }
-
     /// Formats the nested value without exposing its secret.
     fn fmt_redacted(
         &self,
@@ -309,10 +297,6 @@ fn test_redact_keyed_preserves_formatter_error() {
 struct OpaqueMaskObserver;
 
 impl Redact for OpaqueMaskObserver {
-    fn redaction_input_bytes(&self) -> usize {
-        0
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -366,7 +350,7 @@ fn test_redact_keyed_bounds_opaque_mask_before_materialization() {
     assert!(output.len() <= budget.max_output_bytes());
 }
 
-/// Keyed value whose declared input exceeds the diagnostic allowance.
+/// Keyed value whose legacy size forecast must not affect domain rendering.
 struct OversizedKeyedInput<'a>(&'a std::sync::atomic::AtomicUsize);
 
 impl Redact for OversizedKeyedInput<'_> {
@@ -395,10 +379,9 @@ impl RedactValue for OversizedKeyedInput<'_> {
     }
 }
 
-/// Verifies keyed values reserve key and value bytes before classification or
-/// rendering.
+/// Verifies keyed domain values ignore input-size forecasts.
 #[test]
-fn test_redact_keyed_admits_complete_input_before_rendering() {
+fn test_redact_keyed_does_not_charge_value_input() {
     let visits = std::sync::atomic::AtomicUsize::new(0);
     let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the minimum diagnostic budget should be valid");
@@ -408,12 +391,13 @@ fn test_redact_keyed_admits_complete_input_before_rendering() {
         .expect("the policy should build");
     let redactor = Redactor::new(policy);
 
-    let _ = format!(
+    let output = format!(
         "{:?}",
         redactor.redact_keyed("label", &OversizedKeyedInput(&visits))
     );
 
-    assert_eq!(visits.load(std::sync::atomic::Ordering::Relaxed), 0);
+    assert_eq!(output, "must-not-render");
+    assert_eq!(visits.load(std::sync::atomic::Ordering::Relaxed), 1);
 }
 
 /// Verifies keyed values serialize their selected redacted representation.

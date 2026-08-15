@@ -33,10 +33,6 @@ struct NestedValue {
 }
 
 impl Redact for NestedValue {
-    fn redaction_input_bytes(&self) -> usize {
-        self.secret.len().saturating_add(self.label.len())
-    }
-
     /// Formats the nested value without exposing its secret.
     fn fmt_redacted(
         &self,
@@ -155,10 +151,6 @@ fn test_redacted_keyed_map_display_and_bounded_adapters() {
 struct CountingValue<'a>(&'a AtomicUsize);
 
 impl Redact for CountingValue<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        "你你你你你".len()
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -208,10 +200,6 @@ struct FormatterBehavior {
 }
 
 impl Redact for FormatterBehavior {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,
@@ -281,10 +269,6 @@ fn test_redacted_keyed_map_preserves_formatter_error() {
 struct ShortCountingValue<'a>(&'a AtomicUsize);
 
 impl Redact for ShortCountingValue<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn fmt_redacted(
         &self,
         _session: &mut RedactionSession<'_>,

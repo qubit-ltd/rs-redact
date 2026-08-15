@@ -18,18 +18,21 @@ use crate::RedactMut;
 use crate::RedactedResult;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
+use crate::domain::DomainTruncated;
 #[cfg(feature = "serde")]
 use crate::domain::RedactSerialize;
 use crate::domain::internal::debug_output_exhausted;
+use crate::policy::DomainTraversalAdmission;
+use crate::policy::DomainValueAdmission;
 
 impl<T: Redact> Redact for Option<T> {
-    fn redaction_input_bytes(&self) -> usize {
-        self.as_ref().map_or(1, |value| {
-            1_usize.saturating_add(Redact::redaction_input_bytes(value))
-        })
-    }
-
     /// Formats `None` directly or a redacted `Some` value with the same policy.
+    ///
+    /// The option first charges its own domain-value node. A present field is
+    /// charged before the inner reference is read, then the child enters the
+    /// same session through [`RedactedResult`]. Rejected value or field
+    /// admission writes one unquoted [`DomainTruncated`] marker. No diagnostic
+    /// input bytes are consumed by this domain traversal.
     ///
     /// # Parameters
     ///
@@ -50,22 +53,32 @@ impl<T: Redact> Redact for Option<T> {
         session: &mut RedactionSession<'_>,
         formatter: &mut Formatter<'_>,
     ) -> fmt::Result {
-        match self {
-            Some(value) => formatter
-                .debug_tuple("Some")
-                .field(&RedactedResult::new(value, session))
-                .finish(),
-            None => formatter.write_str("None"),
+        let DomainValueAdmission::Entered(mut scope) =
+            session.enter_domain_value()
+        else {
+            return fmt::Debug::fmt(&DomainTruncated, formatter);
+        };
+        if self.is_none() {
+            return formatter.write_str("None");
         }
+        let alternate = formatter.alternate();
+        let mut output = formatter.debug_tuple("Some");
+        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
+            return output.field(&DomainTruncated).finish();
+        }
+        let value = self
+            .as_ref()
+            .expect("a present option must contain its admitted field");
+        let Some(view) =
+            RedactedResult::try_new(value, scope.session(), alternate)
+        else {
+            return output.field(&DomainTruncated).finish();
+        };
+        output.field(&view).finish()
     }
 }
 
 impl<T: Redact + ?Sized> Redact for Box<T> {
-    #[inline(always)]
-    fn redaction_input_bytes(&self) -> usize {
-        Redact::redaction_input_bytes(self.as_ref())
-    }
-
     /// Transparently delegates formatting to the boxed object.
     ///
     /// # Parameters
@@ -91,13 +104,16 @@ impl<T: Redact + ?Sized> Redact for Box<T> {
 }
 
 impl<T: Redact> Redact for Vec<T> {
-    fn redaction_input_bytes(&self) -> usize {
-        self.iter().fold(0_usize, |bytes, value| {
-            bytes.saturating_add(Redact::redaction_input_bytes(value))
-        })
-    }
-
     /// Formats every item through a redacted view sharing the same policy.
+    ///
+    /// The vector charges its domain-value node once and checks the iterator's
+    /// exact remaining length before charging and advancing one item. An
+    /// exhausted item budget cannot pull or format another value, while an
+    /// exactly full vector does not perform a false terminal admission. Every
+    /// child reuses the same session, so node, depth, output, and collection
+    /// charges accumulate. Traversal or output exhaustion terminates the list;
+    /// a branch-local depth marker leaves later siblings eligible. Domain
+    /// traversal never consumes input bytes.
     ///
     /// # Parameters
     ///
@@ -118,22 +134,41 @@ impl<T: Redact> Redact for Vec<T> {
         formatter: &mut Formatter<'_>,
     ) -> fmt::Result {
         let alternate = formatter.alternate();
+        let DomainValueAdmission::Entered(mut scope) =
+            session.enter_domain_value()
+        else {
+            return fmt::Debug::fmt(&DomainTruncated, formatter);
+        };
         let mut list = formatter.debug_list();
         let mut values = self.iter();
         loop {
-            if session.is_exhausted() || debug_output_exhausted() {
+            if scope.session().is_exhausted() || debug_output_exhausted() {
+                break;
+            }
+            if values.len() == 0 {
+                break;
+            }
+            if scope.admit_collection_item()
+                == DomainTraversalAdmission::LimitReached
+            {
+                list.entry(&DomainTruncated);
                 break;
             }
             let Some(value) = values.next() else {
                 break;
             };
-            let Some(view) = RedactedResult::try_new(value, session, alternate)
+            let Some(view) =
+                RedactedResult::try_new(value, scope.session(), alternate)
             else {
+                list.entry(&DomainTruncated);
                 break;
             };
-            let truncated = view.is_truncated();
+            let stops_siblings = view.stops_siblings();
             list.entry(&view);
-            if truncated || session.is_exhausted() || debug_output_exhausted() {
+            if stops_siblings
+                || scope.session().is_exhausted()
+                || debug_output_exhausted()
+            {
                 break;
             }
         }

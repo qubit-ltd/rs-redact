@@ -125,9 +125,14 @@ mod session_view {
     use crate::Redact;
     use crate::RedactValue;
     use crate::RedactionSession;
+    use crate::domain::DomainTruncated;
     use crate::domain::internal::mask_byte_limit;
     use crate::domain::redacted::CompletedDebug;
+    use crate::domain::redacted::DomainRenderStatus;
     use crate::domain::redacted::complete_debug;
+    use crate::policy::DomainTraversalAdmission;
+    use crate::policy::DomainTruncation;
+    use crate::policy::DomainValueAdmission;
     use crate::policy::FragmentCompletion;
     use crate::policy::RedactionAdmission;
     use crate::policy::ResolvedField;
@@ -137,6 +142,7 @@ mod session_view {
     #[must_use = "format the keyed redacted value view"]
     pub struct RedactedKeyedResult<'value, T: ?Sized> {
         completed: CompletedDebug,
+        status: DomainRenderStatus,
         marker: PhantomData<(&'value str, &'value T)>,
     }
 
@@ -158,73 +164,111 @@ mod session_view {
             session: &mut RedactionSession<'_>,
             alternate: bool,
         ) -> Self {
-            Self::try_new(key, value, session, alternate).unwrap_or_else(|| {
-                Self {
-                    completed: CompletedDebug::empty(),
-                    marker: PhantomData,
-                }
+            Self::try_new_with_mode(
+                key,
+                value,
+                session,
+                alternate,
+                KeyedAdmissionMode::Standalone,
+            )
+            .unwrap_or_else(|| Self {
+                completed: CompletedDebug::empty(),
+                status: DomainRenderStatus::Complete,
+                marker: PhantomData,
             })
         }
 
-        /// Attempts to complete one keyed item before the session exhausts.
-        pub(crate) fn try_new(
+        /// Attempts to complete an already-admitted keyed map item.
+        ///
+        /// The keyed-map caller already charged collection structure, so this
+        /// path avoids the standalone root and field charges. Key selection is
+        /// pure domain formatting and therefore charges no diagnostic input
+        /// bytes. Output-only admission establishes a nested accounting frame
+        /// so exact completed bytes are charged once.
+        pub(crate) fn try_new_admitted_item(
             key: &'value str,
             value: &'value T,
             session: &mut RedactionSession<'_>,
             alternate: bool,
+        ) -> Option<Self> {
+            Self::try_new_with_mode(
+                key,
+                value,
+                session,
+                alternate,
+                KeyedAdmissionMode::CollectionItem,
+            )
+        }
+
+        /// Completes one keyed value under explicit structural provenance.
+        fn try_new_with_mode(
+            key: &'value str,
+            value: &'value T,
+            session: &mut RedactionSession<'_>,
+            alternate: bool,
+            admission_mode: KeyedAdmissionMode,
         ) -> Option<Self> {
             if session.is_exhausted() {
                 return None;
             }
             let session_limit = session.remaining_output_bytes();
             let domain_limit = mask_byte_limit().unwrap_or(usize::MAX);
-            let admission = if session.input_is_precharged() {
-                session.admit_precharged_output(domain_limit)
-            } else {
-                let input_bytes = key
-                    .len()
-                    .saturating_add(RedactValue::redaction_input_bytes(value));
-                session.admit(input_bytes, domain_limit, "<truncated>".len())
-            };
+            let admission = session.admit_output_only(domain_limit);
             let max_output_bytes = match admission {
                 RedactionAdmission::Render { max_output_bytes } => {
                     max_output_bytes
                 }
-                RedactionAdmission::Fallback => {
-                    return Some(Self {
-                        completed: CompletedDebug::truncated_marker(),
-                        marker: PhantomData,
-                    });
-                }
+                RedactionAdmission::Fallback => unreachable!(
+                    "output-only domain admission cannot reject input"
+                ),
                 RedactionAdmission::Exhausted => return None,
             };
+            let checkpoint = session.domain_truncation_checkpoint();
             let completed = {
                 let wrapper = KeyedOnce {
                     key,
                     value,
                     session: RefCell::new(Some(session)),
+                    admission_mode,
                 };
                 complete_debug(&wrapper, max_output_bytes, alternate)
             };
+            let domain_truncation = session.domain_truncation_since(checkpoint);
             let completion = if completed.truncated() {
                 if domain_limit < session_limit {
                     FragmentCompletion::DomainTruncated
                 } else {
                     FragmentCompletion::SessionTruncated
                 }
+            } else if domain_truncation != DomainTruncation::None {
+                FragmentCompletion::DomainTruncated
             } else {
                 FragmentCompletion::Complete
+            };
+            let status = if completed.truncated() {
+                DomainRenderStatus::OutputTruncated
+            } else {
+                match domain_truncation {
+                    DomainTruncation::None => DomainRenderStatus::Complete,
+                    DomainTruncation::Depth => {
+                        DomainRenderStatus::DepthTruncated
+                    }
+                    DomainTruncation::Traversal => {
+                        DomainRenderStatus::TraversalTruncated
+                    }
+                }
             };
             session.commit_output(completed.len(), completion);
             Some(Self {
                 completed,
+                status,
                 marker: PhantomData,
             })
         }
 
-        /// Returns whether the local item ceiling truncated this value.
-        pub(crate) fn is_truncated(&self) -> bool {
-            self.completed.truncated()
+        /// Returns whether this result exhausted shared sibling eligibility.
+        pub(crate) fn stops_siblings(&self) -> bool {
+            self.status.stops_siblings()
         }
     }
 
@@ -250,6 +294,14 @@ mod session_view {
         key: &'value str,
         value: &'value T,
         session: RefCell<Option<&'session mut RedactionSession<'policy>>>,
+        admission_mode: KeyedAdmissionMode,
+    }
+
+    /// Records whether a caller already charged this keyed collection item.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum KeyedAdmissionMode {
+        Standalone,
+        CollectionItem,
     }
 
     impl<T: Redact + RedactValue + ?Sized> Debug for KeyedOnce<'_, '_, '_, T> {
@@ -259,15 +311,42 @@ mod session_view {
             let session = session
                 .take()
                 .expect("the one-shot keyed adapter cannot be reused");
-            let policy = session.policy();
-            match policy.resolve_field(self.key) {
-                ResolvedField::Sensitive { sensitivity } => Debug::fmt(
-                    &self.value.redact_value(sensitivity, policy.masking()),
-                    formatter,
-                ),
-                ResolvedField::PassThrough => {
-                    self.value.fmt_redacted(session, formatter)
+            if self.admission_mode == KeyedAdmissionMode::Standalone {
+                let DomainValueAdmission::Entered(mut scope) =
+                    session.enter_domain_value()
+                else {
+                    return Debug::fmt(&DomainTruncated, formatter);
+                };
+                if scope.admit_field() == DomainTraversalAdmission::LimitReached
+                {
+                    return Debug::fmt(&DomainTruncated, formatter);
                 }
+                return format_resolved(
+                    self.key,
+                    self.value,
+                    scope.session(),
+                    formatter,
+                );
+            }
+            format_resolved(self.key, self.value, session, formatter)
+        }
+    }
+
+    /// Resolves and renders one structurally admitted keyed value.
+    fn format_resolved<T: Redact + RedactValue + ?Sized>(
+        key: &str,
+        value: &T,
+        session: &mut RedactionSession<'_>,
+        formatter: &mut Formatter<'_>,
+    ) -> fmt::Result {
+        let policy = session.policy();
+        match policy.resolve_field(key) {
+            ResolvedField::Sensitive { sensitivity } => Debug::fmt(
+                &value.redact_value(sensitivity, policy.masking()),
+                formatter,
+            ),
+            ResolvedField::PassThrough => {
+                value.fmt_redacted(session, formatter)
             }
         }
     }

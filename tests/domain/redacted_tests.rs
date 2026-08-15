@@ -16,12 +16,48 @@ use qubit_redact::RedactValue;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::DomainTruncated;
 #[cfg(feature = "serde")]
 use qubit_redact::domain::RedactSerialize;
+use qubit_redact::policy::DomainTraversalAdmission;
+use qubit_redact::policy::DomainValueAdmission;
 #[cfg(feature = "serde")]
 use serde::Serializer;
 #[cfg(feature = "serde")]
 use serde_json::to_value;
+
+/// Account whose manual implementation follows incremental domain admission.
+struct IncrementalManualAccount {
+    /// Public user name that remains visible.
+    user: String,
+    /// Secret credential that must never be inspected while formatting.
+    password: String,
+}
+
+impl Redact for IncrementalManualAccount {
+    /// Formats admitted fields and replaces the password with a fixed value.
+    fn fmt_redacted(
+        &self,
+        session: &mut RedactionSession<'_>,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        let DomainValueAdmission::Entered(mut scope) =
+            session.enter_domain_value()
+        else {
+            return formatter.write_str("<truncated>");
+        };
+        let mut output = formatter.debug_struct("ManualAccount");
+        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
+            return output.field("user", &DomainTruncated).finish();
+        }
+        output.field("user", &self.user);
+        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
+            return output.field("password", &DomainTruncated).finish();
+        }
+        output.field("password", &"<redacted>").finish()
+    }
+}
+
 /// Account with a manually implemented redacted representation.
 struct ManualAccount {
     /// Public identifier that remains visible.
@@ -33,31 +69,52 @@ struct ManualAccount {
 }
 
 impl Redact for ManualAccount {
-    fn redaction_input_bytes(&self) -> usize {
-        std::mem::size_of_val(&self.id)
-            .saturating_add(self.password.len())
-            .saturating_add(self.note.len())
-    }
-
     /// Formats the account while masking its password.
     fn fmt_redacted(
         &self,
-        _session: &mut RedactionSession<'_>,
+        session: &mut RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        formatter
-            .debug_struct("ManualAccount")
-            .field("id", &self.id)
-            .field(
-                "password",
-                &self.password.redact_value(
-                    Sensitivity::Secret,
-                    _session.policy().masking(),
-                ),
-            )
-            .field("note", &self.note)
-            .finish()
+        let DomainValueAdmission::Entered(mut scope) =
+            session.enter_domain_value()
+        else {
+            return fmt::Debug::fmt(&DomainTruncated, formatter);
+        };
+        let mut output = formatter.debug_struct("ManualAccount");
+        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
+            return output.field("id", &DomainTruncated).finish();
+        }
+        output.field("id", &self.id);
+        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
+            return output.field("password", &DomainTruncated).finish();
+        }
+        output.field(
+            "password",
+            &self.password.redact_value(
+                Sensitivity::Secret,
+                scope.session().policy().masking(),
+            ),
+        );
+        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
+            return output.field("note", &DomainTruncated).finish();
+        }
+        output.field("note", &self.note).finish()
     }
+}
+
+/// Verifies manual domain formatting does not require an input-byte forecast.
+#[test]
+fn test_manual_redact_without_input_forecast_formats_safe_structure() {
+    let account = IncrementalManualAccount {
+        user: "ada".to_owned(),
+        password: "raw-secret".to_owned(),
+    };
+
+    assert_eq!(
+        format!("{:?}", account.redacted()),
+        r#"ManualAccount { user: "ada", password: "<redacted>" }"#,
+    );
+    assert_eq!(account.password, "raw-secret");
 }
 
 #[cfg(feature = "serde")]

@@ -22,10 +22,6 @@ use qubit_redact::Sensitivity;
 struct PanickingRedact;
 
 impl Redact for PanickingRedact {
-    fn redaction_input_bytes(&self) -> usize {
-        0
-    }
-
     /// Panics to exercise scope-guard restoration during redacted formatting.
     fn fmt_redacted(
         &self,

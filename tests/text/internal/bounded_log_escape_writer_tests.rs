@@ -16,10 +16,6 @@ use qubit_redact::RedactionSession;
 struct LongUnsafeDiagnostic;
 
 impl Redact for LongUnsafeDiagnostic {
-    fn redaction_input_bytes(&self) -> usize {
-        "ab\nremaining-long".len()
-    }
-
     /// Writes a prefix, one control, and an overlong suffix.
     fn fmt_redacted(
         &self,
@@ -34,10 +30,6 @@ impl Redact for LongUnsafeDiagnostic {
 struct FailingDiagnostic;
 
 impl Redact for FailingDiagnostic {
-    fn redaction_input_bytes(&self) -> usize {
-        0
-    }
-
     /// Returns a formatting error without writing output.
     fn fmt_redacted(
         &self,
@@ -52,10 +44,6 @@ impl Redact for FailingDiagnostic {
 struct FixedDiagnostic(&'static str);
 
 impl Redact for FixedDiagnostic {
-    fn redaction_input_bytes(&self) -> usize {
-        self.0.len()
-    }
-
     /// Writes the fixed representation exactly as supplied.
     fn fmt_redacted(
         &self,
