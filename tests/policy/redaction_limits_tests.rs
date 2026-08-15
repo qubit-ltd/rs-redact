@@ -14,10 +14,13 @@ use qubit_redact::RedactionPolicy;
 fn test_redaction_limits_preserve_policy_diagnostic_budget() {
     let budget =
         InputOutputLimit::new(128, 256).expect("the test budget is valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the policy should build with the configured budget");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the policy should build with the configured budget");
 
     assert_eq!(policy.limits().diagnostic_event(), budget);
     assert_eq!(

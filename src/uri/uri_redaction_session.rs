@@ -36,7 +36,10 @@ impl UriRedactionSession<'_, '_> {
     /// this method returns an empty fail-closed result without inspecting the
     /// URI. A component-level output limit can truncate this result while the
     /// session remains usable; exhaustion of the shared output budget closes
-    /// the session for later operations.
+    /// the session for later operations. The returned completion is `Complete`
+    /// for a full safe rewrite, `Truncated` for non-empty fallback or omitted
+    /// output, and `Exhausted` only when the safe text is empty. Existing URI
+    /// status and reason metadata keep their independent meanings.
     #[must_use = "use the structured URI redaction result"]
     pub fn redact_uri_str(&mut self, input: &str) -> UriRedaction {
         let domain_output_limit = self

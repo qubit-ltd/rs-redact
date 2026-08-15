@@ -31,10 +31,13 @@ use qubit_redact::argv::ArgvRedactor;
 fn bounded_redactor() -> ArgvRedactor {
     let budget = InputOutputLimit::new(8, 64)
         .expect("the small diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the bounded policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the bounded policy should be valid");
     ArgvRedactor::new(Redactor::new(policy))
 }
 
@@ -191,10 +194,13 @@ fn test_redact_heuristically_keeps_empty_sensitive_inline_value() {
 #[test]
 fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_application_matching()
  {
-    let policy = RedactionPolicy::builder()
-        .matching(FieldNameMatching::Exact)
-        .build()
-        .expect("the exact-only argv policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().matching(FieldNameMatching::Exact);
+        builder
+    })
+    .build()
+    .expect("the exact-only argv policy should be valid");
     let items = [
         ArgvItem::plain(OsStr::new("env")),
         ArgvItem::plain(OsStr::new("OPENAI_API_KEY=abcdef")),
@@ -213,14 +219,21 @@ fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_app
 #[test]
 fn test_redact_heuristically_uses_application_rule_for_exact_single_dash_option()
  {
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the application-only argv policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the application-only argv policy should be valid");
     let items = [
         ArgvItem::plain(OsStr::new("-tenant_secret")),
         ArgvItem::plain(OsStr::new("raw-secret")),
@@ -362,11 +375,16 @@ fn test_redact_heuristically_does_not_parse_explicit_sensitive_options() {
 /// Verifies a custom immutable policy is honored by the adapter.
 #[test]
 fn test_new_uses_custom_redaction_policy() {
-    let policy = RedactionPolicy::builder()
-        .raise("tenant_flag", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the custom argv policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("tenant_flag", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the custom argv policy should be valid");
     let redactor = ArgvRedactor::new(Redactor::new(policy));
     let items = [
         ArgvItem::plain(OsStr::new("tool")),
@@ -494,14 +512,21 @@ fn test_redact_heuristically_uses_application_mask_for_pending_option_value() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::builder()
-        .floor(floor)
-        .raise("password", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().floor(floor);
+        builder
+            .fields()
+            .raise("password", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let rendered = ArgvRedactor::new(Redactor::new(policy))
         .redact_heuristically([
             ArgvItem::plain(OsStr::new("--password")),
@@ -521,14 +546,21 @@ fn test_redact_heuristically_uses_application_mask_for_exact_single_dash_option(
         .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
-    let policy = RedactionPolicy::builder()
-        .floor(floor)
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().floor(floor);
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let rendered = ArgvRedactor::new(Redactor::new(policy))
         .redact_heuristically([
             ArgvItem::plain(OsStr::new("-tenant_secret")),

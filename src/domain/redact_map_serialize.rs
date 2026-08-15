@@ -11,8 +11,8 @@ use serde::Serialize;
 use serde::Serializer;
 use serde::ser::SerializeMap;
 
-use crate::RedactValue;
 use crate::RedactionPolicy;
+use crate::domain::RedactValue;
 use crate::policy::ResolvedField;
 
 /// Serializes map values after classifying them by runtime key.

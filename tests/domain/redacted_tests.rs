@@ -11,17 +11,53 @@ use std::fmt;
 
 use qubit_redact::InputOutputLimit;
 use qubit_redact::MaskPolicy;
-use qubit_redact::Redact;
-use qubit_redact::RedactValue;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::DomainTruncated;
+use qubit_redact::domain::Redact;
 #[cfg(feature = "serde")]
 use qubit_redact::domain::RedactSerialize;
+use qubit_redact::domain::RedactValue;
+use qubit_redact::policy::DomainTraversalAdmission;
+use qubit_redact::policy::DomainValueAdmission;
 #[cfg(feature = "serde")]
 use serde::Serializer;
 #[cfg(feature = "serde")]
 use serde_json::to_value;
+
+/// Account whose manual implementation follows incremental domain admission.
+struct IncrementalManualAccount {
+    /// Public user name that remains visible.
+    user: String,
+    /// Secret credential that must never be inspected while formatting.
+    password: String,
+}
+
+impl Redact for IncrementalManualAccount {
+    /// Formats admitted fields and replaces the password with a fixed value.
+    fn fmt_redacted(
+        &self,
+        session: &mut RedactionSession<'_>,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        let DomainValueAdmission::Entered(mut scope) =
+            session.enter_domain_value()
+        else {
+            return formatter.write_str("<truncated>");
+        };
+        let mut output = formatter.debug_struct("ManualAccount");
+        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
+            return output.field("user", &DomainTruncated).finish();
+        }
+        output.field("user", &self.user);
+        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
+            return output.field("password", &DomainTruncated).finish();
+        }
+        output.field("password", &"<redacted>").finish()
+    }
+}
+
 /// Account with a manually implemented redacted representation.
 struct ManualAccount {
     /// Public identifier that remains visible.
@@ -33,31 +69,52 @@ struct ManualAccount {
 }
 
 impl Redact for ManualAccount {
-    fn redaction_input_bytes(&self) -> usize {
-        std::mem::size_of_val(&self.id)
-            .saturating_add(self.password.len())
-            .saturating_add(self.note.len())
-    }
-
     /// Formats the account while masking its password.
     fn fmt_redacted(
         &self,
-        _session: &mut RedactionSession<'_>,
+        session: &mut RedactionSession<'_>,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        formatter
-            .debug_struct("ManualAccount")
-            .field("id", &self.id)
-            .field(
-                "password",
-                &self.password.redact_value(
-                    Sensitivity::Secret,
-                    _session.policy().masking(),
-                ),
-            )
-            .field("note", &self.note)
-            .finish()
+        let DomainValueAdmission::Entered(mut scope) =
+            session.enter_domain_value()
+        else {
+            return fmt::Debug::fmt(&DomainTruncated, formatter);
+        };
+        let mut output = formatter.debug_struct("ManualAccount");
+        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
+            return output.field("id", &DomainTruncated).finish();
+        }
+        output.field("id", &self.id);
+        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
+            return output.field("password", &DomainTruncated).finish();
+        }
+        output.field(
+            "password",
+            &self.password.redact_value(
+                Sensitivity::Secret,
+                scope.session().policy().masking(),
+            ),
+        );
+        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
+            return output.field("note", &DomainTruncated).finish();
+        }
+        output.field("note", &self.note).finish()
     }
+}
+
+/// Verifies manual domain formatting does not require an input-byte forecast.
+#[test]
+fn test_manual_redact_without_input_forecast_formats_safe_structure() {
+    let account = IncrementalManualAccount {
+        user: "ada".to_owned(),
+        password: "raw-secret".to_owned(),
+    };
+
+    assert_eq!(
+        format!("{:?}", account.redacted()),
+        r#"ManualAccount { user: "ada", password: "<redacted>" }"#,
+    );
+    assert_eq!(account.password, "raw-secret");
 }
 
 #[cfg(feature = "serde")]
@@ -115,11 +172,16 @@ fn test_redacted_with_snapshots_policy() {
         note: "visible".to_owned(),
     };
     let view = {
-        let policy = RedactionPolicy::builder()
-            .mask(Sensitivity::Secret, MaskPolicy::fixed("[snapshot]"))
-            .expect("the test mask policy should be valid")
-            .build()
-            .expect("the fixed masking policy should be valid");
+        let policy = ({
+            let mut builder = RedactionPolicy::builder();
+            builder
+                .fields()
+                .mask(Sensitivity::Secret, MaskPolicy::fixed("[snapshot]"))
+                .expect("the test mask policy should be valid");
+            builder
+        })
+        .build()
+        .expect("the fixed masking policy should be valid");
         account.redacted_with(&policy)
     };
 
@@ -160,10 +222,13 @@ fn test_redacted_debug_uses_policy_output_limit_by_default() {
     let budget =
         InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the minimum diagnostic output limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the diagnostic budget should build a policy");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the diagnostic budget should build a policy");
 
     let output = format!("{:?}", account.redacted_with(&policy));
 
@@ -182,10 +247,13 @@ fn test_redacted_display_uses_policy_output_limit_by_default() {
     let budget =
         InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the minimum bounded output should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the diagnostic budget should build a policy");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the diagnostic budget should build a policy");
 
     let output = account.redacted_with(&policy).to_string();
 
@@ -201,11 +269,16 @@ fn test_redacted_view_serializes_through_the_explicit_policy() {
         password: "raw-secret".to_owned(),
         note: "visible".to_owned(),
     };
-    let policy = RedactionPolicy::builder()
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[serde]"))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the fixed masking policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[serde]"))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the fixed masking policy should build");
 
     let serialized = to_value(account.redacted_with(&policy))
         .expect("the redacted view should serialize");

@@ -17,10 +17,13 @@ use qubit_redact::Sensitivity;
 fn test_diagnostic_input_budget_stops_after_oversized_reservation() {
     let limit = InputOutputLimit::new(3, 64)
         .expect("the small diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the test policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the test policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 

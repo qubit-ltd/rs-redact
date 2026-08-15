@@ -22,6 +22,7 @@ use std::sync::atomic::Ordering;
 use http::HeaderMap;
 use http::HeaderValue;
 use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
 use qubit_redact::http::BodyBudget;
@@ -190,22 +191,26 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
     );
 
     let replacement = "X".repeat(1024 * 1024);
-    let amplified_policy = RedactionPolicy::default()
-        .to_builder()
-        .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
-        .expect("the test mask policy should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the amplified redaction policy is valid");
+    let amplified_policy = ({
+        let mut builder = RedactionPolicy::default().to_builder();
+        builder
+            .fields()
+            .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
+            .expect("the test mask policy should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the amplified redaction policy is valid");
     let output_limit = 128;
     let diagnostic_budget = InputOutputLimit::new(4096, output_limit)
         .expect("the diagnostic budget can contain every marker");
-    let policy = amplified_policy
-        .to_builder()
-        .diagnostic_event(diagnostic_budget)
-        .build()
-        .expect("the amplified HTTP policy is valid");
+    let mut builder = amplified_policy.to_builder();
+    builder.limits().diagnostic_event(diagnostic_budget);
+    let policy = builder.build().expect("the amplified HTTP policy is valid");
     let redactor = HttpRedactor::new(policy);
     let repeated_form = ["password=form-secret"; 32].join("&");
     let repeated_query = ["password=query-secret"; 32].join("&");
@@ -248,13 +253,16 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
         .lock()
         .expect("allocation measurement lock should not be poisoned");
     let replacement = "X".repeat(64 * 1024);
-    let mut builder = RedactionPolicy::builder()
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .fields()
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
         .expect("the test mask policy should be valid")
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .expect("the test mask policy should be valid");
     for index in 0..700 {
-        builder = builder
+        builder
+            .fields()
             .raise(&format!("password_{index}"), Sensitivity::Secret)
             .expect("generated amplified body field must be valid");
     }
@@ -263,11 +271,9 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
     let output_limit = 64 * 1024;
     let body_budget = BodyBudget::new(128 * 1024, output_limit)
         .expect("the body budget is valid");
-    let policy = body_policy
-        .to_builder()
-        .body_budget(body_budget)
-        .build()
-        .expect("the HTTP policy is valid");
+    let mut builder = body_policy.to_builder();
+    builder.limits().http_body(body_budget);
+    let policy = builder.build().expect("the HTTP policy is valid");
     let redactor = HttpRedactor::new(policy);
     let fields = (0..700)
         .map(|index| format!(r#""password_{index}":"secret""#))
@@ -328,7 +334,7 @@ fn test_unkeyed_json_redaction_respects_mask_budget() {
     });
 
     assert_eq!(result.to_string(), "<truncated>");
-    assert!(result.is_truncated());
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(
         !result.to_string().contains("raw-unkeyed-secret"),
         "mask exhaustion must not leak unkeyed scalar values",

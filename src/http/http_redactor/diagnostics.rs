@@ -53,6 +53,9 @@ impl HttpRedactor {
 }
 
 /// Bounds an already escaped safe fragment without escaping it a second time.
+///
+/// Returns empty truncated text when the effective ceiling cannot contain the
+/// complete marker; the session result maps that state to `Exhausted`.
 pub(in crate::http) fn bound_safe_text(
     text: &str,
     max_bytes: usize,
@@ -61,6 +64,9 @@ pub(in crate::http) fn bound_safe_text(
         return (text.to_owned(), false);
     }
     let marker = markers::TRUNCATED;
+    if max_bytes < marker.len() {
+        return (String::new(), true);
+    }
     let payload_limit = max_bytes.saturating_sub(marker.len());
     let mut output = String::with_capacity(max_bytes);
     for character in text.chars() {

@@ -8,6 +8,7 @@
 //! Mirrored integration tests for domain-object redaction APIs.
 
 mod bounded_redacted_display_tests;
+mod domain_traversal_budget_tests;
 mod internal;
 mod mod_tests;
 mod redact_map_serialize_tests;

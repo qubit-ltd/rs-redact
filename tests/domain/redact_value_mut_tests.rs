@@ -5,13 +5,13 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`RedactValueMut`](qubit_redact::RedactValueMut).
+//! Tests for [`RedactValueMut`](qubit_redact::domain::RedactValueMut).
 
 use std::borrow::Cow;
 
 use qubit_redact::MaskingPolicy;
-use qubit_redact::RedactValueMut;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::RedactValueMut;
 /// Verifies in-place scalar redaction replaces an owned secret value.
 #[test]
 fn test_redact_value_mut_replaces_owned_string() {

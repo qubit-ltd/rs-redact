@@ -39,26 +39,14 @@ impl UriPolicyBuilder {
         }
     }
 
+    /// Replaces the path handling policy in place.
     pub(crate) fn path_policy_mut(&mut self, policy: UriPathPolicy) {
         self.path_policy = policy;
     }
 
+    /// Replaces the fragment handling policy in place.
     pub(crate) fn fragment_policy_mut(&mut self, policy: UriFragmentPolicy) {
         self.fragment_policy = policy;
-    }
-
-    /// Replaces the path handling policy.
-    #[inline]
-    pub const fn path_policy(mut self, policy: UriPathPolicy) -> Self {
-        self.path_policy = policy;
-        self
-    }
-
-    /// Replaces the fragment handling policy.
-    #[inline]
-    pub const fn fragment_policy(mut self, policy: UriFragmentPolicy) -> Self {
-        self.fragment_policy = policy;
-        self
     }
 
     /// Validates and creates the immutable URI policy.

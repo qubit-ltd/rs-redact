@@ -41,10 +41,12 @@ use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = RedactionPolicy::builder();
-    builder.fields().raise("user_id", Sensitivity::Low)?;
-    builder.fields().raise("phone_number", Sensitivity::Medium)?;
-    builder.fields().raise("credit_card", Sensitivity::High)?;
-    builder.fields().raise("api_key", Sensitivity::Secret)?;
+    builder
+        .fields()
+        .raise("user_id", Sensitivity::Low)?
+        .raise("phone_number", Sensitivity::Medium)?
+        .raise("credit_card", Sensitivity::High)?
+        .raise("api_key", Sensitivity::Secret)?;
     let policy = builder.build()?;
     let redactor = Redactor::new(policy);
 
@@ -79,7 +81,9 @@ let snapshot = RedactionPolicy::default();
 
 If no policy is installed, global/default reads use the fixed standard policy.
 They do not prevent a later `install_global()` call. Existing snapshots never
-change when a policy is installed later.
+change when a policy is installed later. Install the application policy before
+creating objects that must use it; an early read does not consume the one-time
+installation slot.
 
 For one diagnostic event, create one session and reuse it across adapters. The
 session owns the shared input/output budget, so nested JSON, HTTP, URI, argv,
