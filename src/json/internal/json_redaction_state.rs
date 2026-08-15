@@ -12,7 +12,7 @@ use qubit_budget::MeasuredBudgetError;
 use qubit_budget::ResourceBudget;
 use qubit_budget::json::JsonResource;
 use qubit_budget::json::JsonValueLimits;
-use qubit_json::tree::JsonBudgetRejection;
+use qubit_json::tree::JsonTreeBudgetRejection;
 use qubit_json::tree::JsonTreeContext;
 use qubit_json::tree::JsonTreeControl;
 use qubit_json::tree::JsonTreeLocation;
@@ -406,9 +406,9 @@ impl JsonTreeMutVisitor<JsonResource, usize>
         value: &mut Value,
         context: JsonTreeContext<'_>,
         error: &MeasuredBudgetError<JsonResource, usize>,
-    ) -> Result<JsonBudgetRejection, Self::Error> {
+    ) -> Result<JsonTreeBudgetRejection, Self::Error> {
         self.handle_budget_rejection(value, context, error)?;
-        Ok(JsonBudgetRejection::SkipSubtree)
+        Ok(JsonTreeBudgetRejection::SkipSubtree)
     }
 }
 
