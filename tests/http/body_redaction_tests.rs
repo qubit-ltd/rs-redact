@@ -12,6 +12,7 @@ use std::fmt::Display;
 use qubit_redact::LogSafeText;
 use qubit_redact::PolicyError;
 use qubit_redact::PolicyLocation;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
 use qubit_redact::http::BodyBudget;
@@ -38,9 +39,9 @@ const fn alternate_omitted_len(_body: &BodyRedaction) -> Option<usize> {
     None
 }
 
-/// Alternate truncation query used as an unselected target.
-const fn alternate_is_truncated(_body: &BodyRedaction) -> bool {
-    false
+/// Alternate completion query used as an unselected target.
+const fn alternate_completion(_body: &BodyRedaction) -> RedactionCompletion {
+    RedactionCompletion::Complete
 }
 
 /// Verifies HTTP defaults use independent policy snapshots and hard budgets.
@@ -58,10 +59,13 @@ fn test_http_redaction_policy_default_uses_safe_values() {
 /// Verifies the HTTP builder has no field rules.
 #[test]
 fn test_http_redaction_policy_builder_has_no_field_rules() {
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .build()
-        .expect("HTTP redaction policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+    })
+    .build()
+    .expect("HTTP redaction policy should be valid");
 
     assert_eq!(policy.header_rules().sensitivity_for("authorization"), None);
     assert_eq!(policy.query_rules().sensitivity_for("password"), None);
@@ -72,21 +76,36 @@ fn test_http_redaction_policy_builder_has_no_field_rules() {
 #[test]
 fn test_http_redaction_policy_builder_overrides_each_context() {
     let base = RedactionPolicy::default();
-    let header = RedactionPolicy::builder()
-        .raise("header_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("header policy should be valid");
-    let query = RedactionPolicy::builder()
-        .raise("query_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("query policy should be valid");
-    let body = RedactionPolicy::builder()
-        .raise("body_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("body policy should be valid");
+    let header = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("header_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("header policy should be valid");
+    let query = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("query_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("query policy should be valid");
+    let body = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("body_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("body policy should be valid");
     let budget = BodyBudget::new(32, 48).expect("budget should be valid");
 
     let mut builder = RedactionPolicy::builder_from(&base);
@@ -252,7 +271,8 @@ fn test_body_redaction_public_types_are_available() {
     let _: fn(&BodyRedaction) -> usize = BodyRedaction::captured_len;
     let _: fn(&BodyRedaction) -> Option<usize> = BodyRedaction::source_len;
     let _: fn(&BodyRedaction) -> Option<usize> = BodyRedaction::omitted_len;
-    let _: fn(&BodyRedaction) -> bool = BodyRedaction::is_truncated;
+    let _: fn(&BodyRedaction) -> RedactionCompletion =
+        BodyRedaction::completion;
 
     assert_display::<BodyRedaction>();
 
@@ -276,11 +296,11 @@ fn test_body_redaction_queries_expose_captured_metadata() {
         [BodyRedaction::captured_len, alternate_captured_len];
     let omitted_len: [fn(&BodyRedaction) -> Option<usize>; 2] =
         [BodyRedaction::omitted_len, alternate_omitted_len];
-    let is_truncated: [fn(&BodyRedaction) -> bool; 2] =
-        [BodyRedaction::is_truncated, alternate_is_truncated];
+    let completion: [fn(&BodyRedaction) -> RedactionCompletion; 2] =
+        [BodyRedaction::completion, alternate_completion];
 
     assert!(!log_safe_text[selected](&body).as_ref().is_empty());
     assert_eq!(captured_len[selected](&body), 7);
     assert_eq!(omitted_len[selected](&body), Some(3));
-    assert!(is_truncated[selected](&body));
+    assert_eq!(completion[selected](&body), RedactionCompletion::Truncated,);
 }

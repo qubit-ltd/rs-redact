@@ -8,6 +8,12 @@
 //! Mutable accounting for one bounded diagnostic redaction event.
 
 use super::DiagnosticBudget;
+use super::DomainRedactionBudget;
+use super::DomainTruncation;
+use super::DomainTruncationCheckpoint;
+use super::DomainValueAdmission;
+use super::DomainValueBudgetAdmission;
+use super::DomainValueScope;
 use super::RedactionPolicy;
 use super::internal::FragmentCompletion;
 use super::internal::RedactionAdmission;
@@ -19,6 +25,7 @@ use super::internal::RedactionAdmission;
 pub struct RedactionSession<'policy> {
     policy: &'policy RedactionPolicy,
     budget: DiagnosticBudget,
+    pub(super) domain_budget: DomainRedactionBudget,
 }
 
 impl<'policy> RedactionSession<'policy> {
@@ -28,6 +35,7 @@ impl<'policy> RedactionSession<'policy> {
         Self {
             policy,
             budget: DiagnosticBudget::new(policy.limits().diagnostic_event()),
+            domain_budget: DomainRedactionBudget::new(policy.limits().domain()),
         }
     }
 
@@ -35,6 +43,60 @@ impl<'policy> RedactionSession<'policy> {
     #[inline]
     pub const fn policy(&self) -> &'policy RedactionPolicy {
         self.policy
+    }
+
+    /// Charges and enters one domain value under the shared structure budget.
+    ///
+    /// Admission first honors permanent traversal closure, then checks active
+    /// depth, and finally consumes one cumulative node. An entered value
+    /// returns an RAII [`DomainValueScope`] that restores only active depth on
+    /// drop. [`DomainValueAdmission::DepthLimitReached`] rejects just the
+    /// current branch, while [`DomainValueAdmission::TraversalLimitReached`]
+    /// means no later domain value may be accessed in this session.
+    pub fn enter_domain_value<'session>(
+        &'session mut self,
+    ) -> DomainValueAdmission<'session, 'policy> {
+        let checkpoint = self.domain_truncation_checkpoint();
+        let admission = self.domain_budget.enter_value();
+        debug_assert!(match admission {
+            DomainValueBudgetAdmission::Entered => {
+                self.domain_truncation_since(checkpoint)
+                    == DomainTruncation::None
+            }
+            DomainValueBudgetAdmission::DepthLimitReached => {
+                self.domain_truncation_since(checkpoint)
+                    == DomainTruncation::Depth
+            }
+            DomainValueBudgetAdmission::TraversalLimitReached => true,
+        });
+        match admission {
+            DomainValueBudgetAdmission::Entered => {
+                DomainValueAdmission::Entered(DomainValueScope::new(self))
+            }
+            DomainValueBudgetAdmission::DepthLimitReached => {
+                DomainValueAdmission::DepthLimitReached
+            }
+            DomainValueBudgetAdmission::TraversalLimitReached => {
+                DomainValueAdmission::TraversalLimitReached
+            }
+        }
+    }
+
+    /// Returns a checkpoint for detecting later domain traversal truncation.
+    #[inline(always)]
+    pub(crate) const fn domain_truncation_checkpoint(
+        &self,
+    ) -> DomainTruncationCheckpoint {
+        self.domain_budget.truncation_checkpoint()
+    }
+
+    /// Classifies domain truncation recorded after `checkpoint`.
+    #[inline(always)]
+    pub(crate) const fn domain_truncation_since(
+        &self,
+        checkpoint: DomainTruncationCheckpoint,
+    ) -> DomainTruncation {
+        self.domain_budget.truncation_since(checkpoint)
     }
 
     /// Admits one complete input fragment for bounded rendering.
@@ -48,18 +110,16 @@ impl<'policy> RedactionSession<'policy> {
             .admit(input_bytes, domain_output_limit, fallback_bytes)
     }
 
-    /// Admits output for a nested fragment covered by its parent's input.
-    pub(crate) fn admit_precharged_output(
+    /// Admits pure domain output without covering nested adapter input.
+    ///
+    /// This frame participates in nested output deduplication, but any adapter
+    /// invoked beneath it must still reserve its exact source bytes before
+    /// parsing, resolving, or formatting that source.
+    pub(crate) fn admit_output_only(
         &mut self,
         domain_output_limit: usize,
     ) -> RedactionAdmission {
-        self.budget.admit_precharged(domain_output_limit)
-    }
-
-    /// Returns whether an active parent reserved this nested input.
-    #[inline(always)]
-    pub(crate) fn input_is_precharged(&self) -> bool {
-        self.budget.input_is_precharged()
+        self.budget.admit_output_only(domain_output_limit)
     }
 
     /// Commits exact output bytes for the active admitted fragment.

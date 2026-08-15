@@ -16,10 +16,13 @@ use qubit_redact::Sensitivity;
 fn test_diagnostic_session_shares_input_budget() {
     let limit = InputOutputLimit::new(8, 64)
         .expect("the test input/output limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the test policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the test policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
@@ -35,10 +38,13 @@ fn test_diagnostic_session_shares_input_budget() {
 fn test_diagnostic_session_accepts_zero_bytes_after_exact_consumption() {
     let limit = InputOutputLimit::new(3, 64)
         .expect("the test input/output limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the test policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the test policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
@@ -62,10 +68,13 @@ fn test_diagnostic_session_accepts_zero_bytes_after_exact_consumption() {
 fn test_diagnostic_session_allows_consecutive_input_fallbacks() {
     let limit = InputOutputLimit::new(3, 64)
         .expect("the test input/output limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the test policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the test policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 

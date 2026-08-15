@@ -16,12 +16,12 @@ use std::marker::PhantomData;
 
 use super::bounded_redacted_display::format_bounded;
 use super::internal::mask_byte_limit;
-use crate::BoundedRedactedDisplay;
 use crate::LogOutputLimit;
-use crate::Redact;
-use crate::RedactValue;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
+use crate::domain::BoundedRedactedDisplay;
+use crate::domain::Redact;
+use crate::domain::RedactValue;
 use crate::text::internal::LogEscapeWriter;
 
 /// A lazy map view that classifies each value by its key before recursion.
@@ -33,9 +33,73 @@ use crate::text::internal::LogEscapeWriter;
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of the borrowed map.
-/// * `M` - Borrowed map-like container type.
+/// * `M` - Borrowed map-like container whose iterator has an exact length.
 /// * `K` - Runtime key type used for field classification.
 /// * `V` - Value type recursively rendered through redaction.
+///
+/// # Iterator Contract
+///
+/// A borrowed map whose iterator is not exact cannot be formatted as a keyed
+/// map:
+///
+/// ```compile_fail
+/// use std::fmt;
+/// use std::slice;
+///
+/// use qubit_redact::{
+///     MaskingPolicy, Redact, RedactValue, RedactedKeyedMap,
+///     RedactionPolicy, RedactionSession, Sensitivity,
+/// };
+///
+/// #[derive(Debug)]
+/// struct Value;
+///
+/// impl Redact for Value {
+///     fn fmt_redacted(
+///         &self,
+///         _session: &mut RedactionSession<'_>,
+///         formatter: &mut fmt::Formatter<'_>,
+///     ) -> fmt::Result {
+///         formatter.write_str("value")
+///     }
+/// }
+///
+/// impl RedactValue for Value {
+///     fn redact_value<'a>(
+///         &'a self,
+///         _level: Sensitivity,
+///         _masking: &MaskingPolicy,
+///     ) -> qubit_redact::domain::RedactedValue<'a> {
+///         unreachable!()
+///     }
+/// }
+///
+/// struct InexactMap(Vec<(String, Value)>);
+///
+/// struct InexactIter<'a>(slice::Iter<'a, (String, Value)>);
+///
+/// impl<'a> Iterator for InexactIter<'a> {
+///     type Item = (&'a String, &'a Value);
+///
+///     fn next(&mut self) -> Option<Self::Item> {
+///         self.0.next().map(|(key, value)| (key, value))
+///     }
+/// }
+///
+/// impl<'a> IntoIterator for &'a InexactMap {
+///     type Item = (&'a String, &'a Value);
+///     type IntoIter = InexactIter<'a>;
+///
+///     fn into_iter(self) -> Self::IntoIter {
+///         InexactIter(self.0.iter())
+///     }
+/// }
+///
+/// let map = InexactMap(vec![]);
+/// let view: RedactedKeyedMap<'_, InexactMap, String, Value> =
+///     RedactedKeyedMap::new(&map, RedactionPolicy::default());
+/// let _ = format!("{view:?}");
+/// ```
 #[must_use = "format the recursive keyed redaction view"]
 pub struct RedactedKeyedMap<
     'a,
@@ -110,7 +174,7 @@ impl<
     V: Redact + RedactValue + ?Sized,
 > Debug for RedactedKeyedMap<'_, M, K, V>
 where
-    for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
+    for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V), IntoIter: ExactSizeIterator>,
 {
     /// Formats each entry through its key-selected redaction behavior.
     ///
@@ -148,14 +212,20 @@ mod session_view {
     use std::fmt::Formatter;
     use std::marker::PhantomData;
 
-    use crate::Redact;
-    use crate::RedactValue;
-    use crate::RedactedKeyedResult;
     use crate::RedactionSession;
+    use crate::domain::DomainTruncated;
+    use crate::domain::Redact;
+    use crate::domain::RedactValue;
+    use crate::domain::RedactedKeyedResult;
     use crate::domain::internal::debug_output_exhausted;
     use crate::domain::internal::mask_byte_limit;
     use crate::domain::redacted::CompletedDebug;
     use crate::domain::redacted::complete_debug;
+    use crate::policy::DomainTraversalAdmission;
+    use crate::policy::DomainTruncation;
+    use crate::policy::DomainValueAdmission;
+    use crate::policy::FragmentCompletion;
+    use crate::policy::RedactionAdmission;
 
     /// A nested keyed-map view that reuses an existing diagnostic session.
     #[must_use = "format the nested keyed redaction view"]
@@ -172,33 +242,82 @@ mod session_view {
     impl<
         'map,
         M: ?Sized,
-        K: AsRef<str> + Debug + ?Sized,
-        V: Redact + RedactValue + ?Sized,
+        K: AsRef<str> + Debug + ?Sized + 'map,
+        V: Redact + RedactValue + ?Sized + 'map,
     > RedactedKeyedMapResult<'map, M, K, V>
     where
         for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
+        <&'map M as IntoIterator>::IntoIter: ExactSizeIterator,
     {
         /// Completes a nested keyed map through an existing session.
+        ///
+        /// The borrowed map iterator must implement [`ExactSizeIterator`]. Its
+        /// exact remaining length proves EOF before collection admission, so
+        /// no nonexistent item consumes a shared collection token and no
+        /// unadmitted entry is pulled.
         #[inline(always)]
         pub fn new(map: &'map M, session: &mut RedactionSession<'_>) -> Self {
             Self::new_with_alternate(map, session, false)
         }
 
         /// Completes a nested keyed map while preserving alternate debug.
+        ///
+        /// Keyed domain maps reserve only bounded output; they do not consume
+        /// diagnostic input bytes. The output frame charges exact completed
+        /// bytes while subtracting bytes already committed by nested values.
+        /// Structural limit markers keep output available to admitted siblings,
+        /// while shared output exhaustion closes the diagnostic session.
         pub(crate) fn new_with_alternate(
             map: &'map M,
             session: &mut RedactionSession<'_>,
             alternate: bool,
         ) -> Self {
-            let limit = mask_byte_limit()
-                .unwrap_or(usize::MAX)
-                .min(session.remaining_output_bytes());
-            let wrapper = KeyedMapOnce {
-                map,
-                session: RefCell::new(Some(session)),
-                marker: PhantomData,
+            if session.is_exhausted() {
+                return Self {
+                    completed: CompletedDebug::empty(),
+                    marker: PhantomData,
+                };
+            }
+            let session_limit = session.remaining_output_bytes();
+            let domain_limit = mask_byte_limit().unwrap_or(usize::MAX);
+            let admission = session.admit_output_only(domain_limit);
+            let max_output_bytes = match admission {
+                RedactionAdmission::Render { max_output_bytes } => {
+                    max_output_bytes
+                }
+                RedactionAdmission::Fallback => unreachable!(
+                    "output-only domain admission cannot reject input"
+                ),
+                RedactionAdmission::Exhausted => {
+                    return Self {
+                        completed: CompletedDebug::empty(),
+                        marker: PhantomData,
+                    };
+                }
             };
-            let completed = complete_debug(&wrapper, limit, alternate);
+            let checkpoint = session.domain_truncation_checkpoint();
+            let completed = {
+                let wrapper = KeyedMapOnce {
+                    map,
+                    session: RefCell::new(Some(session)),
+                    marker: PhantomData,
+                };
+                complete_debug(&wrapper, max_output_bytes, alternate)
+            };
+            let domain_truncated = session.domain_truncation_since(checkpoint)
+                != DomainTruncation::None;
+            let completion = if completed.truncated() {
+                if domain_limit < session_limit {
+                    FragmentCompletion::DomainTruncated
+                } else {
+                    FragmentCompletion::SessionTruncated
+                }
+            } else if domain_truncated {
+                FragmentCompletion::DomainTruncated
+            } else {
+                FragmentCompletion::Complete
+            };
+            session.commit_output(completed.len(), completion);
             Self {
                 completed,
                 marker: PhantomData,
@@ -234,12 +353,14 @@ mod session_view {
     }
 
     impl<
+        'map,
         M: ?Sized,
-        K: AsRef<str> + Debug + ?Sized,
-        V: Redact + RedactValue + ?Sized,
-    > Debug for KeyedMapOnce<'_, '_, '_, M, K, V>
+        K: AsRef<str> + Debug + ?Sized + 'map,
+        V: Redact + RedactValue + ?Sized + 'map,
+    > Debug for KeyedMapOnce<'map, '_, '_, M, K, V>
     where
         for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
+        <&'map M as IntoIterator>::IntoIter: ExactSizeIterator,
     {
         /// Applies keyed redaction to every entry exactly once.
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
@@ -247,28 +368,43 @@ mod session_view {
             let session = session_slot
                 .take()
                 .expect("the one-shot keyed-map adapter cannot be reused");
+            let DomainValueAdmission::Entered(mut scope) =
+                session.enter_domain_value()
+            else {
+                return Debug::fmt(&DomainTruncated, formatter);
+            };
             let alternate = formatter.alternate();
             let mut output = formatter.debug_map();
             let mut entries = self.map.into_iter();
             loop {
-                if session.is_exhausted() || debug_output_exhausted() {
+                if scope.session().is_exhausted() || debug_output_exhausted() {
+                    break;
+                }
+                if entries.len() == 0 {
+                    break;
+                }
+                if scope.admit_collection_item()
+                    == DomainTraversalAdmission::LimitReached
+                {
+                    output.entry(&DomainTruncated, &DomainTruncated);
                     break;
                 }
                 let Some((key, value)) = entries.next() else {
                     break;
                 };
-                let Some(view) = RedactedKeyedResult::try_new(
+                let Some(view) = RedactedKeyedResult::try_new_admitted_item(
                     key.as_ref(),
                     value,
-                    session,
+                    scope.session(),
                     alternate,
                 ) else {
+                    output.entry(&DomainTruncated, &DomainTruncated);
                     break;
                 };
-                let truncated = view.is_truncated();
+                let stops_siblings = view.stops_siblings();
                 output.entry(&key, &view);
-                if truncated
-                    || session.is_exhausted()
+                if stops_siblings
+                    || scope.session().is_exhausted()
                     || debug_output_exhausted()
                 {
                     break;
@@ -301,7 +437,7 @@ impl<
     V: Redact + RedactValue + ?Sized,
 > Display for RedactedKeyedMap<'_, M, K, V>
 where
-    for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
+    for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V), IntoIter: ExactSizeIterator>,
 {
     /// Formats bounded compact redacted debug output and escapes it for
     /// plain-text logs.

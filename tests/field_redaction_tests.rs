@@ -15,11 +15,16 @@ use qubit_redact::Sensitivity;
 /// Verifies masked fields expose a typed masked result.
 #[test]
 fn test_redact_field_reports_masked_result() {
-    let policy = RedactionPolicy::builder()
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy should be valid");
 
     let result = Redactor::new(policy).redact_field("tenant_secret", "raw");
 
@@ -41,12 +46,17 @@ fn test_redact_field_reports_masked_result() {
 /// Verifies allowed and unknown fields expose why their values were retained.
 #[test]
 fn test_redact_field_reports_pass_through_reason() {
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .allow_canonical_exact("display_name")
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .allow_exact("display_name")
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy should be valid");
     let redactor = Redactor::new(policy);
 
     let allowed = redactor.redact_field("display_name", "Alice");

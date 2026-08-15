@@ -11,9 +11,9 @@ use std::borrow::Cow;
 
 use qubit_redact::MaskPolicy;
 use qubit_redact::MaskingPolicy;
-use qubit_redact::RedactValue;
-use qubit_redact::RedactedValue;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::RedactValue;
+use qubit_redact::domain::RedactedValue;
 /// Creates a masking policy whose secret mask contains a log control.
 ///
 /// # Returns

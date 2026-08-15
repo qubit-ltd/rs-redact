@@ -7,9 +7,9 @@
 // =============================================================================
 use std::ffi::OsStr;
 
-use qubit_redact::ArgvRedactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::argv::ArgvItem;
+use qubit_redact::argv::ArgvRedactor;
 /// Verifies that the argv redactor masks a heuristic password value.
 #[test]
 fn test_argv_redactor_masks_password_value() {

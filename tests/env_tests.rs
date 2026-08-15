@@ -19,6 +19,7 @@ use proptest::prelude::proptest;
 #[cfg(unix)]
 use qubit_redact::FieldNameMatching;
 use qubit_redact::InputOutputLimit;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
@@ -29,10 +30,13 @@ use qubit_redact::env::EnvRedactor;
 fn test_redact_pair_session_respects_cumulative_output_limit() {
     let limit = InputOutputLimit::new(4, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the marker-sized operation limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the bounded policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the bounded policy should be valid");
     let redactor = EnvRedactor::new(Redactor::new(policy));
     let mut session = redactor.redactor().session();
 
@@ -58,10 +62,13 @@ fn test_redact_pair_session_respects_cumulative_output_limit() {
 fn test_redact_pair_session_charges_escaped_rendered_bytes() {
     let limit = InputOutputLimit::new(64, 64)
         .expect("the operation limits should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let redactor = EnvRedactor::new(Redactor::new(policy));
     let mut session = redactor.redactor().session();
 
@@ -80,13 +87,16 @@ fn test_redact_pair_session_charges_escaped_rendered_bytes() {
 #[cfg(unix)]
 #[test]
 fn test_redact_os_pair_with_session_charges_invalid_components() {
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(
             InputOutputLimit::new(64, 64)
                 .expect("the operation limits should be valid"),
-        )
-        .build()
-        .expect("the policy should build");
+        );
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let redactor = EnvRedactor::new(Redactor::new(policy));
     let mut session = redactor.redactor().session();
     let name = OsString::from_vec(vec![b'N', 0xff]);
@@ -105,16 +115,23 @@ fn test_redact_os_pair_with_session_charges_invalid_components() {
 fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
     let budget = InputOutputLimit::new(8, 64)
         .expect("the small diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the bounded policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the bounded policy should be valid");
     let redactor = EnvRedactor::new(Redactor::new(policy));
 
-    let rendered = redactor
-        .redact_os_pairs(vec![("MODE".as_ref(), "uninspected-secret".as_ref())])
-        .to_string();
+    let result = redactor.redact_os_pairs(vec![(
+        "MODE".as_ref(),
+        "uninspected-secret".as_ref(),
+    )]);
+    let rendered = result.to_string();
 
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
+    assert!(!result.log_safe_text().as_str().is_empty());
     assert!(rendered.len() <= 64, "{rendered}");
     assert!(rendered.contains("truncated"), "{rendered}");
     assert!(!rendered.contains("uninspected-secret"), "{rendered}");
@@ -125,10 +142,13 @@ fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
 fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
     let budget = InputOutputLimit::new(8, 64)
         .expect("the small diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the bounded policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the bounded policy should be valid");
     let redactor = EnvRedactor::new(Redactor::new(policy));
 
     let rendered = redactor
@@ -149,16 +169,17 @@ fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
 /// the configured budget.
 #[test]
 fn test_redact_os_pairs_renders_complete_safe_assignments() {
-    let rendered = EnvRedactor::default()
-        .redact_os_pairs(vec![
-            (std::ffi::OsStr::new("MODE"), std::ffi::OsStr::new("debug")),
-            (
-                std::ffi::OsStr::new("PASSWORD"),
-                std::ffi::OsStr::new("secret"),
-            ),
-        ])
-        .to_string();
+    let result = EnvRedactor::default().redact_os_pairs(vec![
+        (std::ffi::OsStr::new("MODE"), std::ffi::OsStr::new("debug")),
+        (
+            std::ffi::OsStr::new("PASSWORD"),
+            std::ffi::OsStr::new("secret"),
+        ),
+    ]);
+    let rendered = result.to_string();
 
+    assert_eq!(result.completion(), RedactionCompletion::Complete);
+    assert_eq!(result.log_safe_text().as_str(), rendered);
     assert_eq!(rendered, r#"["MODE=debug", "PASSWORD=<redacted>"]"#);
 }
 
@@ -198,13 +219,20 @@ fn test_redact_pair_ignores_empty_canonical_name() {
 /// Verifies the longest matching suffix determines the sensitivity level.
 #[test]
 fn test_redact_pair_resolves_longest_suffix_match() {
-    let policy = RedactionPolicy::builder()
-        .raise("key", Sensitivity::Low)
-        .expect("the test builder input should be valid")
-        .raise("api_key", Sensitivity::High)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the overlapping environment policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("key", Sensitivity::Low)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .raise("api_key", Sensitivity::High)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the overlapping environment policy should be valid");
     let redactor = EnvRedactor::new(Redactor::new(policy));
 
     assert_eq!(
@@ -216,11 +244,14 @@ fn test_redact_pair_resolves_longest_suffix_match() {
 /// Verifies an exact-only policy keeps a merely prefixed environment name.
 #[test]
 fn test_redact_pair_honors_exact_matching_policy() {
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .matching(FieldNameMatching::Exact)
-        .build()
-        .expect("the exact-only environment policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder.fields().matching(FieldNameMatching::Exact);
+        builder
+    })
+    .build()
+    .expect("the exact-only environment policy should be valid");
     let redactor = EnvRedactor::new(Redactor::new(policy));
 
     assert_eq!(
@@ -282,11 +313,16 @@ fn test_redact_pair_escapes_non_sensitive_name_and_value() {
 /// Verifies custom field rules are resolved through the injected policy.
 #[test]
 fn test_new_uses_custom_redaction_policy() {
-    let policy = RedactionPolicy::builder()
-        .raise("tenant_value", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the custom environment policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("tenant_value", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the custom environment policy should be valid");
     let redactor = EnvRedactor::new(Redactor::new(policy));
 
     assert_eq!(

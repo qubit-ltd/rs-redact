@@ -16,17 +16,19 @@ use criterion::criterion_group;
 use criterion::criterion_main;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::UriRedactor;
+use qubit_redact::uri::UriRedactor;
 
 /// Builds a URI redactor with the benchmark's fixed diagnostic budget.
 fn benchmark_redactor() -> UriRedactor {
     let budget = InputOutputLimit::new(4096, 256)
         .expect("benchmark diagnostic budget is valid");
-    let core = RedactionPolicy::default()
-        .to_builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("benchmark core policy is valid");
+    let core = ({
+        let mut builder = RedactionPolicy::default().to_builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("benchmark core policy is valid");
     let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("benchmark URI policy is valid");

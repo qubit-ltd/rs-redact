@@ -14,13 +14,20 @@ use qubit_redact::Sensitivity;
 /// Verifies sensitive classifications expose their matched rule metadata.
 #[test]
 fn test_field_classification_exposes_sensitive_rule_metadata() {
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .matching(FieldNameMatching::ExactOrTokenSuffix)
-        .raise("api_token", Sensitivity::High)
-        .expect("the configured field must be valid")
-        .build()
-        .expect("the configured policy must be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .matching(FieldNameMatching::ExactOrTokenSuffix);
+        builder
+            .fields()
+            .raise("api_token", Sensitivity::High)
+            .expect("the configured field must be valid");
+        builder
+    })
+    .build()
+    .expect("the configured policy must be valid");
 
     let classification = policy.classify_field("service_api_token");
 
@@ -37,12 +44,17 @@ fn test_field_classification_exposes_sensitive_rule_metadata() {
 /// Verifies allowed and unknown classifications expose no sensitive metadata.
 #[test]
 fn test_field_classification_distinguishes_allowed_and_unknown_metadata() {
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .allow_canonical_exact("display_name")
-        .expect("the configured field must be valid")
-        .build()
-        .expect("the configured policy must be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .allow_exact("display_name")
+            .expect("the configured field must be valid");
+        builder
+    })
+    .build()
+    .expect("the configured policy must be valid");
 
     let allowed = policy.classify_field("display_name");
     assert_eq!(allowed.sensitivity(), None);
