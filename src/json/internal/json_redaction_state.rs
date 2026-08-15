@@ -17,8 +17,8 @@ use qubit_json::tree::JsonTreeContext;
 use qubit_json::tree::JsonTreeControl;
 use qubit_json::tree::JsonTreeLocation;
 use qubit_json::tree::JsonTreeMutVisitor;
+use qubit_json::tree::JsonTreeMutator;
 use qubit_json::tree::JsonTreeProcessError;
-use qubit_json::tree::JsonTreeProcessor;
 use serde_json::Value;
 
 use super::JsonRedactionOutcome;
@@ -127,7 +127,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
             .budget();
         let mut transaction = budget.transaction();
         let result =
-            JsonTreeProcessor::new(&mut transaction).process_mut(value, self);
+            JsonTreeMutator::new(&mut transaction).process(value, self);
         match result {
             Ok(()) => {
                 transaction.commit();
