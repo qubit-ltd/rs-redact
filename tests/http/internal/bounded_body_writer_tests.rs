@@ -15,13 +15,16 @@ use qubit_redact::http::BodyCapture;
 use qubit_redact::http::HttpRedactor;
 /// Builds a redactor with a deliberately small rendered-body budget.
 fn redactor_with_output_limit(max_output_bytes: usize) -> HttpRedactor {
-    let policy = RedactionPolicy::builder()
-        .body_budget(
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().http_body(
             BodyBudget::new(4096, max_output_bytes)
                 .expect("the body budget is valid"),
-        )
-        .build()
-        .expect("the HTTP policy is valid");
+        );
+        builder
+    })
+    .build()
+    .expect("the HTTP policy is valid");
     HttpRedactor::new(policy)
 }
 /// Verifies bounded JSON rendering reports truncation without exposing a

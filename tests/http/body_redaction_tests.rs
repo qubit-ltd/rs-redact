@@ -59,10 +59,13 @@ fn test_http_redaction_policy_default_uses_safe_values() {
 /// Verifies the HTTP builder has no field rules.
 #[test]
 fn test_http_redaction_policy_builder_has_no_field_rules() {
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .build()
-        .expect("HTTP redaction policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+    })
+    .build()
+    .expect("HTTP redaction policy should be valid");
 
     assert_eq!(policy.header_rules().sensitivity_for("authorization"), None);
     assert_eq!(policy.query_rules().sensitivity_for("password"), None);
@@ -73,21 +76,36 @@ fn test_http_redaction_policy_builder_has_no_field_rules() {
 #[test]
 fn test_http_redaction_policy_builder_overrides_each_context() {
     let base = RedactionPolicy::default();
-    let header = RedactionPolicy::builder()
-        .raise("header_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("header policy should be valid");
-    let query = RedactionPolicy::builder()
-        .raise("query_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("query policy should be valid");
-    let body = RedactionPolicy::builder()
-        .raise("body_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("body policy should be valid");
+    let header = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("header_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("header policy should be valid");
+    let query = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("query_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("query policy should be valid");
+    let body = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("body_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("body policy should be valid");
     let budget = BodyBudget::new(32, 48).expect("budget should be valid");
 
     let mut builder = RedactionPolicy::builder_from(&base);

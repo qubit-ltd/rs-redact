@@ -10,8 +10,8 @@
 use std::fmt;
 use std::fmt::Write;
 
-use qubit_redact::Redact;
 use qubit_redact::RedactionSession;
+use qubit_redact::domain::Redact;
 /// Redacted value that emits log-unsafe controls.
 struct UnsafeDiagnostic;
 

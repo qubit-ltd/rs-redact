@@ -13,17 +13,17 @@ use std::fmt;
 use std::slice;
 
 use qubit_redact::InputOutputLimit;
-use qubit_redact::Redact;
-use qubit_redact::RedactValue;
-use qubit_redact::RedactedKeyedMap;
-use qubit_redact::RedactedKeyedResult;
-use qubit_redact::RedactedMap;
-use qubit_redact::RedactedValue;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::domain::DomainTruncated;
+use qubit_redact::domain::Redact;
+use qubit_redact::domain::RedactValue;
+use qubit_redact::domain::RedactedKeyedMap;
+use qubit_redact::domain::RedactedKeyedResult;
+use qubit_redact::domain::RedactedMap;
+use qubit_redact::domain::RedactedValue;
 use qubit_redact::policy::DomainRedactionLimits;
 use qubit_redact::policy::DomainTraversalAdmission;
 use qubit_redact::policy::DomainValueAdmission;
@@ -255,14 +255,18 @@ impl Redact for ExactPlainMapParent<'_> {
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("map", &DomainTruncated).finish();
         }
-        let map =
-            qubit_redact::RedactedMapResult::new(&self.map, scope.session());
+        let map = qubit_redact::domain::RedactedMapResult::new(
+            &self.map,
+            scope.session(),
+        );
         output.field("map", &map);
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("tail", &DomainTruncated).finish();
         }
-        let tail =
-            qubit_redact::RedactedResult::new(&self.tail, scope.session());
+        let tail = qubit_redact::domain::RedactedResult::new(
+            &self.tail,
+            scope.session(),
+        );
         output.field("tail", &tail);
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("sibling", &DomainTruncated).finish();
@@ -335,7 +339,7 @@ impl Redact for ExactKeyedMapParent<'_> {
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("map", &DomainTruncated).finish();
         }
-        let map = qubit_redact::RedactedKeyedMapResult::new(
+        let map = qubit_redact::domain::RedactedKeyedMapResult::new(
             &self.map,
             scope.session(),
         );
@@ -343,8 +347,10 @@ impl Redact for ExactKeyedMapParent<'_> {
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("tail", &DomainTruncated).finish();
         }
-        let tail =
-            qubit_redact::RedactedResult::new(&self.tail, scope.session());
+        let tail = qubit_redact::domain::RedactedResult::new(
+            &self.tail,
+            scope.session(),
+        );
         output.field("tail", &tail);
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("sibling", &DomainTruncated).finish();
@@ -368,8 +374,10 @@ impl Redact for ExactCollectionParent {
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("values", &DomainTruncated).finish();
         }
-        let values =
-            qubit_redact::RedactedResult::new(&self.values, scope.session());
+        let values = qubit_redact::domain::RedactedResult::new(
+            &self.values,
+            scope.session(),
+        );
         output.field("values", &values);
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("sibling", &DomainTruncated).finish();
@@ -403,7 +411,7 @@ impl Redact for DepthCollectionValue {
                 {
                     return output.field(&DomainTruncated).finish();
                 }
-                let child = qubit_redact::RedactedResult::new(
+                let child = qubit_redact::domain::RedactedResult::new(
                     &DepthChild {
                         blocked: PanicDebug,
                     },
@@ -659,7 +667,9 @@ fn test_exact_full_keyed_map_does_not_emit_truncation() {
 #[test]
 fn test_keyed_map_item_avoids_standalone_structural_double_charge() {
     let map = BTreeMap::from([("password", CollectionValue("secret"))]);
-    let mut builder = RedactionPolicy::builder()
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .fields()
         .raise("password", Sensitivity::Secret)
         .expect("the key rule should be valid");
     builder.limits().domain(
@@ -705,7 +715,9 @@ fn test_keyed_map_depth_marker_preserves_later_sibling() {
 /// Standalone keyed values charge their root and field before resolution.
 #[test]
 fn test_standalone_keyed_node_limit_prevents_value_access() {
-    let mut builder = RedactionPolicy::builder()
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .fields()
         .raise("password", Sensitivity::Secret)
         .expect("the key rule should be valid");
     builder.limits().domain(
@@ -726,7 +738,9 @@ fn test_standalone_keyed_node_limit_prevents_value_access() {
 /// Standalone keyed values reject a nested root before policy resolution.
 #[test]
 fn test_standalone_keyed_depth_limit_prevents_value_access() {
-    let mut builder = RedactionPolicy::builder()
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .fields()
         .raise("password", Sensitivity::Secret)
         .expect("the key rule should be valid");
     builder.limits().domain(

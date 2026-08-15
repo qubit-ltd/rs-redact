@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`RedactedKeyedMap`](qubit_redact::RedactedKeyedMap).
+//! Tests for [`RedactedKeyedMap`](qubit_redact::domain::RedactedKeyedMap).
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -15,15 +15,15 @@ use std::sync::atomic::Ordering;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::MaskingPolicy;
-use qubit_redact::Redact;
-use qubit_redact::RedactValue;
-use qubit_redact::RedactedKeyedMap;
-use qubit_redact::RedactedKeyedMapResult;
-use qubit_redact::RedactedValue;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::Redact;
+use qubit_redact::domain::RedactValue;
+use qubit_redact::domain::RedactedKeyedMap;
+use qubit_redact::domain::RedactedKeyedMapResult;
+use qubit_redact::domain::RedactedValue;
 /// Nested diagnostic value whose secret must be recursively redacted.
 struct NestedValue {
     /// Secret nested value.
@@ -87,11 +87,16 @@ fn test_redacted_keyed_map_recursively_redacts_unclassified_values() {
         (String::from("profile"), nested_value()),
         (String::from("tenant_secret"), nested_value()),
     ]);
-    let policy = RedactionPolicy::builder()
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the keyed map policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the keyed map policy should build");
 
     let output = format!("{:?}", RedactedKeyedMap::new(&map, policy));
 
@@ -123,10 +128,13 @@ fn test_redacted_keyed_map_display_and_bounded_adapters() {
     let output_limit = InputOutputLimit::MIN_OUTPUT_BYTES;
     let budget = InputOutputLimit::new(1024, output_limit)
         .expect("the test diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the keyed map policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the keyed map policy should build");
 
     let display = RedactedKeyedMap::new(&map, policy.clone()).to_string();
     let bounded = RedactedKeyedMap::new(&map, policy.clone())

@@ -16,10 +16,13 @@ use qubit_redact::Redactor;
 fn test_session_truncated_completion_closes_output() {
     let limit = InputOutputLimit::new(128, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the marker-sized test limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the test policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the test policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
     let long_value = "visible output ".repeat(6);

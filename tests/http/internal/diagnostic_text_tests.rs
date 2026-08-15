@@ -16,10 +16,13 @@ use qubit_redact::http::TextBodyPolicy;
 /// Verifies diagnostic text escapes line controls before display.
 #[test]
 fn test_diagnostic_text_escapes_newline() {
-    let policy = RedactionPolicy::builder()
-        .text_body_policy(TextBodyPolicy::PassThrough)
-        .build()
-        .expect("the HTTP policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.http().text_body(TextBodyPolicy::PassThrough);
+        builder
+    })
+    .build()
+    .expect("the HTTP policy should be valid");
     let rendered = HttpRedactor::new(policy)
         .redact_body(
             BodyCapture::complete(b"first\nsecond"),
@@ -35,10 +38,13 @@ fn test_diagnostic_text_escapes_newline() {
 fn test_diagnostic_text_redacts_embedded_url() {
     let budget = InputOutputLimit::new(128, 128)
         .expect("the diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the HTTP policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the HTTP policy should be valid");
     let rendered = HttpRedactor::new(policy)
         .redact_urls_in_text("visit https://example.test/?password=secret now")
         .to_string();

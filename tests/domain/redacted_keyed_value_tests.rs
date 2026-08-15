@@ -5,23 +5,23 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`RedactedKeyedValue`](qubit_redact::RedactedKeyedValue).
+//! Tests for [`RedactedKeyedValue`](qubit_redact::domain::RedactedKeyedValue).
 
 use std::fmt;
 
 use qubit_redact::InputOutputLimit;
 use qubit_redact::MaskPolicy;
 use qubit_redact::MaskingPolicy;
-use qubit_redact::Redact;
-use qubit_redact::RedactValue;
-use qubit_redact::RedactedKeyedResult;
-use qubit_redact::RedactedValue;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::Redact;
 #[cfg(feature = "serde")]
 use qubit_redact::domain::RedactSerialize;
+use qubit_redact::domain::RedactValue;
+use qubit_redact::domain::RedactedKeyedResult;
+use qubit_redact::domain::RedactedValue;
 #[cfg(feature = "serde")]
 use serde::Serializer;
 #[cfg(feature = "serde")]
@@ -40,10 +40,13 @@ fn test_redact_keyed_display_uses_policy_output_limit_by_default() {
     let budget =
         InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the minimum diagnostic output limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the test policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the test policy should be valid");
     let redactor = Redactor::new(policy);
     let value = TextValue("visible diagnostic text".repeat(4));
 
@@ -205,11 +208,16 @@ fn nested_value() -> NestedValue {
 /// Verifies a sensitive keyed text view masks Debug and log-safe Display.
 #[test]
 fn test_redact_keyed_masks_sensitive_text_for_debug_and_display() {
-    let policy = RedactionPolicy::builder()
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the test policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the test policy should be valid");
     let redactor = Redactor::new(policy);
     let value = TextValue("raw\nsecret".to_owned());
     let view = redactor.redact_keyed("tenant_secret", &value);
@@ -223,11 +231,16 @@ fn test_redact_keyed_masks_sensitive_text_for_debug_and_display() {
 /// Verifies a sensitive keyed non-text value uses an opaque replacement.
 #[test]
 fn test_redact_keyed_masks_sensitive_non_text_value() {
-    let policy = RedactionPolicy::builder()
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the test policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the test policy should be valid");
     let value = nested_value();
     let redactor = Redactor::new(policy);
     let view = redactor.redact_keyed("tenant_secret", &value);
@@ -332,14 +345,21 @@ fn test_redact_keyed_bounds_opaque_mask_before_materialization() {
     let budget =
         InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the minimum output budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test field should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed(&"x".repeat(1_000)))
-        .expect("the replacement should be valid")
-        .build()
-        .expect("the test policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test field should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed(&"x".repeat(1_000)))
+            .expect("the replacement should be valid");
+        builder
+    })
+    .build()
+    .expect("the test policy should build");
     let redactor = Redactor::new(policy);
 
     let output = format!(
@@ -385,10 +405,13 @@ fn test_redact_keyed_does_not_charge_value_input() {
     let visits = std::sync::atomic::AtomicUsize::new(0);
     let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the minimum diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let redactor = Redactor::new(policy);
 
     let output = format!(
@@ -404,11 +427,16 @@ fn test_redact_keyed_does_not_charge_value_input() {
 #[cfg(feature = "serde")]
 #[test]
 fn test_redact_keyed_serializes_sensitive_and_recursive_values() {
-    let policy = RedactionPolicy::builder()
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the test policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the test policy should be valid");
     let value = nested_value();
     let redactor = Redactor::new(policy);
     let sensitive = redactor.redact_keyed("tenant_secret", &value);

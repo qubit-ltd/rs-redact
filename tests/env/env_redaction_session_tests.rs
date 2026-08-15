@@ -56,14 +56,21 @@ fn test_env_pair_session_reports_local_mask_truncation() {
     let limit = InputOutputLimit::new(64, 64)
         .expect("the exact-fit diagnostic limit should be valid");
     let replacement = "💥".repeat(64);
-    let policy = RedactionPolicy::builder()
-        .raise("a", Sensitivity::Secret)
-        .expect("the short sensitive field should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
-        .expect("the oversized secret mask should be valid")
-        .diagnostic_event(limit)
-        .build()
-        .expect("the test policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("a", Sensitivity::Secret)
+            .expect("the short sensitive field should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
+            .expect("the oversized secret mask should be valid");
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the test policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
     let _ = session.argv().redact_items(std::iter::empty());
@@ -79,10 +86,13 @@ fn test_env_pair_session_reports_local_mask_truncation() {
 fn test_env_pair_session_reports_truncated_fallback() {
     let limit = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the marker-sized diagnostic limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the test policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the test policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
@@ -97,10 +107,13 @@ fn test_env_pair_session_reports_truncated_fallback() {
 fn test_env_pair_session_reports_exhausted_output() {
     let limit = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the marker-sized diagnostic limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the test policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the test policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
     let _ = session.env().redact_pair("PASSWORD", "secret");
@@ -132,10 +145,13 @@ fn test_env_batch_session_reports_complete_output() {
 fn test_env_batch_session_reports_truncated_when_input_ends_before_iterator() {
     let limit = InputOutputLimit::new(1, 64)
         .expect("the exact input limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the test policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the test policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
     let pulls = Cell::new(0);
@@ -156,10 +172,13 @@ fn test_env_batch_session_reports_truncated_when_input_ends_before_iterator() {
 fn test_env_batch_session_reports_truncated_marker() {
     let limit = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the marker-sized diagnostic limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the test policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the test policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
@@ -176,10 +195,13 @@ fn test_env_batch_session_reports_truncated_marker() {
 fn test_env_batch_session_reports_exhausted_without_advancing_iterator() {
     let limit = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the marker-sized diagnostic limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(limit)
-        .build()
-        .expect("the test policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(limit);
+        builder
+    })
+    .build()
+    .expect("the test policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
     let _ = session

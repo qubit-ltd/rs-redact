@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use qubit_redact::EnvRedactor;
+use qubit_redact::env::EnvRedactor;
 /// Verifies that a redacted environment pair is displayable.
 #[test]
 fn test_redacted_env_pair_displays_assignment() {

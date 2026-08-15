@@ -11,17 +11,19 @@ use qubit_redact::InputOutputLimit;
 use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
-use qubit_redact::UriRedactor;
+use qubit_redact::uri::UriRedactor;
 /// Verifies URI output remains UTF-8 and reserves the complete marker.
 #[test]
 fn test_bounded_uri_output_keeps_utf8_and_marker_complete() {
     let budget = InputOutputLimit::new(4096, 37)
         .expect("the output can contain the marker");
-    let core = RedactionPolicy::default()
-        .to_builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the core policy is valid");
+    let core = ({
+        let mut builder = RedactionPolicy::default().to_builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the core policy is valid");
     let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("the URI policy is valid");
@@ -49,12 +51,16 @@ fn test_bounded_uri_output_keeps_utf8_and_marker_complete() {
 /// Verifies percent-encoded replacement bytes are emitted as complete pieces.
 #[test]
 fn test_bounded_uri_output_percent_encodes_unicode_masks() {
-    let core = RedactionPolicy::default()
-        .to_builder()
-        .mask(Sensitivity::High, MaskPolicy::fixed("密"))
-        .expect("the mask policy is valid")
-        .build()
-        .expect("the core policy is valid");
+    let core = ({
+        let mut builder = RedactionPolicy::default().to_builder();
+        builder
+            .fields()
+            .mask(Sensitivity::High, MaskPolicy::fixed("密"))
+            .expect("the mask policy is valid");
+        builder
+    })
+    .build()
+    .expect("the core policy is valid");
     let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("the URI policy is valid");

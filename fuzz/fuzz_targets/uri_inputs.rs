@@ -13,19 +13,20 @@ use qubit_redact::InputOutputLimit;
 use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
-use qubit_redact::UriComponent;
-use qubit_redact::UriFragmentPolicy;
-use qubit_redact::UriPathPolicy;
-use qubit_redact::UriRedactionReason;
-use qubit_redact::UriRedactionStatus;
-use qubit_redact::UriRedactor;
+use qubit_redact::uri::UriComponent;
+use qubit_redact::uri::UriFragmentPolicy;
+use qubit_redact::uri::UriPathPolicy;
+use qubit_redact::uri::UriRedaction;
+use qubit_redact::uri::UriRedactionReason;
+use qubit_redact::uri::UriRedactionStatus;
+use qubit_redact::uri::UriRedactor;
 
 const INPUT_LIMIT: usize = 4096;
 const OUTPUT_LIMIT: usize = 128;
 const FUZZ_SECRET: &str = "qubit-uri-fuzz-secret-4a1b";
 
 /// Checks the structural invariants promised by URI redaction results.
-fn assert_uri_result_invariants(result: &qubit_redact::UriRedaction) {
+fn assert_uri_result_invariants(result: &UriRedaction) {
     let components = [
         UriComponent::Username,
         UriComponent::Password,
@@ -114,16 +115,15 @@ fuzz_target!(|data: &[u8]| {
 
     let budget = InputOutputLimit::new(INPUT_LIMIT, OUTPUT_LIMIT)
         .expect("the URI fuzz budget is valid");
-    let core = RedactionPolicy::default()
-        .to_builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the core fuzz policy is valid");
-    let policy = RedactionPolicy::builder_from(&core)
-        .path_policy(UriPathPolicy::Redact)
-        .fragment_policy(UriFragmentPolicy::Redact)
-        .build()
-        .expect("the URI fuzz policy is valid");
+    let mut builder = RedactionPolicy::default().to_builder();
+    builder.limits().diagnostic_event(budget);
+    let core = builder.build().expect("the core fuzz policy is valid");
+    let mut builder = RedactionPolicy::builder_from(&core);
+    builder
+        .uri()
+        .path(UriPathPolicy::Redact)
+        .fragment(UriFragmentPolicy::Redact);
+    let policy = builder.build().expect("the URI fuzz policy is valid");
     let redactor = UriRedactor::new(policy);
     let noise = bounded
         .iter()
@@ -139,23 +139,27 @@ fuzz_target!(|data: &[u8]| {
     assert!(result.log_safe_text().as_ref().len() <= OUTPUT_LIMIT);
     assert!(!result.log_safe_text().as_ref().contains(FUZZ_SECRET));
 
-    let custom_core = RedactionPolicy::default()
-        .to_builder()
-        .diagnostic_event(
-            InputOutputLimit::new(INPUT_LIMIT, INPUT_LIMIT)
-                .expect("the custom URI fuzz budget is valid"),
-        )
+    let mut builder = RedactionPolicy::default().to_builder();
+    builder.limits().diagnostic_event(
+        InputOutputLimit::new(INPUT_LIMIT, INPUT_LIMIT)
+            .expect("the custom URI fuzz budget is valid"),
+    );
+    builder
+        .fields()
         .mask(Sensitivity::Secret, MaskPolicy::fixed("密\n/?#%"))
         .expect("the custom secret mask is valid")
         .mask(Sensitivity::High, MaskPolicy::fixed("密\n/?#%"))
-        .expect("the custom high mask is valid")
+        .expect("the custom high mask is valid");
+    let custom_core = builder
         .build()
         .expect("the custom URI fuzz policy is valid");
-    let custom_policy = RedactionPolicy::builder_from(&custom_core)
-        .path_policy(UriPathPolicy::Redact)
-        .fragment_policy(UriFragmentPolicy::Redact)
-        .build()
-        .expect("the custom URI policy is valid");
+    let mut builder = RedactionPolicy::builder_from(&custom_core);
+    builder
+        .uri()
+        .path(UriPathPolicy::Redact)
+        .fragment(UriFragmentPolicy::Redact);
+    let custom_policy =
+        builder.build().expect("the custom URI policy is valid");
     let custom_result = UriRedactor::new(custom_policy)
         .redact_uri_str("https://example.test/path?password=secret#fragment");
     assert_uri_result_invariants(&custom_result);

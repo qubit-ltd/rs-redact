@@ -19,11 +19,11 @@ use criterion::criterion_main;
 use qubit_redact::FieldNameMatching;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::MaskPolicy;
-use qubit_redact::RedactedMap;
 use qubit_redact::RedactionFloor;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::RedactedMap;
 
 /// Compares the default-configuration snapshot path with a direct standard
 /// clone.
@@ -40,13 +40,18 @@ fn benchmark_policy_snapshot(criterion: &mut Criterion) {
 
 /// Measures the four field-resolution paths required by floor semantics.
 fn benchmark_field_classification(criterion: &mut Criterion) {
-    let floor_disabled = RedactionPolicy::builder()
-        .disable_floor()
-        .matching(FieldNameMatching::Exact)
-        .raise("access_token", Sensitivity::Secret)
-        .expect("benchmark field must be valid")
-        .build()
-        .expect("floor-disabled benchmark policy should be valid");
+    let floor_disabled = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder.fields().matching(FieldNameMatching::Exact);
+        builder
+            .fields()
+            .raise("access_token", Sensitivity::Secret)
+            .expect("benchmark field must be valid");
+        builder
+    })
+    .build()
+    .expect("floor-disabled benchmark policy should be valid");
     let floor_exact = RedactionFloor::builder()
         .matching(FieldNameMatching::Exact)
         .raise("floor_exact", Sensitivity::Secret)
@@ -59,24 +64,39 @@ fn benchmark_field_classification(criterion: &mut Criterion) {
         .expect("benchmark floor field must be valid")
         .build()
         .expect("suffix floor benchmark should be valid");
-    let floor_enabled_miss = RedactionPolicy::builder()
-        .floor(floor_exact.clone())
-        .raise("application_only", Sensitivity::High)
-        .expect("benchmark field must be valid")
-        .build()
-        .expect("floor-miss benchmark policy should be valid");
-    let floor_exact_hit = RedactionPolicy::builder()
-        .floor(floor_exact)
-        .raise("application_only", Sensitivity::High)
-        .expect("benchmark field must be valid")
-        .build()
-        .expect("exact-hit benchmark policy should be valid");
-    let floor_suffix_hit = RedactionPolicy::builder()
-        .floor(floor_suffix)
-        .raise("application_only", Sensitivity::High)
-        .expect("benchmark field must be valid")
-        .build()
-        .expect("suffix-hit benchmark policy should be valid");
+    let floor_enabled_miss = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().floor(floor_exact.clone());
+        builder
+            .fields()
+            .raise("application_only", Sensitivity::High)
+            .expect("benchmark field must be valid");
+        builder
+    })
+    .build()
+    .expect("floor-miss benchmark policy should be valid");
+    let floor_exact_hit = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().floor(floor_exact);
+        builder
+            .fields()
+            .raise("application_only", Sensitivity::High)
+            .expect("benchmark field must be valid");
+        builder
+    })
+    .build()
+    .expect("exact-hit benchmark policy should be valid");
+    let floor_suffix_hit = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().floor(floor_suffix);
+        builder
+            .fields()
+            .raise("application_only", Sensitivity::High)
+            .expect("benchmark field must be valid");
+        builder
+    })
+    .build()
+    .expect("suffix-hit benchmark policy should be valid");
     let mut group = criterion.benchmark_group("field_classification");
 
     group.bench_function("floor_disabled", |bencher| {
@@ -111,19 +131,29 @@ fn benchmark_field_classification(criterion: &mut Criterion) {
 /// Measures scalar field redaction for unknown, allowed, and sensitive fields.
 fn benchmark_field_redaction(criterion: &mut Criterion) {
     let unknown = Redactor::default();
-    let allowed_policy = RedactionPolicy::builder()
-        .disable_floor()
-        .allow_canonical_exact("display_name")
-        .expect("benchmark allow rule must be valid")
-        .build()
-        .expect("benchmark allow policy must be valid");
+    let allowed_policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .allow_exact("display_name")
+            .expect("benchmark allow rule must be valid");
+        builder
+    })
+    .build()
+    .expect("benchmark allow policy must be valid");
     let allowed = Redactor::new(allowed_policy);
-    let sensitive_policy = RedactionPolicy::builder()
-        .disable_floor()
-        .raise("password", Sensitivity::Secret)
-        .expect("benchmark sensitive rule must be valid")
-        .build()
-        .expect("benchmark sensitive policy must be valid");
+    let sensitive_policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .raise("password", Sensitivity::Secret)
+            .expect("benchmark sensitive rule must be valid");
+        builder
+    })
+    .build()
+    .expect("benchmark sensitive policy must be valid");
     let sensitive = Redactor::new(sensitive_policy);
     let mut group = criterion.benchmark_group("field_redaction");
 
@@ -217,7 +247,8 @@ fn benchmark_map_policy(size: usize, mixed_hits: bool) -> RedactionPolicy {
     if mixed_hits {
         for index in (0..size).step_by(4) {
             let field = format!("field_{index:04}");
-            builder = builder
+            builder
+                .fields()
                 .raise(&field, Sensitivity::Secret)
                 .expect("generated benchmark field must be valid");
         }

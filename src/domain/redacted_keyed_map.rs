@@ -16,12 +16,12 @@ use std::marker::PhantomData;
 
 use super::bounded_redacted_display::format_bounded;
 use super::internal::mask_byte_limit;
-use crate::BoundedRedactedDisplay;
 use crate::LogOutputLimit;
-use crate::Redact;
-use crate::RedactValue;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
+use crate::domain::BoundedRedactedDisplay;
+use crate::domain::Redact;
+use crate::domain::RedactValue;
 use crate::text::internal::LogEscapeWriter;
 
 /// A lazy map view that classifies each value by its key before recursion.
@@ -69,7 +69,7 @@ use crate::text::internal::LogEscapeWriter;
 ///         &'a self,
 ///         _level: Sensitivity,
 ///         _masking: &MaskingPolicy,
-///     ) -> qubit_redact::RedactedValue<'a> {
+///     ) -> qubit_redact::domain::RedactedValue<'a> {
 ///         unreachable!()
 ///     }
 /// }
@@ -212,11 +212,11 @@ mod session_view {
     use std::fmt::Formatter;
     use std::marker::PhantomData;
 
-    use crate::Redact;
-    use crate::RedactValue;
-    use crate::RedactedKeyedResult;
     use crate::RedactionSession;
     use crate::domain::DomainTruncated;
+    use crate::domain::Redact;
+    use crate::domain::RedactValue;
+    use crate::domain::RedactedKeyedResult;
     use crate::domain::internal::debug_output_exhausted;
     use crate::domain::internal::mask_byte_limit;
     use crate::domain::redacted::CompletedDebug;

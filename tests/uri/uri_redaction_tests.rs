@@ -7,10 +7,10 @@
 // =============================================================================
 //! Tests for structured URI redaction results.
 
-use qubit_redact::UriComponent;
-use qubit_redact::UriRedactionReason;
-use qubit_redact::UriRedactionStatus;
-use qubit_redact::UriRedactor;
+use qubit_redact::uri::UriComponent;
+use qubit_redact::uri::UriRedactionReason;
+use qubit_redact::uri::UriRedactionStatus;
+use qubit_redact::uri::UriRedactor;
 /// Verifies results expose safe text and component metadata together.
 #[test]
 fn test_uri_redaction_result_exposes_safe_metadata() {

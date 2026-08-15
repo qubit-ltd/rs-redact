@@ -7,11 +7,11 @@
 // =============================================================================
 //! Tests for crate-level exports.
 
-use qubit_redact::ArgvRedactor;
-use qubit_redact::EnvRedactor;
 use qubit_redact::RedactedDebug;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
+use qubit_redact::argv::ArgvRedactor;
+use qubit_redact::env::EnvRedactor;
 use qubit_redact::redacted_debug;
 /// Verifies the intended top-level redaction types remain publicly exported.
 #[test]

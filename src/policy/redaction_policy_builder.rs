@@ -28,6 +28,16 @@ use super::UnkeyedJsonValuePolicy;
 use super::UnknownFieldPolicy;
 
 /// Mutable construction state for an immutable [`RedactionPolicy`].
+///
+/// Configuration setters are available through the grouped views returned by
+/// [`Self::fields`], [`Self::limits`], [`Self::http`], and [`Self::uri`].
+/// Duplicate consuming setters are intentionally not available at this level:
+///
+/// ```compile_fail
+/// use qubit_redact::{RedactionPolicy, Sensitivity};
+///
+/// let _ = RedactionPolicy::builder().raise("token", Sensitivity::Secret);
+/// ```
 #[must_use]
 #[derive(Debug, Clone)]
 pub struct RedactionPolicyBuilder {
@@ -111,227 +121,10 @@ impl RedactionPolicyBuilder {
         RedactionRulesBuilder::validate_field_name(field, PolicyLocation::Rules)
     }
 
-    /// Replaces the floor snapshot and marks it as explicitly configured.
-    ///
-    /// This is last-call-wins with [`Self::disable_floor`].
-    pub fn floor(mut self, floor: RedactionFloor) -> Self {
-        self.floor = Some(floor);
-        self
-    }
-    /// Disables every floor, including the standard floor.
-    ///
-    /// # Security
-    ///
-    /// This removes minimum field protection. Call it only when this is an
-    /// intentional, reviewed decision by the policy owner.
-    pub fn disable_floor(mut self) -> Self {
-        self.floor = None;
-        self
-    }
-
-    /// Sets application field-name matching behavior.
-    pub fn matching(mut self, matching: FieldNameMatching) -> Self {
-        self.rules.matching(matching);
-        self
-    }
-
-    /// Sets the application fallback for unclassified fields.
-    pub fn unknown_field_policy(mut self, policy: UnknownFieldPolicy) -> Self {
-        self.rules.unknown_field_policy(policy);
-        self
-    }
-
-    /// Adds every sensitive field defined by `preset` to application rules.
-    pub fn include_preset(mut self, preset: SensitiveFieldPreset) -> Self {
-        self.rules.include_preset(preset);
-        self
-    }
-
-    /// Raises application sensitivity for `field` to at least `level`.
-    ///
-    /// Repeated calls for the same canonical field are monotonic. When several
-    /// differently named rules match one input field, final resolution uses
-    /// the strongest matching sensitivity. For example, `token = Secret` and
-    /// `access_token = Medium` resolve `OPENAI_ACCESS_TOKEN` to `Secret`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
-    /// application-rule name.
-    pub fn raise(
-        mut self,
-        field: &str,
-        level: Sensitivity,
-    ) -> Result<Self, PolicyError> {
-        self.rules.raise(field, level)?;
-        Ok(self)
-    }
-
-    /// Replaces the application sensitivity for `field` with `level`.
-    ///
-    /// This replaces only the same canonical rule. It does not weaken an
-    /// enabled floor or a stronger overlapping rule with another name.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
-    /// application-rule name.
-    pub fn override_level(
-        mut self,
-        field: &str,
-        level: Sensitivity,
-    ) -> Result<Self, PolicyError> {
-        self.rules.override_level(field, level)?;
-        Ok(self)
-    }
-
-    /// Allows one canonical exact application field name.
-    ///
-    /// An enabled floor remains independently effective for the same field.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
-    /// application-rule name.
-    pub fn allow_canonical_exact(
-        mut self,
-        field: &str,
-    ) -> Result<Self, PolicyError> {
-        self.rules.allow_canonical_exact(field)?;
-        Ok(self)
-    }
-
-    /// Allows one application field-name token suffix.
-    ///
-    /// An enabled floor remains independently effective for matching fields.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
-    /// application-rule name.
-    pub fn allow_suffix(mut self, field: &str) -> Result<Self, PolicyError> {
-        self.rules.allow_suffix(field)?;
-        Ok(self)
-    }
-
-    /// Removes the exact application allow rule for `field` when present.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
-    /// application-rule name.
-    pub fn remove_allow_canonical_exact(
-        mut self,
-        field: &str,
-    ) -> Result<Self, PolicyError> {
-        self.rules.remove_allow_canonical_exact(field)?;
-        Ok(self)
-    }
-
-    /// Removes the suffix application allow rule for `field` when present.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
-    /// application-rule name.
-    pub fn remove_allow_suffix(
-        mut self,
-        field: &str,
-    ) -> Result<Self, PolicyError> {
-        self.rules.remove_allow_suffix(field)?;
-        Ok(self)
-    }
-
-    /// Removes every application allow rule.
-    pub fn clear_allow_rules(mut self) -> Self {
-        self.rules.clear_allow_rules();
-        self
-    }
-
-    /// Sets the application masking policy for values at `level`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PolicyError::EmptyFixedReplacement`] when `policy` supplies
-    /// an empty fixed replacement.
-    pub fn mask(
-        mut self,
-        level: Sensitivity,
-        policy: MaskPolicy,
-    ) -> Result<Self, PolicyError> {
-        let masking = self.masking.with_policy(level, policy);
-        masking.validate(PolicyLocation::Rules)?;
-        self.masking = masking;
-        Ok(self)
-    }
-
-    /// Sets the diagnostic-event input and output limits.
-    pub const fn diagnostic_event(mut self, budget: InputOutputLimit) -> Self {
-        self.limits = self.limits.with_diagnostic_event(budget);
-        self
-    }
-
-    /// Sets the ordinary operation input and output limits.
-    pub const fn ordinary_operation(
-        mut self,
-        budget: InputOutputLimit,
-    ) -> Self {
-        self.limits = self.limits.with_ordinary_operation(budget);
-        self
-    }
-
-    /// Sets HTTP URL path handling in the unified policy.
-    #[cfg(feature = "http")]
-    pub fn url_path_policy(
-        mut self,
-        policy: crate::http::UrlPathPolicy,
-    ) -> Self {
-        self.http.url_path_mut(policy);
-        self
-    }
-
-    /// Sets HTTP opaque text-body handling in the unified policy.
-    #[cfg(feature = "http")]
-    pub fn text_body_policy(
-        mut self,
-        policy: crate::http::TextBodyPolicy,
-    ) -> Self {
-        self.http.text_body_mut(policy);
-        self
-    }
-
-    /// Sets HTTP structured body limits in the unified policy.
-    #[cfg(feature = "http")]
-    pub fn body_budget(mut self, budget: crate::http::BodyBudget) -> Self {
-        self.limits = self.limits.with_http_body(budget);
-        self
-    }
-
-    /// Sets URI path handling in the unified policy.
-    #[cfg(feature = "uri")]
-    pub fn path_policy(mut self, policy: crate::uri::UriPathPolicy) -> Self {
-        self.uri = self.uri.path_policy(policy);
-        self
-    }
-
-    /// Sets URI fragment handling in the unified policy.
-    #[cfg(feature = "uri")]
-    pub fn fragment_policy(
-        mut self,
-        policy: crate::uri::UriFragmentPolicy,
-    ) -> Self {
-        self.uri = self.uri.fragment_policy(policy);
-        self
-    }
-
-    /// Sets the maximum JSON nesting depth used by JSON redaction.
-    #[cfg(feature = "json")]
-    pub const fn json_depth_limit(mut self, budget: JsonDepthLimit) -> Self {
-        self.limits = self.limits.with_json_depth_limit(budget);
-        self
-    }
-
     /// Sets behavior for root and array JSON scalar values.
+    ///
+    /// This setter remains on the root builder because the JSON feature does
+    /// not expose a separate grouped builder.
     #[cfg(feature = "json")]
     pub const fn unkeyed_json_value_policy(
         mut self,

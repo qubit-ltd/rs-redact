@@ -209,12 +209,14 @@ use std::collections::HashMap;
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let policy = RedactionPolicy::builder()
+    let mut builder = RedactionPolicy::builder();
+    builder
+        .fields()
         .raise("user_id", Sensitivity::Low)?
         .raise("phone_number", Sensitivity::Medium)?
         .raise("credit_card", Sensitivity::High)?
-        .raise("api_key", Sensitivity::Secret)?
-        .build()?;
+        .raise("api_key", Sensitivity::Secret)?;
+    let policy = builder.build()?;
     let source = HashMap::from([
         ("user_id".to_owned(), "alpine42".to_owned()),
         ("phone_number".to_owned(), "13800138000".to_owned()),
@@ -300,7 +302,7 @@ qubit-redact-derive = "0.5"
 ```
 
 ```ignore
-use qubit_redact::{Redact as _, RedactMut as _};
+use qubit_redact::domain::{Redact as _, RedactMut as _};
 use qubit_redact_derive::Redact;
 
 #[derive(Clone, Redact)]
@@ -355,7 +357,7 @@ serde_json = "1"
 ```
 
 ```ignore
-use qubit_redact::Redact as _;
+use qubit_redact::domain::Redact as _;
 use qubit_redact_derive::Redact;
 
 #[derive(Redact)]

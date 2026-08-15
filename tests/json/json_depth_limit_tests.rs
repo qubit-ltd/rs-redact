@@ -28,10 +28,13 @@ fn test_json_depth_limit_validates_positive_depth() {
 #[test]
 fn test_redaction_policy_preserves_json_depth_limit() {
     let limit = JsonDepthLimit::new(3).expect("the depth limit is valid");
-    let policy = RedactionPolicy::builder()
-        .json_depth_limit(limit)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().json_depth(limit);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let copied = RedactionPolicy::builder_from(&policy)
         .build()
         .expect("the copied policy should build");
