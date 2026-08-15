@@ -22,6 +22,24 @@ use crate::RedactionPolicy;
 use crate::Sensitivity;
 use crate::policy::RedactionResource;
 
+/// Bounded JSON text paired with whether budget enforcement omitted content.
+pub(super) enum BoundedJsonRedaction {
+    /// The complete redacted representation fit within the bound.
+    Complete(String),
+    /// A non-empty safe substitute represents budget-omitted content.
+    Truncated(String),
+}
+
+impl BoundedJsonRedaction {
+    /// Consumes this result into its text and truncation provenance.
+    pub(super) fn into_parts(self) -> (String, bool) {
+        match self {
+            Self::Complete(text) => (text, false),
+            Self::Truncated(text) => (text, true),
+        }
+    }
+}
+
 /// Replaces JSON text with its compact redacted representation.
 ///
 /// Invalid JSON is replaced with the configured Secret opaque mask so callers
@@ -33,7 +51,7 @@ use crate::policy::RedactionResource;
 /// stack and applies [`JsonDepthLimit`](crate::JsonDepthLimit) fail closed.
 /// JSON parsing and final serialization retain the resource and recursion
 /// boundaries of `serde_json`. This guarantee does not apply to the lazy
-/// [`RedactedJson`](crate::RedactedJson) `Debug` or Serde rendering path.
+/// [`RedactedJson`](crate::json::RedactedJson) `Debug` or Serde rendering path.
 ///
 /// # Parameters
 ///
@@ -80,13 +98,13 @@ pub(crate) fn redacted_json_text(
     to_string(&value).expect("JSON value serialization is infallible")
 }
 
-pub(crate) fn redacted_json_text_bounded(
+pub(super) fn redacted_json_text_bounded(
     text: &str,
     policy: &RedactionPolicy,
     max_output: usize,
-) -> String {
+) -> BoundedJsonRedaction {
     let Ok(mut value) = from_str::<Value>(text) else {
-        return opaque_secret(policy);
+        return BoundedJsonRedaction::Complete(opaque_secret(policy));
     };
     let unkeyed = match policy.unkeyed_json_value_policy() {
         crate::UnkeyedJsonValuePolicy::PassThrough => {
@@ -106,7 +124,7 @@ pub(crate) fn redacted_json_text_bounded(
         .redact(&mut value)
         .is_mask_budget_exhausted()
     {
-        return opaque_secret(policy);
+        return BoundedJsonRedaction::Truncated(opaque_secret(policy));
     }
     struct Bounded(Vec<u8>, usize);
     impl Write for Bounded {
@@ -123,16 +141,18 @@ pub(crate) fn redacted_json_text_bounded(
     }
     let mut writer = Bounded(Vec::new(), max_output);
     if to_writer(&mut writer, &value).is_err() {
-        return "<truncated>".to_owned();
+        return BoundedJsonRedaction::Truncated("<truncated>".to_owned());
     }
-    String::from_utf8(writer.0).unwrap_or_else(|_| opaque_secret(policy))
+    BoundedJsonRedaction::Complete(
+        String::from_utf8(writer.0).unwrap_or_else(|_| opaque_secret(policy)),
+    )
 }
 
-pub(crate) fn redacted_json_value_bounded(
+pub(super) fn redacted_json_value_bounded(
     source: &Value,
     policy: &RedactionPolicy,
     max_output: usize,
-) -> String {
+) -> BoundedJsonRedaction {
     let mut value = source.clone();
     let unkeyed = match policy.unkeyed_json_value_policy() {
         crate::UnkeyedJsonValuePolicy::PassThrough => {
@@ -152,7 +172,7 @@ pub(crate) fn redacted_json_value_bounded(
         .redact(&mut value)
         .is_mask_budget_exhausted()
     {
-        return opaque_secret(policy);
+        return BoundedJsonRedaction::Truncated(opaque_secret(policy));
     }
     struct Bounded(Vec<u8>, usize);
     impl Write for Bounded {
@@ -169,9 +189,11 @@ pub(crate) fn redacted_json_value_bounded(
     }
     let mut writer = Bounded(Vec::new(), max_output);
     if to_writer(&mut writer, &value).is_err() {
-        return "<truncated>".to_owned();
+        return BoundedJsonRedaction::Truncated("<truncated>".to_owned());
     }
-    String::from_utf8(writer.0).unwrap_or_else(|_| opaque_secret(policy))
+    BoundedJsonRedaction::Complete(
+        String::from_utf8(writer.0).unwrap_or_else(|_| opaque_secret(policy)),
+    )
 }
 
 /// Returns the configured opaque replacement for invalid JSON text.

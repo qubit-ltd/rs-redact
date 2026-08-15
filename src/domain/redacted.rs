@@ -13,11 +13,27 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 
 use super::bounded_redacted_display::format_bounded;
-use crate::BoundedRedactedDisplay;
 use crate::LogOutputLimit;
-use crate::Redact;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
+use crate::domain::BoundedRedactedDisplay;
+use crate::domain::Redact;
+
+/// Completion state used by containers to decide whether siblings may run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DomainRenderStatus {
+    Complete,
+    DepthTruncated,
+    TraversalTruncated,
+    OutputTruncated,
+}
+
+impl DomainRenderStatus {
+    /// Returns whether shared traversal or output exhaustion stops siblings.
+    pub(crate) const fn stops_siblings(self) -> bool {
+        matches!(self, Self::TraversalTruncated | Self::OutputTruncated)
+    }
+}
 
 /// A lazy non-destructive redacted view of a domain object.
 ///
@@ -173,12 +189,13 @@ mod session_view {
     use std::fmt::Write as _;
     use std::marker::PhantomData;
 
-    use crate::Redact;
     use crate::RedactionSession;
+    use crate::domain::Redact;
     use crate::domain::internal::mark_debug_output_exhausted;
     use crate::domain::internal::mask_byte_limit;
     use crate::domain::internal::with_debug_output_tracking;
     use crate::domain::internal::with_mask_byte_limit;
+    use crate::policy::DomainTruncation;
     use crate::policy::FragmentCompletion;
     use crate::policy::RedactionAdmission;
     use crate::text::internal::LogEscapeWriter;
@@ -187,6 +204,7 @@ mod session_view {
     #[must_use = "format the nested redacted view"]
     pub struct RedactedResult<'value, T: ?Sized> {
         completed: CompletedDebug,
+        status: super::DomainRenderStatus,
         marker: PhantomData<&'value T>,
     }
 
@@ -210,9 +228,9 @@ mod session_view {
             Self::try_new_with_alternate(value, session, alternate)
         }
 
-        /// Returns whether this item's local output ceiling was reached.
-        pub(crate) fn is_truncated(&self) -> bool {
-            self.completed.truncated()
+        /// Returns whether this result exhausted shared sibling eligibility.
+        pub(crate) fn stops_siblings(&self) -> bool {
+            self.status.stops_siblings()
         }
 
         /// Completes a nested representation while preserving pretty debug.
@@ -225,6 +243,17 @@ mod session_view {
                 .unwrap_or_else(Self::empty)
         }
 
+        /// Completes one domain value with output-only admission.
+        ///
+        /// Pure domain rendering deliberately does not reserve or consume
+        /// diagnostic input bytes. The output frame exists solely to cap the
+        /// owned completion and to let [`RedactionSession::commit_output`]
+        /// subtract only bytes not already committed by nested results. A
+        /// domain-generation checkpoint distinguishes structural admission
+        /// failure from byte truncation: structural truncation leaves the
+        /// session output open for eligible siblings, whereas exhausting the
+        /// shared output ceiling closes it. `None` means no output byte remains
+        /// and the value must not be accessed.
         fn try_new_with_alternate(
             value: &'value T,
             session: &mut RedactionSession<'_>,
@@ -235,30 +264,17 @@ mod session_view {
             }
             let session_limit = session.remaining_output_bytes();
             let domain_limit = mask_byte_limit().unwrap_or(usize::MAX);
-            let admission = if session.input_is_precharged() {
-                session.admit_precharged_output(domain_limit)
-            } else {
-                {
-                    let input_bytes = Redact::redaction_input_bytes(value);
-                    session.admit(
-                        input_bytes,
-                        domain_limit,
-                        "<truncated>".len(),
-                    )
-                }
-            };
+            let admission = session.admit_output_only(domain_limit);
             let max_output_bytes = match admission {
                 RedactionAdmission::Render { max_output_bytes } => {
                     max_output_bytes
                 }
-                RedactionAdmission::Fallback => {
-                    return Some(Self {
-                        completed: CompletedDebug::truncated_marker(),
-                        marker: PhantomData,
-                    });
-                }
+                RedactionAdmission::Fallback => unreachable!(
+                    "output-only domain admission cannot reject input"
+                ),
                 RedactionAdmission::Exhausted => return None,
             };
+            let checkpoint = session.domain_truncation_checkpoint();
             let completed = {
                 let wrapper = RedactOnce {
                     value,
@@ -266,25 +282,46 @@ mod session_view {
                 };
                 complete_debug(&wrapper, max_output_bytes, alternate)
             };
+            let domain_truncation = session.domain_truncation_since(checkpoint);
             let completion = if completed.truncated() {
                 if domain_limit < session_limit {
                     FragmentCompletion::DomainTruncated
                 } else {
                     FragmentCompletion::SessionTruncated
                 }
+            } else if domain_truncation != DomainTruncation::None {
+                FragmentCompletion::DomainTruncated
             } else {
                 FragmentCompletion::Complete
+            };
+            let status = if completed.truncated() {
+                super::DomainRenderStatus::OutputTruncated
+            } else {
+                match domain_truncation {
+                    DomainTruncation::None => {
+                        super::DomainRenderStatus::Complete
+                    }
+                    DomainTruncation::Depth => {
+                        super::DomainRenderStatus::DepthTruncated
+                    }
+                    DomainTruncation::Traversal => {
+                        super::DomainRenderStatus::TraversalTruncated
+                    }
+                }
             };
             session.commit_output(completed.len(), completion);
             Some(Self {
                 completed,
+                status,
                 marker: PhantomData,
             })
         }
 
+        /// Creates a valid empty result after complete output exhaustion.
         pub(crate) fn empty() -> Self {
             Self {
                 completed: CompletedDebug::empty(),
+                status: super::DomainRenderStatus::Complete,
                 marker: PhantomData,
             }
         }
@@ -332,6 +369,7 @@ mod session_view {
     }
 
     impl CompletedDebug {
+        /// Creates a valid result with no rendered bytes.
         pub(crate) fn empty() -> Self {
             Self {
                 output: String::new(),
@@ -340,20 +378,12 @@ mod session_view {
             }
         }
 
-        /// Creates the fixed safe marker used when an eager fragment cannot
-        /// inspect its complete input.
-        pub(crate) fn truncated_marker() -> Self {
-            Self {
-                output: "<truncated>".to_owned(),
-                valid: true,
-                truncated: true,
-            }
-        }
-
+        /// Returns the exact number of completed UTF-8 output bytes.
         pub(crate) fn len(&self) -> usize {
             self.output.len()
         }
 
+        /// Returns whether the byte ceiling replaced output with a marker.
         pub(crate) fn truncated(&self) -> bool {
             self.truncated
         }
@@ -370,6 +400,14 @@ mod session_view {
     }
 
     /// Completes a debug value into a bounded owned representation.
+    ///
+    /// The formatter writes at most `limit` UTF-8 bytes, preserving complete
+    /// debug escape sequences. If the value crosses the ceiling, the longest
+    /// safe prefix that leaves room for the complete unquoted `<truncated>`
+    /// marker is retained. A limit smaller than the marker yields empty output.
+    /// Alternate formatting is forwarded exactly once. This function bounds
+    /// the destination buffer, but it cannot bound computation or allocation
+    /// performed internally by an arbitrary user `Debug` implementation.
     pub(crate) fn complete_debug(
         value: &dyn Debug,
         limit: usize,

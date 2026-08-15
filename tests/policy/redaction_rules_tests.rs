@@ -19,14 +19,23 @@ use qubit_redact::UnknownFieldPolicy;
 /// rules.
 #[test]
 fn test_redaction_rules_exact_allow_does_not_hide_suffix_sensitive_rule() {
-    let policy = RedactionPolicy::builder()
-        .raise("access_token", Sensitivity::High)
-        .expect("the test builder input should be valid")
-        .allow_canonical_exact("access_token")
-        .expect("the test builder input should be valid")
-        .matching(FieldNameMatching::ExactOrTokenSuffix)
-        .build()
-        .expect("the policy rules should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("access_token", Sensitivity::High)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .allow_exact("access_token")
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .matching(FieldNameMatching::ExactOrTokenSuffix);
+        builder
+    })
+    .build()
+    .expect("the policy rules should be valid");
 
     assert!(matches!(
         policy.classify_field("access_token"),
@@ -47,10 +56,15 @@ fn test_redaction_rules_exact_allow_does_not_hide_suffix_sensitive_rule() {
 /// Verifies unknown-field fallback sensitivity is applied after rule lookup.
 #[test]
 fn test_redaction_rules_unknown_field_falls_back_to_policy() {
-    let policy = RedactionPolicy::builder()
-        .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low))
-        .build()
-        .expect("the fallback policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low));
+        builder
+    })
+    .build()
+    .expect("the fallback policy should be valid");
 
     assert_eq!(
         policy.sensitivity_for("unconfigured"),
@@ -62,12 +76,17 @@ fn test_redaction_rules_unknown_field_falls_back_to_policy() {
 /// configuration independently from any floor.
 #[test]
 fn test_redaction_rules_expose_application_matching_and_unknown_policy() {
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .matching(FieldNameMatching::Exact)
-        .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low))
-        .build()
-        .expect("the application rules should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder.fields().matching(FieldNameMatching::Exact);
+        builder
+            .fields()
+            .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low));
+        builder
+    })
+    .build()
+    .expect("the application rules should be valid");
     let matching: fn(&RedactionRules) -> FieldNameMatching =
         RedactionRules::matching;
     let unknown_field_policy: fn(&RedactionRules) -> UnknownFieldPolicy =
@@ -90,10 +109,13 @@ fn test_redaction_rules_floor_resolves_overlaps_to_strongest_level() {
         .expect("the longer floor rule should be valid")
         .build()
         .expect("the overlapping floor should be valid");
-    let policy = RedactionPolicy::builder()
-        .floor(floor)
-        .build()
-        .expect("the policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().floor(floor);
+        builder
+    })
+    .build()
+    .expect("the policy should be valid");
 
     assert_eq!(
         policy.sensitivity_for("OPENAI_ACCESS_TOKEN"),

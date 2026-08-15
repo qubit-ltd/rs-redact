@@ -1,0 +1,130 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+//! Log-safe rendering of a redacted environment batch.
+
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
+
+use crate::LogSafeText;
+use crate::RedactionCompletion;
+use crate::text::redaction_output::RedactionOutput;
+
+/// A bounded environment batch paired with its exact completion state.
+#[must_use = "inspect or render the redacted environment batch"]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RedactedEnv {
+    /// Escaped batch rendering paired with its exact completion state.
+    output: RedactionOutput,
+}
+
+impl RedactedEnv {
+    /// Creates a complete environment batch.
+    ///
+    /// # Parameters
+    ///
+    /// * `rendered` - Complete escaped debug-style batch rendering.
+    ///
+    /// # Returns
+    ///
+    /// Safe text paired with [`RedactionCompletion::Complete`].
+    #[inline(always)]
+    pub(super) fn complete(rendered: LogSafeText<'static>) -> Self {
+        Self {
+            output: RedactionOutput::complete(rendered),
+        }
+    }
+
+    /// Creates a truncated environment batch.
+    ///
+    /// # Parameters
+    ///
+    /// * `rendered` - Non-empty safe replacement text or truncation marker.
+    ///
+    /// # Returns
+    ///
+    /// A truncated result for non-empty text, or an exhausted result when no
+    /// safe replacement was emitted.
+    #[inline(always)]
+    pub(super) fn truncated(rendered: LogSafeText<'static>) -> Self {
+        Self {
+            output: RedactionOutput::truncated(rendered)
+                .unwrap_or_else(RedactionOutput::exhausted),
+        }
+    }
+
+    /// Creates an exhausted environment batch.
+    ///
+    /// Exhausted batches contain empty safe text and callers must not advance
+    /// their input iterator after this state is reached.
+    ///
+    /// # Returns
+    ///
+    /// Empty safe text paired with [`RedactionCompletion::Exhausted`].
+    #[inline(always)]
+    pub(super) fn exhausted() -> Self {
+        Self {
+            output: RedactionOutput::exhausted(),
+        }
+    }
+
+    /// Borrows the log-safe batch rendering.
+    ///
+    /// # Returns
+    ///
+    /// Complete or substitute safe text, or an empty value for exhaustion.
+    #[inline(always)]
+    pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
+        self.output.log_safe_text()
+    }
+
+    /// Reports how batch redaction completed.
+    ///
+    /// `Complete` means every admitted pair and delimiter was rendered.
+    /// `Truncated` means input or output was omitted but non-empty safe
+    /// replacement text was emitted. `Exhausted` means the result is empty and
+    /// the input iterator was not advanced after exhaustion.
+    ///
+    /// # Returns
+    ///
+    /// The completion state paired with the batch text.
+    #[inline(always)]
+    pub const fn completion(&self) -> RedactionCompletion {
+        self.output.completion()
+    }
+
+    /// Consumes the result and returns its log-safe batch text.
+    ///
+    /// # Returns
+    ///
+    /// Complete or substitute safe text, or an empty exhausted value.
+    #[inline(always)]
+    pub fn into_log_safe_text(self) -> LogSafeText<'static> {
+        self.output.into_log_safe_text()
+    }
+}
+
+impl Display for RedactedEnv {
+    /// Writes the complete, substitute, or empty log-safe batch text.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination formatting context.
+    ///
+    /// # Returns
+    ///
+    /// The formatter result from writing the safe result text.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the destination formatter rejects output.
+    #[inline(always)]
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(self.output.log_safe_text(), formatter)
+    }
+}

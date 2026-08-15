@@ -9,11 +9,11 @@
 
 use qubit_redact::JsonDepthLimit;
 use qubit_redact::MaskPolicy;
-#[cfg(feature = "serde")]
-use qubit_redact::RedactedJson;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
-use qubit_redact::redact_json_text_in_place;
+#[cfg(feature = "serde")]
+use qubit_redact::json::RedactedJson;
+use qubit_redact::json::redact_json_text_in_place;
 use serde_json::Value;
 use serde_json::from_str;
 #[cfg(feature = "serde")]
@@ -28,13 +28,20 @@ use serde_json::to_value;
 #[cfg(feature = "serde")]
 #[test]
 fn test_json_redaction_state_masks_deep_sensitive_containers() {
-    let policy = RedactionPolicy::builder()
-        .raise("sensitive", Sensitivity::Secret)
-        .expect("the test field should be valid")
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[masked]"))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("sensitive", Sensitivity::Secret)
+            .expect("the test field should be valid");
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[masked]"))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let mut text = to_string(&json!({
         "sensitive": {
             "object-secret": "object-secret-value",
@@ -62,11 +69,16 @@ fn test_json_redaction_state_masks_deep_sensitive_containers() {
 #[cfg(feature = "serde")]
 #[test]
 fn test_json_redaction_state_recurses_through_nested_values() {
-    let policy = RedactionPolicy::builder()
-        .raise("token", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("token", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let value = json!({"items": [{"token": "raw"}, {"name": "Ada"}]});
 
     let output = to_value(RedactedJson::new(&value, &policy))
@@ -79,22 +91,32 @@ fn test_json_redaction_state_recurses_through_nested_values() {
 /// Verifies root-inclusive depth accounting preserves the fail-closed boundary.
 #[test]
 fn test_json_redaction_state_uses_root_inclusive_depth_budget() {
-    let shallow_policy = RedactionPolicy::builder()
-        .json_depth_limit(
+    let shallow_policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().json_depth(
             JsonDepthLimit::new(1).expect("the depth budget is valid"),
-        )
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the policy should build");
-    let deep_policy = RedactionPolicy::builder()
-        .json_depth_limit(
+        );
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy should build");
+    let deep_policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().json_depth(
             JsonDepthLimit::new(2).expect("the depth budget is valid"),
-        )
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the policy should build");
+        );
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let mut shallow = r#"{"child":{"visible":"value"}}"#.to_owned();
     let mut deep = shallow.clone();
 
@@ -110,14 +132,19 @@ fn test_json_redaction_state_uses_root_inclusive_depth_budget() {
 #[test]
 fn test_json_redaction_state_keeps_prior_sibling_when_depth_rejection_is_masked()
  {
-    let policy = RedactionPolicy::builder()
-        .json_depth_limit(
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().json_depth(
             JsonDepthLimit::new(1).expect("the depth limit is valid"),
-        )
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
-        .expect("the mask policy is valid")
-        .build()
-        .expect("the policy should build");
+        );
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
+            .expect("the mask policy is valid");
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let mut text = r#"{"visible":"kept","child":{"secret":"raw"}}"#.to_owned();
 
     redact_json_text_in_place(&mut text, &policy);
@@ -134,12 +161,16 @@ fn test_json_redaction_state_keeps_prior_sibling_when_depth_rejection_is_masked(
 #[cfg(feature = "serde")]
 #[test]
 fn test_json_redaction_state_mutable_matches_lazy_redaction() {
-    let policy = RedactionPolicy::strict()
-        .to_builder()
-        .allow_canonical_exact("visible")
-        .expect("the allowed object field should be valid")
-        .build()
-        .expect("the strict policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::strict().to_builder();
+        builder
+            .fields()
+            .allow_exact("visible")
+            .expect("the allowed object field should be valid");
+        builder
+    })
+    .build()
+    .expect("the strict policy should build");
     let values = [
         json!("root-secret"),
         json!(["root-array-secret", 42, true]),

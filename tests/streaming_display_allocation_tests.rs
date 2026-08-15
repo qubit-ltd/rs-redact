@@ -16,10 +16,10 @@ use std::fmt;
 use std::fmt::Write;
 use std::sync::Mutex;
 
-use qubit_redact::Redact;
-use qubit_redact::RedactedMap;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
+use qubit_redact::domain::Redact;
+use qubit_redact::domain::RedactedMap;
 /// Serializes allocation-counting sections within this integration-test binary.
 static TEST_LOCK: Mutex<()> = Mutex::new(());
 /// Small allocation-count ceiling for eager bounded display completion.
@@ -189,11 +189,16 @@ fn test_redacted_displays_use_bounded_allocation_count() {
 #[test]
 fn test_nonempty_redacted_map_uses_bounded_allocation_count() {
     let map = BTreeMap::from([("visible", "safe")]);
-    let policy = RedactionPolicy::builder()
-        .allow_canonical_exact("visible")
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the visible-field policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .allow_exact("visible")
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the visible-field policy should be valid");
     let view = RedactedMap::new(&map, policy);
     let mut output = FixedBuffer::new();
 

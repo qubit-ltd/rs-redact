@@ -17,10 +17,13 @@ use qubit_redact::RedactionPolicy;
 fn test_http_policy_defaults_preserve_global_diagnostic_budget() {
     let expected = InputOutputLimit::new(64, 64)
         .expect("the diagnostic budget should be valid");
-    let custom = RedactionPolicy::builder()
-        .diagnostic_event(expected)
-        .build()
-        .expect("the custom global policy should be valid");
+    let custom = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(expected);
+        builder
+    })
+    .build()
+    .expect("the custom global policy should be valid");
     RedactionPolicy::install_global(custom).expect(
         "this isolated test process installs the global configuration once",
     );

@@ -21,14 +21,21 @@ use qubit_redact::UnknownFieldPolicy;
 /// Verifies that an exact allow rule does not allow a contextual suffix.
 #[test]
 fn test_exact_allow_does_not_allow_contextual_suffix() {
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .raise("access_token", Sensitivity::High)
-        .expect("the test builder input should be valid")
-        .allow_canonical_exact("access_token")
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the exact allow rule should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .raise("access_token", Sensitivity::High)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .allow_exact("access_token")
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the exact allow rule should be valid");
 
     assert_eq!(policy.sensitivity_for("access_token"), None);
     assert_eq!(
@@ -40,12 +47,17 @@ fn test_exact_allow_does_not_allow_contextual_suffix() {
 /// Verifies that a suffix allow rule explicitly allows contextual suffixes.
 #[test]
 fn test_suffix_allow_is_explicitly_broad() {
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .allow_suffix("access_token")
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the suffix allow rule should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .allow_suffix("access_token")
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the suffix allow rule should be valid");
 
     assert_eq!(policy.sensitivity_for("access_token"), None);
     assert_eq!(policy.sensitivity_for("OPENAI_ACCESS_TOKEN"), None);
@@ -54,15 +66,24 @@ fn test_suffix_allow_is_explicitly_broad() {
 /// Verifies overlapping sensitive rules resolve to the strongest level.
 #[test]
 fn test_overlapping_sensitive_rules_resolve_to_strongest_level() {
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .override_level("token", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .override_level("access_token", Sensitivity::Medium)
-        .expect("the test builder input should be valid")
-        .matching(FieldNameMatching::ExactOrTokenSuffix)
-        .build()
-        .expect("the sensitivity rules should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .override_level("token", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .override_level("access_token", Sensitivity::Medium)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .matching(FieldNameMatching::ExactOrTokenSuffix);
+        builder
+    })
+    .build()
+    .expect("the sensitivity rules should be valid");
 
     assert_eq!(
         policy.sensitivity_for("OPENAI_ACCESS_TOKEN"),
@@ -73,13 +94,18 @@ fn test_overlapping_sensitive_rules_resolve_to_strongest_level() {
 /// Verifies that exact matching does not silently use token-suffix lookup.
 #[test]
 fn test_matching_exact_only_matches_complete_field_name() {
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .raise("access_token", Sensitivity::High)
-        .expect("the test builder input should be valid")
-        .matching(FieldNameMatching::Exact)
-        .build()
-        .expect("the exact-matching policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .raise("access_token", Sensitivity::High)
+            .expect("the test builder input should be valid");
+        builder.fields().matching(FieldNameMatching::Exact);
+        builder
+    })
+    .build()
+    .expect("the exact-matching policy should be valid");
 
     assert_eq!(
         policy.sensitivity_for("access_token"),
@@ -127,31 +153,55 @@ fn test_strict_preset_redacts_unknown_fields() {
 /// standard floor.
 #[test]
 fn test_builder_is_empty_and_default_based_builder_is_explicit() {
-    let builder = RedactionPolicy::builder()
-        .raise("tenant_id", Sensitivity::Low)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the empty policy should be valid");
-    let constructed = RedactionPolicyBuilder::new()
-        .raise("tenant_id", Sensitivity::Low)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the constructed empty policy should be valid");
-    let defaulted = RedactionPolicyBuilder::default()
-        .raise("tenant_id", Sensitivity::Low)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the default empty policy should be valid");
-    let from_default = RedactionPolicy::default()
-        .to_builder()
-        .raise("tenant_id", Sensitivity::Low)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the default-based policy should be valid");
-    let copied = RedactionPolicy::builder_from(&from_default)
-        .include_preset(SensitiveFieldPreset::Session)
-        .build()
-        .expect("the copied policy should be valid");
+    let builder = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("tenant_id", Sensitivity::Low)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the empty policy should be valid");
+    let constructed = ({
+        let mut builder = RedactionPolicyBuilder::new();
+        builder
+            .fields()
+            .raise("tenant_id", Sensitivity::Low)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the constructed empty policy should be valid");
+    let defaulted = ({
+        let mut builder = RedactionPolicyBuilder::default();
+        builder
+            .fields()
+            .raise("tenant_id", Sensitivity::Low)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the default empty policy should be valid");
+    let from_default = ({
+        let mut builder = RedactionPolicy::default().to_builder();
+        builder
+            .fields()
+            .raise("tenant_id", Sensitivity::Low)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the default-based policy should be valid");
+    let copied = ({
+        let mut builder = RedactionPolicy::builder_from(&from_default);
+        builder
+            .fields()
+            .include_preset(SensitiveFieldPreset::Session);
+        builder
+    })
+    .build()
+    .expect("the copied policy should be valid");
 
     assert_eq!(
         builder.sensitivity_for("password"),
@@ -195,23 +245,38 @@ fn test_builder_from_snapshot_replaces_existing_state_and_error() {
 /// Verifies that `builder_from` copies every observable policy component.
 #[test]
 fn test_builder_from_copies_complete_policy_snapshot() {
-    let base = RedactionPolicy::builder()
-        .disable_floor()
-        .matching(FieldNameMatching::Exact)
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[copied]"))
-        .expect("the test mask policy should be valid")
-        .raise("tenant_secret", Sensitivity::Secret)
-        .expect("the test builder input should be valid")
-        .raise("public_token", Sensitivity::High)
-        .expect("the test builder input should be valid")
-        .raise("diagnostic_token", Sensitivity::Medium)
-        .expect("the test builder input should be valid")
-        .allow_canonical_exact("public_token")
-        .expect("the test builder input should be valid")
-        .allow_suffix("diagnostic_token")
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the complete base policy should be valid");
+    let base = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder.fields().matching(FieldNameMatching::Exact);
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[copied]"))
+            .expect("the test mask policy should be valid");
+        builder
+            .fields()
+            .raise("tenant_secret", Sensitivity::Secret)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .raise("public_token", Sensitivity::High)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .raise("diagnostic_token", Sensitivity::Medium)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .allow_exact("public_token")
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .allow_suffix("diagnostic_token")
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the complete base policy should be valid");
     let copied = RedactionPolicy::builder_from(&base)
         .build()
         .expect("the copied policy should remain valid");
@@ -250,18 +315,29 @@ fn test_builder_from_copies_complete_policy_snapshot() {
 /// Verifies that raising never weakens a rule while overriding replaces it.
 #[test]
 fn test_raise_and_override_have_distinct_strength_semantics() {
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .raise("credential", Sensitivity::High)
-        .expect("the test builder input should be valid")
-        .raise("credential", Sensitivity::Medium)
-        .expect("the test builder input should be valid")
-        .override_level("override", Sensitivity::High)
-        .expect("the test builder input should be valid")
-        .override_level("override", Sensitivity::Low)
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the sensitivity rules should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .raise("credential", Sensitivity::High)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .raise("credential", Sensitivity::Medium)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .override_level("override", Sensitivity::High)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .override_level("override", Sensitivity::Low)
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the sensitivity rules should be valid");
 
     assert_eq!(
         policy.sensitivity_for("credential"),
@@ -273,11 +349,16 @@ fn test_raise_and_override_have_distinct_strength_semantics() {
 /// Verifies that masking can be replaced and queried by sensitivity level.
 #[test]
 fn test_mask_replaces_one_masking_policy() {
-    let policy = RedactionPolicy::builder()
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[hidden]"))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the mask policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[hidden]"))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the mask policy should be valid");
 
     assert_eq!(
         policy.masking().mask(Sensitivity::Secret, "value"),
@@ -289,20 +370,23 @@ fn test_mask_replaces_one_masking_policy() {
 /// Verifies that empty canonical field names are rejected immediately.
 #[test]
 fn test_setters_reject_empty_canonical_field_names() {
-    for result in [
-        RedactionPolicy::builder().raise(" _-.[ ] ", Sensitivity::High),
-        RedactionPolicy::builder()
-            .override_level(" _-.[ ] ", Sensitivity::High),
-        RedactionPolicy::builder().allow_canonical_exact(" _-.[ ] "),
-        RedactionPolicy::builder().allow_suffix(" _-.[ ] "),
-    ] {
-        assert_eq!(
-            result.expect_err("empty field names must fail immediately"),
-            PolicyError::EmptyFieldName {
-                location: PolicyLocation::Rules
-            }
-        );
-    }
+    let expected = Some(PolicyError::EmptyFieldName {
+        location: PolicyLocation::Rules,
+    });
+    let mut builder = RedactionPolicy::builder();
+    assert_eq!(
+        builder.fields().raise(" _-.[ ] ", Sensitivity::High).err(),
+        expected,
+    );
+    assert_eq!(
+        builder
+            .fields()
+            .override_level(" _-.[ ] ", Sensitivity::High)
+            .err(),
+        expected,
+    );
+    assert_eq!(builder.fields().allow_exact(" _-.[ ] ").err(), expected,);
+    assert_eq!(builder.fields().allow_suffix(" _-.[ ] ").err(), expected,);
 }
 
 /// Verifies direct field-name validation matches builder canonicalization.
@@ -323,23 +407,31 @@ fn test_validate_field_name_accepts_canonicalizable_names_and_rejects_empty() {
 /// Verifies that fixed masks require a non-empty replacement immediately.
 #[test]
 fn test_mask_rejects_empty_fixed_replacement_immediately() {
-    let result = RedactionPolicy::builder()
-        .mask(Sensitivity::High, MaskPolicy::fixed(""));
+    let mut builder = RedactionPolicy::builder();
+    let error = builder
+        .fields()
+        .mask(Sensitivity::High, MaskPolicy::fixed(""))
+        .err();
 
     assert_eq!(
-        result.expect_err("an empty fixed mask must fail immediately"),
-        PolicyError::EmptyFixedReplacement {
+        error,
+        Some(PolicyError::EmptyFixedReplacement {
             location: PolicyLocation::Rules,
             level: Sensitivity::High,
-        },
+        }),
     );
 
     assert!(
-        RedactionPolicy::builder()
-            .mask(Sensitivity::High, MaskPolicy::empty())
-            .expect("the test mask policy should be valid")
-            .build()
-            .is_ok(),
+        ({
+            let mut builder = RedactionPolicy::builder();
+            builder
+                .fields()
+                .mask(Sensitivity::High, MaskPolicy::empty())
+                .expect("the test mask policy should be valid");
+            builder
+        })
+        .build()
+        .is_ok(),
     );
 }
 
@@ -347,10 +439,13 @@ fn test_mask_rejects_empty_fixed_replacement_immediately() {
 /// diagnostics.
 #[test]
 fn test_builder_and_policy_error_display() {
-    let policy = RedactionPolicy::builder()
-        .disable_floor()
-        .build()
-        .expect("the builder should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+    })
+    .build()
+    .expect("the builder should be valid");
     assert_eq!(policy.sensitivity_for("password"), None);
     assert_eq!(
         PolicyError::EmptyFieldName {
@@ -372,15 +467,24 @@ fn test_builder_and_policy_error_display() {
 /// Verifies that immutable rule views expose canonical, sorted rule data.
 #[test]
 fn test_rule_views_expose_canonical_configuration() {
-    let policy = RedactionPolicy::builder()
-        .raise("Tenant-Token", Sensitivity::High)
-        .expect("the test builder input should be valid")
-        .allow_canonical_exact("Public Token")
-        .expect("the test builder input should be valid")
-        .allow_suffix("Diagnostic.Token")
-        .expect("the test builder input should be valid")
-        .build()
-        .expect("the policy rules should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .raise("Tenant-Token", Sensitivity::High)
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .allow_exact("Public Token")
+            .expect("the test builder input should be valid");
+        builder
+            .fields()
+            .allow_suffix("Diagnostic.Token")
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy rules should be valid");
     let sensitive = policy.application_sensitive_rules().collect::<Vec<_>>();
     let allowed = policy.application_allow_rules().collect::<Vec<_>>();
 

@@ -7,7 +7,6 @@
 // =============================================================================
 //! Log-safe rendering of a redacted argument vector.
 
-use std::borrow::Cow;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -15,13 +14,15 @@ use std::fmt::Formatter;
 use super::redacted_argv_builder::RedactedArgvBuilder;
 use crate::InputOutputLimit;
 use crate::LogSafeText;
+use crate::RedactionCompletion;
+use crate::text::redaction_output::RedactionOutput;
 
 /// A redacted argv rendering that is safe for a single-line text log.
 #[must_use = "render the redacted argv instead of the original arguments"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactedArgv {
-    /// Escaped debug-style rendering of all argument tokens.
-    rendered: LogSafeText<'static>,
+    /// Escaped rendering paired with its exact completion state.
+    output: RedactionOutput,
 }
 
 impl RedactedArgv {
@@ -39,7 +40,7 @@ impl RedactedArgv {
         RedactedArgvBuilder::new(budget)
     }
 
-    /// Creates an argv value from already escaped bounded output.
+    /// Creates a complete argv value from already escaped bounded output.
     ///
     /// # Parameters
     ///
@@ -49,9 +50,39 @@ impl RedactedArgv {
     ///
     /// A displayable argv value.
     #[inline(always)]
-    pub(super) fn from_rendered(rendered: String) -> Self {
+    pub(super) fn complete(rendered: LogSafeText<'static>) -> Self {
         Self {
-            rendered: LogSafeText::from_escaped(Cow::Owned(rendered)),
+            output: RedactionOutput::complete(rendered),
+        }
+    }
+
+    /// Creates a truncated argv value from non-empty safe substitute output.
+    ///
+    /// # Parameters
+    ///
+    /// * `rendered` - Non-empty escaped substitute or truncation marker.
+    ///
+    /// # Returns
+    ///
+    /// A truncated result when `rendered` is non-empty; otherwise the sole
+    /// valid exhausted result.
+    #[inline(always)]
+    pub(super) fn truncated(rendered: LogSafeText<'static>) -> Self {
+        Self {
+            output: RedactionOutput::truncated(rendered)
+                .unwrap_or_else(RedactionOutput::exhausted),
+        }
+    }
+
+    /// Creates an exhausted argv value without safe substitute text.
+    ///
+    /// # Returns
+    ///
+    /// Empty safe text paired with [`RedactionCompletion::Exhausted`].
+    #[inline(always)]
+    pub(super) fn exhausted() -> Self {
+        Self {
+            output: RedactionOutput::exhausted(),
         }
     }
 
@@ -61,13 +92,38 @@ impl RedactedArgv {
     /// [`crate::DiagnosticLogBuilder::push_safe`]. Callers remain responsible
     /// for applying any enclosing output budget.
     #[inline(always)]
-    pub const fn as_log_safe_text(&self) -> &LogSafeText<'static> {
-        &self.rendered
+    pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
+        self.output.log_safe_text()
+    }
+
+    /// Reports whether argv processing completed, substituted, or exhausted.
+    ///
+    /// # Returns
+    ///
+    /// [`RedactionCompletion::Complete`] after full rendering,
+    /// [`RedactionCompletion::Truncated`] when non-empty safe substitute text
+    /// represents omitted input or output, or
+    /// [`RedactionCompletion::Exhausted`] when the result is empty and the
+    /// input iterator was not advanced after exhaustion.
+    #[inline(always)]
+    pub const fn completion(&self) -> RedactionCompletion {
+        self.output.completion()
+    }
+
+    /// Consumes the result and returns its log-safe diagnostic text.
+    ///
+    /// # Returns
+    ///
+    /// Complete or substitute safe text, or an empty value when
+    /// [`Self::completion`] was [`RedactionCompletion::Exhausted`].
+    #[inline(always)]
+    pub fn into_log_safe_text(self) -> LogSafeText<'static> {
+        self.output.into_log_safe_text()
     }
 }
 
 impl Display for RedactedArgv {
-    /// Writes the complete escaped argv rendering.
+    /// Writes the escaped argv result text.
     ///
     /// # Parameters
     ///
@@ -75,13 +131,14 @@ impl Display for RedactedArgv {
     ///
     /// # Returns
     ///
-    /// The formatter result from writing the complete rendering.
+    /// The formatter result from writing complete, truncated, or empty
+    /// exhausted output.
     ///
     /// # Errors
     ///
     /// Returns [`fmt::Error`] when the destination formatter rejects output.
     #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        Display::fmt(&self.rendered, formatter)
+        Display::fmt(self.output.log_safe_text(), formatter)
     }
 }

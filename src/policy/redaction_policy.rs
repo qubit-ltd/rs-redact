@@ -119,7 +119,7 @@ pub struct RedactionPolicy {
 impl RedactionPolicy {
     /// Installs the application-owned default policy exactly once.
     ///
-    /// The policy is copied into a process-wide immutable slot. Reading
+    /// The policy is moved into a process-wide immutable slot. Reading
     /// [`Self::global`] before installation only observes [`Self::standard`]
     /// and does not occupy this slot. If a policy was already installed, the
     /// rejected policy is returned through
@@ -135,24 +135,34 @@ impl RedactionPolicy {
     /// process, or after concurrent application work has begun is a lifecycle
     /// error even though the type system cannot distinguish those call sites.
     ///
-    /// Objects created before installation may already own a snapshot of
+    /// A successful installation changes only future calls that take a global
+    /// or default snapshot. Objects created before installation may already
+    /// own a snapshot of
     /// [`Self::standard`]. They intentionally keep that snapshot after
     /// installation. Any object that must use the application policy must be
     /// created after this call or receive the policy explicitly.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::InstallGlobalPolicyError`] when a policy is already
+    /// installed. That error allocates once to retain the rejected policy and
+    /// returns its ownership through
+    /// [`crate::InstallGlobalPolicyError::into_policy`].
     pub fn install_global(
         policy: Self,
     ) -> Result<(), crate::InstallGlobalPolicyError> {
         GLOBAL_POLICY
             .set(policy)
-            .map_err(crate::InstallGlobalPolicyError)
+            .map_err(crate::InstallGlobalPolicyError::new)
     }
 
     /// Returns the process-wide default policy snapshot.
     ///
     /// Returns the installed policy when available; otherwise returns the
     /// fixed standard policy without changing global installation state.
-    /// Existing policy and redactor snapshots are unaffected by a later global
-    /// installation.
+    /// Installing a policy changes only future global/default snapshots.
+    /// Existing policy, builder, redactor, session, and business-object
+    /// snapshots are unaffected by a later global installation.
     ///
     /// # Warning
     ///
@@ -187,7 +197,12 @@ impl RedactionPolicy {
         STRICT_POLICY.clone()
     }
 
-    /// Creates a builder initialized from the process-wide default snapshot.
+    /// Creates a builder from the process-wide default visible at this call.
+    ///
+    /// Before installation, the builder copies [`Self::standard`] without
+    /// occupying the installation slot. A later installation changes only
+    /// future default snapshots and future calls to this function; it never
+    /// modifies a builder or object that already exists.
     #[inline]
     pub fn builder_from_default() -> RedactionPolicyBuilder {
         Self::builder_from(&Self::default())
@@ -456,13 +471,15 @@ impl RedactionPolicy {
 }
 
 impl Default for RedactionPolicy {
-    /// Clones the currently visible process default.
+    /// Clones the process default visible at this call.
     ///
     /// # Warning
     ///
     /// Before application assembly calls [`Self::install_global`], this clones
-    /// [`Self::standard`]. The clone is a permanent snapshot and will not be
-    /// updated by a later installation. Policy-sensitive objects that require
+    /// [`Self::standard`] without occupying the installation slot. A successful
+    /// installation changes only future default snapshots; this clone and
+    /// every object that already owns one remain unchanged. Policy-sensitive
+    /// objects that require
     /// application configuration must be constructed after installation or be
     /// given an explicit policy. The standard policy is only a deterministic
     /// library baseline; the host application must configure every field that

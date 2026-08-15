@@ -12,6 +12,7 @@ use std::fmt::Write as _;
 use super::RedactedArgv;
 use crate::InputOutputLimit;
 use crate::LogOutputLimit;
+use crate::LogSafeText;
 use crate::text::internal::BoundedLogEscapeWriter;
 
 /// Streams a byte-bounded argv rendering without retaining every token.
@@ -87,15 +88,27 @@ impl RedactedArgvBuilder {
         }
     }
 
-    /// Completes the bounded argv rendering.
+    /// Completes the bounded argv rendering and maps local omission.
+    ///
+    /// # Parameters
+    ///
+    /// * `locally_truncated` - Whether an admitted item mask was shortened
+    ///   before it reached this builder.
     ///
     /// # Returns
     ///
-    /// The final log-safe argv rendering, including a truncation marker when
-    /// the output budget was exhausted.
+    /// The final log-safe argv rendering. Either a locally shortened mask or
+    /// builder output truncation produces
+    /// [`crate::RedactionCompletion::Truncated`].
     #[inline]
-    pub(super) fn finish(mut self) -> RedactedArgv {
+    pub(super) fn finish(mut self, locally_truncated: bool) -> RedactedArgv {
         self.close();
-        RedactedArgv::from_rendered(self.writer.finish())
+        let truncated = locally_truncated || self.writer.is_truncated();
+        let rendered = LogSafeText::from_escaped(self.writer.finish().into());
+        if truncated {
+            RedactedArgv::truncated(rendered)
+        } else {
+            RedactedArgv::complete(rendered)
+        }
     }
 }

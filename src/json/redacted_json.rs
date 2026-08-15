@@ -19,9 +19,9 @@ use serde::ser::SerializeMap as _;
 use serde::ser::SerializeSeq as _;
 use serde_json::Value;
 
-use crate::RedactValue as _;
-use crate::RedactedValue;
 use crate::RedactionPolicy;
+use crate::domain::RedactValue as _;
+use crate::domain::RedactedValue;
 use crate::policy::ResolvedField;
 
 /// A borrowed JSON value rendered with policy-aware object-key redaction.
