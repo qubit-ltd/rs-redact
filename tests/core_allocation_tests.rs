@@ -23,6 +23,8 @@ use std::sync::atomic::Ordering;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::MaskPolicy;
+#[cfg(feature = "uri")]
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
 use qubit_redact::Redactor;
@@ -328,7 +330,7 @@ fn test_bounded_uri_avoids_amplified_mask_allocation() {
     let (result, largest) =
         measure_largest_allocation(|| redactor.redact_uri_str(&input));
 
-    assert!(result.is_truncated());
+    assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(result.log_safe_text().as_ref().len() <= 128);
     assert!(
         largest <= 4096,

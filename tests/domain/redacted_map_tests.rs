@@ -44,10 +44,6 @@ impl fmt::Debug for FormatterBehavior {
 }
 
 impl RedactValue for FormatterBehavior {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -139,17 +135,17 @@ fn test_redacted_map_preserves_formatter_error() {
     assert_eq!(result, Err(fmt::Error));
 }
 
-/// Value whose legacy size forecast must not affect domain rendering.
-struct OversizedInput<'a>(&'a AtomicUsize);
+/// Value that records whether domain rendering reaches its formatter.
+struct ObservedInput<'a>(&'a AtomicUsize);
 
-impl fmt::Debug for OversizedInput<'_> {
+impl fmt::Debug for ObservedInput<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fetch_add(1, Ordering::Relaxed);
         formatter.write_str("must-not-render")
     }
 }
 
-impl RedactValue for OversizedInput<'_> {
+impl RedactValue for ObservedInput<'_> {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -158,17 +154,13 @@ impl RedactValue for OversizedInput<'_> {
         self.0.fetch_add(1, Ordering::Relaxed);
         RedactedValue::opaque(level, masking)
     }
-
-    fn redaction_input_bytes(&self) -> usize {
-        1_000
-    }
 }
 
-/// Verifies map domain rendering ignores value input-size forecasts.
+/// Verifies map domain rendering does not charge diagnostic input for values.
 #[test]
 fn test_redacted_map_does_not_charge_value_input() {
     let visits = AtomicUsize::new(0);
-    let map = BTreeMap::from([("label", OversizedInput(&visits))]);
+    let map = BTreeMap::from([("label", ObservedInput(&visits))]);
     let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the minimum diagnostic budget should be valid");
     let policy = ({
@@ -196,10 +188,6 @@ impl fmt::Debug for ShortCountingValue<'_> {
 }
 
 impl RedactValue for ShortCountingValue<'_> {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -244,10 +232,6 @@ impl fmt::Debug for PullValue {
 }
 
 impl RedactValue for PullValue {
-    fn redaction_input_bytes(&self) -> usize {
-        1
-    }
-
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,

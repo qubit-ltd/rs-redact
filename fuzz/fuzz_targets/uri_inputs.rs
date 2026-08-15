@@ -11,6 +11,7 @@ use fluent_uri::Uri;
 use libfuzzer_sys::fuzz_target;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
 use qubit_redact::uri::UriComponent;
@@ -87,11 +88,12 @@ fn assert_uri_result_invariants(result: &UriRedaction) {
         }
     }
 
-    if result.status() != UriRedactionStatus::Invalid && !result.is_truncated()
+    if result.status() != UriRedactionStatus::Invalid
+        && result.completion() == RedactionCompletion::Complete
     {
         assert!(
             Uri::<&str>::parse(output).is_ok(),
-            "non-invalid, non-truncated output is not parseable: {output:?}",
+            "complete non-invalid output is not parseable: {output:?}",
         );
     }
 }
@@ -164,6 +166,6 @@ fuzz_target!(|data: &[u8]| {
         .redact_uri_str("https://example.test/path?password=secret#fragment");
     assert_uri_result_invariants(&custom_result);
     assert_eq!(custom_result.status(), UriRedactionStatus::Redacted);
-    assert!(!custom_result.is_truncated());
+    assert_eq!(custom_result.completion(), RedactionCompletion::Complete);
     assert!(!custom_result.log_safe_text().as_ref().contains("secret"));
 });
