@@ -7,8 +7,8 @@
 // =============================================================================
 //! Tests for explicit in-place redaction adapters.
 
-use qubit_redact::RedactMut;
 use qubit_redact::RedactionPolicy;
+use qubit_redact::domain::RedactMut;
 /// Mutable value used to verify nested in-place replacement.
 #[derive(Clone)]
 struct MutableValue(String);

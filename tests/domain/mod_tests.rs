@@ -7,9 +7,9 @@
 // =============================================================================
 //! Tests for the public domain module boundary.
 
-use qubit_redact::RedactValue;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::RedactValue;
 /// Verifies reexported domain traits and values compose.
 #[test]
 fn test_domain_module_reexports_compose() {

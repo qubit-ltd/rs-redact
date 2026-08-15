@@ -13,14 +13,14 @@ use std::fmt::Formatter;
 #[cfg(feature = "serde")]
 use serde::Serializer;
 
-use crate::Redact;
-use crate::RedactMut;
-use crate::RedactedResult;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::domain::DomainTruncated;
+use crate::domain::Redact;
+use crate::domain::RedactMut;
 #[cfg(feature = "serde")]
 use crate::domain::RedactSerialize;
+use crate::domain::RedactedResult;
 use crate::domain::internal::debug_output_exhausted;
 use crate::policy::DomainTraversalAdmission;
 use crate::policy::DomainValueAdmission;

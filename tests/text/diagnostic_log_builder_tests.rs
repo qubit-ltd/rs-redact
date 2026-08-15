@@ -61,10 +61,13 @@ fn test_diagnostic_builder_appends_safe_text() {
 fn test_diagnostic_builder_pushes_redacted_fields_with_shared_session() {
     let budget = InputOutputLimit::new(18, 64)
         .expect("the diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the diagnostic policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the diagnostic policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
     let mut builder = DiagnosticLogBuilder::new(budget);
@@ -87,10 +90,13 @@ fn test_diagnostic_builder_pushes_redacted_fields_with_shared_session() {
 fn test_diagnostic_builder_reports_exhausted_redaction_output() {
     let budget = InputOutputLimit::new(128, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the diagnostic policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the diagnostic policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
     let mut builder = DiagnosticLogBuilder::new(budget);
@@ -121,10 +127,13 @@ fn test_diagnostic_builder_reports_exhausted_redaction_output() {
 fn test_diagnostic_builder_pushes_explicitly_sensitive_values() {
     let budget = InputOutputLimit::new(128, 64)
         .expect("the diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the diagnostic policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the diagnostic policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
     let mut builder = DiagnosticLogBuilder::new(budget);

@@ -11,14 +11,14 @@ use std::fmt;
 
 use qubit_redact::InputOutputLimit;
 use qubit_redact::MaskPolicy;
-use qubit_redact::Redact;
-use qubit_redact::RedactValue;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
 use qubit_redact::Sensitivity;
 use qubit_redact::domain::DomainTruncated;
+use qubit_redact::domain::Redact;
 #[cfg(feature = "serde")]
 use qubit_redact::domain::RedactSerialize;
+use qubit_redact::domain::RedactValue;
 use qubit_redact::policy::DomainTraversalAdmission;
 use qubit_redact::policy::DomainValueAdmission;
 #[cfg(feature = "serde")]
@@ -172,11 +172,16 @@ fn test_redacted_with_snapshots_policy() {
         note: "visible".to_owned(),
     };
     let view = {
-        let policy = RedactionPolicy::builder()
-            .mask(Sensitivity::Secret, MaskPolicy::fixed("[snapshot]"))
-            .expect("the test mask policy should be valid")
-            .build()
-            .expect("the fixed masking policy should be valid");
+        let policy = ({
+            let mut builder = RedactionPolicy::builder();
+            builder
+                .fields()
+                .mask(Sensitivity::Secret, MaskPolicy::fixed("[snapshot]"))
+                .expect("the test mask policy should be valid");
+            builder
+        })
+        .build()
+        .expect("the fixed masking policy should be valid");
         account.redacted_with(&policy)
     };
 
@@ -217,10 +222,13 @@ fn test_redacted_debug_uses_policy_output_limit_by_default() {
     let budget =
         InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the minimum diagnostic output limit should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the diagnostic budget should build a policy");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the diagnostic budget should build a policy");
 
     let output = format!("{:?}", account.redacted_with(&policy));
 
@@ -239,10 +247,13 @@ fn test_redacted_display_uses_policy_output_limit_by_default() {
     let budget =
         InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the minimum bounded output should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the diagnostic budget should build a policy");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the diagnostic budget should build a policy");
 
     let output = account.redacted_with(&policy).to_string();
 
@@ -258,11 +269,16 @@ fn test_redacted_view_serializes_through_the_explicit_policy() {
         password: "raw-secret".to_owned(),
         note: "visible".to_owned(),
     };
-    let policy = RedactionPolicy::builder()
-        .mask(Sensitivity::Secret, MaskPolicy::fixed("[serde]"))
-        .expect("the test mask policy should be valid")
-        .build()
-        .expect("the fixed masking policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[serde]"))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the fixed masking policy should build");
 
     let serialized = to_value(account.redacted_with(&policy))
         .expect("the redacted view should serialize");

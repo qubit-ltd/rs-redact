@@ -7,7 +7,7 @@
 // =============================================================================
 //! Tests for URI path handling policy.
 
-use qubit_redact::UriPathPolicy;
+use qubit_redact::uri::UriPathPolicy;
 /// Verifies paths remain visible unless explicitly configured otherwise.
 #[test]
 fn test_path_policy_defaults_to_preserve() {

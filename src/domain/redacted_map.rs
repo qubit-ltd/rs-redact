@@ -15,11 +15,11 @@ use std::marker::PhantomData;
 
 use super::bounded_redacted_display::format_bounded;
 use super::internal::mask_byte_limit;
-use crate::BoundedRedactedDisplay;
 use crate::LogOutputLimit;
-use crate::RedactMapValue;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
+use crate::domain::BoundedRedactedDisplay;
+use crate::domain::RedactMapValue;
 
 /// A lazy map view that classifies values by their runtime keys.
 ///
@@ -39,7 +39,8 @@ use crate::RedactionSession;
 /// ```compile_fail
 /// use std::slice;
 ///
-/// use qubit_redact::{RedactedMap, RedactionPolicy};
+/// use qubit_redact::domain::RedactedMap;
+/// use qubit_redact::RedactionPolicy;
 ///
 /// struct InexactMap(Vec<(String, String)>);
 ///
@@ -169,8 +170,8 @@ mod session_view {
     use std::fmt::Write as _;
     use std::marker::PhantomData;
 
-    use crate::RedactMapValue;
     use crate::RedactionSession;
+    use crate::domain::RedactMapValue;
     use crate::domain::internal::mask_byte_limit;
     use crate::domain::redacted::CompletedDebug;
     use crate::domain::redacted::complete_debug;

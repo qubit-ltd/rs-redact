@@ -9,10 +9,10 @@
 
 use qubit_redact::InputOutputLimit;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::UriComponent;
-use qubit_redact::UriRedactionReason;
-use qubit_redact::UriRedactionStatus;
-use qubit_redact::UriRedactor;
+use qubit_redact::uri::UriComponent;
+use qubit_redact::uri::UriRedactionReason;
+use qubit_redact::uri::UriRedactionStatus;
+use qubit_redact::uri::UriRedactor;
 /// Verifies inspection reports sensitive components without producing text.
 #[test]
 fn test_uri_redactor_inspect_uri_str_reports_metadata() {
@@ -52,14 +52,16 @@ fn test_uri_redactor_inspect_uri_str_fails_closed() {
 /// Verifies inspection is independent of the rendered output budget.
 #[test]
 fn test_uri_redactor_inspect_uri_str_ignores_output_budget() {
-    let core = RedactionPolicy::default()
-        .to_builder()
-        .diagnostic_event(
+    let core = ({
+        let mut builder = RedactionPolicy::default().to_builder();
+        builder.limits().diagnostic_event(
             InputOutputLimit::new(4096, 64)
                 .expect("the diagnostic budget is valid"),
-        )
-        .build()
-        .expect("the core policy is valid");
+        );
+        builder
+    })
+    .build()
+    .expect("the core policy is valid");
     let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("the URI policy is valid");

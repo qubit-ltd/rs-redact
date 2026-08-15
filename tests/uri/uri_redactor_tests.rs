@@ -12,22 +12,25 @@ use qubit_redact::LogSafeText;
 use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
-use qubit_redact::UriComponent;
-use qubit_redact::UriFragmentPolicy;
-use qubit_redact::UriPathPolicy;
-use qubit_redact::UriRedactionReason;
-use qubit_redact::UriRedactionStatus;
-use qubit_redact::UriRedactor;
+use qubit_redact::uri::UriComponent;
+use qubit_redact::uri::UriFragmentPolicy;
+use qubit_redact::uri::UriPathPolicy;
+use qubit_redact::uri::UriRedactionReason;
+use qubit_redact::uri::UriRedactionStatus;
+use qubit_redact::uri::UriRedactor;
 /// Verifies repeated URI session fallbacks never exceed the cumulative output
 /// limit, including when insufficient bytes remain for another complete marker.
 #[test]
 fn test_uri_session_fallbacks_respect_cumulative_output_limit() {
     let budget = InputOutputLimit::new(8, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the marker-sized diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("URI policy should be valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("URI policy should be valid");
     let redactor = UriRedactor::new(policy);
     let mut session = redactor.session();
 
@@ -74,16 +77,25 @@ fn test_uri_redactor_redacts_password_but_preserves_username() {
 /// Verifies username and password use independent core field rules.
 #[test]
 fn test_uri_redactor_applies_username_policy_and_keeps_encoded_colon() {
-    let core = RedactionPolicy::builder()
-        .disable_floor()
-        .raise("username", Sensitivity::Secret)
-        .expect("username rule is valid")
-        .raise("password", Sensitivity::Secret)
-        .expect("password rule is valid")
-        .allow_canonical_exact("username")
-        .expect("username allow rule is valid")
-        .build()
-        .expect("core policy is valid");
+    let core = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .raise("username", Sensitivity::Secret)
+            .expect("username rule is valid");
+        builder
+            .fields()
+            .raise("password", Sensitivity::Secret)
+            .expect("password rule is valid");
+        builder
+            .fields()
+            .allow_exact("username")
+            .expect("username allow rule is valid");
+        builder
+    })
+    .build()
+    .expect("core policy is valid");
     let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("URI policy is valid");
@@ -103,14 +115,21 @@ fn test_uri_redactor_applies_username_policy_and_keeps_encoded_colon() {
 /// Verifies query values are decoded before masking and raw order is retained.
 #[test]
 fn test_uri_redactor_masks_query_after_decoding_and_preserves_order() {
-    let core = RedactionPolicy::builder()
-        .disable_floor()
-        .raise("token", Sensitivity::High)
-        .expect("token rule is valid")
-        .mask(Sensitivity::High, MaskPolicy::fixed("x y"))
-        .expect("mask policy is valid")
-        .build()
-        .expect("core policy is valid");
+    let core = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.fields().disable_floor();
+        builder
+            .fields()
+            .raise("token", Sensitivity::High)
+            .expect("token rule is valid");
+        builder
+            .fields()
+            .mask(Sensitivity::High, MaskPolicy::fixed("x y"))
+            .expect("mask policy is valid");
+        builder
+    })
+    .build()
+    .expect("core policy is valid");
     let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("URI policy is valid");
@@ -146,11 +165,14 @@ fn test_uri_redactor_fails_closed_for_invalid_uri_and_query_key_utf8() {
 /// Verifies path and fragment visibility are independently configurable.
 #[test]
 fn test_uri_redaction_policy_configures_path_and_fragment_boundaries() {
-    let policy = RedactionPolicy::builder()
-        .path_policy(UriPathPolicy::Redact)
-        .fragment_policy(UriFragmentPolicy::Preserve)
-        .build()
-        .expect("URI policy is valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.uri().path(UriPathPolicy::Redact);
+        builder.uri().fragment(UriFragmentPolicy::Preserve);
+        builder
+    })
+    .build()
+    .expect("URI policy is valid");
     let result = UriRedactor::new(policy)
         .redact_uri_str("https://example.test/private/path#debug");
 
@@ -177,14 +199,16 @@ fn test_uri_redaction_consuming_text_preserves_safe_type() {
 /// Verifies later malformed query fields are still validated after truncation.
 #[test]
 fn test_uri_redactor_validates_after_output_truncation() {
-    let core = RedactionPolicy::default()
-        .to_builder()
-        .diagnostic_event(
+    let core = ({
+        let mut builder = RedactionPolicy::default().to_builder();
+        builder.limits().diagnostic_event(
             InputOutputLimit::new(4096, 64)
                 .expect("the diagnostic budget is valid"),
-        )
-        .build()
-        .expect("the core policy is valid");
+        );
+        builder
+    })
+    .build()
+    .expect("the core policy is valid");
     let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("the URI policy is valid");
@@ -212,10 +236,13 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
         "urn:path",
     );
     let path_redacted = UriRedactor::new(
-        RedactionPolicy::builder()
-            .path_policy(UriPathPolicy::Redact)
-            .build()
-            .expect("the path policy is valid"),
+        ({
+            let mut builder = RedactionPolicy::builder();
+            builder.uri().path(UriPathPolicy::Redact);
+            builder
+        })
+        .build()
+        .expect("the path policy is valid"),
     );
     assert_eq!(
         path_redacted
@@ -252,11 +279,13 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
 
     let budget = InputOutputLimit::new(4096, 64)
         .expect("the diagnostic budget is valid");
-    let core = RedactionPolicy::default()
-        .to_builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the core policy is valid");
+    let core = ({
+        let mut builder = RedactionPolicy::default().to_builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the core policy is valid");
     let bounded = UriRedactor::new(
         RedactionPolicy::builder_from(&core)
             .build()
@@ -270,14 +299,16 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
     assert!(result.is_truncated());
     assert!(!result.log_safe_text().as_str().contains("secret"));
 
-    let input_limited = RedactionPolicy::default()
-        .to_builder()
-        .diagnostic_event(
+    let input_limited = ({
+        let mut builder = RedactionPolicy::default().to_builder();
+        builder.limits().diagnostic_event(
             InputOutputLimit::new(4, 64)
                 .expect("the input limit policy is valid"),
-        )
-        .build()
-        .expect("the input limit core policy is valid");
+        );
+        builder
+    })
+    .build()
+    .expect("the input limit core policy is valid");
     let limited = UriRedactor::new(
         RedactionPolicy::builder_from(&input_limited)
             .build()
@@ -291,18 +322,24 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
 #[test]
 fn test_uri_redactor_marks_truncated_final_sensitive_value() {
     let replacement = "X".repeat(128);
-    let core = RedactionPolicy::default()
-        .to_builder()
-        .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
-        .expect("the mask policy is valid")
-        .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
-        .expect("the opaque mask policy is valid")
-        .diagnostic_event(
+    let core = ({
+        let mut builder = RedactionPolicy::default().to_builder();
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
+            .expect("the mask policy is valid");
+        builder
+            .fields()
+            .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
+            .expect("the opaque mask policy is valid");
+        builder.limits().diagnostic_event(
             InputOutputLimit::new(4096, 37)
                 .expect("the diagnostic budget is valid"),
-        )
-        .build()
-        .expect("the core policy is valid");
+        );
+        builder
+    })
+    .build()
+    .expect("the core policy is valid");
     let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("the URI policy is valid");

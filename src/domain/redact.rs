@@ -10,9 +10,9 @@
 use std::fmt;
 use std::fmt::Formatter;
 
-use crate::Redacted;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
+use crate::domain::Redacted;
 
 /// Writes the unquoted safe marker for a domain branch that was not admitted.
 ///

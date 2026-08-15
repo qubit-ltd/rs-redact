@@ -15,11 +15,11 @@ use std::sync::atomic::Ordering;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::MaskPolicy;
-use qubit_redact::Redact;
-use qubit_redact::RedactedMap;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::Redact;
+use qubit_redact::domain::RedactedMap;
 /// Value whose redacted representation writes caller-selected safe text.
 struct DiagnosticText<'a> {
     /// Text written through the redacted formatting contract.
@@ -189,11 +189,16 @@ fn test_domain_truncation_keeps_session_open_for_later_fragments() {
     }
 
     let completed = AtomicUsize::new(0);
-    let policy = RedactionPolicy::builder()
-        .mask(Sensitivity::Secret, MaskPolicy::fixed(&"你".repeat(20)))
-        .expect("the Unicode mask should be valid")
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed(&"你".repeat(20)))
+            .expect("the Unicode mask should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let output = TwoMasks(&completed)
         .redacted_with(&policy)
         .with_output_limit(limit(14))
@@ -230,10 +235,13 @@ fn test_bounded_debug_does_not_charge_domain_input() {
     };
     let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the zero-input budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
     let output_limit = limit(InputOutputLimit::MIN_OUTPUT_BYTES);
 
     let output = format!(
@@ -275,10 +283,13 @@ fn test_domain_output_is_bounded_without_input_forecast() {
         InputOutputLimit::MIN_OUTPUT_BYTES,
     )
     .expect("the structural-sized budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
 
     let output = format!("{:?}", value.redacted_with(&policy));
 
@@ -297,10 +308,13 @@ fn test_domain_formatting_ignores_maximal_input_budget() {
     let budget =
         InputOutputLimit::new(usize::MAX, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the maximum input budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
 
     let output = format!("{:?}", value.redacted_with(&policy));
 

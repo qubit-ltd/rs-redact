@@ -13,11 +13,11 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 
 use super::bounded_redacted_display::format_bounded;
-use crate::BoundedRedactedDisplay;
 use crate::LogOutputLimit;
-use crate::Redact;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
+use crate::domain::BoundedRedactedDisplay;
+use crate::domain::Redact;
 
 /// Completion state used by containers to decide whether siblings may run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -189,8 +189,8 @@ mod session_view {
     use std::fmt::Write as _;
     use std::marker::PhantomData;
 
-    use crate::Redact;
     use crate::RedactionSession;
+    use crate::domain::Redact;
     use crate::domain::internal::mark_debug_output_exhausted;
     use crate::domain::internal::mask_byte_limit;
     use crate::domain::internal::with_debug_output_tracking;

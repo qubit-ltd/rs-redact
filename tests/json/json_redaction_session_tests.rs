@@ -17,10 +17,13 @@ use serde_json::json;
 fn output_exhaustion_skips_json_input() {
     let budget = InputOutputLimit::new(8, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("marker-sized output budget is valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("policy is valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("policy is valid");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
     let _ = session.json().redact_text("{\"token\":\"secret\"}");
@@ -37,10 +40,13 @@ fn output_exhaustion_skips_json_input() {
 fn input_rejection_with_safe_fallback_is_truncated() {
     let budget = InputOutputLimit::new(8, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("marker-sized output budget is valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("policy is valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("policy is valid");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
@@ -52,12 +58,15 @@ fn input_rejection_with_safe_fallback_is_truncated() {
 
 #[test]
 fn redact_value_counts_input_and_returns_compact_json() {
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(
             InputOutputLimit::new(256, 256).expect("valid budget"),
-        )
-        .build()
-        .expect("policy is valid");
+        );
+        builder
+    })
+    .build()
+    .expect("policy is valid");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
@@ -70,12 +79,15 @@ fn redact_value_counts_input_and_returns_compact_json() {
 
 #[test]
 fn redact_text_renders_json_through_the_shared_session() {
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(
             InputOutputLimit::new(256, 256).expect("valid budget"),
-        )
-        .build()
-        .expect("policy is valid");
+        );
+        builder
+    })
+    .build()
+    .expect("policy is valid");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
@@ -89,10 +101,13 @@ fn redact_text_renders_json_through_the_shared_session() {
 fn output_smaller_than_truncation_marker_is_exhausted() {
     let budget = InputOutputLimit::new(256, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("marker-sized output budget is valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("policy is valid");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("policy is valid");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
     let first = session.json().redact_text(r#"{"message":"abcdefghijklm"}"#);
@@ -111,8 +126,9 @@ fn output_smaller_than_truncation_marker_is_exhausted() {
 fn generated_mask_budget_exhaustion_is_truncated() {
     let budget = InputOutputLimit::new(256, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("marker-sized output budget is valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
+    let mut builder = RedactionPolicy::builder();
+    builder.limits().diagnostic_event(budget);
+    let policy = builder
         .unkeyed_json_value_policy(UnkeyedJsonValuePolicy::Redact)
         .build()
         .expect("policy is valid");

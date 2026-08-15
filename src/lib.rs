@@ -102,7 +102,8 @@
 //!
 //! ```ignore
 //! use std::collections::HashMap;
-//! use qubit_redact::{Redact as _, RedactionPolicy, Sensitivity};
+//! use qubit_redact::domain::Redact as _;
+//! use qubit_redact::{RedactionPolicy, Sensitivity};
 //! use qubit_redact_derive::Redact;
 //!
 //! #[derive(Redact)]
@@ -138,7 +139,7 @@
 //! when memory erasure is required.
 //!
 //! ```ignore
-//! use qubit_redact::{Redact as _, RedactMut as _};
+//! use qubit_redact::domain::{Redact as _, RedactMut as _};
 //! use qubit_redact_derive::Redact;
 //!
 //! #[derive(Clone, Redact)]
@@ -173,7 +174,7 @@
 //! ```ignore
 //! # #[cfg(feature = "serde")]
 //! # {
-//! use qubit_redact::Redact as _;
+//! use qubit_redact::domain::Redact as _;
 //! use qubit_redact_derive::Redact;
 //!
 //! #[derive(Redact)]
@@ -212,7 +213,7 @@
 //! representations through a structure-preserving attribute allowlist.
 //!
 //! ```ignore
-//! use qubit_redact::Redact as _;
+//! use qubit_redact::domain::Redact as _;
 //! use qubit_redact_derive::Redact;
 //!
 //! #[derive(Redact)]
@@ -354,36 +355,9 @@ pub mod text;
 #[cfg(feature = "uri")]
 pub mod uri;
 
-pub use argv::ArgvRedactor;
-pub use domain::BoundedRedactedDisplay;
-pub use domain::Redact;
-pub use domain::RedactMapValue;
-pub use domain::RedactMapValueMut;
-pub use domain::RedactMut;
-pub use domain::RedactValue;
-pub use domain::RedactValueMut;
-pub use domain::Redacted;
-pub use domain::RedactedKeyedMap;
-pub use domain::RedactedKeyedMapResult;
-pub use domain::RedactedKeyedResult;
-pub use domain::RedactedKeyedValue;
-pub use domain::RedactedMap;
-pub use domain::RedactedMapResult;
-pub use domain::RedactedResult;
-pub use domain::RedactedValue;
-pub use env::EnvRedactor;
 pub use field_redaction::FieldRedaction;
 pub use field_redaction::PassThroughReason;
 pub use install_global_policy_error::InstallGlobalPolicyError;
-#[cfg(feature = "json")]
-pub use json::JsonRedactionSession;
-#[cfg(feature = "json")]
-pub use json::RedactedJson;
-#[cfg(feature = "json")]
-pub use json::RedactedJsonText;
-#[cfg(feature = "json")]
-#[cfg(feature = "json")]
-pub use json::redact_json_text_in_place;
 pub use policy::AllowRule;
 pub use policy::DiagnosticBudgetError;
 pub use policy::FieldClassification;
@@ -424,21 +398,3 @@ pub use text::RedactedDebug;
 pub use text::RedactedText;
 pub use text::RedactionCompletion;
 pub use text::redacted_debug;
-#[cfg(feature = "uri")]
-pub use uri::UriComponent;
-#[cfg(feature = "uri")]
-pub use uri::UriFragmentPolicy;
-#[cfg(feature = "uri")]
-pub use uri::UriInspection;
-#[cfg(feature = "uri")]
-pub use uri::UriPathPolicy;
-#[cfg(feature = "uri")]
-pub use uri::UriPolicy;
-#[cfg(feature = "uri")]
-pub use uri::UriRedaction;
-#[cfg(feature = "uri")]
-pub use uri::UriRedactionReason;
-#[cfg(feature = "uri")]
-pub use uri::UriRedactionStatus;
-#[cfg(feature = "uri")]
-pub use uri::UriRedactor;

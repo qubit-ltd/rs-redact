@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`RedactedMap`](qubit_redact::RedactedMap).
+//! Tests for [`RedactedMap`](qubit_redact::domain::RedactedMap).
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -17,13 +17,13 @@ use indexmap::IndexMap;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::MaskingPolicy;
-use qubit_redact::RedactValue;
-use qubit_redact::RedactedMap;
-use qubit_redact::RedactedMapResult;
-use qubit_redact::RedactedValue;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::RedactValue;
+use qubit_redact::domain::RedactedMap;
+use qubit_redact::domain::RedactedMapResult;
+use qubit_redact::domain::RedactedValue;
 
 /// Map value used to verify alternate flags and formatter failures.
 struct FormatterBehavior {
@@ -103,10 +103,13 @@ fn test_redacted_map_display_uses_policy_output_limit_by_default() {
     let budget =
         InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the minimum bounded output should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the diagnostic budget should build a policy");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the diagnostic budget should build a policy");
 
     let output = RedactedMap::new(&map, policy).to_string();
 
@@ -168,10 +171,13 @@ fn test_redacted_map_does_not_charge_value_input() {
     let map = BTreeMap::from([("label", OversizedInput(&visits))]);
     let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the minimum diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
 
     let output = format!("{:?}", RedactedMap::new(&map, policy));
 

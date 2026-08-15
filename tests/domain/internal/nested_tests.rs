@@ -15,10 +15,10 @@ use std::sync::atomic::Ordering;
 use qubit_redact::__private::RedactedSerialize;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
-use qubit_redact::Redact;
-use qubit_redact::RedactMut;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
+use qubit_redact::domain::Redact;
+use qubit_redact::domain::RedactMut;
 #[cfg(feature = "serde")]
 use qubit_redact::domain::RedactSerialize;
 /// Minimal nested value with a fixed safe representation.
@@ -173,10 +173,13 @@ fn test_vec_does_not_charge_item_input_before_rendering() {
     let budget =
         InputOutputLimit::new(input_bytes, InputOutputLimit::MIN_OUTPUT_BYTES)
             .expect("the diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
 
     let output = format!("{:?}", values.redacted_with(&policy));
 
@@ -206,10 +209,13 @@ fn test_option_does_not_double_charge_child_input() {
     let value = Some(ExactInputChild(&calls));
     let budget = InputOutputLimit::new(6, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the exact aggregate input budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the policy should build");
 
     let output = format!("{:?}", value.redacted_with(&policy));
 

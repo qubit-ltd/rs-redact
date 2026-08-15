@@ -11,9 +11,9 @@ use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use crate::RedactValue;
 use crate::RedactionSession;
 use crate::domain::DomainTruncated;
+use crate::domain::RedactValue;
 use crate::domain::internal::debug_output_exhausted;
 use crate::domain::internal::mask_byte_limit;
 use crate::domain::redacted::complete_debug;

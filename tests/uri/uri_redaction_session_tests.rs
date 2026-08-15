@@ -10,18 +10,21 @@
 use qubit_redact::InputOutputLimit;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::UriRedactionReason;
-use qubit_redact::UriRedactor;
+use qubit_redact::uri::UriRedactionReason;
+use qubit_redact::uri::UriRedactor;
 
 /// Verifies output exhaustion short-circuits later URI input admission.
 #[test]
 fn test_uri_session_does_not_charge_input_after_output_exhaustion() {
     let budget = InputOutputLimit::new(8, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the marker-sized diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the URI policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the URI policy should build");
     let redactor = UriRedactor::new(policy);
     let mut session = redactor.session();
     let _ = session.uri().redact_uri_str(
@@ -44,10 +47,13 @@ fn test_uri_session_does_not_charge_input_after_output_exhaustion() {
 fn test_uri_session_reports_complete_safe_rewrite() {
     let budget = InputOutputLimit::new(256, 256)
         .expect("the diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the URI policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the URI policy should build");
     let redactor = UriRedactor::new(policy);
     let mut session = redactor.session();
 
@@ -64,10 +70,13 @@ fn test_uri_session_reports_complete_safe_rewrite() {
 fn test_uri_session_reports_non_empty_output_omission_as_truncated() {
     let budget = InputOutputLimit::new(256, InputOutputLimit::MIN_OUTPUT_BYTES)
         .expect("the diagnostic budget should be valid");
-    let policy = RedactionPolicy::builder()
-        .diagnostic_event(budget)
-        .build()
-        .expect("the URI policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder.limits().diagnostic_event(budget);
+        builder
+    })
+    .build()
+    .expect("the URI policy should build");
     let redactor = UriRedactor::new(policy);
     let mut session = redactor.session();
 

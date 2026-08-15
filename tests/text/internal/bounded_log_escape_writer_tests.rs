@@ -10,8 +10,8 @@
 use std::fmt;
 
 use qubit_redact::LogOutputLimit;
-use qubit_redact::Redact;
 use qubit_redact::RedactionSession;
+use qubit_redact::domain::Redact;
 /// Redacted value whose escaped representation exceeds the test budget.
 struct LongUnsafeDiagnostic;
 

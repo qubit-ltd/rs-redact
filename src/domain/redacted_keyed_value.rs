@@ -16,10 +16,10 @@ use super::bounded_redacted_display::format_bounded;
 use super::bounded_redacted_display::format_debug_bounded;
 use super::internal::mask_byte_limit;
 use crate::LogOutputLimit;
-use crate::Redact;
-use crate::RedactValue;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
+use crate::domain::Redact;
+use crate::domain::RedactValue;
 #[cfg(feature = "serde")]
 use crate::policy::ResolvedField;
 
@@ -122,10 +122,10 @@ mod session_view {
     use std::fmt::Write as _;
     use std::marker::PhantomData;
 
-    use crate::Redact;
-    use crate::RedactValue;
     use crate::RedactionSession;
     use crate::domain::DomainTruncated;
+    use crate::domain::Redact;
+    use crate::domain::RedactValue;
     use crate::domain::internal::mask_byte_limit;
     use crate::domain::redacted::CompletedDebug;
     use crate::domain::redacted::DomainRenderStatus;
