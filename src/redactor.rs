@@ -147,8 +147,8 @@ impl Redactor {
     ///
     /// The returned view borrows this redactor's policy snapshot. When its key
     /// is sensitive, it masks the complete value through
-    /// [`RedactValue`](crate::RedactValue). Otherwise it delegates to the
-    /// value's recursive redaction contracts.
+    /// [`RedactValue`](crate::domain::RedactValue). Otherwise it delegates to
+    /// the value's recursive redaction contracts.
     ///
     /// # Type Parameters
     ///
