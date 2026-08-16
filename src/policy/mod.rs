@@ -8,6 +8,7 @@
 //! Immutable field classification and value-masking primitives.
 
 mod allow_rule;
+pub mod field;
 mod diagnostic_budget;
 mod diagnostic_budget_error;
 mod domain_redaction_limits;
@@ -24,6 +25,7 @@ mod json_depth_limit;
 #[cfg(feature = "json")]
 mod json_depth_limit_error;
 mod mask_policy;
+pub mod masking;
 mod masking_policy;
 mod policy_error;
 mod policy_location;
