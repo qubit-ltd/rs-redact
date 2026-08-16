@@ -18,18 +18,18 @@ use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::Sensitivity;
 use crate::argv::ArgvRedactor;
+use crate::domain::RedactMapValueMut;
+use crate::domain::RedactedKeyedValue;
 use crate::env::EnvRedactor;
 #[cfg(feature = "http")]
 use crate::http::HttpRedactor;
-#[cfg(feature = "uri")]
-use crate::uri::UriRedactor;
-use crate::domain::RedactMapValueMut;
-use crate::domain::RedactedKeyedValue;
 use crate::policy::DiagnosticBudget;
 use crate::policy::FragmentCompletion;
 use crate::policy::RedactionAdmission;
 use crate::policy::ResolvedField;
 use crate::text::redaction_output::RedactionOutput;
+#[cfg(feature = "uri")]
+use crate::uri::UriRedactor;
 
 /// Applies one immutable policy to scalar values and string maps.
 #[derive(Debug, Clone, PartialEq, Eq)]

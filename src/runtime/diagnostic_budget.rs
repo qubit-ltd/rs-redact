@@ -9,10 +9,10 @@
 
 use qubit_budget::ResourceBudget;
 
-use crate::policy::InputOutputLimit;
-use crate::policy::RedactionResource;
 use super::internal::FragmentCompletion;
 use super::internal::RedactionAdmission;
+use crate::policy::InputOutputLimit;
+use crate::policy::RedactionResource;
 
 // qubit-style: allow type-file-name
 /// Mutable input/output accounting for one redaction event.

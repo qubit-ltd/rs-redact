@@ -13,8 +13,8 @@ use super::DomainTruncation;
 use super::DomainTruncationCheckpoint;
 use super::internal::FragmentCompletion;
 use super::internal::RedactionAdmission;
-use crate::policy::DomainValueAdmission;
 use crate::policy::DomainTraversalAdmission;
+use crate::policy::DomainValueAdmission;
 use crate::policy::DomainValueScope;
 use crate::policy::RedactionPolicy;
 use crate::runtime::DomainValueBudgetAdmission;
@@ -139,7 +139,8 @@ impl<'policy> RedactionSession<'policy> {
         self.domain_budget.admit_collection_item()
     }
 
-    /// Releases one active domain-value depth while preserving cumulative charges.
+    /// Releases one active domain-value depth while preserving cumulative
+    /// charges.
     #[inline]
     pub(crate) fn leave_domain_value(&mut self) {
         self.domain_budget.leave_value();

@@ -12,4 +12,5 @@ mod redaction_config_builder;
 
 pub use redaction_config::RedactionConfig;
 pub use redaction_config_builder::RedactionConfigBuilder;
+
 pub use crate::InstallGlobalPolicyError;
