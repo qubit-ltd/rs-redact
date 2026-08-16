@@ -8,7 +8,7 @@
 //! RAII scope for one admitted domain value.
 
 use super::DomainTraversalAdmission;
-use super::RedactionSession;
+use crate::runtime::RedactionSession;
 
 /// Owns one active domain-value depth and exposes pre-access admission checks.
 ///
@@ -39,7 +39,7 @@ impl<'session, 'policy> DomainValueScope<'session, 'policy> {
     #[inline]
     #[must_use]
     pub fn admit_field(&mut self) -> DomainTraversalAdmission {
-        self.session.domain_budget.admit_field()
+        self.session.admit_domain_field()
     }
 
     /// Charges one collection item before advancing its iterator.
@@ -50,7 +50,7 @@ impl<'session, 'policy> DomainValueScope<'session, 'policy> {
     #[inline]
     #[must_use]
     pub fn admit_collection_item(&mut self) -> DomainTraversalAdmission {
-        self.session.domain_budget.admit_collection_item()
+        self.session.admit_domain_collection_item()
     }
 
     /// Reborrows the shared redaction session for nested rendering.
@@ -68,6 +68,6 @@ impl Drop for DomainValueScope<'_, '_> {
     /// Restores the active depth while preserving cumulative resource charges.
     #[inline]
     fn drop(&mut self) {
-        self.session.domain_budget.leave_value();
+        self.session.leave_domain_value();
     }
 }
