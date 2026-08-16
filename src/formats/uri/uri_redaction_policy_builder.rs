@@ -32,7 +32,6 @@ impl UriPolicyBuilder {
     }
 
     /// Creates a builder that copies an existing URI context snapshot.
-
     #[must_use]
     pub(crate) fn from_policy(policy: &UriPolicy) -> Self {
         Self {

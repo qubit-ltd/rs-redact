@@ -386,7 +386,6 @@ impl RedactionPolicy {
     }
 
     /// Replaces the floor for this immutable policy.
-
     #[must_use]
     #[inline]
     pub fn with_floor(mut self, floor: RedactionFloor) -> Self {

@@ -94,7 +94,6 @@ impl RedactionPolicyBuilder {
     }
 
     /// Returns the mutable base-field configuration view.
-
     #[must_use]
     #[inline(always)]
     pub fn fields(&mut self) -> FieldsBuilder<'_> {
@@ -120,7 +119,6 @@ impl RedactionPolicyBuilder {
     }
 
     /// Returns the mutable static-limits configuration view.
-
     #[must_use]
     #[inline(always)]
     pub fn limits(&mut self) -> LimitsBuilder<'_> {
@@ -291,7 +289,6 @@ mod views {
         }
 
         /// Replaces the base minimum-protection floor.
-
         #[must_use]
         #[inline(always)]
         pub fn floor(&mut self, floor: RedactionFloor) -> &mut Self {
@@ -503,9 +500,7 @@ mod views {
         }
 
         /// Adds a context floor. Base protection remains independently
-
         /// effective.
-
         #[must_use]
         #[inline(always)]
         pub fn floor(&mut self, floor: RedactionFloor) -> &mut Self {

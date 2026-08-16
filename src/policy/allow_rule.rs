@@ -53,17 +53,11 @@ impl<'a> AllowRule<'a> {
     }
 
     /// Returns the breadth of the allow rule.
-
     ///
-
     /// # Returns
-
     ///
-
     /// [`FieldNameMatching::Exact`] for an exact-only allow rule or
-
     /// [`FieldNameMatching::ExactOrTokenSuffix`] for a suffix allow rule.
-
     #[must_use]
     #[inline(always)]
     pub const fn matching(&self) -> FieldNameMatching {
