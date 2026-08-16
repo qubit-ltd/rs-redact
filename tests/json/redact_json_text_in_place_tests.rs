@@ -19,7 +19,10 @@ fn test_redact_json_text_in_place_is_not_limited_by_diagnostic_budget() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(
-            InputOutputLimit::new(16, 64)
+            InputOutputLimit::builder()
+                .max_input_bytes(16)
+                .max_output_bytes(64)
+                .build()
                 .expect("the diagnostic budget should be valid"),
         );
         builder
@@ -49,7 +52,10 @@ fn test_redact_json_text_in_place_obeys_json_depth_limit() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().json_depth(
-            JsonDepthLimit::new(1).expect("the depth budget is valid"),
+            JsonDepthLimit::builder()
+                .max_depth(1)
+                .build()
+                .expect("the depth budget is valid"),
         );
         builder
             .fields()

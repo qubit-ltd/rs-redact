@@ -20,7 +20,10 @@ fn redactor_with_diagnostic_budget(
     input: usize,
     output: usize,
 ) -> HttpRedactor {
-    let budget = InputOutputLimit::new(input, output)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(input)
+        .max_output_bytes(output)
+        .build()
         .expect("test diagnostic budgets satisfy the public lower bounds");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

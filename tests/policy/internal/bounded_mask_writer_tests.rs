@@ -47,7 +47,11 @@ fn redact_json_value(
         .body()
         .replace_rules(body_policy.rules().clone());
     builder.limits().http_body(
-        BodyBudget::new(4096, max_output).expect("the budget is valid"),
+        BodyBudget::builder()
+            .max_input_bytes(4096)
+            .max_output_bytes(max_output)
+            .build()
+            .expect("the budget is valid"),
     );
     builder
         .fields()
@@ -88,9 +92,13 @@ fn test_fixed_mask_respects_output_budget() {
         .http()
         .body()
         .replace_rules(body_policy.rules().clone());
-    builder
-        .limits()
-        .http_body(BodyBudget::new(4096, 64).expect("the budget is valid"));
+    builder.limits().http_body(
+        BodyBudget::builder()
+            .max_input_bytes(4096)
+            .max_output_bytes(64)
+            .build()
+            .expect("the budget is valid"),
+    );
     builder
         .fields()
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))

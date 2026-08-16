@@ -18,7 +18,10 @@ fn redactor_with_output_limit(max_output_bytes: usize) -> HttpRedactor {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().http_body(
-            BodyBudget::new(4096, max_output_bytes)
+            BodyBudget::builder()
+                .max_input_bytes(4096)
+                .max_output_bytes(max_output_bytes)
+                .build()
                 .expect("the body budget is valid"),
         );
         builder

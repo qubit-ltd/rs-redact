@@ -96,9 +96,11 @@ fn test_redacted_map_display_uses_policy_output_limit_by_default() {
         String::from("label"),
         "visible diagnostic text".repeat(4),
     )]);
-    let budget =
-        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
-            .expect("the minimum bounded output should be valid");
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(1024)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
+        .expect("the minimum bounded output should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(budget);
@@ -161,7 +163,10 @@ impl RedactValue for ObservedInput<'_> {
 fn test_redacted_map_does_not_charge_value_input() {
     let visits = AtomicUsize::new(0);
     let map = BTreeMap::from([("label", ObservedInput(&visits))]);
-    let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the minimum diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -206,7 +211,10 @@ fn test_bounded_redacted_map_stops_after_container_writer_truncates() {
         ("b".to_owned(), ShortCountingValue(&visits)),
         ("c".to_owned(), ShortCountingValue(&visits)),
     ]);
-    let limit = LogOutputLimit::new(14).expect("the limit should be valid");
+    let limit = LogOutputLimit::builder()
+        .max_bytes(14)
+        .build()
+        .expect("the limit should be valid");
 
     let output = RedactedMap::new(&map, RedactionPolicy::default())
         .with_output_limit(limit)
@@ -291,7 +299,10 @@ fn test_redacted_map_checks_output_before_iterator_next() {
         ],
         nexts: Arc::clone(&nexts),
     };
-    let limit = LogOutputLimit::new(14).expect("the limit should be valid");
+    let limit = LogOutputLimit::builder()
+        .max_bytes(14)
+        .build()
+        .expect("the limit should be valid");
 
     let output = RedactedMap::new(&map, RedactionPolicy::default())
         .with_output_limit(limit)

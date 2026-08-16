@@ -219,9 +219,11 @@ fn test_redacted_debug_uses_policy_output_limit_by_default() {
         password: "raw-secret".to_owned(),
         note: "visible diagnostic text".to_owned(),
     };
-    let budget =
-        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
-            .expect("the minimum diagnostic output limit should be valid");
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(1024)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
+        .expect("the minimum diagnostic output limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(budget);
@@ -244,9 +246,11 @@ fn test_redacted_display_uses_policy_output_limit_by_default() {
         password: "raw-secret".to_owned(),
         note: "visible diagnostic text".to_owned(),
     };
-    let budget =
-        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
-            .expect("the minimum bounded output should be valid");
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(1024)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
+        .expect("the minimum bounded output should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(budget);

@@ -15,7 +15,10 @@ use qubit_redact::Sensitivity;
 /// fail-closed output while output capacity remains.
 #[test]
 fn test_diagnostic_input_budget_stops_after_oversized_reservation() {
-    let limit = InputOutputLimit::new(3, 64)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(3)
+        .max_output_bytes(64)
+        .build()
         .expect("the small diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

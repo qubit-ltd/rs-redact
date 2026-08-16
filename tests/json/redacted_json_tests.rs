@@ -156,9 +156,11 @@ fn test_redacted_json_session_uses_shared_output_budget() {
     let value = json!({
         "message": "diagnostic text that exceeds one fragment",
     });
-    let budget =
-        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
-            .expect("the diagnostic budget should be valid");
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(1024)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
+        .expect("the diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(budget);
@@ -223,7 +225,10 @@ fn test_redacted_json_fails_closed_at_depth_budget() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().json_depth(
-            JsonDepthLimit::new(1).expect("the depth budget is valid"),
+            JsonDepthLimit::builder()
+                .max_depth(1)
+                .build()
+                .expect("the depth budget is valid"),
         );
         builder
             .fields()
@@ -251,7 +256,10 @@ fn test_redacted_json_uses_root_inclusive_depth_budget() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().json_depth(
-            JsonDepthLimit::new(2).expect("the depth budget is valid"),
+            JsonDepthLimit::builder()
+                .max_depth(2)
+                .build()
+                .expect("the depth budget is valid"),
         );
         builder
             .fields()
@@ -346,7 +354,10 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().json_depth(
-            JsonDepthLimit::new(1).expect("the depth budget is valid"),
+            JsonDepthLimit::builder()
+                .max_depth(1)
+                .build()
+                .expect("the depth budget is valid"),
         );
         builder
             .fields()

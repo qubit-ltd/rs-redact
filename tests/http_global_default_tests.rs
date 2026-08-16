@@ -15,7 +15,10 @@ use qubit_redact::RedactionPolicy;
 /// diagnostic budget snapshot.
 #[test]
 fn test_http_policy_defaults_preserve_global_diagnostic_budget() {
-    let expected = InputOutputLimit::new(64, 64)
+    let expected = InputOutputLimit::builder()
+        .max_input_bytes(64)
+        .max_output_bytes(64)
+        .build()
         .expect("the diagnostic budget should be valid");
     let custom = ({
         let mut builder = RedactionPolicy::builder();

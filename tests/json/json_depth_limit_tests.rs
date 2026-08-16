@@ -13,7 +13,10 @@ use qubit_redact::RedactionPolicy;
 /// Verifies JSON depth limits are positive and have a finite default.
 #[test]
 fn test_json_depth_limit_validates_positive_depth() {
-    assert_eq!(JsonDepthLimit::new(0), Err(JsonDepthLimitError::ZeroDepth),);
+    assert_eq!(
+        JsonDepthLimit::builder().max_depth(0).build(),
+        Err(JsonDepthLimitError::ZeroDepth),
+    );
     assert_eq!(
         JsonDepthLimitError::ZeroDepth.to_string(),
         "JSON depth limit must be greater than zero",
@@ -27,7 +30,10 @@ fn test_json_depth_limit_validates_positive_depth() {
 /// Verifies policies retain custom JSON depth limits across immutable copies.
 #[test]
 fn test_redaction_policy_preserves_json_depth_limit() {
-    let limit = JsonDepthLimit::new(3).expect("the depth limit is valid");
+    let limit = JsonDepthLimit::builder()
+        .max_depth(3)
+        .build()
+        .expect("the depth limit is valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().json_depth(limit);
@@ -46,7 +52,10 @@ fn test_redaction_policy_preserves_json_depth_limit() {
 /// Verifies depth observations do not consume or otherwise change the limit.
 #[test]
 fn test_json_depth_limit_is_stateless() {
-    let limit = JsonDepthLimit::new(2).expect("positive depth is valid");
+    let limit = JsonDepthLimit::builder()
+        .max_depth(2)
+        .build()
+        .expect("positive depth is valid");
 
     assert_eq!(2, limit.maximum());
     assert!(limit.allows(2));

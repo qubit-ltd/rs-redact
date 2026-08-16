@@ -19,9 +19,12 @@ fn redactor_with_domain_limits(
     max_collection_items: usize,
     max_depth: usize,
 ) -> Redactor {
-    let limits =
-        DomainRedactionLimits::new(max_nodes, max_collection_items, max_depth)
-            .expect("the test domain limits should be valid");
+    let limits = DomainRedactionLimits::builder()
+        .max_nodes(max_nodes)
+        .max_collection_items(max_collection_items)
+        .max_depth(max_depth)
+        .build()
+        .expect("the test domain limits should be valid");
     let mut builder = RedactionPolicy::builder();
     builder.limits().domain(limits);
     let policy = builder

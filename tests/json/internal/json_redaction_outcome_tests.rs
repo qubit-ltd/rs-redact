@@ -46,7 +46,10 @@ fn test_json_redaction_outcome_reports_unkeyed_pass_through() {
 #[cfg(feature = "http")]
 #[test]
 fn test_json_redaction_outcome_discards_partial_json_on_mask_exhaustion() {
-    let body_budget = BodyBudget::new(512, BodyBudget::MIN_OUTPUT_BYTES)
+    let body_budget = BodyBudget::builder()
+        .max_input_bytes(512)
+        .max_output_bytes(BodyBudget::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the body budget should be valid");
     let mut builder = RedactionPolicy::builder();
     builder

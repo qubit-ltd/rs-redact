@@ -16,7 +16,9 @@ use qubit_redact::domain::RedactedMap;
 #[test]
 fn test_mask_byte_limit_keeps_sensitive_map_output_bounded() {
     let values = BTreeMap::from([("password", "secret-value".repeat(128))]);
-    let limit = LogOutputLimit::new(24)
+    let limit = LogOutputLimit::builder()
+        .max_bytes(24)
+        .build()
         .expect("the bounded rendering limit should be valid");
 
     let output = RedactedMap::new(&values, RedactionPolicy::default())

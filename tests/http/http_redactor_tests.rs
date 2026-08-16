@@ -29,7 +29,10 @@ use qubit_redact::http::UnkeyedJsonValuePolicy;
 use url::Url;
 /// Builds an HTTP redactor with explicit finite body limits.
 fn redactor_with_budget(input: usize, output: usize) -> HttpRedactor {
-    let budget = BodyBudget::new(input, output)
+    let budget = BodyBudget::builder()
+        .max_input_bytes(input)
+        .max_output_bytes(output)
+        .build()
         .expect("test budgets satisfy the public lower bounds");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -469,7 +472,10 @@ fn test_redact_body_with_content_type_text_dispatches_and_fails_closed() {
 /// parser classification.
 #[test]
 fn test_redact_body_rejects_content_type_beyond_diagnostic_input_budget() {
-    let diagnostic_budget = InputOutputLimit::new(8, 64)
+    let diagnostic_budget = InputOutputLimit::builder()
+        .max_input_bytes(8)
+        .max_output_bytes(64)
+        .build()
         .expect("the small diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -565,8 +571,9 @@ fn test_ndjson_and_form_body_redaction_cover_valid_and_invalid_inputs() {
 /// through.
 #[test]
 fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
-    let masking = MaskingPolicy::default()
-        .with_policy(Sensitivity::Secret, MaskPolicy::fixed("SECRET"));
+    let mut masking_builder = MaskingPolicy::builder();
+    masking_builder.secret(MaskPolicy::fixed("SECRET"));
+    let masking = masking_builder.build();
     let body_policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.fields().disable_floor();
@@ -689,7 +696,10 @@ fn test_json_policy_masks_sensitive_non_strings_as_opaque_values() {
 /// budget before rendering structured output.
 #[test]
 fn test_json_policy_fails_closed_at_depth_budget() {
-    let budget = JsonDepthLimit::new(1).expect("the depth budget is valid");
+    let budget = JsonDepthLimit::builder()
+        .max_depth(1)
+        .build()
+        .expect("the depth budget is valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().json_depth(budget);

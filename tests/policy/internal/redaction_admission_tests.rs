@@ -16,7 +16,10 @@ use qubit_redact::Sensitivity;
 /// budget can no longer contain one.
 #[test]
 fn test_admission_allows_fallbacks_until_output_cannot_fit_one() {
-    let limit = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the marker-sized test limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

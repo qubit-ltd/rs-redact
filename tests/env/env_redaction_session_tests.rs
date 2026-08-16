@@ -53,7 +53,10 @@ fn test_env_pair_session_reports_complete_output() {
 /// the complete escaped assignment still fits the remaining output exactly.
 #[test]
 fn test_env_pair_session_reports_local_mask_truncation() {
-    let limit = InputOutputLimit::new(64, 64)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(64)
+        .max_output_bytes(64)
+        .build()
         .expect("the exact-fit diagnostic limit should be valid");
     let replacement = "💥".repeat(64);
     let policy = ({
@@ -84,7 +87,10 @@ fn test_env_pair_session_reports_local_mask_truncation() {
 /// Verifies an input-rejection pair reports non-empty truncated output.
 #[test]
 fn test_env_pair_session_reports_truncated_fallback() {
-    let limit = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the marker-sized diagnostic limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -105,7 +111,10 @@ fn test_env_pair_session_reports_truncated_fallback() {
 /// Verifies an exhausted environment pair reports empty output.
 #[test]
 fn test_env_pair_session_reports_exhausted_output() {
-    let limit = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the marker-sized diagnostic limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -143,7 +152,10 @@ fn test_env_batch_session_reports_complete_output() {
 /// pulling the second pair.
 #[test]
 fn test_env_batch_session_reports_truncated_when_input_ends_before_iterator() {
-    let limit = InputOutputLimit::new(1, 64)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(64)
+        .build()
         .expect("the exact input limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -170,7 +182,10 @@ fn test_env_batch_session_reports_truncated_when_input_ends_before_iterator() {
 /// Verifies an input-rejection batch reports non-empty truncated output.
 #[test]
 fn test_env_batch_session_reports_truncated_marker() {
-    let limit = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the marker-sized diagnostic limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -193,7 +208,10 @@ fn test_env_batch_session_reports_truncated_marker() {
 /// Verifies exhausted batch output is empty and does not advance its iterator.
 #[test]
 fn test_env_batch_session_reports_exhausted_without_advancing_iterator() {
-    let limit = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the marker-sized diagnostic limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

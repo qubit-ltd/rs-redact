@@ -314,7 +314,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .escape_for_log();
     assert_eq!(safe.to_string(), "first line\\nsecond line");
 
-    let limit = LogOutputLimit::new(16)?;
+    let limit = LogOutputLimit::builder().max_bytes(16).build()?;
     let bounded = safe.with_output_limit(limit).to_string();
     assert!(bounded.len() <= limit.max_bytes());
     Ok(())

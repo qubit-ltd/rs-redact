@@ -55,7 +55,10 @@ fn test_uri_redactor_inspect_uri_str_ignores_output_budget() {
     let core = ({
         let mut builder = RedactionPolicy::default().to_builder();
         builder.limits().diagnostic_event(
-            InputOutputLimit::new(4096, 64)
+            InputOutputLimit::builder()
+                .max_input_bytes(4096)
+                .max_output_bytes(64)
+                .build()
                 .expect("the diagnostic budget is valid"),
         );
         builder

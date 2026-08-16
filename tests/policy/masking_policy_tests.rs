@@ -35,13 +35,14 @@ fn test_field_name_matching_names_are_explicit() {
 
 /// Verifies that construction and lookup select each requested level.
 #[test]
-fn test_masking_policy_new_and_for_level_select_requested_policy() {
-    let policy = MaskingPolicy::new(
-        MaskPolicy::fixed("low"),
-        MaskPolicy::fixed("medium"),
-        MaskPolicy::fixed("high"),
-        MaskPolicy::fixed("secret"),
-    );
+fn test_masking_policy_builder_and_for_level_select_requested_policy() {
+    let mut builder = MaskingPolicy::builder();
+    builder
+        .low(MaskPolicy::fixed("low"))
+        .medium(MaskPolicy::fixed("medium"))
+        .high(MaskPolicy::fixed("high"))
+        .secret(MaskPolicy::fixed("secret"));
+    let policy = builder.build();
 
     assert_eq!(policy.mask(Sensitivity::Low, "value"), "low");
     assert_eq!(policy.mask(Sensitivity::Medium, "value"), "medium");
@@ -51,13 +52,14 @@ fn test_masking_policy_new_and_for_level_select_requested_policy() {
 
 /// Verifies opaque values use only complete configured replacements.
 #[test]
-fn test_masking_policy_masks_opaque_values_without_retaining_edges() {
-    let policy = MaskingPolicy::new(
-        MaskPolicy::preserve_edges(2, 2, "<low>", 0),
-        MaskPolicy::preserve_suffix(2, "<medium>", 0),
-        MaskPolicy::fixed("<high>"),
-        MaskPolicy::empty(),
-    );
+fn test_masking_policy_builder_masks_opaque_values_without_retaining_edges() {
+    let mut builder = MaskingPolicy::builder();
+    builder
+        .low(MaskPolicy::preserve_edges(2, 2, "<low>", 0))
+        .medium(MaskPolicy::preserve_suffix(2, "<medium>", 0))
+        .high(MaskPolicy::fixed("<high>"))
+        .secret(MaskPolicy::empty());
+    let policy = builder.build();
 
     assert_eq!(policy.mask_opaque(Sensitivity::Low), "<low>");
     assert_eq!(policy.mask_opaque(Sensitivity::Medium), "<medium>");
@@ -67,12 +69,14 @@ fn test_masking_policy_masks_opaque_values_without_retaining_edges() {
 
 /// Verifies that replacing one level leaves all other levels unchanged.
 #[test]
-fn test_masking_policy_with_policy_updates_requested_level() {
-    let policy = MaskingPolicy::default()
-        .with_policy(Sensitivity::Low, MaskPolicy::fixed("<low>"))
-        .with_policy(Sensitivity::Medium, MaskPolicy::fixed("<medium>"))
-        .with_policy(Sensitivity::High, MaskPolicy::fixed("<high>"))
-        .with_policy(Sensitivity::Secret, MaskPolicy::fixed("<secret>"));
+fn test_masking_policy_builder_updates_requested_levels() {
+    let mut builder = MaskingPolicy::builder();
+    builder
+        .low(MaskPolicy::fixed("<low>"))
+        .medium(MaskPolicy::fixed("<medium>"))
+        .high(MaskPolicy::fixed("<high>"))
+        .secret(MaskPolicy::fixed("<secret>"));
+    let policy = builder.build();
 
     assert_eq!(policy.mask(Sensitivity::Low, "value"), "<low>");
     assert_eq!(policy.mask(Sensitivity::Medium, "value"), "<medium>");

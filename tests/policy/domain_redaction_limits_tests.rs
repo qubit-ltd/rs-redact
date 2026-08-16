@@ -25,15 +25,27 @@ fn test_domain_limits_have_fixed_safe_defaults() {
 #[test]
 fn test_domain_limits_reject_each_zero_dimension() {
     assert_eq!(
-        DomainRedactionLimits::new(0, 1, 1),
+        DomainRedactionLimits::builder()
+            .max_nodes(0)
+            .max_collection_items(1)
+            .max_depth(1)
+            .build(),
         Err(DomainRedactionLimitsError::ZeroMaxNodes),
     );
     assert_eq!(
-        DomainRedactionLimits::new(1, 0, 1),
+        DomainRedactionLimits::builder()
+            .max_nodes(1)
+            .max_collection_items(0)
+            .max_depth(1)
+            .build(),
         Err(DomainRedactionLimitsError::ZeroMaxCollectionItems),
     );
     assert_eq!(
-        DomainRedactionLimits::new(1, 1, 0),
+        DomainRedactionLimits::builder()
+            .max_nodes(1)
+            .max_collection_items(1)
+            .max_depth(0)
+            .build(),
         Err(DomainRedactionLimitsError::ZeroMaxDepth),
     );
 }
@@ -42,7 +54,11 @@ fn test_domain_limits_reject_each_zero_dimension() {
 /// copied builders.
 #[test]
 fn test_domain_limits_builder_preserves_configured_limits() {
-    let limits = DomainRedactionLimits::new(8, 4, 2)
+    let limits = DomainRedactionLimits::builder()
+        .max_nodes(8)
+        .max_collection_items(4)
+        .max_depth(2)
+        .build()
         .expect("the test domain limits should be valid");
     let mut builder = RedactionPolicy::builder();
     builder.limits().domain(limits);

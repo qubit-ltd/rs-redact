@@ -206,7 +206,10 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
     .build()
     .expect("the amplified redaction policy is valid");
     let output_limit = 128;
-    let diagnostic_budget = InputOutputLimit::new(4096, output_limit)
+    let diagnostic_budget = InputOutputLimit::builder()
+        .max_input_bytes(4096)
+        .max_output_bytes(output_limit)
+        .build()
         .expect("the diagnostic budget can contain every marker");
     let mut builder = amplified_policy.to_builder();
     builder.limits().diagnostic_event(diagnostic_budget);
@@ -269,7 +272,10 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
     let body_policy =
         builder.build().expect("the amplified body policy is valid");
     let output_limit = 64 * 1024;
-    let body_budget = BodyBudget::new(128 * 1024, output_limit)
+    let body_budget = BodyBudget::builder()
+        .max_input_bytes(128 * 1024)
+        .max_output_bytes(output_limit)
+        .build()
         .expect("the body budget is valid");
     let mut builder = body_policy.to_builder();
     builder.limits().http_body(body_budget);
@@ -309,7 +315,10 @@ fn test_unkeyed_json_redaction_respects_mask_budget() {
         .join(",");
     let body = format!(r#"{{"items":[{scalars}]}}"#);
     let output_limit = BodyBudget::MIN_OUTPUT_BYTES;
-    let body_budget = BodyBudget::new(body.len(), output_limit)
+    let body_budget = BodyBudget::builder()
+        .max_input_bytes(body.len())
+        .max_output_bytes(output_limit)
+        .build()
         .expect("the body budget is valid");
     let mut builder = RedactionPolicy::builder();
     builder

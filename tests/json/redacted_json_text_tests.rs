@@ -74,7 +74,10 @@ fn test_redacted_json_text_diagnostic_input_budget_fails_closed() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(
-            InputOutputLimit::new(16, 128)
+            InputOutputLimit::builder()
+                .max_input_bytes(16)
+                .max_output_bytes(128)
+                .build()
                 .expect("the diagnostic budget should be valid"),
         );
         builder
@@ -95,7 +98,10 @@ fn test_redacted_json_text_diagnostic_input_budget_fails_closed() {
 /// Verifies display applies the configured diagnostic output limit.
 #[test]
 fn test_redacted_json_text_display_uses_diagnostic_output_budget() {
-    let budget = InputOutputLimit::new(256, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(256)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -126,7 +132,10 @@ fn test_redacted_json_text_fails_closed_at_depth_budget() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().json_depth(
-            JsonDepthLimit::new(1).expect("the depth budget is valid"),
+            JsonDepthLimit::builder()
+                .max_depth(1)
+                .build()
+                .expect("the depth budget is valid"),
         );
         builder
             .fields()

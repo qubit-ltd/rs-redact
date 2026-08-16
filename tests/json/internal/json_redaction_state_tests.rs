@@ -94,7 +94,10 @@ fn test_json_redaction_state_uses_root_inclusive_depth_budget() {
     let shallow_policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().json_depth(
-            JsonDepthLimit::new(1).expect("the depth budget is valid"),
+            JsonDepthLimit::builder()
+                .max_depth(1)
+                .build()
+                .expect("the depth budget is valid"),
         );
         builder
             .fields()
@@ -107,7 +110,10 @@ fn test_json_redaction_state_uses_root_inclusive_depth_budget() {
     let deep_policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().json_depth(
-            JsonDepthLimit::new(2).expect("the depth budget is valid"),
+            JsonDepthLimit::builder()
+                .max_depth(2)
+                .build()
+                .expect("the depth budget is valid"),
         );
         builder
             .fields()
@@ -135,7 +141,10 @@ fn test_json_redaction_state_keeps_prior_sibling_when_depth_rejection_is_masked(
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().json_depth(
-            JsonDepthLimit::new(1).expect("the depth limit is valid"),
+            JsonDepthLimit::builder()
+                .max_depth(1)
+                .build()
+                .expect("the depth limit is valid"),
         );
         builder
             .fields()

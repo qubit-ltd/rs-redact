@@ -57,7 +57,9 @@ impl Redact for FixedDiagnostic {
 /// Verifies truncation preserves complete generated escape sequences.
 #[test]
 fn test_bounded_log_escape_writer_keeps_atomic_escape_boundary() {
-    let limit = LogOutputLimit::new(14)
+    let limit = LogOutputLimit::builder()
+        .max_bytes(14)
+        .build()
         .expect("the test budget can contain the marker");
     let output = LongUnsafeDiagnostic
         .redacted()
@@ -70,7 +72,9 @@ fn test_bounded_log_escape_writer_keeps_atomic_escape_boundary() {
 /// Verifies a redacted formatter failure is returned unchanged.
 #[test]
 fn test_bounded_log_escape_writer_propagates_redaction_failure() {
-    let limit = LogOutputLimit::new(64)
+    let limit = LogOutputLimit::builder()
+        .max_bytes(64)
+        .build()
         .expect("the test budget can contain the marker");
     let result = std::fmt::write(
         &mut String::new(),
@@ -88,7 +92,9 @@ fn test_bounded_log_escape_writer_propagates_redaction_failure() {
 #[test]
 fn test_bounded_log_escape_writer_parses_debug_escape_forms() {
     let input = r#"\\\"\n\r\t\0\x41\u{202e}\x4g\u{}\u{xyz}\u{12\"#;
-    let limit = LogOutputLimit::new(128)
+    let limit = LogOutputLimit::builder()
+        .max_bytes(128)
+        .build()
         .expect("the test budget should contain every escape form");
 
     let output = FixedDiagnostic(input)
@@ -103,7 +109,9 @@ fn test_bounded_log_escape_writer_parses_debug_escape_forms() {
 /// complete escape cannot fit.
 #[test]
 fn test_bounded_log_escape_writer_truncates_before_atomic_escape() {
-    let limit = LogOutputLimit::new(14)
+    let limit = LogOutputLimit::builder()
+        .max_bytes(14)
+        .build()
         .expect("the test budget can contain the marker");
     let output = FixedDiagnostic(r"abcdefghijk\x41")
         .redacted()

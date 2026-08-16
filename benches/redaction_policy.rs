@@ -260,7 +260,9 @@ fn benchmark_map_policy(size: usize, mixed_hits: bool) -> RedactionPolicy {
 /// classification hit rates.
 fn benchmark_map_redaction(criterion: &mut Criterion) {
     let mut group = criterion.benchmark_group("map_redaction");
-    let output_limit = LogOutputLimit::new(256)
+    let output_limit = LogOutputLimit::builder()
+        .max_bytes(256)
+        .build()
         .expect("benchmark output limit should contain the marker");
     for (size_name, size) in [("small", 8usize), ("large", 256usize)] {
         let map = benchmark_map(size);

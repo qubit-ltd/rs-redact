@@ -18,7 +18,10 @@ use qubit_redact::Sensitivity;
 /// Verifies formatted fragments share one escaped output budget.
 #[test]
 fn test_diagnostic_builder_escapes_and_shares_output_budget() {
-    let budget = InputOutputLimit::new(128, 40)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(40)
+        .build()
         .expect("the diagnostic budget should be valid");
     let mut builder = DiagnosticLogBuilder::new(budget);
 
@@ -45,7 +48,10 @@ fn test_diagnostic_builder_escapes_and_shares_output_budget() {
 /// Verifies a safe fragment can be appended without losing the shared bound.
 #[test]
 fn test_diagnostic_builder_appends_safe_text() {
-    let budget = InputOutputLimit::new(128, 64)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(64)
+        .build()
         .expect("the diagnostic budget should be valid");
     let safe = Redactor::default()
         .redact_field("message", "line\nnext")
@@ -59,7 +65,10 @@ fn test_diagnostic_builder_appends_safe_text() {
 /// Verifies field helpers share session accounting and escape visible controls.
 #[test]
 fn test_diagnostic_builder_pushes_redacted_fields_with_shared_session() {
-    let budget = InputOutputLimit::new(18, 64)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(18)
+        .max_output_bytes(64)
+        .build()
         .expect("the diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -88,7 +97,10 @@ fn test_diagnostic_builder_pushes_redacted_fields_with_shared_session() {
 /// Verifies a session fragment with no safe output reports exhaustion.
 #[test]
 fn test_diagnostic_builder_reports_exhausted_redaction_output() {
-    let budget = InputOutputLimit::new(128, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -125,7 +137,10 @@ fn test_diagnostic_builder_reports_exhausted_redaction_output() {
 /// Verifies explicit-level helpers use the configured mask and shared budget.
 #[test]
 fn test_diagnostic_builder_pushes_explicitly_sensitive_values() {
-    let budget = InputOutputLimit::new(128, 64)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(64)
+        .build()
         .expect("the diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -153,7 +168,10 @@ fn test_diagnostic_builder_pushes_explicitly_sensitive_values() {
 /// when a later append is skipped.
 #[test]
 fn test_diagnostic_builder_safe_append_reports_current_and_prior_truncation() {
-    let budget = InputOutputLimit::new(128, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the diagnostic budget should be valid");
     let safe = Redactor::default()
         .redact_field(
@@ -181,7 +199,10 @@ fn test_diagnostic_builder_stops_after_truncation() {
         }
     }
 
-    let budget = InputOutputLimit::new(128, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the diagnostic budget should be valid");
     let mut builder = DiagnosticLogBuilder::new(budget);
 
@@ -208,7 +229,10 @@ fn test_diagnostic_builder_propagates_formatter_error() {
         }
     }
 
-    let budget = InputOutputLimit::new(128, 64)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(64)
+        .build()
         .expect("the diagnostic budget should be valid");
     let mut builder = DiagnosticLogBuilder::new(budget);
 

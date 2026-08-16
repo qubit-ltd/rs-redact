@@ -12,8 +12,11 @@ use qubit_redact::RedactionPolicy;
 /// Verifies immutable policies preserve the configured diagnostic limits.
 #[test]
 fn test_redaction_limits_preserve_policy_diagnostic_budget() {
-    let budget =
-        InputOutputLimit::new(128, 256).expect("the test budget is valid");
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(256)
+        .build()
+        .expect("the test budget is valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(budget);

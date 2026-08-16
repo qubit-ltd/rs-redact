@@ -23,7 +23,10 @@ use qubit_redact::uri::UriRedactor;
 /// limit, including when insufficient bytes remain for another complete marker.
 #[test]
 fn test_uri_session_fallbacks_respect_cumulative_output_limit() {
-    let budget = InputOutputLimit::new(8, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(8)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the marker-sized diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -203,7 +206,10 @@ fn test_uri_redactor_validates_after_output_truncation() {
     let core = ({
         let mut builder = RedactionPolicy::default().to_builder();
         builder.limits().diagnostic_event(
-            InputOutputLimit::new(4096, 64)
+            InputOutputLimit::builder()
+                .max_input_bytes(4096)
+                .max_output_bytes(64)
+                .build()
                 .expect("the diagnostic budget is valid"),
         );
         builder
@@ -278,7 +284,10 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
         assert_eq!(result.status(), UriRedactionStatus::Invalid);
     }
 
-    let budget = InputOutputLimit::new(4096, 64)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(4096)
+        .max_output_bytes(64)
+        .build()
         .expect("the diagnostic budget is valid");
     let core = ({
         let mut builder = RedactionPolicy::default().to_builder();
@@ -304,7 +313,10 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
     let input_limited = ({
         let mut builder = RedactionPolicy::default().to_builder();
         builder.limits().diagnostic_event(
-            InputOutputLimit::new(4, 64)
+            InputOutputLimit::builder()
+                .max_input_bytes(4)
+                .max_output_bytes(64)
+                .build()
                 .expect("the input limit policy is valid"),
         );
         builder
@@ -337,7 +349,10 @@ fn test_uri_redactor_marks_truncated_final_sensitive_value() {
             .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
             .expect("the opaque mask policy is valid");
         builder.limits().diagnostic_event(
-            InputOutputLimit::new(4096, 37)
+            InputOutputLimit::builder()
+                .max_input_bytes(4096)
+                .max_output_bytes(37)
+                .build()
                 .expect("the diagnostic budget is valid"),
         );
         builder

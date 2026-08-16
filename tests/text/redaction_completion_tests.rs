@@ -14,8 +14,11 @@ use qubit_redact::RedactionCompletion;
 /// Verifies a fragment that fits reports completion.
 #[test]
 fn test_redaction_completion_reports_complete_fragment() {
-    let budget =
-        InputOutputLimit::new(128, 64).expect("the test budget is valid");
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(64)
+        .build()
+        .expect("the test budget is valid");
     let mut builder = DiagnosticLogBuilder::new(budget);
 
     assert_eq!(
@@ -27,7 +30,10 @@ fn test_redaction_completion_reports_complete_fragment() {
 /// Verifies a fragment beyond the output budget reports truncation.
 #[test]
 fn test_redaction_completion_reports_truncated_fragment() {
-    let budget = InputOutputLimit::new(128, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the test budget is valid");
     let mut builder = DiagnosticLogBuilder::new(budget);
 

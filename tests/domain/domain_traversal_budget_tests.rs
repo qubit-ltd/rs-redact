@@ -35,10 +35,16 @@ fn policy_with_limits(
     max_depth: usize,
     max_input_bytes: usize,
 ) -> RedactionPolicy {
-    let domain =
-        DomainRedactionLimits::new(max_nodes, max_collection_items, max_depth)
-            .expect("the test domain limits should be valid");
-    let diagnostic = InputOutputLimit::new(max_input_bytes, 1024)
+    let domain = DomainRedactionLimits::builder()
+        .max_nodes(max_nodes)
+        .max_collection_items(max_collection_items)
+        .max_depth(max_depth)
+        .build()
+        .expect("the test domain limits should be valid");
+    let diagnostic = InputOutputLimit::builder()
+        .max_input_bytes(max_input_bytes)
+        .max_output_bytes(1024)
+        .build()
         .expect("the test diagnostic limits should be valid");
     let mut builder = RedactionPolicy::builder();
     builder.limits().domain(domain).diagnostic_event(diagnostic);
@@ -661,7 +667,11 @@ fn test_keyed_map_item_avoids_standalone_structural_double_charge() {
         .raise("password", Sensitivity::Secret)
         .expect("the key rule should be valid");
     builder.limits().domain(
-        DomainRedactionLimits::new(1, 1, 8)
+        DomainRedactionLimits::builder()
+            .max_nodes(1)
+            .max_collection_items(1)
+            .max_depth(8)
+            .build()
             .expect("the domain limits should be valid"),
     );
     let policy = builder.build().expect("the policy should be valid");
@@ -709,7 +719,11 @@ fn test_standalone_keyed_node_limit_prevents_value_access() {
         .raise("password", Sensitivity::Secret)
         .expect("the key rule should be valid");
     builder.limits().domain(
-        DomainRedactionLimits::new(1, 8, 8)
+        DomainRedactionLimits::builder()
+            .max_nodes(1)
+            .max_collection_items(8)
+            .max_depth(8)
+            .build()
             .expect("the domain limits should be valid"),
     );
     let policy = builder.build().expect("the policy should be valid");
@@ -732,7 +746,11 @@ fn test_standalone_keyed_depth_limit_prevents_value_access() {
         .raise("password", Sensitivity::Secret)
         .expect("the key rule should be valid");
     builder.limits().domain(
-        DomainRedactionLimits::new(8, 8, 1)
+        DomainRedactionLimits::builder()
+            .max_nodes(8)
+            .max_collection_items(8)
+            .max_depth(1)
+            .build()
             .expect("the domain limits should be valid"),
     );
     let policy = builder.build().expect("the policy should be valid");

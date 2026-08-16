@@ -14,7 +14,10 @@ use qubit_redact::http::HttpRedactor;
 
 #[test]
 fn output_exhaustion_skips_body_input() {
-    let budget = InputOutputLimit::new(8, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(8)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("marker-sized output budget is valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -40,7 +43,10 @@ fn output_exhaustion_skips_body_input() {
 
 #[test]
 fn input_rejection_with_body_marker_is_truncated() {
-    let budget = InputOutputLimit::new(8, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(8)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("marker-sized output budget is valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -63,7 +69,11 @@ fn input_rejection_with_body_marker_is_truncated() {
 
 #[test]
 fn complete_body_redaction_is_complete() {
-    let budget = InputOutputLimit::new(256, 256).expect("budget is valid");
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(256)
+        .max_output_bytes(256)
+        .build()
+        .expect("budget is valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(budget);
@@ -85,7 +95,10 @@ fn complete_body_redaction_is_complete() {
 
 #[test]
 fn output_smaller_than_truncation_marker_is_exhausted() {
-    let budget = InputOutputLimit::new(256, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(256)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("marker-sized output budget is valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

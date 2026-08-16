@@ -15,7 +15,10 @@ use qubit_redact::uri::UriRedactor;
 /// Verifies URI output remains UTF-8 and reserves the complete marker.
 #[test]
 fn test_bounded_uri_output_keeps_utf8_and_marker_complete() {
-    let budget = InputOutputLimit::new(4096, 37)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(4096)
+        .max_output_bytes(37)
+        .build()
         .expect("the output can contain the marker");
     let core = ({
         let mut builder = RedactionPolicy::default().to_builder();

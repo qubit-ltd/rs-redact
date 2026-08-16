@@ -82,9 +82,11 @@ fn assert_malformed_structured_secret_is_redacted() {
 /// * `data` - Fuzzer-provided bytes used to construct bounded diagnostic
 ///   inputs.
 fn assert_diagnostic_outputs_are_bounded(data: &[u8]) {
-    let budget =
-        InputOutputLimit::new(DIAGNOSTIC_INPUT_LIMIT, DIAGNOSTIC_OUTPUT_LIMIT)
-            .expect("the fixed fuzz diagnostic budget is valid");
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(DIAGNOSTIC_INPUT_LIMIT)
+        .max_output_bytes(DIAGNOSTIC_OUTPUT_LIMIT)
+        .build()
+        .expect("the fixed fuzz diagnostic budget is valid");
     let mut builder = RedactionPolicy::builder();
     builder.limits().diagnostic_event(budget);
     let policy = builder

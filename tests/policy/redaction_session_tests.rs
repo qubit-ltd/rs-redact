@@ -14,7 +14,10 @@ use qubit_redact::Sensitivity;
 /// Verifies a diagnostic session shares cumulative input consumption.
 #[test]
 fn test_diagnostic_session_shares_input_budget() {
-    let limit = InputOutputLimit::new(8, 64)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(8)
+        .max_output_bytes(64)
+        .build()
         .expect("the test input/output limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -36,7 +39,10 @@ fn test_diagnostic_session_shares_input_budget() {
 /// rejected input keeps producing charged fallbacks.
 #[test]
 fn test_diagnostic_session_accepts_zero_bytes_after_exact_consumption() {
-    let limit = InputOutputLimit::new(3, 64)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(3)
+        .max_output_bytes(64)
+        .build()
         .expect("the test input/output limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -66,7 +72,10 @@ fn test_diagnostic_session_accepts_zero_bytes_after_exact_consumption() {
 /// shared output budget can still contain them.
 #[test]
 fn test_diagnostic_session_allows_consecutive_input_fallbacks() {
-    let limit = InputOutputLimit::new(3, 64)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(3)
+        .max_output_bytes(64)
+        .build()
         .expect("the test input/output limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

@@ -16,7 +16,10 @@ use qubit_redact::http::InputOutputLimit;
 /// Verifies diagnostic input limits return the fixed safe marker.
 #[test]
 fn test_diagnostic_input_limit_returns_fixed_marker() {
-    let budget = InputOutputLimit::new(16, 128)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(16)
+        .max_output_bytes(128)
+        .build()
         .expect("test diagnostic budget should satisfy minimums");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -39,7 +42,10 @@ fn test_diagnostic_input_limit_returns_fixed_marker() {
 /// budget and cannot be emitted repeatedly after exhaustion.
 #[test]
 fn test_session_fallback_markers_respect_cumulative_output_limit() {
-    let budget = InputOutputLimit::new(8, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(8)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the marker-sized diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -71,7 +77,10 @@ fn test_session_fallback_markers_respect_cumulative_output_limit() {
 /// an unsupported media type.
 #[test]
 fn test_session_body_input_limit_reports_budget_failure() {
-    let budget = InputOutputLimit::new(8, 128)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(8)
+        .max_output_bytes(128)
+        .build()
         .expect("test diagnostic budget should satisfy minimums");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
