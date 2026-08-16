@@ -79,6 +79,13 @@ impl Redactor {
         RedactionSession::new(&self.policy)
     }
 
+    /// Creates a shared-budget event facade for this redactor.
+    #[must_use]
+    #[inline]
+    pub fn event(&self) -> RedactionSession<'_> {
+        self.session()
+    }
+
     /// Redacts one value according to its field name.
     ///
     /// Unknown and explicitly allowed fields retain a borrow of `value`.
