@@ -68,6 +68,7 @@ pub(crate) use internal::FragmentCompletion;
 pub(crate) use internal::RedactionAdmission;
 #[cfg(feature = "json")]
 pub use json_depth_limit::JsonDepthLimit;
+#[cfg(feature = "json")]
 pub use json_depth_limit::JsonDepthLimitBuilder;
 #[cfg(feature = "json")]
 pub use json_depth_limit_error::JsonDepthLimitError;
