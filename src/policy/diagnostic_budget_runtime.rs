@@ -14,8 +14,8 @@ use super::RedactionResource;
 use super::internal::FragmentCompletion;
 use super::internal::RedactionAdmission;
 
-/// Mutable input/output accounting for one redaction event.
 // qubit-style: allow type-file-name
+/// Mutable input/output accounting for one redaction event.
 #[must_use]
 #[derive(Debug)]
 pub(crate) struct DiagnosticBudget {
@@ -26,6 +26,7 @@ pub(crate) struct DiagnosticBudget {
     admitted_output: Vec<AdmittedOutput>,
 }
 
+/// Output reservation and the input admission that created it.
 #[derive(Debug)]
 struct AdmittedOutput {
     max_output_bytes: usize,

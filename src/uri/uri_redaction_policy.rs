@@ -36,6 +36,7 @@ impl UriPolicy {
         self.inner.fragment_policy
     }
 
+    /// Creates an immutable URI policy from validated component policies.
     pub(crate) fn new(
         path_policy: UriPathPolicy,
         fragment_policy: UriFragmentPolicy,
