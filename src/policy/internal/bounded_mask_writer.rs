@@ -24,7 +24,6 @@ pub(in crate::policy) struct BoundedMaskWriter {
 }
 
 impl BoundedMaskWriter {
-    #[must_use]
     /// Creates an empty bounded mask writer.
     ///
     /// # Parameters
@@ -34,6 +33,7 @@ impl BoundedMaskWriter {
     /// # Returns
     ///
     /// An empty writer that grows only for retained masked bytes.
+    #[must_use]
     pub(in crate::policy) fn new(max_bytes: usize) -> Self {
         Self {
             output: String::new(),

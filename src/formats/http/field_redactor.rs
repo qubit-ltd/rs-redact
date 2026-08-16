@@ -113,9 +113,10 @@ impl<'a> FieldRedactor<'a> {
         self.context_rules
     }
 
+    /// Returns the shared mask table for the current HTTP operation.
+
     #[must_use]
     #[inline(always)]
-    /// Returns the shared mask table for the current HTTP operation.
     pub(in crate::formats::http) const fn masking(&self) -> &'a MaskingPolicy {
         self.masking
     }

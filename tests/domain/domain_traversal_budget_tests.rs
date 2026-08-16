@@ -12,6 +12,10 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::slice;
 
+use MaskingPolicy;
+use RedactedKeyedMapResult;
+use RedactedMapResult;
+use RedactedResult;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
@@ -185,10 +189,7 @@ impl Redact for DepthParent {
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("child", &DomainTruncated).finish();
         }
-        let child = qubit_redact::domain::RedactedResult::new(
-            &self.child,
-            scope.session(),
-        );
+        let child = RedactedResult::new(&self.child, scope.session());
         output.field("child", &child);
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("sibling", &DomainTruncated).finish();
@@ -225,7 +226,7 @@ impl RedactValue for CollectionValue {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
-        masking: &qubit_redact::MaskingPolicy,
+        masking: &MaskingPolicy,
     ) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }
@@ -257,18 +258,12 @@ impl Redact for ExactPlainMapParent<'_> {
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("map", &DomainTruncated).finish();
         }
-        let map = qubit_redact::domain::RedactedMapResult::new(
-            &self.map,
-            scope.session(),
-        );
+        let map = RedactedMapResult::new(&self.map, scope.session());
         output.field("map", &map);
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("tail", &DomainTruncated).finish();
         }
-        let tail = qubit_redact::domain::RedactedResult::new(
-            &self.tail,
-            scope.session(),
-        );
+        let tail = RedactedResult::new(&self.tail, scope.session());
         output.field("tail", &tail);
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("sibling", &DomainTruncated).finish();
@@ -341,18 +336,12 @@ impl Redact for ExactKeyedMapParent<'_> {
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("map", &DomainTruncated).finish();
         }
-        let map = qubit_redact::domain::RedactedKeyedMapResult::new(
-            &self.map,
-            scope.session(),
-        );
+        let map = RedactedKeyedMapResult::new(&self.map, scope.session());
         output.field("map", &map);
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("tail", &DomainTruncated).finish();
         }
-        let tail = qubit_redact::domain::RedactedResult::new(
-            &self.tail,
-            scope.session(),
-        );
+        let tail = RedactedResult::new(&self.tail, scope.session());
         output.field("tail", &tail);
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("sibling", &DomainTruncated).finish();
@@ -376,10 +365,7 @@ impl Redact for ExactCollectionParent {
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("values", &DomainTruncated).finish();
         }
-        let values = qubit_redact::domain::RedactedResult::new(
-            &self.values,
-            scope.session(),
-        );
+        let values = RedactedResult::new(&self.values, scope.session());
         output.field("values", &values);
         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
             return output.field("sibling", &DomainTruncated).finish();
@@ -413,7 +399,7 @@ impl Redact for DepthCollectionValue {
                 {
                     return output.field(&DomainTruncated).finish();
                 }
-                let child = qubit_redact::domain::RedactedResult::new(
+                let child = RedactedResult::new(
                     &DepthChild {
                         blocked: PanicDebug,
                     },
@@ -430,7 +416,7 @@ impl RedactValue for DepthCollectionValue {
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
-        masking: &qubit_redact::MaskingPolicy,
+        masking: &MaskingPolicy,
     ) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }
@@ -453,7 +439,7 @@ impl RedactValue for PanicKeyedValue {
     fn redact_value<'a>(
         &'a self,
         _level: Sensitivity,
-        _masking: &qubit_redact::MaskingPolicy,
+        _masking: &MaskingPolicy,
     ) -> RedactedValue<'a> {
         panic!("an unadmitted keyed value must not invoke RedactValue")
     }

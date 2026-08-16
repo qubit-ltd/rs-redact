@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Validated byte limits for bounded log output.
+// qubit-style: allow multiple-public-types
 
 use crate::InputOutputLimit;
 use crate::LogOutputLimitError;

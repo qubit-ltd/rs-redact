@@ -67,22 +67,24 @@ impl RedactionRulesBuilder {
         }
     }
 
-    #[inline(always)]
     /// Sets the field-name matching mode.
     ///
     /// # Parameters
     ///
     /// * `matching` - Matching mode used for subsequent field lookups.
+
+    #[inline(always)]
     pub(crate) fn matching(&mut self, matching: FieldNameMatching) {
         self.matching = matching;
     }
 
-    #[inline(always)]
     /// Sets the fallback behavior for fields without an explicit rule.
     ///
     /// # Parameters
     ///
     /// * `policy` - Fallback behavior for unknown fields.
+
+    #[inline(always)]
     pub(crate) fn unknown_field_policy(&mut self, policy: UnknownFieldPolicy) {
         self.unknown_field_policy = policy;
     }

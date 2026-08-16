@@ -49,9 +49,10 @@ impl RedactionRules {
         self.floor.as_ref()
     }
 
+    /// Replaces the floor for this rules snapshot.
+
     #[must_use]
     #[inline]
-    /// Replaces the floor for this rules snapshot.
     pub fn with_floor(mut self, floor: RedactionFloor) -> Self {
         self.floor = Some(floor);
         self

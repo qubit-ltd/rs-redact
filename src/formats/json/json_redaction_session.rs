@@ -15,9 +15,9 @@ use serde_json::Value;
 use serde_json::to_writer;
 
 use super::JsonRedactionOutput;
-use super::redact_json_text_in_place::BoundedJsonRedaction;
-use super::redact_json_text_in_place::redacted_json_text_bounded;
-use super::redact_json_text_in_place::redacted_json_value_bounded;
+use super::bounded_json_redaction::BoundedJsonRedaction;
+use super::bounded_json_redaction::redacted_json_text_bounded;
+use super::bounded_json_redaction::redacted_json_value_bounded;
 use crate::LogSafeText;
 use crate::RedactedText;
 use crate::RedactionPolicy;
