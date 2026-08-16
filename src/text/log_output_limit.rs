@@ -74,7 +74,7 @@ impl From<InputOutputLimit> for LogOutputLimit {
     ///
     /// A compatible validated log-output limit.
     #[inline(always)]
-    #[must_use]
+
     fn from(budget: InputOutputLimit) -> Self {
         Self {
             max_bytes: budget.max_output_bytes(),

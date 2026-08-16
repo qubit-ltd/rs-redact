@@ -335,7 +335,7 @@ mod session_view {
     impl<T: ?Sized> Debug for RedactedResult<'_, T> {
         /// Writes the already-completed safe representation.
         #[inline(always)]
-        #[must_use]
+
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
             Debug::fmt(&self.completed, formatter)
         }

@@ -88,7 +88,7 @@ impl Default for DomainRedactionLimits {
     /// Returns the fixed safe defaults of 1024 nodes, 256 collection items,
     /// and an active depth of 32.
     #[inline(always)]
-    #[must_use]
+
     fn default() -> Self {
         Self {
             max_nodes: Self::DEFAULT_MAX_NODES,

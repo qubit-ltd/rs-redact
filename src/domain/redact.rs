@@ -26,7 +26,7 @@ pub struct DomainTruncated;
 impl fmt::Debug for DomainTruncated {
     /// Writes the complete unquoted structural truncation marker.
     #[inline(always)]
-    #[must_use]
+
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter.write_str("<truncated>")
     }

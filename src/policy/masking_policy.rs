@@ -233,7 +233,7 @@ impl Default for MaskingPolicy {
     /// # Returns
     ///
     /// The built-in masking configuration.
-    #[must_use]
+
     fn default() -> Self {
         Self::new(
             MaskPolicy::preserve_edges(2, 2, "****", 4),

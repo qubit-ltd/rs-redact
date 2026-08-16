@@ -89,7 +89,7 @@ impl Default for BodyBudget {
     ///
     /// The default finite HTTP body budget.
     #[inline(always)]
-    #[must_use]
+
     fn default() -> Self {
         Self {
             max_input_bytes: 16 * 1024,

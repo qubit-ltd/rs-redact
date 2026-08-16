@@ -66,7 +66,7 @@ impl RedactValue for str {
     /// # Returns
     ///
     /// A plain redacted text representation.
-    #[must_use]
+
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -92,7 +92,7 @@ impl RedactValue for &str {
     ///
     /// A plain redacted text representation.
     #[inline(always)]
-    #[must_use]
+
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -118,7 +118,7 @@ impl RedactValue for String {
     ///
     /// A plain redacted text representation.
     #[inline(always)]
-    #[must_use]
+
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -143,7 +143,7 @@ impl RedactValue for Cow<'_, str> {
     /// # Returns
     ///
     /// A plain redacted text representation.
-    #[must_use]
+
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -169,7 +169,7 @@ impl RedactValue for Option<String> {
     ///
     /// A present masked value or an absent option representation.
     #[inline(always)]
-    #[must_use]
+
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -195,7 +195,7 @@ impl RedactValue for Option<&str> {
     ///
     /// A present masked value or an absent option representation.
     #[inline(always)]
-    #[must_use]
+
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
@@ -221,7 +221,7 @@ impl RedactValue for Option<Cow<'_, str>> {
     ///
     /// A present masked value or an absent option representation.
     #[inline(always)]
-    #[must_use]
+
     fn redact_value<'a>(
         &'a self,
         level: Sensitivity,
