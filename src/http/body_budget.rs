@@ -9,6 +9,13 @@
 
 use super::BodyBudgetError;
 
+/// Mutable construction state for a [`BodyBudget`].
+#[derive(Debug, Clone, Copy)]
+pub struct BodyBudgetBuilder {
+    max_input_bytes: usize,
+    max_output_bytes: usize,
+}
+
 /// Bounds both inspected body bytes and produced log-safe bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BodyBudget {
@@ -21,6 +28,16 @@ pub struct BodyBudget {
 impl BodyBudget {
     /// Smallest output limit that can contain the truncation marker.
     pub const MIN_OUTPUT_BYTES: usize = "<truncated>".len();
+
+    /// Creates a builder initialized with the standard body limits.
+    #[must_use]
+    #[inline]
+    pub const fn builder() -> BodyBudgetBuilder {
+        BodyBudgetBuilder {
+            max_input_bytes: 16 * 1024,
+            max_output_bytes: 64 * 1024,
+        }
+    }
 
     /// Creates checked hard limits for body processing.
     ///
@@ -40,7 +57,7 @@ impl BodyBudget {
     /// or [`BodyBudgetError::OutputTooSmall`] when the output limit cannot
     /// contain the complete truncation marker.
     #[inline]
-    pub const fn new(
+    const fn from_builder(
         max_input_bytes: usize,
         max_output_bytes: usize,
     ) -> Result<Self, BodyBudgetError> {
@@ -82,6 +99,28 @@ impl BodyBudget {
     }
 }
 
+impl BodyBudgetBuilder {
+    /// Sets the maximum source bytes available to body parsers.
+    #[inline]
+    pub const fn max_input_bytes(mut self, max_input_bytes: usize) -> Self {
+        self.max_input_bytes = max_input_bytes;
+        self
+    }
+
+    /// Sets the maximum bytes in the final log-safe rendering.
+    #[inline]
+    pub const fn max_output_bytes(mut self, max_output_bytes: usize) -> Self {
+        self.max_output_bytes = max_output_bytes;
+        self
+    }
+
+    /// Builds validated body limits.
+    #[inline]
+    pub const fn build(self) -> Result<BodyBudget, BodyBudgetError> {
+        BodyBudget::from_builder(self.max_input_bytes, self.max_output_bytes)
+    }
+}
+
 impl Default for BodyBudget {
     /// Returns the conservative 16 KiB input and 64 KiB output limits.
     ///
@@ -91,9 +130,8 @@ impl Default for BodyBudget {
     #[inline(always)]
 
     fn default() -> Self {
-        Self {
-            max_input_bytes: 16 * 1024,
-            max_output_bytes: 64 * 1024,
-        }
+        Self::builder()
+            .build()
+            .expect("default body budget is valid")
     }
 }

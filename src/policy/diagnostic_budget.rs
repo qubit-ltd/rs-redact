@@ -10,6 +10,13 @@
 
 use super::DiagnosticBudgetError;
 
+/// Mutable construction state for an [`InputOutputLimit`].
+#[derive(Debug, Clone, Copy)]
+pub struct InputOutputLimitBuilder {
+    max_input_bytes: usize,
+    max_output_bytes: usize,
+}
+
 /// Bounds both inspected diagnostic bytes and produced log-safe bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InputOutputLimit {
@@ -23,6 +30,16 @@ impl InputOutputLimit {
     /// Smallest output limit that can contain the diagnostic-limit marker.
     pub const MIN_OUTPUT_BYTES: usize =
         "<redacted: diagnostic limit exceeded>".len();
+
+    /// Creates a builder initialized with the standard diagnostic limits.
+    #[must_use]
+    #[inline]
+    pub const fn builder() -> InputOutputLimitBuilder {
+        InputOutputLimitBuilder {
+            max_input_bytes: 16 * 1024,
+            max_output_bytes: 64 * 1024,
+        }
+    }
 
     /// Creates checked hard limits for diagnostic processing.
     ///
@@ -41,7 +58,7 @@ impl InputOutputLimit {
     /// zero, or [`DiagnosticBudgetError::OutputTooSmall`] when the output limit
     /// cannot contain the diagnostic-limit marker.
     #[inline]
-    pub const fn new(
+    const fn from_builder(
         max_input_bytes: usize,
         max_output_bytes: usize,
     ) -> Result<Self, DiagnosticBudgetError> {
@@ -83,6 +100,33 @@ impl InputOutputLimit {
     }
 }
 
+impl InputOutputLimitBuilder {
+    /// Sets the maximum source bytes a diagnostic may inspect.
+    #[inline]
+    pub const fn max_input_bytes(mut self, max_input_bytes: usize) -> Self {
+        self.max_input_bytes = max_input_bytes;
+        self
+    }
+
+    /// Sets the maximum bytes in the final log-safe rendering.
+    #[inline]
+    pub const fn max_output_bytes(mut self, max_output_bytes: usize) -> Self {
+        self.max_output_bytes = max_output_bytes;
+        self
+    }
+
+    /// Builds validated diagnostic limits.
+    #[inline]
+    pub const fn build(
+        self,
+    ) -> Result<InputOutputLimit, DiagnosticBudgetError> {
+        InputOutputLimit::from_builder(
+            self.max_input_bytes,
+            self.max_output_bytes,
+        )
+    }
+}
+
 impl Default for InputOutputLimit {
     /// Returns conservative 16 KiB input and 64 KiB output limits.
     ///
@@ -92,9 +136,8 @@ impl Default for InputOutputLimit {
     #[inline(always)]
 
     fn default() -> Self {
-        Self {
-            max_input_bytes: 16 * 1024,
-            max_output_bytes: 64 * 1024,
-        }
+        Self::builder()
+            .build()
+            .expect("default diagnostic limits are valid")
     }
 }

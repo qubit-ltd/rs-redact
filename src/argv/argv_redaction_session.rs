@@ -77,7 +77,10 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
             return RedactedArgv::exhausted();
         }
         let output_limit = self.session.policy().limits().diagnostic_event();
-        let builder_limit = InputOutputLimit::new(usize::MAX, remaining)
+        let builder_limit = InputOutputLimit::builder()
+            .max_input_bytes(usize::MAX)
+            .max_output_bytes(remaining)
+            .build()
             .expect("the remaining session output must be a valid limit");
         let mut builder = RedactedArgv::builder(builder_limit);
         let renderer =

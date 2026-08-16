@@ -179,9 +179,11 @@ mod views {
     #[cfg(feature = "json")]
     use super::JsonDepthLimit;
     use super::MaskPolicy;
+    use super::MaskingPolicy;
     use super::PolicyError;
     use super::PolicyLocation;
     use super::RedactionFloor;
+    use super::RedactionLimits;
     use super::RedactionPolicyBuilder;
     #[cfg(feature = "http")]
     use super::RedactionRules;
@@ -303,8 +305,10 @@ mod views {
             level: Sensitivity,
             policy: MaskPolicy,
         ) -> Result<&mut Self, PolicyError> {
-            let masking =
-                self.builder.masking.clone().with_policy(level, policy);
+            let mut masking =
+                MaskingPolicy::builder_from(&self.builder.masking);
+            masking.policy(level, policy);
+            let masking = masking.build();
             masking.validate(PolicyLocation::Rules)?;
             self.builder.masking = masking;
             Ok(self)
@@ -513,7 +517,10 @@ mod views {
     impl LimitsBuilder<'_> {
         /// Sets the cumulative domain-structure traversal limits.
         pub fn domain(&mut self, limits: DomainRedactionLimits) -> &mut Self {
-            self.builder.limits = self.builder.limits.with_domain(limits);
+            let mut builder =
+                RedactionLimits::builder_from(&self.builder.limits);
+            builder.domain(limits);
+            self.builder.limits = builder.build();
             self
         }
 
@@ -522,8 +529,10 @@ mod views {
             &mut self,
             limit: InputOutputLimit,
         ) -> &mut Self {
-            self.builder.limits =
-                self.builder.limits.with_diagnostic_event(limit);
+            let mut builder =
+                RedactionLimits::builder_from(&self.builder.limits);
+            builder.diagnostic_event(limit);
+            self.builder.limits = builder.build();
             self
         }
 
@@ -532,8 +541,10 @@ mod views {
             &mut self,
             limit: InputOutputLimit,
         ) -> &mut Self {
-            self.builder.limits =
-                self.builder.limits.with_ordinary_operation(limit);
+            let mut builder =
+                RedactionLimits::builder_from(&self.builder.limits);
+            builder.ordinary_operation(limit);
+            self.builder.limits = builder.build();
             self
         }
 
@@ -543,15 +554,20 @@ mod views {
             &mut self,
             limit: crate::http::BodyBudget,
         ) -> &mut Self {
-            self.builder.limits = self.builder.limits.with_http_body(limit);
+            let mut builder =
+                RedactionLimits::builder_from(&self.builder.limits);
+            builder.http_body(limit);
+            self.builder.limits = builder.build();
             self
         }
 
         /// Sets the JSON recursion-depth limit.
         #[cfg(feature = "json")]
         pub fn json_depth(&mut self, limit: JsonDepthLimit) -> &mut Self {
-            self.builder.limits =
-                self.builder.limits.with_json_depth_limit(limit);
+            let mut builder =
+                RedactionLimits::builder_from(&self.builder.limits);
+            builder.json_depth_limit(limit);
+            self.builder.limits = builder.build();
             self
         }
     }

@@ -14,6 +14,18 @@ use super::JsonDepthLimit;
 #[cfg(feature = "http")]
 use crate::http::BodyBudget;
 
+/// Mutable construction state for [`RedactionLimits`].
+#[derive(Debug, Clone, Copy)]
+pub struct RedactionLimitsBuilder {
+    diagnostic_event: InputOutputLimit,
+    ordinary_operation: InputOutputLimit,
+    domain: DomainRedactionLimits,
+    #[cfg(feature = "http")]
+    http_body: BodyBudget,
+    #[cfg(feature = "json")]
+    json_depth_limit: JsonDepthLimit,
+}
+
 /// Immutable limits that bound diagnostic and ordinary redaction work.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RedactionLimits {
@@ -32,36 +44,25 @@ pub struct RedactionLimits {
 }
 
 impl RedactionLimits {
-    /// Constructs a complete immutable limit snapshot.
-    ///
-    /// `diagnostic_event` bounds cumulative input and output for one shared
-    /// diagnostic session. `ordinary_operation` bounds an independent ordinary
-    /// redaction operation. `domain` bounds cumulative domain nodes and
-    /// collection items plus active domain-value depth.
-    ///
-    /// When the `http` feature is enabled, `http_body` supplies the local input
-    /// and output bounds for one HTTP body operation. When the `json` feature
-    /// is enabled, `json_depth_limit` bounds structured JSON recursion
-    /// depth. Each argument has already been validated by its own type;
-    /// this constructor preserves those values without additional
-    /// validation.
-    #[inline]
+    /// Creates a builder initialized with the standard execution limits.
     #[must_use]
-    pub const fn new(
-        diagnostic_event: InputOutputLimit,
-        ordinary_operation: InputOutputLimit,
-        domain: DomainRedactionLimits,
-        #[cfg(feature = "http")] http_body: BodyBudget,
-        #[cfg(feature = "json")] json_depth_limit: JsonDepthLimit,
-    ) -> Self {
-        Self {
-            diagnostic_event,
-            ordinary_operation,
-            domain,
+    #[inline]
+    pub fn builder() -> RedactionLimitsBuilder {
+        RedactionLimitsBuilder::default()
+    }
+
+    /// Creates a builder by copying an existing limit snapshot.
+    #[must_use]
+    #[inline]
+    pub(crate) fn builder_from(base: &Self) -> RedactionLimitsBuilder {
+        RedactionLimitsBuilder {
+            diagnostic_event: base.diagnostic_event,
+            ordinary_operation: base.ordinary_operation,
+            domain: base.domain,
             #[cfg(feature = "http")]
-            http_body,
+            http_body: base.http_body,
             #[cfg(feature = "json")]
-            json_depth_limit,
+            json_depth_limit: base.json_depth_limit,
         }
     }
 
@@ -86,39 +87,6 @@ impl RedactionLimits {
         self.domain
     }
 
-    /// Returns a copy with the diagnostic-event limit replaced.
-    #[inline]
-    #[must_use]
-    pub(crate) const fn with_diagnostic_event(
-        mut self,
-        limit: InputOutputLimit,
-    ) -> Self {
-        self.diagnostic_event = limit;
-        self
-    }
-
-    /// Returns a copy with the ordinary-operation limit replaced.
-    #[inline]
-    #[must_use]
-    pub(crate) const fn with_ordinary_operation(
-        mut self,
-        limit: InputOutputLimit,
-    ) -> Self {
-        self.ordinary_operation = limit;
-        self
-    }
-
-    /// Returns a copy with the domain-structure limits replaced.
-    #[inline]
-    #[must_use]
-    pub(crate) const fn with_domain(
-        mut self,
-        limits: DomainRedactionLimits,
-    ) -> Self {
-        self.domain = limits;
-        self
-    }
-
     /// Returns the local hard limits for HTTP body processing.
     #[must_use]
     #[cfg(feature = "http")]
@@ -126,15 +94,6 @@ impl RedactionLimits {
     pub const fn http_body(&self) -> BodyBudget {
         self.http_body
     }
-    /// Returns a copy with the HTTP body limit replaced.
-    #[must_use]
-    #[cfg(feature = "http")]
-    #[inline]
-    pub(crate) const fn with_http_body(mut self, limit: BodyBudget) -> Self {
-        self.http_body = limit;
-        self
-    }
-
     /// Returns the hard recursion-depth limit for structured JSON redaction.
     #[must_use]
     #[cfg(feature = "json")]
@@ -142,24 +101,64 @@ impl RedactionLimits {
     pub const fn json_depth_limit(&self) -> JsonDepthLimit {
         self.json_depth_limit
     }
+}
 
-    /// Returns a copy with the JSON depth limit replaced.
+impl RedactionLimitsBuilder {
+    /// Sets the diagnostic-event limit.
+    #[inline]
+    pub fn diagnostic_event(&mut self, limit: InputOutputLimit) -> &mut Self {
+        self.diagnostic_event = limit;
+        self
+    }
+
+    /// Sets the ordinary-operation limit.
+    #[inline]
+    pub fn ordinary_operation(&mut self, limit: InputOutputLimit) -> &mut Self {
+        self.ordinary_operation = limit;
+        self
+    }
+
+    /// Sets the domain traversal limits.
+    #[inline]
+    pub fn domain(&mut self, limits: DomainRedactionLimits) -> &mut Self {
+        self.domain = limits;
+        self
+    }
+
+    /// Sets the HTTP body limit.
+    #[cfg(feature = "http")]
+    #[inline]
+    pub fn http_body(&mut self, limit: BodyBudget) -> &mut Self {
+        self.http_body = limit;
+        self
+    }
+
+    /// Sets the JSON depth limit.
     #[cfg(feature = "json")]
     #[inline]
-    #[must_use]
-    pub(crate) const fn with_json_depth_limit(
-        mut self,
-        budget: JsonDepthLimit,
-    ) -> Self {
-        self.json_depth_limit = budget;
+    pub fn json_depth_limit(&mut self, limit: JsonDepthLimit) -> &mut Self {
+        self.json_depth_limit = limit;
         self
+    }
+
+    /// Builds the immutable execution limits.
+    #[must_use]
+    #[inline]
+    pub fn build(self) -> RedactionLimits {
+        RedactionLimits {
+            diagnostic_event: self.diagnostic_event,
+            ordinary_operation: self.ordinary_operation,
+            domain: self.domain,
+            #[cfg(feature = "http")]
+            http_body: self.http_body,
+            #[cfg(feature = "json")]
+            json_depth_limit: self.json_depth_limit,
+        }
     }
 }
 
-impl Default for RedactionLimits {
-    /// Creates limits using the standard input and output defaults.
-    #[inline]
-
+impl Default for RedactionLimitsBuilder {
+    /// Creates a builder with standard execution limits.
     fn default() -> Self {
         Self {
             diagnostic_event: InputOutputLimit::default(),
@@ -170,5 +169,14 @@ impl Default for RedactionLimits {
             #[cfg(feature = "json")]
             json_depth_limit: JsonDepthLimit::default(),
         }
+    }
+}
+
+impl Default for RedactionLimits {
+    /// Creates limits using the standard input and output defaults.
+    #[inline]
+
+    fn default() -> Self {
+        Self::builder().build()
     }
 }

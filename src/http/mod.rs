@@ -29,6 +29,7 @@ mod unkeyed_json_value_policy;
 mod url_path_policy;
 
 pub use body_budget::BodyBudget;
+pub use body_budget::BodyBudgetBuilder;
 pub use body_budget_error::BodyBudgetError;
 pub use body_capture::BodyCapture;
 pub use body_capture_error::BodyCaptureError;

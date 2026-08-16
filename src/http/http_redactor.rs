@@ -496,11 +496,11 @@ impl HttpRedactor {
             capture,
             input_len,
             budget_truncated,
-            BodyBudget::new(
-                self.policy.body_budget().max_input_bytes(),
-                output_limit,
-            )
-            .unwrap_or(self.policy.body_budget()),
+            BodyBudget::builder()
+                .max_input_bytes(self.policy.body_budget().max_input_bytes())
+                .max_output_bytes(output_limit)
+                .build()
+                .unwrap_or(self.policy.body_budget()),
         )
     }
 

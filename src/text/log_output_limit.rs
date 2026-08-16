@@ -13,6 +13,12 @@ use crate::LogOutputLimitError;
 /// Marker appended when bounded log output is truncated.
 pub(crate) const TRUNCATION_MARKER: &str = "<truncated>";
 
+/// Mutable construction state for a [`LogOutputLimit`].
+#[derive(Clone, Copy, Debug)]
+pub struct LogOutputLimitBuilder {
+    max_bytes: usize,
+}
+
 /// Maximum byte count for one bounded redacted log representation.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct LogOutputLimit {
@@ -23,6 +29,15 @@ pub struct LogOutputLimit {
 impl LogOutputLimit {
     /// Smallest valid limit, equal to the byte length of the truncation marker.
     pub const MINIMUM: usize = TRUNCATION_MARKER.len();
+
+    /// Creates a builder initialized with the minimum valid output size.
+    #[must_use]
+    #[inline]
+    pub const fn builder() -> LogOutputLimitBuilder {
+        LogOutputLimitBuilder {
+            max_bytes: Self::MINIMUM,
+        }
+    }
 
     /// Validates a maximum output byte count.
     ///
@@ -38,9 +53,10 @@ impl LogOutputLimit {
     ///
     /// Returns [`LogOutputLimitError`] when `max_bytes` cannot contain the
     /// complete truncation marker.
-    #[must_use]
     #[inline]
-    pub const fn new(max_bytes: usize) -> Result<Self, LogOutputLimitError> {
+    const fn from_builder(
+        max_bytes: usize,
+    ) -> Result<Self, LogOutputLimitError> {
         if max_bytes < Self::MINIMUM {
             Err(LogOutputLimitError::new(max_bytes))
         } else {
@@ -57,6 +73,21 @@ impl LogOutputLimit {
     #[must_use]
     pub const fn max_bytes(self) -> usize {
         self.max_bytes
+    }
+}
+
+impl LogOutputLimitBuilder {
+    /// Sets the maximum rendered byte count.
+    #[inline]
+    pub const fn max_bytes(mut self, max_bytes: usize) -> Self {
+        self.max_bytes = max_bytes;
+        self
+    }
+
+    /// Builds a validated log-output limit.
+    #[inline]
+    pub const fn build(self) -> Result<LogOutputLimit, LogOutputLimitError> {
+        LogOutputLimit::from_builder(self.max_bytes)
     }
 }
 
