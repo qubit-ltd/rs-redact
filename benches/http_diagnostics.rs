@@ -84,7 +84,10 @@ fn redactor_with_diagnostic_budget(budget: InputOutputLimit) -> HttpRedactor {
 fn benchmark_diagnostic_budgets(criterion: &mut Criterion) {
     const INPUT_LIMIT: usize = 4_096;
     let redactor = redactor_with_diagnostic_budget(
-        InputOutputLimit::new(INPUT_LIMIT, 512)
+        InputOutputLimit::builder()
+            .max_input_bytes(INPUT_LIMIT)
+            .max_output_bytes(512)
+            .build()
             .expect("benchmark diagnostic budget is valid"),
     );
     let sizes = [
@@ -182,7 +185,11 @@ fn benchmark_body_redaction(criterion: &mut Criterion) {
         HeaderValue::from_static("multipart/form-data; boundary=bench");
     let default_redactor = HttpRedactor::default();
     let tight_redactor = redactor_with_budget(
-        BodyBudget::new(4_096, 64).expect("tight benchmark budget is valid"),
+        BodyBudget::builder()
+            .max_input_bytes(4_096)
+            .max_output_bytes(64)
+            .build()
+            .expect("tight benchmark budget is valid"),
     );
     let truncated = BodyCapture::truncated(&json[..json.len() / 2], json.len())
         .expect("benchmark capture truthfully reports omitted bytes");

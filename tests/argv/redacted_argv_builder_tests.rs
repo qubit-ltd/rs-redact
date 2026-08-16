@@ -15,7 +15,10 @@ use qubit_redact::argv::ArgvRedactor;
 /// Verifies the argv builder exposes its diagnostic truncation marker.
 #[test]
 fn test_redacted_argv_builder_renders_input_truncation_marker() {
-    let budget = InputOutputLimit::new(8, 64)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(8)
+        .max_output_bytes(64)
+        .build()
         .expect("the small diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

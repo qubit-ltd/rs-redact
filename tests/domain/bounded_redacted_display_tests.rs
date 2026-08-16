@@ -64,7 +64,9 @@ impl Redact for DiagnosticText<'_> {
 ///
 /// A validated log output limit.
 fn limit(max_bytes: usize) -> LogOutputLimit {
-    LogOutputLimit::new(max_bytes)
+    LogOutputLimit::builder()
+        .max_bytes(max_bytes)
+        .build()
         .expect("the test budget can contain the truncation marker")
 }
 
@@ -233,7 +235,10 @@ fn test_bounded_debug_does_not_charge_domain_input() {
         calls: &calls,
         text: "heap input".to_owned(),
     };
-    let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the zero-input budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -278,11 +283,11 @@ fn test_domain_output_is_bounded_without_input_forecast() {
         calls: &calls,
         text: "x".repeat(1_000),
     };
-    let budget = InputOutputLimit::new(
-        std::mem::size_of_val(&value),
-        InputOutputLimit::MIN_OUTPUT_BYTES,
-    )
-    .expect("the structural-sized budget should be valid");
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(std::mem::size_of_val(&value))
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
+        .expect("the structural-sized budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(budget);
@@ -305,9 +310,11 @@ fn test_domain_formatting_ignores_maximal_input_budget() {
         calls: &calls,
         text: "heap input".to_owned(),
     };
-    let budget =
-        InputOutputLimit::new(usize::MAX, InputOutputLimit::MIN_OUTPUT_BYTES)
-            .expect("the maximum input budget should be valid");
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(usize::MAX)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
+        .expect("the maximum input budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(budget);

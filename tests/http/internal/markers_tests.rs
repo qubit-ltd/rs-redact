@@ -17,7 +17,10 @@ use qubit_redact::http::TextBodyPolicy;
 /// Verifies output truncation appends the complete marker.
 #[test]
 fn test_markers_append_truncation_marker() {
-    let budget = BodyBudget::new(64, BodyBudget::MIN_OUTPUT_BYTES)
+    let budget = BodyBudget::builder()
+        .max_input_bytes(64)
+        .max_output_bytes(BodyBudget::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the minimum output budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -39,7 +42,10 @@ fn test_markers_append_truncation_marker() {
 /// Verifies the minimum diagnostic budget can contain its fixed limit marker.
 #[test]
 fn test_diagnostic_limit_marker_matches_minimum_budget() {
-    let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the minimum diagnostic output budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

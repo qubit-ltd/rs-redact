@@ -114,7 +114,10 @@ impl Redact for CountingValue<'_> {
 fn test_bounded_vec_stops_after_truncated_item() {
     let visits = AtomicUsize::new(0);
     let values: Vec<_> = (0..100).map(|_| CountingValue(&visits)).collect();
-    let limit = LogOutputLimit::new(14).expect("the limit should be valid");
+    let limit = LogOutputLimit::builder()
+        .max_bytes(14)
+        .build()
+        .expect("the limit should be valid");
 
     let output = values.redacted().with_output_limit(limit).to_string();
 
@@ -142,7 +145,10 @@ fn test_bounded_vec_stops_after_container_writer_truncates() {
     let visits = AtomicUsize::new(0);
     let values: Vec<_> =
         (0..100).map(|_| ShortCountingValue(&visits)).collect();
-    let limit = LogOutputLimit::new(14).expect("the limit should be valid");
+    let limit = LogOutputLimit::builder()
+        .max_bytes(14)
+        .build()
+        .expect("the limit should be valid");
 
     let output = values.redacted().with_output_limit(limit).to_string();
 
@@ -170,9 +176,11 @@ fn test_vec_does_not_charge_item_input_before_rendering() {
     let visits = AtomicUsize::new(0);
     let values = vec![OversizedInput(&visits)];
     let input_bytes = std::mem::size_of_val(&values).saturating_add(1);
-    let budget =
-        InputOutputLimit::new(input_bytes, InputOutputLimit::MIN_OUTPUT_BYTES)
-            .expect("the diagnostic budget should be valid");
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(input_bytes)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
+        .expect("the diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(budget);
@@ -207,7 +215,10 @@ impl Redact for ExactInputChild<'_> {
 fn test_option_does_not_double_charge_child_input() {
     let calls = AtomicUsize::new(0);
     let value = Some(ExactInputChild(&calls));
-    let budget = InputOutputLimit::new(6, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(6)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the exact aggregate input budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

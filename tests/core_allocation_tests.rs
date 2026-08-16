@@ -158,7 +158,10 @@ impl Write for FixedBuffer {
 /// Builds a policy whose fixed sensitive replacement is deliberately large.
 fn amplified_policy() -> RedactionPolicy {
     let replacement = "X".repeat(1024 * 1024);
-    let budget = InputOutputLimit::new(4096, 128)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(4096)
+        .max_output_bytes(128)
+        .build()
         .expect("the diagnostic budget should be valid");
     ({
         let mut builder = RedactionPolicy::builder();
@@ -209,9 +212,13 @@ impl Redact for NestedBoundedMap<'_> {
 fn test_nested_bounded_display_does_not_widen_mask_allocation_limit() {
     let _guard = allocation_test_lock();
     let values = BTreeMap::from([("password", "raw-secret")]);
-    let inner_limit = LogOutputLimit::new(2 * 1024 * 1024)
+    let inner_limit = LogOutputLimit::builder()
+        .max_bytes(2 * 1024 * 1024)
+        .build()
         .expect("the inner output limit should be valid");
-    let outer_limit = LogOutputLimit::new(14)
+    let outer_limit = LogOutputLimit::builder()
+        .max_bytes(14)
+        .build()
         .expect("the outer output limit should be valid");
     let nested = NestedBoundedMap {
         values: &values,
@@ -236,7 +243,9 @@ fn test_nested_bounded_display_does_not_widen_mask_allocation_limit() {
 fn test_bounded_redacted_map_avoids_amplified_mask_allocation() {
     let _guard = allocation_test_lock();
     let values = BTreeMap::from([("password", "raw-secret")]);
-    let limit = LogOutputLimit::new(128)
+    let limit = LogOutputLimit::builder()
+        .max_bytes(128)
+        .build()
         .expect("the test output limit should be valid");
     let view =
         RedactedMap::new(&values, amplified_policy()).with_output_limit(limit);
@@ -303,7 +312,10 @@ fn test_bounded_environment_avoids_amplified_mask_allocation() {
 fn test_bounded_uri_avoids_amplified_mask_allocation() {
     let _guard = allocation_test_lock();
     let replacement = "X".repeat(1024 * 1024);
-    let budget = InputOutputLimit::new(4096, 128)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(4096)
+        .max_output_bytes(128)
+        .build()
         .expect("the diagnostic budget should be valid");
     let core = ({
         let mut builder = RedactionPolicy::default().to_builder();

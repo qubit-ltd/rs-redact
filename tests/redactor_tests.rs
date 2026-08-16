@@ -29,7 +29,10 @@ fn test_session_uses_redactor_policy_and_requires_mutable_access() {
 /// Verifies an output-closed session rejects work before charging more input.
 #[test]
 fn test_exhausted_session_does_not_charge_additional_input() {
-    let limit = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the marker-sized diagnostic limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -60,7 +63,10 @@ fn test_exhausted_session_does_not_charge_additional_input() {
 /// empty rather than exceeding the cumulative output limit.
 #[test]
 fn test_redactor_session_fallbacks_respect_cumulative_output_limit() {
-    let limit = InputOutputLimit::new(4, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(4)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the marker-sized operation limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -178,7 +184,10 @@ fn test_redact_keeps_non_sensitive_value_borrowed() {
 /// Verifies session output accounting uses the escaped log length.
 #[test]
 fn test_redact_field_session_charges_escaped_bytes() {
-    let limit = InputOutputLimit::new(64, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(64)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the diagnostic marker-sized limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -203,7 +212,10 @@ fn test_redact_field_session_charges_escaped_bytes() {
 /// prefix uses fewer bytes than the numeric byte ceiling.
 #[test]
 fn test_unicode_mask_truncation_closes_session() {
-    let limit = InputOutputLimit::new(64, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(64)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the minimum output budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

@@ -28,7 +28,10 @@ use qubit_redact::env::EnvRedactor;
 /// emit unbudgeted fallback text after cumulative exhaustion.
 #[test]
 fn test_redact_pair_session_respects_cumulative_output_limit() {
-    let limit = InputOutputLimit::new(4, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(4)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the marker-sized operation limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -60,7 +63,10 @@ fn test_redact_pair_session_respects_cumulative_output_limit() {
 /// Verifies a complete pair charges its escaped rendering once.
 #[test]
 fn test_redact_pair_session_charges_escaped_rendered_bytes() {
-    let limit = InputOutputLimit::new(64, 64)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(64)
+        .max_output_bytes(64)
+        .build()
         .expect("the operation limits should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -90,7 +96,10 @@ fn test_redact_os_pair_with_session_charges_invalid_components() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(
-            InputOutputLimit::new(64, 64)
+            InputOutputLimit::builder()
+                .max_input_bytes(64)
+                .max_output_bytes(64)
+                .build()
                 .expect("the operation limits should be valid"),
         );
         builder
@@ -113,7 +122,10 @@ fn test_redact_os_pair_with_session_charges_invalid_components() {
 /// that exceeds the configured input budget.
 #[test]
 fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
-    let budget = InputOutputLimit::new(8, 64)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(8)
+        .max_output_bytes(64)
+        .build()
         .expect("the small diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -140,7 +152,10 @@ fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
 /// Verifies aggregate environment rendering stops at the final output budget.
 #[test]
 fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
-    let budget = InputOutputLimit::new(8, 64)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(8)
+        .max_output_bytes(64)
+        .build()
         .expect("the small diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

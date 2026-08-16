@@ -37,9 +37,11 @@ struct NestedValue {
 /// Verifies keyed-value display uses its policy output budget by default.
 #[test]
 fn test_redact_keyed_display_uses_policy_output_limit_by_default() {
-    let budget =
-        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
-            .expect("the minimum diagnostic output limit should be valid");
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(1024)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
+        .expect("the minimum diagnostic output limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(budget);
@@ -326,9 +328,11 @@ impl RedactValue for OpaqueMaskObserver {
 /// opaque replacement is materialized.
 #[test]
 fn test_redact_keyed_bounds_opaque_mask_before_materialization() {
-    let budget =
-        InputOutputLimit::new(1024, InputOutputLimit::MIN_OUTPUT_BYTES)
-            .expect("the minimum output budget should be valid");
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(1024)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
+        .expect("the minimum output budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(budget);
@@ -383,7 +387,10 @@ impl RedactValue for ObservedKeyedValue<'_> {
 #[test]
 fn test_redact_keyed_does_not_charge_value_input() {
     let visits = std::sync::atomic::AtomicUsize::new(0);
-    let budget = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the minimum diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

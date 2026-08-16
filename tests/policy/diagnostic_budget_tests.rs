@@ -22,18 +22,27 @@ fn test_diagnostic_budget_default_uses_safe_limits() {
 #[test]
 fn test_diagnostic_budget_new_rejects_invalid_limits() {
     assert_eq!(
-        InputOutputLimit::new(0, 64),
+        InputOutputLimit::builder()
+            .max_input_bytes(0)
+            .max_output_bytes(64)
+            .build(),
         Err(DiagnosticBudgetError::ZeroInput),
     );
     assert_eq!(
-        InputOutputLimit::new(16, 0),
+        InputOutputLimit::builder()
+            .max_input_bytes(16)
+            .max_output_bytes(0)
+            .build(),
         Err(DiagnosticBudgetError::OutputTooSmall {
             minimum: InputOutputLimit::MIN_OUTPUT_BYTES,
             actual: 0,
         }),
     );
     assert_eq!(
-        InputOutputLimit::new(16, InputOutputLimit::MIN_OUTPUT_BYTES - 1),
+        InputOutputLimit::builder()
+            .max_input_bytes(16)
+            .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES - 1)
+            .build(),
         Err(DiagnosticBudgetError::OutputTooSmall {
             minimum: InputOutputLimit::MIN_OUTPUT_BYTES,
             actual: InputOutputLimit::MIN_OUTPUT_BYTES - 1,
@@ -44,7 +53,10 @@ fn test_diagnostic_budget_new_rejects_invalid_limits() {
 /// Verifies that a valid budget preserves both hard byte limits.
 #[test]
 fn test_diagnostic_budget_new_preserves_limits() {
-    let budget = InputOutputLimit::new(16, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(16)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the minimum diagnostic output budget should be valid");
 
     assert_eq!(budget.max_input_bytes(), 16);

@@ -20,8 +20,9 @@ use qubit_redact::domain::RedactedValue;
 ///
 /// A policy useful for verifying log escaping after masking.
 fn create_control_masking_policy() -> MaskingPolicy {
-    MaskingPolicy::default()
-        .with_policy(Sensitivity::Secret, MaskPolicy::fixed("masked\nvalue"))
+    let mut builder = MaskingPolicy::builder();
+    builder.secret(MaskPolicy::fixed("masked\nvalue"));
+    builder.build()
 }
 
 /// Verifies support for all borrowed and owned string forms.

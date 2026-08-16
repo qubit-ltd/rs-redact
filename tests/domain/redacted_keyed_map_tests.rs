@@ -122,7 +122,10 @@ fn test_redacted_keyed_map_result_is_settled_at_creation() {
 fn test_redacted_keyed_map_display_and_bounded_adapters() {
     let map = BTreeMap::from([(String::from("profile"), nested_value())]);
     let output_limit = InputOutputLimit::MIN_OUTPUT_BYTES;
-    let budget = InputOutputLimit::new(1024, output_limit)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(1024)
+        .max_output_bytes(output_limit)
+        .build()
         .expect("the test diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -135,7 +138,9 @@ fn test_redacted_keyed_map_display_and_bounded_adapters() {
     let display = RedactedKeyedMap::new(&map, policy.clone()).to_string();
     let bounded = RedactedKeyedMap::new(&map, policy.clone())
         .with_output_limit(
-            LogOutputLimit::new(output_limit)
+            LogOutputLimit::builder()
+                .max_bytes(output_limit)
+                .build()
                 .expect("the minimum output limit should be valid"),
         )
         .to_string();
@@ -184,7 +189,10 @@ fn test_bounded_keyed_map_stops_after_truncated_value() {
         ("b".to_owned(), CountingValue(&visits)),
         ("c".to_owned(), CountingValue(&visits)),
     ]);
-    let limit = LogOutputLimit::new(14).expect("the limit should be valid");
+    let limit = LogOutputLimit::builder()
+        .max_bytes(14)
+        .build()
+        .expect("the limit should be valid");
 
     let output = RedactedKeyedMap::new(&map, RedactionPolicy::default())
         .with_output_limit(limit)
@@ -295,7 +303,10 @@ fn test_bounded_keyed_map_stops_after_container_writer_truncates() {
         ("b".to_owned(), ShortCountingValue(&visits)),
         ("c".to_owned(), ShortCountingValue(&visits)),
     ]);
-    let limit = LogOutputLimit::new(14).expect("the limit should be valid");
+    let limit = LogOutputLimit::builder()
+        .max_bytes(14)
+        .build()
+        .expect("the limit should be valid");
 
     let output = RedactedKeyedMap::new(&map, RedactionPolicy::default())
         .with_output_limit(limit)

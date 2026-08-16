@@ -29,11 +29,21 @@ use qubit_redact::uri::UriPathPolicy;
 /// builder.
 #[test]
 fn test_redaction_policy_builder_chains_grouped_fields_and_limits() {
-    let diagnostic = InputOutputLimit::new(128, 256)
+    let diagnostic = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(256)
+        .build()
         .expect("the diagnostic limit should be valid");
-    let operation = InputOutputLimit::new(512, 1024)
+    let operation = InputOutputLimit::builder()
+        .max_input_bytes(512)
+        .max_output_bytes(1024)
+        .build()
         .expect("the operation limit should be valid");
-    let domain = DomainRedactionLimits::new(8, 4, 2)
+    let domain = DomainRedactionLimits::builder()
+        .max_nodes(8)
+        .max_collection_items(4)
+        .max_depth(2)
+        .build()
         .expect("the domain limits should be valid");
     let mut builder = RedactionPolicy::builder();
     builder
@@ -143,8 +153,11 @@ fn test_redaction_policy_builder_builds_configured_rule() {
 /// Verifies a diagnostic budget is a first-class immutable policy setting.
 #[test]
 fn test_redaction_policy_builder_preserves_diagnostic_budget() {
-    let budget =
-        InputOutputLimit::new(128, 256).expect("the test budget is valid");
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(256)
+        .build()
+        .expect("the test budget is valid");
     let mut builder = RedactionPolicy::builder();
     builder.limits().diagnostic_event(budget);
     let policy = builder.build().expect("the policy should build");

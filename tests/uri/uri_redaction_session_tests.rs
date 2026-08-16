@@ -17,7 +17,10 @@ use qubit_redact::uri::UriRedactor;
 /// Verifies output exhaustion short-circuits later URI input admission.
 #[test]
 fn test_uri_session_does_not_charge_input_after_output_exhaustion() {
-    let budget = InputOutputLimit::new(8, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(8)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the marker-sized diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -49,7 +52,10 @@ fn test_uri_session_does_not_charge_input_after_output_exhaustion() {
 /// Verifies a complete safe rewrite reports explicit complete output.
 #[test]
 fn test_uri_session_reports_complete_safe_rewrite() {
-    let budget = InputOutputLimit::new(256, 256)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(256)
+        .max_output_bytes(256)
+        .build()
         .expect("the diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -72,7 +78,10 @@ fn test_uri_session_reports_complete_safe_rewrite() {
 /// Verifies a non-empty output substitute reports truncation.
 #[test]
 fn test_uri_session_reports_non_empty_output_omission_as_truncated() {
-    let budget = InputOutputLimit::new(256, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(256)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

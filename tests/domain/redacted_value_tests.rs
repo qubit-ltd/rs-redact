@@ -27,10 +27,9 @@ fn test_redacted_value_displays_masked_secret() {
 /// Verifies opaque redaction uses the complete configured replacement.
 #[test]
 fn test_redacted_value_opaque_uses_configured_complete_replacement() {
-    let masking = MaskingPolicy::default().with_policy(
-        Sensitivity::Low,
-        MaskPolicy::preserve_edges(1, 1, "OPAQUE", 0),
-    );
+    let mut builder = MaskingPolicy::builder();
+    builder.low(MaskPolicy::preserve_edges(1, 1, "OPAQUE", 0));
+    let masking = builder.build();
 
     let value = RedactedValue::opaque(Sensitivity::Low, &masking);
 

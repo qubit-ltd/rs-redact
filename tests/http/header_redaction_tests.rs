@@ -24,7 +24,10 @@ fn redactor_with_diagnostic_budget(
     let header_policy = RedactionPolicy::builder()
         .build()
         .expect("the empty header policy should be valid");
-    let budget = InputOutputLimit::new(input, output)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(input)
+        .max_output_bytes(output)
+        .build()
         .expect("test diagnostic budgets satisfy the public lower bounds");
     let mut builder = RedactionPolicy::builder();
     builder

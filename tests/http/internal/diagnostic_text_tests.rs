@@ -36,7 +36,10 @@ fn test_diagnostic_text_escapes_newline() {
 /// Verifies diagnostic text discovers and redacts embedded HTTP URLs.
 #[test]
 fn test_diagnostic_text_redacts_embedded_url() {
-    let budget = InputOutputLimit::new(128, 128)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(128)
+        .build()
         .expect("the diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

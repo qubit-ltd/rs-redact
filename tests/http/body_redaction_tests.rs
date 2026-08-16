@@ -106,7 +106,11 @@ fn test_http_redaction_policy_builder_overrides_each_context() {
     })
     .build()
     .expect("body policy should be valid");
-    let budget = BodyBudget::new(32, 48).expect("budget should be valid");
+    let budget = BodyBudget::builder()
+        .max_input_bytes(32)
+        .max_output_bytes(48)
+        .build()
+        .expect("budget should be valid");
 
     let mut builder = RedactionPolicy::builder_from(&base);
     builder.http().disable_all_floors();

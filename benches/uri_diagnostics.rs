@@ -20,7 +20,10 @@ use qubit_redact::uri::UriRedactor;
 
 /// Builds a URI redactor with the benchmark's fixed diagnostic budget.
 fn benchmark_redactor() -> UriRedactor {
-    let budget = InputOutputLimit::new(4096, 256)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(4096)
+        .max_output_bytes(256)
+        .build()
         .expect("benchmark diagnostic budget is valid");
     let core = ({
         let mut builder = RedactionPolicy::default().to_builder();

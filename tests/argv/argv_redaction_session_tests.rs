@@ -54,7 +54,10 @@ fn test_argv_session_reports_complete_output() {
 /// pulling the second item.
 #[test]
 fn test_argv_session_reports_truncated_when_input_ends_before_iterator() {
-    let limit = InputOutputLimit::new(1, 64)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(64)
+        .build()
         .expect("the exact input limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -81,7 +84,10 @@ fn test_argv_session_reports_truncated_when_input_ends_before_iterator() {
 /// Verifies an input-rejection marker reports non-empty truncated output.
 #[test]
 fn test_argv_session_reports_truncated_marker() {
-    let limit = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the marker-sized diagnostic limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -105,7 +111,10 @@ fn test_argv_session_reports_truncated_marker() {
 /// list itself fits exactly.
 #[test]
 fn test_argv_session_reports_local_mask_truncation() {
-    let limit = InputOutputLimit::new(64, 64)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(64)
+        .max_output_bytes(64)
+        .build()
         .expect("the exact-fit diagnostic limit should be valid");
     let replacement = "💥".repeat(64);
     let policy = ({
@@ -134,7 +143,10 @@ fn test_argv_session_reports_local_mask_truncation() {
 /// Verifies exhausted argv output is empty and does not advance its iterator.
 #[test]
 fn test_argv_session_reports_exhausted_without_advancing_iterator() {
-    let limit = InputOutputLimit::new(1, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the marker-sized diagnostic limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
@@ -162,7 +174,10 @@ fn test_argv_session_reports_exhausted_without_advancing_iterator() {
 /// Verifies list delimiters are included in shared output accounting.
 #[test]
 fn test_argv_session_charges_delimiters_across_following_operations() {
-    let limit = InputOutputLimit::new(128, 64)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(64)
+        .build()
         .expect("the diagnostic limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

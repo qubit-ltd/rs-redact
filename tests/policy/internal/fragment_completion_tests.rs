@@ -14,7 +14,10 @@ use qubit_redact::Redactor;
 /// Verifies session truncation commits one fallback and closes later output.
 #[test]
 fn test_session_truncated_completion_closes_output() {
-    let limit = InputOutputLimit::new(128, InputOutputLimit::MIN_OUTPUT_BYTES)
+    let limit = InputOutputLimit::builder()
+        .max_input_bytes(128)
+        .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
+        .build()
         .expect("the marker-sized test limit should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();

@@ -115,7 +115,10 @@ fuzz_target!(|data: &[u8]| {
                 .max_output_bytes()
     );
 
-    let budget = InputOutputLimit::new(INPUT_LIMIT, OUTPUT_LIMIT)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(INPUT_LIMIT)
+        .max_output_bytes(OUTPUT_LIMIT)
+        .build()
         .expect("the URI fuzz budget is valid");
     let mut builder = RedactionPolicy::default().to_builder();
     builder.limits().diagnostic_event(budget);
@@ -143,7 +146,10 @@ fuzz_target!(|data: &[u8]| {
 
     let mut builder = RedactionPolicy::default().to_builder();
     builder.limits().diagnostic_event(
-        InputOutputLimit::new(INPUT_LIMIT, INPUT_LIMIT)
+        InputOutputLimit::builder()
+            .max_input_bytes(INPUT_LIMIT)
+            .max_output_bytes(INPUT_LIMIT)
+            .build()
             .expect("the custom URI fuzz budget is valid"),
     );
     builder

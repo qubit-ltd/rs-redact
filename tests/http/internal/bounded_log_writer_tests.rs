@@ -39,8 +39,11 @@ fn amplified_mask_redactor() -> HttpRedactor {
     })
     .build()
     .expect("the body policy is valid");
-    let budget =
-        BodyBudget::new(4096, 64).expect("the output can contain the marker");
+    let budget = BodyBudget::builder()
+        .max_input_bytes(4096)
+        .max_output_bytes(64)
+        .build()
+        .expect("the output can contain the marker");
     let mut builder = RedactionPolicy::builder();
     builder
         .http()
@@ -97,8 +100,11 @@ fn test_structured_formats_bound_amplified_masks() {
 /// Verifies output truncation keeps UTF-8 valid and the marker complete.
 #[test]
 fn test_bounded_output_keeps_utf8_and_marker_complete() {
-    let budget =
-        BodyBudget::new(64, 14).expect("the output can contain the marker");
+    let budget = BodyBudget::builder()
+        .max_input_bytes(64)
+        .max_output_bytes(14)
+        .build()
+        .expect("the output can contain the marker");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().http_body(budget);
@@ -118,8 +124,11 @@ fn test_bounded_output_keeps_utf8_and_marker_complete() {
 /// Verifies reserving marker space backs up to a UTF-8 character boundary.
 #[test]
 fn test_late_truncation_backs_up_to_utf8_boundary() {
-    let budget =
-        BodyBudget::new(64, 15).expect("the output can contain the marker");
+    let budget = BodyBudget::builder()
+        .max_input_bytes(64)
+        .max_output_bytes(15)
+        .build()
+        .expect("the output can contain the marker");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().http_body(budget);
@@ -139,8 +148,11 @@ fn test_late_truncation_backs_up_to_utf8_boundary() {
 /// Verifies an already-truncated source can reserve the entire output budget.
 #[test]
 fn test_source_truncation_can_use_marker_only_budget() {
-    let budget =
-        BodyBudget::new(1, 11).expect("the output can contain the marker");
+    let budget = BodyBudget::builder()
+        .max_input_bytes(1)
+        .max_output_bytes(11)
+        .build()
+        .expect("the output can contain the marker");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().http_body(budget);

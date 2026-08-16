@@ -29,7 +29,10 @@ use qubit_redact::argv::ArgvItem;
 use qubit_redact::argv::ArgvRedactor;
 /// Creates a redactor with deliberately small diagnostic limits.
 fn bounded_redactor() -> ArgvRedactor {
-    let budget = InputOutputLimit::new(8, 64)
+    let budget = InputOutputLimit::builder()
+        .max_input_bytes(8)
+        .max_output_bytes(64)
+        .build()
         .expect("the small diagnostic budget should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
