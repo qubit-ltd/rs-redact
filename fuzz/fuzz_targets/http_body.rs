@@ -11,8 +11,8 @@ use std::fmt::Write;
 
 use http::HeaderValue;
 use libfuzzer_sys::fuzz_target;
-use qubit_redact::http::BodyCapture;
-use qubit_redact::http::HttpRedactor;
+use qubit_redact::formats::http::BodyCapture;
+use qubit_redact::formats::http::HttpRedactor;
 
 const FUZZ_SECRET: &str = "qubit-fuzz-secret-7f54a19c";
 /// Maximum input length processed before building structured fuzz payloads.

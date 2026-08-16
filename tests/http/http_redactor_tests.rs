@@ -19,13 +19,13 @@ use qubit_redact::MaskingPolicy;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
-use qubit_redact::http::BodyBudget;
-use qubit_redact::http::BodyCapture;
-use qubit_redact::http::BodyRedactionReason;
-use qubit_redact::http::BodyRedactionStatus;
-use qubit_redact::http::HttpRedactor;
-use qubit_redact::http::TextBodyPolicy;
-use qubit_redact::http::UnkeyedJsonValuePolicy;
+use qubit_redact::formats::http::BodyBudget;
+use qubit_redact::formats::http::BodyCapture;
+use qubit_redact::formats::http::BodyRedactionReason;
+use qubit_redact::formats::http::BodyRedactionStatus;
+use qubit_redact::formats::http::HttpRedactor;
+use qubit_redact::formats::http::TextBodyPolicy;
+use qubit_redact::formats::http::UnkeyedJsonValuePolicy;
 use url::Url;
 /// Builds an HTTP redactor with explicit finite body limits.
 fn redactor_with_budget(input: usize, output: usize) -> HttpRedactor {

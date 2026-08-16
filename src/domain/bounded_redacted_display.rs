@@ -17,7 +17,7 @@ use super::internal::mark_debug_output_exhausted;
 use super::internal::with_debug_output_tracking;
 use super::internal::with_mask_byte_limit;
 use crate::LogOutputLimit;
-use crate::text::internal::BoundedLogEscapeWriter;
+use crate::output::internal::BoundedLogEscapeWriter;
 
 /// A redacted formatting view whose log-safe output cannot exceed a byte limit.
 ///

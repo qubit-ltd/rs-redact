@@ -12,10 +12,10 @@ use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
-use qubit_redact::http::BodyBudget;
-use qubit_redact::http::BodyCapture;
-use qubit_redact::http::HttpRedactor;
-use qubit_redact::http::TextBodyPolicy;
+use qubit_redact::formats::http::BodyBudget;
+use qubit_redact::formats::http::BodyCapture;
+use qubit_redact::formats::http::HttpRedactor;
+use qubit_redact::formats::http::TextBodyPolicy;
 /// Builds a redactor whose secret mask is intentionally much larger than its
 /// output budget.
 fn amplified_mask_redactor() -> HttpRedactor {

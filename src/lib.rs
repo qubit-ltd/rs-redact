@@ -251,7 +251,7 @@
 //!
 //! ```
 //! use std::ffi::OsStr;
-//! use qubit_redact::argv::ArgvItem;
+//! use qubit_redact::formats::argv::ArgvItem;
 //! use qubit_redact::Redactor;
 //!
 //! let argv = [
@@ -309,7 +309,7 @@
 //! # #[cfg(feature = "http")]
 //! # {
 //! use http::HeaderValue;
-//! use qubit_redact::http::{BodyCapture, BodyRedaction, HttpRedactor};
+//! use qubit_redact::formats::http::{BodyCapture, BodyRedaction, HttpRedactor};
 //!
 //! let content_type = HeaderValue::from_static("application/json");
 //! let redactor = HttpRedactor::default();
@@ -331,7 +331,7 @@
 //! # fn main() {
 //! # #[cfg(feature = "uri")]
 //! # {
-//! use qubit_redact::uri::UriRedactor;
+//! use qubit_redact::formats::uri::UriRedactor;
 //!
 //! let redactor = UriRedactor::default();
 //! let mut session = redactor.session();
@@ -346,33 +346,34 @@ extern crate self as qubit_redact;
 #[cfg(feature = "serde")]
 #[doc(hidden)]
 pub mod __private;
-pub mod argv;
 pub mod config;
 pub mod domain;
-pub mod env;
 pub mod facade;
-mod field_redaction;
 pub mod formats;
-#[cfg(feature = "http")]
-pub mod http;
 mod install_global_policy_error;
-#[cfg(feature = "json")]
-pub mod json;
 mod json_feature_gate;
+pub mod limits;
+pub mod model;
 pub mod output;
-mod pass_through_reason;
 pub mod policy;
 mod redactor;
 pub(crate) mod runtime;
 mod serde_feature_gate;
-pub mod text;
-#[cfg(feature = "uri")]
-pub mod uri;
 
 pub use facade::RedactionEvent;
-pub use field_redaction::FieldRedaction;
-pub use field_redaction::PassThroughReason;
 pub use install_global_policy_error::InstallGlobalPolicyError;
+pub use model::FieldRedaction;
+pub use model::PassThroughReason;
+pub use output::BoundedLogSafeDisplay;
+pub use output::DiagnosticLogBuilder;
+pub use output::LogOutputLimit;
+pub use output::LogOutputLimitBuilder;
+pub use output::LogOutputLimitError;
+pub use output::LogSafeText;
+pub use output::RedactedDebug;
+pub use output::RedactedText;
+pub use output::RedactionCompletion;
+pub use output::redacted_debug;
 pub use policy::AllowRule;
 pub use policy::DiagnosticBudgetError;
 pub use policy::DomainRedactionLimitsBuilder;
@@ -407,13 +408,3 @@ pub use policy::Sensitivity;
 pub use policy::UnkeyedJsonValuePolicy;
 pub use policy::UnknownFieldPolicy;
 pub use redactor::Redactor;
-pub use text::BoundedLogSafeDisplay;
-pub use text::DiagnosticLogBuilder;
-pub use text::LogOutputLimit;
-pub use text::LogOutputLimitBuilder;
-pub use text::LogOutputLimitError;
-pub use text::LogSafeText;
-pub use text::RedactedDebug;
-pub use text::RedactedText;
-pub use text::RedactionCompletion;
-pub use text::redacted_debug;

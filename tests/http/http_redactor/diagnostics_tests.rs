@@ -8,11 +8,11 @@
 //! Tests for shared HTTP diagnostic budget helpers.
 
 use qubit_redact::RedactionPolicy;
-use qubit_redact::http::BodyCapture;
-use qubit_redact::http::BodyRedactionReason;
-use qubit_redact::http::BodyRedactionStatus;
-use qubit_redact::http::HttpRedactor;
-use qubit_redact::http::InputOutputLimit;
+use qubit_redact::formats::http::BodyCapture;
+use qubit_redact::formats::http::BodyRedactionReason;
+use qubit_redact::formats::http::BodyRedactionStatus;
+use qubit_redact::formats::http::HttpRedactor;
+use qubit_redact::formats::http::InputOutputLimit;
 /// Verifies diagnostic input limits return the fixed safe marker.
 #[test]
 fn test_diagnostic_input_limit_returns_fixed_marker() {

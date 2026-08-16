@@ -14,15 +14,15 @@ use qubit_redact::RedactionCompletion;
 #[cfg(feature = "http")]
 use qubit_redact::RedactionPolicy;
 #[cfg(feature = "http")]
-use qubit_redact::http::BodyBudget;
+use qubit_redact::formats::http::BodyBudget;
 #[cfg(feature = "http")]
-use qubit_redact::http::BodyCapture;
+use qubit_redact::formats::http::BodyCapture;
 #[cfg(feature = "http")]
-use qubit_redact::http::BodyRedactionStatus;
+use qubit_redact::formats::http::BodyRedactionStatus;
 #[cfg(feature = "http")]
-use qubit_redact::http::HttpRedactor;
+use qubit_redact::formats::http::HttpRedactor;
 #[cfg(feature = "http")]
-use qubit_redact::http::UnkeyedJsonValuePolicy;
+use qubit_redact::formats::http::UnkeyedJsonValuePolicy;
 
 /// Verifies multiple retained unkeyed scalars aggregate into one status.
 #[cfg(feature = "http")]

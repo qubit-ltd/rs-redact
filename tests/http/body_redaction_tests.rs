@@ -15,12 +15,12 @@ use qubit_redact::PolicyLocation;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
-use qubit_redact::http::BodyBudget;
-use qubit_redact::http::BodyCapture;
-use qubit_redact::http::BodyRedaction;
-use qubit_redact::http::BodyRedactionReason;
-use qubit_redact::http::BodyRedactionStatus;
-use qubit_redact::http::HttpRedactor;
+use qubit_redact::formats::http::BodyBudget;
+use qubit_redact::formats::http::BodyCapture;
+use qubit_redact::formats::http::BodyRedaction;
+use qubit_redact::formats::http::BodyRedactionReason;
+use qubit_redact::formats::http::BodyRedactionStatus;
+use qubit_redact::formats::http::HttpRedactor;
 /// Asserts at compile time that a public result implements [`Display`].
 fn assert_display<T: Display>() {}
 

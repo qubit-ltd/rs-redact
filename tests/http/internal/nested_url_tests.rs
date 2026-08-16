@@ -7,7 +7,7 @@
 // =============================================================================
 //! Tests for nested URL redaction in structured bodies.
 
-use qubit_redact::http::HttpRedactor;
+use qubit_redact::formats::http::HttpRedactor;
 /// Verifies a nested URL does not expose query secrets.
 #[test]
 fn test_nested_url_masks_query_secret() {

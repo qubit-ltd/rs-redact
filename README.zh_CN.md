@@ -81,7 +81,7 @@ let snapshot = RedactionPolicy::default();
 
 ```rust
 use std::ffi::OsStr;
-use qubit_redact::argv::ArgvItem;
+use qubit_redact::formats::argv::ArgvItem;
 use qubit_redact::Redactor;
 
 let redactor = Redactor::strict();
@@ -164,7 +164,7 @@ HTTP body 诊断通过 `session.http()`：
 
 ```rust
 use http::HeaderValue;
-use qubit_redact::http::{BodyCapture, HttpRedactor};
+use qubit_redact::formats::http::{BodyCapture, HttpRedactor};
 
 let redactor = HttpRedactor::default();
 let mut session = redactor.session();
@@ -179,7 +179,7 @@ assert!(!safe.to_string().contains("raw"));
 URI 诊断通过 `session.uri()`，并返回带状态和原因的结构化结果：
 
 ```rust
-use qubit_redact::uri::UriRedactor;
+use qubit_redact::formats::uri::UriRedactor;
 
 let redactor = UriRedactor::default();
 let mut session = redactor.session();
@@ -214,7 +214,7 @@ assert!(safe.log_safe_text().as_str().contains("example.test"));
 - 领域对象或 Map 视图的 `Debug` 与日志安全 `Display` 默认都受策略诊断输出预算限制；
   需要不同的显式限制时使用 `with_output_limit()`。
 - `RedactMut` 只替换逻辑值，不会擦除已释放的分配内存、别名、副本或借用后备存储。
-- URI 脱敏通过 `qubit_redact::uri::UriRedactor` 显式启用。userinfo 只在第一个原始 `:`
+- URI 脱敏通过 `qubit_redact::formats::uri::UriRedactor` 显式启用。userinfo 只在第一个原始 `:`
   处分割；用户名使用 `username` 字段规则，密码使用 `password` 字段规则。query key
   会严格解码后分类，未遮盖的值保留原始百分号编码。URI 语法无效或 query 组件无法解码时
   返回固定标记。

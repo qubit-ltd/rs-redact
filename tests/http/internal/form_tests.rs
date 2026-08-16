@@ -8,9 +8,9 @@
 //! Tests for URL-encoded form redaction.
 
 use http::HeaderValue;
-use qubit_redact::http::BodyCapture;
-use qubit_redact::http::BodyRedactionStatus;
-use qubit_redact::http::HttpRedactor;
+use qubit_redact::formats::http::BodyCapture;
+use qubit_redact::formats::http::BodyRedactionStatus;
+use qubit_redact::formats::http::HttpRedactor;
 /// Verifies form values are classified from their field names.
 #[test]
 fn test_form_masks_password_value() {

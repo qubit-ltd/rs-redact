@@ -23,7 +23,7 @@ use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
-use qubit_redact::env::EnvRedactor;
+use qubit_redact::formats::env::EnvRedactor;
 /// Verifies eager environment-pair results are charged exactly once and never
 /// emit unbudgeted fallback text after cumulative exhaustion.
 #[test]

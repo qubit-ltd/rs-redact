@@ -14,8 +14,8 @@ use http::header::SET_COOKIE;
 use proptest::prelude::prop_assert;
 use proptest::prelude::proptest;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::http::HttpRedactor;
-use qubit_redact::http::InputOutputLimit;
+use qubit_redact::formats::http::HttpRedactor;
+use qubit_redact::formats::http::InputOutputLimit;
 /// Builds an HTTP redactor with visible test headers and finite diagnostics.
 fn redactor_with_diagnostic_budget(
     input: usize,

@@ -91,7 +91,7 @@ and environment operations cannot silently start a fresh budget:
 
 ```rust
 use std::ffi::OsStr;
-use qubit_redact::argv::ArgvItem;
+use qubit_redact::formats::argv::ArgvItem;
 use qubit_redact::Redactor;
 
 let redactor = Redactor::strict();
@@ -180,7 +180,7 @@ HTTP body diagnostics use `session.http()`:
 
 ```rust
 use http::HeaderValue;
-use qubit_redact::http::{BodyCapture, HttpRedactor};
+use qubit_redact::formats::http::{BodyCapture, HttpRedactor};
 
 let redactor = HttpRedactor::default();
 let mut session = redactor.session();
@@ -195,7 +195,7 @@ assert!(!safe.to_string().contains("raw"));
 URI diagnostics use `session.uri()` and return structured status/reason data:
 
 ```rust
-use qubit_redact::uri::UriRedactor;
+use qubit_redact::formats::uri::UriRedactor;
 
 let redactor = UriRedactor::default();
 let mut session = redactor.session();
@@ -246,7 +246,7 @@ assert!(safe.log_safe_text().as_str().contains("example.test"));
 - HTTP redaction accepts only caller-provided captures. It never reads or
   buffers a network body itself. Configure HTTP behavior on the root
   `RedactionPolicy`; `HttpRedactor` consumes that snapshot.
-- URI redaction is opt-in through `qubit_redact::uri::UriRedactor`. Userinfo is
+- URI redaction is opt-in through `qubit_redact::formats::uri::UriRedactor`. Userinfo is
   split only at the first raw `:`; username uses the `username` field rule and
   password uses `password`. Query keys are decoded strictly for classification,
   while unmasked values retain their original percent-encoded spelling. Invalid

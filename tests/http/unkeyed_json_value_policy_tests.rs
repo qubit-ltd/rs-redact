@@ -5,10 +5,10 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`UnkeyedJsonValuePolicy`](qubit_redact::http::UnkeyedJsonValuePolicy).
+//! Tests for [`UnkeyedJsonValuePolicy`](qubit_redact::formats::http::UnkeyedJsonValuePolicy).
 
 use qubit_redact::RedactionPolicy;
-use qubit_redact::http::UnkeyedJsonValuePolicy;
+use qubit_redact::formats::http::UnkeyedJsonValuePolicy;
 /// Verifies the standard policy preserves unkeyed JSON scalar values.
 #[test]
 fn test_unkeyed_json_value_policy_default_is_redact() {

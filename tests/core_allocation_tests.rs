@@ -29,13 +29,13 @@ use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSession;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
-use qubit_redact::argv::ArgvItem;
-use qubit_redact::argv::ArgvRedactor;
 use qubit_redact::domain::Redact;
 use qubit_redact::domain::RedactedMap;
-use qubit_redact::env::EnvRedactor;
+use qubit_redact::formats::argv::ArgvItem;
+use qubit_redact::formats::argv::ArgvRedactor;
+use qubit_redact::formats::env::EnvRedactor;
 #[cfg(feature = "uri")]
-use qubit_redact::uri::UriRedactor;
+use qubit_redact::formats::uri::UriRedactor;
 /// Serializes allocation measurements inside this integration-test binary.
 static ALLOCATION_TEST_LOCK: Mutex<()> = Mutex::new(());
 thread_local! {

@@ -395,7 +395,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 use std::ffi::OsStr;
-use qubit_redact::argv::ArgvItem;
+use qubit_redact::formats::argv::ArgvItem;
 use qubit_redact::{Redactor, Sensitivity};
 
 fn main() {
@@ -477,7 +477,7 @@ http = "1.5"
 ```rust
 use http::{HeaderMap, HeaderValue};
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
-use qubit_redact::http::BodyCapture;
+use qubit_redact::formats::http::BodyCapture;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = RedactionPolicy::default().to_builder();
@@ -505,7 +505,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         BodyCapture::complete(br#"{"password":"raw-password","mode":"debug"}"#),
         Some(&content_type),
     );
-    assert!(matches!(body.status(), qubit_redact::http::BodyRedactionStatus::Structured));
+    assert!(matches!(body.status(), qubit_redact::formats::http::BodyRedactionStatus::Structured));
     assert!(!body.to_string().contains("raw-password"));
     Ok(())
 }

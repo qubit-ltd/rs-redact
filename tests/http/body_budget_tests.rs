@@ -5,10 +5,10 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`BodyBudget`](qubit_redact::http::BodyBudget).
+//! Tests for [`BodyBudget`](qubit_redact::formats::http::BodyBudget).
 
-use qubit_redact::http::BodyBudget;
-use qubit_redact::http::BodyBudgetError;
+use qubit_redact::formats::http::BodyBudget;
+use qubit_redact::formats::http::BodyBudgetError;
 /// Verifies budget errors implement the standard error contract precisely.
 #[test]
 fn test_body_budget_error_display_describes_invalid_limit() {

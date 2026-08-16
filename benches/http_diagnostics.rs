@@ -18,9 +18,9 @@ use http::HeaderMap;
 use http::HeaderValue;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::http::BodyBudget;
-use qubit_redact::http::BodyCapture;
-use qubit_redact::http::HttpRedactor;
+use qubit_redact::formats::http::BodyBudget;
+use qubit_redact::formats::http::BodyCapture;
+use qubit_redact::formats::http::HttpRedactor;
 
 /// Measures URL suffix handling with many unmatched closing delimiters.
 fn benchmark_unmatched_url_delimiters(criterion: &mut Criterion) {

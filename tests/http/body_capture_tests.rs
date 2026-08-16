@@ -5,10 +5,10 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`BodyCapture`](qubit_redact::http::BodyCapture).
+//! Tests for [`BodyCapture`](qubit_redact::formats::http::BodyCapture).
 
-use qubit_redact::http::BodyCapture;
-use qubit_redact::http::BodyCaptureError;
+use qubit_redact::formats::http::BodyCapture;
+use qubit_redact::formats::http::BodyCaptureError;
 /// Verifies capture errors describe both conflicting byte counts.
 #[test]
 fn test_body_capture_error_display_describes_invalid_total() {

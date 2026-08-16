@@ -14,11 +14,11 @@ use qubit_redact::RedactionPolicy;
 #[cfg(feature = "http")]
 use qubit_redact::Sensitivity;
 #[cfg(feature = "http")]
-use qubit_redact::http::BodyBudget;
+use qubit_redact::formats::http::BodyBudget;
 #[cfg(feature = "http")]
-use qubit_redact::http::BodyCapture;
+use qubit_redact::formats::http::BodyCapture;
 #[cfg(feature = "http")]
-use qubit_redact::http::HttpRedactor;
+use qubit_redact::formats::http::HttpRedactor;
 /// Redacts one sensitive JSON value with the supplied mask policy.
 #[cfg(feature = "http")]
 fn redact_json_value(

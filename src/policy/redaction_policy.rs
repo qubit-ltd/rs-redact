@@ -58,11 +58,11 @@ static STANDARD_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
         MaskingPolicy::default(),
         RedactionLimits::default(),
         #[cfg(feature = "http")]
-        crate::http::HttpPolicyBuilder::new()
+        crate::formats::http::HttpPolicyBuilder::new()
             .build()
             .expect("the built-in HTTP policy must be valid"),
         #[cfg(feature = "uri")]
-        crate::uri::UriPolicyBuilder::new()
+        crate::formats::uri::UriPolicyBuilder::new()
             .build()
             .expect("the built-in URI policy must be valid"),
         #[cfg(feature = "json")]
@@ -88,14 +88,14 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
         RedactionLimits::default(),
         #[cfg(feature = "http")]
         {
-            let mut http = crate::http::HttpPolicyBuilder::new();
-            http.url_path_mut(crate::http::UrlPathPolicy::Redact);
-            http.text_body_mut(crate::http::TextBodyPolicy::Redact);
+            let mut http = crate::formats::http::HttpPolicyBuilder::new();
+            http.url_path_mut(crate::formats::http::UrlPathPolicy::Redact);
+            http.text_body_mut(crate::formats::http::TextBodyPolicy::Redact);
             http.build()
                 .expect("the built-in HTTP policy must be valid")
         },
         #[cfg(feature = "uri")]
-        crate::uri::UriPolicyBuilder::new()
+        crate::formats::uri::UriPolicyBuilder::new()
             .build()
             .expect("the built-in URI policy must be valid"),
         #[cfg(feature = "json")]
@@ -111,9 +111,9 @@ pub struct RedactionPolicy {
     masking: Arc<MaskingPolicy>,
     limits: RedactionLimits,
     #[cfg(feature = "http")]
-    http: Arc<crate::http::HttpPolicy>,
+    http: Arc<crate::formats::http::HttpPolicy>,
     #[cfg(feature = "uri")]
-    uri: Arc<crate::uri::UriPolicy>,
+    uri: Arc<crate::formats::uri::UriPolicy>,
     #[cfg(feature = "json")]
     unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
 }
@@ -243,8 +243,8 @@ impl RedactionPolicy {
         rules: RedactionRules,
         masking: MaskingPolicy,
         limits: RedactionLimits,
-        #[cfg(feature = "http")] http: crate::http::HttpPolicy,
-        #[cfg(feature = "uri")] uri: crate::uri::UriPolicy,
+        #[cfg(feature = "http")] http: crate::formats::http::HttpPolicy,
+        #[cfg(feature = "uri")] uri: crate::formats::uri::UriPolicy,
         #[cfg(feature = "json")]
         unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
     ) -> Self {
@@ -272,7 +272,7 @@ impl RedactionPolicy {
     #[must_use]
     #[cfg(feature = "http")]
     #[inline]
-    pub fn http(&self) -> &crate::http::HttpPolicy {
+    pub fn http(&self) -> &crate::formats::http::HttpPolicy {
         self.http.as_ref()
     }
 
@@ -280,7 +280,7 @@ impl RedactionPolicy {
     #[must_use]
     #[cfg(feature = "uri")]
     #[inline]
-    pub fn uri(&self) -> &crate::uri::UriPolicy {
+    pub fn uri(&self) -> &crate::formats::uri::UriPolicy {
         self.uri.as_ref()
     }
 
@@ -312,7 +312,7 @@ impl RedactionPolicy {
     #[must_use]
     #[cfg(feature = "http")]
     #[inline]
-    pub fn url_path_policy(&self) -> crate::http::UrlPathPolicy {
+    pub fn url_path_policy(&self) -> crate::formats::http::UrlPathPolicy {
         self.http.url_path_policy()
     }
 
@@ -320,7 +320,7 @@ impl RedactionPolicy {
     #[must_use]
     #[cfg(feature = "http")]
     #[inline]
-    pub fn text_body_policy(&self) -> crate::http::TextBodyPolicy {
+    pub fn text_body_policy(&self) -> crate::formats::http::TextBodyPolicy {
         self.http.text_body_policy()
     }
 
@@ -328,7 +328,7 @@ impl RedactionPolicy {
     #[must_use]
     #[cfg(feature = "http")]
     #[inline]
-    pub fn body_budget(&self) -> crate::http::BodyBudget {
+    pub fn body_budget(&self) -> crate::formats::http::BodyBudget {
         self.limits.http_body()
     }
 
@@ -336,7 +336,7 @@ impl RedactionPolicy {
     #[must_use]
     #[cfg(feature = "uri")]
     #[inline]
-    pub fn path_policy(&self) -> crate::uri::UriPathPolicy {
+    pub fn path_policy(&self) -> crate::formats::uri::UriPathPolicy {
         self.uri.path_policy()
     }
 
@@ -344,7 +344,7 @@ impl RedactionPolicy {
     #[must_use]
     #[cfg(feature = "uri")]
     #[inline]
-    pub fn fragment_policy(&self) -> crate::uri::UriFragmentPolicy {
+    pub fn fragment_policy(&self) -> crate::formats::uri::UriFragmentPolicy {
         self.uri.fragment_policy()
     }
 

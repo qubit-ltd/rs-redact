@@ -16,14 +16,14 @@ use qubit_redact::Sensitivity;
 #[cfg(feature = "json")]
 use qubit_redact::UnkeyedJsonValuePolicy;
 #[cfg(feature = "http")]
-use qubit_redact::http::TextBodyPolicy;
+use qubit_redact::formats::http::TextBodyPolicy;
 #[cfg(feature = "http")]
-use qubit_redact::http::UrlPathPolicy;
+use qubit_redact::formats::http::UrlPathPolicy;
+#[cfg(feature = "uri")]
+use qubit_redact::formats::uri::UriFragmentPolicy;
+#[cfg(feature = "uri")]
+use qubit_redact::formats::uri::UriPathPolicy;
 use qubit_redact::policy::DomainRedactionLimits;
-#[cfg(feature = "uri")]
-use qubit_redact::uri::UriFragmentPolicy;
-#[cfg(feature = "uri")]
-use qubit_redact::uri::UriPathPolicy;
 
 /// Verifies grouped field and limit setters chain without consuming the root
 /// builder.

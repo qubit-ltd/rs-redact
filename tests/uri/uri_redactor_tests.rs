@@ -13,12 +13,12 @@ use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
-use qubit_redact::uri::UriComponent;
-use qubit_redact::uri::UriFragmentPolicy;
-use qubit_redact::uri::UriPathPolicy;
-use qubit_redact::uri::UriRedactionReason;
-use qubit_redact::uri::UriRedactionStatus;
-use qubit_redact::uri::UriRedactor;
+use qubit_redact::formats::uri::UriComponent;
+use qubit_redact::formats::uri::UriFragmentPolicy;
+use qubit_redact::formats::uri::UriPathPolicy;
+use qubit_redact::formats::uri::UriRedactionReason;
+use qubit_redact::formats::uri::UriRedactionStatus;
+use qubit_redact::formats::uri::UriRedactor;
 /// Verifies repeated URI session fallbacks never exceed the cumulative output
 /// limit, including when insufficient bytes remain for another complete marker.
 #[test]

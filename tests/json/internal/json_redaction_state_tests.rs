@@ -12,8 +12,8 @@ use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
 #[cfg(feature = "serde")]
-use qubit_redact::json::RedactedJson;
-use qubit_redact::json::redact_json_text_in_place;
+use qubit_redact::formats::json::RedactedJson;
+use qubit_redact::formats::json::redact_json_text_in_place;
 use serde_json::Value;
 use serde_json::from_str;
 #[cfg(feature = "serde")]
