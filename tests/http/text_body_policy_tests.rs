@@ -5,10 +5,10 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`TextBodyPolicy`](qubit_redact::http::TextBodyPolicy).
+//! Tests for [`TextBodyPolicy`](qubit_redact::formats::http::TextBodyPolicy).
 
 use qubit_redact::RedactionPolicy;
-use qubit_redact::http::TextBodyPolicy;
+use qubit_redact::formats::http::TextBodyPolicy;
 /// Verifies opaque text is redacted by default.
 #[test]
 fn test_text_body_policy_default_is_redact() {

@@ -45,9 +45,9 @@ pub struct RedactionPolicyBuilder {
     floor: Option<RedactionFloor>,
     limits: RedactionLimits,
     #[cfg(feature = "http")]
-    http: crate::http::HttpPolicyBuilder,
+    http: crate::formats::http::HttpPolicyBuilder,
     #[cfg(feature = "uri")]
-    uri: crate::uri::UriPolicyBuilder,
+    uri: crate::formats::uri::UriPolicyBuilder,
     #[cfg(feature = "json")]
     unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
 }
@@ -62,9 +62,9 @@ impl RedactionPolicyBuilder {
             floor: Some(RedactionFloor::standard()),
             limits: RedactionLimits::default(),
             #[cfg(feature = "http")]
-            http: crate::http::HttpPolicyBuilder::new(),
+            http: crate::formats::http::HttpPolicyBuilder::new(),
             #[cfg(feature = "uri")]
-            uri: crate::uri::UriPolicyBuilder::new(),
+            uri: crate::formats::uri::UriPolicyBuilder::new(),
             #[cfg(feature = "json")]
             unkeyed_json_value_policy: UnkeyedJsonValuePolicy::PassThrough,
         }
@@ -81,9 +81,13 @@ impl RedactionPolicyBuilder {
             floor: policy.rules().floor().cloned(),
             limits: *policy.limits(),
             #[cfg(feature = "http")]
-            http: crate::http::HttpPolicyBuilder::from_policy(policy.http()),
+            http: crate::formats::http::HttpPolicyBuilder::from_policy(
+                policy.http(),
+            ),
             #[cfg(feature = "uri")]
-            uri: crate::uri::UriPolicyBuilder::from_policy(policy.uri()),
+            uri: crate::formats::uri::UriPolicyBuilder::from_policy(
+                policy.uri(),
+            ),
             #[cfg(feature = "json")]
             unkeyed_json_value_policy: policy.unkeyed_json_value_policy(),
         }
@@ -324,13 +328,16 @@ mod views {
     /// Mutable view over URI-specific behavior.
     #[cfg(feature = "uri")]
     pub struct UriPolicyBuilderView<'a> {
-        pub(super) builder: &'a mut crate::uri::UriPolicyBuilder,
+        pub(super) builder: &'a mut crate::formats::uri::UriPolicyBuilder,
     }
 
     #[cfg(feature = "uri")]
     impl UriPolicyBuilderView<'_> {
         /// Sets URI path visibility.
-        pub fn path(&mut self, policy: crate::uri::UriPathPolicy) -> &mut Self {
+        pub fn path(
+            &mut self,
+            policy: crate::formats::uri::UriPathPolicy,
+        ) -> &mut Self {
             self.builder.path_policy_mut(policy);
             self
         }
@@ -338,7 +345,7 @@ mod views {
         /// Sets URI fragment visibility.
         pub fn fragment(
             &mut self,
-            policy: crate::uri::UriFragmentPolicy,
+            policy: crate::formats::uri::UriFragmentPolicy,
         ) -> &mut Self {
             self.builder.fragment_policy_mut(policy);
             self
@@ -352,7 +359,7 @@ mod views {
         pub fn header(&mut self) -> HttpContextBuilderView<'_> {
             HttpContextBuilderView {
                 builder: &mut self.builder.http,
-                context: crate::http::HttpFieldContext::Header,
+                context: crate::formats::http::HttpFieldContext::Header,
             }
         }
 
@@ -361,7 +368,7 @@ mod views {
         pub fn query(&mut self) -> HttpContextBuilderView<'_> {
             HttpContextBuilderView {
                 builder: &mut self.builder.http,
-                context: crate::http::HttpFieldContext::Query,
+                context: crate::formats::http::HttpFieldContext::Query,
             }
         }
 
@@ -370,14 +377,14 @@ mod views {
         pub fn body(&mut self) -> HttpContextBuilderView<'_> {
             HttpContextBuilderView {
                 builder: &mut self.builder.http,
-                context: crate::http::HttpFieldContext::Body,
+                context: crate::formats::http::HttpFieldContext::Body,
             }
         }
 
         /// Sets URL path visibility for HTTP diagnostics.
         pub fn url_path(
             &mut self,
-            policy: crate::http::UrlPathPolicy,
+            policy: crate::formats::http::UrlPathPolicy,
         ) -> &mut Self {
             self.builder.http.url_path_mut(policy);
             self
@@ -386,7 +393,7 @@ mod views {
         /// Sets opaque text-body visibility for HTTP diagnostics.
         pub fn text_body(
             &mut self,
-            policy: crate::http::TextBodyPolicy,
+            policy: crate::formats::http::TextBodyPolicy,
         ) -> &mut Self {
             self.builder.http.text_body_mut(policy);
             self
@@ -408,7 +415,7 @@ mod views {
         /// bodies.
         pub fn unkeyed_json(
             &mut self,
-            policy: crate::http::UnkeyedJsonValuePolicy,
+            policy: crate::formats::http::UnkeyedJsonValuePolicy,
         ) -> &mut Self {
             self.builder.unkeyed_json_value_policy = policy;
             self
@@ -418,8 +425,8 @@ mod views {
     /// Mutable view over one HTTP field context.
     #[cfg(feature = "http")]
     pub struct HttpContextBuilderView<'a> {
-        builder: &'a mut crate::http::HttpPolicyBuilder,
-        context: crate::http::HttpFieldContext,
+        builder: &'a mut crate::formats::http::HttpPolicyBuilder,
+        context: crate::formats::http::HttpFieldContext,
     }
 
     #[cfg(feature = "http")]
@@ -552,7 +559,7 @@ mod views {
         #[cfg(feature = "http")]
         pub fn http_body(
             &mut self,
-            limit: crate::http::BodyBudget,
+            limit: crate::formats::http::BodyBudget,
         ) -> &mut Self {
             let mut builder =
                 RedactionLimits::builder_from(&self.builder.limits);

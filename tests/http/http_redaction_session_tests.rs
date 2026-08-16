@@ -9,8 +9,8 @@
 use qubit_redact::InputOutputLimit;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::http::BodyCapture;
-use qubit_redact::http::HttpRedactor;
+use qubit_redact::formats::http::BodyCapture;
+use qubit_redact::formats::http::HttpRedactor;
 
 #[test]
 fn output_exhaustion_skips_body_input() {

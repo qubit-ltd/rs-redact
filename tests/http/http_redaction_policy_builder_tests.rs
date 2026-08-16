@@ -8,8 +8,8 @@
 //! Tests for HTTP policy builder behavior.
 
 use qubit_redact::RedactionPolicy;
-use qubit_redact::http::TextBodyPolicy;
-use qubit_redact::http::UrlPathPolicy;
+use qubit_redact::formats::http::TextBodyPolicy;
+use qubit_redact::formats::http::UrlPathPolicy;
 /// Verifies the HTTP builder updates its independently configured choices.
 #[test]
 fn test_http_policy_builder_updates_behavior_choices() {

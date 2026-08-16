@@ -11,7 +11,7 @@ use qubit_redact::InputOutputLimit;
 use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
-use qubit_redact::uri::UriRedactor;
+use qubit_redact::formats::uri::UriRedactor;
 /// Verifies URI output remains UTF-8 and reserves the complete marker.
 #[test]
 fn test_bounded_uri_output_keeps_utf8_and_marker_complete() {

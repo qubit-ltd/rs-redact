@@ -8,8 +8,8 @@
 //! Tests for multipart header parameter parsing.
 
 use http::HeaderValue;
-use qubit_redact::http::BodyCapture;
-use qubit_redact::http::HttpRedactor;
+use qubit_redact::formats::http::BodyCapture;
+use qubit_redact::formats::http::HttpRedactor;
 /// Verifies malformed multipart parameters fail closed.
 #[test]
 fn test_header_parameter_malformed_multipart_hides_body() {

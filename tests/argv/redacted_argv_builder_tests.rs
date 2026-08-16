@@ -10,8 +10,8 @@ use std::ffi::OsStr;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
-use qubit_redact::argv::ArgvItem;
-use qubit_redact::argv::ArgvRedactor;
+use qubit_redact::formats::argv::ArgvItem;
+use qubit_redact::formats::argv::ArgvRedactor;
 /// Verifies the argv builder exposes its diagnostic truncation marker.
 #[test]
 fn test_redacted_argv_builder_renders_input_truncation_marker() {

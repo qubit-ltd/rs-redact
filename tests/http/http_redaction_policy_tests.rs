@@ -8,8 +8,8 @@
 //! Tests for immutable HTTP policy accessors.
 
 use qubit_redact::RedactionPolicy;
-use qubit_redact::http::TextBodyPolicy;
-use qubit_redact::http::UrlPathPolicy;
+use qubit_redact::formats::http::TextBodyPolicy;
+use qubit_redact::formats::http::UrlPathPolicy;
 /// Verifies the HTTP snapshot exposes its default behavioral choices.
 #[test]
 fn test_http_policy_exposes_default_behavior() {

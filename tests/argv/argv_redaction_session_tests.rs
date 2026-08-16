@@ -15,8 +15,8 @@ use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
-use qubit_redact::argv::ArgvItem;
-use qubit_redact::argv::RedactedArgv;
+use qubit_redact::formats::argv::ArgvItem;
+use qubit_redact::formats::argv::RedactedArgv;
 
 struct CountingItems<'count> {
     pulls: &'count Cell<usize>,

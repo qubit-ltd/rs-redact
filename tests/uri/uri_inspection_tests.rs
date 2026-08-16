@@ -9,10 +9,10 @@
 
 use qubit_redact::InputOutputLimit;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::uri::UriComponent;
-use qubit_redact::uri::UriRedactionReason;
-use qubit_redact::uri::UriRedactionStatus;
-use qubit_redact::uri::UriRedactor;
+use qubit_redact::formats::uri::UriComponent;
+use qubit_redact::formats::uri::UriRedactionReason;
+use qubit_redact::formats::uri::UriRedactionStatus;
+use qubit_redact::formats::uri::UriRedactor;
 /// Verifies inspection reports sensitive components without producing text.
 #[test]
 fn test_uri_redactor_inspect_uri_str_reports_metadata() {

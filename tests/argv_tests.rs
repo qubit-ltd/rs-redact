@@ -25,8 +25,8 @@ use qubit_redact::RedactionFloor;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
-use qubit_redact::argv::ArgvItem;
-use qubit_redact::argv::ArgvRedactor;
+use qubit_redact::formats::argv::ArgvItem;
+use qubit_redact::formats::argv::ArgvRedactor;
 /// Creates a redactor with deliberately small diagnostic limits.
 fn bounded_redactor() -> ArgvRedactor {
     let budget = InputOutputLimit::builder()

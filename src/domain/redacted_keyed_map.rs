@@ -22,7 +22,7 @@ use crate::RedactionSession;
 use crate::domain::BoundedRedactedDisplay;
 use crate::domain::Redact;
 use crate::domain::RedactValue;
-use crate::text::internal::LogEscapeWriter;
+use crate::output::internal::LogEscapeWriter;
 
 /// A lazy map view that classifies each value by its key before recursion.
 ///

@@ -7,7 +7,7 @@
 // =============================================================================
 //! Tests for the public environment module boundary.
 
-use qubit_redact::env::EnvRedactor;
+use qubit_redact::formats::env::EnvRedactor;
 /// Verifies the module exposes a complete assignment redaction path.
 #[test]
 fn test_env_module_reexports_compose() {

@@ -12,8 +12,8 @@ use qubit_redact::JsonDepthLimit;
 use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
-use qubit_redact::json::RedactedJsonText;
-use qubit_redact::json::redact_json_text_in_place;
+use qubit_redact::formats::json::RedactedJsonText;
+use qubit_redact::formats::json::redact_json_text_in_place;
 /// Verifies the constructor preserves the borrowed text and policy behavior.
 #[test]
 fn test_redacted_json_text_new_constructs_borrowed_view() {

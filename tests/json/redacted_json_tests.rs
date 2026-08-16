@@ -14,7 +14,7 @@ use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::UnknownFieldPolicy;
-use qubit_redact::json::RedactedJson;
+use qubit_redact::formats::json::RedactedJson;
 use serde_json::json;
 #[cfg(feature = "serde")]
 use serde_json::to_value;

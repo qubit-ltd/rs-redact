@@ -16,7 +16,7 @@ use criterion::criterion_group;
 use criterion::criterion_main;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::uri::UriRedactor;
+use qubit_redact::formats::uri::UriRedactor;
 
 /// Builds a URI redactor with the benchmark's fixed diagnostic budget.
 fn benchmark_redactor() -> UriRedactor {

@@ -176,10 +176,10 @@ mod session_view {
     use crate::domain::internal::mask_byte_limit;
     use crate::domain::redacted::CompletedDebug;
     use crate::domain::redacted::complete_debug;
+    use crate::output::internal::LogEscapeWriter;
     use crate::policy::DomainTruncation;
     use crate::policy::FragmentCompletion;
     use crate::policy::RedactionAdmission;
-    use crate::text::internal::LogEscapeWriter;
 
     /// A nested map view that reuses one diagnostic session.
     pub struct RedactedMapResult<

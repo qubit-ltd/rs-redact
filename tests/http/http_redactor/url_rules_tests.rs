@@ -7,7 +7,7 @@
 // =============================================================================
 //! Tests for nested URL redaction limits.
 
-use qubit_redact::http::HttpRedactor;
+use qubit_redact::formats::http::HttpRedactor;
 /// Verifies excessive nested URL recursion fails closed without exposing
 /// secrets.
 #[test]

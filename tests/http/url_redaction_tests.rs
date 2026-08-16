@@ -12,8 +12,8 @@ use proptest::prelude::proptest;
 use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
-use qubit_redact::http::HttpRedactor;
-use qubit_redact::http::InputOutputLimit;
+use qubit_redact::formats::http::HttpRedactor;
+use qubit_redact::formats::http::InputOutputLimit;
 use url::Url;
 /// Builds an HTTP redactor with explicit finite diagnostic limits.
 fn redactor_with_diagnostic_budget(

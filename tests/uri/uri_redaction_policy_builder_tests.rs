@@ -8,8 +8,8 @@
 //! Tests for URI policy builder behavior.
 
 use qubit_redact::RedactionPolicy;
-use qubit_redact::uri::UriFragmentPolicy;
-use qubit_redact::uri::UriPathPolicy;
+use qubit_redact::formats::uri::UriFragmentPolicy;
+use qubit_redact::formats::uri::UriPathPolicy;
 /// Verifies the URI builder updates path and fragment choices independently.
 #[test]
 fn test_uri_policy_builder_updates_behavior_choices() {

@@ -7,7 +7,7 @@
 // =============================================================================
 //! Tests for URI redaction status values.
 
-use qubit_redact::uri::UriRedactionStatus;
+use qubit_redact::formats::uri::UriRedactionStatus;
 /// Verifies a new status defaults to pass-through.
 #[test]
 fn test_uri_redaction_status_defaults_to_passed_through() {

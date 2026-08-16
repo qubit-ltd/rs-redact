@@ -129,13 +129,13 @@ mod session_view {
     use crate::domain::redacted::CompletedDebug;
     use crate::domain::redacted::DomainRenderStatus;
     use crate::domain::redacted::complete_debug;
+    use crate::output::internal::LogEscapeWriter;
     use crate::policy::DomainTraversalAdmission;
     use crate::policy::DomainTruncation;
     use crate::policy::DomainValueAdmission;
     use crate::policy::FragmentCompletion;
     use crate::policy::RedactionAdmission;
     use crate::policy::ResolvedField;
-    use crate::text::internal::LogEscapeWriter;
 
     /// An eagerly completed keyed value representation.
     pub struct RedactedKeyedResult<'value, T: ?Sized> {

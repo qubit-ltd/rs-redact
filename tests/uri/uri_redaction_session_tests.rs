@@ -10,9 +10,9 @@
 use qubit_redact::InputOutputLimit;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::uri::UriRedactionReason;
-use qubit_redact::uri::UriRedactionStatus;
-use qubit_redact::uri::UriRedactor;
+use qubit_redact::formats::uri::UriRedactionReason;
+use qubit_redact::formats::uri::UriRedactionStatus;
+use qubit_redact::formats::uri::UriRedactor;
 
 /// Verifies output exhaustion short-circuits later URI input admission.
 #[test]

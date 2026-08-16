@@ -12,7 +12,7 @@ use super::InputOutputLimit;
 #[cfg(feature = "json")]
 use super::JsonDepthLimit;
 #[cfg(feature = "http")]
-use crate::http::BodyBudget;
+use crate::formats::http::BodyBudget;
 
 /// Mutable construction state for [`RedactionLimits`].
 #[derive(Debug, Clone, Copy)]

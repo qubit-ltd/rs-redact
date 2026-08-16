@@ -5,9 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`BodyRedactionReason`](qubit_redact::http::BodyRedactionReason).
+//! Tests for [`BodyRedactionReason`](qubit_redact::formats::http::BodyRedactionReason).
 
-use qubit_redact::http::BodyRedactionReason;
+use qubit_redact::formats::http::BodyRedactionReason;
 /// Verifies the opaque-text reason is available to callers.
 #[test]
 fn test_body_redaction_reason_exposes_opaque_text_variant() {

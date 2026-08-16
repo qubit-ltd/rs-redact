@@ -198,10 +198,10 @@ mod session_view {
     use crate::domain::internal::mask_byte_limit;
     use crate::domain::internal::with_debug_output_tracking;
     use crate::domain::internal::with_mask_byte_limit;
+    use crate::output::internal::LogEscapeWriter;
     use crate::policy::DomainTruncation;
     use crate::policy::FragmentCompletion;
     use crate::policy::RedactionAdmission;
-    use crate::text::internal::LogEscapeWriter;
 
     /// An eagerly completed nested redacted representation.
     pub struct RedactedResult<'value, T: ?Sized> {

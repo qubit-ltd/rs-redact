@@ -15,8 +15,8 @@ use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
-use qubit_redact::env::RedactedEnv;
-use qubit_redact::env::RedactedEnvPair;
+use qubit_redact::formats::env::RedactedEnv;
+use qubit_redact::formats::env::RedactedEnvPair;
 
 struct CountingPairs<'count> {
     pulls: &'count Cell<usize>,

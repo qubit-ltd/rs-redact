@@ -5,10 +5,10 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`BodyRedactionStatus`](qubit_redact::http::BodyRedactionStatus).
+//! Tests for [`BodyRedactionStatus`](qubit_redact::formats::http::BodyRedactionStatus).
 
-use qubit_redact::http::BodyRedactionReason;
-use qubit_redact::http::BodyRedactionStatus;
+use qubit_redact::formats::http::BodyRedactionReason;
+use qubit_redact::formats::http::BodyRedactionStatus;
 /// Verifies a fail-closed status retains its precise reason.
 #[test]
 fn test_body_redaction_status_retains_reason() {
