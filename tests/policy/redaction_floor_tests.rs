@@ -29,7 +29,7 @@ fn test_floor_overrides_application_exact_allow() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor);
+        let _ = builder.fields().floor(floor);
         builder
             .fields()
             .allow_exact("access_token")
@@ -54,7 +54,7 @@ fn test_floor_overrides_application_suffix_allow() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor);
+        let _ = builder.fields().floor(floor);
         builder
             .fields()
             .allow_suffix("access_token")
@@ -79,7 +79,7 @@ fn test_floor_only_raises_sensitivity_when_application_level_is_higher() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor);
+        let _ = builder.fields().floor(floor);
         builder
             .fields()
             .raise("credential", Sensitivity::Secret)
@@ -114,7 +114,7 @@ fn test_floor_and_application_unknown_fallbacks_combine() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor);
+        let _ = builder.fields().floor(floor);
         builder
             .fields()
             .unknown_field_policy(UnknownFieldPolicy::Redact(
@@ -155,7 +155,7 @@ fn test_application_mask_is_used_when_floor_misses() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor);
+        let _ = builder.fields().floor(floor);
         builder
             .fields()
             .raise("application_only", Sensitivity::Secret)
@@ -187,8 +187,8 @@ fn test_floor_matching_is_independent_from_application_matching() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor);
-        builder
+        let _ = builder.fields().floor(floor);
+        let _ = builder
             .fields()
             .matching(FieldNameMatching::ExactOrTokenSuffix);
         builder
@@ -208,7 +208,7 @@ fn test_disable_floor_is_last_call_wins() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor);
+        let _ = builder.fields().floor(floor);
         builder.fields().disable_floor();
         builder
     })
@@ -228,7 +228,7 @@ fn test_with_floor_after_disable_floor_is_last_call_wins() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.fields().disable_floor();
-        builder.fields().floor(floor);
+        let _ = builder.fields().floor(floor);
         builder
     })
     .build()
@@ -277,7 +277,7 @@ fn test_rule_views_keep_application_and_floor_sources_separate() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor);
+        let _ = builder.fields().floor(floor);
         builder
             .fields()
             .raise("application_only", Sensitivity::Medium)
@@ -369,7 +369,7 @@ proptest! {
             .expect("the generated floor should build");
         let policy = ({
     let mut builder = RedactionPolicy::builder();
-    builder.fields().floor(floor);
+    let _ = builder.fields().floor(floor);
     builder.fields().raise("shared_field", application_level).expect("the test builder input should be valid");
     builder
 }).build()
@@ -395,7 +395,7 @@ proptest! {
             .expect("the generated floor should build");
         let disabled = ({
     let mut builder = RedactionPolicy::builder();
-    builder.fields().floor(floor);
+    let _ = builder.fields().floor(floor);
     builder.fields().disable_floor();
     builder.fields().raise("shared_field", sensitivity_from_index(application_index)).expect("the test builder input should be valid");
     builder

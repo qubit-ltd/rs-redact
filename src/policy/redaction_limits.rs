@@ -175,7 +175,6 @@ impl Default for RedactionLimitsBuilder {
 impl Default for RedactionLimits {
     /// Creates limits using the standard input and output defaults.
     #[inline]
-
     fn default() -> Self {
         Self::builder().build()
     }

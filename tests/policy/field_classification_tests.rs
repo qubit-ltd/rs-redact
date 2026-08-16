@@ -17,7 +17,7 @@ fn test_field_classification_exposes_sensitive_rule_metadata() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.fields().disable_floor();
-        builder
+        let _ = builder
             .fields()
             .matching(FieldNameMatching::ExactOrTokenSuffix);
         builder

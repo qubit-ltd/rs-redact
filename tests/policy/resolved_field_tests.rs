@@ -22,7 +22,7 @@ fn test_resolved_field_uses_application_mask_at_floor_level() {
         .expect("the floor should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor);
+        let _ = builder.fields().floor(floor);
         builder
             .fields()
             .raise("tenant_secret", Sensitivity::Secret)

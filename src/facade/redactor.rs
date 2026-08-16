@@ -798,7 +798,6 @@ impl Default for Redactor {
     /// Applications requiring stricter handling must install their complete
     /// policy before construction or pass an explicit policy to [`Self::new`].
     #[inline(always)]
-
     fn default() -> Self {
         Self::new(RedactionPolicy::default())
     }

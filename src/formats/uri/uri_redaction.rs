@@ -144,7 +144,6 @@ impl UriRedaction {
 impl Debug for UriRedaction {
     /// Formats only safe text and redaction metadata.
     #[inline]
-
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("UriRedaction")

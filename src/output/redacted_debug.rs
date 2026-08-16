@@ -48,7 +48,6 @@ impl<T: ?Sized> Debug for RedactedDebug<'_, T> {
     ///
     /// Returns [`std::fmt::Error`] when the formatter rejects the write.
     #[inline(always)]
-
     fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
         formatter.write_str("<redacted>")
     }

@@ -77,7 +77,6 @@ impl RedactionFloor {
     }
 
     /// Iterates the floor's canonical sensitive rules.
-    #[must_use]
     pub fn sensitive_rules(
         &self,
     ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
@@ -91,7 +90,6 @@ impl RedactionFloor {
 impl Default for RedactionFloor {
     /// Returns the built-in conservative floor.
     #[inline]
-
     fn default() -> Self {
         Self::standard()
     }
@@ -99,7 +97,6 @@ impl Default for RedactionFloor {
 
 impl fmt::Display for RedactionFloor {
     /// Writes the type name used by diagnostic formatting.
-
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("RedactionFloor")
     }

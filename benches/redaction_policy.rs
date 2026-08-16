@@ -43,7 +43,7 @@ fn benchmark_field_classification(criterion: &mut Criterion) {
     let floor_disabled = ({
         let mut builder = RedactionPolicy::builder();
         builder.fields().disable_floor();
-        builder.fields().matching(FieldNameMatching::Exact);
+        let _ = builder.fields().matching(FieldNameMatching::Exact);
         builder
             .fields()
             .raise("access_token", Sensitivity::Secret)
@@ -66,7 +66,7 @@ fn benchmark_field_classification(criterion: &mut Criterion) {
         .expect("suffix floor benchmark should be valid");
     let floor_enabled_miss = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor_exact.clone());
+        let _ = builder.fields().floor(floor_exact.clone());
         builder
             .fields()
             .raise("application_only", Sensitivity::High)
@@ -77,7 +77,7 @@ fn benchmark_field_classification(criterion: &mut Criterion) {
     .expect("floor-miss benchmark policy should be valid");
     let floor_exact_hit = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor_exact);
+        let _ = builder.fields().floor(floor_exact);
         builder
             .fields()
             .raise("application_only", Sensitivity::High)
@@ -88,7 +88,7 @@ fn benchmark_field_classification(criterion: &mut Criterion) {
     .expect("exact-hit benchmark policy should be valid");
     let floor_suffix_hit = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor_suffix);
+        let _ = builder.fields().floor(floor_suffix);
         builder
             .fields()
             .raise("application_only", Sensitivity::High)

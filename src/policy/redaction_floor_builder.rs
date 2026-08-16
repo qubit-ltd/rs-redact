@@ -82,7 +82,6 @@ impl RedactionFloorBuilder {
         self
     }
 
-    #[must_use]
     /// Validates and constructs the immutable floor.
     ///
     /// # Errors

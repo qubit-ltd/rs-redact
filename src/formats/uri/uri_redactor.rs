@@ -370,7 +370,6 @@ fn bounded_invalid_result(
 impl Default for UriRedactor {
     /// Creates a redactor from the process-wide URI policy snapshot.
     #[inline]
-
     fn default() -> Self {
         Self::new(RedactionPolicy::default())
     }
@@ -516,7 +515,6 @@ fn redact_userinfo_value(
 }
 
 /// Redacts query values after strict percent decoding.
-#[must_use]
 fn redact_query(
     query: &str,
     policy: &RedactionPolicy,
@@ -558,7 +556,6 @@ fn redact_query(
 }
 
 /// Inspects query fields after strict percent decoding without rendering.
-#[must_use]
 fn inspect_query(
     query: &str,
     policy: &RedactionPolicy,
@@ -709,7 +706,6 @@ fn safe_text(value: String) -> crate::LogSafeText<'static> {
 impl fmt::Display for UriRedactor {
     /// Formats the policy snapshot without exposing URI input.
     #[inline]
-
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("UriRedactor")
     }

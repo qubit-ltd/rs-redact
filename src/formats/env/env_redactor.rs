@@ -220,7 +220,6 @@ impl Default for EnvRedactor {
     /// # Returns
     ///
     /// An environment redactor backed by [`Redactor::default`].
-
     fn default() -> Self {
         Self::new(Redactor::default())
     }

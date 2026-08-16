@@ -287,7 +287,6 @@ impl HttpPolicyBuilder {
         self.text_body_policy = policy;
     }
 
-    #[must_use]
     /// Builds the complete HTTP policy, validating header, query, then body.
     pub(crate) fn build(self) -> Result<super::HttpPolicy, PolicyError> {
         Ok(super::HttpPolicy::from_parts(HttpPolicyParts {
@@ -302,7 +301,6 @@ impl HttpPolicyBuilder {
 
 impl Default for HttpPolicyBuilder {
     /// Creates a builder with the standard HTTP handling defaults.
-
     fn default() -> Self {
         Self::new()
     }

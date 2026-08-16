@@ -133,7 +133,6 @@ impl fmt::Debug for RedactedJson<'_, '_> {
     /// # Errors
     ///
     /// Returns a formatting error when the destination rejects output.
-
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt_json(self, formatter)
     }

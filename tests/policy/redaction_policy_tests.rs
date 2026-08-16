@@ -77,7 +77,7 @@ fn test_overlapping_sensitive_rules_resolve_to_strongest_level() {
             .fields()
             .override_level("access_token", Sensitivity::Medium)
             .expect("the test builder input should be valid");
-        builder
+        let _ = builder
             .fields()
             .matching(FieldNameMatching::ExactOrTokenSuffix);
         builder
@@ -101,7 +101,7 @@ fn test_matching_exact_only_matches_complete_field_name() {
             .fields()
             .raise("access_token", Sensitivity::High)
             .expect("the test builder input should be valid");
-        builder.fields().matching(FieldNameMatching::Exact);
+        let _ = builder.fields().matching(FieldNameMatching::Exact);
         builder
     })
     .build()
@@ -248,7 +248,7 @@ fn test_builder_from_copies_complete_policy_snapshot() {
     let base = ({
         let mut builder = RedactionPolicy::builder();
         builder.fields().disable_floor();
-        builder.fields().matching(FieldNameMatching::Exact);
+        let _ = builder.fields().matching(FieldNameMatching::Exact);
         builder
             .fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[copied]"))

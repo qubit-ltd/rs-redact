@@ -149,7 +149,6 @@ impl RedactionPolicyBuilder {
         self
     }
 
-    #[must_use]
     /// Validates and returns the immutable policy snapshot.
     ///
     /// # Errors
@@ -591,7 +590,6 @@ pub use views::UriPolicyBuilderView;
 
 impl Default for RedactionPolicyBuilder {
     /// Creates a builder with the standard floor and default limits.
-
     fn default() -> Self {
         Self::new()
     }

@@ -262,7 +262,7 @@ fn test_redact_pair_honors_exact_matching_policy() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.fields().disable_floor();
-        builder.fields().matching(FieldNameMatching::Exact);
+        let _ = builder.fields().matching(FieldNameMatching::Exact);
         builder
     })
     .build()

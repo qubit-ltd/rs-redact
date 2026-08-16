@@ -55,7 +55,6 @@ impl ContextRulesBuilder {
         self.floor = None;
     }
 
-    #[must_use]
     /// Builds the immutable rules snapshot.
     pub(super) fn build(self) -> Result<RedactionRules, PolicyError> {
         Ok(RedactionRules::new(self.rules.build_inner()?, self.floor))
