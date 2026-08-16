@@ -357,7 +357,8 @@ mod pass_through_reason;
 pub mod policy;
 pub(crate) mod runtime;
 #[cfg(feature = "serde")]
-mod private;
+#[doc(hidden)]
+pub mod __private;
 mod redactor;
 mod serde_feature_gate;
 pub mod text;
@@ -400,9 +401,6 @@ pub use policy::Sensitivity;
 #[cfg(feature = "json")]
 pub use policy::UnkeyedJsonValuePolicy;
 pub use policy::UnknownFieldPolicy;
-#[cfg(feature = "serde")]
-#[doc(hidden)]
-pub use private::__private;
 pub use redactor::Redactor;
 pub use text::BoundedLogSafeDisplay;
 pub use text::DiagnosticLogBuilder;
