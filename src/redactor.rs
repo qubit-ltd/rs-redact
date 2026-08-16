@@ -17,6 +17,12 @@ use crate::RedactionCompletion;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::Sensitivity;
+use crate::argv::ArgvRedactor;
+use crate::env::EnvRedactor;
+#[cfg(feature = "http")]
+use crate::http::HttpRedactor;
+#[cfg(feature = "uri")]
+use crate::uri::UriRedactor;
 use crate::domain::RedactMapValueMut;
 use crate::domain::RedactedKeyedValue;
 use crate::policy::DiagnosticBudget;
@@ -84,6 +90,36 @@ impl Redactor {
     #[inline]
     pub fn event(&self) -> RedactionSession<'_> {
         self.session()
+    }
+
+    /// Creates an argument-vector adapter using this policy snapshot.
+    #[must_use]
+    #[inline]
+    pub fn argv(&self) -> ArgvRedactor {
+        ArgvRedactor::new(self.clone())
+    }
+
+    /// Creates an environment adapter using this policy snapshot.
+    #[must_use]
+    #[inline]
+    pub fn env(&self) -> EnvRedactor {
+        EnvRedactor::new(self.clone())
+    }
+
+    /// Creates an HTTP adapter using this policy snapshot.
+    #[cfg(feature = "http")]
+    #[must_use]
+    #[inline]
+    pub fn http(&self) -> HttpRedactor {
+        HttpRedactor::new(self.policy.clone())
+    }
+
+    /// Creates a URI adapter using this policy snapshot.
+    #[cfg(feature = "uri")]
+    #[must_use]
+    #[inline]
+    pub fn uri(&self) -> UriRedactor {
+        UriRedactor::new(self.policy.clone())
     }
 
     /// Redacts one value according to its field name.
