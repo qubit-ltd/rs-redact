@@ -129,9 +129,11 @@ where
                 RedactionAdmission::Render { max_output_bytes } => {
                     max_output_bytes
                 }
-                RedactionAdmission::Fallback => unreachable!(
-                    "output-only domain admission cannot reject input"
-                ),
+                RedactionAdmission::Fallback => {
+                    unreachable!(
+                        "output-only domain admission cannot reject input"
+                    )
+                }
                 RedactionAdmission::Exhausted => break,
             };
             let resolved = scope.session().policy().resolve_field(key);
