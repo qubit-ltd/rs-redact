@@ -17,6 +17,7 @@ use crate::RedactionCompletion;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::Sensitivity;
+use crate::config::RedactionConfig;
 use crate::domain::RedactMapValueMut;
 use crate::domain::RedactedKeyedValue;
 use crate::formats::argv::ArgvRedactor;
@@ -50,8 +51,13 @@ impl Redactor {
     /// A redactor that owns the supplied policy snapshot.
     #[must_use]
     #[inline(always)]
-    pub const fn new(policy: RedactionPolicy) -> Self {
-        Self { policy }
+    pub fn new<C>(config: C) -> Self
+    where
+        C: Into<RedactionConfig>,
+    {
+        Self {
+            policy: config.into().into_policy(),
+        }
     }
 
     /// Creates a redactor with the strict policy for untrusted scalar data.
@@ -60,7 +66,7 @@ impl Redactor {
     #[must_use]
     #[inline]
     pub fn strict() -> Self {
-        Self::new(RedactionPolicy::strict())
+        Self::new(RedactionConfig::strict())
     }
 
     /// Returns the immutable policy used by this redactor.
