@@ -43,7 +43,6 @@ impl HttpPolicyBuilder {
     }
 
     /// Copies the immutable HTTP context snapshot.
-
     #[must_use]
     pub(crate) fn from_policy(policy: &super::HttpPolicy) -> Self {
         Self {
@@ -127,7 +126,6 @@ impl HttpPolicyBuilder {
     /// # Parameters
     ///
     /// * `floor` - Minimum sensitivity copied into each context.
-
     #[inline]
     pub(crate) fn floor_all_mut(&mut self, floor: RedactionFloor) {
         self.header.with_floor(floor.clone());

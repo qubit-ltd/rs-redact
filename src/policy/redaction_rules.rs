@@ -50,7 +50,6 @@ impl RedactionRules {
     }
 
     /// Replaces the floor for this rules snapshot.
-
     #[must_use]
     #[inline]
     pub fn with_floor(mut self, floor: RedactionFloor) -> Self {
