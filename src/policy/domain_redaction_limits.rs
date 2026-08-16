@@ -9,6 +9,14 @@
 
 use super::DomainRedactionLimitsError;
 
+/// Mutable construction state for [`DomainRedactionLimits`].
+#[derive(Debug, Clone, Copy)]
+pub struct DomainRedactionLimitsBuilder {
+    max_nodes: usize,
+    max_collection_items: usize,
+    max_depth: usize,
+}
+
 /// Bounds cumulative domain nodes, collection items, and active nesting depth.
 ///
 /// A root domain value consumes one node at depth one. Each field admitted for
@@ -31,6 +39,17 @@ impl DomainRedactionLimits {
     /// Default maximum active domain-value depth, with the root at depth one.
     pub const DEFAULT_MAX_DEPTH: usize = 32;
 
+    /// Creates a builder initialized with the standard domain limits.
+    #[must_use]
+    #[inline]
+    pub const fn builder() -> DomainRedactionLimitsBuilder {
+        DomainRedactionLimitsBuilder {
+            max_nodes: Self::DEFAULT_MAX_NODES,
+            max_collection_items: Self::DEFAULT_MAX_COLLECTION_ITEMS,
+            max_depth: Self::DEFAULT_MAX_DEPTH,
+        }
+    }
+
     /// Creates validated domain-structure limits.
     ///
     /// `max_nodes` bounds cumulative domain-value and field admissions,
@@ -43,7 +62,7 @@ impl DomainRedactionLimits {
     /// Returns the corresponding [`DomainRedactionLimitsError`] variant when
     /// any argument is zero. Dimensions are checked in parameter order.
     #[inline]
-    pub const fn new(
+    const fn from_builder(
         max_nodes: usize,
         max_collection_items: usize,
         max_depth: usize,
@@ -84,16 +103,52 @@ impl DomainRedactionLimits {
     }
 }
 
+impl DomainRedactionLimitsBuilder {
+    /// Sets the cumulative domain-value and field admission limit.
+    #[inline]
+    pub const fn max_nodes(mut self, max_nodes: usize) -> Self {
+        self.max_nodes = max_nodes;
+        self
+    }
+
+    /// Sets the cumulative collection-element admission limit.
+    #[inline]
+    pub const fn max_collection_items(
+        mut self,
+        max_collection_items: usize,
+    ) -> Self {
+        self.max_collection_items = max_collection_items;
+        self
+    }
+
+    /// Sets the active domain-value depth limit.
+    #[inline]
+    pub const fn max_depth(mut self, max_depth: usize) -> Self {
+        self.max_depth = max_depth;
+        self
+    }
+
+    /// Builds validated domain-structure limits.
+    #[inline]
+    pub const fn build(
+        self,
+    ) -> Result<DomainRedactionLimits, DomainRedactionLimitsError> {
+        DomainRedactionLimits::from_builder(
+            self.max_nodes,
+            self.max_collection_items,
+            self.max_depth,
+        )
+    }
+}
+
 impl Default for DomainRedactionLimits {
     /// Returns the fixed safe defaults of 1024 nodes, 256 collection items,
     /// and an active depth of 32.
     #[inline(always)]
 
     fn default() -> Self {
-        Self {
-            max_nodes: Self::DEFAULT_MAX_NODES,
-            max_collection_items: Self::DEFAULT_MAX_COLLECTION_ITEMS,
-            max_depth: Self::DEFAULT_MAX_DEPTH,
-        }
+        Self::builder()
+            .build()
+            .expect("default domain limits are valid")
     }
 }

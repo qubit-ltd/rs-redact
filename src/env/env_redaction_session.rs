@@ -144,7 +144,10 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
             .diagnostic_event()
             .max_output_bytes();
         let writer_limit = LogOutputLimit::from(
-            InputOutputLimit::new(usize::MAX, remaining)
+            InputOutputLimit::builder()
+                .max_input_bytes(usize::MAX)
+                .max_output_bytes(remaining)
+                .build()
                 .expect("the remaining session output must be a valid limit"),
         );
         let mut writer = BoundedLogEscapeWriter::new(writer_limit);

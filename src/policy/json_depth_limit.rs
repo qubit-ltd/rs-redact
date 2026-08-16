@@ -9,6 +9,12 @@
 
 use super::JsonDepthLimitError;
 
+/// Mutable construction state for a [`JsonDepthLimit`].
+#[derive(Debug, Clone, Copy)]
+pub struct JsonDepthLimitBuilder {
+    max_depth: usize,
+}
+
 /// Stateless maximum recursive container depth inspected during JSON redaction.
 ///
 /// This is a point limit: each observed container depth is checked
@@ -27,6 +33,15 @@ impl JsonDepthLimit {
     /// Default maximum depth, aligned with serde_json's parser limit.
     pub const DEFAULT_MAX_DEPTH: usize = 128;
 
+    /// Creates a builder initialized with the standard recursion-depth limit.
+    #[must_use]
+    #[inline]
+    pub const fn builder() -> JsonDepthLimitBuilder {
+        JsonDepthLimitBuilder {
+            max_depth: Self::DEFAULT_MAX_DEPTH,
+        }
+    }
+
     /// Creates a checked JSON recursion-depth limit.
     ///
     /// The root value has depth zero. A budget of one permits the root
@@ -44,9 +59,10 @@ impl JsonDepthLimit {
     /// # Errors
     ///
     /// Returns [`JsonDepthLimitError::ZeroDepth`] when `max_depth` is zero.
-    #[must_use]
     #[inline]
-    pub const fn new(max_depth: usize) -> Result<Self, JsonDepthLimitError> {
+    const fn from_builder(
+        max_depth: usize,
+    ) -> Result<Self, JsonDepthLimitError> {
         if max_depth == 0 {
             Err(JsonDepthLimitError::ZeroDepth)
         } else {
@@ -81,6 +97,21 @@ impl JsonDepthLimit {
     }
 }
 
+impl JsonDepthLimitBuilder {
+    /// Sets the maximum recursive container depth.
+    #[inline]
+    pub const fn max_depth(mut self, max_depth: usize) -> Self {
+        self.max_depth = max_depth;
+        self
+    }
+
+    /// Builds a validated JSON recursion-depth limit.
+    #[inline]
+    pub const fn build(self) -> Result<JsonDepthLimit, JsonDepthLimitError> {
+        JsonDepthLimit::from_builder(self.max_depth)
+    }
+}
+
 impl Default for JsonDepthLimit {
     /// Returns the conservative default recursion-depth budget.
     ///
@@ -90,8 +121,8 @@ impl Default for JsonDepthLimit {
     #[inline(always)]
 
     fn default() -> Self {
-        Self {
-            limit: Self::DEFAULT_MAX_DEPTH,
-        }
+        Self::builder()
+            .build()
+            .expect("default JSON depth is valid")
     }
 }
