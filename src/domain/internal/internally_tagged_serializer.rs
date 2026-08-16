@@ -61,14 +61,23 @@ impl<S> Serializer for InternallyTaggedSerializer<S>
 where
     S: Serializer,
 {
+    /// Serializer error type forwarded from the wrapped serializer.
     type Error = S::Error;
+    /// Serializer success type forwarded from the wrapped serializer.
     type Ok = S::Ok;
+    /// Map serializer forwarded from the wrapped serializer.
     type SerializeMap = S::SerializeMap;
+    /// Unsupported sequence serializer marker.
     type SerializeSeq = Impossible<S::Ok, S::Error>;
+    /// Struct serializer forwarded from the wrapped serializer.
     type SerializeStruct = S::SerializeStruct;
+    /// Unsupported struct-variant serializer marker.
     type SerializeStructVariant = Impossible<S::Ok, S::Error>;
+    /// Unsupported tuple serializer marker.
     type SerializeTuple = Impossible<S::Ok, S::Error>;
+    /// Unsupported tuple-struct serializer marker.
     type SerializeTupleStruct = Impossible<S::Ok, S::Error>;
+    /// Unsupported tuple-variant serializer marker.
     type SerializeTupleVariant = Impossible<S::Ok, S::Error>;
 
     /// Rejects boolean content because it cannot carry an inserted tag field.

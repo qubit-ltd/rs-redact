@@ -42,6 +42,7 @@ pub(super) const STANDARD_EXTRA_FIELDS: &[(&str, Sensitivity)] = &[
     ("signature", Sensitivity::Secret),
 ];
 
+/// Lazily initialized fixed standard policy.
 static STANDARD_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
     RedactionPolicy::from_rules(
         RedactionRules::new(
@@ -68,6 +69,7 @@ static STANDARD_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
         UnkeyedJsonValuePolicy::PassThrough,
     )
 });
+/// Lazily initialized fixed strict policy.
 static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
     RedactionPolicy::from_rules(
         RedactionRules::new(
@@ -100,6 +102,7 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
         UnkeyedJsonValuePolicy::Redact,
     )
 });
+/// Process-wide policy installed by [`RedactionPolicy::install_global`].
 static GLOBAL_POLICY: OnceLock<RedactionPolicy> = OnceLock::new();
 /// Immutable redaction policy.
 #[must_use]

@@ -31,6 +31,7 @@ pub struct RedactionRules {
 }
 
 impl RedactionRules {
+    /// Creates immutable rules from application rules and an optional floor.
     pub(crate) fn new(
         application: RedactionPolicyInner,
         floor: Option<RedactionFloor>,
@@ -246,6 +247,7 @@ fn classify_inner<'a>(
     }
 }
 
+/// Resolves the strongest sensitivity applicable to one field name.
 fn sensitivity_inner(
     inner: &RedactionPolicyInner,
     field: &str,

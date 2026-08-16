@@ -35,10 +35,12 @@ pub struct HttpRedactionSession<'session, 'policy> {
 }
 
 impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
+    /// Creates a redactor using the session's current policy snapshot.
     fn redactor(&self) -> HttpRedactor {
         HttpRedactor::new(self.session.policy().clone())
     }
 
+    /// Applies one bounded HTTP rendering operation and commits its output.
     fn text_result(
         &mut self,
         input_bytes: usize,
