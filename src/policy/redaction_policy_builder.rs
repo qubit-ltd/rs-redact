@@ -30,7 +30,8 @@ use super::UnknownFieldPolicy;
 /// Mutable construction state for an immutable [`RedactionPolicy`].
 ///
 /// Configuration setters are available through the grouped views returned by
-/// [`Self::fields`], [`Self::limits`], [`Self::http`], and [`Self::uri`].
+/// [`Self::fields`] and [`Self::limits`], with feature-specific HTTP and URI
+/// views when those formats are enabled.
 /// Duplicate consuming setters are intentionally not available at this level:
 ///
 /// ```compile_fail
