@@ -343,35 +343,35 @@
 
 extern crate self as qubit_redact;
 
+#[cfg(feature = "serde")]
+#[doc(hidden)]
+pub mod __private;
 pub mod argv;
 pub mod config;
 pub mod domain;
 pub mod env;
 pub mod facade;
 mod field_redaction;
+pub mod formats;
 #[cfg(feature = "http")]
 pub mod http;
 mod install_global_policy_error;
 #[cfg(feature = "json")]
 pub mod json;
 mod json_feature_gate;
+pub mod output;
 mod pass_through_reason;
 pub mod policy;
-pub(crate) mod runtime;
-pub mod output;
-pub mod formats;
-#[cfg(feature = "serde")]
-#[doc(hidden)]
-pub mod __private;
 mod redactor;
+pub(crate) mod runtime;
 mod serde_feature_gate;
 pub mod text;
 #[cfg(feature = "uri")]
 pub mod uri;
 
+pub use facade::RedactionEvent;
 pub use field_redaction::FieldRedaction;
 pub use field_redaction::PassThroughReason;
-pub use facade::RedactionEvent;
 pub use install_global_policy_error::InstallGlobalPolicyError;
 pub use policy::AllowRule;
 pub use policy::DiagnosticBudgetError;
