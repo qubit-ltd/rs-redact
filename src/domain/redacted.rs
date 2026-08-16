@@ -390,6 +390,7 @@ mod session_view {
     }
 
     impl Debug for CompletedDebug {
+        /// Writes the completed debug output when it is valid.
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
             if self.valid {
                 formatter.write_str(&self.output)
