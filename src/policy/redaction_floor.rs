@@ -50,24 +50,28 @@ static STANDARD_FLOOR: LazyLock<RedactionFloor> = LazyLock::new(|| {
 
 impl RedactionFloor {
     /// Returns the built-in conservative floor.
+    #[must_use]
     #[inline]
     pub fn standard() -> Self {
         STANDARD_FLOOR.clone()
     }
 
     /// Creates a deterministic empty floor builder.
+    #[must_use]
     #[inline]
     pub fn builder() -> RedactionFloorBuilder {
         RedactionFloorBuilder::empty()
     }
 
     /// Creates a floor builder by copying `self` exactly.
+    #[must_use]
     #[inline]
     pub fn to_builder(&self) -> RedactionFloorBuilder {
         RedactionFloorBuilder::from_floor(self)
     }
 
     /// Creates a floor builder that exactly copies `base`.
+    #[must_use]
     #[inline]
     pub fn builder_from(base: &Self) -> RedactionFloorBuilder {
         base.to_builder()

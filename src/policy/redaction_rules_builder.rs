@@ -67,6 +67,7 @@ impl RedactionRulesBuilder {
         }
     }
 
+    #[inline(always)]
     /// Sets the field-name matching mode.
     ///
     /// # Parameters
@@ -76,6 +77,7 @@ impl RedactionRulesBuilder {
         self.matching = matching;
     }
 
+    #[inline(always)]
     /// Sets the fallback behavior for fields without an explicit rule.
     ///
     /// # Parameters

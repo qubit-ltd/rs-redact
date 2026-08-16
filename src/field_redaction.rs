@@ -40,6 +40,7 @@ pub enum FieldRedaction<'a> {
 
 impl<'a> FieldRedaction<'a> {
     /// Returns the processed value as a string slice.
+    #[must_use]
     #[inline]
     pub fn as_str(&self) -> &str {
         match self {
@@ -49,12 +50,14 @@ impl<'a> FieldRedaction<'a> {
     }
 
     /// Returns `true` when the value was masked.
+    #[must_use]
     #[inline]
     pub const fn is_masked(&self) -> bool {
         matches!(self, Self::Masked { .. })
     }
 
     /// Returns the masking sensitivity, or `None` for pass-through values.
+    #[must_use]
     #[inline]
     pub const fn sensitivity(&self) -> Option<Sensitivity> {
         match self {
@@ -64,6 +67,7 @@ impl<'a> FieldRedaction<'a> {
     }
 
     /// Returns the pass-through reason, or `None` for masked values.
+    #[must_use]
     #[inline]
     pub const fn pass_through_reason(&self) -> Option<PassThroughReason> {
         match self {
@@ -73,6 +77,7 @@ impl<'a> FieldRedaction<'a> {
     }
 
     /// Converts the processed value into an owned string.
+    #[must_use]
     #[inline]
     pub fn into_owned(self) -> String {
         match self {

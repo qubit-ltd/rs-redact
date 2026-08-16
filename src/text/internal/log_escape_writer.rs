@@ -33,6 +33,7 @@ impl<'a, W: Write + ?Sized> LogEscapeWriter<'a, W> {
     /// # Returns
     ///
     /// A writer borrowing `output`.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn new(output: &'a mut W) -> Self {
         Self { output }

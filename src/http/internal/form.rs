@@ -21,6 +21,7 @@ use crate::http::FieldRedactor;
 /// # Returns
 ///
 /// `true` only when all names and values decode unambiguously.
+#[inline(always)]
 #[must_use]
 pub(in crate::http) fn is_valid(input: &[u8]) -> bool {
     input.split(|byte| *byte == b'&').all(|pair| {

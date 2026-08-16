@@ -30,6 +30,7 @@ pub struct RedactionSession<'policy> {
 
 impl<'policy> RedactionSession<'policy> {
     /// Creates diagnostic accounting from `policy`.
+    #[must_use]
     #[inline]
     pub(crate) fn new(policy: &'policy RedactionPolicy) -> Self {
         Self {

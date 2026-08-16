@@ -81,6 +81,7 @@ impl BodyRedaction {
     /// A borrowed log-safe body representation. A `Truncated` result contains
     /// non-empty safe substitute text; an `Exhausted` result is empty and does
     /// not promise that a truncation marker still fit.
+    #[must_use]
     #[inline]
     pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
         self.output.log_safe_text()
@@ -91,6 +92,7 @@ impl BodyRedaction {
     /// # Returns
     ///
     /// Owned log-safe body text including any truncation marker.
+    #[must_use]
     #[inline(always)]
     pub fn into_log_safe_text(self) -> LogSafeText<'static> {
         self.output.into_log_safe_text()

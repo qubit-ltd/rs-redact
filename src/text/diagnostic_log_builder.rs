@@ -40,6 +40,7 @@ impl DiagnosticLogBuilder {
     /// # Returns
     ///
     /// An empty builder with bounded output.
+    #[must_use]
     #[inline]
     pub fn new(budget: InputOutputLimit) -> Self {
         Self {

@@ -32,6 +32,7 @@ impl RedactedHeaders {
     /// # Returns
     ///
     /// An opaque safe header result.
+    #[must_use]
     #[inline(always)]
     pub(super) const fn new(text: LogSafeText<'static>) -> Self {
         Self { text }
@@ -42,6 +43,7 @@ impl RedactedHeaders {
     /// # Returns
     ///
     /// A borrowed log-safe header representation.
+    #[must_use]
     #[inline]
     pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
         &self.text
@@ -52,6 +54,7 @@ impl RedactedHeaders {
     /// # Returns
     ///
     /// Owned log-safe header text.
+    #[must_use]
     #[inline]
     pub fn into_log_safe_text(self) -> LogSafeText<'static> {
         self.text

@@ -31,6 +31,7 @@ impl LogOutputLimitError {
     /// # Returns
     ///
     /// An error retaining the invalid request.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn new(requested: usize) -> Self {
         Self { requested }

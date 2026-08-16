@@ -41,6 +41,7 @@ pub struct UriRedactor {
 
 impl UriRedactor {
     /// Creates a URI redactor from an explicit immutable policy.
+    #[must_use]
     #[inline]
     pub const fn new(policy: RedactionPolicy) -> Self {
         Self { policy }

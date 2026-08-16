@@ -33,6 +33,7 @@ struct HttpPolicyInner {
 }
 
 impl HttpPolicy {
+    #[must_use]
     /// Creates an HTTP policy from its validated component policies.
     pub(super) fn from_parts(parts: HttpPolicyParts) -> Self {
         Self {
@@ -47,30 +48,35 @@ impl HttpPolicy {
     }
 
     /// Returns the header field-rule snapshot.
+    #[must_use]
     #[inline(always)]
     pub fn header_rules(&self) -> &RedactionRules {
         &self.inner.header_rules
     }
 
     /// Returns the query and form field-rule snapshot.
+    #[must_use]
     #[inline(always)]
     pub fn query_rules(&self) -> &RedactionRules {
         &self.inner.query_rules
     }
 
     /// Returns the structured-body field-rule snapshot.
+    #[must_use]
     #[inline(always)]
     pub fn body_rules(&self) -> &RedactionRules {
         &self.inner.body_rules
     }
 
     /// Returns the URL path visibility choice.
+    #[must_use]
     #[inline(always)]
     pub fn url_path_policy(&self) -> UrlPathPolicy {
         self.inner.url_path_policy
     }
 
     /// Returns the opaque text-body visibility choice.
+    #[must_use]
     #[inline(always)]
     pub fn text_body_policy(&self) -> TextBodyPolicy {
         self.inner.text_body_policy

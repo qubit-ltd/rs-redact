@@ -48,6 +48,7 @@ impl<'a> RedactedText<'a> {
     /// # Returns
     ///
     /// Typed redacted text retaining the input ownership form.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn new(value: Cow<'a, str>) -> Self {
         Self(value)

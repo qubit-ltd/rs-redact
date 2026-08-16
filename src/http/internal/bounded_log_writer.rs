@@ -88,6 +88,7 @@ impl BoundedLogWriter {
     ///
     /// `true` after output truncation or when a source-truncated payload has
     /// filled all bytes preceding the marker.
+    #[must_use]
     #[inline(always)]
     pub(in crate::http) fn is_full(&self) -> bool {
         self.output_truncated

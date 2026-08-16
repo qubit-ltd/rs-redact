@@ -24,6 +24,7 @@ pub(in crate::policy) struct BoundedMaskWriter {
 }
 
 impl BoundedMaskWriter {
+    #[must_use]
     /// Creates an empty bounded mask writer.
     ///
     /// # Parameters

@@ -26,6 +26,7 @@ pub(crate) struct BoundedUriWriter {
 }
 
 impl BoundedUriWriter {
+    #[must_use]
     /// Creates a bounded URI writer.
     pub(crate) fn new(max_bytes: usize) -> Self {
         Self {
@@ -81,6 +82,7 @@ impl BoundedUriWriter {
     }
 
     /// Reports whether output can no longer accept payload.
+    #[must_use]
     #[inline]
     pub(crate) const fn is_full(&self) -> bool {
         self.truncated

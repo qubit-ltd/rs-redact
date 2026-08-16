@@ -90,6 +90,7 @@ impl RedactionOutput {
     /// # Returns
     ///
     /// The complete, substitute, or empty text established by the constructor.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn log_safe_text(&self) -> &LogSafeText<'static> {
         &self.text
@@ -110,6 +111,7 @@ impl RedactionOutput {
     /// # Returns
     ///
     /// The complete, substitute, or empty text established by the constructor.
+    #[must_use]
     #[inline(always)]
     pub(crate) fn into_log_safe_text(self) -> LogSafeText<'static> {
         self.text

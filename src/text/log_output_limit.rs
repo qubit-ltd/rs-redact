@@ -39,6 +39,7 @@ impl LogOutputLimit {
     ///
     /// Returns [`LogOutputLimitError`] when `max_bytes` cannot contain the
     /// complete truncation marker.
+    #[must_use]
     #[inline]
     pub const fn new(max_bytes: usize) -> Result<Self, LogOutputLimitError> {
         if max_bytes < Self::MINIMUM {

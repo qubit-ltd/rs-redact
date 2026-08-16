@@ -63,6 +63,7 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     /// # Returns
     ///
     /// A lazy redacted view.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn new(value: &'a T, policy: RedactionPolicy) -> Self {
         Self { value, policy }

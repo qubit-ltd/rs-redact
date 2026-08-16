@@ -25,6 +25,7 @@ impl JsonRedactionOutcome {
     /// # Returns
     ///
     /// `true` when traversal stopped before completing all mutations.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn is_mask_budget_exhausted(self) -> bool {
         matches!(self, Self::MaskBudgetExhausted)

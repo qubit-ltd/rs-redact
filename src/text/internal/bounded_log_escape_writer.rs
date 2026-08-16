@@ -36,6 +36,7 @@ impl BoundedLogEscapeWriter {
     /// # Returns
     ///
     /// An empty bounded writer.
+    #[must_use]
     #[inline]
     pub(crate) fn new(limit: LogOutputLimit) -> Self {
         Self {
@@ -61,6 +62,7 @@ impl BoundedLogEscapeWriter {
     /// # Returns
     ///
     /// True when the writer finalized its truncation marker.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn is_truncated(&self) -> bool {
         self.truncated

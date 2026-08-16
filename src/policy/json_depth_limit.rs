@@ -45,6 +45,7 @@ impl JsonDepthLimit {
     /// # Errors
     ///
     /// Returns [`JsonDepthLimitError::ZeroDepth`] when `max_depth` is zero.
+    #[must_use]
     #[inline]
     pub const fn new(max_depth: usize) -> Result<Self, JsonDepthLimitError> {
         if max_depth == 0 {

@@ -92,6 +92,7 @@ impl<'a> FieldClassification<'a> {
     /// # Returns
     ///
     /// `true` only for [`Self::Allowed`].
+    #[inline(always)]
     #[must_use]
     pub const fn is_allowed(self) -> bool {
         matches!(self, Self::Allowed { .. })
@@ -102,6 +103,7 @@ impl<'a> FieldClassification<'a> {
     /// # Returns
     ///
     /// `true` only for [`Self::Unknown`].
+    #[inline(always)]
     #[must_use]
     pub const fn is_unknown(self) -> bool {
         matches!(self, Self::Unknown)

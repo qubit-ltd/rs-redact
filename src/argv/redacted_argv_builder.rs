@@ -35,6 +35,7 @@ impl RedactedArgvBuilder {
     /// # Returns
     ///
     /// An empty byte-bounded argv rendering builder.
+    #[must_use]
     #[inline]
     pub(super) fn new(budget: InputOutputLimit) -> Self {
         let limit = LogOutputLimit::from(budget);
@@ -74,6 +75,7 @@ impl RedactedArgvBuilder {
     }
 
     /// Reports whether the bounded writer has finalized its truncation marker.
+    #[must_use]
     #[inline(always)]
     pub(super) fn is_truncated(&self) -> bool {
         self.writer.is_truncated()

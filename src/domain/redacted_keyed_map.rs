@@ -255,6 +255,7 @@ mod session_view {
         /// exact remaining length proves EOF before collection admission, so
         /// no nonexistent item consumes a shared collection token and no
         /// unadmitted entry is pulled.
+        #[must_use]
         #[inline(always)]
         pub fn new(map: &'map M, session: &mut RedactionSession<'_>) -> Self {
             Self::new_with_alternate(map, session, false)

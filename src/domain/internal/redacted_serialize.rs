@@ -36,6 +36,7 @@ impl<'a, T: ?Sized> RedactedSerialize<'a, T> {
     /// # Returns
     ///
     /// A borrowed nested wrapper.
+    #[must_use]
     #[inline(always)]
     pub const fn new(value: &'a T, policy: &'a RedactionPolicy) -> Self {
         Self { value, policy }

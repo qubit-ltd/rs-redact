@@ -46,6 +46,7 @@ impl<D> BoundedRedactedDisplay<D> {
     /// # Returns
     ///
     /// A bounded adapter implementing both `Debug` and `Display`.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn new(value: D, limit: LogOutputLimit) -> Self {
         Self { value, limit }
@@ -173,6 +174,8 @@ impl BoundedDebugWriter {
     }
 
     /// Returns whether a write exceeded the configured limit.
+    #[must_use]
+    #[inline(always)]
     fn is_truncated(&self) -> bool {
         self.truncated
     }

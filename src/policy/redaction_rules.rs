@@ -43,11 +43,14 @@ impl RedactionRules {
     }
 
     /// Returns the attached minimum floor, if enabled.
+    #[must_use]
     #[inline]
     pub fn floor(&self) -> Option<&RedactionFloor> {
         self.floor.as_ref()
     }
 
+    #[must_use]
+    #[inline]
     /// Replaces the floor for this rules snapshot.
     pub fn with_floor(mut self, floor: RedactionFloor) -> Self {
         self.floor = Some(floor);
@@ -80,6 +83,7 @@ impl RedactionRules {
     }
 
     /// Resolves final sensitivity from application and floor layers.
+    #[must_use]
     #[inline]
     pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
         match self.resolve_field(field) {
@@ -89,6 +93,8 @@ impl RedactionRules {
     }
 
     /// Resolves final sensitivity using exact-only matching in both layers.
+    #[must_use]
+    #[inline]
     pub(crate) fn sensitivity_for_exact(
         &self,
         field: &str,
@@ -157,12 +163,14 @@ impl RedactionRules {
     }
 
     /// Returns the application layer's field-name matching mode.
+    #[must_use]
     #[inline]
     pub fn matching(&self) -> FieldNameMatching {
         self.application.matching
     }
 
     /// Returns the application fallback for unclassified fields.
+    #[must_use]
     #[inline]
     pub fn unknown_field_policy(&self) -> UnknownFieldPolicy {
         self.application.unknown_field_policy

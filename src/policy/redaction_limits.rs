@@ -114,12 +114,14 @@ impl RedactionLimits {
     }
 
     /// Returns the local hard limits for HTTP body processing.
+    #[must_use]
     #[cfg(feature = "http")]
     #[inline(always)]
     pub const fn http_body(&self) -> BodyBudget {
         self.http_body
     }
     /// Returns a copy with the HTTP body limit replaced.
+    #[must_use]
     #[cfg(feature = "http")]
     #[inline]
     pub(crate) const fn with_http_body(mut self, limit: BodyBudget) -> Self {
@@ -128,6 +130,7 @@ impl RedactionLimits {
     }
 
     /// Returns the hard recursion-depth limit for structured JSON redaction.
+    #[must_use]
     #[cfg(feature = "json")]
     #[inline(always)]
     pub const fn json_depth_limit(&self) -> JsonDepthLimit {
