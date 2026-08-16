@@ -285,9 +285,11 @@ mod session_view {
                 RedactionAdmission::Render { max_output_bytes } => {
                     max_output_bytes
                 }
-                RedactionAdmission::Fallback => unreachable!(
-                    "output-only domain admission cannot reject input"
-                ),
+                RedactionAdmission::Fallback => {
+                    unreachable!(
+                        "output-only domain admission cannot reject input"
+                    )
+                }
                 RedactionAdmission::Exhausted => {
                     return Self {
                         completed: CompletedDebug::empty(),
