@@ -19,7 +19,6 @@ pub use crate::pass_through_reason::PassThroughReason;
 /// [`std::fmt::Debug`] remains available for inspecting the policy result
 /// during debugging. Plain-text log sinks should consume
 /// [`Self::escape_for_log`] instead of formatting this enum directly.
-#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FieldRedaction<'a> {
     /// The policy masked the value at the reported sensitivity.
@@ -88,6 +87,7 @@ impl<'a> FieldRedaction<'a> {
 
     /// Escapes the processed value for a plain-text log boundary.
     #[inline]
+    #[must_use]
     pub fn escape_for_log(self) -> LogSafeText<'a> {
         match self {
             Self::Masked { value, .. } => value.escape_for_log(),

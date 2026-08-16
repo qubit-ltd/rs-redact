@@ -16,7 +16,6 @@ use super::http_redaction_policy_parts::HttpPolicyParts;
 use crate::RedactionRules;
 
 /// Combines HTTP field rules, behavior choices, and resource limits.
-#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HttpPolicy {
     inner: Arc<HttpPolicyInner>,

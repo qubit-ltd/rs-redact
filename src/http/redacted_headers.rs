@@ -15,7 +15,6 @@ use std::fmt::Formatter;
 use crate::LogSafeText;
 
 /// Owns a deterministic log-safe rendering of an HTTP header map.
-#[must_use = "render or otherwise consume the redacted headers"]
 #[derive(Clone, PartialEq, Eq)]
 pub struct RedactedHeaders {
     /// Sorted, escaped representation containing no unprocessed values.
@@ -76,6 +75,7 @@ impl Display for RedactedHeaders {
     ///
     /// Returns [`fmt::Error`] when the destination rejects a write.
     #[inline]
+    #[must_use]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.text, formatter)
     }
@@ -96,6 +96,7 @@ impl Debug for RedactedHeaders {
     ///
     /// Returns [`fmt::Error`] when the destination rejects a write.
     #[inline]
+    #[must_use]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter
             .debug_tuple("RedactedHeaders")

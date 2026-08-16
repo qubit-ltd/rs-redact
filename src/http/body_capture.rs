@@ -16,7 +16,6 @@ use super::BodyCaptureError;
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of the borrowed body bytes.
-#[must_use]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct BodyCapture<'a> {
     /// Source bytes available to the redactor before its hard input budget.
@@ -41,6 +40,7 @@ impl fmt::Debug for BodyCapture<'_> {
     /// # Errors
     ///
     /// Returns [`fmt::Error`] when the destination rejects a write.
+    #[must_use]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("BodyCapture")
@@ -63,6 +63,7 @@ impl<'a> BodyCapture<'a> {
     /// # Returns
     ///
     /// A capture whose total length equals the borrowed slice length.
+    #[must_use]
     pub const fn complete(bytes: &'a [u8]) -> Self {
         Self {
             bytes,
@@ -84,6 +85,7 @@ impl<'a> BodyCapture<'a> {
     /// carrying the exact total source length. A zero limit captures an empty
     /// prefix of non-empty input.
     #[inline]
+    #[must_use]
     pub fn prefix(bytes: &'a [u8], max_bytes: usize) -> Self {
         let captured_len = bytes.len().min(max_bytes);
         if captured_len == bytes.len() {
@@ -107,6 +109,7 @@ impl<'a> BodyCapture<'a> {
     ///
     /// An infallible truncated capture whose complete source length is
     /// unknown.
+    #[must_use]
     pub const fn truncated_unknown(bytes: &'a [u8]) -> Self {
         Self {
             bytes,
@@ -156,6 +159,7 @@ impl<'a> BodyCapture<'a> {
     ///
     /// The borrowed captured byte slice.
     #[inline(always)]
+    #[must_use]
     pub const fn bytes(self) -> &'a [u8] {
         self.bytes
     }

@@ -16,7 +16,6 @@ use super::internal::RedactionAdmission;
 
 // qubit-style: allow type-file-name
 /// Mutable input/output accounting for one redaction event.
-#[must_use]
 #[derive(Debug)]
 pub(crate) struct DiagnosticBudget {
     input_budget: ResourceBudget<RedactionResource, usize>,
@@ -45,7 +44,7 @@ enum InputProvenance {
 
 impl DiagnosticBudget {
     /// Creates runtime accounting from an immutable input/output limit.
-    #[must_use = "retain the runtime budget for accounting"]
+    #[must_use]
     #[inline]
     pub(crate) fn new(limit: InputOutputLimit) -> Self {
         Self {

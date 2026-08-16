@@ -25,7 +25,6 @@ use crate::Sensitivity;
 /// This type guarantees log-structure escaping and a bounded final rendering.
 /// Callers can append already-safe values or redact scalar fields through a
 /// shared [`RedactionSession`].
-#[must_use = "finish the diagnostic into log-safe text"]
 pub struct DiagnosticLogBuilder {
     writer: BoundedLogEscapeWriter,
 }
@@ -201,6 +200,7 @@ impl DiagnosticLogBuilder {
     ///
     /// A typed log-safe value containing the bounded escaped output.
     #[inline]
+    #[must_use]
     pub fn finish(self) -> LogSafeText<'static> {
         LogSafeText::from_escaped(Cow::Owned(self.writer.finish()))
     }

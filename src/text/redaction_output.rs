@@ -127,6 +127,7 @@ mod tests {
     use crate::RedactionCompletion;
 
     /// Creates an owned log-safe value for output invariant tests.
+    #[must_use]
     fn safe(value: &str) -> LogSafeText<'static> {
         LogSafeText::from_escaped(Cow::Owned(value.to_owned()))
     }

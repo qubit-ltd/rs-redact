@@ -12,7 +12,6 @@
 /// Unkeyed scalars are root scalar values and scalar elements of arrays.
 /// Object property values remain keyed even when their field rule passes
 /// through.
-#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UnkeyedJsonValuePolicy {

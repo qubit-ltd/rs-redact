@@ -11,7 +11,6 @@
 use crate::PolicyLocation;
 
 /// Selects one HTTP field namespace for policy configuration.
-#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum HttpFieldContext {
     /// HTTP header names.

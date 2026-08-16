@@ -103,6 +103,7 @@ impl RedactedArgvBuilder {
     /// builder output truncation produces
     /// [`crate::RedactionCompletion::Truncated`].
     #[inline]
+    #[must_use]
     pub(super) fn finish(mut self, locally_truncated: bool) -> RedactedArgv {
         self.close();
         let truncated = locally_truncated || self.writer.is_truncated();

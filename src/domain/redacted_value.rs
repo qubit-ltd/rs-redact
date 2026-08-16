@@ -24,7 +24,6 @@ use crate::domain::internal::mask_byte_limit;
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of any borrowed redacted text stored by the value.
-#[must_use = "format or otherwise consume the redacted value"]
 #[derive(Clone, PartialEq, Eq)]
 pub enum RedactedValue<'a> {
     /// A plain textual value.
@@ -53,6 +52,7 @@ impl<'a> RedactedValue<'a> {
     ///
     /// A plain redacted value containing the configured opaque replacement.
     #[inline(always)]
+    #[must_use]
     pub fn opaque(level: Sensitivity, masking: &MaskingPolicy) -> Self {
         let replacement = match mask_byte_limit() {
             Some(max_bytes) => masking.mask_opaque_bounded(level, max_bytes),
@@ -163,6 +163,7 @@ impl Display for RedactedValue<'_> {
 /// # Returns
 ///
 /// A log-safe view that borrows `text` when it contains no unsafe controls.
+#[must_use]
 fn log_safe<'a>(text: &'a RedactedText<'_>) -> LogSafeText<'a> {
     RedactedText::new(Cow::Borrowed(text.as_str())).escape_for_log()
 }

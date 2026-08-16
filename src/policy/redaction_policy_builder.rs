@@ -38,7 +38,6 @@ use super::UnknownFieldPolicy;
 ///
 /// let _ = RedactionPolicy::builder().raise("token", Sensitivity::Secret);
 /// ```
-#[must_use]
 #[derive(Debug, Clone)]
 pub struct RedactionPolicyBuilder {
     rules: RedactionRulesBuilder,
@@ -137,6 +136,7 @@ impl RedactionPolicyBuilder {
     /// This setter remains on the root builder because the JSON feature does
     /// not expose a separate grouped builder.
     #[cfg(feature = "json")]
+    #[must_use]
     pub const fn unkeyed_json_value_policy(
         mut self,
         policy: UnkeyedJsonValuePolicy,
@@ -190,7 +190,6 @@ mod views {
     use super::UnknownFieldPolicy;
 
     /// Mutable view over the base field policy.
-    #[must_use]
     pub struct FieldsBuilder<'a> {
         pub(super) builder: &'a mut RedactionPolicyBuilder,
     }
@@ -314,14 +313,12 @@ mod views {
 
     /// Mutable view over all HTTP context differences.
     #[cfg(feature = "http")]
-    #[must_use]
     pub struct HttpPolicyBuilderView<'a> {
         pub(super) builder: &'a mut RedactionPolicyBuilder,
     }
 
     /// Mutable view over URI-specific behavior.
     #[cfg(feature = "uri")]
-    #[must_use]
     pub struct UriPolicyBuilderView<'a> {
         pub(super) builder: &'a mut crate::uri::UriPolicyBuilder,
     }
@@ -347,6 +344,7 @@ mod views {
     #[cfg(feature = "http")]
     impl HttpPolicyBuilderView<'_> {
         /// Returns the header context view.
+        #[must_use]
         pub fn header(&mut self) -> HttpContextBuilderView<'_> {
             HttpContextBuilderView {
                 builder: &mut self.builder.http,
@@ -355,6 +353,7 @@ mod views {
         }
 
         /// Returns the query/form context view.
+        #[must_use]
         pub fn query(&mut self) -> HttpContextBuilderView<'_> {
             HttpContextBuilderView {
                 builder: &mut self.builder.http,
@@ -363,6 +362,7 @@ mod views {
         }
 
         /// Returns the structured-body context view.
+        #[must_use]
         pub fn body(&mut self) -> HttpContextBuilderView<'_> {
             HttpContextBuilderView {
                 builder: &mut self.builder.http,
@@ -413,7 +413,6 @@ mod views {
 
     /// Mutable view over one HTTP field context.
     #[cfg(feature = "http")]
-    #[must_use]
     pub struct HttpContextBuilderView<'a> {
         builder: &'a mut crate::http::HttpPolicyBuilder,
         context: crate::http::HttpFieldContext,
@@ -507,7 +506,6 @@ mod views {
     }
 
     /// Mutable view over policy limits.
-    #[must_use]
     pub struct LimitsBuilder<'a> {
         pub(super) builder: &'a mut RedactionPolicyBuilder,
     }
@@ -570,6 +568,7 @@ pub use views::UriPolicyBuilderView;
 
 impl Default for RedactionPolicyBuilder {
     /// Creates a builder with the standard floor and default limits.
+    #[must_use]
     fn default() -> Self {
         Self::new()
     }

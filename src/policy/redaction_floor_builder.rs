@@ -19,7 +19,6 @@ use super::Sensitivity;
 use super::UnknownFieldPolicy;
 
 /// Builder for a [`RedactionFloor`].
-#[must_use]
 #[derive(Debug, Clone)]
 pub struct RedactionFloorBuilder {
     rules: RedactionRulesBuilder,
@@ -27,6 +26,7 @@ pub struct RedactionFloorBuilder {
 
 impl RedactionFloorBuilder {
     /// Creates an empty builder for the floor construction context.
+    #[must_use]
     pub(super) fn empty() -> Self {
         Self {
             rules: RedactionRulesBuilder::empty(PolicyLocation::Floor),
@@ -45,6 +45,7 @@ impl RedactionFloorBuilder {
     }
 
     /// Adds every sensitive field in one preset.
+    #[must_use]
     pub fn include_preset(mut self, preset: SensitiveFieldPreset) -> Self {
         self.rules.include_preset(preset);
         self

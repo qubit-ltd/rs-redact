@@ -21,12 +21,12 @@ use crate::domain::Redacted;
 /// use it as the terminal field, element, or map entry after a node, item, or
 /// depth limit is reached. The surrounding bounded formatter still charges the
 /// marker against the shared output budget.
-#[must_use]
 pub struct DomainTruncated;
 
 impl fmt::Debug for DomainTruncated {
     /// Writes the complete unquoted structural truncation marker.
     #[inline(always)]
+    #[must_use]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter.write_str("<truncated>")
     }
@@ -108,6 +108,7 @@ pub trait Redact {
     /// A lazy redacted view borrowing this object and owning its policy
     /// snapshot.
     #[inline(always)]
+    #[must_use]
     fn redacted(&self) -> Redacted<'_, Self>
     where
         Self: Sized,
@@ -125,6 +126,7 @@ pub trait Redact {
     ///
     /// A lazy redacted view borrowing this object and owning the cloned policy.
     #[inline(always)]
+    #[must_use]
     fn redacted_with(&self, policy: &RedactionPolicy) -> Redacted<'_, Self>
     where
         Self: Sized,

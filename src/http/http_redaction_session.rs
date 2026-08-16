@@ -29,18 +29,19 @@ use crate::policy::FragmentCompletion;
 use crate::policy::RedactionAdmission;
 
 /// Feature-gated HTTP operations sharing one mutable diagnostic session.
-#[must_use = "use the session-bounded HTTP result"]
 pub struct HttpRedactionSession<'session, 'policy> {
     pub(super) session: &'session mut RedactionSession<'policy>,
 }
 
 impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     /// Creates a redactor using the session's current policy snapshot.
+    #[must_use]
     fn redactor(&self) -> HttpRedactor {
         HttpRedactor::new(self.session.policy().clone())
     }
 
     /// Applies one bounded HTTP rendering operation and commits its output.
+    #[must_use]
     fn text_result(
         &mut self,
         input_bytes: usize,
@@ -81,6 +82,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     }
 
     /// Redacts a parsed URL.
+    #[must_use]
     pub fn redact_url(&mut self, url: &Url) -> LogSafeText<'static> {
         self.text_result(url.as_str().len(), |redactor, limit| {
             redactor.redact_url_with_output_limit(url, limit)
@@ -88,6 +90,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     }
 
     /// Redacts every HTTP URL-looking token in diagnostic text.
+    #[must_use]
     pub fn redact_urls_in_text(&mut self, text: &str) -> LogSafeText<'static> {
         self.text_result(text.len(), |redactor, limit| {
             redactor.redact_urls_in_text_with_output_limit(text, limit)
@@ -95,6 +98,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     }
 
     /// Parses and redacts one URL string.
+    #[must_use]
     pub fn redact_url_str(&mut self, text: &str) -> LogSafeText<'static> {
         self.text_result(text.len(), |redactor, limit| {
             redactor.redact_url_str_with_output_limit(text, limit)
@@ -102,6 +106,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     }
 
     /// Redacts URL-encoded form text.
+    #[must_use]
     pub fn redact_form(&mut self, text: &str) -> LogSafeText<'static> {
         self.text_result(text.len(), |redactor, limit| {
             redactor.redact_form_with_output_limit(text, limit)
@@ -109,6 +114,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     }
 
     /// Redacts all HTTP headers.
+    #[must_use]
     pub fn redact_headers(&mut self, headers: &HeaderMap) -> RedactedHeaders {
         if self.session.is_exhausted() {
             return RedactedHeaders::new(LogSafeText::from_escaped(
@@ -185,6 +191,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     /// # Returns
     ///
     /// A bounded body result with completion and capture metadata.
+    #[must_use]
     pub fn redact_body(
         &mut self,
         capture: BodyCapture<'_>,
@@ -220,6 +227,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     /// # Returns
     ///
     /// A bounded body result with completion and capture metadata.
+    #[must_use]
     pub fn redact_body_with_content_type_text(
         &mut self,
         capture: BodyCapture<'_>,
@@ -246,6 +254,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     /// `render` is skipped. A rendered body preserves its source metadata;
     /// either its own incomplete state or additional session bounding closes
     /// the session and is exposed as a truncated body result.
+    #[must_use]
     fn body_result(
         &mut self,
         input_bytes: usize,
@@ -321,6 +330,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
 impl<'policy> RedactionSession<'policy> {
     /// Creates the HTTP façade borrowing this session's policy and budget.
     #[inline]
+    #[must_use]
     pub fn http<'session>(
         &'session mut self,
     ) -> HttpRedactionSession<'session, 'policy> {

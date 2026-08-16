@@ -8,7 +8,6 @@
 //! Fail-closed reasons for an HTTP body redaction.
 
 /// Identifies why an HTTP body could not be represented structurally.
-#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BodyRedactionReason {

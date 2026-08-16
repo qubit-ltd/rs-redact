@@ -21,7 +21,6 @@ use super::internal::BoundedLogEscapeWriter;
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of the borrowed log-safe text.
-#[must_use = "format the bounded log-safe text"]
 pub struct BoundedLogSafeDisplay<'a> {
     /// Escaped source text.
     value: &'a LogSafeText<'a>,
@@ -41,6 +40,7 @@ impl<'a> BoundedLogSafeDisplay<'a> {
     ///
     /// A borrowed bounded display adapter.
     #[inline(always)]
+    #[must_use]
     pub(super) const fn new(
         value: &'a LogSafeText<'a>,
         limit: LogOutputLimit,

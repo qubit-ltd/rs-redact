@@ -16,7 +16,6 @@ use super::RedactionSession;
 /// formatter errors. It does not restore cumulative node or collection-item
 /// charges. The exclusive session borrow prevents nested traversal from
 /// replacing the shared session budget.
-#[must_use = "retain the scope while rendering the admitted domain value"]
 #[derive(Debug)]
 pub struct DomainValueScope<'session, 'policy> {
     session: &'session mut RedactionSession<'policy>,
@@ -25,6 +24,7 @@ pub struct DomainValueScope<'session, 'policy> {
 impl<'session, 'policy> DomainValueScope<'session, 'policy> {
     /// Creates a scope after its domain value has already been charged.
     #[inline]
+    #[must_use]
     pub(crate) const fn new(
         session: &'session mut RedactionSession<'policy>,
     ) -> Self {
@@ -37,6 +37,7 @@ impl<'session, 'policy> DomainValueScope<'session, 'policy> {
     /// being admitted. [`DomainTraversalAdmission::LimitReached`] permanently
     /// closes domain traversal for the session, and the field must not be read.
     #[inline]
+    #[must_use]
     pub fn admit_field(&mut self) -> DomainTraversalAdmission {
         self.session.domain_budget.admit_field()
     }
@@ -47,6 +48,7 @@ impl<'session, 'policy> DomainValueScope<'session, 'policy> {
     /// [`DomainTraversalAdmission::LimitReached`] permanently closes domain
     /// traversal, and the iterator must not be advanced.
     #[inline]
+    #[must_use]
     pub fn admit_collection_item(&mut self) -> DomainTraversalAdmission {
         self.session.domain_budget.admit_collection_item()
     }
@@ -56,6 +58,7 @@ impl<'session, 'policy> DomainValueScope<'session, 'policy> {
     /// Nested domain values must call [`RedactionSession::enter_domain_value`]
     /// on this session so their charges accumulate in the same budget.
     #[inline(always)]
+    #[must_use]
     pub fn session(&mut self) -> &mut RedactionSession<'policy> {
         self.session
     }

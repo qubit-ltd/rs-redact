@@ -8,7 +8,6 @@
 //! Field-name matching modes used by redaction policies.
 
 /// Controls which canonical field-name candidates may match policy rules.
-#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FieldNameMatching {

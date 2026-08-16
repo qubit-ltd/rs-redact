@@ -40,6 +40,7 @@ impl<'a> FieldRedactor<'a> {
     }
 
     /// Masks a classified value without allocating beyond `max_bytes`.
+    #[must_use]
     pub(in crate::http) fn redact_bounded<'value>(
         &self,
         field: &str,
@@ -63,6 +64,7 @@ impl<'a> FieldRedactor<'a> {
     ///
     /// `Some` containing the final-mask result when the field is sensitive, or
     /// `None` when callers should continue their non-sensitive handling.
+    #[must_use]
     pub(in crate::http) fn redact_bounded_if_sensitive<'value>(
         &self,
         field: &str,
@@ -96,11 +98,13 @@ impl<'a> FieldRedactor<'a> {
     }
 
     /// Returns the borrowed immutable rule snapshot.
+    #[must_use]
     pub(in crate::http) const fn base_rules(&self) -> &'a RedactionRules {
         self.base_rules
     }
 
     /// Returns the context-specific rule overrides for the current operation.
+    #[must_use]
     pub(in crate::http) const fn context_rules(&self) -> &'a RedactionRules {
         self.context_rules
     }

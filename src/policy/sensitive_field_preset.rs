@@ -10,7 +10,6 @@
 use super::Sensitivity;
 
 /// Predefined groups of sensitive field names.
-#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SensitiveFieldPreset {
@@ -99,6 +98,7 @@ impl SensitiveFieldPreset {
     ///
     /// The complete built-in field table for this preset.
     #[inline(always)]
+    #[must_use]
     pub const fn fields(self) -> &'static [(&'static str, Sensitivity)] {
         match self {
             Self::Credentials => &CREDENTIALS_FIELDS,

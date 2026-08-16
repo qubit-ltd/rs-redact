@@ -10,7 +10,6 @@
 use super::BodyRedactionReason;
 
 /// Describes how an HTTP body was represented for diagnostics.
-#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BodyRedactionStatus {

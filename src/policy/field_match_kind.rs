@@ -8,7 +8,6 @@
 //! The canonical field-name candidate selected by policy classification.
 
 /// Identifies the candidate that matched a configured field rule.
-#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FieldMatchKind {

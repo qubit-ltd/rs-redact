@@ -10,7 +10,6 @@
 use super::BodyBudgetError;
 
 /// Bounds both inspected body bytes and produced log-safe bytes.
-#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BodyBudget {
     /// Maximum number of captured source bytes a parser may inspect.
@@ -90,6 +89,7 @@ impl Default for BodyBudget {
     ///
     /// The default finite HTTP body budget.
     #[inline(always)]
+    #[must_use]
     fn default() -> Self {
         Self {
             max_input_bytes: 16 * 1024,

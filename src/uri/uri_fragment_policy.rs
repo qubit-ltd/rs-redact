@@ -8,7 +8,6 @@
 //! Fragment handling choices for URI redaction.
 
 /// Controls whether URI fragments are retained or masked.
-#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UriFragmentPolicy {

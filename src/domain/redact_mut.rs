@@ -37,7 +37,7 @@ pub trait RedactMut {
     /// # Returns
     ///
     /// The logically redacted object.
-    #[must_use = "use the returned redacted object"]
+    #[must_use]
     #[inline]
     fn into_redacted_with(mut self, policy: &RedactionPolicy) -> Self
     where
@@ -52,7 +52,7 @@ pub trait RedactMut {
     /// # Returns
     ///
     /// The logically redacted object.
-    #[must_use = "use the returned redacted object"]
+    #[must_use]
     #[inline]
     fn into_redacted(self) -> Self
     where
@@ -71,7 +71,7 @@ pub trait RedactMut {
     /// # Returns
     ///
     /// A redacted clone while the original remains unchanged.
-    #[must_use = "use the returned redacted clone"]
+    #[must_use]
     #[inline]
     fn to_redacted_with(&self, policy: &RedactionPolicy) -> Self
     where
@@ -85,7 +85,7 @@ pub trait RedactMut {
     /// # Returns
     ///
     /// A redacted clone while the original remains unchanged.
-    #[must_use = "use the returned redacted clone"]
+    #[must_use]
     #[inline]
     fn to_redacted(&self) -> Self
     where

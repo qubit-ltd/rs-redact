@@ -18,7 +18,6 @@ use crate::RedactionCompletion;
 use crate::text::redaction_output::RedactionOutput;
 
 /// Holds only escaped, bounded body text plus read-only source metadata.
-#[must_use = "inspect or render the redacted body instead of discarding it"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BodyRedaction {
     /// Escaped output paired with its invariant completion state.
@@ -50,6 +49,7 @@ impl BodyRedaction {
     ///
     /// A body result exposing only log-safe text.
     #[inline(always)]
+    #[must_use]
     pub(super) fn new(
         text: String,
         status: BodyRedactionStatus,
@@ -104,6 +104,7 @@ impl BodyRedaction {
     ///
     /// The immutable redaction status.
     #[inline(always)]
+    #[must_use]
     pub const fn status(&self) -> BodyRedactionStatus {
         self.status
     }
@@ -150,6 +151,7 @@ impl BodyRedaction {
     /// [`RedactionCompletion::Exhausted`] when no safe substitute fit and the
     /// result is empty.
     #[inline]
+    #[must_use]
     pub const fn completion(&self) -> RedactionCompletion {
         self.output.completion()
     }

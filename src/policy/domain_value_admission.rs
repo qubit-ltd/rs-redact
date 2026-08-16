@@ -10,7 +10,6 @@
 use super::DomainValueScope;
 
 /// Reports whether one domain value may be rendered under the shared session.
-#[must_use = "inspect the admission before accessing the domain value"]
 #[derive(Debug)]
 pub enum DomainValueAdmission<'session, 'policy> {
     /// The value was charged and owns one active-depth scope.

@@ -20,7 +20,6 @@ use super::internal::RedactionPolicyInner;
 ///
 /// A floor contains sensitive-field rules, matching behavior, and an
 /// unknown-field fallback. It intentionally has no allow rules or mask table.
-#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionFloor {
     pub(crate) inner: Arc<RedactionPolicyInner>,
@@ -78,6 +77,7 @@ impl RedactionFloor {
     }
 
     /// Iterates the floor's canonical sensitive rules.
+    #[must_use]
     pub fn sensitive_rules(
         &self,
     ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
@@ -91,6 +91,7 @@ impl RedactionFloor {
 impl Default for RedactionFloor {
     /// Returns the built-in conservative floor.
     #[inline]
+    #[must_use]
     fn default() -> Self {
         Self::standard()
     }
@@ -98,6 +99,7 @@ impl Default for RedactionFloor {
 
 impl fmt::Display for RedactionFloor {
     /// Writes the type name used by diagnostic formatting.
+    #[must_use]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("RedactionFloor")
     }

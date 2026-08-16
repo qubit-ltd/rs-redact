@@ -15,7 +15,6 @@ use super::JsonDepthLimit;
 use crate::http::BodyBudget;
 
 /// Immutable limits that bound diagnostic and ordinary redaction work.
-#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RedactionLimits {
     /// Maximum source and output bytes for one diagnostic event.
@@ -47,6 +46,7 @@ impl RedactionLimits {
     /// this constructor preserves those values without additional
     /// validation.
     #[inline]
+    #[must_use]
     pub const fn new(
         diagnostic_event: InputOutputLimit,
         ordinary_operation: InputOutputLimit,
@@ -67,24 +67,28 @@ impl RedactionLimits {
 
     /// Returns the hard diagnostic input and output limits.
     #[inline(always)]
+    #[must_use]
     pub const fn diagnostic_event(&self) -> InputOutputLimit {
         self.diagnostic_event
     }
 
     /// Returns the hard limits for one ordinary redaction operation.
     #[inline(always)]
+    #[must_use]
     pub const fn ordinary_operation(&self) -> InputOutputLimit {
         self.ordinary_operation
     }
 
     /// Returns the hard domain-structure traversal limits.
     #[inline(always)]
+    #[must_use]
     pub const fn domain(&self) -> DomainRedactionLimits {
         self.domain
     }
 
     /// Returns a copy with the diagnostic-event limit replaced.
     #[inline]
+    #[must_use]
     pub(crate) const fn with_diagnostic_event(
         mut self,
         limit: InputOutputLimit,
@@ -95,6 +99,7 @@ impl RedactionLimits {
 
     /// Returns a copy with the ordinary-operation limit replaced.
     #[inline]
+    #[must_use]
     pub(crate) const fn with_ordinary_operation(
         mut self,
         limit: InputOutputLimit,
@@ -105,6 +110,7 @@ impl RedactionLimits {
 
     /// Returns a copy with the domain-structure limits replaced.
     #[inline]
+    #[must_use]
     pub(crate) const fn with_domain(
         mut self,
         limits: DomainRedactionLimits,
@@ -140,6 +146,7 @@ impl RedactionLimits {
     /// Returns a copy with the JSON depth limit replaced.
     #[cfg(feature = "json")]
     #[inline]
+    #[must_use]
     pub(crate) const fn with_json_depth_limit(
         mut self,
         budget: JsonDepthLimit,
@@ -152,6 +159,7 @@ impl RedactionLimits {
 impl Default for RedactionLimits {
     /// Creates limits using the standard input and output defaults.
     #[inline]
+    #[must_use]
     fn default() -> Self {
         Self {
             diagnostic_event: InputOutputLimit::default(),

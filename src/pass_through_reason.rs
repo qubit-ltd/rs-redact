@@ -9,7 +9,6 @@
 //! Reasons a field value was retained without masking.
 
 /// Reason a field value was retained without masking.
-#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PassThroughReason {
     /// An application allow rule permitted the field.

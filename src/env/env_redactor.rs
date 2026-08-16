@@ -21,7 +21,6 @@ use crate::policy::ResolvedField;
 use crate::text::internal::BoundedLogEscapeWriter;
 
 /// Applies one immutable redaction policy to environment-variable values.
-#[must_use = "use the redactor to produce safe environment diagnostics"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnvRedactor {
     /// Core redactor supplying field classification and masking policies.
@@ -50,6 +49,7 @@ impl EnvRedactor {
     ///
     /// A borrowed view of the core redactor.
     #[inline(always)]
+    #[must_use]
     pub const fn redactor(&self) -> &Redactor {
         &self.redactor
     }
@@ -68,6 +68,7 @@ impl EnvRedactor {
     ///
     /// A log-safe pair rendered as `NAME=VALUE`.
     #[inline]
+    #[must_use]
     pub fn redact_pair(&self, name: &str, value: &str) -> RedactedEnvPair {
         let mut session = self.redactor.session();
         session.env().redact_pair(name, value)
@@ -88,6 +89,7 @@ impl EnvRedactor {
     /// # Returns
     ///
     /// A fail-closed, log-safe pair rendered as `NAME=VALUE`.
+    #[must_use]
     pub fn redact_os_pair(
         &self,
         name: &OsStr,
@@ -118,6 +120,7 @@ impl EnvRedactor {
     /// A bounded batch result whose completion state distinguishes full
     /// rendering, a non-empty safe truncation marker, and empty exhaustion.
     /// Input is pulled lazily and is not advanced after exhaustion.
+    #[must_use]
     pub fn redact_os_pairs<'a, I>(&self, pairs: I) -> RedactedEnv
     where
         I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
@@ -139,6 +142,7 @@ impl EnvRedactor {
     ///
     /// A log-safe pair rendered as `NAME=VALUE`.
     #[inline]
+    #[must_use]
     pub fn redact_assignment(&self, assignment: &str) -> RedactedEnvPair {
         let (name, value) =
             assignment.split_once('=').unwrap_or((assignment, ""));
@@ -216,6 +220,7 @@ impl Default for EnvRedactor {
     /// # Returns
     ///
     /// An environment redactor backed by [`Redactor::default`].
+    #[must_use]
     fn default() -> Self {
         Self::new(Redactor::default())
     }
@@ -231,6 +236,7 @@ impl Default for EnvRedactor {
 ///
 /// An owned typed log-safe value.
 #[inline(always)]
+#[must_use]
 fn log_safe_owned(value: String) -> LogSafeText<'static> {
     RedactedText::new(Cow::Owned(value)).escape_for_log()
 }

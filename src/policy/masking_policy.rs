@@ -15,7 +15,6 @@ use super::PolicyLocation;
 use super::Sensitivity;
 
 /// Mask policies assigned to all supported sensitivity levels.
-#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaskingPolicy {
     /// Policy for low-sensitivity values.
@@ -42,6 +41,7 @@ impl MaskingPolicy {
     ///
     /// A masking configuration containing the supplied policies.
     #[inline(always)]
+    #[must_use]
     pub const fn new(
         low: MaskPolicy,
         medium: MaskPolicy,
@@ -67,6 +67,7 @@ impl MaskingPolicy {
     ///
     /// The updated immutable masking configuration.
     #[inline]
+    #[must_use]
     pub fn with_policy(
         mut self,
         level: Sensitivity,
@@ -98,7 +99,7 @@ impl MaskingPolicy {
     /// # Returns
     ///
     /// The borrowed empty input or an owned masked value.
-    #[must_use = "use the returned masked value instead of the original value"]
+    #[must_use]
     #[inline(always)]
     pub fn mask<'a>(&self, level: Sensitivity, value: &'a str) -> Cow<'a, str> {
         self.for_level(level).mask(value)
@@ -117,7 +118,7 @@ impl MaskingPolicy {
     /// # Returns
     ///
     /// The complete replacement configured for `level`.
-    #[must_use = "use the opaque replacement instead of formatting the original value"]
+    #[must_use]
     #[inline(always)]
     pub fn mask_opaque(&self, level: Sensitivity) -> &str {
         self.for_level(level).opaque_mask()
@@ -138,7 +139,7 @@ impl MaskingPolicy {
     /// # Returns
     ///
     /// The borrowed empty input or an owned mask bounded by `max_bytes`.
-    #[must_use = "use the returned bounded mask instead of the original value"]
+    #[must_use]
     #[inline(always)]
     pub(crate) fn mask_bounded<'a>(
         &self,
@@ -171,7 +172,7 @@ impl MaskingPolicy {
     /// # Returns
     ///
     /// An owned bounded prefix of the configured opaque replacement.
-    #[must_use = "use the bounded opaque replacement instead of the original value"]
+    #[must_use]
     #[inline(always)]
     pub(crate) fn mask_opaque_bounded(
         &self,
@@ -190,7 +191,7 @@ impl MaskingPolicy {
     /// # Returns
     ///
     /// The mask policy assigned to `level`.
-    #[must_use = "use the mask policy selected for this sensitivity level"]
+    #[must_use]
     #[inline(always)]
     pub const fn for_level(&self, level: Sensitivity) -> &MaskPolicy {
         match level {
@@ -232,6 +233,7 @@ impl Default for MaskingPolicy {
     /// # Returns
     ///
     /// The built-in masking configuration.
+    #[must_use]
     fn default() -> Self {
         Self::new(
             MaskPolicy::preserve_edges(2, 2, "****", 4),

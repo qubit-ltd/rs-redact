@@ -16,7 +16,6 @@ use crate::RedactionCompletion;
 use crate::text::redaction_output::RedactionOutput;
 
 /// One escaped environment-variable name and its redacted, escaped value.
-#[must_use = "render the redacted pair instead of the original environment value"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactedEnvPair {
     /// Escaped assignment paired with its exact completion state.
@@ -35,6 +34,7 @@ impl RedactedEnvPair {
     ///
     /// A pair that renders in `NAME=VALUE` form.
     #[inline(always)]
+    #[must_use]
     pub(super) fn new(
         name: LogSafeText<'static>,
         value: LogSafeText<'static>,
@@ -54,6 +54,7 @@ impl RedactedEnvPair {
     ///
     /// A pair carrying [`RedactionCompletion::Complete`].
     #[inline(always)]
+    #[must_use]
     pub(super) fn complete(rendered: LogSafeText<'static>) -> Self {
         Self {
             output: RedactionOutput::complete(rendered),
@@ -71,6 +72,7 @@ impl RedactedEnvPair {
     /// A truncated pair for non-empty text, or the sole valid exhausted pair
     /// when no substitute text was emitted.
     #[inline(always)]
+    #[must_use]
     pub(super) fn truncated(rendered: LogSafeText<'static>) -> Self {
         Self {
             output: RedactionOutput::truncated(rendered)
@@ -84,6 +86,7 @@ impl RedactedEnvPair {
     ///
     /// Empty safe text paired with [`RedactionCompletion::Exhausted`].
     #[inline(always)]
+    #[must_use]
     pub(super) fn exhausted() -> Self {
         Self {
             output: RedactionOutput::exhausted(),

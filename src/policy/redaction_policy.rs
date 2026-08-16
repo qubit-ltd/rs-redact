@@ -105,7 +105,6 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
 /// Process-wide policy installed by [`RedactionPolicy::install_global`].
 static GLOBAL_POLICY: OnceLock<RedactionPolicy> = OnceLock::new();
 /// Immutable redaction policy.
-#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionPolicy {
     rules: RedactionRules,
@@ -239,6 +238,7 @@ impl RedactionPolicy {
     }
 
     /// Creates a policy from fully resolved field rules and resource limits.
+    #[must_use]
     pub(crate) fn from_rules(
         rules: RedactionRules,
         masking: MaskingPolicy,
@@ -397,6 +397,7 @@ impl RedactionPolicy {
     /// # Security
     ///
     /// This explicitly removes minimum protection inherited from any source.
+    #[must_use]
     pub fn disable_floor(mut self) -> Self {
         self.rules = self.rules.disable_floor();
         self
@@ -408,6 +409,7 @@ impl RedactionPolicy {
     /// This is useful for diagnostics about configured application rules. Use
     /// [`Self::sensitivity_for`] for the final security decision.
     #[inline]
+    #[must_use]
     pub fn classify_field<'a>(
         &'a self,
         field: &str,
@@ -479,6 +481,7 @@ impl RedactionPolicy {
     /// Use [`Self::floor`] to inspect the independent minimum-protection
     /// rules.
     #[inline]
+    #[must_use]
     pub fn application_sensitive_rules(
         &self,
     ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
@@ -489,6 +492,7 @@ impl RedactionPolicy {
     ///
     /// These rules never bypass an enabled floor.
     #[inline]
+    #[must_use]
     pub fn application_allow_rules(
         &self,
     ) -> impl Iterator<Item = AllowRule<'_>> {
@@ -497,6 +501,7 @@ impl RedactionPolicy {
 
     /// Resolves final sensitivity for `field`.
     #[inline]
+    #[must_use]
     pub(crate) fn resolve_field(&self, field: &str) -> super::ResolvedField {
         self.rules.resolve_field(field)
     }
@@ -517,6 +522,7 @@ impl Default for RedactionPolicy {
     /// library baseline; the host application must configure every field that
     /// requires stricter handling and must not infer application coverage from
     /// this fallback snapshot.
+    #[must_use]
     fn default() -> Self {
         Self::global().clone()
     }

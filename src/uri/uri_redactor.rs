@@ -33,7 +33,6 @@ use crate::policy::ResolvedField;
 const INVALID_URI: &str = "<invalid URI>";
 
 /// Redacts URI strings using one immutable policy snapshot.
-#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UriRedactor {
     policy: RedactionPolicy,
@@ -48,14 +47,14 @@ impl UriRedactor {
     }
 
     /// Returns the immutable URI policy snapshot.
-    #[must_use = "use the URI policy snapshot"]
+    #[must_use]
     #[inline]
     pub const fn policy(&self) -> &RedactionPolicy {
         &self.policy
     }
 
     /// Creates a mutable diagnostic session for shared URI operations.
-    #[must_use = "retain the URI diagnostic session"]
+    #[must_use]
     #[inline]
     pub fn session(&self) -> crate::RedactionSession<'_> {
         crate::RedactionSession::new(&self.policy)
@@ -66,7 +65,7 @@ impl UriRedactor {
     /// Parsing is strict. Invalid syntax, invalid UTF-8 in a percent-encoded
     /// field, and budget violations all return a fixed marker without any
     /// portion of the input URI.
-    #[must_use = "use the structured URI redaction result"]
+    #[must_use]
     pub fn redact_uri_str(&self, input: &str) -> UriRedaction {
         if input.len() > input_limit(&self.policy) {
             return invalid_result(UriRedactionReason::InputLimitExceeded);
@@ -85,7 +84,7 @@ impl UriRedactor {
     /// Parsing, strict percent decoding, and component classification follow
     /// the same URI policy as [`Self::redact_uri_str`]. The input budget still
     /// applies, while the output budget and truncation behavior do not.
-    #[must_use = "use the structured URI inspection result"]
+    #[must_use]
     pub fn inspect_uri_str(&self, input: &str) -> UriInspection {
         if input.len() > input_limit(&self.policy) {
             return invalid_inspection(UriRedactionReason::InputLimitExceeded);
@@ -157,6 +156,7 @@ impl UriRedactor {
 
 /// Renders one URI under an explicit output ceiling and reports the source of
 /// truncation to the shared session.
+#[must_use]
 pub(crate) fn redact_uri_str_bounded(
     policy: &RedactionPolicy,
     input: &str,
@@ -277,6 +277,7 @@ pub(crate) fn redact_uri_str_bounded(
 }
 
 /// Finishes one URI rendering and records truncation metadata.
+#[must_use]
 fn finish_uri_rendering(
     rendered: BoundedUriWriter,
     mut reasons: Vec<UriRedactionReason>,
@@ -347,6 +348,7 @@ fn input_limit(policy: &RedactionPolicy) -> usize {
 }
 
 /// Produces an invalid result while respecting the effective output ceiling.
+#[must_use]
 fn bounded_invalid_result(
     reason: UriRedactionReason,
     max_output_bytes: usize,
@@ -368,6 +370,7 @@ fn bounded_invalid_result(
 impl Default for UriRedactor {
     /// Creates a redactor from the process-wide URI policy snapshot.
     #[inline]
+    #[must_use]
     fn default() -> Self {
         Self::new(RedactionPolicy::default())
     }
@@ -513,6 +516,7 @@ fn redact_userinfo_value(
 }
 
 /// Redacts query values after strict percent decoding.
+#[must_use]
 fn redact_query(
     query: &str,
     policy: &RedactionPolicy,
@@ -554,6 +558,7 @@ fn redact_query(
 }
 
 /// Inspects query fields after strict percent decoding without rendering.
+#[must_use]
 fn inspect_query(
     query: &str,
     policy: &RedactionPolicy,
@@ -657,6 +662,7 @@ fn mark_component(
 }
 
 /// Builds a fixed-marker result for malformed or over-budget input.
+#[must_use]
 pub(super) fn invalid_result(reason: UriRedactionReason) -> UriRedaction {
     let completion = if reason == UriRedactionReason::InputLimitExceeded {
         RedactionCompletion::Truncated
@@ -673,6 +679,7 @@ pub(super) fn invalid_result(reason: UriRedactionReason) -> UriRedaction {
 }
 
 /// Preserves fail-closed metadata without emitting bytes after exhaustion.
+#[must_use]
 pub(super) fn empty_invalid_result(reason: UriRedactionReason) -> UriRedaction {
     UriRedaction::new(
         safe_text(String::new()),
@@ -684,6 +691,7 @@ pub(super) fn empty_invalid_result(reason: UriRedactionReason) -> UriRedaction {
 }
 
 /// Builds metadata for malformed or over-budget input.
+#[must_use]
 fn invalid_inspection(reason: UriRedactionReason) -> UriInspection {
     UriInspection {
         status: UriRedactionStatus::Invalid,
@@ -693,6 +701,7 @@ fn invalid_inspection(reason: UriRedactionReason) -> UriInspection {
 }
 
 /// Converts owned output into the library's log-safe text wrapper.
+#[must_use]
 fn safe_text(value: String) -> crate::LogSafeText<'static> {
     RedactedText::new(Cow::Owned(value)).escape_for_log()
 }
@@ -700,6 +709,7 @@ fn safe_text(value: String) -> crate::LogSafeText<'static> {
 impl fmt::Display for UriRedactor {
     /// Formats the policy snapshot without exposing URI input.
     #[inline]
+    #[must_use]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("UriRedactor")
     }

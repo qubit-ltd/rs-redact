@@ -8,7 +8,6 @@
 //! Path handling choices for URI redaction.
 
 /// Controls whether URI paths are retained or replaced by a safe marker.
-#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UriPathPolicy {

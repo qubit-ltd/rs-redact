@@ -34,7 +34,7 @@ impl InstallGlobalPolicyError {
     /// This consumes the error and moves the original policy out of its
     /// internal allocation without cloning it.
     #[inline(always)]
-    #[must_use = "use the rejected policy or drop it explicitly"]
+    #[must_use]
     pub fn into_policy(self) -> RedactionPolicy {
         *self.0
     }
