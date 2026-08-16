@@ -8,9 +8,9 @@
 //! Tests for serde support on redacted domain views.
 
 #[cfg(feature = "serde")]
-use qubit_redact::__private::RedactSerialize;
+use qubit_redact::internal::RedactSerialize;
 #[cfg(feature = "serde")]
-use qubit_redact::__private::RedactedSerialize;
+use qubit_redact::internal::RedactedSerialize;
 #[cfg(feature = "serde")]
 use qubit_redact::RedactionPolicy;
 #[cfg(feature = "serde")]
