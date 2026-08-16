@@ -33,6 +33,7 @@ struct HttpPolicyInner {
 }
 
 impl HttpPolicy {
+    /// Creates an HTTP policy from its validated component policies.
     pub(super) fn from_parts(parts: HttpPolicyParts) -> Self {
         Self {
             inner: std::sync::Arc::new(HttpPolicyInner {

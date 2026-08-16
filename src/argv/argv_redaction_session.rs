@@ -17,6 +17,7 @@ use crate::Redactor;
 use crate::policy::FragmentCompletion;
 use crate::policy::RedactionAdmission;
 
+/// JSON-like marker used when an argument list cannot be rendered completely.
 const TRUNCATED_LIST: &str = "[\"<truncated>\"]";
 
 /// A borrowed argv façade over one mutable diagnostic session.

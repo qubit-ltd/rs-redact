@@ -24,7 +24,9 @@ use crate::policy::FragmentCompletion;
 use crate::policy::RedactionAdmission;
 use crate::text::internal::BoundedLogEscapeWriter;
 
+/// Safe key/value marker used when an environment pair cannot be rendered.
 const FALLBACK_PAIR: &str = "<redacted>=<redacted>";
+/// Safe marker used when the environment list is truncated.
 const TRUNCATED_LIST: &str = "<truncated>";
 
 /// A borrowed environment façade over one mutable diagnostic session.

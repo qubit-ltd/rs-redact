@@ -10,8 +10,8 @@
 use super::DomainRedactionLimits;
 use super::DomainTraversalAdmission;
 
-/// Internal result of charging one domain value.
 // qubit-style: allow type-file-name
+/// Internal result of charging one domain value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DomainValueBudgetAdmission {
     Entered,

@@ -26,6 +26,7 @@ pub struct RedactionFloor {
     pub(crate) inner: Arc<RedactionPolicyInner>,
 }
 
+/// Lazily initialized conservative floor shared by standard policies.
 static STANDARD_FLOOR: LazyLock<RedactionFloor> = LazyLock::new(|| {
     let mut builder = RedactionFloor::builder();
     for preset in [
@@ -84,6 +85,7 @@ impl RedactionFloor {
 }
 
 impl Default for RedactionFloor {
+    /// Returns the built-in conservative floor.
     #[inline]
     fn default() -> Self {
         Self::standard()
@@ -91,6 +93,7 @@ impl Default for RedactionFloor {
 }
 
 impl fmt::Display for RedactionFloor {
+    /// Writes the type name used by diagnostic formatting.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("RedactionFloor")
     }

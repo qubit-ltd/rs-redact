@@ -25,6 +25,7 @@ struct DebugOutputReset<'a> {
 }
 
 impl Drop for DebugOutputReset<'_> {
+    /// Restores the previous debug-output state when the guard leaves scope.
     fn drop(&mut self) {
         self.context.set(self.previous);
     }
