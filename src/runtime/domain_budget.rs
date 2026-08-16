@@ -7,8 +7,8 @@
 // =============================================================================
 //! Mutable domain-structure accounting for one redaction session.
 
-use super::DomainRedactionLimits;
-use super::DomainTraversalAdmission;
+use crate::policy::DomainRedactionLimits;
+use crate::policy::DomainTraversalAdmission;
 
 // qubit-style: allow type-file-name
 /// Internal result of charging one domain value.

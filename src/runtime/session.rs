@@ -11,12 +11,13 @@ use super::DiagnosticBudget;
 use super::DomainRedactionBudget;
 use super::DomainTruncation;
 use super::DomainTruncationCheckpoint;
-use super::DomainValueAdmission;
-use super::DomainValueBudgetAdmission;
-use super::DomainValueScope;
-use super::RedactionPolicy;
 use super::internal::FragmentCompletion;
 use super::internal::RedactionAdmission;
+use crate::policy::DomainValueAdmission;
+use crate::policy::DomainTraversalAdmission;
+use crate::policy::DomainValueScope;
+use crate::policy::RedactionPolicy;
+use crate::runtime::DomainValueBudgetAdmission;
 
 /// Carries one immutable policy and one mutable budget through a diagnostic
 /// event.
@@ -122,6 +123,26 @@ impl<'policy> RedactionSession<'policy> {
         domain_output_limit: usize,
     ) -> RedactionAdmission {
         self.budget.admit_output_only(domain_output_limit)
+    }
+
+    /// Charges one domain field before its value is accessed.
+    #[inline]
+    pub(crate) fn admit_domain_field(&mut self) -> DomainTraversalAdmission {
+        self.domain_budget.admit_field()
+    }
+
+    /// Charges one domain collection item before its iterator advances.
+    #[inline]
+    pub(crate) fn admit_domain_collection_item(
+        &mut self,
+    ) -> DomainTraversalAdmission {
+        self.domain_budget.admit_collection_item()
+    }
+
+    /// Releases one active domain-value depth while preserving cumulative charges.
+    #[inline]
+    pub(crate) fn leave_domain_value(&mut self) {
+        self.domain_budget.leave_value();
     }
 
     /// Commits exact output bytes for the active admitted fragment.

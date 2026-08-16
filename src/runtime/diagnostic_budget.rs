@@ -9,8 +9,8 @@
 
 use qubit_budget::ResourceBudget;
 
-use super::InputOutputLimit;
-use super::RedactionResource;
+use crate::policy::InputOutputLimit;
+use crate::policy::RedactionResource;
 use super::internal::FragmentCompletion;
 use super::internal::RedactionAdmission;
 
