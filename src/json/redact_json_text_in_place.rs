@@ -98,6 +98,7 @@ pub(crate) fn redacted_json_text(
     to_string(&value).expect("JSON value serialization is infallible")
 }
 
+/// Redacts JSON text while enforcing the supplied output bound.
 pub(super) fn redacted_json_text_bounded(
     text: &str,
     policy: &RedactionPolicy,
@@ -126,8 +127,10 @@ pub(super) fn redacted_json_text_bounded(
     {
         return BoundedJsonRedaction::Truncated(opaque_secret(policy));
     }
+    /// Byte sink that rejects writes exceeding its output bound.
     struct Bounded(Vec<u8>, usize);
     impl Write for Bounded {
+        /// Appends bytes when the bounded sink can retain the complete write.
         fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
             if self.0.len().saturating_add(bytes.len()) > self.1 {
                 return Err(io::Error::from(io::ErrorKind::WriteZero));
@@ -135,6 +138,7 @@ pub(super) fn redacted_json_text_bounded(
             self.0.extend_from_slice(bytes);
             Ok(bytes.len())
         }
+        /// Flushes the bounded sink; no buffered data exists.
         fn flush(&mut self) -> io::Result<()> {
             Ok(())
         }
@@ -148,6 +152,7 @@ pub(super) fn redacted_json_text_bounded(
     )
 }
 
+/// Redacts a JSON value while enforcing the supplied output bound.
 pub(super) fn redacted_json_value_bounded(
     source: &Value,
     policy: &RedactionPolicy,
@@ -174,8 +179,10 @@ pub(super) fn redacted_json_value_bounded(
     {
         return BoundedJsonRedaction::Truncated(opaque_secret(policy));
     }
+    /// Byte sink that rejects writes exceeding its output bound.
     struct Bounded(Vec<u8>, usize);
     impl Write for Bounded {
+        /// Appends bytes when the bounded sink can retain the complete write.
         fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
             if self.0.len().saturating_add(bytes.len()) > self.1 {
                 return Err(io::Error::from(io::ErrorKind::WriteZero));
@@ -183,6 +190,7 @@ pub(super) fn redacted_json_value_bounded(
             self.0.extend_from_slice(bytes);
             Ok(bytes.len())
         }
+        /// Flushes the bounded sink; no buffered data exists.
         fn flush(&mut self) -> io::Result<()> {
             Ok(())
         }

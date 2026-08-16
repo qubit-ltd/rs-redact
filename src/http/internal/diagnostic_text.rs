@@ -77,6 +77,7 @@ pub(in crate::http) fn redact_bounded(
     writer.finish().0
 }
 
+/// Redacts URL candidates in one diagnostic-text token within the output bound.
 fn redact_token_bounded(
     output: &mut BoundedLogWriter,
     token: &str,

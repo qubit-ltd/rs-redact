@@ -29,6 +29,7 @@ use crate::Sensitivity;
 use crate::policy::FragmentCompletion;
 use crate::policy::ResolvedField;
 
+/// Safe replacement used when URI parsing or decoding fails.
 const INVALID_URI: &str = "<invalid URI>";
 
 /// Redacts URI strings using one immutable policy snapshot.

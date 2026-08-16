@@ -268,6 +268,7 @@ impl ArgvRedactor {
         }
     }
 
+    /// Returns whether an option field must be treated as sensitive.
     fn option_is_sensitive(&self, field: &str, exact: bool) -> bool {
         if exact {
             self.redactor
