@@ -344,8 +344,10 @@
 extern crate self as qubit_redact;
 
 pub mod argv;
+pub mod config;
 pub mod domain;
 pub mod env;
+pub mod facade;
 mod field_redaction;
 #[cfg(feature = "http")]
 pub mod http;
@@ -356,6 +358,8 @@ mod json_feature_gate;
 mod pass_through_reason;
 pub mod policy;
 pub(crate) mod runtime;
+pub mod output;
+pub mod formats;
 #[cfg(feature = "serde")]
 #[doc(hidden)]
 pub mod __private;
@@ -367,6 +371,7 @@ pub mod uri;
 
 pub use field_redaction::FieldRedaction;
 pub use field_redaction::PassThroughReason;
+pub use facade::RedactionEvent;
 pub use install_global_policy_error::InstallGlobalPolicyError;
 pub use policy::AllowRule;
 pub use policy::DiagnosticBudgetError;
