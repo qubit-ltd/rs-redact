@@ -22,9 +22,9 @@ use crate::RedactionPolicy;
 pub struct InstallGlobalPolicyError(Box<RedactionPolicy>);
 
 impl InstallGlobalPolicyError {
-    #[must_use]
     /// Creates an error that owns the rejected policy without enlarging every
     /// installation result.
+    #[must_use]
     pub(crate) fn new(policy: RedactionPolicy) -> Self {
         Self(Box::new(policy))
     }

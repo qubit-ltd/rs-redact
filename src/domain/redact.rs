@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Non-destructive redaction contract for domain objects.
+// qubit-style: allow multiple-public-types
 
 use std::fmt;
 use std::fmt::Formatter;

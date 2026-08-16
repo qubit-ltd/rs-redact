@@ -26,8 +26,8 @@ pub(crate) struct BoundedUriWriter {
 }
 
 impl BoundedUriWriter {
-    #[must_use]
     /// Creates a bounded URI writer.
+    #[must_use]
     pub(crate) fn new(max_bytes: usize) -> Self {
         Self {
             output: String::new(),

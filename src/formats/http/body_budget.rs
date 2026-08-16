@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Hard input and output limits for HTTP body redaction.
+// qubit-style: allow multiple-public-types
 
 use super::BodyBudgetError;
 

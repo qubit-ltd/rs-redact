@@ -53,8 +53,8 @@ pub struct RedactionPolicyBuilder {
 }
 
 impl RedactionPolicyBuilder {
-    #[must_use]
     /// Creates an empty application-rule builder with the standard floor.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             rules: RedactionRulesBuilder::empty(PolicyLocation::Rules),
@@ -69,8 +69,8 @@ impl RedactionPolicyBuilder {
             unkeyed_json_value_policy: UnkeyedJsonValuePolicy::PassThrough,
         }
     }
-    #[must_use]
     /// Copies the immutable policy into mutable builder state.
+    #[must_use]
     pub(super) fn from_policy(policy: &RedactionPolicy) -> Self {
         Self {
             rules: RedactionRulesBuilder::from_inner(
@@ -93,9 +93,10 @@ impl RedactionPolicyBuilder {
         }
     }
 
+    /// Returns the mutable base-field configuration view.
+
     #[must_use]
     #[inline(always)]
-    /// Returns the mutable base-field configuration view.
     pub fn fields(&mut self) -> FieldsBuilder<'_> {
         FieldsBuilder { builder: self }
     }
@@ -118,9 +119,10 @@ impl RedactionPolicyBuilder {
         }
     }
 
+    /// Returns the mutable static-limits configuration view.
+
     #[must_use]
     #[inline(always)]
-    /// Returns the mutable static-limits configuration view.
     pub fn limits(&mut self) -> LimitsBuilder<'_> {
         LimitsBuilder { builder: self }
     }
@@ -200,9 +202,9 @@ mod views {
     }
 
     impl FieldsBuilder<'_> {
+        /// Sets field-name matching for the base policy.
         #[must_use]
         #[inline(always)]
-        /// Sets field-name matching for the base policy.
         pub fn matching(&mut self, matching: FieldNameMatching) -> &mut Self {
             self.builder.rules.matching(matching);
             self
@@ -288,9 +290,10 @@ mod views {
             self
         }
 
+        /// Replaces the base minimum-protection floor.
+
         #[must_use]
         #[inline(always)]
-        /// Replaces the base minimum-protection floor.
         pub fn floor(&mut self, floor: RedactionFloor) -> &mut Self {
             self.builder.floor = Some(floor);
             self
@@ -499,10 +502,12 @@ mod views {
             self
         }
 
+        /// Adds a context floor. Base protection remains independently
+
+        /// effective.
+
         #[must_use]
         #[inline(always)]
-        /// Adds a context floor. Base protection remains independently
-        /// effective.
         pub fn floor(&mut self, floor: RedactionFloor) -> &mut Self {
             self.builder.floor_mut(self.context, floor);
             self

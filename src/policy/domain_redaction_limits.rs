@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Immutable limits for bounded domain-object traversal.
+// qubit-style: allow multiple-public-types
 
 use super::DomainRedactionLimitsError;
 

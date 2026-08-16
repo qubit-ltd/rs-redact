@@ -10,7 +10,7 @@
 mod diagnostic_budget;
 mod domain_budget;
 mod internal;
-mod session;
+mod redaction_session;
 
 pub(crate) use diagnostic_budget::DiagnosticBudget;
 pub(crate) use domain_budget::DomainRedactionBudget;
@@ -19,4 +19,4 @@ pub(crate) use domain_budget::DomainTruncationCheckpoint;
 pub(crate) use domain_budget::DomainValueBudgetAdmission;
 pub(crate) use internal::FragmentCompletion;
 pub(crate) use internal::RedactionAdmission;
-pub use session::RedactionSession;
+pub use redaction_session::RedactionSession;

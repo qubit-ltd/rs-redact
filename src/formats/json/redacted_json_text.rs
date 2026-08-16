@@ -11,7 +11,7 @@ use std::fmt;
 use std::fmt::Write as _;
 
 use super::RedactedJson;
-use super::redact_json_text_in_place::redacted_json_text;
+use super::bounded_json_redaction::redacted_json_text;
 use crate::LogOutputLimit;
 use crate::RedactionPolicy;
 use crate::Sensitivity;

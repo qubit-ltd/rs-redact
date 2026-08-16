@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Immutable execution limits used while rendering redacted output.
+// qubit-style: allow multiple-public-types
 
 use super::DomainRedactionLimits;
 use super::InputOutputLimit;

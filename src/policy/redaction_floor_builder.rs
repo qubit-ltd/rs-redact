@@ -33,8 +33,9 @@ impl RedactionFloorBuilder {
         }
     }
 
-    #[must_use]
     /// Copies every field rule from `floor`.
+
+    #[must_use]
     pub(super) fn from_floor(floor: &RedactionFloor) -> Self {
         Self {
             rules: RedactionRulesBuilder::from_inner(
@@ -66,17 +67,19 @@ impl RedactionFloorBuilder {
         Ok(self)
     }
 
+    /// Sets field-name matching behavior.
+
     #[must_use]
     #[inline(always)]
-    /// Sets field-name matching behavior.
     pub fn matching(mut self, matching: FieldNameMatching) -> Self {
         self.rules.matching(matching);
         self
     }
 
+    /// Sets the fallback for fields without an explicit floor rule.
+
     #[must_use]
     #[inline(always)]
-    /// Sets the fallback for fields without an explicit floor rule.
     pub fn unknown_field_policy(mut self, policy: UnknownFieldPolicy) -> Self {
         self.rules.unknown_field_policy(policy);
         self

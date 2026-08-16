@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Mutable domain-structure accounting for one redaction session.
+// qubit-style: allow multiple-public-types
 
 use crate::policy::DomainRedactionLimits;
 use crate::policy::DomainTraversalAdmission;
