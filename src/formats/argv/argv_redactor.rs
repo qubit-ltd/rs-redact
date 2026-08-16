@@ -438,7 +438,6 @@ impl Default for ArgvRedactor {
     ///
     /// An argv redactor backed by [`Redactor::default`].
     #[inline(always)]
-
     fn default() -> Self {
         Self::new(Redactor::default())
     }

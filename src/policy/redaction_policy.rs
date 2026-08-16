@@ -481,7 +481,6 @@ impl RedactionPolicy {
     /// Use [`Self::floor`] to inspect the independent minimum-protection
     /// rules.
     #[inline]
-    #[must_use]
     pub fn application_sensitive_rules(
         &self,
     ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
@@ -492,7 +491,6 @@ impl RedactionPolicy {
     ///
     /// These rules never bypass an enabled floor.
     #[inline]
-    #[must_use]
     pub fn application_allow_rules(
         &self,
     ) -> impl Iterator<Item = AllowRule<'_>> {
@@ -522,7 +520,6 @@ impl Default for RedactionPolicy {
     /// library baseline; the host application must configure every field that
     /// requires stricter handling and must not infer application coverage from
     /// this fallback snapshot.
-
     fn default() -> Self {
         Self::global().clone()
     }

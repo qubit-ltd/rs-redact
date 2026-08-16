@@ -128,7 +128,6 @@ impl Default for BodyBudget {
     ///
     /// The default finite HTTP body budget.
     #[inline(always)]
-
     fn default() -> Self {
         Self::builder()
             .build()

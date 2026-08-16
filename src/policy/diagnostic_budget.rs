@@ -134,7 +134,6 @@ impl Default for InputOutputLimit {
     ///
     /// A diagnostic budget with the documented conservative limits.
     #[inline(always)]
-
     fn default() -> Self {
         Self::builder()
             .build()

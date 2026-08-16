@@ -15,7 +15,7 @@ use qubit_redact::Sensitivity;
 fn test_policy_internal_components_share_canonical_state() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder
+        let _ = builder
             .fields()
             .matching(FieldNameMatching::ExactOrTokenSuffix);
         builder

@@ -179,7 +179,6 @@ impl RedactionRules {
     }
 
     /// Iterates only application sensitive rules, never floor rules.
-    #[must_use]
     pub fn application_sensitive_rules(
         &self,
     ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
@@ -190,7 +189,6 @@ impl RedactionRules {
     }
 
     /// Iterates only application allow rules, never floor rules.
-    #[must_use]
     pub fn application_allow_rules(
         &self,
     ) -> impl Iterator<Item = AllowRule<'_>> {

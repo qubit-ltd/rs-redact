@@ -54,7 +54,6 @@ impl UriPolicyBuilder {
     ///
     /// The core policy is already validated when supplied, so this builder
     /// currently has no additional error cases.
-    #[must_use]
     #[inline]
     pub(crate) fn build(self) -> Result<UriPolicy, PolicyError> {
         Ok(UriPolicy::new(self.path_policy, self.fragment_policy))
@@ -64,7 +63,6 @@ impl UriPolicyBuilder {
 impl Default for UriPolicyBuilder {
     /// Creates a builder with standard URI handling defaults.
     #[inline]
-
     fn default() -> Self {
         Self::new()
     }

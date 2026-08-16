@@ -24,7 +24,7 @@ fn test_json_uses_policy_mask_for_floor_matched_key() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor);
+        let _ = builder.fields().floor(floor);
         builder
             .fields()
             .raise("credential", Sensitivity::Secret)

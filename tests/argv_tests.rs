@@ -199,7 +199,7 @@ fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_app
  {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().matching(FieldNameMatching::Exact);
+        let _ = builder.fields().matching(FieldNameMatching::Exact);
         builder
     })
     .build()
@@ -517,7 +517,7 @@ fn test_redact_heuristically_uses_application_mask_for_pending_option_value() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor);
+        let _ = builder.fields().floor(floor);
         builder
             .fields()
             .raise("password", Sensitivity::Secret)
@@ -551,7 +551,7 @@ fn test_redact_heuristically_uses_application_mask_for_exact_single_dash_option(
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor);
+        let _ = builder.fields().floor(floor);
         builder
             .fields()
             .raise("tenant_secret", Sensitivity::Secret)

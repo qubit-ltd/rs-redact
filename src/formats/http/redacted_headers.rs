@@ -75,7 +75,6 @@ impl Display for RedactedHeaders {
     ///
     /// Returns [`fmt::Error`] when the destination rejects a write.
     #[inline]
-
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.text, formatter)
     }
@@ -96,7 +95,6 @@ impl Debug for RedactedHeaders {
     ///
     /// Returns [`fmt::Error`] when the destination rejects a write.
     #[inline]
-
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter
             .debug_tuple("RedactedHeaders")

@@ -29,7 +29,7 @@ fn test_redaction_rules_exact_allow_does_not_hide_suffix_sensitive_rule() {
             .fields()
             .allow_exact("access_token")
             .expect("the test builder input should be valid");
-        builder
+        let _ = builder
             .fields()
             .matching(FieldNameMatching::ExactOrTokenSuffix);
         builder
@@ -79,7 +79,7 @@ fn test_redaction_rules_expose_application_matching_and_unknown_policy() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.fields().disable_floor();
-        builder.fields().matching(FieldNameMatching::Exact);
+        let _ = builder.fields().matching(FieldNameMatching::Exact);
         builder
             .fields()
             .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low));
@@ -111,7 +111,7 @@ fn test_redaction_rules_floor_resolves_overlaps_to_strongest_level() {
         .expect("the overlapping floor should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().floor(floor);
+        let _ = builder.fields().floor(floor);
         builder
     })
     .build()

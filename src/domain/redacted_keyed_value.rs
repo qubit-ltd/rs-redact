@@ -276,7 +276,6 @@ mod session_view {
     impl<T: ?Sized> Debug for RedactedKeyedResult<'_, T> {
         /// Writes the already-completed safe keyed representation.
         #[inline]
-
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
             Debug::fmt(&self.completed, formatter)
         }

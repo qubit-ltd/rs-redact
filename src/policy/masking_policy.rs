@@ -272,7 +272,6 @@ impl Default for MaskingPolicy {
     /// # Returns
     ///
     /// The built-in masking configuration.
-
     fn default() -> Self {
         Self::builder().build()
     }
