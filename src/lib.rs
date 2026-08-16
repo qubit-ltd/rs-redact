@@ -356,11 +356,11 @@ pub mod limits;
 pub mod model;
 pub mod output;
 pub mod policy;
-mod redactor;
 pub(crate) mod runtime;
 mod serde_feature_gate;
 
 pub use facade::RedactionEvent;
+pub use facade::Redactor;
 pub use install_global_policy_error::InstallGlobalPolicyError;
 pub use model::FieldRedaction;
 pub use model::PassThroughReason;
@@ -407,4 +407,3 @@ pub use policy::Sensitivity;
 #[cfg(feature = "json")]
 pub use policy::UnkeyedJsonValuePolicy;
 pub use policy::UnknownFieldPolicy;
-pub use redactor::Redactor;
