@@ -91,7 +91,7 @@ impl RedactionFloor {
 impl Default for RedactionFloor {
     /// Returns the built-in conservative floor.
     #[inline]
-    #[must_use]
+
     fn default() -> Self {
         Self::standard()
     }
@@ -99,7 +99,7 @@ impl Default for RedactionFloor {
 
 impl fmt::Display for RedactionFloor {
     /// Writes the type name used by diagnostic formatting.
-    #[must_use]
+
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("RedactionFloor")
     }

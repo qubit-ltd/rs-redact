@@ -271,7 +271,7 @@ mod session_view {
     impl<M: ?Sized, K: ?Sized, V: ?Sized> Debug for RedactedMapResult<'_, M, K, V> {
         /// Writes the already-completed safe map representation.
         #[inline(always)]
-        #[must_use]
+
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
             Debug::fmt(&self.completed, formatter)
         }

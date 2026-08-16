@@ -90,7 +90,7 @@ impl Default for InputOutputLimit {
     ///
     /// A diagnostic budget with the documented conservative limits.
     #[inline(always)]
-    #[must_use]
+
     fn default() -> Self {
         Self {
             max_input_bytes: 16 * 1024,

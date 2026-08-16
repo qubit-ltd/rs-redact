@@ -122,8 +122,9 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// The aggregate outcome for unkeyed scalar handling.
     pub(crate) fn redact(&mut self, value: &mut Value) -> JsonRedactionOutcome {
         self.passed_unkeyed = false;
-        let mut budget = JsonValueLimits::empty()
-            .with_max_depth(self.json_depth_limit.maximum())
+        let mut budget = JsonValueLimits::builder()
+            .max_depth(self.json_depth_limit.maximum())
+            .build()
             .budget();
         let mut transaction = budget.transaction();
         let result =

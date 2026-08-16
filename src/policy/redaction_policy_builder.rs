@@ -568,7 +568,7 @@ pub use views::UriPolicyBuilderView;
 
 impl Default for RedactionPolicyBuilder {
     /// Creates a builder with the standard floor and default limits.
-    #[must_use]
+
     fn default() -> Self {
         Self::new()
     }

@@ -522,7 +522,7 @@ impl Default for RedactionPolicy {
     /// library baseline; the host application must configure every field that
     /// requires stricter handling and must not infer application coverage from
     /// this fallback snapshot.
-    #[must_use]
+
     fn default() -> Self {
         Self::global().clone()
     }

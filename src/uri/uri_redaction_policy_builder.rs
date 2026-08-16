@@ -64,7 +64,7 @@ impl UriPolicyBuilder {
 impl Default for UriPolicyBuilder {
     /// Creates a builder with standard URI handling defaults.
     #[inline]
-    #[must_use]
+
     fn default() -> Self {
         Self::new()
     }

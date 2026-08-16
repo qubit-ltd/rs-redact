@@ -88,7 +88,7 @@ impl Default for JsonDepthLimit {
     ///
     /// A budget allowing at most 128 recursive container descents.
     #[inline(always)]
-    #[must_use]
+
     fn default() -> Self {
         Self {
             limit: Self::DEFAULT_MAX_DEPTH,

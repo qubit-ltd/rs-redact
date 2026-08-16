@@ -40,7 +40,7 @@ impl fmt::Debug for BodyCapture<'_> {
     /// # Errors
     ///
     /// Returns [`fmt::Error`] when the destination rejects a write.
-    #[must_use]
+
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("BodyCapture")

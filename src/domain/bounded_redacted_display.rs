@@ -68,7 +68,7 @@ impl<D: Debug> Display for BoundedRedactedDisplay<D> {
     /// Returns [`fmt::Error`] when redacted formatting or the destination
     /// rejects output.
     #[inline(always)]
-    #[must_use]
+
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         format_bounded(&self.value, self.limit, formatter)
     }

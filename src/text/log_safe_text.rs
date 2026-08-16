@@ -94,7 +94,7 @@ impl AsRef<str> for LogSafeText<'_> {
     ///
     /// The escaped text as a string slice.
     #[inline(always)]
-    #[must_use]
+
     fn as_ref(&self) -> &str {
         self.as_str()
     }

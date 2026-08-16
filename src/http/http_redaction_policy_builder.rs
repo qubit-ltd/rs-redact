@@ -302,7 +302,7 @@ impl HttpPolicyBuilder {
 
 impl Default for HttpPolicyBuilder {
     /// Creates a builder with the standard HTTP handling defaults.
-    #[must_use]
+
     fn default() -> Self {
         Self::new()
     }
