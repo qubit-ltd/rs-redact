@@ -10,6 +10,7 @@
 use crate::policy::FragmentCompletion;
 use crate::text::log_escape::encode_log_safe_character;
 
+/// Marker appended when a URI cannot fit within the output bound.
 const TRUNCATED: &str = "<truncated>";
 
 /// Accumulates escaped URI text without exceeding the final output budget.

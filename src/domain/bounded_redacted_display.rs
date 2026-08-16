@@ -221,6 +221,7 @@ impl fmt::Write for BoundedDebugWriter {
 struct TrackedLogWriter<'writer>(&'writer mut BoundedLogEscapeWriter);
 
 impl fmt::Write for TrackedLogWriter<'_> {
+    /// Forwards a fragment and records whether the bounded writer truncated it.
     fn write_str(&mut self, value: &str) -> fmt::Result {
         let result = self.0.write_str(value);
         if self.0.is_truncated() {

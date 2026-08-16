@@ -69,6 +69,7 @@ impl RedactionPolicyBuilder {
             unkeyed_json_value_policy: UnkeyedJsonValuePolicy::PassThrough,
         }
     }
+    /// Copies the immutable policy into mutable builder state.
     pub(super) fn from_policy(policy: &RedactionPolicy) -> Self {
         Self {
             rules: RedactionRulesBuilder::from_inner(
@@ -551,6 +552,7 @@ pub use views::LimitsBuilder;
 pub use views::UriPolicyBuilderView;
 
 impl Default for RedactionPolicyBuilder {
+    /// Creates a builder with the standard floor and default limits.
     fn default() -> Self {
         Self::new()
     }

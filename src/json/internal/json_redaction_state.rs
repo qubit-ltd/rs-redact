@@ -382,6 +382,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
 impl JsonTreeMutVisitor<JsonResource, usize>
     for JsonRedactionState<'_, '_, '_>
 {
+    /// Error used to stop traversal after a resource budget is exhausted.
     type Error = JsonRedactionStop;
 
     /// Applies the current-node redaction policy and controls descent.

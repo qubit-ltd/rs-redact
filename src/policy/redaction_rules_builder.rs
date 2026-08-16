@@ -19,6 +19,7 @@ use super::UnknownFieldPolicy;
 use super::internal::RedactionPolicyInner;
 use super::internal::canonicalize_field_name;
 
+/// Mutable construction state for one set of redaction rules.
 #[derive(Debug, Clone)]
 pub(crate) struct RedactionRulesBuilder {
     sensitive: BTreeMap<String, Sensitivity>,

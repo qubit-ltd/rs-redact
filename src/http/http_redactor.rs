@@ -142,6 +142,7 @@ impl HttpRedactor {
         self.finish_diagnostic(self.redact_url_text(url))
     }
 
+    /// Redacts a parsed URL under an explicit output limit.
     pub(super) fn redact_url_with_output_limit(
         &self,
         url: &Url,
@@ -153,6 +154,7 @@ impl HttpRedactor {
         )
     }
 
+    /// Redacts URL-looking tokens under an explicit output limit.
     pub(super) fn redact_urls_in_text_with_output_limit(
         &self,
         text: &str,
@@ -169,6 +171,7 @@ impl HttpRedactor {
         self.finish_diagnostic_with_limit(redacted, output_limit)
     }
 
+    /// Parses and redacts one URL string under an explicit output limit.
     pub(super) fn redact_url_str_with_output_limit(
         &self,
         input: &str,
@@ -261,6 +264,7 @@ impl HttpRedactor {
         self.finish_diagnostic(text)
     }
 
+    /// Redacts URL-encoded form text under an explicit output limit.
     pub(super) fn redact_form_with_output_limit(
         &self,
         input: &str,

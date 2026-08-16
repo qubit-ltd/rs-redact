@@ -147,6 +147,7 @@ impl RedactionLimits {
 }
 
 impl Default for RedactionLimits {
+    /// Creates limits using the standard input and output defaults.
     #[inline]
     fn default() -> Self {
         Self {

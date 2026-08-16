@@ -147,13 +147,17 @@ impl JsonRedactionSession<'_, '_> {
     }
 }
 
+/// Counts the serialized UTF-8 bytes used by a JSON value.
 fn count_json_bytes(value: &Value) -> usize {
+    /// Sink that counts bytes without retaining the serialized JSON.
     struct Counter(usize);
     impl Write for Counter {
+        /// Adds the written byte count to the sink total.
         fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
             self.0 = self.0.saturating_add(bytes.len());
             Ok(bytes.len())
         }
+        /// Flushes the counting sink; no buffered data exists.
         fn flush(&mut self) -> io::Result<()> {
             Ok(())
         }
