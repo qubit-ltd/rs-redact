@@ -15,7 +15,6 @@ use super::UriPathPolicy;
 use super::uri_redaction_policy_inner::UriPolicyInner;
 
 /// Immutable URI policy that delegates field decisions to the core policy.
-#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UriPolicy {
     pub(crate) inner: Arc<UriPolicyInner>,
@@ -23,20 +22,21 @@ pub struct UriPolicy {
 
 impl UriPolicy {
     /// Returns the path handling policy.
-    #[must_use = "inspect the path policy"]
+    #[must_use]
     #[inline]
     pub fn path_policy(&self) -> UriPathPolicy {
         self.inner.path_policy
     }
 
     /// Returns the fragment handling policy.
-    #[must_use = "inspect the fragment policy"]
+    #[must_use]
     #[inline]
     pub fn fragment_policy(&self) -> UriFragmentPolicy {
         self.inner.fragment_policy
     }
 
     /// Creates an immutable URI policy from validated component policies.
+    #[must_use]
     pub(crate) fn new(
         path_policy: UriPathPolicy,
         fragment_policy: UriFragmentPolicy,

@@ -17,7 +17,6 @@ use super::JsonDepthLimitError;
 /// entering a container never requires a later release. Use it for JSON nesting
 /// depth; use a [`qubit_budget::ResourceBudget`] for cumulative input or output
 /// bytes. Failed checks leave this value unchanged.
-#[must_use = "use the validated limit to bound JSON redaction"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct JsonDepthLimit {
     /// Immutable point limit for recursive container depth.
@@ -89,6 +88,7 @@ impl Default for JsonDepthLimit {
     ///
     /// A budget allowing at most 128 recursive container descents.
     #[inline(always)]
+    #[must_use]
     fn default() -> Self {
         Self {
             limit: Self::DEFAULT_MAX_DEPTH,

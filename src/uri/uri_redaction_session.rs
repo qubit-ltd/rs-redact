@@ -22,7 +22,7 @@ pub struct UriRedactionSession<'session, 'policy> {
 
 impl<'policy> RedactionSession<'policy> {
     /// Creates a URI facade backed by this session's policy and budgets.
-    #[must_use = "use the URI facade to redact input"]
+    #[must_use]
     #[inline]
     pub fn uri(&mut self) -> UriRedactionSession<'_, 'policy> {
         UriRedactionSession { session: self }
@@ -40,7 +40,7 @@ impl UriRedactionSession<'_, '_> {
     /// for a full safe rewrite, `Truncated` for non-empty fallback or omitted
     /// output, and `Exhausted` only when the safe text is empty. Existing URI
     /// status and reason metadata keep their independent meanings.
-    #[must_use = "use the structured URI redaction result"]
+    #[must_use]
     pub fn redact_uri_str(&mut self, input: &str) -> UriRedaction {
         let domain_output_limit = self
             .session

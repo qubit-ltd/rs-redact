@@ -8,7 +8,6 @@
 //! Overall URI redaction outcomes.
 
 /// Describes the outcome of processing one URI string.
-#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UriRedactionStatus {

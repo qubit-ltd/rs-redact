@@ -16,7 +16,6 @@ use super::DomainRedactionLimitsError;
 /// iterator advancement consumes one collection item. Node and collection-item
 /// charges accumulate for the lifetime of one redaction session; active depth
 /// is restored when a domain-value scope is dropped.
-#[must_use = "use the validated limits to bound domain traversal"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DomainRedactionLimits {
     max_nodes: usize,
@@ -79,6 +78,7 @@ impl DomainRedactionLimits {
 
     /// Returns the active domain-value depth limit.
     #[inline(always)]
+    #[must_use]
     pub const fn max_depth(&self) -> usize {
         self.max_depth
     }
@@ -88,6 +88,7 @@ impl Default for DomainRedactionLimits {
     /// Returns the fixed safe defaults of 1024 nodes, 256 collection items,
     /// and an active depth of 32.
     #[inline(always)]
+    #[must_use]
     fn default() -> Self {
         Self {
             max_nodes: Self::DEFAULT_MAX_NODES,

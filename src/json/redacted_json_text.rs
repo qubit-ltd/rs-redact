@@ -23,7 +23,6 @@ use crate::text::internal::BoundedLogEscapeWriter;
 /// text larger than the policy diagnostic input budget before parsing it and
 /// apply the policy output budget. Explicit mutation and Serde serialization
 /// preserve complete JSON instead.
-#[must_use = "format or serialize the redacted JSON text view"]
 pub struct RedactedJsonText<'text, 'policy> {
     /// Original JSON text borrowed without cloning.
     text: &'text str,
@@ -42,6 +41,7 @@ impl<'text, 'policy> RedactedJsonText<'text, 'policy> {
     /// # Returns
     ///
     /// A borrowed fail-closed JSON text view.
+    #[must_use]
     pub const fn new(
         text: &'text str,
         policy: &'policy RedactionPolicy,

@@ -31,7 +31,6 @@ use super::log_escape::escape_log_control_characters;
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of any borrowed redacted text stored by the value.
-#[must_use = "use the redacted value instead of the original value"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactedText<'a>(
     /// Borrowed input or an owned masked value.
@@ -59,7 +58,7 @@ impl<'a> RedactedText<'a> {
     /// # Returns
     ///
     /// The redacted text as a string slice.
-    #[must_use = "use the redacted value instead of the original value"]
+    #[must_use]
     #[inline(always)]
     pub fn as_str(&self) -> &str {
         self.0.as_ref()
@@ -70,7 +69,7 @@ impl<'a> RedactedText<'a> {
     /// # Returns
     ///
     /// The redacted text, allocating only when the value is borrowed.
-    #[must_use = "use the redacted value instead of the original value"]
+    #[must_use]
     #[inline(always)]
     pub fn into_owned(self) -> String {
         self.0.into_owned()
@@ -86,6 +85,7 @@ impl<'a> RedactedText<'a> {
     ///
     /// Typed text that is safe to render with [`std::fmt::Display`].
     #[inline]
+    #[must_use]
     pub fn escape_for_log(self) -> LogSafeText<'a> {
         LogSafeText::from_escaped(escape_log_control_characters(self.0))
     }
@@ -96,7 +96,7 @@ impl<'a> RedactedText<'a> {
     ///
     /// The redacted text with its ownership form preserved.
     #[cfg(feature = "http")]
-    #[must_use = "use the redacted value instead of the original value"]
+    #[must_use]
     #[inline(always)]
     pub(crate) fn into_inner(self) -> Cow<'a, str> {
         self.0

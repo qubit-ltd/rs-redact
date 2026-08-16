@@ -28,7 +28,6 @@ use std::fmt::Result;
 ///
 /// * `'a` - Lifetime of the protected borrowed value.
 /// * `T` - Protected value type, which need not implement [`Debug`].
-#[must_use = "render the redacted debug marker instead of discarding it"]
 pub struct RedactedDebug<'a, T: ?Sized> {
     /// The protected value, retained only to preserve its borrow and traits.
     _value: &'a T,
@@ -49,6 +48,7 @@ impl<T: ?Sized> Debug for RedactedDebug<'_, T> {
     ///
     /// Returns [`std::fmt::Error`] when the formatter rejects the write.
     #[inline(always)]
+    #[must_use]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
         formatter.write_str("<redacted>")
     }
@@ -70,6 +70,7 @@ impl<T: ?Sized> Debug for RedactedDebug<'_, T> {
 ///
 /// A wrapper borrowing `value` and rendering the fixed redaction marker.
 #[inline(always)]
+#[must_use]
 pub const fn redacted_debug<T: ?Sized>(value: &T) -> RedactedDebug<'_, T> {
     RedactedDebug { _value: value }
 }

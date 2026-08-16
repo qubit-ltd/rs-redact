@@ -17,7 +17,6 @@ use crate::domain::RedactSerialize;
 /// * `'a` - Lifetime of the borrowed value and policy snapshot.
 /// * `T` - Domain value serialized through redaction.
 #[doc(hidden)]
-#[must_use = "serialize the adapter to produce redacted output"]
 pub struct RedactedSerialize<'a, T: ?Sized> {
     /// Nested value to serialize.
     value: &'a T,

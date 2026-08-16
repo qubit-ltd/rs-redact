@@ -16,7 +16,6 @@ use crate::RedactionCompletion;
 use crate::text::redaction_output::RedactionOutput;
 
 /// A bounded environment batch paired with its exact completion state.
-#[must_use = "inspect or render the redacted environment batch"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactedEnv {
     /// Escaped batch rendering paired with its exact completion state.
@@ -34,6 +33,7 @@ impl RedactedEnv {
     ///
     /// Safe text paired with [`RedactionCompletion::Complete`].
     #[inline(always)]
+    #[must_use]
     pub(super) fn complete(rendered: LogSafeText<'static>) -> Self {
         Self {
             output: RedactionOutput::complete(rendered),
@@ -51,6 +51,7 @@ impl RedactedEnv {
     /// A truncated result for non-empty text, or an exhausted result when no
     /// safe replacement was emitted.
     #[inline(always)]
+    #[must_use]
     pub(super) fn truncated(rendered: LogSafeText<'static>) -> Self {
         Self {
             output: RedactionOutput::truncated(rendered)
@@ -67,6 +68,7 @@ impl RedactedEnv {
     ///
     /// Empty safe text paired with [`RedactionCompletion::Exhausted`].
     #[inline(always)]
+    #[must_use]
     pub(super) fn exhausted() -> Self {
         Self {
             output: RedactionOutput::exhausted(),

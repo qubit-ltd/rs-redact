@@ -27,7 +27,6 @@ use crate::text::internal::BoundedLogEscapeWriter;
 /// # Type Parameters
 ///
 /// * `D` - Already-redacted debug value rendered by this adapter.
-#[must_use = "format the bounded redacted view"]
 pub struct BoundedRedactedDisplay<D> {
     /// Already-redacted debug view to render.
     value: D,
@@ -69,6 +68,7 @@ impl<D: Debug> Display for BoundedRedactedDisplay<D> {
     /// Returns [`fmt::Error`] when redacted formatting or the destination
     /// rejects output.
     #[inline(always)]
+    #[must_use]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         format_bounded(&self.value, self.limit, formatter)
     }

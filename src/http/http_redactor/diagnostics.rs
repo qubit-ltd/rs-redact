@@ -22,6 +22,7 @@ impl HttpRedactor {
     }
 
     /// Returns the fixed log-safe diagnostic-limit marker.
+    #[must_use]
     pub(super) fn diagnostic_limit_exceeded() -> LogSafeText<'static> {
         LogSafeText::from_escaped(Cow::Borrowed(
             markers::DIAGNOSTIC_LIMIT_EXCEEDED,
@@ -29,6 +30,7 @@ impl HttpRedactor {
     }
 
     /// Escapes and bounds one redacted HTTP diagnostic.
+    #[must_use]
     pub(super) fn finish_diagnostic(
         &self,
         text: String,
@@ -40,6 +42,7 @@ impl HttpRedactor {
     }
 
     /// Escapes and bounds one diagnostic with an explicit output ceiling.
+    #[must_use]
     pub(super) fn finish_diagnostic_with_limit(
         &self,
         text: String,

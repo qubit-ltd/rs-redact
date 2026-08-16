@@ -30,7 +30,6 @@ use crate::text::redaction_output::RedactionOutput;
 /// let result = UriRedactor::default().redact_uri_str("https://example.test");
 /// let _ = result.is_truncated();
 /// ```
-#[must_use]
 #[derive(Clone, PartialEq, Eq)]
 pub struct UriRedaction {
     output: RedactionOutput,
@@ -55,6 +54,7 @@ impl UriRedaction {
     ///
     /// A URI result whose text and completion obey the shared three-state
     /// invariant. Empty truncated text is normalized to `Exhausted`.
+    #[must_use]
     pub(crate) fn new(
         text: LogSafeText<'static>,
         status: UriRedactionStatus,
@@ -77,28 +77,28 @@ impl UriRedaction {
     }
 
     /// Returns the log-safe URI text without exposing an unescaped source.
-    #[must_use = "use the safe text when logging the URI"]
+    #[must_use]
     #[inline]
     pub fn log_safe_text(&self) -> &LogSafeText<'static> {
         self.output.log_safe_text()
     }
 
     /// Consumes the result and returns typed log-safe text.
-    #[must_use = "consume the result to obtain safe text"]
+    #[must_use]
     #[inline]
     pub fn into_log_safe_text(self) -> LogSafeText<'static> {
         self.output.into_log_safe_text()
     }
 
     /// Returns the overall processing status.
-    #[must_use = "inspect the URI processing status"]
+    #[must_use]
     #[inline]
     pub const fn status(&self) -> UriRedactionStatus {
         self.status
     }
 
     /// Returns all reasons recorded while processing the URI.
-    #[must_use = "inspect the URI processing reasons"]
+    #[must_use]
     #[inline]
     pub fn reasons(&self) -> &[UriRedactionReason] {
         &self.reasons
@@ -135,7 +135,7 @@ impl UriRedaction {
     /// substitute represents rejected input or omitted output; or
     /// [`RedactionCompletion::Exhausted`] when no safe text fit. URI status and
     /// reason metadata retain their existing meanings independently.
-    #[must_use = "inspect whether the safe URI output is complete"]
+    #[must_use]
     pub const fn completion(&self) -> RedactionCompletion {
         self.output.completion()
     }
@@ -144,6 +144,7 @@ impl UriRedaction {
 impl Debug for UriRedaction {
     /// Formats only safe text and redaction metadata.
     #[inline]
+    #[must_use]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("UriRedaction")

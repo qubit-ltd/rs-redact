@@ -20,7 +20,6 @@ use super::Sensitivity;
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of canonical field names borrowed from the policy.
-#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FieldClassification<'a> {

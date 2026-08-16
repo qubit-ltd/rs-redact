@@ -21,7 +21,6 @@ use crate::policy::RedactionAdmission;
 const TRUNCATED_LIST: &str = "[\"<truncated>\"]";
 
 /// A borrowed argv façade over one mutable diagnostic session.
-#[must_use = "use the façade to produce the redacted argv rendering"]
 pub struct ArgvRedactionSession<'session, 'policy> {
     /// Shared policy and accounting owned by the parent session.
     session: &'session mut RedactionSession<'policy>,
@@ -30,6 +29,7 @@ pub struct ArgvRedactionSession<'session, 'policy> {
 impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
     /// Creates a façade from a mutable diagnostic session.
     #[inline(always)]
+    #[must_use]
     pub(crate) const fn new(
         session: &'session mut RedactionSession<'policy>,
     ) -> Self {
@@ -43,6 +43,7 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
     /// or empty value is returned. The result reports `Complete` only after
     /// observing iterator exhaustion, `Truncated` for non-empty safe output
     /// with any omission, and `Exhausted` for empty output.
+    #[must_use]
     pub fn redact_items<'items, I>(&mut self, items: I) -> RedactedArgv
     where
         I: IntoIterator<Item = ArgvItem<'items>>,
@@ -57,6 +58,7 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
     /// `Complete` only after observing iterator exhaustion, `Truncated` for
     /// non-empty safe output with any omission, and `Exhausted` for empty
     /// output.
+    #[must_use]
     pub fn redact_heuristically<'items, I>(&mut self, items: I) -> RedactedArgv
     where
         I: IntoIterator<Item = ArgvItem<'items>>,
@@ -65,6 +67,7 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
     }
 
     /// Renders one item stream while charging each admitted fragment.
+    #[must_use]
     fn render<'items, I>(&mut self, items: I, heuristic: bool) -> RedactedArgv
     where
         I: IntoIterator<Item = ArgvItem<'items>>,
@@ -163,6 +166,7 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
 /// Fallback admission has already charged the complete marker and therefore
 /// maps to non-empty truncated output. Exhaustion maps to the only valid empty
 /// result and does not inspect the pending iterator.
+#[must_use]
 fn admission_fallback(admission: RedactionAdmission) -> RedactedArgv {
     match admission {
         RedactionAdmission::Fallback => RedactedArgv::truncated(
@@ -178,6 +182,7 @@ fn admission_fallback(admission: RedactionAdmission) -> RedactedArgv {
 impl<'policy> RedactionSession<'policy> {
     /// Creates an argv façade borrowing this diagnostic session.
     #[inline(always)]
+    #[must_use]
     pub fn argv<'session>(
         &'session mut self,
     ) -> ArgvRedactionSession<'session, 'policy> {

@@ -28,7 +28,6 @@ use crate::policy::RedactionAdmission;
 use crate::text::redaction_output::RedactionOutput;
 
 /// Feature-gated JSON operations sharing one mutable diagnostic session.
-#[must_use = "use the session-bounded JSON result"]
 pub struct JsonRedactionSession<'session, 'policy> {
     pub(super) session: &'session mut RedactionSession<'policy>,
 }
@@ -43,6 +42,7 @@ impl JsonRedactionSession<'_, '_> {
     /// output, and leaves the session closed to later reads. A rendered result
     /// commits exactly its escaped byte length and closes the session when
     /// either JSON processing or final output bounding omitted content.
+    #[must_use]
     fn redact_owned(
         &mut self,
         input_bytes: usize,
@@ -113,6 +113,7 @@ impl JsonRedactionSession<'_, '_> {
     ///
     /// A compact log-safe result carrying `Complete`, `Truncated`, or
     /// `Exhausted` completion.
+    #[must_use]
     pub fn redact_value(&mut self, value: &Value) -> JsonRedactionOutput {
         if self.session.is_exhausted() {
             return JsonRedactionOutput::new(RedactionOutput::exhausted());
@@ -140,6 +141,7 @@ impl JsonRedactionSession<'_, '_> {
     ///
     /// A compact log-safe result carrying `Complete`, `Truncated`, or
     /// `Exhausted` completion.
+    #[must_use]
     pub fn redact_text(&mut self, text: &str) -> JsonRedactionOutput {
         self.redact_owned(text.len(), |policy, limit| {
             redacted_json_text_bounded(text, policy, limit)
@@ -205,6 +207,7 @@ fn bound_safe_text(text: &str, max_bytes: usize) -> (String, bool) {
 impl<'policy> RedactionSession<'policy> {
     /// Creates the JSON façade borrowing this session's policy and budget.
     #[inline]
+    #[must_use]
     pub fn json<'session>(
         &'session mut self,
     ) -> JsonRedactionSession<'session, 'policy> {

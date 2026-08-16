@@ -20,7 +20,6 @@ use super::internal::RedactionAdmission;
 
 /// Carries one immutable policy and one mutable budget through a diagnostic
 /// event.
-#[must_use]
 #[derive(Debug)]
 pub struct RedactionSession<'policy> {
     policy: &'policy RedactionPolicy,
@@ -42,6 +41,7 @@ impl<'policy> RedactionSession<'policy> {
 
     /// Returns the immutable policy snapshot used by this session.
     #[inline]
+    #[must_use]
     pub const fn policy(&self) -> &'policy RedactionPolicy {
         self.policy
     }
@@ -54,6 +54,7 @@ impl<'policy> RedactionSession<'policy> {
     /// drop. [`DomainValueAdmission::DepthLimitReached`] rejects just the
     /// current branch, while [`DomainValueAdmission::TraversalLimitReached`]
     /// means no later domain value may be accessed in this session.
+    #[must_use]
     pub fn enter_domain_value<'session>(
         &'session mut self,
     ) -> DomainValueAdmission<'session, 'policy> {

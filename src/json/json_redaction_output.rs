@@ -22,7 +22,6 @@ use crate::text::redaction_output::RedactionOutput;
 /// [`RedactionCompletion::Truncated`] means input or output was omitted but a
 /// non-empty safe substitute was emitted. [`RedactionCompletion::Exhausted`]
 /// is the only state with empty output and means no safe substitute fit.
-#[must_use = "inspect the JSON redaction completion and safe output"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsonRedactionOutput {
     /// Invariant-preserving safe text and completion state.

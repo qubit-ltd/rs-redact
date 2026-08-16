@@ -16,7 +16,6 @@ use super::header_parameter::parse_parameters;
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of the media type borrowed from the part headers.
-#[must_use]
 pub(in crate::http) struct MultipartPartMetadata<'a> {
     /// Non-blank form field name.
     name: Option<String>,

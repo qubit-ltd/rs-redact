@@ -23,7 +23,6 @@ use super::internal::RedactionPolicyInner;
 use super::internal::visit_canonical_field_candidates;
 
 /// Immutable, cheap-to-clone field classification snapshot.
-#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionRules {
     application: Arc<RedactionPolicyInner>,
@@ -32,6 +31,7 @@ pub struct RedactionRules {
 
 impl RedactionRules {
     /// Creates immutable rules from application rules and an optional floor.
+    #[must_use]
     pub(crate) fn new(
         application: RedactionPolicyInner,
         floor: Option<RedactionFloor>,
@@ -63,6 +63,7 @@ impl RedactionRules {
     ///
     /// This explicitly removes global and configured minimum protection. Use it
     /// only when the caller intentionally accepts responsibility for doing so.
+    #[must_use]
     pub fn disable_floor(mut self) -> Self {
         self.floor = None;
         self
@@ -70,6 +71,7 @@ impl RedactionRules {
 
     /// Explains application-rule matching only; it is not the final safety
     /// decision.
+    #[must_use]
     pub fn classify_field<'a>(
         &'a self,
         field: &str,
@@ -177,6 +179,7 @@ impl RedactionRules {
     }
 
     /// Iterates only application sensitive rules, never floor rules.
+    #[must_use]
     pub fn application_sensitive_rules(
         &self,
     ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
@@ -187,6 +190,7 @@ impl RedactionRules {
     }
 
     /// Iterates only application allow rules, never floor rules.
+    #[must_use]
     pub fn application_allow_rules(
         &self,
     ) -> impl Iterator<Item = AllowRule<'_>> {
@@ -206,6 +210,7 @@ impl RedactionRules {
 }
 
 /// Classifies one field against a single rule layer.
+#[must_use]
 fn classify_inner<'a>(
     inner: &'a RedactionPolicyInner,
     field: &str,
@@ -256,6 +261,7 @@ fn classify_inner<'a>(
 }
 
 /// Resolves the strongest sensitivity applicable to one field name.
+#[must_use]
 fn sensitivity_inner(
     inner: &RedactionPolicyInner,
     field: &str,
@@ -273,6 +279,7 @@ fn sensitivity_inner(
 }
 
 /// Returns the strongest sensitivity among every matching field candidate.
+#[must_use]
 fn strongest_sensitive_match(
     inner: &RedactionPolicyInner,
     field: &str,

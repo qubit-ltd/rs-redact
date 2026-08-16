@@ -26,7 +26,6 @@ use crate::policy::ResolvedField;
 use crate::text::redaction_output::RedactionOutput;
 
 /// Applies one immutable policy to scalar values and string maps.
-#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Redactor {
     /// Field classification and masking configuration.
@@ -63,7 +62,7 @@ impl Redactor {
     /// # Returns
     ///
     /// A borrowed view of the redactor's policy snapshot.
-    #[must_use = "use the policy snapshot backing this redactor"]
+    #[must_use]
     #[inline(always)]
     pub const fn policy(&self) -> &RedactionPolicy {
         &self.policy
@@ -74,7 +73,7 @@ impl Redactor {
     /// # Returns
     ///
     /// A session borrowing this redactor's immutable policy.
-    #[must_use = "retain the session for one diagnostic event"]
+    #[must_use]
     #[inline]
     pub fn session(&self) -> RedactionSession<'_> {
         RedactionSession::new(&self.policy)
@@ -104,7 +103,7 @@ impl Redactor {
     ///
     /// A typed result that distinguishes masked values from pass-through
     /// values while borrowing safe input where possible.
-    #[must_use = "use the returned redacted value"]
+    #[must_use]
     #[inline]
     pub fn redact_field<'a>(
         &self,
@@ -133,7 +132,7 @@ impl Redactor {
     /// # Returns
     ///
     /// Typed redacted text produced by the configured mask for `level`.
-    #[must_use = "use the returned redacted value"]
+    #[must_use]
     #[inline]
     pub fn redact_at<'a>(
         &self,
@@ -165,7 +164,7 @@ impl Redactor {
     /// # Returns
     ///
     /// A lazy keyed redaction view borrowing `key` and `value`.
-    #[must_use = "format or serialize the returned keyed redaction view"]
+    #[must_use]
     #[inline(always)]
     pub fn redact_keyed<'value, T: ?Sized>(
         &self,
@@ -193,7 +192,7 @@ impl Redactor {
     /// # Returns
     ///
     /// A map of the same type containing redacted values.
-    #[must_use = "use the returned redacted map"]
+    #[must_use]
     pub fn redact_map<M, K: ?Sized, V: ?Sized>(&self, map: &M) -> M
     where
         M: Clone + RedactMapValueMut<K, V>,
@@ -234,7 +233,7 @@ impl RedactionSession<'_> {
     /// # Returns
     ///
     /// A charged field result that borrows safe input where possible.
-    #[must_use = "use the returned redacted value"]
+    #[must_use]
     pub fn redact_field<'value>(
         &mut self,
         field: &str,
@@ -276,6 +275,7 @@ impl RedactionSession<'_> {
     ///
     /// The charged field result and whether it was complete, substituted, or
     /// unable to emit safe text.
+    #[must_use]
     fn redact_field_with_completion<'value>(
         &mut self,
         field: &str,
@@ -334,7 +334,7 @@ impl RedactionSession<'_> {
     /// # Returns
     ///
     /// Charged redacted text produced by the configured mask.
-    #[must_use = "use the returned redacted value"]
+    #[must_use]
     pub fn redact_at<'value>(
         &mut self,
         level: Sensitivity,
@@ -376,6 +376,7 @@ impl RedactionSession<'_> {
     ///
     /// The charged value and whether it was complete, substituted, or unable
     /// to emit safe text.
+    #[must_use]
     fn redact_at_with_completion<'value>(
         &mut self,
         level: Sensitivity,
@@ -502,6 +503,7 @@ fn redaction_fragment_completion(
 }
 
 /// Redacts one field through the supplied ordinary or diagnostic budget.
+#[must_use]
 fn redact_field_with_budget<'value>(
     policy: &RedactionPolicy,
     budget: &mut DiagnosticBudget,
@@ -532,6 +534,7 @@ fn redact_field_with_budget<'value>(
 }
 
 /// Resolves one admitted field without charging its output.
+#[must_use]
 fn redact_field_unbudgeted<'value>(
     policy: &RedactionPolicy,
     field: &str,
@@ -568,6 +571,7 @@ fn redact_field_unbudgeted<'value>(
 }
 
 /// Redacts one explicitly sensitive value through a supplied budget.
+#[must_use]
 fn redact_at_with_budget<'value>(
     policy: &RedactionPolicy,
     budget: &mut DiagnosticBudget,
@@ -603,6 +607,7 @@ fn opaque_mask(policy: &RedactionPolicy) -> &str {
 }
 
 /// Converts a non-render admission into fail-closed redacted text.
+#[must_use]
 fn admission_text_fallback<'value>(
     admission: RedactionAdmission,
     fallback: &str,
@@ -621,6 +626,7 @@ fn admission_text_fallback<'value>(
 }
 
 /// Converts a non-render admission into a fail-closed field result.
+#[must_use]
 fn admission_field_fallback<'value>(
     admission: RedactionAdmission,
     fallback: &str,
@@ -632,6 +638,7 @@ fn admission_field_fallback<'value>(
 }
 
 /// Commits a terminal scalar fallback after rendered output exceeded its cap.
+#[must_use]
 fn terminal_text_fallback<'value>(
     budget: &mut DiagnosticBudget,
     max_output_bytes: usize,
@@ -651,6 +658,7 @@ fn terminal_text_fallback<'value>(
 }
 
 /// Wraps a terminal scalar fallback as a field result.
+#[must_use]
 fn terminal_field_fallback<'value>(
     budget: &mut DiagnosticBudget,
     max_output_bytes: usize,
@@ -669,6 +677,7 @@ fn terminal_field_fallback<'value>(
 }
 
 /// Commits a terminal scalar fallback through a diagnostic session.
+#[must_use]
 fn terminal_session_text_fallback<'value>(
     session: &mut RedactionSession<'_>,
     max_output_bytes: usize,
@@ -686,6 +695,7 @@ fn terminal_session_text_fallback<'value>(
 }
 
 /// Wraps a session-terminal scalar fallback as a field result.
+#[must_use]
 fn terminal_session_field_fallback<'value>(
     session: &mut RedactionSession<'_>,
     max_output_bytes: usize,
@@ -720,6 +730,7 @@ fn truncation_completion(
 
 /// Returns the exact UTF-8 byte length emitted after crossing the log boundary.
 #[inline]
+#[must_use]
 fn log_safe_len(value: &str) -> usize {
     RedactedText::new(Cow::Borrowed(value))
         .escape_for_log()
@@ -738,6 +749,7 @@ impl Default for Redactor {
     /// Applications requiring stricter handling must install their complete
     /// policy before construction or pass an explicit policy to [`Self::new`].
     #[inline(always)]
+    #[must_use]
     fn default() -> Self {
         Self::new(RedactionPolicy::default())
     }

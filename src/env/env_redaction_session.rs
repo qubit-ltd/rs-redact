@@ -30,7 +30,6 @@ const FALLBACK_PAIR: &str = "<redacted>=<redacted>";
 const TRUNCATED_LIST: &str = "<truncated>";
 
 /// A borrowed environment façade over one mutable diagnostic session.
-#[must_use = "use the façade to produce the redacted environment value"]
 pub struct EnvRedactionSession<'session, 'policy> {
     /// Shared policy and accounting owned by the parent session.
     session: &'session mut RedactionSession<'policy>,
@@ -39,6 +38,7 @@ pub struct EnvRedactionSession<'session, 'policy> {
 impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
     /// Creates a façade from a mutable diagnostic session.
     #[inline(always)]
+    #[must_use]
     pub(crate) const fn new(
         session: &'session mut RedactionSession<'policy>,
     ) -> Self {
@@ -46,11 +46,13 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
     }
 
     /// Redacts one UTF-8 environment pair.
+    #[must_use]
     pub fn redact_pair(&mut self, name: &str, value: &str) -> RedactedEnvPair {
         self.redact_os_pair(OsStr::new(name), OsStr::new(value))
     }
 
     /// Redacts one possibly non-UTF-8 environment pair.
+    #[must_use]
     pub fn redact_os_pair(
         &mut self,
         name: &OsStr,
@@ -126,6 +128,7 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
     /// # Returns
     ///
     /// A [`RedactedEnv`] carrying the batch text and exact completion state.
+    #[must_use]
     pub fn redact_os_pairs<'items, I>(&mut self, pairs: I) -> RedactedEnv
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
@@ -232,6 +235,7 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
 }
 
 /// Converts a non-render admission into a safe pair.
+#[must_use]
 fn pair_fallback(admission: RedactionAdmission) -> RedactedEnvPair {
     match admission {
         RedactionAdmission::Fallback => RedactedEnvPair::truncated(
@@ -249,6 +253,7 @@ fn pair_fallback(admission: RedactionAdmission) -> RedactedEnvPair {
 /// Fallback admission has already charged non-empty substitute text and maps
 /// to truncation. Exhausted admission maps to empty output and callers must not
 /// advance the pending iterator.
+#[must_use]
 fn list_fallback(admission: RedactionAdmission) -> RedactedEnv {
     match admission {
         RedactionAdmission::Fallback => {
@@ -271,6 +276,7 @@ fn list_fallback(admission: RedactionAdmission) -> RedactedEnv {
 ///
 /// Owned typed log-safe output without applying a second escape pass.
 #[inline(always)]
+#[must_use]
 fn log_safe_rendered(value: String) -> LogSafeText<'static> {
     LogSafeText::from_escaped(Cow::Owned(value))
 }
@@ -278,6 +284,7 @@ fn log_safe_rendered(value: String) -> LogSafeText<'static> {
 impl<'policy> RedactionSession<'policy> {
     /// Creates an environment façade borrowing this diagnostic session.
     #[inline(always)]
+    #[must_use]
     pub fn env<'session>(
         &'session mut self,
     ) -> EnvRedactionSession<'session, 'policy> {

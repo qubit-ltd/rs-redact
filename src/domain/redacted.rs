@@ -30,6 +30,7 @@ pub(crate) enum DomainRenderStatus {
 
 impl DomainRenderStatus {
     /// Returns whether shared traversal or output exhaustion stops siblings.
+    #[must_use]
     pub(crate) const fn stops_siblings(self) -> bool {
         matches!(self, Self::TraversalTruncated | Self::OutputTruncated)
     }
@@ -44,7 +45,6 @@ impl DomainRenderStatus {
 ///
 /// * `'a` - Lifetime of the borrowed domain object.
 /// * `T` - Domain-object type rendered or serialized through redaction.
-#[must_use = "format or serialize the redacted view"]
 pub struct Redacted<'a, T: ?Sized> {
     /// Domain object rendered through this view.
     value: &'a T,
@@ -79,6 +79,7 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     ///
     /// A bounded formatting adapter that owns this redacted view.
     #[inline(always)]
+    #[must_use]
     pub const fn with_output_limit(
         self,
         limit: LogOutputLimit,
@@ -91,7 +92,7 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     /// # Returns
     ///
     /// A formatting adapter bounded by this view's diagnostic output budget.
-    #[must_use = "format the bounded redacted display adapter"]
+    #[must_use]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
         let limit =
@@ -117,6 +118,7 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     /// The immutable policy snapshot owned by this view.
     #[cfg(feature = "serde")]
     #[inline(always)]
+    #[must_use]
     pub(crate) const fn policy(&self) -> &RedactionPolicy {
         &self.policy
     }
@@ -202,7 +204,6 @@ mod session_view {
     use crate::text::internal::LogEscapeWriter;
 
     /// An eagerly completed nested redacted representation.
-    #[must_use = "format the nested redacted view"]
     pub struct RedactedResult<'value, T: ?Sized> {
         completed: CompletedDebug,
         status: super::DomainRenderStatus,
@@ -212,6 +213,7 @@ mod session_view {
     impl<'value, T: Redact + ?Sized> RedactedResult<'value, T> {
         /// Completes a compact nested representation through `session`.
         #[inline(always)]
+        #[must_use]
         pub fn new(
             value: &'value T,
             session: &mut RedactionSession<'_>,
@@ -235,6 +237,7 @@ mod session_view {
         }
 
         /// Completes a nested representation while preserving pretty debug.
+        #[must_use]
         pub(crate) fn new_with_alternate(
             value: &'value T,
             session: &mut RedactionSession<'_>,
@@ -319,6 +322,7 @@ mod session_view {
         }
 
         /// Creates a valid empty result after complete output exhaustion.
+        #[must_use]
         pub(crate) fn empty() -> Self {
             Self {
                 completed: CompletedDebug::empty(),
@@ -331,6 +335,7 @@ mod session_view {
     impl<T: ?Sized> Debug for RedactedResult<'_, T> {
         /// Writes the already-completed safe representation.
         #[inline(always)]
+        #[must_use]
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
             Debug::fmt(&self.completed, formatter)
         }

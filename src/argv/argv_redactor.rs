@@ -17,7 +17,6 @@ use crate::Sensitivity;
 use crate::policy::ResolvedField;
 
 /// Applies one immutable redaction policy to argument vectors.
-#[must_use = "use the redactor to produce a safe argv rendering"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArgvRedactor {
     /// Core redactor supplying field classification and masking policies.
@@ -46,6 +45,7 @@ impl ArgvRedactor {
     ///
     /// A borrowed view of the core redactor.
     #[inline(always)]
+    #[must_use]
     pub const fn redactor(&self) -> &Redactor {
         &self.redactor
     }
@@ -73,6 +73,7 @@ impl ArgvRedactor {
     /// when the iterator's end was observed, `Truncated` when safe non-empty
     /// output represents omitted input or output, and `Exhausted` when no safe
     /// substitute fit.
+    #[must_use]
     pub fn redact_items<'a, I>(&self, items: I) -> RedactedArgv
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
@@ -111,6 +112,7 @@ impl ArgvRedactor {
     /// when the iterator's end was observed, `Truncated` when safe non-empty
     /// output represents omitted input or output, and `Exhausted` when no safe
     /// substitute fit.
+    #[must_use]
     pub fn redact_heuristically<'a, I>(&self, items: I) -> RedactedArgv
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
@@ -436,6 +438,7 @@ impl Default for ArgvRedactor {
     ///
     /// An argv redactor backed by [`Redactor::default`].
     #[inline(always)]
+    #[must_use]
     fn default() -> Self {
         Self::new(Redactor::default())
     }

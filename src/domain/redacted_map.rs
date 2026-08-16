@@ -68,7 +68,6 @@ use crate::domain::RedactMapValue;
 ///     RedactedMap::new(&map, RedactionPolicy::default());
 /// let _ = format!("{view:?}");
 /// ```
-#[must_use = "format or serialize the redacted map view"]
 pub struct RedactedMap<'a, M: ?Sized, K: ?Sized = String, V: ?Sized = String> {
     /// Map borrowed without traversal.
     map: &'a M,
@@ -109,6 +108,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     ///
     /// A bounded formatting adapter that owns this redacted map view.
     #[inline(always)]
+    #[must_use]
     pub const fn with_output_limit(
         self,
         limit: LogOutputLimit,
@@ -121,7 +121,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     /// # Returns
     ///
     /// A formatting adapter bounded by this view's diagnostic output budget.
-    #[must_use = "format the bounded redacted map display adapter"]
+    #[must_use]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
         let limit =
@@ -182,7 +182,6 @@ mod session_view {
     use crate::text::internal::LogEscapeWriter;
 
     /// A nested map view that reuses one diagnostic session.
-    #[must_use = "format the nested redacted map view"]
     pub struct RedactedMapResult<
         'map,
         M: ?Sized,
@@ -210,6 +209,7 @@ mod session_view {
         /// deducted exactly once. Structural budget rejection is recorded as
         /// domain truncation without closing output needed by eligible sibling
         /// fields; reaching the shared byte ceiling closes session output.
+        #[must_use]
         pub(crate) fn new_with_alternate(
             map: &'map M,
             session: &mut RedactionSession<'_>,
@@ -271,6 +271,7 @@ mod session_view {
     impl<M: ?Sized, K: ?Sized, V: ?Sized> Debug for RedactedMapResult<'_, M, K, V> {
         /// Writes the already-completed safe map representation.
         #[inline(always)]
+        #[must_use]
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
             Debug::fmt(&self.completed, formatter)
         }

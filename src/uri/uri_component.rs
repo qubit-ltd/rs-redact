@@ -8,7 +8,6 @@
 //! URI components that can carry sensitive data.
 
 /// A URI component whose redaction was controlled by the policy.
-#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UriComponent {
     /// The userinfo username before the first raw colon.

@@ -13,7 +13,6 @@
 /// sensitive query values. The standard policy preserves paths for diagnostic
 /// usefulness; strict policies should select [`Self::Redact`] when paths may
 /// contain opaque identifiers or credentials.
-#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UrlPathPolicy {

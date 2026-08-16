@@ -18,7 +18,6 @@ use crate::RedactionCompletion;
 use crate::text::redaction_output::RedactionOutput;
 
 /// A redacted argv rendering that is safe for a single-line text log.
-#[must_use = "render the redacted argv instead of the original arguments"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactedArgv {
     /// Escaped rendering paired with its exact completion state.
@@ -51,6 +50,7 @@ impl RedactedArgv {
     ///
     /// A displayable argv value.
     #[inline(always)]
+    #[must_use]
     pub(super) fn complete(rendered: LogSafeText<'static>) -> Self {
         Self {
             output: RedactionOutput::complete(rendered),
@@ -68,6 +68,7 @@ impl RedactedArgv {
     /// A truncated result when `rendered` is non-empty; otherwise the sole
     /// valid exhausted result.
     #[inline(always)]
+    #[must_use]
     pub(super) fn truncated(rendered: LogSafeText<'static>) -> Self {
         Self {
             output: RedactionOutput::truncated(rendered)
@@ -81,6 +82,7 @@ impl RedactedArgv {
     ///
     /// Empty safe text paired with [`RedactionCompletion::Exhausted`].
     #[inline(always)]
+    #[must_use]
     pub(super) fn exhausted() -> Self {
         Self {
             output: RedactionOutput::exhausted(),

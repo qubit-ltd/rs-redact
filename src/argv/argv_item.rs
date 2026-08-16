@@ -21,7 +21,6 @@ use crate::Sensitivity;
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of the borrowed operating-system argument.
-#[must_use = "pass the item to an argv redactor"]
 #[derive(Clone, Copy)]
 pub struct ArgvItem<'a> {
     /// Original operating-system argument value.
@@ -44,6 +43,7 @@ impl fmt::Debug for ArgvItem<'_> {
     /// # Errors
     ///
     /// Returns [`fmt::Error`] when the destination rejects a write.
+    #[must_use]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("ArgvItem")
@@ -65,6 +65,7 @@ impl<'a> ArgvItem<'a> {
     ///
     /// A plain borrowed argument item.
     #[inline(always)]
+    #[must_use]
     pub const fn plain(value: &'a OsStr) -> Self {
         Self {
             value,
@@ -83,6 +84,7 @@ impl<'a> ArgvItem<'a> {
     ///
     /// A sensitive borrowed argument item.
     #[inline(always)]
+    #[must_use]
     pub const fn sensitive(value: &'a OsStr, sensitivity: Sensitivity) -> Self {
         Self {
             value,

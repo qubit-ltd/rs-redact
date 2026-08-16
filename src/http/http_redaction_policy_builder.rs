@@ -20,7 +20,6 @@ use crate::RedactionRules;
 use crate::Sensitivity;
 
 /// Mutable construction state for an [`HttpPolicy`].
-#[must_use]
 #[derive(Debug, Clone)]
 pub struct HttpPolicyBuilder {
     header: ContextRulesBuilder,
@@ -303,6 +302,7 @@ impl HttpPolicyBuilder {
 
 impl Default for HttpPolicyBuilder {
     /// Creates a builder with the standard HTTP handling defaults.
+    #[must_use]
     fn default() -> Self {
         Self::new()
     }

@@ -10,7 +10,6 @@
 use crate::http::BodyRedactionStatus;
 
 /// Unescaped parser output paired with its body-redaction status.
-#[must_use]
 pub(in crate::http) struct ParsedBody {
     /// Redacted text before final log escaping.
     text: String,
@@ -33,6 +32,7 @@ impl ParsedBody {
     ///
     /// One complete parser result.
     #[inline(always)]
+    #[must_use]
     pub(in crate::http) const fn new(
         text: String,
         status: BodyRedactionStatus,

@@ -15,7 +15,6 @@ pub(crate) const TRUNCATION_MARKER: &str = "<truncated>";
 
 /// Maximum byte count for one bounded redacted log representation.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-#[must_use = "use the validated limit to bound redacted display output"]
 pub struct LogOutputLimit {
     /// Maximum rendered bytes, including any truncation marker.
     max_bytes: usize,
@@ -55,6 +54,7 @@ impl LogOutputLimit {
     ///
     /// The byte budget, including any truncation marker.
     #[inline(always)]
+    #[must_use]
     pub const fn max_bytes(self) -> usize {
         self.max_bytes
     }
@@ -74,6 +74,7 @@ impl From<InputOutputLimit> for LogOutputLimit {
     ///
     /// A compatible validated log-output limit.
     #[inline(always)]
+    #[must_use]
     fn from(budget: InputOutputLimit) -> Self {
         Self {
             max_bytes: budget.max_output_bytes(),

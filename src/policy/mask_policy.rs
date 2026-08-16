@@ -14,7 +14,6 @@ use std::fmt::Write;
 use super::internal::BoundedMaskWriter;
 
 /// Strategy used to mask one sensitive field value.
-#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MaskPolicy {
@@ -61,6 +60,7 @@ impl MaskPolicy {
     ///
     /// A fixed-replacement mask policy.
     #[inline]
+    #[must_use]
     pub fn fixed(replacement: &str) -> Self {
         Self::Fixed {
             replacement: replacement.to_string(),
@@ -83,6 +83,7 @@ impl MaskPolicy {
     ///
     /// An edge-preserving mask policy.
     #[inline]
+    #[must_use]
     pub fn preserve_edges(
         prefix_chars: usize,
         suffix_chars: usize,
@@ -112,6 +113,7 @@ impl MaskPolicy {
     ///
     /// A suffix-preserving mask policy.
     #[inline]
+    #[must_use]
     pub fn preserve_suffix(
         suffix_chars: usize,
         replacement: &str,
@@ -129,6 +131,7 @@ impl MaskPolicy {
     /// # Returns
     ///
     /// A mask policy that produces an empty result.
+    #[must_use]
     pub const fn empty() -> Self {
         Self::Empty
     }
@@ -149,7 +152,7 @@ impl MaskPolicy {
     /// # Returns
     ///
     /// The borrowed empty input or an owned masked value.
-    #[must_use = "use the returned masked value instead of the original value"]
+    #[must_use]
     pub fn mask<'a>(&self, value: &'a str) -> Cow<'a, str> {
         if value.is_empty() {
             return Cow::Borrowed(value);
@@ -191,7 +194,7 @@ impl MaskPolicy {
     ///
     /// The complete configured replacement, or an empty string for
     /// [`Self::Empty`].
-    #[must_use = "use the opaque replacement instead of formatting the original value"]
+    #[must_use]
     #[inline(always)]
     pub fn opaque_mask(&self) -> &str {
         match self {
@@ -248,7 +251,7 @@ impl MaskPolicy {
     /// # Returns
     ///
     /// An owned UTF-8 prefix of the configured opaque replacement.
-    #[must_use = "use the bounded opaque replacement instead of the original value"]
+    #[must_use]
     pub(crate) fn opaque_mask_bounded(&self, max_bytes: usize) -> String {
         let mut writer = BoundedMaskWriter::new(max_bytes);
         let _ = writer.write_str(self.opaque_mask());
@@ -331,7 +334,7 @@ impl MaskPolicy {
 /// # Returns
 ///
 /// An owned masked value.
-#[must_use = "use the returned masked value instead of the original value"]
+#[must_use]
 fn mask_preserving_edges(
     value: &str,
     prefix_chars: usize,
@@ -368,7 +371,7 @@ fn mask_preserving_edges(
 /// # Returns
 ///
 /// An owned masked value.
-#[must_use = "use the returned masked value instead of the original value"]
+#[must_use]
 fn mask_preserving_suffix(
     value: &str,
     suffix_chars: usize,

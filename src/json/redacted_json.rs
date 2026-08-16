@@ -25,7 +25,6 @@ use crate::domain::RedactedValue;
 use crate::policy::ResolvedField;
 
 /// A borrowed JSON value rendered with policy-aware object-key redaction.
-#[must_use = "format or serialize the redacted JSON view"]
 pub struct RedactedJson<'value, 'policy> {
     /// Original parsed JSON borrowed without cloning for formatting.
     value: &'value Value,
@@ -49,6 +48,7 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     ///
     /// A borrowed JSON redaction view.
     #[inline(always)]
+    #[must_use]
     pub const fn new(
         value: &'value Value,
         policy: &'policy RedactionPolicy,
@@ -71,6 +71,7 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     ///
     /// A borrowed view at the next recursive depth.
     #[inline(always)]
+    #[must_use]
     fn nested<'nested>(
         &self,
         value: &'nested Value,
@@ -102,12 +103,14 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     ///
     /// A borrowed redacted scalar safe to use in debug and Serde output.
     #[inline(always)]
+    #[must_use]
     fn depth_limit_mask(&self) -> RedactedValue<'_> {
         RedactedValue::opaque(crate::Sensitivity::Secret, self.policy.masking())
     }
 
     /// Reports whether the current scalar must use the opaque Secret mask.
     #[inline(always)]
+    #[must_use]
     fn redact_unkeyed_scalar(&self) -> bool {
         self.unkeyed
             && self.policy.unkeyed_json_value_policy()
@@ -130,6 +133,7 @@ impl fmt::Debug for RedactedJson<'_, '_> {
     /// # Errors
     ///
     /// Returns a formatting error when the destination rejects output.
+    #[must_use]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt_json(self, formatter)
     }

@@ -14,7 +14,6 @@ use super::UriPolicy;
 use crate::PolicyError;
 
 /// Mutable construction state for an immutable URI policy.
-#[must_use]
 #[derive(Debug, Clone)]
 pub struct UriPolicyBuilder {
     path_policy: UriPathPolicy,
@@ -65,6 +64,7 @@ impl UriPolicyBuilder {
 impl Default for UriPolicyBuilder {
     /// Creates a builder with standard URI handling defaults.
     #[inline]
+    #[must_use]
     fn default() -> Self {
         Self::new()
     }

@@ -43,7 +43,6 @@ use crate::RedactionSession;
 use crate::Sensitivity;
 
 /// Applies one immutable HTTP policy to URLs, forms, headers, and bodies.
-#[must_use = "use the redactor to produce safe HTTP diagnostics"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HttpRedactor {
     /// Complete immutable HTTP behavior snapshot.
@@ -82,12 +81,13 @@ impl HttpRedactor {
     ///
     /// The policy used by every operation on this redactor.
     #[inline(always)]
+    #[must_use]
     pub const fn policy(&self) -> &RedactionPolicy {
         &self.policy
     }
 
     /// Creates a mutable diagnostic session for shared HTTP operations.
-    #[must_use = "retain the HTTP diagnostic session"]
+    #[must_use]
     #[inline]
     pub fn session(&self) -> RedactionSession<'_> {
         RedactionSession::new(&self.policy)
@@ -137,6 +137,7 @@ impl HttpRedactor {
     ///
     /// An owned log-safe URL representation.
     #[inline]
+    #[must_use]
     pub fn redact_url(&self, url: &Url) -> LogSafeText<'static> {
         if self.diagnostic_input_exceeded(url.as_str().len()) {
             return Self::diagnostic_limit_exceeded();
@@ -145,6 +146,7 @@ impl HttpRedactor {
     }
 
     /// Redacts a parsed URL under an explicit output limit.
+    #[must_use]
     pub(super) fn redact_url_with_output_limit(
         &self,
         url: &Url,
@@ -157,6 +159,7 @@ impl HttpRedactor {
     }
 
     /// Redacts URL-looking tokens under an explicit output limit.
+    #[must_use]
     pub(super) fn redact_urls_in_text_with_output_limit(
         &self,
         text: &str,
@@ -174,6 +177,7 @@ impl HttpRedactor {
     }
 
     /// Parses and redacts one URL string under an explicit output limit.
+    #[must_use]
     pub(super) fn redact_url_str_with_output_limit(
         &self,
         input: &str,
@@ -205,6 +209,7 @@ impl HttpRedactor {
     ///
     /// Owned log-safe text with recognized URLs redacted.
     #[inline]
+    #[must_use]
     pub fn redact_urls_in_text(&self, text: &str) -> LogSafeText<'static> {
         if self.diagnostic_input_exceeded(text.len()) {
             return Self::diagnostic_limit_exceeded();
@@ -224,6 +229,7 @@ impl HttpRedactor {
     ///
     /// A safe redacted URL or a fixed invalid-URL marker.
     #[inline]
+    #[must_use]
     pub fn redact_url_str(&self, input: &str) -> LogSafeText<'static> {
         if self.diagnostic_input_exceeded(input.len()) {
             return Self::diagnostic_limit_exceeded();
@@ -244,6 +250,7 @@ impl HttpRedactor {
     ///
     /// A safe redacted form or a fixed invalid-form marker.
     #[inline]
+    #[must_use]
     pub fn redact_form(&self, input: &str) -> LogSafeText<'static> {
         if self.diagnostic_input_exceeded(input.len()) {
             return Self::diagnostic_limit_exceeded();
@@ -267,6 +274,7 @@ impl HttpRedactor {
     }
 
     /// Redacts URL-encoded form text under an explicit output limit.
+    #[must_use]
     pub(super) fn redact_form_with_output_limit(
         &self,
         input: &str,
@@ -303,6 +311,7 @@ impl HttpRedactor {
     /// # Returns
     ///
     /// An opaque result whose `Display` and `Debug` expose only safe text.
+    #[must_use]
     pub fn redact_headers(&self, headers: &HeaderMap) -> RedactedHeaders {
         self.redact_headers_with_limit(
             headers,
@@ -311,6 +320,7 @@ impl HttpRedactor {
     }
 
     /// Redacts headers under an explicit final output ceiling.
+    #[must_use]
     pub(super) fn redact_headers_with_limit(
         &self,
         headers: &HeaderMap,
@@ -341,6 +351,7 @@ impl HttpRedactor {
     /// # Returns
     ///
     /// A bounded result exposing only log-safe text and truthful metadata.
+    #[must_use]
     pub fn redact_body(
         &self,
         capture: BodyCapture<'_>,
@@ -379,6 +390,7 @@ impl HttpRedactor {
     /// # Returns
     ///
     /// A bounded result exposing only log-safe text and truthful metadata.
+    #[must_use]
     pub fn redact_body_with_content_type_text(
         &self,
         capture: BodyCapture<'_>,
@@ -395,6 +407,7 @@ impl HttpRedactor {
     }
 
     /// Redacts a body under an explicit output ceiling for a shared session.
+    #[must_use]
     pub(super) fn redact_body_with_output_limit(
         &self,
         capture: BodyCapture<'_>,
@@ -422,6 +435,7 @@ impl HttpRedactor {
     }
 
     /// Redacts a body selected by text Content-Type under an explicit limit.
+    #[must_use]
     pub(super) fn redact_body_with_content_type_text_output_limit(
         &self,
         capture: BodyCapture<'_>,
@@ -451,6 +465,7 @@ impl HttpRedactor {
     /// # Returns
     ///
     /// A bounded result exposing only log-safe text and truthful metadata.
+    #[must_use]
     fn redact_body_with_content_type(
         &self,
         capture: BodyCapture<'_>,
@@ -642,7 +657,7 @@ impl HttpRedactor {
     ///
     /// Unescaped redacted text, outcome status, and rendering-truncation
     /// state.
-    #[must_use = "redacted body text and its status must be handled together"]
+    #[must_use]
     fn redact_body_inner(
         &self,
         bounded: &[u8],
@@ -738,7 +753,7 @@ impl HttpRedactor {
     ///
     /// Redacted JSON or a fixed fail-closed marker, status, and
     /// rendering-truncation state.
-    #[must_use = "redacted JSON text and its status must be handled together"]
+    #[must_use]
     fn redact_json(
         &self,
         bounded: &[u8],
@@ -806,6 +821,7 @@ impl HttpRedactor {
     /// # Returns
     ///
     /// The fixed marker and its matching redaction status.
+    #[must_use]
     fn invalid_content_type_body() -> ParsedBody {
         ParsedBody::new(
             markers::INVALID_CONTENT_TYPE.to_string(),
@@ -827,7 +843,7 @@ impl HttpRedactor {
     ///
     /// Redacted NDJSON or a fixed fail-closed marker, status, and
     /// rendering-truncation state.
-    #[must_use = "redacted NDJSON text and its status must be handled together"]
+    #[must_use]
     fn redact_ndjson(
         &self,
         bounded: &[u8],
@@ -880,7 +896,7 @@ impl HttpRedactor {
     ///
     /// Redacted form text or a fixed invalid marker, status, and complete
     /// rendering state.
-    #[must_use = "redacted form text and its status must be handled together"]
+    #[must_use]
     fn redact_body_form(
         &self,
         bounded: &[u8],
@@ -927,7 +943,7 @@ impl HttpRedactor {
     ///
     /// A policy-controlled text marker or binary summary, status, and complete
     /// rendering state.
-    #[must_use = "fallback text and its status must be handled together"]
+    #[must_use]
     fn redact_fallback(
         &self,
         bounded: &[u8],
@@ -981,6 +997,7 @@ impl HttpRedactor {
     /// # Returns
     ///
     /// A log-safe bounded body result with exact available metadata.
+    #[must_use]
     fn finish_body_redaction(
         parsed: ParsedBody,
         capture: BodyCapture<'_>,
@@ -1020,6 +1037,7 @@ impl Default for HttpRedactor {
     /// # Returns
     ///
     /// A fail-closed redactor with finite body limits.
+    #[must_use]
     fn default() -> Self {
         Self::new(RedactionPolicy::default())
     }

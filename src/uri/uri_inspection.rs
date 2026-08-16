@@ -12,7 +12,6 @@ use super::UriRedactionReason;
 use super::UriRedactionStatus;
 
 /// URI processing metadata without rendering or retaining URI text.
-#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UriInspection {
     pub(crate) status: UriRedactionStatus,
@@ -22,14 +21,14 @@ pub struct UriInspection {
 
 impl UriInspection {
     /// Returns the overall processing status.
-    #[must_use = "inspect the URI processing status"]
+    #[must_use]
     #[inline]
     pub const fn status(&self) -> UriRedactionStatus {
         self.status
     }
 
     /// Returns all reasons recorded while processing the URI.
-    #[must_use = "inspect the URI processing reasons"]
+    #[must_use]
     #[inline]
     pub fn reasons(&self) -> &[UriRedactionReason] {
         &self.reasons

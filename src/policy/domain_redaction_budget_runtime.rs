@@ -35,7 +35,6 @@ pub(crate) enum DomainTruncation {
 }
 
 /// Tracks cumulative domain traversal and currently active nesting depth.
-#[must_use]
 #[derive(Debug)]
 pub(crate) struct DomainRedactionBudget {
     remaining_nodes: usize,
@@ -93,6 +92,7 @@ impl DomainRedactionBudget {
     ///
     /// Successful charges consume one cumulative node. Exhaustion records a
     /// truncation and permanently closes domain traversal for this session.
+    #[must_use]
     pub(crate) fn admit_field(&mut self) -> DomainTraversalAdmission {
         if self.traversal_closed {
             return DomainTraversalAdmission::LimitReached;
@@ -110,6 +110,7 @@ impl DomainRedactionBudget {
     /// Successful charges consume one cumulative collection item. Exhaustion
     /// records a truncation and permanently closes domain traversal, ensuring
     /// callers can stop before pulling or formatting an unadmitted value.
+    #[must_use]
     pub(crate) fn admit_collection_item(&mut self) -> DomainTraversalAdmission {
         if self.traversal_closed {
             return DomainTraversalAdmission::LimitReached;

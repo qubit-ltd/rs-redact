@@ -100,7 +100,6 @@ use crate::text::internal::LogEscapeWriter;
 ///     RedactedKeyedMap::new(&map, RedactionPolicy::default());
 /// let _ = format!("{view:?}");
 /// ```
-#[must_use = "format the recursive keyed redaction view"]
 pub struct RedactedKeyedMap<
     'a,
     M: ?Sized,
@@ -126,7 +125,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
     /// # Returns
     ///
     /// A lazy borrowed map view that shares its policy across all entries.
-    #[must_use = "format the recursive keyed redaction view"]
+    #[must_use]
     #[inline(always)]
     pub const fn new(map: &'a M, policy: RedactionPolicy) -> Self {
         Self {
@@ -145,7 +144,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
     /// # Returns
     ///
     /// A bounded formatting adapter that owns this recursive keyed map view.
-    #[must_use = "format the bounded recursive keyed map display adapter"]
+    #[must_use]
     #[inline(always)]
     pub const fn with_output_limit(
         self,
@@ -159,7 +158,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
     /// # Returns
     ///
     /// A formatting adapter bounded by this view's diagnostic output budget.
-    #[must_use = "format the bounded recursive keyed map display adapter"]
+    #[must_use]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
         let limit =
@@ -228,7 +227,6 @@ mod session_view {
     use crate::policy::RedactionAdmission;
 
     /// A nested keyed-map view that reuses an existing diagnostic session.
-    #[must_use = "format the nested keyed redaction view"]
     pub struct RedactedKeyedMapResult<
         'map,
         M: ?Sized,
@@ -268,6 +266,7 @@ mod session_view {
         /// bytes while subtracting bytes already committed by nested values.
         /// Structural limit markers keep output available to admitted siblings,
         /// while shared output exhaustion closes the diagnostic session.
+        #[must_use]
         pub(crate) fn new_with_alternate(
             map: &'map M,
             session: &mut RedactionSession<'_>,

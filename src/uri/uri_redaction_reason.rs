@@ -10,7 +10,6 @@
 use super::UriComponent;
 
 /// Explains why a URI result was changed or rejected.
-#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UriRedactionReason {

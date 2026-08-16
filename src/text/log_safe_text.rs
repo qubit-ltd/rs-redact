@@ -23,7 +23,6 @@ use super::LogOutputLimit;
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of any borrowed escaped text stored by the value.
-#[must_use = "render or otherwise consume the log-safe value"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogSafeText<'a>(
     /// Borrowed safe input or an owned escaped value.
@@ -78,7 +77,7 @@ impl<'a> LogSafeText<'a> {
     /// # Returns
     ///
     /// A bounded adapter borrowing this escaped text.
-    #[must_use = "format the bounded log-safe text"]
+    #[must_use]
     #[inline(always)]
     pub const fn with_output_limit(
         &self,
@@ -95,6 +94,7 @@ impl AsRef<str> for LogSafeText<'_> {
     ///
     /// The escaped text as a string slice.
     #[inline(always)]
+    #[must_use]
     fn as_ref(&self) -> &str {
         self.as_str()
     }

@@ -14,7 +14,6 @@ use super::FieldNameMatching;
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of the borrowed canonical field name.
-#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AllowRule<'a> {
     /// Canonical field name.
@@ -34,6 +33,7 @@ impl<'a> AllowRule<'a> {
     /// # Returns
     ///
     /// A read-only view over the supplied rule.
+    #[must_use]
     pub(super) const fn new(
         field: &'a str,
         matching: FieldNameMatching,

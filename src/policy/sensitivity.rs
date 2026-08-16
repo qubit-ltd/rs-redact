@@ -10,7 +10,6 @@
 /// Sensitivity assigned to a field or explicit value.
 ///
 /// The strength order is `Low < Medium < High < Secret`.
-#[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Sensitivity {

@@ -33,7 +33,6 @@ use crate::policy::ResolvedField;
 /// * `'value` - Lifetime of the borrowed key and value.
 /// * `'policy` - Lifetime of the borrowed policy snapshot.
 /// * `T` - Value type rendered or serialized through redaction.
-#[must_use = "format or serialize the keyed redaction view"]
 pub struct RedactedKeyedValue<'value, 'policy, T: ?Sized> {
     /// Field name used for policy classification.
     key: &'value str,
@@ -56,7 +55,7 @@ impl<'value, 'policy, T: ?Sized> RedactedKeyedValue<'value, 'policy, T> {
     /// # Returns
     ///
     /// A view that never modifies the original value.
-    #[must_use = "format or serialize the keyed redaction view"]
+    #[must_use]
     #[inline(always)]
     pub const fn new(
         key: &'value str,
@@ -139,7 +138,6 @@ mod session_view {
     use crate::text::internal::LogEscapeWriter;
 
     /// An eagerly completed keyed value representation.
-    #[must_use = "format the keyed redacted value view"]
     pub struct RedactedKeyedResult<'value, T: ?Sized> {
         completed: CompletedDebug,
         status: DomainRenderStatus,
@@ -149,6 +147,7 @@ mod session_view {
     impl<'value, T: Redact + RedactValue + ?Sized> RedactedKeyedResult<'value, T> {
         /// Completes a keyed value through an existing diagnostic session.
         #[inline(always)]
+        #[must_use]
         pub fn new(
             key: &'value str,
             value: &'value T,
@@ -158,6 +157,7 @@ mod session_view {
         }
 
         /// Completes a keyed value while preserving alternate debug.
+        #[must_use]
         pub(crate) fn new_with_alternate(
             key: &'value str,
             value: &'value T,
@@ -267,6 +267,7 @@ mod session_view {
         }
 
         /// Returns whether this result exhausted shared sibling eligibility.
+        #[must_use]
         pub(crate) fn stops_siblings(&self) -> bool {
             self.status.stops_siblings()
         }
@@ -275,6 +276,7 @@ mod session_view {
     impl<T: ?Sized> Debug for RedactedKeyedResult<'_, T> {
         /// Writes the already-completed safe keyed representation.
         #[inline]
+        #[must_use]
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
             Debug::fmt(&self.completed, formatter)
         }
