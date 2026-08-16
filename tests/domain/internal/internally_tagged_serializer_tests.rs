@@ -13,7 +13,7 @@ use std::io;
 use std::io::Write;
 
 #[cfg(feature = "serde")]
-use qubit_redact::__private::serialize_internally_tagged;
+use qubit_redact::internal::serialize_internally_tagged;
 #[cfg(feature = "serde")]
 use serde::Serialize;
 #[cfg(feature = "serde")]

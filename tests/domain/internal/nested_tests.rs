@@ -12,7 +12,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 #[cfg(feature = "serde")]
-use qubit_redact::__private::RedactedSerialize;
+use qubit_redact::internal::RedactedSerialize;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::RedactionPolicy;
