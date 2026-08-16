@@ -52,6 +52,8 @@ impl<'a> AllowRule<'a> {
         self.field
     }
 
+    #[must_use]
+    #[inline(always)]
     /// Returns the breadth of the allow rule.
     ///
     /// # Returns

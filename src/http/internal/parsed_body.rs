@@ -51,6 +51,7 @@ impl ParsedBody {
     ///
     /// The redacted text, body-redaction status, and rendering-truncation flag,
     /// in that order.
+    #[must_use]
     #[inline(always)]
     pub(in crate::http) fn into_parts(
         self,

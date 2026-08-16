@@ -39,6 +39,7 @@ impl JsonRedactionOutput {
     /// # Returns
     ///
     /// A structured JSON redaction result.
+    #[must_use]
     #[inline]
     pub(crate) const fn new(output: RedactionOutput) -> Self {
         Self { output }
@@ -50,6 +51,7 @@ impl JsonRedactionOutput {
     ///
     /// Complete safe JSON, a non-empty safe substitute, or empty text after
     /// exhaustion, according to [`Self::completion`].
+    #[must_use]
     #[inline(always)]
     pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
         self.output.log_safe_text()
@@ -70,6 +72,7 @@ impl JsonRedactionOutput {
     /// # Returns
     ///
     /// The same text exposed by [`Self::log_safe_text`].
+    #[must_use]
     #[inline(always)]
     pub fn as_str(&self) -> &str {
         self.log_safe_text().as_str()
@@ -81,6 +84,7 @@ impl JsonRedactionOutput {
     ///
     /// Complete safe JSON, a non-empty safe substitute, or empty exhausted
     /// output.
+    #[must_use]
     #[inline(always)]
     pub fn into_log_safe_text(self) -> LogSafeText<'static> {
         self.output.into_log_safe_text()

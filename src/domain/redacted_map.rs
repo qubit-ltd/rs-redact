@@ -89,6 +89,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     /// # Returns
     ///
     /// A lazy borrowed map view.
+    #[must_use]
     #[inline(always)]
     pub const fn new(map: &'a M, policy: RedactionPolicy) -> Self {
         Self {
@@ -196,6 +197,7 @@ mod session_view {
         RedactedMapResult<'map, M, K, V>
     {
         /// Completes a nested map through an existing diagnostic session.
+        #[must_use]
         #[inline(always)]
         pub fn new(map: &'map M, session: &mut RedactionSession<'_>) -> Self {
             Self::new_with_alternate(map, session, false)

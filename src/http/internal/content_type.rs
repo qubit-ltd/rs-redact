@@ -103,6 +103,7 @@ fn media_type(value: &str) -> &str {
 ///
 /// `true` when the leading value is exactly `token/token` and every parameter
 /// has valid, unique header-parameter grammar.
+#[inline(always)]
 #[must_use]
 pub(in crate::http) fn is_valid(value: &str) -> bool {
     let Some((kind, subtype)) = media_type(value).split_once('/') else {

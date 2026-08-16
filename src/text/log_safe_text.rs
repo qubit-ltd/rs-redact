@@ -40,6 +40,7 @@ impl<'a> LogSafeText<'a> {
     /// # Returns
     ///
     /// Typed log-safe text.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn from_escaped(value: Cow<'a, str>) -> Self {
         Self(value)
@@ -50,6 +51,7 @@ impl<'a> LogSafeText<'a> {
     /// # Returns
     ///
     /// The escaped text without allocating or formatting it.
+    #[must_use]
     #[inline(always)]
     pub fn as_str(&self) -> &str {
         self.0.as_ref()
@@ -61,6 +63,7 @@ impl<'a> LogSafeText<'a> {
     ///
     /// The existing string allocation when this value already owns its
     /// contents, or a copied string for borrowed contents.
+    #[must_use]
     #[inline(always)]
     pub fn into_owned(self) -> String {
         self.0.into_owned()

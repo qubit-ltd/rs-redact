@@ -31,6 +31,7 @@ pub struct HttpPolicyBuilder {
 }
 
 impl HttpPolicyBuilder {
+    #[must_use]
     /// Creates empty application rules using the standard floor.
     pub fn new() -> Self {
         Self {
@@ -42,6 +43,7 @@ impl HttpPolicyBuilder {
         }
     }
 
+    #[must_use]
     /// Copies the immutable HTTP context snapshot.
     pub(crate) fn from_policy(policy: &super::HttpPolicy) -> Self {
         Self {
@@ -120,6 +122,7 @@ impl HttpPolicyBuilder {
         self.context_mut(context).disable_floor();
     }
 
+    #[inline]
     /// Applies one minimum sensitivity floor to every HTTP context.
     ///
     /// # Parameters
@@ -285,6 +288,7 @@ impl HttpPolicyBuilder {
         self.text_body_policy = policy;
     }
 
+    #[must_use]
     /// Builds the complete HTTP policy, validating header, query, then body.
     pub(crate) fn build(self) -> Result<super::HttpPolicy, PolicyError> {
         Ok(super::HttpPolicy::from_parts(HttpPolicyParts {

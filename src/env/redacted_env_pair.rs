@@ -95,6 +95,7 @@ impl RedactedEnvPair {
     /// # Returns
     ///
     /// Complete or substitute safe text, or an empty value for exhaustion.
+    #[must_use]
     #[inline(always)]
     pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
         self.output.log_safe_text()
@@ -116,6 +117,7 @@ impl RedactedEnvPair {
     /// # Returns
     ///
     /// Complete or substitute assignment text, or an empty exhausted value.
+    #[must_use]
     #[inline(always)]
     pub fn into_log_safe_text(self) -> LogSafeText<'static> {
         self.output.into_log_safe_text()

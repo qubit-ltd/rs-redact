@@ -23,6 +23,7 @@ pub struct UriPolicyBuilder {
 
 impl UriPolicyBuilder {
     /// Creates a builder for URI-specific behavior.
+    #[must_use]
     #[inline]
     pub fn new() -> Self {
         Self {
@@ -31,6 +32,7 @@ impl UriPolicyBuilder {
         }
     }
 
+    #[must_use]
     /// Creates a builder that copies an existing URI context snapshot.
     pub(crate) fn from_policy(policy: &UriPolicy) -> Self {
         Self {
@@ -53,6 +55,7 @@ impl UriPolicyBuilder {
     ///
     /// The core policy is already validated when supplied, so this builder
     /// currently has no additional error cases.
+    #[must_use]
     #[inline]
     pub(crate) fn build(self) -> Result<UriPolicy, PolicyError> {
         Ok(UriPolicy::new(self.path_policy, self.fragment_policy))

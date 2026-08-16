@@ -160,6 +160,7 @@ impl DiagnosticBudget {
     }
 
     /// Returns whether domain or adapter output is currently being completed.
+    #[must_use]
     #[inline(always)]
     fn has_active_output(&self) -> bool {
         !self.admitted_output.is_empty()

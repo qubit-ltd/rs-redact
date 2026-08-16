@@ -106,6 +106,7 @@ impl<'a> ArgvItem<'a> {
     ///
     /// `Some(level)` for an explicitly sensitive item, or `None` for a plain
     /// item.
+    #[must_use]
     #[inline(always)]
     pub(super) const fn sensitivity(&self) -> Option<Sensitivity> {
         self.sensitivity

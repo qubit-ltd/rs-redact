@@ -185,6 +185,7 @@ impl RedactionPolicy {
     /// Its application rules are empty and its explicit floor is
     /// [`RedactionFloor::standard`], so it never observes later process-wide
     /// default installations.
+    #[must_use]
     #[inline]
     pub fn standard() -> Self {
         STANDARD_POLICY.clone()
@@ -195,6 +196,7 @@ impl RedactionPolicy {
     ///
     /// This preset is intended for untrusted external boundaries. It is more
     /// protective than [`Self::standard`] but may reduce diagnostic detail.
+    #[must_use]
     #[inline]
     pub fn strict() -> Self {
         STRICT_POLICY.clone()
@@ -206,6 +208,7 @@ impl RedactionPolicy {
     /// occupying the installation slot. A later installation changes only
     /// future default snapshots and future calls to this function; it never
     /// modifies a builder or object that already exists.
+    #[must_use]
     #[inline]
     pub fn builder_from_default() -> RedactionPolicyBuilder {
         Self::builder_from(&Self::default())
@@ -213,6 +216,7 @@ impl RedactionPolicy {
 
     /// Creates a deterministic builder with no application rules and the
     /// standard minimum-protection floor.
+    #[must_use]
     #[inline]
     pub fn builder() -> RedactionPolicyBuilder {
         RedactionPolicyBuilder::new()
@@ -221,12 +225,14 @@ impl RedactionPolicy {
     /// Creates a builder that exactly copies `self`.
     ///
     /// The copy includes application rules, limits, and the attached floor.
+    #[must_use]
     #[inline]
     pub fn to_builder(&self) -> RedactionPolicyBuilder {
         RedactionPolicyBuilder::from_policy(self)
     }
 
     /// Creates a builder that exactly copies `base`.
+    #[must_use]
     #[inline]
     pub fn builder_from(base: &Self) -> RedactionPolicyBuilder {
         base.to_builder()
@@ -256,12 +262,14 @@ impl RedactionPolicy {
     }
 
     /// Returns all static limits used by this policy.
+    #[must_use]
     #[inline]
     pub const fn limits(&self) -> &RedactionLimits {
         &self.limits
     }
 
     /// Returns the unified HTTP context policy.
+    #[must_use]
     #[cfg(feature = "http")]
     #[inline]
     pub fn http(&self) -> &crate::http::HttpPolicy {
@@ -269,6 +277,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the unified URI context policy.
+    #[must_use]
     #[cfg(feature = "uri")]
     #[inline]
     pub fn uri(&self) -> &crate::uri::UriPolicy {
@@ -276,6 +285,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the HTTP header field rules.
+    #[must_use]
     #[cfg(feature = "http")]
     #[inline]
     pub fn header_rules(&self) -> &RedactionRules {
@@ -283,6 +293,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the HTTP query field rules.
+    #[must_use]
     #[cfg(feature = "http")]
     #[inline]
     pub fn query_rules(&self) -> &RedactionRules {
@@ -290,6 +301,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the HTTP body field rules.
+    #[must_use]
     #[cfg(feature = "http")]
     #[inline]
     pub fn body_rules(&self) -> &RedactionRules {
@@ -297,6 +309,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the HTTP URL path policy.
+    #[must_use]
     #[cfg(feature = "http")]
     #[inline]
     pub fn url_path_policy(&self) -> crate::http::UrlPathPolicy {
@@ -304,6 +317,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the HTTP text-body policy.
+    #[must_use]
     #[cfg(feature = "http")]
     #[inline]
     pub fn text_body_policy(&self) -> crate::http::TextBodyPolicy {
@@ -311,6 +325,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the HTTP body byte budget.
+    #[must_use]
     #[cfg(feature = "http")]
     #[inline]
     pub fn body_budget(&self) -> crate::http::BodyBudget {
@@ -318,6 +333,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the URI path policy.
+    #[must_use]
     #[cfg(feature = "uri")]
     #[inline]
     pub fn path_policy(&self) -> crate::uri::UriPathPolicy {
@@ -325,6 +341,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the URI fragment policy.
+    #[must_use]
     #[cfg(feature = "uri")]
     #[inline]
     pub fn fragment_policy(&self) -> crate::uri::UriFragmentPolicy {
@@ -332,6 +349,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the maximum JSON nesting depth for JSON redaction.
+    #[must_use]
     #[cfg(feature = "json")]
     #[inline]
     pub const fn json_depth_limit(&self) -> JsonDepthLimit {
@@ -339,18 +357,21 @@ impl RedactionPolicy {
     }
 
     /// Returns the behavior for root and array JSON scalar values.
+    #[must_use]
     #[cfg(feature = "json")]
     #[inline]
     pub const fn unkeyed_json_value_policy(&self) -> UnkeyedJsonValuePolicy {
         self.unkeyed_json_value_policy
     }
     /// Returns the immutable field rules without diagnostic resource limits.
+    #[must_use]
     #[inline]
     pub const fn rules(&self) -> &RedactionRules {
         &self.rules
     }
 
     /// Returns the base field policy view.
+    #[must_use]
     #[inline]
     pub const fn fields(&self) -> &RedactionRules {
         &self.rules
@@ -358,11 +379,14 @@ impl RedactionPolicy {
 
     /// Returns the attached minimum floor, or `None` when it was explicitly
     /// disabled.
+    #[must_use]
     #[inline]
     pub fn floor(&self) -> Option<&RedactionFloor> {
         self.rules.floor()
     }
 
+    #[must_use]
+    #[inline]
     /// Replaces the floor for this immutable policy.
     pub fn with_floor(mut self, floor: RedactionFloor) -> Self {
         self.rules = self.rules.with_floor(floor);
@@ -396,12 +420,14 @@ impl RedactionPolicy {
     ///
     /// Returns `None` only when neither layer classifies the field as
     /// sensitive.
+    #[must_use]
     #[inline]
     pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
         self.rules.sensitivity_for(field)
     }
 
     /// Resolves final sensitivity with exact-only field matching.
+    #[must_use]
     #[inline]
     pub(crate) fn sensitivity_for_exact(
         &self,
@@ -423,6 +449,7 @@ impl RedactionPolicy {
     ///
     /// An attached floor may use a different matching mode for its independent
     /// classification.
+    #[must_use]
     #[inline]
     pub fn matching(&self) -> FieldNameMatching {
         self.rules.matching()
@@ -431,6 +458,7 @@ impl RedactionPolicy {
     /// Returns the application layer's fallback for unclassified fields.
     ///
     /// An attached floor applies its own fallback independently.
+    #[must_use]
     #[inline]
     pub fn unknown_field_policy(&self) -> UnknownFieldPolicy {
         self.rules.unknown_field_policy()
@@ -440,6 +468,7 @@ impl RedactionPolicy {
     /// Field classification determines the effective sensitivity; this table
     /// determines how that sensitivity is rendered. Floors never own a second
     /// mask table.
+    #[must_use]
     #[inline]
     pub fn masking(&self) -> &MaskingPolicy {
         self.masking.as_ref()

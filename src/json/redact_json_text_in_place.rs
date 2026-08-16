@@ -32,6 +32,8 @@ pub(super) enum BoundedJsonRedaction {
 
 impl BoundedJsonRedaction {
     /// Consumes this result into its text and truncation provenance.
+    #[must_use]
+    #[inline]
     pub(super) fn into_parts(self) -> (String, bool) {
         match self {
             Self::Complete(text) => (text, false),

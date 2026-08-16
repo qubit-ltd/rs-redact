@@ -35,6 +35,7 @@ impl RedactedArgv {
     /// # Returns
     ///
     /// An empty byte-bounded argv rendering builder.
+    #[must_use]
     #[inline]
     pub(super) fn builder(budget: InputOutputLimit) -> RedactedArgvBuilder {
         RedactedArgvBuilder::new(budget)
@@ -91,6 +92,7 @@ impl RedactedArgv {
     /// The returned text is safe to append through
     /// [`crate::DiagnosticLogBuilder::push_safe`]. Callers remain responsible
     /// for applying any enclosing output budget.
+    #[must_use]
     #[inline(always)]
     pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
         self.output.log_safe_text()
@@ -116,6 +118,7 @@ impl RedactedArgv {
     ///
     /// Complete or substitute safe text, or an empty value when
     /// [`Self::completion`] was [`RedactionCompletion::Exhausted`].
+    #[must_use]
     #[inline(always)]
     pub fn into_log_safe_text(self) -> LogSafeText<'static> {
         self.output.into_log_safe_text()

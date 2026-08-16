@@ -38,6 +38,7 @@ impl EnvRedactor {
     /// # Returns
     ///
     /// An environment redactor owning the supplied policy snapshot.
+    #[must_use]
     #[inline(always)]
     pub const fn new(redactor: Redactor) -> Self {
         Self { redactor }

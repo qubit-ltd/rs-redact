@@ -60,6 +60,7 @@ impl HttpRedactor {
     /// # Returns
     ///
     /// A unified HTTP redactor with independent field contexts.
+    #[must_use]
     #[inline]
     pub fn new(policy: RedactionPolicy) -> Self {
         Self { policy }
@@ -69,6 +70,7 @@ impl HttpRedactor {
     ///
     /// The strict snapshot masks unknown structured fields and redacts
     /// non-root URL paths while retaining the configured resource limits.
+    #[must_use]
     #[inline]
     pub fn strict() -> Self {
         Self::new(RedactionPolicy::strict())

@@ -43,6 +43,7 @@ impl Redactor {
     /// # Returns
     ///
     /// A redactor that owns the supplied policy snapshot.
+    #[must_use]
     #[inline(always)]
     pub const fn new(policy: RedactionPolicy) -> Self {
         Self { policy }
@@ -51,6 +52,7 @@ impl Redactor {
     /// Creates a redactor with the strict policy for untrusted scalar data.
     ///
     /// Unknown fields are masked at [`Sensitivity::Secret`].
+    #[must_use]
     #[inline]
     pub fn strict() -> Self {
         Self::new(RedactionPolicy::strict())

@@ -32,6 +32,7 @@ impl BoundedBodyWriter {
     /// # Returns
     ///
     /// An empty writer that grows only as accepted output is produced.
+    #[must_use]
     #[inline]
     pub(in crate::http) fn new(max_bytes: usize) -> Self {
         Self {
@@ -45,6 +46,7 @@ impl BoundedBodyWriter {
     /// # Returns
     ///
     /// `Some` when all accepted bytes form valid UTF-8, or `None` otherwise.
+    #[must_use]
     #[inline]
     pub(in crate::http) fn into_string(self) -> Option<String> {
         String::from_utf8(self.output).ok()

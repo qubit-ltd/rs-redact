@@ -49,6 +49,7 @@ pub(crate) struct DomainRedactionBudget {
 
 impl DomainRedactionBudget {
     /// Creates fresh session accounting from immutable domain limits.
+    #[must_use]
     #[inline]
     pub(crate) const fn new(limits: DomainRedactionLimits) -> Self {
         Self {
