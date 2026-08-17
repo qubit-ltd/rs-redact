@@ -22,10 +22,10 @@ use super::UriRedactionReason;
 use super::UriRedactionStatus;
 use super::internal::BoundedUriWriter;
 use super::internal::UriComponentWriter;
-use crate::RedactedText;
 use crate::RedactionCompletion;
 use crate::RedactionPolicy;
 use crate::Sensitivity;
+use crate::output::MaskedValue;
 use crate::policy::FragmentCompletion;
 use crate::policy::ResolvedField;
 
@@ -700,7 +700,7 @@ fn invalid_inspection(reason: UriRedactionReason) -> UriInspection {
 /// Converts owned output into the library's log-safe text wrapper.
 #[must_use]
 fn safe_text(value: String) -> crate::LogSafeText<'static> {
-    RedactedText::new(Cow::Owned(value)).escape_for_log()
+    MaskedValue::new(Cow::Owned(value)).escape_for_log()
 }
 
 impl fmt::Display for UriRedactor {

@@ -293,4 +293,17 @@ impl<'policy> RedactionSession<'policy> {
     ) -> EnvRedactionSession<'session, 'policy> {
         EnvRedactionSession::new(self)
     }
+
+    /// Configures the environment adapter inside a chainable session.
+    #[must_use]
+    pub fn env_with<F>(mut self, configure: F) -> Self
+    where
+        F: for<'session> FnOnce(&mut EnvRedactionSession<'session, 'policy>),
+    {
+        {
+            let mut adapter = self.env();
+            configure(&mut adapter);
+        }
+        self
+    }
 }

@@ -191,4 +191,17 @@ impl<'policy> RedactionSession<'policy> {
     ) -> ArgvRedactionSession<'session, 'policy> {
         ArgvRedactionSession::new(self)
     }
+
+    /// Configures the argument-vector adapter inside a chainable session.
+    #[must_use]
+    pub fn argv_with<F>(mut self, configure: F) -> Self
+    where
+        F: for<'session> FnOnce(&mut ArgvRedactionSession<'session, 'policy>),
+    {
+        {
+            let mut adapter = self.argv();
+            configure(&mut adapter);
+        }
+        self
+    }
 }

@@ -19,10 +19,10 @@ use super::bounded_json_redaction::BoundedJsonRedaction;
 use super::bounded_json_redaction::redacted_json_text_bounded;
 use super::bounded_json_redaction::redacted_json_value_bounded;
 use crate::LogSafeText;
-use crate::RedactedText;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::Sensitivity;
+use crate::output::MaskedValue;
 use crate::output::redaction_output::RedactionOutput;
 use crate::policy::FragmentCompletion;
 use crate::policy::RedactionAdmission;
@@ -70,7 +70,7 @@ impl JsonRedactionSession<'_, '_> {
                 let (rendered, raw_truncated) =
                     raw(policy, max_output_bytes).into_parts();
                 let escaped =
-                    RedactedText::new(Cow::Owned(rendered)).escape_for_log();
+                    MaskedValue::new(Cow::Owned(rendered)).escape_for_log();
                 let (text, mut truncated) =
                     bound_safe_text(escaped.as_str(), max_output_bytes);
                 truncated |= raw_truncated;
@@ -212,5 +212,18 @@ impl<'policy> RedactionSession<'policy> {
         &'session mut self,
     ) -> JsonRedactionSession<'session, 'policy> {
         JsonRedactionSession { session: self }
+    }
+
+    /// Configures the JSON adapter inside a chainable session.
+    #[must_use]
+    pub fn json_with<F>(mut self, configure: F) -> Self
+    where
+        F: for<'session> FnOnce(&mut JsonRedactionSession<'session, 'policy>),
+    {
+        {
+            let mut adapter = self.json();
+            configure(&mut adapter);
+        }
+        self
     }
 }
