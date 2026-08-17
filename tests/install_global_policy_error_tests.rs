@@ -8,29 +8,19 @@
 //! Tests for global-policy installation errors.
 
 use qubit_redact::RedactionPolicy;
-/// Verifies a rejected global policy remains recoverable by the caller.
+use qubit_redact::Redactor;
+/// Verifies replacing the default redactor returns the previous snapshot.
 #[test]
-fn test_install_global_policy_error_returns_rejected_policy() {
-    let installed = ({
-        let mut builder = RedactionPolicy::builder();
-        builder.legacy_fields().disable_floor();
-        builder
-    })
-    .build()
-    .expect("the installed policy must be valid");
-    RedactionPolicy::install_global(installed)
-        .expect("this isolated test process installs the global policy once");
-
+fn test_default_redactor_replacement_returns_previous_snapshot() {
     let rejected = ({
         let mut builder = RedactionPolicy::default().to_builder();
-        builder.legacy_fields().disable_floor();
+        builder.edit_fields().disable_floor();
         builder
     })
     .build()
     .expect("the rejected policy must be valid");
-    let recovered = RedactionPolicy::install_global(rejected.clone())
-        .expect_err("the second global policy installation must fail")
-        .into_policy();
-
-    assert_eq!(recovered, rejected);
+    let original = Redactor::default();
+    let previous = Redactor::set_default(Redactor::new(rejected));
+    assert_eq!(previous.policy(), original.policy());
+    let _ = Redactor::set_default(original);
 }

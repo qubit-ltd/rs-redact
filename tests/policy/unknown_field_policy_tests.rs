@@ -29,23 +29,24 @@ fn test_unknown_field_policy_defaults_to_pass_through() {
 /// classification or explicit allow and sensitive rules.
 #[test]
 fn test_unknown_field_policy_applies_after_explicit_rules() {
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        builder.legacy_fields().unknown_field_policy(
-            UnknownFieldPolicy::Redact(Sensitivity::High),
-        );
-        builder
-            .legacy_fields()
-            .raise("configured", Sensitivity::Secret)
-            .expect("the test builder input should be valid");
-        builder
-            .legacy_fields()
-            .allow_exact("public")
-            .expect("the test builder input should be valid");
-        builder
-    })
-    .build()
-    .expect("the fallback policy should build");
+    let policy =
+        ({
+            let mut builder = RedactionPolicy::builder();
+            builder.edit_fields().unknown_field_policy(
+                UnknownFieldPolicy::Redact(Sensitivity::High),
+            );
+            builder
+                .edit_fields()
+                .raise("configured", Sensitivity::Secret)
+                .expect("the test builder input should be valid");
+            builder
+                .edit_fields()
+                .allow_exact("public")
+                .expect("the test builder input should be valid");
+            builder
+        })
+        .build()
+        .expect("the fallback policy should build");
 
     assert_eq!(policy.sensitivity_for("new_field"), Some(Sensitivity::High),);
     assert_eq!(
@@ -59,15 +60,16 @@ fn test_unknown_field_policy_applies_after_explicit_rules() {
 /// Verifies policy copies retain the configured unknown-field fallback.
 #[test]
 fn test_unknown_field_policy_is_preserved_by_builder_from() {
-    let base = ({
-        let mut builder = RedactionPolicy::builder();
-        builder.legacy_fields().unknown_field_policy(
-            UnknownFieldPolicy::Redact(Sensitivity::Medium),
-        );
-        builder
-    })
-    .build()
-    .expect("the base policy should build");
+    let base =
+        ({
+            let mut builder = RedactionPolicy::builder();
+            builder.edit_fields().unknown_field_policy(
+                UnknownFieldPolicy::Redact(Sensitivity::Medium),
+            );
+            builder
+        })
+        .build()
+        .expect("the base policy should build");
     let copied = RedactionPolicy::builder_from(&base)
         .build()
         .expect("the copied policy should build");

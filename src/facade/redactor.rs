@@ -102,20 +102,14 @@ impl Redactor {
     #[must_use]
     pub fn redact<T>(&self, value: &T) -> crate::RedactionOutput
     where
-        T: Redact,
+        T: Redact + ?Sized,
     {
-        let mut rendered = String::new();
-        let mut writer =
-            crate::domain::RedactionWriter::new(&mut rendered, self.policy());
+        let mut session = self.session();
+        let mut writer = crate::domain::RedactionWriter::new_root(&mut session);
         value.write_redacted(&mut writer);
-        let escaped = crate::output::log_escape::escape_log_control_characters(
-            Cow::Owned(rendered),
-        )
-        .into_owned();
-        crate::RedactionOutput::new(
-            crate::RedactedText::from_escaped(escaped),
-            crate::RedactionSummary::complete(),
-        )
+        let rendered = writer.finish();
+        session.append_committed_output(&rendered);
+        session.finish()
     }
 
     /// Creates a redactor with the strict policy for untrusted scalar data.
@@ -147,13 +141,6 @@ impl Redactor {
     #[inline]
     pub fn session(&self) -> RedactionSession<'_> {
         RedactionSession::new(&self.policy)
-    }
-
-    /// Creates a shared-budget event facade for this redactor.
-    #[must_use]
-    #[inline]
-    pub fn event(&self) -> RedactionSession<'_> {
-        self.session()
     }
 
     /// Creates an argument-vector adapter using this policy snapshot.
@@ -857,6 +844,6 @@ impl Default for Redactor {
     /// policy before construction or pass an explicit policy to [`Self::new`].
     #[inline(always)]
     fn default() -> Self {
-        Self::new(RedactionPolicy::default())
+        Self::current_default()
     }
 }

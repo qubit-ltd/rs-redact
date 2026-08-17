@@ -7,18 +7,17 @@
 // =============================================================================
 //! Tests for explicit recursive domain-object redaction adapters.
 
-use std::fmt;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::RedactionSession;
 use qubit_redact::domain::Redact;
 use qubit_redact::domain::RedactMut;
 #[cfg(feature = "serde")]
 use qubit_redact::domain::RedactSerialize;
+use qubit_redact::domain::RedactionWriter;
 #[cfg(feature = "serde")]
 use qubit_redact::internal::RedactedSerialize;
 /// Minimal nested value with a fixed safe representation.
@@ -26,12 +25,8 @@ struct NestedValue;
 
 impl Redact for NestedValue {
     /// Writes the nested value's safe representation.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        formatter.write_str("NestedValue { secret: <redacted> }")
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.literal("NestedValue { secret: <redacted> }");
     }
 }
 
@@ -99,13 +94,9 @@ fn test_nested_mutation_delegates_through_all_containers() {
 struct CountingValue<'a>(&'a AtomicUsize);
 
 impl Redact for CountingValue<'_> {
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         self.0.fetch_add(1, Ordering::Relaxed);
-        formatter.write_str("你你你你你")
+        writer.literal("你你你你你");
     }
 }
 
@@ -129,13 +120,9 @@ fn test_bounded_vec_stops_after_truncated_item() {
 struct ShortCountingValue<'a>(&'a AtomicUsize);
 
 impl Redact for ShortCountingValue<'_> {
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         self.0.fetch_add(1, Ordering::Relaxed);
-        formatter.write_str("x")
+        writer.literal("x");
     }
 }
 
@@ -160,13 +147,9 @@ fn test_bounded_vec_stops_after_container_writer_truncates() {
 struct OversizedInput<'a>(&'a AtomicUsize);
 
 impl Redact for OversizedInput<'_> {
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         self.0.fetch_add(1, Ordering::Relaxed);
-        formatter.write_str("must-not-render")
+        writer.literal("must-not-render");
     }
 }
 
@@ -199,13 +182,9 @@ fn test_vec_does_not_charge_item_input_before_rendering() {
 struct ExactInputChild<'a>(&'a AtomicUsize);
 
 impl Redact for ExactInputChild<'_> {
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         self.0.fetch_add(1, Ordering::Relaxed);
-        formatter.write_str("child")
+        writer.literal("child");
     }
 }
 

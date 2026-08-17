@@ -76,10 +76,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | Text-keyed map | `Redactor::redact_map` or `redact_map_in_place` | A copied or mutated map; choose the final logging format explicitly |
 | Rust struct or enum | `Redact` derive | `Redacted<T>` view |
 | Value requiring logical replacement | `Redact` derive | The generated `RedactMut` capability mutates the value; not memory erasure |
-| Command arguments | `Redactor::session().argv()` | `RedactedArgv` |
-| Environment pairs | `Redactor::session().env()` | `RedactedEnvPair` or `LogSafeText` |
-| URL, form, headers, captured body | `Redactor::session().http()` | Log-safe HTTP result types |
-| URI string | `Redactor::session().uri()` | Structured, log-safe result with component reasons |
+| Command arguments | `Redactor::session().argv_with_mut(...)` | `RedactedArgv` |
+| Environment pairs | `Redactor::session().env_with_mut(...)` | `RedactedEnvPair` or `LogSafeText` |
+| URL, form, headers, captured body | `Redactor::session().http_with_mut(...)` | Log-safe HTTP result types |
+| URI string | `Redactor::session().uri_with_mut(...)` | Structured, log-safe result with component reasons |
 
 ## Installation and example requirements
 
@@ -131,10 +131,10 @@ cumulative output allowance.
 
 | API | Starting state | Use it when |
 | --- | --- | --- |
-| `RedactionPolicy::default()` | Installed process-wide snapshot, or fixed standard policy | You accept the application's current default. |
+| `Redactor::default()` | Installed process-wide snapshot, or fixed standard policy | You accept the application's current default. |
 | `RedactionPolicy::builder()` | Empty application rules plus the standard floor | You need application rules defined at this call site while retaining the floor. |
 | `RedactionPolicy::default().to_builder()` | Copy of the current default snapshot | You want to extend the standard default. |
-| `RedactionPolicy::install_global()` | Installs once per process | Application startup owns the default policy snapshot. |
+| `Redactor::set_default()` | Replaces future snapshots | Application startup owns the default policy snapshot. |
 
 Use `include_preset(SensitiveFieldPreset::...)` to add the built-in credential,
 credential-container, auth-token, HTTP, or session field groups to an explicit
@@ -161,15 +161,20 @@ use qubit_redact::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut builder = RedactionPolicy::builder();
-    builder
-        .legacy_fields()
-        .matching(FieldNameMatching::ExactOrTokenSuffix)
-        .raise("tenant_reference", Sensitivity::High)?
-        .raise("tenant_visible", Sensitivity::High)?
-        .allow_exact("tenant_visible")?
-        .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))?;
-    let policy = builder.build()?;
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            let fields = fields.matching(FieldNameMatching::ExactOrTokenSuffix);
+            fields
+                .raise("tenant_reference", Sensitivity::High)
+                .expect("field rule should be valid")
+                .raise("tenant_visible", Sensitivity::High)
+                .expect("field rule should be valid")
+                .allow_exact("tenant_visible")
+                .expect("allow rule should be valid")
+                .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))
+                .expect("mask rule should be valid");
+        })?
+        .build()?;
     let redactor = Redactor::new(policy);
 
     assert_eq!(redactor.redact_field("TENANT_REFERENCE", "abc").as_str(), "[hidden]");
@@ -181,20 +186,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 Install the global policy only during application startup:
 
 ```rust
-use qubit_redact::{RedactionPolicy, Sensitivity};
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 let policy = RedactionPolicy::builder()
     .fields(|fields| {
         fields.secret_sensitive("api_key");
     })?
     .build()?;
-RedactionPolicy::install_global(policy)?;
+Redactor::set_default(Redactor::new(policy));
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-Installation succeeds once per process. Reading `global()` or `default()`
-before installation returns the standard fallback without occupying the
-installation slot. Existing snapshots do not change after a later installation.
+`Redactor::default()` returns the current process-wide snapshot. Existing
+snapshots do not change after a later replacement.
 Prefer explicit policy snapshots when tests or security boundaries need
 isolation.
 
@@ -290,14 +294,16 @@ smaller positive limit with
 requires it.
 
 JSON text can share the same event budget as other adapters through
-`session.json()`:
+`session.json_with_mut(...)`:
 
 ```rust
 use qubit_redact::Redactor;
 
 let redactor = Redactor::strict();
 let mut session = redactor.session();
-let safe = session.json().redact_text(r#"{"token":"raw-token"}"#);
+let safe = session.json_with_mut(|json| {
+    json.redact_text(r#"{"token":"raw-token"}"#)
+});
 assert!(!safe.to_string().contains("raw-token"));
 ```
 
@@ -461,7 +467,9 @@ fn main() {
     ];
     let redactor = Redactor::default();
     let mut session = redactor.session();
-    let output = session.argv().redact_heuristically(items).to_string();
+    let output = session.argv_with_mut(|argv| {
+        argv.redact_heuristically(items).to_string()
+    });
     assert!(!output.contains("raw-password"));
     assert!(!output.contains("raw-api-key"));
 }
@@ -486,8 +494,12 @@ use qubit_redact::Redactor;
 fn main() {
     let redactor = Redactor::default();
     let mut session = redactor.session();
-    let password = session.env().redact_pair("PASSWORD", "raw-password");
-    let assignment = session.env().redact_pair("API_TOKEN", "raw-token");
+    let password = session.env_with_mut(|env| {
+        env.redact_pair("PASSWORD", "raw-password")
+    });
+    let assignment = session.env_with_mut(|env| {
+        env.redact_pair("API_TOKEN", "raw-token")
+    });
 
     assert_eq!(password.to_string(), "PASSWORD=<redacted>");
     assert!(!assignment.to_string().contains("raw-token"));
@@ -497,7 +509,7 @@ fn main() {
 Use `redact_os_pairs` for a list of process variables; it shares the input
 budget and stops with a truncation marker instead of reading excess input.
 
-## 7. Redact HTTP diagnostics with `session.http()`
+## 7. Redact HTTP diagnostics with the `http_with_mut` adapter
 
 The optional `http` feature provides an immutable root `RedactionPolicy` for
 headers, query/form fields, and structured bodies. Its `http()` view stores
@@ -554,24 +566,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let redactor = Redactor::new(policy);
 
     let mut session = redactor.session();
-    let url = session.http().redact_url_str(
-        "https://api.example.test/login?api_key=raw-key&mode=debug",
-    );
+    let url = session.http_with_mut(|http| {
+        http.redact_url_str(
+            "https://api.example.test/login?api_key=raw-key&mode=debug",
+        )
+    });
     assert!(!url.to_string().contains("raw-key"));
 
     let mut headers = HeaderMap::new();
     headers.insert("authorization", HeaderValue::from_static("Bearer raw-token"));
-    assert!(!session
-        .http()
-        .redact_headers(&headers)
-        .to_string()
-        .contains("raw-token"));
+    let safe_headers = session.http_with_mut(|http| {
+        http.redact_headers(&headers).to_string()
+    });
+    assert!(!safe_headers.contains("raw-token"));
 
     let content_type = HeaderValue::from_static("application/json");
-    let body = session.http().redact_body(
-        BodyCapture::complete(br#"{"password":"raw-password","mode":"debug"}"#),
-        Some(&content_type),
-    );
+    let body = session.http_with_mut(|http| {
+        http.redact_body(
+            BodyCapture::complete(br#"{"password":"raw-password","mode":"debug"}"#),
+            Some(&content_type),
+        )
+    });
     assert!(matches!(body.status(), qubit_redact::formats::http::BodyRedactionStatus::Structured));
     assert!(!body.to_string().contains("raw-password"));
     Ok(())
@@ -588,7 +603,7 @@ For operational diagnostics, inspect `BodyRedaction::status()`,
 `BodyRedactionStatus::Redacted(reason)` value reports why a structured or
 visible representation was unsafe.
 
-## 8. Redact URI diagnostics with `session.uri()`
+## 8. Redact URI diagnostics with the `uri_with_mut` adapter
 
 The optional `uri` feature adds a parser-backed URI facade without enabling
 the HTTP feature:
@@ -616,14 +631,16 @@ retaining source text.
 output truncation metadata. Its `Debug` and `Display` implementations render
 only that safe result.
 
-Use `session.uri()` when URI work is part of a larger diagnostic event:
+Use `session.uri_with_mut(...)` when URI work is part of a larger diagnostic event:
 
 ```rust
 use qubit_redact::Redactor;
 
 let redactor = Redactor::default();
 let mut session = redactor.session();
-let safe = session.uri().redact_uri_str("https://example.test/path");
+let safe = session.uri_with_mut(|uri| {
+    uri.redact_uri_str("https://example.test/path")
+});
 assert!(safe.log_safe_text().as_str().contains("example.test"));
 ```
 
@@ -647,7 +664,7 @@ assert!(safe.log_safe_text().as_str().contains("example.test"));
 | A controlled field remained visible | Add an explicit rule; unknown fields pass through. |
 | A suffix rule exposed too much | Prefer an exact rule, or remove the suffix allow rule. |
 | A policy fails to build | Inspect the returned `PolicyError`; do not replace it with a permissive fallback. |
-| A global policy is already installed | Handle `InstallGlobalPolicyError`; pass an explicit policy where isolation matters. |
+| An application default is required | Call `Redactor::set_default()` during assembly; pass an explicit policy where isolation matters. |
 | A structured body is malformed or truncated | Log the safe result and inspect `BodyRedactionStatus::Redacted(reason)`. |
 | A log line contains controls or Unicode line separators | Cross the scalar boundary with `escape_for_log()`. |
 | Memory erasure is required | Do not rely on `RedactMut`; use a dedicated zeroization design. |

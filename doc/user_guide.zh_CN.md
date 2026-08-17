@@ -118,10 +118,10 @@ http = "1.5"
 
 | API | 初始状态 | 适用场景 |
 | --- | --- | --- |
-| `RedactionPolicy::default()` | 已安装的进程级快照，或固定标准策略 | 接受应用当前的默认策略。 |
+| `Redactor::default()` | 已安装的进程级快照，或固定标准策略 | 接受应用当前的默认策略。 |
 | `RedactionPolicy::builder()` | 空应用规则加标准 floor | 需要由当前调用点定义应用规则且保留 floor。 |
 | `RedactionPolicy::default().to_builder()` | 当前默认快照的副本 | 需要在标准默认策略上扩展。 |
-| `RedactionPolicy::install_global()` | 每个进程只能安装一次 | 应用初始化代码拥有默认策略快照。 |
+| `Redactor::set_default()` | 替换后续快照 | 应用初始化代码拥有默认策略快照。 |
 
 可用 `include_preset(SensitiveFieldPreset::...)` 向显式策略加入内置的凭据、凭据容器、
 认证令牌、HTTP 或会话字段组。策略测试或诊断需要解释决策时，使用
@@ -143,15 +143,20 @@ use qubit_redact::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut builder = RedactionPolicy::builder();
-    builder
-        .legacy_fields()
-        .matching(FieldNameMatching::ExactOrTokenSuffix)
-        .raise("tenant_reference", Sensitivity::High)?
-        .raise("tenant_visible", Sensitivity::High)?
-        .allow_exact("tenant_visible")?
-        .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))?;
-    let policy = builder.build()?;
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            let fields = fields.matching(FieldNameMatching::ExactOrTokenSuffix);
+            fields
+                .raise("tenant_reference", Sensitivity::High)
+                .expect("字段规则应有效")
+                .raise("tenant_visible", Sensitivity::High)
+                .expect("字段规则应有效")
+                .allow_exact("tenant_visible")
+                .expect("允许规则应有效")
+                .mask(Sensitivity::High, MaskPolicy::fixed("[hidden]"))
+                .expect("掩码规则应有效");
+        })?
+        .build()?;
     let redactor = Redactor::new(policy);
 
     assert_eq!(redactor.redact_field("TENANT_REFERENCE", "abc").as_str(), "[hidden]");
@@ -163,19 +168,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 全局策略只应在应用初始化时安装：
 
 ```rust
-use qubit_redact::{RedactionPolicy, Sensitivity};
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 let policy = RedactionPolicy::builder()
     .fields(|fields| {
         fields.secret_sensitive("api_key");
     })?
     .build()?;
-RedactionPolicy::install_global(policy)?;
+Redactor::set_default(Redactor::new(policy));
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-每个进程只能成功安装一次。安装前读取 `global()` 或 `default()` 只会取得固定标准策略，
-不会阻止后续安装。测试或多个安全边界应传递显式策略快照。
+`Redactor::default()` 返回当前进程级快照。已有快照不会因后续替换而改变；测试或多个安全
+边界应传递显式策略快照。
 
 字段名会被规范化。使用 `FieldNameMatching::ExactOrTokenSuffix` 时，`api_key` 规则可
 匹配 `request_api_key`；精确匹配范围最窄。
@@ -252,14 +257,16 @@ Map；应通过领域类型定义明确的替换语义。
 Secret 不透明掩码。默认最大深度为 128；需要更小的正数限制时，使用
 `RedactionPolicyBuilder::limits().json_depth(...)` 配置。
 
-JSON 文本可以通过 `session.json()` 与其他 adapter 共享同一个事件预算：
+JSON 文本可以通过 `session.json_with_mut(...)` 与其他 adapter 共享同一个事件预算：
 
 ```rust
 use qubit_redact::Redactor;
 
 let redactor = Redactor::strict();
 let mut session = redactor.session();
-let safe = session.json().redact_text(r#"{"token":"raw-token"}"#);
+let safe = session.json_with_mut(|json| {
+    json.redact_text(r#"{"token":"raw-token"}"#)
+});
 assert!(!safe.to_string().contains("raw-token"));
 ```
 
@@ -411,7 +418,9 @@ fn main() {
     ];
     let redactor = Redactor::default();
     let mut session = redactor.session();
-    let output = session.argv().redact_heuristically(items).to_string();
+    let output = session.argv_with_mut(|argv| {
+        argv.redact_heuristically(items).to_string()
+    });
     assert!(!output.contains("raw-password"));
     assert!(!output.contains("raw-api-key"));
 }
@@ -433,8 +442,12 @@ use qubit_redact::Redactor;
 fn main() {
     let redactor = Redactor::default();
     let mut session = redactor.session();
-    let password = session.env().redact_pair("PASSWORD", "raw-password");
-    let assignment = session.env().redact_pair("API_TOKEN", "raw-token");
+    let password = session.env_with_mut(|env| {
+        env.redact_pair("PASSWORD", "raw-password")
+    });
+    let assignment = session.env_with_mut(|env| {
+        env.redact_pair("API_TOKEN", "raw-token")
+    });
 
     assert_eq!(password.to_string(), "PASSWORD=<redacted>");
     assert!(!assignment.to_string().contains("raw-token"));
@@ -444,7 +457,7 @@ fn main() {
 渲染进程变量列表时使用 `redact_os_pairs`：它在整个列表中共享输入预算，超出时用截断
 标记停止，而不会继续读取原始数据。
 
-## 7. 使用 `session.http()` 处理 HTTP 诊断
+## 7. 使用 `http_with_mut` 处理 HTTP 诊断
 
 可选 `http` feature 提供统一的不可变 `RedactionPolicy`，分别处理 Header、query/form 和
 结构化 body。它的 `http()` 视图只保存 HTTP 上下文差异；基础字段规则、掩码和限制仍位于
@@ -491,24 +504,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let redactor = Redactor::new(policy);
 
     let mut session = redactor.session();
-    let url = session.http().redact_url_str(
-        "https://api.example.test/login?api_key=raw-key&mode=debug",
-    );
+    let url = session.http_with_mut(|http| {
+        http.redact_url_str(
+            "https://api.example.test/login?api_key=raw-key&mode=debug",
+        )
+    });
     assert!(!url.to_string().contains("raw-key"));
 
     let mut headers = HeaderMap::new();
     headers.insert("authorization", HeaderValue::from_static("Bearer raw-token"));
-    assert!(!session
-        .http()
-        .redact_headers(&headers)
-        .to_string()
-        .contains("raw-token"));
+    let safe_headers = session.http_with_mut(|http| {
+        http.redact_headers(&headers).to_string()
+    });
+    assert!(!safe_headers.contains("raw-token"));
 
     let content_type = HeaderValue::from_static("application/json");
-    let body = session.http().redact_body(
-        BodyCapture::complete(br#"{"password":"raw-password","mode":"debug"}"#),
-        Some(&content_type),
-    );
+    let body = session.http_with_mut(|http| {
+        http.redact_body(
+            BodyCapture::complete(br#"{"password":"raw-password","mode":"debug"}"#),
+            Some(&content_type),
+        )
+    });
     assert!(matches!(body.status(), qubit_redact::formats::http::BodyRedactionStatus::Structured));
     assert!(!body.to_string().contains("raw-password"));
     Ok(())
@@ -522,7 +538,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 运行时诊断可读取 `BodyRedaction::status()`、`is_truncated()`、`captured_len()` 和
 `omitted_len()`。`BodyRedactionStatus::Redacted(reason)` 会给出结构化或可见表示不安全的原因。
 
-## 8. 使用 `session.uri()` 处理 URI 诊断
+## 8. 使用 `uri_with_mut` 处理 URI 诊断
 
 可选 `uri` feature 提供基于解析器的 URI facade，且不会隐式启用 `http`：
 
@@ -543,14 +559,16 @@ pair 分隔符，未遮盖的值保留原始编码，已遮盖的值重新做 UR
 `UriRedaction` 提供日志安全文本、状态、已变更组件、原因和输出截断元数据；其 `Debug` 和
 `Display` 只渲染安全结果。
 
-当 URI 诊断属于更大的事件时，使用 `session.uri()`：
+当 URI 诊断属于更大的事件时，使用 `session.uri_with_mut(...)`：
 
 ```rust
 use qubit_redact::Redactor;
 
 let redactor = Redactor::default();
 let mut session = redactor.session();
-let safe = session.uri().redact_uri_str("https://example.test/path");
+let safe = session.uri_with_mut(|uri| {
+    uri.redact_uri_str("https://example.test/path")
+});
 assert!(safe.log_safe_text().as_str().contains("example.test"));
 ```
 
@@ -572,7 +590,7 @@ assert!(safe.log_safe_text().as_str().contains("example.test"));
 | 可控字段仍然可见 | 添加显式规则；未知字段会原样通过。 |
 | 后缀规则披露范围过大 | 优先改用精确规则，或删除后缀 allow 规则。 |
 | 策略构建失败 | 检查返回的 `PolicyError`，不要回退到宽松策略。 |
-| 全局策略已安装 | 处理 `InstallGlobalPolicyError`；需要隔离时传递显式策略。 |
+| 需要应用级默认策略 | 在组装阶段调用 `Redactor::set_default()`；需要隔离时传递显式策略。 |
 | 结构化 body 不合法或已截断 | 记录安全结果，并检查 `BodyRedactionStatus::Redacted(reason)`。 |
 | 日志行包含控制字符或 Unicode 行序字符 | 通过 `escape_for_log()` 跨过标量日志边界。 |
 | 需要内存擦除 | 不要依赖 `RedactMut`；使用专门的 zeroization 设计。 |

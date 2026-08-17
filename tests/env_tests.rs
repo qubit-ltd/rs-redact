@@ -46,8 +46,7 @@ fn test_redact_pair_session_respects_cumulative_output_limit() {
     let rendered: Vec<_> = (0..4)
         .map(|_| {
             session
-                .env()
-                .redact_pair("PASSWORD", "raw-secret")
+                .env_with_mut(|env| env.redact_pair("PASSWORD", "raw-secret"))
                 .to_string()
         })
         .collect();
@@ -79,8 +78,7 @@ fn test_redact_pair_session_charges_escaped_rendered_bytes() {
     let mut session = redactor.redactor().session();
 
     let rendered = session
-        .env()
-        .redact_pair("message", "line\nvalue")
+        .env_with_mut(|env| env.redact_pair("message", "line\nvalue"))
         .to_string();
 
     assert_eq!(
@@ -111,7 +109,8 @@ fn test_redact_os_pair_with_session_charges_invalid_components() {
     let name = OsString::from_vec(vec![b'N', 0xff]);
     let value = OsString::from_vec(vec![b'v', 0xfe]);
 
-    let rendered = session.env().redact_os_pair(&name, &value);
+    let rendered =
+        session.env_with_mut(|env| env.redact_os_pair(&name, &value));
 
     assert!(rendered.to_string().contains("<redacted>"));
     assert!(session.remaining_input_bytes() < 64);
@@ -237,11 +236,11 @@ fn test_redact_pair_resolves_longest_suffix_match() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("key", Sensitivity::Low)
             .expect("the test builder input should be valid");
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("api_key", Sensitivity::High)
             .expect("the test builder input should be valid");
         builder
@@ -261,8 +260,8 @@ fn test_redact_pair_resolves_longest_suffix_match() {
 fn test_redact_pair_honors_exact_matching_policy() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.legacy_fields().disable_floor();
-        let _ = builder.legacy_fields().matching(FieldNameMatching::Exact);
+        builder.edit_fields().disable_floor();
+        let _ = builder.edit_fields().matching(FieldNameMatching::Exact);
         builder
     })
     .build()
@@ -331,7 +330,7 @@ fn test_new_uses_custom_redaction_policy() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("tenant_value", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder

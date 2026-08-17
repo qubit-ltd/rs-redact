@@ -8,35 +8,25 @@
 //! Non-destructive redaction contract for domain objects.
 // qubit-style: allow multiple-public-types
 
-use std::fmt;
-use std::fmt::Formatter;
-
 use crate::RedactionPolicy;
-use crate::RedactionSession;
 use crate::domain::Redacted;
 use crate::domain::RedactionWriter;
 
 /// Writes the unquoted safe marker for a domain branch that was not admitted.
-///
-/// The marker is structural output rather than a string field value, so its
-/// [`fmt::Debug`] representation deliberately omits quotes. Domain formatters
-/// use it as the terminal field, element, or map entry after a node, item, or
-/// depth limit is reached. The surrounding bounded formatter still charges the
-/// marker against the shared output budget.
 pub struct DomainTruncated;
 
-impl fmt::Debug for DomainTruncated {
+impl std::fmt::Debug for DomainTruncated {
     /// Writes the complete unquoted structural truncation marker.
     #[inline(always)]
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("<truncated>")
     }
 }
 
 /// Formats a domain object through an explicit immutable redaction policy.
 ///
-/// Implementations must write only the redacted representation from
-/// [`Self::fmt_redacted`]. The original object remains unchanged.
+/// Implementations must write only the redacted representation through
+/// [`Self::write_redacted`]. The original object remains unchanged.
 /// Domain owners remain responsible for deciding which fields are sensitive
 /// and for selecting the redaction boundary. This trait does not infer that a
 /// newly added field needs redaction.
@@ -50,68 +40,10 @@ impl fmt::Debug for DomainTruncated {
 /// policy-derived safe values without invoking their original `Debug` or
 /// `Display` implementation. Output is bounded by the library, but arbitrary
 /// user formatting logic may still perform its own computation or allocation.
-///
-/// # Example
-///
-/// ```
-/// use std::fmt;
-///
-/// use qubit_redact::RedactionSession;
-/// use qubit_redact::domain::{DomainTruncated, Redact};
-/// use qubit_redact::policy::{
-///     DomainTraversalAdmission,
-///     DomainValueAdmission,
-/// };
-///
-/// struct Account {
-///     user: String,
-///     password: String,
-/// }
-///
-/// impl Redact for Account {
-///     fn fmt_redacted(
-///         &self,
-///         session: &mut RedactionSession<'_>,
-///         formatter: &mut fmt::Formatter<'_>,
-///     ) -> fmt::Result {
-///         let DomainValueAdmission::Entered(mut scope) =
-///             session.enter_domain_value()
-///         else {
-///             return fmt::Debug::fmt(&DomainTruncated, formatter);
-///         };
-///         let mut output = formatter.debug_struct("Account");
-///         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-///             return output.field("user", &DomainTruncated).finish();
-///         }
-///         output.field("user", &self.user);
-///         if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-///             return output.field("password", &DomainTruncated).finish();
-///         }
-///         output.field("password", &"<redacted>").finish()
-///     }
-/// }
-///
-/// let account = Account {
-///     user: "ada".to_owned(),
-///     password: "raw-secret".to_owned(),
-/// };
-/// assert_eq!(
-///     format!("{:?}", account.redacted()),
-///     r#"Account { user: "ada", password: "<redacted>" }"#,
-/// );
-/// assert_eq!(account.password, "raw-secret");
-/// ```
 pub trait Redact {
     /// Writes this value through the invariant-preserving structured writer.
-    ///
-    /// New implementations should override this method. The default bridges
-    /// existing formatter-based implementations while downstream crates
-    /// migrate to the structured protocol.
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_>)
-    where
-        Self: Sized,
-    {
-        writer.legacy(self);
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.literal("<truncated>");
     }
 
     /// Creates a borrowed view using a snapshot of the current default policy.
@@ -146,39 +78,16 @@ pub trait Redact {
     {
         Redacted::new(self, policy.clone())
     }
+}
 
-    /// Writes this object's redacted debug representation.
-    ///
-    /// Implementations should honor the formatting flags carried by
-    /// `formatter`, including alternate pretty formatting. Sensitive fields
-    /// must not invoke their original `Debug` or `Display` implementations.
-    /// Before accessing the object, implementations must call
-    /// [`RedactionSession::enter_domain_value`], and must charge every field or
-    /// collection item through the returned scope before reading it. Budget
-    /// rejection is a normal business state represented by
-    /// [`DomainTruncated`], not [`fmt::Error`].
-    ///
-    /// # Parameters
-    ///
-    /// * `session` - Shared diagnostic session governing this representation
-    ///   and all nested values.
-    /// * `formatter` - Destination formatting context.
-    ///
-    /// # Returns
-    ///
-    /// The formatter result for the admitted redacted representation.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`fmt::Error`] when the destination formatter cannot accept the
-    /// complete representation.
-    #[doc(hidden)]
-    fn fmt_redacted(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut Formatter<'_>,
-    ) -> fmt::Result {
-        let _ = (session, formatter);
-        Err(fmt::Error)
-    }
+/// Writes one domain value into a formatter through a shared structured
+/// session.
+pub(crate) fn write_redacted_to_formatter<T: Redact + ?Sized>(
+    value: &T,
+    session: &mut crate::RedactionSession<'_>,
+    formatter: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    let mut writer = RedactionWriter::new(session);
+    value.write_redacted(&mut writer);
+    formatter.write_str(&writer.finish())
 }

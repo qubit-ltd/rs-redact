@@ -307,6 +307,7 @@ mod session_view {
         CollectionItem,
     }
 
+    #[allow(deprecated)]
     impl<T: Redact + RedactValue + ?Sized> Debug for KeyedOnce<'_, '_, '_, T> {
         /// Applies the selected keyed redaction exactly once.
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
@@ -349,7 +350,9 @@ mod session_view {
                 formatter,
             ),
             ResolvedField::PassThrough => {
-                value.fmt_redacted(session, formatter)
+                crate::domain::redact::write_redacted_to_formatter(
+                    value, session, formatter,
+                )
             }
         }
     }

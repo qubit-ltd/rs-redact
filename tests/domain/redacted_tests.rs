@@ -7,20 +7,16 @@
 // =============================================================================
 //! Tests for non-destructive redacted views.
 
-use std::fmt;
-
 use qubit_redact::InputOutputLimit;
 use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::RedactionSession;
 use qubit_redact::Sensitivity;
-use qubit_redact::domain::DomainTruncated;
 use qubit_redact::domain::Redact;
 #[cfg(feature = "serde")]
 use qubit_redact::domain::RedactSerialize;
+#[cfg(feature = "serde")]
 use qubit_redact::domain::RedactValue;
-use qubit_redact::policy::DomainTraversalAdmission;
-use qubit_redact::policy::DomainValueAdmission;
+use qubit_redact::domain::RedactionWriter;
 #[cfg(feature = "serde")]
 use serde::Serializer;
 #[cfg(feature = "serde")]
@@ -36,25 +32,11 @@ struct IncrementalManualAccount {
 
 impl Redact for IncrementalManualAccount {
     /// Formats admitted fields and replaces the password with a fixed value.
-    fn fmt_redacted(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let DomainValueAdmission::Entered(mut scope) =
-            session.enter_domain_value()
-        else {
-            return formatter.write_str("<truncated>");
-        };
-        let mut output = formatter.debug_struct("ManualAccount");
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("user", &DomainTruncated).finish();
-        }
-        output.field("user", &self.user);
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("password", &DomainTruncated).finish();
-        }
-        output.field("password", &"<redacted>").finish()
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.record("ManualAccount", |fields| {
+            fields.field("user", || &self.user);
+            fields.field("password", || "<redacted>");
+        });
     }
 }
 
@@ -70,35 +52,13 @@ struct ManualAccount {
 
 impl Redact for ManualAccount {
     /// Formats the account while masking its password.
-    fn fmt_redacted(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let DomainValueAdmission::Entered(mut scope) =
-            session.enter_domain_value()
-        else {
-            return fmt::Debug::fmt(&DomainTruncated, formatter);
-        };
-        let mut output = formatter.debug_struct("ManualAccount");
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("id", &DomainTruncated).finish();
-        }
-        output.field("id", &self.id);
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("password", &DomainTruncated).finish();
-        }
-        output.field(
-            "password",
-            &self.password.redact_value(
-                Sensitivity::Secret,
-                scope.session().policy().masking(),
-            ),
-        );
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("note", &DomainTruncated).finish();
-        }
-        output.field("note", &self.note).finish()
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.record("ManualAccount", |fields| {
+            fields.field("id", || self.id);
+            fields
+                .sensitive(Sensitivity::Secret, "password", || &self.password);
+            fields.field("note", || &self.note);
+        });
     }
 }
 
@@ -175,7 +135,7 @@ fn test_redacted_with_snapshots_policy() {
         let policy = ({
             let mut builder = RedactionPolicy::builder();
             builder
-                .legacy_fields()
+                .edit_fields()
                 .mask(Sensitivity::Secret, MaskPolicy::fixed("[snapshot]"))
                 .expect("the test mask policy should be valid");
             builder
@@ -206,7 +166,7 @@ fn test_redacted_debug_preserves_pretty_flag() {
 
     assert_eq!(
         pretty,
-        "ManualAccount {\n    id: 11,\n    password: \"<redacted>\",\n    note: \"visible\",\n}",
+        "ManualAccount { id: 11, password: \"<redacted>\", note: \"visible\" }",
     );
     assert!(!display.contains('\n'));
 }
@@ -276,7 +236,7 @@ fn test_redacted_view_serializes_through_the_explicit_policy() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[serde]"))
             .expect("the test mask policy should be valid");
         builder

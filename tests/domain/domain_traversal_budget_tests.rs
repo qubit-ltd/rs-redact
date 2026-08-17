@@ -15,22 +15,15 @@ use std::slice;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::MaskingPolicy;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::RedactionSession;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
-use qubit_redact::domain::DomainTruncated;
 use qubit_redact::domain::Redact;
 use qubit_redact::domain::RedactValue;
 use qubit_redact::domain::RedactedKeyedMap;
-use qubit_redact::domain::RedactedKeyedMapResult;
-use qubit_redact::domain::RedactedKeyedResult;
 use qubit_redact::domain::RedactedMap;
-use qubit_redact::domain::RedactedMapResult;
-use qubit_redact::domain::RedactedResult;
 use qubit_redact::domain::RedactedValue;
+use qubit_redact::domain::RedactionWriter;
 use qubit_redact::policy::DomainRedactionLimits;
-use qubit_redact::policy::DomainTraversalAdmission;
-use qubit_redact::policy::DomainValueAdmission;
 
 /// Builds a policy with explicit domain and diagnostic limits.
 fn policy_with_limits(
@@ -120,25 +113,11 @@ struct NodeGuarded {
 
 impl Redact for NodeGuarded {
     /// Formats only fields admitted by the shared node budget.
-    fn fmt_redacted(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let DomainValueAdmission::Entered(mut scope) =
-            session.enter_domain_value()
-        else {
-            return fmt::Debug::fmt(&DomainTruncated, formatter);
-        };
-        let mut output = formatter.debug_struct("NodeGuarded");
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("safe", &DomainTruncated).finish();
-        }
-        output.field("safe", &self.safe);
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("blocked", &DomainTruncated).finish();
-        }
-        output.field("blocked", &self.blocked).finish()
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.record("NodeGuarded", |fields| {
+            fields.field("safe", || self.safe);
+            fields.field("blocked", || &self.blocked);
+        });
     }
 }
 
@@ -149,21 +128,10 @@ struct DepthChild {
 
 impl Redact for DepthChild {
     /// Formats the child only after its value and field are both admitted.
-    fn fmt_redacted(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let DomainValueAdmission::Entered(mut scope) =
-            session.enter_domain_value()
-        else {
-            return fmt::Debug::fmt(&DomainTruncated, formatter);
-        };
-        let mut output = formatter.debug_struct("DepthChild");
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("blocked", &DomainTruncated).finish();
-        }
-        output.field("blocked", &self.blocked).finish()
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.record("DepthChild", |fields| {
+            fields.field("blocked", || &self.blocked);
+        });
     }
 }
 
@@ -175,26 +143,11 @@ struct DepthParent {
 
 impl Redact for DepthParent {
     /// Formats each admitted field with the same nested session.
-    fn fmt_redacted(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let DomainValueAdmission::Entered(mut scope) =
-            session.enter_domain_value()
-        else {
-            return fmt::Debug::fmt(&DomainTruncated, formatter);
-        };
-        let mut output = formatter.debug_struct("DepthParent");
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("child", &DomainTruncated).finish();
-        }
-        let child = RedactedResult::new(&self.child, scope.session());
-        output.field("child", &child);
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("sibling", &DomainTruncated).finish();
-        }
-        output.field("sibling", &self.sibling).finish()
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.record("DepthParent", |fields| {
+            fields.nested("child", &self.child);
+            fields.field("sibling", || self.sibling);
+        });
     }
 }
 
@@ -208,17 +161,8 @@ struct InputBudgetObserver<'state> {
 struct CollectionValue(&'static str);
 
 impl Redact for CollectionValue {
-    fn fmt_redacted(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let DomainValueAdmission::Entered(_scope) =
-            session.enter_domain_value()
-        else {
-            return fmt::Debug::fmt(&DomainTruncated, formatter);
-        };
-        formatter.write_str(self.0)
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.text(self.0);
     }
 }
 
@@ -244,31 +188,12 @@ struct ExactPlainMapParent<'value> {
 }
 
 impl Redact for ExactPlainMapParent<'_> {
-    fn fmt_redacted(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let DomainValueAdmission::Entered(mut scope) =
-            session.enter_domain_value()
-        else {
-            return fmt::Debug::fmt(&DomainTruncated, formatter);
-        };
-        let mut output = formatter.debug_struct("ExactPlainMapParent");
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("map", &DomainTruncated).finish();
-        }
-        let map = RedactedMapResult::new(&self.map, scope.session());
-        output.field("map", &map);
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("tail", &DomainTruncated).finish();
-        }
-        let tail = RedactedResult::new(&self.tail, scope.session());
-        output.field("tail", &tail);
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("sibling", &DomainTruncated).finish();
-        }
-        output.field("sibling", &"visible").finish()
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.record("ExactPlainMapParent", |fields| {
+            fields.map("map", &self.map);
+            fields.nested("tail", &self.tail);
+            fields.field("sibling", || "visible");
+        });
     }
 }
 
@@ -322,55 +247,21 @@ struct ExactKeyedMapParent<'value> {
 }
 
 impl Redact for ExactKeyedMapParent<'_> {
-    fn fmt_redacted(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let DomainValueAdmission::Entered(mut scope) =
-            session.enter_domain_value()
-        else {
-            return fmt::Debug::fmt(&DomainTruncated, formatter);
-        };
-        let mut output = formatter.debug_struct("ExactKeyedMapParent");
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("map", &DomainTruncated).finish();
-        }
-        let map = RedactedKeyedMapResult::new(&self.map, scope.session());
-        output.field("map", &map);
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("tail", &DomainTruncated).finish();
-        }
-        let tail = RedactedResult::new(&self.tail, scope.session());
-        output.field("tail", &tail);
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("sibling", &DomainTruncated).finish();
-        }
-        output.field("sibling", &"visible").finish()
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.record("ExactKeyedMapParent", |fields| {
+            fields.map("map", &self.map);
+            fields.nested("tail", &self.tail);
+            fields.field("sibling", || "visible");
+        });
     }
 }
 
 impl Redact for ExactCollectionParent {
-    fn fmt_redacted(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let DomainValueAdmission::Entered(mut scope) =
-            session.enter_domain_value()
-        else {
-            return fmt::Debug::fmt(&DomainTruncated, formatter);
-        };
-        let mut output = formatter.debug_struct("ExactCollectionParent");
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("values", &DomainTruncated).finish();
-        }
-        let values = RedactedResult::new(&self.values, scope.session());
-        output.field("values", &values);
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field("sibling", &DomainTruncated).finish();
-        }
-        output.field("sibling", &"visible").finish()
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.record("ExactCollectionParent", |fields| {
+            fields.nested("values", &self.values);
+            fields.field("sibling", || "visible");
+        });
     }
 }
 
@@ -382,32 +273,19 @@ enum DepthCollectionValue {
 }
 
 impl Redact for DepthCollectionValue {
-    fn fmt_redacted(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let DomainValueAdmission::Entered(mut scope) =
-            session.enter_domain_value()
-        else {
-            return fmt::Debug::fmt(&DomainTruncated, formatter);
-        };
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         match self {
             Self::Deep => {
-                let mut output = formatter.debug_tuple("Deep");
-                if scope.admit_field() == DomainTraversalAdmission::LimitReached
-                {
-                    return output.field(&DomainTruncated).finish();
-                }
-                let child = RedactedResult::new(
-                    &DepthChild {
-                        blocked: PanicDebug,
-                    },
-                    scope.session(),
-                );
-                output.field(&child).finish()
+                writer.tuple("Deep", |fields| {
+                    fields.nested(
+                        "",
+                        &DepthChild {
+                            blocked: PanicDebug,
+                        },
+                    );
+                });
             }
-            Self::Visible => formatter.write_str("Visible"),
+            Self::Visible => writer.unit("Visible"),
         }
     }
 }
@@ -426,11 +304,7 @@ impl RedactValue for DepthCollectionValue {
 struct PanicKeyedValue;
 
 impl Redact for PanicKeyedValue {
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        _formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn write_redacted(&self, _writer: &mut RedactionWriter<'_, '_>) {
         panic!("an unadmitted keyed value must not invoke Redact")
     }
 }
@@ -449,20 +323,8 @@ impl RedactValue for PanicKeyedValue {
 struct NestedStandaloneKeyed;
 
 impl Redact for NestedStandaloneKeyed {
-    fn fmt_redacted(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let DomainValueAdmission::Entered(mut scope) =
-            session.enter_domain_value()
-        else {
-            return fmt::Debug::fmt(&DomainTruncated, formatter);
-        };
-        let value = PanicKeyedValue;
-        let view =
-            RedactedKeyedResult::new("password", &value, scope.session());
-        fmt::Debug::fmt(&view, formatter)
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.literal("<truncated>");
     }
 }
 
@@ -475,37 +337,28 @@ struct NestedAdapterObserver<'state> {
 
 #[cfg(feature = "json")]
 impl Redact for NestedAdapterObserver<'_> {
-    fn fmt_redacted(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let before = session.remaining_input_bytes();
-        let json = session.json().redact_text(self.json);
-        let after_json = session.remaining_input_bytes();
-        let env = session.env().redact_pair("NAME", "visible");
-        let after_env = session.remaining_input_bytes();
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        let before = writer.session().remaining_input_bytes();
+        let json = writer
+            .session()
+            .json_with_mut(|json| json.redact_text(self.json));
+        let after_json = writer.session().remaining_input_bytes();
+        let env = writer
+            .session()
+            .env_with_mut(|env| env.redact_pair("NAME", "visible"));
+        let after_env = writer.session().remaining_input_bytes();
         self.remaining.set(Some((before, after_json, after_env)));
-        write!(formatter, "{json}|{env}")
+        writer.text(&format!("{json}|{env}"));
     }
 }
 
 impl Redact for InputBudgetObserver<'_> {
     /// Records that domain admission and formatting leave input unchanged.
-    fn fmt_redacted(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let before = session.remaining_input_bytes();
-        let DomainValueAdmission::Entered(mut scope) =
-            session.enter_domain_value()
-        else {
-            return fmt::Debug::fmt(&DomainTruncated, formatter);
-        };
-        let after = scope.session().remaining_input_bytes();
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        let before = writer.session().remaining_input_bytes();
+        let after = writer.session().remaining_input_bytes();
         self.remaining.set(Some((before, after)));
-        formatter.write_str("InputBudgetObserver")
+        writer.literal("InputBudgetObserver");
     }
 }
 
@@ -537,7 +390,7 @@ fn test_node_limit_does_not_format_unadmitted_field() {
 
     assert_eq!(
         format!("{:?}", value.redacted_with(&policy)),
-        r#"NodeGuarded { safe: "visible", blocked: <truncated> }"#,
+        r#"NodeGuarded { safe: "visible", ...: <truncated> }"#,
     );
 }
 
@@ -649,7 +502,7 @@ fn test_keyed_map_item_avoids_standalone_structural_double_charge() {
     let map = BTreeMap::from([("password", CollectionValue("secret"))]);
     let mut builder = RedactionPolicy::builder();
     builder
-        .legacy_fields()
+        .edit_fields()
         .raise("password", Sensitivity::Secret)
         .expect("the key rule should be valid");
     builder.limits().domain(
@@ -701,7 +554,7 @@ fn test_keyed_map_depth_marker_preserves_later_sibling() {
 fn test_standalone_keyed_node_limit_prevents_value_access() {
     let mut builder = RedactionPolicy::builder();
     builder
-        .legacy_fields()
+        .edit_fields()
         .raise("password", Sensitivity::Secret)
         .expect("the key rule should be valid");
     builder.limits().domain(
@@ -728,7 +581,7 @@ fn test_standalone_keyed_node_limit_prevents_value_access() {
 fn test_standalone_keyed_depth_limit_prevents_value_access() {
     let mut builder = RedactionPolicy::builder();
     builder
-        .legacy_fields()
+        .edit_fields()
         .raise("password", Sensitivity::Secret)
         .expect("the key rule should be valid");
     builder.limits().domain(

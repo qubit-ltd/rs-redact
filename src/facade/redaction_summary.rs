@@ -67,6 +67,23 @@ pub struct RedactionUsage {
 }
 
 impl RedactionUsage {
+    /// Creates usage from runtime accounting.
+    #[must_use]
+    pub(crate) const fn from_runtime(
+        inspected_input_bytes: usize,
+        emitted_output_bytes: usize,
+        visited_nodes: usize,
+        visited_collection_items: usize,
+        maximum_depth: usize,
+    ) -> Self {
+        Self {
+            inspected_input_bytes,
+            emitted_output_bytes,
+            visited_nodes,
+            visited_collection_items,
+            maximum_depth,
+        }
+    }
     /// Returns the number of inspected source bytes.
     #[must_use]
     pub const fn inspected_input_bytes(self) -> usize {
@@ -107,6 +124,11 @@ pub struct RedactionSummary {
 }
 
 impl RedactionSummary {
+    /// Replaces the placeholder usage with counters collected at runtime.
+    #[must_use]
+    pub(crate) const fn with_usage(self, usage: RedactionUsage) -> Self {
+        Self { usage, ..self }
+    }
     /// Creates a summary for a complete operation.
     #[must_use]
     pub const fn complete() -> Self {

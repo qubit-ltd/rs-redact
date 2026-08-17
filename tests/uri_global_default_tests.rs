@@ -10,6 +10,7 @@
 #![cfg(feature = "uri")]
 
 use qubit_redact::RedactionPolicy;
+use qubit_redact::Redactor;
 use qubit_redact::formats::uri::UriFragmentPolicy;
 use qubit_redact::formats::uri::UriPathPolicy;
 use qubit_redact::formats::uri::UriRedactor;
@@ -27,9 +28,8 @@ fn test_uri_policy_defaults_preserve_global_snapshot() {
             .build()
             .expect("the custom URI policy should be valid")
     };
-    RedactionPolicy::install_global(expected.clone())
-        .expect("this isolated test process installs the global policy once");
+    let previous = Redactor::set_default(Redactor::new(expected.clone()));
 
-    assert_eq!(RedactionPolicy::default(), expected);
     assert_eq!(UriRedactor::default().policy(), &expected);
+    let _ = Redactor::set_default(previous);
 }

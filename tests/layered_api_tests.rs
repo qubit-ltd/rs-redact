@@ -7,18 +7,22 @@
 // =============================================================================
 //! Verifies the new layered public entry points retain existing behavior.
 
-use qubit_redact::RedactionEvent;
-use qubit_redact::Sensitivity;
 use qubit_redact::config::RedactionConfig;
+use qubit_redact::domain::Redact;
+use qubit_redact::domain::RedactionWriter;
 use qubit_redact::facade::Redactor;
-use qubit_redact::output::RedactedText;
+
+struct Raw;
+
+impl Redact for Raw {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.literal("<redacted>");
+    }
+}
 
 #[test]
-fn test_layered_config_and_event_preserve_scalar_redaction() {
+fn test_layered_config_and_redactor_preserve_scalar_redaction() {
     let redactor = Redactor::new(RedactionConfig::standard());
-    let mut event: RedactionEvent<'_> = redactor.event();
-    let result = event.redact_at(Sensitivity::Secret, "raw");
-
-    let _: &RedactedText<'_> = &result;
-    assert_eq!(result.as_str(), "<redacted>");
+    let result = redactor.redact(&Raw);
+    assert_eq!(result.text().as_str(), "<redacted>");
 }

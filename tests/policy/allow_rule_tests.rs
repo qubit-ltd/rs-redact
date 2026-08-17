@@ -16,7 +16,7 @@ fn test_allow_rule_exposes_exact_field_and_matching_mode() {
         ({
             let mut builder = RedactionPolicy::builder();
             builder
-                .legacy_fields()
+                .edit_fields()
                 .allow_exact("public-token")
                 .expect("the test builder input should be valid");
             builder
@@ -39,7 +39,7 @@ fn test_allow_rule_exposes_suffix_matching_mode() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .allow_suffix("token")
             .expect("the test builder input should be valid");
         builder

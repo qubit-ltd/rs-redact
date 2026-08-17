@@ -21,24 +21,28 @@ pub struct UriRedactionSession<'session, 'policy> {
 }
 
 impl<'policy> RedactionSession<'policy> {
-    /// Creates a URI facade backed by this session's policy and budgets.
-    #[must_use]
-    #[inline]
-    pub fn uri(&mut self) -> UriRedactionSession<'_, 'policy> {
-        UriRedactionSession { session: self }
-    }
-
     /// Configures the URI adapter inside a chainable session.
     #[must_use]
     pub fn uri_with<F>(mut self, configure: F) -> Self
     where
         F: for<'session> FnOnce(&mut UriRedactionSession<'session, 'policy>),
     {
-        {
-            let mut adapter = self.uri();
-            configure(&mut adapter);
-        }
+        let mut adapter = UriRedactionSession { session: &mut self };
+        configure(&mut adapter);
         self
+    }
+
+    /// Runs one URI operation through a borrowed closure adapter.
+    #[must_use]
+    #[inline(always)]
+    pub fn uri_with_mut<F, R>(&mut self, configure: F) -> R
+    where
+        F: for<'session> FnOnce(
+            &mut UriRedactionSession<'session, 'policy>,
+        ) -> R,
+    {
+        let mut adapter = UriRedactionSession { session: self };
+        configure(&mut adapter)
     }
 }
 

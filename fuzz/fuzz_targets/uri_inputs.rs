@@ -153,7 +153,7 @@ fuzz_target!(|data: &[u8]| {
             .expect("the custom URI fuzz budget is valid"),
     );
     builder
-        .legacy_fields()
+        .edit_fields()
         .mask(Sensitivity::Secret, MaskPolicy::fixed("密\n/?#%"))
         .expect("the custom secret mask is valid")
         .mask(Sensitivity::High, MaskPolicy::fixed("密\n/?#%"))

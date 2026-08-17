@@ -62,21 +62,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 如果需要进程级默认策略，应在创建必须使用应用策略的对象之前安装已经构建好的策略：
 
 ```rust
-use qubit_redact::{RedactionPolicy, Sensitivity};
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 let policy = RedactionPolicy::builder()
     .fields(|fields| {
         fields.secret_sensitive("api_key");
     })?
     .build()?;
-RedactionPolicy::install_global(policy)?;
-let snapshot = RedactionPolicy::default();
+Redactor::set_default(Redactor::new(policy.clone()));
+let snapshot = Redactor::default().policy().clone();
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-如果没有安装策略，全局/默认策略读取会使用固定的标准策略，但不会占用全局安装槽。
-提前读取后仍可调用 `install_global()`；安装只改变未来取得的快照，已有快照不会因
-后续安装而改变。
+`RedactionPolicy::default()` 始终返回固定的标准策略。应用应在创建需要应用策略的对象前
+通过 `Redactor::set_default()` 安装默认 redactor；已有快照不会随后改变。
 
 一次诊断事件应创建一个 session，并在各个 adapter 之间复用。session 持有共享的输入/输出
 预算，因此嵌套的 JSON、HTTP、URI、argv 和环境变量操作不会悄悄取得一份新预算：
@@ -89,16 +88,16 @@ use qubit_redact::Redactor;
 let redactor = Redactor::strict();
 let mut session = redactor.session();
 let token = session.redact_field("token", "raw-token");
-let argv = session.argv().redact_heuristically([
+let argv = session.argv_with_mut(|argv| argv.redact_heuristically([
     ArgvItem::plain(OsStr::new("client")),
     ArgvItem::plain(OsStr::new("--token")),
     ArgvItem::plain(OsStr::new("raw-token")),
-]);
+]));
 assert!(!token.as_str().contains("raw-token"));
 assert!(!argv.to_string().contains("raw-token"));
 ```
 
-> **警告：** `install_global()` 只能由可执行应用在组装初始化阶段调用。应用应在最终
+> **警告：** `Redactor::set_default()` 只能由可执行应用在组装初始化阶段调用。应用应在最终
 > 策略构建完成后、启动 worker 或请求处理之前调用一次；库不得调用它。安装前创建的
 > 对象可能永久持有标准策略快照。必须使用应用策略的对象应在安装后创建，或显式注入
 > 策略。安装前 fallback 只用于解决初始化顺序，不是运行时重配置机制。
@@ -151,18 +150,18 @@ http = "1.5"
 `json` feature 负责 JSON value 和 JSON 文本脱敏。`http` feature 会复用它处理 HTTP JSON
 body，但 JSON 能力并不属于 HTTP 专属功能，也可以独立启用。
 
-JSON 文本可以通过 `session.json()` 参与同一个事件预算：
+JSON 文本可以通过 `session.json_with()` 参与同一个事件预算：
 
 ```rust
 use qubit_redact::Redactor;
 
 let redactor = Redactor::strict();
 let mut session = redactor.session();
-let safe = session.json().redact_text(r#"{"token":"raw-token"}"#);
+let safe = session.json_with_mut(|json| json.redact_text(r#"{"token":"raw-token"}"#));
 assert!(!safe.to_string().contains("raw-token"));
 ```
 
-HTTP body 诊断通过 `session.http()`：
+HTTP body 诊断通过 `session.http_with()`：
 
 ```rust
 use http::HeaderValue;
@@ -171,21 +170,21 @@ use qubit_redact::formats::http::{BodyCapture, HttpRedactor};
 let redactor = HttpRedactor::default();
 let mut session = redactor.session();
 let content_type = HeaderValue::from_static("application/json");
-let safe = session.http().redact_body(
+let safe = session.http_with_mut(|http| http.redact_body(
     BodyCapture::complete(br#"{"password":"raw"}"#),
     Some(&content_type),
-);
+));
 assert!(!safe.to_string().contains("raw"));
 ```
 
-URI 诊断通过 `session.uri()`，并返回带状态和原因的结构化结果：
+URI 诊断通过 `session.uri_with()`，并返回带状态和原因的结构化结果：
 
 ```rust
 use qubit_redact::formats::uri::UriRedactor;
 
 let redactor = UriRedactor::default();
 let mut session = redactor.session();
-let safe = session.uri().redact_uri_str("https://example.test/path");
+let safe = session.uri_with_mut(|uri| uri.redact_uri_str("https://example.test/path"));
 assert!(safe.log_safe_text().as_str().contains("example.test"));
 ```
 
@@ -202,9 +201,9 @@ assert!(safe.log_safe_text().as_str().contains("example.test"));
 - 所有配置统一通过 `RedactionPolicyBuilder` 完成：使用 `fields()`、`http()`、`uri()` 和
   `limits()` 访问可变分区视图。上下文规则可以增加保护，但不能降低基础字段更强的决策。
   一个策略只有一套 masking 和 limits。
-- 使用 `RedactionPolicy::install_global()` 在应用组装阶段安装一次全局策略。它只影响
-  后续快照；既有 policy 与 redactor 永不随之改变。如果尚未安装，`global()` 或
-  `default()` 读取固定标准策略，但不会占用安装槽。
+- 使用 `Redactor::set_default()` 在应用组装阶段安装一次默认 redactor。它只影响未来取得的
+  redactor 快照，既有 policy 与 redactor 永不随之改变。`RedactionPolicy::default()` 始终
+  使用固定标准策略。
 - 脱敏领域对象/Map 视图的 `Debug` 默认使用策略的
   `limits().diagnostic_event()` 输出预算。派生嵌套值、Map、JSON 文本和显式 adapter
   session 共享同一个 `RedactionSession`，子值不能隐式取得一份新预算。

@@ -47,7 +47,7 @@ fn test_redaction_policy_builder_chains_grouped_fields_and_limits() {
         .expect("the domain limits should be valid");
     let mut builder = RedactionPolicy::builder();
     builder
-        .legacy_fields()
+        .edit_fields()
         .raise("token", Sensitivity::Secret)
         .expect("the first field should be valid")
         .raise("password", Sensitivity::Secret)
@@ -108,10 +108,7 @@ fn test_redaction_policy_builder_chains_uri_settings() {
 fn test_redaction_policy_builder_rejects_invalid_field_immediately() {
     let mut builder = RedactionPolicy::builder();
     assert_eq!(
-        builder
-            .legacy_fields()
-            .raise("---", Sensitivity::High)
-            .err(),
+        builder.edit_fields().raise("---", Sensitivity::High).err(),
         Some(PolicyError::EmptyFieldName {
             location: PolicyLocation::Rules,
         }),
@@ -124,7 +121,7 @@ fn test_redaction_policy_builder_rejects_invalid_mask_immediately() {
     let mut builder = RedactionPolicy::builder();
     assert_eq!(
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(""))
             .err(),
         Some(PolicyError::EmptyFixedReplacement {
@@ -139,7 +136,7 @@ fn test_redaction_policy_builder_rejects_invalid_mask_immediately() {
 fn test_redaction_policy_builder_builds_configured_rule() {
     let mut builder = RedactionPolicy::builder();
     builder
-        .legacy_fields()
+        .edit_fields()
         .disable_floor()
         .raise("tenant_secret", Sensitivity::High)
         .expect("the test builder input should be valid");
@@ -201,7 +198,7 @@ fn test_redaction_policy_builder_preserves_unkeyed_json_policy() {
 fn test_redaction_policy_builder_removes_inherited_allow_rules() {
     let mut builder = RedactionPolicy::builder();
     builder
-        .legacy_fields()
+        .edit_fields()
         .disable_floor()
         .raise("access_token", Sensitivity::Secret)
         .expect("the test builder input should be valid")
@@ -214,7 +211,7 @@ fn test_redaction_policy_builder_removes_inherited_allow_rules() {
     let base = builder.build().expect("the base policy should be valid");
     let mut builder = RedactionPolicy::builder_from(&base);
     builder
-        .legacy_fields()
+        .edit_fields()
         .remove_allow_exact("access-token")
         .expect("the test builder input should be valid")
         .remove_allow_suffix("session-token")
@@ -236,7 +233,7 @@ fn test_redaction_policy_builder_removes_inherited_allow_rules() {
 fn test_redaction_policy_builder_clears_inherited_allow_rules() {
     let mut builder = RedactionPolicy::builder();
     builder
-        .legacy_fields()
+        .edit_fields()
         .disable_floor()
         .raise("access_token", Sensitivity::Secret)
         .expect("the test builder input should be valid")
@@ -248,7 +245,7 @@ fn test_redaction_policy_builder_clears_inherited_allow_rules() {
         .expect("the test builder input should be valid");
     let base = builder.build().expect("the base policy should be valid");
     let mut builder = RedactionPolicy::builder_from(&base);
-    builder.legacy_fields().clear_allow_rules();
+    builder.edit_fields().clear_allow_rules();
     let policy = builder.build().expect("the rebuilt policy should be valid");
 
     assert_eq!(

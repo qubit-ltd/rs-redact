@@ -79,7 +79,7 @@ impl ArgvRedactor {
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
         let mut session = self.redactor.session();
-        session.argv().redact_items(items)
+        session.argv_with_mut(|argv| argv.redact_items(items))
     }
 
     /// Redacts explicit sensitive values and heuristically classified plain
@@ -118,7 +118,7 @@ impl ArgvRedactor {
         I: IntoIterator<Item = ArgvItem<'a>>,
     {
         let mut session = self.redactor.session();
-        session.argv().redact_heuristically(items)
+        session.argv_with_mut(|argv| argv.redact_heuristically(items))
     }
 
     /// Renders an item while bounding any generated mask.

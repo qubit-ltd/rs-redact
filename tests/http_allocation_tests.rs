@@ -194,11 +194,11 @@ fn test_http_diagnostic_allocations_follow_rendered_output_budget() {
     let amplified_policy = ({
         let mut builder = RedactionPolicy::default().to_builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
             .expect("the test mask policy should be valid");
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
             .expect("the test mask policy should be valid");
         builder
@@ -258,14 +258,14 @@ fn test_structured_json_does_not_amplify_fixed_masks_per_field() {
     let replacement = "X".repeat(64 * 1024);
     let mut builder = RedactionPolicy::builder();
     builder
-        .legacy_fields()
+        .edit_fields()
         .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
         .expect("the test mask policy should be valid")
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .expect("the test mask policy should be valid");
     for index in 0..700 {
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise(&format!("password_{index}"), Sensitivity::Secret)
             .expect("generated amplified body field must be valid");
     }

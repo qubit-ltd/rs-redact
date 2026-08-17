@@ -110,7 +110,7 @@ fn test_redact_at_ignores_field_allow_rules() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .allow_exact("password")
             .expect("the test builder input should be valid");
         builder
@@ -221,7 +221,7 @@ fn test_unicode_mask_truncation_closes_session() {
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(limit);
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&"你".repeat(20)))
             .expect("the Unicode replacement should be valid");
         builder

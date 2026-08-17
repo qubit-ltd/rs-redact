@@ -24,13 +24,13 @@ fn test_json_uses_policy_mask_for_floor_matched_key() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder.legacy_fields().floor(floor);
+        let _ = builder.edit_fields().floor(floor);
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("credential", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
             .expect("the test mask policy should be valid");
         builder

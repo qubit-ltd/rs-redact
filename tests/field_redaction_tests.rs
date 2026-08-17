@@ -18,7 +18,7 @@ fn test_redact_field_reports_masked_result() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -48,9 +48,9 @@ fn test_redact_field_reports_masked_result() {
 fn test_redact_field_reports_pass_through_reason() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.legacy_fields().disable_floor();
+        builder.edit_fields().disable_floor();
         builder
-            .legacy_fields()
+            .edit_fields()
             .allow_exact("display_name")
             .expect("the test builder input should be valid");
         builder

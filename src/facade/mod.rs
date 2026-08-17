@@ -9,13 +9,11 @@
 
 mod default_redactor;
 mod redacted_text;
-mod redaction_event;
 mod redaction_output;
 mod redaction_summary;
 mod redactor;
 
 pub use redacted_text::RedactedText;
-pub use redaction_event::RedactionEvent;
 pub use redaction_output::RedactionOutput;
 pub use redaction_summary::RedactionReason;
 pub use redaction_summary::RedactionReasons;

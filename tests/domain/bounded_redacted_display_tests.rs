@@ -8,7 +8,6 @@
 //! Tests for bounded display of already-redacted views.
 
 use std::collections::BTreeMap;
-use std::fmt;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
@@ -16,10 +15,10 @@ use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::RedactionSession;
 use qubit_redact::Sensitivity;
 use qubit_redact::domain::Redact;
 use qubit_redact::domain::RedactedMap;
+use qubit_redact::domain::RedactionWriter;
 /// Value whose redacted representation writes caller-selected safe text.
 struct DiagnosticText<'a> {
     /// Text written through the redacted formatting contract.
@@ -34,23 +33,15 @@ struct DebugDiagnosticText<'a> {
 
 impl Redact for DebugDiagnosticText<'_> {
     /// Writes the configured text using the standard debug string format.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        fmt::Debug::fmt(&self.value, formatter)
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.text(&format!("{:?}", self.value));
     }
 }
 
 impl Redact for DiagnosticText<'_> {
     /// Writes the configured diagnostic text.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        formatter.write_str(self.value)
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.text(self.value);
     }
 }
 
@@ -151,13 +142,9 @@ fn test_eager_completion_floors_buffered_unicode_boundary() {
     struct SplitUnicode;
 
     impl Redact for SplitUnicode {
-        fn fmt_redacted(
-            &self,
-            _session: &mut RedactionSession<'_>,
-            formatter: &mut fmt::Formatter<'_>,
-        ) -> fmt::Result {
-            formatter.write_str("你好")?;
-            formatter.write_str("你你你你你")
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+            writer.literal("你好");
+            writer.literal("你你你你你");
         }
     }
 
@@ -175,18 +162,15 @@ fn test_domain_truncation_keeps_session_open_for_later_fragments() {
     struct TwoMasks<'a>(&'a AtomicUsize);
 
     impl Redact for TwoMasks<'_> {
-        fn fmt_redacted(
-            &self,
-            session: &mut RedactionSession<'_>,
-            formatter: &mut fmt::Formatter<'_>,
-        ) -> fmt::Result {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
             for _ in 0..2 {
-                let masked = session.redact_at(Sensitivity::Secret, "secret");
+                let masked =
+                    writer.session().redact_at(Sensitivity::Secret, "secret");
                 if !masked.as_str().is_empty() {
                     self.0.fetch_add(1, Ordering::Relaxed);
                 }
             }
-            formatter.write_str("safe")
+            writer.literal("safe");
         }
     }
 
@@ -194,7 +178,7 @@ fn test_domain_truncation_keeps_session_open_for_later_fragments() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&"你".repeat(20)))
             .expect("the Unicode mask should be valid");
         builder
@@ -217,13 +201,9 @@ struct AdmissionObserver<'a> {
 }
 
 impl Redact for AdmissionObserver<'_> {
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         self.calls.fetch_add(1, Ordering::Relaxed);
-        formatter.write_str(&self.text)
+        writer.text(&self.text);
     }
 }
 
@@ -265,13 +245,9 @@ struct DefaultInputContract<'a> {
 }
 
 impl Redact for DefaultInputContract<'_> {
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         self.calls.fetch_add(1, Ordering::Relaxed);
-        formatter.write_str(&self.text)
+        writer.text(&self.text);
     }
 }
 
@@ -362,13 +338,9 @@ struct SplitEscapeDiagnostic {
 }
 
 impl Redact for SplitEscapeDiagnostic {
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        formatter.write_str(self.prefix)?;
-        formatter.write_str("remaining-long")
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.text(self.prefix);
+        writer.literal("remaining-long");
     }
 }
 
@@ -423,16 +395,14 @@ impl RepeatedDiagnostic {
 
 impl Redact for RepeatedDiagnostic {
     /// Writes many safe pieces and propagates the first destination error.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         for _ in 0..1_000_000 {
             self.writes.fetch_add(1, Ordering::Relaxed);
-            formatter.write_str("x")?;
+            writer.literal("x");
+            if writer.is_exhausted() {
+                break;
+            }
         }
-        Ok(())
     }
 }
 

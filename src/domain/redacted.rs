@@ -199,6 +199,7 @@ mod session_view {
     use crate::domain::internal::mask_byte_limit;
     use crate::domain::internal::with_debug_output_tracking;
     use crate::domain::internal::with_mask_byte_limit;
+    use crate::domain::redact::write_redacted_to_formatter;
     use crate::output::internal::LogEscapeWriter;
     use crate::policy::DomainTruncation;
     use crate::policy::FragmentCompletion;
@@ -207,7 +208,6 @@ mod session_view {
     /// An eagerly completed nested redacted representation.
     pub struct RedactedResult<'value, T: ?Sized> {
         completed: CompletedDebug,
-        status: super::DomainRenderStatus,
         marker: PhantomData<&'value T>,
     }
 
@@ -221,20 +221,6 @@ mod session_view {
         ) -> Self {
             Self::try_new_with_alternate(value, session, false)
                 .unwrap_or_else(Self::empty)
-        }
-
-        /// Attempts to complete one nested item, rejecting exhausted sessions.
-        pub(crate) fn try_new(
-            value: &'value T,
-            session: &mut RedactionSession<'_>,
-            alternate: bool,
-        ) -> Option<Self> {
-            Self::try_new_with_alternate(value, session, alternate)
-        }
-
-        /// Returns whether this result exhausted shared sibling eligibility.
-        pub(crate) fn stops_siblings(&self) -> bool {
-            self.status.stops_siblings()
         }
 
         /// Completes a nested representation while preserving pretty debug.
@@ -301,25 +287,9 @@ mod session_view {
             } else {
                 FragmentCompletion::Complete
             };
-            let status = if completed.truncated() {
-                super::DomainRenderStatus::OutputTruncated
-            } else {
-                match domain_truncation {
-                    DomainTruncation::None => {
-                        super::DomainRenderStatus::Complete
-                    }
-                    DomainTruncation::Depth => {
-                        super::DomainRenderStatus::DepthTruncated
-                    }
-                    DomainTruncation::Traversal => {
-                        super::DomainRenderStatus::TraversalTruncated
-                    }
-                }
-            };
             session.commit_output(completed.len(), completion);
             Some(Self {
                 completed,
-                status,
                 marker: PhantomData,
             })
         }
@@ -329,7 +299,6 @@ mod session_view {
         pub(crate) fn empty() -> Self {
             Self {
                 completed: CompletedDebug::empty(),
-                status: super::DomainRenderStatus::Complete,
                 marker: PhantomData,
             }
         }
@@ -365,7 +334,7 @@ mod session_view {
             let session = session
                 .take()
                 .expect("the one-shot redaction adapter cannot be reused");
-            self.value.fmt_redacted(session, formatter)
+            write_redacted_to_formatter(self.value, session, formatter)
         }
     }
 

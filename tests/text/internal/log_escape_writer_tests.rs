@@ -10,19 +10,15 @@
 use std::fmt;
 use std::fmt::Write;
 
-use qubit_redact::RedactionSession;
 use qubit_redact::domain::Redact;
+use qubit_redact::domain::RedactionWriter;
 /// Redacted value that emits log-unsafe controls.
 struct UnsafeDiagnostic;
 
 impl Redact for UnsafeDiagnostic {
     /// Writes representative log-unsafe controls.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        formatter.write_str("line one\nline two\u{202e}")
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.literal("line one\nline two\u{202e}");
     }
 }
 
@@ -31,12 +27,8 @@ struct ControlFirstDiagnostic;
 
 impl Redact for ControlFirstDiagnostic {
     /// Writes a control before any ordinary character.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        formatter.write_str("\nremaining")
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.literal("\nremaining");
     }
 }
 
@@ -45,12 +37,8 @@ struct SafeDiagnostic;
 
 impl Redact for SafeDiagnostic {
     /// Writes one ordinary character.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        formatter.write_str("a")
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.literal("a");
     }
 }
 

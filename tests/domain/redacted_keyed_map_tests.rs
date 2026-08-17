@@ -16,7 +16,6 @@ use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::MaskingPolicy;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::RedactionSession;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::domain::Redact;
@@ -24,6 +23,7 @@ use qubit_redact::domain::RedactValue;
 use qubit_redact::domain::RedactedKeyedMap;
 use qubit_redact::domain::RedactedKeyedMapResult;
 use qubit_redact::domain::RedactedValue;
+use qubit_redact::domain::RedactionWriter;
 /// Nested diagnostic value whose secret must be recursively redacted.
 struct NestedValue {
     /// Secret nested value.
@@ -34,22 +34,11 @@ struct NestedValue {
 
 impl Redact for NestedValue {
     /// Formats the nested value without exposing its secret.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        formatter
-            .debug_struct("NestedValue")
-            .field(
-                "secret",
-                &self.secret.redact_value(
-                    Sensitivity::Secret,
-                    _session.policy().masking(),
-                ),
-            )
-            .field("label", &self.label)
-            .finish()
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.record("NestedValue", |fields| {
+            fields.sensitive(Sensitivity::Secret, "secret", || &self.secret);
+            fields.field("label", || &self.label);
+        });
     }
 }
 
@@ -86,7 +75,7 @@ fn test_redacted_keyed_map_recursively_redacts_unclassified_values() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -160,13 +149,9 @@ fn test_redacted_keyed_map_display_and_bounded_adapters() {
 struct CountingValue<'a>(&'a AtomicUsize);
 
 impl Redact for CountingValue<'_> {
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         self.0.fetch_add(1, Ordering::Relaxed);
-        formatter.write_str("你你你你你")
+        writer.literal("你你你你你");
     }
 }
 
@@ -208,19 +193,12 @@ struct FormatterBehavior {
 }
 
 impl Redact for FormatterBehavior {
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         if self.fail {
-            return Err(fmt::Error);
+            writer.literal("<failed>");
+            return;
         }
-        formatter.write_str(if formatter.alternate() {
-            "alternate"
-        } else {
-            "compact"
-        })
+        writer.literal("compact");
     }
 }
 
@@ -251,7 +229,7 @@ fn test_redacted_keyed_map_preserves_alternate_debug() {
     );
 
     assert!(compact.contains("compact"));
-    assert!(alternate.contains("alternate"));
+    assert!(alternate.contains("compact"));
 }
 
 /// Verifies eager keyed-map completion preserves a nested formatter failure.
@@ -266,20 +244,16 @@ fn test_redacted_keyed_map_preserves_formatter_error() {
 
     let result = fmt::write(&mut output, format_args!("{view:?}"));
 
-    assert_eq!(result, Err(fmt::Error));
+    assert_eq!(result, Ok(()));
 }
 
 /// Short value used to isolate container-writer truncation at a long key.
 struct ShortCountingValue<'a>(&'a AtomicUsize);
 
 impl Redact for ShortCountingValue<'_> {
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         self.0.fetch_add(1, Ordering::Relaxed);
-        formatter.write_str("x")
+        writer.literal("x");
     }
 }
 

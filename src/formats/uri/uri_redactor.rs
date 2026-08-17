@@ -371,7 +371,7 @@ impl Default for UriRedactor {
     /// Creates a redactor from the process-wide URI policy snapshot.
     #[inline]
     fn default() -> Self {
-        Self::new(RedactionPolicy::default())
+        Self::new(crate::Redactor::default().policy().clone())
     }
 }
 
