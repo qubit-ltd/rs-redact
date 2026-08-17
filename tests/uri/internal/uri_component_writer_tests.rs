@@ -16,13 +16,13 @@ use qubit_redact::formats::uri::UriRedactor;
 fn test_uri_component_writer_encodes_mask_fragments() {
     let core = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .raise("password", Sensitivity::Secret)
             .expect("the password rule is valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("密\n/?#%"))
             .expect("the mask is valid");
         builder

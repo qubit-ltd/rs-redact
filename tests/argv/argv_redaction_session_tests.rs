@@ -120,7 +120,7 @@ fn test_argv_session_reports_local_mask_truncation() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
             .expect("the oversized secret mask should be valid");
         builder.limits().diagnostic_event(limit);

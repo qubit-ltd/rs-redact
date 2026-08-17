@@ -15,7 +15,7 @@ fn test_redaction_policy_inner_normalizes_field_name_for_lookup() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder

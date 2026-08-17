@@ -22,7 +22,7 @@ fn test_global_config_is_installed_once_and_snapshotted() {
         .expect("the custom floor should be valid");
     let mut builder = RedactionPolicy::builder();
     builder
-        .fields()
+        .legacy_fields()
         .floor(floor)
         .raise("tenant_protected_blob", Sensitivity::Secret)
         .expect("the test builder input should be valid");

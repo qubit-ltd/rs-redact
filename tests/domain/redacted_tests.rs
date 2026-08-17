@@ -175,7 +175,7 @@ fn test_redacted_with_snapshots_policy() {
         let policy = ({
             let mut builder = RedactionPolicy::builder();
             builder
-                .fields()
+                .legacy_fields()
                 .mask(Sensitivity::Secret, MaskPolicy::fixed("[snapshot]"))
                 .expect("the test mask policy should be valid");
             builder
@@ -276,7 +276,7 @@ fn test_redacted_view_serializes_through_the_explicit_policy() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[serde]"))
             .expect("the test mask policy should be valid");
         builder

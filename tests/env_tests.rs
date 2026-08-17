@@ -237,11 +237,11 @@ fn test_redact_pair_resolves_longest_suffix_match() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("key", Sensitivity::Low)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .raise("api_key", Sensitivity::High)
             .expect("the test builder input should be valid");
         builder
@@ -261,8 +261,8 @@ fn test_redact_pair_resolves_longest_suffix_match() {
 fn test_redact_pair_honors_exact_matching_policy() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
-        let _ = builder.fields().matching(FieldNameMatching::Exact);
+        builder.legacy_fields().disable_floor();
+        let _ = builder.legacy_fields().matching(FieldNameMatching::Exact);
         builder
     })
     .build()
@@ -331,7 +331,7 @@ fn test_new_uses_custom_redaction_policy() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_value", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder

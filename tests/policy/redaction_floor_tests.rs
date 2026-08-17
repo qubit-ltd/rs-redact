@@ -29,9 +29,9 @@ fn test_floor_overrides_application_exact_allow() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder.fields().floor(floor);
+        let _ = builder.legacy_fields().floor(floor);
         builder
-            .fields()
+            .legacy_fields()
             .allow_exact("access_token")
             .expect("the test builder input should be valid");
         builder
@@ -54,9 +54,9 @@ fn test_floor_overrides_application_suffix_allow() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder.fields().floor(floor);
+        let _ = builder.legacy_fields().floor(floor);
         builder
-            .fields()
+            .legacy_fields()
             .allow_suffix("access_token")
             .expect("the test builder input should be valid");
         builder
@@ -79,13 +79,13 @@ fn test_floor_only_raises_sensitivity_when_application_level_is_higher() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder.fields().floor(floor);
+        let _ = builder.legacy_fields().floor(floor);
         builder
-            .fields()
+            .legacy_fields()
             .raise("credential", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
             .expect("the test mask policy should be valid");
         builder
@@ -114,14 +114,12 @@ fn test_floor_and_application_unknown_fallbacks_combine() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder.fields().floor(floor);
+        let _ = builder.legacy_fields().floor(floor);
+        builder.legacy_fields().unknown_field_policy(
+            UnknownFieldPolicy::Redact(Sensitivity::Secret),
+        );
         builder
-            .fields()
-            .unknown_field_policy(UnknownFieldPolicy::Redact(
-                Sensitivity::Secret,
-            ));
-        builder
-            .fields()
+            .legacy_fields()
             .mask(
                 Sensitivity::Secret,
                 MaskPolicy::fixed("[application-secret]"),
@@ -155,13 +153,13 @@ fn test_application_mask_is_used_when_floor_misses() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder.fields().floor(floor);
+        let _ = builder.legacy_fields().floor(floor);
         builder
-            .fields()
+            .legacy_fields()
             .raise("application_only", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
             .expect("the test mask policy should be valid");
         builder
@@ -187,9 +185,9 @@ fn test_floor_matching_is_independent_from_application_matching() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder.fields().floor(floor);
+        let _ = builder.legacy_fields().floor(floor);
         let _ = builder
-            .fields()
+            .legacy_fields()
             .matching(FieldNameMatching::ExactOrTokenSuffix);
         builder
     })
@@ -208,8 +206,8 @@ fn test_disable_floor_is_last_call_wins() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder.fields().floor(floor);
-        builder.fields().disable_floor();
+        let _ = builder.legacy_fields().floor(floor);
+        builder.legacy_fields().disable_floor();
         builder
     })
     .build()
@@ -227,8 +225,8 @@ fn test_with_floor_after_disable_floor_is_last_call_wins() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
-        let _ = builder.fields().floor(floor);
+        builder.legacy_fields().disable_floor();
+        let _ = builder.legacy_fields().floor(floor);
         builder
     })
     .build()
@@ -246,9 +244,9 @@ fn test_with_floor_after_disable_floor_is_last_call_wins() {
 fn test_builder_copy_and_standard_preserve_or_replace_floor_configuration() {
     let disabled = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .raise("application_only", Sensitivity::High)
             .expect("the test builder input should be valid");
         builder
@@ -277,13 +275,13 @@ fn test_rule_views_keep_application_and_floor_sources_separate() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder.fields().floor(floor);
+        let _ = builder.legacy_fields().floor(floor);
         builder
-            .fields()
+            .legacy_fields()
             .raise("application_only", Sensitivity::Medium)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .allow_exact("application_visible")
             .expect("the test builder input should be valid");
         builder
@@ -369,8 +367,8 @@ proptest! {
             .expect("the generated floor should build");
         let policy = ({
     let mut builder = RedactionPolicy::builder();
-    let _ = builder.fields().floor(floor);
-    builder.fields().raise("shared_field", application_level).expect("the test builder input should be valid");
+    let _ = builder.legacy_fields().floor(floor);
+    builder.legacy_fields().raise("shared_field", application_level).expect("the test builder input should be valid");
     builder
 }).build()
             .expect("the generated policy should build");
@@ -395,16 +393,16 @@ proptest! {
             .expect("the generated floor should build");
         let disabled = ({
     let mut builder = RedactionPolicy::builder();
-    let _ = builder.fields().floor(floor);
-    builder.fields().disable_floor();
-    builder.fields().raise("shared_field", sensitivity_from_index(application_index)).expect("the test builder input should be valid");
+    let _ = builder.legacy_fields().floor(floor);
+    builder.legacy_fields().disable_floor();
+    builder.legacy_fields().raise("shared_field", sensitivity_from_index(application_index)).expect("the test builder input should be valid");
     builder
 }).build()
             .expect("the disabled policy should build");
         let application_only = ({
     let mut builder = RedactionPolicy::builder();
-    builder.fields().disable_floor();
-    builder.fields().raise("shared_field", sensitivity_from_index(application_index)).expect("the test builder input should be valid");
+    builder.legacy_fields().disable_floor();
+    builder.legacy_fields().raise("shared_field", sensitivity_from_index(application_index)).expect("the test builder input should be valid");
     builder
 }).build()
             .expect("the application-only policy should build");

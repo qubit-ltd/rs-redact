@@ -36,15 +36,15 @@ fn test_redacted_json_masks_sensitive_object_values_recursively() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("password", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .raise("token", Sensitivity::High)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .raise("api_key", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -70,7 +70,7 @@ fn test_redacted_json_strict_masks_only_unkeyed_scalars() {
     let policy = ({
         let mut builder = RedactionPolicy::strict().to_builder();
         builder
-            .fields()
+            .legacy_fields()
             .allow_exact("public")
             .expect("the public field should be valid");
         builder
@@ -107,13 +107,11 @@ fn test_redacted_json_uses_unknown_field_fallback() {
     let value = json!({"new_field": "raw", "public": "visible"});
     let policy = ({
         let mut builder = RedactionPolicy::builder();
+        builder.legacy_fields().unknown_field_policy(
+            UnknownFieldPolicy::Redact(Sensitivity::High),
+        );
         builder
-            .fields()
-            .unknown_field_policy(UnknownFieldPolicy::Redact(
-                Sensitivity::High,
-            ));
-        builder
-            .fields()
+            .legacy_fields()
             .allow_exact("public")
             .expect("the test builder input should be valid");
         builder
@@ -135,7 +133,7 @@ fn test_redacted_json_preserves_pretty_formatter_semantics() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("password", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -195,11 +193,11 @@ fn test_redacted_json_masks_sensitive_non_string_values() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("secret_number", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .raise("secret_object", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -231,7 +229,7 @@ fn test_redacted_json_fails_closed_at_depth_budget() {
                 .expect("the depth budget is valid"),
         );
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
             .expect("the test mask policy should be valid");
         builder
@@ -262,7 +260,7 @@ fn test_redacted_json_uses_root_inclusive_depth_budget() {
                 .expect("the depth budget is valid"),
         );
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
             .expect("the test mask policy should be valid");
         builder
@@ -286,7 +284,7 @@ fn test_redacted_json_serde_preserves_json_value_shape() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("password", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -314,15 +312,15 @@ fn test_redacted_json_serde_masks_sensitive_non_string_values_opaquely() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("secret_object", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .raise("secret_number", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[opaque]"))
             .expect("the test mask policy should be valid");
         builder
@@ -360,7 +358,7 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
                 .expect("the depth budget is valid"),
         );
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
             .expect("the test mask policy should be valid");
         builder

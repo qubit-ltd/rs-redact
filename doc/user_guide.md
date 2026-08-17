@@ -36,11 +36,13 @@ qubit-redact = "0.5"
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut builder = RedactionPolicy::builder();
-    builder.fields().raise("user_id", Sensitivity::Low)?;
-    builder.fields().raise("phone_number", Sensitivity::Medium)?;
-    builder.fields().raise("credit_card", Sensitivity::High)?;
-    builder.fields().raise("api_key", Sensitivity::Secret)?;
+    let builder = RedactionPolicy::builder().fields(|fields| {
+        fields
+            .low_sensitive("user_id")
+            .medium_sensitive("phone_number")
+            .high_sensitive("credit_card")
+            .secret_sensitive("api_key");
+    })?;
     let policy = builder.build()?;
     let redactor = Redactor::new(policy);
     let user_id = "alpine42";
@@ -161,7 +163,7 @@ use qubit_redact::{
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = RedactionPolicy::builder();
     builder
-        .fields()
+        .legacy_fields()
         .matching(FieldNameMatching::ExactOrTokenSuffix)
         .raise("tenant_reference", Sensitivity::High)?
         .raise("tenant_visible", Sensitivity::High)?
@@ -181,9 +183,11 @@ Install the global policy only during application startup:
 ```rust
 use qubit_redact::{RedactionPolicy, Sensitivity};
 
-let mut builder = RedactionPolicy::builder();
-builder.fields().raise("api_key", Sensitivity::Secret)?;
-let policy = builder.build()?;
+let policy = RedactionPolicy::builder()
+    .fields(|fields| {
+        fields.secret_sensitive("api_key");
+    })?
+    .build()?;
 RedactionPolicy::install_global(policy)?;
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
@@ -241,13 +245,13 @@ use std::collections::HashMap;
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut builder = RedactionPolicy::builder();
-    builder
-        .fields()
-        .raise("user_id", Sensitivity::Low)?
-        .raise("phone_number", Sensitivity::Medium)?
-        .raise("credit_card", Sensitivity::High)?
-        .raise("api_key", Sensitivity::Secret)?;
+    let builder = RedactionPolicy::builder().fields(|fields| {
+        fields
+            .low_sensitive("user_id")
+            .medium_sensitive("phone_number")
+            .high_sensitive("credit_card")
+            .secret_sensitive("api_key");
+    })?;
     let policy = builder.build()?;
     let source = HashMap::from([
         ("user_id".to_owned(), "alpine42".to_owned()),

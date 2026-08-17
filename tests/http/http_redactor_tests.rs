@@ -154,7 +154,7 @@ fn test_native_sensitive_header_wins_over_allow_rule() {
     let allowed = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .allow_exact("x-visible")
             .expect("the test builder input should be valid");
         builder
@@ -576,13 +576,13 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
     let masking = masking_builder.build();
     let body_policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .raise("password", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("SECRET"))
             .expect("the test mask policy should be valid");
         builder
@@ -600,7 +600,7 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
         .http()
         .unkeyed_json(UnkeyedJsonValuePolicy::PassThrough);
     builder
-        .fields()
+        .legacy_fields()
         .mask(Sensitivity::Secret, MaskPolicy::fixed("SECRET"))
         .expect("the test mask policy should be valid");
     let policy = builder
@@ -628,7 +628,7 @@ fn test_json_policy_handles_arrays_non_strings_and_unkeyed_pass_through() {
 fn test_json_object_array_unkeyed_pass_through_reports_passed_through() {
     let mut builder = RedactionPolicy::strict().to_builder();
     builder
-        .fields()
+        .legacy_fields()
         .allow_exact("items")
         .expect("the object field should be valid");
     let policy = builder
@@ -652,13 +652,13 @@ fn test_json_object_array_unkeyed_pass_through_reports_passed_through() {
 fn test_json_policy_masks_sensitive_non_strings_as_opaque_values() {
     let body_policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .raise("password", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(
                 Sensitivity::Secret,
                 MaskPolicy::preserve_edges(1, 1, "OPAQUE", 0),
@@ -675,7 +675,7 @@ fn test_json_policy_masks_sensitive_non_strings_as_opaque_values() {
         .replace_rules(body_policy.rules().clone())
         .disable_floor();
     builder
-        .fields()
+        .legacy_fields()
         .mask(
             Sensitivity::Secret,
             MaskPolicy::preserve_edges(1, 1, "OPAQUE", 0),

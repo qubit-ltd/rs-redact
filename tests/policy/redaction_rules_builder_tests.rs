@@ -17,7 +17,10 @@ use qubit_redact::Sensitivity;
 fn test_rules_builder_reports_rules_location_for_invalid_field_immediately() {
     let mut builder = RedactionPolicy::builder();
     assert_eq!(
-        builder.fields().raise(" -_[] ", Sensitivity::High).err(),
+        builder
+            .legacy_fields()
+            .raise(" -_[] ", Sensitivity::High)
+            .err(),
         Some(PolicyError::EmptyFieldName {
             location: PolicyLocation::Rules,
         }),

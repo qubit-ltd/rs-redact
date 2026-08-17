@@ -28,13 +28,13 @@ fn redact_json_value(
 ) -> String {
     let body_policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .raise("password", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, mask.clone())
             .expect("the test mask policy should be valid");
         builder
@@ -54,7 +54,7 @@ fn redact_json_value(
             .expect("the budget is valid"),
     );
     builder
-        .fields()
+        .legacy_fields()
         .mask(Sensitivity::Secret, mask)
         .expect("the test mask policy should be valid");
     let policy = builder.build().expect("the HTTP policy is valid");
@@ -74,13 +74,13 @@ fn test_fixed_mask_respects_output_budget() {
     let replacement = "x".repeat(1024 * 1024);
     let body_policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .raise("password", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
             .expect("the test mask policy should be valid");
         builder
@@ -100,7 +100,7 @@ fn test_fixed_mask_respects_output_budget() {
             .expect("the budget is valid"),
     );
     builder
-        .fields()
+        .legacy_fields()
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .expect("the test mask policy should be valid");
     let policy = builder.build().expect("the HTTP policy is valid");

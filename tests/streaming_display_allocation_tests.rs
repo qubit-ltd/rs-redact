@@ -192,7 +192,7 @@ fn test_nonempty_redacted_map_uses_bounded_allocation_count() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .allow_exact("visible")
             .expect("the test builder input should be valid");
         builder

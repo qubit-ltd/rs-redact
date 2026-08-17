@@ -166,11 +166,11 @@ fn amplified_policy() -> RedactionPolicy {
     ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
             .expect("the test mask policy should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
             .expect("the test mask policy should be valid");
         builder.limits().diagnostic_event(budget);
@@ -320,11 +320,11 @@ fn test_bounded_uri_avoids_amplified_mask_allocation() {
     let core = ({
         let mut builder = RedactionPolicy::default().to_builder();
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
             .expect("the high mask policy should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
             .expect("the secret mask policy should be valid");
         builder.limits().diagnostic_event(budget);

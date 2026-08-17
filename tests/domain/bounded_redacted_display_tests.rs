@@ -194,7 +194,7 @@ fn test_domain_truncation_keeps_session_open_for_later_fragments() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&"你".repeat(20)))
             .expect("the Unicode mask should be valid");
         builder

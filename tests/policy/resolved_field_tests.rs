@@ -22,13 +22,13 @@ fn test_resolved_field_uses_application_mask_at_floor_level() {
         .expect("the floor should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder.fields().floor(floor);
+        let _ = builder.legacy_fields().floor(floor);
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(
                 Sensitivity::Secret,
                 MaskPolicy::fixed("[application-secret]"),

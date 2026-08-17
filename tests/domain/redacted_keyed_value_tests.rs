@@ -201,7 +201,7 @@ fn test_redact_keyed_masks_sensitive_text_for_debug_and_display() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -224,7 +224,7 @@ fn test_redact_keyed_masks_sensitive_non_text_value() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -337,11 +337,11 @@ fn test_redact_keyed_bounds_opaque_mask_before_materialization() {
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(budget);
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test field should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&"x".repeat(1_000)))
             .expect("the replacement should be valid");
         builder
@@ -417,7 +417,7 @@ fn test_redact_keyed_serializes_sensitive_and_recursive_values() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder

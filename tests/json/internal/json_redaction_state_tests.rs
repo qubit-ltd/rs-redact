@@ -31,11 +31,11 @@ fn test_json_redaction_state_masks_deep_sensitive_containers() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("sensitive", Sensitivity::Secret)
             .expect("the test field should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[masked]"))
             .expect("the test mask policy should be valid");
         builder
@@ -72,7 +72,7 @@ fn test_json_redaction_state_recurses_through_nested_values() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("token", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -100,7 +100,7 @@ fn test_json_redaction_state_uses_root_inclusive_depth_budget() {
                 .expect("the depth budget is valid"),
         );
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
             .expect("the test mask policy should be valid");
         builder
@@ -116,7 +116,7 @@ fn test_json_redaction_state_uses_root_inclusive_depth_budget() {
                 .expect("the depth budget is valid"),
         );
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
             .expect("the test mask policy should be valid");
         builder
@@ -147,7 +147,7 @@ fn test_json_redaction_state_keeps_prior_sibling_when_depth_rejection_is_masked(
                 .expect("the depth limit is valid"),
         );
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
             .expect("the mask policy is valid");
         builder
@@ -173,7 +173,7 @@ fn test_json_redaction_state_mutable_matches_lazy_redaction() {
     let policy = ({
         let mut builder = RedactionPolicy::strict().to_builder();
         builder
-            .fields()
+            .legacy_fields()
             .allow_exact("visible")
             .expect("the allowed object field should be valid");
         builder
