@@ -14,6 +14,7 @@ use std::fmt::Formatter;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::domain::Redacted;
+use crate::domain::RedactionWriter;
 
 /// Writes the unquoted safe marker for a domain branch that was not admitted.
 ///
@@ -101,6 +102,18 @@ impl fmt::Debug for DomainTruncated {
 /// assert_eq!(account.password, "raw-secret");
 /// ```
 pub trait Redact {
+    /// Writes this value through the invariant-preserving structured writer.
+    ///
+    /// New implementations should override this method. The default bridges
+    /// existing formatter-based implementations while downstream crates
+    /// migrate to the structured protocol.
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>)
+    where
+        Self: Sized,
+    {
+        writer.legacy(self);
+    }
+
     /// Creates a borrowed view using a snapshot of the current default policy.
     ///
     /// # Returns
@@ -164,5 +177,8 @@ pub trait Redact {
         &self,
         session: &mut RedactionSession<'_>,
         formatter: &mut Formatter<'_>,
-    ) -> fmt::Result;
+    ) -> fmt::Result {
+        let _ = (session, formatter);
+        Err(fmt::Error)
+    }
 }

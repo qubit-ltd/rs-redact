@@ -26,7 +26,7 @@ use std::str;
 /// The original `Cow` when every character is safe, preserving either its
 /// borrowed or owned form; otherwise, a newly allocated escaped string.
 #[must_use]
-pub(super) fn escape_log_control_characters<'a>(
+pub(crate) fn escape_log_control_characters<'a>(
     value: Cow<'a, str>,
 ) -> Cow<'a, str> {
     let Some((index, first_unsafe)) = value

@@ -8,16 +8,17 @@
 //! Stateless redaction operations backed by an immutable policy.
 
 use std::borrow::Cow;
+use std::sync::PoisonError;
 
 use crate::FieldClassification;
 use crate::FieldRedaction;
 use crate::PassThroughReason;
-use crate::RedactedText;
 use crate::RedactionCompletion;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::Sensitivity;
 use crate::config::RedactionConfig;
+use crate::domain::Redact;
 use crate::domain::RedactMapValueMut;
 use crate::domain::RedactedKeyedValue;
 use crate::formats::argv::ArgvRedactor;
@@ -26,6 +27,7 @@ use crate::formats::env::EnvRedactor;
 use crate::formats::http::HttpRedactor;
 #[cfg(feature = "uri")]
 use crate::formats::uri::UriRedactor;
+use crate::output::MaskedValue;
 use crate::output::redaction_output::RedactionOutput;
 use crate::policy::DiagnosticBudget;
 use crate::policy::FragmentCompletion;
@@ -58,6 +60,62 @@ impl Redactor {
         Self {
             policy: config.into().into_policy(),
         }
+    }
+
+    /// Creates a redactor from the immutable built-in standard policy.
+    #[must_use]
+    #[inline]
+    pub fn standard() -> Self {
+        Self::new(RedactionPolicy::standard())
+    }
+
+    /// Returns a snapshot of the current application default redactor.
+    ///
+    /// The returned value is detached from the global slot. Later calls to
+    /// [`Self::set_default`] do not alter this redactor or sessions created
+    /// from it.
+    #[must_use]
+    pub fn current_default() -> Self {
+        match crate::facade::default_redactor::slot().read() {
+            Ok(redactor) => redactor.clone(),
+            Err(error) => PoisonError::into_inner(error).clone(),
+        }
+    }
+
+    /// Atomically replaces the application default redactor.
+    ///
+    /// The replacement is linearizable: concurrent readers observe either the
+    /// complete previous snapshot or the complete new snapshot. Existing
+    /// redactors and sessions keep their own snapshots. The previous default
+    /// is returned so callers can restore it after a scoped change.
+    #[must_use]
+    pub fn set_default(redactor: Self) -> Self {
+        let mut current = match crate::facade::default_redactor::slot().write()
+        {
+            Ok(guard) => guard,
+            Err(error) => PoisonError::into_inner(error),
+        };
+        std::mem::replace(&mut *current, redactor)
+    }
+
+    /// Redacts one domain value into final text and an execution summary.
+    #[must_use]
+    pub fn redact<T>(&self, value: &T) -> crate::RedactionOutput
+    where
+        T: Redact,
+    {
+        let mut rendered = String::new();
+        let mut writer =
+            crate::domain::RedactionWriter::new(&mut rendered, self.policy());
+        value.write_redacted(&mut writer);
+        let escaped = crate::output::log_escape::escape_log_control_characters(
+            Cow::Owned(rendered),
+        )
+        .into_owned();
+        crate::RedactionOutput::new(
+            crate::RedactedText::from_escaped(escaped),
+            crate::RedactionSummary::complete(),
+        )
     }
 
     /// Creates a redactor with the strict policy for untrusted scalar data.
@@ -187,7 +245,7 @@ impl Redactor {
         &self,
         level: Sensitivity,
         value: &'a str,
-    ) -> RedactedText<'a> {
+    ) -> MaskedValue<'a> {
         let mut budget =
             DiagnosticBudget::new(self.policy.limits().ordinary_operation());
         redact_at_with_budget(&self.policy, &mut budget, level, value)
@@ -388,7 +446,7 @@ impl RedactionSession<'_> {
         &mut self,
         level: Sensitivity,
         value: &'value str,
-    ) -> RedactedText<'value> {
+    ) -> MaskedValue<'value> {
         let (redacted, _) = self.redact_at_with_completion(level, value);
         redacted
     }
@@ -430,7 +488,7 @@ impl RedactionSession<'_> {
         &mut self,
         level: Sensitivity,
         value: &'value str,
-    ) -> (RedactedText<'value>, RedactionCompletion) {
+    ) -> (MaskedValue<'value>, RedactionCompletion) {
         let policy = self.policy();
         let fallback = opaque_mask(policy);
         let fallback_bytes = log_safe_len(fallback);
@@ -456,7 +514,7 @@ impl RedactionSession<'_> {
                 FragmentCompletion::Complete
             };
             self.commit_output(output_bytes, completion);
-            let redacted = RedactedText::new(masked);
+            let redacted = MaskedValue::new(masked);
             let completion =
                 redaction_fragment_completion(redacted.as_str(), completion);
             return (redacted, completion);
@@ -600,7 +658,7 @@ fn redact_field_unbudgeted<'value>(
                 );
             (
                 FieldRedaction::Masked {
-                    value: RedactedText::new(masked),
+                    value: MaskedValue::new(masked),
                     sensitivity,
                 },
                 truncated,
@@ -626,7 +684,7 @@ fn redact_at_with_budget<'value>(
     budget: &mut DiagnosticBudget,
     level: Sensitivity,
     value: &'value str,
-) -> RedactedText<'value> {
+) -> MaskedValue<'value> {
     let fallback = opaque_mask(policy);
     let fallback_bytes = log_safe_len(fallback);
     let admission = budget.admit(value.len(), usize::MAX, fallback_bytes);
@@ -644,7 +702,7 @@ fn redact_at_with_budget<'value>(
             FragmentCompletion::Complete
         };
         budget.commit_output(output_bytes, completion);
-        return RedactedText::new(masked);
+        return MaskedValue::new(masked);
     }
     terminal_text_fallback(budget, max_output_bytes, fallback, fallback_bytes)
 }
@@ -660,13 +718,13 @@ fn opaque_mask(policy: &RedactionPolicy) -> &str {
 fn admission_text_fallback<'value>(
     admission: RedactionAdmission,
     fallback: &str,
-) -> RedactedText<'value> {
+) -> MaskedValue<'value> {
     match admission {
         RedactionAdmission::Fallback => {
-            RedactedText::new(Cow::Owned(fallback.to_owned()))
+            MaskedValue::new(Cow::Owned(fallback.to_owned()))
         }
         RedactionAdmission::Exhausted => {
-            RedactedText::new(Cow::Owned(String::new()))
+            MaskedValue::new(Cow::Owned(String::new()))
         }
         RedactionAdmission::Render { .. } => {
             unreachable!("render admissions are handled before fallback")
@@ -693,16 +751,16 @@ fn terminal_text_fallback<'value>(
     max_output_bytes: usize,
     fallback: &str,
     fallback_bytes: usize,
-) -> RedactedText<'value> {
+) -> MaskedValue<'value> {
     if fallback_bytes <= max_output_bytes {
         budget.commit_output(
             fallback_bytes,
             FragmentCompletion::SessionTruncated,
         );
-        RedactedText::new(Cow::Owned(fallback.to_owned()))
+        MaskedValue::new(Cow::Owned(fallback.to_owned()))
     } else {
         budget.commit_output(0, FragmentCompletion::SessionTruncated);
-        RedactedText::new(Cow::Owned(String::new()))
+        MaskedValue::new(Cow::Owned(String::new()))
     }
 }
 
@@ -733,13 +791,13 @@ fn terminal_session_text_fallback<'value>(
     fallback: &str,
     fallback_bytes: usize,
     completion: FragmentCompletion,
-) -> RedactedText<'value> {
+) -> MaskedValue<'value> {
     if fallback_bytes <= max_output_bytes {
         session.commit_output(fallback_bytes, completion);
-        RedactedText::new(Cow::Owned(fallback.to_owned()))
+        MaskedValue::new(Cow::Owned(fallback.to_owned()))
     } else {
         session.commit_output(0, completion);
-        RedactedText::new(Cow::Owned(String::new()))
+        MaskedValue::new(Cow::Owned(String::new()))
     }
 }
 
@@ -781,7 +839,7 @@ fn truncation_completion(
 #[inline]
 #[must_use]
 fn log_safe_len(value: &str) -> usize {
-    RedactedText::new(Cow::Borrowed(value))
+    MaskedValue::new(Cow::Borrowed(value))
         .escape_for_log()
         .as_str()
         .len()

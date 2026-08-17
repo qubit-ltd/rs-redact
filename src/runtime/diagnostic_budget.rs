@@ -221,3 +221,21 @@ impl DiagnosticBudget {
                 && (self.input_closed || self.input_budget.remaining() == 0))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::DiagnosticBudget;
+    use crate::policy::InputOutputLimit;
+    use crate::runtime::internal::RedactionAdmission;
+
+    #[test]
+    fn precharged_admission_reserves_nested_output() {
+        let mut budget = DiagnosticBudget::new(InputOutputLimit::default());
+        assert!(matches!(
+            budget.admit_precharged(8),
+            RedactionAdmission::Render {
+                max_output_bytes: 8
+            }
+        ));
+    }
+}

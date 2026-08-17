@@ -94,11 +94,48 @@ impl RedactionPolicyBuilder {
         }
     }
 
-    /// Returns the mutable base-field configuration view.
+    /// Configures base field sensitivity rules transactionally.
+    ///
+    /// The closure writes into a temporary field draft. Field names are
+    /// validated after the closure returns and the draft is applied only when
+    /// every field is valid. The configuration methods inside the closure are
+    /// therefore infallible and can be chained without a trailing `Ok(())`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError`] when a field name is empty after
+    /// canonicalization. The builder remains unchanged on error.
+    pub fn fields<F>(self, configure: F) -> Result<Self, PolicyError>
+    where
+        F: FnOnce(&mut FieldsBuilder<'_>),
+    {
+        let mut draft = self.clone();
+        let error = {
+            let mut fields = FieldsBuilder {
+                builder: &mut draft,
+                error: None,
+            };
+            configure(&mut fields);
+            fields.error.take()
+        };
+        if let Some(error) = error {
+            return Err(error);
+        }
+        Ok(draft)
+    }
+
+    /// Returns the legacy mutable base-field configuration view.
+    ///
+    /// This method is retained internally while downstream crates migrate to
+    /// the transactional [`Self::fields`] closure.
+    #[doc(hidden)]
     #[must_use]
     #[inline(always)]
-    pub fn fields(&mut self) -> FieldsBuilder<'_> {
-        FieldsBuilder { builder: self }
+    pub fn legacy_fields(&mut self) -> FieldsBuilder<'_> {
+        FieldsBuilder {
+            builder: self,
+            error: None,
+        }
     }
 
     /// Returns the mutable HTTP configuration view.
@@ -198,9 +235,65 @@ mod views {
     /// Mutable view over the base field policy.
     pub struct FieldsBuilder<'a> {
         pub(super) builder: &'a mut RedactionPolicyBuilder,
+        pub(super) error: Option<PolicyError>,
     }
 
     impl FieldsBuilder<'_> {
+        /// Raises one field's minimum sensitivity in a transactional draft.
+        #[must_use]
+        #[inline(always)]
+        fn set_sensitive(
+            &mut self,
+            field: &str,
+            level: Sensitivity,
+        ) -> &mut Self {
+            if self.error.is_none()
+                && let Err(error) = self.builder.rules.raise(field, level)
+            {
+                self.error = Some(error);
+            }
+            self
+        }
+
+        /// Marks a field as low sensitivity.
+        #[must_use]
+        #[inline(always)]
+        pub fn low_sensitive(&mut self, field: &str) -> &mut Self {
+            self.set_sensitive(field, Sensitivity::Low)
+        }
+
+        /// Marks a field as medium sensitivity.
+        #[must_use]
+        #[inline(always)]
+        pub fn medium_sensitive(&mut self, field: &str) -> &mut Self {
+            self.set_sensitive(field, Sensitivity::Medium)
+        }
+
+        /// Marks a field as high sensitivity.
+        #[must_use]
+        #[inline(always)]
+        pub fn high_sensitive(&mut self, field: &str) -> &mut Self {
+            self.set_sensitive(field, Sensitivity::High)
+        }
+
+        /// Marks a field as secret sensitivity.
+        #[must_use]
+        #[inline(always)]
+        pub fn secret_sensitive(&mut self, field: &str) -> &mut Self {
+            self.set_sensitive(field, Sensitivity::Secret)
+        }
+
+        /// Raises a field's minimum sensitivity to `level`.
+        #[must_use]
+        #[inline(always)]
+        pub fn sensitive(
+            &mut self,
+            level: Sensitivity,
+            field: &str,
+        ) -> &mut Self {
+            self.set_sensitive(field, level)
+        }
+
         /// Sets field-name matching for the base policy.
         #[must_use]
         #[inline(always)]

@@ -9,3 +9,5 @@ multiple-public-types | src/policy/json_depth_limit.rs | JSON depth builder and 
 multiple-public-types | src/policy/masking_policy.rs | Masking builder and immutable policy share one validated snapshot.
 multiple-public-types | src/policy/redaction_limits.rs | Aggregate limit builder and immutable snapshot share one policy boundary.
 multiple-public-types | src/runtime/domain_budget.rs | Domain budget admission types and state share one runtime transaction.
+multiple-public-types | src/domain/redaction_writer.rs | Structured writer and its field scope form one domain output boundary.
+multiple-public-types | src/facade/redaction_summary.rs | Summary, reason, and usage types form one public execution-report boundary.
