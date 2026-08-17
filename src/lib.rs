@@ -343,14 +343,14 @@
 
 extern crate self as qubit_redact;
 
-#[cfg(feature = "serde")]
-#[doc(hidden)]
-pub mod internal;
 pub mod config;
 pub mod domain;
 pub mod facade;
 pub mod formats;
 mod install_global_policy_error;
+#[cfg(feature = "serde")]
+#[doc(hidden)]
+pub mod internal;
 mod json_feature_gate;
 pub mod limits;
 pub mod model;

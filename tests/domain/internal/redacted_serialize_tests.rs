@@ -8,13 +8,13 @@
 //! Tests for serde support on redacted domain views.
 
 #[cfg(feature = "serde")]
-use qubit_redact::internal::RedactSerialize;
-#[cfg(feature = "serde")]
-use qubit_redact::internal::RedactedSerialize;
-#[cfg(feature = "serde")]
 use qubit_redact::RedactionPolicy;
 #[cfg(feature = "serde")]
 use qubit_redact::domain::RedactedMap;
+#[cfg(feature = "serde")]
+use qubit_redact::internal::RedactSerialize;
+#[cfg(feature = "serde")]
+use qubit_redact::internal::RedactedSerialize;
 /// Asserts at compile time that a type implements [`serde::Serialize`].
 #[cfg(feature = "serde")]
 fn assert_serialize<T: serde::Serialize>() {}

@@ -11,8 +11,6 @@ use std::fmt;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
-#[cfg(feature = "serde")]
-use qubit_redact::internal::RedactedSerialize;
 use qubit_redact::InputOutputLimit;
 use qubit_redact::LogOutputLimit;
 use qubit_redact::RedactionPolicy;
@@ -21,6 +19,8 @@ use qubit_redact::domain::Redact;
 use qubit_redact::domain::RedactMut;
 #[cfg(feature = "serde")]
 use qubit_redact::domain::RedactSerialize;
+#[cfg(feature = "serde")]
+use qubit_redact::internal::RedactedSerialize;
 /// Minimal nested value with a fixed safe representation.
 struct NestedValue;
 
