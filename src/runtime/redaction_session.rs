@@ -13,6 +13,7 @@ use super::DomainTruncation;
 use super::DomainTruncationCheckpoint;
 use super::internal::FragmentCompletion;
 use super::internal::RedactionAdmission;
+use crate::domain::Redact;
 use crate::policy::DomainTraversalAdmission;
 use crate::policy::DomainValueAdmission;
 use crate::policy::DomainValueScope;
@@ -26,6 +27,7 @@ pub struct RedactionSession<'policy> {
     policy: &'policy RedactionPolicy,
     budget: DiagnosticBudget,
     pub(super) domain_budget: DomainRedactionBudget,
+    pub(super) fragments: String,
 }
 
 impl<'policy> RedactionSession<'policy> {
@@ -37,7 +39,84 @@ impl<'policy> RedactionSession<'policy> {
             policy,
             budget: DiagnosticBudget::new(policy.limits().diagnostic_event()),
             domain_budget: DomainRedactionBudget::new(policy.limits().domain()),
+            fragments: String::new(),
         }
+    }
+
+    /// Appends trusted program-authored context text.
+    #[must_use]
+    pub fn text(mut self, text: &'static str) -> Self {
+        self.append_chain_fragment(text);
+        self
+    }
+
+    /// Redacts and appends one scalar field in chain order.
+    #[must_use]
+    pub fn field(mut self, field: &str, value: &str) -> Self {
+        let rendered = self.redact_field_output(field, value);
+        let text = rendered.log_safe_text().as_str().to_owned();
+        // `redact_field_output` already reserves and commits the complete
+        // field fragment against this session's diagnostic budget.
+        self.fragments.push_str(&text);
+        self
+    }
+
+    /// Redacts and appends one structured domain value in chain order.
+    #[must_use]
+    pub fn value<T>(mut self, name: &str, value: &T) -> Self
+    where
+        T: Redact,
+    {
+        let rendered = crate::Redactor::new(self.policy.clone()).redact(value);
+        let rendered = format!("{}={}", name, rendered.text().as_str());
+        self.append_chain_fragment(&rendered);
+        self
+    }
+
+    /// Finishes a chain session and returns final text with its summary.
+    #[must_use]
+    pub fn finish(self) -> crate::RedactionOutput {
+        let completion = if self.fragments.is_empty() && self.is_exhausted() {
+            crate::RedactionSummary::exhausted()
+        } else if self.is_exhausted() {
+            crate::RedactionSummary::truncated(
+                crate::RedactionReason::OutputLimitReached,
+            )
+        } else {
+            crate::RedactionSummary::complete()
+        };
+        let escaped = crate::output::log_escape::escape_log_control_characters(
+            std::borrow::Cow::Owned(self.fragments),
+        )
+        .into_owned();
+        crate::RedactionOutput::new(
+            crate::RedactedText::from_escaped(escaped),
+            completion,
+        )
+    }
+
+    /// Appends a chain fragment at a UTF-8 boundary within remaining output.
+    fn append_chain_fragment(&mut self, fragment: &str) {
+        let output_limit =
+            crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
+        let max_output = match self.admit_output_only(output_limit) {
+            RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
+            RedactionAdmission::Fallback | RedactionAdmission::Exhausted => {
+                return;
+            }
+        };
+        let remaining = self.remaining_output_bytes().min(max_output);
+        let mut length = fragment.len().min(remaining);
+        while length > 0 && !fragment.is_char_boundary(length) {
+            length -= 1;
+        }
+        self.fragments.push_str(&fragment[..length]);
+        let completion = if length == fragment.len() {
+            FragmentCompletion::Complete
+        } else {
+            FragmentCompletion::SessionTruncated
+        };
+        self.commit_output(length, completion);
     }
 
     /// Returns the immutable policy snapshot used by this session.

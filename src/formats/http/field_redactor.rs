@@ -10,9 +10,9 @@
 use std::borrow::Cow;
 
 use crate::MaskingPolicy;
-use crate::RedactedText;
 use crate::RedactionRules;
 use crate::Sensitivity;
+use crate::output::MaskedValue;
 use crate::policy::ResolvedField;
 
 /// Borrowed field-rule executor used within one HTTP redaction call.
@@ -46,9 +46,9 @@ impl<'a> FieldRedactor<'a> {
         field: &str,
         value: &'value str,
         max_bytes: usize,
-    ) -> RedactedText<'value> {
+    ) -> MaskedValue<'value> {
         self.redact_bounded_if_sensitive(field, value, max_bytes)
-            .unwrap_or_else(|| RedactedText::new(Cow::Borrowed(value)))
+            .unwrap_or_else(|| MaskedValue::new(Cow::Borrowed(value)))
     }
 
     /// Redacts a field only when its atomic rule resolution is sensitive.
@@ -70,19 +70,15 @@ impl<'a> FieldRedactor<'a> {
         field: &str,
         value: &'value str,
         max_bytes: usize,
-    ) -> Option<RedactedText<'value>> {
+    ) -> Option<MaskedValue<'value>> {
         let resolved = stronger(
             self.base_rules.resolve_field(field),
             self.context_rules.resolve_field(field),
         );
         match resolved {
-            ResolvedField::Sensitive { sensitivity } => {
-                Some(RedactedText::new(self.masking.mask_bounded(
-                    sensitivity,
-                    value,
-                    max_bytes,
-                )))
-            }
+            ResolvedField::Sensitive { sensitivity } => Some(MaskedValue::new(
+                self.masking.mask_bounded(sensitivity, value, max_bytes),
+            )),
             ResolvedField::PassThrough => None,
         }
     }

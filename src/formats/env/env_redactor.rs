@@ -14,9 +14,9 @@ use std::fmt::Write as _;
 use super::RedactedEnv;
 use super::RedactedEnvPair;
 use crate::LogSafeText;
-use crate::RedactedText;
 use crate::Redactor;
 use crate::Sensitivity;
+use crate::output::MaskedValue;
 use crate::output::internal::BoundedLogEscapeWriter;
 use crate::policy::ResolvedField;
 
@@ -237,7 +237,7 @@ impl Default for EnvRedactor {
 #[inline(always)]
 #[must_use]
 fn log_safe_owned(value: String) -> LogSafeText<'static> {
-    RedactedText::new(Cow::Owned(value)).escape_for_log()
+    MaskedValue::new(Cow::Owned(value)).escape_for_log()
 }
 
 /// Appends one redacted assignment to a bounded debug-style list.

@@ -27,6 +27,19 @@ impl<'policy> RedactionSession<'policy> {
     pub fn uri(&mut self) -> UriRedactionSession<'_, 'policy> {
         UriRedactionSession { session: self }
     }
+
+    /// Configures the URI adapter inside a chainable session.
+    #[must_use]
+    pub fn uri_with<F>(mut self, configure: F) -> Self
+    where
+        F: for<'session> FnOnce(&mut UriRedactionSession<'session, 'policy>),
+    {
+        {
+            let mut adapter = self.uri();
+            configure(&mut adapter);
+        }
+        self
+    }
 }
 
 impl UriRedactionSession<'_, '_> {
