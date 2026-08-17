@@ -23,13 +23,13 @@ use qubit_redact::UnknownFieldPolicy;
 fn test_exact_allow_does_not_allow_contextual_suffix() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .raise("access_token", Sensitivity::High)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .allow_exact("access_token")
             .expect("the test builder input should be valid");
         builder
@@ -49,9 +49,9 @@ fn test_exact_allow_does_not_allow_contextual_suffix() {
 fn test_suffix_allow_is_explicitly_broad() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .allow_suffix("access_token")
             .expect("the test builder input should be valid");
         builder
@@ -68,17 +68,17 @@ fn test_suffix_allow_is_explicitly_broad() {
 fn test_overlapping_sensitive_rules_resolve_to_strongest_level() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .override_level("token", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .override_level("access_token", Sensitivity::Medium)
             .expect("the test builder input should be valid");
         let _ = builder
-            .fields()
+            .legacy_fields()
             .matching(FieldNameMatching::ExactOrTokenSuffix);
         builder
     })
@@ -96,12 +96,12 @@ fn test_overlapping_sensitive_rules_resolve_to_strongest_level() {
 fn test_matching_exact_only_matches_complete_field_name() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .raise("access_token", Sensitivity::High)
             .expect("the test builder input should be valid");
-        let _ = builder.fields().matching(FieldNameMatching::Exact);
+        let _ = builder.legacy_fields().matching(FieldNameMatching::Exact);
         builder
     })
     .build()
@@ -156,7 +156,7 @@ fn test_builder_is_empty_and_default_based_builder_is_explicit() {
     let builder = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_id", Sensitivity::Low)
             .expect("the test builder input should be valid");
         builder
@@ -166,7 +166,7 @@ fn test_builder_is_empty_and_default_based_builder_is_explicit() {
     let constructed = ({
         let mut builder = RedactionPolicyBuilder::new();
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_id", Sensitivity::Low)
             .expect("the test builder input should be valid");
         builder
@@ -176,7 +176,7 @@ fn test_builder_is_empty_and_default_based_builder_is_explicit() {
     let defaulted = ({
         let mut builder = RedactionPolicyBuilder::default();
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_id", Sensitivity::Low)
             .expect("the test builder input should be valid");
         builder
@@ -186,7 +186,7 @@ fn test_builder_is_empty_and_default_based_builder_is_explicit() {
     let from_default = ({
         let mut builder = RedactionPolicy::default().to_builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_id", Sensitivity::Low)
             .expect("the test builder input should be valid");
         builder
@@ -196,7 +196,7 @@ fn test_builder_is_empty_and_default_based_builder_is_explicit() {
     let copied = ({
         let mut builder = RedactionPolicy::builder_from(&from_default);
         builder
-            .fields()
+            .legacy_fields()
             .include_preset(SensitiveFieldPreset::Session);
         builder
     })
@@ -247,30 +247,30 @@ fn test_builder_from_snapshot_replaces_existing_state_and_error() {
 fn test_builder_from_copies_complete_policy_snapshot() {
     let base = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
-        let _ = builder.fields().matching(FieldNameMatching::Exact);
+        builder.legacy_fields().disable_floor();
+        let _ = builder.legacy_fields().matching(FieldNameMatching::Exact);
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[copied]"))
             .expect("the test mask policy should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .raise("public_token", Sensitivity::High)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .raise("diagnostic_token", Sensitivity::Medium)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .allow_exact("public_token")
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .allow_suffix("diagnostic_token")
             .expect("the test builder input should be valid");
         builder
@@ -317,21 +317,21 @@ fn test_builder_from_copies_complete_policy_snapshot() {
 fn test_raise_and_override_have_distinct_strength_semantics() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .raise("credential", Sensitivity::High)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .raise("credential", Sensitivity::Medium)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .override_level("override", Sensitivity::High)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .override_level("override", Sensitivity::Low)
             .expect("the test builder input should be valid");
         builder
@@ -352,7 +352,7 @@ fn test_mask_replaces_one_masking_policy() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[hidden]"))
             .expect("the test mask policy should be valid");
         builder
@@ -375,18 +375,27 @@ fn test_setters_reject_empty_canonical_field_names() {
     });
     let mut builder = RedactionPolicy::builder();
     assert_eq!(
-        builder.fields().raise(" _-.[ ] ", Sensitivity::High).err(),
+        builder
+            .legacy_fields()
+            .raise(" _-.[ ] ", Sensitivity::High)
+            .err(),
         expected,
     );
     assert_eq!(
         builder
-            .fields()
+            .legacy_fields()
             .override_level(" _-.[ ] ", Sensitivity::High)
             .err(),
         expected,
     );
-    assert_eq!(builder.fields().allow_exact(" _-.[ ] ").err(), expected,);
-    assert_eq!(builder.fields().allow_suffix(" _-.[ ] ").err(), expected,);
+    assert_eq!(
+        builder.legacy_fields().allow_exact(" _-.[ ] ").err(),
+        expected,
+    );
+    assert_eq!(
+        builder.legacy_fields().allow_suffix(" _-.[ ] ").err(),
+        expected,
+    );
 }
 
 /// Verifies direct field-name validation matches builder canonicalization.
@@ -409,7 +418,7 @@ fn test_validate_field_name_accepts_canonicalizable_names_and_rejects_empty() {
 fn test_mask_rejects_empty_fixed_replacement_immediately() {
     let mut builder = RedactionPolicy::builder();
     let error = builder
-        .fields()
+        .legacy_fields()
         .mask(Sensitivity::High, MaskPolicy::fixed(""))
         .err();
 
@@ -425,7 +434,7 @@ fn test_mask_rejects_empty_fixed_replacement_immediately() {
         ({
             let mut builder = RedactionPolicy::builder();
             builder
-                .fields()
+                .legacy_fields()
                 .mask(Sensitivity::High, MaskPolicy::empty())
                 .expect("the test mask policy should be valid");
             builder
@@ -441,7 +450,7 @@ fn test_mask_rejects_empty_fixed_replacement_immediately() {
 fn test_builder_and_policy_error_display() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
     })
     .build()
@@ -470,15 +479,15 @@ fn test_rule_views_expose_canonical_configuration() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("Tenant-Token", Sensitivity::High)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .allow_exact("Public Token")
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .allow_suffix("Diagnostic.Token")
             .expect("the test builder input should be valid");
         builder

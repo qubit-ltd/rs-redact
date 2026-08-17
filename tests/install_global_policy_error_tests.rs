@@ -13,7 +13,7 @@ use qubit_redact::RedactionPolicy;
 fn test_install_global_policy_error_returns_rejected_policy() {
     let installed = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
     })
     .build()
@@ -23,7 +23,7 @@ fn test_install_global_policy_error_returns_rejected_policy() {
 
     let rejected = ({
         let mut builder = RedactionPolicy::default().to_builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
     })
     .build()

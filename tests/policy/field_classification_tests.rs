@@ -16,12 +16,12 @@ use qubit_redact::Sensitivity;
 fn test_field_classification_exposes_sensitive_rule_metadata() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         let _ = builder
-            .fields()
+            .legacy_fields()
             .matching(FieldNameMatching::ExactOrTokenSuffix);
         builder
-            .fields()
+            .legacy_fields()
             .raise("api_token", Sensitivity::High)
             .expect("the configured field must be valid");
         builder
@@ -46,9 +46,9 @@ fn test_field_classification_exposes_sensitive_rule_metadata() {
 fn test_field_classification_distinguishes_allowed_and_unknown_metadata() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .allow_exact("display_name")
             .expect("the configured field must be valid");
         builder

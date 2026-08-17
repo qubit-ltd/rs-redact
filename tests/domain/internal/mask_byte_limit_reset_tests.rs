@@ -49,13 +49,13 @@ fn test_mask_byte_limit_reset_restores_unbounded_state_after_panic() {
 
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .raise("password", Sensitivity::Low)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Low, MaskPolicy::preserve_suffix(16, "****", 0))
             .expect("the test mask policy should be valid");
         builder

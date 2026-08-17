@@ -62,11 +62,11 @@ fn test_env_pair_session_reports_local_mask_truncation() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("a", Sensitivity::Secret)
             .expect("the short sensitive field should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
             .expect("the oversized secret mask should be valid");
         builder.limits().diagnostic_event(limit);

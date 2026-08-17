@@ -83,17 +83,17 @@ fn test_uri_redactor_redacts_password_but_preserves_username() {
 fn test_uri_redactor_applies_username_policy_and_keeps_encoded_colon() {
     let core = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .raise("username", Sensitivity::Secret)
             .expect("username rule is valid");
         builder
-            .fields()
+            .legacy_fields()
             .raise("password", Sensitivity::Secret)
             .expect("password rule is valid");
         builder
-            .fields()
+            .legacy_fields()
             .allow_exact("username")
             .expect("username allow rule is valid");
         builder
@@ -121,13 +121,13 @@ fn test_uri_redactor_applies_username_policy_and_keeps_encoded_colon() {
 fn test_uri_redactor_masks_query_after_decoding_and_preserves_order() {
     let core = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .raise("token", Sensitivity::High)
             .expect("token rule is valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::High, MaskPolicy::fixed("x y"))
             .expect("mask policy is valid");
         builder
@@ -341,11 +341,11 @@ fn test_uri_redactor_marks_truncated_final_sensitive_value() {
     let core = ({
         let mut builder = RedactionPolicy::default().to_builder();
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
             .expect("the mask policy is valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
             .expect("the opaque mask policy is valid");
         builder.limits().diagnostic_event(

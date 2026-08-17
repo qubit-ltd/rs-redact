@@ -16,10 +16,10 @@ fn test_policy_internal_components_share_canonical_state() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         let _ = builder
-            .fields()
+            .legacy_fields()
             .matching(FieldNameMatching::ExactOrTokenSuffix);
         builder
-            .fields()
+            .legacy_fields()
             .raise("access-token", Sensitivity::High)
             .expect("the test builder input should be valid");
         builder

@@ -33,11 +33,11 @@
 //! use std::collections::HashMap;
 //! use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 //!
-//! let mut builder = RedactionPolicy::builder();
-//! builder
-//!     .fields()
-//!     .raise("tenant_secret", Sensitivity::Secret)?;
-//! let policy = builder.build()?;
+//! let policy = RedactionPolicy::builder()
+//!     .fields(|fields| {
+//!         fields.secret_sensitive("tenant_secret");
+//!     })?
+//!     .build()?;
 //! let source = HashMap::from([
 //!     ("tenant_secret".to_owned(), "raw".to_owned()),
 //!     ("display_name".to_owned(), "Alice".to_owned()),
@@ -70,19 +70,19 @@
 //! ```
 //! use qubit_redact::{RedactionPolicy, Sensitivity};
 //!
-//! let mut builder = RedactionPolicy::builder();
-//! builder
-//!     .fields()
-//!     .raise("tenant_secret", Sensitivity::Secret)?;
-//! let application_default = builder.build()?;
+//! let application_default = RedactionPolicy::builder()
+//!     .fields(|fields| {
+//!         fields.secret_sensitive("tenant_secret");
+//!     })?
+//!     .build()?;
 //! RedactionPolicy::install_global(application_default)?;
 //! let snapshot = RedactionPolicy::default();
 //! assert_eq!(snapshot.sensitivity_for("tenant_secret"), Some(Sensitivity::Secret));
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
-//! [`RedactedText`] is not directly displayable. Explicitly cross a plain-text
-//! logging boundary with [`RedactedText::escape_for_log`].
+//! Scalar field results are not plain-text safe until they cross an explicit
+//! logging boundary with `escape_for_log()`.
 //!
 //! ```
 //! use qubit_redact::Redactor;
@@ -115,9 +115,11 @@
 //!     metadata: HashMap<String, String>,
 //! }
 //!
-//! let mut builder = RedactionPolicy::builder();
-//! builder.fields().raise("api_key", Sensitivity::Secret)?;
-//! let policy = builder.build()?;
+//! let policy = RedactionPolicy::builder()
+//!     .fields(|fields| {
+//!         fields.secret_sensitive("api_key");
+//!     })?
+//!     .build()?;
 //! let account = Account {
 //!     id: 1,
 //!     password: "raw-password".to_owned(),
@@ -359,7 +361,13 @@ pub mod policy;
 pub(crate) mod runtime;
 mod serde_feature_gate;
 
+pub use facade::RedactedText;
 pub use facade::RedactionEvent;
+pub use facade::RedactionOutput;
+pub use facade::RedactionReason;
+pub use facade::RedactionReasons;
+pub use facade::RedactionSummary;
+pub use facade::RedactionUsage;
 pub use facade::Redactor;
 pub use install_global_policy_error::InstallGlobalPolicyError;
 pub use model::FieldRedaction;
@@ -371,7 +379,6 @@ pub use output::LogOutputLimitBuilder;
 pub use output::LogOutputLimitError;
 pub use output::LogSafeText;
 pub use output::RedactedDebug;
-pub use output::RedactedText;
 pub use output::RedactionCompletion;
 pub use output::redacted_debug;
 pub use policy::AllowRule;

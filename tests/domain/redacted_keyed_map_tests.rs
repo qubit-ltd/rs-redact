@@ -86,7 +86,7 @@ fn test_redacted_keyed_map_recursively_redacts_unclassified_values() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder

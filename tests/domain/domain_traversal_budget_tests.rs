@@ -649,7 +649,7 @@ fn test_keyed_map_item_avoids_standalone_structural_double_charge() {
     let map = BTreeMap::from([("password", CollectionValue("secret"))]);
     let mut builder = RedactionPolicy::builder();
     builder
-        .fields()
+        .legacy_fields()
         .raise("password", Sensitivity::Secret)
         .expect("the key rule should be valid");
     builder.limits().domain(
@@ -701,7 +701,7 @@ fn test_keyed_map_depth_marker_preserves_later_sibling() {
 fn test_standalone_keyed_node_limit_prevents_value_access() {
     let mut builder = RedactionPolicy::builder();
     builder
-        .fields()
+        .legacy_fields()
         .raise("password", Sensitivity::Secret)
         .expect("the key rule should be valid");
     builder.limits().domain(
@@ -728,7 +728,7 @@ fn test_standalone_keyed_node_limit_prevents_value_access() {
 fn test_standalone_keyed_depth_limit_prevents_value_access() {
     let mut builder = RedactionPolicy::builder();
     builder
-        .fields()
+        .legacy_fields()
         .raise("password", Sensitivity::Secret)
         .expect("the key rule should be valid");
     builder.limits().domain(

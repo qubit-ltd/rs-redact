@@ -57,7 +57,7 @@ fn test_bounded_uri_output_percent_encodes_unicode_masks() {
     let core = ({
         let mut builder = RedactionPolicy::default().to_builder();
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::High, MaskPolicy::fixed("密"))
             .expect("the mask policy is valid");
         builder

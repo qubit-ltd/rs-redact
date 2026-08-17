@@ -199,7 +199,7 @@ fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_app
  {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder.fields().matching(FieldNameMatching::Exact);
+        let _ = builder.legacy_fields().matching(FieldNameMatching::Exact);
         builder
     })
     .build()
@@ -224,13 +224,13 @@ fn test_redact_heuristically_uses_application_rule_for_exact_single_dash_option(
  {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
             .expect("the test mask policy should be valid");
         builder
@@ -381,7 +381,7 @@ fn test_new_uses_custom_redaction_policy() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_flag", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -517,13 +517,13 @@ fn test_redact_heuristically_uses_application_mask_for_pending_option_value() {
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder.fields().floor(floor);
+        let _ = builder.legacy_fields().floor(floor);
         builder
-            .fields()
+            .legacy_fields()
             .raise("password", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
             .expect("the test mask policy should be valid");
         builder
@@ -551,13 +551,13 @@ fn test_redact_heuristically_uses_application_mask_for_exact_single_dash_option(
         .expect("the floor should build");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder.fields().floor(floor);
+        let _ = builder.legacy_fields().floor(floor);
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
             .expect("the test mask policy should be valid");
         builder

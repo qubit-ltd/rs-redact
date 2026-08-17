@@ -22,15 +22,15 @@ fn test_redaction_rules_exact_allow_does_not_hide_suffix_sensitive_rule() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .raise("access_token", Sensitivity::High)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .allow_exact("access_token")
             .expect("the test builder input should be valid");
         let _ = builder
-            .fields()
+            .legacy_fields()
             .matching(FieldNameMatching::ExactOrTokenSuffix);
         builder
     })
@@ -59,7 +59,7 @@ fn test_redaction_rules_unknown_field_falls_back_to_policy() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .fields()
+            .legacy_fields()
             .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low));
         builder
     })
@@ -78,10 +78,10 @@ fn test_redaction_rules_unknown_field_falls_back_to_policy() {
 fn test_redaction_rules_expose_application_matching_and_unknown_policy() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
-        let _ = builder.fields().matching(FieldNameMatching::Exact);
+        builder.legacy_fields().disable_floor();
+        let _ = builder.legacy_fields().matching(FieldNameMatching::Exact);
         builder
-            .fields()
+            .legacy_fields()
             .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low));
         builder
     })
@@ -111,7 +111,7 @@ fn test_redaction_rules_floor_resolves_overlaps_to_strongest_level() {
         .expect("the overlapping floor should be valid");
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder.fields().floor(floor);
+        let _ = builder.legacy_fields().floor(floor);
         builder
     })
     .build()

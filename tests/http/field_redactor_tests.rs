@@ -24,13 +24,13 @@ fn test_field_redactor_uses_application_mask_for_header_rule() {
         .expect("the floor should be valid");
     let application = ({
         let mut builder = RedactionPolicy::builder();
-        builder.fields().disable_floor();
+        builder.legacy_fields().disable_floor();
         builder
-            .fields()
+            .legacy_fields()
             .raise("tenant_token", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .mask(
                 Sensitivity::Secret,
                 MaskPolicy::fixed("[application-secret]"),
@@ -46,7 +46,7 @@ fn test_field_redactor_uses_application_mask_for_header_rule() {
         .header()
         .replace_rules(application.rules().clone().with_floor(floor));
     builder
-        .fields()
+        .legacy_fields()
         .mask(
             Sensitivity::Secret,
             MaskPolicy::fixed("[application-secret]"),

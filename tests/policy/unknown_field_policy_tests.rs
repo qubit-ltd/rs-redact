@@ -31,17 +31,15 @@ fn test_unknown_field_policy_defaults_to_pass_through() {
 fn test_unknown_field_policy_applies_after_explicit_rules() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
+        builder.legacy_fields().unknown_field_policy(
+            UnknownFieldPolicy::Redact(Sensitivity::High),
+        );
         builder
-            .fields()
-            .unknown_field_policy(UnknownFieldPolicy::Redact(
-                Sensitivity::High,
-            ));
-        builder
-            .fields()
+            .legacy_fields()
             .raise("configured", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .fields()
+            .legacy_fields()
             .allow_exact("public")
             .expect("the test builder input should be valid");
         builder
@@ -63,11 +61,9 @@ fn test_unknown_field_policy_applies_after_explicit_rules() {
 fn test_unknown_field_policy_is_preserved_by_builder_from() {
     let base = ({
         let mut builder = RedactionPolicy::builder();
-        builder
-            .fields()
-            .unknown_field_policy(UnknownFieldPolicy::Redact(
-                Sensitivity::Medium,
-            ));
+        builder.legacy_fields().unknown_field_policy(
+            UnknownFieldPolicy::Redact(Sensitivity::Medium),
+        );
         builder
     })
     .build()

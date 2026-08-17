@@ -33,13 +33,13 @@ qubit-redact = "0.5"
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut builder = RedactionPolicy::builder();
-    builder
-        .fields()
-        .raise("user_id", Sensitivity::Low)?
-        .raise("phone_number", Sensitivity::Medium)?
-        .raise("credit_card", Sensitivity::High)?
-        .raise("api_key", Sensitivity::Secret)?;
+    let builder = RedactionPolicy::builder().fields(|fields| {
+        fields
+            .low_sensitive("user_id")
+            .medium_sensitive("phone_number")
+            .high_sensitive("credit_card")
+            .secret_sensitive("api_key");
+    })?;
     let policy = builder.build()?;
     let redactor = Redactor::new(policy);
 
@@ -64,9 +64,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```rust
 use qubit_redact::{RedactionPolicy, Sensitivity};
 
-let mut builder = RedactionPolicy::builder();
-builder.fields().raise("api_key", Sensitivity::Secret)?;
-let policy = builder.build()?;
+let policy = RedactionPolicy::builder()
+    .fields(|fields| {
+        fields.secret_sensitive("api_key");
+    })?
+    .build()?;
 RedactionPolicy::install_global(policy)?;
 let snapshot = RedactionPolicy::default();
 # Ok::<(), Box<dyn std::error::Error>>(())
