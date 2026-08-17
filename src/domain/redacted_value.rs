@@ -15,9 +15,9 @@ use std::fmt::Formatter;
 
 use crate::LogSafeText;
 use crate::MaskingPolicy;
-use crate::RedactedText;
 use crate::Sensitivity;
 use crate::domain::internal::mask_byte_limit;
+use crate::output::MaskedValue;
 
 /// Redacted text retaining its original plain or optional container shape.
 ///
@@ -29,12 +29,12 @@ pub enum RedactedValue<'a> {
     /// A plain textual value.
     Text(
         /// Masked text, borrowed when the masking policy permits it.
-        RedactedText<'a>,
+        MaskedValue<'a>,
     ),
     /// A present optional textual value.
     Some(
         /// Masked contents of the present option.
-        RedactedText<'a>,
+        MaskedValue<'a>,
     ),
     /// An absent optional textual value.
     None,
@@ -58,7 +58,7 @@ impl<'a> RedactedValue<'a> {
             Some(max_bytes) => masking.mask_opaque_bounded(level, max_bytes),
             None => masking.mask_opaque(level).to_owned(),
         };
-        Self::Text(RedactedText::new(Cow::Owned(replacement)))
+        Self::Text(MaskedValue::new(Cow::Owned(replacement)))
     }
 }
 
@@ -164,6 +164,6 @@ impl Display for RedactedValue<'_> {
 ///
 /// A log-safe view that borrows `text` when it contains no unsafe controls.
 #[must_use]
-fn log_safe<'a>(text: &'a RedactedText<'_>) -> LogSafeText<'a> {
-    RedactedText::new(Cow::Borrowed(text.as_str())).escape_for_log()
+fn log_safe<'a>(text: &'a MaskedValue<'_>) -> LogSafeText<'a> {
+    MaskedValue::new(Cow::Borrowed(text.as_str())).escape_for_log()
 }

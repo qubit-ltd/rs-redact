@@ -24,6 +24,7 @@ mod redacted_keyed_map;
 mod redacted_keyed_value;
 mod redacted_map;
 mod redacted_value;
+mod redaction_writer;
 
 pub use bounded_redacted_display::BoundedRedactedDisplay;
 pub use redact::DomainTruncated;
@@ -48,3 +49,5 @@ pub use redacted_keyed_value::RedactedKeyedValue;
 pub use redacted_map::RedactedMap;
 pub use redacted_map::RedactedMapResult;
 pub use redacted_value::RedactedValue;
+pub use redaction_writer::RedactionFields;
+pub use redaction_writer::RedactionWriter;

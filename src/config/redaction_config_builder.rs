@@ -36,3 +36,22 @@ impl Default for RedactionConfigBuilder {
         Self::standard()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::RedactionConfigBuilder;
+    use crate::config::RedactionConfig;
+
+    #[test]
+    fn standard_and_default_build_the_standard_snapshot() {
+        let standard = RedactionConfigBuilder::standard()
+            .build()
+            .expect("standard configuration should build");
+        assert_eq!(standard, RedactionConfig::standard());
+
+        let default = RedactionConfigBuilder::default()
+            .build()
+            .expect("default configuration should build");
+        assert_eq!(default, standard);
+    }
+}

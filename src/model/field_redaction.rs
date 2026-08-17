@@ -12,7 +12,7 @@ use std::borrow::Cow;
 use crate::model::PassThroughReason;
 use crate::model::Sensitivity;
 use crate::output::LogSafeText;
-use crate::output::RedactedText;
+use crate::output::MaskedValue;
 
 /// Explains whether a field value was masked or intentionally passed through.
 ///
@@ -24,7 +24,7 @@ pub enum FieldRedaction<'a> {
     /// The policy masked the value at the reported sensitivity.
     Masked {
         /// The typed masked value.
-        value: RedactedText<'a>,
+        value: MaskedValue<'a>,
         /// Sensitivity used to select the mask.
         sensitivity: Sensitivity,
     },
@@ -92,7 +92,7 @@ impl<'a> FieldRedaction<'a> {
         match self {
             Self::Masked { value, .. } => value.escape_for_log(),
             Self::PassedThrough { value, .. } => {
-                RedactedText::new(Cow::Borrowed(value)).escape_for_log()
+                MaskedValue::new(Cow::Borrowed(value)).escape_for_log()
             }
         }
     }
