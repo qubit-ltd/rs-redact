@@ -7,36 +7,16 @@
 // =============================================================================
 //! Public-contract tests for the internal bounded escape writer.
 
-use std::fmt;
-
 use qubit_redact::LogOutputLimit;
-use qubit_redact::RedactionSession;
 use qubit_redact::domain::Redact;
+use qubit_redact::domain::RedactionWriter;
 /// Redacted value whose escaped representation exceeds the test budget.
 struct LongUnsafeDiagnostic;
 
 impl Redact for LongUnsafeDiagnostic {
     /// Writes a prefix, one control, and an overlong suffix.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        formatter.write_str("ab\nremaining-long")
-    }
-}
-
-/// Redacted value that rejects formatting.
-struct FailingDiagnostic;
-
-impl Redact for FailingDiagnostic {
-    /// Returns a formatting error without writing output.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        _formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        Err(fmt::Error)
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.literal("ab\nremaining-long");
     }
 }
 
@@ -45,12 +25,8 @@ struct FixedDiagnostic(&'static str);
 
 impl Redact for FixedDiagnostic {
     /// Writes the fixed representation exactly as supplied.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        formatter.write_str(self.0)
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.literal(self.0);
     }
 }
 
@@ -69,22 +45,17 @@ fn test_bounded_log_escape_writer_keeps_atomic_escape_boundary() {
     assert_eq!(output, "ab<truncated>");
 }
 
-/// Verifies a redacted formatter failure is returned unchanged.
+/// Verifies the structured writer emits the supplied safe representation.
 #[test]
-fn test_bounded_log_escape_writer_propagates_redaction_failure() {
+fn test_bounded_log_escape_writer_emits_safe_representation() {
     let limit = LogOutputLimit::builder()
         .max_bytes(64)
         .build()
         .expect("the test budget can contain the marker");
-    let result = std::fmt::write(
-        &mut String::new(),
-        format_args!(
-            "{}",
-            FailingDiagnostic.redacted().with_output_limit(limit),
-        ),
-    );
-
-    assert_eq!(result, Err(fmt::Error));
+    let output = FixedDiagnostic("<format-error>")
+        .redacted()
+        .with_output_limit(limit);
+    assert_eq!(output.to_string(), "<format-error>");
 }
 
 /// Verifies complete and malformed pre-generated debug escapes are handled

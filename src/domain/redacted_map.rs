@@ -305,7 +305,7 @@ mod session_view {
             let session = session
                 .take()
                 .expect("the one-shot map adapter cannot be reused");
-            self.map.fmt_redacted_map(session, formatter)
+            self.map.write_redacted_map(session, formatter)
         }
     }
 }

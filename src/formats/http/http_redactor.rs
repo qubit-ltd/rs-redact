@@ -1038,6 +1038,6 @@ impl Default for HttpRedactor {
     ///
     /// A fail-closed redactor with finite body limits.
     fn default() -> Self {
-        Self::new(RedactionPolicy::default())
+        Self::new(crate::Redactor::default().policy().clone())
     }
 }

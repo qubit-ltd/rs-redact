@@ -13,7 +13,6 @@ use qubit_redact::InputOutputLimit;
 use qubit_redact::MaskPolicy;
 use qubit_redact::MaskingPolicy;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::RedactionSession;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::domain::Redact;
@@ -22,6 +21,7 @@ use qubit_redact::domain::RedactSerialize;
 use qubit_redact::domain::RedactValue;
 use qubit_redact::domain::RedactedKeyedResult;
 use qubit_redact::domain::RedactedValue;
+use qubit_redact::domain::RedactionWriter;
 #[cfg(feature = "serde")]
 use serde::Serializer;
 #[cfg(feature = "serde")]
@@ -78,19 +78,12 @@ struct FormatterBehavior {
 }
 
 impl Redact for FormatterBehavior {
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         if self.fail {
-            return Err(fmt::Error);
+            writer.literal("<failed>");
+            return;
         }
-        formatter.write_str(if formatter.alternate() {
-            "alternate"
-        } else {
-            "compact"
-        })
+        writer.literal("compact");
     }
 }
 
@@ -106,12 +99,8 @@ impl RedactValue for FormatterBehavior {
 
 impl Redact for TextValue {
     /// Formats the visible text without adding nested redaction rules.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        fmt::Debug::fmt(&self.0, formatter)
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.text(&format!("{:?}", self.0));
     }
 }
 
@@ -128,22 +117,11 @@ impl RedactValue for TextValue {
 
 impl Redact for NestedValue {
     /// Formats the nested value without exposing its secret.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        formatter
-            .debug_struct("NestedValue")
-            .field(
-                "secret",
-                &self.secret.redact_value(
-                    Sensitivity::Secret,
-                    _session.policy().masking(),
-                ),
-            )
-            .field("label", &self.label)
-            .finish()
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.record("NestedValue", |fields| {
+            fields.sensitive(Sensitivity::Secret, "secret", || &self.secret);
+            fields.field("label", || &self.label);
+        });
     }
 }
 
@@ -201,7 +179,7 @@ fn test_redact_keyed_masks_sensitive_text_for_debug_and_display() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -224,7 +202,7 @@ fn test_redact_keyed_masks_sensitive_non_text_value() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -276,7 +254,7 @@ fn test_redact_keyed_preserves_alternate_debug() {
     );
     assert_eq!(
         format!("{:#?}", redactor.redact_keyed("label", &value)),
-        "alternate"
+        "compact"
     );
 }
 
@@ -293,19 +271,16 @@ fn test_redact_keyed_preserves_formatter_error() {
         format_args!("{:?}", redactor.redact_keyed("label", &value)),
     );
 
-    assert_eq!(result, Err(fmt::Error));
+    assert_eq!(result, Ok(()));
+    assert_eq!(output, "<failed>");
 }
 
 /// Value that verifies opaque masks are bounded before allocation completes.
 struct OpaqueMaskObserver;
 
 impl Redact for OpaqueMaskObserver {
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        formatter.write_str("visible")
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.literal("visible");
     }
 }
 
@@ -337,11 +312,11 @@ fn test_redact_keyed_bounds_opaque_mask_before_materialization() {
         let mut builder = RedactionPolicy::builder();
         builder.limits().diagnostic_event(budget);
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test field should be valid");
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&"x".repeat(1_000)))
             .expect("the replacement should be valid");
         builder
@@ -362,13 +337,9 @@ fn test_redact_keyed_bounds_opaque_mask_before_materialization() {
 struct ObservedKeyedValue<'a>(&'a std::sync::atomic::AtomicUsize);
 
 impl Redact for ObservedKeyedValue<'_> {
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        formatter.write_str("must-not-render")
+        writer.literal("must-not-render");
     }
 }
 
@@ -417,7 +388,7 @@ fn test_redact_keyed_serializes_sensitive_and_recursive_values() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("tenant_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder

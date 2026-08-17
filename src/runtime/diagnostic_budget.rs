@@ -23,6 +23,8 @@ pub(crate) struct DiagnosticBudget {
     input_closed: bool,
     output_closed: bool,
     admitted_output: Vec<AdmittedOutput>,
+    inspected_input_bytes: usize,
+    emitted_output_bytes: usize,
 }
 
 /// Output reservation and the input admission that created it.
@@ -59,6 +61,8 @@ impl DiagnosticBudget {
             input_closed: false,
             output_closed: false,
             admitted_output: Vec::new(),
+            inspected_input_bytes: 0,
+            emitted_output_bytes: 0,
         }
     }
 
@@ -84,6 +88,8 @@ impl DiagnosticBudget {
         {
             return self.reject_input(fallback_bytes);
         }
+        self.inspected_input_bytes =
+            self.inspected_input_bytes.saturating_add(input_bytes);
         let max_output_bytes =
             domain_output_limit.min(self.output_budget.remaining());
         self.admitted_output.push(AdmittedOutput {
@@ -101,6 +107,8 @@ impl DiagnosticBudget {
             && self.output_budget.remaining() != 0
             && self.output_budget.try_consume(fallback_bytes).is_ok()
         {
+            self.emitted_output_bytes =
+                self.emitted_output_bytes.saturating_add(fallback_bytes);
             self.output_closed = self.output_budget.remaining() == 0;
             return RedactionAdmission::Fallback;
         }
@@ -186,6 +194,8 @@ impl DiagnosticBudget {
         self.output_budget
             .try_consume(uncommitted_bytes)
             .expect("admitted output must fit the shared session budget");
+        self.emitted_output_bytes =
+            self.emitted_output_bytes.saturating_add(uncommitted_bytes);
         match completion {
             FragmentCompletion::Complete
             | FragmentCompletion::DomainTruncated => {}
@@ -219,6 +229,12 @@ impl DiagnosticBudget {
             || self.output_budget.remaining() == 0
             || (!self.has_active_output()
                 && (self.input_closed || self.input_budget.remaining() == 0))
+    }
+
+    /// Returns input and output usage accumulated by this event.
+    #[must_use]
+    pub(crate) const fn usage(&self) -> (usize, usize) {
+        (self.inspected_input_bytes, self.emitted_output_bytes)
     }
 }
 

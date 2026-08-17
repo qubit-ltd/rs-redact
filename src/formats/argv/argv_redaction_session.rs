@@ -183,25 +183,27 @@ fn admission_fallback(admission: RedactionAdmission) -> RedactedArgv {
 }
 
 impl<'policy> RedactionSession<'policy> {
-    /// Creates an argv façade borrowing this diagnostic session.
-    #[inline(always)]
-    #[must_use]
-    pub fn argv<'session>(
-        &'session mut self,
-    ) -> ArgvRedactionSession<'session, 'policy> {
-        ArgvRedactionSession::new(self)
-    }
-
     /// Configures the argument-vector adapter inside a chainable session.
     #[must_use]
     pub fn argv_with<F>(mut self, configure: F) -> Self
     where
         F: for<'session> FnOnce(&mut ArgvRedactionSession<'session, 'policy>),
     {
-        {
-            let mut adapter = self.argv();
-            configure(&mut adapter);
-        }
+        let mut adapter = ArgvRedactionSession::new(&mut self);
+        configure(&mut adapter);
         self
+    }
+
+    /// Runs one argv operation through a borrowed closure adapter.
+    #[must_use]
+    #[inline(always)]
+    pub fn argv_with_mut<F, R>(&mut self, configure: F) -> R
+    where
+        F: for<'session> FnOnce(
+            &mut ArgvRedactionSession<'session, 'policy>,
+        ) -> R,
+    {
+        let mut adapter = ArgvRedactionSession::new(self);
+        configure(&mut adapter)
     }
 }

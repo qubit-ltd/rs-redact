@@ -124,14 +124,14 @@ impl RedactionPolicyBuilder {
         Ok(draft)
     }
 
-    /// Returns the legacy mutable base-field configuration view.
+    /// Returns the mutable base-field configuration view.
     ///
     /// This method is retained internally while downstream crates migrate to
     /// the transactional [`Self::fields`] closure.
     #[doc(hidden)]
     #[must_use]
     #[inline(always)]
-    pub fn legacy_fields(&mut self) -> FieldsBuilder<'_> {
+    pub fn edit_fields(&mut self) -> FieldsBuilder<'_> {
         FieldsBuilder {
             builder: self,
             error: None,

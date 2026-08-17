@@ -34,7 +34,9 @@ fn benchmark_unmatched_url_delimiters(criterion: &mut Criterion) {
         |bencher| {
             bencher.iter(|| {
                 let mut session = redactor.session();
-                black_box(session.http().redact_urls_in_text(black_box(&input)))
+                black_box(session.http_with_mut(|http| {
+                    http.redact_urls_in_text(black_box(&input))
+                }))
             });
         },
     );
@@ -125,9 +127,9 @@ fn benchmark_diagnostic_budgets(criterion: &mut Criterion) {
             |bencher, input| {
                 bencher.iter(|| {
                     let mut session = redactor.session();
-                    black_box(
-                        session.http().redact_urls_in_text(black_box(input)),
-                    )
+                    black_box(session.http_with_mut(|http| {
+                        http.redact_urls_in_text(black_box(input))
+                    }))
                 });
             },
         );
@@ -140,7 +142,9 @@ fn benchmark_diagnostic_budgets(criterion: &mut Criterion) {
             |bencher, input| {
                 bencher.iter(|| {
                     let mut session = redactor.session();
-                    black_box(session.http().redact_url_str(black_box(input)))
+                    black_box(session.http_with_mut(|http| {
+                        http.redact_url_str(black_box(input))
+                    }))
                 });
             },
         );
@@ -153,7 +157,9 @@ fn benchmark_diagnostic_budgets(criterion: &mut Criterion) {
             |bencher, input| {
                 bencher.iter(|| {
                     let mut session = redactor.session();
-                    black_box(session.http().redact_form(black_box(input)))
+                    black_box(session.http_with_mut(|http| {
+                        http.redact_form(black_box(input))
+                    }))
                 });
             },
         );
@@ -165,7 +171,9 @@ fn benchmark_diagnostic_budgets(criterion: &mut Criterion) {
             |bencher, headers| {
                 bencher.iter(|| {
                     let mut session = redactor.session();
-                    black_box(session.http().redact_headers(black_box(headers)))
+                    black_box(session.http_with_mut(|http| {
+                        http.redact_headers(black_box(headers))
+                    }))
                 });
             },
         );
@@ -199,10 +207,12 @@ fn benchmark_body_redaction(criterion: &mut Criterion) {
     group.bench_function("json", |bencher| {
         bencher.iter(|| {
             let mut session = default_redactor.session();
-            black_box(session.http().redact_body(
-                black_box(BodyCapture::complete(json)),
-                Some(black_box(&json_type)),
-            ))
+            black_box(session.http_with_mut(|http| {
+                http.redact_body(
+                    black_box(BodyCapture::complete(json)),
+                    Some(black_box(&json_type)),
+                )
+            }))
         });
     });
 
@@ -210,10 +220,12 @@ fn benchmark_body_redaction(criterion: &mut Criterion) {
     group.bench_function("form", |bencher| {
         bencher.iter(|| {
             let mut session = default_redactor.session();
-            black_box(session.http().redact_body(
-                black_box(BodyCapture::complete(form)),
-                Some(black_box(&form_type)),
-            ))
+            black_box(session.http_with_mut(|http| {
+                http.redact_body(
+                    black_box(BodyCapture::complete(form)),
+                    Some(black_box(&form_type)),
+                )
+            }))
         });
     });
 
@@ -221,10 +233,12 @@ fn benchmark_body_redaction(criterion: &mut Criterion) {
     group.bench_function("multipart", |bencher| {
         bencher.iter(|| {
             let mut session = default_redactor.session();
-            black_box(session.http().redact_body(
-                black_box(BodyCapture::complete(multipart)),
-                Some(black_box(&multipart_type)),
-            ))
+            black_box(session.http_with_mut(|http| {
+                http.redact_body(
+                    black_box(BodyCapture::complete(multipart)),
+                    Some(black_box(&multipart_type)),
+                )
+            }))
         });
     });
 
@@ -232,12 +246,12 @@ fn benchmark_body_redaction(criterion: &mut Criterion) {
     group.bench_function("source_truncated_json", |bencher| {
         bencher.iter(|| {
             let mut session = default_redactor.session();
-            black_box(
-                session.http().redact_body(
+            black_box(session.http_with_mut(|http| {
+                http.redact_body(
                     black_box(truncated),
                     Some(black_box(&json_type)),
-                ),
-            )
+                )
+            }))
         });
     });
 
@@ -245,10 +259,12 @@ fn benchmark_body_redaction(criterion: &mut Criterion) {
     group.bench_function("tight_output_budget", |bencher| {
         bencher.iter(|| {
             let mut session = tight_redactor.session();
-            black_box(session.http().redact_body(
-                black_box(BodyCapture::complete(json)),
-                Some(black_box(&json_type)),
-            ))
+            black_box(session.http_with_mut(|http| {
+                http.redact_body(
+                    black_box(BodyCapture::complete(json)),
+                    Some(black_box(&json_type)),
+                )
+            }))
         });
     });
     group.finish();

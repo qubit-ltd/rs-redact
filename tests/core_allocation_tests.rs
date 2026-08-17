@@ -26,11 +26,11 @@ use qubit_redact::MaskPolicy;
 #[cfg(feature = "uri")]
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::RedactionSession;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::domain::Redact;
 use qubit_redact::domain::RedactedMap;
+use qubit_redact::domain::RedactionWriter;
 use qubit_redact::formats::argv::ArgvItem;
 use qubit_redact::formats::argv::ArgvRedactor;
 use qubit_redact::formats::env::EnvRedactor;
@@ -166,11 +166,11 @@ fn amplified_policy() -> RedactionPolicy {
     ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
             .expect("the test mask policy should be valid");
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
             .expect("the test mask policy should be valid");
         builder.limits().diagnostic_event(budget);
@@ -192,17 +192,12 @@ struct NestedBoundedMap<'a> {
 
 impl Redact for NestedBoundedMap<'_> {
     /// Renders the inner map with its independently requested output limit.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        write!(
-            formatter,
-            "{}",
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.text(&format!(
+            "{:?}",
             RedactedMap::new(self.values, self.policy.clone())
                 .with_output_limit(self.limit),
-        )
+        ));
     }
 }
 
@@ -320,11 +315,11 @@ fn test_bounded_uri_avoids_amplified_mask_allocation() {
     let core = ({
         let mut builder = RedactionPolicy::default().to_builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
             .expect("the high mask policy should be valid");
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
             .expect("the secret mask policy should be valid");
         builder.limits().diagnostic_event(budget);

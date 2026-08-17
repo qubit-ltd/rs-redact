@@ -61,7 +61,7 @@ fn test_http_redaction_policy_default_uses_safe_values() {
 fn test_http_redaction_policy_builder_has_no_field_rules() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.legacy_fields().disable_floor();
+        builder.edit_fields().disable_floor();
         builder
     })
     .build()
@@ -79,7 +79,7 @@ fn test_http_redaction_policy_builder_overrides_each_context() {
     let header = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("header_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -89,7 +89,7 @@ fn test_http_redaction_policy_builder_overrides_each_context() {
     let query = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("query_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -99,7 +99,7 @@ fn test_http_redaction_policy_builder_overrides_each_context() {
     let body = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("body_secret", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder

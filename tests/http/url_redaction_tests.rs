@@ -236,13 +236,13 @@ fn test_nested_url_detection_covers_malformed_and_bounded_decoding() {
 fn test_url_redaction_preserves_authoritative_mask_output() {
     let query_policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.legacy_fields().disable_floor();
+        builder.edit_fields().disable_floor();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("password", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(
                 Sensitivity::Secret,
                 MaskPolicy::fixed("https://mask.invalid/private"),
@@ -259,7 +259,7 @@ fn test_url_redaction_preserves_authoritative_mask_output() {
         .replace_rules(query_policy.rules().clone())
         .disable_floor();
     builder
-        .legacy_fields()
+        .edit_fields()
         .mask(
             Sensitivity::Secret,
             MaskPolicy::fixed("https://mask.invalid/private"),

@@ -43,6 +43,17 @@ impl<'policy> RedactionSession<'policy> {
         }
     }
 
+    /// Begins a domain value for the structured writer without exposing an
+    /// RAII scope to generated implementations.
+    #[must_use]
+    pub(crate) fn begin_domain_value(&mut self) -> bool {
+        match self.domain_budget.enter_value() {
+            DomainValueBudgetAdmission::Entered => true,
+            DomainValueBudgetAdmission::DepthLimitReached => false,
+            DomainValueBudgetAdmission::TraversalLimitReached => false,
+        }
+    }
+
     /// Appends trusted program-authored context text.
     #[must_use]
     pub fn text(mut self, text: &'static str) -> Self {
@@ -67,9 +78,12 @@ impl<'policy> RedactionSession<'policy> {
     where
         T: Redact,
     {
-        let rendered = crate::Redactor::new(self.policy.clone()).redact(value);
-        let rendered = format!("{}={}", name, rendered.text().as_str());
-        self.append_chain_fragment(&rendered);
+        let mut writer = crate::domain::RedactionWriter::new_root(&mut self);
+        value.write_redacted(&mut writer);
+        let rendered = writer.finish();
+        self.append_chain_fragment(name);
+        self.append_chain_fragment("=");
+        self.append_committed_output(&rendered);
         self
     }
 
@@ -89,9 +103,20 @@ impl<'policy> RedactionSession<'policy> {
             std::borrow::Cow::Owned(self.fragments),
         )
         .into_owned();
+        let (inspected_input_bytes, emitted_output_bytes) = self.budget.usage();
+        let (visited_nodes, visited_collection_items, maximum_depth) =
+            self.domain_budget.usage();
+        let usage = crate::RedactionUsage::from_runtime(
+            inspected_input_bytes,
+            emitted_output_bytes,
+            visited_nodes,
+            visited_collection_items,
+            maximum_depth,
+        );
+        let summary = completion.with_usage(usage);
         crate::RedactionOutput::new(
             crate::RedactedText::from_escaped(escaped),
-            completion,
+            summary,
         )
     }
 
@@ -223,6 +248,12 @@ impl<'policy> RedactionSession<'policy> {
     #[inline]
     pub(crate) fn leave_domain_value(&mut self) {
         self.domain_budget.leave_value();
+    }
+
+    /// Appends output whose bytes were already committed by a structured
+    /// writer frame.
+    pub(crate) fn append_committed_output(&mut self, output: &str) {
+        self.fragments.push_str(output);
     }
 
     /// Commits exact output bytes for the active admitted fragment.

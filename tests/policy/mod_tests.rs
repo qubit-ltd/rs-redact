@@ -15,7 +15,7 @@ fn test_policy_module_reexports_compose() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("token", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder

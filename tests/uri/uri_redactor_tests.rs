@@ -41,8 +41,9 @@ fn test_uri_session_fallbacks_respect_cumulative_output_limit() {
     let rendered: Vec<_> = (0..4)
         .map(|_| {
             session
-                .uri()
-                .redact_uri_str("https://example.test/?password=secret")
+                .uri_with_mut(|uri| {
+                    uri.redact_uri_str("https://example.test/?password=secret")
+                })
                 .into_log_safe_text()
                 .into_owned()
         })
@@ -83,17 +84,17 @@ fn test_uri_redactor_redacts_password_but_preserves_username() {
 fn test_uri_redactor_applies_username_policy_and_keeps_encoded_colon() {
     let core = ({
         let mut builder = RedactionPolicy::builder();
-        builder.legacy_fields().disable_floor();
+        builder.edit_fields().disable_floor();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("username", Sensitivity::Secret)
             .expect("username rule is valid");
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("password", Sensitivity::Secret)
             .expect("password rule is valid");
         builder
-            .legacy_fields()
+            .edit_fields()
             .allow_exact("username")
             .expect("username allow rule is valid");
         builder
@@ -121,13 +122,13 @@ fn test_uri_redactor_applies_username_policy_and_keeps_encoded_colon() {
 fn test_uri_redactor_masks_query_after_decoding_and_preserves_order() {
     let core = ({
         let mut builder = RedactionPolicy::builder();
-        builder.legacy_fields().disable_floor();
+        builder.edit_fields().disable_floor();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("token", Sensitivity::High)
             .expect("token rule is valid");
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::High, MaskPolicy::fixed("x y"))
             .expect("mask policy is valid");
         builder
@@ -341,11 +342,11 @@ fn test_uri_redactor_marks_truncated_final_sensitive_value() {
     let core = ({
         let mut builder = RedactionPolicy::default().to_builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
             .expect("the mask policy is valid");
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::High, MaskPolicy::fixed(&replacement))
             .expect("the opaque mask policy is valid");
         builder.limits().diagnostic_event(

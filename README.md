@@ -69,23 +69,21 @@ The original value remains available to application logic. Call
 Install a process-wide default during application assembly:
 
 ```rust
-use qubit_redact::{RedactionPolicy, Sensitivity};
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
 let policy = RedactionPolicy::builder()
     .fields(|fields| {
         fields.secret_sensitive("api_key");
     })?
     .build()?;
-RedactionPolicy::install_global(policy)?;
-let snapshot = RedactionPolicy::default();
+Redactor::set_default(Redactor::new(policy.clone()));
+let snapshot = Redactor::default().policy().clone();
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-If no policy is installed, global/default reads use the fixed standard policy.
-They do not prevent a later `install_global()` call. Existing snapshots never
-change when a policy is installed later. Install the application policy before
-creating objects that must use it; an early read does not consume the one-time
-installation slot.
+`RedactionPolicy::default()` always returns the fixed standard policy.
+Install the application redactor with `Redactor::set_default()` before creating
+objects that should use it; existing snapshots never change afterward.
 
 For one diagnostic event, create one session and reuse it across adapters. The
 session owns the shared input/output budget, so nested JSON, HTTP, URI, argv,
@@ -99,16 +97,16 @@ use qubit_redact::Redactor;
 let redactor = Redactor::strict();
 let mut session = redactor.session();
 let token = session.redact_field("token", "raw-token");
-let argv = session.argv().redact_heuristically([
+let argv = session.argv_with_mut(|argv| argv.redact_heuristically([
     ArgvItem::plain(OsStr::new("client")),
     ArgvItem::plain(OsStr::new("--token")),
     ArgvItem::plain(OsStr::new("raw-token")),
-]);
+]));
 assert!(!token.as_str().contains("raw-token"));
 assert!(!argv.to_string().contains("raw-token"));
 ```
 
-> **Warning:** `install_global()` belongs only in executable application
+> **Warning:** `Redactor::set_default()` belongs only in executable application
 > assembly. Call it once after the final policy is built and before workers or
 > request processing start; libraries must never call it. Objects created
 > before installation may snapshot the standard policy permanently. Create any
@@ -167,18 +165,18 @@ The `json` feature owns JSON value and JSON-text redaction. The `http` feature
 uses that capability for JSON HTTP bodies, but JSON support is not an HTTP-only
 feature and can be enabled independently.
 
-JSON text can participate in the same event budget through `session.json()`:
+JSON text can participate in the same event budget through `session.json_with()`:
 
 ```rust
 use qubit_redact::Redactor;
 
 let redactor = Redactor::strict();
 let mut session = redactor.session();
-let safe = session.json().redact_text(r#"{"token":"raw-token"}"#);
+let safe = session.json_with_mut(|json| json.redact_text(r#"{"token":"raw-token"}"#));
 assert!(!safe.to_string().contains("raw-token"));
 ```
 
-HTTP body diagnostics use `session.http()`:
+HTTP body diagnostics use `session.http_with()`:
 
 ```rust
 use http::HeaderValue;
@@ -187,21 +185,21 @@ use qubit_redact::formats::http::{BodyCapture, HttpRedactor};
 let redactor = HttpRedactor::default();
 let mut session = redactor.session();
 let content_type = HeaderValue::from_static("application/json");
-let safe = session.http().redact_body(
+let safe = session.http_with_mut(|http| http.redact_body(
     BodyCapture::complete(br#"{"password":"raw"}"#),
     Some(&content_type),
-);
+));
 assert!(!safe.to_string().contains("raw"));
 ```
 
-URI diagnostics use `session.uri()` and return structured status/reason data:
+URI diagnostics use `session.uri_with()` and return structured status/reason data:
 
 ```rust
 use qubit_redact::formats::uri::UriRedactor;
 
 let redactor = UriRedactor::default();
 let mut session = redactor.session();
-let safe = session.uri().redact_uri_str("https://example.test/path");
+let safe = session.uri_with_mut(|uri| uri.redact_uri_str("https://example.test/path"));
 assert!(safe.log_safe_text().as_str().contains("example.test"));
 ```
 
@@ -222,10 +220,10 @@ assert!(safe.log_safe_text().as_str().contains("example.test"));
   `fields()`, `http()`, `uri()`, and `limits()` as mutable partition views.
   Context rules can add protection but cannot lower a stronger base-field
   decision. The policy has one masking table and one limit set.
-- Install one global policy with `RedactionPolicy::install_global()` during
-  application assembly. It affects only future snapshots; already-built
-  policies and redactors never change. Before installation, `global()` and
-  `default()` use the fixed standard policy without occupying the install slot.
+- Install one application redactor with `Redactor::set_default()` during
+  application assembly. It affects only future redactor snapshots; already-built
+  policies and redactors never change. `RedactionPolicy::default()` remains the
+  fixed standard policy.
 - `Debug` for redacted domain/map views uses the policy's
   `limits().diagnostic_event()` output budget by default. Derived nested values,
   maps, JSON text, and explicit adapter sessions share the same

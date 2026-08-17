@@ -22,17 +22,17 @@ fn amplified_mask_redactor() -> HttpRedactor {
     let replacement = "X\n".repeat(512 * 1024);
     let body_policy = ({
         let mut builder = RedactionPolicy::builder();
-        builder.legacy_fields().disable_floor();
+        builder.edit_fields().disable_floor();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("password", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("api_key", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
             .expect("the test mask policy should be valid");
         builder
@@ -52,7 +52,7 @@ fn amplified_mask_redactor() -> HttpRedactor {
         .disable_floor();
     builder.limits().http_body(budget);
     builder
-        .legacy_fields()
+        .edit_fields()
         .mask(Sensitivity::Secret, MaskPolicy::fixed(&replacement))
         .expect("the test mask policy should be valid");
     let policy = builder.build().expect("the HTTP policy is valid");

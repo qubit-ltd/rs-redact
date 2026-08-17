@@ -29,7 +29,7 @@ fn test_sensitive_field_rule_exposes_configuration() {
         ({
             let mut builder = RedactionPolicy::builder();
             builder
-                .legacy_fields()
+                .edit_fields()
                 .raise("tenant_secret", Sensitivity::High)
                 .expect("the test builder input should be valid");
             builder

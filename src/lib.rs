@@ -48,35 +48,29 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
-//! An application can install one process-wide [`RedactionPolicy`] during
+//! An application can replace the process-wide default [`Redactor`] during
 //! assembly or initialization. Builders are deterministic and never read
 //! process-wide state; use `RedactionPolicy::default().to_builder()` when an
-//! explicit extension of the installed snapshot is needed. Existing policy
-//! snapshots never change. Before an application installs a global policy,
-//! `RedactionPolicy::global()` and `RedactionPolicy::default()` return the
-//! fixed standard policy without preventing later installation.
-//! This fallback supports dependency construction during application assembly;
-//! it is not runtime reconfiguration. The executable, never a library, owns the
-//! single installation and should complete it before starting concurrent work.
-//! Anything created earlier keeps its standard-policy snapshot. Construct
-//! policy-sensitive objects afterward or inject the application policy.
+//! explicit extension of the standard snapshot is needed. Existing policy
+//! snapshots never change. The executable, never a library, owns default
+//! installation and should complete it before starting concurrent work.
+//! Anything created earlier keeps its original snapshot.
 //! The standard/default policy is only the library's deterministic baseline;
 //! it is not a claim that every application's fields are safe to pass through.
 //! The host application is responsible for installing its complete redaction
-//! policy once, or for injecting a stricter policy at each boundary whose
-//! requirements exceed that baseline. Downstream callers must not treat a
-//! default snapshot as an application-specific policy declaration.
+//! policy once with [`Redactor::set_default`], or for injecting a stricter
+//! policy at each boundary whose requirements exceed that baseline.
 //!
 //! ```
-//! use qubit_redact::{RedactionPolicy, Sensitivity};
+//! use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 //!
 //! let application_default = RedactionPolicy::builder()
 //!     .fields(|fields| {
 //!         fields.secret_sensitive("tenant_secret");
 //!     })?
 //!     .build()?;
-//! RedactionPolicy::install_global(application_default)?;
-//! let snapshot = RedactionPolicy::default();
+//! Redactor::set_default(Redactor::new(application_default));
+//! let snapshot = Redactor::default().policy().clone();
 //! assert_eq!(snapshot.sensitivity_for("tenant_secret"), Some(Sensitivity::Secret));
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
@@ -263,15 +257,14 @@
 //! ];
 //! let redactor = Redactor::strict();
 //! let mut session = redactor.session();
-//! assert!(!session
-//!     .argv()
-//!     .redact_heuristically(argv)
-//!     .to_string()
-//!     .contains("raw"));
-//! assert_eq!(
-//!     session.env().redact_pair("PASSWORD", "raw").to_string(),
-//!     "PASSWORD=<redacted>",
-//! );
+//! let argv = session.argv_with_mut(|adapter| {
+//!     adapter.redact_heuristically(argv).to_string()
+//! });
+//! assert!(!argv.contains("raw"));
+//! let env = session.env_with_mut(|adapter| {
+//!     adapter.redact_pair("PASSWORD", "raw").to_string()
+//! });
+//! assert_eq!(env, "PASSWORD=<redacted>");
 //! ```
 //!
 //! # JSON values
@@ -283,7 +276,8 @@
 //! mask without visiting its descendants.
 //!
 //! JSON text can share one diagnostic budget with other adapters through the
-//! `RedactionSession::json` method when the `json` feature is enabled:
+//! `RedactionSession::json_with_mut` closure adapter when the `json` feature
+//! is enabled:
 //!
 //! ```
 //! # fn main() {
@@ -293,7 +287,9 @@
 //!
 //! let redactor = Redactor::strict();
 //! let mut session = redactor.session();
-//! let safe = session.json().redact_text(r#"{"token":"raw-token"}"#);
+//! let safe = session.json_with_mut(|json| {
+//!     json.redact_text(r#"{"token":"raw-token"}"#)
+//! });
 //! assert!(!safe.to_string().contains("raw-token"));
 //! # }
 //! # }
@@ -316,10 +312,12 @@
 //! let content_type = HeaderValue::from_static("application/json");
 //! let redactor = HttpRedactor::default();
 //! let mut session = redactor.session();
-//! let result: BodyRedaction = session.http().redact_body(
-//!     BodyCapture::complete(br#"{"password":"raw","mode":"debug"}"#),
-//!     Some(&content_type),
-//! );
+//! let result: BodyRedaction = session.http_with_mut(|http| {
+//!     http.redact_body(
+//!         BodyCapture::complete(br#"{"password":"raw","mode":"debug"}"#),
+//!         Some(&content_type),
+//!     )
+//! });
 //! assert!(!format!("{result}").contains("raw"));
 //! # }
 //! # }
@@ -337,7 +335,9 @@
 //!
 //! let redactor = UriRedactor::default();
 //! let mut session = redactor.session();
-//! let safe = session.uri().redact_uri_str("https://example.test/path");
+//! let safe = session.uri_with_mut(|uri| {
+//!     uri.redact_uri_str("https://example.test/path")
+//! });
 //! assert!(safe.log_safe_text().as_str().contains("example.test"));
 //! # }
 //! # }
@@ -349,7 +349,6 @@ pub mod config;
 pub mod domain;
 pub mod facade;
 pub mod formats;
-mod install_global_policy_error;
 #[cfg(feature = "serde")]
 #[doc(hidden)]
 pub mod internal;
@@ -362,14 +361,12 @@ pub(crate) mod runtime;
 mod serde_feature_gate;
 
 pub use facade::RedactedText;
-pub use facade::RedactionEvent;
 pub use facade::RedactionOutput;
 pub use facade::RedactionReason;
 pub use facade::RedactionReasons;
 pub use facade::RedactionSummary;
 pub use facade::RedactionUsage;
 pub use facade::Redactor;
-pub use install_global_policy_error::InstallGlobalPolicyError;
 pub use model::FieldRedaction;
 pub use model::PassThroughReason;
 pub use output::BoundedLogSafeDisplay;

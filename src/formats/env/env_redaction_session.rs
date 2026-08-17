@@ -285,25 +285,27 @@ fn log_safe_rendered(value: String) -> LogSafeText<'static> {
 }
 
 impl<'policy> RedactionSession<'policy> {
-    /// Creates an environment façade borrowing this diagnostic session.
-    #[inline(always)]
-    #[must_use]
-    pub fn env<'session>(
-        &'session mut self,
-    ) -> EnvRedactionSession<'session, 'policy> {
-        EnvRedactionSession::new(self)
-    }
-
     /// Configures the environment adapter inside a chainable session.
     #[must_use]
     pub fn env_with<F>(mut self, configure: F) -> Self
     where
         F: for<'session> FnOnce(&mut EnvRedactionSession<'session, 'policy>),
     {
-        {
-            let mut adapter = self.env();
-            configure(&mut adapter);
-        }
+        let mut adapter = EnvRedactionSession::new(&mut self);
+        configure(&mut adapter);
         self
+    }
+
+    /// Runs one environment operation through a borrowed closure adapter.
+    #[must_use]
+    #[inline(always)]
+    pub fn env_with_mut<F, R>(&mut self, configure: F) -> R
+    where
+        F: for<'session> FnOnce(
+            &mut EnvRedactionSession<'session, 'policy>,
+        ) -> R,
+    {
+        let mut adapter = EnvRedactionSession::new(self);
+        configure(&mut adapter)
     }
 }

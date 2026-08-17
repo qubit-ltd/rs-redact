@@ -15,7 +15,7 @@ fn test_canonicalize_field_name_normalizes_supported_separators() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("access_token", Sensitivity::High)
             .expect("the test builder input should be valid");
         builder

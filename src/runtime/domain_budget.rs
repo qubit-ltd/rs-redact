@@ -45,6 +45,9 @@ pub(crate) struct DomainRedactionBudget {
     traversal_closed: bool,
     depth_generation: usize,
     traversal_generation: usize,
+    visited_nodes: usize,
+    visited_collection_items: usize,
+    maximum_depth_observed: usize,
 }
 
 impl DomainRedactionBudget {
@@ -60,6 +63,9 @@ impl DomainRedactionBudget {
             traversal_closed: false,
             depth_generation: 0,
             traversal_generation: 0,
+            visited_nodes: 0,
+            visited_collection_items: 0,
+            maximum_depth_observed: 0,
         }
     }
 
@@ -85,7 +91,10 @@ impl DomainRedactionBudget {
             return DomainValueBudgetAdmission::TraversalLimitReached;
         }
         self.remaining_nodes -= 1;
+        self.visited_nodes = self.visited_nodes.saturating_add(1);
         self.current_depth += 1;
+        self.maximum_depth_observed =
+            self.maximum_depth_observed.max(self.current_depth);
         DomainValueBudgetAdmission::Entered
     }
 
@@ -103,6 +112,7 @@ impl DomainRedactionBudget {
             return DomainTraversalAdmission::LimitReached;
         }
         self.remaining_nodes -= 1;
+        self.visited_nodes = self.visited_nodes.saturating_add(1);
         DomainTraversalAdmission::Render
     }
 
@@ -121,6 +131,8 @@ impl DomainRedactionBudget {
             return DomainTraversalAdmission::LimitReached;
         }
         self.remaining_collection_items -= 1;
+        self.visited_collection_items =
+            self.visited_collection_items.saturating_add(1);
         DomainTraversalAdmission::Render
     }
 
@@ -170,5 +182,15 @@ impl DomainRedactionBudget {
     fn close_traversal(&mut self) {
         self.traversal_closed = true;
         self.traversal_generation = self.traversal_generation.wrapping_add(1);
+    }
+
+    /// Returns structural traversal usage accumulated by this session.
+    #[must_use]
+    pub(crate) const fn usage(&self) -> (usize, usize, usize) {
+        (
+            self.visited_nodes,
+            self.visited_collection_items,
+            self.maximum_depth_observed,
+        )
     }
 }

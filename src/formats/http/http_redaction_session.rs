@@ -328,30 +328,31 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
 }
 
 impl<'policy> RedactionSession<'policy> {
-    /// Creates the HTTP façade borrowing this session's policy and budget.
-    #[inline]
-    #[must_use]
-    pub fn http<'session>(
-        &'session mut self,
-    ) -> HttpRedactionSession<'session, 'policy> {
-        HttpRedactionSession { session: self }
-    }
-
     /// Configures the HTTP adapter inside a chainable session operation.
     ///
     /// The closure receives a namespace backed by this session's shared
-    /// policy and budget. Existing zero-argument [`Self::http`] access remains
-    /// available for imperative code; this method is the closure form for
-    /// composing several HTTP operations in one chain.
+    /// policy and budget. This method composes several HTTP operations in one
+    /// chain while preserving the same session accounting.
     #[must_use]
     pub fn http_with<F>(mut self, configure: F) -> Self
     where
         F: for<'session> FnOnce(&mut HttpRedactionSession<'session, 'policy>),
     {
-        {
-            let mut adapter = self.http();
-            configure(&mut adapter);
-        }
+        let mut adapter = HttpRedactionSession { session: &mut self };
+        configure(&mut adapter);
         self
+    }
+
+    /// Runs one HTTP operation through a borrowed closure adapter.
+    #[must_use]
+    #[inline(always)]
+    pub fn http_with_mut<F, R>(&mut self, configure: F) -> R
+    where
+        F: for<'session> FnOnce(
+            &mut HttpRedactionSession<'session, 'policy>,
+        ) -> R,
+    {
+        let mut adapter = HttpRedactionSession { session: self };
+        configure(&mut adapter)
     }
 }

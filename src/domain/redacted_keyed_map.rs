@@ -48,19 +48,15 @@ use crate::output::internal::LogEscapeWriter;
 ///
 /// use qubit_redact::{
 ///     MaskingPolicy, Redact, RedactValue, RedactedKeyedMap,
-///     RedactionPolicy, RedactionSession, Sensitivity,
+///     RedactionPolicy, RedactionSession, RedactionWriter, Sensitivity,
 /// };
 ///
 /// #[derive(Debug)]
 /// struct Value;
 ///
 /// impl Redact for Value {
-///     fn fmt_redacted(
-///         &self,
-///         _session: &mut RedactionSession<'_>,
-///         formatter: &mut fmt::Formatter<'_>,
-///     ) -> fmt::Result {
-///         formatter.write_str("value")
+///     fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+///         writer.literal("value");
 ///     }
 /// }
 ///

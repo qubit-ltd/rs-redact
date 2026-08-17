@@ -17,9 +17,9 @@ use std::fmt::Write;
 use std::sync::Mutex;
 
 use qubit_redact::RedactionPolicy;
-use qubit_redact::RedactionSession;
 use qubit_redact::domain::Redact;
 use qubit_redact::domain::RedactedMap;
+use qubit_redact::domain::RedactionWriter;
 /// Serializes allocation-counting sections within this integration-test binary.
 static TEST_LOCK: Mutex<()> = Mutex::new(());
 /// Small allocation-count ceiling for eager bounded display completion.
@@ -126,16 +126,11 @@ struct SafeRecord {
 
 impl Redact for SafeRecord {
     /// Writes the safe diagnostic representation.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        formatter
-            .debug_struct("SafeRecord")
-            .field("id", &self.id)
-            .field("label", &self.label)
-            .finish()
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.record("SafeRecord", |fields| {
+            fields.field("id", || self.id);
+            fields.field("label", || &self.label);
+        });
     }
 }
 
@@ -172,7 +167,10 @@ fn test_redacted_displays_use_bounded_allocation_count() {
             .expect("the fixed output buffer can hold the record");
     });
 
-    assert!(allocations <= MAX_BOUNDED_DISPLAY_ALLOCATIONS);
+    assert!(
+        allocations <= MAX_BOUNDED_DISPLAY_ALLOCATIONS,
+        "allocations={allocations}"
+    );
     let map = BTreeMap::<&str, &str>::new();
     let view = RedactedMap::new(&map, RedactionPolicy::default());
     let mut output = FixedBuffer::new();
@@ -192,7 +190,7 @@ fn test_nonempty_redacted_map_uses_bounded_allocation_count() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .allow_exact("visible")
             .expect("the test builder input should be valid");
         builder

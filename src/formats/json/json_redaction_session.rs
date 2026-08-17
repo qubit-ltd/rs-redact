@@ -205,25 +205,26 @@ fn bound_safe_text(text: &str, max_bytes: usize) -> (String, bool) {
 }
 
 impl<'policy> RedactionSession<'policy> {
-    /// Creates the JSON façade borrowing this session's policy and budget.
-    #[inline]
-    #[must_use]
-    pub fn json<'session>(
-        &'session mut self,
-    ) -> JsonRedactionSession<'session, 'policy> {
-        JsonRedactionSession { session: self }
-    }
-
     /// Configures the JSON adapter inside a chainable session.
     #[must_use]
     pub fn json_with<F>(mut self, configure: F) -> Self
     where
         F: for<'session> FnOnce(&mut JsonRedactionSession<'session, 'policy>),
     {
-        {
-            let mut adapter = self.json();
-            configure(&mut adapter);
-        }
+        let mut adapter = JsonRedactionSession { session: &mut self };
+        configure(&mut adapter);
         self
+    }
+
+    /// Runs one JSON operation through a borrowed closure adapter.
+    #[must_use]
+    #[inline(always)]
+    pub fn json_with_mut<F, R>(&mut self, configure: F) -> R
+    where
+        for<'session> F:
+            FnOnce(&mut JsonRedactionSession<'session, 'policy>) -> R,
+    {
+        let mut adapter = JsonRedactionSession { session: self };
+        configure(&mut adapter)
     }
 }

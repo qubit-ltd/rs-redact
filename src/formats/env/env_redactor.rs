@@ -71,7 +71,7 @@ impl EnvRedactor {
     #[must_use]
     pub fn redact_pair(&self, name: &str, value: &str) -> RedactedEnvPair {
         let mut session = self.redactor.session();
-        session.env().redact_pair(name, value)
+        session.env_with_mut(|env| env.redact_pair(name, value))
     }
 
     /// Redacts one environment pair whose components may not be UTF-8.
@@ -96,7 +96,7 @@ impl EnvRedactor {
         value: &OsStr,
     ) -> RedactedEnvPair {
         let mut session = self.redactor.session();
-        session.env().redact_os_pair(name, value)
+        session.env_with_mut(|env| env.redact_os_pair(name, value))
     }
 
     /// Redacts environment pairs into one bounded log-safe list.
@@ -126,7 +126,7 @@ impl EnvRedactor {
         I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
     {
         let mut session = self.redactor.session();
-        session.env().redact_os_pairs(pairs)
+        session.env_with_mut(|env| env.redact_os_pairs(pairs))
     }
 
     /// Redacts one UTF-8 `NAME=value` assignment.

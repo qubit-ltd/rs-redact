@@ -57,12 +57,12 @@ fn test_session_fallback_markers_respect_cumulative_output_limit() {
     let redactor = HttpRedactor::new(policy);
     let mut session = redactor.session();
 
-    let first = session
-        .http()
-        .redact_url_str("https://example.test/?password=secret");
-    let second = session
-        .http()
-        .redact_url_str("https://example.test/?password=secret");
+    let first = session.http_with_mut(|http| {
+        http.redact_url_str("https://example.test/?password=secret")
+    });
+    let second = session.http_with_mut(|http| {
+        http.redact_url_str("https://example.test/?password=secret")
+    });
 
     assert_eq!(first.as_str(), "<redacted: diagnostic limit exceeded>",);
     assert!(second.as_str().is_empty());
@@ -92,9 +92,12 @@ fn test_session_body_input_limit_reports_budget_failure() {
     let redactor = HttpRedactor::new(policy);
     let mut session = redactor.session();
 
-    let result = session
-        .http()
-        .redact_body(BodyCapture::complete(br#"{"password":"secret"}"#), None);
+    let result = session.http_with_mut(|http| {
+        http.redact_body(
+            BodyCapture::complete(br#"{"password":"secret"}"#),
+            None,
+        )
+    });
 
     assert_eq!(
         result.status(),

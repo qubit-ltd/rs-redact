@@ -52,7 +52,7 @@ pub trait RedactMapValue<K: ?Sized, V: ?Sized> {
     /// Returns [`fmt::Error`] when the destination cannot accept the complete
     /// representation.
     #[doc(hidden)]
-    fn fmt_redacted_map(
+    fn write_redacted_map(
         &self,
         session: &mut RedactionSession<'_>,
         formatter: &mut Formatter<'_>,
@@ -92,7 +92,7 @@ where
     /// Returns [`fmt::Error`] when the destination rejects an entry or the
     /// completed map.
     #[inline]
-    fn fmt_redacted_map(
+    fn write_redacted_map(
         &self,
         session: &mut RedactionSession<'_>,
         formatter: &mut Formatter<'_>,

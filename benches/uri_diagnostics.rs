@@ -66,7 +66,9 @@ fn benchmark_uri_output_budgets(criterion: &mut Criterion) {
             |bencher, input| {
                 bencher.iter(|| {
                     let mut session = redactor.session();
-                    black_box(session.uri().redact_uri_str(black_box(input)))
+                    black_box(session.uri_with_mut(|uri| {
+                        uri.redact_uri_str(black_box(input))
+                    }))
                 });
             },
         );

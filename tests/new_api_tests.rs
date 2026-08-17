@@ -17,7 +17,7 @@ struct Account {
 }
 
 impl Redact for Account {
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         writer.record("Account", |fields| {
             let _ = fields.field("name", || self.name.clone()).sensitive(
                 Sensitivity::Secret,
@@ -48,6 +48,8 @@ fn test_transactional_field_builder_and_structured_writer() {
     assert!(output.text().as_str().contains("ada"));
     assert!(!output.text().as_str().contains("raw-password"));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    assert!(output.summary().usage().emitted_output_bytes() > 0);
+    assert!(output.summary().usage().visited_nodes() > 0);
 }
 
 #[test]
@@ -156,4 +158,11 @@ fn test_chain_adapter_namespaces_accept_closures() {
         .json_with(|_| {})
         .uri_with(|_| {});
     let _ = session.finish();
+
+    let mut session = redactor.session();
+    let _: () = session.argv_with_mut(|_| {});
+    let _: () = session.env_with_mut(|_| {});
+    let _: () = session.http_with_mut(|_| {});
+    let _: () = session.json_with_mut(|_| {});
+    let _: () = session.uri_with_mut(|_| {});
 }

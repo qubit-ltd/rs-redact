@@ -7,21 +7,15 @@
 // =============================================================================
 //! Tests for the [`Redact`](qubit_redact::domain::Redact) domain contract.
 
-use std::fmt;
-
-use qubit_redact::RedactionSession;
 use qubit_redact::domain::Redact;
+use qubit_redact::domain::RedactionWriter;
 /// Minimal domain value used to verify the borrowed redacted view contract.
 struct TestDomainValue;
 
 impl Redact for TestDomainValue {
     /// Writes a fixed redacted representation without consulting source data.
-    fn fmt_redacted(
-        &self,
-        _session: &mut RedactionSession<'_>,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        formatter.write_str("TestDomainValue { secret: <redacted> }")
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+        writer.literal("TestDomainValue { secret: <redacted> }");
     }
 }
 

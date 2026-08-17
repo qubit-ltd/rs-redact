@@ -53,8 +53,3 @@ impl<'a> MaskedValue<'a> {
         self.0
     }
 }
-
-/// Legacy module-local name for the field-level masking value.
-#[doc(hidden)]
-#[allow(dead_code)]
-pub type RedactedText<'a> = MaskedValue<'a>;

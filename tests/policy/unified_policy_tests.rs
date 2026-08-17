@@ -27,7 +27,7 @@ fn test_unified_policy_views_share_configuration_and_protection() {
         .expect("the diagnostic limit should be valid");
     let mut builder = RedactionPolicy::builder();
     builder
-        .legacy_fields()
+        .edit_fields()
         .raise("access_token", Sensitivity::Secret)
         .expect("the base field should be valid");
     builder

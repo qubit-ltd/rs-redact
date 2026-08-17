@@ -9,7 +9,6 @@
 
 use std::sync::Arc;
 use std::sync::LazyLock;
-use std::sync::OnceLock;
 
 use super::AllowRule;
 use super::FieldClassification;
@@ -102,8 +101,6 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
         UnkeyedJsonValuePolicy::Redact,
     )
 });
-/// Process-wide policy installed by [`RedactionPolicy::install_global`].
-static GLOBAL_POLICY: OnceLock<RedactionPolicy> = OnceLock::new();
 /// Immutable redaction policy.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionPolicy {
@@ -119,66 +116,6 @@ pub struct RedactionPolicy {
 }
 
 impl RedactionPolicy {
-    /// Installs the application-owned default policy exactly once.
-    ///
-    /// The policy is moved into a process-wide immutable slot. Reading
-    /// [`Self::global`] before installation only observes [`Self::standard`]
-    /// and does not occupy this slot. If a policy was already installed, the
-    /// rejected policy is returned through
-    /// [`crate::InstallGlobalPolicyError::into_policy`]. Libraries should leave
-    /// this operation to their host application.
-    ///
-    /// # Warning
-    ///
-    /// This is application-assembly configuration, not runtime reconfiguration.
-    /// The executable should call it at most once, after constructing the final
-    /// policy and before starting workers or request processing. Library crates
-    /// must never call it. Calling it from feature code, tests sharing one
-    /// process, or after concurrent application work has begun is a lifecycle
-    /// error even though the type system cannot distinguish those call sites.
-    ///
-    /// A successful installation changes only future calls that take a global
-    /// or default snapshot. Objects created before installation may already
-    /// own a snapshot of
-    /// [`Self::standard`]. They intentionally keep that snapshot after
-    /// installation. Any object that must use the application policy must be
-    /// created after this call or receive the policy explicitly.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::InstallGlobalPolicyError`] when a policy is already
-    /// installed. That error allocates once to retain the rejected policy and
-    /// returns its ownership through
-    /// [`crate::InstallGlobalPolicyError::into_policy`].
-    pub fn install_global(
-        policy: Self,
-    ) -> Result<(), crate::InstallGlobalPolicyError> {
-        GLOBAL_POLICY
-            .set(policy)
-            .map_err(crate::InstallGlobalPolicyError::new)
-    }
-
-    /// Returns the process-wide default policy snapshot.
-    ///
-    /// Returns the installed policy when available; otherwise returns the
-    /// fixed standard policy without changing global installation state.
-    /// Installing a policy changes only future global/default snapshots.
-    /// Existing policy, builder, redactor, session, and business-object
-    /// snapshots are unaffected by a later global installation.
-    ///
-    /// # Warning
-    ///
-    /// The pre-installation fallback exists so application assembly may safely
-    /// construct dependencies that consult redaction defaults before the host
-    /// has finalized its policy. It is not a runtime configuration mechanism.
-    /// A caller that requires the application policy must either run after
-    /// [`Self::install_global`] or use an explicitly injected policy. Never
-    /// assume that a value returned before installation will change afterward.
-    #[inline]
-    pub fn global() -> &'static Self {
-        GLOBAL_POLICY.get().unwrap_or(&STANDARD_POLICY)
-    }
-
     /// Returns the fixed built-in standard policy.
     ///
     /// Its application rules are empty and its explicit floor is
@@ -506,21 +443,8 @@ impl RedactionPolicy {
 }
 
 impl Default for RedactionPolicy {
-    /// Clones the process default visible at this call.
-    ///
-    /// # Warning
-    ///
-    /// Before application assembly calls [`Self::install_global`], this clones
-    /// [`Self::standard`] without occupying the installation slot. A successful
-    /// installation changes only future default snapshots; this clone and
-    /// every object that already owns one remain unchanged. Policy-sensitive
-    /// objects that require
-    /// application configuration must be constructed after installation or be
-    /// given an explicit policy. The standard policy is only a deterministic
-    /// library baseline; the host application must configure every field that
-    /// requires stricter handling and must not infer application coverage from
-    /// this fallback snapshot.
+    /// Clones the fixed standard policy.
     fn default() -> Self {
-        Self::global().clone()
+        STANDARD_POLICY.clone()
     }
 }

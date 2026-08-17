@@ -26,7 +26,7 @@ fn test_redact_json_text_in_place_is_not_limited_by_diagnostic_budget() {
                 .expect("the diagnostic budget should be valid"),
         );
         builder
-            .legacy_fields()
+            .edit_fields()
             .raise("password", Sensitivity::Secret)
             .expect("the test builder input should be valid");
         builder
@@ -58,7 +58,7 @@ fn test_redact_json_text_in_place_obeys_json_depth_limit() {
                 .expect("the depth budget is valid"),
         );
         builder
-            .legacy_fields()
+            .edit_fields()
             .mask(Sensitivity::Secret, MaskPolicy::fixed("[depth-limit]"))
             .expect("the test mask policy should be valid");
         builder
@@ -100,7 +100,7 @@ fn test_redact_json_text_in_place_masks_array_scalars_below_object_field() {
     let policy = ({
         let mut builder = RedactionPolicy::strict().to_builder();
         builder
-            .legacy_fields()
+            .edit_fields()
             .allow_exact("items")
             .expect("the object field should be valid");
         builder

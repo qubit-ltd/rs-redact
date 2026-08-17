@@ -9,11 +9,12 @@
 
 use qubit_redact::RedactionFloor;
 use qubit_redact::RedactionPolicy;
+use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 /// Verifies startup installation and deterministic explicit snapshots.
 #[test]
 fn test_global_config_is_installed_once_and_snapshotted() {
-    let before = RedactionPolicy::default();
+    let before = Redactor::default().policy().clone();
     let before_builder = RedactionPolicy::builder();
     let floor = RedactionFloor::builder()
         .raise("tenant_floor_blob", Sensitivity::Secret)
@@ -22,17 +23,15 @@ fn test_global_config_is_installed_once_and_snapshotted() {
         .expect("the custom floor should be valid");
     let mut builder = RedactionPolicy::builder();
     builder
-        .legacy_fields()
+        .edit_fields()
         .floor(floor)
         .raise("tenant_protected_blob", Sensitivity::Secret)
         .expect("the test builder input should be valid");
     let custom = builder.build().expect("the custom policy should be valid");
 
-    RedactionPolicy::install_global(custom.clone())
-        .expect("the first global configuration installation should succeed");
+    let previous = Redactor::set_default(Redactor::new(custom.clone()));
 
-    assert_eq!(RedactionPolicy::global(), &custom);
-    assert_eq!(RedactionPolicy::default(), custom);
+    assert_eq!(Redactor::default().policy(), &custom);
     assert_eq!(before.sensitivity_for("tenant_protected_blob"), None);
     assert_eq!(
         RedactionPolicy::builder()
@@ -52,12 +51,5 @@ fn test_global_config_is_installed_once_and_snapshotted() {
         RedactionPolicy::standard().sensitivity_for("tenant_floor_blob"),
         None
     );
-    let rejected = RedactionPolicy::strict();
-    let error = RedactionPolicy::install_global(rejected.clone())
-        .expect_err("the global policy can only be installed once");
-    assert_eq!(
-        error.to_string(),
-        "the global redaction policy is already installed"
-    );
-    assert_eq!(error.into_policy(), rejected);
+    let _ = Redactor::set_default(previous);
 }

@@ -7,23 +7,15 @@
 // =============================================================================
 //! Container implementations for explicit nested redaction.
 
-use std::fmt;
-use std::fmt::Formatter;
-
 #[cfg(feature = "serde")]
 use serde::Serializer;
 
 use crate::RedactionPolicy;
-use crate::RedactionSession;
-use crate::domain::DomainTruncated;
 use crate::domain::Redact;
 use crate::domain::RedactMut;
 #[cfg(feature = "serde")]
 use crate::domain::RedactSerialize;
 use crate::domain::RedactedResult;
-use crate::domain::internal::debug_output_exhausted;
-use crate::policy::DomainTraversalAdmission;
-use crate::policy::DomainValueAdmission;
 
 impl<T: Redact> Redact for Option<T> {
     /// Formats `None` directly or a redacted `Some` value with the same policy.
@@ -31,8 +23,8 @@ impl<T: Redact> Redact for Option<T> {
     /// The option first charges its own domain-value node. A present field is
     /// charged before the inner reference is read, then the child enters the
     /// same session through [`RedactedResult`]. Rejected value or field
-    /// admission writes one unquoted [`DomainTruncated`] marker. No diagnostic
-    /// input bytes are consumed by this domain traversal.
+    /// admission writes one unquoted [`crate::domain::DomainTruncated`] marker.
+    /// No diagnostic input bytes are consumed by this domain traversal.
     ///
     /// # Parameters
     ///
@@ -45,36 +37,19 @@ impl<T: Redact> Redact for Option<T> {
     ///
     /// # Errors
     ///
-    /// Returns [`fmt::Error`] when the destination or nested value rejects a
-    /// write.
-    #[inline]
-    fn fmt_redacted(
+    /// Returns [`std::fmt::Error`] when the destination or nested value rejects
+    /// a write.
+    fn write_redacted(
         &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut Formatter<'_>,
-    ) -> fmt::Result {
-        let DomainValueAdmission::Entered(mut scope) =
-            session.enter_domain_value()
-        else {
-            return fmt::Debug::fmt(&DomainTruncated, formatter);
-        };
-        if self.is_none() {
-            return formatter.write_str("None");
+        writer: &mut crate::domain::RedactionWriter<'_, '_>,
+    ) {
+        match self {
+            None => writer.unit("None"),
+            Some(value) => writer.tuple("Some", |fields| {
+                let _ =
+                    fields.item(|session| RedactedResult::new(value, session));
+            }),
         }
-        let alternate = formatter.alternate();
-        let mut output = formatter.debug_tuple("Some");
-        if scope.admit_field() == DomainTraversalAdmission::LimitReached {
-            return output.field(&DomainTruncated).finish();
-        }
-        let value = self
-            .as_ref()
-            .expect("a present option must contain its admitted field");
-        let Some(view) =
-            RedactedResult::try_new(value, scope.session(), alternate)
-        else {
-            return output.field(&DomainTruncated).finish();
-        };
-        output.field(&view).finish()
     }
 }
 
@@ -92,14 +67,13 @@ impl<T: Redact + ?Sized> Redact for Box<T> {
     ///
     /// # Errors
     ///
-    /// Returns [`fmt::Error`] when the boxed value cannot complete its output.
-    #[inline(always)]
-    fn fmt_redacted(
+    /// Returns [`std::fmt::Error`] when the boxed value cannot complete its
+    /// output.
+    fn write_redacted(
         &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut Formatter<'_>,
-    ) -> fmt::Result {
-        self.as_ref().fmt_redacted(session, formatter)
+        writer: &mut crate::domain::RedactionWriter<'_, '_>,
+    ) {
+        self.as_ref().write_redacted(writer)
     }
 }
 
@@ -126,53 +100,18 @@ impl<T: Redact> Redact for Vec<T> {
     ///
     /// # Errors
     ///
-    /// Returns [`fmt::Error`] when the destination or an item rejects a write.
-    #[inline]
-    fn fmt_redacted(
+    /// Returns [`std::fmt::Error`] when the destination or an item rejects a
+    /// write.
+    fn write_redacted(
         &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut Formatter<'_>,
-    ) -> fmt::Result {
-        let alternate = formatter.alternate();
-        let DomainValueAdmission::Entered(mut scope) =
-            session.enter_domain_value()
-        else {
-            return fmt::Debug::fmt(&DomainTruncated, formatter);
-        };
-        let mut list = formatter.debug_list();
-        let mut values = self.iter();
-        loop {
-            if scope.session().is_exhausted() || debug_output_exhausted() {
-                break;
+        writer: &mut crate::domain::RedactionWriter<'_, '_>,
+    ) {
+        writer.list(|fields| {
+            for value in self {
+                let _ =
+                    fields.item(|session| RedactedResult::new(value, session));
             }
-            if values.len() == 0 {
-                break;
-            }
-            if scope.admit_collection_item()
-                == DomainTraversalAdmission::LimitReached
-            {
-                list.entry(&DomainTruncated);
-                break;
-            }
-            let Some(value) = values.next() else {
-                break;
-            };
-            let Some(view) =
-                RedactedResult::try_new(value, scope.session(), alternate)
-            else {
-                list.entry(&DomainTruncated);
-                break;
-            };
-            let stops_siblings = view.stops_siblings();
-            list.entry(&view);
-            if stops_siblings
-                || scope.session().is_exhausted()
-                || debug_output_exhausted()
-            {
-                break;
-            }
-        }
-        list.finish()
+        });
     }
 }
 
