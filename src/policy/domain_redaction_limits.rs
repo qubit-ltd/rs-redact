@@ -85,12 +85,14 @@ impl DomainRedactionLimits {
     }
 
     /// Returns the cumulative domain-value and field admission limit.
+    #[must_use]
     #[inline(always)]
     pub const fn max_nodes(&self) -> usize {
         self.max_nodes
     }
 
     /// Returns the cumulative collection-element admission limit.
+    #[must_use]
     #[inline(always)]
     pub const fn max_collection_items(&self) -> usize {
         self.max_collection_items

@@ -13,7 +13,6 @@ use super::LogSafeText;
 use super::RedactionCompletion;
 
 /// Log-safe redaction text paired with its invariant completion state.
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RedactionOutput {
     /// Safe text produced by the redaction operation.
@@ -22,7 +21,6 @@ pub(crate) struct RedactionOutput {
     completion: RedactionCompletion,
 }
 
-#[allow(dead_code)]
 impl RedactionOutput {
     /// Creates the output of a fully processed redaction operation.
     ///
