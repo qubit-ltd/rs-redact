@@ -136,7 +136,7 @@ pub(crate) fn redact_uri_str_bounded(
     policy: &RedactionPolicy,
     input: &str,
     max_output_bytes: usize,
-    session_limited: bool,
+    _session_limited: bool,
 ) -> (UriRedaction, RedactionCompletion) {
     let parsed = match Uri::<&str>::parse(input) {
         Ok(parsed) => parsed,
