@@ -24,22 +24,14 @@ use qubit_redact::formats::http::HttpRedactor;
 
 /// Measures URL suffix handling with many unmatched closing delimiters.
 fn benchmark_unmatched_url_delimiters(criterion: &mut Criterion) {
-    let input = format!(
-        "https://alice:secret@example.test/private{}",
-        ")".repeat(8_192),
-    );
+    let input = format!("https://alice:secret@example.test/private{}", ")".repeat(8_192),);
     let redactor = HttpRedactor::default();
-    criterion.bench_function(
-        "http_diagnostic/unmatched_closing_delimiters",
-        |bencher| {
-            bencher.iter(|| {
-                let mut session = redactor.session();
-                black_box(session.http_with_mut(|http| {
-                    http.redact_urls_in_text(black_box(&input))
-                }))
-            });
-        },
-    );
+    criterion.bench_function("http_diagnostic/unmatched_closing_delimiters", |bencher| {
+        bencher.iter(|| {
+            let mut session = redactor.session();
+            black_box(session.http_with_mut(|http| http.redact_urls_in_text(black_box(&input))))
+        });
+    });
 }
 
 /// Builds an HTTP redactor using explicit body limits.
@@ -97,23 +89,14 @@ fn benchmark_diagnostic_budgets(criterion: &mut Criterion) {
         ("near", INPUT_LIMIT - 64),
         ("over", INPUT_LIMIT * 2),
     ];
-    let text_inputs = sizes.map(|(label, size)| {
-        (label, format!("diagnostic {}", "x".repeat(size)))
-    });
-    let url_inputs = sizes.map(|(label, size)| {
-        (
-            label,
-            format!("https://example.test/?note={}", "x".repeat(size)),
-        )
-    });
-    let form_inputs = sizes
-        .map(|(label, size)| (label, format!("note={}", "x".repeat(size))));
+    let text_inputs = sizes.map(|(label, size)| (label, format!("diagnostic {}", "x".repeat(size))));
+    let url_inputs = sizes.map(|(label, size)| (label, format!("https://example.test/?note={}", "x".repeat(size))));
+    let form_inputs = sizes.map(|(label, size)| (label, format!("note={}", "x".repeat(size))));
     let header_inputs = sizes.map(|(label, size)| {
         let mut headers = HeaderMap::new();
         headers.insert(
             "x-diagnostic",
-            HeaderValue::from_str(&"x".repeat(size))
-                .expect("benchmark header value is valid"),
+            HeaderValue::from_str(&"x".repeat(size)).expect("benchmark header value is valid"),
         );
         (label, headers)
     });
@@ -121,62 +104,38 @@ fn benchmark_diagnostic_budgets(criterion: &mut Criterion) {
 
     for (label, input) in &text_inputs {
         group.throughput(Throughput::Bytes(input.len() as u64));
-        group.bench_with_input(
-            BenchmarkId::new("text", label),
-            input,
-            |bencher, input| {
-                bencher.iter(|| {
-                    let mut session = redactor.session();
-                    black_box(session.http_with_mut(|http| {
-                        http.redact_urls_in_text(black_box(input))
-                    }))
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("text", label), input, |bencher, input| {
+            bencher.iter(|| {
+                let mut session = redactor.session();
+                black_box(session.http_with_mut(|http| http.redact_urls_in_text(black_box(input))))
+            });
+        });
     }
     for (label, input) in &url_inputs {
         group.throughput(Throughput::Bytes(input.len() as u64));
-        group.bench_with_input(
-            BenchmarkId::new("url", label),
-            input,
-            |bencher, input| {
-                bencher.iter(|| {
-                    let mut session = redactor.session();
-                    black_box(session.http_with_mut(|http| {
-                        http.redact_url_str(black_box(input))
-                    }))
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("url", label), input, |bencher, input| {
+            bencher.iter(|| {
+                let mut session = redactor.session();
+                black_box(session.http_with_mut(|http| http.redact_url_str(black_box(input))))
+            });
+        });
     }
     for (label, input) in &form_inputs {
         group.throughput(Throughput::Bytes(input.len() as u64));
-        group.bench_with_input(
-            BenchmarkId::new("form", label),
-            input,
-            |bencher, input| {
-                bencher.iter(|| {
-                    let mut session = redactor.session();
-                    black_box(session.http_with_mut(|http| {
-                        http.redact_form(black_box(input))
-                    }))
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("form", label), input, |bencher, input| {
+            bencher.iter(|| {
+                let mut session = redactor.session();
+                black_box(session.http_with_mut(|http| http.redact_form(black_box(input))))
+            });
+        });
     }
     for (label, headers) in &header_inputs {
-        group.bench_with_input(
-            BenchmarkId::new("headers", label),
-            headers,
-            |bencher, headers| {
-                bencher.iter(|| {
-                    let mut session = redactor.session();
-                    black_box(session.http_with_mut(|http| {
-                        http.redact_headers(black_box(headers))
-                    }))
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("headers", label), headers, |bencher, headers| {
+            bencher.iter(|| {
+                let mut session = redactor.session();
+                black_box(session.http_with_mut(|http| http.redact_headers(black_box(headers))))
+            });
+        });
     }
     group.finish();
 }
@@ -187,10 +146,8 @@ fn benchmark_body_redaction(criterion: &mut Criterion) {
     let form = b"password=raw-password&api_key=raw-api-key&label=visible&note=representative+text";
     let multipart = b"--bench\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nraw-password\r\n--bench\r\nContent-Disposition: form-data; name=\"profile\"\r\nContent-Type: application/json\r\n\r\n{\"api_key\":\"raw-api-key\",\"label\":\"visible\"}\r\n--bench--\r\n";
     let json_type = HeaderValue::from_static("application/json");
-    let form_type =
-        HeaderValue::from_static("application/x-www-form-urlencoded");
-    let multipart_type =
-        HeaderValue::from_static("multipart/form-data; boundary=bench");
+    let form_type = HeaderValue::from_static("application/x-www-form-urlencoded");
+    let multipart_type = HeaderValue::from_static("multipart/form-data; boundary=bench");
     let default_redactor = HttpRedactor::default();
     let tight_redactor = redactor_with_budget(
         BodyBudget::builder()
@@ -208,10 +165,7 @@ fn benchmark_body_redaction(criterion: &mut Criterion) {
         bencher.iter(|| {
             let mut session = default_redactor.session();
             black_box(session.http_with_mut(|http| {
-                http.redact_body(
-                    black_box(BodyCapture::complete(json)),
-                    Some(black_box(&json_type)),
-                )
+                http.redact_body(black_box(BodyCapture::complete(json)), Some(black_box(&json_type)))
             }))
         });
     });
@@ -221,10 +175,7 @@ fn benchmark_body_redaction(criterion: &mut Criterion) {
         bencher.iter(|| {
             let mut session = default_redactor.session();
             black_box(session.http_with_mut(|http| {
-                http.redact_body(
-                    black_box(BodyCapture::complete(form)),
-                    Some(black_box(&form_type)),
-                )
+                http.redact_body(black_box(BodyCapture::complete(form)), Some(black_box(&form_type)))
             }))
         });
     });
@@ -246,12 +197,7 @@ fn benchmark_body_redaction(criterion: &mut Criterion) {
     group.bench_function("source_truncated_json", |bencher| {
         bencher.iter(|| {
             let mut session = default_redactor.session();
-            black_box(session.http_with_mut(|http| {
-                http.redact_body(
-                    black_box(truncated),
-                    Some(black_box(&json_type)),
-                )
-            }))
+            black_box(session.http_with_mut(|http| http.redact_body(black_box(truncated), Some(black_box(&json_type)))))
         });
     });
 
@@ -260,10 +206,7 @@ fn benchmark_body_redaction(criterion: &mut Criterion) {
         bencher.iter(|| {
             let mut session = tight_redactor.session();
             black_box(session.http_with_mut(|http| {
-                http.redact_body(
-                    black_box(BodyCapture::complete(json)),
-                    Some(black_box(&json_type)),
-                )
+                http.redact_body(black_box(BodyCapture::complete(json)), Some(black_box(&json_type)))
             }))
         });
     });

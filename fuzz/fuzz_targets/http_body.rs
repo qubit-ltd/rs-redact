@@ -49,15 +49,11 @@ fn assert_structured_secret_is_redacted(selector: u8, data: &[u8]) {
     let noise = hexadecimal_prefix(data);
     let (body, content_type) = match selector % 7 {
         0 => (
-            format!(r#"{{"noise":"{noise}","password":"{FUZZ_SECRET}"}}"#)
-                .into_bytes(),
+            format!(r#"{{"noise":"{noise}","password":"{FUZZ_SECRET}"}}"#).into_bytes(),
             HeaderValue::from_static("application/json"),
         ),
         1 => (
-            format!(
-                "{{\"noise\":\"{noise}\"}}\n{{\"password\":\"{FUZZ_SECRET}\"}}"
-            )
-            .into_bytes(),
+            format!("{{\"noise\":\"{noise}\"}}\n{{\"password\":\"{FUZZ_SECRET}\"}}").into_bytes(),
             HeaderValue::from_static("application/x-ndjson"),
         ),
         2 => (
@@ -75,9 +71,7 @@ fn assert_structured_secret_is_redacted(selector: u8, data: &[u8]) {
             );
             (
                 multipart,
-                HeaderValue::from_static(
-                    "multipart/form-data; boundary=boundary",
-                ),
+                HeaderValue::from_static("multipart/form-data; boundary=boundary"),
             )
         }
         4 => (
@@ -93,8 +87,7 @@ fn assert_structured_secret_is_redacted(selector: u8, data: &[u8]) {
             HeaderValue::from_static("application/x-ndjson"),
         ),
     };
-    let result = HttpRedactor::strict()
-        .redact_body(BodyCapture::complete(&body), Some(&content_type));
+    let result = HttpRedactor::strict().redact_body(BodyCapture::complete(&body), Some(&content_type));
     assert!(!result.log_safe_text().as_ref().contains(FUZZ_SECRET));
 }
 
@@ -143,8 +136,7 @@ fn assert_malformed_structured_secret_is_redacted(selector: u8) {
         ),
     };
 
-    let result = HttpRedactor::strict()
-        .redact_body(BodyCapture::complete(&body), Some(&content_type));
+    let result = HttpRedactor::strict().redact_body(BodyCapture::complete(&body), Some(&content_type));
     assert!(!result.log_safe_text().as_ref().contains(FUZZ_SECRET));
 }
 
@@ -157,24 +149,15 @@ fuzz_target!(|data: &[u8]| {
         None,
         Some(HeaderValue::from_static("application/json")),
         Some(HeaderValue::from_static("application/x-ndjson")),
-        Some(HeaderValue::from_static(
-            "application/x-www-form-urlencoded",
-        )),
-        Some(HeaderValue::from_static(
-            "multipart/form-data; boundary=boundary",
-        )),
+        Some(HeaderValue::from_static("application/x-www-form-urlencoded")),
+        Some(HeaderValue::from_static("multipart/form-data; boundary=boundary")),
         Some(HeaderValue::from_static("text/plain")),
     ];
-    let content_type =
-        &content_types[usize::from(*media_selector) % content_types.len()];
+    let content_type = &content_types[usize::from(*media_selector) % content_types.len()];
     let capture = match source_selector % 3 {
         0 => BodyCapture::complete(body),
-        1 => BodyCapture::truncated(
-            body,
-            body.len()
-                .saturating_add(usize::from(*source_selector).max(1)),
-        )
-        .expect("constructed total exceeds captured bytes"),
+        1 => BodyCapture::truncated(body, body.len().saturating_add(usize::from(*source_selector).max(1)))
+            .expect("constructed total exceeds captured bytes"),
         _ => BodyCapture::truncated_unknown(body),
     };
     let redactor = HttpRedactor::default();

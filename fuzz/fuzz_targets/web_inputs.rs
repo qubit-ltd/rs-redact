@@ -89,21 +89,17 @@ fn assert_diagnostic_outputs_are_bounded(data: &[u8]) {
         .expect("the fixed fuzz diagnostic budget is valid");
     let mut builder = RedactionPolicy::builder();
     builder.limits().diagnostic_event(budget);
-    let policy = builder
-        .build()
-        .expect("the fixed fuzz HTTP policy is valid");
+    let policy = builder.build().expect("the fixed fuzz HTTP policy is valid");
     let redactor = HttpRedactor::new(policy);
     let noise = hexadecimal_prefix(data);
     let form = format!("note={noise}&password={FUZZ_SECRET}");
     let url_text = format!("https://example.test/?{form}");
-    let parsed_url =
-        Url::parse(&url_text).expect("the generated fuzz URL is valid");
+    let parsed_url = Url::parse(&url_text).expect("the generated fuzz URL is valid");
     let text = format!("request failed near {url_text}");
     let mut headers = HeaderMap::new();
     headers.insert(
         "x-fuzz-input",
-        HeaderValue::from_str(&noise)
-            .expect("hexadecimal fuzz text is a valid header value"),
+        HeaderValue::from_str(&noise).expect("hexadecimal fuzz text is a valid header value"),
     );
 
     let outputs = [
