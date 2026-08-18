@@ -15,20 +15,6 @@ qubit-redact = { path = "..", default-features = false, features = ["http", "uri
 url = "2.5"
 
 [[bin]]
-name = "http_body"
-path = "fuzz_targets/http_body.rs"
-test = false
-doc = false
-bench = false
-
-[[bin]]
-name = "web_inputs"
-path = "fuzz_targets/web_inputs.rs"
-test = false
-doc = false
-bench = false
-
-[[bin]]
 name = "command_inputs"
 path = "fuzz_targets/command_inputs.rs"
 test = false
@@ -36,8 +22,8 @@ doc = false
 bench = false
 
 [[bin]]
-name = "uri_inputs"
-path = "fuzz_targets/uri_inputs.rs"
+name = "direct_inputs"
+path = "fuzz_targets/direct_inputs.rs"
 test = false
 doc = false
 bench = false
