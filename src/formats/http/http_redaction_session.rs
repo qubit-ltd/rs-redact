@@ -11,7 +11,6 @@ use std::borrow::Cow;
 
 use http::HeaderMap;
 use http::HeaderValue;
-use url::Url;
 
 use super::BodyCapture;
 use super::BodyRedaction;
@@ -61,28 +60,10 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
         HttpRedactor::new(self.session.policy().clone())
     }
 
-    /// Redacts a parsed URL.
-    #[must_use]
-    pub(crate) fn redact_url_direct(&mut self, url: &Url) -> RedactedText {
-        self.redactor().redact_url(url)
-    }
-
-    /// Redacts every HTTP URL-looking token in diagnostic text.
-    #[must_use]
-    pub(crate) fn redact_urls_in_text_direct(&mut self, text: &str) -> RedactedText {
-        self.redactor().redact_urls_in_text(text)
-    }
-
     /// Parses and redacts one URL string.
     #[must_use]
     pub(crate) fn redact_url_str_direct(&mut self, text: &str) -> RedactedText {
         self.redactor().redact_url_str(text)
-    }
-
-    /// Redacts URL-encoded form text.
-    #[must_use]
-    pub(crate) fn redact_form_direct(&mut self, text: &str) -> RedactedText {
-        self.redactor().redact_form(text)
     }
 
     /// Redacts all HTTP headers.

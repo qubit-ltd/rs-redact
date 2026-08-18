@@ -256,10 +256,7 @@ fn bounded_invalid_result(
     _session_limited: bool,
 ) -> (UriRedaction, RedactionCompletion) {
     if max_output_bytes < INVALID_URI.len() {
-        return (
-            empty_invalid_result(reason),
-            RedactionCompletion::Truncated,
-        );
+        return (empty_invalid_result(reason), RedactionCompletion::Truncated);
     }
     (invalid_result(reason), RedactionCompletion::Complete)
 }

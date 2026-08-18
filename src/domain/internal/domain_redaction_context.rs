@@ -4,6 +4,7 @@
 //    SPDX-License-Identifier: Apache-2.0
 // =============================================================================
 //! Private domain traversal state backed by [`qubit_budget::StructureBudget`].
+// qubit-style: allow multiple-public-types
 
 use qubit_budget::StructureBudget;
 use qubit_budget::StructureLimits;

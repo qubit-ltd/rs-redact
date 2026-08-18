@@ -6,11 +6,11 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Immutable structural limits used by redaction.
+// qubit-style: allow multiple-public-types
 
 use qubit_budget::StructureLimits;
 #[cfg(feature = "json")]
 use qubit_budget::json::JsonValueLimits;
-
 
 /// Mutable construction state for [`RedactionLimits`].
 #[derive(Debug, Clone, Copy)]

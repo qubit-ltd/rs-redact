@@ -7,20 +7,8 @@
 // =============================================================================
 //! Private support for domain-object redaction.
 
-use std::fmt;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::fmt::Write as _;
-
-use crate::output::internal::BoundedLogEscapeWriter;
-
-pub(crate) fn format_log_safe(value: &dyn Debug, formatter: &mut Formatter<'_>) -> fmt::Result {
-    let mut writer = BoundedLogEscapeWriter::new(usize::MAX);
-    write!(&mut writer, "{value:?}")?;
-    formatter.write_str(&writer.finish())
-}
-
 mod domain_redaction_context;
+mod format;
 #[cfg(feature = "serde")]
 mod internally_tagged_serializer;
 mod mask_byte_limit;
@@ -33,6 +21,7 @@ pub(crate) use domain_redaction_context::DomainRedactionContext;
 pub(crate) use domain_redaction_context::DomainTruncation;
 pub(crate) use domain_redaction_context::DomainTruncationCheckpoint;
 pub(crate) use domain_redaction_context::DomainValueBudgetAdmission;
+pub(crate) use format::format_log_safe;
 #[cfg(feature = "serde")]
 pub use internally_tagged_serializer::serialize_internally_tagged;
 pub(crate) use mask_byte_limit::debug_output_exhausted;

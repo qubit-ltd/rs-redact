@@ -7,4 +7,6 @@
 // =============================================================================
 //! Integration tests for URI redaction.
 
+#![cfg(feature = "uri")]
+
 mod uri;

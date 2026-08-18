@@ -2,6 +2,8 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 
 use std::ffi::OsStr;
@@ -19,7 +21,7 @@ fn session_stages_direct_environment_results() {
     let redactor = Redactor::default();
     let mut session = redactor.session();
     let _ = session.env(|env| {
-        env.redact_pair_as("pair", "MODE", "debug");
+        env.redact_pair("pair", "MODE", "debug");
         env.redact_os_pairs_as("list", [(OsStr::new("MODE"), OsStr::new("debug"))]);
     });
     let output = session.finish().expect("session should commit");
@@ -36,8 +38,8 @@ fn duplicate_environment_key_fails_before_rendering() {
     let redactor = Redactor::default();
     let mut session = redactor.session();
     let _ = session.env(|env| {
-        env.redact_pair_as("same", "MODE", "one");
-        env.redact_pair_as("same", "MODE", "two");
+        env.redact_pair("same", "MODE", "one");
+        env.redact_pair("same", "MODE", "two");
     });
     assert!(session.finish().is_err());
     assert!(session.finish().unwrap().results().is_empty());
