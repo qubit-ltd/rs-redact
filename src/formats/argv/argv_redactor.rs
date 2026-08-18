@@ -132,7 +132,7 @@ impl ArgvRedactor {
     {
         let limit = InputOutputLimit::builder()
             .max_input_bytes(usize::MAX)
-            .max_output_bytes(self.redactor.policy().limits().diagnostic_event().max_output_bytes())
+            .max_output_bytes(usize::MAX)
             .build()
             .expect("policy output limit is valid");
         let mut builder = RedactedArgv::builder(limit);

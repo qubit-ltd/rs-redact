@@ -37,22 +37,10 @@ impl JsonRedactor {
     /// Redacts JSON source text without creating a session.
     #[must_use]
     pub fn redact_text(&self, text: &str) -> JsonRedactionOutput {
-        if self
-            .policy
-            .limits()
-            .json_decode_limits()
-            .input_bytes_limit()
-            .is_some_and(|limit| text.len() > limit.maximum())
-        {
-            let marker = RedactedText::from_escaped(self.policy.masking().mask_opaque(Sensitivity::Secret).to_owned());
-            return JsonRedactionOutput::new(
-                RedactionOutput::truncated(marker).unwrap_or_else(RedactionOutput::exhausted),
-            );
-        }
         self.finish(redacted_json_text_bounded(
             text,
             &self.policy,
-            self.policy.limits().diagnostic_event().max_output_bytes(),
+            usize::MAX,
         ))
     }
 
@@ -62,7 +50,7 @@ impl JsonRedactor {
         self.finish(redacted_json_value_bounded(
             value,
             &self.policy,
-            self.policy.limits().diagnostic_event().max_output_bytes(),
+            usize::MAX,
         ))
     }
 

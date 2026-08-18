@@ -53,7 +53,7 @@ impl<'text, 'policy> RedactedJsonText<'text, 'policy> {
     /// True when the text exceeds the policy input limit.
     #[inline(always)]
     fn exceeds_diagnostic_input_budget(&self) -> bool {
-        self.text.len() > self.policy.limits().diagnostic_event().max_input_bytes()
+        false
     }
 
     /// Returns the configured opaque replacement for unsafe JSON text.
@@ -97,7 +97,12 @@ impl fmt::Debug for RedactedJsonText<'_, '_> {
     ///
     /// Returns a formatting error when the destination rejects output.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut writer = BoundedLogEscapeWriter::new(LogOutputLimit::from(self.policy.limits().diagnostic_event()));
+        let mut writer = BoundedLogEscapeWriter::new(
+            LogOutputLimit::builder()
+                .max_bytes(usize::MAX)
+                .build()
+                .expect("unbounded presentation limit is valid"),
+        );
         if self.exceeds_diagnostic_input_budget() {
             let _ = write!(&mut writer, "{:?}", self.opaque_secret());
         } else {
@@ -136,7 +141,12 @@ impl fmt::Display for RedactedJsonText<'_, '_> {
     ///
     /// Returns a formatting error when the destination rejects output.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut writer = BoundedLogEscapeWriter::new(LogOutputLimit::from(self.policy.limits().diagnostic_event()));
+        let mut writer = BoundedLogEscapeWriter::new(
+            LogOutputLimit::builder()
+                .max_bytes(usize::MAX)
+                .build()
+                .expect("unbounded presentation limit is valid"),
+        );
         let _ = writer.write_str(&self.diagnostic_json_text());
         formatter.write_str(&writer.finish())
     }

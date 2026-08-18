@@ -90,7 +90,7 @@ impl EnvRedactor {
     /// A fail-closed, log-safe pair rendered as `NAME=VALUE`.
     #[must_use]
     pub fn redact_os_pair(&self, name: &OsStr, value: &OsStr) -> RedactedEnvPair {
-        let max_output = self.redactor.policy().limits().diagnostic_event().max_output_bytes();
+        let max_output = usize::MAX;
         let (rendered, locally_truncated) = self.redact_os_pair_bounded(name, value, max_output);
         if locally_truncated {
             RedactedEnvPair::truncated(RedactedText::from_escaped(rendered))
@@ -128,7 +128,7 @@ impl EnvRedactor {
     {
         let mut writer = BoundedLogEscapeWriter::new(
             crate::LogOutputLimit::builder()
-                .max_bytes(self.redactor.policy().limits().diagnostic_event().max_output_bytes())
+                .max_bytes(usize::MAX)
                 .build()
                 .expect("unbounded direct rendering limit is valid"),
         );
@@ -139,7 +139,7 @@ impl EnvRedactor {
             let (pair, truncated) = self.redact_os_pair_bounded(
                 name,
                 value,
-                self.redactor.policy().limits().diagnostic_event().max_output_bytes(),
+                usize::MAX,
             );
             locally_truncated |= truncated;
             write_debug_item(&mut writer, &mut has_item, &pair);
