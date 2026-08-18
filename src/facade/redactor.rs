@@ -233,10 +233,7 @@ impl Redactor {
     #[must_use]
     #[inline]
     pub fn redact_at<'a>(&self, level: Sensitivity, value: &'a str) -> MaskedValue<'a> {
-        let (masked, _) = self
-            .policy
-            .masking()
-            .mask_bounded_with_truncation(level, value, usize::MAX);
+        let masked = self.policy.masking().mask(level, value);
         MaskedValue::new(masked)
     }
 
@@ -417,10 +414,13 @@ pub(crate) fn redact_field_unbudgeted<'value>(
 ) -> (FieldRedaction<'value>, bool) {
     match policy.resolve_field(field) {
         ResolvedField::Sensitive { sensitivity } => {
-            let (masked, truncated) =
+            let (masked, truncated) = if max_output_bytes == usize::MAX {
+                (policy.masking().mask(sensitivity, value), false)
+            } else {
                 policy
                     .masking()
-                    .mask_bounded_with_truncation(sensitivity, value, max_output_bytes);
+                    .mask_bounded_with_truncation(sensitivity, value, max_output_bytes)
+            };
             (
                 FieldRedaction::Masked {
                     value: MaskedValue::new(masked),

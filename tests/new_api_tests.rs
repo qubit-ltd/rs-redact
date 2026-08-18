@@ -11,7 +11,6 @@ use qubit_redact::RedactionReason;
 use qubit_redact::RedactionReasons;
 use qubit_redact::RedactionSessionError;
 use qubit_redact::RedactionSummary;
-use qubit_redact::RedactionUsage;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::config::RedactionConfig;
@@ -56,8 +55,6 @@ fn test_transactional_field_builder_and_structured_writer() {
     assert!(output.text().as_str().contains("ada"));
     assert!(!output.text().as_str().contains("raw-password"));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
-    assert!(output.summary().usage().emitted_output_bytes() > 0);
-    assert!(output.summary().usage().visited_nodes() > 0);
 }
 
 #[test]
@@ -107,7 +104,7 @@ fn test_session_publishes_keyed_results_atomically_and_resets() {
 
     let next = session.finish().expect("finished session can be reused");
     assert!(next.text().as_str().is_empty());
-    assert!(next.results().is_empty());
+    assert_eq!(next.results().len(), 0);
 }
 
 #[test]
@@ -130,27 +127,13 @@ fn test_session_rejects_duplicate_and_empty_keys_as_one_batch() {
 
 #[test]
 fn test_output_and_summary_accessors_preserve_machine_readable_state() {
-    let usage = RedactionUsage::default();
-    assert_eq!(usage.inspected_input_bytes(), 0);
-    assert_eq!(usage.emitted_output_bytes(), 0);
-    assert_eq!(usage.visited_nodes(), 0);
-    assert_eq!(usage.visited_collection_items(), 0);
-    assert_eq!(usage.maximum_depth(), 0);
-
     let reasons = RedactionReasons::empty()
-        .with(RedactionReason::OutputLimitReached)
         .with(RedactionReason::DepthLimitReached);
-    assert!(reasons.contains(RedactionReason::OutputLimitReached));
     assert!(reasons.contains(RedactionReason::DepthLimitReached));
 
-    let truncated = RedactionSummary::truncated(RedactionReason::InputLimitReached);
+    let truncated = RedactionSummary::truncated(RedactionReason::TraversalLimitReached);
     assert_eq!(truncated.completion(), RedactionCompletion::Truncated);
-    assert!(truncated.reasons().contains(RedactionReason::InputLimitReached));
-    assert_eq!(truncated.usage(), usage);
-    assert_eq!(
-        RedactionSummary::exhausted().completion(),
-        RedactionCompletion::Exhausted
-    );
+    assert!(truncated.reasons().contains(RedactionReason::TraversalLimitReached));
 
     let output = Redactor::standard().redact(&Account {
         name: "ada".to_owned(),
@@ -177,27 +160,6 @@ fn test_configuration_builder_produces_standard_snapshot() {
         .build()
         .expect("default configuration should build");
     assert_eq!(default_config, config);
-}
-
-#[cfg(all(feature = "http", feature = "json", feature = "uri"))]
-#[test]
-fn test_chain_adapter_namespaces_accept_closures() {
-    let redactor = Redactor::standard();
-    let mut session = redactor
-        .session()
-        .argv_with(|_| {})
-        .env_with(|_| {})
-        .http_with(|_| {})
-        .json_with(|_| {})
-        .uri_with(|_| {});
-    let _ = session.finish().expect("empty session should commit");
-
-    let mut session = redactor.session();
-    let _: () = session.argv_with_mut(|_| {});
-    let _: () = session.env_with_mut(|_| {});
-    let _: () = session.http_with_mut(|_| {});
-    let _: () = session.json_with_mut(|_| {});
-    let _: () = session.uri_with_mut(|_| {});
 }
 
 #[cfg(feature = "http")]

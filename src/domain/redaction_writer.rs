@@ -36,7 +36,11 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
             .remaining_output_bytes()
             .min(crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX));
         Self {
-            output: String::with_capacity(frame_limit),
+            output: if frame_limit == usize::MAX {
+                String::new()
+            } else {
+                String::with_capacity(frame_limit)
+            },
             session,
             field_truncated: false,
             frame_start: 0,
