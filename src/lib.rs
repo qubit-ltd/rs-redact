@@ -257,10 +257,10 @@
 //! let redactor = Redactor::strict();
 //! let mut session = redactor.session();
 //! session.argv(|adapter| {
-//!     adapter.redact_heuristically_as("argv", argv);
+//!     adapter.redact_heuristically("argv", argv);
 //! });
 //! session.env(|adapter| {
-//!     adapter.redact_pair_as("env", "PASSWORD", "raw");
+//!     adapter.redact_pair("env", "PASSWORD", "raw");
 //! });
 //! let output = session.finish().expect("session should commit");
 //! assert!(!output.get("argv").expect("argv result").text().as_str().contains("raw"));
@@ -288,7 +288,7 @@
 //! let redactor = Redactor::strict();
 //! let mut session = redactor.session();
 //! session.json(|json| {
-//!     json.redact_text_as("payload", r#"{"token":"raw-token"}"#);
+//!     json.redact_text("payload", r#"{"token":"raw-token"}"#);
 //! });
 //! let safe = session.finish().expect("session should commit");
 //! assert!(!safe.text().as_str().contains("raw-token"));
@@ -314,7 +314,7 @@
 //! let redactor = HttpRedactor::default();
 //! let mut session = redactor.session();
 //! session.http(|http| {
-//!     http.redact_headers_as("headers", &http::HeaderMap::new());
+//!     http.redact_headers("headers", &http::HeaderMap::new());
 //! });
 //! let result = session.finish().expect("session should commit");
 //! assert!(!result.text().as_str().contains("raw"));
@@ -335,7 +335,7 @@
 //! let redactor = UriRedactor::default();
 //! let mut session = redactor.session();
 //! session.uri(|uri| {
-//!     uri.redact_uri_as("request_uri", "https://example.test/path");
+//!     uri.redact_uri("request_uri", "https://example.test/path");
 //! });
 //! let safe = session.finish().expect("session should commit");
 //! assert!(safe.get("request_uri").expect("URI result").text().as_str().contains("example.test"));

@@ -198,6 +198,8 @@ impl RedactionPolicyBuilder {
 }
 
 mod views {
+    use qubit_budget::StructureLimits;
+
     use super::FieldNameMatching;
     use super::MaskPolicy;
     use super::MaskingPolicy;
@@ -521,7 +523,7 @@ mod views {
 
     impl LimitsBuilder<'_> {
         /// Sets the cumulative domain-structure traversal limits.
-        pub fn domain(&mut self, limits: qubit_budget::StructureLimits) -> &mut Self {
+        pub fn domain(&mut self, limits: StructureLimits) -> &mut Self {
             let mut builder = RedactionLimits::builder_from(&self.builder.limits);
             builder.domain(limits);
             self.builder.limits = builder.build();

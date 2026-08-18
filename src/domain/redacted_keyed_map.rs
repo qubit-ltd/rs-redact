@@ -122,7 +122,6 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
             marker: PhantomData,
         }
     }
-
 }
 
 impl<M: ?Sized, K: AsRef<str> + Debug + ?Sized, V: Redact + RedactValue + ?Sized> Debug

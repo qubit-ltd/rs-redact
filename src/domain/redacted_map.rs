@@ -94,7 +94,6 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
             marker: PhantomData,
         }
     }
-
 }
 
 impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug for RedactedMap<'_, M, K, V> {

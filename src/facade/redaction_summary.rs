@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Machine-readable redaction summaries.
+// qubit-style: allow multiple-public-types
 
 use crate::output::RedactionCompletion;
 

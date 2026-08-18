@@ -88,10 +88,7 @@ impl BoundedUriWriter {
     pub(crate) fn finish_with_completion(mut self, _session_limited: bool) -> (String, RedactionCompletion) {
         if self.truncated {
             if self.max_bytes < TRUNCATED.len() {
-                return (
-                    String::new(),
-                    RedactionCompletion::Truncated,
-                );
+                return (String::new(), RedactionCompletion::Truncated);
             }
             self.output.truncate(self.marker_boundary);
             self.output.push_str(TRUNCATED);

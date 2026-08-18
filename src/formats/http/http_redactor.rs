@@ -259,12 +259,7 @@ impl HttpRedactor {
             },
             None => (None, false),
         };
-        self.redact_body_with_content_type(
-            capture,
-            content_type,
-            invalid_content_type,
-            usize::MAX,
-        )
+        self.redact_body_with_content_type(capture, content_type, invalid_content_type, usize::MAX)
     }
 
     /// Redacts a checked body capture selected by optional Content-Type text.
@@ -287,12 +282,7 @@ impl HttpRedactor {
         content_type: Option<&str>,
     ) -> BodyRedaction {
         let invalid_content_type = content_type.is_some_and(|value| self.diagnostic_input_exceeded(value.len()));
-        self.redact_body_with_content_type(
-            capture,
-            content_type,
-            invalid_content_type,
-            usize::MAX,
-        )
+        self.redact_body_with_content_type(capture, content_type, invalid_content_type, usize::MAX)
     }
 
     /// Redacts a body under an explicit output ceiling for a shared session.
@@ -357,13 +347,7 @@ impl HttpRedactor {
         } else {
             self.redact_body_inner(bounded, content_type, truncated, output_limit)
         };
-        Self::finish_body_redaction(
-            parsed,
-            capture,
-            input_len,
-            budget_truncated,
-            output_limit,
-        )
+        Self::finish_body_redaction(parsed, capture, input_len, budget_truncated, output_limit)
     }
 
     /// Produces an owned redacted URL before log-control escaping.
