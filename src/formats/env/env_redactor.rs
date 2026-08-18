@@ -9,7 +9,6 @@
 
 use std::borrow::Cow;
 use std::ffi::OsStr;
-use std::fmt::Write as _;
 
 use super::RedactedEnv;
 use super::RedactedEnvPair;
@@ -17,7 +16,6 @@ use crate::RedactedText;
 use crate::Redactor;
 use crate::Sensitivity;
 use crate::output::MaskedValue;
-use crate::output::internal::BoundedLogEscapeWriter;
 use crate::policy::ResolvedField;
 
 /// Applies one immutable redaction policy to environment-variable values.
@@ -126,13 +124,7 @@ impl EnvRedactor {
         I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
         I::IntoIter: ExactSizeIterator,
     {
-        let mut writer = BoundedLogEscapeWriter::new(
-            crate::LogOutputLimit::builder()
-                .max_bytes(usize::MAX)
-                .build()
-                .expect("unbounded direct rendering limit is valid"),
-        );
-        let _ = writer.write_str("[");
+        let mut writer = String::from("[");
         let mut has_item = false;
         let mut locally_truncated = false;
         for (name, value) in pairs {
@@ -144,8 +136,8 @@ impl EnvRedactor {
             locally_truncated |= truncated;
             write_debug_item(&mut writer, &mut has_item, &pair);
         }
-        let _ = writer.write_str("]");
-        let rendered = writer.finish();
+        writer.push(']');
+        let rendered = writer;
         if locally_truncated {
             RedactedEnv::truncated(RedactedText::from_escaped(rendered))
         } else {
@@ -256,10 +248,10 @@ fn log_safe_owned(value: String) -> RedactedText {
 /// * `writer` - Escaped bounded output destination.
 /// * `has_item` - Whether a preceding list item has already been rendered.
 /// * `item` - Redacted assignment safe to format.
-pub(super) fn write_debug_item(writer: &mut BoundedLogEscapeWriter, has_item: &mut bool, item: &str) {
+pub(super) fn write_debug_item(writer: &mut String, has_item: &mut bool, item: &str) {
     if *has_item {
-        let _ = writer.write_str(", ");
+        writer.push_str(", ");
     }
-    let _ = write!(writer, "{item:?}");
+    writer.push_str(&format!("{item:?}"));
     *has_item = true;
 }
