@@ -182,7 +182,6 @@ impl DiagnosticLogBuilder {
         match write_completion {
             RedactionCompletion::Complete => source_completion,
             RedactionCompletion::Truncated => RedactionCompletion::Truncated,
-            RedactionCompletion::Truncated => RedactionCompletion::Truncated,
         }
     }
 
