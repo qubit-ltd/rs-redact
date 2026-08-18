@@ -15,12 +15,9 @@ use crate::RedactionSession;
 use crate::domain::DomainTruncated;
 use crate::domain::RedactValue;
 use crate::domain::internal::debug_output_exhausted;
-use crate::domain::internal::mask_byte_limit;
 use crate::domain::redacted::complete_debug;
 use crate::policy::DomainTraversalAdmission;
 use crate::policy::DomainValueAdmission;
-use crate::policy::FragmentCompletion;
-use crate::policy::RedactionAdmission;
 use crate::policy::ResolvedField;
 
 /// Formats map values after classifying each value by its runtime key.
@@ -95,7 +92,7 @@ where
         let mut map = formatter.debug_map();
         let mut entries = self.into_iter();
         loop {
-            if scope.session().is_exhausted() || debug_output_exhausted() {
+            if debug_output_exhausted() {
                 break;
             }
             if entries.len() == 0 {
@@ -109,16 +106,7 @@ where
                 break;
             };
             let key = key.as_ref();
-            let session_limit = scope.session().remaining_output_bytes();
-            let domain_limit = mask_byte_limit().unwrap_or(usize::MAX);
-            let admission = scope.session().admit_output_only(domain_limit);
-            let max_output_bytes = match admission {
-                RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
-                RedactionAdmission::Fallback => {
-                    unreachable!("output-only domain admission cannot reject input")
-                }
-                RedactionAdmission::Exhausted => break,
-            };
+            let max_output_bytes = usize::MAX;
             let resolved = scope.session().policy().resolve_field(key);
             let completed = match resolved {
                 ResolvedField::Sensitive { sensitivity } => {
@@ -127,19 +115,9 @@ where
                 }
                 ResolvedField::PassThrough => complete_debug(&value, max_output_bytes, alternate),
             };
-            let completion = if completed.truncated() {
-                if domain_limit < session_limit {
-                    FragmentCompletion::DomainTruncated
-                } else {
-                    FragmentCompletion::SessionTruncated
-                }
-            } else {
-                FragmentCompletion::Complete
-            };
             let truncated = completed.truncated();
-            scope.session().commit_output(completed.len(), completion);
             map.entry(&key, &completed);
-            if truncated || scope.session().is_exhausted() || debug_output_exhausted() {
+            if truncated || debug_output_exhausted() {
                 break;
             }
         }

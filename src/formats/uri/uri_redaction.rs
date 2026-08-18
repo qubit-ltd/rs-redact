@@ -65,9 +65,8 @@ impl UriRedaction {
         let output = match completion {
             RedactionCompletion::Complete => RedactionOutput::complete(text),
             RedactionCompletion::Truncated => {
-                RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::exhausted)
+                RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::empty)
             }
-            RedactionCompletion::Exhausted => RedactionOutput::exhausted(),
         };
         Self {
             output,

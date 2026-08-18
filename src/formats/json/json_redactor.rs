@@ -58,7 +58,7 @@ impl JsonRedactor {
         let (text, truncated) = result.into_parts();
         let text = RedactedText::from_escaped(text);
         let output = if truncated {
-            RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::exhausted)
+            RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::empty)
         } else {
             RedactionOutput::complete(text)
         };

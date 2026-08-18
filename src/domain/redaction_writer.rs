@@ -16,7 +16,6 @@ use crate::domain::RedactMapValue;
 use crate::domain::RedactedMapResult;
 use crate::domain::RedactedResult;
 use crate::policy::DomainTraversalAdmission;
-use crate::policy::FragmentCompletion;
 
 /// Restricted writer for one redaction operation.
 pub struct RedactionWriter<'session, 'policy> {
@@ -32,9 +31,7 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
     /// Creates a writer backed by an existing diagnostic session.
     #[must_use]
     pub(crate) fn new(session: &'session mut RedactionSession<'policy>) -> Self {
-        let frame_limit = session
-            .remaining_output_bytes()
-            .min(crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX));
+        let frame_limit = usize::MAX;
         Self {
             output: if frame_limit == usize::MAX {
                 String::new()
@@ -52,17 +49,7 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
     /// Creates a writer that owns the root output admission for one value.
     pub(crate) fn new_root(session: &'session mut RedactionSession<'policy>) -> Self {
         let mut writer = Self::new(session);
-        let domain_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
-        match writer.session.admit_output_only(domain_limit) {
-            crate::policy::RedactionAdmission::Render { max_output_bytes } => {
-                writer.frame_limit = max_output_bytes;
-                writer.root_admitted = true;
-            }
-            crate::policy::RedactionAdmission::Fallback | crate::policy::RedactionAdmission::Exhausted => {
-                writer.output.push_str("<truncated>");
-                writer.field_truncated = true;
-            }
-        }
+        writer.root_admitted = true;
         writer
     }
 
@@ -97,7 +84,7 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
     #[must_use]
     #[inline(always)]
     pub fn is_exhausted(&self) -> bool {
-        self.field_truncated || self.session.is_exhausted()
+        self.field_truncated
     }
 
     /// Writes a named record through a field scope.
@@ -126,9 +113,6 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
 
     /// Writes a unit variant or unit struct.
     pub fn unit(&mut self, name: &str) {
-        if self.session.is_exhausted() {
-            return;
-        }
         self.output.push_str(name);
         self.mark_frame_overflow();
         self.mark_frame_overflow();
@@ -144,27 +128,14 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
             self.output.push_str("<truncated>");
             return;
         }
-        let domain_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
-        let admission = self.session.admit_output_only(domain_limit);
-        let max_output_bytes = match admission {
-            crate::policy::RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
-            crate::policy::RedactionAdmission::Fallback | crate::policy::RedactionAdmission::Exhausted => {
-                self.session.leave_domain_value();
-                return;
-            }
-        };
+        let max_output_bytes = usize::MAX;
         let start = self.output.len();
         let rendered = format!("{:?}", render(self.session));
         self.output.push_str(&rendered);
         let rendered_len = rendered.len();
-        let completion = if rendered_len <= max_output_bytes {
-            FragmentCompletion::Complete
-        } else {
+        if rendered_len > max_output_bytes {
             self.truncate_with_marker(start, max_output_bytes);
-            FragmentCompletion::SessionTruncated
-        };
-        self.session
-            .commit_output(self.output.len().saturating_sub(start), completion);
+        }
         self.session.leave_domain_value();
     }
 
@@ -174,13 +145,9 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
     pub(crate) fn finish(mut self) -> String {
         if self.root_admitted {
             let rendered_len = self.output.len();
-            let completion = if rendered_len <= self.frame_limit {
-                FragmentCompletion::Complete
-            } else {
+            if rendered_len > self.frame_limit {
                 self.truncate_with_marker(0, self.frame_limit);
-                FragmentCompletion::SessionTruncated
-            };
-            self.session.commit_output(self.output.len(), completion);
+            }
         }
         self.output
     }
@@ -195,15 +162,7 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
             self.output.push_str("<truncated>");
             return;
         }
-        let domain_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
-        let admission = self.session.admit_output_only(domain_limit);
-        let max_output_bytes = match admission {
-            crate::policy::RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
-            crate::policy::RedactionAdmission::Fallback | crate::policy::RedactionAdmission::Exhausted => {
-                self.session.leave_domain_value();
-                return;
-            }
-        };
+        let max_output_bytes = usize::MAX;
         let start = self.output.len();
         let previous_frame = (self.frame_start, self.frame_limit);
         self.frame_start = start;
@@ -222,14 +181,9 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
         }
         self.output.push_str(closing);
         let rendered_len = self.output.len().saturating_sub(start);
-        let completion = if rendered_len <= max_output_bytes {
-            FragmentCompletion::Complete
-        } else {
+        if rendered_len > max_output_bytes {
             self.truncate_with_marker(start, max_output_bytes);
-            FragmentCompletion::SessionTruncated
-        };
-        let committed_len = self.output.len().saturating_sub(start);
-        self.session.commit_output(committed_len, completion);
+        }
         self.session.leave_domain_value();
         (self.frame_start, self.frame_limit) = previous_frame;
     }

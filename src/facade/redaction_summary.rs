@@ -27,9 +27,6 @@ pub enum RedactionReason {
     InvalidContentType,
     /// Source content type is unsupported.
     UnsupportedContentType,
-    /// Legacy internal reason retained until all format adapters migrate.
-    #[doc(hidden)]
-    OutputLimitReached,
 }
 
 /// Compact set of summary reasons.
@@ -74,9 +71,6 @@ impl RedactionSummary {
     #[must_use]
     pub const fn merge(self, other: Self) -> Self {
         let completion = match (self.completion, other.completion) {
-            (RedactionCompletion::Exhausted, _) | (_, RedactionCompletion::Exhausted) => {
-                RedactionCompletion::Exhausted
-            }
             (RedactionCompletion::Truncated, _) | (_, RedactionCompletion::Truncated) => {
                 RedactionCompletion::Truncated
             }
@@ -106,13 +100,13 @@ impl RedactionSummary {
         }
     }
 
-    /// Creates an empty legacy result.
+    /// Creates an empty degraded result.
     #[must_use]
     #[doc(hidden)]
-    pub const fn exhausted() -> Self {
+    pub const fn empty() -> Self {
         Self {
-            completion: RedactionCompletion::Exhausted,
-            reasons: RedactionReasons::empty().with(RedactionReason::OutputLimitReached),
+            completion: RedactionCompletion::Truncated,
+            reasons: RedactionReasons::empty().with(RedactionReason::TraversalLimitReached),
         }
     }
 

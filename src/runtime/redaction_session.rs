@@ -12,25 +12,14 @@ use std::collections::BTreeMap;
 use super::DomainRedactionContext;
 use super::DomainTruncation;
 use super::DomainTruncationCheckpoint;
-use super::internal::FragmentCompletion;
-use super::internal::RedactionAdmission;
 use super::redaction_session_error::RedactionSessionError;
 use super::redaction_session_output::RedactionSessionOutput;
 use crate::FieldRedaction;
 use crate::RedactionCompletion;
 use crate::Sensitivity;
 use crate::domain::Redact;
-use crate::facade::redactor::admission_field_fallback;
-use crate::facade::redactor::admission_text_fallback;
-use crate::facade::redactor::log_safe_len;
-use crate::facade::redactor::opaque_mask;
 use crate::facade::redactor::redact_field_unbudgeted;
-use crate::facade::redactor::redaction_admission_completion;
-use crate::facade::redactor::redaction_fragment_completion;
 use crate::facade::redactor::redaction_output;
-use crate::facade::redactor::terminal_session_field_fallback;
-use crate::facade::redactor::terminal_session_text_fallback;
-use crate::facade::redactor::truncation_completion;
 use crate::formats::argv::ArgvRedactionSession;
 use crate::formats::env::EnvRedactionSession;
 #[cfg(feature = "http")]
@@ -93,33 +82,21 @@ impl<'policy> RedactionSession<'policy> {
     /// Redacts and appends one scalar field in chain order.
     #[must_use]
     pub fn field(&mut self, field: &str, value: &str) -> &mut Self {
-        self.field_as(field, field, value)
-    }
-
-    /// Redacts one classified field and stages it under an independent key.
-    ///
-    /// This is useful when a diagnostic record contains several values that
-    /// share a policy field name but need distinct result keys.
-    #[must_use]
-    pub fn field_as(&mut self, key: &str, field: &str, value: &str) -> &mut Self {
-        if !self.prepare_key(key) {
+        if !self.prepare_key(field) {
             return self;
         }
         self.reset_fragment_budget();
         let rendered = self.redact_field_output(field, value);
         let text = rendered.log_safe_text().as_str().to_owned();
-        // `redact_field_output` already reserves and commits the complete
-        // field fragment against this session's diagnostic budget.
         self.fragments.push_str(&text);
         let summary = match rendered.completion() {
             crate::RedactionCompletion::Complete => crate::RedactionSummary::complete(),
             crate::RedactionCompletion::Truncated => {
-                crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached)
+                crate::RedactionSummary::truncated(crate::RedactionReason::TraversalLimitReached)
             }
-            crate::RedactionCompletion::Exhausted => crate::RedactionSummary::exhausted(),
         };
         self.stage(
-            key,
+            field,
             crate::RedactionOutput::new(crate::RedactedText::from_escaped(text), summary),
         );
         self
@@ -137,17 +114,11 @@ impl<'policy> RedactionSession<'policy> {
         self.reset_fragment_budget();
         let mut writer = crate::domain::RedactionWriter::new_root(self);
         value.write_redacted(&mut writer);
-        let truncated = writer.is_exhausted();
         let rendered = writer.finish();
         self.append_committed_output(&rendered);
-        let summary = if truncated {
-            crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached)
-        } else {
-            crate::RedactionSummary::complete()
-        };
         self.stage(
             name,
-            crate::RedactionOutput::new(crate::RedactedText::from_escaped(rendered), summary),
+            crate::RedactionOutput::new(crate::RedactedText::from_escaped(rendered), crate::RedactionSummary::complete()),
         );
         self
     }
@@ -269,12 +240,7 @@ impl<'policy> RedactionSession<'policy> {
         let error = self.session_error.take();
         let text = std::mem::take(&mut self.fragments);
         let staged = std::mem::take(&mut self.staged);
-        let budget_summary = if self.is_exhausted() {
-            crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached)
-        } else {
-            crate::RedactionSummary::complete()
-        };
-        let summary = self.summary.merge(budget_summary);
+        let summary = self.summary;
         self.domain_context = DomainRedactionContext::new(self.policy.limits().domain());
         self.summary = crate::RedactionSummary::complete();
         if let Some(error) = error {
@@ -287,17 +253,6 @@ impl<'policy> RedactionSession<'policy> {
             staged,
             summary,
         ))
-    }
-
-    /// Finishes the legacy internal writer path while adapters are migrated.
-    #[must_use]
-    pub(crate) fn finish_legacy(&mut self) -> crate::RedactionOutput {
-        let completion = crate::RedactionSummary::complete();
-        let escaped = crate::output::log_escape::escape_log_control_characters(std::borrow::Cow::Owned(
-            std::mem::take(&mut self.fragments),
-        ))
-        .into_owned();
-        crate::RedactionOutput::new(crate::RedactedText::from_escaped(escaped), completion)
     }
 
     /// Stages one already redacted result under a caller-owned string key.
@@ -341,9 +296,8 @@ impl<'policy> RedactionSession<'policy> {
         let summary = match completion {
             crate::RedactionCompletion::Complete => crate::RedactionSummary::complete(),
             crate::RedactionCompletion::Truncated => {
-                crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached)
+                crate::RedactionSummary::truncated(crate::RedactionReason::TraversalLimitReached)
             }
-            crate::RedactionCompletion::Exhausted => crate::RedactionSummary::exhausted(),
         };
         if self.session_error.is_none() {
             self.fragments.push_str(text.as_str());
@@ -375,31 +329,6 @@ impl<'policy> RedactionSession<'policy> {
         self.domain_context.truncation_since(checkpoint)
     }
 
-    /// Admits one complete input fragment for bounded rendering.
-    #[must_use]
-    #[inline(always)]
-    pub(crate) fn admit(
-        &mut self,
-        input_bytes: usize,
-        domain_output_limit: usize,
-        fallback_bytes: usize,
-    ) -> RedactionAdmission {
-        let _ = (input_bytes, domain_output_limit, fallback_bytes);
-        RedactionAdmission::Render { max_output_bytes: usize::MAX }
-    }
-
-    /// Admits pure domain output without covering nested adapter input.
-    ///
-    /// This frame participates in nested output deduplication, but any adapter
-    /// invoked beneath it must still reserve its exact source bytes before
-    /// parsing, resolving, or formatting that source.
-    #[must_use]
-    #[inline(always)]
-    pub(crate) fn admit_output_only(&mut self, domain_output_limit: usize) -> RedactionAdmission {
-        let _ = domain_output_limit;
-        RedactionAdmission::Render { max_output_bytes: usize::MAX }
-    }
-
     /// Charges one domain field before its value is accessed.
     #[must_use]
     #[inline(always)]
@@ -428,32 +357,6 @@ impl<'policy> RedactionSession<'policy> {
         self.fragments.push_str(output);
     }
 
-    /// Commits exact output bytes for the active admitted fragment.
-    #[inline(always)]
-    pub(crate) fn commit_output(&mut self, bytes: usize, completion: FragmentCompletion) {
-        let _ = (bytes, completion);
-    }
-
-    /// Returns the remaining input allowance.
-    #[must_use]
-    #[inline(always)]
-    pub fn remaining_input_bytes(&self) -> usize {
-        usize::MAX
-    }
-
-    /// Returns the remaining output allowance.
-    #[must_use]
-    #[inline(always)]
-    pub fn remaining_output_bytes(&self) -> usize {
-        usize::MAX
-    }
-
-    /// Returns whether this session is exhausted.
-    #[must_use]
-    #[inline(always)]
-    pub fn is_exhausted(&self) -> bool {
-        false
-    }
 }
 
 // Transitional closure aliases are kept in the session definition so the
@@ -592,35 +495,8 @@ impl RedactionSession<'_> {
         value: &'value str,
     ) -> (FieldRedaction<'value>, RedactionCompletion) {
         let policy = self.policy();
-        let fallback = opaque_mask(policy);
-        let fallback_bytes = log_safe_len(fallback);
-        let input_bytes = field.len().saturating_add(value.len());
-        let session_output_bytes = self.remaining_output_bytes();
-        let domain_output_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
-        let admission = self.admit(input_bytes, domain_output_limit, fallback_bytes);
-        let super::internal::RedactionAdmission::Render { max_output_bytes } = admission else {
-            return (
-                admission_field_fallback(admission, fallback),
-                redaction_admission_completion(admission),
-            );
-        };
-        let (redacted, mask_truncated): (FieldRedaction<'value>, bool) =
-            redact_field_unbudgeted(policy, field, value, max_output_bytes);
-        let output_bytes = log_safe_len(redacted.as_str());
-        if output_bytes <= max_output_bytes {
-            let completion = if mask_truncated {
-                truncation_completion(domain_output_limit, session_output_bytes)
-            } else {
-                FragmentCompletion::Complete
-            };
-            self.commit_output(output_bytes, completion);
-            let completion = redaction_fragment_completion(redacted.as_str(), completion);
-            return (redacted, completion);
-        }
-        let completion = truncation_completion(domain_output_limit, session_output_bytes);
-        let redacted = terminal_session_field_fallback(self, max_output_bytes, fallback, fallback_bytes, completion);
-        let completion = redaction_fragment_completion(redacted.as_str(), completion);
-        (redacted, completion)
+        let (redacted, _) = redact_field_unbudgeted(policy, field, value, usize::MAX);
+        (redacted, RedactionCompletion::Complete)
     }
 
     /// Redacts one explicitly sensitive value through this diagnostic event.
@@ -642,35 +518,7 @@ impl RedactionSession<'_> {
         value: &'value str,
     ) -> (MaskedValue<'value>, RedactionCompletion) {
         let policy = self.policy();
-        let fallback = opaque_mask(policy);
-        let fallback_bytes = log_safe_len(fallback);
-        let session_output_bytes = self.remaining_output_bytes();
-        let domain_output_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
-        let admission = self.admit(value.len(), domain_output_limit, fallback_bytes);
-        let super::internal::RedactionAdmission::Render { max_output_bytes } = admission else {
-            return (
-                admission_text_fallback(admission, fallback),
-                redaction_admission_completion(admission),
-            );
-        };
-        let (masked, mask_truncated) = policy
-            .masking()
-            .mask_bounded_with_truncation(level, value, max_output_bytes);
-        let output_bytes = log_safe_len(masked.as_ref());
-        if output_bytes <= max_output_bytes {
-            let completion = if mask_truncated {
-                truncation_completion(domain_output_limit, session_output_bytes)
-            } else {
-                FragmentCompletion::Complete
-            };
-            self.commit_output(output_bytes, completion);
-            let redacted = MaskedValue::new(masked);
-            let completion = redaction_fragment_completion(redacted.as_str(), completion);
-            return (redacted, completion);
-        }
-        let completion = truncation_completion(domain_output_limit, session_output_bytes);
-        let redacted = terminal_session_text_fallback(self, max_output_bytes, fallback, fallback_bytes, completion);
-        let completion = redaction_fragment_completion(redacted.as_str(), completion);
-        (redacted, completion)
+        let masked = policy.masking().mask(level, value);
+        (MaskedValue::new(masked), RedactionCompletion::Complete)
     }
 }

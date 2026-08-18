@@ -7,25 +7,16 @@
 // =============================================================================
 //! Mutable JSON façade over one diagnostic redaction session.
 
-use std::borrow::Cow;
-use std::io;
-use std::io::Write;
-
 use serde_json::Value;
-use serde_json::to_writer;
 
 use super::JsonRedactionOutput;
 use super::bounded_json_redaction::BoundedJsonRedaction;
 use super::bounded_json_redaction::redacted_json_text_bounded;
 use super::bounded_json_redaction::redacted_json_value_bounded;
 use crate::RedactedText;
-use crate::RedactionPolicy;
 use crate::RedactionSession;
-use crate::Sensitivity;
-use crate::output::MaskedValue;
 use crate::RedactionOutput;
-use crate::policy::FragmentCompletion;
-use crate::policy::RedactionAdmission;
+use crate::output::MaskedValue;
 
 /// Feature-gated JSON operations sharing one mutable diagnostic session.
 pub struct JsonRedactionSession<'session, 'policy> {
@@ -63,43 +54,16 @@ impl JsonRedactionSession<'_, '_> {
     #[must_use]
     fn redact_owned(
         &mut self,
-        input_bytes: usize,
-        raw: impl FnOnce(&RedactionPolicy, usize) -> BoundedJsonRedaction,
+        raw: impl FnOnce(&crate::RedactionPolicy, usize) -> BoundedJsonRedaction,
     ) -> JsonRedactionOutput {
-        let policy = self.session.policy();
-        let fallback = policy.masking().mask_opaque(Sensitivity::Secret);
-        let domain_limit = policy.limits().diagnostic_event().max_output_bytes();
-        let before = self.session.remaining_output_bytes();
-        match self.session.admit(input_bytes, domain_limit, fallback.len()) {
-            RedactionAdmission::Fallback => JsonRedactionOutput::new(
-                RedactionOutput::truncated(RedactedText::from_escaped(Cow::Owned(fallback.to_owned())))
-                    .unwrap_or_else(RedactionOutput::exhausted),
-            ),
-            RedactionAdmission::Exhausted => JsonRedactionOutput::new(RedactionOutput::exhausted()),
-            RedactionAdmission::Render { max_output_bytes } => {
-                let (rendered, raw_truncated) = raw(policy, max_output_bytes).into_parts();
-                let escaped = MaskedValue::new(Cow::Owned(rendered)).escape_for_log();
-                let (text, mut truncated) = bound_safe_text(escaped.as_str(), max_output_bytes);
-                truncated |= raw_truncated;
-                let completion = if truncated {
-                    if max_output_bytes < before {
-                        FragmentCompletion::DomainTruncated
-                    } else {
-                        FragmentCompletion::SessionTruncated
-                    }
-                } else {
-                    FragmentCompletion::Complete
-                };
-                self.session.commit_output(text.len(), completion);
-                let text = RedactedText::from_escaped(Cow::Owned(text));
-                let output = if truncated {
-                    RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::exhausted)
-                } else {
-                    RedactionOutput::complete(text)
-                };
-                JsonRedactionOutput::new(output)
-            }
-        }
+        let (rendered, raw_truncated) = raw(self.session.policy(), usize::MAX).into_parts();
+        let output_text = MaskedValue::new(std::borrow::Cow::Owned(rendered)).escape_for_log();
+        let output = if raw_truncated {
+            RedactionOutput::truncated(output_text).unwrap_or_else(RedactionOutput::empty)
+        } else {
+            RedactionOutput::complete(output_text)
+        };
+        JsonRedactionOutput::new(output)
     }
 
     /// Redacts an already parsed JSON value into compact, log-safe JSON text.
@@ -121,11 +85,7 @@ impl JsonRedactionSession<'_, '_> {
     /// `Exhausted` completion.
     #[must_use]
     pub(crate) fn redact_value_direct(&mut self, value: &Value) -> JsonRedactionOutput {
-        if self.session.is_exhausted() {
-            return JsonRedactionOutput::new(RedactionOutput::exhausted());
-        }
-        let input_bytes = count_json_bytes(value);
-        self.redact_owned(input_bytes, |policy, limit| {
+        self.redact_owned(|policy, limit| {
             redacted_json_value_bounded(value, policy, limit)
         })
     }
@@ -149,32 +109,9 @@ impl JsonRedactionSession<'_, '_> {
     /// `Exhausted` completion.
     #[must_use]
     pub(crate) fn redact_text_direct(&mut self, text: &str) -> JsonRedactionOutput {
-        self.redact_owned(text.len(), |policy, limit| {
+        self.redact_owned(|policy, limit| {
             redacted_json_text_bounded(text, policy, limit)
         })
-    }
-}
-
-/// Counts the serialized UTF-8 bytes used by a JSON value.
-fn count_json_bytes(value: &Value) -> usize {
-    /// Sink that counts bytes without retaining the serialized JSON.
-    struct Counter(usize);
-    impl Write for Counter {
-        /// Adds the written byte count to the sink total.
-        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-            self.0 = self.0.saturating_add(bytes.len());
-            Ok(bytes.len())
-        }
-        /// Flushes the counting sink; no buffered data exists.
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
-    }
-    let mut counter = Counter(0);
-    if to_writer(&mut counter, value).is_err() {
-        usize::MAX
-    } else {
-        counter.0
     }
 }
 

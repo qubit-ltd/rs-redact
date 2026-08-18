@@ -95,6 +95,4 @@ pub use unkeyed_json_value_policy::UnkeyedJsonValuePolicy;
 pub use unknown_field_policy::UnknownFieldPolicy;
 
 pub(crate) use crate::domain::internal::DomainTruncation;
-pub(crate) use crate::runtime::FragmentCompletion;
-pub(crate) use crate::runtime::RedactionAdmission;
 pub use crate::runtime::RedactionSession;

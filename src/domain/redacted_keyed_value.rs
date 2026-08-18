@@ -116,7 +116,6 @@ mod session_view {
     use crate::domain::DomainTruncated;
     use crate::domain::Redact;
     use crate::domain::RedactValue;
-    use crate::domain::internal::mask_byte_limit;
     use crate::domain::redacted::CompletedDebug;
     use crate::domain::redacted::DomainRenderStatus;
     use crate::domain::redacted::complete_debug;
@@ -124,8 +123,6 @@ mod session_view {
     use crate::policy::DomainTraversalAdmission;
     use crate::policy::DomainTruncation;
     use crate::policy::DomainValueAdmission;
-    use crate::policy::FragmentCompletion;
-    use crate::policy::RedactionAdmission;
     use crate::policy::ResolvedField;
 
     /// An eagerly completed keyed value representation.
@@ -184,19 +181,7 @@ mod session_view {
             alternate: bool,
             admission_mode: KeyedAdmissionMode,
         ) -> Option<Self> {
-            if session.is_exhausted() {
-                return None;
-            }
-            let session_limit = session.remaining_output_bytes();
-            let domain_limit = mask_byte_limit().unwrap_or(usize::MAX);
-            let admission = session.admit_output_only(domain_limit);
-            let max_output_bytes = match admission {
-                RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
-                RedactionAdmission::Fallback => {
-                    unreachable!("output-only domain admission cannot reject input")
-                }
-                RedactionAdmission::Exhausted => return None,
-            };
+            let max_output_bytes = usize::MAX;
             let checkpoint = session.domain_truncation_checkpoint();
             let completed = {
                 let wrapper = KeyedOnce {
@@ -208,17 +193,6 @@ mod session_view {
                 complete_debug(&wrapper, max_output_bytes, alternate)
             };
             let domain_truncation = session.domain_truncation_since(checkpoint);
-            let completion = if completed.truncated() {
-                if domain_limit < session_limit {
-                    FragmentCompletion::DomainTruncated
-                } else {
-                    FragmentCompletion::SessionTruncated
-                }
-            } else if domain_truncation != DomainTruncation::None {
-                FragmentCompletion::DomainTruncated
-            } else {
-                FragmentCompletion::Complete
-            };
             let status = if completed.truncated() {
                 DomainRenderStatus::OutputTruncated
             } else {
@@ -228,7 +202,6 @@ mod session_view {
                     DomainTruncation::Traversal => DomainRenderStatus::TraversalTruncated,
                 }
             };
-            session.commit_output(completed.len(), completion);
             Some(Self {
                 completed,
                 status,
