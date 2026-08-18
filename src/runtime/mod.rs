@@ -15,7 +15,7 @@ mod redaction_session_error;
 mod redaction_session_output;
 
 pub(crate) use diagnostic_budget::DiagnosticBudget;
-pub(crate) use domain_budget::DomainRedactionBudget;
+pub(crate) use domain_budget::DomainRedactionContext;
 pub(crate) use domain_budget::DomainTruncation;
 pub(crate) use domain_budget::DomainTruncationCheckpoint;
 pub(crate) use domain_budget::DomainValueBudgetAdmission;
