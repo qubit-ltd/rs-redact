@@ -18,5 +18,4 @@ pub use redaction_output::RedactionOutput;
 pub use redaction_summary::RedactionReason;
 pub use redaction_summary::RedactionReasons;
 pub use redaction_summary::RedactionSummary;
-pub use redaction_summary::RedactionUsage;
 pub use redactor::Redactor;

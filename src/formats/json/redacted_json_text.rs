@@ -52,7 +52,7 @@ impl<'text, 'policy> RedactedJsonText<'text, 'policy> {
     ///
     /// True when the text exceeds the policy input limit.
     #[inline(always)]
-    const fn exceeds_diagnostic_input_budget(&self) -> bool {
+    fn exceeds_diagnostic_input_budget(&self) -> bool {
         self.text.len() > self.policy.limits().diagnostic_event().max_input_bytes()
     }
 

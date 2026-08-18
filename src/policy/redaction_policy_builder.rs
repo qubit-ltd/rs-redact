@@ -7,20 +7,16 @@
 // =============================================================================
 //! Mutable builder for immutable redaction policies.
 
-use super::DomainRedactionLimits;
 use super::FieldNameMatching;
-use super::InputOutputLimit;
-#[cfg(feature = "json")]
-use super::JsonDepthLimit;
 use super::MaskPolicy;
 use super::MaskingPolicy;
 use super::PolicyError;
 use super::PolicyLocation;
 use super::RedactionFloor;
-use super::RedactionLimits;
-use super::RedactionPolicy;
-use super::RedactionRules;
-use super::RedactionRulesBuilder;
+    use super::RedactionLimits;
+    use super::RedactionPolicy;
+    use super::RedactionRules;
+    use super::RedactionRulesBuilder;
 use super::SensitiveFieldPreset;
 use super::Sensitivity;
 #[cfg(feature = "json")]
@@ -202,11 +198,7 @@ impl RedactionPolicyBuilder {
 }
 
 mod views {
-    use super::DomainRedactionLimits;
     use super::FieldNameMatching;
-    use super::InputOutputLimit;
-    #[cfg(feature = "json")]
-    use super::JsonDepthLimit;
     use super::MaskPolicy;
     use super::MaskingPolicy;
     use super::PolicyError;
@@ -529,43 +521,9 @@ mod views {
 
     impl LimitsBuilder<'_> {
         /// Sets the cumulative domain-structure traversal limits.
-        pub fn domain(&mut self, limits: DomainRedactionLimits) -> &mut Self {
+        pub fn domain(&mut self, limits: qubit_budget::StructureLimits) -> &mut Self {
             let mut builder = RedactionLimits::builder_from(&self.builder.limits);
             builder.domain(limits);
-            self.builder.limits = builder.build();
-            self
-        }
-
-        /// Sets the cumulative diagnostic-event limit.
-        pub fn diagnostic_event(&mut self, limit: InputOutputLimit) -> &mut Self {
-            let mut builder = RedactionLimits::builder_from(&self.builder.limits);
-            builder.diagnostic_event(limit);
-            self.builder.limits = builder.build();
-            self
-        }
-
-        /// Sets the independent ordinary-operation limit.
-        pub fn ordinary_operation(&mut self, limit: InputOutputLimit) -> &mut Self {
-            let mut builder = RedactionLimits::builder_from(&self.builder.limits);
-            builder.ordinary_operation(limit);
-            self.builder.limits = builder.build();
-            self
-        }
-
-        /// Sets the local HTTP body limit.
-        #[cfg(feature = "http")]
-        pub fn http_body(&mut self, limit: crate::formats::http::BodyBudget) -> &mut Self {
-            let mut builder = RedactionLimits::builder_from(&self.builder.limits);
-            builder.http_body(limit);
-            self.builder.limits = builder.build();
-            self
-        }
-
-        /// Sets the JSON recursion-depth limit.
-        #[cfg(feature = "json")]
-        pub fn json_depth(&mut self, limit: JsonDepthLimit) -> &mut Self {
-            let mut builder = RedactionLimits::builder_from(&self.builder.limits);
-            builder.json_depth_limit(limit);
             self.builder.limits = builder.build();
             self
         }

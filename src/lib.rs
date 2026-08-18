@@ -365,7 +365,6 @@ pub use facade::RedactionOutput;
 pub use facade::RedactionReason;
 pub use facade::RedactionReasons;
 pub use facade::RedactionSummary;
-pub use facade::RedactionUsage;
 pub use facade::Redactor;
 pub use model::FieldRedaction;
 pub use model::PassThroughReason;

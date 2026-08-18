@@ -8,8 +8,8 @@
 //! Mutable domain-structure accounting for one redaction session.
 // qubit-style: allow multiple-public-types
 
-use crate::policy::DomainRedactionLimits;
 use crate::policy::DomainTraversalAdmission;
+use qubit_budget::{StructureBudget, StructureLimits};
 
 // qubit-style: allow type-file-name
 /// Internal result of charging one domain value.
@@ -38,15 +38,13 @@ pub(crate) enum DomainTruncation {
 /// Tracks cumulative domain traversal and currently active nesting depth.
 #[derive(Debug)]
 pub(crate) struct DomainRedactionBudget {
-    remaining_nodes: usize,
-    remaining_collection_items: usize,
+    budget: StructureBudget,
     current_depth: usize,
     max_depth: usize,
     traversal_closed: bool,
     depth_generation: usize,
     traversal_generation: usize,
-    visited_nodes: usize,
-    visited_collection_items: usize,
+    collection_items_seen: usize,
     maximum_depth_observed: usize,
 }
 
@@ -54,17 +52,16 @@ impl DomainRedactionBudget {
     /// Creates fresh session accounting from immutable domain limits.
     #[must_use]
     #[inline]
-    pub(crate) const fn new(limits: DomainRedactionLimits) -> Self {
+    pub(crate) fn new(limits: StructureLimits) -> Self {
+        let max_depth = limits.max_depth().unwrap_or(usize::MAX);
         Self {
-            remaining_nodes: limits.max_nodes(),
-            remaining_collection_items: limits.max_collection_items(),
+            budget: limits.budget(),
             current_depth: 0,
-            max_depth: limits.max_depth(),
+            max_depth,
             traversal_closed: false,
             depth_generation: 0,
             traversal_generation: 0,
-            visited_nodes: 0,
-            visited_collection_items: 0,
+            collection_items_seen: 0,
             maximum_depth_observed: 0,
         }
     }
@@ -86,12 +83,10 @@ impl DomainRedactionBudget {
             self.record_depth_truncation();
             return DomainValueBudgetAdmission::DepthLimitReached;
         }
-        if self.remaining_nodes == 0 {
+        if self.budget.enter_node(self.current_depth.saturating_add(1)).is_err() {
             self.close_traversal();
             return DomainValueBudgetAdmission::TraversalLimitReached;
         }
-        self.remaining_nodes -= 1;
-        self.visited_nodes = self.visited_nodes.saturating_add(1);
         self.current_depth += 1;
         self.maximum_depth_observed = self.maximum_depth_observed.max(self.current_depth);
         DomainValueBudgetAdmission::Entered
@@ -106,12 +101,10 @@ impl DomainRedactionBudget {
         if self.traversal_closed {
             return DomainTraversalAdmission::LimitReached;
         }
-        if self.remaining_nodes == 0 {
+        if self.budget.charge_node().is_err() {
             self.close_traversal();
             return DomainTraversalAdmission::LimitReached;
         }
-        self.remaining_nodes -= 1;
-        self.visited_nodes = self.visited_nodes.saturating_add(1);
         DomainTraversalAdmission::Render
     }
 
@@ -125,12 +118,12 @@ impl DomainRedactionBudget {
         if self.traversal_closed {
             return DomainTraversalAdmission::LimitReached;
         }
-        if self.remaining_collection_items == 0 {
+        let next = self.collection_items_seen.saturating_add(1);
+        if self.budget.check_sequence_items(next).is_err() {
             self.close_traversal();
             return DomainTraversalAdmission::LimitReached;
         }
-        self.remaining_collection_items -= 1;
-        self.visited_collection_items = self.visited_collection_items.saturating_add(1);
+        self.collection_items_seen = next;
         DomainTraversalAdmission::Render
     }
 
@@ -179,10 +172,10 @@ impl DomainRedactionBudget {
 
     /// Returns structural traversal usage accumulated by this session.
     #[must_use]
-    pub(crate) const fn usage(&self) -> (usize, usize, usize) {
+    pub(crate) fn usage(&self) -> (usize, usize, usize) {
         (
-            self.visited_nodes,
-            self.visited_collection_items,
+            self.budget.used_nodes(),
+            self.collection_items_seen,
             self.maximum_depth_observed,
         )
     }
