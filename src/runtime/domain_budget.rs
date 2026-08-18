@@ -37,7 +37,7 @@ pub(crate) enum DomainTruncation {
 
 /// Tracks cumulative domain traversal and currently active nesting depth.
 #[derive(Debug)]
-pub(crate) struct DomainRedactionBudget {
+pub(crate) struct DomainRedactionContext {
     budget: StructureBudget,
     current_depth: usize,
     max_depth: usize,
@@ -48,7 +48,7 @@ pub(crate) struct DomainRedactionBudget {
     maximum_depth_observed: usize,
 }
 
-impl DomainRedactionBudget {
+impl DomainRedactionContext {
     /// Creates fresh session accounting from immutable domain limits.
     #[must_use]
     #[inline]

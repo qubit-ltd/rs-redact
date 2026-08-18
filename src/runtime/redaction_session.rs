@@ -9,7 +9,7 @@
 
 use std::collections::BTreeMap;
 
-use super::DomainRedactionBudget;
+use super::DomainRedactionContext;
 use super::DomainTruncation;
 use super::DomainTruncationCheckpoint;
 use super::internal::FragmentCompletion;
@@ -50,7 +50,7 @@ use crate::runtime::DomainValueBudgetAdmission;
 #[derive(Debug)]
 pub struct RedactionSession<'policy> {
     policy: &'policy RedactionPolicy,
-    pub(super) domain_budget: DomainRedactionBudget,
+    pub(super) domain_context: DomainRedactionContext,
     pub(super) fragments: String,
     staged: BTreeMap<String, crate::RedactionOutput>,
     summary: crate::RedactionSummary,
@@ -64,7 +64,7 @@ impl<'policy> RedactionSession<'policy> {
     pub(crate) fn new(policy: &'policy RedactionPolicy) -> Self {
         Self {
             policy,
-            domain_budget: DomainRedactionBudget::new(policy.limits().domain()),
+            domain_context: DomainRedactionContext::new(policy.limits().domain()),
             fragments: String::new(),
             staged: BTreeMap::new(),
             summary: crate::RedactionSummary::complete(),
@@ -236,7 +236,7 @@ impl<'policy> RedactionSession<'policy> {
     #[must_use]
     pub fn enter_domain_value<'session>(&'session mut self) -> DomainValueAdmission<'session, 'policy> {
         let checkpoint = self.domain_truncation_checkpoint();
-        let admission = self.domain_budget.enter_value();
+        let admission = self.domain_context.enter_value();
         debug_assert!(match admission {
             DomainValueBudgetAdmission::Entered => {
                 self.domain_truncation_since(checkpoint) == DomainTruncation::None
@@ -257,7 +257,7 @@ impl<'policy> RedactionSession<'policy> {
     /// RAII scope to generated implementations.
     #[must_use]
     pub(crate) fn begin_domain_value(&mut self) -> bool {
-        match self.domain_budget.enter_value() {
+        match self.domain_context.enter_value() {
             DomainValueBudgetAdmission::Entered => true,
             DomainValueBudgetAdmission::DepthLimitReached => false,
             DomainValueBudgetAdmission::TraversalLimitReached => false,
@@ -275,7 +275,7 @@ impl<'policy> RedactionSession<'policy> {
             crate::RedactionSummary::complete()
         };
         let summary = self.summary.merge(budget_summary);
-        self.domain_budget = DomainRedactionBudget::new(self.policy.limits().domain());
+        self.domain_context = DomainRedactionContext::new(self.policy.limits().domain());
         self.summary = crate::RedactionSummary::complete();
         if let Some(error) = error {
             return Err(error);
@@ -365,14 +365,14 @@ impl<'policy> RedactionSession<'policy> {
     #[must_use]
     #[inline(always)]
     pub(crate) const fn domain_truncation_checkpoint(&self) -> DomainTruncationCheckpoint {
-        self.domain_budget.truncation_checkpoint()
+        self.domain_context.truncation_checkpoint()
     }
 
     /// Classifies domain truncation recorded after `checkpoint`.
     #[must_use]
     #[inline(always)]
     pub(crate) const fn domain_truncation_since(&self, checkpoint: DomainTruncationCheckpoint) -> DomainTruncation {
-        self.domain_budget.truncation_since(checkpoint)
+        self.domain_context.truncation_since(checkpoint)
     }
 
     /// Admits one complete input fragment for bounded rendering.
@@ -404,21 +404,21 @@ impl<'policy> RedactionSession<'policy> {
     #[must_use]
     #[inline(always)]
     pub(crate) fn admit_domain_field(&mut self) -> DomainTraversalAdmission {
-        self.domain_budget.admit_field()
+        self.domain_context.admit_field()
     }
 
     /// Charges one domain collection item before its iterator advances.
     #[must_use]
     #[inline(always)]
     pub(crate) fn admit_domain_collection_item(&mut self) -> DomainTraversalAdmission {
-        self.domain_budget.admit_collection_item()
+        self.domain_context.admit_collection_item()
     }
 
     /// Releases one active domain-value depth while preserving cumulative
     /// charges.
     #[inline(always)]
     pub(crate) fn leave_domain_value(&mut self) {
-        self.domain_budget.leave_value();
+        self.domain_context.leave_value();
     }
 
     /// Appends output whose bytes were already committed by a structured
