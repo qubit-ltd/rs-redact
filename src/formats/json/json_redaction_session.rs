@@ -13,9 +13,8 @@ use super::JsonRedactionOutput;
 use super::bounded_json_redaction::BoundedJsonRedaction;
 use super::bounded_json_redaction::redacted_json_text_bounded;
 use super::bounded_json_redaction::redacted_json_value_bounded;
-use crate::RedactedText;
-use crate::RedactionSession;
 use crate::RedactionOutput;
+use crate::RedactionSession;
 use crate::output::MaskedValue;
 
 /// Feature-gated JSON operations sharing one mutable diagnostic session.
@@ -85,9 +84,7 @@ impl JsonRedactionSession<'_, '_> {
     /// `Exhausted` completion.
     #[must_use]
     pub(crate) fn redact_value_direct(&mut self, value: &Value) -> JsonRedactionOutput {
-        self.redact_owned(|policy, limit| {
-            redacted_json_value_bounded(value, policy, limit)
-        })
+        self.redact_owned(|policy, limit| redacted_json_value_bounded(value, policy, limit))
     }
 
     /// Parses and redacts JSON text into compact, log-safe JSON text.
@@ -109,9 +106,7 @@ impl JsonRedactionSession<'_, '_> {
     /// `Exhausted` completion.
     #[must_use]
     pub(crate) fn redact_text_direct(&mut self, text: &str) -> JsonRedactionOutput {
-        self.redact_owned(|policy, limit| {
-            redacted_json_text_bounded(text, policy, limit)
-        })
+        self.redact_owned(|policy, limit| redacted_json_text_bounded(text, policy, limit))
     }
 }
 

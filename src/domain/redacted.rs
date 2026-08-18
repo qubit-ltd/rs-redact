@@ -309,11 +309,6 @@ mod session_view {
             }
         }
 
-        /// Returns the exact number of completed UTF-8 output bytes.
-        pub(crate) fn len(&self) -> usize {
-            self.output.len()
-        }
-
         /// Returns whether the byte ceiling replaced output with a marker.
         pub(crate) fn truncated(&self) -> bool {
             self.truncated
@@ -370,7 +365,11 @@ mod session_view {
         /// Creates an empty bounded completion buffer.
         fn new(limit: usize) -> Self {
             Self {
-                output: if limit == usize::MAX { String::new() } else { String::with_capacity(limit) },
+                output: if limit == usize::MAX {
+                    String::new()
+                } else {
+                    String::with_capacity(limit)
+                },
                 limit,
                 truncated: false,
             }
@@ -478,10 +477,6 @@ impl<T: Redact + ?Sized> Display for Redacted<'_, T> {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut session = RedactionSession::new(&self.policy);
         let view = RedactedResult::new(self.value, &mut session);
-        format_bounded(
-            &view,
-            LogOutputLimit::unbounded(),
-            formatter,
-        )
+        format_bounded(&view, LogOutputLimit::unbounded(), formatter)
     }
 }

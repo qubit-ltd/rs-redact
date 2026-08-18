@@ -13,10 +13,10 @@ use super::MaskingPolicy;
 use super::PolicyError;
 use super::PolicyLocation;
 use super::RedactionFloor;
-    use super::RedactionLimits;
-    use super::RedactionPolicy;
-    use super::RedactionRules;
-    use super::RedactionRulesBuilder;
+use super::RedactionLimits;
+use super::RedactionPolicy;
+use super::RedactionRules;
+use super::RedactionRulesBuilder;
 use super::SensitiveFieldPreset;
 use super::Sensitivity;
 #[cfg(feature = "json")]

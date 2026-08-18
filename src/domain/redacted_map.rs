@@ -268,11 +268,7 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display for Redacte
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut session = RedactionSession::new(&self.policy);
         let view = RedactedMapResult::new(self.map, &mut session);
-        format_bounded(
-            &view,
-            LogOutputLimit::unbounded(),
-            formatter,
-        )
+        format_bounded(&view, LogOutputLimit::unbounded(), formatter)
     }
 }
 

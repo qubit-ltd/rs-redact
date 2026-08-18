@@ -71,9 +71,7 @@ impl RedactionSummary {
     #[must_use]
     pub const fn merge(self, other: Self) -> Self {
         let completion = match (self.completion, other.completion) {
-            (RedactionCompletion::Truncated, _) | (_, RedactionCompletion::Truncated) => {
-                RedactionCompletion::Truncated
-            }
+            (RedactionCompletion::Truncated, _) | (_, RedactionCompletion::Truncated) => RedactionCompletion::Truncated,
             _ => RedactionCompletion::Complete,
         };
         Self {

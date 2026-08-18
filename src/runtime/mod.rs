@@ -12,7 +12,11 @@ mod redaction_session;
 mod redaction_session_error;
 mod redaction_session_output;
 
-pub(crate) use crate::domain::internal::{DomainRedactionContext, DomainTruncation, DomainTruncationCheckpoint, DomainValueBudgetAdmission};
 pub use redaction_session::RedactionSession;
 pub use redaction_session_error::RedactionSessionError;
 pub use redaction_session_output::RedactionSessionOutput;
+
+pub(crate) use crate::domain::internal::DomainRedactionContext;
+pub(crate) use crate::domain::internal::DomainTruncation;
+pub(crate) use crate::domain::internal::DomainTruncationCheckpoint;
+pub(crate) use crate::domain::internal::DomainValueBudgetAdmission;

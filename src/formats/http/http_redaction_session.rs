@@ -15,8 +15,6 @@ use url::Url;
 
 use super::BodyCapture;
 use super::BodyRedaction;
-use super::BodyRedactionReason;
-use super::BodyRedactionStatus;
 use super::HttpRedactor;
 use super::RedactedHeaders;
 use super::http_redactor::headers;
@@ -72,33 +70,25 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     /// Redacts a parsed URL.
     #[must_use]
     pub(crate) fn redact_url_direct(&mut self, url: &Url) -> RedactedText {
-        self.text_result(|redactor, limit| {
-            redactor.redact_url_with_output_limit(url, limit)
-        })
+        self.text_result(|redactor, limit| redactor.redact_url_with_output_limit(url, limit))
     }
 
     /// Redacts every HTTP URL-looking token in diagnostic text.
     #[must_use]
     pub(crate) fn redact_urls_in_text_direct(&mut self, text: &str) -> RedactedText {
-        self.text_result(|redactor, limit| {
-            redactor.redact_urls_in_text_with_output_limit(text, limit)
-        })
+        self.text_result(|redactor, limit| redactor.redact_urls_in_text_with_output_limit(text, limit))
     }
 
     /// Parses and redacts one URL string.
     #[must_use]
     pub(crate) fn redact_url_str_direct(&mut self, text: &str) -> RedactedText {
-        self.text_result(|redactor, limit| {
-            redactor.redact_url_str_with_output_limit(text, limit)
-        })
+        self.text_result(|redactor, limit| redactor.redact_url_str_with_output_limit(text, limit))
     }
 
     /// Redacts URL-encoded form text.
     #[must_use]
     pub(crate) fn redact_form_direct(&mut self, text: &str) -> RedactedText {
-        self.text_result(|redactor, limit| {
-            redactor.redact_form_with_output_limit(text, limit)
-        })
+        self.text_result(|redactor, limit| redactor.redact_form_with_output_limit(text, limit))
     }
 
     /// Redacts all HTTP headers.
@@ -180,7 +170,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     #[must_use]
     fn body_result(
         &mut self,
-        capture: BodyCapture<'_>,
+        _capture: BodyCapture<'_>,
         _content_type: Option<&HeaderValue>,
         render: impl FnOnce(&HttpRedactor) -> BodyRedaction,
     ) -> BodyRedaction {

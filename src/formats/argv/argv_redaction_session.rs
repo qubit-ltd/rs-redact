@@ -55,5 +55,4 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
         self.session.stage_text(key, result.into_log_safe_text(), completion);
         self
     }
-
 }

@@ -7,7 +7,6 @@
 // =============================================================================
 //! Stateless redaction operations backed by an immutable policy.
 
-use std::borrow::Cow;
 use std::sync::PoisonError;
 
 use crate::FieldClassification;
@@ -21,6 +20,7 @@ use crate::config::RedactionConfig;
 use crate::domain::Redact;
 use crate::domain::RedactMapValueMut;
 use crate::domain::RedactedKeyedValue;
+use crate::facade::RedactionOutput;
 use crate::formats::argv::ArgvRedactor;
 use crate::formats::env::EnvRedactor;
 #[cfg(feature = "http")]
@@ -30,7 +30,6 @@ use crate::formats::json::JsonRedactor;
 #[cfg(feature = "uri")]
 use crate::formats::uri::UriRedactor;
 use crate::output::MaskedValue;
-use crate::facade::RedactionOutput;
 use crate::policy::ResolvedField;
 
 /// Applies one immutable policy to scalar values and string maps.
@@ -367,7 +366,6 @@ pub(crate) fn redact_field_unbudgeted<'value>(
         }
     }
 }
-
 
 impl Default for Redactor {
     /// Creates a redactor from the current global redaction configuration.

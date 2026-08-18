@@ -52,5 +52,4 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
         self.session.stage_text(key, result.into_log_safe_text(), completion);
         self
     }
-
 }

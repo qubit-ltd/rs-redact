@@ -116,7 +116,10 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
 
     /// Creates an eagerly rendered keyed map using this writer's policy.
     #[must_use]
-    pub fn redacted_keyed_map<'a, M, K, V>(&mut self, value: &'a M) -> crate::domain::RedactedKeyedMapResult<'a, M, K, V>
+    pub fn redacted_keyed_map<'a, M, K, V>(
+        &mut self,
+        value: &'a M,
+    ) -> crate::domain::RedactedKeyedMapResult<'a, M, K, V>
     where
         M: ?Sized,
         K: AsRef<str> + Debug + ?Sized + 'a,

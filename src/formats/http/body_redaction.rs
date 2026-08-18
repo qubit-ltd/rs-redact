@@ -61,9 +61,7 @@ impl BodyRedaction {
         let text = RedactedText::from_escaped(Cow::Owned(text));
         let output = match completion {
             RedactionCompletion::Complete => RedactionOutput::complete(text),
-            RedactionCompletion::Truncated => {
-                RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::empty)
-            }
+            RedactionCompletion::Truncated => RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::empty),
         };
         Self {
             output,

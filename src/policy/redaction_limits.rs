@@ -10,6 +10,7 @@
 use qubit_budget::StructureLimits;
 #[cfg(feature = "json")]
 use qubit_budget::json::JsonValueLimits;
+
 #[cfg(feature = "http")]
 use crate::formats::http::BodyBudget;
 

@@ -7,8 +7,8 @@
 // =============================================================================
 //! Byte-bounded URI rendering.
 
-use crate::output::log_escape::encode_log_safe_character;
 use crate::RedactionCompletion;
+use crate::output::log_escape::encode_log_safe_character;
 
 /// Marker appended when a URI cannot fit within the output bound.
 const TRUNCATED: &str = "<truncated>";
@@ -85,16 +85,12 @@ impl BoundedUriWriter {
 
     /// Finishes output and reports whether the effective bound was a domain
     /// limit or the shared session limit.
-    pub(crate) fn finish_with_completion(mut self, session_limited: bool) -> (String, RedactionCompletion) {
+    pub(crate) fn finish_with_completion(mut self, _session_limited: bool) -> (String, RedactionCompletion) {
         if self.truncated {
             if self.max_bytes < TRUNCATED.len() {
                 return (
                     String::new(),
-                    if session_limited {
-                        RedactionCompletion::Truncated
-                    } else {
-                        RedactionCompletion::Truncated
-                    },
+                    RedactionCompletion::Truncated,
                 );
             }
             self.output.truncate(self.marker_boundary);
@@ -103,11 +99,7 @@ impl BoundedUriWriter {
         (
             self.output,
             if self.truncated {
-                if session_limited {
-                    RedactionCompletion::Truncated
-                } else {
-                    RedactionCompletion::Truncated
-                }
+                RedactionCompletion::Truncated
             } else {
                 RedactionCompletion::Complete
             },
