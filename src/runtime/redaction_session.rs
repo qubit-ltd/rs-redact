@@ -43,15 +43,11 @@ impl<'policy> RedactionSession<'policy> {
         }
     }
 
-    /// Begins a domain value for the structured writer without exposing an
-    /// RAII scope to generated implementations.
+    /// Returns the immutable policy snapshot used by this session.
+    #[inline(always)]
     #[must_use]
-    pub(crate) fn begin_domain_value(&mut self) -> bool {
-        match self.domain_budget.enter_value() {
-            DomainValueBudgetAdmission::Entered => true,
-            DomainValueBudgetAdmission::DepthLimitReached => false,
-            DomainValueBudgetAdmission::TraversalLimitReached => false,
-        }
+    pub const fn policy(&self) -> &'policy RedactionPolicy {
+        self.policy
     }
 
     /// Appends trusted program-authored context text.
@@ -85,6 +81,45 @@ impl<'policy> RedactionSession<'policy> {
         self.append_chain_fragment("=");
         self.append_committed_output(&rendered);
         self
+    }
+
+    /// Charges and enters one domain value under the shared structure budget.
+    ///
+    /// Admission first honors permanent traversal closure, then checks active
+    /// depth, and finally consumes one cumulative node. An entered value
+    /// returns an RAII [`DomainValueScope`] that restores only active depth on
+    /// drop. [`DomainValueAdmission::DepthLimitReached`] rejects just the
+    /// current branch, while [`DomainValueAdmission::TraversalLimitReached`]
+    /// means no later domain value may be accessed in this session.
+    #[must_use]
+    pub fn enter_domain_value<'session>(&'session mut self) -> DomainValueAdmission<'session, 'policy> {
+        let checkpoint = self.domain_truncation_checkpoint();
+        let admission = self.domain_budget.enter_value();
+        debug_assert!(match admission {
+            DomainValueBudgetAdmission::Entered => {
+                self.domain_truncation_since(checkpoint) == DomainTruncation::None
+            }
+            DomainValueBudgetAdmission::DepthLimitReached => {
+                self.domain_truncation_since(checkpoint) == DomainTruncation::Depth
+            }
+            DomainValueBudgetAdmission::TraversalLimitReached => true,
+        });
+        match admission {
+            DomainValueBudgetAdmission::Entered => DomainValueAdmission::Entered(DomainValueScope::new(self)),
+            DomainValueBudgetAdmission::DepthLimitReached => DomainValueAdmission::DepthLimitReached,
+            DomainValueBudgetAdmission::TraversalLimitReached => DomainValueAdmission::TraversalLimitReached,
+        }
+    }
+
+    /// Begins a domain value for the structured writer without exposing an
+    /// RAII scope to generated implementations.
+    #[must_use]
+    pub(crate) fn begin_domain_value(&mut self) -> bool {
+        match self.domain_budget.enter_value() {
+            DomainValueBudgetAdmission::Entered => true,
+            DomainValueBudgetAdmission::DepthLimitReached => false,
+            DomainValueBudgetAdmission::TraversalLimitReached => false,
+        }
     }
 
     /// Finishes a chain session and returns final text with its summary.
@@ -135,54 +170,23 @@ impl<'policy> RedactionSession<'policy> {
         self.commit_output(length, completion);
     }
 
-    /// Returns the immutable policy snapshot used by this session.
-    #[inline]
-    #[must_use]
-    pub const fn policy(&self) -> &'policy RedactionPolicy {
-        self.policy
-    }
-
-    /// Charges and enters one domain value under the shared structure budget.
-    ///
-    /// Admission first honors permanent traversal closure, then checks active
-    /// depth, and finally consumes one cumulative node. An entered value
-    /// returns an RAII [`DomainValueScope`] that restores only active depth on
-    /// drop. [`DomainValueAdmission::DepthLimitReached`] rejects just the
-    /// current branch, while [`DomainValueAdmission::TraversalLimitReached`]
-    /// means no later domain value may be accessed in this session.
-    #[must_use]
-    pub fn enter_domain_value<'session>(&'session mut self) -> DomainValueAdmission<'session, 'policy> {
-        let checkpoint = self.domain_truncation_checkpoint();
-        let admission = self.domain_budget.enter_value();
-        debug_assert!(match admission {
-            DomainValueBudgetAdmission::Entered => {
-                self.domain_truncation_since(checkpoint) == DomainTruncation::None
-            }
-            DomainValueBudgetAdmission::DepthLimitReached => {
-                self.domain_truncation_since(checkpoint) == DomainTruncation::Depth
-            }
-            DomainValueBudgetAdmission::TraversalLimitReached => true,
-        });
-        match admission {
-            DomainValueBudgetAdmission::Entered => DomainValueAdmission::Entered(DomainValueScope::new(self)),
-            DomainValueBudgetAdmission::DepthLimitReached => DomainValueAdmission::DepthLimitReached,
-            DomainValueBudgetAdmission::TraversalLimitReached => DomainValueAdmission::TraversalLimitReached,
-        }
-    }
-
     /// Returns a checkpoint for detecting later domain traversal truncation.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn domain_truncation_checkpoint(&self) -> DomainTruncationCheckpoint {
         self.domain_budget.truncation_checkpoint()
     }
 
     /// Classifies domain truncation recorded after `checkpoint`.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn domain_truncation_since(&self, checkpoint: DomainTruncationCheckpoint) -> DomainTruncation {
         self.domain_budget.truncation_since(checkpoint)
     }
 
     /// Admits one complete input fragment for bounded rendering.
+    #[must_use]
+    #[inline(always)]
     pub(crate) fn admit(
         &mut self,
         input_bytes: usize,
@@ -197,57 +201,63 @@ impl<'policy> RedactionSession<'policy> {
     /// This frame participates in nested output deduplication, but any adapter
     /// invoked beneath it must still reserve its exact source bytes before
     /// parsing, resolving, or formatting that source.
+    #[must_use]
+    #[inline(always)]
     pub(crate) fn admit_output_only(&mut self, domain_output_limit: usize) -> RedactionAdmission {
         self.budget.admit_output_only(domain_output_limit)
     }
 
     /// Charges one domain field before its value is accessed.
-    #[inline]
+    #[must_use]
+    #[inline(always)]
     pub(crate) fn admit_domain_field(&mut self) -> DomainTraversalAdmission {
         self.domain_budget.admit_field()
     }
 
     /// Charges one domain collection item before its iterator advances.
-    #[inline]
+    #[must_use]
+    #[inline(always)]
     pub(crate) fn admit_domain_collection_item(&mut self) -> DomainTraversalAdmission {
         self.domain_budget.admit_collection_item()
     }
 
     /// Releases one active domain-value depth while preserving cumulative
     /// charges.
-    #[inline]
+    #[inline(always)]
     pub(crate) fn leave_domain_value(&mut self) {
         self.domain_budget.leave_value();
     }
 
     /// Appends output whose bytes were already committed by a structured
     /// writer frame.
+    #[inline(always)]
     pub(crate) fn append_committed_output(&mut self, output: &str) {
         self.fragments.push_str(output);
     }
 
     /// Commits exact output bytes for the active admitted fragment.
+    #[inline(always)]
     pub(crate) fn commit_output(&mut self, bytes: usize, completion: FragmentCompletion) {
         self.budget.commit_output(bytes, completion);
     }
 
     /// Returns the remaining input allowance.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn remaining_input_bytes(&self) -> usize {
         self.budget.remaining_input_bytes()
     }
 
     /// Returns the remaining output allowance.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn remaining_output_bytes(&self) -> usize {
         self.budget.remaining_output_bytes()
     }
 
     /// Returns whether this session is exhausted.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn is_exhausted(&self) -> bool {
         self.budget.is_exhausted()
     }
