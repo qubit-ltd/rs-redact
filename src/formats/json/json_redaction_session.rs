@@ -40,6 +40,9 @@ impl<'session, 'policy> JsonRedactionSession<'session, 'policy> {
 
     /// Redacts JSON text and stages it under `key`.
     pub fn redact_text_as(&mut self, key: &str, text: &str) -> &mut Self {
+        if !self.session.prepare_key(key) {
+            return self;
+        }
         let result = self.redact_text(text);
         let completion = result.completion();
         self.session.stage_text(key, result.into_log_safe_text(), completion);
@@ -205,28 +208,4 @@ fn bound_safe_text(text: &str, max_bytes: usize) -> (String, bool) {
     }
     output.push_str(marker);
     (output, true)
-}
-
-impl<'policy> RedactionSession<'policy> {
-    /// Configures the JSON adapter inside a chainable session.
-    #[must_use]
-    pub fn json_with<F>(mut self, configure: F) -> Self
-    where
-        F: for<'session> FnOnce(&mut JsonRedactionSession<'session, 'policy>),
-    {
-        let mut adapter = JsonRedactionSession { session: &mut self };
-        configure(&mut adapter);
-        self
-    }
-
-    /// Runs one JSON operation through a borrowed closure adapter.
-    #[must_use]
-    #[inline(always)]
-    pub fn json_with_mut<F, R>(&mut self, configure: F) -> R
-    where
-        for<'session> F: FnOnce(&mut JsonRedactionSession<'session, 'policy>) -> R,
-    {
-        let mut adapter = JsonRedactionSession { session: self };
-        configure(&mut adapter)
-    }
 }

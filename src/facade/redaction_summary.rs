@@ -54,6 +54,13 @@ impl RedactionReasons {
     pub const fn contains(self, reason: RedactionReason) -> bool {
         self.0 & (1 << reason as u8) != 0
     }
+
+    /// Combines two reason sets without losing either operation's evidence.
+    #[must_use]
+    #[inline]
+    pub const fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
 }
 
 /// Resource usage observed during one redaction operation.
@@ -67,6 +74,24 @@ pub struct RedactionUsage {
 }
 
 impl RedactionUsage {
+    /// Adds usage counters while saturating on arithmetic overflow.
+    #[must_use]
+    pub const fn add(left: Self, right: Self) -> Self {
+        Self {
+            inspected_input_bytes: left.inspected_input_bytes.saturating_add(right.inspected_input_bytes),
+            emitted_output_bytes: left.emitted_output_bytes.saturating_add(right.emitted_output_bytes),
+            visited_nodes: left.visited_nodes.saturating_add(right.visited_nodes),
+            visited_collection_items: left
+                .visited_collection_items
+                .saturating_add(right.visited_collection_items),
+            maximum_depth: if left.maximum_depth > right.maximum_depth {
+                left.maximum_depth
+            } else {
+                right.maximum_depth
+            },
+        }
+    }
+
     /// Creates usage from runtime accounting.
     #[must_use]
     pub(crate) const fn from_runtime(
@@ -124,6 +149,21 @@ pub struct RedactionSummary {
 }
 
 impl RedactionSummary {
+    /// Merges the completion, reasons, and usage of two operations.
+    #[must_use]
+    pub const fn merge(self, other: Self) -> Self {
+        let completion = match (self.completion, other.completion) {
+            (RedactionCompletion::Exhausted, _) | (_, RedactionCompletion::Exhausted) => RedactionCompletion::Exhausted,
+            (RedactionCompletion::Truncated, _) | (_, RedactionCompletion::Truncated) => RedactionCompletion::Truncated,
+            _ => RedactionCompletion::Complete,
+        };
+        Self {
+            completion,
+            reasons: self.reasons.union(other.reasons),
+            usage: RedactionUsage::add(self.usage, other.usage),
+        }
+    }
+
     /// Replaces the placeholder usage with counters collected at runtime.
     #[must_use]
     pub(crate) const fn with_usage(self, usage: RedactionUsage) -> Self {

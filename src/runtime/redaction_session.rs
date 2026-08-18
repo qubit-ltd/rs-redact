@@ -17,13 +17,29 @@ use super::internal::FragmentCompletion;
 use super::internal::RedactionAdmission;
 use super::redaction_session_error::RedactionSessionError;
 use super::redaction_session_output::RedactionSessionOutput;
+use crate::FieldRedaction;
+use crate::RedactionCompletion;
+use crate::Sensitivity;
 use crate::domain::Redact;
+use crate::facade::redactor::admission_field_fallback;
+use crate::facade::redactor::admission_text_fallback;
+use crate::facade::redactor::log_safe_len;
+use crate::facade::redactor::opaque_mask;
+use crate::facade::redactor::redact_field_unbudgeted;
+use crate::facade::redactor::redaction_admission_completion;
+use crate::facade::redactor::redaction_fragment_completion;
+use crate::facade::redactor::redaction_output;
+use crate::facade::redactor::terminal_session_field_fallback;
+use crate::facade::redactor::terminal_session_text_fallback;
+use crate::facade::redactor::truncation_completion;
 use crate::formats::argv::ArgvRedactionSession;
 use crate::formats::env::EnvRedactionSession;
 #[cfg(feature = "http")]
 use crate::formats::http::HttpRedactionSession;
 #[cfg(feature = "json")]
 use crate::formats::json::JsonRedactionSession;
+use crate::output::MaskedValue;
+use crate::output::redaction_output::RedactionOutput;
 use crate::policy::DomainTraversalAdmission;
 use crate::policy::DomainValueAdmission;
 use crate::policy::DomainValueScope;
@@ -39,6 +55,7 @@ pub struct RedactionSession<'policy> {
     pub(super) domain_budget: DomainRedactionBudget,
     pub(super) fragments: String,
     staged: BTreeMap<String, crate::RedactionOutput>,
+    summary: crate::RedactionSummary,
     session_error: Option<RedactionSessionError>,
 }
 
@@ -53,6 +70,7 @@ impl<'policy> RedactionSession<'policy> {
             domain_budget: DomainRedactionBudget::new(policy.limits().legacy_domain()),
             fragments: String::new(),
             staged: BTreeMap::new(),
+            summary: crate::RedactionSummary::complete(),
             session_error: None,
         }
     }
@@ -67,6 +85,9 @@ impl<'policy> RedactionSession<'policy> {
     /// Appends trusted program-authored context text.
     #[must_use]
     pub fn text(&mut self, text: &'static str) -> &mut Self {
+        if self.session_error.is_some() {
+            return self;
+        }
         self.reset_fragment_budget();
         self.append_chain_fragment(text);
         self
@@ -75,6 +96,18 @@ impl<'policy> RedactionSession<'policy> {
     /// Redacts and appends one scalar field in chain order.
     #[must_use]
     pub fn field(&mut self, field: &str, value: &str) -> &mut Self {
+        self.field_as(field, field, value)
+    }
+
+    /// Redacts one classified field and stages it under an independent key.
+    ///
+    /// This is useful when a diagnostic record contains several values that
+    /// share a policy field name but need distinct result keys.
+    #[must_use]
+    pub fn field_as(&mut self, key: &str, field: &str, value: &str) -> &mut Self {
+        if !self.prepare_key(key) {
+            return self;
+        }
         self.reset_fragment_budget();
         let rendered = self.redact_field_output(field, value);
         let text = rendered.log_safe_text().as_str().to_owned();
@@ -89,7 +122,7 @@ impl<'policy> RedactionSession<'policy> {
             crate::RedactionCompletion::Exhausted => crate::RedactionSummary::exhausted(),
         };
         self.stage(
-            field,
+            key,
             crate::RedactionOutput::new(crate::RedactedText::from_escaped(text), summary),
         );
         self
@@ -101,13 +134,24 @@ impl<'policy> RedactionSession<'policy> {
     where
         T: Redact,
     {
+        if !self.prepare_key(name) {
+            return self;
+        }
         self.reset_fragment_budget();
         let mut writer = crate::domain::RedactionWriter::new_root(self);
         value.write_redacted(&mut writer);
+        let truncated = writer.is_exhausted();
         let rendered = writer.finish();
-        self.append_chain_fragment(name);
-        self.append_chain_fragment("=");
         self.append_committed_output(&rendered);
+        let summary = if truncated {
+            crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached)
+        } else {
+            crate::RedactionSummary::complete()
+        };
+        self.stage(
+            name,
+            crate::RedactionOutput::new(crate::RedactedText::from_escaped(rendered), summary),
+        );
         self
     }
 
@@ -116,6 +160,9 @@ impl<'policy> RedactionSession<'policy> {
     where
         F: for<'session> FnOnce(&mut ArgvRedactionSession<'session, 'policy>),
     {
+        if self.session_error.is_some() {
+            return self;
+        }
         self.reset_fragment_budget();
         let mut adapter = ArgvRedactionSession::new(self);
         configure(&mut adapter);
@@ -127,6 +174,9 @@ impl<'policy> RedactionSession<'policy> {
     where
         F: for<'session> FnOnce(&mut EnvRedactionSession<'session, 'policy>),
     {
+        if self.session_error.is_some() {
+            return self;
+        }
         self.reset_fragment_budget();
         let mut adapter = EnvRedactionSession::new(self);
         configure(&mut adapter);
@@ -139,6 +189,9 @@ impl<'policy> RedactionSession<'policy> {
     where
         F: for<'session> FnOnce(&mut HttpRedactionSession<'session, 'policy>),
     {
+        if self.session_error.is_some() {
+            return self;
+        }
         self.reset_fragment_budget();
         let mut adapter = HttpRedactionSession::new(self);
         configure(&mut adapter);
@@ -151,6 +204,9 @@ impl<'policy> RedactionSession<'policy> {
     where
         F: for<'session> FnOnce(&mut JsonRedactionSession<'session, 'policy>),
     {
+        if self.session_error.is_some() {
+            return self;
+        }
         self.reset_fragment_budget();
         let mut adapter = JsonRedactionSession::new(self);
         configure(&mut adapter);
@@ -163,6 +219,9 @@ impl<'policy> RedactionSession<'policy> {
     where
         F: for<'session> FnOnce(&mut crate::formats::uri::UriRedactionSession<'session, 'policy>),
     {
+        if self.session_error.is_some() {
+            return self;
+        }
         self.reset_fragment_budget();
         let mut adapter = crate::formats::uri::UriRedactionSession::new(self);
         configure(&mut adapter);
@@ -213,13 +272,15 @@ impl<'policy> RedactionSession<'policy> {
         let error = self.session_error.take();
         let text = std::mem::take(&mut self.fragments);
         let staged = std::mem::take(&mut self.staged);
-        let summary = if self.is_exhausted() {
+        let budget_summary = if self.is_exhausted() {
             crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached)
         } else {
             crate::RedactionSummary::complete()
         };
+        let summary = self.summary.merge(budget_summary);
         self.budget = DiagnosticBudget::new(self.policy.limits().diagnostic_event());
         self.domain_budget = DomainRedactionBudget::new(self.policy.limits().legacy_domain());
+        self.summary = crate::RedactionSummary::complete();
         if let Some(error) = error {
             return Err(error);
         }
@@ -266,9 +327,33 @@ impl<'policy> RedactionSession<'policy> {
         }
         if key.is_empty() {
             self.session_error = Some(RedactionSessionError::EmptyKey);
-        } else if self.staged.insert(key.to_owned(), output).is_some() {
+        } else if self.staged.contains_key(key) {
             self.session_error = Some(RedactionSessionError::DuplicateKey { key: key.to_owned() });
+        } else {
+            self.summary = self.summary.merge(output.summary());
+            self.staged.insert(key.to_owned(), output);
         }
+    }
+
+    /// Validates a result key before any caller-owned input is inspected.
+    ///
+    /// Session failures are sticky until `finish` resets the transaction. A
+    /// failed key therefore prevents adapter closures and redactors from
+    /// touching their source values.
+    #[inline]
+    pub(crate) fn prepare_key(&mut self, key: &str) -> bool {
+        if self.session_error.is_some() {
+            return false;
+        }
+        if key.is_empty() {
+            self.session_error = Some(RedactionSessionError::EmptyKey);
+            return false;
+        }
+        if self.staged.contains_key(key) {
+            self.session_error = Some(RedactionSessionError::DuplicateKey { key: key.to_owned() });
+            return false;
+        }
+        true
     }
 
     /// Stages safe text and its completion under a key.
@@ -280,6 +365,9 @@ impl<'policy> RedactionSession<'policy> {
             }
             crate::RedactionCompletion::Exhausted => crate::RedactionSummary::exhausted(),
         };
+        if self.session_error.is_none() {
+            self.fragments.push_str(text.as_str());
+        }
         self.stage(key, crate::RedactionOutput::new(text, summary));
     }
 
@@ -402,5 +490,224 @@ impl<'policy> RedactionSession<'policy> {
     #[inline(always)]
     pub fn is_exhausted(&self) -> bool {
         self.budget.is_exhausted()
+    }
+}
+
+// Transitional closure aliases are kept in the session definition so the
+// complete inherent API remains discoverable in one file. New code should use
+// the borrowed `text`/adapter methods above and call `finish` once.
+impl<'policy> RedactionSession<'policy> {
+    /// Configures the legacy argv closure facade.
+    #[must_use]
+    pub fn argv_with<F>(mut self, configure: F) -> Self
+    where
+        F: for<'session> FnOnce(&mut ArgvRedactionSession<'session, 'policy>),
+    {
+        let mut adapter = ArgvRedactionSession::new(&mut self);
+        configure(&mut adapter);
+        self
+    }
+
+    /// Runs one legacy argv closure facade by mutable borrow.
+    #[must_use]
+    pub fn argv_with_mut<F, R>(&mut self, configure: F) -> R
+    where
+        F: for<'session> FnOnce(&mut ArgvRedactionSession<'session, 'policy>) -> R,
+    {
+        let mut adapter = ArgvRedactionSession::new(self);
+        configure(&mut adapter)
+    }
+
+    /// Configures the legacy environment closure facade.
+    #[must_use]
+    pub fn env_with<F>(mut self, configure: F) -> Self
+    where
+        F: for<'session> FnOnce(&mut EnvRedactionSession<'session, 'policy>),
+    {
+        let mut adapter = EnvRedactionSession::new(&mut self);
+        configure(&mut adapter);
+        self
+    }
+
+    /// Runs one legacy environment closure facade by mutable borrow.
+    #[must_use]
+    pub fn env_with_mut<F, R>(&mut self, configure: F) -> R
+    where
+        F: for<'session> FnOnce(&mut EnvRedactionSession<'session, 'policy>) -> R,
+    {
+        let mut adapter = EnvRedactionSession::new(self);
+        configure(&mut adapter)
+    }
+
+    /// Configures the legacy HTTP closure facade.
+    #[cfg(feature = "http")]
+    #[must_use]
+    pub fn http_with<F>(mut self, configure: F) -> Self
+    where
+        F: for<'session> FnOnce(&mut HttpRedactionSession<'session, 'policy>),
+    {
+        let mut adapter = HttpRedactionSession::new(&mut self);
+        configure(&mut adapter);
+        self
+    }
+
+    /// Runs one legacy HTTP closure facade by mutable borrow.
+    #[cfg(feature = "http")]
+    #[must_use]
+    pub fn http_with_mut<F, R>(&mut self, configure: F) -> R
+    where
+        F: for<'session> FnOnce(&mut HttpRedactionSession<'session, 'policy>) -> R,
+    {
+        let mut adapter = HttpRedactionSession::new(self);
+        configure(&mut adapter)
+    }
+
+    /// Configures the legacy JSON closure facade.
+    #[cfg(feature = "json")]
+    #[must_use]
+    pub fn json_with<F>(mut self, configure: F) -> Self
+    where
+        F: for<'session> FnOnce(&mut JsonRedactionSession<'session, 'policy>),
+    {
+        let mut adapter = JsonRedactionSession::new(&mut self);
+        configure(&mut adapter);
+        self
+    }
+
+    /// Runs one legacy JSON closure facade by mutable borrow.
+    #[cfg(feature = "json")]
+    #[must_use]
+    pub fn json_with_mut<F, R>(&mut self, configure: F) -> R
+    where
+        F: for<'session> FnOnce(&mut JsonRedactionSession<'session, 'policy>) -> R,
+    {
+        let mut adapter = JsonRedactionSession::new(self);
+        configure(&mut adapter)
+    }
+
+    /// Configures the legacy URI closure facade.
+    #[cfg(feature = "uri")]
+    #[must_use]
+    pub fn uri_with<F>(mut self, configure: F) -> Self
+    where
+        F: for<'session> FnOnce(&mut crate::formats::uri::UriRedactionSession<'session, 'policy>),
+    {
+        let mut adapter = crate::formats::uri::UriRedactionSession::new(&mut self);
+        configure(&mut adapter);
+        self
+    }
+
+    /// Runs one legacy URI closure facade by mutable borrow.
+    #[cfg(feature = "uri")]
+    #[must_use]
+    pub fn uri_with_mut<F, R>(&mut self, configure: F) -> R
+    where
+        F: for<'session> FnOnce(&mut crate::formats::uri::UriRedactionSession<'session, 'policy>) -> R,
+    {
+        let mut adapter = crate::formats::uri::UriRedactionSession::new(self);
+        configure(&mut adapter)
+    }
+}
+
+impl RedactionSession<'_> {
+    /// Redacts one field through this diagnostic event's shared budget.
+    #[must_use]
+    pub fn redact_field<'value>(&mut self, field: &str, value: &'value str) -> FieldRedaction<'value> {
+        let (redacted, _) = self.redact_field_with_completion(field, value);
+        redacted
+    }
+
+    /// Redacts one field into owned safe text with its fragment completion.
+    pub(crate) fn redact_field_output(&mut self, field: &str, value: &str) -> RedactionOutput {
+        let (redacted, completion) = self.redact_field_with_completion(field, value);
+        redaction_output(redacted.escape_for_log(), completion)
+    }
+
+    fn redact_field_with_completion<'value>(
+        &mut self,
+        field: &str,
+        value: &'value str,
+    ) -> (FieldRedaction<'value>, RedactionCompletion) {
+        let policy = self.policy();
+        let fallback = opaque_mask(policy);
+        let fallback_bytes = log_safe_len(fallback);
+        let input_bytes = field.len().saturating_add(value.len());
+        let session_output_bytes = self.remaining_output_bytes();
+        let domain_output_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
+        let admission = self.admit(input_bytes, domain_output_limit, fallback_bytes);
+        let super::internal::RedactionAdmission::Render { max_output_bytes } = admission else {
+            return (
+                admission_field_fallback(admission, fallback),
+                redaction_admission_completion(admission),
+            );
+        };
+        let (redacted, mask_truncated): (FieldRedaction<'value>, bool) =
+            redact_field_unbudgeted(policy, field, value, max_output_bytes);
+        let output_bytes = log_safe_len(redacted.as_str());
+        if output_bytes <= max_output_bytes {
+            let completion = if mask_truncated {
+                truncation_completion(domain_output_limit, session_output_bytes)
+            } else {
+                FragmentCompletion::Complete
+            };
+            self.commit_output(output_bytes, completion);
+            let completion = redaction_fragment_completion(redacted.as_str(), completion);
+            return (redacted, completion);
+        }
+        let completion = truncation_completion(domain_output_limit, session_output_bytes);
+        let redacted = terminal_session_field_fallback(self, max_output_bytes, fallback, fallback_bytes, completion);
+        let completion = redaction_fragment_completion(redacted.as_str(), completion);
+        (redacted, completion)
+    }
+
+    /// Redacts one explicitly sensitive value through this diagnostic event.
+    #[must_use]
+    pub fn redact_at<'value>(&mut self, level: Sensitivity, value: &'value str) -> MaskedValue<'value> {
+        let (redacted, _) = self.redact_at_with_completion(level, value);
+        redacted
+    }
+
+    /// Redacts one sensitive value into owned safe text with its completion.
+    pub(crate) fn redact_at_output(&mut self, level: Sensitivity, value: &str) -> RedactionOutput {
+        let (redacted, completion) = self.redact_at_with_completion(level, value);
+        redaction_output(redacted.escape_for_log(), completion)
+    }
+
+    fn redact_at_with_completion<'value>(
+        &mut self,
+        level: Sensitivity,
+        value: &'value str,
+    ) -> (MaskedValue<'value>, RedactionCompletion) {
+        let policy = self.policy();
+        let fallback = opaque_mask(policy);
+        let fallback_bytes = log_safe_len(fallback);
+        let session_output_bytes = self.remaining_output_bytes();
+        let domain_output_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
+        let admission = self.admit(value.len(), domain_output_limit, fallback_bytes);
+        let super::internal::RedactionAdmission::Render { max_output_bytes } = admission else {
+            return (
+                admission_text_fallback(admission, fallback),
+                redaction_admission_completion(admission),
+            );
+        };
+        let (masked, mask_truncated) = policy
+            .masking()
+            .mask_bounded_with_truncation(level, value, max_output_bytes);
+        let output_bytes = log_safe_len(masked.as_ref());
+        if output_bytes <= max_output_bytes {
+            let completion = if mask_truncated {
+                truncation_completion(domain_output_limit, session_output_bytes)
+            } else {
+                FragmentCompletion::Complete
+            };
+            self.commit_output(output_bytes, completion);
+            let redacted = MaskedValue::new(masked);
+            let completion = redaction_fragment_completion(redacted.as_str(), completion);
+            return (redacted, completion);
+        }
+        let completion = truncation_completion(domain_output_limit, session_output_bytes);
+        let redacted = terminal_session_text_fallback(self, max_output_bytes, fallback, fallback_bytes, completion);
+        let completion = redaction_fragment_completion(redacted.as_str(), completion);
+        (redacted, completion)
     }
 }

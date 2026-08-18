@@ -577,7 +577,7 @@ fn test_domain_output_frame_does_not_precharge_nested_adapter_input() {
     let output = format!("{:?}", value.redacted_with(&policy));
 
     assert!(!output.is_empty());
-    assert_eq!(remaining.get(), Some((64, 64 - json.len(), 64 - json.len() - 11)),);
+    assert_eq!(remaining.get(), Some((64, 64 - json.len(), 64 - json.len())),);
 }
 
 /// Over-limit JSON is rejected before its visible source reaches parsing.
@@ -593,6 +593,6 @@ fn test_domain_output_frame_rejects_nested_json_before_parsing() {
 
     let output = format!("{:?}", value.redacted_with(&policy));
 
-    assert_eq!(output, "<redacted>|<redacted>=<redacted>");
+    assert_eq!(output, "<redacted>|NAME=visible");
     assert_eq!(remaining.get(), Some((4, 4, 4)));
 }

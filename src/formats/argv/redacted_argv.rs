@@ -75,19 +75,6 @@ impl RedactedArgv {
         }
     }
 
-    /// Creates an exhausted argv value without safe substitute text.
-    ///
-    /// # Returns
-    ///
-    /// Empty safe text paired with [`RedactionCompletion::Exhausted`].
-    #[inline(always)]
-    #[must_use]
-    pub(super) fn exhausted() -> Self {
-        Self {
-            output: RedactionOutput::exhausted(),
-        }
-    }
-
     /// Borrows the already escaped diagnostic representation.
     ///
     /// The returned text is safe to append through

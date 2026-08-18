@@ -70,8 +70,7 @@ impl EnvRedactor {
     #[inline]
     #[must_use]
     pub fn redact_pair(&self, name: &str, value: &str) -> RedactedEnvPair {
-        let mut session = self.redactor.session();
-        session.env_with_mut(|env| env.redact_pair(name, value))
+        self.redact_os_pair(OsStr::new(name), OsStr::new(value))
     }
 
     /// Redacts one environment pair whose components may not be UTF-8.
@@ -91,8 +90,13 @@ impl EnvRedactor {
     /// A fail-closed, log-safe pair rendered as `NAME=VALUE`.
     #[must_use]
     pub fn redact_os_pair(&self, name: &OsStr, value: &OsStr) -> RedactedEnvPair {
-        let mut session = self.redactor.session();
-        session.env_with_mut(|env| env.redact_os_pair(name, value))
+        let max_output = self.redactor.policy().limits().diagnostic_event().max_output_bytes();
+        let (rendered, locally_truncated) = self.redact_os_pair_bounded(name, value, max_output);
+        if locally_truncated {
+            RedactedEnvPair::truncated(RedactedText::from_escaped(rendered))
+        } else {
+            RedactedEnvPair::complete(RedactedText::from_escaped(rendered))
+        }
     }
 
     /// Redacts environment pairs into one bounded log-safe list.
@@ -120,9 +124,33 @@ impl EnvRedactor {
     pub fn redact_os_pairs<'a, I>(&self, pairs: I) -> RedactedEnv
     where
         I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
+        I::IntoIter: ExactSizeIterator,
     {
-        let mut session = self.redactor.session();
-        session.env_with_mut(|env| env.redact_os_pairs(pairs))
+        let mut writer = BoundedLogEscapeWriter::new(
+            crate::LogOutputLimit::builder()
+                .max_bytes(self.redactor.policy().limits().diagnostic_event().max_output_bytes())
+                .build()
+                .expect("unbounded direct rendering limit is valid"),
+        );
+        let _ = writer.write_str("[");
+        let mut has_item = false;
+        let mut locally_truncated = false;
+        for (name, value) in pairs {
+            let (pair, truncated) = self.redact_os_pair_bounded(
+                name,
+                value,
+                self.redactor.policy().limits().diagnostic_event().max_output_bytes(),
+            );
+            locally_truncated |= truncated;
+            write_debug_item(&mut writer, &mut has_item, &pair);
+        }
+        let _ = writer.write_str("]");
+        let rendered = writer.finish();
+        if locally_truncated {
+            RedactedEnv::truncated(RedactedText::from_escaped(rendered))
+        } else {
+            RedactedEnv::complete(RedactedText::from_escaped(rendered))
+        }
     }
 
     /// Redacts one UTF-8 `NAME=value` assignment.

@@ -41,6 +41,9 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
 
     /// Redacts a URL string and stages it under `key`.
     pub fn redact_url_as(&mut self, key: &str, value: &str) -> &mut Self {
+        if !self.session.prepare_key(key) {
+            return self;
+        }
         let text = self.redact_url_str(value);
         self.session.stage_text(key, text, crate::RedactionCompletion::Complete);
         self
@@ -48,6 +51,9 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
 
     /// Redacts headers and stages them under `key`.
     pub fn redact_headers_as(&mut self, key: &str, headers: &HeaderMap) -> &mut Self {
+        if !self.session.prepare_key(key) {
+            return self;
+        }
         let result = self.redact_headers(headers);
         self.session
             .stage_text(key, result.into_log_safe_text(), crate::RedactionCompletion::Complete);
@@ -298,33 +304,5 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
                 )
             }
         }
-    }
-}
-
-impl<'policy> RedactionSession<'policy> {
-    /// Configures the HTTP adapter inside a chainable session operation.
-    ///
-    /// The closure receives a namespace backed by this session's shared
-    /// policy and budget. This method composes several HTTP operations in one
-    /// chain while preserving the same session accounting.
-    #[must_use]
-    pub fn http_with<F>(mut self, configure: F) -> Self
-    where
-        F: for<'session> FnOnce(&mut HttpRedactionSession<'session, 'policy>),
-    {
-        let mut adapter = HttpRedactionSession { session: &mut self };
-        configure(&mut adapter);
-        self
-    }
-
-    /// Runs one HTTP operation through a borrowed closure adapter.
-    #[must_use]
-    #[inline(always)]
-    pub fn http_with_mut<F, R>(&mut self, configure: F) -> R
-    where
-        F: for<'session> FnOnce(&mut HttpRedactionSession<'session, 'policy>) -> R,
-    {
-        let mut adapter = HttpRedactionSession { session: self };
-        configure(&mut adapter)
     }
 }

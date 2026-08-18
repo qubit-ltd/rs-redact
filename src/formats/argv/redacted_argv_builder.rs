@@ -68,19 +68,6 @@ impl RedactedArgvBuilder {
         !self.writer.is_truncated()
     }
 
-    /// Returns the current escaped output length.
-    #[inline(always)]
-    pub(super) fn len(&self) -> usize {
-        self.writer.len()
-    }
-
-    /// Reports whether the bounded writer has finalized its truncation marker.
-    #[must_use]
-    #[inline(always)]
-    pub(super) fn is_truncated(&self) -> bool {
-        self.writer.is_truncated()
-    }
-
     /// Appends the closing list delimiter before the builder is consumed.
     #[inline(always)]
     pub(super) fn close(&mut self) {

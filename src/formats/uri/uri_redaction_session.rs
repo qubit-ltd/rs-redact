@@ -28,34 +28,13 @@ impl<'session, 'policy> UriRedactionSession<'session, 'policy> {
 
     /// Redacts a URI and stages it under `key`.
     pub fn redact_uri_as(&mut self, key: &str, value: &str) -> &mut Self {
+        if !self.session.prepare_key(key) {
+            return self;
+        }
         let result = self.redact_uri_str(value);
         let completion = result.completion();
         self.session.stage_text(key, result.into_log_safe_text(), completion);
         self
-    }
-}
-
-impl<'policy> RedactionSession<'policy> {
-    /// Configures the URI adapter inside a chainable session.
-    #[must_use]
-    pub fn uri_with<F>(mut self, configure: F) -> Self
-    where
-        F: for<'session> FnOnce(&mut UriRedactionSession<'session, 'policy>),
-    {
-        let mut adapter = UriRedactionSession { session: &mut self };
-        configure(&mut adapter);
-        self
-    }
-
-    /// Runs one URI operation through a borrowed closure adapter.
-    #[must_use]
-    #[inline(always)]
-    pub fn uri_with_mut<F, R>(&mut self, configure: F) -> R
-    where
-        F: for<'session> FnOnce(&mut UriRedactionSession<'session, 'policy>) -> R,
-    {
-        let mut adapter = UriRedactionSession { session: self };
-        configure(&mut adapter)
     }
 }
 

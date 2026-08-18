@@ -19,7 +19,6 @@ use proptest::prelude::prop_assert;
 use proptest::prelude::prop_assert_eq;
 use proptest::prelude::proptest;
 use qubit_redact::FieldNameMatching;
-use qubit_redact::InputOutputLimit;
 use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionFloor;
 use qubit_redact::RedactionPolicy;
@@ -27,45 +26,24 @@ use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::formats::argv::ArgvItem;
 use qubit_redact::formats::argv::ArgvRedactor;
-/// Creates a redactor with deliberately small diagnostic limits.
-fn bounded_redactor() -> ArgvRedactor {
-    let budget = InputOutputLimit::builder()
-        .max_input_bytes(8)
-        .max_output_bytes(64)
-        .build()
-        .expect("the small diagnostic budget should be valid");
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        builder.limits().diagnostic_event(budget);
-        builder
-    })
-    .build()
-    .expect("the bounded policy should be valid");
-    ArgvRedactor::new(Redactor::new(policy))
-}
-
-/// Verifies argv rendering stops before inspecting an item beyond the input
-/// budget.
+/// Direct adapter rendering does not consume the session diagnostic budget.
 #[test]
-fn test_redact_items_stops_before_input_budget_exhaustion() {
-    let rendered = bounded_redactor()
+fn test_redact_items_processes_finite_input() {
+    let rendered = ArgvRedactor::default()
         .redact_items([ArgvItem::plain(OsStr::new("uninspected-secret"))])
         .to_string();
 
-    assert!(rendered.len() <= 64, "{rendered}");
-    assert!(rendered.contains("truncated"), "{rendered}");
-    assert!(!rendered.contains("uninspected-secret"), "{rendered}");
+    assert_eq!(rendered, r#"["uninspected-secret"]"#);
 }
 
-/// Verifies argv rendering stops after its final log output reaches the budget.
+/// Direct adapter rendering processes every item in a finite iterator.
 #[test]
-fn test_redact_items_stops_after_output_budget_exhaustion() {
-    let rendered = bounded_redactor()
+fn test_redact_items_processes_all_items() {
+    let rendered = ArgvRedactor::default()
         .redact_items(std::iter::repeat_n(ArgvItem::plain(OsStr::new("")), 128))
         .to_string();
 
-    assert!(rendered.len() <= 64, "{rendered}");
-    assert!(rendered.ends_with("<truncated>"), "{rendered}");
+    assert_eq!(rendered.matches("\"\"").count(), 128);
 }
 
 /// Verifies that explicit sensitivity masks a shell payload without parsing it.

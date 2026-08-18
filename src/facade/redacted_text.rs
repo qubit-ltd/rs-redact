@@ -10,9 +10,9 @@ use std::fmt;
 
 /// Final UTF-8 text produced by a redaction operation.
 ///
-/// The value has crossed the plain-text safety boundary. It is owned, bounded
-/// by the operation that produced it, and safe to render with
-/// [`std::fmt::Display`].
+/// The value has crossed the plain-text safety boundary. It is owned and safe
+/// to render with [`std::fmt::Display`]. Any length restriction belongs to the
+/// caller's final logging or presentation sink, not to this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RedactedText(String);
 

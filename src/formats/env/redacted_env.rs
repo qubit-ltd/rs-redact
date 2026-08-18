@@ -58,22 +58,6 @@ impl RedactedEnv {
         }
     }
 
-    /// Creates an exhausted environment batch.
-    ///
-    /// Exhausted batches contain empty safe text and callers must not advance
-    /// their input iterator after this state is reached.
-    ///
-    /// # Returns
-    ///
-    /// Empty safe text paired with [`RedactionCompletion::Exhausted`].
-    #[inline(always)]
-    #[must_use]
-    pub(super) fn exhausted() -> Self {
-        Self {
-            output: RedactionOutput::exhausted(),
-        }
-    }
-
     /// Borrows the log-safe batch rendering.
     ///
     /// # Returns

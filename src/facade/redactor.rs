@@ -25,6 +25,8 @@ use crate::formats::argv::ArgvRedactor;
 use crate::formats::env::EnvRedactor;
 #[cfg(feature = "http")]
 use crate::formats::http::HttpRedactor;
+#[cfg(feature = "json")]
+use crate::formats::json::JsonRedactor;
 #[cfg(feature = "uri")]
 use crate::formats::uri::UriRedactor;
 use crate::output::MaskedValue;
@@ -162,6 +164,14 @@ impl Redactor {
     #[inline]
     pub fn http(&self) -> HttpRedactor {
         HttpRedactor::new(self.policy.clone())
+    }
+
+    /// Creates an immediate JSON adapter using this policy snapshot.
+    #[cfg(feature = "json")]
+    #[must_use]
+    #[inline]
+    pub fn json(&self) -> JsonRedactor {
+        JsonRedactor::new(self.policy.clone())
     }
 
     /// Creates a URI adapter using this policy snapshot.
@@ -305,170 +315,6 @@ impl Redactor {
     }
 }
 
-impl RedactionSession<'_> {
-    /// Redacts one field through this diagnostic event's shared budget.
-    ///
-    /// # Parameters
-    ///
-    /// * `field` - Raw field name to classify.
-    /// * `value` - Field value to redact when classified as sensitive.
-    ///
-    /// # Returns
-    ///
-    /// A charged field result that borrows safe input where possible.
-    #[must_use]
-    pub fn redact_field<'value>(&mut self, field: &str, value: &'value str) -> FieldRedaction<'value> {
-        let (redacted, _) = self.redact_field_with_completion(field, value);
-        redacted
-    }
-
-    /// Redacts one field into owned safe text with its fragment completion.
-    ///
-    /// # Parameters
-    ///
-    /// * `field` - Raw field name to classify.
-    /// * `value` - Field value to redact when classified as sensitive.
-    ///
-    /// # Returns
-    ///
-    /// Owned log-safe output whose completion distinguishes a full result, a
-    /// non-empty fallback, and an empty exhausted result.
-    pub(crate) fn redact_field_output(&mut self, field: &str, value: &str) -> RedactionOutput {
-        let (redacted, completion) = self.redact_field_with_completion(field, value);
-        redaction_output(redacted.escape_for_log(), completion)
-    }
-
-    /// Redacts one field and preserves its exact fragment completion.
-    ///
-    /// # Parameters
-    ///
-    /// * `field` - Raw field name to classify.
-    /// * `value` - Field value to redact when classified as sensitive.
-    ///
-    /// # Returns
-    ///
-    /// The charged field result and whether it was complete, substituted, or
-    /// unable to emit safe text.
-    #[must_use]
-    fn redact_field_with_completion<'value>(
-        &mut self,
-        field: &str,
-        value: &'value str,
-    ) -> (FieldRedaction<'value>, RedactionCompletion) {
-        let policy = self.policy();
-        let fallback = opaque_mask(policy);
-        let fallback_bytes = log_safe_len(fallback);
-        let input_bytes = field.len().saturating_add(value.len());
-        let session_output_bytes = self.remaining_output_bytes();
-        let domain_output_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
-        let admission = self.admit(input_bytes, domain_output_limit, fallback_bytes);
-        let RedactionAdmission::Render { max_output_bytes } = admission else {
-            return (
-                admission_field_fallback(admission, fallback),
-                redaction_admission_completion(admission),
-            );
-        };
-        let (redacted, mask_truncated) = redact_field_unbudgeted(policy, field, value, max_output_bytes);
-        let output_bytes = log_safe_len(redacted.as_str());
-        if output_bytes <= max_output_bytes {
-            let completion = if mask_truncated {
-                truncation_completion(domain_output_limit, session_output_bytes)
-            } else {
-                FragmentCompletion::Complete
-            };
-            self.commit_output(output_bytes, completion);
-            let completion = redaction_fragment_completion(redacted.as_str(), completion);
-            return (redacted, completion);
-        }
-        let completion = truncation_completion(domain_output_limit, session_output_bytes);
-        let redacted = terminal_session_field_fallback(self, max_output_bytes, fallback, fallback_bytes, completion);
-        let completion = redaction_fragment_completion(redacted.as_str(), completion);
-        (redacted, completion)
-    }
-
-    /// Redacts one explicitly sensitive value through this diagnostic event.
-    ///
-    /// # Parameters
-    ///
-    /// * `level` - Sensitivity required by the calling boundary.
-    /// * `value` - Value to mask.
-    ///
-    /// # Returns
-    ///
-    /// Charged redacted text produced by the configured mask.
-    #[must_use]
-    pub fn redact_at<'value>(&mut self, level: Sensitivity, value: &'value str) -> MaskedValue<'value> {
-        let (redacted, _) = self.redact_at_with_completion(level, value);
-        redacted
-    }
-
-    /// Redacts one sensitive value into owned safe text with its completion.
-    ///
-    /// # Parameters
-    ///
-    /// * `level` - Sensitivity required by the calling boundary.
-    /// * `value` - Value to mask.
-    ///
-    /// # Returns
-    ///
-    /// Owned log-safe output whose completion distinguishes a full result, a
-    /// non-empty fallback, and an empty exhausted result.
-    pub(crate) fn redact_at_output(&mut self, level: Sensitivity, value: &str) -> RedactionOutput {
-        let (redacted, completion) = self.redact_at_with_completion(level, value);
-        redaction_output(redacted.escape_for_log(), completion)
-    }
-
-    /// Redacts one sensitive value and preserves its fragment completion.
-    ///
-    /// # Parameters
-    ///
-    /// * `level` - Sensitivity required by the calling boundary.
-    /// * `value` - Value to mask.
-    ///
-    /// # Returns
-    ///
-    /// The charged value and whether it was complete, substituted, or unable
-    /// to emit safe text.
-    #[must_use]
-    fn redact_at_with_completion<'value>(
-        &mut self,
-        level: Sensitivity,
-        value: &'value str,
-    ) -> (MaskedValue<'value>, RedactionCompletion) {
-        let policy = self.policy();
-        let fallback = opaque_mask(policy);
-        let fallback_bytes = log_safe_len(fallback);
-        let session_output_bytes = self.remaining_output_bytes();
-        let domain_output_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
-        let admission = self.admit(value.len(), domain_output_limit, fallback_bytes);
-        let RedactionAdmission::Render { max_output_bytes } = admission else {
-            return (
-                admission_text_fallback(admission, fallback),
-                redaction_admission_completion(admission),
-            );
-        };
-        let (masked, mask_truncated) = policy
-            .masking()
-            .mask_bounded_with_truncation(level, value, max_output_bytes);
-        let output_bytes = log_safe_len(masked.as_ref());
-        if output_bytes <= max_output_bytes {
-            let completion = if mask_truncated {
-                truncation_completion(domain_output_limit, session_output_bytes)
-            } else {
-                FragmentCompletion::Complete
-            };
-            self.commit_output(output_bytes, completion);
-            let redacted = MaskedValue::new(masked);
-            let completion = redaction_fragment_completion(redacted.as_str(), completion);
-            return (redacted, completion);
-        }
-        let completion = truncation_completion(domain_output_limit, session_output_bytes);
-        let redacted = terminal_session_text_fallback(self, max_output_bytes, fallback, fallback_bytes, completion);
-        let completion = redaction_fragment_completion(redacted.as_str(), completion);
-        (redacted, completion)
-    }
-}
-
 /// Converts log-safe fragment text and completion into the shared carrier.
 ///
 /// # Parameters
@@ -480,7 +326,7 @@ impl RedactionSession<'_> {
 ///
 /// An owned output preserving complete, non-empty truncated, and empty
 /// exhausted invariants.
-fn redaction_output(text: crate::RedactedText, completion: RedactionCompletion) -> RedactionOutput {
+pub(crate) fn redaction_output(text: crate::RedactedText, completion: RedactionCompletion) -> RedactionOutput {
     match completion {
         RedactionCompletion::Complete => RedactionOutput::complete(text),
         RedactionCompletion::Truncated => RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::exhausted),
@@ -497,7 +343,7 @@ fn redaction_output(text: crate::RedactedText, completion: RedactionCompletion) 
 /// # Returns
 ///
 /// `Truncated` for a non-empty fallback or `Exhausted` when no fallback fit.
-fn redaction_admission_completion(admission: RedactionAdmission) -> RedactionCompletion {
+pub(crate) fn redaction_admission_completion(admission: RedactionAdmission) -> RedactionCompletion {
     match admission {
         RedactionAdmission::Fallback => RedactionCompletion::Truncated,
         RedactionAdmission::Exhausted => RedactionCompletion::Exhausted,
@@ -518,7 +364,7 @@ fn redaction_admission_completion(admission: RedactionAdmission) -> RedactionCom
 ///
 /// `Complete` for a full fragment, `Truncated` for non-empty substitute text,
 /// or `Exhausted` when truncation emitted no safe text.
-fn redaction_fragment_completion(text: &str, completion: FragmentCompletion) -> RedactionCompletion {
+pub(crate) fn redaction_fragment_completion(text: &str, completion: FragmentCompletion) -> RedactionCompletion {
     match completion {
         FragmentCompletion::Complete => RedactionCompletion::Complete,
         FragmentCompletion::DomainTruncated | FragmentCompletion::SessionTruncated if text.is_empty() => {
@@ -560,7 +406,7 @@ fn redact_field_with_budget<'value>(
 
 /// Resolves one admitted field without charging its output.
 #[must_use]
-fn redact_field_unbudgeted<'value>(
+pub(crate) fn redact_field_unbudgeted<'value>(
     policy: &RedactionPolicy,
     field: &str,
     value: &'value str,
@@ -622,13 +468,13 @@ fn redact_at_with_budget<'value>(
 
 /// Returns the policy's opaque Secret mask.
 #[inline(always)]
-fn opaque_mask(policy: &RedactionPolicy) -> &str {
+pub(crate) fn opaque_mask(policy: &RedactionPolicy) -> &str {
     policy.masking().mask_opaque(Sensitivity::Secret)
 }
 
 /// Converts a non-render admission into fail-closed redacted text.
 #[must_use]
-fn admission_text_fallback<'value>(admission: RedactionAdmission, fallback: &str) -> MaskedValue<'value> {
+pub(crate) fn admission_text_fallback<'value>(admission: RedactionAdmission, fallback: &str) -> MaskedValue<'value> {
     match admission {
         RedactionAdmission::Fallback => MaskedValue::new(Cow::Owned(fallback.to_owned())),
         RedactionAdmission::Exhausted => MaskedValue::new(Cow::Owned(String::new())),
@@ -640,7 +486,10 @@ fn admission_text_fallback<'value>(admission: RedactionAdmission, fallback: &str
 
 /// Converts a non-render admission into a fail-closed field result.
 #[must_use]
-fn admission_field_fallback<'value>(admission: RedactionAdmission, fallback: &str) -> FieldRedaction<'value> {
+pub(crate) fn admission_field_fallback<'value>(
+    admission: RedactionAdmission,
+    fallback: &str,
+) -> FieldRedaction<'value> {
     FieldRedaction::Masked {
         value: admission_text_fallback(admission, fallback),
         sensitivity: Sensitivity::Secret,
@@ -680,7 +529,7 @@ fn terminal_field_fallback<'value>(
 
 /// Commits a terminal scalar fallback through a diagnostic session.
 #[must_use]
-fn terminal_session_text_fallback<'value>(
+pub(crate) fn terminal_session_text_fallback<'value>(
     session: &mut RedactionSession<'_>,
     max_output_bytes: usize,
     fallback: &str,
@@ -698,7 +547,7 @@ fn terminal_session_text_fallback<'value>(
 
 /// Wraps a session-terminal scalar fallback as a field result.
 #[must_use]
-fn terminal_session_field_fallback<'value>(
+pub(crate) fn terminal_session_field_fallback<'value>(
     session: &mut RedactionSession<'_>,
     max_output_bytes: usize,
     fallback: &str,
@@ -713,7 +562,7 @@ fn terminal_session_field_fallback<'value>(
 
 /// Distinguishes a domain-local ceiling from shared session exhaustion.
 #[inline(always)]
-fn truncation_completion(domain_output_limit: usize, session_output_bytes: usize) -> FragmentCompletion {
+pub(crate) fn truncation_completion(domain_output_limit: usize, session_output_bytes: usize) -> FragmentCompletion {
     if domain_output_limit < session_output_bytes {
         FragmentCompletion::DomainTruncated
     } else {
@@ -724,7 +573,7 @@ fn truncation_completion(domain_output_limit: usize, session_output_bytes: usize
 /// Returns the exact UTF-8 byte length emitted after crossing the log boundary.
 #[inline]
 #[must_use]
-fn log_safe_len(value: &str) -> usize {
+pub(crate) fn log_safe_len(value: &str) -> usize {
     MaskedValue::new(Cow::Borrowed(value)).escape_for_log().as_str().len()
 }
 

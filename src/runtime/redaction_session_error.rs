@@ -13,5 +13,8 @@ pub enum RedactionSessionError {
     /// An adapter result was staged with an empty key.
     EmptyKey,
     /// More than one result used the same key.
-    DuplicateKey { key: String },
+    DuplicateKey {
+        /// Conflicting result key.
+        key: String,
+    },
 }

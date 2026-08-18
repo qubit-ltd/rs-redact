@@ -78,19 +78,6 @@ impl RedactedEnvPair {
         }
     }
 
-    /// Creates an exhausted pair with no safe substitute text.
-    ///
-    /// # Returns
-    ///
-    /// Empty safe text paired with [`RedactionCompletion::Exhausted`].
-    #[inline(always)]
-    #[must_use]
-    pub(super) fn exhausted() -> Self {
-        Self {
-            output: RedactionOutput::exhausted(),
-        }
-    }
-
     /// Borrows the log-safe assignment or fallback text.
     ///
     /// # Returns
