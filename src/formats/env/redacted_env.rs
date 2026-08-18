@@ -13,7 +13,7 @@ use std::fmt::Formatter;
 
 use crate::RedactedText;
 use crate::RedactionCompletion;
-use crate::output::redaction_output::RedactionOutput;
+use crate::RedactionOutput;
 
 /// A bounded environment batch paired with its exact completion state.
 #[derive(Debug, Clone, PartialEq, Eq)]

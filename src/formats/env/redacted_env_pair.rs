@@ -13,7 +13,7 @@ use std::fmt::Formatter;
 
 use crate::RedactedText;
 use crate::RedactionCompletion;
-use crate::output::redaction_output::RedactionOutput;
+use crate::RedactionOutput;
 
 /// One escaped environment-variable name and its redacted, escaped value.
 #[derive(Debug, Clone, PartialEq, Eq)]

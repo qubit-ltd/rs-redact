@@ -15,7 +15,7 @@ use std::fmt::Formatter;
 use super::BodyRedactionStatus;
 use crate::RedactedText;
 use crate::RedactionCompletion;
-use crate::output::redaction_output::RedactionOutput;
+use crate::RedactionOutput;
 
 /// Holds only escaped, bounded body text plus read-only source metadata.
 #[derive(Debug, Clone, PartialEq, Eq)]

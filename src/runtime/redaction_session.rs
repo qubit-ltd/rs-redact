@@ -38,7 +38,7 @@ use crate::formats::http::HttpRedactionSession;
 #[cfg(feature = "json")]
 use crate::formats::json::JsonRedactionSession;
 use crate::output::MaskedValue;
-use crate::output::redaction_output::RedactionOutput;
+use crate::facade::RedactionOutput;
 use crate::policy::DomainTraversalAdmission;
 use crate::policy::DomainValueAdmission;
 use crate::policy::DomainValueScope;

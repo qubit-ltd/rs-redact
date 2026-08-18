@@ -13,7 +13,7 @@ use std::fmt::Formatter;
 
 use crate::RedactedText;
 use crate::RedactionCompletion;
-use crate::output::redaction_output::RedactionOutput;
+use crate::RedactionOutput;
 
 /// Holds log-safe JSON text together with its completion state.
 ///

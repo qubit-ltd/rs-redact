@@ -7,18 +7,12 @@
 // =============================================================================
 //! Shared execution-time accounting for bounded redaction operations.
 
-mod diagnostic_budget;
-mod domain_budget;
 mod internal;
 mod redaction_session;
 mod redaction_session_error;
 mod redaction_session_output;
 
-pub(crate) use diagnostic_budget::DiagnosticBudget;
-pub(crate) use domain_budget::DomainRedactionContext;
-pub(crate) use domain_budget::DomainTruncation;
-pub(crate) use domain_budget::DomainTruncationCheckpoint;
-pub(crate) use domain_budget::DomainValueBudgetAdmission;
+pub(crate) use crate::domain::internal::{DomainRedactionContext, DomainTruncation, DomainTruncationCheckpoint, DomainValueBudgetAdmission};
 pub(crate) use internal::FragmentCompletion;
 pub(crate) use internal::RedactionAdmission;
 pub use redaction_session::RedactionSession;

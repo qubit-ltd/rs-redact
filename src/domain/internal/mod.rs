@@ -12,6 +12,7 @@ mod internally_tagged_serializer;
 mod mask_byte_limit;
 mod mask_byte_limit_reset;
 mod nested;
+mod domain_redaction_context;
 #[cfg(feature = "serde")]
 mod redacted_serialize;
 
@@ -22,5 +23,6 @@ pub(crate) use mask_byte_limit::mark_debug_output_exhausted;
 pub(crate) use mask_byte_limit::mask_byte_limit;
 pub(crate) use mask_byte_limit::with_debug_output_tracking;
 pub(crate) use mask_byte_limit::with_mask_byte_limit;
+pub(crate) use domain_redaction_context::{DomainRedactionContext, DomainTruncation, DomainTruncationCheckpoint, DomainValueBudgetAdmission};
 #[cfg(feature = "serde")]
 pub use redacted_serialize::RedactedSerialize;
