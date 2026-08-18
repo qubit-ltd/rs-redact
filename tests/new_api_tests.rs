@@ -168,7 +168,7 @@ fn test_http_adapter_can_stage_a_keyed_result() {
     let redactor = Redactor::standard();
     let mut session = redactor.session();
     let _ = session.http(|http| {
-        http.redact_url_as("request_url", "https://example.test/?token=secret");
+        http.redact_url("request_url", "https://example.test/?token=secret");
     });
     let output = session.finish().expect("HTTP session should commit");
     assert!(

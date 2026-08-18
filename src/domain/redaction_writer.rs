@@ -114,6 +114,19 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
         crate::domain::RedactedKeyedResult::new(key, value, self.session)
     }
 
+    /// Creates an eagerly rendered keyed map using this writer's policy.
+    #[must_use]
+    pub fn redacted_keyed_map<'a, M, K, V>(&mut self, value: &'a M) -> crate::domain::RedactedKeyedMapResult<'a, M, K, V>
+    where
+        M: ?Sized,
+        K: AsRef<str> + Debug + ?Sized + 'a,
+        V: crate::domain::Redact + crate::domain::RedactValue + ?Sized + 'a,
+        for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
+        <&'a M as IntoIterator>::IntoIter: ExactSizeIterator,
+    {
+        crate::domain::RedactedKeyedMapResult::new(value, self.session)
+    }
+
     #[cfg(feature = "json")]
     pub fn redact_json_text(&mut self, value: &str) -> crate::RedactedText {
         crate::formats::json::JsonRedactor::new(self.policy().clone())
