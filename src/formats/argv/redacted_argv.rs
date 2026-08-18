@@ -13,7 +13,7 @@ use std::fmt::Formatter;
 
 use super::redacted_argv_builder::RedactedArgvBuilder;
 use crate::InputOutputLimit;
-use crate::LogSafeText;
+use crate::RedactedText;
 use crate::RedactionCompletion;
 use crate::output::redaction_output::RedactionOutput;
 
@@ -51,7 +51,7 @@ impl RedactedArgv {
     /// A displayable argv value.
     #[inline(always)]
     #[must_use]
-    pub(super) fn complete(rendered: LogSafeText<'static>) -> Self {
+    pub(super) fn complete(rendered: RedactedText) -> Self {
         Self {
             output: RedactionOutput::complete(rendered),
         }
@@ -69,7 +69,7 @@ impl RedactedArgv {
     /// valid exhausted result.
     #[inline(always)]
     #[must_use]
-    pub(super) fn truncated(rendered: LogSafeText<'static>) -> Self {
+    pub(super) fn truncated(rendered: RedactedText) -> Self {
         Self {
             output: RedactionOutput::truncated(rendered).unwrap_or_else(RedactionOutput::exhausted),
         }
@@ -95,7 +95,7 @@ impl RedactedArgv {
     /// for applying any enclosing output budget.
     #[must_use]
     #[inline(always)]
-    pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
+    pub const fn log_safe_text(&self) -> &RedactedText {
         self.output.log_safe_text()
     }
 
@@ -121,7 +121,7 @@ impl RedactedArgv {
     /// [`Self::completion`] was [`RedactionCompletion::Exhausted`].
     #[must_use]
     #[inline(always)]
-    pub fn into_log_safe_text(self) -> LogSafeText<'static> {
+    pub fn into_log_safe_text(self) -> RedactedText {
         self.output.into_log_safe_text()
     }
 }

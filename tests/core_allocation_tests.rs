@@ -306,9 +306,7 @@ fn test_bounded_uri_avoids_amplified_mask_allocation() {
     })
     .build()
     .expect("the core policy should be valid");
-    let uri_policy = RedactionPolicy::builder_from(&core)
-        .build()
-        .expect("the URI policy should be valid");
+    let uri_policy = core.to_builder().build().expect("the URI policy should be valid");
     let redactor = UriRedactor::new(uri_policy);
     let query = ["password=query-secret"; 32].join("&");
     let input = format!("https://user:password@example.test/?{query}#fragment");

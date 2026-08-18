@@ -27,9 +27,7 @@ fn test_bounded_uri_output_keeps_utf8_and_marker_complete() {
     })
     .build()
     .expect("the core policy is valid");
-    let policy = RedactionPolicy::builder_from(&core)
-        .build()
-        .expect("the URI policy is valid");
+    let policy = core.to_builder().build().expect("the URI policy is valid");
     let input = format!("https://example.test/{}", "%E4%BD%A0".repeat(32));
     let result = UriRedactor::new(policy).redact_uri_str(&input);
 
@@ -62,9 +60,7 @@ fn test_bounded_uri_output_percent_encodes_unicode_masks() {
     })
     .build()
     .expect("the core policy is valid");
-    let policy = RedactionPolicy::builder_from(&core)
-        .build()
-        .expect("the URI policy is valid");
+    let policy = core.to_builder().build().expect("the URI policy is valid");
     let result = UriRedactor::new(policy).redact_uri_str("https://example.test/?password=secret#fragment");
 
     assert!(result.log_safe_text().as_str().contains("%E5%AF%86"));

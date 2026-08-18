@@ -13,8 +13,8 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-use crate::LogSafeText;
 use crate::MaskingPolicy;
+use crate::RedactedText;
 use crate::Sensitivity;
 use crate::domain::internal::mask_byte_limit;
 use crate::output::MaskedValue;
@@ -162,6 +162,6 @@ impl Display for RedactedValue<'_> {
 ///
 /// A log-safe view that borrows `text` when it contains no unsafe controls.
 #[must_use]
-fn log_safe<'a>(text: &'a MaskedValue<'_>) -> LogSafeText<'a> {
+fn log_safe(text: &MaskedValue<'_>) -> RedactedText {
     MaskedValue::new(Cow::Borrowed(text.as_str())).escape_for_log()
 }

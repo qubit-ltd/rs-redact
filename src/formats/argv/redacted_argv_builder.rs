@@ -12,7 +12,7 @@ use std::fmt::Write as _;
 use super::RedactedArgv;
 use crate::InputOutputLimit;
 use crate::LogOutputLimit;
-use crate::LogSafeText;
+use crate::RedactedText;
 use crate::output::internal::BoundedLogEscapeWriter;
 
 /// Streams a byte-bounded argv rendering without retaining every token.
@@ -107,7 +107,7 @@ impl RedactedArgvBuilder {
     pub(super) fn finish(mut self, locally_truncated: bool) -> RedactedArgv {
         self.close();
         let truncated = locally_truncated || self.writer.is_truncated();
-        let rendered = LogSafeText::from_escaped(self.writer.finish().into());
+        let rendered = RedactedText::from_escaped(self.writer.finish());
         if truncated {
             RedactedArgv::truncated(rendered)
         } else {

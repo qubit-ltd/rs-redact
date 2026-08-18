@@ -9,6 +9,7 @@ use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
 use qubit_redact::RedactionReasons;
+use qubit_redact::RedactionSessionError;
 use qubit_redact::RedactionSummary;
 use qubit_redact::RedactionUsage;
 use qubit_redact::Redactor;
@@ -89,9 +90,42 @@ fn test_chain_session_returns_final_displayable_text() {
                 _password: "raw-password".to_owned(),
             },
         )
-        .finish();
+        .finish()
+        .expect("session should commit");
     assert!(output.text().to_string().contains("request failed"));
     assert!(!output.text().as_str().contains("raw-password"));
+}
+
+#[test]
+fn test_session_publishes_keyed_results_atomically_and_resets() {
+    let redactor = Redactor::standard();
+    let mut session = redactor.session();
+    let _ = session.text("request failed: ").field("request_id", "abc");
+    let output = session.finish().expect("session should commit");
+    assert_eq!(output.get("request_id").expect("field result").text().as_str(), "abc");
+    assert!(output.text().as_str().contains("request failed"));
+
+    let next = session.finish().expect("finished session can be reused");
+    assert!(next.text().as_str().is_empty());
+    assert!(next.results().is_empty());
+}
+
+#[test]
+fn test_session_rejects_duplicate_and_empty_keys_as_one_batch() {
+    let redactor = Redactor::standard();
+    let mut duplicate = redactor.session();
+    let _ = duplicate.field("request_id", "one").field("request_id", "two");
+    assert!(matches!(
+        duplicate.finish(),
+        Err(RedactionSessionError::DuplicateKey { .. })
+    ));
+
+    let mut empty = redactor.session();
+    let _ = empty.field("", "value");
+    assert!(matches!(empty.finish(), Err(RedactionSessionError::EmptyKey)));
+    let _ = empty.field("request_id", "next");
+    let output = empty.finish().expect("error state was reset");
+    assert_eq!(output.get("request_id").expect("next batch").text().as_str(), "next");
 }
 
 #[test]
@@ -149,14 +183,14 @@ fn test_configuration_builder_produces_standard_snapshot() {
 #[test]
 fn test_chain_adapter_namespaces_accept_closures() {
     let redactor = Redactor::standard();
-    let session = redactor
+    let mut session = redactor
         .session()
         .argv_with(|_| {})
         .env_with(|_| {})
         .http_with(|_| {})
         .json_with(|_| {})
         .uri_with(|_| {});
-    let _ = session.finish();
+    let _ = session.finish().expect("empty session should commit");
 
     let mut session = redactor.session();
     let _: () = session.argv_with_mut(|_| {});
@@ -164,4 +198,24 @@ fn test_chain_adapter_namespaces_accept_closures() {
     let _: () = session.http_with_mut(|_| {});
     let _: () = session.json_with_mut(|_| {});
     let _: () = session.uri_with_mut(|_| {});
+}
+
+#[cfg(feature = "http")]
+#[test]
+fn test_http_adapter_can_stage_a_keyed_result() {
+    let redactor = Redactor::standard();
+    let mut session = redactor.session();
+    let _ = session.http(|http| {
+        http.redact_url_as("request_url", "https://example.test/?token=secret");
+    });
+    let output = session.finish().expect("HTTP session should commit");
+    assert!(
+        output
+            .get("request_url")
+            .expect("URL result")
+            .text()
+            .as_str()
+            .contains("example.test")
+    );
+    assert!(!output.text().as_str().contains("secret"));
 }

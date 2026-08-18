@@ -13,7 +13,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 
 use super::BodyRedactionStatus;
-use crate::LogSafeText;
+use crate::RedactedText;
 use crate::RedactionCompletion;
 use crate::output::redaction_output::RedactionOutput;
 
@@ -58,7 +58,7 @@ impl BodyRedaction {
         omitted_len: Option<usize>,
         completion: RedactionCompletion,
     ) -> Self {
-        let text = LogSafeText::from_escaped(Cow::Owned(text));
+        let text = RedactedText::from_escaped(Cow::Owned(text));
         let output = match completion {
             RedactionCompletion::Complete => RedactionOutput::complete(text),
             RedactionCompletion::Truncated => {
@@ -84,7 +84,7 @@ impl BodyRedaction {
     /// not promise that a truncation marker still fit.
     #[must_use]
     #[inline]
-    pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
+    pub const fn log_safe_text(&self) -> &RedactedText {
         self.output.log_safe_text()
     }
 
@@ -95,7 +95,7 @@ impl BodyRedaction {
     /// Owned log-safe body text including any truncation marker.
     #[must_use]
     #[inline(always)]
-    pub fn into_log_safe_text(self) -> LogSafeText<'static> {
+    pub fn into_log_safe_text(self) -> RedactedText {
         self.output.into_log_safe_text()
     }
 

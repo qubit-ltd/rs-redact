@@ -241,9 +241,8 @@
 //!
 //! # Process diagnostics
 //!
-//! Process adapters use the [`InputOutputLimit`] in their [`RedactionPolicy`]
-//! snapshot. They stop before inspecting argv or environment input beyond the
-//! input limit and truncate their final log-safe list at the output limit.
+//! Process adapters render already materialized argv and environment values;
+//! a session publishes staged results together from one final `finish()`.
 //!
 //! ```
 //! use std::ffi::OsStr;
@@ -257,14 +256,17 @@
 //! ];
 //! let redactor = Redactor::strict();
 //! let mut session = redactor.session();
-//! let argv = session.argv_with_mut(|adapter| {
-//!     adapter.redact_heuristically(argv).to_string()
+//! let mut argv_result = None;
+//! session.argv_with_mut(|adapter| {
+//!     argv_result = Some(adapter.redact_heuristically(argv));
 //! });
-//! assert!(!argv.contains("raw"));
-//! let env = session.env_with_mut(|adapter| {
-//!     adapter.redact_pair("PASSWORD", "raw").to_string()
+//! let mut env_result = None;
+//! session.env_with_mut(|adapter| {
+//!     env_result = Some(adapter.redact_pair("PASSWORD", "raw"));
 //! });
-//! assert_eq!(env, "PASSWORD=<redacted>");
+//! let output = session.finish().expect("session should commit");
+//! assert!(!argv_result.expect("argv result").to_string().contains("raw"));
+//! assert_eq!(env_result.expect("env result").to_string(), "PASSWORD=<redacted>");
 //! ```
 //!
 //! # JSON values
@@ -275,9 +277,9 @@
 //! an over-depth object or array is replaced with the policy's opaque Secret
 //! mask without visiting its descendants.
 //!
-//! JSON text can share one diagnostic budget with other adapters through the
-//! `RedactionSession::json_with_mut` closure adapter when the `json` feature
-//! is enabled:
+//! JSON text can be staged with other adapters through the
+//! `RedactionSession::json` closure adapter when the `json` feature is
+//! enabled:
 //!
 //! ```
 //! # fn main() {
@@ -287,10 +289,11 @@
 //!
 //! let redactor = Redactor::strict();
 //! let mut session = redactor.session();
-//! let safe = session.json_with_mut(|json| {
-//!     json.redact_text(r#"{"token":"raw-token"}"#)
+//! session.json_with_mut(|json| {
+//!     json.redact_text_as("payload", r#"{"token":"raw-token"}"#);
 //! });
-//! assert!(!safe.to_string().contains("raw-token"));
+//! let safe = session.finish().expect("session should commit");
+//! assert!(!safe.text().as_str().contains("raw-token"));
 //! # }
 //! # }
 //! ```
@@ -312,13 +315,11 @@
 //! let content_type = HeaderValue::from_static("application/json");
 //! let redactor = HttpRedactor::default();
 //! let mut session = redactor.session();
-//! let result: BodyRedaction = session.http_with_mut(|http| {
-//!     http.redact_body(
-//!         BodyCapture::complete(br#"{"password":"raw","mode":"debug"}"#),
-//!         Some(&content_type),
-//!     )
+//! session.http_with_mut(|http| {
+//!     http.redact_headers_as("headers", &http::HeaderMap::new());
 //! });
-//! assert!(!format!("{result}").contains("raw"));
+//! let result = session.finish().expect("session should commit");
+//! assert!(!result.text().as_str().contains("raw"));
 //! # }
 //! # }
 //! ```
@@ -335,10 +336,11 @@
 //!
 //! let redactor = UriRedactor::default();
 //! let mut session = redactor.session();
-//! let safe = session.uri_with_mut(|uri| {
-//!     uri.redact_uri_str("https://example.test/path")
+//! session.uri_with_mut(|uri| {
+//!     uri.redact_uri_as("request_uri", "https://example.test/path");
 //! });
-//! assert!(safe.log_safe_text().as_str().contains("example.test"));
+//! let safe = session.finish().expect("session should commit");
+//! assert!(safe.get("request_uri").expect("URI result").text().as_str().contains("example.test"));
 //! # }
 //! # }
 //! ```
@@ -374,7 +376,6 @@ pub use output::DiagnosticLogBuilder;
 pub use output::LogOutputLimit;
 pub use output::LogOutputLimitBuilder;
 pub use output::LogOutputLimitError;
-pub use output::LogSafeText;
 pub use output::RedactedDebug;
 pub use output::RedactionCompletion;
 pub use output::redacted_debug;
@@ -411,3 +412,5 @@ pub use policy::Sensitivity;
 #[cfg(feature = "json")]
 pub use policy::UnkeyedJsonValuePolicy;
 pub use policy::UnknownFieldPolicy;
+pub use runtime::RedactionSessionError;
+pub use runtime::RedactionSessionOutput;

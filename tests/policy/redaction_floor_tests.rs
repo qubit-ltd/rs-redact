@@ -232,9 +232,7 @@ fn test_builder_copy_and_standard_preserve_or_replace_floor_configuration() {
     })
     .build()
     .expect("the disabled policy should build");
-    let copied = RedactionPolicy::builder_from(&disabled)
-        .build()
-        .expect("the copied policy should build");
+    let copied = disabled.to_builder().build().expect("the copied policy should build");
     let reset = RedactionPolicy::default()
         .to_builder()
         .build()

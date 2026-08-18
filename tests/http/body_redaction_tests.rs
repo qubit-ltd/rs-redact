@@ -9,9 +9,9 @@
 
 use std::fmt::Display;
 
-use qubit_redact::LogSafeText;
 use qubit_redact::PolicyError;
 use qubit_redact::PolicyLocation;
+use qubit_redact::RedactedText;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
@@ -25,7 +25,7 @@ use qubit_redact::formats::http::HttpRedactor;
 fn assert_display<T: Display>() {}
 
 /// Alternate text query used as the unselected function-pointer target.
-fn alternate_log_safe_text(body: &BodyRedaction) -> &LogSafeText<'static> {
+fn alternate_log_safe_text(body: &BodyRedaction) -> &RedactedText {
     body.log_safe_text()
 }
 
@@ -112,7 +112,7 @@ fn test_http_redaction_policy_builder_overrides_each_context() {
         .build()
         .expect("budget should be valid");
 
-    let mut builder = RedactionPolicy::builder_from(&base);
+    let mut builder = base.to_builder();
     builder.http().disable_all_floors();
     builder.http().header().replace_rules(header.rules().clone());
     builder.http().query().replace_rules(query.rules().clone());
@@ -134,7 +134,7 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
         .build()
         .expect("empty base policy should be valid");
 
-    let mut builder = RedactionPolicy::builder_from(&base);
+    let mut builder = base.to_builder();
     builder.http().disable_all_floors();
     builder
         .http()
@@ -243,8 +243,8 @@ fn test_body_redaction_public_types_are_available() {
         BodyRedactionStatus::Binary,
     ];
     let _: Option<BodyRedaction> = None;
-    let _: for<'a> fn(&'a BodyRedaction) -> &'a LogSafeText<'static> = BodyRedaction::log_safe_text;
-    let _: fn(BodyRedaction) -> LogSafeText<'static> = BodyRedaction::into_log_safe_text;
+    let _: for<'a> fn(&'a BodyRedaction) -> &'a RedactedText = BodyRedaction::log_safe_text;
+    let _: fn(BodyRedaction) -> RedactedText = BodyRedaction::into_log_safe_text;
     let _: fn(&BodyRedaction) -> BodyRedactionStatus = BodyRedaction::status;
     let _: fn(&BodyRedaction) -> usize = BodyRedaction::captured_len;
     let _: fn(&BodyRedaction) -> Option<usize> = BodyRedaction::source_len;
@@ -264,7 +264,7 @@ fn test_body_redaction_queries_expose_captured_metadata() {
         None,
     );
     let selected = usize::from(std::process::id() == 0);
-    let log_safe_text: [for<'a> fn(&'a BodyRedaction) -> &'a LogSafeText<'static>; 2] =
+    let log_safe_text: [for<'a> fn(&'a BodyRedaction) -> &'a RedactedText; 2] =
         [BodyRedaction::log_safe_text, alternate_log_safe_text];
     let captured_len: [fn(&BodyRedaction) -> usize; 2] = [BodyRedaction::captured_len, alternate_captured_len];
     let omitted_len: [fn(&BodyRedaction) -> Option<usize>; 2] = [BodyRedaction::omitted_len, alternate_omitted_len];

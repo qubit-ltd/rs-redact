@@ -69,12 +69,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 诊断输入 | 首选工具 | 返回结果与日志边界 |
 | --- | --- | --- |
-| 具名标量值 | `Redactor::redact_field` | `RedactedText`；写入纯文本日志前转为 `LogSafeText` |
+| 具名标量值 | `Redactor::redact_field` | `RedactedText`；写入纯文本日志前转为 `RedactedText` |
 | 文本 key Map | `Redactor::redact_map` 或 `redact_map_in_place` | 返回副本或修改原 Map；显式选择最终日志格式 |
 | Rust struct 或 enum | `Redact` derive | `Redacted<T>` 视图 |
 | 需要逻辑替换的值 | `Redact` derive | 使用同一 derive 生成的 `RedactMut` 修改对象；不等于内存擦除 |
 | 命令行参数 | `Redactor::session().argv()` | `RedactedArgv` |
-| 环境变量 pair | `Redactor::session().env()` | `RedactedEnvPair` 或 `LogSafeText` |
+| 环境变量 pair | `Redactor::session().env()` | `RedactedEnvPair` 或 `RedactedText` |
 | URL、form、Header、捕获的 body | `Redactor::session().http()` | 日志安全 HTTP 结果类型 |
 | URI 字符串 | `Redactor::session().uri()` | 带组件原因的结构化日志安全结果 |
 
@@ -106,7 +106,7 @@ http = "1.5"
 `Redactor` 始终使用同一份快照。
 
 `RedactedText` 只表示“已按字段规则处理”，它故意不实现 `Display`。写入纯文本日志前，
-必须调用 `escape_for_log()` 得到可安全显示的 `LogSafeText`。
+必须调用 `escape_for_log()` 得到可安全显示的 `RedactedText`。
 
 领域对象或 Map 视图的 `Debug` 与日志安全 `Display` 默认都使用策略诊断输出预算；
 需要不同的显式限制时调用 `with_output_limit()`。派生的嵌套对象、Map、JSON 文本
@@ -249,7 +249,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 Map；应通过领域类型定义明确的替换语义。
 
 `redact_map` 返回原集合类型，`redact_map_in_place` 原地修改该集合。两者都不会将 Map
-变成 `LogSafeText`；最终写日志时仍应选择合适的格式化方式。
+变成 `RedactedText`；最终写日志时仍应选择合适的格式化方式。
 
 启用 `json` feature 后，`RedactedJson`、`RedactedJsonText` 和
 `redact_json_text_in_place` 都使用不可变策略中的 `JsonDepthLimit`。根节点深度为 0；
@@ -273,7 +273,7 @@ assert!(!safe.to_string().contains("raw-token"));
 ## 3. 将脱敏文本安全写入日志
 
 脱敏与日志安全是两层保证：即使字段允许展示，换行符或 Unicode 控制字符仍可改变日志
-结构。`escape_for_log()` 返回实现 `Display` 的 `LogSafeText`。`LogOutputLimit` 对最终
+结构。`escape_for_log()` 返回实现 `Display` 的 `RedactedText`。`LogOutputLimit` 对最终
 输出施加字节上限，并以 `<truncated>` 截断，且不会切断 UTF-8 或转义序列。
 
 ```rust
@@ -285,9 +285,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .escape_for_log();
     assert_eq!(safe.to_string(), "first line\\nsecond line");
 
-    let limit = LogOutputLimit::builder().max_bytes(16).build()?;
-    let bounded = safe.with_output_limit(limit).to_string();
-    assert!(bounded.len() <= limit.max_bytes());
     Ok(())
 }
 ```
@@ -457,7 +454,7 @@ fn main() {
 渲染进程变量列表时使用 `redact_os_pairs`：它在整个列表中共享输入预算，超出时用截断
 标记停止，而不会继续读取原始数据。
 
-## 7. 使用 `http_with_mut` 处理 HTTP 诊断
+## 7. 使用 `http` 处理 HTTP 诊断
 
 可选 `http` feature 提供统一的不可变 `RedactionPolicy`，分别处理 Header、query/form 和
 结构化 body。它的 `http()` 视图只保存 HTTP 上下文差异；基础字段规则、掩码和限制仍位于
@@ -538,7 +535,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 运行时诊断可读取 `BodyRedaction::status()`、`is_truncated()`、`captured_len()` 和
 `omitted_len()`。`BodyRedactionStatus::Redacted(reason)` 会给出结构化或可见表示不安全的原因。
 
-## 8. 使用 `uri_with_mut` 处理 URI 诊断
+## 8. 使用 `uri` 处理 URI 诊断
 
 可选 `uri` feature 提供基于解析器的 URI facade，且不会隐式启用 `http`：
 

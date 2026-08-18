@@ -18,7 +18,7 @@ use super::JsonRedactionOutput;
 use super::bounded_json_redaction::BoundedJsonRedaction;
 use super::bounded_json_redaction::redacted_json_text_bounded;
 use super::bounded_json_redaction::redacted_json_value_bounded;
-use crate::LogSafeText;
+use crate::RedactedText;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::Sensitivity;
@@ -30,6 +30,21 @@ use crate::policy::RedactionAdmission;
 /// Feature-gated JSON operations sharing one mutable diagnostic session.
 pub struct JsonRedactionSession<'session, 'policy> {
     pub(super) session: &'session mut RedactionSession<'policy>,
+}
+
+impl<'session, 'policy> JsonRedactionSession<'session, 'policy> {
+    /// Creates a JSON facade borrowing a parent session.
+    pub(crate) const fn new(session: &'session mut RedactionSession<'policy>) -> Self {
+        Self { session }
+    }
+
+    /// Redacts JSON text and stages it under `key`.
+    pub fn redact_text_as(&mut self, key: &str, text: &str) -> &mut Self {
+        let result = self.redact_text(text);
+        let completion = result.completion();
+        self.session.stage_text(key, result.into_log_safe_text(), completion);
+        self
+    }
 }
 
 impl JsonRedactionSession<'_, '_> {
@@ -54,7 +69,7 @@ impl JsonRedactionSession<'_, '_> {
         let before = self.session.remaining_output_bytes();
         match self.session.admit(input_bytes, domain_limit, fallback.len()) {
             RedactionAdmission::Fallback => JsonRedactionOutput::new(
-                RedactionOutput::truncated(LogSafeText::from_escaped(Cow::Owned(fallback.to_owned())))
+                RedactionOutput::truncated(RedactedText::from_escaped(Cow::Owned(fallback.to_owned())))
                     .unwrap_or_else(RedactionOutput::exhausted),
             ),
             RedactionAdmission::Exhausted => JsonRedactionOutput::new(RedactionOutput::exhausted()),
@@ -73,7 +88,7 @@ impl JsonRedactionSession<'_, '_> {
                     FragmentCompletion::Complete
                 };
                 self.session.commit_output(text.len(), completion);
-                let text = LogSafeText::from_escaped(Cow::Owned(text));
+                let text = RedactedText::from_escaped(Cow::Owned(text));
                 let output = if truncated {
                     RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::exhausted)
                 } else {

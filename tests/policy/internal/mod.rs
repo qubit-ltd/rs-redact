@@ -9,7 +9,5 @@
 
 mod bounded_mask_writer_tests;
 mod field_name_tests;
-mod fragment_completion_tests;
 mod mod_tests;
-mod redaction_admission_tests;
 mod redaction_policy_inner_tests;

@@ -10,7 +10,7 @@
 use std::borrow::Cow;
 
 use super::HttpRedactor;
-use crate::LogSafeText;
+use crate::RedactedText;
 use crate::formats::http::internal::BoundedLogWriter;
 use crate::formats::http::internal::markers;
 
@@ -22,23 +22,23 @@ impl HttpRedactor {
 
     /// Returns the fixed log-safe diagnostic-limit marker.
     #[must_use]
-    pub(super) fn diagnostic_limit_exceeded() -> LogSafeText<'static> {
-        LogSafeText::from_escaped(Cow::Borrowed(markers::DIAGNOSTIC_LIMIT_EXCEEDED))
+    pub(super) fn diagnostic_limit_exceeded() -> RedactedText {
+        RedactedText::from_escaped(Cow::Borrowed(markers::DIAGNOSTIC_LIMIT_EXCEEDED))
     }
 
     /// Escapes and bounds one redacted HTTP diagnostic.
     #[must_use]
-    pub(super) fn finish_diagnostic(&self, text: String) -> LogSafeText<'static> {
+    pub(super) fn finish_diagnostic(&self, text: String) -> RedactedText {
         self.finish_diagnostic_with_limit(text, self.policy().limits().diagnostic_event().max_output_bytes())
     }
 
     /// Escapes and bounds one diagnostic with an explicit output ceiling.
     #[must_use]
-    pub(super) fn finish_diagnostic_with_limit(&self, text: String, max_bytes: usize) -> LogSafeText<'static> {
+    pub(super) fn finish_diagnostic_with_limit(&self, text: String, max_bytes: usize) -> RedactedText {
         let mut writer = BoundedLogWriter::new(max_bytes, false);
         let _ = writer.write_str(&text);
         let (text, _) = writer.finish();
-        LogSafeText::from_escaped(Cow::Owned(text))
+        RedactedText::from_escaped(Cow::Owned(text))
     }
 }
 

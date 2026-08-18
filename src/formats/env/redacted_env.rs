@@ -11,7 +11,7 @@ use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-use crate::LogSafeText;
+use crate::RedactedText;
 use crate::RedactionCompletion;
 use crate::output::redaction_output::RedactionOutput;
 
@@ -34,7 +34,7 @@ impl RedactedEnv {
     /// Safe text paired with [`RedactionCompletion::Complete`].
     #[inline(always)]
     #[must_use]
-    pub(super) fn complete(rendered: LogSafeText<'static>) -> Self {
+    pub(super) fn complete(rendered: RedactedText) -> Self {
         Self {
             output: RedactionOutput::complete(rendered),
         }
@@ -52,7 +52,7 @@ impl RedactedEnv {
     /// safe replacement was emitted.
     #[inline(always)]
     #[must_use]
-    pub(super) fn truncated(rendered: LogSafeText<'static>) -> Self {
+    pub(super) fn truncated(rendered: RedactedText) -> Self {
         Self {
             output: RedactionOutput::truncated(rendered).unwrap_or_else(RedactionOutput::exhausted),
         }
@@ -81,7 +81,7 @@ impl RedactedEnv {
     /// Complete or substitute safe text, or an empty value for exhaustion.
     #[must_use]
     #[inline(always)]
-    pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
+    pub const fn log_safe_text(&self) -> &RedactedText {
         self.output.log_safe_text()
     }
 
@@ -107,7 +107,7 @@ impl RedactedEnv {
     /// Complete or substitute safe text, or an empty exhausted value.
     #[must_use]
     #[inline(always)]
-    pub fn into_log_safe_text(self) -> LogSafeText<'static> {
+    pub fn into_log_safe_text(self) -> RedactedText {
         self.output.into_log_safe_text()
     }
 }

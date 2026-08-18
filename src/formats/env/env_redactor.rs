@@ -13,7 +13,7 @@ use std::fmt::Write as _;
 
 use super::RedactedEnv;
 use super::RedactedEnvPair;
-use crate::LogSafeText;
+use crate::RedactedText;
 use crate::Redactor;
 use crate::Sensitivity;
 use crate::output::MaskedValue;
@@ -217,7 +217,7 @@ impl Default for EnvRedactor {
 /// An owned typed log-safe value.
 #[inline(always)]
 #[must_use]
-fn log_safe_owned(value: String) -> LogSafeText<'static> {
+fn log_safe_owned(value: String) -> RedactedText {
     MaskedValue::new(Cow::Owned(value)).escape_for_log()
 }
 

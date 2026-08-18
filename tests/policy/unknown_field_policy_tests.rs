@@ -62,9 +62,7 @@ fn test_unknown_field_policy_is_preserved_by_builder_from() {
     })
     .build()
     .expect("the base policy should build");
-    let copied = RedactionPolicy::builder_from(&base)
-        .build()
-        .expect("the copied policy should build");
+    let copied = base.to_builder().build().expect("the copied policy should build");
 
     assert_eq!(
         copied.unknown_field_policy(),

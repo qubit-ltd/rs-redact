@@ -11,7 +11,7 @@ use super::ArgvItem;
 use super::ArgvRedactor;
 use super::RedactedArgv;
 use crate::InputOutputLimit;
-use crate::LogSafeText;
+use crate::RedactedText;
 use crate::RedactionSession;
 use crate::Redactor;
 use crate::policy::FragmentCompletion;
@@ -32,6 +32,28 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
     #[must_use]
     pub(crate) const fn new(session: &'session mut RedactionSession<'policy>) -> Self {
         Self { session }
+    }
+
+    /// Redacts items and stages the committed result under `key`.
+    pub fn redact_items_as<'items, I>(&mut self, key: &str, items: I) -> &mut Self
+    where
+        I: IntoIterator<Item = ArgvItem<'items>>,
+    {
+        let result = self.redact_items(items);
+        let completion = result.completion();
+        self.session.stage_text(key, result.into_log_safe_text(), completion);
+        self
+    }
+
+    /// Redacts heuristic items and stages the committed result under `key`.
+    pub fn redact_heuristically_as<'items, I>(&mut self, key: &str, items: I) -> &mut Self
+    where
+        I: IntoIterator<Item = ArgvItem<'items>>,
+    {
+        let result = self.redact_heuristically(items);
+        let completion = result.completion();
+        self.session.stage_text(key, result.into_log_safe_text(), completion);
+        self
     }
 
     /// Redacts explicitly classified argument items.
@@ -157,9 +179,7 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
 #[must_use]
 fn admission_fallback(admission: RedactionAdmission) -> RedactedArgv {
     match admission {
-        RedactionAdmission::Fallback => {
-            RedactedArgv::truncated(LogSafeText::from_escaped(TRUNCATED_LIST.to_owned().into()))
-        }
+        RedactionAdmission::Fallback => RedactedArgv::truncated(RedactedText::from_escaped(TRUNCATED_LIST.to_owned())),
         RedactionAdmission::Exhausted => RedactedArgv::exhausted(),
         RedactionAdmission::Render { .. } => {
             unreachable!("render admission is handled before fallback")

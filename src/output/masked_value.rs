@@ -9,7 +9,7 @@
 
 use std::borrow::Cow;
 
-use super::LogSafeText;
+use super::RedactedText;
 use super::log_escape::escape_log_control_characters;
 
 /// An internal value that has passed through field-sensitive masking.
@@ -41,8 +41,8 @@ impl<'a> MaskedValue<'a> {
     /// Escapes the redacted contents for a plain-text boundary.
     #[inline]
     #[must_use]
-    pub fn escape_for_log(self) -> LogSafeText<'a> {
-        LogSafeText::from_escaped(escape_log_control_characters(self.0))
+    pub fn escape_for_log(self) -> RedactedText {
+        RedactedText::from_escaped(escape_log_control_characters(self.0).into_owned())
     }
 
     /// Returns the underlying value to crate-internal adapters.

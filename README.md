@@ -132,7 +132,7 @@ complete field attributes and Serde/JSON integration are covered in the
 | Rust struct or enum | `Redact` derive | Borrowed `Redacted<T>` view with safe formatting. |
 | Value that must be logically replaced | `Redact` derive | The generated `RedactMut` capability mutates the value; this is not memory erasure. |
 | Command arguments | `ArgvRedactor` | `RedactedArgv`, safe to display. |
-| Environment pairs | `EnvRedactor` | `RedactedEnvPair` or `LogSafeText`. |
+| Environment pairs | `EnvRedactor` | `RedactedEnvPair` or `RedactedText`. |
 | URL, form, headers, or captured body | `HttpRedactor` | Bounded, log-safe HTTP result types. |
 | URI string | `UriRedactor` (`uri` feature) | Structured, log-safe result with component reasons. |
 
@@ -165,7 +165,7 @@ The `json` feature owns JSON value and JSON-text redaction. The `http` feature
 uses that capability for JSON HTTP bodies, but JSON support is not an HTTP-only
 feature and can be enabled independently.
 
-JSON text can participate in the same event budget through `session.json_with()`:
+JSON text can participate in the same event budget through `session.json_with_mut()`:
 
 ```rust
 use qubit_redact::Redactor;
@@ -176,7 +176,7 @@ let safe = session.json_with_mut(|json| json.redact_text(r#"{"token":"raw-token"
 assert!(!safe.to_string().contains("raw-token"));
 ```
 
-HTTP body diagnostics use `session.http_with()`:
+HTTP body diagnostics use `session.http_with_mut()`:
 
 ```rust
 use http::HeaderValue;
@@ -192,7 +192,7 @@ let safe = session.http_with_mut(|http| http.redact_body(
 assert!(!safe.to_string().contains("raw"));
 ```
 
-URI diagnostics use `session.uri_with()` and return structured status/reason data:
+URI diagnostics use `session.uri_with_mut()` and return structured status/reason data:
 
 ```rust
 use qubit_redact::formats::uri::UriRedactor;
