@@ -7,18 +7,13 @@
 // =============================================================================
 //! Streaming construction of bounded redacted argv diagnostics.
 
-use std::fmt::Write as _;
-
 use super::RedactedArgv;
-use crate::InputOutputLimit;
-use crate::LogOutputLimit;
 use crate::RedactedText;
-use crate::output::internal::BoundedLogEscapeWriter;
 
 /// Streams a byte-bounded argv rendering without retaining every token.
 pub(super) struct RedactedArgvBuilder {
     /// Escaped destination for the complete debug-style list.
-    writer: BoundedLogEscapeWriter,
+    writer: String,
     /// Whether at least one item has been written.
     has_item: bool,
     /// Whether the closing delimiter has already been appended.
@@ -37,12 +32,9 @@ impl RedactedArgvBuilder {
     /// An empty byte-bounded argv rendering builder.
     #[must_use]
     #[inline]
-    pub(super) fn new(budget: InputOutputLimit) -> Self {
-        let limit = LogOutputLimit::from(budget);
-        let mut writer = BoundedLogEscapeWriter::new(limit);
-        let _ = writer.write_str("[");
+    pub(super) fn new() -> Self {
         Self {
-            writer,
+            writer: "[".to_owned(),
             has_item: false,
             closed: false,
         }
@@ -61,18 +53,18 @@ impl RedactedArgvBuilder {
     #[inline]
     pub(super) fn push(&mut self, item: &str) -> bool {
         if self.has_item {
-            let _ = self.writer.write_str(", ");
+            self.writer.push_str(", ");
         }
-        let _ = write!(self.writer, "{item:?}");
+        self.writer.push_str(&format!("{item:?}"));
         self.has_item = true;
-        !self.writer.is_truncated()
+        true
     }
 
     /// Appends the closing list delimiter before the builder is consumed.
     #[inline(always)]
     pub(super) fn close(&mut self) {
-        if !self.closed && !self.writer.is_truncated() {
-            let _ = self.writer.write_str("]");
+        if !self.closed {
+            self.writer.push(']');
             self.closed = true;
         }
     }
@@ -93,8 +85,8 @@ impl RedactedArgvBuilder {
     #[must_use]
     pub(super) fn finish(mut self, locally_truncated: bool) -> RedactedArgv {
         self.close();
-        let truncated = locally_truncated || self.writer.is_truncated();
-        let rendered = RedactedText::from_escaped(self.writer.finish());
+        let truncated = locally_truncated;
+        let rendered = RedactedText::from_escaped(self.writer);
         if truncated {
             RedactedArgv::truncated(rendered)
         } else {

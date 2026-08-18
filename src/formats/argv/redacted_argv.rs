@@ -12,7 +12,6 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 
 use super::redacted_argv_builder::RedactedArgvBuilder;
-use crate::InputOutputLimit;
 use crate::RedactedText;
 use crate::RedactionCompletion;
 use crate::RedactionOutput;
@@ -36,8 +35,8 @@ impl RedactedArgv {
     /// An empty byte-bounded argv rendering builder.
     #[must_use]
     #[inline]
-    pub(super) fn builder(budget: InputOutputLimit) -> RedactedArgvBuilder {
-        RedactedArgvBuilder::new(budget)
+    pub(super) fn builder() -> RedactedArgvBuilder {
+        RedactedArgvBuilder::new()
     }
 
     /// Creates a complete argv value from already escaped bounded output.

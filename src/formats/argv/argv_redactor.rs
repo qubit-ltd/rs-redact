@@ -12,7 +12,6 @@ use std::ffi::OsStr;
 use super::ArgvItem;
 use super::RedactedArgv;
 use super::pending_field::PendingField;
-use crate::InputOutputLimit;
 use crate::Redactor;
 use crate::Sensitivity;
 use crate::policy::ResolvedField;
@@ -130,24 +129,19 @@ impl ArgvRedactor {
         I: IntoIterator<Item = ArgvItem<'a>>,
         I::IntoIter: ExactSizeIterator,
     {
-        let limit = InputOutputLimit::builder()
-            .max_input_bytes(usize::MAX)
-            .max_output_bytes(usize::MAX)
-            .build()
-            .expect("policy output limit is valid");
-        let mut builder = RedactedArgv::builder(limit);
+        let mut builder = RedactedArgv::builder();
         let mut pending = None;
         let mut locally_truncated = false;
         for item in items {
             let (rendered, item_truncated) = if heuristic {
                 if let Some(level) = item.sensitivity() {
                     pending = None;
-                    self.mask_os_value_bounded(item.value(), level, limit.max_output_bytes())
+                    self.mask_os_value_bounded(item.value(), level, usize::MAX)
                 } else {
-                    self.redact_plain_item_bounded(item.value(), &mut pending, limit.max_output_bytes())
+                    self.redact_plain_item_bounded(item.value(), &mut pending, usize::MAX)
                 }
             } else {
-                self.render_explicit_or_plain_bounded(item, limit.max_output_bytes())
+                self.render_explicit_or_plain_bounded(item, usize::MAX)
             };
             locally_truncated |= item_truncated;
             builder.push(&rendered);
