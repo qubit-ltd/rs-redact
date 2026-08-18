@@ -9,6 +9,10 @@
 // qubit-style: allow multiple-public-types
 
 use qubit_budget::StructureLimits;
+#[cfg(feature = "json")]
+use qubit_budget::json::JsonDecodeLimits;
+#[cfg(feature = "json")]
+use qubit_budget::json::JsonResource;
 
 use super::DomainRedactionLimits;
 use super::InputOutputLimit;
@@ -28,6 +32,8 @@ pub struct RedactionLimitsBuilder {
     http_body: BodyBudget,
     #[cfg(feature = "json")]
     json_depth_limit: JsonDepthLimit,
+    #[cfg(feature = "json")]
+    json_decode_limits: JsonDecodeLimits<JsonResource, usize>,
 }
 
 /// Immutable limits that bound diagnostic and ordinary redaction work.
@@ -46,6 +52,8 @@ pub struct RedactionLimits {
     /// Maximum JSON recursion depth for structured redaction.
     #[cfg(feature = "json")]
     json_depth_limit: JsonDepthLimit,
+    #[cfg(feature = "json")]
+    json_decode_limits: JsonDecodeLimits<JsonResource, usize>,
 }
 
 impl RedactionLimits {
@@ -69,6 +77,8 @@ impl RedactionLimits {
             http_body: base.http_body,
             #[cfg(feature = "json")]
             json_depth_limit: base.json_depth_limit,
+            #[cfg(feature = "json")]
+            json_decode_limits: base.json_decode_limits,
         }
     }
 
@@ -113,6 +123,14 @@ impl RedactionLimits {
     #[inline(always)]
     pub const fn json_depth_limit(&self) -> JsonDepthLimit {
         self.json_depth_limit
+    }
+
+    /// Returns the resource and value limits used while decoding JSON text.
+    #[must_use]
+    #[cfg(feature = "json")]
+    #[inline(always)]
+    pub const fn json_decode_limits(&self) -> JsonDecodeLimits<JsonResource, usize> {
+        self.json_decode_limits
     }
 }
 
@@ -175,6 +193,14 @@ impl RedactionLimitsBuilder {
         self
     }
 
+    /// Sets the resource and value limits used while decoding JSON text.
+    #[cfg(feature = "json")]
+    #[inline]
+    pub fn json_decode_limits(&mut self, limits: JsonDecodeLimits<JsonResource, usize>) -> &mut Self {
+        self.json_decode_limits = limits;
+        self
+    }
+
     /// Builds the immutable execution limits.
     #[must_use]
     #[inline]
@@ -188,6 +214,8 @@ impl RedactionLimitsBuilder {
             http_body: self.http_body,
             #[cfg(feature = "json")]
             json_depth_limit: self.json_depth_limit,
+            #[cfg(feature = "json")]
+            json_decode_limits: self.json_decode_limits,
         }
     }
 }
@@ -210,6 +238,8 @@ impl Default for RedactionLimitsBuilder {
             http_body: BodyBudget::default(),
             #[cfg(feature = "json")]
             json_depth_limit: JsonDepthLimit::default(),
+            #[cfg(feature = "json")]
+            json_decode_limits: JsonDecodeLimits::new(),
         }
     }
 }

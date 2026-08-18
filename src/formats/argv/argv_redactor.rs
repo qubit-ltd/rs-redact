@@ -12,6 +12,7 @@ use std::ffi::OsStr;
 use super::ArgvItem;
 use super::RedactedArgv;
 use super::pending_field::PendingField;
+use crate::InputOutputLimit;
 use crate::Redactor;
 use crate::Sensitivity;
 use crate::policy::ResolvedField;
@@ -77,9 +78,9 @@ impl ArgvRedactor {
     pub fn redact_items<'a, I>(&self, items: I) -> RedactedArgv
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
+        I::IntoIter: ExactSizeIterator,
     {
-        let mut session = self.redactor.session();
-        session.argv_with_mut(|argv| argv.redact_items(items))
+        self.render_direct(items, false)
     }
 
     /// Redacts explicit sensitive values and heuristically classified plain
@@ -116,9 +117,42 @@ impl ArgvRedactor {
     pub fn redact_heuristically<'a, I>(&self, items: I) -> RedactedArgv
     where
         I: IntoIterator<Item = ArgvItem<'a>>,
+        I::IntoIter: ExactSizeIterator,
     {
-        let mut session = self.redactor.session();
-        session.argv_with_mut(|argv| argv.redact_heuristically(items))
+        self.render_direct(items, true)
+    }
+
+    /// Renders a finite argv iterator directly without creating a shared
+    /// session. The session façade delegates to this same operation and only
+    /// adds composition bookkeeping.
+    fn render_direct<'a, I>(&self, items: I, heuristic: bool) -> RedactedArgv
+    where
+        I: IntoIterator<Item = ArgvItem<'a>>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let limit = InputOutputLimit::builder()
+            .max_input_bytes(usize::MAX)
+            .max_output_bytes(self.redactor.policy().limits().diagnostic_event().max_output_bytes())
+            .build()
+            .expect("policy output limit is valid");
+        let mut builder = RedactedArgv::builder(limit);
+        let mut pending = None;
+        let mut locally_truncated = false;
+        for item in items {
+            let (rendered, item_truncated) = if heuristic {
+                if let Some(level) = item.sensitivity() {
+                    pending = None;
+                    self.mask_os_value_bounded(item.value(), level, limit.max_output_bytes())
+                } else {
+                    self.redact_plain_item_bounded(item.value(), &mut pending, limit.max_output_bytes())
+                }
+            } else {
+                self.render_explicit_or_plain_bounded(item, limit.max_output_bytes())
+            };
+            locally_truncated |= item_truncated;
+            builder.push(&rendered);
+        }
+        builder.finish(locally_truncated)
     }
 
     /// Renders an item while bounding any generated mask.

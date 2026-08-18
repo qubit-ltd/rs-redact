@@ -256,17 +256,15 @@
 //! ];
 //! let redactor = Redactor::strict();
 //! let mut session = redactor.session();
-//! let mut argv_result = None;
-//! session.argv_with_mut(|adapter| {
-//!     argv_result = Some(adapter.redact_heuristically(argv));
+//! session.argv(|adapter| {
+//!     adapter.redact_heuristically_as("argv", argv);
 //! });
-//! let mut env_result = None;
-//! session.env_with_mut(|adapter| {
-//!     env_result = Some(adapter.redact_pair("PASSWORD", "raw"));
+//! session.env(|adapter| {
+//!     adapter.redact_pair_as("env", "PASSWORD", "raw");
 //! });
 //! let output = session.finish().expect("session should commit");
-//! assert!(!argv_result.expect("argv result").to_string().contains("raw"));
-//! assert_eq!(env_result.expect("env result").to_string(), "PASSWORD=<redacted>");
+//! assert!(!output.get("argv").expect("argv result").text().as_str().contains("raw"));
+//! assert_eq!(output.get("env").expect("env result").text().as_str(), "PASSWORD=<redacted>");
 //! ```
 //!
 //! # JSON values
@@ -289,7 +287,7 @@
 //!
 //! let redactor = Redactor::strict();
 //! let mut session = redactor.session();
-//! session.json_with_mut(|json| {
+//! session.json(|json| {
 //!     json.redact_text_as("payload", r#"{"token":"raw-token"}"#);
 //! });
 //! let safe = session.finish().expect("session should commit");
@@ -315,7 +313,7 @@
 //! let content_type = HeaderValue::from_static("application/json");
 //! let redactor = HttpRedactor::default();
 //! let mut session = redactor.session();
-//! session.http_with_mut(|http| {
+//! session.http(|http| {
 //!     http.redact_headers_as("headers", &http::HeaderMap::new());
 //! });
 //! let result = session.finish().expect("session should commit");
@@ -336,7 +334,7 @@
 //!
 //! let redactor = UriRedactor::default();
 //! let mut session = redactor.session();
-//! session.uri_with_mut(|uri| {
+//! session.uri(|uri| {
 //!     uri.redact_uri_as("request_uri", "https://example.test/path");
 //! });
 //! let safe = session.finish().expect("session should commit");
