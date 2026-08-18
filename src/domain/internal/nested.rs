@@ -43,7 +43,7 @@ impl<T: Redact> Redact for Option<T> {
         match self {
             None => writer.unit("None"),
             Some(value) => writer.tuple("Some", |fields| {
-                let _ = fields.item(|session| RedactedResult::new(value, session));
+                let _ = fields.item(|writer| RedactedResult::new(value, writer.session_mut()));
             }),
         }
     }
@@ -98,7 +98,7 @@ impl<T: Redact> Redact for Vec<T> {
     fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_, '_>) {
         writer.list(|fields| {
             for value in self {
-                let _ = fields.item(|session| RedactedResult::new(value, session));
+                let _ = fields.item(|writer| RedactedResult::new(value, writer.session_mut()));
             }
         });
     }

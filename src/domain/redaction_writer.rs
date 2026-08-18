@@ -73,11 +73,43 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
         self.mark_frame_overflow();
     }
 
-    /// Borrows the shared session for adapter-specific redaction work.
+    /// Returns the immutable policy used by this writer.
     #[must_use]
     #[inline(always)]
-    pub fn session(&mut self) -> &mut RedactionSession<'policy> {
+    pub const fn policy(&self) -> &'policy crate::RedactionPolicy {
+        self.session.policy()
+    }
+
+    pub(crate) fn session_mut(&mut self) -> &mut RedactionSession<'policy> {
         self.session
+    }
+
+    /// Creates an eagerly rendered nested domain view using this writer's
+    /// independent traversal context.
+    #[must_use]
+    pub fn redacted<'a, T>(&mut self, value: &'a T) -> RedactedResult<'a, T>
+    where
+        T: Redact + ?Sized,
+    {
+        RedactedResult::new(value, self.session)
+    }
+
+    /// Creates an eagerly rendered map view using this writer's policy.
+    #[must_use]
+    pub fn redacted_map<'a, M, K, V>(&mut self, value: &'a M) -> RedactedMapResult<'a, M, K, V>
+    where
+        M: crate::domain::RedactMapValue<K, V> + ?Sized,
+        K: ?Sized,
+        V: ?Sized,
+    {
+        RedactedMapResult::new(value, self.session)
+    }
+
+    #[cfg(feature = "json")]
+    pub fn redact_json_text(&mut self, value: &str) -> crate::RedactedText {
+        crate::formats::json::JsonRedactor::new(self.policy().clone())
+            .redact_text(value)
+            .into_log_safe_text()
     }
 
     /// Returns whether this writer has no room for another fragment.
@@ -122,7 +154,7 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
     pub fn render<T, F>(&mut self, render: F)
     where
         T: Debug,
-        F: FnOnce(&mut RedactionSession<'_>) -> T,
+        F: FnOnce(&mut RedactionWriter<'_, 'policy>) -> T,
     {
         if !self.session.begin_domain_value() {
             self.output.push_str("<truncated>");
@@ -130,7 +162,7 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
         }
         let max_output_bytes = usize::MAX;
         let start = self.output.len();
-        let rendered = format!("{:?}", render(self.session));
+        let rendered = format!("{:?}", render(self));
         self.output.push_str(&rendered);
         let rendered_len = rendered.len();
         if rendered_len > max_output_bytes {
@@ -261,13 +293,13 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
     pub fn value<T, F>(&mut self, name: &str, render: F) -> &mut Self
     where
         T: Debug,
-        F: FnOnce(&mut RedactionSession<'_>) -> T,
+        F: FnOnce(&mut RedactionWriter<'_, 'policy>) -> T,
     {
         if !self.admit_field() {
             self.write_field_truncated();
             return self;
         }
-        let rendered = format!("{:?}", render(self.writer.session));
+        let rendered = format!("{:?}", render(self.writer));
         self.write_prefix(name);
         self.writer.output.push_str(&rendered);
         self.writer.output.push_str(", ");
@@ -279,7 +311,7 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
     pub fn optional_value<T, F>(&mut self, name: &str, value: &Option<T>, render: F) -> &mut Self
     where
         T: Debug,
-        F: FnOnce(&T, &mut RedactionSession<'_>) -> String,
+        F: FnOnce(&T, &mut RedactionWriter<'_, 'policy>) -> String,
     {
         if !self.admit_field() {
             self.write_field_truncated();
@@ -288,7 +320,7 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
         self.write_prefix(name);
         match value {
             Some(value) => {
-                let rendered = render(value, self.writer.session);
+                let rendered = render(value, self.writer);
                 self.writer.output.push_str("Some(");
                 self.writer.output.push_str(&rendered);
                 self.writer.output.push(')');
@@ -304,13 +336,13 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
     pub fn item<T, F>(&mut self, render: F) -> &mut Self
     where
         T: Debug,
-        F: FnOnce(&mut RedactionSession<'_>) -> T,
+        F: FnOnce(&mut RedactionWriter<'_, 'policy>) -> T,
     {
         if !self.admit_item() {
             self.write_field_truncated();
             return self;
         }
-        let rendered = format!("{:?}", render(self.writer.session));
+        let rendered = format!("{:?}", render(self.writer));
         self.writer.output.push_str(&rendered);
         self.writer.output.push_str(", ");
         self.writer.mark_frame_overflow();
@@ -320,13 +352,13 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
     /// Writes one pre-redacted tuple or list item without adding debug quotes.
     pub fn item_text<F>(&mut self, render: F) -> &mut Self
     where
-        F: FnOnce(&mut RedactionSession<'_>) -> String,
+        F: FnOnce(&mut RedactionWriter<'_, 'policy>) -> String,
     {
         if !self.admit_item() {
             self.write_field_truncated();
             return self;
         }
-        let rendered = render(self.writer.session);
+        let rendered = render(self.writer);
         if rendered.is_empty() {
             self.writer.output.push_str("<truncated>");
             self.writer.field_truncated = true;

@@ -370,7 +370,7 @@ mod session_view {
         /// Creates an empty bounded completion buffer.
         fn new(limit: usize) -> Self {
             Self {
-                output: String::with_capacity(limit),
+                output: if limit == usize::MAX { String::new() } else { String::with_capacity(limit) },
                 limit,
                 truncated: false,
             }
