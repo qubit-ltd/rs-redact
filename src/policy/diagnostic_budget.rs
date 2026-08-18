@@ -29,8 +29,7 @@ pub struct InputOutputLimit {
 
 impl InputOutputLimit {
     /// Smallest output limit that can contain the diagnostic-limit marker.
-    pub const MIN_OUTPUT_BYTES: usize =
-        "<redacted: diagnostic limit exceeded>".len();
+    pub const MIN_OUTPUT_BYTES: usize = "<redacted: diagnostic limit exceeded>".len();
 
     /// Creates a builder initialized with the standard diagnostic limits.
     #[must_use]
@@ -59,10 +58,7 @@ impl InputOutputLimit {
     /// zero, or [`DiagnosticBudgetError::OutputTooSmall`] when the output limit
     /// cannot contain the diagnostic-limit marker.
     #[inline]
-    const fn from_builder(
-        max_input_bytes: usize,
-        max_output_bytes: usize,
-    ) -> Result<Self, DiagnosticBudgetError> {
+    const fn from_builder(max_input_bytes: usize, max_output_bytes: usize) -> Result<Self, DiagnosticBudgetError> {
         if max_input_bytes == 0 {
             return Err(DiagnosticBudgetError::ZeroInput);
         }
@@ -118,13 +114,8 @@ impl InputOutputLimitBuilder {
 
     /// Builds validated diagnostic limits.
     #[inline]
-    pub const fn build(
-        self,
-    ) -> Result<InputOutputLimit, DiagnosticBudgetError> {
-        InputOutputLimit::from_builder(
-            self.max_input_bytes,
-            self.max_output_bytes,
-        )
+    pub const fn build(self) -> Result<InputOutputLimit, DiagnosticBudgetError> {
+        InputOutputLimit::from_builder(self.max_input_bytes, self.max_output_bytes)
     }
 }
 
@@ -136,8 +127,6 @@ impl Default for InputOutputLimit {
     /// A diagnostic budget with the documented conservative limits.
     #[inline(always)]
     fn default() -> Self {
-        Self::builder()
-            .build()
-            .expect("default diagnostic limits are valid")
+        Self::builder().build().expect("default diagnostic limits are valid")
     }
 }

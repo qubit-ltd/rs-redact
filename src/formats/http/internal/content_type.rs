@@ -47,10 +47,7 @@ pub(in crate::formats::http) enum ContentType {
 pub(in crate::formats::http) fn parse(value: &str) -> Option<ContentType> {
     let media_type = media_type(value);
     let (kind, subtype) = media_type.split_once('/')?;
-    if kind.is_empty()
-        || subtype.is_empty()
-        || !kind.bytes().all(is_token_byte)
-        || !subtype.bytes().all(is_token_byte)
+    if kind.is_empty() || subtype.is_empty() || !kind.bytes().all(is_token_byte) || !subtype.bytes().all(is_token_byte)
     {
         return None;
     }
@@ -58,8 +55,7 @@ pub(in crate::formats::http) fn parse(value: &str) -> Option<ContentType> {
     if is_multipart_media_type(media_type) {
         return Some(ContentType::Multipart {
             boundary: validate_boundary(boundary),
-            require_form_data: media_type
-                .eq_ignore_ascii_case("multipart/form-data"),
+            require_form_data: media_type.eq_ignore_ascii_case("multipart/form-data"),
         });
     }
     if is_ndjson_media_type(media_type) {
@@ -240,8 +236,7 @@ fn is_json_media_type(value: &str) -> bool {
 #[must_use]
 #[inline]
 fn is_ndjson_media_type(value: &str) -> bool {
-    value.eq_ignore_ascii_case("application/x-ndjson")
-        || value.eq_ignore_ascii_case("application/ndjson")
+    value.eq_ignore_ascii_case("application/x-ndjson") || value.eq_ignore_ascii_case("application/ndjson")
 }
 
 /// Reports whether a media type declares multipart content.

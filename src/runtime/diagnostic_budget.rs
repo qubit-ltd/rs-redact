@@ -50,14 +50,8 @@ impl DiagnosticBudget {
     #[inline]
     pub(crate) fn new(limit: InputOutputLimit) -> Self {
         Self {
-            input_budget: ResourceBudget::new(
-                RedactionResource::Input,
-                limit.max_input_bytes(),
-            ),
-            output_budget: ResourceBudget::new(
-                RedactionResource::Output,
-                limit.max_output_bytes(),
-            ),
+            input_budget: ResourceBudget::new(RedactionResource::Input, limit.max_input_bytes()),
+            output_budget: ResourceBudget::new(RedactionResource::Output, limit.max_output_bytes()),
             input_closed: false,
             output_closed: false,
             admitted_output: Vec::new(),
@@ -83,15 +77,11 @@ impl DiagnosticBudget {
             self.output_closed = true;
             return RedactionAdmission::Exhausted;
         }
-        if self.input_closed
-            || self.input_budget.try_consume(input_bytes).is_err()
-        {
+        if self.input_closed || self.input_budget.try_consume(input_bytes).is_err() {
             return self.reject_input(fallback_bytes);
         }
-        self.inspected_input_bytes =
-            self.inspected_input_bytes.saturating_add(input_bytes);
-        let max_output_bytes =
-            domain_output_limit.min(self.output_budget.remaining());
+        self.inspected_input_bytes = self.inspected_input_bytes.saturating_add(input_bytes);
+        let max_output_bytes = domain_output_limit.min(self.output_budget.remaining());
         self.admitted_output.push(AdmittedOutput {
             max_output_bytes,
             remaining_output_bytes: self.output_budget.remaining(),
@@ -107,8 +97,7 @@ impl DiagnosticBudget {
             && self.output_budget.remaining() != 0
             && self.output_budget.try_consume(fallback_bytes).is_ok()
         {
-            self.emitted_output_bytes =
-                self.emitted_output_bytes.saturating_add(fallback_bytes);
+            self.emitted_output_bytes = self.emitted_output_bytes.saturating_add(fallback_bytes);
             self.output_closed = self.output_budget.remaining() == 0;
             return RedactionAdmission::Fallback;
         }
@@ -117,16 +106,12 @@ impl DiagnosticBudget {
     }
 
     /// Admits nested output whose complete input was reserved by its parent.
-    pub(crate) fn admit_precharged(
-        &mut self,
-        domain_output_limit: usize,
-    ) -> RedactionAdmission {
+    pub(crate) fn admit_precharged(&mut self, domain_output_limit: usize) -> RedactionAdmission {
         if self.output_closed || self.output_budget.remaining() == 0 {
             self.output_closed = true;
             return RedactionAdmission::Exhausted;
         }
-        let max_output_bytes =
-            domain_output_limit.min(self.output_budget.remaining());
+        let max_output_bytes = domain_output_limit.min(self.output_budget.remaining());
         self.admitted_output.push(AdmittedOutput {
             max_output_bytes,
             remaining_output_bytes: self.output_budget.remaining(),
@@ -140,16 +125,12 @@ impl DiagnosticBudget {
     /// Adapters entered beneath this frame must perform their own exact input
     /// admission. Their precharged child frames still deduplicate output bytes
     /// when this output-only parent later commits its completed representation.
-    pub(crate) fn admit_output_only(
-        &mut self,
-        domain_output_limit: usize,
-    ) -> RedactionAdmission {
+    pub(crate) fn admit_output_only(&mut self, domain_output_limit: usize) -> RedactionAdmission {
         if self.output_closed || self.output_budget.remaining() == 0 {
             self.output_closed = true;
             return RedactionAdmission::Exhausted;
         }
-        let max_output_bytes =
-            domain_output_limit.min(self.output_budget.remaining());
+        let max_output_bytes = domain_output_limit.min(self.output_budget.remaining());
         self.admitted_output.push(AdmittedOutput {
             max_output_bytes,
             remaining_output_bytes: self.output_budget.remaining(),
@@ -161,9 +142,9 @@ impl DiagnosticBudget {
     /// Returns whether an active parent already reserved nested input.
     #[inline(always)]
     pub(crate) fn input_is_precharged(&self) -> bool {
-        self.admitted_output.last().is_some_and(|frame| {
-            frame.input_provenance == InputProvenance::Precharged
-        })
+        self.admitted_output
+            .last()
+            .is_some_and(|frame| frame.input_provenance == InputProvenance::Precharged)
     }
 
     /// Returns whether domain or adapter output is currently being completed.
@@ -174,11 +155,7 @@ impl DiagnosticBudget {
     }
 
     /// Commits exact emitted bytes for one previously admitted fragment.
-    pub(crate) fn commit_output(
-        &mut self,
-        bytes: usize,
-        completion: FragmentCompletion,
-    ) {
+    pub(crate) fn commit_output(&mut self, bytes: usize, completion: FragmentCompletion) {
         let admitted = self
             .admitted_output
             .pop()
@@ -194,11 +171,9 @@ impl DiagnosticBudget {
         self.output_budget
             .try_consume(uncommitted_bytes)
             .expect("admitted output must fit the shared session budget");
-        self.emitted_output_bytes =
-            self.emitted_output_bytes.saturating_add(uncommitted_bytes);
+        self.emitted_output_bytes = self.emitted_output_bytes.saturating_add(uncommitted_bytes);
         match completion {
-            FragmentCompletion::Complete
-            | FragmentCompletion::DomainTruncated => {}
+            FragmentCompletion::Complete | FragmentCompletion::DomainTruncated => {}
             FragmentCompletion::SessionTruncated => {
                 self.output_closed = true;
             }
@@ -227,8 +202,7 @@ impl DiagnosticBudget {
     pub(crate) fn is_exhausted(&self) -> bool {
         self.output_closed
             || self.output_budget.remaining() == 0
-            || (!self.has_active_output()
-                && (self.input_closed || self.input_budget.remaining() == 0))
+            || (!self.has_active_output() && (self.input_closed || self.input_budget.remaining() == 0))
     }
 
     /// Returns input and output usage accumulated by this event.
@@ -249,9 +223,7 @@ mod tests {
         let mut budget = DiagnosticBudget::new(InputOutputLimit::default());
         assert!(matches!(
             budget.admit_precharged(8),
-            RedactionAdmission::Render {
-                max_output_bytes: 8
-            }
+            RedactionAdmission::Render { max_output_bytes: 8 }
         ));
     }
 }

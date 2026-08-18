@@ -30,13 +30,11 @@ impl Display for DomainRedactionLimitsError {
     /// Returns [`fmt::Error`] when the destination formatter rejects output.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ZeroMaxNodes => formatter
-                .write_str("domain node limit must be greater than zero"),
-            Self::ZeroMaxCollectionItems => formatter.write_str(
-                "domain collection item limit must be greater than zero",
-            ),
-            Self::ZeroMaxDepth => formatter
-                .write_str("domain depth limit must be greater than zero"),
+            Self::ZeroMaxNodes => formatter.write_str("domain node limit must be greater than zero"),
+            Self::ZeroMaxCollectionItems => {
+                formatter.write_str("domain collection item limit must be greater than zero")
+            }
+            Self::ZeroMaxDepth => formatter.write_str("domain depth limit must be greater than zero"),
         }
     }
 }

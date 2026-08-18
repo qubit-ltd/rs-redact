@@ -138,11 +138,7 @@ impl ArgvRedactor {
         max_output_bytes: usize,
     ) -> (String, bool) {
         match item.sensitivity() {
-            Some(level) => self.mask_os_value_bounded(
-                item.value(),
-                level,
-                max_output_bytes,
-            ),
+            Some(level) => self.mask_os_value_bounded(item.value(), level, max_output_bytes),
             None => (item.value().to_string_lossy().into_owned(), false),
         }
     }
@@ -167,15 +163,11 @@ impl ArgvRedactor {
     ) -> (String, bool) {
         match value.to_str() {
             Some(value) => {
-                let (masked, truncated) = self
-                    .redactor
-                    .policy()
-                    .masking()
-                    .mask_bounded_with_truncation(
-                        level,
-                        value,
-                        max_output_bytes,
-                    );
+                let (masked, truncated) =
+                    self.redactor
+                        .policy()
+                        .masking()
+                        .mask_bounded_with_truncation(level, value, max_output_bytes);
                 (masked.into_owned(), truncated)
             }
             None => self.mask_opaque_value_bounded(max_output_bytes),
@@ -220,25 +212,15 @@ impl ArgvRedactor {
             if pending.field.is_empty() {
                 return self.mask_opaque_value_bounded(max_output_bytes);
             }
-            return self.mask_pending_value_bounded(
-                &pending,
-                value,
-                max_output_bytes,
-            );
+            return self.mask_pending_value_bounded(&pending, value, max_output_bytes);
         }
-        if let Some(value) =
-            self.redact_assignment_bounded(value, max_output_bytes)
-        {
+        if let Some(value) = self.redact_assignment_bounded(value, max_output_bytes) {
             return value;
         }
-        if let Some(value) =
-            self.redact_inline_option_bounded(value, max_output_bytes)
-        {
+        if let Some(value) = self.redact_inline_option_bounded(value, max_output_bytes) {
             return value;
         }
-        if let Some(value) =
-            self.redact_jvm_property_bounded(value, max_output_bytes)
-        {
+        if let Some(value) = self.redact_jvm_property_bounded(value, max_output_bytes) {
             return value;
         }
         if let Some((field, exact)) = option
@@ -274,10 +256,7 @@ impl ArgvRedactor {
     /// Returns whether an option field must be treated as sensitive.
     fn option_is_sensitive(&self, field: &str, exact: bool) -> bool {
         if exact {
-            self.redactor
-                .policy()
-                .sensitivity_for_exact(field)
-                .is_some()
+            self.redactor.policy().sensitivity_for_exact(field).is_some()
         } else {
             self.redactor.policy().sensitivity_for(field).is_some()
         }
@@ -287,11 +266,7 @@ impl ArgvRedactor {
     ///
     /// Returns the rendered assignment and local mask-truncation flag when the
     /// assignment names a sensitive field, or `None` otherwise.
-    fn redact_assignment_bounded(
-        &self,
-        value: &str,
-        max_output_bytes: usize,
-    ) -> Option<(String, bool)> {
+    fn redact_assignment_bounded(&self, value: &str, max_output_bytes: usize) -> Option<(String, bool)> {
         if value.starts_with('-') {
             return None;
         }
@@ -299,8 +274,7 @@ impl ArgvRedactor {
         if name.is_empty() {
             return None;
         }
-        let (redacted, truncated) =
-            self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
+        let (redacted, truncated) = self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
         Some((format!("{name}={redacted}"), truncated))
     }
 
@@ -314,18 +288,13 @@ impl ArgvRedactor {
     ///
     /// `Some((rendering, truncated))` for a sensitive long inline option, or
     /// `None` otherwise. Single-dash attached forms remain uninterpreted.
-    fn redact_inline_option_bounded(
-        &self,
-        value: &str,
-        max_output_bytes: usize,
-    ) -> Option<(String, bool)> {
+    fn redact_inline_option_bounded(&self, value: &str, max_output_bytes: usize) -> Option<(String, bool)> {
         if !value.starts_with("--") {
             return None;
         }
         let (left, raw_value) = value.split_once('=')?;
         let name = option_name(left)?;
-        let (redacted, truncated) =
-            self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
+        let (redacted, truncated) = self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
         Some((format!("{left}={redacted}"), truncated))
     }
 
@@ -333,18 +302,13 @@ impl ArgvRedactor {
     ///
     /// Returns the rendered property and local mask-truncation flag when its
     /// field is sensitive, or `None` otherwise.
-    fn redact_jvm_property_bounded(
-        &self,
-        value: &str,
-        max_output_bytes: usize,
-    ) -> Option<(String, bool)> {
+    fn redact_jvm_property_bounded(&self, value: &str, max_output_bytes: usize) -> Option<(String, bool)> {
         let property = value.strip_prefix("-D")?;
         let (name, raw_value) = property.split_once('=')?;
         if name.is_empty() {
             return None;
         }
-        let (redacted, truncated) =
-            self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
+        let (redacted, truncated) = self.mask_field_value_bounded(name, raw_value, max_output_bytes)?;
         Some((format!("-D{name}={redacted}"), truncated))
     }
 
@@ -364,15 +328,11 @@ impl ArgvRedactor {
         };
         match resolved {
             ResolvedField::Sensitive { sensitivity } => {
-                let (masked, truncated) = self
-                    .redactor
-                    .policy()
-                    .masking()
-                    .mask_bounded_with_truncation(
-                        sensitivity,
-                        value,
-                        max_output_bytes,
-                    );
+                let (masked, truncated) =
+                    self.redactor
+                        .policy()
+                        .masking()
+                        .mask_bounded_with_truncation(sensitivity, value, max_output_bytes);
                 (masked.into_owned(), truncated)
             }
             ResolvedField::PassThrough => (value.to_owned(), false),
@@ -383,24 +343,15 @@ impl ArgvRedactor {
     ///
     /// Returns a bounded mask and its truncation flag for a sensitive field,
     /// or `None` for pass-through fields.
-    fn mask_field_value_bounded(
-        &self,
-        field: &str,
-        value: &str,
-        max_output_bytes: usize,
-    ) -> Option<(String, bool)> {
+    fn mask_field_value_bounded(&self, field: &str, value: &str, max_output_bytes: usize) -> Option<(String, bool)> {
         let resolved = self.redactor.policy().resolve_field(field);
         match resolved {
             ResolvedField::Sensitive { sensitivity } => {
-                let (masked, truncated) = self
-                    .redactor
-                    .policy()
-                    .masking()
-                    .mask_bounded_with_truncation(
-                        sensitivity,
-                        value,
-                        max_output_bytes,
-                    );
+                let (masked, truncated) =
+                    self.redactor
+                        .policy()
+                        .masking()
+                        .mask_bounded_with_truncation(sensitivity, value, max_output_bytes);
                 Some((masked.into_owned(), truncated))
             }
             ResolvedField::PassThrough => None,
@@ -418,14 +369,10 @@ impl ArgvRedactor {
     /// The bounded replacement and whether it is shorter than the configured
     /// complete opaque mask.
     #[inline(always)]
-    pub(super) fn mask_opaque_value_bounded(
-        &self,
-        max_output_bytes: usize,
-    ) -> (String, bool) {
+    pub(super) fn mask_opaque_value_bounded(&self, max_output_bytes: usize) -> (String, bool) {
         let masking = self.redactor.policy().masking();
         let complete_len = masking.mask_opaque(Sensitivity::Secret).len();
-        let masked =
-            masking.mask_opaque_bounded(Sensitivity::Secret, max_output_bytes);
+        let masked = masking.mask_opaque_bounded(Sensitivity::Secret, max_output_bytes);
         let truncated = masked.len() < complete_len;
         (masked, truncated)
     }

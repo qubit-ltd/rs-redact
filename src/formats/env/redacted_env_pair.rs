@@ -35,10 +35,7 @@ impl RedactedEnvPair {
     /// A pair that renders in `NAME=VALUE` form.
     #[inline(always)]
     #[must_use]
-    pub(super) fn new(
-        name: LogSafeText<'static>,
-        value: LogSafeText<'static>,
-    ) -> Self {
+    pub(super) fn new(name: LogSafeText<'static>, value: LogSafeText<'static>) -> Self {
         Self::complete(LogSafeText::from_escaped(
             format!("{}={}", name.as_str(), value.as_str()).into(),
         ))
@@ -75,8 +72,7 @@ impl RedactedEnvPair {
     #[must_use]
     pub(super) fn truncated(rendered: LogSafeText<'static>) -> Self {
         Self {
-            output: RedactionOutput::truncated(rendered)
-                .unwrap_or_else(RedactionOutput::exhausted),
+            output: RedactionOutput::truncated(rendered).unwrap_or_else(RedactionOutput::exhausted),
         }
     }
 

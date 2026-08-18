@@ -76,9 +76,11 @@ impl<'a> FieldRedactor<'a> {
             self.context_rules.resolve_field(field),
         );
         match resolved {
-            ResolvedField::Sensitive { sensitivity } => Some(MaskedValue::new(
-                self.masking.mask_bounded(sensitivity, value, max_bytes),
-            )),
+            ResolvedField::Sensitive { sensitivity } => Some(MaskedValue::new(self.masking.mask_bounded(
+                sensitivity,
+                value,
+                max_bytes,
+            ))),
             ResolvedField::PassThrough => None,
         }
     }
@@ -95,17 +97,13 @@ impl<'a> FieldRedactor<'a> {
 
     /// Returns the borrowed immutable rule snapshot.
     #[must_use]
-    pub(in crate::formats::http) const fn base_rules(
-        &self,
-    ) -> &'a RedactionRules {
+    pub(in crate::formats::http) const fn base_rules(&self) -> &'a RedactionRules {
         self.base_rules
     }
 
     /// Returns the context-specific rule overrides for the current operation.
     #[must_use]
-    pub(in crate::formats::http) const fn context_rules(
-        &self,
-    ) -> &'a RedactionRules {
+    pub(in crate::formats::http) const fn context_rules(&self) -> &'a RedactionRules {
         self.context_rules
     }
 
@@ -121,24 +119,15 @@ impl<'a> FieldRedactor<'a> {
 /// context to lower the base protection level.
 fn stronger(base: ResolvedField, context: ResolvedField) -> ResolvedField {
     match (base, context) {
-        (
-            ResolvedField::Sensitive { sensitivity: base },
+        (ResolvedField::Sensitive { sensitivity: base }, ResolvedField::Sensitive { sensitivity: context }) => {
             ResolvedField::Sensitive {
-                sensitivity: context,
-            },
-        ) => ResolvedField::Sensitive {
-            sensitivity: base.max(context),
-        },
-        (
-            ResolvedField::Sensitive { sensitivity },
-            ResolvedField::PassThrough,
-        )
-        | (
-            ResolvedField::PassThrough,
-            ResolvedField::Sensitive { sensitivity },
-        ) => ResolvedField::Sensitive { sensitivity },
-        (ResolvedField::PassThrough, ResolvedField::PassThrough) => {
-            ResolvedField::PassThrough
+                sensitivity: base.max(context),
+            }
         }
+        (ResolvedField::Sensitive { sensitivity }, ResolvedField::PassThrough)
+        | (ResolvedField::PassThrough, ResolvedField::Sensitive { sensitivity }) => {
+            ResolvedField::Sensitive { sensitivity }
+        }
+        (ResolvedField::PassThrough, ResolvedField::PassThrough) => ResolvedField::PassThrough,
     }
 }

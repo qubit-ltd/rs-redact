@@ -37,10 +37,7 @@ impl UriPolicy {
 
     /// Creates an immutable URI policy from validated component policies.
     #[must_use]
-    pub(crate) fn new(
-        path_policy: UriPathPolicy,
-        fragment_policy: UriFragmentPolicy,
-    ) -> Self {
+    pub(crate) fn new(path_policy: UriPathPolicy, fragment_policy: UriFragmentPolicy) -> Self {
         Self {
             inner: Arc::new(UriPolicyInner {
                 path_policy,

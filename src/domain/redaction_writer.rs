@@ -31,12 +31,10 @@ pub struct RedactionWriter<'session, 'policy> {
 impl<'session, 'policy> RedactionWriter<'session, 'policy> {
     /// Creates a writer backed by an existing diagnostic session.
     #[must_use]
-    pub(crate) fn new(
-        session: &'session mut RedactionSession<'policy>,
-    ) -> Self {
-        let frame_limit = session.remaining_output_bytes().min(
-            crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX),
-        );
+    pub(crate) fn new(session: &'session mut RedactionSession<'policy>) -> Self {
+        let frame_limit = session
+            .remaining_output_bytes()
+            .min(crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX));
         Self {
             output: String::with_capacity(frame_limit),
             session,
@@ -48,19 +46,15 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
     }
 
     /// Creates a writer that owns the root output admission for one value.
-    pub(crate) fn new_root(
-        session: &'session mut RedactionSession<'policy>,
-    ) -> Self {
+    pub(crate) fn new_root(session: &'session mut RedactionSession<'policy>) -> Self {
         let mut writer = Self::new(session);
-        let domain_limit =
-            crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
+        let domain_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
         match writer.session.admit_output_only(domain_limit) {
             crate::policy::RedactionAdmission::Render { max_output_bytes } => {
                 writer.frame_limit = max_output_bytes;
                 writer.root_admitted = true;
             }
-            crate::policy::RedactionAdmission::Fallback
-            | crate::policy::RedactionAdmission::Exhausted => {
+            crate::policy::RedactionAdmission::Fallback | crate::policy::RedactionAdmission::Exhausted => {
                 writer.output.push_str("<truncated>");
                 writer.field_truncated = true;
             }
@@ -105,9 +99,7 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
     /// Writes a named record through a field scope.
     pub fn record<F>(&mut self, name: &str, configure: F)
     where
-        F: for<'writer> FnOnce(
-            &mut RedactionFields<'writer, 'session, 'policy>,
-        ),
+        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session, 'policy>),
     {
         self.write_structured(name, " { ", " }", configure);
     }
@@ -115,9 +107,7 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
     /// Writes a named tuple through a field scope.
     pub fn tuple<F>(&mut self, name: &str, configure: F)
     where
-        F: for<'writer> FnOnce(
-            &mut RedactionFields<'writer, 'session, 'policy>,
-        ),
+        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session, 'policy>),
     {
         self.write_structured(name, "(", ")", configure);
     }
@@ -125,9 +115,7 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
     /// Writes a bracketed sequence through a field scope.
     pub fn list<F>(&mut self, configure: F)
     where
-        F: for<'writer> FnOnce(
-            &mut RedactionFields<'writer, 'session, 'policy>,
-        ),
+        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session, 'policy>),
     {
         self.write_structured("", "[", "]", configure);
     }
@@ -152,15 +140,11 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
             self.output.push_str("<truncated>");
             return;
         }
-        let domain_limit =
-            crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
+        let domain_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
         let admission = self.session.admit_output_only(domain_limit);
         let max_output_bytes = match admission {
-            crate::policy::RedactionAdmission::Render { max_output_bytes } => {
-                max_output_bytes
-            }
-            crate::policy::RedactionAdmission::Fallback
-            | crate::policy::RedactionAdmission::Exhausted => {
+            crate::policy::RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
+            crate::policy::RedactionAdmission::Fallback | crate::policy::RedactionAdmission::Exhausted => {
                 self.session.leave_domain_value();
                 return;
             }
@@ -199,30 +183,19 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
 
     /// Writes one bounded structured frame and accounts for its domain node
     /// and output bytes.
-    fn write_structured<F>(
-        &mut self,
-        name: &str,
-        opening: &str,
-        closing: &str,
-        configure: F,
-    ) where
-        F: for<'writer> FnOnce(
-            &mut RedactionFields<'writer, 'session, 'policy>,
-        ),
+    fn write_structured<F>(&mut self, name: &str, opening: &str, closing: &str, configure: F)
+    where
+        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session, 'policy>),
     {
         if !self.session.begin_domain_value() {
             self.output.push_str("<truncated>");
             return;
         }
-        let domain_limit =
-            crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
+        let domain_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
         let admission = self.session.admit_output_only(domain_limit);
         let max_output_bytes = match admission {
-            crate::policy::RedactionAdmission::Render { max_output_bytes } => {
-                max_output_bytes
-            }
-            crate::policy::RedactionAdmission::Fallback
-            | crate::policy::RedactionAdmission::Exhausted => {
+            crate::policy::RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
+            crate::policy::RedactionAdmission::Fallback | crate::policy::RedactionAdmission::Exhausted => {
                 self.session.leave_domain_value();
                 return;
             }
@@ -261,10 +234,8 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
         const MARKER: &str = "<truncated>";
         let marker_bytes = maximum.min(MARKER.len());
         let content_limit = maximum.saturating_sub(marker_bytes);
-        self.output.truncate(floor_char_boundary(
-            &self.output,
-            start.saturating_add(content_limit),
-        ));
+        self.output
+            .truncate(floor_char_boundary(&self.output, start.saturating_add(content_limit)));
         self.output.push_str(&MARKER[..marker_bytes]);
     }
 
@@ -274,8 +245,7 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
     /// can stop visiting later values first.
     #[inline]
     fn mark_frame_overflow(&mut self) {
-        if self.output.len().saturating_sub(self.frame_start) > self.frame_limit
-        {
+        if self.output.len().saturating_sub(self.frame_start) > self.frame_limit {
             self.field_truncated = true;
         }
     }
@@ -299,20 +269,14 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
             return self;
         }
         self.write_prefix(name);
-        write!(self.writer.output, "{:?}", access())
-            .expect("writing to an in-memory String cannot fail");
+        write!(self.writer.output, "{:?}", access()).expect("writing to an in-memory String cannot fail");
         self.writer.output.push_str(", ");
         self.writer.mark_frame_overflow();
         self
     }
 
     /// Writes a field with an explicit minimum sensitivity.
-    pub fn sensitive<T, F>(
-        &mut self,
-        level: Sensitivity,
-        name: &str,
-        access: F,
-    ) -> &mut Self
+    pub fn sensitive<T, F>(&mut self, level: Sensitivity, name: &str, access: F) -> &mut Self
     where
         T: Debug,
         F: FnOnce() -> T,
@@ -321,14 +285,8 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
             self.write_field_truncated();
             return self;
         }
-        let value = if matches!(level, Sensitivity::High | Sensitivity::Secret)
-        {
-            self.writer
-                .session
-                .policy()
-                .masking()
-                .mask_opaque(level)
-                .to_owned()
+        let value = if matches!(level, Sensitivity::High | Sensitivity::Secret) {
+            self.writer.session.policy().masking().mask_opaque(level).to_owned()
         } else {
             let raw = format!("{:?}", access());
             self.writer.session.redact_at(level, &raw).into_owned()
@@ -360,12 +318,7 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
     }
 
     /// Writes an optional value while preserving its `Some`/`None` shape.
-    pub fn optional_value<T, F>(
-        &mut self,
-        name: &str,
-        value: &Option<T>,
-        render: F,
-    ) -> &mut Self
+    pub fn optional_value<T, F>(&mut self, name: &str, value: &Option<T>, render: F) -> &mut Self
     where
         T: Debug,
         F: FnOnce(&T, &mut RedactionSession<'_>) -> String,
@@ -430,9 +383,7 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
     /// Writes a nested bracketed sequence inside the current structure.
     pub fn list<F>(&mut self, configure: F) -> &mut Self
     where
-        F: for<'nested> FnOnce(
-            &mut RedactionFields<'nested, 'session, 'policy>,
-        ),
+        F: for<'nested> FnOnce(&mut RedactionFields<'nested, 'session, 'policy>),
     {
         self.writer.write_structured("", "[", "]", configure);
         self
@@ -447,8 +398,7 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
             self.write_field_truncated();
             return self;
         }
-        let rendered =
-            format!("{:?}", RedactedResult::new(value, self.writer.session),);
+        let rendered = format!("{:?}", RedactedResult::new(value, self.writer.session),);
         self.write_prefix(name);
         self.writer.output.push_str(&rendered);
         self.writer.output.push_str(", ");
@@ -467,10 +417,7 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
             self.writer.output.push_str("...: <truncated>");
             return self;
         }
-        let rendered = format!(
-            "{:?}",
-            RedactedMapResult::new(value, self.writer.session),
-        );
+        let rendered = format!("{:?}", RedactedMapResult::new(value, self.writer.session),);
         self.write_prefix(name);
         self.writer.output.push_str(&rendered);
         self.writer.output.push_str(", ");
@@ -484,15 +431,13 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
         if self.writer.field_truncated {
             return false;
         }
-        self.writer.session.admit_domain_field()
-            == DomainTraversalAdmission::Render
+        self.writer.session.admit_domain_field() == DomainTraversalAdmission::Render
     }
 
     #[inline]
     fn admit_item(&mut self) -> bool {
         !self.writer.field_truncated
-            && self.writer.session.admit_domain_collection_item()
-                == DomainTraversalAdmission::Render
+            && self.writer.session.admit_domain_collection_item() == DomainTraversalAdmission::Render
     }
 
     fn write_prefix(&mut self, name: &str) {

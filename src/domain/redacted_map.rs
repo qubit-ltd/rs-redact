@@ -109,10 +109,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     /// A bounded formatting adapter that owns this redacted map view.
     #[inline(always)]
     #[must_use]
-    pub const fn with_output_limit(
-        self,
-        limit: LogOutputLimit,
-    ) -> BoundedRedactedDisplay<Self> {
+    pub const fn with_output_limit(self, limit: LogOutputLimit) -> BoundedRedactedDisplay<Self> {
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -124,15 +121,12 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     #[must_use]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit =
-            LogOutputLimit::from(self.policy.limits().diagnostic_event());
+        let limit = LogOutputLimit::from(self.policy.limits().diagnostic_event());
         BoundedRedactedDisplay::new(self, limit)
     }
 }
 
-impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug
-    for RedactedMap<'_, M, K, V>
-{
+impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug for RedactedMap<'_, M, K, V> {
     /// Formats the map by classifying every value with its corresponding key.
     ///
     /// # Parameters
@@ -150,11 +144,7 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug
     #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut session = RedactionSession::new(&self.policy);
-        let view = RedactedMapResult::new_with_alternate(
-            self.map,
-            &mut session,
-            formatter.alternate(),
-        );
+        let view = RedactedMapResult::new_with_alternate(self.map, &mut session, formatter.alternate());
         if mask_byte_limit().is_some() {
             return Debug::fmt(&view, formatter);
         }
@@ -182,19 +172,12 @@ mod session_view {
     use crate::policy::RedactionAdmission;
 
     /// A nested map view that reuses one diagnostic session.
-    pub struct RedactedMapResult<
-        'map,
-        M: ?Sized,
-        K: ?Sized = String,
-        V: ?Sized = String,
-    > {
+    pub struct RedactedMapResult<'map, M: ?Sized, K: ?Sized = String, V: ?Sized = String> {
         completed: CompletedDebug,
         marker: PhantomData<(&'map M, *const K, *const V)>,
     }
 
-    impl<'map, M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized>
-        RedactedMapResult<'map, M, K, V>
-    {
+    impl<'map, M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> RedactedMapResult<'map, M, K, V> {
         /// Completes a nested map through an existing diagnostic session.
         #[must_use]
         #[inline(always)]
@@ -210,11 +193,7 @@ mod session_view {
         /// domain truncation without closing output needed by eligible sibling
         /// fields; reaching the shared byte ceiling closes session output.
         #[must_use]
-        pub(crate) fn new_with_alternate(
-            map: &'map M,
-            session: &mut RedactionSession<'_>,
-            alternate: bool,
-        ) -> Self {
+        pub(crate) fn new_with_alternate(map: &'map M, session: &mut RedactionSession<'_>, alternate: bool) -> Self {
             if session.is_exhausted() {
                 return Self {
                     completed: CompletedDebug::empty(),
@@ -225,13 +204,9 @@ mod session_view {
             let domain_limit = mask_byte_limit().unwrap_or(usize::MAX);
             let admission = session.admit_output_only(domain_limit);
             let max_output_bytes = match admission {
-                RedactionAdmission::Render { max_output_bytes } => {
-                    max_output_bytes
-                }
+                RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
                 RedactionAdmission::Fallback => {
-                    unreachable!(
-                        "output-only domain admission cannot reject input"
-                    )
+                    unreachable!("output-only domain admission cannot reject input")
                 }
                 RedactionAdmission::Exhausted => {
                     return Self {
@@ -249,8 +224,7 @@ mod session_view {
                 };
                 complete_debug(&wrapper, max_output_bytes, alternate)
             };
-            let domain_truncated = session.domain_truncation_since(checkpoint)
-                != DomainTruncation::None;
+            let domain_truncated = session.domain_truncation_since(checkpoint) != DomainTruncation::None;
             let completion = if completed.truncated() {
                 if domain_limit < session_limit {
                     FragmentCompletion::DomainTruncated
@@ -278,9 +252,7 @@ mod session_view {
         }
     }
 
-    impl<M: ?Sized, K: ?Sized, V: ?Sized> Display
-        for RedactedMapResult<'_, M, K, V>
-    {
+    impl<M: ?Sized, K: ?Sized, V: ?Sized> Display for RedactedMapResult<'_, M, K, V> {
         /// Escapes the nested map representation for plain-text logs.
         #[inline(always)]
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
@@ -296,15 +268,11 @@ mod session_view {
         marker: PhantomData<fn() -> (*const K, *const V)>,
     }
 
-    impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug
-        for MapOnce<'_, '_, '_, M, K, V>
-    {
+    impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug for MapOnce<'_, '_, '_, M, K, V> {
         /// Invokes map redaction exactly once while constructing owned output.
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
             let mut session = self.session.borrow_mut();
-            let session = session
-                .take()
-                .expect("the one-shot map adapter cannot be reused");
+            let session = session.take().expect("the one-shot map adapter cannot be reused");
             self.map.write_redacted_map(session, formatter)
         }
     }
@@ -312,9 +280,7 @@ mod session_view {
 
 pub use session_view::RedactedMapResult;
 
-impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
-    for RedactedMap<'_, M, K, V>
-{
+impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display for RedactedMap<'_, M, K, V> {
     /// Formats bounded compact redacted debug output and escapes it for
     /// plain-text logs.
     ///
@@ -343,8 +309,8 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display
 }
 
 #[cfg(feature = "serde")]
-impl<M: crate::domain::RedactMapSerialize<K, V> + ?Sized, K: ?Sized, V: ?Sized>
-    serde::Serialize for RedactedMap<'_, M, K, V>
+impl<M: crate::domain::RedactMapSerialize<K, V> + ?Sized, K: ?Sized, V: ?Sized> serde::Serialize
+    for RedactedMap<'_, M, K, V>
 {
     /// Serializes values after classifying each one by its runtime key.
     ///

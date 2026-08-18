@@ -96,9 +96,6 @@ impl Debug for RedactedHeaders {
     /// Returns [`fmt::Error`] when the destination rejects a write.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_tuple("RedactedHeaders")
-            .field(&self.text)
-            .finish()
+        formatter.debug_tuple("RedactedHeaders").field(&self.text).finish()
     }
 }

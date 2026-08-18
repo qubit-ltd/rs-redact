@@ -32,10 +32,7 @@ pub struct RedactionRules {
 impl RedactionRules {
     /// Creates immutable rules from application rules and an optional floor.
     #[must_use]
-    pub(crate) fn new(
-        application: RedactionPolicyInner,
-        floor: Option<RedactionFloor>,
-    ) -> Self {
+    pub(crate) fn new(application: RedactionPolicyInner, floor: Option<RedactionFloor>) -> Self {
         Self {
             application: Arc::new(application),
             floor,
@@ -72,16 +69,8 @@ impl RedactionRules {
     /// Explains application-rule matching only; it is not the final safety
     /// decision.
     #[must_use]
-    pub fn classify_field<'a>(
-        &'a self,
-        field: &str,
-    ) -> FieldClassification<'a> {
-        classify_inner(
-            &self.application,
-            field,
-            self.application.matching,
-            true,
-        )
+    pub fn classify_field<'a>(&'a self, field: &str) -> FieldClassification<'a> {
+        classify_inner(&self.application, field, self.application.matching, true)
     }
 
     /// Resolves final sensitivity from application and floor layers.
@@ -97,10 +86,7 @@ impl RedactionRules {
     /// Resolves final sensitivity using exact-only matching in both layers.
     #[must_use]
     #[inline]
-    pub(crate) fn sensitivity_for_exact(
-        &self,
-        field: &str,
-    ) -> Option<Sensitivity> {
+    pub(crate) fn sensitivity_for_exact(&self, field: &str) -> Option<Sensitivity> {
         match self.resolve_field_exact(field) {
             ResolvedField::Sensitive { sensitivity } => Some(sensitivity),
             ResolvedField::PassThrough => None,
@@ -109,24 +95,14 @@ impl RedactionRules {
 
     /// Resolves exact-only sensitivity from application and floor rules.
     pub(crate) fn resolve_field_exact(&self, field: &str) -> ResolvedField {
-        let application = sensitivity_inner(
-            &self.application,
-            field,
-            FieldNameMatching::Exact,
-            true,
-        );
-        let floor = self.floor.as_ref().and_then(|floor| {
-            sensitivity_inner(
-                &floor.inner,
-                field,
-                FieldNameMatching::Exact,
-                false,
-            )
-        });
+        let application = sensitivity_inner(&self.application, field, FieldNameMatching::Exact, true);
+        let floor = self
+            .floor
+            .as_ref()
+            .and_then(|floor| sensitivity_inner(&floor.inner, field, FieldNameMatching::Exact, false));
         match self.floor.as_ref().zip(floor) {
             Some((_floor, floor_level)) => ResolvedField::Sensitive {
-                sensitivity: application
-                    .map_or(floor_level, |level| level.max(floor_level)),
+                sensitivity: application.map_or(floor_level, |level| level.max(floor_level)),
             },
             None => match application {
                 Some(sensitivity) => ResolvedField::Sensitive { sensitivity },
@@ -142,20 +118,15 @@ impl RedactionRules {
     }
 
     /// Resolves final sensitivity using `matching` for application rules.
-    fn resolve_field_with_matching(
-        &self,
-        field: &str,
-        matching: FieldNameMatching,
-    ) -> ResolvedField {
-        let application =
-            sensitivity_inner(&self.application, field, matching, true);
-        let floor = self.floor.as_ref().and_then(|floor| {
-            sensitivity_inner(&floor.inner, field, floor.inner.matching, false)
-        });
+    fn resolve_field_with_matching(&self, field: &str, matching: FieldNameMatching) -> ResolvedField {
+        let application = sensitivity_inner(&self.application, field, matching, true);
+        let floor = self
+            .floor
+            .as_ref()
+            .and_then(|floor| sensitivity_inner(&floor.inner, field, floor.inner.matching, false));
         match floor {
             Some(floor_level) => ResolvedField::Sensitive {
-                sensitivity: application
-                    .map_or(floor_level, |level| level.max(floor_level)),
+                sensitivity: application.map_or(floor_level, |level| level.max(floor_level)),
             },
             None => match application {
                 Some(sensitivity) => ResolvedField::Sensitive { sensitivity },
@@ -179,9 +150,7 @@ impl RedactionRules {
     }
 
     /// Iterates only application sensitive rules, never floor rules.
-    pub fn application_sensitive_rules(
-        &self,
-    ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
+    pub fn application_sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
         self.application
             .sensitive
             .iter()
@@ -189,16 +158,17 @@ impl RedactionRules {
     }
 
     /// Iterates only application allow rules, never floor rules.
-    pub fn application_allow_rules(
-        &self,
-    ) -> impl Iterator<Item = AllowRule<'_>> {
+    pub fn application_allow_rules(&self) -> impl Iterator<Item = AllowRule<'_>> {
         self.application
             .allow_exact
             .iter()
             .map(|field| AllowRule::new(field, FieldNameMatching::Exact))
-            .chain(self.application.allow_suffix.iter().map(|field| {
-                AllowRule::new(field, FieldNameMatching::ExactOrTokenSuffix)
-            }))
+            .chain(
+                self.application
+                    .allow_suffix
+                    .iter()
+                    .map(|field| AllowRule::new(field, FieldNameMatching::ExactOrTokenSuffix)),
+            )
     }
 
     /// Clones only the application-rule layer for builder reconstruction.
@@ -215,44 +185,35 @@ fn classify_inner<'a>(
     matching: FieldNameMatching,
     allow: bool,
 ) -> FieldClassification<'a> {
-    match visit_canonical_field_candidates(
-        field,
-        matching,
-        |is_exact, candidate| {
-            let match_kind = if is_exact {
-                FieldMatchKind::Exact
-            } else {
-                FieldMatchKind::TokenSuffix
-            };
-            if allow
-                && is_exact
-                && let Some(field) = inner.allow_exact.get(candidate)
-            {
-                return ControlFlow::Break(FieldClassification::Allowed {
-                    rule: AllowRule::new(field, FieldNameMatching::Exact),
-                    match_kind,
-                });
-            }
-            if allow && let Some(field) = inner.allow_suffix.get(candidate) {
-                return ControlFlow::Break(FieldClassification::Allowed {
-                    rule: AllowRule::new(
-                        field,
-                        FieldNameMatching::ExactOrTokenSuffix,
-                    ),
-                    match_kind,
-                });
-            }
-            if let Some((field, sensitivity)) =
-                inner.sensitive.get_key_value(candidate)
-            {
-                return ControlFlow::Break(FieldClassification::Sensitive {
-                    rule: SensitiveFieldRule::new(field, *sensitivity),
-                    match_kind,
-                });
-            }
-            ControlFlow::Continue(())
-        },
-    ) {
+    match visit_canonical_field_candidates(field, matching, |is_exact, candidate| {
+        let match_kind = if is_exact {
+            FieldMatchKind::Exact
+        } else {
+            FieldMatchKind::TokenSuffix
+        };
+        if allow
+            && is_exact
+            && let Some(field) = inner.allow_exact.get(candidate)
+        {
+            return ControlFlow::Break(FieldClassification::Allowed {
+                rule: AllowRule::new(field, FieldNameMatching::Exact),
+                match_kind,
+            });
+        }
+        if allow && let Some(field) = inner.allow_suffix.get(candidate) {
+            return ControlFlow::Break(FieldClassification::Allowed {
+                rule: AllowRule::new(field, FieldNameMatching::ExactOrTokenSuffix),
+                match_kind,
+            });
+        }
+        if let Some((field, sensitivity)) = inner.sensitive.get_key_value(candidate) {
+            return ControlFlow::Break(FieldClassification::Sensitive {
+                rule: SensitiveFieldRule::new(field, *sensitivity),
+                match_kind,
+            });
+        }
+        ControlFlow::Continue(())
+    }) {
         ControlFlow::Break(classification) => classification,
         ControlFlow::Continue(()) => FieldClassification::Unknown,
     }
@@ -268,10 +229,8 @@ fn sensitivity_inner(
 ) -> Option<Sensitivity> {
     match classify_inner(inner, field, matching, allow) {
         FieldClassification::Allowed { .. } => None,
-        FieldClassification::Sensitive { .. }
-        | FieldClassification::Unknown => {
-            strongest_sensitive_match(inner, field, matching)
-                .or_else(|| inner.unknown_field_policy.sensitivity())
+        FieldClassification::Sensitive { .. } | FieldClassification::Unknown => {
+            strongest_sensitive_match(inner, field, matching).or_else(|| inner.unknown_field_policy.sensitivity())
         }
     }
 }
@@ -284,17 +243,11 @@ fn strongest_sensitive_match(
     matching: FieldNameMatching,
 ) -> Option<Sensitivity> {
     let mut strongest: Option<Sensitivity> = None;
-    let _ = visit_canonical_field_candidates(
-        field,
-        matching,
-        |_is_exact, candidate| {
-            if let Some(level) = inner.sensitive.get(candidate) {
-                strongest = Some(
-                    strongest.map_or(*level, |current| current.max(*level)),
-                );
-            }
-            ControlFlow::<()>::Continue(())
-        },
-    );
+    let _ = visit_canonical_field_candidates(field, matching, |_is_exact, candidate| {
+        if let Some(level) = inner.sensitive.get(candidate) {
+            strongest = Some(strongest.map_or(*level, |current| current.max(*level)));
+        }
+        ControlFlow::<()>::Continue(())
+    });
     strongest
 }

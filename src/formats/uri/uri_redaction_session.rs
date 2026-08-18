@@ -37,9 +37,7 @@ impl<'policy> RedactionSession<'policy> {
     #[inline(always)]
     pub fn uri_with_mut<F, R>(&mut self, configure: F) -> R
     where
-        F: for<'session> FnOnce(
-            &mut UriRedactionSession<'session, 'policy>,
-        ) -> R,
+        F: for<'session> FnOnce(&mut UriRedactionSession<'session, 'policy>) -> R,
     {
         let mut adapter = UriRedactionSession { session: self };
         configure(&mut adapter)
@@ -59,37 +57,19 @@ impl UriRedactionSession<'_, '_> {
     /// status and reason metadata keep their independent meanings.
     #[must_use]
     pub fn redact_uri_str(&mut self, input: &str) -> UriRedaction {
-        let domain_output_limit = self
+        let domain_output_limit = self.session.policy().limits().diagnostic_event().max_output_bytes();
+        let admission = self
             .session
-            .policy()
-            .limits()
-            .diagnostic_event()
-            .max_output_bytes();
-        let admission = self.session.admit(
-            input.len(),
-            domain_output_limit,
-            "<invalid URI>".len(),
-        );
+            .admit(input.len(), domain_output_limit, "<invalid URI>".len());
         match admission {
-            RedactionAdmission::Fallback => {
-                invalid_result(UriRedactionReason::InputLimitExceeded)
-            }
-            RedactionAdmission::Exhausted => {
-                empty_invalid_result(UriRedactionReason::OutputTruncated)
-            }
+            RedactionAdmission::Fallback => invalid_result(UriRedactionReason::InputLimitExceeded),
+            RedactionAdmission::Exhausted => empty_invalid_result(UriRedactionReason::OutputTruncated),
             RedactionAdmission::Render { max_output_bytes } => {
                 let session_limited = max_output_bytes < domain_output_limit;
                 let policy = self.session.policy();
-                let (result, completion) = redact_uri_str_bounded(
-                    policy,
-                    input,
-                    max_output_bytes,
-                    session_limited,
-                );
-                self.session.commit_output(
-                    result.log_safe_text().as_str().len(),
-                    completion,
-                );
+                let (result, completion) = redact_uri_str_bounded(policy, input, max_output_bytes, session_limited);
+                self.session
+                    .commit_output(result.log_safe_text().as_str().len(), completion);
                 result
             }
         }

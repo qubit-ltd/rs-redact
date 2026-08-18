@@ -34,10 +34,7 @@ impl<'a> AllowRule<'a> {
     ///
     /// A read-only view over the supplied rule.
     #[must_use]
-    pub(super) const fn new(
-        field: &'a str,
-        matching: FieldNameMatching,
-    ) -> Self {
+    pub(super) const fn new(field: &'a str, matching: FieldNameMatching) -> Self {
         Self { field, matching }
     }
 

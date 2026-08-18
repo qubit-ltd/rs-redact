@@ -52,17 +52,12 @@ pub trait RedactMapValue<K: ?Sized, V: ?Sized> {
     /// Returns [`fmt::Error`] when the destination cannot accept the complete
     /// representation.
     #[doc(hidden)]
-    fn write_redacted_map(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut Formatter<'_>,
-    ) -> fmt::Result;
+    fn write_redacted_map(&self, session: &mut RedactionSession<'_>, formatter: &mut Formatter<'_>) -> fmt::Result;
 }
 
 impl<M: ?Sized, K: ?Sized, V: ?Sized> RedactMapValue<K, V> for M
 where
-    for<'a> &'a M:
-        IntoIterator<Item = (&'a K, &'a V), IntoIter: ExactSizeIterator>,
+    for<'a> &'a M: IntoIterator<Item = (&'a K, &'a V), IntoIter: ExactSizeIterator>,
     K: AsRef<str> + Debug,
     V: RedactValue + Debug,
 {
@@ -92,15 +87,9 @@ where
     /// Returns [`fmt::Error`] when the destination rejects an entry or the
     /// completed map.
     #[inline]
-    fn write_redacted_map(
-        &self,
-        session: &mut RedactionSession<'_>,
-        formatter: &mut Formatter<'_>,
-    ) -> fmt::Result {
+    fn write_redacted_map(&self, session: &mut RedactionSession<'_>, formatter: &mut Formatter<'_>) -> fmt::Result {
         let alternate = formatter.alternate();
-        let DomainValueAdmission::Entered(mut scope) =
-            session.enter_domain_value()
-        else {
+        let DomainValueAdmission::Entered(mut scope) = session.enter_domain_value() else {
             return Debug::fmt(&DomainTruncated, formatter);
         };
         let mut map = formatter.debug_map();
@@ -112,9 +101,7 @@ where
             if entries.len() == 0 {
                 break;
             }
-            if scope.admit_collection_item()
-                == DomainTraversalAdmission::LimitReached
-            {
+            if scope.admit_collection_item() == DomainTraversalAdmission::LimitReached {
                 map.entry(&DomainTruncated, &DomainTruncated);
                 break;
             }
@@ -126,28 +113,19 @@ where
             let domain_limit = mask_byte_limit().unwrap_or(usize::MAX);
             let admission = scope.session().admit_output_only(domain_limit);
             let max_output_bytes = match admission {
-                RedactionAdmission::Render { max_output_bytes } => {
-                    max_output_bytes
-                }
+                RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
                 RedactionAdmission::Fallback => {
-                    unreachable!(
-                        "output-only domain admission cannot reject input"
-                    )
+                    unreachable!("output-only domain admission cannot reject input")
                 }
                 RedactionAdmission::Exhausted => break,
             };
             let resolved = scope.session().policy().resolve_field(key);
             let completed = match resolved {
                 ResolvedField::Sensitive { sensitivity } => {
-                    let redacted = value.redact_value(
-                        sensitivity,
-                        scope.session().policy().masking(),
-                    );
+                    let redacted = value.redact_value(sensitivity, scope.session().policy().masking());
                     complete_debug(&redacted, max_output_bytes, alternate)
                 }
-                ResolvedField::PassThrough => {
-                    complete_debug(&value, max_output_bytes, alternate)
-                }
+                ResolvedField::PassThrough => complete_debug(&value, max_output_bytes, alternate),
             };
             let completion = if completed.truncated() {
                 if domain_limit < session_limit {
@@ -161,10 +139,7 @@ where
             let truncated = completed.truncated();
             scope.session().commit_output(completed.len(), completion);
             map.entry(&key, &completed);
-            if truncated
-                || scope.session().is_exhausted()
-                || debug_output_exhausted()
-            {
+            if truncated || scope.session().is_exhausted() || debug_output_exhausted() {
                 break;
             }
         }

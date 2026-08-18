@@ -54,8 +54,7 @@ impl RedactedEnv {
     #[must_use]
     pub(super) fn truncated(rendered: LogSafeText<'static>) -> Self {
         Self {
-            output: RedactionOutput::truncated(rendered)
-                .unwrap_or_else(RedactionOutput::exhausted),
+            output: RedactionOutput::truncated(rendered).unwrap_or_else(RedactionOutput::exhausted),
         }
     }
 

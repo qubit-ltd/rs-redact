@@ -100,32 +100,18 @@ impl UriRedactor {
         let mut components = Vec::new();
 
         if let Some(authority) = parsed.authority()
-            && inspect_authority(
-                authority.as_str(),
-                &self.policy,
-                &mut reasons,
-                &mut components,
-            )
-            .is_err()
+            && inspect_authority(authority.as_str(), &self.policy, &mut reasons, &mut components).is_err()
         {
             return invalid_inspection(UriRedactionReason::InvalidUri);
         }
 
         let path = parsed.path().as_str();
-        if self.policy.path_policy() == UriPathPolicy::Redact
-            && !path.is_empty()
-            && path != "/"
-        {
+        if self.policy.path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
             mark_component(UriComponent::Path, &mut reasons, &mut components);
         }
 
         if let Some(query) = parsed.query()
-            && let Err(reason) = inspect_query(
-                query.as_str(),
-                &self.policy,
-                &mut reasons,
-                &mut components,
-            )
+            && let Err(reason) = inspect_query(query.as_str(), &self.policy, &mut reasons, &mut components)
         {
             return invalid_inspection(reason);
         }
@@ -134,11 +120,7 @@ impl UriRedactor {
             && self.policy.fragment_policy() == UriFragmentPolicy::Redact
             && !fragment.as_str().is_empty()
         {
-            mark_component(
-                UriComponent::Fragment,
-                &mut reasons,
-                &mut components,
-            );
+            mark_component(UriComponent::Fragment, &mut reasons, &mut components);
         }
 
         let status = if components.is_empty() {
@@ -166,11 +148,7 @@ pub(crate) fn redact_uri_str_bounded(
     let parsed = match Uri::<&str>::parse(input) {
         Ok(parsed) => parsed,
         Err(_) => {
-            return bounded_invalid_result(
-                UriRedactionReason::InvalidUri,
-                max_output_bytes,
-                session_limited,
-            );
+            return bounded_invalid_result(UriRedactionReason::InvalidUri, max_output_bytes, session_limited);
         }
     };
     let mut reasons = Vec::new();
@@ -192,27 +170,15 @@ pub(crate) fn redact_uri_str_bounded(
         )
         .is_err()
         {
-            return bounded_invalid_result(
-                UriRedactionReason::InvalidUri,
-                max_output_bytes,
-                session_limited,
-            );
+            return bounded_invalid_result(UriRedactionReason::InvalidUri, max_output_bytes, session_limited);
         }
         if session_limited && rendered.is_full() {
-            return finish_uri_rendering(
-                rendered,
-                reasons,
-                components,
-                session_limited,
-            );
+            return finish_uri_rendering(rendered, reasons, components, session_limited);
         }
     }
 
     let path = parsed.path().as_str();
-    if policy.path_policy() == UriPathPolicy::Redact
-        && !path.is_empty()
-        && path != "/"
-    {
+    if policy.path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
         mark_component(UriComponent::Path, &mut reasons, &mut components);
         if path.starts_with('/') {
             rendered.write_str("/%3Credacted%3E");
@@ -223,12 +189,7 @@ pub(crate) fn redact_uri_str_bounded(
         rendered.write_str(path);
     }
     if session_limited && rendered.is_full() {
-        return finish_uri_rendering(
-            rendered,
-            reasons,
-            components,
-            session_limited,
-        );
+        return finish_uri_rendering(rendered, reasons, components, session_limited);
     }
 
     if let Some(query) = parsed.query() {
@@ -241,32 +202,17 @@ pub(crate) fn redact_uri_str_bounded(
             &mut rendered,
             session_limited,
         ) {
-            return bounded_invalid_result(
-                reason,
-                max_output_bytes,
-                session_limited,
-            );
+            return bounded_invalid_result(reason, max_output_bytes, session_limited);
         }
         if session_limited && rendered.is_full() {
-            return finish_uri_rendering(
-                rendered,
-                reasons,
-                components,
-                session_limited,
-            );
+            return finish_uri_rendering(rendered, reasons, components, session_limited);
         }
     }
 
     if let Some(fragment) = parsed.fragment() {
         rendered.write_str("#");
-        if policy.fragment_policy() == UriFragmentPolicy::Redact
-            && !fragment.as_str().is_empty()
-        {
-            mark_component(
-                UriComponent::Fragment,
-                &mut reasons,
-                &mut components,
-            );
+        if policy.fragment_policy() == UriFragmentPolicy::Redact && !fragment.as_str().is_empty() {
+            mark_component(UriComponent::Fragment, &mut reasons, &mut components);
             write_opaque_mask(policy, Sensitivity::High, &mut rendered);
         } else {
             rendered.write_str(fragment.as_str());
@@ -296,13 +242,7 @@ fn finish_uri_rendering(
     }
     let public_completion = public_completion(&safe, completion);
     (
-        UriRedaction::new(
-            safe_text(safe),
-            status,
-            reasons,
-            components,
-            public_completion,
-        ),
+        UriRedaction::new(safe_text(safe), status, reasons, components, public_completion),
         completion,
     )
 }
@@ -319,22 +259,13 @@ fn finish_uri_rendering(
 ///
 /// `Complete` for a fully rendered URI, `Truncated` for non-empty substitute
 /// text after either truncation source, or `Exhausted` when no safe text fit.
-fn public_completion(
-    safe: &str,
-    completion: FragmentCompletion,
-) -> RedactionCompletion {
+fn public_completion(safe: &str, completion: FragmentCompletion) -> RedactionCompletion {
     match completion {
         FragmentCompletion::Complete => RedactionCompletion::Complete,
-        FragmentCompletion::DomainTruncated
-        | FragmentCompletion::SessionTruncated
-            if safe.is_empty() =>
-        {
+        FragmentCompletion::DomainTruncated | FragmentCompletion::SessionTruncated if safe.is_empty() => {
             RedactionCompletion::Exhausted
         }
-        FragmentCompletion::DomainTruncated
-        | FragmentCompletion::SessionTruncated => {
-            RedactionCompletion::Truncated
-        }
+        FragmentCompletion::DomainTruncated | FragmentCompletion::SessionTruncated => RedactionCompletion::Truncated,
     }
 }
 
@@ -531,15 +462,12 @@ fn redact_query(
             rendered.write_str("&");
         }
         let Some((raw_key, raw_value)) = pair.split_once('=') else {
-            decode_uri_component(pair)
-                .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+            decode_uri_component(pair).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
             rendered.write_str(pair);
             continue;
         };
-        let key = decode_uri_component(raw_key)
-            .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
-        let value = decode_uri_component(raw_value)
-            .map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
+        let key = decode_uri_component(raw_key).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+        let value = decode_uri_component(raw_value).map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
         match policy.resolve_field(&key) {
             ResolvedField::Sensitive { sensitivity } => {
                 mark_component(UriComponent::Query, reasons, components);
@@ -564,16 +492,12 @@ fn inspect_query(
 ) -> Result<(), UriRedactionReason> {
     for pair in query.split('&') {
         let Some((raw_key, raw_value)) = pair.split_once('=') else {
-            decode_uri_component(pair)
-                .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+            decode_uri_component(pair).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
             continue;
         };
-        let key = decode_uri_component(raw_key)
-            .map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
-        decode_uri_component(raw_value)
-            .map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
-        if matches!(policy.resolve_field(&key), ResolvedField::Sensitive { .. })
-        {
+        let key = decode_uri_component(raw_key).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+        decode_uri_component(raw_value).map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
+        if matches!(policy.resolve_field(&key), ResolvedField::Sensitive { .. }) {
             mark_component(UriComponent::Query, reasons, components);
         }
     }
@@ -613,24 +537,16 @@ fn write_sensitive_value(
         return;
     }
     let mut writer = UriComponentWriter::new(rendered);
-    let _ = policy
-        .masking()
-        .for_level(sensitivity)
-        .write_masked(value, &mut writer);
+    let _ = policy.masking().for_level(sensitivity).write_masked(value, &mut writer);
 }
 
 /// Writes an opaque replacement without allocating beyond the output budget.
-fn write_opaque_mask(
-    policy: &RedactionPolicy,
-    sensitivity: Sensitivity,
-    rendered: &mut BoundedUriWriter,
-) {
+fn write_opaque_mask(policy: &RedactionPolicy, sensitivity: Sensitivity, rendered: &mut BoundedUriWriter) {
     if rendered.is_full() {
         return;
     }
     let mut writer = UriComponentWriter::new(rendered);
-    let _ =
-        writer.write_str(policy.masking().for_level(sensitivity).opaque_mask());
+    let _ = writer.write_str(policy.masking().for_level(sensitivity).opaque_mask());
 }
 
 /// Converts one hexadecimal ASCII byte to its numeric value.
@@ -644,11 +560,7 @@ const fn hex_value(byte: u8) -> Option<u8> {
 }
 
 /// Records a sensitive component and its corresponding reason once.
-fn mark_component(
-    component: UriComponent,
-    reasons: &mut Vec<UriRedactionReason>,
-    components: &mut Vec<UriComponent>,
-) {
+fn mark_component(component: UriComponent, reasons: &mut Vec<UriRedactionReason>, components: &mut Vec<UriComponent>) {
     if !components.contains(&component) {
         components.push(component);
     }

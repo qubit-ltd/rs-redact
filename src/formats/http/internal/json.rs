@@ -44,15 +44,8 @@ pub(in crate::formats::http) fn redact(
     unkeyed: UnkeyedJsonValuePolicy,
     max_mask_bytes: usize,
 ) -> (bool, bool) {
-    let mut mask_budget =
-        ResourceBudget::new(RedactionResource::Mask, max_mask_bytes);
-    redact_with_mask_budget(
-        redactor,
-        value,
-        json_depth_limit,
-        unkeyed,
-        &mut mask_budget,
-    )
+    let mut mask_budget = ResourceBudget::new(RedactionResource::Mask, max_mask_bytes);
+    redact_with_mask_budget(redactor, value, json_depth_limit, unkeyed, &mut mask_budget)
 }
 
 /// Redacts a JSON tree while consuming one enclosing mask budget.
@@ -77,9 +70,7 @@ pub(in crate::formats::http) fn redact_with_mask_budget(
     mask_budget: &mut ResourceBudget<RedactionResource, usize>,
 ) -> (bool, bool) {
     let unkeyed = match unkeyed {
-        UnkeyedJsonValuePolicy::PassThrough => {
-            JsonUnkeyedValuePolicy::PassThrough
-        }
+        UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
         UnkeyedJsonValuePolicy::Redact => JsonUnkeyedValuePolicy::Redact {
             marker: UNKEYED_JSON,
             truncated_marker: TRUNCATED,
@@ -95,12 +86,8 @@ pub(in crate::formats::http) fn redact_with_mask_budget(
     )
     .redact(value);
     let passed = match outcome {
-        crate::formats::json::internal::JsonRedactionOutcome::Complete {
-            passed_unkeyed,
-        } => passed_unkeyed,
-        crate::formats::json::internal::JsonRedactionOutcome::MaskBudgetExhausted => {
-            false
-        }
+        crate::formats::json::internal::JsonRedactionOutcome::Complete { passed_unkeyed } => passed_unkeyed,
+        crate::formats::json::internal::JsonRedactionOutcome::MaskBudgetExhausted => false,
     };
     (passed, outcome.is_mask_budget_exhausted())
 }
@@ -117,10 +104,7 @@ pub(in crate::formats::http) fn redact_with_mask_budget(
 /// `Some((text, false))` for complete JSON, `Some((prefix, true))` when
 /// serialization exceeded the output budget, or `None` for UTF-8 errors.
 #[must_use]
-pub(in crate::formats::http) fn serialize_bounded(
-    value: &Value,
-    max_output_bytes: usize,
-) -> Option<(String, bool)> {
+pub(in crate::formats::http) fn serialize_bounded(value: &Value, max_output_bytes: usize) -> Option<(String, bool)> {
     let mut writer = BoundedBodyWriter::new(max_output_bytes);
     if to_writer(&mut writer, value).is_err() {
         return writer.into_string().map(|text| (text, true));
@@ -151,8 +135,7 @@ pub(in crate::formats::http) fn redact_ndjson(
     unkeyed: UnkeyedJsonValuePolicy,
     max_mask_bytes: usize,
 ) -> Option<(String, bool, bool)> {
-    let mut mask_budget =
-        ResourceBudget::new(RedactionResource::Mask, max_mask_bytes);
+    let mut mask_budget = ResourceBudget::new(RedactionResource::Mask, max_mask_bytes);
     redact_ndjson_with_mask_budget(
         redactor,
         bytes,
@@ -202,13 +185,8 @@ pub(in crate::formats::http) fn redact_ndjson_with_mask_budget(
             continue;
         }
         let mut value = from_str(line).ok()?;
-        let (line_passed, exhausted) = redact_with_mask_budget(
-            redactor,
-            &mut value,
-            json_depth_limit,
-            unkeyed,
-            mask_budget,
-        );
+        let (line_passed, exhausted) =
+            redact_with_mask_budget(redactor, &mut value, json_depth_limit, unkeyed, mask_budget);
         if exhausted {
             return Some((TRUNCATED.to_string(), false, true));
         }

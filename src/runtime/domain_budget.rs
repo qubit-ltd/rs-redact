@@ -93,8 +93,7 @@ impl DomainRedactionBudget {
         self.remaining_nodes -= 1;
         self.visited_nodes = self.visited_nodes.saturating_add(1);
         self.current_depth += 1;
-        self.maximum_depth_observed =
-            self.maximum_depth_observed.max(self.current_depth);
+        self.maximum_depth_observed = self.maximum_depth_observed.max(self.current_depth);
         DomainValueBudgetAdmission::Entered
     }
 
@@ -131,8 +130,7 @@ impl DomainRedactionBudget {
             return DomainTraversalAdmission::LimitReached;
         }
         self.remaining_collection_items -= 1;
-        self.visited_collection_items =
-            self.visited_collection_items.saturating_add(1);
+        self.visited_collection_items = self.visited_collection_items.saturating_add(1);
         DomainTraversalAdmission::Render
     }
 
@@ -147,9 +145,7 @@ impl DomainRedactionBudget {
 
     /// Returns the current truncation checkpoint for later comparison.
     #[inline(always)]
-    pub(crate) const fn truncation_checkpoint(
-        &self,
-    ) -> DomainTruncationCheckpoint {
+    pub(crate) const fn truncation_checkpoint(&self) -> DomainTruncationCheckpoint {
         DomainTruncationCheckpoint {
             depth_generation: self.depth_generation,
             traversal_generation: self.traversal_generation,
@@ -158,10 +154,7 @@ impl DomainRedactionBudget {
 
     /// Classifies structural truncation recorded after `checkpoint`.
     #[inline(always)]
-    pub(crate) const fn truncation_since(
-        &self,
-        checkpoint: DomainTruncationCheckpoint,
-    ) -> DomainTruncation {
+    pub(crate) const fn truncation_since(&self, checkpoint: DomainTruncationCheckpoint) -> DomainTruncation {
         if self.traversal_generation != checkpoint.traversal_generation {
             DomainTruncation::Traversal
         } else if self.depth_generation != checkpoint.depth_generation {

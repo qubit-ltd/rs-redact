@@ -39,15 +39,11 @@ impl<T: Redact> Redact for Option<T> {
     ///
     /// Returns [`std::fmt::Error`] when the destination or nested value rejects
     /// a write.
-    fn write_redacted(
-        &self,
-        writer: &mut crate::domain::RedactionWriter<'_, '_>,
-    ) {
+    fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_, '_>) {
         match self {
             None => writer.unit("None"),
             Some(value) => writer.tuple("Some", |fields| {
-                let _ =
-                    fields.item(|session| RedactedResult::new(value, session));
+                let _ = fields.item(|session| RedactedResult::new(value, session));
             }),
         }
     }
@@ -69,10 +65,7 @@ impl<T: Redact + ?Sized> Redact for Box<T> {
     ///
     /// Returns [`std::fmt::Error`] when the boxed value cannot complete its
     /// output.
-    fn write_redacted(
-        &self,
-        writer: &mut crate::domain::RedactionWriter<'_, '_>,
-    ) {
+    fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_, '_>) {
         self.as_ref().write_redacted(writer)
     }
 }
@@ -102,14 +95,10 @@ impl<T: Redact> Redact for Vec<T> {
     ///
     /// Returns [`std::fmt::Error`] when the destination or an item rejects a
     /// write.
-    fn write_redacted(
-        &self,
-        writer: &mut crate::domain::RedactionWriter<'_, '_>,
-    ) {
+    fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_, '_>) {
         writer.list(|fields| {
             for value in self {
-                let _ =
-                    fields.item(|session| RedactedResult::new(value, session));
+                let _ = fields.item(|session| RedactedResult::new(value, session));
             }
         });
     }
@@ -177,17 +166,12 @@ impl<T: RedactSerialize> RedactSerialize for Option<T> {
     ///
     /// Returns the destination serializer's error unchanged.
     #[inline]
-    fn serialize_redacted<S>(
-        &self,
-        policy: &RedactionPolicy,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(&self, policy: &RedactionPolicy, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         match self {
-            Some(value) => serializer
-                .serialize_some(&super::RedactedSerialize::new(value, policy)),
+            Some(value) => serializer.serialize_some(&super::RedactedSerialize::new(value, policy)),
             None => serializer.serialize_none(),
         }
     }
@@ -214,11 +198,7 @@ impl<T: RedactSerialize + ?Sized> RedactSerialize for Box<T> {
     ///
     /// Returns the boxed value's serialization error unchanged.
     #[inline(always)]
-    fn serialize_redacted<S>(
-        &self,
-        policy: &RedactionPolicy,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(&self, policy: &RedactionPolicy, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -247,11 +227,7 @@ impl<T: RedactSerialize> RedactSerialize for Vec<T> {
     ///
     /// Returns the first item or destination serialization error unchanged.
     #[inline]
-    fn serialize_redacted<S>(
-        &self,
-        policy: &RedactionPolicy,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(&self, policy: &RedactionPolicy, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -259,9 +235,7 @@ impl<T: RedactSerialize> RedactSerialize for Vec<T> {
 
         let mut sequence = serializer.serialize_seq(Some(self.len()))?;
         for value in self {
-            sequence.serialize_element(&super::RedactedSerialize::new(
-                value, policy,
-            ))?;
+            sequence.serialize_element(&super::RedactedSerialize::new(value, policy))?;
         }
         sequence.end()
     }

@@ -42,9 +42,7 @@ static STANDARD_FLOOR: LazyLock<RedactionFloor> = LazyLock::new(|| {
             .raise(field, level)
             .expect("built-in standard floor fields must be valid");
     }
-    builder
-        .build()
-        .expect("the built-in redaction floor is valid")
+    builder.build().expect("the built-in redaction floor is valid")
 });
 
 impl RedactionFloor {
@@ -77,9 +75,7 @@ impl RedactionFloor {
     }
 
     /// Iterates the floor's canonical sensitive rules.
-    pub fn sensitive_rules(
-        &self,
-    ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
+    pub fn sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
         self.inner
             .sensitive
             .iter()

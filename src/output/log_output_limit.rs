@@ -55,9 +55,7 @@ impl LogOutputLimit {
     /// Returns [`LogOutputLimitError`] when `max_bytes` cannot contain the
     /// complete truncation marker.
     #[inline]
-    const fn from_builder(
-        max_bytes: usize,
-    ) -> Result<Self, LogOutputLimitError> {
+    const fn from_builder(max_bytes: usize) -> Result<Self, LogOutputLimitError> {
         if max_bytes < Self::MINIMUM {
             Err(LogOutputLimitError::new(max_bytes))
         } else {

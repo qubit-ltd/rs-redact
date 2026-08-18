@@ -19,9 +19,7 @@ pub(crate) struct UriComponentWriter<'a> {
 
 impl UriComponentWriter<'_> {
     /// Creates a writer for one bounded URI component.
-    pub(crate) fn new(
-        rendered: &mut BoundedUriWriter,
-    ) -> UriComponentWriter<'_> {
+    pub(crate) fn new(rendered: &mut BoundedUriWriter) -> UriComponentWriter<'_> {
         UriComponentWriter { rendered }
     }
 }
@@ -43,20 +41,7 @@ fn write_uri_component(value: &str, rendered: &mut BoundedUriWriter) -> bool {
         if byte.is_ascii_alphanumeric()
             || matches!(
                 byte,
-                b'-' | b'.'
-                    | b'_'
-                    | b'~'
-                    | b'!'
-                    | b'$'
-                    | b'\''
-                    | b'('
-                    | b')'
-                    | b'*'
-                    | b'+'
-                    | b','
-                    | b';'
-                    | b'='
-                    | b':'
+                b'-' | b'.' | b'_' | b'~' | b'!' | b'$' | b'\'' | b'(' | b')' | b'*' | b'+' | b',' | b';' | b'=' | b':'
             )
         {
             let mut buffer = [0_u8; 4];

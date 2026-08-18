@@ -17,37 +17,24 @@ use crate::formats::http::internal::markers;
 impl HttpRedactor {
     /// Reports whether a diagnostic input exceeds the hard input limit.
     pub(super) fn diagnostic_input_exceeded(&self, input_bytes: usize) -> bool {
-        input_bytes
-            > self.policy().limits().diagnostic_event().max_input_bytes()
+        input_bytes > self.policy().limits().diagnostic_event().max_input_bytes()
     }
 
     /// Returns the fixed log-safe diagnostic-limit marker.
     #[must_use]
     pub(super) fn diagnostic_limit_exceeded() -> LogSafeText<'static> {
-        LogSafeText::from_escaped(Cow::Borrowed(
-            markers::DIAGNOSTIC_LIMIT_EXCEEDED,
-        ))
+        LogSafeText::from_escaped(Cow::Borrowed(markers::DIAGNOSTIC_LIMIT_EXCEEDED))
     }
 
     /// Escapes and bounds one redacted HTTP diagnostic.
     #[must_use]
-    pub(super) fn finish_diagnostic(
-        &self,
-        text: String,
-    ) -> LogSafeText<'static> {
-        self.finish_diagnostic_with_limit(
-            text,
-            self.policy().limits().diagnostic_event().max_output_bytes(),
-        )
+    pub(super) fn finish_diagnostic(&self, text: String) -> LogSafeText<'static> {
+        self.finish_diagnostic_with_limit(text, self.policy().limits().diagnostic_event().max_output_bytes())
     }
 
     /// Escapes and bounds one diagnostic with an explicit output ceiling.
     #[must_use]
-    pub(super) fn finish_diagnostic_with_limit(
-        &self,
-        text: String,
-        max_bytes: usize,
-    ) -> LogSafeText<'static> {
+    pub(super) fn finish_diagnostic_with_limit(&self, text: String, max_bytes: usize) -> LogSafeText<'static> {
         let mut writer = BoundedLogWriter::new(max_bytes, false);
         let _ = writer.write_str(&text);
         let (text, _) = writer.finish();
@@ -59,10 +46,7 @@ impl HttpRedactor {
 ///
 /// Returns empty truncated text when the effective ceiling cannot contain the
 /// complete marker; the session result maps that state to `Exhausted`.
-pub(in crate::formats::http) fn bound_safe_text(
-    text: &str,
-    max_bytes: usize,
-) -> (String, bool) {
+pub(in crate::formats::http) fn bound_safe_text(text: &str, max_bytes: usize) -> (String, bool) {
     if text.len() <= max_bytes {
         return (text.to_owned(), false);
     }

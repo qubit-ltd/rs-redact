@@ -61,8 +61,9 @@ impl BodyRedaction {
         let text = LogSafeText::from_escaped(Cow::Owned(text));
         let output = match completion {
             RedactionCompletion::Complete => RedactionOutput::complete(text),
-            RedactionCompletion::Truncated => RedactionOutput::truncated(text)
-                .unwrap_or_else(RedactionOutput::exhausted),
+            RedactionCompletion::Truncated => {
+                RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::exhausted)
+            }
             RedactionCompletion::Exhausted => RedactionOutput::exhausted(),
         };
         Self {
