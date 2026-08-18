@@ -27,11 +27,11 @@ impl<'session, 'policy> UriRedactionSession<'session, 'policy> {
     }
 
     /// Redacts a URI and stages it under `key`.
-    pub fn redact_uri_as(&mut self, key: &str, value: &str) -> &mut Self {
+    pub fn redact_uri(&mut self, key: &str, value: &str) -> &mut Self {
         if !self.session.prepare_key(key) {
             return self;
         }
-        let result = self.redact_uri_str(value);
+        let result = self.redact_uri_direct(value);
         let completion = result.completion();
         self.session.stage_text(key, result.into_log_safe_text(), completion);
         self
@@ -50,7 +50,7 @@ impl UriRedactionSession<'_, '_> {
     /// output, and `Exhausted` only when the safe text is empty. Existing URI
     /// status and reason metadata keep their independent meanings.
     #[must_use]
-    pub fn redact_uri_str(&mut self, input: &str) -> UriRedaction {
+    pub(crate) fn redact_uri_direct(&mut self, input: &str) -> UriRedaction {
         let domain_output_limit = self.session.policy().limits().diagnostic_event().max_output_bytes();
         let admission = self
             .session

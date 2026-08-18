@@ -39,11 +39,11 @@ impl<'session, 'policy> JsonRedactionSession<'session, 'policy> {
     }
 
     /// Redacts JSON text and stages it under `key`.
-    pub fn redact_text_as(&mut self, key: &str, text: &str) -> &mut Self {
+    pub fn redact_text(&mut self, key: &str, text: &str) -> &mut Self {
         if !self.session.prepare_key(key) {
             return self;
         }
-        let result = self.redact_text(text);
+        let result = self.redact_text_direct(text);
         let completion = result.completion();
         self.session.stage_text(key, result.into_log_safe_text(), completion);
         self
@@ -120,7 +120,7 @@ impl JsonRedactionSession<'_, '_> {
     /// A compact log-safe result carrying `Complete`, `Truncated`, or
     /// `Exhausted` completion.
     #[must_use]
-    pub fn redact_value(&mut self, value: &Value) -> JsonRedactionOutput {
+    pub(crate) fn redact_value_direct(&mut self, value: &Value) -> JsonRedactionOutput {
         if self.session.is_exhausted() {
             return JsonRedactionOutput::new(RedactionOutput::exhausted());
         }
@@ -148,7 +148,7 @@ impl JsonRedactionSession<'_, '_> {
     /// A compact log-safe result carrying `Complete`, `Truncated`, or
     /// `Exhausted` completion.
     #[must_use]
-    pub fn redact_text(&mut self, text: &str) -> JsonRedactionOutput {
+    pub(crate) fn redact_text_direct(&mut self, text: &str) -> JsonRedactionOutput {
         self.redact_owned(text.len(), |policy, limit| {
             redacted_json_text_bounded(text, policy, limit)
         })
