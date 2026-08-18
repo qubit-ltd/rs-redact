@@ -11,8 +11,10 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RedactionResource {
     /// Complete source bytes inspected by one redaction operation.
+    #[cfg(feature = "http")]
     Input,
     /// Complete log-safe bytes emitted by one redaction operation.
+    #[cfg(feature = "http")]
     Output,
     /// Bytes materialized by generated masks inside a bounded renderer.
     Mask,
