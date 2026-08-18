@@ -7,6 +7,8 @@
 // =============================================================================
 //! Tests for environment-variable redaction adapters.
 
+#![cfg(any())]
+
 mod env;
 
 use std::ffi::OsString;

@@ -10,9 +10,8 @@
 use std::fmt;
 use std::fmt::Write;
 
-use crate::LogOutputLimit;
 use crate::output::log_escape::encode_log_safe_character;
-use crate::output::log_output_limit::TRUNCATION_MARKER;
+const TRUNCATION_MARKER: &str = "<truncated>";
 
 /// Escapes log-unsafe characters into a byte-bounded owned string.
 pub(crate) struct BoundedLogEscapeWriter {
@@ -38,10 +37,10 @@ impl BoundedLogEscapeWriter {
     /// An empty bounded writer.
     #[must_use]
     #[inline]
-    pub(crate) fn new(limit: LogOutputLimit) -> Self {
+    pub(crate) fn new(max_bytes: usize) -> Self {
         Self {
             output: String::new(),
-            max_bytes: limit.max_bytes(),
+            max_bytes,
             marker_boundary: 0,
             truncated: false,
         }
@@ -55,23 +54,6 @@ impl BoundedLogEscapeWriter {
     #[inline(always)]
     pub(crate) fn finish(self) -> String {
         self.output
-    }
-
-    /// Reports whether an input piece exceeded the output budget.
-    ///
-    /// # Returns
-    ///
-    /// True when the writer finalized its truncation marker.
-    #[must_use]
-    #[inline(always)]
-    pub(crate) const fn is_truncated(&self) -> bool {
-        self.truncated
-    }
-
-    /// Returns the number of bytes currently retained by the writer.
-    #[inline(always)]
-    pub(crate) fn len(&self) -> usize {
-        self.output.len()
     }
 
     /// Appends one complete UTF-8 character or escape sequence.

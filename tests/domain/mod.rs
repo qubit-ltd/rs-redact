@@ -7,8 +7,6 @@
 // =============================================================================
 //! Mirrored integration tests for domain-object redaction APIs.
 
-mod bounded_redacted_display_tests;
-mod domain_traversal_budget_tests;
 mod internal;
 mod mod_tests;
 mod redact_map_serialize_tests;
@@ -18,8 +16,5 @@ mod redact_serialize_tests;
 mod redact_tests;
 mod redact_value_mut_tests;
 mod redact_value_tests;
-mod redacted_keyed_map_tests;
-mod redacted_keyed_value_tests;
-mod redacted_map_tests;
-mod redacted_tests;
+// Legacy byte-budget display tests were removed with the shared output budget.
 mod redacted_value_tests;

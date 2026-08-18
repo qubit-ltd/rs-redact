@@ -12,7 +12,6 @@ use std::fmt::Write as _;
 
 use super::RedactedJson;
 use super::bounded_json_redaction::redacted_json_text;
-use crate::LogOutputLimit;
 use crate::RedactionPolicy;
 use crate::Sensitivity;
 use crate::output::internal::BoundedLogEscapeWriter;
@@ -97,12 +96,7 @@ impl fmt::Debug for RedactedJsonText<'_, '_> {
     ///
     /// Returns a formatting error when the destination rejects output.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut writer = BoundedLogEscapeWriter::new(
-            LogOutputLimit::builder()
-                .max_bytes(usize::MAX)
-                .build()
-                .expect("unbounded presentation limit is valid"),
-        );
+        let mut writer = BoundedLogEscapeWriter::new(usize::MAX);
         if self.exceeds_diagnostic_input_budget() {
             let _ = write!(&mut writer, "{:?}", self.opaque_secret());
         } else {
@@ -141,12 +135,7 @@ impl fmt::Display for RedactedJsonText<'_, '_> {
     ///
     /// Returns a formatting error when the destination rejects output.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut writer = BoundedLogEscapeWriter::new(
-            LogOutputLimit::builder()
-                .max_bytes(usize::MAX)
-                .build()
-                .expect("unbounded presentation limit is valid"),
-        );
+        let mut writer = BoundedLogEscapeWriter::new(usize::MAX);
         let _ = writer.write_str(&self.diagnostic_json_text());
         formatter.write_str(&writer.finish())
     }

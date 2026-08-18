@@ -12,4 +12,3 @@ mod log_escape_tests;
 mod mod_tests;
 mod redacted_debug_tests;
 mod redacted_text_tests;
-mod redaction_completion_tests;

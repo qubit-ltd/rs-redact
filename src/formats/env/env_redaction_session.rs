@@ -34,7 +34,7 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
         }
         let result = EnvRedactor::new(Redactor::new(self.session.policy().clone())).redact_pair(name, value);
         let completion = result.completion();
-        self.session.stage_text(key, result.into_log_safe_text(), completion);
+        self.session.stage_text(key, result.into_text(), completion);
         self
     }
 
@@ -49,7 +49,7 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
         }
         let result = EnvRedactor::new(Redactor::new(self.session.policy().clone())).redact_os_pairs(pairs);
         let completion = result.completion();
-        self.session.stage_text(key, result.into_log_safe_text(), completion);
+        self.session.stage_text(key, result.into_text(), completion);
         self
     }
 }

@@ -8,10 +8,6 @@
 //! Immutable field classification and value-masking primitives.
 
 mod allow_rule;
-mod diagnostic_budget;
-mod diagnostic_budget_error;
-mod domain_redaction_limits;
-mod domain_redaction_limits_error;
 mod domain_traversal_admission;
 mod domain_value_admission;
 mod domain_value_scope;
@@ -20,10 +16,6 @@ mod field_classification;
 mod field_match_kind;
 mod field_name_matching;
 pub(crate) mod internal;
-#[cfg(feature = "json")]
-mod json_depth_limit;
-#[cfg(feature = "json")]
-mod json_depth_limit_error;
 mod mask_policy;
 pub mod masking;
 mod masking_policy;
@@ -46,24 +38,12 @@ mod unkeyed_json_value_policy;
 mod unknown_field_policy;
 
 pub use allow_rule::AllowRule;
-pub use diagnostic_budget::InputOutputLimit;
-pub use diagnostic_budget::InputOutputLimitBuilder;
-pub use diagnostic_budget_error::DiagnosticBudgetError;
-pub use domain_redaction_limits::DomainRedactionLimits;
-pub use domain_redaction_limits::DomainRedactionLimitsBuilder;
-pub use domain_redaction_limits_error::DomainRedactionLimitsError;
 pub use domain_traversal_admission::DomainTraversalAdmission;
 pub use domain_value_admission::DomainValueAdmission;
 pub use domain_value_scope::DomainValueScope;
 pub use field_classification::FieldClassification;
 pub use field_match_kind::FieldMatchKind;
 pub use field_name_matching::FieldNameMatching;
-#[cfg(feature = "json")]
-pub use json_depth_limit::JsonDepthLimit;
-#[cfg(feature = "json")]
-pub use json_depth_limit::JsonDepthLimitBuilder;
-#[cfg(feature = "json")]
-pub use json_depth_limit_error::JsonDepthLimitError;
 pub use mask_policy::MaskPolicy;
 pub use masking_policy::MaskingPolicy;
 pub use masking_policy::MaskingPolicyBuilder;

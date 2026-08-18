@@ -50,7 +50,7 @@ impl BoundedJsonRedaction {
 /// # Resource Use
 ///
 /// Redaction of the materialized [`serde_json::Value`] uses an explicit tree
-/// stack and applies [`JsonDepthLimit`](crate::JsonDepthLimit) fail closed.
+/// stack and applies the configured JSON value limits fail closed.
 /// JSON parsing and final serialization retain the resource and recursion
 /// boundaries of `serde_json`. This guarantee does not apply to the lazy
 /// [`RedactedJson`](crate::formats::json::RedactedJson) `Debug` or Serde

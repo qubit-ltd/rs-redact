@@ -20,8 +20,7 @@ use crate::RedactionOutput;
 /// [`RedactionCompletion::Complete`] means the complete safe JSON rendering,
 /// including an ordinary sensitivity mask, fit the budget.
 /// [`RedactionCompletion::Truncated`] means input or output was omitted but a
-/// non-empty safe substitute was emitted. [`RedactionCompletion::Exhausted`]
-/// is the only state with empty output and means no safe substitute fit.
+/// non-empty safe substitute was emitted.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsonRedactionOutput {
     /// Invariant-preserving safe text and completion state.
@@ -52,8 +51,8 @@ impl JsonRedactionOutput {
     /// exhaustion, according to [`Self::completion`].
     #[must_use]
     #[inline(always)]
-    pub const fn log_safe_text(&self) -> &RedactedText {
-        self.output.log_safe_text()
+    pub const fn text(&self) -> &RedactedText {
+        self.output.text()
     }
 
     /// Returns how the JSON redaction operation completed.
@@ -63,18 +62,18 @@ impl JsonRedactionOutput {
     /// The state paired with the safe output by the three-state invariant.
     #[inline(always)]
     pub const fn completion(&self) -> RedactionCompletion {
-        self.output.completion()
+        self.output.summary().completion()
     }
 
     /// Returns the safe JSON text as a string slice.
     ///
     /// # Returns
     ///
-    /// The same text exposed by [`Self::log_safe_text`].
+    /// The same text exposed by [`Self::text`].
     #[must_use]
     #[inline(always)]
     pub fn as_str(&self) -> &str {
-        self.log_safe_text().as_str()
+        self.text().as_str()
     }
 
     /// Consumes this result and returns its safe JSON text.
@@ -85,8 +84,8 @@ impl JsonRedactionOutput {
     /// output.
     #[must_use]
     #[inline(always)]
-    pub fn into_log_safe_text(self) -> RedactedText {
-        self.output.into_log_safe_text()
+    pub fn into_text(self) -> RedactedText {
+        self.output.into_text()
     }
 }
 
@@ -94,6 +93,6 @@ impl Display for JsonRedactionOutput {
     /// Formats only the log-safe JSON text.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        Display::fmt(self.log_safe_text(), formatter)
+        Display::fmt(self.text(), formatter)
     }
 }

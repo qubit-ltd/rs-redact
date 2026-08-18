@@ -44,7 +44,7 @@ impl RedactedHeaders {
     /// A borrowed log-safe header representation.
     #[must_use]
     #[inline]
-    pub const fn log_safe_text(&self) -> &RedactedText {
+    pub const fn text(&self) -> &RedactedText {
         &self.text
     }
 
@@ -55,7 +55,7 @@ impl RedactedHeaders {
     /// Owned log-safe header text.
     #[must_use]
     #[inline]
-    pub fn into_log_safe_text(self) -> RedactedText {
+    pub fn into_text(self) -> RedactedText {
         self.text
     }
 }

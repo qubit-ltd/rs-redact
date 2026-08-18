@@ -37,7 +37,7 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
         }
         let result = ArgvRedactor::new(Redactor::new(self.session.policy().clone())).redact_items(items);
         let completion = result.completion();
-        self.session.stage_text(key, result.into_log_safe_text(), completion);
+        self.session.stage_text(key, result.into_text(), completion);
         self
     }
 
@@ -52,7 +52,7 @@ impl<'session, 'policy> ArgvRedactionSession<'session, 'policy> {
         }
         let result = ArgvRedactor::new(Redactor::new(self.session.policy().clone())).redact_heuristically(items);
         let completion = result.completion();
-        self.session.stage_text(key, result.into_log_safe_text(), completion);
+        self.session.stage_text(key, result.into_text(), completion);
         self
     }
 }

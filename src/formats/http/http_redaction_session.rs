@@ -49,7 +49,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
         }
         let result = self.redact_headers_direct(headers);
         self.session
-            .stage_text(key, result.into_log_safe_text(), crate::RedactionCompletion::Complete);
+            .stage_text(key, result.into_text(), crate::RedactionCompletion::Complete);
         self
     }
 }
@@ -61,34 +61,28 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
         HttpRedactor::new(self.session.policy().clone())
     }
 
-    /// Applies one bounded HTTP rendering operation and commits its output.
-    #[must_use]
-    fn text_result(&mut self, render: impl FnOnce(&HttpRedactor, usize) -> RedactedText) -> RedactedText {
-        render(&self.redactor(), usize::MAX)
-    }
-
     /// Redacts a parsed URL.
     #[must_use]
     pub(crate) fn redact_url_direct(&mut self, url: &Url) -> RedactedText {
-        self.text_result(|redactor, limit| redactor.redact_url_with_output_limit(url, limit))
+        self.redactor().redact_url(url)
     }
 
     /// Redacts every HTTP URL-looking token in diagnostic text.
     #[must_use]
     pub(crate) fn redact_urls_in_text_direct(&mut self, text: &str) -> RedactedText {
-        self.text_result(|redactor, limit| redactor.redact_urls_in_text_with_output_limit(text, limit))
+        self.redactor().redact_urls_in_text(text)
     }
 
     /// Parses and redacts one URL string.
     #[must_use]
     pub(crate) fn redact_url_str_direct(&mut self, text: &str) -> RedactedText {
-        self.text_result(|redactor, limit| redactor.redact_url_str_with_output_limit(text, limit))
+        self.redactor().redact_url_str(text)
     }
 
     /// Redacts URL-encoded form text.
     #[must_use]
     pub(crate) fn redact_form_direct(&mut self, text: &str) -> RedactedText {
-        self.text_result(|redactor, limit| redactor.redact_form_with_output_limit(text, limit))
+        self.redactor().redact_form(text)
     }
 
     /// Redacts all HTTP headers.
@@ -176,7 +170,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     ) -> BodyRedaction {
         let value = render(&self.redactor());
         BodyRedaction::new(
-            value.log_safe_text().as_str().to_owned(),
+            value.text().as_str().to_owned(),
             value.status(),
             value.captured_len(),
             value.source_len(),

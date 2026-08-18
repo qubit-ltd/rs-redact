@@ -7,7 +7,6 @@
 // =============================================================================
 //! Tests for internal immutable policy state.
 
-mod bounded_mask_writer_tests;
 mod field_name_tests;
 mod mod_tests;
 mod redaction_policy_inner_tests;

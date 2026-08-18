@@ -77,15 +77,15 @@ impl UriRedaction {
     /// Returns the log-safe URI text without exposing an unescaped source.
     #[must_use]
     #[inline]
-    pub fn log_safe_text(&self) -> &RedactedText {
-        self.output.log_safe_text()
+    pub fn text(&self) -> &RedactedText {
+        self.output.text()
     }
 
     /// Consumes the result and returns typed log-safe text.
     #[must_use]
     #[inline]
-    pub fn into_log_safe_text(self) -> RedactedText {
-        self.output.into_log_safe_text()
+    pub fn into_text(self) -> RedactedText {
+        self.output.into_text()
     }
 
     /// Returns the overall processing status.
@@ -131,11 +131,9 @@ impl UriRedaction {
     /// including ordinary masking and invalid-input replacement after complete
     /// inspection; [`RedactionCompletion::Truncated`] when a non-empty safe
     /// substitute represents rejected input or omitted output; or
-    /// [`RedactionCompletion::Exhausted`] when no safe text fit. URI status and
-    /// reason metadata retain their existing meanings independently.
     #[must_use]
     pub const fn completion(&self) -> RedactionCompletion {
-        self.output.completion()
+        self.output.summary().completion()
     }
 }
 
@@ -145,7 +143,7 @@ impl Debug for UriRedaction {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("UriRedaction")
-            .field("text", &self.log_safe_text().as_str())
+            .field("text", &self.text().as_str())
             .field("status", &self.status)
             .field("reasons", &self.reasons)
             .field("components", &self.components)
@@ -158,6 +156,6 @@ impl Display for UriRedaction {
     /// Formats only the log-safe URI text.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.log_safe_text().as_str())
+        formatter.write_str(self.text().as_str())
     }
 }

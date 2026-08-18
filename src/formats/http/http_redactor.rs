@@ -18,7 +18,6 @@ use http::HeaderMap;
 use http::HeaderValue;
 use url::Url;
 
-use super::BodyBudget;
 use super::BodyCapture;
 use super::BodyRedaction;
 use super::BodyRedactionReason;
@@ -133,38 +132,6 @@ impl HttpRedactor {
         self.finish_diagnostic(self.redact_url_text(url))
     }
 
-    /// Redacts a parsed URL under an explicit output limit.
-    #[must_use]
-    pub(super) fn redact_url_with_output_limit(&self, url: &Url, output_limit: usize) -> RedactedText {
-        self.finish_diagnostic_with_limit(self.redact_url_text_at_depth(url, 0, output_limit), output_limit)
-    }
-
-    /// Redacts URL-looking tokens under an explicit output limit.
-    #[must_use]
-    pub(super) fn redact_urls_in_text_with_output_limit(&self, text: &str, output_limit: usize) -> RedactedText {
-        if self.diagnostic_input_exceeded(text.len()) {
-            return Self::diagnostic_limit_exceeded();
-        }
-        let redacted = diagnostic_text::redact_bounded(
-            text,
-            |url| self.redact_url_text_at_depth(url, 0, output_limit),
-            output_limit,
-        );
-        self.finish_diagnostic_with_limit(redacted, output_limit)
-    }
-
-    /// Parses and redacts one URL string under an explicit output limit.
-    #[must_use]
-    pub(super) fn redact_url_str_with_output_limit(&self, input: &str, output_limit: usize) -> RedactedText {
-        if self.diagnostic_input_exceeded(input.len()) {
-            return Self::diagnostic_limit_exceeded();
-        }
-        match Url::parse(input) {
-            Ok(url) => self.redact_url_with_output_limit(&url, output_limit),
-            Err(_) => self.finish_diagnostic_with_limit(markers::INVALID_URL.to_string(), output_limit),
-        }
-    }
-
     /// Redacts every HTTP URL-looking token in diagnostic text.
     ///
     /// Surrounding prose and punctuation are preserved. Invalid URL-looking
@@ -237,24 +204,6 @@ impl HttpRedactor {
         self.finish_diagnostic(text)
     }
 
-    /// Redacts URL-encoded form text under an explicit output limit.
-    #[must_use]
-    pub(super) fn redact_form_with_output_limit(&self, input: &str, output_limit: usize) -> RedactedText {
-        if self.diagnostic_input_exceeded(input.len()) {
-            return Self::diagnostic_limit_exceeded();
-        }
-        let text = if form::is_valid(input.as_bytes()) {
-            form::redact_bounded(
-                &FieldRedactor::new(self.policy.rules(), self.policy.query_rules(), self.policy.masking()),
-                input.as_bytes(),
-                output_limit,
-            )
-        } else {
-            markers::INVALID_FORM.to_string()
-        };
-        self.finish_diagnostic_with_limit(text, output_limit)
-    }
-
     /// Redacts and deterministically renders all HTTP header values.
     ///
     /// Native sensitive values are always masked at Secret level before any
@@ -314,7 +263,7 @@ impl HttpRedactor {
             capture,
             content_type,
             invalid_content_type,
-            self.policy.body_budget().max_output_bytes(),
+            usize::MAX,
         )
     }
 
@@ -342,7 +291,7 @@ impl HttpRedactor {
             capture,
             content_type,
             invalid_content_type,
-            self.policy.body_budget().max_output_bytes(),
+            usize::MAX,
         )
     }
 
@@ -398,7 +347,7 @@ impl HttpRedactor {
         invalid_content_type: bool,
         output_limit: usize,
     ) -> BodyRedaction {
-        let input_len = capture.bytes().len().min(self.policy.body_budget().max_input_bytes());
+        let input_len = capture.bytes().len();
         let bounded = &capture.bytes()[..input_len];
         let budget_truncated = input_len < capture.bytes().len();
 
@@ -413,11 +362,7 @@ impl HttpRedactor {
             capture,
             input_len,
             budget_truncated,
-            BodyBudget::builder()
-                .max_input_bytes(self.policy.body_budget().max_input_bytes())
-                .max_output_bytes(output_limit)
-                .build()
-                .unwrap_or(self.policy.body_budget()),
+            output_limit,
         )
     }
 
@@ -818,11 +763,11 @@ impl HttpRedactor {
         capture: BodyCapture<'_>,
         captured_len: usize,
         budget_truncated: bool,
-        budget: BodyBudget,
+        output_limit: usize,
     ) -> BodyRedaction {
         let (parsed_text, status, rendered_truncated) = parsed.into_parts();
         let source_truncated = capture.is_source_truncated() || budget_truncated || rendered_truncated;
-        let mut writer = BoundedLogWriter::new(budget.max_output_bytes(), source_truncated);
+        let mut writer = BoundedLogWriter::new(output_limit, source_truncated);
         let _ = writer.write_str(&parsed_text);
         let (text, truncated) = writer.finish();
         let source_len = capture.total_len();

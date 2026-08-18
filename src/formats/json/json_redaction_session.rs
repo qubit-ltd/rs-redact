@@ -35,7 +35,7 @@ impl<'session, 'policy> JsonRedactionSession<'session, 'policy> {
         }
         let result = self.redact_text_direct(text);
         let completion = result.completion();
-        self.session.stage_text(key, result.into_log_safe_text(), completion);
+        self.session.stage_text(key, result.into_text(), completion);
         self
     }
 }
@@ -69,7 +69,6 @@ impl JsonRedactionSession<'_, '_> {
     ///
     /// The serialized input size is counted before admission unless the
     /// session is already exhausted. After exhaustion this method returns an
-    /// empty [`crate::RedactionCompletion::Exhausted`] result without
     /// traversing or serializing `value`. Successful admission performs JSON
     /// redaction, commits the bounded output, and may transition the shared
     /// session to truncated when a mask or output budget omits content.

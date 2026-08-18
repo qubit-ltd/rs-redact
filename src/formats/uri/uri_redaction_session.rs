@@ -29,7 +29,7 @@ impl<'session, 'policy> UriRedactionSession<'session, 'policy> {
         }
         let result = self.redact_uri_direct(value);
         let completion = result.completion();
-        self.session.stage_text(key, result.into_log_safe_text(), completion);
+        self.session.stage_text(key, result.into_text(), completion);
         self
     }
 }

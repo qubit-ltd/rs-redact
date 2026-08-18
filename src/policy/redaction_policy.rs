@@ -236,15 +236,6 @@ impl RedactionPolicy {
         self.http.text_body_policy()
     }
 
-    /// Transitional body-budget accessor for the legacy HTTP implementation.
-    #[must_use]
-    #[cfg(feature = "http")]
-    #[inline]
-    #[doc(hidden)]
-    pub fn body_budget(&self) -> crate::formats::http::BodyBudget {
-        self.limits.http_body()
-    }
-
     /// Returns the URI path policy.
     #[must_use]
     #[cfg(feature = "uri")]
