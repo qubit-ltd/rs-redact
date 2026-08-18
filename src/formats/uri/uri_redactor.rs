@@ -22,11 +22,10 @@ use super::UriRedactionReason;
 use super::UriRedactionStatus;
 use super::internal::BoundedUriWriter;
 use super::internal::UriComponentWriter;
-use crate::RedactionCompletion;
 use crate::RedactionPolicy;
 use crate::Sensitivity;
 use crate::output::MaskedValue;
-use crate::policy::FragmentCompletion;
+use crate::RedactionCompletion;
 use crate::policy::ResolvedField;
 
 /// Safe replacement used when URI parsing or decoding fails.
@@ -144,7 +143,7 @@ pub(crate) fn redact_uri_str_bounded(
     input: &str,
     max_output_bytes: usize,
     session_limited: bool,
-) -> (UriRedaction, FragmentCompletion) {
+) -> (UriRedaction, RedactionCompletion) {
     let parsed = match Uri::<&str>::parse(input) {
         Ok(parsed) => parsed,
         Err(_) => {
@@ -229,14 +228,14 @@ fn finish_uri_rendering(
     mut reasons: Vec<UriRedactionReason>,
     components: Vec<UriComponent>,
     session_limited: bool,
-) -> (UriRedaction, FragmentCompletion) {
+) -> (UriRedaction, RedactionCompletion) {
     let status = if components.is_empty() {
         UriRedactionStatus::PassedThrough
     } else {
         UriRedactionStatus::Redacted
     };
     let (safe, completion) = rendered.finish_with_completion(session_limited);
-    let truncated = !matches!(completion, FragmentCompletion::Complete);
+    let truncated = completion != RedactionCompletion::Complete;
     if truncated {
         reasons.push(UriRedactionReason::OutputTruncated);
     }
@@ -259,13 +258,10 @@ fn finish_uri_rendering(
 ///
 /// `Complete` for a fully rendered URI, `Truncated` for non-empty substitute
 /// text after either truncation source, or `Exhausted` when no safe text fit.
-fn public_completion(safe: &str, completion: FragmentCompletion) -> RedactionCompletion {
+fn public_completion(safe: &str, completion: RedactionCompletion) -> RedactionCompletion {
     match completion {
-        FragmentCompletion::Complete => RedactionCompletion::Complete,
-        FragmentCompletion::DomainTruncated | FragmentCompletion::SessionTruncated if safe.is_empty() => {
-            RedactionCompletion::Exhausted
-        }
-        FragmentCompletion::DomainTruncated | FragmentCompletion::SessionTruncated => RedactionCompletion::Truncated,
+        RedactionCompletion::Complete => RedactionCompletion::Complete,
+        RedactionCompletion::Truncated => RedactionCompletion::Truncated,
     }
 }
 
@@ -284,18 +280,18 @@ fn bounded_invalid_result(
     reason: UriRedactionReason,
     max_output_bytes: usize,
     session_limited: bool,
-) -> (UriRedaction, FragmentCompletion) {
+) -> (UriRedaction, RedactionCompletion) {
     if max_output_bytes < INVALID_URI.len() {
         return (
             empty_invalid_result(reason),
             if session_limited {
-                FragmentCompletion::SessionTruncated
+                RedactionCompletion::Truncated
             } else {
-                FragmentCompletion::DomainTruncated
+                RedactionCompletion::Truncated
             },
         );
     }
-    (invalid_result(reason), FragmentCompletion::Complete)
+    (invalid_result(reason), RedactionCompletion::Complete)
 }
 
 impl Default for UriRedactor {
@@ -595,7 +591,7 @@ pub(super) fn empty_invalid_result(reason: UriRedactionReason) -> UriRedaction {
         UriRedactionStatus::Invalid,
         vec![reason],
         Vec::new(),
-        RedactionCompletion::Exhausted,
+        RedactionCompletion::Truncated,
     )
 }
 

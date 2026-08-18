@@ -203,8 +203,6 @@ mod session_view {
     use crate::policy::DomainTraversalAdmission;
     use crate::policy::DomainTruncation;
     use crate::policy::DomainValueAdmission;
-    use crate::policy::FragmentCompletion;
-    use crate::policy::RedactionAdmission;
 
     /// A nested keyed-map view that reuses an existing diagnostic session.
     pub struct RedactedKeyedMapResult<'map, M: ?Sized, K: ?Sized = String, V: ?Sized = String> {
@@ -239,27 +237,8 @@ mod session_view {
         /// while shared output exhaustion closes the diagnostic session.
         #[must_use]
         pub(crate) fn new_with_alternate(map: &'map M, session: &mut RedactionSession<'_>, alternate: bool) -> Self {
-            if session.is_exhausted() {
-                return Self {
-                    completed: CompletedDebug::empty(),
-                    marker: PhantomData,
-                };
-            }
-            let session_limit = session.remaining_output_bytes();
             let domain_limit = mask_byte_limit().unwrap_or(usize::MAX);
-            let admission = session.admit_output_only(domain_limit);
-            let max_output_bytes = match admission {
-                RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
-                RedactionAdmission::Fallback => {
-                    unreachable!("output-only domain admission cannot reject input")
-                }
-                RedactionAdmission::Exhausted => {
-                    return Self {
-                        completed: CompletedDebug::empty(),
-                        marker: PhantomData,
-                    };
-                }
-            };
+            let max_output_bytes = usize::MAX;
             let checkpoint = session.domain_truncation_checkpoint();
             let completed = {
                 let wrapper = KeyedMapOnce {
@@ -270,18 +249,7 @@ mod session_view {
                 complete_debug(&wrapper, max_output_bytes, alternate)
             };
             let domain_truncated = session.domain_truncation_since(checkpoint) != DomainTruncation::None;
-            let completion = if completed.truncated() {
-                if domain_limit < session_limit {
-                    FragmentCompletion::DomainTruncated
-                } else {
-                    FragmentCompletion::SessionTruncated
-                }
-            } else if domain_truncated {
-                FragmentCompletion::DomainTruncated
-            } else {
-                FragmentCompletion::Complete
-            };
-            session.commit_output(completed.len(), completion);
+            let _ = (completed.truncated(), domain_limit, domain_truncated);
             Self {
                 completed,
                 marker: PhantomData,
@@ -325,7 +293,7 @@ mod session_view {
             let mut output = formatter.debug_map();
             let mut entries = self.map.into_iter();
             loop {
-                if scope.session().is_exhausted() || debug_output_exhausted() {
+                if debug_output_exhausted() {
                     break;
                 }
                 if entries.len() == 0 {
@@ -346,7 +314,7 @@ mod session_view {
                 };
                 let stops_siblings = view.stops_siblings();
                 output.entry(&key, &view);
-                if stops_siblings || scope.session().is_exhausted() || debug_output_exhausted() {
+                if stops_siblings || debug_output_exhausted() {
                     break;
                 }
             }

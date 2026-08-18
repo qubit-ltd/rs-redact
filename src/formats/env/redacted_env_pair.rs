@@ -74,7 +74,7 @@ impl RedactedEnvPair {
     #[must_use]
     pub(super) fn truncated(rendered: RedactedText) -> Self {
         Self {
-            output: RedactionOutput::truncated(rendered).unwrap_or_else(RedactionOutput::exhausted),
+            output: RedactionOutput::truncated(rendered).unwrap_or_else(RedactionOutput::empty),
         }
     }
 

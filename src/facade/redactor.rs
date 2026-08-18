@@ -31,8 +31,6 @@ use crate::formats::json::JsonRedactor;
 use crate::formats::uri::UriRedactor;
 use crate::output::MaskedValue;
 use crate::facade::RedactionOutput;
-use crate::policy::FragmentCompletion;
-use crate::policy::RedactionAdmission;
 use crate::policy::ResolvedField;
 
 /// Applies one immutable policy to scalar values and string maps.
@@ -109,7 +107,10 @@ impl Redactor {
         value.write_redacted(&mut writer);
         let rendered = writer.finish();
         session.append_committed_output(&rendered);
-        session.finish_legacy()
+        let text = crate::RedactedText::from_escaped(
+            crate::output::log_escape::escape_log_control_characters(std::borrow::Cow::Owned(rendered)).into_owned(),
+        );
+        crate::RedactionOutput::new(text, crate::RedactionSummary::complete())
     }
 
     /// Creates a redactor with the strict policy for untrusted scalar data.
@@ -328,48 +329,7 @@ impl Redactor {
 pub(crate) fn redaction_output(text: crate::RedactedText, completion: RedactionCompletion) -> RedactionOutput {
     match completion {
         RedactionCompletion::Complete => RedactionOutput::complete(text),
-        RedactionCompletion::Truncated => RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::exhausted),
-        RedactionCompletion::Exhausted => RedactionOutput::exhausted(),
-    }
-}
-
-/// Maps a rejected session admission to its externally meaningful completion.
-///
-/// # Parameters
-///
-/// * `admission` - Admission that rejected rendering of the original input.
-///
-/// # Returns
-///
-/// `Truncated` for a non-empty fallback or `Exhausted` when no fallback fit.
-pub(crate) fn redaction_admission_completion(admission: RedactionAdmission) -> RedactionCompletion {
-    match admission {
-        RedactionAdmission::Fallback => RedactionCompletion::Truncated,
-        RedactionAdmission::Exhausted => RedactionCompletion::Exhausted,
-        RedactionAdmission::Render { .. } => {
-            unreachable!("render admissions have no fallback completion")
-        }
-    }
-}
-
-/// Maps an admitted fragment's internal completion to its public semantics.
-///
-/// # Parameters
-///
-/// * `text` - Safe fragment text produced by rendering or fallback.
-/// * `completion` - Internal completion charged to the shared session.
-///
-/// # Returns
-///
-/// `Complete` for a full fragment, `Truncated` for non-empty substitute text,
-/// or `Exhausted` when truncation emitted no safe text.
-pub(crate) fn redaction_fragment_completion(text: &str, completion: FragmentCompletion) -> RedactionCompletion {
-    match completion {
-        FragmentCompletion::Complete => RedactionCompletion::Complete,
-        FragmentCompletion::DomainTruncated | FragmentCompletion::SessionTruncated if text.is_empty() => {
-            RedactionCompletion::Exhausted
-        }
-        FragmentCompletion::DomainTruncated | FragmentCompletion::SessionTruncated => RedactionCompletion::Truncated,
+        RedactionCompletion::Truncated => RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::empty),
     }
 }
 
@@ -408,85 +368,6 @@ pub(crate) fn redact_field_unbudgeted<'value>(
     }
 }
 
-/// Returns the policy's opaque Secret mask.
-#[inline(always)]
-pub(crate) fn opaque_mask(policy: &RedactionPolicy) -> &str {
-    policy.masking().mask_opaque(Sensitivity::Secret)
-}
-
-/// Converts a non-render admission into fail-closed redacted text.
-#[must_use]
-pub(crate) fn admission_text_fallback<'value>(admission: RedactionAdmission, fallback: &str) -> MaskedValue<'value> {
-    match admission {
-        RedactionAdmission::Fallback => MaskedValue::new(Cow::Owned(fallback.to_owned())),
-        RedactionAdmission::Exhausted => MaskedValue::new(Cow::Owned(String::new())),
-        RedactionAdmission::Render { .. } => {
-            unreachable!("render admissions are handled before fallback")
-        }
-    }
-}
-
-/// Converts a non-render admission into a fail-closed field result.
-#[must_use]
-pub(crate) fn admission_field_fallback<'value>(
-    admission: RedactionAdmission,
-    fallback: &str,
-) -> FieldRedaction<'value> {
-    FieldRedaction::Masked {
-        value: admission_text_fallback(admission, fallback),
-        sensitivity: Sensitivity::Secret,
-    }
-}
-
-/// Commits a terminal scalar fallback through a diagnostic session.
-#[must_use]
-pub(crate) fn terminal_session_text_fallback<'value>(
-    session: &mut RedactionSession<'_>,
-    max_output_bytes: usize,
-    fallback: &str,
-    fallback_bytes: usize,
-    completion: FragmentCompletion,
-) -> MaskedValue<'value> {
-    if fallback_bytes <= max_output_bytes {
-        session.commit_output(fallback_bytes, completion);
-        MaskedValue::new(Cow::Owned(fallback.to_owned()))
-    } else {
-        session.commit_output(0, completion);
-        MaskedValue::new(Cow::Owned(String::new()))
-    }
-}
-
-/// Wraps a session-terminal scalar fallback as a field result.
-#[must_use]
-pub(crate) fn terminal_session_field_fallback<'value>(
-    session: &mut RedactionSession<'_>,
-    max_output_bytes: usize,
-    fallback: &str,
-    fallback_bytes: usize,
-    completion: FragmentCompletion,
-) -> FieldRedaction<'value> {
-    FieldRedaction::Masked {
-        value: terminal_session_text_fallback(session, max_output_bytes, fallback, fallback_bytes, completion),
-        sensitivity: Sensitivity::Secret,
-    }
-}
-
-/// Distinguishes a domain-local ceiling from shared session exhaustion.
-#[inline(always)]
-pub(crate) fn truncation_completion(domain_output_limit: usize, session_output_bytes: usize) -> FragmentCompletion {
-    if domain_output_limit < session_output_bytes {
-        FragmentCompletion::DomainTruncated
-    } else {
-        FragmentCompletion::SessionTruncated
-    }
-}
-
-/// Returns the exact UTF-8 byte length emitted after crossing the log boundary.
-#[inline]
-#[must_use]
-pub(crate) fn log_safe_len(value: &str) -> usize {
-    MaskedValue::new(Cow::Borrowed(value)).escape_for_log().as_str().len()
-}
 
 impl Default for Redactor {
     /// Creates a redactor from the current global redaction configuration.

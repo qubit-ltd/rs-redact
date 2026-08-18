@@ -8,12 +8,8 @@
 //! URI operations backed by one mutable diagnostic session.
 
 use super::UriRedaction;
-use super::UriRedactionReason;
-use super::uri_redactor::empty_invalid_result;
-use super::uri_redactor::invalid_result;
 use super::uri_redactor::redact_uri_str_bounded;
 use crate::RedactionSession;
-use crate::policy::RedactionAdmission;
 
 /// URI facade borrowing one diagnostic session.
 pub struct UriRedactionSession<'session, 'policy> {
@@ -51,21 +47,8 @@ impl UriRedactionSession<'_, '_> {
     /// status and reason metadata keep their independent meanings.
     #[must_use]
     pub(crate) fn redact_uri_direct(&mut self, input: &str) -> UriRedaction {
-        let domain_output_limit = self.session.policy().limits().diagnostic_event().max_output_bytes();
-        let admission = self
-            .session
-            .admit(input.len(), domain_output_limit, "<invalid URI>".len());
-        match admission {
-            RedactionAdmission::Fallback => invalid_result(UriRedactionReason::InputLimitExceeded),
-            RedactionAdmission::Exhausted => empty_invalid_result(UriRedactionReason::OutputTruncated),
-            RedactionAdmission::Render { max_output_bytes } => {
-                let session_limited = max_output_bytes < domain_output_limit;
-                let policy = self.session.policy();
-                let (result, completion) = redact_uri_str_bounded(policy, input, max_output_bytes, session_limited);
-                self.session
-                    .commit_output(result.log_safe_text().as_str().len(), completion);
-                result
-            }
-        }
+        let policy = self.session.policy();
+        let (result, _) = redact_uri_str_bounded(policy, input, usize::MAX, false);
+        result
     }
 }

@@ -159,7 +159,7 @@ impl DiagnosticLogBuilder {
     #[inline]
     fn truncation_completion(&self) -> RedactionCompletion {
         if self.writer.len() == 0 {
-            RedactionCompletion::Exhausted
+            RedactionCompletion::Truncated
         } else {
             RedactionCompletion::Truncated
         }
@@ -182,7 +182,7 @@ impl DiagnosticLogBuilder {
         match write_completion {
             RedactionCompletion::Complete => source_completion,
             RedactionCompletion::Truncated => RedactionCompletion::Truncated,
-            RedactionCompletion::Exhausted => RedactionCompletion::Exhausted,
+            RedactionCompletion::Truncated => RedactionCompletion::Truncated,
         }
     }
 

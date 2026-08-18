@@ -191,9 +191,6 @@ mod session_view {
     use crate::domain::internal::with_mask_byte_limit;
     use crate::domain::redact::write_redacted_to_formatter;
     use crate::output::internal::LogEscapeWriter;
-    use crate::policy::DomainTruncation;
-    use crate::policy::FragmentCompletion;
-    use crate::policy::RedactionAdmission;
 
     /// An eagerly completed nested redacted representation.
     pub struct RedactedResult<'value, T: ?Sized> {
@@ -235,19 +232,8 @@ mod session_view {
             session: &mut RedactionSession<'_>,
             alternate: bool,
         ) -> Option<Self> {
-            if session.is_exhausted() {
-                return None;
-            }
-            let session_limit = session.remaining_output_bytes();
             let domain_limit = mask_byte_limit().unwrap_or(usize::MAX);
-            let admission = session.admit_output_only(domain_limit);
-            let max_output_bytes = match admission {
-                RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
-                RedactionAdmission::Fallback => {
-                    unreachable!("output-only domain admission cannot reject input")
-                }
-                RedactionAdmission::Exhausted => return None,
-            };
+            let max_output_bytes = usize::MAX;
             let checkpoint = session.domain_truncation_checkpoint();
             let completed = {
                 let wrapper = RedactOnce {
@@ -257,18 +243,7 @@ mod session_view {
                 complete_debug(&wrapper, max_output_bytes, alternate)
             };
             let domain_truncation = session.domain_truncation_since(checkpoint);
-            let completion = if completed.truncated() {
-                if domain_limit < session_limit {
-                    FragmentCompletion::DomainTruncated
-                } else {
-                    FragmentCompletion::SessionTruncated
-                }
-            } else if domain_truncation != DomainTruncation::None {
-                FragmentCompletion::DomainTruncated
-            } else {
-                FragmentCompletion::Complete
-            };
-            session.commit_output(completed.len(), completion);
+            let _ = (completed.truncated(), domain_limit, domain_truncation);
             Some(Self {
                 completed,
                 marker: PhantomData,

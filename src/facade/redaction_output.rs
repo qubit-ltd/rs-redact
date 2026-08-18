@@ -32,13 +32,13 @@ impl RedactionOutput {
         if text.as_str().is_empty() {
             None
         } else {
-            Some(Self::new(text, RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached)))
+            Some(Self::new(text, RedactionSummary::truncated(crate::RedactionReason::TraversalLimitReached)))
         }
     }
 
     #[doc(hidden)]
-    pub(crate) fn exhausted() -> Self {
-        Self::new(RedactedText::from_escaped(std::borrow::Cow::Borrowed("")), RedactionSummary::exhausted())
+    pub(crate) fn empty() -> Self {
+        Self::new(RedactedText::from_escaped(std::borrow::Cow::Borrowed("")), RedactionSummary::empty())
     }
 
     #[doc(hidden)]
