@@ -171,7 +171,7 @@ fn test_builder_is_empty_and_default_based_builder_is_explicit() {
     .build()
     .expect("the default-based policy should be valid");
     let copied = ({
-        let mut builder = RedactionPolicy::builder_from(&from_default);
+        let mut builder = from_default.to_builder();
         builder.edit_fields().include_preset(SensitiveFieldPreset::Session);
         builder
     })
@@ -241,7 +241,8 @@ fn test_builder_from_copies_complete_policy_snapshot() {
     })
     .build()
     .expect("the complete base policy should be valid");
-    let copied = RedactionPolicy::builder_from(&base)
+    let copied = base
+        .to_builder()
         .build()
         .expect("the copied policy should remain valid");
     let sensitive = copied.application_sensitive_rules().collect::<Vec<_>>();

@@ -72,14 +72,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | Diagnostic input | Primary tool | Result and logging boundary |
 | --- | --- | --- |
-| Named scalar value | `Redactor::redact_field` | `RedactedText`, then `LogSafeText` for plain-text logs |
+| Named scalar value | `Redactor::redact_field` | `RedactedText`, then `RedactedText` for plain-text logs |
 | Text-keyed map | `Redactor::redact_map` or `redact_map_in_place` | A copied or mutated map; choose the final logging format explicitly |
 | Rust struct or enum | `Redact` derive | `Redacted<T>` view |
 | Value requiring logical replacement | `Redact` derive | The generated `RedactMut` capability mutates the value; not memory erasure |
-| Command arguments | `Redactor::session().argv_with_mut(...)` | `RedactedArgv` |
-| Environment pairs | `Redactor::session().env_with_mut(...)` | `RedactedEnvPair` or `LogSafeText` |
-| URL, form, headers, captured body | `Redactor::session().http_with_mut(...)` | Log-safe HTTP result types |
-| URI string | `Redactor::session().uri_with_mut(...)` | Structured, log-safe result with component reasons |
+| Command arguments | `Redactor::session().argv(...)` | `RedactedArgv` |
+| Environment pairs | `Redactor::session().env(...)` | `RedactedEnvPair` or `RedactedText` |
+| URL, form, headers, captured body | `Redactor::session().http(...)` | Log-safe HTTP result types |
+| URI string | `Redactor::session().uri(...)` | Structured, log-safe result with component reasons |
 
 ## Installation and example requirements
 
@@ -115,7 +115,7 @@ snapshot and applies it consistently.
 
 `RedactedText` means field-sensitive redaction occurred. It intentionally does
 not implement `Display`: call `escape_for_log()` before a plain-text log
-boundary to obtain `LogSafeText`.
+boundary to obtain `RedactedText`.
 
 Redacted domain and map views use the policy diagnostic output budget for both
 `Debug` and log-safe `Display` by default. Call `with_output_limit()` to select
@@ -281,7 +281,7 @@ as `serde_json::Map<String, serde_json::Value>`. Define an explicit domain
 boundary for their replacement semantics.
 
 `redact_map` returns the same collection type, while `redact_map_in_place`
-updates that collection. Neither operation turns a map into `LogSafeText`;
+updates that collection. Neither operation turns a map into `RedactedText`;
 choose an appropriate final formatter at the logging boundary.
 
 With the `json` feature, `RedactedJson`, `RedactedJsonText`, and
@@ -311,7 +311,7 @@ assert!(!safe.to_string().contains("raw-token"));
 
 Redaction and safe log rendering are distinct guarantees. A value may be
 allowed by field policy but contain newlines or Unicode controls that alter log
-structure. `escape_for_log()` returns displayable `LogSafeText`.
+structure. `escape_for_log()` returns displayable `RedactedText`.
 `LogOutputLimit` bounds final output and appends `<truncated>` without splitting
 UTF-8 or generated escapes.
 
@@ -324,9 +324,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .escape_for_log();
     assert_eq!(safe.to_string(), "first line\\nsecond line");
 
-    let limit = LogOutputLimit::builder().max_bytes(16).build()?;
-    let bounded = safe.with_output_limit(limit).to_string();
-    assert!(bounded.len() <= limit.max_bytes());
     Ok(())
 }
 ```
@@ -509,7 +506,7 @@ fn main() {
 Use `redact_os_pairs` for a list of process variables; it shares the input
 budget and stops with a truncation marker instead of reading excess input.
 
-## 7. Redact HTTP diagnostics with the `http_with_mut` adapter
+## 7. Redact HTTP diagnostics with the `http` adapter
 
 The optional `http` feature provides an immutable root `RedactionPolicy` for
 headers, query/form fields, and structured bodies. Its `http()` view stores
@@ -603,7 +600,7 @@ For operational diagnostics, inspect `BodyRedaction::status()`,
 `BodyRedactionStatus::Redacted(reason)` value reports why a structured or
 visible representation was unsafe.
 
-## 8. Redact URI diagnostics with the `uri_with_mut` adapter
+## 8. Redact URI diagnostics with the `uri` adapter
 
 The optional `uri` feature adds a parser-backed URI facade without enabling
 the HTTP feature:

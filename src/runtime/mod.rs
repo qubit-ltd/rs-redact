@@ -11,6 +11,8 @@ mod diagnostic_budget;
 mod domain_budget;
 mod internal;
 mod redaction_session;
+mod redaction_session_error;
+mod redaction_session_output;
 
 pub(crate) use diagnostic_budget::DiagnosticBudget;
 pub(crate) use domain_budget::DomainRedactionBudget;
@@ -20,3 +22,5 @@ pub(crate) use domain_budget::DomainValueBudgetAdmission;
 pub(crate) use internal::FragmentCompletion;
 pub(crate) use internal::RedactionAdmission;
 pub use redaction_session::RedactionSession;
+pub use redaction_session_error::RedactionSessionError;
+pub use redaction_session_output::RedactionSessionOutput;

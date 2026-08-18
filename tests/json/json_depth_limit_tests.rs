@@ -38,9 +38,7 @@ fn test_redaction_policy_preserves_json_depth_limit() {
     })
     .build()
     .expect("the policy should build");
-    let copied = RedactionPolicy::builder_from(&policy)
-        .build()
-        .expect("the copied policy should build");
+    let copied = policy.to_builder().build().expect("the copied policy should build");
 
     assert_eq!(policy.json_depth_limit(), limit);
     assert_eq!(copied, policy);

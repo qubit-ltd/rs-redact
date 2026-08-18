@@ -8,6 +8,8 @@
 //! Immutable execution limits used while rendering redacted output.
 // qubit-style: allow multiple-public-types
 
+use qubit_budget::StructureLimits;
+
 use super::DomainRedactionLimits;
 use super::InputOutputLimit;
 #[cfg(feature = "json")]
@@ -20,7 +22,8 @@ use crate::formats::http::BodyBudget;
 pub struct RedactionLimitsBuilder {
     diagnostic_event: InputOutputLimit,
     ordinary_operation: InputOutputLimit,
-    domain: DomainRedactionLimits,
+    domain: StructureLimits,
+    legacy_domain: DomainRedactionLimits,
     #[cfg(feature = "http")]
     http_body: BodyBudget,
     #[cfg(feature = "json")]
@@ -35,7 +38,8 @@ pub struct RedactionLimits {
     /// Maximum source and output bytes for one ordinary operation.
     ordinary_operation: InputOutputLimit,
     /// Maximum cumulative nodes, collection items, and active domain depth.
-    domain: DomainRedactionLimits,
+    domain: StructureLimits,
+    legacy_domain: DomainRedactionLimits,
     /// Maximum source and output bytes for one HTTP body operation.
     #[cfg(feature = "http")]
     http_body: BodyBudget,
@@ -60,6 +64,7 @@ impl RedactionLimits {
             diagnostic_event: base.diagnostic_event,
             ordinary_operation: base.ordinary_operation,
             domain: base.domain,
+            legacy_domain: base.legacy_domain,
             #[cfg(feature = "http")]
             http_body: base.http_body,
             #[cfg(feature = "json")]
@@ -84,8 +89,15 @@ impl RedactionLimits {
     /// Returns the hard domain-structure traversal limits.
     #[inline(always)]
     #[must_use]
-    pub const fn domain(&self) -> DomainRedactionLimits {
+    pub const fn domain(&self) -> StructureLimits {
         self.domain
+    }
+
+    /// Returns the transitional domain limits used by legacy internal writers.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) const fn legacy_domain(&self) -> DomainRedactionLimits {
+        self.legacy_domain
     }
 
     /// Returns the local hard limits for HTTP body processing.
@@ -121,8 +133,29 @@ impl RedactionLimitsBuilder {
 
     /// Sets the domain traversal limits.
     #[inline]
-    pub fn domain(&mut self, limits: DomainRedactionLimits) -> &mut Self {
-        self.domain = limits;
+    pub fn domain<S>(&mut self, limits: S) -> &mut Self
+    where
+        S: Into<StructureLimits>,
+    {
+        self.domain = limits.into();
+        self.legacy_domain = DomainRedactionLimits::builder()
+            .max_nodes(
+                self.domain
+                    .max_nodes()
+                    .unwrap_or(DomainRedactionLimits::DEFAULT_MAX_NODES),
+            )
+            .max_collection_items(
+                self.domain
+                    .max_sequence_items()
+                    .unwrap_or(DomainRedactionLimits::DEFAULT_MAX_COLLECTION_ITEMS),
+            )
+            .max_depth(
+                self.domain
+                    .max_depth()
+                    .unwrap_or(DomainRedactionLimits::DEFAULT_MAX_DEPTH),
+            )
+            .build()
+            .expect("structure limits converted from valid policy limits");
         self
     }
 
@@ -150,6 +183,7 @@ impl RedactionLimitsBuilder {
             diagnostic_event: self.diagnostic_event,
             ordinary_operation: self.ordinary_operation,
             domain: self.domain,
+            legacy_domain: self.legacy_domain,
             #[cfg(feature = "http")]
             http_body: self.http_body,
             #[cfg(feature = "json")]
@@ -164,7 +198,14 @@ impl Default for RedactionLimitsBuilder {
         Self {
             diagnostic_event: InputOutputLimit::default(),
             ordinary_operation: InputOutputLimit::default(),
-            domain: DomainRedactionLimits::default(),
+            domain: StructureLimits::builder()
+                .max_depth(DomainRedactionLimits::DEFAULT_MAX_DEPTH)
+                .max_nodes(DomainRedactionLimits::DEFAULT_MAX_NODES)
+                .max_sequence_items(DomainRedactionLimits::DEFAULT_MAX_COLLECTION_ITEMS)
+                .max_map_entries(DomainRedactionLimits::DEFAULT_MAX_COLLECTION_ITEMS)
+                .max_key_bytes(256)
+                .build(),
+            legacy_domain: DomainRedactionLimits::default(),
             #[cfg(feature = "http")]
             http_body: BodyBudget::default(),
             #[cfg(feature = "json")]

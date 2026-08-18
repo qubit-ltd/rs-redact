@@ -37,7 +37,7 @@ use super::internal::markers;
 use super::internal::multipart;
 use super::internal::nested_url;
 use super::internal::nested_url::NestedUrl;
-use crate::LogSafeText;
+use crate::RedactedText;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::Sensitivity;
@@ -126,7 +126,7 @@ impl HttpRedactor {
     /// An owned log-safe URL representation.
     #[inline]
     #[must_use]
-    pub fn redact_url(&self, url: &Url) -> LogSafeText<'static> {
+    pub fn redact_url(&self, url: &Url) -> RedactedText {
         if self.diagnostic_input_exceeded(url.as_str().len()) {
             return Self::diagnostic_limit_exceeded();
         }
@@ -135,17 +135,13 @@ impl HttpRedactor {
 
     /// Redacts a parsed URL under an explicit output limit.
     #[must_use]
-    pub(super) fn redact_url_with_output_limit(&self, url: &Url, output_limit: usize) -> LogSafeText<'static> {
+    pub(super) fn redact_url_with_output_limit(&self, url: &Url, output_limit: usize) -> RedactedText {
         self.finish_diagnostic_with_limit(self.redact_url_text_at_depth(url, 0, output_limit), output_limit)
     }
 
     /// Redacts URL-looking tokens under an explicit output limit.
     #[must_use]
-    pub(super) fn redact_urls_in_text_with_output_limit(
-        &self,
-        text: &str,
-        output_limit: usize,
-    ) -> LogSafeText<'static> {
+    pub(super) fn redact_urls_in_text_with_output_limit(&self, text: &str, output_limit: usize) -> RedactedText {
         if self.diagnostic_input_exceeded(text.len()) {
             return Self::diagnostic_limit_exceeded();
         }
@@ -159,7 +155,7 @@ impl HttpRedactor {
 
     /// Parses and redacts one URL string under an explicit output limit.
     #[must_use]
-    pub(super) fn redact_url_str_with_output_limit(&self, input: &str, output_limit: usize) -> LogSafeText<'static> {
+    pub(super) fn redact_url_str_with_output_limit(&self, input: &str, output_limit: usize) -> RedactedText {
         if self.diagnostic_input_exceeded(input.len()) {
             return Self::diagnostic_limit_exceeded();
         }
@@ -184,7 +180,7 @@ impl HttpRedactor {
     /// Owned log-safe text with recognized URLs redacted.
     #[inline]
     #[must_use]
-    pub fn redact_urls_in_text(&self, text: &str) -> LogSafeText<'static> {
+    pub fn redact_urls_in_text(&self, text: &str) -> RedactedText {
         if self.diagnostic_input_exceeded(text.len()) {
             return Self::diagnostic_limit_exceeded();
         }
@@ -203,7 +199,7 @@ impl HttpRedactor {
     /// A safe redacted URL or a fixed invalid-URL marker.
     #[inline]
     #[must_use]
-    pub fn redact_url_str(&self, input: &str) -> LogSafeText<'static> {
+    pub fn redact_url_str(&self, input: &str) -> RedactedText {
         if self.diagnostic_input_exceeded(input.len()) {
             return Self::diagnostic_limit_exceeded();
         }
@@ -224,7 +220,7 @@ impl HttpRedactor {
     /// A safe redacted form or a fixed invalid-form marker.
     #[inline]
     #[must_use]
-    pub fn redact_form(&self, input: &str) -> LogSafeText<'static> {
+    pub fn redact_form(&self, input: &str) -> RedactedText {
         if self.diagnostic_input_exceeded(input.len()) {
             return Self::diagnostic_limit_exceeded();
         }
@@ -243,7 +239,7 @@ impl HttpRedactor {
 
     /// Redacts URL-encoded form text under an explicit output limit.
     #[must_use]
-    pub(super) fn redact_form_with_output_limit(&self, input: &str, output_limit: usize) -> LogSafeText<'static> {
+    pub(super) fn redact_form_with_output_limit(&self, input: &str, output_limit: usize) -> RedactedText {
         if self.diagnostic_input_exceeded(input.len()) {
             return Self::diagnostic_limit_exceeded();
         }
@@ -287,7 +283,7 @@ impl HttpRedactor {
         let values = headers::group_values(headers);
         self.write_grouped_headers(&mut writer, values);
         let (rendered, _) = writer.finish();
-        RedactedHeaders::new(LogSafeText::from_escaped(Cow::Owned(rendered)))
+        RedactedHeaders::new(RedactedText::from_escaped(Cow::Owned(rendered)))
     }
 
     /// Redacts a checked body capture under hard input and output limits.

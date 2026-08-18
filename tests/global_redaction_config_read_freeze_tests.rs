@@ -14,7 +14,7 @@ use qubit_redact::Redactor;
 #[test]
 fn test_default_redactor_replacement_keeps_existing_snapshots() {
     let before_default = Redactor::default();
-    let before_builder = RedactionPolicy::builder_from_default();
+    let before_builder = RedactionPolicy::default().to_builder();
 
     let previous = Redactor::set_default(Redactor::strict());
 

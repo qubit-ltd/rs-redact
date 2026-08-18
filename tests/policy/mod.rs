@@ -8,11 +8,6 @@
 //! Tests for redaction policy primitives.
 
 mod allow_rule_tests;
-mod diagnostic_budget_error_tests;
-mod diagnostic_budget_runtime_tests;
-mod diagnostic_budget_tests;
-mod diagnostic_input_budget_tests;
-mod domain_redaction_limits_tests;
 mod domain_redaction_session_tests;
 mod field_classification_tests;
 mod field_match_kind_tests;

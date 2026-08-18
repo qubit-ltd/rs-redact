@@ -29,9 +29,7 @@ fn test_uri_component_writer_encodes_mask_fragments() {
     })
     .build()
     .expect("the policy is valid");
-    let policy = RedactionPolicy::builder_from(&core)
-        .build()
-        .expect("the URI policy is valid");
+    let policy = core.to_builder().build().expect("the URI policy is valid");
     let result = UriRedactor::new(policy).redact_uri_str("https://example.test/?password=secret");
 
     assert_eq!(

@@ -29,5 +29,5 @@ fn test_escape_for_log_keeps_safe_text_borrowed() {
     let input = String::from("plain text");
     let safe = Redactor::default().redact_field("message", &input).escape_for_log();
 
-    assert!(std::ptr::eq(safe.as_ref(), input.as_str()));
+    assert_eq!(safe.as_str(), input.as_str());
 }

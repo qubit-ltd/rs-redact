@@ -17,7 +17,7 @@ use super::RedactedEnvPair;
 use super::env_redactor::write_debug_item;
 use crate::InputOutputLimit;
 use crate::LogOutputLimit;
-use crate::LogSafeText;
+use crate::RedactedText;
 use crate::RedactionSession;
 use crate::Redactor;
 use crate::output::internal::BoundedLogEscapeWriter;
@@ -41,6 +41,14 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
     #[must_use]
     pub(crate) const fn new(session: &'session mut RedactionSession<'policy>) -> Self {
         Self { session }
+    }
+
+    /// Redacts one pair and stages the committed result under `key`.
+    pub fn redact_pair_as(&mut self, key: &str, name: &str, value: &str) -> &mut Self {
+        let result = self.redact_pair(name, value);
+        let completion = result.completion();
+        self.session.stage_text(key, result.into_log_safe_text(), completion);
+        self
     }
 
     /// Redacts one UTF-8 environment pair.
@@ -240,8 +248,8 @@ fn list_fallback(admission: RedactionAdmission) -> RedactedEnv {
 /// Owned typed log-safe output without applying a second escape pass.
 #[inline(always)]
 #[must_use]
-fn log_safe_rendered(value: String) -> LogSafeText<'static> {
-    LogSafeText::from_escaped(Cow::Owned(value))
+fn log_safe_rendered(value: String) -> RedactedText {
+    RedactedText::from_escaped(Cow::Owned(value))
 }
 
 impl<'policy> RedactionSession<'policy> {

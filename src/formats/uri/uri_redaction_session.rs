@@ -20,6 +20,21 @@ pub struct UriRedactionSession<'session, 'policy> {
     session: &'session mut RedactionSession<'policy>,
 }
 
+impl<'session, 'policy> UriRedactionSession<'session, 'policy> {
+    /// Creates a URI facade borrowing a parent session.
+    pub(crate) const fn new(session: &'session mut RedactionSession<'policy>) -> Self {
+        Self { session }
+    }
+
+    /// Redacts a URI and stages it under `key`.
+    pub fn redact_uri_as(&mut self, key: &str, value: &str) -> &mut Self {
+        let result = self.redact_uri_str(value);
+        let completion = result.completion();
+        self.session.stage_text(key, result.into_log_safe_text(), completion);
+        self
+    }
+}
+
 impl<'policy> RedactionSession<'policy> {
     /// Configures the URI adapter inside a chainable session.
     #[must_use]

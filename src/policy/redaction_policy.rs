@@ -135,18 +135,6 @@ impl RedactionPolicy {
         STRICT_POLICY.clone()
     }
 
-    /// Creates a builder from the process-wide default visible at this call.
-    ///
-    /// Before installation, the builder copies [`Self::standard`] without
-    /// occupying the installation slot. A later installation changes only
-    /// future default snapshots and future calls to this function; it never
-    /// modifies a builder or object that already exists.
-    #[must_use]
-    #[inline]
-    pub fn builder_from_default() -> RedactionPolicyBuilder {
-        Self::builder_from(&Self::default())
-    }
-
     /// Creates a deterministic builder with no application rules and the
     /// standard minimum-protection floor.
     #[must_use]
@@ -162,13 +150,6 @@ impl RedactionPolicy {
     #[inline]
     pub fn to_builder(&self) -> RedactionPolicyBuilder {
         RedactionPolicyBuilder::from_policy(self)
-    }
-
-    /// Creates a builder that exactly copies `base`.
-    #[must_use]
-    #[inline]
-    pub fn builder_from(base: &Self) -> RedactionPolicyBuilder {
-        base.to_builder()
     }
 
     /// Creates a policy from fully resolved field rules and resource limits.

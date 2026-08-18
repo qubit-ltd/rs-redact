@@ -15,7 +15,7 @@ use std::fmt::Formatter;
 use super::UriComponent;
 use super::UriRedactionReason;
 use super::UriRedactionStatus;
-use crate::LogSafeText;
+use crate::RedactedText;
 use crate::RedactionCompletion;
 use crate::output::redaction_output::RedactionOutput;
 
@@ -56,7 +56,7 @@ impl UriRedaction {
     /// invariant. Empty truncated text is normalized to `Exhausted`.
     #[must_use]
     pub(crate) fn new(
-        text: LogSafeText<'static>,
+        text: RedactedText,
         status: UriRedactionStatus,
         reasons: Vec<UriRedactionReason>,
         components: Vec<UriComponent>,
@@ -80,14 +80,14 @@ impl UriRedaction {
     /// Returns the log-safe URI text without exposing an unescaped source.
     #[must_use]
     #[inline]
-    pub fn log_safe_text(&self) -> &LogSafeText<'static> {
+    pub fn log_safe_text(&self) -> &RedactedText {
         self.output.log_safe_text()
     }
 
     /// Consumes the result and returns typed log-safe text.
     #[must_use]
     #[inline]
-    pub fn into_log_safe_text(self) -> LogSafeText<'static> {
+    pub fn into_log_safe_text(self) -> RedactedText {
         self.output.into_log_safe_text()
     }
 

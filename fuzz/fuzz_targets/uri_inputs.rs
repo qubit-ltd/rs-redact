@@ -115,7 +115,7 @@ fuzz_target!(|data: &[u8]| {
     let mut builder = RedactionPolicy::default().to_builder();
     builder.limits().diagnostic_event(budget);
     let core = builder.build().expect("the core fuzz policy is valid");
-    let mut builder = RedactionPolicy::builder_from(&core);
+    let mut builder = core.to_builder();
     builder
         .uri()
         .path(UriPathPolicy::Redact)
@@ -151,7 +151,7 @@ fuzz_target!(|data: &[u8]| {
         .mask(Sensitivity::High, MaskPolicy::fixed("密\n/?#%"))
         .expect("the custom high mask is valid");
     let custom_core = builder.build().expect("the custom URI fuzz policy is valid");
-    let mut builder = RedactionPolicy::builder_from(&custom_core);
+    let mut builder = custom_core.to_builder();
     builder
         .uri()
         .path(UriPathPolicy::Redact)

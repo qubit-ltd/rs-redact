@@ -8,6 +8,8 @@
 //! Immutable limits for bounded domain-object traversal.
 // qubit-style: allow multiple-public-types
 
+use qubit_budget::StructureLimits;
+
 use super::DomainRedactionLimitsError;
 
 /// Mutable construction state for [`DomainRedactionLimits`].
@@ -141,5 +143,18 @@ impl Default for DomainRedactionLimits {
     #[inline(always)]
     fn default() -> Self {
         Self::builder().build().expect("default domain limits are valid")
+    }
+}
+
+impl From<DomainRedactionLimits> for StructureLimits {
+    /// Converts legacy domain dimensions into generic structure limits.
+    fn from(value: DomainRedactionLimits) -> Self {
+        StructureLimits::builder()
+            .max_depth(value.max_depth)
+            .max_nodes(value.max_nodes)
+            .max_sequence_items(value.max_collection_items)
+            .max_map_entries(value.max_collection_items)
+            .max_key_bytes(256)
+            .build()
     }
 }

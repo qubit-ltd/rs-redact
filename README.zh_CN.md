@@ -119,7 +119,7 @@ Serde/JSON 集成说明请参阅 [derive README](https://github.com/qubit-ltd/rs
 | Rust struct 或 enum | `Redact` derive | 借用的 `Redacted<T>` 视图，支持安全格式化。 |
 | 必须逻辑替换的值 | `Redact` derive | 使用同一 derive 生成的 `RedactMut` 修改对象；这不等于内存擦除。 |
 | 命令行参数 | `ArgvRedactor` | 可安全显示的 `RedactedArgv`。 |
-| 环境变量 pair | `EnvRedactor` | `RedactedEnvPair` 或 `LogSafeText`。 |
+| 环境变量 pair | `EnvRedactor` | `RedactedEnvPair` 或 `RedactedText`。 |
 | URL、form、Header 或捕获的 body | `HttpRedactor` | 有界、日志安全的 HTTP 结果类型。 |
 | URI 字符串 | `UriRedactor`（`uri` feature） | 带组件原因的结构化日志安全结果。 |
 
@@ -150,7 +150,7 @@ http = "1.5"
 `json` feature 负责 JSON value 和 JSON 文本脱敏。`http` feature 会复用它处理 HTTP JSON
 body，但 JSON 能力并不属于 HTTP 专属功能，也可以独立启用。
 
-JSON 文本可以通过 `session.json_with()` 参与同一个事件预算：
+JSON 文本可以通过 `session.json_with_mut()` 参与同一个事件预算：
 
 ```rust
 use qubit_redact::Redactor;
@@ -161,7 +161,7 @@ let safe = session.json_with_mut(|json| json.redact_text(r#"{"token":"raw-token"
 assert!(!safe.to_string().contains("raw-token"));
 ```
 
-HTTP body 诊断通过 `session.http_with()`：
+HTTP body 诊断通过 `session.http_with_mut()`：
 
 ```rust
 use http::HeaderValue;
@@ -177,7 +177,7 @@ let safe = session.http_with_mut(|http| http.redact_body(
 assert!(!safe.to_string().contains("raw"));
 ```
 
-URI 诊断通过 `session.uri_with()`，并返回带状态和原因的结构化结果：
+URI 诊断通过 `session.uri_with_mut()`，并返回带状态和原因的结构化结果：
 
 ```rust
 use qubit_redact::formats::uri::UriRedactor;

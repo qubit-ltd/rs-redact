@@ -108,7 +108,7 @@ impl Redactor {
         value.write_redacted(&mut writer);
         let rendered = writer.finish();
         session.append_committed_output(&rendered);
-        session.finish()
+        session.finish_legacy()
     }
 
     /// Creates a redactor with the strict policy for untrusted scalar data.
@@ -480,8 +480,7 @@ impl RedactionSession<'_> {
 ///
 /// An owned output preserving complete, non-empty truncated, and empty
 /// exhausted invariants.
-fn redaction_output(text: crate::LogSafeText<'_>, completion: RedactionCompletion) -> RedactionOutput {
-    let text = crate::LogSafeText::from_escaped(Cow::Owned(text.into_owned()));
+fn redaction_output(text: crate::RedactedText, completion: RedactionCompletion) -> RedactionOutput {
     match completion {
         RedactionCompletion::Complete => RedactionOutput::complete(text),
         RedactionCompletion::Truncated => RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::exhausted),

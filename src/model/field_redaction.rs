@@ -11,8 +11,8 @@ use std::borrow::Cow;
 
 use crate::model::PassThroughReason;
 use crate::model::Sensitivity;
-use crate::output::LogSafeText;
 use crate::output::MaskedValue;
+use crate::output::RedactedText;
 
 /// Explains whether a field value was masked or intentionally passed through.
 ///
@@ -88,7 +88,7 @@ impl<'a> FieldRedaction<'a> {
     /// Escapes the processed value for a plain-text log boundary.
     #[inline]
     #[must_use]
-    pub fn escape_for_log(self) -> LogSafeText<'a> {
+    pub fn escape_for_log(self) -> RedactedText {
         match self {
             Self::Masked { value, .. } => value.escape_for_log(),
             Self::PassedThrough { value, .. } => MaskedValue::new(Cow::Borrowed(value)).escape_for_log(),

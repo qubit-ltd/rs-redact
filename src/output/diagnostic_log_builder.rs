@@ -11,7 +11,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::fmt::Write as _;
 
-use super::LogSafeText;
+use super::RedactedText;
 use super::RedactionCompletion;
 use super::internal::BoundedLogEscapeWriter;
 use super::redaction_output::RedactionOutput;
@@ -89,7 +89,7 @@ impl DiagnosticLogBuilder {
     /// [`RedactionCompletion::Truncated`] after a complete marker was emitted,
     /// or [`RedactionCompletion::Exhausted`] when no safe output fit.
     #[inline]
-    pub fn push_safe(&mut self, text: &LogSafeText<'_>) -> RedactionCompletion {
+    pub fn push_safe(&mut self, text: &RedactedText) -> RedactionCompletion {
         if self.writer.is_truncated() {
             return self.truncation_completion();
         }
@@ -193,7 +193,7 @@ impl DiagnosticLogBuilder {
     /// A typed log-safe value containing the bounded escaped output.
     #[inline]
     #[must_use]
-    pub fn finish(self) -> LogSafeText<'static> {
-        LogSafeText::from_escaped(Cow::Owned(self.writer.finish()))
+    pub fn finish(self) -> RedactedText {
+        RedactedText::from_escaped(Cow::Owned(self.writer.finish()))
     }
 }

@@ -8,8 +8,8 @@
 //! Integration tests for policy-driven URI redaction.
 
 use qubit_redact::InputOutputLimit;
-use qubit_redact::LogSafeText;
 use qubit_redact::MaskPolicy;
+use qubit_redact::RedactedText;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
@@ -94,9 +94,7 @@ fn test_uri_redactor_applies_username_policy_and_keeps_encoded_colon() {
     })
     .build()
     .expect("core policy is valid");
-    let policy = RedactionPolicy::builder_from(&core)
-        .build()
-        .expect("URI policy is valid");
+    let policy = core.to_builder().build().expect("URI policy is valid");
 
     let result = UriRedactor::new(policy).redact_uri_str("https://alice%3Ateam:secret@example.test/private");
 
@@ -127,9 +125,7 @@ fn test_uri_redactor_masks_query_after_decoding_and_preserves_order() {
     })
     .build()
     .expect("core policy is valid");
-    let policy = RedactionPolicy::builder_from(&core)
-        .build()
-        .expect("URI policy is valid");
+    let policy = core.to_builder().build().expect("URI policy is valid");
 
     let result =
         UriRedactor::new(policy).redact_uri_str("https://example.test/path?keep=a%2Fb&token=hello%20world&keep=last");
@@ -181,7 +177,7 @@ fn test_uri_redaction_policy_configures_path_and_fragment_boundaries() {
 /// Verifies consuming a URI result preserves the typed log-safe boundary.
 #[test]
 fn test_uri_redaction_consuming_text_preserves_safe_type() {
-    let text: LogSafeText<'static> = UriRedactor::default()
+    let text: RedactedText = UriRedactor::default()
         .redact_uri_str("https://example.test/?password=secret")
         .into_log_safe_text();
     assert_eq!(text.as_str(), "https://example.test/?password=%3Credacted%3E");
@@ -203,9 +199,7 @@ fn test_uri_redactor_validates_after_output_truncation() {
     })
     .build()
     .expect("the core policy is valid");
-    let policy = RedactionPolicy::builder_from(&core)
-        .build()
-        .expect("the URI policy is valid");
+    let policy = core.to_builder().build().expect("the URI policy is valid");
     let redactor = UriRedactor::new(policy);
     let input = format!("https://example.test/?password={}&bad=%FF", "secret".repeat(32),);
     let result = redactor.redact_uri_str(&input);
@@ -271,11 +265,7 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
     })
     .build()
     .expect("the core policy is valid");
-    let bounded = UriRedactor::new(
-        RedactionPolicy::builder_from(&core)
-            .build()
-            .expect("the URI policy is valid"),
-    );
+    let bounded = UriRedactor::new(core.to_builder().build().expect("the URI policy is valid"));
     let long_path = format!("https://example.test/{}?password=secret#fragment", "a".repeat(256),);
     let result = bounded.redact_uri_str(&long_path);
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
@@ -296,7 +286,8 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
     .build()
     .expect("the input limit core policy is valid");
     let limited = UriRedactor::new(
-        RedactionPolicy::builder_from(&input_limited)
+        input_limited
+            .to_builder()
             .build()
             .expect("the limited URI policy is valid"),
     );
@@ -331,9 +322,7 @@ fn test_uri_redactor_marks_truncated_final_sensitive_value() {
     })
     .build()
     .expect("the core policy is valid");
-    let policy = RedactionPolicy::builder_from(&core)
-        .build()
-        .expect("the URI policy is valid");
+    let policy = core.to_builder().build().expect("the URI policy is valid");
     let result = UriRedactor::new(policy).redact_uri_str("https://example.test/?password=secret");
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
@@ -341,12 +330,8 @@ fn test_uri_redactor_marks_truncated_final_sensitive_value() {
     assert!(result.log_safe_text().as_str().ends_with("<truncated>"));
     assert!(!result.log_safe_text().as_str().contains('X'));
 
-    let fragment_result = UriRedactor::new(
-        RedactionPolicy::builder_from(&core)
-            .build()
-            .expect("the URI policy is valid"),
-    )
-    .redact_uri_str("https://example.test/#fragment");
+    let fragment_result = UriRedactor::new(core.to_builder().build().expect("the URI policy is valid"))
+        .redact_uri_str("https://example.test/#fragment");
     assert_eq!(fragment_result.completion(), RedactionCompletion::Truncated,);
     assert!(fragment_result.has_reason(UriRedactionReason::OutputTruncated));
     assert!(fragment_result.log_safe_text().as_str().ends_with("<truncated>"));

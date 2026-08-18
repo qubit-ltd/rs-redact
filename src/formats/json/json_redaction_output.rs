@@ -11,7 +11,7 @@ use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-use crate::LogSafeText;
+use crate::RedactedText;
 use crate::RedactionCompletion;
 use crate::output::redaction_output::RedactionOutput;
 
@@ -52,7 +52,7 @@ impl JsonRedactionOutput {
     /// exhaustion, according to [`Self::completion`].
     #[must_use]
     #[inline(always)]
-    pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
+    pub const fn log_safe_text(&self) -> &RedactedText {
         self.output.log_safe_text()
     }
 
@@ -85,7 +85,7 @@ impl JsonRedactionOutput {
     /// output.
     #[must_use]
     #[inline(always)]
-    pub fn into_log_safe_text(self) -> LogSafeText<'static> {
+    pub fn into_log_safe_text(self) -> RedactedText {
         self.output.into_log_safe_text()
     }
 }

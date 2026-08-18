@@ -611,7 +611,7 @@ fn invalid_inspection(reason: UriRedactionReason) -> UriInspection {
 
 /// Converts owned output into the library's log-safe text wrapper.
 #[must_use]
-fn safe_text(value: String) -> crate::LogSafeText<'static> {
+fn safe_text(value: String) -> crate::RedactedText {
     MaskedValue::new(Cow::Owned(value)).escape_for_log()
 }
 

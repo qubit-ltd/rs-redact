@@ -9,14 +9,14 @@
 
 use std::borrow::Cow;
 
-use super::LogSafeText;
+use super::RedactedText;
 use super::RedactionCompletion;
 
 /// Log-safe redaction text paired with its invariant completion state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RedactionOutput {
     /// Safe text produced by the redaction operation.
-    text: LogSafeText<'static>,
+    text: RedactedText,
     /// Whether the operation completed, substituted, or emitted no text.
     completion: RedactionCompletion,
 }
@@ -36,7 +36,7 @@ impl RedactionOutput {
     ///
     /// The text paired with [`RedactionCompletion::Complete`].
     #[inline]
-    pub(crate) fn complete(text: LogSafeText<'static>) -> Self {
+    pub(crate) fn complete(text: RedactedText) -> Self {
         Self {
             text,
             completion: RedactionCompletion::Complete,
@@ -56,7 +56,7 @@ impl RedactionOutput {
     /// non-empty, or `None` when no safe substitute was emitted and the caller
     /// must use [`Self::exhausted`].
     #[inline]
-    pub(crate) fn truncated(text: LogSafeText<'static>) -> Option<Self> {
+    pub(crate) fn truncated(text: RedactedText) -> Option<Self> {
         if text.as_str().is_empty() {
             None
         } else {
@@ -78,7 +78,7 @@ impl RedactionOutput {
     #[inline]
     pub(crate) fn exhausted() -> Self {
         Self {
-            text: LogSafeText::from_escaped(Cow::Borrowed("")),
+            text: RedactedText::from_escaped(Cow::Borrowed("")),
             completion: RedactionCompletion::Exhausted,
         }
     }
@@ -90,7 +90,7 @@ impl RedactionOutput {
     /// The complete, substitute, or empty text established by the constructor.
     #[must_use]
     #[inline(always)]
-    pub(crate) const fn log_safe_text(&self) -> &LogSafeText<'static> {
+    pub(crate) const fn log_safe_text(&self) -> &RedactedText {
         &self.text
     }
 
@@ -111,7 +111,7 @@ impl RedactionOutput {
     /// The complete, substitute, or empty text established by the constructor.
     #[must_use]
     #[inline(always)]
-    pub(crate) fn into_log_safe_text(self) -> LogSafeText<'static> {
+    pub(crate) fn into_log_safe_text(self) -> RedactedText {
         self.text
     }
 }
@@ -121,13 +121,13 @@ mod tests {
     use std::borrow::Cow;
 
     use super::RedactionOutput;
-    use crate::LogSafeText;
+    use crate::RedactedText;
     use crate::RedactionCompletion;
 
     /// Creates an owned log-safe value for output invariant tests.
     #[must_use]
-    fn safe(value: &str) -> LogSafeText<'static> {
-        LogSafeText::from_escaped(Cow::Owned(value.to_owned()))
+    fn safe(value: &str) -> RedactedText {
+        RedactedText::from_escaped(Cow::Owned(value.to_owned()))
     }
 
     /// Verifies each constructor establishes its completion-state invariant.

@@ -27,7 +27,8 @@ fn test_redaction_limits_preserve_policy_diagnostic_budget() {
 
     assert_eq!(policy.limits().diagnostic_event(), budget);
     assert_eq!(
-        RedactionPolicy::builder_from(&policy)
+        policy
+            .to_builder()
             .build()
             .expect("the copied policy should build")
             .limits()

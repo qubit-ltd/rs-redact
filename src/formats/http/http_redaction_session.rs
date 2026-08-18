@@ -22,7 +22,7 @@ use super::RedactedHeaders;
 use super::http_redactor::diagnostics::bound_safe_text;
 use super::http_redactor::headers;
 use super::internal::markers;
-use crate::LogSafeText;
+use crate::RedactedText;
 use crate::RedactionCompletion;
 use crate::RedactionSession;
 use crate::policy::FragmentCompletion;
@@ -31,6 +31,28 @@ use crate::policy::RedactionAdmission;
 /// Feature-gated HTTP operations sharing one mutable diagnostic session.
 pub struct HttpRedactionSession<'session, 'policy> {
     pub(super) session: &'session mut RedactionSession<'policy>,
+}
+
+impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
+    /// Creates an HTTP facade borrowing a parent session.
+    pub(crate) const fn new(session: &'session mut RedactionSession<'policy>) -> Self {
+        Self { session }
+    }
+
+    /// Redacts a URL string and stages it under `key`.
+    pub fn redact_url_as(&mut self, key: &str, value: &str) -> &mut Self {
+        let text = self.redact_url_str(value);
+        self.session.stage_text(key, text, crate::RedactionCompletion::Complete);
+        self
+    }
+
+    /// Redacts headers and stages them under `key`.
+    pub fn redact_headers_as(&mut self, key: &str, headers: &HeaderMap) -> &mut Self {
+        let result = self.redact_headers(headers);
+        self.session
+            .stage_text(key, result.into_log_safe_text(), crate::RedactionCompletion::Complete);
+        self
+    }
 }
 
 impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
@@ -45,15 +67,15 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     fn text_result(
         &mut self,
         input_bytes: usize,
-        render: impl FnOnce(&HttpRedactor, usize) -> LogSafeText<'static>,
-    ) -> LogSafeText<'static> {
+        render: impl FnOnce(&HttpRedactor, usize) -> RedactedText,
+    ) -> RedactedText {
         let policy = self.session.policy();
         let fallback = markers::DIAGNOSTIC_LIMIT_EXCEEDED;
         let domain_limit = policy.limits().diagnostic_event().max_output_bytes();
         let before = self.session.remaining_output_bytes();
         match self.session.admit(input_bytes, domain_limit, fallback.len()) {
-            RedactionAdmission::Fallback => LogSafeText::from_escaped(Cow::Owned(fallback.to_owned())),
-            RedactionAdmission::Exhausted => LogSafeText::from_escaped(Cow::Borrowed("")),
+            RedactionAdmission::Fallback => RedactedText::from_escaped(Cow::Owned(fallback.to_owned())),
+            RedactionAdmission::Exhausted => RedactedText::from_escaped(Cow::Borrowed("")),
             RedactionAdmission::Render { max_output_bytes } => {
                 let value = render(&self.redactor(), max_output_bytes);
                 let (text, truncated): (String, bool) = bound_safe_text(value.as_str(), max_output_bytes);
@@ -67,14 +89,14 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
                     FragmentCompletion::Complete
                 };
                 self.session.commit_output(text.len(), completion);
-                LogSafeText::from_escaped(Cow::Owned(text))
+                RedactedText::from_escaped(Cow::Owned(text))
             }
         }
     }
 
     /// Redacts a parsed URL.
     #[must_use]
-    pub fn redact_url(&mut self, url: &Url) -> LogSafeText<'static> {
+    pub fn redact_url(&mut self, url: &Url) -> RedactedText {
         self.text_result(url.as_str().len(), |redactor, limit| {
             redactor.redact_url_with_output_limit(url, limit)
         })
@@ -82,7 +104,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
 
     /// Redacts every HTTP URL-looking token in diagnostic text.
     #[must_use]
-    pub fn redact_urls_in_text(&mut self, text: &str) -> LogSafeText<'static> {
+    pub fn redact_urls_in_text(&mut self, text: &str) -> RedactedText {
         self.text_result(text.len(), |redactor, limit| {
             redactor.redact_urls_in_text_with_output_limit(text, limit)
         })
@@ -90,7 +112,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
 
     /// Parses and redacts one URL string.
     #[must_use]
-    pub fn redact_url_str(&mut self, text: &str) -> LogSafeText<'static> {
+    pub fn redact_url_str(&mut self, text: &str) -> RedactedText {
         self.text_result(text.len(), |redactor, limit| {
             redactor.redact_url_str_with_output_limit(text, limit)
         })
@@ -98,7 +120,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
 
     /// Redacts URL-encoded form text.
     #[must_use]
-    pub fn redact_form(&mut self, text: &str) -> LogSafeText<'static> {
+    pub fn redact_form(&mut self, text: &str) -> RedactedText {
         self.text_result(text.len(), |redactor, limit| {
             redactor.redact_form_with_output_limit(text, limit)
         })
@@ -108,7 +130,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
     #[must_use]
     pub fn redact_headers(&mut self, headers: &HeaderMap) -> RedactedHeaders {
         if self.session.is_exhausted() {
-            return RedactedHeaders::new(LogSafeText::from_escaped(Cow::Borrowed("")));
+            return RedactedHeaders::new(RedactedText::from_escaped(Cow::Borrowed("")));
         }
         let policy = self.session.policy();
         let fallback = markers::DIAGNOSTIC_LIMIT_EXCEEDED;
@@ -149,7 +171,7 @@ impl<'session, 'policy> HttpRedactionSession<'session, 'policy> {
                 }
             }
         }
-        RedactedHeaders::new(LogSafeText::from_escaped(Cow::Owned(output)))
+        RedactedHeaders::new(RedactedText::from_escaped(Cow::Owned(output)))
     }
 
     /// Redacts a captured HTTP body with an optional native Content-Type.

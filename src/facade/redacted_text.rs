@@ -5,6 +5,7 @@
 // =============================================================================
 //! Final text produced by one redaction operation.
 
+use std::borrow::Cow;
 use std::fmt;
 
 /// Final UTF-8 text produced by a redaction operation.
@@ -19,8 +20,8 @@ impl RedactedText {
     /// Creates final text from an already escaped representation.
     #[must_use]
     #[inline]
-    pub(crate) fn from_escaped(value: String) -> Self {
-        Self(value)
+    pub(crate) fn from_escaped(value: impl Into<Cow<'static, str>>) -> Self {
+        Self(value.into().into_owned())
     }
 
     /// Borrows the final redacted text.
@@ -34,6 +35,13 @@ impl RedactedText {
     #[must_use]
     #[inline]
     pub fn into_string(self) -> String {
+        self.0
+    }
+
+    /// Consumes the wrapper and returns its owned text.
+    #[must_use]
+    #[inline]
+    pub fn into_owned(self) -> String {
         self.0
     }
 }

@@ -12,13 +12,13 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-use crate::LogSafeText;
+use crate::RedactedText;
 
 /// Owns a deterministic log-safe rendering of an HTTP header map.
 #[derive(Clone, PartialEq, Eq)]
 pub struct RedactedHeaders {
     /// Sorted, escaped representation containing no unprocessed values.
-    text: LogSafeText<'static>,
+    text: RedactedText,
 }
 
 impl RedactedHeaders {
@@ -33,7 +33,7 @@ impl RedactedHeaders {
     /// An opaque safe header result.
     #[must_use]
     #[inline(always)]
-    pub(super) const fn new(text: LogSafeText<'static>) -> Self {
+    pub(super) const fn new(text: RedactedText) -> Self {
         Self { text }
     }
 
@@ -44,7 +44,7 @@ impl RedactedHeaders {
     /// A borrowed log-safe header representation.
     #[must_use]
     #[inline]
-    pub const fn log_safe_text(&self) -> &LogSafeText<'static> {
+    pub const fn log_safe_text(&self) -> &RedactedText {
         &self.text
     }
 
@@ -55,7 +55,7 @@ impl RedactedHeaders {
     /// Owned log-safe header text.
     #[must_use]
     #[inline]
-    pub fn into_log_safe_text(self) -> LogSafeText<'static> {
+    pub fn into_log_safe_text(self) -> RedactedText {
         self.text
     }
 }

@@ -63,7 +63,7 @@ fn test_redaction_policy_builder_chains_grouped_fields_and_limits() {
     assert_eq!(policy.sensitivity_for("password"), Some(Sensitivity::Secret),);
     assert_eq!(policy.limits().diagnostic_event(), diagnostic);
     assert_eq!(policy.limits().ordinary_operation(), operation);
-    assert_eq!(policy.limits().domain(), domain);
+    assert_eq!(policy.limits().domain(), domain.into());
 }
 
 /// Verifies consecutive HTTP setters preserve their last-call-wins behavior.
@@ -152,12 +152,7 @@ fn test_redaction_policy_builder_preserves_diagnostic_budget() {
     let policy = builder.build().expect("the policy should build");
 
     assert_eq!(policy.limits().diagnostic_event(), budget);
-    assert_eq!(
-        RedactionPolicy::builder_from(&policy)
-            .build()
-            .expect("copied policy should build"),
-        policy,
-    );
+    assert_eq!(policy.to_builder().build().expect("copied policy should build"), policy,);
 }
 
 /// Verifies the builder preserves the root and array scalar JSON policy.
@@ -171,7 +166,8 @@ fn test_redaction_policy_builder_preserves_unkeyed_json_policy() {
 
     assert_eq!(policy.unkeyed_json_value_policy(), UnkeyedJsonValuePolicy::Redact,);
     assert_eq!(
-        RedactionPolicy::builder_from(&policy)
+        policy
+            .to_builder()
             .build()
             .expect("the copied JSON policy should build")
             .unkeyed_json_value_policy(),
@@ -195,7 +191,7 @@ fn test_redaction_policy_builder_removes_inherited_allow_rules() {
         .allow_suffix("session_token")
         .expect("the test builder input should be valid");
     let base = builder.build().expect("the base policy should be valid");
-    let mut builder = RedactionPolicy::builder_from(&base);
+    let mut builder = base.to_builder();
     builder
         .edit_fields()
         .remove_allow_exact("access-token")
@@ -224,7 +220,7 @@ fn test_redaction_policy_builder_clears_inherited_allow_rules() {
         .allow_suffix("session_token")
         .expect("the test builder input should be valid");
     let base = builder.build().expect("the base policy should be valid");
-    let mut builder = RedactionPolicy::builder_from(&base);
+    let mut builder = base.to_builder();
     builder.edit_fields().clear_allow_rules();
     let policy = builder.build().expect("the rebuilt policy should be valid");
 

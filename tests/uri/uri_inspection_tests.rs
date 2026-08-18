@@ -57,9 +57,7 @@ fn test_uri_redactor_inspect_uri_str_ignores_output_budget() {
     })
     .build()
     .expect("the core policy is valid");
-    let policy = RedactionPolicy::builder_from(&core)
-        .build()
-        .expect("the URI policy is valid");
+    let policy = core.to_builder().build().expect("the URI policy is valid");
     let input = format!("https://example.test/{}?password=secret", "a".repeat(256),);
 
     let inspection = UriRedactor::new(policy).inspect_uri_str(&input);
