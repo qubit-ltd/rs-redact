@@ -16,9 +16,8 @@ use crate::RedactionSummary;
 /// Final output published after a session commits successfully.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionSessionOutput {
-    text: RedactedText,
+    output: RedactionOutput,
     results: BTreeMap<String, RedactionOutput>,
-    summary: RedactionSummary,
 }
 
 impl RedactionSessionOutput {
@@ -28,13 +27,22 @@ impl RedactionSessionOutput {
         results: BTreeMap<String, RedactionOutput>,
         summary: RedactionSummary,
     ) -> Self {
-        Self { text, results, summary }
+        Self {
+            output: RedactionOutput::new(text, summary),
+            results,
+        }
     }
 
     /// Returns the composed safe text.
     #[must_use]
     pub const fn text(&self) -> &RedactedText {
-        &self.text
+        self.output.text()
+    }
+
+    /// Returns the aggregate summary.
+    #[must_use]
+    pub const fn summary(&self) -> RedactionSummary {
+        self.output.summary()
     }
 
     /// Returns the result staged under `key`, when present.
@@ -45,13 +53,13 @@ impl RedactionSessionOutput {
 
     /// Returns all keyed results.
     #[must_use]
-    pub const fn results(&self) -> &BTreeMap<String, RedactionOutput> {
-        &self.results
+    pub fn results(&self) -> impl ExactSizeIterator<Item = (&str, &RedactionOutput)> {
+        self.results.iter().map(|(key, output)| (key.as_str(), output))
     }
 
-    /// Returns the aggregate summary.
+    /// Consumes the published output into its composed and keyed parts.
     #[must_use]
-    pub const fn summary(&self) -> &RedactionSummary {
-        &self.summary
+    pub fn into_parts(self) -> (RedactionOutput, BTreeMap<String, RedactionOutput>) {
+        (self.output, self.results)
     }
 }

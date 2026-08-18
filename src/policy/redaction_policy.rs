@@ -13,8 +13,6 @@ use std::sync::LazyLock;
 use super::AllowRule;
 use super::FieldClassification;
 use super::FieldNameMatching;
-#[cfg(feature = "json")]
-use super::JsonDepthLimit;
 use super::MaskingPolicy;
 use super::RedactionFloor;
 use super::RedactionPolicyBuilder;
@@ -238,10 +236,11 @@ impl RedactionPolicy {
         self.http.text_body_policy()
     }
 
-    /// Returns the HTTP body byte budget.
+    /// Transitional body-budget accessor for the legacy HTTP implementation.
     #[must_use]
     #[cfg(feature = "http")]
     #[inline]
+    #[doc(hidden)]
     pub fn body_budget(&self) -> crate::formats::http::BodyBudget {
         self.limits.http_body()
     }
@@ -262,11 +261,12 @@ impl RedactionPolicy {
         self.uri.fragment_policy()
     }
 
-    /// Returns the maximum JSON nesting depth for JSON redaction.
+    /// Transitional JSON depth accessor for the legacy implementation.
     #[must_use]
     #[cfg(feature = "json")]
     #[inline]
-    pub const fn json_depth_limit(&self) -> JsonDepthLimit {
+    #[doc(hidden)]
+    pub fn json_depth_limit(&self) -> super::JsonDepthLimit {
         self.limits.json_depth_limit()
     }
 

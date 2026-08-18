@@ -209,8 +209,8 @@ impl Redactor {
     #[must_use]
     #[inline]
     pub fn redact_field<'a>(&self, field: &str, value: &'a str) -> FieldRedaction<'a> {
-        let mut budget = DiagnosticBudget::new(self.policy.limits().ordinary_operation());
-        redact_field_with_budget(&self.policy, &mut budget, field, value)
+        let (redacted, _) = redact_field_unbudgeted(&self.policy, field, value, usize::MAX);
+        redacted
     }
 
     /// Redacts one value at an explicit sensitivity level.
@@ -233,8 +233,11 @@ impl Redactor {
     #[must_use]
     #[inline]
     pub fn redact_at<'a>(&self, level: Sensitivity, value: &'a str) -> MaskedValue<'a> {
-        let mut budget = DiagnosticBudget::new(self.policy.limits().ordinary_operation());
-        redact_at_with_budget(&self.policy, &mut budget, level, value)
+        let (masked, _) = self
+            .policy
+            .masking()
+            .mask_bounded_with_truncation(level, value, usize::MAX);
+        MaskedValue::new(masked)
     }
 
     /// Creates a lazy redacted view selected by an external key.

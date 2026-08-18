@@ -9,7 +9,6 @@
 
 use std::collections::BTreeMap;
 
-use super::DiagnosticBudget;
 use super::DomainRedactionBudget;
 use super::DomainTruncation;
 use super::DomainTruncationCheckpoint;
@@ -51,7 +50,6 @@ use crate::runtime::DomainValueBudgetAdmission;
 #[derive(Debug)]
 pub struct RedactionSession<'policy> {
     policy: &'policy RedactionPolicy,
-    budget: DiagnosticBudget,
     pub(super) domain_budget: DomainRedactionBudget,
     pub(super) fragments: String,
     staged: BTreeMap<String, crate::RedactionOutput>,
@@ -66,8 +64,7 @@ impl<'policy> RedactionSession<'policy> {
     pub(crate) fn new(policy: &'policy RedactionPolicy) -> Self {
         Self {
             policy,
-            budget: DiagnosticBudget::new(policy.limits().diagnostic_event()),
-            domain_budget: DomainRedactionBudget::new(policy.limits().legacy_domain()),
+            domain_budget: DomainRedactionBudget::new(policy.limits().domain()),
             fragments: String::new(),
             staged: BTreeMap::new(),
             summary: crate::RedactionSummary::complete(),
@@ -278,8 +275,7 @@ impl<'policy> RedactionSession<'policy> {
             crate::RedactionSummary::complete()
         };
         let summary = self.summary.merge(budget_summary);
-        self.budget = DiagnosticBudget::new(self.policy.limits().diagnostic_event());
-        self.domain_budget = DomainRedactionBudget::new(self.policy.limits().legacy_domain());
+        self.domain_budget = DomainRedactionBudget::new(self.policy.limits().domain());
         self.summary = crate::RedactionSummary::complete();
         if let Some(error) = error {
             return Err(error);
@@ -296,28 +292,12 @@ impl<'policy> RedactionSession<'policy> {
     /// Finishes the legacy internal writer path while adapters are migrated.
     #[must_use]
     pub(crate) fn finish_legacy(&mut self) -> crate::RedactionOutput {
-        let completion = if self.fragments.is_empty() && self.is_exhausted() {
-            crate::RedactionSummary::exhausted()
-        } else if self.is_exhausted() {
-            crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached)
-        } else {
-            crate::RedactionSummary::complete()
-        };
+        let completion = crate::RedactionSummary::complete();
         let escaped = crate::output::log_escape::escape_log_control_characters(std::borrow::Cow::Owned(
             std::mem::take(&mut self.fragments),
         ))
         .into_owned();
-        let (inspected_input_bytes, emitted_output_bytes) = self.budget.usage();
-        let (visited_nodes, visited_collection_items, maximum_depth) = self.domain_budget.usage();
-        let usage = crate::RedactionUsage::from_runtime(
-            inspected_input_bytes,
-            emitted_output_bytes,
-            visited_nodes,
-            visited_collection_items,
-            maximum_depth,
-        );
-        let summary = completion.with_usage(usage);
-        crate::RedactionOutput::new(crate::RedactedText::from_escaped(escaped), summary)
+        crate::RedactionOutput::new(crate::RedactedText::from_escaped(escaped), completion)
     }
 
     /// Stages one already redacted result under a caller-owned string key.
@@ -374,30 +354,11 @@ impl<'policy> RedactionSession<'policy> {
     /// Resets only the per-operation legacy accounting retained by transitional
     /// facades.
     fn reset_fragment_budget(&mut self) {
-        self.budget = DiagnosticBudget::new(self.policy.limits().ordinary_operation());
     }
 
     /// Appends a chain fragment at a UTF-8 boundary within remaining output.
     fn append_chain_fragment(&mut self, fragment: &str) {
-        let output_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
-        let max_output = match self.admit_output_only(output_limit) {
-            RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
-            RedactionAdmission::Fallback | RedactionAdmission::Exhausted => {
-                return;
-            }
-        };
-        let remaining = self.remaining_output_bytes().min(max_output);
-        let mut length = fragment.len().min(remaining);
-        while length > 0 && !fragment.is_char_boundary(length) {
-            length -= 1;
-        }
-        self.fragments.push_str(&fragment[..length]);
-        let completion = if length == fragment.len() {
-            FragmentCompletion::Complete
-        } else {
-            FragmentCompletion::SessionTruncated
-        };
-        self.commit_output(length, completion);
+        self.fragments.push_str(fragment);
     }
 
     /// Returns a checkpoint for detecting later domain traversal truncation.
@@ -423,7 +384,8 @@ impl<'policy> RedactionSession<'policy> {
         domain_output_limit: usize,
         fallback_bytes: usize,
     ) -> RedactionAdmission {
-        self.budget.admit(input_bytes, domain_output_limit, fallback_bytes)
+        let _ = (input_bytes, domain_output_limit, fallback_bytes);
+        RedactionAdmission::Render { max_output_bytes: usize::MAX }
     }
 
     /// Admits pure domain output without covering nested adapter input.
@@ -434,7 +396,8 @@ impl<'policy> RedactionSession<'policy> {
     #[must_use]
     #[inline(always)]
     pub(crate) fn admit_output_only(&mut self, domain_output_limit: usize) -> RedactionAdmission {
-        self.budget.admit_output_only(domain_output_limit)
+        let _ = domain_output_limit;
+        RedactionAdmission::Render { max_output_bytes: usize::MAX }
     }
 
     /// Charges one domain field before its value is accessed.
@@ -468,28 +431,28 @@ impl<'policy> RedactionSession<'policy> {
     /// Commits exact output bytes for the active admitted fragment.
     #[inline(always)]
     pub(crate) fn commit_output(&mut self, bytes: usize, completion: FragmentCompletion) {
-        self.budget.commit_output(bytes, completion);
+        let _ = (bytes, completion);
     }
 
     /// Returns the remaining input allowance.
     #[must_use]
     #[inline(always)]
     pub fn remaining_input_bytes(&self) -> usize {
-        self.budget.remaining_input_bytes()
+        usize::MAX
     }
 
     /// Returns the remaining output allowance.
     #[must_use]
     #[inline(always)]
     pub fn remaining_output_bytes(&self) -> usize {
-        self.budget.remaining_output_bytes()
+        usize::MAX
     }
 
     /// Returns whether this session is exhausted.
     #[must_use]
     #[inline(always)]
     pub fn is_exhausted(&self) -> bool {
-        self.budget.is_exhausted()
+        false
     }
 }
 
