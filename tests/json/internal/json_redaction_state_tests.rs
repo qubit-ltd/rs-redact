@@ -61,8 +61,7 @@ fn test_json_redaction_state_masks_deep_sensitive_containers() {
     assert!(!text.contains("array-secret-value"));
     assert!(!text.contains("nested-secret-value"));
     assert!(!text.contains("deep-secret-value"));
-    from_str::<Value>(&text)
-        .expect("the masked value should remain valid JSON");
+    from_str::<Value>(&text).expect("the masked value should remain valid JSON");
 }
 
 /// Verifies recursive traversal applies one policy across nested objects.
@@ -81,8 +80,7 @@ fn test_json_redaction_state_recurses_through_nested_values() {
     .expect("the policy should build");
     let value = json!({"items": [{"token": "raw"}, {"name": "Ada"}]});
 
-    let output = to_value(RedactedJson::new(&value, &policy))
-        .expect("the redacted value should serialize");
+    let output = to_value(RedactedJson::new(&value, &policy)).expect("the redacted value should serialize");
 
     assert_ne!(output["items"][0]["token"], "raw");
     assert_eq!(output["items"][1]["name"], "Ada");
@@ -136,8 +134,7 @@ fn test_json_redaction_state_uses_root_inclusive_depth_budget() {
 /// Verifies a handled depth rejection preserves earlier siblings and masks the
 /// rejected subtree before serialization.
 #[test]
-fn test_json_redaction_state_keeps_prior_sibling_when_depth_rejection_is_masked()
- {
+fn test_json_redaction_state_keeps_prior_sibling_when_depth_rejection_is_masked() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.limits().json_depth(
@@ -158,8 +155,7 @@ fn test_json_redaction_state_keeps_prior_sibling_when_depth_rejection_is_masked(
 
     redact_json_text_in_place(&mut text, &policy);
 
-    let value = from_str::<Value>(&text)
-        .expect("the depth-limited output should remain valid JSON");
+    let value = from_str::<Value>(&text).expect("the depth-limited output should remain valid JSON");
     assert_eq!(value["visible"], "kept");
     assert_eq!(value["child"], "[depth-limit]");
     assert!(!text.contains("raw"));
@@ -195,13 +191,10 @@ fn test_json_redaction_state_mutable_matches_lazy_redaction() {
     ];
 
     for value in values {
-        let lazy = to_value(RedactedJson::new(&value, &policy))
-            .expect("the lazy redacted view should serialize");
-        let mut text =
-            to_string(&value).expect("the source JSON should serialize");
+        let lazy = to_value(RedactedJson::new(&value, &policy)).expect("the lazy redacted view should serialize");
+        let mut text = to_string(&value).expect("the source JSON should serialize");
         redact_json_text_in_place(&mut text, &policy);
-        let mutable = from_str::<Value>(&text)
-            .expect("the mutable redaction should remain valid JSON");
+        let mutable = from_str::<Value>(&text).expect("the mutable redaction should remain valid JSON");
 
         assert_eq!(mutable, lazy, "mutable and lazy JSON redaction diverged");
     }

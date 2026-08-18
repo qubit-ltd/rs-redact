@@ -33,13 +33,12 @@ fn test_redact_json_text_in_place_is_not_limited_by_diagnostic_budget() {
     })
     .build()
     .expect("the policy should build");
-    let mut text =
-        format!(r#"{{"name":"{}","password":"raw"}}"#, "a".repeat(128));
+    let mut text = format!(r#"{{"name":"{}","password":"raw"}}"#, "a".repeat(128));
 
     redact_json_text_in_place(&mut text, &policy);
 
-    let value = serde_json::from_str::<serde_json::Value>(&text)
-        .expect("the transformed text should remain valid JSON");
+    let value =
+        serde_json::from_str::<serde_json::Value>(&text).expect("the transformed text should remain valid JSON");
     assert_eq!(value["name"], "a".repeat(128));
     assert_ne!(value["password"], "raw");
     assert!(text.len() > policy.limits().diagnostic_event().max_input_bytes());
@@ -65,14 +64,12 @@ fn test_redact_json_text_in_place_obeys_json_depth_limit() {
     })
     .build()
     .expect("the policy should build");
-    let mut text =
-        r#"{"shallow":"visible","nested":{"secret":"raw-depth-secret"}}"#
-            .to_owned();
+    let mut text = r#"{"shallow":"visible","nested":{"secret":"raw-depth-secret"}}"#.to_owned();
 
     redact_json_text_in_place(&mut text, &policy);
 
-    let value = serde_json::from_str::<serde_json::Value>(&text)
-        .expect("depth-limited output should remain valid JSON");
+    let value =
+        serde_json::from_str::<serde_json::Value>(&text).expect("depth-limited output should remain valid JSON");
     assert_eq!(value["shallow"], "visible");
     assert_eq!(value["nested"], "[depth-limit]");
     assert!(!text.contains("raw-depth-secret"));

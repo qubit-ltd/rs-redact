@@ -13,10 +13,7 @@ use qubit_redact::formats::http::TextBodyPolicy;
 #[test]
 fn test_text_body_policy_default_is_redact() {
     assert_eq!(TextBodyPolicy::default(), TextBodyPolicy::Redact);
-    assert_eq!(
-        RedactionPolicy::default().text_body_policy(),
-        TextBodyPolicy::Redact,
-    );
+    assert_eq!(RedactionPolicy::default().text_body_policy(), TextBodyPolicy::Redact,);
 }
 /// Verifies the HTTP policy builder accepts the explicit pass-through opt-in.
 #[test]

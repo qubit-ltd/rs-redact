@@ -38,10 +38,7 @@ fn test_floor_overrides_application_exact_allow() {
     })
     .build()
     .expect("the policy should build");
-    assert_eq!(
-        policy.sensitivity_for("access_token"),
-        Some(Sensitivity::High)
-    );
+    assert_eq!(policy.sensitivity_for("access_token"), Some(Sensitivity::High));
 }
 
 /// Verifies that a suffix allow cannot bypass a matching floor rule.
@@ -64,10 +61,7 @@ fn test_floor_overrides_application_suffix_allow() {
     .build()
     .expect("the policy should build");
 
-    assert_eq!(
-        policy.sensitivity_for("service_access_token"),
-        Some(Sensitivity::High),
-    );
+    assert_eq!(policy.sensitivity_for("service_access_token"), Some(Sensitivity::High),);
 }
 
 #[test]
@@ -92,14 +86,9 @@ fn test_floor_only_raises_sensitivity_when_application_level_is_higher() {
     })
     .build()
     .expect("the policy should build");
+    assert_eq!(policy.sensitivity_for("credential"), Some(Sensitivity::Secret),);
     assert_eq!(
-        policy.sensitivity_for("credential"),
-        Some(Sensitivity::Secret),
-    );
-    assert_eq!(
-        Redactor::new(policy)
-            .redact_field("credential", "value")
-            .as_str(),
+        Redactor::new(policy).redact_field("credential", "value").as_str(),
         "[application]"
     );
 }
@@ -112,24 +101,20 @@ fn test_floor_and_application_unknown_fallbacks_combine() {
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Medium))
         .build()
         .expect("the floor should build");
-    let policy =
-        ({
-            let mut builder = RedactionPolicy::builder();
-            let _ = builder.edit_fields().floor(floor);
-            builder.edit_fields().unknown_field_policy(
-                UnknownFieldPolicy::Redact(Sensitivity::Secret),
-            );
-            builder
-                .edit_fields()
-                .mask(
-                    Sensitivity::Secret,
-                    MaskPolicy::fixed("[application-secret]"),
-                )
-                .expect("the test mask policy should be valid");
-            builder
-        })
-        .build()
-        .expect("the policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        let _ = builder.edit_fields().floor(floor);
+        builder
+            .edit_fields()
+            .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Secret));
+        builder
+            .edit_fields()
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[application-secret]"))
+            .expect("the test mask policy should be valid");
+        builder
+    })
+    .build()
+    .expect("the policy should build");
 
     assert_eq!(
         policy.sensitivity_for("unconfigured_reference"),
@@ -169,9 +154,7 @@ fn test_application_mask_is_used_when_floor_misses() {
     .expect("the policy should build");
 
     assert_eq!(
-        Redactor::new(policy)
-            .redact_field("application_only", "value")
-            .as_str(),
+        Redactor::new(policy).redact_field("application_only", "value").as_str(),
         "[application]",
     );
 }
@@ -187,9 +170,7 @@ fn test_floor_matching_is_independent_from_application_matching() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         let _ = builder.edit_fields().floor(floor);
-        let _ = builder
-            .edit_fields()
-            .matching(FieldNameMatching::ExactOrTokenSuffix);
+        let _ = builder.edit_fields().matching(FieldNameMatching::ExactOrTokenSuffix);
         builder
     })
     .build()
@@ -233,10 +214,7 @@ fn test_with_floor_after_disable_floor_is_last_call_wins() {
     .build()
     .expect("the policy should build");
 
-    assert_eq!(
-        policy.sensitivity_for("credential"),
-        Some(Sensitivity::High),
-    );
+    assert_eq!(policy.sensitivity_for("credential"), Some(Sensitivity::High),);
 }
 
 /// Verifies disabled floor snapshots are copied and default copying replaces

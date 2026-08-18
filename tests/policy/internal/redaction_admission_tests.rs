@@ -34,10 +34,7 @@ fn test_admission_allows_fallbacks_until_output_cannot_fit_one() {
     let fallback = "<redacted>";
     let fallback_capacity = limit.max_output_bytes() / fallback.len();
     for _ in 0..fallback_capacity {
-        assert_eq!(
-            session.redact_at(Sensitivity::Secret, "too-large").as_str(),
-            fallback,
-        );
+        assert_eq!(session.redact_at(Sensitivity::Secret, "too-large").as_str(), fallback,);
     }
     let remaining_input = session.remaining_input_bytes();
     assert_eq!(session.redact_at(Sensitivity::Secret, "x").as_str(), "",);

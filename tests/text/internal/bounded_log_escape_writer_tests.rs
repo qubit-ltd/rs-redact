@@ -37,10 +37,7 @@ fn test_bounded_log_escape_writer_keeps_atomic_escape_boundary() {
         .max_bytes(14)
         .build()
         .expect("the test budget can contain the marker");
-    let output = LongUnsafeDiagnostic
-        .redacted()
-        .with_output_limit(limit)
-        .to_string();
+    let output = LongUnsafeDiagnostic.redacted().with_output_limit(limit).to_string();
 
     assert_eq!(output, "ab<truncated>");
 }
@@ -52,9 +49,7 @@ fn test_bounded_log_escape_writer_emits_safe_representation() {
         .max_bytes(64)
         .build()
         .expect("the test budget can contain the marker");
-    let output = FixedDiagnostic("<format-error>")
-        .redacted()
-        .with_output_limit(limit);
+    let output = FixedDiagnostic("<format-error>").redacted().with_output_limit(limit);
     assert_eq!(output.to_string(), "<format-error>");
 }
 
@@ -68,10 +63,7 @@ fn test_bounded_log_escape_writer_parses_debug_escape_forms() {
         .build()
         .expect("the test budget should contain every escape form");
 
-    let output = FixedDiagnostic(input)
-        .redacted()
-        .with_output_limit(limit)
-        .to_string();
+    let output = FixedDiagnostic(input).redacted().with_output_limit(limit).to_string();
 
     assert_eq!(output, input);
 }

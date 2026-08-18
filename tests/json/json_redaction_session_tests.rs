@@ -29,8 +29,7 @@ fn output_exhaustion_skips_json_input() {
     .expect("policy is valid");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
-    let _ = session
-        .json_with_mut(|json| json.redact_text("{\"token\":\"secret\"}"));
+    let _ = session.json_with_mut(|json| json.redact_text("{\"token\":\"secret\"}"));
     let input_before = session.remaining_input_bytes();
     let result = session.json_with_mut(|json| {
         json.redact_value(&json!({
@@ -59,8 +58,7 @@ fn input_rejection_with_safe_fallback_is_truncated() {
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
-    let result =
-        session.json_with_mut(|json| json.redact_text(r#"{"token":"secret"}"#));
+    let result = session.json_with_mut(|json| json.redact_text(r#"{"token":"secret"}"#));
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(!result.log_safe_text().as_str().is_empty());
@@ -84,8 +82,7 @@ fn redact_value_counts_input_and_returns_compact_json() {
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
-    let result = session
-        .json_with_mut(|json| json.redact_value(&json!({"token": "secret"})));
+    let result = session.json_with_mut(|json| json.redact_value(&json!({"token": "secret"})));
 
     assert_eq!(result.completion(), RedactionCompletion::Complete);
     assert_eq!(result.log_safe_text().as_str(), r#"{"token":"****"}"#);
@@ -110,8 +107,7 @@ fn redact_text_renders_json_through_the_shared_session() {
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
-    let result =
-        session.json_with_mut(|json| json.redact_text(r#"{"token":"secret"}"#));
+    let result = session.json_with_mut(|json| json.redact_text(r#"{"token":"secret"}"#));
 
     assert_eq!(result.completion(), RedactionCompletion::Complete);
     assert_eq!(result.log_safe_text().as_str(), r#"{"token":"****"}"#);
@@ -133,15 +129,11 @@ fn output_smaller_than_truncation_marker_is_exhausted() {
     .expect("policy is valid");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
-    let first = session.json_with_mut(|json| {
-        json.redact_text(r#"{"message":"abcdefghijklm"}"#)
-    });
+    let first = session.json_with_mut(|json| json.redact_text(r#"{"message":"abcdefghijklm"}"#));
     assert_eq!(first.completion(), RedactionCompletion::Complete);
     assert!(session.remaining_output_bytes() < "<truncated>".len());
 
-    let result = session.json_with_mut(|json| {
-        json.redact_text(r#"{"message":"this output cannot fit"}"#)
-    });
+    let result = session.json_with_mut(|json| json.redact_text(r#"{"message":"this output cannot fit"}"#));
 
     assert_eq!(result.completion(), RedactionCompletion::Exhausted);
     assert_eq!(result.log_safe_text().as_str(), "");

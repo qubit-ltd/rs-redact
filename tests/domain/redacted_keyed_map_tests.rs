@@ -44,11 +44,7 @@ impl Redact for NestedValue {
 
 impl RedactValue for NestedValue {
     /// Replaces the complete nested value when its outer key is sensitive.
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }
 }
@@ -94,10 +90,7 @@ fn test_redacted_keyed_map_recursively_redacts_unclassified_values() {
 /// available and retains no session-bound formatter state.
 #[test]
 fn test_redacted_keyed_map_result_is_settled_at_creation() {
-    let map = BTreeMap::from([(
-        "label".to_owned(),
-        FormatterBehavior { fail: false },
-    )]);
+    let map = BTreeMap::from([("label".to_owned(), FormatterBehavior { fail: false })]);
     let redactor = Redactor::default();
     let mut session = redactor.session();
     let result = RedactedKeyedMapResult::new(&map, &mut session);
@@ -156,11 +149,7 @@ impl Redact for CountingValue<'_> {
 }
 
 impl RedactValue for CountingValue<'_> {
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }
 }
@@ -203,11 +192,7 @@ impl Redact for FormatterBehavior {
 }
 
 impl RedactValue for FormatterBehavior {
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }
 }
@@ -215,18 +200,9 @@ impl RedactValue for FormatterBehavior {
 /// Verifies eager keyed-map completion preserves alternate debug formatting.
 #[test]
 fn test_redacted_keyed_map_preserves_alternate_debug() {
-    let map = BTreeMap::from([(
-        "label".to_owned(),
-        FormatterBehavior { fail: false },
-    )]);
-    let compact = format!(
-        "{:?}",
-        RedactedKeyedMap::new(&map, RedactionPolicy::default())
-    );
-    let alternate = format!(
-        "{:#?}",
-        RedactedKeyedMap::new(&map, RedactionPolicy::default())
-    );
+    let map = BTreeMap::from([("label".to_owned(), FormatterBehavior { fail: false })]);
+    let compact = format!("{:?}", RedactedKeyedMap::new(&map, RedactionPolicy::default()));
+    let alternate = format!("{:#?}", RedactedKeyedMap::new(&map, RedactionPolicy::default()));
 
     assert!(compact.contains("compact"));
     assert!(alternate.contains("compact"));
@@ -235,10 +211,7 @@ fn test_redacted_keyed_map_preserves_alternate_debug() {
 /// Verifies eager keyed-map completion preserves a nested formatter failure.
 #[test]
 fn test_redacted_keyed_map_preserves_formatter_error() {
-    let map = BTreeMap::from([(
-        "label".to_owned(),
-        FormatterBehavior { fail: true },
-    )]);
+    let map = BTreeMap::from([("label".to_owned(), FormatterBehavior { fail: true })]);
     let view = RedactedKeyedMap::new(&map, RedactionPolicy::default());
     let mut output = String::new();
 
@@ -258,11 +231,7 @@ impl Redact for ShortCountingValue<'_> {
 }
 
 impl RedactValue for ShortCountingValue<'_> {
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }
 }

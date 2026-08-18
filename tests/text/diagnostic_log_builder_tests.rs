@@ -39,10 +39,7 @@ fn test_diagnostic_builder_escapes_and_shares_output_budget() {
         Ok(RedactionCompletion::Truncated),
     );
     assert!(builder.is_truncated());
-    assert_eq!(
-        builder.finish().as_str(),
-        "prefix\\nabcdefghijklmnopqrstu<truncated>",
-    );
+    assert_eq!(builder.finish().as_str(), "prefix\\nabcdefghijklmnopqrstu<truncated>",);
 }
 
 /// Verifies a safe fragment can be appended without losing the shared bound.
@@ -127,10 +124,7 @@ fn test_diagnostic_builder_reports_exhausted_redaction_output() {
         builder.push_redacted_at(&mut session, Sensitivity::Secret, "raw"),
         RedactionCompletion::Exhausted,
     );
-    assert_eq!(
-        builder.finish().as_str(),
-        "<redacted><redacted><redacted><redact",
-    );
+    assert_eq!(builder.finish().as_str(), "<redacted><redacted><redacted><redact",);
     assert!(session.is_exhausted());
 }
 
@@ -154,11 +148,7 @@ fn test_diagnostic_builder_pushes_explicitly_sensitive_values() {
     let mut builder = DiagnosticLogBuilder::new(budget);
 
     assert_eq!(
-        builder.push_redacted_at(
-            &mut session,
-            Sensitivity::Secret,
-            "raw\nsecret",
-        ),
+        builder.push_redacted_at(&mut session, Sensitivity::Secret, "raw\nsecret",),
         RedactionCompletion::Complete,
     );
     assert_eq!(builder.finish().as_str(), "<redacted>");
@@ -182,8 +172,7 @@ fn test_diagnostic_builder_safe_append_reports_current_and_prior_truncation() {
     let mut builder = DiagnosticLogBuilder::new(budget);
 
     assert_eq!(builder.push_safe(&safe), RedactionCompletion::Truncated);
-    let is_truncated: fn(&DiagnosticLogBuilder) -> bool =
-        DiagnosticLogBuilder::is_truncated;
+    let is_truncated: fn(&DiagnosticLogBuilder) -> bool = DiagnosticLogBuilder::is_truncated;
     assert!(is_truncated(&builder));
     assert_eq!(builder.push_safe(&safe), RedactionCompletion::Truncated);
 }
@@ -236,9 +225,6 @@ fn test_diagnostic_builder_propagates_formatter_error() {
         .expect("the diagnostic budget should be valid");
     let mut builder = DiagnosticLogBuilder::new(budget);
 
-    assert_eq!(
-        builder.push_fmt(format_args!("{}", FailingDisplay)),
-        Err(fmt::Error),
-    );
+    assert_eq!(builder.push_fmt(format_args!("{}", FailingDisplay)), Err(fmt::Error),);
     assert!(!builder.is_truncated());
 }

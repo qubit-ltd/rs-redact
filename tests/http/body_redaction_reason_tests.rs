@@ -11,10 +11,7 @@ use qubit_redact::formats::http::BodyRedactionReason;
 /// Verifies the opaque-text reason is available to callers.
 #[test]
 fn test_body_redaction_reason_exposes_opaque_text_variant() {
-    assert_eq!(
-        BodyRedactionReason::OpaqueText,
-        BodyRedactionReason::OpaqueText,
-    );
+    assert_eq!(BodyRedactionReason::OpaqueText, BodyRedactionReason::OpaqueText,);
 }
 
 /// Verifies callers can distinguish shared-session exhaustion from media-type

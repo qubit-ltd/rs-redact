@@ -16,9 +16,7 @@ use qubit_redact::formats::http::HttpRedactor;
 fn test_form_masks_password_value() {
     let result = HttpRedactor::default().redact_body(
         BodyCapture::complete(b"password=raw&label=visible"),
-        Some(&HeaderValue::from_static(
-            "application/x-www-form-urlencoded",
-        )),
+        Some(&HeaderValue::from_static("application/x-www-form-urlencoded")),
     );
 
     assert_eq!(result.status(), BodyRedactionStatus::Structured);

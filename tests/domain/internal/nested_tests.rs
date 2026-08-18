@@ -38,11 +38,7 @@ impl RedactMut for NestedValue {
 #[cfg(feature = "serde")]
 impl RedactSerialize for NestedValue {
     /// Serializes a stable nested representation for adapter tests.
-    fn serialize_redacted<S>(
-        &self,
-        _policy: &RedactionPolicy,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(&self, _policy: &RedactionPolicy, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -130,8 +126,7 @@ impl Redact for ShortCountingValue<'_> {
 #[test]
 fn test_bounded_vec_stops_after_container_writer_truncates() {
     let visits = AtomicUsize::new(0);
-    let values: Vec<_> =
-        (0..100).map(|_| ShortCountingValue(&visits)).collect();
+    let values: Vec<_> = (0..100).map(|_| ShortCountingValue(&visits)).collect();
     let limit = LogOutputLimit::builder()
         .max_bytes(14)
         .build()
@@ -223,22 +218,18 @@ fn test_nested_serialization_delegates_through_all_containers() {
     let values = vec![NestedValue, NestedValue];
 
     let serialized =
-        serde_json::to_value(RedactedSerialize::new(&value, &policy))
-            .expect("present option should serialize");
+        serde_json::to_value(RedactedSerialize::new(&value, &policy)).expect("present option should serialize");
     assert_eq!(serialized, serde_json::json!("NestedValue"));
     assert_eq!(
-        serde_json::to_value(RedactedSerialize::new(&absent, &policy,))
-            .expect("absent option should serialize"),
+        serde_json::to_value(RedactedSerialize::new(&absent, &policy,)).expect("absent option should serialize"),
         serde_json::Value::Null,
     );
     assert_eq!(
-        serde_json::to_value(RedactedSerialize::new(&boxed, &policy,))
-            .expect("boxed value should serialize"),
+        serde_json::to_value(RedactedSerialize::new(&boxed, &policy,)).expect("boxed value should serialize"),
         serde_json::json!("NestedValue"),
     );
     assert_eq!(
-        serde_json::to_value(RedactedSerialize::new(&values, &policy,))
-            .expect("sequence should serialize"),
+        serde_json::to_value(RedactedSerialize::new(&values, &policy,)).expect("sequence should serialize"),
         serde_json::json!(["NestedValue", "NestedValue"]),
     );
 }

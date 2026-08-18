@@ -60,10 +60,7 @@ fn test_redaction_policy_builder_chains_grouped_fields_and_limits() {
     let policy = builder.build().expect("the policy should be valid");
 
     assert_eq!(policy.sensitivity_for("token"), Some(Sensitivity::Secret));
-    assert_eq!(
-        policy.sensitivity_for("password"),
-        Some(Sensitivity::Secret),
-    );
+    assert_eq!(policy.sensitivity_for("password"), Some(Sensitivity::Secret),);
     assert_eq!(policy.limits().diagnostic_event(), diagnostic);
     assert_eq!(policy.limits().ordinary_operation(), operation);
     assert_eq!(policy.limits().domain(), domain);
@@ -82,10 +79,7 @@ fn test_redaction_policy_builder_chains_http_settings() {
     let policy = builder.build().expect("the HTTP policy should be valid");
 
     assert_eq!(policy.http().url_path_policy(), UrlPathPolicy::Preserve);
-    assert_eq!(
-        policy.http().text_body_policy(),
-        TextBodyPolicy::PassThrough,
-    );
+    assert_eq!(policy.http().text_body_policy(), TextBodyPolicy::PassThrough,);
 }
 
 /// Verifies consecutive URI setters preserve their last-call-wins behavior.
@@ -140,14 +134,9 @@ fn test_redaction_policy_builder_builds_configured_rule() {
         .disable_floor()
         .raise("tenant_secret", Sensitivity::High)
         .expect("the test builder input should be valid");
-    let policy = builder
-        .build()
-        .expect("the configured rule should be valid");
+    let policy = builder.build().expect("the configured rule should be valid");
 
-    assert_eq!(
-        policy.sensitivity_for("tenant_secret"),
-        Some(Sensitivity::High),
-    );
+    assert_eq!(policy.sensitivity_for("tenant_secret"), Some(Sensitivity::High),);
 }
 
 /// Verifies a diagnostic budget is a first-class immutable policy setting.
@@ -180,10 +169,7 @@ fn test_redaction_policy_builder_preserves_unkeyed_json_policy() {
         .build()
         .expect("the JSON policy should build");
 
-    assert_eq!(
-        policy.unkeyed_json_value_policy(),
-        UnkeyedJsonValuePolicy::Redact,
-    );
+    assert_eq!(policy.unkeyed_json_value_policy(), UnkeyedJsonValuePolicy::Redact,);
     assert_eq!(
         RedactionPolicy::builder_from(&policy)
             .build()
@@ -218,14 +204,8 @@ fn test_redaction_policy_builder_removes_inherited_allow_rules() {
         .expect("the test builder input should be valid");
     let policy = builder.build().expect("the rebuilt policy should be valid");
 
-    assert_eq!(
-        policy.sensitivity_for("access_token"),
-        Some(Sensitivity::Secret)
-    );
-    assert_eq!(
-        policy.sensitivity_for("request_session_token"),
-        Some(Sensitivity::High),
-    );
+    assert_eq!(policy.sensitivity_for("access_token"), Some(Sensitivity::Secret));
+    assert_eq!(policy.sensitivity_for("request_session_token"), Some(Sensitivity::High),);
 }
 
 /// Verifies one operation removes every inherited allow rule.
@@ -248,12 +228,6 @@ fn test_redaction_policy_builder_clears_inherited_allow_rules() {
     builder.edit_fields().clear_allow_rules();
     let policy = builder.build().expect("the rebuilt policy should be valid");
 
-    assert_eq!(
-        policy.sensitivity_for("access_token"),
-        Some(Sensitivity::Secret)
-    );
-    assert_eq!(
-        policy.sensitivity_for("request_session_token"),
-        Some(Sensitivity::High),
-    );
+    assert_eq!(policy.sensitivity_for("access_token"), Some(Sensitivity::Secret));
+    assert_eq!(policy.sensitivity_for("request_session_token"), Some(Sensitivity::High),);
 }

@@ -18,15 +18,12 @@ use qubit_redact::formats::uri::UriRedactor;
 #[test]
 fn test_uri_policy_defaults_preserve_global_snapshot() {
     let expected = {
-        let mut builder =
-            RedactionPolicy::builder_from(&RedactionPolicy::standard());
+        let mut builder = RedactionPolicy::builder_from(&RedactionPolicy::standard());
         builder
             .uri()
             .path(UriPathPolicy::Redact)
             .fragment(UriFragmentPolicy::Preserve);
-        builder
-            .build()
-            .expect("the custom URI policy should be valid")
+        builder.build().expect("the custom URI policy should be valid")
     };
     let previous = Redactor::set_default(Redactor::new(expected.clone()));
 

@@ -43,8 +43,7 @@ fn test_redacted_debug_preserves_lifetime_and_accepts_unsized_values() {
     let secret = String::from("secret");
     let redacted: RedactedDebug<'_, str> = wrap_with_lifetime(secret.as_str());
     let values = [NoDebug];
-    let redacted_slice: RedactedDebug<'_, [NoDebug]> =
-        wrap_with_lifetime(&values[..]);
+    let redacted_slice: RedactedDebug<'_, [NoDebug]> = wrap_with_lifetime(&values[..]);
 
     assert_eq!(format!("{redacted:?}"), "<redacted>");
     assert_eq!(format!("{redacted_slice:?}"), "<redacted>");

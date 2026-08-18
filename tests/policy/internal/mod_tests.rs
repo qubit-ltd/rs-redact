@@ -15,9 +15,7 @@ use qubit_redact::Sensitivity;
 fn test_policy_internal_components_share_canonical_state() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
-        let _ = builder
-            .edit_fields()
-            .matching(FieldNameMatching::ExactOrTokenSuffix);
+        let _ = builder.edit_fields().matching(FieldNameMatching::ExactOrTokenSuffix);
         builder
             .edit_fields()
             .raise("access-token", Sensitivity::High)
@@ -27,8 +25,5 @@ fn test_policy_internal_components_share_canonical_state() {
     .build()
     .expect("the canonicalized rule is valid");
 
-    assert_eq!(
-        policy.sensitivity_for("serviceAccessToken"),
-        Some(Sensitivity::High),
-    );
+    assert_eq!(policy.sensitivity_for("serviceAccessToken"), Some(Sensitivity::High),);
 }

@@ -16,13 +16,8 @@ fn test_http_policy_builder_updates_behavior_choices() {
     let mut builder = RedactionPolicy::default().to_builder();
     builder.http().url_path(UrlPathPolicy::Redact);
     builder.http().text_body(TextBodyPolicy::PassThrough);
-    let policy = builder
-        .build()
-        .expect("the configured policy must be valid");
+    let policy = builder.build().expect("the configured policy must be valid");
 
     assert_eq!(policy.http().url_path_policy(), UrlPathPolicy::Redact);
-    assert_eq!(
-        policy.http().text_body_policy(),
-        TextBodyPolicy::PassThrough,
-    );
+    assert_eq!(policy.http().text_body_policy(), TextBodyPolicy::PassThrough,);
 }

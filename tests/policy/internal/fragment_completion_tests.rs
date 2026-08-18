@@ -30,10 +30,7 @@ fn test_session_truncated_completion_closes_output() {
     let mut session = redactor.session();
     let long_value = "visible output ".repeat(6);
 
-    assert_eq!(
-        session.redact_field("message", &long_value).as_str(),
-        "<redacted>",
-    );
+    assert_eq!(session.redact_field("message", &long_value).as_str(), "<redacted>",);
     let remaining_input = session.remaining_input_bytes();
     assert_eq!(session.redact_field("message", "next").as_str(), "");
     assert_eq!(session.remaining_input_bytes(), remaining_input);

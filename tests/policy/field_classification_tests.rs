@@ -17,9 +17,7 @@ fn test_field_classification_exposes_sensitive_rule_metadata() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.edit_fields().disable_floor();
-        let _ = builder
-            .edit_fields()
-            .matching(FieldNameMatching::ExactOrTokenSuffix);
+        let _ = builder.edit_fields().matching(FieldNameMatching::ExactOrTokenSuffix);
         builder
             .edit_fields()
             .raise("api_token", Sensitivity::High)
@@ -33,10 +31,7 @@ fn test_field_classification_exposes_sensitive_rule_metadata() {
 
     assert_eq!(classification.sensitivity(), Some(Sensitivity::High));
     assert_eq!(classification.matched_field(), Some("apitoken"));
-    assert_eq!(
-        classification.match_kind(),
-        Some(FieldMatchKind::TokenSuffix)
-    );
+    assert_eq!(classification.match_kind(), Some(FieldMatchKind::TokenSuffix));
     assert!(!classification.is_allowed());
     assert!(!classification.is_unknown());
 }

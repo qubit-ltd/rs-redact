@@ -16,9 +16,7 @@ fn test_uri_policy_builder_updates_behavior_choices() {
     let mut builder = RedactionPolicy::default().to_builder();
     builder.uri().path(UriPathPolicy::Redact);
     builder.uri().fragment(UriFragmentPolicy::Preserve);
-    let policy = builder
-        .build()
-        .expect("the configured policy must be valid");
+    let policy = builder.build().expect("the configured policy must be valid");
 
     assert_eq!(policy.uri().path_policy(), UriPathPolicy::Redact);
     assert_eq!(policy.uri().fragment_policy(), UriFragmentPolicy::Preserve);

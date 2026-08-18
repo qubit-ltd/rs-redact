@@ -101,8 +101,7 @@ fn test_redact_items_does_not_guess_plain_item_roles() {
 /// Verifies that heuristic classification applies only to remaining plain
 /// items.
 #[test]
-fn test_redact_heuristically_preserves_explicit_levels_and_matches_plain_options()
- {
+fn test_redact_heuristically_preserves_explicit_levels_and_matches_plain_options() {
     let items = [
         ArgvItem::plain(OsStr::new("tool")),
         ArgvItem::plain(OsStr::new("--password")),
@@ -110,9 +109,7 @@ fn test_redact_heuristically_preserves_explicit_levels_and_matches_plain_options
         ArgvItem::sensitive(OsStr::new("raw-explicit"), Sensitivity::Secret),
     ];
 
-    let rendered = ArgvRedactor::default()
-        .redact_heuristically(items)
-        .to_string();
+    let rendered = ArgvRedactor::default().redact_heuristically(items).to_string();
 
     assert!(!rendered.contains("raw-password"));
     assert!(!rendered.contains("raw-explicit"));
@@ -131,9 +128,7 @@ fn test_redact_heuristically_masks_sensitive_option_next_value() {
     ];
 
     assert_eq!(
-        ArgvRedactor::default()
-            .redact_heuristically(items)
-            .to_string(),
+        ArgvRedactor::default().redact_heuristically(items).to_string(),
         r#"["docker", "login", "--password", "<redacted>", "--username", "alice"]"#,
     );
 }
@@ -150,9 +145,7 @@ fn test_redact_heuristically_masks_consecutive_sensitive_options() {
     ];
 
     assert_eq!(
-        ArgvRedactor::default()
-            .redact_heuristically(items)
-            .to_string(),
+        ArgvRedactor::default().redact_heuristically(items).to_string(),
         r#"["cmd", "--password", "<redacted>", "****"]"#,
     );
 }
@@ -168,9 +161,7 @@ fn test_redact_heuristically_masks_inline_options_and_assignments() {
     ];
 
     assert_eq!(
-        ArgvRedactor::default()
-            .redact_heuristically(items)
-            .to_string(),
+        ArgvRedactor::default().redact_heuristically(items).to_string(),
         r#"["env", "--token=****", "OPENAI_API_KEY=****", "MODE=debug"]"#,
     );
 }
@@ -185,9 +176,7 @@ fn test_redact_heuristically_keeps_empty_sensitive_inline_value() {
     ];
 
     assert_eq!(
-        ArgvRedactor::default()
-            .redact_heuristically(items)
-            .to_string(),
+        ArgvRedactor::default().redact_heuristically(items).to_string(),
         r#"["client", "--token=", "mode"]"#,
     );
 }
@@ -195,8 +184,7 @@ fn test_redact_heuristically_keeps_empty_sensitive_inline_value() {
 /// Verifies the default floor protects a suffix-matched assignment even when
 /// application matching is exact.
 #[test]
-fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_application_matching()
- {
+fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_application_matching() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         let _ = builder.edit_fields().matching(FieldNameMatching::Exact);
@@ -220,8 +208,7 @@ fn test_redact_heuristically_floor_classifies_prefixed_assignment_with_exact_app
 /// Verifies an exact single-dash option resolves application-only rules when
 /// the caller deliberately disables the floor.
 #[test]
-fn test_redact_heuristically_uses_application_rule_for_exact_single_dash_option()
- {
+fn test_redact_heuristically_uses_application_rule_for_exact_single_dash_option() {
     let policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.edit_fields().disable_floor();
@@ -260,9 +247,7 @@ fn test_redact_heuristically_keeps_plain_shell_payload_unparsed() {
     ];
 
     assert_eq!(
-        ArgvRedactor::default()
-            .redact_heuristically(items)
-            .to_string(),
+        ArgvRedactor::default().redact_heuristically(items).to_string(),
         r#"["sh", "-c", "echo $OPENAI_API_KEY"]"#,
     );
 }
@@ -281,9 +266,7 @@ fn test_redact_heuristically_keeps_safety_inference_after_double_dash() {
     ];
 
     assert_eq!(
-        ArgvRedactor::default()
-            .redact_heuristically(items)
-            .to_string(),
+        ArgvRedactor::default().redact_heuristically(items).to_string(),
         r#"["cmd", "--", "--password", "<redacted>", "--password=<redacted>", "PASSWORD=<redacted>"]"#,
     );
 }
@@ -296,15 +279,10 @@ fn test_redact_heuristically_masks_sensitive_option_after_double_dash() {
         .into_iter()
         .map(|value| ArgvItem::plain(OsStr::new(value)));
 
-    let rendered = ArgvRedactor::default()
-        .redact_heuristically(items)
-        .to_string();
+    let rendered = ArgvRedactor::default().redact_heuristically(items).to_string();
 
     assert!(!rendered.contains("raw-secret"));
-    assert_eq!(
-        rendered,
-        r#"["cmd", "--", "child", "--password", "<redacted>"]"#,
-    );
+    assert_eq!(rendered, r#"["cmd", "--", "child", "--password", "<redacted>"]"#,);
 }
 
 /// Verifies a single dash is not treated as an option name.
@@ -317,9 +295,7 @@ fn test_redact_heuristically_keeps_single_dash_token() {
     ];
 
     assert_eq!(
-        ArgvRedactor::default()
-            .redact_heuristically(items)
-            .to_string(),
+        ArgvRedactor::default().redact_heuristically(items).to_string(),
         r#"["cmd", "-", "secret"]"#,
     );
 }
@@ -334,9 +310,7 @@ fn test_redact_heuristically_masks_single_dash_sensitive_option() {
     ];
 
     assert_eq!(
-        ArgvRedactor::default()
-            .redact_heuristically(items)
-            .to_string(),
+        ArgvRedactor::default().redact_heuristically(items).to_string(),
         r#"["cmd", "-password", "<redacted>"]"#,
     );
 }
@@ -351,9 +325,7 @@ fn test_redact_heuristically_keeps_option_name_only_dashes() {
     ];
 
     assert_eq!(
-        ArgvRedactor::default()
-            .redact_heuristically(items)
-            .to_string(),
+        ArgvRedactor::default().redact_heuristically(items).to_string(),
         r#"["cmd", "---", "value"]"#,
     );
 }
@@ -368,9 +340,7 @@ fn test_redact_heuristically_does_not_parse_explicit_sensitive_options() {
     ];
 
     assert_eq!(
-        ArgvRedactor::default()
-            .redact_heuristically(items)
-            .to_string(),
+        ArgvRedactor::default().redact_heuristically(items).to_string(),
         r#"["cmd", "<redacted>", "plain-after-explicit"]"#,
     );
 }
@@ -416,9 +386,7 @@ fn test_redact_heuristically_keeps_unclassified_self_contained_forms() {
     ];
 
     assert_eq!(
-        ArgvRedactor::default()
-            .redact_heuristically(items)
-            .to_string(),
+        ArgvRedactor::default().redact_heuristically(items).to_string(),
         r#"["cmd", "=secret", "---=value", "--not-sensitive=abcdef"]"#,
     );
 }
@@ -459,9 +427,7 @@ fn test_redact_heuristically_masks_non_utf8_plain_value() {
     let secret = OsString::from_vec(b"prefix-secret-\xFF-suffix".to_vec());
     let items = [ArgvItem::plain(OsStr::new("cmd")), ArgvItem::plain(&secret)];
 
-    let rendered = ArgvRedactor::default()
-        .redact_heuristically(items)
-        .to_string();
+    let rendered = ArgvRedactor::default().redact_heuristically(items).to_string();
 
     assert_eq!(rendered, r#"["cmd", "<redacted>"]"#);
     assert!(!rendered.contains("prefix-secret"));
@@ -478,9 +444,7 @@ fn test_redact_heuristically_masks_non_utf8_sensitive_option_value() {
         ArgvItem::plain(&secret),
     ];
 
-    let rendered = ArgvRedactor::default()
-        .redact_heuristically(items)
-        .to_string();
+    let rendered = ArgvRedactor::default().redact_heuristically(items).to_string();
 
     assert_eq!(rendered, r#"["cmd", "--password", "<redacted>"]"#);
     assert!(!rendered.contains("prefix-secret"));
@@ -500,9 +464,7 @@ fn test_redact_heuristically_masks_value_after_non_utf8_option() {
     ];
 
     assert_eq!(
-        ArgvRedactor::default()
-            .redact_heuristically(items)
-            .to_string(),
+        ArgvRedactor::default().redact_heuristically(items).to_string(),
         r#"["cmd", "<redacted>", "<redacted>"]"#,
     );
 }
@@ -542,8 +504,7 @@ fn test_redact_heuristically_uses_application_mask_for_pending_option_value() {
 
 /// Verifies exact single-dash options use the shared policy mask.
 #[test]
-fn test_redact_heuristically_uses_application_mask_for_exact_single_dash_option()
- {
+fn test_redact_heuristically_uses_application_mask_for_exact_single_dash_option() {
     let floor = RedactionFloor::builder()
         .raise("tenant_secret", Sensitivity::High)
         .expect("the test builder input should be valid")

@@ -17,9 +17,7 @@ fn test_multipart_hides_file_content() {
     let body = b"--boundary\r\nContent-Disposition: form-data; name=\"upload\"; filename=\"secret.txt\"\r\n\r\nfile-secret\r\n--boundary--\r\n";
     let result = HttpRedactor::default().redact_body(
         BodyCapture::complete(body),
-        Some(&HeaderValue::from_static(
-            "multipart/form-data; boundary=boundary",
-        )),
+        Some(&HeaderValue::from_static("multipart/form-data; boundary=boundary")),
     );
 
     assert_eq!(result.status(), BodyRedactionStatus::Structured);

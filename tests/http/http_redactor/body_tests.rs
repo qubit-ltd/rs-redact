@@ -13,10 +13,8 @@ use qubit_redact::formats::http::HttpRedactor;
 /// Verifies whitespace-surrounded JSON is detected before body dispatch.
 #[test]
 fn test_body_dispatch_detects_whitespace_surrounded_json() {
-    let body = HttpRedactor::default().redact_body(
-        BodyCapture::complete(b" \t\r\n{\"password\":\"raw-secret\"}\n "),
-        None,
-    );
+    let body =
+        HttpRedactor::default().redact_body(BodyCapture::complete(b" \t\r\n{\"password\":\"raw-secret\"}\n "), None);
 
     assert_eq!(body.status(), BodyRedactionStatus::Structured);
     assert!(!body.to_string().contains("raw-secret"));

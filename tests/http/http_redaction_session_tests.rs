@@ -28,11 +28,7 @@ fn output_exhaustion_skips_body_input() {
     .expect("policy is valid");
     let redactor = HttpRedactor::new(policy);
     let mut session = redactor.session();
-    let _ = session.http_with_mut(|http| {
-        http.redact_url_str(
-            "https://user:password@example.com/path?token=secret",
-        )
-    });
+    let _ = session.http_with_mut(|http| http.redact_url_str("https://user:password@example.com/path?token=secret"));
     let input_before = session.remaining_input_bytes();
     let result = session.http_with_mut(|http| {
         http.redact_body_with_content_type_text(
@@ -117,17 +113,12 @@ fn output_smaller_than_truncation_marker_is_exhausted() {
     .expect("policy is valid");
     let redactor = HttpRedactor::new(policy);
     let mut session = redactor.session();
-    let first = session.http_with_mut(|http| {
-        http.redact_url_str("https://example.com/1234567")
-    });
+    let first = session.http_with_mut(|http| http.redact_url_str("https://example.com/1234567"));
     assert_eq!(first.as_str(), "https://example.com/1234567");
     assert!(session.remaining_output_bytes() < "<truncated>".len());
 
     let result = session.http_with_mut(|http| {
-        http.redact_body_with_content_type_text(
-            BodyCapture::complete(b"body output cannot fit"),
-            Some("text/plain"),
-        )
+        http.redact_body_with_content_type_text(BodyCapture::complete(b"body output cannot fit"), Some("text/plain"))
     });
 
     assert_eq!(result.completion(), RedactionCompletion::Exhausted);

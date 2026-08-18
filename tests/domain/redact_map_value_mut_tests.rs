@@ -15,8 +15,7 @@ use qubit_redact::domain::RedactMapValueMut;
 /// Verifies in-place map redaction replaces only sensitive values.
 #[test]
 fn test_redact_map_value_mut_replaces_sensitive_value() {
-    let mut map =
-        BTreeMap::from([(String::from("password"), String::from("raw"))]);
+    let mut map = BTreeMap::from([(String::from("password"), String::from("raw"))]);
     map.redact_map_in_place(&RedactionPolicy::default());
 
     assert_eq!(map["password"], "<redacted>");
@@ -25,10 +24,7 @@ fn test_redact_map_value_mut_replaces_sensitive_value() {
 /// Verifies in-place redaction supports borrowed keys and owned cow masks.
 #[test]
 fn test_redact_map_value_mut_supports_borrowed_keys_and_cow_values() {
-    let mut map = BTreeMap::from([
-        ("label", Cow::Borrowed("visible")),
-        ("password", Cow::Borrowed("raw")),
-    ]);
+    let mut map = BTreeMap::from([("label", Cow::Borrowed("visible")), ("password", Cow::Borrowed("raw"))]);
 
     map.redact_map_in_place(&RedactionPolicy::default());
 

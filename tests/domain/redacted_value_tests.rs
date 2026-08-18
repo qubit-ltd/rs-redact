@@ -70,10 +70,7 @@ impl FailingWriter {
     ///
     /// A writer that can exercise formatter error propagation.
     const fn new(fail_on_call: usize) -> Self {
-        Self {
-            fail_on_call,
-            calls: 0,
-        }
+        Self { fail_on_call, calls: 0 }
     }
 }
 
