@@ -177,7 +177,7 @@ fn redact_non_sensitive_part(
             let (passed, exhausted) = json::redact_with_mask_budget(
                 redactor,
                 &mut value,
-                policy.json_depth_limit(),
+                policy.limits().json(),
                 policy.unkeyed_json_value_policy(),
                 mask_budget,
             );
@@ -189,7 +189,7 @@ fn redact_non_sensitive_part(
         Some(value) if content_type::is_ndjson(value) => json::redact_ndjson_with_mask_budget(
             redactor,
             body,
-            policy.json_depth_limit(),
+            policy.limits().json(),
             policy.unkeyed_json_value_policy(),
             mask_budget,
             max_output_bytes,

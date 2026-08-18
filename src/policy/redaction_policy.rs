@@ -261,15 +261,6 @@ impl RedactionPolicy {
         self.uri.fragment_policy()
     }
 
-    /// Transitional JSON depth accessor for the legacy implementation.
-    #[must_use]
-    #[cfg(feature = "json")]
-    #[inline]
-    #[doc(hidden)]
-    pub fn json_depth_limit(&self) -> super::JsonDepthLimit {
-        self.limits.json_depth_limit()
-    }
-
     /// Returns the behavior for root and array JSON scalar values.
     #[must_use]
     #[cfg(feature = "json")]

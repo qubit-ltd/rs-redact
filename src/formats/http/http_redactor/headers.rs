@@ -49,7 +49,7 @@ impl HttpRedactor {
     pub(super) fn headers_fit_input_budget(&self, headers: &HeaderMap) -> bool {
         let mut input_budget = ResourceBudget::new(
             RedactionResource::Input,
-            self.policy().limits().diagnostic_event().max_input_bytes(),
+            usize::MAX,
         );
         for (name, value) in headers {
             if input_budget.try_consume(name.as_str().len()).is_err()

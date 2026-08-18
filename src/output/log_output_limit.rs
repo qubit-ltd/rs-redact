@@ -31,6 +31,12 @@ impl LogOutputLimit {
     /// Smallest valid limit, equal to the byte length of the truncation marker.
     pub const MINIMUM: usize = TRUNCATION_MARKER.len();
 
+    /// Returns an effectively unbounded sink limit for direct formatting.
+    #[must_use]
+    pub const fn unbounded() -> Self {
+        Self { max_bytes: usize::MAX }
+    }
+
     /// Creates a builder initialized with the minimum valid output size.
     #[must_use]
     #[inline]

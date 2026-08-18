@@ -97,7 +97,7 @@ impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValue<'_, '_, T> {
         }
         format_debug_bounded(
             &view,
-            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
+            LogOutputLimit::unbounded(),
             formatter,
         )
     }
@@ -308,7 +308,7 @@ impl<T: Redact + RedactValue + ?Sized> Display for RedactedKeyedValue<'_, '_, T>
         let view = RedactedKeyedResult::new(self.key, self.value, &mut session);
         format_bounded(
             &view,
-            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
+            LogOutputLimit::unbounded(),
             formatter,
         )
     }

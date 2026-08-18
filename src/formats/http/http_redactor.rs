@@ -224,7 +224,7 @@ impl HttpRedactor {
         if self.diagnostic_input_exceeded(input.len()) {
             return Self::diagnostic_limit_exceeded();
         }
-        let output_limit = self.policy.limits().diagnostic_event().max_output_bytes();
+        let output_limit = usize::MAX;
         let text = if form::is_valid(input.as_bytes()) {
             form::redact_bounded(
                 &FieldRedactor::new(self.policy.rules(), self.policy.query_rules(), self.policy.masking()),
@@ -269,7 +269,7 @@ impl HttpRedactor {
     /// An opaque result whose `Display` and `Debug` expose only safe text.
     #[must_use]
     pub fn redact_headers(&self, headers: &HeaderMap) -> RedactedHeaders {
-        self.redact_headers_with_limit(headers, self.policy.limits().diagnostic_event().max_output_bytes())
+        self.redact_headers_with_limit(headers, usize::MAX)
     }
 
     /// Redacts headers under an explicit final output ceiling.
@@ -431,7 +431,7 @@ impl HttpRedactor {
     ///
     /// An owned URL representation safe to combine with other redacted text.
     fn redact_url_text(&self, url: &Url) -> String {
-        self.redact_url_text_at_depth(url, 0, self.policy.limits().diagnostic_event().max_output_bytes())
+        self.redact_url_text_at_depth(url, 0, usize::MAX)
     }
 
     /// Produces a redacted URL under a bounded nested-URL recursion depth.
@@ -644,7 +644,7 @@ impl HttpRedactor {
         let (passed, mask_exhausted) = json::redact(
             &self.body_field_redactor(),
             &mut value,
-            self.policy.json_depth_limit(),
+            self.policy.limits().json(),
             self.policy.unkeyed_json_value_policy(),
             output_limit,
         );
@@ -706,7 +706,7 @@ impl HttpRedactor {
         match json::redact_ndjson(
             &self.body_field_redactor(),
             bounded,
-            self.policy.json_depth_limit(),
+            self.policy.limits().json(),
             self.policy.unkeyed_json_value_policy(),
             output_limit,
         ) {

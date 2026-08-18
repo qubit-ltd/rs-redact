@@ -8,12 +8,8 @@
 //! Immutable structural limits used by redaction.
 
 use qubit_budget::StructureLimits;
-use super::InputOutputLimit;
-use super::DomainRedactionLimits;
 #[cfg(feature = "json")]
 use qubit_budget::json::JsonValueLimits;
-#[cfg(feature = "json")]
-use super::JsonDepthLimit;
 #[cfg(feature = "http")]
 use crate::formats::http::BodyBudget;
 
@@ -56,44 +52,11 @@ impl RedactionLimits {
         self.domain
     }
 
-    /// Transitional internal fallback removed when direct adapters finish
-    /// their migration to unbounded presentation output.
-    #[doc(hidden)]
-    pub(crate) fn diagnostic_event(&self) -> InputOutputLimit {
-        InputOutputLimit::default()
-    }
-
-    /// Transitional internal fallback for legacy scalar helpers.
-    #[doc(hidden)]
-    pub(crate) fn ordinary_operation(&self) -> InputOutputLimit {
-        InputOutputLimit::default()
-    }
-
-    /// Transitional domain snapshot for the old writer bridge.
-    #[doc(hidden)]
-    pub(crate) fn legacy_domain(&self) -> DomainRedactionLimits {
-        DomainRedactionLimits::default()
-    }
-
     /// Transitional HTTP body snapshot for old callers.
     #[cfg(feature = "http")]
     #[doc(hidden)]
     pub(crate) fn http_body(&self) -> BodyBudget {
         BodyBudget::default()
-    }
-
-    /// Transitional JSON depth snapshot for old callers.
-    #[cfg(feature = "json")]
-    #[doc(hidden)]
-    pub(crate) fn json_depth_limit(&self) -> JsonDepthLimit {
-        JsonDepthLimit::default()
-    }
-
-    /// Transitional JSON decode snapshot for old callers.
-    #[cfg(feature = "json")]
-    #[doc(hidden)]
-    pub(crate) fn json_decode_limits(&self) -> qubit_budget::json::JsonDecodeLimits {
-        qubit_budget::json::JsonDecodeLimits::new()
     }
 
     /// Returns the JSON value limits used by JSON traversal.

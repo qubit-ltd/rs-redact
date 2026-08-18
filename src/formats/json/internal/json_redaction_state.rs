@@ -23,7 +23,6 @@ use serde_json::Value;
 
 use super::JsonRedactionOutcome;
 use super::JsonUnkeyedValuePolicy;
-use crate::JsonDepthLimit;
 use crate::MaskingPolicy;
 use crate::RedactionPolicy;
 use crate::RedactionRules;
@@ -48,7 +47,7 @@ pub(crate) struct JsonRedactionState<'policy, 'budget, 'marker> {
     /// Single mask table used for every sensitivity level.
     masking: &'policy MaskingPolicy,
     /// Maximum root-inclusive depth admitted by each traversal.
-    json_depth_limit: JsonDepthLimit,
+    json_limits: JsonValueLimits,
     /// Handling for scalars without an object-key context.
     unkeyed: JsonUnkeyedValuePolicy<'marker>,
     /// Aggregate accounting for newly generated masks.
@@ -75,7 +74,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         base_rules: &'policy RedactionRules,
         context_rules: &'policy RedactionRules,
         masking: &'policy MaskingPolicy,
-        json_depth_limit: JsonDepthLimit,
+        json_limits: JsonValueLimits,
         unkeyed: JsonUnkeyedValuePolicy<'marker>,
         mask_budget: Option<&'budget mut ResourceBudget<RedactionResource, usize>>,
     ) -> Self {
@@ -83,7 +82,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
             base_rules,
             context_rules,
             masking,
-            json_depth_limit,
+            json_limits,
             unkeyed,
             mask_budget,
             passed_unkeyed: false,
@@ -101,7 +100,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
             policy.rules(),
             policy.rules(),
             policy.masking(),
-            policy.json_depth_limit(),
+            policy.limits().json(),
             unkeyed,
             mask_budget,
         )
@@ -118,10 +117,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// The aggregate outcome for unkeyed scalar handling.
     pub(crate) fn redact(&mut self, value: &mut Value) -> JsonRedactionOutcome {
         self.passed_unkeyed = false;
-        let mut budget = JsonValueLimits::builder()
-            .max_depth(self.json_depth_limit.maximum())
-            .build()
-            .budget();
+        let mut budget = self.json_limits.budget();
         let mut transaction = budget.transaction();
         let result = JsonTreeMutator::new(&mut transaction).process(value, self);
         match result {
