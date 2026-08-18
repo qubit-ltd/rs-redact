@@ -18,6 +18,7 @@ use crate::FieldRedaction;
 use crate::RedactionCompletion;
 use crate::Sensitivity;
 use crate::domain::Redact;
+use crate::facade::RedactionOutput;
 use crate::facade::redactor::redact_field_unbudgeted;
 use crate::facade::redactor::redaction_output;
 use crate::formats::argv::ArgvRedactionSession;
@@ -27,7 +28,6 @@ use crate::formats::http::HttpRedactionSession;
 #[cfg(feature = "json")]
 use crate::formats::json::JsonRedactionSession;
 use crate::output::MaskedValue;
-use crate::facade::RedactionOutput;
 use crate::policy::DomainTraversalAdmission;
 use crate::policy::DomainValueAdmission;
 use crate::policy::DomainValueScope;
@@ -118,7 +118,10 @@ impl<'policy> RedactionSession<'policy> {
         self.append_committed_output(&rendered);
         self.stage(
             name,
-            crate::RedactionOutput::new(crate::RedactedText::from_escaped(rendered), crate::RedactionSummary::complete()),
+            crate::RedactionOutput::new(
+                crate::RedactedText::from_escaped(rendered),
+                crate::RedactionSummary::complete(),
+            ),
         );
         self
     }
@@ -307,8 +310,7 @@ impl<'policy> RedactionSession<'policy> {
 
     /// Resets only the per-operation legacy accounting retained by transitional
     /// facades.
-    fn reset_fragment_budget(&mut self) {
-    }
+    fn reset_fragment_budget(&mut self) {}
 
     /// Appends a chain fragment at a UTF-8 boundary within remaining output.
     fn append_chain_fragment(&mut self, fragment: &str) {
@@ -356,7 +358,6 @@ impl<'policy> RedactionSession<'policy> {
     pub(crate) fn append_committed_output(&mut self, output: &str) {
         self.fragments.push_str(output);
     }
-
 }
 
 impl RedactionSession<'_> {

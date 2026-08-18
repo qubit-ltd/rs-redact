@@ -14,9 +14,9 @@ use std::fmt::Write as _;
 use super::RedactedText;
 use super::RedactionCompletion;
 use super::internal::BoundedLogEscapeWriter;
-use crate::RedactionOutput;
 use crate::InputOutputLimit;
 use crate::LogOutputLimit;
+use crate::RedactionOutput;
 use crate::RedactionSession;
 use crate::Sensitivity;
 
@@ -158,11 +158,7 @@ impl DiagnosticLogBuilder {
     /// not emit any safe text.
     #[inline]
     fn truncation_completion(&self) -> RedactionCompletion {
-        if self.writer.len() == 0 {
-            RedactionCompletion::Truncated
-        } else {
-            RedactionCompletion::Truncated
-        }
+        RedactionCompletion::Truncated
     }
 
     /// Appends one session-produced output while preserving source completion.

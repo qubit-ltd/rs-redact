@@ -5,8 +5,10 @@
 // =============================================================================
 //! Private domain traversal state backed by [`qubit_budget::StructureBudget`].
 
+use qubit_budget::StructureBudget;
+use qubit_budget::StructureLimits;
+
 use crate::policy::DomainTraversalAdmission;
-use qubit_budget::{StructureBudget, StructureLimits};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DomainValueBudgetAdmission {
@@ -118,10 +120,6 @@ impl DomainRedactionContext {
         } else {
             DomainTruncation::None
         }
-    }
-
-    pub(crate) fn usage(&self) -> (usize, usize, usize) {
-        (self.budget.used_nodes(), self.collection_items_seen, self.maximum_depth_observed)
     }
 
     fn close_traversal(&mut self) {

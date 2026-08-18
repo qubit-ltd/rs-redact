@@ -127,8 +127,7 @@ fn test_session_rejects_duplicate_and_empty_keys_as_one_batch() {
 
 #[test]
 fn test_output_and_summary_accessors_preserve_machine_readable_state() {
-    let reasons = RedactionReasons::empty()
-        .with(RedactionReason::DepthLimitReached);
+    let reasons = RedactionReasons::empty().with(RedactionReason::DepthLimitReached);
     assert!(reasons.contains(RedactionReason::DepthLimitReached));
 
     let truncated = RedactionSummary::truncated(RedactionReason::TraversalLimitReached);

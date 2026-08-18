@@ -10,6 +10,7 @@
 use std::io::Write;
 
 use qubit_budget::ResourceBudget;
+use qubit_budget::json::JsonValueLimits;
 use serde_json::Value;
 use serde_json::from_str;
 use serde_json::to_writer;
@@ -17,7 +18,6 @@ use serde_json::to_writer;
 use super::BoundedBodyWriter;
 use super::markers::TRUNCATED;
 use super::markers::UNKEYED_JSON;
-use qubit_budget::json::JsonValueLimits;
 use crate::formats::http::FieldRedactor;
 use crate::formats::http::UnkeyedJsonValuePolicy;
 use crate::formats::json::internal::JsonRedactionState;
@@ -136,14 +136,7 @@ pub(in crate::formats::http) fn redact_ndjson(
     max_mask_bytes: usize,
 ) -> Option<(String, bool, bool)> {
     let mut mask_budget = ResourceBudget::new(RedactionResource::Mask, max_mask_bytes);
-    redact_ndjson_with_mask_budget(
-        redactor,
-        bytes,
-        json_limits,
-        unkeyed,
-        &mut mask_budget,
-        max_mask_bytes,
-    )
+    redact_ndjson_with_mask_budget(redactor, bytes, json_limits, unkeyed, &mut mask_budget, max_mask_bytes)
 }
 
 /// Redacts NDJSON while consuming an enclosing aggregate mask budget and
@@ -185,8 +178,7 @@ pub(in crate::formats::http) fn redact_ndjson_with_mask_budget(
             continue;
         }
         let mut value = from_str(line).ok()?;
-        let (line_passed, exhausted) =
-            redact_with_mask_budget(redactor, &mut value, json_limits, unkeyed, mask_budget);
+        let (line_passed, exhausted) = redact_with_mask_budget(redactor, &mut value, json_limits, unkeyed, mask_budget);
         if exhausted {
             return Some((TRUNCATED.to_string(), false, true));
         }

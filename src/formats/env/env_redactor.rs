@@ -128,11 +128,7 @@ impl EnvRedactor {
         let mut has_item = false;
         let mut locally_truncated = false;
         for (name, value) in pairs {
-            let (pair, truncated) = self.redact_os_pair_bounded(
-                name,
-                value,
-                usize::MAX,
-            );
+            let (pair, truncated) = self.redact_os_pair_bounded(name, value, usize::MAX);
             locally_truncated |= truncated;
             write_debug_item(&mut writer, &mut has_item, &pair);
         }

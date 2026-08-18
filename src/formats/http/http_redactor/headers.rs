@@ -47,10 +47,7 @@ pub(in crate::formats::http) fn render_one(
 impl HttpRedactor {
     /// Checks the complete header input against the diagnostic budget.
     pub(super) fn headers_fit_input_budget(&self, headers: &HeaderMap) -> bool {
-        let mut input_budget = ResourceBudget::new(
-            RedactionResource::Input,
-            usize::MAX,
-        );
+        let mut input_budget = ResourceBudget::new(RedactionResource::Input, usize::MAX);
         for (name, value) in headers {
             if input_budget.try_consume(name.as_str().len()).is_err()
                 || input_budget.try_consume(value.as_bytes().len()).is_err()

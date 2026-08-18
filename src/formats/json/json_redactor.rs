@@ -11,9 +11,8 @@ use super::JsonRedactionOutput;
 use super::bounded_json_redaction::redacted_json_text_bounded;
 use super::bounded_json_redaction::redacted_json_value_bounded;
 use crate::RedactedText;
-use crate::RedactionPolicy;
-use crate::Sensitivity;
 use crate::RedactionOutput;
+use crate::RedactionPolicy;
 
 /// Applies one immutable policy to JSON values or JSON text.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,21 +36,13 @@ impl JsonRedactor {
     /// Redacts JSON source text without creating a session.
     #[must_use]
     pub fn redact_text(&self, text: &str) -> JsonRedactionOutput {
-        self.finish(redacted_json_text_bounded(
-            text,
-            &self.policy,
-            usize::MAX,
-        ))
+        self.finish(redacted_json_text_bounded(text, &self.policy, usize::MAX))
     }
 
     /// Redacts an already materialized JSON value without creating a session.
     #[must_use]
     pub fn redact_value(&self, value: &Value) -> JsonRedactionOutput {
-        self.finish(redacted_json_value_bounded(
-            value,
-            &self.policy,
-            usize::MAX,
-        ))
+        self.finish(redacted_json_value_bounded(value, &self.policy, usize::MAX))
     }
 
     fn finish(&self, result: super::bounded_json_redaction::BoundedJsonRedaction) -> JsonRedactionOutput {

@@ -22,10 +22,10 @@ use super::UriRedactionReason;
 use super::UriRedactionStatus;
 use super::internal::BoundedUriWriter;
 use super::internal::UriComponentWriter;
+use crate::RedactionCompletion;
 use crate::RedactionPolicy;
 use crate::Sensitivity;
 use crate::output::MaskedValue;
-use crate::RedactionCompletion;
 use crate::policy::ResolvedField;
 
 /// Safe replacement used when URI parsing or decoding fails.
@@ -69,13 +69,7 @@ impl UriRedactor {
         if input.len() > input_limit(&self.policy) {
             return invalid_result(UriRedactionReason::InputLimitExceeded);
         }
-        redact_uri_str_bounded(
-            &self.policy,
-            input,
-            usize::MAX,
-            false,
-        )
-        .0
+        redact_uri_str_bounded(&self.policy, input, usize::MAX, false).0
     }
 
     /// Inspects one absolute URI and returns metadata without rendering text.
@@ -258,11 +252,8 @@ fn finish_uri_rendering(
 ///
 /// `Complete` for a fully rendered URI, `Truncated` for non-empty substitute
 /// text after either truncation source, or `Exhausted` when no safe text fit.
-fn public_completion(safe: &str, completion: RedactionCompletion) -> RedactionCompletion {
-    match completion {
-        RedactionCompletion::Complete => RedactionCompletion::Complete,
-        RedactionCompletion::Truncated => RedactionCompletion::Truncated,
-    }
+fn public_completion(_safe: &str, completion: RedactionCompletion) -> RedactionCompletion {
+    completion
 }
 
 /// Builds the stateless point limit for one complete URI input.
@@ -270,7 +261,7 @@ fn public_completion(safe: &str, completion: RedactionCompletion) -> RedactionCo
 /// The URI facade does not accumulate input across calls; callers that compose
 /// several URI fragments use [`crate::RedactionSession`] instead.
 #[inline(always)]
-fn input_limit(policy: &RedactionPolicy) -> usize {
+fn input_limit(_policy: &RedactionPolicy) -> usize {
     usize::MAX
 }
 
@@ -284,11 +275,7 @@ fn bounded_invalid_result(
     if max_output_bytes < INVALID_URI.len() {
         return (
             empty_invalid_result(reason),
-            if session_limited {
-                RedactionCompletion::Truncated
-            } else {
-                RedactionCompletion::Truncated
-            },
+            RedactionCompletion::Truncated,
         );
     }
     (invalid_result(reason), RedactionCompletion::Complete)
