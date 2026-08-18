@@ -142,12 +142,10 @@ fn percent_decode_once(value: &str) -> Result<Option<String>, String> {
     let mut changed = false;
     while index < bytes.len() {
         if bytes[index] == b'%' {
-            let Some(high) = bytes.get(index + 1).and_then(|byte| hex(*byte))
-            else {
+            let Some(high) = bytes.get(index + 1).and_then(|byte| hex(*byte)) else {
                 return Err(valid_utf8_prefix(decoded));
             };
-            let Some(low) = bytes.get(index + 2).and_then(|byte| hex(*byte))
-            else {
+            let Some(low) = bytes.get(index + 2).and_then(|byte| hex(*byte)) else {
                 return Err(valid_utf8_prefix(decoded));
             };
             decoded.push((high << 4) | low);
@@ -161,8 +159,7 @@ fn percent_decode_once(value: &str) -> Result<Option<String>, String> {
     if changed {
         String::from_utf8(decoded).map(Some).map_err(|error| {
             let valid_up_to = error.utf8_error().valid_up_to();
-            String::from_utf8_lossy(&error.into_bytes()[..valid_up_to])
-                .into_owned()
+            String::from_utf8_lossy(&error.into_bytes()[..valid_up_to]).into_owned()
         })
     } else {
         Ok(None)
@@ -183,8 +180,7 @@ fn valid_utf8_prefix(decoded: Vec<u8>) -> String {
         Ok(text) => text,
         Err(error) => {
             let valid_up_to = error.utf8_error().valid_up_to();
-            String::from_utf8_lossy(&error.into_bytes()[..valid_up_to])
-                .into_owned()
+            String::from_utf8_lossy(&error.into_bytes()[..valid_up_to]).into_owned()
         }
     }
 }

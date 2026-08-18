@@ -39,9 +39,7 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
     /// Creates a façade from a mutable diagnostic session.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn new(
-        session: &'session mut RedactionSession<'policy>,
-    ) -> Self {
+    pub(crate) const fn new(session: &'session mut RedactionSession<'policy>) -> Self {
         Self { session }
     }
 
@@ -53,47 +51,30 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
 
     /// Redacts one possibly non-UTF-8 environment pair.
     #[must_use]
-    pub fn redact_os_pair(
-        &mut self,
-        name: &OsStr,
-        value: &OsStr,
-    ) -> RedactedEnvPair {
+    pub fn redact_os_pair(&mut self, name: &OsStr, value: &OsStr) -> RedactedEnvPair {
         let input_bytes = name
             .as_encoded_bytes()
             .len()
             .saturating_add(value.as_encoded_bytes().len());
-        let domain_limit = self
-            .session
-            .policy()
-            .limits()
-            .diagnostic_event()
-            .max_output_bytes();
-        let admission =
-            self.session
-                .admit(input_bytes, domain_limit, FALLBACK_PAIR.len());
+        let domain_limit = self.session.policy().limits().diagnostic_event().max_output_bytes();
+        let admission = self.session.admit(input_bytes, domain_limit, FALLBACK_PAIR.len());
         let RedactionAdmission::Render { max_output_bytes } = admission else {
             return pair_fallback(admission);
         };
-        let renderer =
-            EnvRedactor::new(Redactor::new(self.session.policy().clone()));
-        let (rendered, locally_truncated) =
-            renderer.redact_os_pair_bounded(name, value, max_output_bytes);
+        let renderer = EnvRedactor::new(Redactor::new(self.session.policy().clone()));
+        let (rendered, locally_truncated) = renderer.redact_os_pair_bounded(name, value, max_output_bytes);
         if rendered.len() > max_output_bytes {
             let fallback = if FALLBACK_PAIR.len() <= max_output_bytes {
                 FALLBACK_PAIR
             } else {
                 ""
             };
-            self.session.commit_output(
-                fallback.len(),
-                FragmentCompletion::SessionTruncated,
-            );
+            self.session
+                .commit_output(fallback.len(), FragmentCompletion::SessionTruncated);
             return if fallback.is_empty() {
                 RedactedEnvPair::exhausted()
             } else {
-                RedactedEnvPair::truncated(log_safe_rendered(
-                    fallback.to_owned(),
-                ))
+                RedactedEnvPair::truncated(log_safe_rendered(fallback.to_owned()))
             };
         }
         let completion = if locally_truncated {
@@ -137,12 +118,7 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
         if remaining < InputOutputLimit::MIN_OUTPUT_BYTES {
             return RedactedEnv::exhausted();
         }
-        let domain_limit = self
-            .session
-            .policy()
-            .limits()
-            .diagnostic_event()
-            .max_output_bytes();
+        let domain_limit = self.session.policy().limits().diagnostic_event().max_output_bytes();
         let writer_limit = LogOutputLimit::from(
             InputOutputLimit::builder()
                 .max_input_bytes(usize::MAX)
@@ -174,19 +150,12 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
                 .as_encoded_bytes()
                 .len()
                 .saturating_add(value.as_encoded_bytes().len());
-            let admission = self.session.admit(
-                input_bytes,
-                domain_limit,
-                TRUNCATED_LIST.len(),
-            );
-            let RedactionAdmission::Render { max_output_bytes } = admission
-            else {
+            let admission = self.session.admit(input_bytes, domain_limit, TRUNCATED_LIST.len());
+            let RedactionAdmission::Render { max_output_bytes } = admission else {
                 return list_fallback(admission);
             };
-            let renderer =
-                EnvRedactor::new(Redactor::new(self.session.policy().clone()));
-            let (pair, pair_truncated) =
-                renderer.redact_os_pair_bounded(name, value, max_output_bytes);
+            let renderer = EnvRedactor::new(Redactor::new(self.session.policy().clone()));
+            let (pair, pair_truncated) = renderer.redact_os_pair_bounded(name, value, max_output_bytes);
             locally_truncated |= pair_truncated;
             let before = writer.len();
             write_debug_item(&mut writer, &mut has_item, &pair);
@@ -200,19 +169,14 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
                 },
             );
             if !complete {
-                return RedactedEnv::truncated(log_safe_rendered(
-                    TRUNCATED_LIST.to_owned(),
-                ));
+                return RedactedEnv::truncated(log_safe_rendered(TRUNCATED_LIST.to_owned()));
             }
         }
 
         if self.session.remaining_output_bytes() == 0 || writer.is_truncated() {
-            return RedactedEnv::truncated(log_safe_rendered(
-                TRUNCATED_LIST.to_owned(),
-            ));
+            return RedactedEnv::truncated(log_safe_rendered(TRUNCATED_LIST.to_owned()));
         }
-        if self.session.remaining_output_bytes() >= 1 && !writer.is_truncated()
-        {
+        if self.session.remaining_output_bytes() >= 1 && !writer.is_truncated() {
             let close = self.session.admit(0, domain_limit, 1);
             if matches!(close, RedactionAdmission::Render { .. }) {
                 let before = writer.len();
@@ -241,9 +205,7 @@ impl<'session, 'policy> EnvRedactionSession<'session, 'policy> {
 #[must_use]
 fn pair_fallback(admission: RedactionAdmission) -> RedactedEnvPair {
     match admission {
-        RedactionAdmission::Fallback => RedactedEnvPair::truncated(
-            log_safe_rendered(FALLBACK_PAIR.to_owned()),
-        ),
+        RedactionAdmission::Fallback => RedactedEnvPair::truncated(log_safe_rendered(FALLBACK_PAIR.to_owned())),
         RedactionAdmission::Exhausted => RedactedEnvPair::exhausted(),
         RedactionAdmission::Render { .. } => {
             unreachable!("render admission is handled before fallback")
@@ -259,9 +221,7 @@ fn pair_fallback(admission: RedactionAdmission) -> RedactedEnvPair {
 #[must_use]
 fn list_fallback(admission: RedactionAdmission) -> RedactedEnv {
     match admission {
-        RedactionAdmission::Fallback => {
-            RedactedEnv::truncated(log_safe_rendered(TRUNCATED_LIST.to_owned()))
-        }
+        RedactionAdmission::Fallback => RedactedEnv::truncated(log_safe_rendered(TRUNCATED_LIST.to_owned())),
         RedactionAdmission::Exhausted => RedactedEnv::exhausted(),
         RedactionAdmission::Render { .. } => {
             unreachable!("render admission is handled before fallback")
@@ -301,9 +261,7 @@ impl<'policy> RedactionSession<'policy> {
     #[inline(always)]
     pub fn env_with_mut<F, R>(&mut self, configure: F) -> R
     where
-        F: for<'session> FnOnce(
-            &mut EnvRedactionSession<'session, 'policy>,
-        ) -> R,
+        F: for<'session> FnOnce(&mut EnvRedactionSession<'session, 'policy>) -> R,
     {
         let mut adapter = EnvRedactionSession::new(self);
         configure(&mut adapter)

@@ -47,10 +47,9 @@ impl fmt::Display for PolicyError {
     /// Returns [`fmt::Error`] when the destination rejects a write.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyFieldName { location } => write!(
-                formatter,
-                "field name is empty after canonicalization in {location}",
-            ),
+            Self::EmptyFieldName { location } => {
+                write!(formatter, "field name is empty after canonicalization in {location}",)
+            }
             Self::EmptyFixedReplacement { location, level } => write!(
                 formatter,
                 "fixed mask replacement for {level:?} sensitivity is empty in {location}",

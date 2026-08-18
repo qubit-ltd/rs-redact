@@ -58,10 +58,7 @@ impl BodyBudget {
     /// or [`BodyBudgetError::OutputTooSmall`] when the output limit cannot
     /// contain the complete truncation marker.
     #[inline]
-    const fn from_builder(
-        max_input_bytes: usize,
-        max_output_bytes: usize,
-    ) -> Result<Self, BodyBudgetError> {
+    const fn from_builder(max_input_bytes: usize, max_output_bytes: usize) -> Result<Self, BodyBudgetError> {
         if max_input_bytes == 0 {
             return Err(BodyBudgetError::ZeroInput);
         }
@@ -130,8 +127,6 @@ impl Default for BodyBudget {
     /// The default finite HTTP body budget.
     #[inline(always)]
     fn default() -> Self {
-        Self::builder()
-            .build()
-            .expect("default body budget is valid")
+        Self::builder().build().expect("default body budget is valid")
     }
 }

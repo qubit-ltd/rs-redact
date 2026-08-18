@@ -50,29 +50,18 @@ impl JsonRedactionSession<'_, '_> {
     ) -> JsonRedactionOutput {
         let policy = self.session.policy();
         let fallback = policy.masking().mask_opaque(Sensitivity::Secret);
-        let domain_limit =
-            policy.limits().diagnostic_event().max_output_bytes();
+        let domain_limit = policy.limits().diagnostic_event().max_output_bytes();
         let before = self.session.remaining_output_bytes();
-        match self
-            .session
-            .admit(input_bytes, domain_limit, fallback.len())
-        {
+        match self.session.admit(input_bytes, domain_limit, fallback.len()) {
             RedactionAdmission::Fallback => JsonRedactionOutput::new(
-                RedactionOutput::truncated(LogSafeText::from_escaped(
-                    Cow::Owned(fallback.to_owned()),
-                ))
-                .unwrap_or_else(RedactionOutput::exhausted),
+                RedactionOutput::truncated(LogSafeText::from_escaped(Cow::Owned(fallback.to_owned())))
+                    .unwrap_or_else(RedactionOutput::exhausted),
             ),
-            RedactionAdmission::Exhausted => {
-                JsonRedactionOutput::new(RedactionOutput::exhausted())
-            }
+            RedactionAdmission::Exhausted => JsonRedactionOutput::new(RedactionOutput::exhausted()),
             RedactionAdmission::Render { max_output_bytes } => {
-                let (rendered, raw_truncated) =
-                    raw(policy, max_output_bytes).into_parts();
-                let escaped =
-                    MaskedValue::new(Cow::Owned(rendered)).escape_for_log();
-                let (text, mut truncated) =
-                    bound_safe_text(escaped.as_str(), max_output_bytes);
+                let (rendered, raw_truncated) = raw(policy, max_output_bytes).into_parts();
+                let escaped = MaskedValue::new(Cow::Owned(rendered)).escape_for_log();
+                let (text, mut truncated) = bound_safe_text(escaped.as_str(), max_output_bytes);
                 truncated |= raw_truncated;
                 let completion = if truncated {
                     if max_output_bytes < before {
@@ -86,8 +75,7 @@ impl JsonRedactionSession<'_, '_> {
                 self.session.commit_output(text.len(), completion);
                 let text = LogSafeText::from_escaped(Cow::Owned(text));
                 let output = if truncated {
-                    RedactionOutput::truncated(text)
-                        .unwrap_or_else(RedactionOutput::exhausted)
+                    RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::exhausted)
                 } else {
                     RedactionOutput::complete(text)
                 };
@@ -221,8 +209,7 @@ impl<'policy> RedactionSession<'policy> {
     #[inline(always)]
     pub fn json_with_mut<F, R>(&mut self, configure: F) -> R
     where
-        for<'session> F:
-            FnOnce(&mut JsonRedactionSession<'session, 'policy>) -> R,
+        for<'session> F: FnOnce(&mut JsonRedactionSession<'session, 'policy>) -> R,
     {
         let mut adapter = JsonRedactionSession { session: self };
         configure(&mut adapter)

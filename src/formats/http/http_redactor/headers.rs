@@ -19,9 +19,7 @@ use crate::formats::http::internal::BoundedLogWriter;
 use crate::policy::RedactionResource;
 
 /// Groups repeated header values under deterministically ordered names.
-pub(super) fn group_values(
-    headers: &HeaderMap,
-) -> BTreeMap<&str, Vec<&HeaderValue>> {
+pub(super) fn group_values(headers: &HeaderMap) -> BTreeMap<&str, Vec<&HeaderValue>> {
     let mut values = BTreeMap::<&str, Vec<&HeaderValue>>::new();
     for (name, value) in headers {
         values.entry(name.as_str()).or_default().push(value);
@@ -39,11 +37,7 @@ pub(in crate::formats::http) fn render_one(
     let mut writer = BoundedLogWriter::new(max_output_bytes, false);
     let _ = writer.write_str(name);
     let _ = writer.write_str(": [");
-    redactor.write_header_values(
-        &mut writer,
-        name,
-        std::slice::from_ref(&value),
-    );
+    redactor.write_header_values(&mut writer, name, std::slice::from_ref(&value));
     if !writer.is_full() {
         let _ = writer.write_str("]");
     }
@@ -73,9 +67,7 @@ impl HttpRedactor {
         writer: &mut BoundedLogWriter,
         values: BTreeMap<&str, Vec<&HeaderValue>>,
     ) {
-        for (name_index, (name, header_values)) in
-            values.into_iter().enumerate()
-        {
+        for (name_index, (name, header_values)) in values.into_iter().enumerate() {
             if name_index > 0 {
                 let _ = writer.write_str("\n");
             }
@@ -90,12 +82,7 @@ impl HttpRedactor {
     }
 
     /// Redacts and writes every value for one header name.
-    fn write_header_values(
-        &self,
-        writer: &mut BoundedLogWriter,
-        name: &str,
-        values: &[&HeaderValue],
-    ) {
+    fn write_header_values(&self, writer: &mut BoundedLogWriter, name: &str, values: &[&HeaderValue]) {
         for (value_index, value) in values.iter().enumerate() {
             if writer.is_full() {
                 break;
@@ -106,16 +93,12 @@ impl HttpRedactor {
             let rendered = value.to_str().unwrap_or("<non-utf8>");
             let remaining = writer.remaining_bytes();
             if value.is_sensitive() {
-                let redacted = self.header_field_redactor().mask_bounded(
-                    Sensitivity::Secret,
-                    rendered,
-                    remaining,
-                );
-                let _ = writer.write_str(redacted.as_ref());
-            } else {
                 let redacted = self
                     .header_field_redactor()
-                    .redact_bounded(name, rendered, remaining);
+                    .mask_bounded(Sensitivity::Secret, rendered, remaining);
+                let _ = writer.write_str(redacted.as_ref());
+            } else {
+                let redacted = self.header_field_redactor().redact_bounded(name, rendered, remaining);
                 let _ = writer.write_str(redacted.as_str());
             }
         }

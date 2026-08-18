@@ -48,14 +48,10 @@ impl Drop for DebugOutputReset<'_> {
 /// # Returns
 ///
 /// The result produced by `operation` after restoring any previous context.
-pub(crate) fn with_mask_byte_limit<T>(
-    max_bytes: usize,
-    operation: impl FnOnce() -> T,
-) -> T {
+pub(crate) fn with_mask_byte_limit<T>(max_bytes: usize, operation: impl FnOnce() -> T) -> T {
     MASK_BYTE_LIMIT.with(|context| {
         let previous = context.get();
-        let effective =
-            previous.map_or(max_bytes, |previous| previous.min(max_bytes));
+        let effective = previous.map_or(max_bytes, |previous| previous.min(max_bytes));
         context.set(Some(effective));
         let _reset = MaskByteLimitReset::new(context, previous);
         operation()
@@ -74,9 +70,7 @@ pub(crate) fn mask_byte_limit() -> Option<usize> {
 }
 
 /// Executes one bounded render with an independently tracked writer state.
-pub(crate) fn with_debug_output_tracking<T>(
-    operation: impl FnOnce() -> T,
-) -> T {
+pub(crate) fn with_debug_output_tracking<T>(operation: impl FnOnce() -> T) -> T {
     DEBUG_OUTPUT_EXHAUSTED.with(|context| {
         let previous = context.replace(false);
         let _reset = DebugOutputReset { context, previous };

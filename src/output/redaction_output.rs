@@ -134,8 +134,7 @@ mod tests {
     #[test]
     fn test_redaction_output_constructors_preserve_state_invariants() {
         let complete = RedactionOutput::complete(safe("done"));
-        let truncated = RedactionOutput::truncated(safe("<truncated>"))
-            .expect("non-empty truncated text is valid");
+        let truncated = RedactionOutput::truncated(safe("<truncated>")).expect("non-empty truncated text is valid");
         let exhausted = RedactionOutput::exhausted();
 
         assert!(RedactionOutput::truncated(safe("")).is_none());

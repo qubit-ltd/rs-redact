@@ -61,9 +61,7 @@ impl JsonDepthLimit {
     ///
     /// Returns [`JsonDepthLimitError::ZeroDepth`] when `max_depth` is zero.
     #[inline]
-    const fn from_builder(
-        max_depth: usize,
-    ) -> Result<Self, JsonDepthLimitError> {
+    const fn from_builder(max_depth: usize) -> Result<Self, JsonDepthLimitError> {
         if max_depth == 0 {
             Err(JsonDepthLimitError::ZeroDepth)
         } else {
@@ -121,8 +119,6 @@ impl Default for JsonDepthLimit {
     /// A budget allowing at most 128 recursive container descents.
     #[inline(always)]
     fn default() -> Self {
-        Self::builder()
-            .build()
-            .expect("default JSON depth is valid")
+        Self::builder().build().expect("default JSON depth is valid")
     }
 }

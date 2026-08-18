@@ -53,10 +53,7 @@ impl RedactionRulesBuilder {
     ///
     /// * `inner` - Immutable rule state to copy.
     /// * `location` - Policy location used for later validation errors.
-    pub(crate) fn from_inner(
-        inner: &RedactionPolicyInner,
-        location: PolicyLocation,
-    ) -> Self {
+    pub(crate) fn from_inner(inner: &RedactionPolicyInner, location: PolicyLocation) -> Self {
         Self {
             sensitive: inner.sensitive.clone(),
             allow_exact: inner.allow_exact.clone(),
@@ -115,11 +112,7 @@ impl RedactionRulesBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// field name.
-    pub(crate) fn raise(
-        &mut self,
-        field: &str,
-        level: Sensitivity,
-    ) -> Result<(), PolicyError> {
+    pub(crate) fn raise(&mut self, field: &str, level: Sensitivity) -> Result<(), PolicyError> {
         let field = self.canonical_field(field)?;
         self.sensitive
             .entry(field)
@@ -139,11 +132,7 @@ impl RedactionRulesBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// field name.
-    pub(crate) fn override_level(
-        &mut self,
-        field: &str,
-        level: Sensitivity,
-    ) -> Result<(), PolicyError> {
+    pub(crate) fn override_level(&mut self, field: &str, level: Sensitivity) -> Result<(), PolicyError> {
         let field = self.canonical_field(field)?;
         self.sensitive.insert(field, level);
         Ok(())
@@ -159,10 +148,7 @@ impl RedactionRulesBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// field name.
-    pub(crate) fn allow_canonical_exact(
-        &mut self,
-        field: &str,
-    ) -> Result<(), PolicyError> {
+    pub(crate) fn allow_canonical_exact(&mut self, field: &str) -> Result<(), PolicyError> {
         let field = self.canonical_field(field)?;
         self.allow_exact.insert(field);
         Ok(())
@@ -178,10 +164,7 @@ impl RedactionRulesBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// field name.
-    pub(crate) fn allow_suffix(
-        &mut self,
-        field: &str,
-    ) -> Result<(), PolicyError> {
+    pub(crate) fn allow_suffix(&mut self, field: &str) -> Result<(), PolicyError> {
         let field = self.canonical_field(field)?;
         self.allow_suffix.insert(field);
         Ok(())
@@ -197,10 +180,7 @@ impl RedactionRulesBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// field name.
-    pub(crate) fn remove_allow_canonical_exact(
-        &mut self,
-        field: &str,
-    ) -> Result<(), PolicyError> {
+    pub(crate) fn remove_allow_canonical_exact(&mut self, field: &str) -> Result<(), PolicyError> {
         let field = self.canonical_field(field)?;
         self.allow_exact.remove(&field);
         Ok(())
@@ -216,10 +196,7 @@ impl RedactionRulesBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// field name.
-    pub(crate) fn remove_allow_suffix(
-        &mut self,
-        field: &str,
-    ) -> Result<(), PolicyError> {
+    pub(crate) fn remove_allow_suffix(&mut self, field: &str) -> Result<(), PolicyError> {
         let field = self.canonical_field(field)?;
         self.allow_suffix.remove(&field);
         Ok(())
@@ -242,10 +219,7 @@ impl RedactionRulesBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// field name.
-    pub(crate) fn validate_field_name(
-        field: &str,
-        location: PolicyLocation,
-    ) -> Result<(), PolicyError> {
+    pub(crate) fn validate_field_name(field: &str, location: PolicyLocation) -> Result<(), PolicyError> {
         Self::checked_canonical_field(field, location).map(|_| ())
     }
 
@@ -254,9 +228,7 @@ impl RedactionRulesBuilder {
     /// # Returns
     ///
     /// The immutable rule state used by policy snapshots.
-    pub(crate) fn build_inner(
-        self,
-    ) -> Result<RedactionPolicyInner, PolicyError> {
+    pub(crate) fn build_inner(self) -> Result<RedactionPolicyInner, PolicyError> {
         Ok(RedactionPolicyInner {
             sensitive: self.sensitive,
             allow_exact: self.allow_exact,
@@ -291,10 +263,7 @@ impl RedactionRulesBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when canonicalization produces
     /// an empty field name.
-    fn checked_canonical_field(
-        field: &str,
-        location: PolicyLocation,
-    ) -> Result<String, PolicyError> {
+    fn checked_canonical_field(field: &str, location: PolicyLocation) -> Result<String, PolicyError> {
         let canonical = canonicalize_field_name(field);
         if canonical.is_empty() {
             Err(PolicyError::EmptyFieldName { location })

@@ -28,9 +28,7 @@ pub(in crate::formats::http) fn is_valid(input: &[u8]) -> bool {
         let (name, value) = pair
             .iter()
             .position(|byte| *byte == b'=')
-            .map_or((pair, &[][..]), |index| {
-                (&pair[..index], &pair[index + 1..])
-            });
+            .map_or((pair, &[][..]), |index| (&pair[..index], &pair[index + 1..]));
         is_valid_component(name) && is_valid_component(value)
     })
 }
@@ -58,14 +56,8 @@ pub(in crate::formats::http) fn redact_bounded(
     let mut output = String::new();
     for (key, value) in parse(input) {
         let remaining = intermediate_limit.saturating_sub(output.len());
-        let value =
-            redactor.redact_bounded(key.as_ref(), value.as_ref(), remaining);
-        if !append_pair_bounded(
-            &mut output,
-            key.as_ref(),
-            value.as_str(),
-            intermediate_limit,
-        ) {
+        let value = redactor.redact_bounded(key.as_ref(), value.as_ref(), remaining);
+        if !append_pair_bounded(&mut output, key.as_ref(), value.as_str(), intermediate_limit) {
             break;
         }
     }
@@ -85,12 +77,7 @@ pub(in crate::formats::http) fn redact_bounded(
 ///
 /// `true` when the complete pair fits, otherwise `false` after recording
 /// bounded overflow.
-pub(in crate::formats::http) fn append_pair_bounded(
-    output: &mut String,
-    key: &str,
-    value: &str,
-    limit: usize,
-) -> bool {
+pub(in crate::formats::http) fn append_pair_bounded(output: &mut String, key: &str, value: &str, limit: usize) -> bool {
     if !output.is_empty() && !append_bounded_piece(output, "&", limit) {
         return false;
     }
@@ -115,11 +102,7 @@ pub(in crate::formats::http) fn append_pair_bounded(
 ///
 /// `true` when the complete component fits, otherwise `false` after filling
 /// the remaining budget with a safe truncation sentinel.
-fn append_encoded_bounded(
-    output: &mut String,
-    value: &[u8],
-    limit: usize,
-) -> bool {
+fn append_encoded_bounded(output: &mut String, value: &[u8], limit: usize) -> bool {
     for piece in byte_serialize(value) {
         if !append_bounded_piece(output, piece, limit) {
             return false;
@@ -139,11 +122,7 @@ fn append_encoded_bounded(
 /// # Returns
 ///
 /// `true` when `piece` fits completely, otherwise `false`.
-fn append_bounded_piece(
-    output: &mut String,
-    piece: &str,
-    limit: usize,
-) -> bool {
+fn append_bounded_piece(output: &mut String, piece: &str, limit: usize) -> bool {
     if piece.len() <= limit.saturating_sub(output.len()) {
         output.push_str(piece);
         return true;
@@ -168,12 +147,10 @@ fn is_valid_component(component: &[u8]) -> bool {
     while index < component.len() {
         match component[index] {
             b'%' => {
-                let Some(high) = component.get(index + 1).and_then(|b| hex(*b))
-                else {
+                let Some(high) = component.get(index + 1).and_then(|b| hex(*b)) else {
                     return false;
                 };
-                let Some(low) = component.get(index + 2).and_then(|b| hex(*b))
-                else {
+                let Some(low) = component.get(index + 2).and_then(|b| hex(*b)) else {
                     return false;
                 };
                 decoded.push((high << 4) | low);

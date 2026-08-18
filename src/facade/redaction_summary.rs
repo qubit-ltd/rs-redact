@@ -166,8 +166,7 @@ impl RedactionSummary {
     pub const fn exhausted() -> Self {
         Self {
             completion: RedactionCompletion::Exhausted,
-            reasons: RedactionReasons::empty()
-                .with(RedactionReason::OutputLimitReached),
+            reasons: RedactionReasons::empty().with(RedactionReason::OutputLimitReached),
             usage: RedactionUsage {
                 inspected_input_bytes: 0,
                 emitted_output_bytes: 0,

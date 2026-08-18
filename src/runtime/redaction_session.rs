@@ -93,19 +93,14 @@ impl<'policy> RedactionSession<'policy> {
         let completion = if self.fragments.is_empty() && self.is_exhausted() {
             crate::RedactionSummary::exhausted()
         } else if self.is_exhausted() {
-            crate::RedactionSummary::truncated(
-                crate::RedactionReason::OutputLimitReached,
-            )
+            crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached)
         } else {
             crate::RedactionSummary::complete()
         };
-        let escaped = crate::output::log_escape::escape_log_control_characters(
-            std::borrow::Cow::Owned(self.fragments),
-        )
-        .into_owned();
+        let escaped = crate::output::log_escape::escape_log_control_characters(std::borrow::Cow::Owned(self.fragments))
+            .into_owned();
         let (inspected_input_bytes, emitted_output_bytes) = self.budget.usage();
-        let (visited_nodes, visited_collection_items, maximum_depth) =
-            self.domain_budget.usage();
+        let (visited_nodes, visited_collection_items, maximum_depth) = self.domain_budget.usage();
         let usage = crate::RedactionUsage::from_runtime(
             inspected_input_bytes,
             emitted_output_bytes,
@@ -114,16 +109,12 @@ impl<'policy> RedactionSession<'policy> {
             maximum_depth,
         );
         let summary = completion.with_usage(usage);
-        crate::RedactionOutput::new(
-            crate::RedactedText::from_escaped(escaped),
-            summary,
-        )
+        crate::RedactionOutput::new(crate::RedactedText::from_escaped(escaped), summary)
     }
 
     /// Appends a chain fragment at a UTF-8 boundary within remaining output.
     fn append_chain_fragment(&mut self, fragment: &str) {
-        let output_limit =
-            crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
+        let output_limit = crate::domain::internal::mask_byte_limit().unwrap_or(usize::MAX);
         let max_output = match self.admit_output_only(output_limit) {
             RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
             RedactionAdmission::Fallback | RedactionAdmission::Exhausted => {
@@ -160,49 +151,34 @@ impl<'policy> RedactionSession<'policy> {
     /// current branch, while [`DomainValueAdmission::TraversalLimitReached`]
     /// means no later domain value may be accessed in this session.
     #[must_use]
-    pub fn enter_domain_value<'session>(
-        &'session mut self,
-    ) -> DomainValueAdmission<'session, 'policy> {
+    pub fn enter_domain_value<'session>(&'session mut self) -> DomainValueAdmission<'session, 'policy> {
         let checkpoint = self.domain_truncation_checkpoint();
         let admission = self.domain_budget.enter_value();
         debug_assert!(match admission {
             DomainValueBudgetAdmission::Entered => {
-                self.domain_truncation_since(checkpoint)
-                    == DomainTruncation::None
+                self.domain_truncation_since(checkpoint) == DomainTruncation::None
             }
             DomainValueBudgetAdmission::DepthLimitReached => {
-                self.domain_truncation_since(checkpoint)
-                    == DomainTruncation::Depth
+                self.domain_truncation_since(checkpoint) == DomainTruncation::Depth
             }
             DomainValueBudgetAdmission::TraversalLimitReached => true,
         });
         match admission {
-            DomainValueBudgetAdmission::Entered => {
-                DomainValueAdmission::Entered(DomainValueScope::new(self))
-            }
-            DomainValueBudgetAdmission::DepthLimitReached => {
-                DomainValueAdmission::DepthLimitReached
-            }
-            DomainValueBudgetAdmission::TraversalLimitReached => {
-                DomainValueAdmission::TraversalLimitReached
-            }
+            DomainValueBudgetAdmission::Entered => DomainValueAdmission::Entered(DomainValueScope::new(self)),
+            DomainValueBudgetAdmission::DepthLimitReached => DomainValueAdmission::DepthLimitReached,
+            DomainValueBudgetAdmission::TraversalLimitReached => DomainValueAdmission::TraversalLimitReached,
         }
     }
 
     /// Returns a checkpoint for detecting later domain traversal truncation.
     #[inline(always)]
-    pub(crate) const fn domain_truncation_checkpoint(
-        &self,
-    ) -> DomainTruncationCheckpoint {
+    pub(crate) const fn domain_truncation_checkpoint(&self) -> DomainTruncationCheckpoint {
         self.domain_budget.truncation_checkpoint()
     }
 
     /// Classifies domain truncation recorded after `checkpoint`.
     #[inline(always)]
-    pub(crate) const fn domain_truncation_since(
-        &self,
-        checkpoint: DomainTruncationCheckpoint,
-    ) -> DomainTruncation {
+    pub(crate) const fn domain_truncation_since(&self, checkpoint: DomainTruncationCheckpoint) -> DomainTruncation {
         self.domain_budget.truncation_since(checkpoint)
     }
 
@@ -213,8 +189,7 @@ impl<'policy> RedactionSession<'policy> {
         domain_output_limit: usize,
         fallback_bytes: usize,
     ) -> RedactionAdmission {
-        self.budget
-            .admit(input_bytes, domain_output_limit, fallback_bytes)
+        self.budget.admit(input_bytes, domain_output_limit, fallback_bytes)
     }
 
     /// Admits pure domain output without covering nested adapter input.
@@ -222,10 +197,7 @@ impl<'policy> RedactionSession<'policy> {
     /// This frame participates in nested output deduplication, but any adapter
     /// invoked beneath it must still reserve its exact source bytes before
     /// parsing, resolving, or formatting that source.
-    pub(crate) fn admit_output_only(
-        &mut self,
-        domain_output_limit: usize,
-    ) -> RedactionAdmission {
+    pub(crate) fn admit_output_only(&mut self, domain_output_limit: usize) -> RedactionAdmission {
         self.budget.admit_output_only(domain_output_limit)
     }
 
@@ -237,9 +209,7 @@ impl<'policy> RedactionSession<'policy> {
 
     /// Charges one domain collection item before its iterator advances.
     #[inline]
-    pub(crate) fn admit_domain_collection_item(
-        &mut self,
-    ) -> DomainTraversalAdmission {
+    pub(crate) fn admit_domain_collection_item(&mut self) -> DomainTraversalAdmission {
         self.domain_budget.admit_collection_item()
     }
 
@@ -257,11 +227,7 @@ impl<'policy> RedactionSession<'policy> {
     }
 
     /// Commits exact output bytes for the active admitted fragment.
-    pub(crate) fn commit_output(
-        &mut self,
-        bytes: usize,
-        completion: FragmentCompletion,
-    ) {
+    pub(crate) fn commit_output(&mut self, bytes: usize, completion: FragmentCompletion) {
         self.budget.commit_output(bytes, completion);
     }
 

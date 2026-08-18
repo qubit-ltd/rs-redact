@@ -90,11 +90,7 @@ impl EnvRedactor {
     ///
     /// A fail-closed, log-safe pair rendered as `NAME=VALUE`.
     #[must_use]
-    pub fn redact_os_pair(
-        &self,
-        name: &OsStr,
-        value: &OsStr,
-    ) -> RedactedEnvPair {
+    pub fn redact_os_pair(&self, name: &OsStr, value: &OsStr) -> RedactedEnvPair {
         let mut session = self.redactor.session();
         session.env_with_mut(|env| env.redact_os_pair(name, value))
     }
@@ -144,8 +140,7 @@ impl EnvRedactor {
     #[inline]
     #[must_use]
     pub fn redact_assignment(&self, assignment: &str) -> RedactedEnvPair {
-        let (name, value) =
-            assignment.split_once('=').unwrap_or((assignment, ""));
+        let (name, value) = assignment.split_once('=').unwrap_or((assignment, ""));
         self.redact_pair(name, value)
     }
 
@@ -161,44 +156,30 @@ impl EnvRedactor {
     ///
     /// A log-safe assignment whose mask allocation fits `max_mask_bytes`, and
     /// whether the configured mask was locally shortened.
-    pub(super) fn redact_os_pair_bounded(
-        &self,
-        name: &OsStr,
-        value: &OsStr,
-        max_mask_bytes: usize,
-    ) -> (String, bool) {
+    pub(super) fn redact_os_pair_bounded(&self, name: &OsStr, value: &OsStr, max_mask_bytes: usize) -> (String, bool) {
         let (pair, locally_truncated) = match (name.to_str(), value.to_str()) {
             (Some(name), Some(value)) => {
                 let resolved = self.redactor.policy().resolve_field(name);
                 let (value, locally_truncated) = match resolved {
                     ResolvedField::Sensitive { sensitivity } => {
-                        let (masked, truncated) = self
-                            .redactor
-                            .policy()
-                            .masking()
-                            .mask_bounded_with_truncation(
-                                sensitivity,
-                                value,
-                                max_mask_bytes,
-                            );
+                        let (masked, truncated) = self.redactor.policy().masking().mask_bounded_with_truncation(
+                            sensitivity,
+                            value,
+                            max_mask_bytes,
+                        );
                         (masked.into_owned(), truncated)
                     }
                     ResolvedField::PassThrough => (value.to_owned(), false),
                 };
                 (
-                    RedactedEnvPair::new(
-                        log_safe_owned(name.to_owned()),
-                        log_safe_owned(value),
-                    ),
+                    RedactedEnvPair::new(log_safe_owned(name.to_owned()), log_safe_owned(value)),
                     locally_truncated,
                 )
             }
             _ => {
                 let masking = self.redactor.policy().masking();
-                let complete_len =
-                    masking.mask_opaque(Sensitivity::Secret).len();
-                let masked = masking
-                    .mask_opaque_bounded(Sensitivity::Secret, max_mask_bytes);
+                let complete_len = masking.mask_opaque(Sensitivity::Secret).len();
+                let masked = masking.mask_opaque_bounded(Sensitivity::Secret, max_mask_bytes);
                 let locally_truncated = masked.len() < complete_len;
                 (
                     RedactedEnvPair::new(
@@ -247,11 +228,7 @@ fn log_safe_owned(value: String) -> LogSafeText<'static> {
 /// * `writer` - Escaped bounded output destination.
 /// * `has_item` - Whether a preceding list item has already been rendered.
 /// * `item` - Redacted assignment safe to format.
-pub(super) fn write_debug_item(
-    writer: &mut BoundedLogEscapeWriter,
-    has_item: &mut bool,
-    item: &str,
-) {
+pub(super) fn write_debug_item(writer: &mut BoundedLogEscapeWriter, has_item: &mut bool, item: &str) {
     if *has_item {
         let _ = writer.write_str(", ");
     }

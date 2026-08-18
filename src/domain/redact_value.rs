@@ -44,11 +44,7 @@ pub trait RedactValue {
     /// A lazy typed representation preserving plain or optional container
     /// shape.
     #[must_use]
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a>;
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a>;
 }
 
 impl RedactValue for str {
@@ -66,11 +62,7 @@ impl RedactValue for str {
     /// # Returns
     ///
     /// A plain redacted text representation.
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::Text(redact_text(self, level, masking))
     }
 }
@@ -91,11 +83,7 @@ impl RedactValue for &str {
     ///
     /// A plain redacted text representation.
     #[inline(always)]
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::Text(redact_text(self, level, masking))
     }
 }
@@ -116,11 +104,7 @@ impl RedactValue for String {
     ///
     /// A plain redacted text representation.
     #[inline(always)]
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::Text(redact_text(self.as_str(), level, masking))
     }
 }
@@ -140,11 +124,7 @@ impl RedactValue for Cow<'_, str> {
     /// # Returns
     ///
     /// A plain redacted text representation.
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::Text(redact_text(self.as_ref(), level, masking))
     }
 }
@@ -165,11 +145,7 @@ impl RedactValue for Option<String> {
     ///
     /// A present masked value or an absent option representation.
     #[inline(always)]
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         redact_option(self.as_deref(), level, masking)
     }
 }
@@ -190,11 +166,7 @@ impl RedactValue for Option<&str> {
     ///
     /// A present masked value or an absent option representation.
     #[inline(always)]
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         redact_option(*self, level, masking)
     }
 }
@@ -215,11 +187,7 @@ impl RedactValue for Option<Cow<'_, str>> {
     ///
     /// A present masked value or an absent option representation.
     #[inline(always)]
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         redact_option(self.as_deref(), level, masking)
     }
 }
@@ -241,11 +209,7 @@ impl RedactValue for Option<Cow<'_, str>> {
 /// Typed redacted text preserving a borrow when the mask allows it.
 #[inline(always)]
 #[must_use]
-fn redact_text<'a>(
-    value: &'a str,
-    level: Sensitivity,
-    masking: &MaskingPolicy,
-) -> MaskedValue<'a> {
+fn redact_text<'a>(value: &'a str, level: Sensitivity, masking: &MaskingPolicy) -> MaskedValue<'a> {
     let redacted = match mask_byte_limit() {
         Some(max_bytes) => masking.mask_bounded(level, value, max_bytes),
         None => masking.mask(level, value),
@@ -270,11 +234,7 @@ fn redact_text<'a>(
 /// [`RedactedValue::Some`] containing masked text when `value` is present, or
 /// [`RedactedValue::None`] when it is absent.
 #[must_use]
-fn redact_option<'a>(
-    value: Option<&'a str>,
-    level: Sensitivity,
-    masking: &MaskingPolicy,
-) -> RedactedValue<'a> {
+fn redact_option<'a>(value: Option<&'a str>, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
     match value {
         Some(value) => RedactedValue::Some(redact_text(value, level, masking)),
         None => RedactedValue::None,

@@ -91,9 +91,7 @@ impl<'a> FieldRedaction<'a> {
     pub fn escape_for_log(self) -> LogSafeText<'a> {
         match self {
             Self::Masked { value, .. } => value.escape_for_log(),
-            Self::PassedThrough { value, .. } => {
-                MaskedValue::new(Cow::Borrowed(value)).escape_for_log()
-            }
+            Self::PassedThrough { value, .. } => MaskedValue::new(Cow::Borrowed(value)).escape_for_log(),
         }
     }
 }

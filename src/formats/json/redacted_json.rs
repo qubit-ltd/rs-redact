@@ -49,10 +49,7 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     /// A borrowed JSON redaction view.
     #[inline(always)]
     #[must_use]
-    pub const fn new(
-        value: &'value Value,
-        policy: &'policy RedactionPolicy,
-    ) -> Self {
+    pub const fn new(value: &'value Value, policy: &'policy RedactionPolicy) -> Self {
         Self {
             value,
             policy,
@@ -72,11 +69,7 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     /// A borrowed view at the next recursive depth.
     #[inline(always)]
     #[must_use]
-    fn nested<'nested>(
-        &self,
-        value: &'nested Value,
-        unkeyed: bool,
-    ) -> RedactedJson<'nested, 'policy> {
+    fn nested<'nested>(&self, value: &'nested Value, unkeyed: bool) -> RedactedJson<'nested, 'policy> {
         RedactedJson {
             value,
             policy: self.policy,
@@ -113,8 +106,7 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     #[must_use]
     fn redact_unkeyed_scalar(&self) -> bool {
         self.unkeyed
-            && self.policy.unkeyed_json_value_policy()
-                == crate::UnkeyedJsonValuePolicy::Redact
+            && self.policy.unkeyed_json_value_policy() == crate::UnkeyedJsonValuePolicy::Redact
             && !matches!(self.value, Value::Array(_) | Value::Object(_))
     }
 }
@@ -166,49 +158,35 @@ impl Serialize for RedactedJson<'_, '_> {
         }
         match self.value {
             Value::Array(values) => {
-                let mut output =
-                    serializer.serialize_seq(Some(values.len()))?;
+                let mut output = serializer.serialize_seq(Some(values.len()))?;
                 for value in values {
                     output.serialize_element(&self.nested(value, true))?;
                 }
                 output.end()
             }
             Value::Object(values) => {
-                let mut output =
-                    serializer.serialize_map(Some(values.len()))?;
+                let mut output = serializer.serialize_map(Some(values.len()))?;
                 for (key, value) in values {
                     let resolved = self.policy.resolve_field(key);
                     match resolved {
-                        ResolvedField::Sensitive { sensitivity } => match value
-                        {
+                        ResolvedField::Sensitive { sensitivity } => match value {
                             Value::String(text) => {
-                                let redacted = text.redact_value(
-                                    sensitivity,
-                                    self.policy.masking(),
-                                );
+                                let redacted = text.redact_value(sensitivity, self.policy.masking());
                                 output.serialize_entry(key, &redacted)?;
                             }
                             _ => {
-                                let redacted = RedactedValue::opaque(
-                                    sensitivity,
-                                    self.policy.masking(),
-                                );
+                                let redacted = RedactedValue::opaque(sensitivity, self.policy.masking());
                                 output.serialize_entry(key, &redacted)?;
                             }
                         },
                         ResolvedField::PassThrough => {
-                            output.serialize_entry(
-                                key,
-                                &self.nested(value, false),
-                            )?;
+                            output.serialize_entry(key, &self.nested(value, false))?;
                         }
                     }
                 }
                 output.end()
             }
-            _ if self.redact_unkeyed_scalar() => {
-                Serialize::serialize(&self.depth_limit_mask(), serializer)
-            }
+            _ if self.redact_unkeyed_scalar() => Serialize::serialize(&self.depth_limit_mask(), serializer),
             value => Serialize::serialize(value, serializer),
         }
     }
@@ -228,10 +206,7 @@ impl Serialize for RedactedJson<'_, '_> {
 /// # Errors
 ///
 /// Returns a formatting error when the destination rejects output.
-fn fmt_json(
-    view: &RedactedJson<'_, '_>,
-    formatter: &mut fmt::Formatter<'_>,
-) -> fmt::Result {
+fn fmt_json(view: &RedactedJson<'_, '_>, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
     if view.depth_limit_reached() {
         return fmt::Debug::fmt(&view.depth_limit_mask(), formatter);
     }
@@ -249,13 +224,7 @@ fn fmt_json(
                 let resolved = view.policy.resolve_field(key);
                 match resolved {
                     ResolvedField::Sensitive { sensitivity } => {
-                        fmt_masked_entry(
-                            &mut output,
-                            key,
-                            value,
-                            sensitivity,
-                            view.policy.masking(),
-                        );
+                        fmt_masked_entry(&mut output, key, value, sensitivity, view.policy.masking());
                     }
                     ResolvedField::PassThrough => {
                         output.entry(key, &view.nested(value, false));
@@ -264,9 +233,7 @@ fn fmt_json(
             }
             output.finish()
         }
-        _ if view.redact_unkeyed_scalar() => {
-            fmt::Debug::fmt(&view.depth_limit_mask(), formatter)
-        }
+        _ if view.redact_unkeyed_scalar() => fmt::Debug::fmt(&view.depth_limit_mask(), formatter),
         value => fmt::Debug::fmt(value, formatter),
     }
 }

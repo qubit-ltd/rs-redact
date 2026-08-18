@@ -77,9 +77,7 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
                 allow_exact: Default::default(),
                 allow_suffix: Default::default(),
                 matching: FieldNameMatching::ExactOrTokenSuffix,
-                unknown_field_policy: UnknownFieldPolicy::Redact(
-                    Sensitivity::Secret,
-                ),
+                unknown_field_policy: UnknownFieldPolicy::Redact(Sensitivity::Secret),
             },
             Some(RedactionFloor::standard()),
         ),
@@ -90,8 +88,7 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
             let mut http = crate::formats::http::HttpPolicyBuilder::new();
             http.url_path_mut(crate::formats::http::UrlPathPolicy::Redact);
             http.text_body_mut(crate::formats::http::TextBodyPolicy::Redact);
-            http.build()
-                .expect("the built-in HTTP policy must be valid")
+            http.build().expect("the built-in HTTP policy must be valid")
         },
         #[cfg(feature = "uri")]
         crate::formats::uri::UriPolicyBuilder::new()
@@ -182,8 +179,7 @@ impl RedactionPolicy {
         limits: RedactionLimits,
         #[cfg(feature = "http")] http: crate::formats::http::HttpPolicy,
         #[cfg(feature = "uri")] uri: crate::formats::uri::UriPolicy,
-        #[cfg(feature = "json")]
-        unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
+        #[cfg(feature = "json")] unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
     ) -> Self {
         Self {
             rules,
@@ -347,10 +343,7 @@ impl RedactionPolicy {
     /// [`Self::sensitivity_for`] for the final security decision.
     #[inline]
     #[must_use]
-    pub fn classify_field<'a>(
-        &'a self,
-        field: &str,
-    ) -> FieldClassification<'a> {
+    pub fn classify_field<'a>(&'a self, field: &str) -> FieldClassification<'a> {
         self.rules.classify_field(field)
     }
 
@@ -368,19 +361,13 @@ impl RedactionPolicy {
     /// Resolves final sensitivity with exact-only field matching.
     #[must_use]
     #[inline]
-    pub(crate) fn sensitivity_for_exact(
-        &self,
-        field: &str,
-    ) -> Option<Sensitivity> {
+    pub(crate) fn sensitivity_for_exact(&self, field: &str) -> Option<Sensitivity> {
         self.rules.sensitivity_for_exact(field)
     }
 
     /// Resolves final sensitivity with exact-only field matching.
     #[inline]
-    pub(crate) fn resolve_field_exact(
-        &self,
-        field: &str,
-    ) -> super::ResolvedField {
+    pub(crate) fn resolve_field_exact(&self, field: &str) -> super::ResolvedField {
         self.rules.resolve_field_exact(field)
     }
 
@@ -418,9 +405,7 @@ impl RedactionPolicy {
     /// Use [`Self::floor`] to inspect the independent minimum-protection
     /// rules.
     #[inline]
-    pub fn application_sensitive_rules(
-        &self,
-    ) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
+    pub fn application_sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
         self.rules.application_sensitive_rules()
     }
 
@@ -428,9 +413,7 @@ impl RedactionPolicy {
     ///
     /// These rules never bypass an enabled floor.
     #[inline]
-    pub fn application_allow_rules(
-        &self,
-    ) -> impl Iterator<Item = AllowRule<'_>> {
+    pub fn application_allow_rules(&self) -> impl Iterator<Item = AllowRule<'_>> {
         self.rules.application_allow_rules()
     }
 

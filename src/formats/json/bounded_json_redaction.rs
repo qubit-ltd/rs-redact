@@ -75,17 +75,12 @@ pub fn redact_json_text_in_place(text: &mut String, policy: &RedactionPolicy) {
 ///
 /// Compact redacted JSON for valid input, or the configured Secret opaque mask
 /// for invalid input.
-pub(crate) fn redacted_json_text(
-    text: &str,
-    policy: &RedactionPolicy,
-) -> String {
+pub(crate) fn redacted_json_text(text: &str, policy: &RedactionPolicy) -> String {
     let Ok(mut value) = from_str::<Value>(text) else {
         return opaque_secret(policy);
     };
     let unkeyed = match policy.unkeyed_json_value_policy() {
-        crate::UnkeyedJsonValuePolicy::PassThrough => {
-            JsonUnkeyedValuePolicy::PassThrough
-        }
+        crate::UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
         crate::UnkeyedJsonValuePolicy::Redact => {
             let marker = policy.masking().mask_opaque(Sensitivity::Secret);
             JsonUnkeyedValuePolicy::Redact {
@@ -111,9 +106,7 @@ pub(super) fn redacted_json_text_bounded(
         return BoundedJsonRedaction::Complete(opaque_secret(policy));
     };
     let unkeyed = match policy.unkeyed_json_value_policy() {
-        crate::UnkeyedJsonValuePolicy::PassThrough => {
-            JsonUnkeyedValuePolicy::PassThrough
-        }
+        crate::UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
         crate::UnkeyedJsonValuePolicy::Redact => {
             let marker = policy.masking().mask_opaque(Sensitivity::Secret);
             JsonUnkeyedValuePolicy::Redact {
@@ -122,8 +115,7 @@ pub(super) fn redacted_json_text_bounded(
             }
         }
     };
-    let mut mask_budget =
-        ResourceBudget::new(RedactionResource::Mask, max_output);
+    let mut mask_budget = ResourceBudget::new(RedactionResource::Mask, max_output);
     if JsonRedactionState::from_policy(policy, unkeyed, Some(&mut mask_budget))
         .redact(&mut value)
         .is_mask_budget_exhausted()
@@ -150,9 +142,7 @@ pub(super) fn redacted_json_text_bounded(
     if to_writer(&mut writer, &value).is_err() {
         return BoundedJsonRedaction::Truncated("<truncated>".to_owned());
     }
-    BoundedJsonRedaction::Complete(
-        String::from_utf8(writer.0).unwrap_or_else(|_| opaque_secret(policy)),
-    )
+    BoundedJsonRedaction::Complete(String::from_utf8(writer.0).unwrap_or_else(|_| opaque_secret(policy)))
 }
 
 /// Redacts a JSON value while enforcing the supplied output bound.
@@ -163,9 +153,7 @@ pub(super) fn redacted_json_value_bounded(
 ) -> BoundedJsonRedaction {
     let mut value = source.clone();
     let unkeyed = match policy.unkeyed_json_value_policy() {
-        crate::UnkeyedJsonValuePolicy::PassThrough => {
-            JsonUnkeyedValuePolicy::PassThrough
-        }
+        crate::UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
         crate::UnkeyedJsonValuePolicy::Redact => {
             let marker = policy.masking().mask_opaque(Sensitivity::Secret);
             JsonUnkeyedValuePolicy::Redact {
@@ -174,8 +162,7 @@ pub(super) fn redacted_json_value_bounded(
             }
         }
     };
-    let mut mask_budget =
-        ResourceBudget::new(RedactionResource::Mask, max_output);
+    let mut mask_budget = ResourceBudget::new(RedactionResource::Mask, max_output);
     if JsonRedactionState::from_policy(policy, unkeyed, Some(&mut mask_budget))
         .redact(&mut value)
         .is_mask_budget_exhausted()
@@ -202,9 +189,7 @@ pub(super) fn redacted_json_value_bounded(
     if to_writer(&mut writer, &value).is_err() {
         return BoundedJsonRedaction::Truncated("<truncated>".to_owned());
     }
-    BoundedJsonRedaction::Complete(
-        String::from_utf8(writer.0).unwrap_or_else(|_| opaque_secret(policy)),
-    )
+    BoundedJsonRedaction::Complete(String::from_utf8(writer.0).unwrap_or_else(|_| opaque_secret(policy)))
 }
 
 /// Returns the configured opaque replacement for invalid JSON text.

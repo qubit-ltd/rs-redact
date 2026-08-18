@@ -110,11 +110,7 @@ impl<D: Debug> Debug for BoundedRedactedDisplay<D> {
 ///
 /// Returns [`fmt::Error`] when redacted formatting or the destination rejects
 /// output.
-pub(super) fn format_bounded(
-    value: &dyn Debug,
-    limit: LogOutputLimit,
-    formatter: &mut Formatter<'_>,
-) -> fmt::Result {
+pub(super) fn format_bounded(value: &dyn Debug, limit: LogOutputLimit, formatter: &mut Formatter<'_>) -> fmt::Result {
     let mut writer = BoundedLogEscapeWriter::new(limit);
     let result = with_mask_byte_limit(limit.max_bytes(), || {
         with_debug_output_tracking(|| {
@@ -184,8 +180,7 @@ impl BoundedDebugWriter {
         if self.truncated {
             let marker = "<truncated>";
             let prefix_limit = self.limit.saturating_sub(marker.len());
-            self.output
-                .truncate(floor_char_boundary(&self.output, prefix_limit));
+            self.output.truncate(floor_char_boundary(&self.output, prefix_limit));
             self.output.push_str(marker);
         }
         self.output

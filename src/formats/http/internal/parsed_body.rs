@@ -53,9 +53,7 @@ impl ParsedBody {
     /// in that order.
     #[must_use]
     #[inline(always)]
-    pub(in crate::formats::http) fn into_parts(
-        self,
-    ) -> (String, BodyRedactionStatus, bool) {
+    pub(in crate::formats::http) fn into_parts(self) -> (String, BodyRedactionStatus, bool) {
         (self.text, self.status, self.rendered_truncated)
     }
 }

@@ -41,11 +41,7 @@ pub trait RedactMapSerialize<K: ?Sized, V: ?Sized> {
     /// # Errors
     ///
     /// Returns the destination serializer's error unchanged.
-    fn serialize_redacted_map<S>(
-        &self,
-        policy: &RedactionPolicy,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted_map<S>(&self, policy: &RedactionPolicy, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer;
 }
@@ -75,11 +71,7 @@ where
     ///
     /// Returns the first entry or destination serialization error unchanged.
     #[inline]
-    fn serialize_redacted_map<S>(
-        &self,
-        policy: &RedactionPolicy,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted_map<S>(&self, policy: &RedactionPolicy, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -88,8 +80,7 @@ where
             let resolved = policy.resolve_field(key.as_ref());
             match resolved {
                 ResolvedField::Sensitive { sensitivity } => {
-                    let redacted =
-                        value.redact_value(sensitivity, policy.masking());
+                    let redacted = value.redact_value(sensitivity, policy.masking());
                     map.serialize_entry(key, &redacted)?;
                 }
                 ResolvedField::PassThrough => {

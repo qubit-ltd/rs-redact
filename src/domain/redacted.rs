@@ -81,10 +81,7 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     /// A bounded formatting adapter that owns this redacted view.
     #[inline(always)]
     #[must_use]
-    pub const fn with_output_limit(
-        self,
-        limit: LogOutputLimit,
-    ) -> BoundedRedactedDisplay<Self> {
+    pub const fn with_output_limit(self, limit: LogOutputLimit) -> BoundedRedactedDisplay<Self> {
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -96,8 +93,7 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     #[must_use]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit =
-            LogOutputLimit::from(self.policy.limits().diagnostic_event());
+        let limit = LogOutputLimit::from(self.policy.limits().diagnostic_event());
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -126,9 +122,7 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
 }
 
 #[cfg(feature = "serde")]
-impl<T: crate::domain::RedactSerialize + ?Sized> serde::Serialize
-    for Redacted<'_, T>
-{
+impl<T: crate::domain::RedactSerialize + ?Sized> serde::Serialize for Redacted<'_, T> {
     /// Delegates serialization to the derived redaction hook.
     ///
     /// # Type Parameters
@@ -175,11 +169,7 @@ impl<T: Redact + ?Sized> Debug for Redacted<'_, T> {
     #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut session = RedactionSession::new(&self.policy);
-        let view = RedactedResult::new_with_alternate(
-            self.value,
-            &mut session,
-            formatter.alternate(),
-        );
+        let view = RedactedResult::new_with_alternate(self.value, &mut session, formatter.alternate());
         Debug::fmt(&view, formatter)
     }
 }
@@ -215,12 +205,8 @@ mod session_view {
         /// Completes a compact nested representation through `session`.
         #[inline(always)]
         #[must_use]
-        pub fn new(
-            value: &'value T,
-            session: &mut RedactionSession<'_>,
-        ) -> Self {
-            Self::try_new_with_alternate(value, session, false)
-                .unwrap_or_else(Self::empty)
+        pub fn new(value: &'value T, session: &mut RedactionSession<'_>) -> Self {
+            Self::try_new_with_alternate(value, session, false).unwrap_or_else(Self::empty)
         }
 
         /// Completes a nested representation while preserving pretty debug.
@@ -230,8 +216,7 @@ mod session_view {
             session: &mut RedactionSession<'_>,
             alternate: bool,
         ) -> Self {
-            Self::try_new_with_alternate(value, session, alternate)
-                .unwrap_or_else(Self::empty)
+            Self::try_new_with_alternate(value, session, alternate).unwrap_or_else(Self::empty)
         }
 
         /// Completes one domain value with output-only admission.
@@ -257,13 +242,9 @@ mod session_view {
             let domain_limit = mask_byte_limit().unwrap_or(usize::MAX);
             let admission = session.admit_output_only(domain_limit);
             let max_output_bytes = match admission {
-                RedactionAdmission::Render { max_output_bytes } => {
-                    max_output_bytes
-                }
+                RedactionAdmission::Render { max_output_bytes } => max_output_bytes,
                 RedactionAdmission::Fallback => {
-                    unreachable!(
-                        "output-only domain admission cannot reject input"
-                    )
+                    unreachable!("output-only domain admission cannot reject input")
                 }
                 RedactionAdmission::Exhausted => return None,
             };
@@ -331,9 +312,7 @@ mod session_view {
         /// Invokes the mutable redaction hook exactly once.
         fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
             let mut session = self.session.borrow_mut();
-            let session = session
-                .take()
-                .expect("the one-shot redaction adapter cannot be reused");
+            let session = session.take().expect("the one-shot redaction adapter cannot be reused");
             write_redacted_to_formatter(self.value, session, formatter)
         }
     }
@@ -386,11 +365,7 @@ mod session_view {
     /// Alternate formatting is forwarded exactly once. This function bounds
     /// the destination buffer, but it cannot bound computation or allocation
     /// performed internally by an arbitrary user `Debug` implementation.
-    pub(crate) fn complete_debug(
-        value: &dyn Debug,
-        limit: usize,
-        alternate: bool,
-    ) -> CompletedDebug {
+    pub(crate) fn complete_debug(value: &dyn Debug, limit: usize, alternate: bool) -> CompletedDebug {
         let mut writer = CompletedDebugWriter::new(limit);
         let result = with_mask_byte_limit(limit, || {
             with_debug_output_tracking(|| {
@@ -467,9 +442,8 @@ mod session_view {
         let mut offset = 0;
         while offset < value.len() {
             let remaining = &value[offset..];
-            let piece_len = debug_escape_len(remaining).unwrap_or_else(|| {
-                remaining.chars().next().map_or(0, char::len_utf8)
-            });
+            let piece_len =
+                debug_escape_len(remaining).unwrap_or_else(|| remaining.chars().next().map_or(0, char::len_utf8));
             if offset.saturating_add(piece_len) > limit {
                 break;
             }
@@ -486,20 +460,13 @@ mod session_view {
         }
         match bytes.get(1).copied()? {
             b'\\' | b'"' | b'n' | b'r' | b't' | b'0' => Some(2),
-            b'x' if bytes.len() >= 4
-                && bytes[2].is_ascii_hexdigit()
-                && bytes[3].is_ascii_hexdigit() =>
-            {
-                Some(4)
-            }
+            b'x' if bytes.len() >= 4 && bytes[2].is_ascii_hexdigit() && bytes[3].is_ascii_hexdigit() => Some(4),
             b'u' if bytes.get(2) == Some(&b'{') => {
                 let closing = bytes[3..]
                     .iter()
                     .position(|byte| *byte == b'}')
                     .map(|index| index + 3)?;
-                if closing == 3
-                    || !bytes[3..closing].iter().all(u8::is_ascii_hexdigit)
-                {
+                if closing == 3 || !bytes[3..closing].iter().all(u8::is_ascii_hexdigit) {
                     return None;
                 }
                 Some(closing + 1)

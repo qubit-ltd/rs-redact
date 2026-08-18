@@ -77,9 +77,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         masking: &'policy MaskingPolicy,
         json_depth_limit: JsonDepthLimit,
         unkeyed: JsonUnkeyedValuePolicy<'marker>,
-        mask_budget: Option<
-            &'budget mut ResourceBudget<RedactionResource, usize>,
-        >,
+        mask_budget: Option<&'budget mut ResourceBudget<RedactionResource, usize>>,
     ) -> Self {
         Self {
             base_rules,
@@ -97,9 +95,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     pub(crate) fn from_policy(
         policy: &'policy RedactionPolicy,
         unkeyed: JsonUnkeyedValuePolicy<'marker>,
-        mask_budget: Option<
-            &'budget mut ResourceBudget<RedactionResource, usize>,
-        >,
+        mask_budget: Option<&'budget mut ResourceBudget<RedactionResource, usize>>,
     ) -> Self {
         Self::new(
             policy.rules(),
@@ -127,8 +123,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
             .build()
             .budget();
         let mut transaction = budget.transaction();
-        let result =
-            JsonTreeMutator::new(&mut transaction).process(value, self);
+        let result = JsonTreeMutator::new(&mut transaction).process(value, self);
         match result {
             Ok(()) => {
                 transaction.commit();
@@ -136,13 +131,9 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
                     passed_unkeyed: self.passed_unkeyed,
                 }
             }
-            Err(JsonTreeProcessError::Visitor(JsonRedactionStop)) => {
-                JsonRedactionOutcome::MaskBudgetExhausted
-            }
+            Err(JsonTreeProcessError::Visitor(JsonRedactionStop)) => JsonRedactionOutcome::MaskBudgetExhausted,
             Err(JsonTreeProcessError::Budget(error)) => {
-                unreachable!(
-                    "the redaction visitor handles every configured depth rejection: {error}"
-                )
+                unreachable!("the redaction visitor handles every configured depth rejection: {error}")
             }
         }
     }
@@ -159,19 +150,13 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     /// Whether traversal should descend into the value. This function does not
     /// currently fail, but exposes the visitor stop type for a uniform policy
     /// interface.
-    fn visit_keyed_value(
-        &mut self,
-        key: &str,
-        value: &mut Value,
-    ) -> Result<JsonTreeControl, JsonRedactionStop> {
+    fn visit_keyed_value(&mut self, key: &str, value: &mut Value) -> Result<JsonTreeControl, JsonRedactionStop> {
         match self.resolve_field(key) {
             ResolvedField::Sensitive { sensitivity } => {
                 self.mask_keyed_value(value, sensitivity);
                 Ok(JsonTreeControl::SkipSubtree)
             }
-            ResolvedField::PassThrough
-                if matches!(value, Value::Object(_) | Value::Array(_)) =>
-            {
+            ResolvedField::PassThrough if matches!(value, Value::Object(_) | Value::Array(_)) => {
                 Ok(JsonTreeControl::Descend)
             }
             ResolvedField::PassThrough => Ok(JsonTreeControl::SkipSubtree),
@@ -188,10 +173,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ///
     /// Whether traversal should descend, or a stop signal when no unkeyed mask
     /// can fit the remaining mask budget.
-    fn visit_unkeyed_value(
-        &mut self,
-        value: &mut Value,
-    ) -> Result<JsonTreeControl, JsonRedactionStop> {
+    fn visit_unkeyed_value(&mut self, value: &mut Value) -> Result<JsonTreeControl, JsonRedactionStop> {
         if matches!(value, Value::Object(_) | Value::Array(_)) {
             Ok(JsonTreeControl::Descend)
         } else {
@@ -210,10 +192,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ///
     /// Returns `JsonRedactionStop` when neither configured marker fits the
     /// remaining mask budget.
-    fn redact_unkeyed_scalar(
-        &mut self,
-        value: &mut Value,
-    ) -> Result<(), JsonRedactionStop> {
+    fn redact_unkeyed_scalar(&mut self, value: &mut Value) -> Result<(), JsonRedactionStop> {
         match self.unkeyed {
             JsonUnkeyedValuePolicy::PassThrough => {
                 self.passed_unkeyed = true;
@@ -247,16 +226,12 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
             return Ok(());
         }
         match context.location {
-            JsonTreeLocation::ObjectValue { key } => match self
-                .resolve_field(key)
-            {
+            JsonTreeLocation::ObjectValue { key } => match self.resolve_field(key) {
                 ResolvedField::Sensitive { sensitivity } => {
                     self.mask_keyed_value(value, sensitivity);
                     Ok(())
                 }
-                ResolvedField::PassThrough
-                    if matches!(value, Value::Object(_) | Value::Array(_)) =>
-                {
+                ResolvedField::PassThrough if matches!(value, Value::Object(_) | Value::Array(_)) => {
                     self.mask_opaque_value(value, Sensitivity::Secret);
                     Ok(())
                 }
@@ -268,9 +243,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
                 self.mask_opaque_value(value, Sensitivity::Secret);
                 Ok(())
             }
-            JsonTreeLocation::Root | JsonTreeLocation::ArrayElement { .. } => {
-                self.redact_unkeyed_scalar(value)
-            }
+            JsonTreeLocation::Root | JsonTreeLocation::ArrayElement { .. } => self.redact_unkeyed_scalar(value),
         }
     }
 
@@ -291,9 +264,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     fn mask_keyed_value(&mut self, value: &mut Value, level: Sensitivity) {
         let remaining = self.remaining_mask_bytes();
         let masked = if let Value::String(text) = value {
-            self.masking
-                .mask_bounded(level, text, remaining)
-                .into_owned()
+            self.masking.mask_bounded(level, text, remaining).into_owned()
         } else {
             self.masking.mask_opaque_bounded(level, remaining)
         };
@@ -308,9 +279,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
 
     /// Replaces any JSON value with an opaque mask at the requested level.
     fn mask_opaque_value(&mut self, value: &mut Value, level: Sensitivity) {
-        let masked = self
-            .masking
-            .mask_opaque_bounded(level, self.remaining_mask_bytes());
+        let masked = self.masking.mask_opaque_bounded(level, self.remaining_mask_bytes());
         let consumed = self.consume_mask_available(masked.len());
         debug_assert_eq!(consumed, masked.len());
         if let Value::String(text) = value {
@@ -331,11 +300,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     ///
     /// The preferred marker or fallback marker. Returns `None` when neither
     /// fits, so callers can use a non-allocating JSON null replacement.
-    fn take_unkeyed_marker(
-        &mut self,
-        marker: &str,
-        truncated_marker: &str,
-    ) -> Option<String> {
+    fn take_unkeyed_marker(&mut self, marker: &str, truncated_marker: &str) -> Option<String> {
         let selected = if self.mask_available(marker.len()) {
             marker
         } else if self.mask_available(truncated_marker.len()) {
@@ -380,25 +345,15 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
     }
 }
 
-impl JsonTreeMutVisitor<JsonResource, usize>
-    for JsonRedactionState<'_, '_, '_>
-{
+impl JsonTreeMutVisitor<JsonResource, usize> for JsonRedactionState<'_, '_, '_> {
     /// Error used to stop traversal after a resource budget is exhausted.
     type Error = JsonRedactionStop;
 
     /// Applies the current-node redaction policy and controls descent.
-    fn visit(
-        &mut self,
-        value: &mut Value,
-        context: JsonTreeContext<'_>,
-    ) -> Result<JsonTreeControl, Self::Error> {
+    fn visit(&mut self, value: &mut Value, context: JsonTreeContext<'_>) -> Result<JsonTreeControl, Self::Error> {
         match context.location {
-            JsonTreeLocation::ObjectValue { key } => {
-                self.visit_keyed_value(key, value)
-            }
-            JsonTreeLocation::Root | JsonTreeLocation::ArrayElement { .. } => {
-                self.visit_unkeyed_value(value)
-            }
+            JsonTreeLocation::ObjectValue { key } => self.visit_keyed_value(key, value),
+            JsonTreeLocation::Root | JsonTreeLocation::ArrayElement { .. } => self.visit_unkeyed_value(value),
         }
     }
 
@@ -415,9 +370,7 @@ impl JsonTreeMutVisitor<JsonResource, usize>
 }
 
 /// Reports whether the budget failure is the configured depth rejection.
-fn is_depth_rejection(
-    error: &MeasuredBudgetError<JsonResource, usize>,
-) -> bool {
+fn is_depth_rejection(error: &MeasuredBudgetError<JsonResource, usize>) -> bool {
     matches!(
         error,
         MeasuredBudgetError::Budget(BudgetError::LimitExceeded {
@@ -448,13 +401,8 @@ fn drop_value_iteratively(root: Value) {
     while let Some(mut value) = pending.pop() {
         match &mut value {
             Value::Array(values) => pending.append(values),
-            Value::Object(entries) => {
-                pending.extend(std::mem::take(entries).into_values())
-            }
-            Value::Null
-            | Value::Bool(_)
-            | Value::Number(_)
-            | Value::String(_) => {}
+            Value::Object(entries) => pending.extend(std::mem::take(entries).into_values()),
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
         }
     }
 }
@@ -462,24 +410,15 @@ fn drop_value_iteratively(root: Value) {
 /// Combines the base policy and a context enhancement monotonically.
 fn stronger(base: ResolvedField, context: ResolvedField) -> ResolvedField {
     match (base, context) {
-        (
-            ResolvedField::Sensitive { sensitivity: base },
+        (ResolvedField::Sensitive { sensitivity: base }, ResolvedField::Sensitive { sensitivity: context }) => {
             ResolvedField::Sensitive {
-                sensitivity: context,
-            },
-        ) => ResolvedField::Sensitive {
-            sensitivity: base.max(context),
-        },
-        (
-            ResolvedField::Sensitive { sensitivity },
-            ResolvedField::PassThrough,
-        )
-        | (
-            ResolvedField::PassThrough,
-            ResolvedField::Sensitive { sensitivity },
-        ) => ResolvedField::Sensitive { sensitivity },
-        (ResolvedField::PassThrough, ResolvedField::PassThrough) => {
-            ResolvedField::PassThrough
+                sensitivity: base.max(context),
+            }
         }
+        (ResolvedField::Sensitive { sensitivity }, ResolvedField::PassThrough)
+        | (ResolvedField::PassThrough, ResolvedField::Sensitive { sensitivity }) => {
+            ResolvedField::Sensitive { sensitivity }
+        }
+        (ResolvedField::PassThrough, ResolvedField::PassThrough) => ResolvedField::PassThrough,
     }
 }

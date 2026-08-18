@@ -116,12 +116,7 @@ impl MaskingPolicy {
     /// The borrowed empty input or an owned mask bounded by `max_bytes`.
     #[must_use]
     #[inline(always)]
-    pub(crate) fn mask_bounded<'a>(
-        &self,
-        level: Sensitivity,
-        value: &'a str,
-        max_bytes: usize,
-    ) -> Cow<'a, str> {
+    pub(crate) fn mask_bounded<'a>(&self, level: Sensitivity, value: &'a str, max_bytes: usize) -> Cow<'a, str> {
         self.for_level(level).mask_bounded(value, max_bytes)
     }
 
@@ -133,8 +128,7 @@ impl MaskingPolicy {
         value: &'a str,
         max_bytes: usize,
     ) -> (Cow<'a, str>, bool) {
-        self.for_level(level)
-            .mask_bounded_with_truncation(value, max_bytes)
+        self.for_level(level).mask_bounded_with_truncation(value, max_bytes)
     }
 
     /// Returns an opaque replacement constrained to `max_bytes`.
@@ -149,11 +143,7 @@ impl MaskingPolicy {
     /// An owned bounded prefix of the configured opaque replacement.
     #[must_use]
     #[inline(always)]
-    pub(crate) fn mask_opaque_bounded(
-        &self,
-        level: Sensitivity,
-        max_bytes: usize,
-    ) -> String {
+    pub(crate) fn mask_opaque_bounded(&self, level: Sensitivity, max_bytes: usize) -> String {
         self.for_level(level).opaque_mask_bounded(max_bytes)
     }
 
@@ -178,10 +168,7 @@ impl MaskingPolicy {
     }
 
     /// Validates fixed replacements for one policy construction location.
-    pub(crate) fn validate(
-        &self,
-        location: PolicyLocation,
-    ) -> Result<(), PolicyError> {
+    pub(crate) fn validate(&self, location: PolicyLocation) -> Result<(), PolicyError> {
         for level in [
             Sensitivity::Low,
             Sensitivity::Medium,
@@ -192,10 +179,7 @@ impl MaskingPolicy {
                 self.for_level(level),
                 MaskPolicy::Fixed { replacement } if replacement.is_empty()
             ) {
-                return Err(PolicyError::EmptyFixedReplacement {
-                    location,
-                    level,
-                });
+                return Err(PolicyError::EmptyFixedReplacement { location, level });
             }
         }
         Ok(())

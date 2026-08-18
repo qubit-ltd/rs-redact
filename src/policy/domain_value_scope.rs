@@ -25,9 +25,7 @@ impl<'session, 'policy> DomainValueScope<'session, 'policy> {
     /// Creates a scope after its domain value has already been charged.
     #[inline]
     #[must_use]
-    pub(crate) const fn new(
-        session: &'session mut RedactionSession<'policy>,
-    ) -> Self {
+    pub(crate) const fn new(session: &'session mut RedactionSession<'policy>) -> Self {
         Self { session }
     }
 

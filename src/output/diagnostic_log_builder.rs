@@ -66,18 +66,13 @@ impl DiagnosticLogBuilder {
     ///
     /// Returns a formatter error from an argument that failed independently of
     /// output truncation.
-    pub fn push_fmt(
-        &mut self,
-        arguments: fmt::Arguments<'_>,
-    ) -> Result<RedactionCompletion, fmt::Error> {
+    pub fn push_fmt(&mut self, arguments: fmt::Arguments<'_>) -> Result<RedactionCompletion, fmt::Error> {
         if self.writer.is_truncated() {
             return Ok(self.truncation_completion());
         }
         match fmt::write(&mut self.writer, arguments) {
             Ok(()) => Ok(RedactionCompletion::Complete),
-            Err(_) if self.writer.is_truncated() => {
-                Ok(self.truncation_completion())
-            }
+            Err(_) if self.writer.is_truncated() => Ok(self.truncation_completion()),
             Err(error) => Err(error),
         }
     }
@@ -180,10 +175,7 @@ impl DiagnosticLogBuilder {
     ///
     /// Source completion when the append fits, or the more terminal builder
     /// completion when this output budget truncates or emits no text.
-    fn push_redaction_output(
-        &mut self,
-        output: RedactionOutput,
-    ) -> RedactionCompletion {
+    fn push_redaction_output(&mut self, output: RedactionOutput) -> RedactionCompletion {
         let source_completion = output.completion();
         let text = output.into_log_safe_text();
         let write_completion = self.push_safe(&text);
