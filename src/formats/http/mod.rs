@@ -7,8 +7,6 @@
 // =============================================================================
 //! Immutable HTTP redaction policy, bounded body input, and safe results.
 
-mod body_budget;
-mod body_budget_error;
 mod body_capture;
 mod body_capture_error;
 mod body_redaction;
@@ -28,9 +26,6 @@ mod text_body_policy;
 mod unkeyed_json_value_policy;
 mod url_path_policy;
 
-pub use body_budget::BodyBudget;
-pub use body_budget::BodyBudgetBuilder;
-pub use body_budget_error::BodyBudgetError;
 pub use body_capture::BodyCapture;
 pub use body_capture_error::BodyCaptureError;
 pub use body_redaction::BodyRedaction;
@@ -46,8 +41,3 @@ pub use redacted_headers::RedactedHeaders;
 pub use text_body_policy::TextBodyPolicy;
 pub use unkeyed_json_value_policy::UnkeyedJsonValuePolicy;
 pub use url_path_policy::UrlPathPolicy;
-
-pub use crate::DiagnosticBudgetError;
-pub use crate::InputOutputLimit;
-pub use crate::JsonDepthLimit;
-pub use crate::JsonDepthLimitError;

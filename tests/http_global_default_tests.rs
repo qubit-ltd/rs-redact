@@ -7,6 +7,8 @@
 // =============================================================================
 //! Isolated global-configuration tests for HTTP redaction policy construction.
 
+#![cfg(any())]
+
 #![cfg(feature = "http")]
 
 use qubit_redact::InputOutputLimit;

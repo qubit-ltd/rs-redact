@@ -134,14 +134,7 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
     pub fn redact_json_text(&mut self, value: &str) -> crate::RedactedText {
         crate::formats::json::JsonRedactor::new(self.policy().clone())
             .redact_text(value)
-            .into_log_safe_text()
-    }
-
-    /// Returns whether this writer has no room for another fragment.
-    #[must_use]
-    #[inline(always)]
-    pub fn is_exhausted(&self) -> bool {
-        self.field_truncated
+            .into_text()
     }
 
     /// Writes a named record through a field scope.

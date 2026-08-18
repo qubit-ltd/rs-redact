@@ -77,12 +77,10 @@ impl RedactedArgv {
     /// Borrows the already escaped diagnostic representation.
     ///
     /// The returned text is safe to append through
-    /// [`crate::DiagnosticLogBuilder::push_safe`]. Callers remain responsible
-    /// for applying any enclosing output budget.
     #[must_use]
     #[inline(always)]
-    pub const fn log_safe_text(&self) -> &RedactedText {
-        self.output.log_safe_text()
+    pub const fn text(&self) -> &RedactedText {
+        self.output.text()
     }
 
     /// Reports whether argv processing completed, substituted, or exhausted.
@@ -91,12 +89,10 @@ impl RedactedArgv {
     ///
     /// [`RedactionCompletion::Complete`] after full rendering,
     /// [`RedactionCompletion::Truncated`] when non-empty safe substitute text
-    /// represents omitted input or output, or
-    /// [`RedactionCompletion::Exhausted`] when the result is empty and the
-    /// input iterator was not advanced after exhaustion.
+    /// represents omitted input or output.
     #[inline(always)]
     pub const fn completion(&self) -> RedactionCompletion {
-        self.output.completion()
+        self.output.summary().completion()
     }
 
     /// Consumes the result and returns its log-safe diagnostic text.
@@ -104,11 +100,10 @@ impl RedactedArgv {
     /// # Returns
     ///
     /// Complete or substitute safe text, or an empty value when
-    /// [`Self::completion`] was [`RedactionCompletion::Exhausted`].
     #[must_use]
     #[inline(always)]
-    pub fn into_log_safe_text(self) -> RedactedText {
-        self.output.into_log_safe_text()
+    pub fn into_text(self) -> RedactedText {
+        self.output.into_text()
     }
 }
 
@@ -129,6 +124,6 @@ impl Display for RedactedArgv {
     /// Returns [`fmt::Error`] when the destination formatter rejects output.
     #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        Display::fmt(self.output.log_safe_text(), formatter)
+        Display::fmt(self.output.text(), formatter)
     }
 }

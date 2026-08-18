@@ -270,8 +270,8 @@
 //! # JSON values
 //!
 //! With the `json` feature, `RedactedJson`, `RedactedJsonText`, and
-//! `redact_json_text_in_place` share the `JsonDepthLimit` stored in their
-//! immutable [`RedactionPolicy`] snapshot. The default maximum depth is 128;
+//! `redact_json_text_in_place` share the configured JSON value limits stored in
+//! their immutable [`RedactionPolicy`] snapshot.
 //! an over-depth object or array is replaced with the policy's opaque Secret
 //! mask without visiting its descendants.
 //!
@@ -368,28 +368,13 @@ pub use facade::RedactionSummary;
 pub use facade::Redactor;
 pub use model::FieldRedaction;
 pub use model::PassThroughReason;
-pub use output::BoundedLogSafeDisplay;
-pub use output::DiagnosticLogBuilder;
-pub use output::LogOutputLimit;
-pub use output::LogOutputLimitBuilder;
-pub use output::LogOutputLimitError;
 pub use output::RedactedDebug;
 pub use output::RedactionCompletion;
 pub use output::redacted_debug;
 pub use policy::AllowRule;
-pub use policy::DiagnosticBudgetError;
-pub use policy::DomainRedactionLimitsBuilder;
 pub use policy::FieldClassification;
 pub use policy::FieldMatchKind;
 pub use policy::FieldNameMatching;
-pub use policy::InputOutputLimit;
-pub use policy::InputOutputLimitBuilder;
-#[cfg(feature = "json")]
-pub use policy::JsonDepthLimit;
-#[cfg(feature = "json")]
-pub use policy::JsonDepthLimitBuilder;
-#[cfg(feature = "json")]
-pub use policy::JsonDepthLimitError;
 pub use policy::MaskPolicy;
 pub use policy::MaskingPolicy;
 pub use policy::MaskingPolicyBuilder;

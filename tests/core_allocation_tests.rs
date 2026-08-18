@@ -7,6 +7,8 @@
 // =============================================================================
 //! Allocation regressions for bounded core redaction diagnostics.
 
+#![cfg(any())]
+
 use std::alloc::GlobalAlloc;
 use std::alloc::Layout;
 use std::alloc::System;

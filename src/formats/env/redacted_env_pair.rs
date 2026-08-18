@@ -85,8 +85,8 @@ impl RedactedEnvPair {
     /// Complete or substitute safe text, or an empty value for exhaustion.
     #[must_use]
     #[inline(always)]
-    pub const fn log_safe_text(&self) -> &RedactedText {
-        self.output.log_safe_text()
+    pub const fn text(&self) -> &RedactedText {
+        self.output.text()
     }
 
     /// Reports how pair redaction completed.
@@ -97,7 +97,7 @@ impl RedactedEnvPair {
     /// established by the shared output invariant.
     #[inline(always)]
     pub const fn completion(&self) -> RedactionCompletion {
-        self.output.completion()
+        self.output.summary().completion()
     }
 
     /// Consumes the result and returns its log-safe text.
@@ -107,8 +107,8 @@ impl RedactedEnvPair {
     /// Complete or substitute assignment text, or an empty exhausted value.
     #[must_use]
     #[inline(always)]
-    pub fn into_log_safe_text(self) -> RedactedText {
-        self.output.into_log_safe_text()
+    pub fn into_text(self) -> RedactedText {
+        self.output.into_text()
     }
 }
 
@@ -128,6 +128,6 @@ impl Display for RedactedEnvPair {
     /// Returns [`fmt::Error`] when the destination formatter rejects output.
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        Display::fmt(self.output.log_safe_text(), formatter)
+        Display::fmt(self.output.text(), formatter)
     }
 }

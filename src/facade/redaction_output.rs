@@ -47,21 +47,6 @@ impl RedactionOutput {
         )
     }
 
-    #[doc(hidden)]
-    pub(crate) const fn log_safe_text(&self) -> &RedactedText {
-        self.text()
-    }
-
-    #[doc(hidden)]
-    pub(crate) const fn completion(&self) -> crate::RedactionCompletion {
-        self.summary.completion()
-    }
-
-    #[doc(hidden)]
-    pub(crate) fn into_log_safe_text(self) -> RedactedText {
-        self.into_text()
-    }
-
     /// Borrows the final text.
     #[must_use]
     pub const fn text(&self) -> &RedactedText {

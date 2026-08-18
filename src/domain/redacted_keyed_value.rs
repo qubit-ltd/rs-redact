@@ -12,10 +12,6 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-use super::bounded_redacted_display::format_bounded;
-use super::bounded_redacted_display::format_debug_bounded;
-use super::internal::mask_byte_limit;
-use crate::LogOutputLimit;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::domain::Redact;
@@ -92,10 +88,7 @@ impl<T: Redact + RedactValue + ?Sized> Debug for RedactedKeyedValue<'_, '_, T> {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut session = RedactionSession::new(self.policy);
         let view = RedactedKeyedResult::new_with_alternate(self.key, self.value, &mut session, formatter.alternate());
-        if mask_byte_limit().is_some() {
-            return Debug::fmt(&view, formatter);
-        }
-        format_debug_bounded(&view, LogOutputLimit::unbounded(), formatter)
+        super::internal::format_log_safe(&view, formatter)
     }
 }
 
@@ -302,7 +295,7 @@ impl<T: Redact + RedactValue + ?Sized> Display for RedactedKeyedValue<'_, '_, T>
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut session = RedactionSession::new(self.policy);
         let view = RedactedKeyedResult::new(self.key, self.value, &mut session);
-        format_bounded(&view, LogOutputLimit::unbounded(), formatter)
+        super::internal::format_log_safe(&view, formatter)
     }
 }
 

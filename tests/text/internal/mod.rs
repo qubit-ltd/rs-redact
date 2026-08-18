@@ -7,7 +7,6 @@
 // =============================================================================
 //! Private helper types for mirrored text integration tests.
 
-mod bounded_log_escape_writer_tests;
 mod log_escape_writer_tests;
 mod no_debug;
 mod panic_debug;

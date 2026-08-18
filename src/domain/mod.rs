@@ -7,7 +7,6 @@
 // =============================================================================
 //! Runtime traits and borrowed views for domain-object redaction.
 
-mod bounded_redacted_display;
 pub(crate) mod internal;
 mod redact;
 #[cfg(feature = "serde")]
@@ -26,7 +25,6 @@ mod redacted_map;
 mod redacted_value;
 mod redaction_writer;
 
-pub use bounded_redacted_display::BoundedRedactedDisplay;
 pub use redact::DomainTruncated;
 pub use redact::Redact;
 #[cfg(feature = "serde")]

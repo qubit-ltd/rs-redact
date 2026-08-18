@@ -136,7 +136,7 @@ pub(crate) fn redact_uri_str_bounded(
     policy: &RedactionPolicy,
     input: &str,
     max_output_bytes: usize,
-    _session_limited: bool,
+    session_limited: bool,
 ) -> (UriRedaction, RedactionCompletion) {
     let parsed = match Uri::<&str>::parse(input) {
         Ok(parsed) => parsed,
@@ -233,27 +233,10 @@ fn finish_uri_rendering(
     if truncated {
         reasons.push(UriRedactionReason::OutputTruncated);
     }
-    let public_completion = public_completion(&safe, completion);
     (
-        UriRedaction::new(safe_text(safe), status, reasons, components, public_completion),
+        UriRedaction::new(safe_text(safe), status, reasons, components, completion),
         completion,
     )
-}
-
-/// Maps internal truncation provenance to the shared public output state.
-///
-/// # Parameters
-///
-/// * `safe` - Escaped URI text produced under the effective output ceiling.
-/// * `completion` - Internal completion distinguishing domain and session
-///   truncation for budget accounting.
-///
-/// # Returns
-///
-/// `Complete` for a fully rendered URI, `Truncated` for non-empty substitute
-/// text after either truncation source, or `Exhausted` when no safe text fit.
-fn public_completion(_safe: &str, completion: RedactionCompletion) -> RedactionCompletion {
-    completion
 }
 
 /// Builds the stateless point limit for one complete URI input.
@@ -270,7 +253,7 @@ fn input_limit(_policy: &RedactionPolicy) -> usize {
 fn bounded_invalid_result(
     reason: UriRedactionReason,
     max_output_bytes: usize,
-    session_limited: bool,
+    _session_limited: bool,
 ) -> (UriRedaction, RedactionCompletion) {
     if max_output_bytes < INVALID_URI.len() {
         return (

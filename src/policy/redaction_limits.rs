@@ -11,8 +11,6 @@ use qubit_budget::StructureLimits;
 #[cfg(feature = "json")]
 use qubit_budget::json::JsonValueLimits;
 
-#[cfg(feature = "http")]
-use crate::formats::http::BodyBudget;
 
 /// Mutable construction state for [`RedactionLimits`].
 #[derive(Debug, Clone, Copy)]
@@ -51,13 +49,6 @@ impl RedactionLimits {
     #[must_use]
     pub const fn domain(&self) -> StructureLimits {
         self.domain
-    }
-
-    /// Transitional HTTP body snapshot for old callers.
-    #[cfg(feature = "http")]
-    #[doc(hidden)]
-    pub(crate) fn http_body(&self) -> BodyBudget {
-        BodyBudget::default()
     }
 
     /// Returns the JSON value limits used by JSON traversal.

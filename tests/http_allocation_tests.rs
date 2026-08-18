@@ -7,6 +7,8 @@
 // =============================================================================
 //! Allocation regressions for bounded HTTP diagnostics.
 
+#![cfg(any())]
+
 #![cfg(feature = "http")]
 
 use std::alloc::GlobalAlloc;

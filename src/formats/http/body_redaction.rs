@@ -77,12 +77,11 @@ impl BodyRedaction {
     /// # Returns
     ///
     /// A borrowed log-safe body representation. A `Truncated` result contains
-    /// non-empty safe substitute text; an `Exhausted` result is empty and does
-    /// not promise that a truncation marker still fit.
+    /// non-empty safe substitute text.
     #[must_use]
     #[inline]
-    pub const fn log_safe_text(&self) -> &RedactedText {
-        self.output.log_safe_text()
+    pub const fn text(&self) -> &RedactedText {
+        self.output.text()
     }
 
     /// Consumes this result and returns its escaped diagnostic text.
@@ -92,8 +91,8 @@ impl BodyRedaction {
     /// Owned log-safe body text including any truncation marker.
     #[must_use]
     #[inline(always)]
-    pub fn into_log_safe_text(self) -> RedactedText {
-        self.output.into_log_safe_text()
+    pub fn into_text(self) -> RedactedText {
+        self.output.into_text()
     }
 
     /// Returns how the body representation was produced.
@@ -146,12 +145,10 @@ impl BodyRedaction {
     /// [`RedactionCompletion::Complete`] when the full safe representation fit,
     /// including ordinary masking; [`RedactionCompletion::Truncated`] when a
     /// non-empty safe substitute represents omitted source or output; or
-    /// [`RedactionCompletion::Exhausted`] when no safe substitute fit and the
-    /// result is empty.
     #[inline]
     #[must_use]
     pub const fn completion(&self) -> RedactionCompletion {
-        self.output.completion()
+        self.output.summary().completion()
     }
 }
 
@@ -171,6 +168,6 @@ impl Display for BodyRedaction {
     /// Returns [`fmt::Error`] when the destination rejects a write.
     #[inline(always)]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        Display::fmt(self.log_safe_text(), formatter)
+        Display::fmt(self.text(), formatter)
     }
 }

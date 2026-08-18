@@ -87,9 +87,9 @@ impl<'policy> RedactionSession<'policy> {
         }
         self.reset_fragment_budget();
         let rendered = self.redact_field_output(field, value);
-        let text = rendered.log_safe_text().as_str().to_owned();
+        let text = rendered.text().as_str().to_owned();
         self.fragments.push_str(&text);
-        let summary = match rendered.completion() {
+        let summary = match rendered.summary().completion() {
             crate::RedactionCompletion::Complete => crate::RedactionSummary::complete(),
             crate::RedactionCompletion::Truncated => {
                 crate::RedactionSummary::truncated(crate::RedactionReason::TraversalLimitReached)
@@ -389,12 +389,6 @@ impl RedactionSession<'_> {
     pub fn redact_at<'value>(&mut self, level: Sensitivity, value: &'value str) -> MaskedValue<'value> {
         let (redacted, _) = self.redact_at_with_completion(level, value);
         redacted
-    }
-
-    /// Redacts one sensitive value into owned safe text with its completion.
-    pub(crate) fn redact_at_output(&mut self, level: Sensitivity, value: &str) -> RedactionOutput {
-        let (redacted, completion) = self.redact_at_with_completion(level, value);
-        redaction_output(redacted.escape_for_log(), completion)
     }
 
     fn redact_at_with_completion<'value>(

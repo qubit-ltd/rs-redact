@@ -7,17 +7,5 @@
 // =============================================================================
 //! Cross-format input, output, and traversal limits.
 
-pub use crate::policy::DiagnosticBudgetError;
-pub use crate::policy::DomainRedactionLimits;
-pub use crate::policy::DomainRedactionLimitsBuilder;
-pub use crate::policy::DomainRedactionLimitsError;
-pub use crate::policy::InputOutputLimit;
-pub use crate::policy::InputOutputLimitBuilder;
-#[cfg(feature = "json")]
-pub use crate::policy::JsonDepthLimit;
-#[cfg(feature = "json")]
-pub use crate::policy::JsonDepthLimitBuilder;
-#[cfg(feature = "json")]
-pub use crate::policy::JsonDepthLimitError;
 pub use crate::policy::RedactionLimits;
 pub use crate::policy::RedactionLimitsBuilder;

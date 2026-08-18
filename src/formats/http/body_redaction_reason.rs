@@ -12,7 +12,6 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BodyRedactionReason {
     /// The shared diagnostic session could not inspect or emit this body.
-    DiagnosticBudgetExceeded,
     /// The `Content-Type` header could not be interpreted safely.
     InvalidContentType,
     /// A complete JSON body was invalid.

@@ -13,12 +13,9 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::marker::PhantomData;
 
-use super::bounded_redacted_display::format_bounded;
 use super::internal::mask_byte_limit;
-use crate::LogOutputLimit;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
-use crate::domain::BoundedRedactedDisplay;
 use crate::domain::RedactMapValue;
 
 /// A lazy map view that classifies values by their runtime keys.
@@ -98,32 +95,6 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
         }
     }
 
-    /// Converts this view into a byte-bounded, log-safe display adapter.
-    ///
-    /// # Parameters
-    ///
-    /// * `limit` - Maximum rendered bytes including any truncation marker.
-    ///
-    /// # Returns
-    ///
-    /// A bounded formatting adapter that owns this redacted map view.
-    #[inline(always)]
-    #[must_use]
-    pub const fn with_output_limit(self, limit: LogOutputLimit) -> BoundedRedactedDisplay<Self> {
-        BoundedRedactedDisplay::new(self, limit)
-    }
-
-    /// Converts this view into a byte-bounded display adapter using its policy.
-    ///
-    /// # Returns
-    ///
-    /// A formatting adapter bounded by this view's diagnostic output budget.
-    #[must_use]
-    #[inline]
-    pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit = LogOutputLimit::unbounded();
-        BoundedRedactedDisplay::new(self, limit)
-    }
 }
 
 impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug for RedactedMap<'_, M, K, V> {
@@ -148,7 +119,7 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Debug for RedactedM
         if mask_byte_limit().is_some() {
             return Debug::fmt(&view, formatter);
         }
-        Debug::fmt(&view, formatter)
+        super::internal::format_log_safe(&view, formatter)
     }
 }
 
@@ -268,7 +239,7 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display for Redacte
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut session = RedactionSession::new(&self.policy);
         let view = RedactedMapResult::new(self.map, &mut session);
-        format_bounded(&view, LogOutputLimit::unbounded(), formatter)
+        Debug::fmt(&view, formatter)
     }
 }
 

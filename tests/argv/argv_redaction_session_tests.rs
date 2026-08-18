@@ -19,7 +19,7 @@ fn session_stages_direct_argv_result() {
     let redactor = Redactor::default();
     let mut session = redactor.session();
     let _ = session.argv(|argv| {
-        argv.redact_items_as("argv", [ArgvItem::plain(OsStr::new("client"))]);
+        argv.redact_items("argv", [ArgvItem::plain(OsStr::new("client"))]);
     });
     let output = session.finish().expect("session should commit");
     assert_eq!(output.get("argv").unwrap().text().as_str(), r#"["client"]"#);
@@ -34,10 +34,10 @@ fn session_processes_each_finite_adapter_independently() {
     let redactor = Redactor::default();
     let mut session = redactor.session();
     let _ = session.argv(|argv| {
-        argv.redact_items_as("argv", [ArgvItem::plain(OsStr::new("client"))]);
+        argv.redact_items("argv", [ArgvItem::plain(OsStr::new("client"))]);
     });
     let _ = session.argv(|argv| {
-        argv.redact_items_as("other", [ArgvItem::plain(OsStr::new("worker"))]);
+        argv.redact_items("other", [ArgvItem::plain(OsStr::new("worker"))]);
     });
     let output = session.finish().expect("session should commit");
     assert!(output.text().as_str().contains("client"));

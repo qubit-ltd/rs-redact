@@ -13,11 +13,8 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-use super::bounded_redacted_display::format_bounded;
-use crate::LogOutputLimit;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
-use crate::domain::BoundedRedactedDisplay;
 use crate::domain::Redact;
 
 /// Completion state used by containers to decide whether siblings may run.
@@ -68,33 +65,6 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     #[inline(always)]
     pub(crate) const fn new(value: &'a T, policy: RedactionPolicy) -> Self {
         Self { value, policy }
-    }
-
-    /// Converts this view into a byte-bounded, log-safe display adapter.
-    ///
-    /// # Parameters
-    ///
-    /// * `limit` - Maximum rendered bytes including any truncation marker.
-    ///
-    /// # Returns
-    ///
-    /// A bounded formatting adapter that owns this redacted view.
-    #[inline(always)]
-    #[must_use]
-    pub const fn with_output_limit(self, limit: LogOutputLimit) -> BoundedRedactedDisplay<Self> {
-        BoundedRedactedDisplay::new(self, limit)
-    }
-
-    /// Converts this view into a byte-bounded display adapter using its policy.
-    ///
-    /// # Returns
-    ///
-    /// A formatting adapter bounded by this view's diagnostic output budget.
-    #[must_use]
-    #[inline]
-    pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit = LogOutputLimit::unbounded();
-        BoundedRedactedDisplay::new(self, limit)
     }
 
     /// Returns the borrowed domain value to crate-internal adapters.
@@ -170,7 +140,7 @@ impl<T: Redact + ?Sized> Debug for Redacted<'_, T> {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut session = RedactionSession::new(&self.policy);
         let view = RedactedResult::new_with_alternate(self.value, &mut session, formatter.alternate());
-        Debug::fmt(&view, formatter)
+        super::internal::format_log_safe(&view, formatter)
     }
 }
 
@@ -477,6 +447,6 @@ impl<T: Redact + ?Sized> Display for Redacted<'_, T> {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut session = RedactionSession::new(&self.policy);
         let view = RedactedResult::new(self.value, &mut session);
-        format_bounded(&view, LogOutputLimit::unbounded(), formatter)
+        super::internal::format_log_safe(&view, formatter)
     }
 }
