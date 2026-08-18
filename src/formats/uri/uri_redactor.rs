@@ -73,7 +73,7 @@ impl UriRedactor {
         redact_uri_str_bounded(
             &self.policy,
             input,
-            self.policy.limits().diagnostic_event().max_output_bytes(),
+            usize::MAX,
             false,
         )
         .0
@@ -275,7 +275,7 @@ fn public_completion(safe: &str, completion: FragmentCompletion) -> RedactionCom
 /// several URI fragments use [`crate::RedactionSession`] instead.
 #[inline(always)]
 fn input_limit(policy: &RedactionPolicy) -> usize {
-    policy.limits().diagnostic_event().max_input_bytes()
+    usize::MAX
 }
 
 /// Produces an invalid result while respecting the effective output ceiling.
