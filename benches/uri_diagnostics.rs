@@ -41,37 +41,29 @@ fn benchmark_redactor() -> UriRedactor {
 /// Measures URI rendering below, near, and beyond the output budget.
 fn benchmark_uri_output_budgets(criterion: &mut Criterion) {
     let redactor = benchmark_redactor();
-    let inputs = [("below", 2_usize), ("near", 12), ("over", 64)].map(
-        |(label, count)| {
-            (
-                label,
-                format!(
-                    "https://user:secret@example.test/?{}#fragment",
-                    ["password=query-secret"; 64]
-                        .iter()
-                        .take(count)
-                        .copied()
-                        .collect::<Vec<_>>()
-                        .join("&"),
-                ),
-            )
-        },
-    );
+    let inputs = [("below", 2_usize), ("near", 12), ("over", 64)].map(|(label, count)| {
+        (
+            label,
+            format!(
+                "https://user:secret@example.test/?{}#fragment",
+                ["password=query-secret"; 64]
+                    .iter()
+                    .take(count)
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join("&"),
+            ),
+        )
+    });
     let mut group = criterion.benchmark_group("uri_diagnostic_budget");
     for (label, input) in &inputs {
         group.throughput(Throughput::Bytes(input.len() as u64));
-        group.bench_with_input(
-            BenchmarkId::new("redact", label),
-            input,
-            |bencher, input| {
-                bencher.iter(|| {
-                    let mut session = redactor.session();
-                    black_box(session.uri_with_mut(|uri| {
-                        uri.redact_uri_str(black_box(input))
-                    }))
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("redact", label), input, |bencher, input| {
+            bencher.iter(|| {
+                let mut session = redactor.session();
+                black_box(session.uri_with_mut(|uri| uri.redact_uri_str(black_box(input))))
+            });
+        });
     }
     group.finish();
 }

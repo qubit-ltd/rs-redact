@@ -43,9 +43,7 @@ fn assert_uri_result_invariants(result: &UriRedaction) {
         .reasons()
         .iter()
         .filter_map(|reason| match reason {
-            UriRedactionReason::SensitiveComponent(component) => {
-                Some(*component)
-            }
+            UriRedactionReason::SensitiveComponent(component) => Some(*component),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -88,9 +86,7 @@ fn assert_uri_result_invariants(result: &UriRedaction) {
         }
     }
 
-    if result.status() != UriRedactionStatus::Invalid
-        && result.completion() == RedactionCompletion::Complete
-    {
+    if result.status() != UriRedactionStatus::Invalid && result.completion() == RedactionCompletion::Complete {
         assert!(
             Uri::<&str>::parse(output).is_ok(),
             "complete non-invalid output is not parseable: {output:?}",
@@ -108,11 +104,7 @@ fuzz_target!(|data: &[u8]| {
     assert_uri_result_invariants(&first);
     assert!(
         first.log_safe_text().as_ref().len()
-            <= default_redactor
-                .policy()
-                .limits()
-                .diagnostic_event()
-                .max_output_bytes()
+            <= default_redactor.policy().limits().diagnostic_event().max_output_bytes()
     );
 
     let budget = InputOutputLimit::builder()
@@ -158,18 +150,15 @@ fuzz_target!(|data: &[u8]| {
         .expect("the custom secret mask is valid")
         .mask(Sensitivity::High, MaskPolicy::fixed("密\n/?#%"))
         .expect("the custom high mask is valid");
-    let custom_core = builder
-        .build()
-        .expect("the custom URI fuzz policy is valid");
+    let custom_core = builder.build().expect("the custom URI fuzz policy is valid");
     let mut builder = RedactionPolicy::builder_from(&custom_core);
     builder
         .uri()
         .path(UriPathPolicy::Redact)
         .fragment(UriFragmentPolicy::Redact);
-    let custom_policy =
-        builder.build().expect("the custom URI policy is valid");
-    let custom_result = UriRedactor::new(custom_policy)
-        .redact_uri_str("https://example.test/path?password=secret#fragment");
+    let custom_policy = builder.build().expect("the custom URI policy is valid");
+    let custom_result =
+        UriRedactor::new(custom_policy).redact_uri_str("https://example.test/path?password=secret#fragment");
     assert_uri_result_invariants(&custom_result);
     assert_eq!(custom_result.status(), UriRedactionStatus::Redacted);
     assert_eq!(custom_result.completion(), RedactionCompletion::Complete);
