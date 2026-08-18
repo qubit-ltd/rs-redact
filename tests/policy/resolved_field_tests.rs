@@ -29,10 +29,7 @@ fn test_resolved_field_uses_application_mask_at_floor_level() {
             .expect("the test builder input should be valid");
         builder
             .edit_fields()
-            .mask(
-                Sensitivity::Secret,
-                MaskPolicy::fixed("[application-secret]"),
-            )
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[application-secret]"))
             .expect("the test mask policy should be valid");
         builder
     })
@@ -40,9 +37,7 @@ fn test_resolved_field_uses_application_mask_at_floor_level() {
     .expect("the application policy should be valid");
 
     assert_eq!(
-        Redactor::new(policy)
-            .redact_field("tenant_secret", "source")
-            .as_str(),
+        Redactor::new(policy).redact_field("tenant_secret", "source").as_str(),
         "[application-secret]",
     );
 }

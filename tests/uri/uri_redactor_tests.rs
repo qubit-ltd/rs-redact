@@ -41,9 +41,7 @@ fn test_uri_session_fallbacks_respect_cumulative_output_limit() {
     let rendered: Vec<_> = (0..4)
         .map(|_| {
             session
-                .uri_with_mut(|uri| {
-                    uri.redact_uri_str("https://example.test/?password=secret")
-                })
+                .uri_with_mut(|uri| uri.redact_uri_str("https://example.test/?password=secret"))
                 .into_log_safe_text()
                 .into_owned()
         })
@@ -53,10 +51,7 @@ fn test_uri_session_fallbacks_respect_cumulative_output_limit() {
     assert_eq!(rendered[1], "<invalid URI>");
     assert!(rendered[2].is_empty());
     assert!(rendered[3].is_empty());
-    assert!(
-        rendered.iter().map(String::len).sum::<usize>()
-            <= budget.max_output_bytes()
-    );
+    assert!(rendered.iter().map(String::len).sum::<usize>() <= budget.max_output_bytes());
 }
 
 /// Verifies that the default URI policy exposes usernames but masks passwords.
@@ -65,9 +60,7 @@ fn test_uri_redactor_redacts_password_but_preserves_username() {
     let redactor = UriRedactor::default();
     assert_eq!(format!("{redactor}"), "UriRedactor");
     assert_eq!(redactor.policy(), &RedactionPolicy::default());
-    let result = redactor.redact_uri_str(
-        "https://alice:secret@example.test/private?password=raw#fragment",
-    );
+    let result = redactor.redact_uri_str("https://alice:secret@example.test/private?password=raw#fragment");
 
     assert_eq!(
         result.log_safe_text().as_str(),
@@ -105,8 +98,7 @@ fn test_uri_redactor_applies_username_policy_and_keeps_encoded_colon() {
         .build()
         .expect("URI policy is valid");
 
-    let result = UriRedactor::new(policy)
-        .redact_uri_str("https://alice%3Ateam:secret@example.test/private");
+    let result = UriRedactor::new(policy).redact_uri_str("https://alice%3Ateam:secret@example.test/private");
 
     assert_eq!(
         result.log_safe_text().as_str(),
@@ -139,9 +131,8 @@ fn test_uri_redactor_masks_query_after_decoding_and_preserves_order() {
         .build()
         .expect("URI policy is valid");
 
-    let result = UriRedactor::new(policy).redact_uri_str(
-        "https://example.test/path?keep=a%2Fb&token=hello%20world&keep=last",
-    );
+    let result =
+        UriRedactor::new(policy).redact_uri_str("https://example.test/path?keep=a%2Fb&token=hello%20world&keep=last");
 
     assert_eq!(
         result.log_safe_text().as_str(),
@@ -160,8 +151,7 @@ fn test_uri_redactor_fails_closed_for_invalid_uri_and_query_key_utf8() {
     assert_eq!(malformed.status(), UriRedactionStatus::Invalid);
     assert!(malformed.has_reason(UriRedactionReason::InvalidUri));
 
-    let invalid_key =
-        redactor.redact_uri_str("https://example.test/?%FF=secret");
+    let invalid_key = redactor.redact_uri_str("https://example.test/?%FF=secret");
     assert_eq!(invalid_key.log_safe_text().as_str(), "<invalid URI>");
     assert_eq!(invalid_key.status(), UriRedactionStatus::Invalid);
     assert!(invalid_key.has_reason(UriRedactionReason::UndecodableQueryKey));
@@ -178,8 +168,7 @@ fn test_uri_redaction_policy_configures_path_and_fragment_boundaries() {
     })
     .build()
     .expect("URI policy is valid");
-    let result = UriRedactor::new(policy)
-        .redact_uri_str("https://example.test/private/path#debug");
+    let result = UriRedactor::new(policy).redact_uri_str("https://example.test/private/path#debug");
 
     assert_eq!(
         result.log_safe_text().as_str(),
@@ -195,10 +184,7 @@ fn test_uri_redaction_consuming_text_preserves_safe_type() {
     let text: LogSafeText<'static> = UriRedactor::default()
         .redact_uri_str("https://example.test/?password=secret")
         .into_log_safe_text();
-    assert_eq!(
-        text.as_str(),
-        "https://example.test/?password=%3Credacted%3E"
-    );
+    assert_eq!(text.as_str(), "https://example.test/?password=%3Credacted%3E");
 }
 
 /// Verifies later malformed query fields are still validated after truncation.
@@ -221,10 +207,7 @@ fn test_uri_redactor_validates_after_output_truncation() {
         .build()
         .expect("the URI policy is valid");
     let redactor = UriRedactor::new(policy);
-    let input = format!(
-        "https://example.test/?password={}&bad=%FF",
-        "secret".repeat(32),
-    );
+    let input = format!("https://example.test/?password={}&bad=%FF", "secret".repeat(32),);
     let result = redactor.redact_uri_str(&input);
     assert_eq!(result.status(), UriRedactionStatus::Invalid);
     assert!(result.has_reason(UriRedactionReason::UndecodableQueryValue));
@@ -239,10 +222,7 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
         redactor.redact_uri_str("https://example.test/").status(),
         UriRedactionStatus::PassedThrough,
     );
-    assert_eq!(
-        redactor.redact_uri_str("urn:path").log_safe_text().as_str(),
-        "urn:path",
-    );
+    assert_eq!(redactor.redact_uri_str("urn:path").log_safe_text().as_str(), "urn:path",);
     let path_redacted = UriRedactor::new(
         ({
             let mut builder = RedactionPolicy::builder();
@@ -253,10 +233,7 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
         .expect("the path policy is valid"),
     );
     assert_eq!(
-        path_redacted
-            .redact_uri_str("urn:path")
-            .log_safe_text()
-            .as_str(),
+        path_redacted.redact_uri_str("urn:path").log_safe_text().as_str(),
         "urn:%3Credacted%3E",
     );
     assert_eq!(
@@ -267,9 +244,7 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
         "https://alice@example.test/",
     );
     assert_eq!(
-        redactor
-            .redact_uri_str("https://alice%2@example.test/")
-            .status(),
+        redactor.redact_uri_str("https://alice%2@example.test/").status(),
         UriRedactionStatus::Invalid,
     );
     assert_eq!(
@@ -280,8 +255,7 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
         "https://example.test/?keep",
     );
     for query in ["?%GG=value", "?keep=%", "?keep=%GG"] {
-        let result =
-            redactor.redact_uri_str(&format!("https://example.test/{query}"));
+        let result = redactor.redact_uri_str(&format!("https://example.test/{query}"));
         assert_eq!(result.status(), UriRedactionStatus::Invalid);
     }
 
@@ -302,10 +276,7 @@ fn test_uri_redactor_covers_authority_query_and_input_boundaries() {
             .build()
             .expect("the URI policy is valid"),
     );
-    let long_path = format!(
-        "https://example.test/{}?password=secret#fragment",
-        "a".repeat(256),
-    );
+    let long_path = format!("https://example.test/{}?password=secret#fragment", "a".repeat(256),);
     let result = bounded.redact_uri_str(&long_path);
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(result.has_reason(UriRedactionReason::OutputTruncated));
@@ -363,8 +334,7 @@ fn test_uri_redactor_marks_truncated_final_sensitive_value() {
     let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("the URI policy is valid");
-    let result = UriRedactor::new(policy)
-        .redact_uri_str("https://example.test/?password=secret");
+    let result = UriRedactor::new(policy).redact_uri_str("https://example.test/?password=secret");
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(result.has_reason(UriRedactionReason::OutputTruncated));
@@ -379,10 +349,5 @@ fn test_uri_redactor_marks_truncated_final_sensitive_value() {
     .redact_uri_str("https://example.test/#fragment");
     assert_eq!(fragment_result.completion(), RedactionCompletion::Truncated,);
     assert!(fragment_result.has_reason(UriRedactionReason::OutputTruncated));
-    assert!(
-        fragment_result
-            .log_safe_text()
-            .as_str()
-            .ends_with("<truncated>")
-    );
+    assert!(fragment_result.log_safe_text().as_str().ends_with("<truncated>"));
 }

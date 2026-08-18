@@ -34,9 +34,6 @@ fn test_diagnostic_input_budget_stops_after_oversized_reservation() {
     assert_eq!(session.remaining_input_bytes(), 1);
     let _ = session.redact_at(Sensitivity::Secret, "cd");
     assert_eq!(session.remaining_input_bytes(), 1);
-    assert_eq!(
-        session.redact_at(Sensitivity::Secret, "").as_str(),
-        "<redacted>",
-    );
+    assert_eq!(session.redact_at(Sensitivity::Secret, "").as_str(), "<redacted>",);
     assert_eq!(session.remaining_input_bytes(), 1);
 }

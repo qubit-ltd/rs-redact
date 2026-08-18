@@ -57,14 +57,8 @@ fn test_diagnostic_session_accepts_zero_bytes_after_exact_consumption() {
     let _ = session.redact_at(Sensitivity::Secret, "abc");
     assert!(session.is_exhausted());
     assert_eq!(session.redact_at(Sensitivity::Secret, "").as_str(), "");
-    assert_eq!(
-        session.redact_at(Sensitivity::Secret, "x").as_str(),
-        "<redacted>",
-    );
-    assert_eq!(
-        session.redact_at(Sensitivity::Secret, "").as_str(),
-        "<redacted>",
-    );
+    assert_eq!(session.redact_at(Sensitivity::Secret, "x").as_str(), "<redacted>",);
+    assert_eq!(session.redact_at(Sensitivity::Secret, "").as_str(), "<redacted>",);
     assert_eq!(session.remaining_output_bytes(), 34);
 }
 
@@ -87,15 +81,9 @@ fn test_diagnostic_session_allows_consecutive_input_fallbacks() {
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
-    assert_eq!(
-        session.redact_at(Sensitivity::Secret, "abcd").as_str(),
-        "<redacted>",
-    );
+    assert_eq!(session.redact_at(Sensitivity::Secret, "abcd").as_str(), "<redacted>",);
     assert!(session.is_exhausted());
-    assert_eq!(
-        session.redact_at(Sensitivity::Secret, "efgh").as_str(),
-        "<redacted>",
-    );
+    assert_eq!(session.redact_at(Sensitivity::Secret, "efgh").as_str(), "<redacted>",);
     assert_eq!(session.remaining_input_bytes(), 3);
     assert_eq!(session.remaining_output_bytes(), 44);
 }

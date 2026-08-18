@@ -17,9 +17,7 @@ fn test_multipart_part_metadata_hides_filename() {
     let rendered = HttpRedactor::default()
         .redact_body(
             BodyCapture::complete(body),
-            Some(&HeaderValue::from_static(
-                "multipart/form-data; boundary=boundary",
-            )),
+            Some(&HeaderValue::from_static("multipart/form-data; boundary=boundary")),
         )
         .to_string();
 

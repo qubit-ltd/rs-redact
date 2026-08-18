@@ -41,9 +41,7 @@ fn test_argv_session_reports_complete_output() {
     let redactor = Redactor::default();
     let mut session = redactor.session();
 
-    let result = session.argv_with_mut(|argv| {
-        argv.redact_items([ArgvItem::plain(OsStr::new("client"))])
-    });
+    let result = session.argv_with_mut(|argv| argv.redact_items([ArgvItem::plain(OsStr::new("client"))]));
 
     assert_eq!(result.completion(), RedactionCompletion::Complete);
     assert_eq!(result.log_safe_text().as_str(), r#"["client"]"#);
@@ -99,9 +97,7 @@ fn test_argv_session_reports_truncated_marker() {
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
-    let result = session.argv_with_mut(|argv| {
-        argv.redact_heuristically([ArgvItem::plain(OsStr::new("secret"))])
-    });
+    let result = session.argv_with_mut(|argv| argv.redact_heuristically([ArgvItem::plain(OsStr::new("secret"))]));
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(!result.log_safe_text().as_str().is_empty());
@@ -131,12 +127,8 @@ fn test_argv_session_reports_local_mask_truncation() {
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
-    let result = session.argv_with_mut(|argv| {
-        argv.redact_items([ArgvItem::sensitive(
-            OsStr::new("secret"),
-            Sensitivity::Secret,
-        )])
-    });
+    let result = session
+        .argv_with_mut(|argv| argv.redact_items([ArgvItem::sensitive(OsStr::new("secret"), Sensitivity::Secret)]));
 
     assert_eq!(result.log_safe_text().as_str().len(), 64);
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
@@ -159,14 +151,10 @@ fn test_argv_session_reports_exhausted_without_advancing_iterator() {
     .expect("the test policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
-    let _ = session.argv_with_mut(|argv| {
-        argv.redact_heuristically([ArgvItem::plain(OsStr::new("secret"))])
-    });
+    let _ = session.argv_with_mut(|argv| argv.redact_heuristically([ArgvItem::plain(OsStr::new("secret"))]));
     let pulls = Cell::new(0);
 
-    let result = session.argv_with_mut(|argv| {
-        argv.redact_heuristically(CountingItems { pulls: &pulls })
-    });
+    let result = session.argv_with_mut(|argv| argv.redact_heuristically(CountingItems { pulls: &pulls }));
 
     assert_eq!(result.completion(), RedactionCompletion::Exhausted);
     assert_eq!(result.log_safe_text().as_str(), "");
@@ -191,13 +179,9 @@ fn test_argv_session_charges_delimiters_across_following_operations() {
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
     let argv = session
-        .argv_with_mut(|argv| {
-            argv.redact_items([ArgvItem::plain(OsStr::new("client"))])
-        })
+        .argv_with_mut(|argv| argv.redact_items([ArgvItem::plain(OsStr::new("client"))]))
         .to_string();
-    let env = session
-        .env_with_mut(|env| env.redact_pair("MODE", "debug"))
-        .to_string();
+    let env = session.env_with_mut(|env| env.redact_pair("MODE", "debug")).to_string();
 
     assert_eq!(
         session.remaining_output_bytes(),

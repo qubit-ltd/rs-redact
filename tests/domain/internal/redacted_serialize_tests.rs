@@ -23,9 +23,7 @@ fn assert_serialize<T: serde::Serialize>() {}
 #[cfg(feature = "serde")]
 #[test]
 fn test_redacted_serialize_redacted_map_implements_serialize() {
-    assert_serialize::<
-        RedactedMap<'static, std::collections::BTreeMap<String, String>>,
-    >();
+    assert_serialize::<RedactedMap<'static, std::collections::BTreeMap<String, String>>>();
 }
 
 #[cfg(feature = "serde")]
@@ -34,11 +32,7 @@ struct SerializableValue;
 #[cfg(feature = "serde")]
 impl RedactSerialize for SerializableValue {
     /// Serializes a stable value through the nested adapter.
-    fn serialize_redacted<S>(
-        &self,
-        _policy: &RedactionPolicy,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(&self, _policy: &RedactionPolicy, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -52,8 +46,7 @@ fn test_redacted_serialize_adapter_delegates_to_nested_value() {
     let value = SerializableValue;
     let policy = RedactionPolicy::default();
     let rendered =
-        serde_json::to_value(RedactedSerialize::new(&value, &policy))
-            .expect("nested redacted value should serialize");
+        serde_json::to_value(RedactedSerialize::new(&value, &policy)).expect("nested redacted value should serialize");
 
     assert_eq!(rendered, serde_json::json!("safe"));
 }

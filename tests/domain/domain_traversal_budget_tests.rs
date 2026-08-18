@@ -45,9 +45,7 @@ fn policy_with_limits(
         .expect("the test diagnostic limits should be valid");
     let mut builder = RedactionPolicy::builder();
     builder.limits().domain(domain).diagnostic_event(diagnostic);
-    builder
-        .build()
-        .expect("the test limits should build a policy")
+    builder.build().expect("the test limits should build a policy")
 }
 
 /// Map-like value whose iterator records every call to `next`.
@@ -167,11 +165,7 @@ impl Redact for CollectionValue {
 }
 
 impl RedactValue for CollectionValue {
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }
 }
@@ -277,12 +271,7 @@ impl Redact for DepthCollectionValue {
         match self {
             Self::Deep => {
                 writer.tuple("Deep", |fields| {
-                    fields.nested(
-                        "",
-                        &DepthChild {
-                            blocked: PanicDebug,
-                        },
-                    );
+                    fields.nested("", &DepthChild { blocked: PanicDebug });
                 });
             }
             Self::Visible => writer.unit("Visible"),
@@ -291,11 +280,7 @@ impl Redact for DepthCollectionValue {
 }
 
 impl RedactValue for DepthCollectionValue {
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }
 }
@@ -310,11 +295,7 @@ impl Redact for PanicKeyedValue {
 }
 
 impl RedactValue for PanicKeyedValue {
-    fn redact_value<'a>(
-        &'a self,
-        _level: Sensitivity,
-        _masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, _level: Sensitivity, _masking: &MaskingPolicy) -> RedactedValue<'a> {
         panic!("an unadmitted keyed value must not invoke RedactValue")
     }
 }
@@ -339,13 +320,9 @@ struct NestedAdapterObserver<'state> {
 impl Redact for NestedAdapterObserver<'_> {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         let before = writer.session().remaining_input_bytes();
-        let json = writer
-            .session()
-            .json_with_mut(|json| json.redact_text(self.json));
+        let json = writer.session().json_with_mut(|json| json.redact_text(self.json));
         let after_json = writer.session().remaining_input_bytes();
-        let env = writer
-            .session()
-            .env_with_mut(|env| env.redact_pair("NAME", "visible"));
+        let env = writer.session().env_with_mut(|env| env.redact_pair("NAME", "visible"));
         let after_env = writer.session().remaining_input_bytes();
         self.remaining.set(Some((before, after_json, after_env)));
         writer.text(&format!("{json}|{env}"));
@@ -398,9 +375,7 @@ fn test_node_limit_does_not_format_unadmitted_field() {
 #[test]
 fn test_depth_limit_marks_nested_branch_and_preserves_sibling() {
     let value = DepthParent {
-        child: DepthChild {
-            blocked: PanicDebug,
-        },
+        child: DepthChild { blocked: PanicDebug },
         sibling: "visible",
     };
     let policy = policy_with_limits(8, 8, 1, 64);
@@ -415,15 +390,10 @@ fn test_depth_limit_marks_nested_branch_and_preserves_sibling() {
 #[test]
 fn test_domain_formatting_preserves_input_budget() {
     let remaining = Cell::new(None);
-    let value = InputBudgetObserver {
-        remaining: &remaining,
-    };
+    let value = InputBudgetObserver { remaining: &remaining };
     let policy = policy_with_limits(8, 8, 8, 17);
 
-    assert_eq!(
-        format!("{:?}", value.redacted_with(&policy)),
-        "InputBudgetObserver",
-    );
+    assert_eq!(format!("{:?}", value.redacted_with(&policy)), "InputBudgetObserver",);
     assert_eq!(remaining.get(), Some((17, 17)));
 }
 
@@ -470,10 +440,7 @@ fn test_exact_full_plain_map_does_not_emit_truncation() {
 /// Exact keyed-map limits must not emit a false trailing marker.
 #[test]
 fn test_exact_full_keyed_map_does_not_emit_truncation() {
-    let entries = [
-        ("first", CollectionValue("one")),
-        ("second", CollectionValue("two")),
-    ];
+    let entries = [("first", CollectionValue("one")), ("second", CollectionValue("two"))];
     let value = ExactKeyedMapParent {
         map: CountingKeyedMap {
             entries: &entries,
@@ -523,8 +490,7 @@ fn test_keyed_map_item_avoids_standalone_structural_double_charge() {
 /// A depth marker in one vector item must not terminate its siblings.
 #[test]
 fn test_vec_depth_marker_preserves_later_sibling() {
-    let values =
-        vec![DepthCollectionValue::Deep, DepthCollectionValue::Visible];
+    let values = vec![DepthCollectionValue::Deep, DepthCollectionValue::Visible];
     let policy = policy_with_limits(16, 8, 2, 64);
 
     let output = format!("{:?}", values.redacted_with(&policy));
@@ -568,10 +534,7 @@ fn test_standalone_keyed_node_limit_prevents_value_access() {
     let policy = builder.build().expect("the policy should be valid");
     let value = PanicKeyedValue;
 
-    let output = format!(
-        "{:?}",
-        Redactor::new(policy).redact_keyed("password", &value),
-    );
+    let output = format!("{:?}", Redactor::new(policy).redact_keyed("password", &value),);
 
     assert_eq!(output, "<truncated>");
 }
@@ -614,10 +577,7 @@ fn test_domain_output_frame_does_not_precharge_nested_adapter_input() {
     let output = format!("{:?}", value.redacted_with(&policy));
 
     assert!(!output.is_empty());
-    assert_eq!(
-        remaining.get(),
-        Some((64, 64 - json.len(), 64 - json.len() - 11)),
-    );
+    assert_eq!(remaining.get(), Some((64, 64 - json.len(), 64 - json.len() - 11)),);
 }
 
 /// Over-limit JSON is rejected before its visible source reaches parsing.

@@ -114,16 +114,11 @@ fn test_http_redaction_policy_builder_overrides_each_context() {
 
     let mut builder = RedactionPolicy::builder_from(&base);
     builder.http().disable_all_floors();
-    builder
-        .http()
-        .header()
-        .replace_rules(header.rules().clone());
+    builder.http().header().replace_rules(header.rules().clone());
     builder.http().query().replace_rules(query.rules().clone());
     builder.http().body().replace_rules(body.rules().clone());
     builder.limits().http_body(budget);
-    let policy = builder
-        .build()
-        .expect("HTTP redaction policy should be valid");
+    let policy = builder.build().expect("HTTP redaction policy should be valid");
 
     assert_eq!(policy.header_rules(), header.rules());
     assert_eq!(policy.query_rules(), query.rules());
@@ -186,9 +181,7 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
         .expect("the test builder input should be valid")
         .allow_suffix("public_body")
         .expect("the test builder input should be valid");
-    let policy = builder
-        .build()
-        .expect("independent HTTP context rules should be valid");
+    let policy = builder.build().expect("independent HTTP context rules should be valid");
 
     assert_eq!(
         policy.header_rules().sensitivity_for("header_secret"),
@@ -202,16 +195,11 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
         policy.body_rules().sensitivity_for("body_secret"),
         Some(Sensitivity::High),
     );
-    assert_eq!(
-        policy.header_rules().sensitivity_for("visible_header"),
-        None,
-    );
+    assert_eq!(policy.header_rules().sensitivity_for("visible_header"), None,);
     assert_eq!(policy.query_rules().sensitivity_for("visible_query"), None,);
     assert_eq!(policy.body_rules().sensitivity_for("visible_body"), None,);
     assert_eq!(
-        policy
-            .header_rules()
-            .sensitivity_for("tenant_visible_header"),
+        policy.header_rules().sensitivity_for("tenant_visible_header"),
         Some(Sensitivity::Secret),
     );
     assert_eq!(
@@ -222,26 +210,14 @@ fn test_http_redaction_policy_builder_configures_context_rules() {
         policy.body_rules().sensitivity_for("tenant_visible_body"),
         Some(Sensitivity::Secret),
     );
-    assert_eq!(
-        policy
-            .header_rules()
-            .sensitivity_for("tenant_public_header"),
-        None,
-    );
-    assert_eq!(
-        policy.query_rules().sensitivity_for("tenant_public_query"),
-        None,
-    );
-    assert_eq!(
-        policy.body_rules().sensitivity_for("tenant_public_body"),
-        None,
-    );
+    assert_eq!(policy.header_rules().sensitivity_for("tenant_public_header"), None,);
+    assert_eq!(policy.query_rules().sensitivity_for("tenant_public_query"), None,);
+    assert_eq!(policy.body_rules().sensitivity_for("tenant_public_body"), None,);
 }
 
 /// Verifies invalid context rules fail at the setter that receives them.
 #[test]
-fn test_http_redaction_policy_builder_rejects_invalid_context_rule_immediately()
-{
+fn test_http_redaction_policy_builder_rejects_invalid_context_rule_immediately() {
     let mut builder = RedactionPolicy::builder();
     assert_eq!(
         builder
@@ -267,16 +243,13 @@ fn test_body_redaction_public_types_are_available() {
         BodyRedactionStatus::Binary,
     ];
     let _: Option<BodyRedaction> = None;
-    let _: for<'a> fn(&'a BodyRedaction) -> &'a LogSafeText<'static> =
-        BodyRedaction::log_safe_text;
-    let _: fn(BodyRedaction) -> LogSafeText<'static> =
-        BodyRedaction::into_log_safe_text;
+    let _: for<'a> fn(&'a BodyRedaction) -> &'a LogSafeText<'static> = BodyRedaction::log_safe_text;
+    let _: fn(BodyRedaction) -> LogSafeText<'static> = BodyRedaction::into_log_safe_text;
     let _: fn(&BodyRedaction) -> BodyRedactionStatus = BodyRedaction::status;
     let _: fn(&BodyRedaction) -> usize = BodyRedaction::captured_len;
     let _: fn(&BodyRedaction) -> Option<usize> = BodyRedaction::source_len;
     let _: fn(&BodyRedaction) -> Option<usize> = BodyRedaction::omitted_len;
-    let _: fn(&BodyRedaction) -> RedactionCompletion =
-        BodyRedaction::completion;
+    let _: fn(&BodyRedaction) -> RedactionCompletion = BodyRedaction::completion;
 
     assert_display::<BodyRedaction>();
 
@@ -287,21 +260,15 @@ fn test_body_redaction_public_types_are_available() {
 #[test]
 fn test_body_redaction_queries_expose_captured_metadata() {
     let body = HttpRedactor::default().redact_body(
-        BodyCapture::truncated(b"visible", 10)
-            .expect("the capture metadata should be valid"),
+        BodyCapture::truncated(b"visible", 10).expect("the capture metadata should be valid"),
         None,
     );
     let selected = usize::from(std::process::id() == 0);
-    let log_safe_text: [for<'a> fn(
-        &'a BodyRedaction,
-    ) -> &'a LogSafeText<'static>; 2] =
+    let log_safe_text: [for<'a> fn(&'a BodyRedaction) -> &'a LogSafeText<'static>; 2] =
         [BodyRedaction::log_safe_text, alternate_log_safe_text];
-    let captured_len: [fn(&BodyRedaction) -> usize; 2] =
-        [BodyRedaction::captured_len, alternate_captured_len];
-    let omitted_len: [fn(&BodyRedaction) -> Option<usize>; 2] =
-        [BodyRedaction::omitted_len, alternate_omitted_len];
-    let completion: [fn(&BodyRedaction) -> RedactionCompletion; 2] =
-        [BodyRedaction::completion, alternate_completion];
+    let captured_len: [fn(&BodyRedaction) -> usize; 2] = [BodyRedaction::captured_len, alternate_captured_len];
+    let omitted_len: [fn(&BodyRedaction) -> Option<usize>; 2] = [BodyRedaction::omitted_len, alternate_omitted_len];
+    let completion: [fn(&BodyRedaction) -> RedactionCompletion; 2] = [BodyRedaction::completion, alternate_completion];
 
     assert!(!log_safe_text[selected](&body).as_ref().is_empty());
     assert_eq!(captured_len[selected](&body), 7);

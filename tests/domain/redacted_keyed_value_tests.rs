@@ -88,11 +88,7 @@ impl Redact for FormatterBehavior {
 }
 
 impl RedactValue for FormatterBehavior {
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }
 }
@@ -106,11 +102,7 @@ impl Redact for TextValue {
 
 impl RedactValue for TextValue {
     /// Redacts the complete textual value at the selected sensitivity.
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         self.0.redact_value(level, masking)
     }
 }
@@ -127,11 +119,7 @@ impl Redact for NestedValue {
 
 impl RedactValue for NestedValue {
     /// Replaces the complete nested value when its outer key is sensitive.
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }
 }
@@ -139,11 +127,7 @@ impl RedactValue for NestedValue {
 #[cfg(feature = "serde")]
 impl RedactSerialize for NestedValue {
     /// Serializes the nested value without exposing its secret.
-    fn serialize_redacted<S>(
-        &self,
-        policy: &RedactionPolicy,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(&self, policy: &RedactionPolicy, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -152,9 +136,7 @@ impl RedactSerialize for NestedValue {
         let mut state = serializer.serialize_struct("NestedValue", 2)?;
         state.serialize_field(
             "secret",
-            &self
-                .secret
-                .redact_value(Sensitivity::Secret, policy.masking()),
+            &self.secret.redact_value(Sensitivity::Secret, policy.masking()),
         )?;
         state.serialize_field("label", &self.label)?;
         state.end()
@@ -248,14 +230,8 @@ fn test_redact_keyed_preserves_alternate_debug() {
     let value = FormatterBehavior { fail: false };
     let redactor = Redactor::default();
 
-    assert_eq!(
-        format!("{:?}", redactor.redact_keyed("label", &value)),
-        "compact"
-    );
-    assert_eq!(
-        format!("{:#?}", redactor.redact_keyed("label", &value)),
-        "compact"
-    );
+    assert_eq!(format!("{:?}", redactor.redact_keyed("label", &value)), "compact");
+    assert_eq!(format!("{:#?}", redactor.redact_keyed("label", &value)), "compact");
 }
 
 /// Verifies an inner formatter error is returned rather than hidden by eager
@@ -285,11 +261,7 @@ impl Redact for OpaqueMaskObserver {
 }
 
 impl RedactValue for OpaqueMaskObserver {
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         let redacted = RedactedValue::opaque(level, masking);
         let RedactedValue::Text(text) = &redacted else {
             panic!("opaque masking must retain plain text shape");
@@ -325,10 +297,7 @@ fn test_redact_keyed_bounds_opaque_mask_before_materialization() {
     .expect("the test policy should build");
     let redactor = Redactor::new(policy);
 
-    let output = format!(
-        "{:?}",
-        redactor.redact_keyed("tenant_secret", &OpaqueMaskObserver)
-    );
+    let output = format!("{:?}", redactor.redact_keyed("tenant_secret", &OpaqueMaskObserver));
 
     assert!(output.len() <= budget.max_output_bytes());
 }
@@ -344,11 +313,7 @@ impl Redact for ObservedKeyedValue<'_> {
 }
 
 impl RedactValue for ObservedKeyedValue<'_> {
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         RedactedValue::opaque(level, masking)
     }
@@ -372,10 +337,7 @@ fn test_redact_keyed_does_not_charge_value_input() {
     .expect("the policy should build");
     let redactor = Redactor::new(policy);
 
-    let output = format!(
-        "{:?}",
-        redactor.redact_keyed("label", &ObservedKeyedValue(&visits))
-    );
+    let output = format!("{:?}", redactor.redact_keyed("label", &ObservedKeyedValue(&visits)));
 
     assert_eq!(output, "must-not-render");
     assert_eq!(visits.load(std::sync::atomic::Ordering::Relaxed), 1);
@@ -399,10 +361,8 @@ fn test_redact_keyed_serializes_sensitive_and_recursive_values() {
     let redactor = Redactor::new(policy);
     let sensitive = redactor.redact_keyed("tenant_secret", &value);
     let visible = redactor.redact_keyed("display_name", &value);
-    let sensitive_json =
-        to_string(&sensitive).expect("the redacted value should serialize");
-    let visible_json =
-        to_string(&visible).expect("the recursive value should serialize");
+    let sensitive_json = to_string(&sensitive).expect("the redacted value should serialize");
+    let visible_json = to_string(&visible).expect("the recursive value should serialize");
 
     assert_eq!(sensitive_json, "\"<redacted>\"");
     assert!(visible_json.contains("visible-label"));

@@ -29,9 +29,7 @@ fn test_redaction_rules_exact_allow_does_not_hide_suffix_sensitive_rule() {
             .edit_fields()
             .allow_exact("access_token")
             .expect("the test builder input should be valid");
-        let _ = builder
-            .edit_fields()
-            .matching(FieldNameMatching::ExactOrTokenSuffix);
+        let _ = builder.edit_fields().matching(FieldNameMatching::ExactOrTokenSuffix);
         builder
     })
     .build()
@@ -66,10 +64,7 @@ fn test_redaction_rules_unknown_field_falls_back_to_policy() {
     .build()
     .expect("the fallback policy should be valid");
 
-    assert_eq!(
-        policy.sensitivity_for("unconfigured"),
-        Some(Sensitivity::Low)
-    );
+    assert_eq!(policy.sensitivity_for("unconfigured"), Some(Sensitivity::Low));
 }
 
 /// Verifies the rule snapshot exposes application-only matching and fallback
@@ -87,10 +82,8 @@ fn test_redaction_rules_expose_application_matching_and_unknown_policy() {
     })
     .build()
     .expect("the application rules should be valid");
-    let matching: fn(&RedactionRules) -> FieldNameMatching =
-        RedactionRules::matching;
-    let unknown_field_policy: fn(&RedactionRules) -> UnknownFieldPolicy =
-        RedactionRules::unknown_field_policy;
+    let matching: fn(&RedactionRules) -> FieldNameMatching = RedactionRules::matching;
+    let unknown_field_policy: fn(&RedactionRules) -> UnknownFieldPolicy = RedactionRules::unknown_field_policy;
 
     assert_eq!(matching(policy.rules()), FieldNameMatching::Exact);
     assert_eq!(
@@ -117,8 +110,5 @@ fn test_redaction_rules_floor_resolves_overlaps_to_strongest_level() {
     .build()
     .expect("the policy should be valid");
 
-    assert_eq!(
-        policy.sensitivity_for("OPENAI_ACCESS_TOKEN"),
-        Some(Sensitivity::Secret),
-    );
+    assert_eq!(policy.sensitivity_for("OPENAI_ACCESS_TOKEN"), Some(Sensitivity::Secret),);
 }

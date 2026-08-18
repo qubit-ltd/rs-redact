@@ -12,9 +12,7 @@ use qubit_redact::formats::http::HttpRedactor;
 #[test]
 fn test_nested_url_masks_query_secret() {
     let rendered = HttpRedactor::default()
-        .redact_url_str(
-            "https://outer.test/?next=https%3A%2F%2Fexample.test%2Fpath%3Fapi_key%3Draw",
-        )
+        .redact_url_str("https://outer.test/?next=https%3A%2F%2Fexample.test%2Fpath%3Fapi_key%3Draw")
         .to_string();
 
     assert!(!rendered.contains("raw"));

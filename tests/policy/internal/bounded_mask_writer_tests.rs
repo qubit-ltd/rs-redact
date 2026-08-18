@@ -21,11 +21,7 @@ use qubit_redact::formats::http::BodyCapture;
 use qubit_redact::formats::http::HttpRedactor;
 /// Redacts one sensitive JSON value with the supplied mask policy.
 #[cfg(feature = "http")]
-fn redact_json_value(
-    mask: MaskPolicy,
-    value: &str,
-    max_output: usize,
-) -> String {
+fn redact_json_value(mask: MaskPolicy, value: &str, max_output: usize) -> String {
     let body_policy = ({
         let mut builder = RedactionPolicy::builder();
         builder.edit_fields().disable_floor();
@@ -42,10 +38,7 @@ fn redact_json_value(
     .build()
     .expect("the body policy is valid");
     let mut builder = RedactionPolicy::builder();
-    builder
-        .http()
-        .body()
-        .replace_rules(body_policy.rules().clone());
+    builder.http().body().replace_rules(body_policy.rules().clone());
     builder.limits().http_body(
         BodyBudget::builder()
             .max_input_bytes(4096)
@@ -88,10 +81,7 @@ fn test_fixed_mask_respects_output_budget() {
     .build()
     .expect("the body policy is valid");
     let mut builder = RedactionPolicy::builder();
-    builder
-        .http()
-        .body()
-        .replace_rules(body_policy.rules().clone());
+    builder.http().body().replace_rules(body_policy.rules().clone());
     builder.limits().http_body(
         BodyBudget::builder()
             .max_input_bytes(4096)
@@ -120,8 +110,7 @@ fn test_fixed_mask_respects_output_budget() {
 #[test]
 fn test_fixed_unicode_mask_uses_valid_utf8_prefix() {
     let replacement = "你".repeat(100);
-    let rendered =
-        redact_json_value(MaskPolicy::fixed(&replacement), "secret", 17);
+    let rendered = redact_json_value(MaskPolicy::fixed(&replacement), "secret", 17);
 
     assert_eq!(rendered, r#"{"pass<truncated>"#);
 }

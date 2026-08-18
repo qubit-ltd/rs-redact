@@ -10,9 +10,7 @@ use qubit_redact::formats::env::EnvRedactor;
 #[test]
 fn test_env_redactor_masks_password_value() {
     assert_eq!(
-        EnvRedactor::default()
-            .redact_pair("PASSWORD", "raw")
-            .to_string(),
+        EnvRedactor::default().redact_pair("PASSWORD", "raw").to_string(),
         "PASSWORD=<redacted>"
     );
 }

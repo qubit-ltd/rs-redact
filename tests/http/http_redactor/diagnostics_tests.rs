@@ -57,20 +57,13 @@ fn test_session_fallback_markers_respect_cumulative_output_limit() {
     let redactor = HttpRedactor::new(policy);
     let mut session = redactor.session();
 
-    let first = session.http_with_mut(|http| {
-        http.redact_url_str("https://example.test/?password=secret")
-    });
-    let second = session.http_with_mut(|http| {
-        http.redact_url_str("https://example.test/?password=secret")
-    });
+    let first = session.http_with_mut(|http| http.redact_url_str("https://example.test/?password=secret"));
+    let second = session.http_with_mut(|http| http.redact_url_str("https://example.test/?password=secret"));
 
     assert_eq!(first.as_str(), "<redacted: diagnostic limit exceeded>",);
     assert!(second.as_str().is_empty());
     assert_eq!(session.remaining_output_bytes(), 0);
-    assert!(
-        first.as_str().len().saturating_add(second.as_str().len())
-            <= budget.max_output_bytes()
-    );
+    assert!(first.as_str().len().saturating_add(second.as_str().len()) <= budget.max_output_bytes());
 }
 
 /// Verifies a body rejected by the shared diagnostic budget is not reported as
@@ -92,17 +85,11 @@ fn test_session_body_input_limit_reports_budget_failure() {
     let redactor = HttpRedactor::new(policy);
     let mut session = redactor.session();
 
-    let result = session.http_with_mut(|http| {
-        http.redact_body(
-            BodyCapture::complete(br#"{"password":"secret"}"#),
-            None,
-        )
-    });
+    let result =
+        session.http_with_mut(|http| http.redact_body(BodyCapture::complete(br#"{"password":"secret"}"#), None));
 
     assert_eq!(
         result.status(),
-        BodyRedactionStatus::Redacted(
-            BodyRedactionReason::DiagnosticBudgetExceeded,
-        ),
+        BodyRedactionStatus::Redacted(BodyRedactionReason::DiagnosticBudgetExceeded,),
     );
 }

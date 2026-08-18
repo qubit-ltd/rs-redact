@@ -102,8 +102,7 @@ fn test_env_pair_session_reports_truncated_fallback() {
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
-    let result =
-        session.env_with_mut(|env| env.redact_pair("PASSWORD", "secret"));
+    let result = session.env_with_mut(|env| env.redact_pair("PASSWORD", "secret"));
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(!result.log_safe_text().as_str().is_empty());
@@ -128,8 +127,7 @@ fn test_env_pair_session_reports_exhausted_output() {
     let mut session = redactor.session();
     let _ = session.env_with_mut(|env| env.redact_pair("PASSWORD", "secret"));
 
-    let result =
-        session.env_with_mut(|env| env.redact_pair("PASSWORD", "secret"));
+    let result = session.env_with_mut(|env| env.redact_pair("PASSWORD", "secret"));
 
     assert_eq!(result.completion(), RedactionCompletion::Exhausted);
     assert_eq!(result.log_safe_text().as_str(), "");
@@ -141,9 +139,7 @@ fn test_env_batch_session_reports_complete_output() {
     let redactor = Redactor::default();
     let mut session = redactor.session();
 
-    let result = session.env_with_mut(|env| {
-        env.redact_os_pairs([(OsStr::new("MODE"), OsStr::new("debug"))])
-    });
+    let result = session.env_with_mut(|env| env.redact_os_pairs([(OsStr::new("MODE"), OsStr::new("debug"))]));
 
     assert_eq!(result.completion(), RedactionCompletion::Complete);
     assert_eq!(result.log_safe_text().as_str(), r#"["MODE=debug"]"#);
@@ -199,9 +195,7 @@ fn test_env_batch_session_reports_truncated_marker() {
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
 
-    let result = session.env_with_mut(|env| {
-        env.redact_os_pairs([(OsStr::new("PASSWORD"), OsStr::new("secret"))])
-    });
+    let result = session.env_with_mut(|env| env.redact_os_pairs([(OsStr::new("PASSWORD"), OsStr::new("secret"))]));
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(!result.log_safe_text().as_str().is_empty());
@@ -224,14 +218,10 @@ fn test_env_batch_session_reports_exhausted_without_advancing_iterator() {
     .expect("the test policy should build");
     let redactor = Redactor::new(policy);
     let mut session = redactor.session();
-    let _ = session.env_with_mut(|env| {
-        env.redact_os_pairs([(OsStr::new("PASSWORD"), OsStr::new("secret"))])
-    });
+    let _ = session.env_with_mut(|env| env.redact_os_pairs([(OsStr::new("PASSWORD"), OsStr::new("secret"))]));
     let pulls = Cell::new(0);
 
-    let result = session.env_with_mut(|env| {
-        env.redact_os_pairs(CountingPairs { pulls: &pulls })
-    });
+    let result = session.env_with_mut(|env| env.redact_os_pairs(CountingPairs { pulls: &pulls }));
 
     assert_eq!(result.completion(), RedactionCompletion::Exhausted);
     assert_eq!(result.log_safe_text().as_str(), "");

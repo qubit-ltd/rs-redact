@@ -17,10 +17,7 @@ use qubit_redact::formats::http::HttpRedactor;
 #[test]
 fn test_json_unkeyed_value_policy_redacts_root_scalar_by_default() {
     let content_type = HeaderValue::from_static("application/json");
-    let body = HttpRedactor::default().redact_body(
-        BodyCapture::complete(br#""raw-root-value""#),
-        Some(&content_type),
-    );
+    let body = HttpRedactor::default().redact_body(BodyCapture::complete(br#""raw-root-value""#), Some(&content_type));
 
     assert_eq!(body.status(), BodyRedactionStatus::PassedThrough);
     assert_eq!(body.to_string(), r#""raw-root-value""#);

@@ -62,9 +62,7 @@ fn test_domain_limits_builder_preserves_configured_limits() {
         .expect("the test domain limits should be valid");
     let mut builder = RedactionPolicy::builder();
     builder.limits().domain(limits);
-    let policy = builder
-        .build()
-        .expect("the policy should preserve valid domain limits");
+    let policy = builder.build().expect("the policy should preserve valid domain limits");
 
     assert_eq!(policy.limits().domain(), limits);
     assert_eq!(

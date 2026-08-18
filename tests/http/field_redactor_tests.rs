@@ -31,10 +31,7 @@ fn test_field_redactor_uses_application_mask_for_header_rule() {
             .expect("the test builder input should be valid");
         builder
             .edit_fields()
-            .mask(
-                Sensitivity::Secret,
-                MaskPolicy::fixed("[application-secret]"),
-            )
+            .mask(Sensitivity::Secret, MaskPolicy::fixed("[application-secret]"))
             .expect("the test mask policy should be valid");
         builder
     })
@@ -47,18 +44,13 @@ fn test_field_redactor_uses_application_mask_for_header_rule() {
         .replace_rules(application.rules().clone().with_floor(floor));
     builder
         .edit_fields()
-        .mask(
-            Sensitivity::Secret,
-            MaskPolicy::fixed("[application-secret]"),
-        )
+        .mask(Sensitivity::Secret, MaskPolicy::fixed("[application-secret]"))
         .expect("the test mask policy should be valid");
     let policy = builder.build().expect("the HTTP policy should be valid");
     let mut headers = HeaderMap::new();
     headers.insert("tenant-token", HeaderValue::from_static("source-secret"));
 
-    let rendered = HttpRedactor::new(policy)
-        .redact_headers(&headers)
-        .to_string();
+    let rendered = HttpRedactor::new(policy).redact_headers(&headers).to_string();
 
     assert!(rendered.contains("[application-secret]"));
     assert!(!rendered.contains("source-secret"));

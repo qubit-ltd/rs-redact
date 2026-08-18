@@ -47,9 +47,7 @@ fn test_exhausted_session_does_not_charge_additional_input() {
     let fallback_capacity = limit.max_output_bytes() / fallback.len();
     for _ in 0..fallback_capacity {
         assert_eq!(
-            session
-                .redact_at(Sensitivity::Secret, "first-too-large")
-                .as_str(),
+            session.redact_at(Sensitivity::Secret, "first-too-large").as_str(),
             fallback,
         );
     }
@@ -79,11 +77,7 @@ fn test_redactor_session_fallbacks_respect_cumulative_output_limit() {
     let mut session = redactor.session();
 
     let rendered: Vec<_> = (0..5)
-        .map(|_| {
-            session
-                .redact_at(Sensitivity::Secret, "raw-data")
-                .into_owned()
-        })
+        .map(|_| session.redact_at(Sensitivity::Secret, "raw-data").into_owned())
         .collect();
 
     assert!(rendered.iter().any(String::is_empty));
@@ -202,10 +196,7 @@ fn test_redact_field_session_charges_escaped_bytes() {
     let result = session.redact_field("message", "a\n b");
 
     assert!(!result.is_masked());
-    assert_eq!(
-        session.remaining_output_bytes(),
-        limit.max_output_bytes() - 5
-    );
+    assert_eq!(session.remaining_output_bytes(), limit.max_output_bytes() - 5);
 }
 
 /// Verifies Unicode mask truncation closes a session even when the retained

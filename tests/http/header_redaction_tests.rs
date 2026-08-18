@@ -17,10 +17,7 @@ use qubit_redact::RedactionPolicy;
 use qubit_redact::formats::http::HttpRedactor;
 use qubit_redact::formats::http::InputOutputLimit;
 /// Builds an HTTP redactor with visible test headers and finite diagnostics.
-fn redactor_with_diagnostic_budget(
-    input: usize,
-    output: usize,
-) -> HttpRedactor {
+fn redactor_with_diagnostic_budget(input: usize, output: usize) -> HttpRedactor {
     let header_policy = RedactionPolicy::builder()
         .build()
         .expect("the empty header policy should be valid");
@@ -30,10 +27,7 @@ fn redactor_with_diagnostic_budget(
         .build()
         .expect("test diagnostic budgets satisfy the public lower bounds");
     let mut builder = RedactionPolicy::builder();
-    builder
-        .http()
-        .header()
-        .replace_rules(header_policy.rules().clone());
+    builder.http().header().replace_rules(header_policy.rules().clone());
     builder.limits().diagnostic_event(budget);
     let policy = builder.build().expect("the HTTP policy should be valid");
     HttpRedactor::new(policy)
@@ -60,13 +54,11 @@ fn test_header_redaction_handles_non_utf8_and_control_characters() {
     let mut headers = HeaderMap::new();
     headers.insert(
         "x-binary",
-        HeaderValue::from_bytes(b"\xff")
-            .expect("opaque header bytes are valid"),
+        HeaderValue::from_bytes(b"\xff").expect("opaque header bytes are valid"),
     );
     headers.insert(
         "x-visible",
-        HeaderValue::from_bytes(b"line\tvalue")
-            .expect("tab is valid in a header value"),
+        HeaderValue::from_bytes(b"line\tvalue").expect("tab is valid in a header value"),
     );
     headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer raw"));
 
@@ -109,12 +101,9 @@ fn test_header_redaction_is_sorted_stable_and_output_bounded() {
         r"x-alpha: [visible]\nx-zeta: [first, second]",
     );
 
-    let bounded = redactor_with_diagnostic_budget(
-        256,
-        InputOutputLimit::MIN_OUTPUT_BYTES + 4,
-    )
-    .redact_headers(&headers)
-    .to_string();
+    let bounded = redactor_with_diagnostic_budget(256, InputOutputLimit::MIN_OUTPUT_BYTES + 4)
+        .redact_headers(&headers)
+        .to_string();
     assert!(bounded.len() <= InputOutputLimit::MIN_OUTPUT_BYTES + 4,);
     assert!(bounded.ends_with("<truncated>"));
 }
@@ -125,10 +114,7 @@ fn test_header_redaction_marks_truncation_after_exact_payload_boundary() {
     let output_limit = 40;
     let redactor = redactor_with_diagnostic_budget(256, output_limit);
     let mut headers = HeaderMap::new();
-    headers.insert(
-        "x-a",
-        HeaderValue::from_static("1234567890123456789012345678901234"),
-    );
+    headers.insert("x-a", HeaderValue::from_static("1234567890123456789012345678901234"));
 
     let rendered = redactor.redact_headers(&headers).to_string();
 

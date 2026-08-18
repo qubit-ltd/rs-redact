@@ -91,10 +91,7 @@ fn test_redacted_json_strict_masks_only_unkeyed_scalars() {
 fn test_redacted_json_standard_preserves_unkeyed_scalars() {
     let value = json!(["visible", 42, true]);
 
-    let output = format!(
-        "{:?}",
-        RedactedJson::new(&value, &RedactionPolicy::standard()),
-    );
+    let output = format!("{:?}", RedactedJson::new(&value, &RedactionPolicy::standard()),);
 
     assert!(output.contains("visible"));
     assert!(output.contains("42"));
@@ -105,20 +102,19 @@ fn test_redacted_json_standard_preserves_unkeyed_scalars() {
 #[test]
 fn test_redacted_json_uses_unknown_field_fallback() {
     let value = json!({"new_field": "raw", "public": "visible"});
-    let policy =
-        ({
-            let mut builder = RedactionPolicy::builder();
-            builder.edit_fields().unknown_field_policy(
-                UnknownFieldPolicy::Redact(Sensitivity::High),
-            );
-            builder
-                .edit_fields()
-                .allow_exact("public")
-                .expect("the test builder input should be valid");
-            builder
-        })
-        .build()
-        .expect("the fallback policy should build");
+    let policy = ({
+        let mut builder = RedactionPolicy::builder();
+        builder
+            .edit_fields()
+            .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::High));
+        builder
+            .edit_fields()
+            .allow_exact("public")
+            .expect("the test builder input should be valid");
+        builder
+    })
+    .build()
+    .expect("the fallback policy should build");
 
     let output = format!("{:?}", RedactedJson::new(&value, &policy));
 
@@ -176,10 +172,7 @@ fn test_redacted_json_session_uses_shared_output_budget() {
     assert!(first.as_str().len() <= budget.max_output_bytes());
     assert!(first.as_str().ends_with("<truncated>"));
     assert!(second.as_str().is_empty());
-    assert!(
-        first.as_str().len().saturating_add(second.as_str().len())
-            <= budget.max_output_bytes()
-    );
+    assert!(first.as_str().len().saturating_add(second.as_str().len()) <= budget.max_output_bytes());
     assert_eq!(session.remaining_output_bytes(), 0);
 }
 
@@ -293,8 +286,7 @@ fn test_redacted_json_serde_preserves_json_value_shape() {
     .build()
     .expect("the policy should build");
 
-    let serialized = to_value(RedactedJson::new(&value, &policy))
-        .expect("the redacted JSON value should serialize");
+    let serialized = to_value(RedactedJson::new(&value, &policy)).expect("the redacted JSON value should serialize");
 
     assert!(serialized.is_object());
     assert_eq!(serialized["name"], "Ada");
@@ -329,8 +321,7 @@ fn test_redacted_json_serde_masks_sensitive_non_string_values_opaquely() {
     .build()
     .expect("the policy should build");
 
-    let serialized = to_value(RedactedJson::new(&value, &policy))
-        .expect("the redacted JSON value should serialize");
+    let serialized = to_value(RedactedJson::new(&value, &policy)).expect("the redacted JSON value should serialize");
 
     assert_eq!(
         serialized,
@@ -367,8 +358,7 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
     .build()
     .expect("the policy should build");
 
-    let output = to_value(RedactedJson::new(&value, &policy))
-        .expect("the bounded redacted view should serialize");
+    let output = to_value(RedactedJson::new(&value, &policy)).expect("the bounded redacted view should serialize");
 
     assert_eq!(output["shallow"], "visible");
     assert_eq!(output["nested"], "[depth-limit]");
@@ -382,13 +372,11 @@ fn test_redacted_json_serde_fails_closed_at_depth_budget() {
 fn test_redacted_json_serde_handles_arrays_and_unkeyed_scalars() {
     let array = json!(["visible", {"nested": [1, 2]}]);
     let standard = RedactionPolicy::standard();
-    let serialized = to_value(RedactedJson::new(&array, &standard))
-        .expect("the array should serialize");
+    let serialized = to_value(RedactedJson::new(&array, &standard)).expect("the array should serialize");
     assert_eq!(serialized, array);
 
     let strict = RedactionPolicy::strict();
     let scalar = json!("root-secret");
-    let serialized = to_value(RedactedJson::new(&scalar, &strict))
-        .expect("the scalar should serialize");
+    let serialized = to_value(RedactedJson::new(&scalar, &strict)).expect("the scalar should serialize");
     assert_ne!(serialized, scalar);
 }

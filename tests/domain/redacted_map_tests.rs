@@ -35,30 +35,20 @@ impl fmt::Debug for FormatterBehavior {
         if self.fail {
             return Err(fmt::Error);
         }
-        formatter.write_str(if formatter.alternate() {
-            "alternate"
-        } else {
-            "compact"
-        })
+        formatter.write_str(if formatter.alternate() { "alternate" } else { "compact" })
     }
 }
 
 impl RedactValue for FormatterBehavior {
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }
 }
 /// Verifies a redacted map keeps non-sensitive values visible.
 #[test]
 fn test_redacted_map_preserves_visible_value() {
-    let map =
-        BTreeMap::from([(String::from("label"), String::from("visible"))]);
-    let rendered =
-        RedactedMap::new(&map, RedactionPolicy::default()).to_string();
+    let map = BTreeMap::from([(String::from("label"), String::from("visible"))]);
+    let rendered = RedactedMap::new(&map, RedactionPolicy::default()).to_string();
 
     assert!(rendered.contains("visible"));
 }
@@ -66,8 +56,7 @@ fn test_redacted_map_preserves_visible_value() {
 /// Verifies map output is completed while the mutable session is available.
 #[test]
 fn test_redacted_map_result_is_settled_at_creation() {
-    let map =
-        BTreeMap::from([(String::from("label"), String::from("visible"))]);
+    let map = BTreeMap::from([(String::from("label"), String::from("visible"))]);
     let redactor = Redactor::default();
     let mut session = redactor.session();
     let result = RedactedMapResult::new(&map, &mut session);
@@ -80,22 +69,15 @@ fn test_redacted_map_result_is_settled_at_creation() {
 fn test_redacted_map_supports_index_map_without_runtime_coupling() {
     let map = IndexMap::from([("password", "raw"), ("label", "visible")]);
 
-    let rendered =
-        format!("{:?}", RedactedMap::new(&map, RedactionPolicy::default()),);
+    let rendered = format!("{:?}", RedactedMap::new(&map, RedactionPolicy::default()),);
 
-    assert_eq!(
-        rendered,
-        r#"{"password": "<redacted>", "label": "visible"}"#,
-    );
+    assert_eq!(rendered, r#"{"password": "<redacted>", "label": "visible"}"#,);
 }
 
 /// Verifies map display uses its policy output budget by default.
 #[test]
 fn test_redacted_map_display_uses_policy_output_limit_by_default() {
-    let map = BTreeMap::from([(
-        String::from("label"),
-        "visible diagnostic text".repeat(4),
-    )]);
+    let map = BTreeMap::from([(String::from("label"), "visible diagnostic text".repeat(4))]);
     let budget = InputOutputLimit::builder()
         .max_input_bytes(1024)
         .max_output_bytes(InputOutputLimit::MIN_OUTPUT_BYTES)
@@ -148,11 +130,7 @@ impl fmt::Debug for ObservedInput<'_> {
 }
 
 impl RedactValue for ObservedInput<'_> {
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         self.0.fetch_add(1, Ordering::Relaxed);
         RedactedValue::opaque(level, masking)
     }
@@ -193,11 +171,7 @@ impl fmt::Debug for ShortCountingValue<'_> {
 }
 
 impl RedactValue for ShortCountingValue<'_> {
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }
 }
@@ -240,11 +214,7 @@ impl fmt::Debug for PullValue {
 }
 
 impl RedactValue for PullValue {
-    fn redact_value<'a>(
-        &'a self,
-        level: Sensitivity,
-        masking: &MaskingPolicy,
-    ) -> RedactedValue<'a> {
+    fn redact_value<'a>(&'a self, level: Sensitivity, masking: &MaskingPolicy) -> RedactedValue<'a> {
         RedactedValue::opaque(level, masking)
     }
 }

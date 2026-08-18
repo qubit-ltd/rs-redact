@@ -27,10 +27,7 @@ fn test_redacted_json_text_new_constructs_borrowed_view() {
     })
     .build()
     .expect("the policy should build");
-    let view = std::hint::black_box(RedactedJsonText::new(
-        r#"{"name":"Ada"}"#,
-        &policy,
-    ));
+    let view = std::hint::black_box(RedactedJsonText::new(r#"{"name":"Ada"}"#, &policy));
 
     assert_eq!(view.to_string(), r#"{"name":"Ada"}"#);
 }
@@ -53,8 +50,7 @@ fn test_redacted_json_text_display_is_compact_valid_json() {
         &policy,
     )
     .to_string();
-    let value = serde_json::from_str::<serde_json::Value>(&output)
-        .expect("display output should remain valid JSON");
+    let value = serde_json::from_str::<serde_json::Value>(&output).expect("display output should remain valid JSON");
 
     assert_eq!(value["n"], 1);
     assert_eq!(value["ok"], true);
@@ -148,8 +144,8 @@ fn test_redacted_json_text_fails_closed_at_depth_budget() {
     let raw = r#"{"shallow":"visible","nested":{"secret":"raw-depth-secret"}}"#;
 
     let output = RedactedJsonText::new(raw, &policy).to_string();
-    let value = serde_json::from_str::<serde_json::Value>(&output)
-        .expect("depth-limited output should remain valid JSON");
+    let value =
+        serde_json::from_str::<serde_json::Value>(&output).expect("depth-limited output should remain valid JSON");
 
     assert_eq!(value["shallow"], "visible");
     assert_eq!(value["nested"], "[depth-limit]");
@@ -169,8 +165,7 @@ fn test_redacted_json_text_debug_preserves_alternate_formatting() {
     })
     .build()
     .expect("the policy should build");
-    let view =
-        RedactedJsonText::new(r#"{"password":"raw","name":"Ada"}"#, &policy);
+    let view = RedactedJsonText::new(r#"{"password":"raw","name":"Ada"}"#, &policy);
 
     let output = format!("{view:#?}");
 
@@ -192,15 +187,13 @@ fn test_redact_json_text_in_place_masks_and_compacts_valid_json() {
     })
     .build()
     .expect("the policy should build");
-    let mut text =
-        "{ \"password\": \"raw-password\", \"name\": \"Ada\" }".to_owned();
+    let mut text = "{ \"password\": \"raw-password\", \"name\": \"Ada\" }".to_owned();
 
     redact_json_text_in_place(&mut text, &policy);
 
     assert!(!text.contains("raw-password"));
     assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&text)
-            .expect("redacted text should remain valid JSON")["name"],
+        serde_json::from_str::<serde_json::Value>(&text).expect("redacted text should remain valid JSON")["name"],
         "Ada",
     );
     assert!(!text.contains(' '));
@@ -248,16 +241,13 @@ fn test_redacted_json_text_serde_preserves_outer_string_shape() {
     .expect("the policy should build");
     let text = r#"{"token":"raw","name":"Ada"}"#;
 
-    let serialized = serde_json::to_value(RedactedJsonText::new(text, &policy))
-        .expect("the redacted JSON text should serialize");
+    let serialized =
+        serde_json::to_value(RedactedJsonText::new(text, &policy)).expect("the redacted JSON text should serialize");
 
-    let output = serialized
-        .as_str()
-        .expect("redacted JSON text should remain a string");
+    let output = serialized.as_str().expect("redacted JSON text should remain a string");
     assert!(!output.contains("raw"));
     assert_eq!(
-        serde_json::from_str::<serde_json::Value>(output)
-            .expect("the serialized string should hold valid JSON")["name"],
+        serde_json::from_str::<serde_json::Value>(output).expect("the serialized string should hold valid JSON")["name"],
         "Ada",
     );
 }

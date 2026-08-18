@@ -69,8 +69,7 @@ fn test_structured_formats_bound_amplified_masks() {
             HeaderValue::from_static("application/json"),
         ),
         (
-            b"{\"password\":\"ndjson-secret\"}\n{\"api_key\":\"second-secret\"}\n"
-                .as_slice(),
+            b"{\"password\":\"ndjson-secret\"}\n{\"api_key\":\"second-secret\"}\n".as_slice(),
             HeaderValue::from_static("application/x-ndjson"),
         ),
         (
@@ -78,15 +77,13 @@ fn test_structured_formats_bound_amplified_masks() {
             HeaderValue::from_static("application/x-www-form-urlencoded"),
         ),
         (
-            b"--b\r\nContent-Disposition: form-data; name=password\r\n\r\nmultipart-secret\r\n--b--\r\n"
-                .as_slice(),
+            b"--b\r\nContent-Disposition: form-data; name=password\r\n\r\nmultipart-secret\r\n--b--\r\n".as_slice(),
             HeaderValue::from_static("multipart/form-data; boundary=b"),
         ),
     ];
 
     for (input, content_type) in cases {
-        let result = redactor
-            .redact_body(BodyCapture::complete(input), Some(&content_type));
+        let result = redactor.redact_body(BodyCapture::complete(input), Some(&content_type));
         let rendered = result.to_string();
 
         assert!(rendered.len() <= 64, "{rendered}");
@@ -161,10 +158,8 @@ fn test_source_truncation_can_use_marker_only_budget() {
     })
     .build()
     .expect("the HTTP policy is valid");
-    let capture = BodyCapture::truncated(b"a", 2)
-        .expect("the captured prefix has valid metadata");
-    let result = HttpRedactor::new(policy)
-        .redact_body(capture, Some(&HeaderValue::from_static("text/plain")));
+    let capture = BodyCapture::truncated(b"a", 2).expect("the captured prefix has valid metadata");
+    let result = HttpRedactor::new(policy).redact_body(capture, Some(&HeaderValue::from_static("text/plain")));
 
     assert_eq!(result.to_string(), "<truncated>");
 }

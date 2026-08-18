@@ -72,12 +72,7 @@ unsafe impl GlobalAlloc for MeasuringAllocator {
     }
 
     /// Resizes memory through `System` while recording the new request size.
-    unsafe fn realloc(
-        &self,
-        pointer: *mut u8,
-        layout: Layout,
-        new_size: usize,
-    ) -> *mut u8 {
+    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         record_allocation(new_size);
         // SAFETY: The original pointer, layout, and new size are forwarded.
         unsafe { System.realloc(pointer, layout, new_size) }
@@ -195,8 +190,7 @@ impl Redact for NestedBoundedMap<'_> {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         writer.text(&format!(
             "{:?}",
-            RedactedMap::new(self.values, self.policy.clone())
-                .with_output_limit(self.limit),
+            RedactedMap::new(self.values, self.policy.clone()).with_output_limit(self.limit),
         ));
     }
 }
@@ -223,8 +217,7 @@ fn test_nested_bounded_display_does_not_widen_mask_allocation_limit() {
     let view = nested.redacted().with_output_limit(outer_limit);
     let mut output = FixedBuffer::new();
 
-    let (result, largest) =
-        measure_largest_allocation(|| write!(&mut output, "{view}"));
+    let (result, largest) = measure_largest_allocation(|| write!(&mut output, "{view}"));
 
     result.expect("the nested bounded view should fit the fixed output buffer");
     assert!(
@@ -242,18 +235,13 @@ fn test_bounded_redacted_map_avoids_amplified_mask_allocation() {
         .max_bytes(128)
         .build()
         .expect("the test output limit should be valid");
-    let view =
-        RedactedMap::new(&values, amplified_policy()).with_output_limit(limit);
+    let view = RedactedMap::new(&values, amplified_policy()).with_output_limit(limit);
     let mut output = FixedBuffer::new();
 
-    let (result, largest) =
-        measure_largest_allocation(|| write!(&mut output, "{view}"));
+    let (result, largest) = measure_largest_allocation(|| write!(&mut output, "{view}"));
 
     result.expect("the bounded map should fit the fixed output buffer");
-    assert!(
-        largest < 4096,
-        "bounded map copied an amplified mask: {largest}"
-    );
+    assert!(largest < 4096, "bounded map copied an amplified mask: {largest}");
 }
 
 /// Verifies bounded argv diagnostics never materialize a full fixed mask.
@@ -264,18 +252,12 @@ fn test_bounded_argv_avoids_amplified_mask_allocation() {
 
     let (rendered, largest) = measure_largest_allocation(|| {
         redactor
-            .redact_items([ArgvItem::sensitive(
-                OsStr::new("raw-secret"),
-                Sensitivity::Secret,
-            )])
+            .redact_items([ArgvItem::sensitive(OsStr::new("raw-secret"), Sensitivity::Secret)])
             .to_string()
     });
 
     assert!(rendered.len() <= 128, "{rendered}");
-    assert!(
-        largest < 4096,
-        "bounded argv copied an amplified mask: {largest}"
-    );
+    assert!(largest < 4096, "bounded argv copied an amplified mask: {largest}");
 }
 
 /// Verifies bounded environment diagnostics never materialize a full fixed
@@ -287,10 +269,7 @@ fn test_bounded_environment_avoids_amplified_mask_allocation() {
 
     let (rendered, largest) = measure_largest_allocation(|| {
         redactor
-            .redact_os_pairs([(
-                OsStr::new("PASSWORD"),
-                OsStr::new("raw-secret"),
-            )])
+            .redact_os_pairs([(OsStr::new("PASSWORD"), OsStr::new("raw-secret"))])
             .to_string()
     });
 
@@ -334,13 +313,9 @@ fn test_bounded_uri_avoids_amplified_mask_allocation() {
     let query = ["password=query-secret"; 32].join("&");
     let input = format!("https://user:password@example.test/?{query}#fragment");
 
-    let (result, largest) =
-        measure_largest_allocation(|| redactor.redact_uri_str(&input));
+    let (result, largest) = measure_largest_allocation(|| redactor.redact_uri_str(&input));
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(result.log_safe_text().as_ref().len() <= 128);
-    assert!(
-        largest <= 4096,
-        "URI redaction copied an amplified mask: {largest}",
-    );
+    assert!(largest <= 4096, "URI redaction copied an amplified mask: {largest}",);
 }

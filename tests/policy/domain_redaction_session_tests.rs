@@ -14,11 +14,7 @@ use qubit_redact::policy::DomainTraversalAdmission;
 use qubit_redact::policy::DomainValueAdmission;
 
 /// Builds a redactor with the requested domain-structure limits.
-fn redactor_with_domain_limits(
-    max_nodes: usize,
-    max_collection_items: usize,
-    max_depth: usize,
-) -> Redactor {
+fn redactor_with_domain_limits(max_nodes: usize, max_collection_items: usize, max_depth: usize) -> Redactor {
     let limits = DomainRedactionLimits::builder()
         .max_nodes(max_nodes)
         .max_collection_items(max_collection_items)
@@ -27,9 +23,7 @@ fn redactor_with_domain_limits(
         .expect("the test domain limits should be valid");
     let mut builder = RedactionPolicy::builder();
     builder.limits().domain(limits);
-    let policy = builder
-        .build()
-        .expect("the policy should accept valid domain limits");
+    let policy = builder.build().expect("the policy should accept valid domain limits");
     Redactor::new(policy)
 }
 
@@ -39,8 +33,7 @@ fn redactor_with_domain_limits(
 fn test_domain_session_restores_depth_after_scope_drop() {
     let redactor = redactor_with_domain_limits(8, 8, 1);
     let mut session = redactor.session();
-    let DomainValueAdmission::Entered(mut root) = session.enter_domain_value()
-    else {
+    let DomainValueAdmission::Entered(mut root) = session.enter_domain_value() else {
         panic!("the root value must be admitted");
     };
 
@@ -50,10 +43,7 @@ fn test_domain_session_restores_depth_after_scope_drop() {
     ));
     drop(root);
 
-    assert!(matches!(
-        session.enter_domain_value(),
-        DomainValueAdmission::Entered(_),
-    ));
+    assert!(matches!(session.enter_domain_value(), DomainValueAdmission::Entered(_),));
 }
 
 /// Verifies node charges are cumulative and exhaustion permanently closes
@@ -62,8 +52,7 @@ fn test_domain_session_restores_depth_after_scope_drop() {
 fn test_domain_session_closes_traversal_when_nodes_are_exhausted() {
     let redactor = redactor_with_domain_limits(1, 8, 8);
     let mut session = redactor.session();
-    let DomainValueAdmission::Entered(mut root) = session.enter_domain_value()
-    else {
+    let DomainValueAdmission::Entered(mut root) = session.enter_domain_value() else {
         panic!("the root value must consume the only node");
     };
 
@@ -82,8 +71,7 @@ fn test_domain_session_closes_traversal_when_nodes_are_exhausted() {
 fn test_domain_session_does_not_refund_nodes_after_scope_drop() {
     let redactor = redactor_with_domain_limits(2, 8, 8);
     let mut session = redactor.session();
-    let DomainValueAdmission::Entered(mut first) = session.enter_domain_value()
-    else {
+    let DomainValueAdmission::Entered(mut first) = session.enter_domain_value() else {
         panic!("the first value must be admitted");
     };
 
@@ -102,8 +90,7 @@ fn test_domain_session_does_not_refund_nodes_after_scope_drop() {
 fn test_domain_session_rejects_collection_item_before_iterator_advance() {
     let redactor = redactor_with_domain_limits(8, 1, 8);
     let mut session = redactor.session();
-    let DomainValueAdmission::Entered(mut root) = session.enter_domain_value()
-    else {
+    let DomainValueAdmission::Entered(mut root) = session.enter_domain_value() else {
         panic!("the root value must be admitted");
     };
     let mut iterator_advances = 0;
@@ -129,24 +116,15 @@ fn test_domain_session_rejects_collection_item_before_iterator_advance() {
 fn test_domain_session_does_not_refund_collection_items_after_scope_drop() {
     let redactor = redactor_with_domain_limits(8, 1, 8);
     let mut session = redactor.session();
-    let DomainValueAdmission::Entered(mut first) = session.enter_domain_value()
-    else {
+    let DomainValueAdmission::Entered(mut first) = session.enter_domain_value() else {
         panic!("the first value must be admitted");
     };
 
-    assert_eq!(
-        first.admit_collection_item(),
-        DomainTraversalAdmission::Render,
-    );
+    assert_eq!(first.admit_collection_item(), DomainTraversalAdmission::Render,);
     drop(first);
 
-    let DomainValueAdmission::Entered(mut second) =
-        session.enter_domain_value()
-    else {
+    let DomainValueAdmission::Entered(mut second) = session.enter_domain_value() else {
         panic!("the later value must still have node and depth capacity");
     };
-    assert_eq!(
-        second.admit_collection_item(),
-        DomainTraversalAdmission::LimitReached,
-    );
+    assert_eq!(second.admit_collection_item(), DomainTraversalAdmission::LimitReached,);
 }

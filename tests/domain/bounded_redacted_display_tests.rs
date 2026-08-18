@@ -64,15 +64,10 @@ fn limit(max_bytes: usize) -> LogOutputLimit {
 /// Verifies complete bounded output matches ordinary redacted display.
 #[test]
 fn test_bounded_redacted_display_preserves_complete_output() {
-    let value = DiagnosticText {
-        value: "visible text",
-    };
+    let value = DiagnosticText { value: "visible text" };
     let expected = value.redacted().to_string();
 
-    let actual = value
-        .redacted()
-        .with_output_limit(limit(expected.len()))
-        .to_string();
+    let actual = value.redacted().with_output_limit(limit(expected.len())).to_string();
 
     assert_eq!(actual, expected);
 }
@@ -86,9 +81,7 @@ fn test_bounded_redacted_display_debug_is_bounded() {
 
     let actual = format!(
         "{:?}",
-        value
-            .redacted()
-            .with_output_limit(limit(LogOutputLimit::MINIMUM)),
+        value.redacted().with_output_limit(limit(LogOutputLimit::MINIMUM)),
     );
 
     assert_eq!(actual, "<truncated>");
@@ -126,7 +119,7 @@ fn test_bounded_redacted_display_truncates_ascii_at_budget() {
 #[test]
 fn test_bounded_redacted_display_keeps_unicode_boundary() {
     let value = DiagnosticText {
-        value: "你好吗世界",
+        value: "你好吗世界"
     };
 
     let actual = value.redacted().with_output_limit(limit(14)).to_string();
@@ -148,10 +141,7 @@ fn test_eager_completion_floors_buffered_unicode_boundary() {
         }
     }
 
-    let output = SplitUnicode
-        .redacted()
-        .with_output_limit(limit(15))
-        .to_string();
+    let output = SplitUnicode.redacted().with_output_limit(limit(15)).to_string();
 
     assert_eq!(output, "你<truncated>");
 }
@@ -164,8 +154,7 @@ fn test_domain_truncation_keeps_session_open_for_later_fragments() {
     impl Redact for TwoMasks<'_> {
         fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
             for _ in 0..2 {
-                let masked =
-                    writer.session().redact_at(Sensitivity::Secret, "secret");
+                let masked = writer.session().redact_at(Sensitivity::Secret, "secret");
                 if !masked.as_str().is_empty() {
                     self.0.fetch_add(1, Ordering::Relaxed);
                 }
@@ -229,10 +218,7 @@ fn test_bounded_debug_does_not_charge_domain_input() {
     .expect("the policy should build");
     let output_limit = limit(InputOutputLimit::MIN_OUTPUT_BYTES);
 
-    let output = format!(
-        "{:?}",
-        value.redacted_with(&policy).with_output_limit(output_limit)
-    );
+    let output = format!("{:?}", value.redacted_with(&policy).with_output_limit(output_limit));
 
     assert_eq!(output, "heap input");
     assert_eq!(calls.load(Ordering::Relaxed), 1);
@@ -414,8 +400,5 @@ fn test_bounded_redacted_display_stops_formatter_after_budget_exhaustion() {
     let output = value.redacted().with_output_limit(limit(14)).to_string();
 
     assert_eq!(output, "xxx<truncated>");
-    assert_eq!(
-        value.writes.load(Ordering::Relaxed),
-        limit(14).max_bytes() + 1,
-    );
+    assert_eq!(value.writes.load(Ordering::Relaxed), limit(14).max_bytes() + 1,);
 }

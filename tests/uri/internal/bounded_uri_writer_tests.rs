@@ -46,9 +46,7 @@ fn test_bounded_uri_output_keeps_utf8_and_marker_complete() {
         .expect("the result has a truncation marker");
     assert!(!payload.ends_with('%'));
     assert!(!payload.ends_with("%E"));
-    assert!(
-        std::str::from_utf8(result.log_safe_text().as_ref().as_bytes()).is_ok()
-    );
+    assert!(std::str::from_utf8(result.log_safe_text().as_ref().as_bytes()).is_ok());
 }
 
 /// Verifies percent-encoded replacement bytes are emitted as complete pieces.
@@ -67,8 +65,7 @@ fn test_bounded_uri_output_percent_encodes_unicode_masks() {
     let policy = RedactionPolicy::builder_from(&core)
         .build()
         .expect("the URI policy is valid");
-    let result = UriRedactor::new(policy)
-        .redact_uri_str("https://example.test/?password=secret#fragment");
+    let result = UriRedactor::new(policy).redact_uri_str("https://example.test/?password=secret#fragment");
 
     assert!(result.log_safe_text().as_str().contains("%E5%AF%86"));
     assert!(!result.log_safe_text().as_str().contains("secret"));

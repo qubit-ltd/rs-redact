@@ -19,11 +19,11 @@ struct Account {
 impl Redact for Account {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         writer.record("Account", |fields| {
-            let _ = fields.field("name", || self.name.clone()).sensitive(
-                Sensitivity::Secret,
-                "password",
-                || panic!("secret accessor must not run"),
-            );
+            let _ = fields
+                .field("name", || self.name.clone())
+                .sensitive(Sensitivity::Secret, "password", || {
+                    panic!("secret accessor must not run")
+                });
         });
     }
 }
@@ -64,10 +64,7 @@ fn test_set_default_replaces_only_future_snapshots() {
     let replacement = Redactor::new(policy);
     let old = Redactor::set_default(replacement.clone());
     let current = Redactor::current_default();
-    assert_eq!(
-        current.policy().sensitivity_for("password"),
-        Some(Sensitivity::Secret)
-    );
+    assert_eq!(current.policy().sensitivity_for("password"), Some(Sensitivity::Secret));
     let restored = Redactor::set_default(old.clone());
     assert_eq!(restored.policy(), replacement.policy());
 }
@@ -105,14 +102,9 @@ fn test_output_and_summary_accessors_preserve_machine_readable_state() {
     assert!(reasons.contains(RedactionReason::OutputLimitReached));
     assert!(reasons.contains(RedactionReason::DepthLimitReached));
 
-    let truncated =
-        RedactionSummary::truncated(RedactionReason::InputLimitReached);
+    let truncated = RedactionSummary::truncated(RedactionReason::InputLimitReached);
     assert_eq!(truncated.completion(), RedactionCompletion::Truncated);
-    assert!(
-        truncated
-            .reasons()
-            .contains(RedactionReason::InputLimitReached)
-    );
+    assert!(truncated.reasons().contains(RedactionReason::InputLimitReached));
     assert_eq!(truncated.usage(), usage);
     assert_eq!(
         RedactionSummary::exhausted().completion(),

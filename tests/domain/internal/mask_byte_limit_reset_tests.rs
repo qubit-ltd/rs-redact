@@ -35,10 +35,7 @@ fn test_mask_byte_limit_reset_restores_unbounded_state_after_panic() {
         .build()
         .expect("the bounded rendering limit should be valid");
     let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
-        let _ = PanickingRedact
-            .redacted()
-            .with_output_limit(limit)
-            .to_string();
+        let _ = PanickingRedact.redacted().with_output_limit(limit).to_string();
     }));
     assert!(result.is_err());
 

@@ -21,10 +21,7 @@ fn test_json_depth_limit_validates_positive_depth() {
         JsonDepthLimitError::ZeroDepth.to_string(),
         "JSON depth limit must be greater than zero",
     );
-    assert_eq!(
-        JsonDepthLimit::default().maximum(),
-        JsonDepthLimit::DEFAULT_MAX_DEPTH,
-    );
+    assert_eq!(JsonDepthLimit::default().maximum(), JsonDepthLimit::DEFAULT_MAX_DEPTH,);
 }
 
 /// Verifies policies retain custom JSON depth limits across immutable copies.

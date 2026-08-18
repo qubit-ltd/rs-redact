@@ -55,8 +55,7 @@ impl Redact for ManualAccount {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
         writer.record("ManualAccount", |fields| {
             fields.field("id", || self.id);
-            fields
-                .sensitive(Sensitivity::Secret, "password", || &self.password);
+            fields.sensitive(Sensitivity::Secret, "password", || &self.password);
             fields.field("note", || &self.note);
         });
     }
@@ -80,11 +79,7 @@ fn test_manual_redact_without_input_forecast_formats_safe_structure() {
 #[cfg(feature = "serde")]
 impl RedactSerialize for ManualAccount {
     /// Serializes the same masked account value through the serde hook.
-    fn serialize_redacted<S>(
-        &self,
-        policy: &RedactionPolicy,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(&self, policy: &RedactionPolicy, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -94,9 +89,7 @@ impl RedactSerialize for ManualAccount {
         state.serialize_field("id", &self.id)?;
         state.serialize_field(
             "password",
-            &self
-                .password
-                .redact_value(Sensitivity::Secret, policy.masking()),
+            &self.password.redact_value(Sensitivity::Secret, policy.masking()),
         )?;
         state.serialize_field("note", &self.note)?;
         state.end()
@@ -244,8 +237,7 @@ fn test_redacted_view_serializes_through_the_explicit_policy() {
     .build()
     .expect("the fixed masking policy should build");
 
-    let serialized = to_value(account.redacted_with(&policy))
-        .expect("the redacted view should serialize");
+    let serialized = to_value(account.redacted_with(&policy)).expect("the redacted view should serialize");
 
     assert_eq!(serialized["id"], 13);
     assert_eq!(serialized["password"], "[serde]");

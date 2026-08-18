@@ -21,9 +21,7 @@ fn alternate_log_safe_text(headers: &RedactedHeaders) -> &LogSafeText<'static> {
 }
 
 /// Alternate consuming query used as an unselected function target.
-fn alternate_into_log_safe_text(
-    headers: RedactedHeaders,
-) -> LogSafeText<'static> {
+fn alternate_into_log_safe_text(headers: RedactedHeaders) -> LogSafeText<'static> {
     headers.into_log_safe_text()
 }
 
@@ -34,25 +32,13 @@ fn test_redacted_headers_hides_authorization_value() {
     headers.insert("authorization", HeaderValue::from_static("Bearer raw"));
     let redacted = HttpRedactor::default().redact_headers(&headers);
     let selected = usize::from(std::process::id() == 0);
-    let borrowed_text: [for<'a> fn(
-        &'a RedactedHeaders,
-    ) -> &'a LogSafeText<'static>; 2] =
+    let borrowed_text: [for<'a> fn(&'a RedactedHeaders) -> &'a LogSafeText<'static>; 2] =
         [RedactedHeaders::log_safe_text, alternate_log_safe_text];
-    let owned_text: [fn(RedactedHeaders) -> LogSafeText<'static>; 2] = [
-        RedactedHeaders::into_log_safe_text,
-        alternate_into_log_safe_text,
-    ];
+    let owned_text: [fn(RedactedHeaders) -> LogSafeText<'static>; 2] =
+        [RedactedHeaders::into_log_safe_text, alternate_into_log_safe_text];
     let alternate_display = "alternate";
-    let display: &dyn Display = if selected == 0 {
-        &redacted
-    } else {
-        &alternate_display
-    };
-    let debug: &dyn Debug = if selected == 0 {
-        &redacted
-    } else {
-        &alternate_display
-    };
+    let display: &dyn Display = if selected == 0 { &redacted } else { &alternate_display };
+    let debug: &dyn Debug = if selected == 0 { &redacted } else { &alternate_display };
     let rendered = display.to_string();
     let debug = format!("{debug:?}");
 

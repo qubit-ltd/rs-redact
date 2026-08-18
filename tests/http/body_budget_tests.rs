@@ -30,17 +30,11 @@ fn test_body_budget_error_display_describes_invalid_limit() {
 #[test]
 fn test_body_budget_new_rejects_invalid_limits() {
     assert_eq!(
-        BodyBudget::builder()
-            .max_input_bytes(0)
-            .max_output_bytes(64)
-            .build(),
+        BodyBudget::builder().max_input_bytes(0).max_output_bytes(64).build(),
         Err(BodyBudgetError::ZeroInput)
     );
     assert_eq!(
-        BodyBudget::builder()
-            .max_input_bytes(16)
-            .max_output_bytes(0)
-            .build(),
+        BodyBudget::builder().max_input_bytes(16).max_output_bytes(0).build(),
         Err(BodyBudgetError::OutputTooSmall {
             minimum: BodyBudget::MIN_OUTPUT_BYTES,
             actual: 0,

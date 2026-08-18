@@ -17,15 +17,10 @@ fn test_uri_policy_inner_keeps_built_snapshot_immutable() {
     let mut builder = base.to_builder();
     builder.uri().path(UriPathPolicy::Redact);
     builder.uri().fragment(UriFragmentPolicy::Preserve);
-    let configured = builder
-        .build()
-        .expect("the configured policy must be valid");
+    let configured = builder.build().expect("the configured policy must be valid");
 
     assert_eq!(base.uri().path_policy(), UriPathPolicy::Preserve);
     assert_eq!(base.uri().fragment_policy(), UriFragmentPolicy::Redact);
     assert_eq!(configured.uri().path_policy(), UriPathPolicy::Redact);
-    assert_eq!(
-        configured.uri().fragment_policy(),
-        UriFragmentPolicy::Preserve
-    );
+    assert_eq!(configured.uri().fragment_policy(), UriFragmentPolicy::Preserve);
 }

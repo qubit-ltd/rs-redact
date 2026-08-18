@@ -13,11 +13,7 @@ use qubit_redact::formats::http::BodyCaptureError;
 #[test]
 fn test_body_capture_error_display_describes_invalid_total() {
     assert_eq!(
-        BodyCaptureError::InvalidTotalLength {
-            captured: 6,
-            total: 6,
-        }
-        .to_string(),
+        BodyCaptureError::InvalidTotalLength { captured: 6, total: 6 }.to_string(),
         "truncated body total length 6 must exceed 6 captured bytes",
     );
 }
@@ -38,8 +34,8 @@ fn test_body_capture_complete_sets_exact_metadata() {
 /// Verifies debug output exposes metadata without captured body bytes.
 #[test]
 fn test_body_capture_debug_does_not_expose_bytes() {
-    let capture = BodyCapture::truncated(b"debug-body-secret", 32)
-        .expect("the total length exceeds the captured length");
+    let capture =
+        BodyCapture::truncated(b"debug-body-secret", 32).expect("the total length exceeds the captured length");
     let rendered = format!("{capture:?}");
 
     assert!(!rendered.contains("debug-body-secret"));
@@ -68,8 +64,7 @@ fn test_body_capture_truncated_rejects_impossible_total() {
 #[test]
 fn test_body_capture_truncated_preserves_metadata() {
     let bytes = b"abcdef";
-    let known = BodyCapture::truncated(bytes, 10)
-        .expect("a larger total length should be valid");
+    let known = BodyCapture::truncated(bytes, 10).expect("a larger total length should be valid");
     let unknown = BodyCapture::truncated_unknown(bytes);
 
     assert_eq!(known.bytes(), bytes);

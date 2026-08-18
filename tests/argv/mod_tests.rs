@@ -16,10 +16,7 @@ use qubit_redact::formats::argv::ArgvRedactor;
 #[test]
 fn test_argv_module_reexports_compose() {
     let rendered = ArgvRedactor::default()
-        .redact_items([ArgvItem::sensitive(
-            OsStr::new("raw-secret"),
-            Sensitivity::Secret,
-        )])
+        .redact_items([ArgvItem::sensitive(OsStr::new("raw-secret"), Sensitivity::Secret)])
         .to_string();
 
     assert!(!rendered.contains("raw-secret"));

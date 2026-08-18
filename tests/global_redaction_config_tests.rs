@@ -47,9 +47,6 @@ fn test_global_config_is_installed_once_and_snapshotted() {
             .sensitivity_for("tenant_floor_blob"),
         None,
     );
-    assert_eq!(
-        RedactionPolicy::standard().sensitivity_for("tenant_floor_blob"),
-        None
-    );
+    assert_eq!(RedactionPolicy::standard().sensitivity_for("tenant_floor_blob"), None);
     let _ = Redactor::set_default(previous);
 }

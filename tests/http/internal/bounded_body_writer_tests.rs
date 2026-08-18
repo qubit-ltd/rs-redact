@@ -34,11 +34,10 @@ fn redactor_with_output_limit(max_output_bytes: usize) -> HttpRedactor {
 /// partially rendered secret.
 #[test]
 fn test_bounded_json_rendering_truncates_without_partial_secret() {
-    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES)
-        .redact_body(
-            BodyCapture::complete(br#"{\"password\":\"raw-secret\"}"#),
-            Some(&HeaderValue::from_static("application/json")),
-        );
+    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES).redact_body(
+        BodyCapture::complete(br#"{\"password\":\"raw-secret\"}"#),
+        Some(&HeaderValue::from_static("application/json")),
+    );
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(!result.to_string().contains("raw-secret"));
@@ -47,13 +46,10 @@ fn test_bounded_json_rendering_truncates_without_partial_secret() {
 /// Verifies NDJSON rendering can truncate after a complete first record.
 #[test]
 fn test_bounded_ndjson_rendering_truncates_after_complete_record() {
-    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES)
-        .redact_body(
-            BodyCapture::complete(
-                b"{\"mode\":1}\n{\"password\":\"raw-secret\"}",
-            ),
-            Some(&HeaderValue::from_static("application/x-ndjson")),
-        );
+    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES).redact_body(
+        BodyCapture::complete(b"{\"mode\":1}\n{\"password\":\"raw-secret\"}"),
+        Some(&HeaderValue::from_static("application/x-ndjson")),
+    );
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
     assert!(!result.to_string().contains("raw-secret"));
@@ -62,11 +58,10 @@ fn test_bounded_ndjson_rendering_truncates_after_complete_record() {
 /// Verifies NDJSON truncates when a record leaves no room for its separator.
 #[test]
 fn test_bounded_ndjson_rendering_truncates_at_record_separator() {
-    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES)
-        .redact_body(
-            BodyCapture::complete(b"{\"a\":\"abc\"}\n{}"),
-            Some(&HeaderValue::from_static("application/x-ndjson")),
-        );
+    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES).redact_body(
+        BodyCapture::complete(b"{\"a\":\"abc\"}\n{}"),
+        Some(&HeaderValue::from_static("application/x-ndjson")),
+    );
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
 }
@@ -75,11 +70,10 @@ fn test_bounded_ndjson_rendering_truncates_at_record_separator() {
 /// its original trailing newline.
 #[test]
 fn test_bounded_ndjson_rendering_truncates_at_trailing_newline() {
-    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES)
-        .redact_body(
-            BodyCapture::complete(b"{\"a\":\"abc\"}\n"),
-            Some(&HeaderValue::from_static("application/x-ndjson")),
-        );
+    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES).redact_body(
+        BodyCapture::complete(b"{\"a\":\"abc\"}\n"),
+        Some(&HeaderValue::from_static("application/x-ndjson")),
+    );
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
 }
@@ -88,13 +82,10 @@ fn test_bounded_ndjson_rendering_truncates_at_trailing_newline() {
 /// configured rendering budget.
 #[test]
 fn test_bounded_multipart_rendering_truncates_before_first_part() {
-    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES)
-        .redact_body(
-            BodyCapture::complete(b"--boundary--\r\n"),
-            Some(&HeaderValue::from_static(
-                "multipart/form-data; boundary=boundary",
-            )),
-        );
+    let result = redactor_with_output_limit(BodyBudget::MIN_OUTPUT_BYTES).redact_body(
+        BodyCapture::complete(b"--boundary--\r\n"),
+        Some(&HeaderValue::from_static("multipart/form-data; boundary=boundary")),
+    );
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
 }
@@ -105,9 +96,7 @@ fn test_bounded_multipart_rendering_truncates_before_first_part() {
 fn test_bounded_empty_multipart_rendering_truncates_at_closing_marker() {
     let result = redactor_with_output_limit("<multipart>\n".len()).redact_body(
         BodyCapture::complete(b"--boundary--\r\n"),
-        Some(&HeaderValue::from_static(
-            "multipart/form-data; boundary=boundary",
-        )),
+        Some(&HeaderValue::from_static("multipart/form-data; boundary=boundary")),
     );
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
@@ -120,18 +109,14 @@ fn test_bounded_multipart_rendering_truncates_at_output_markers() {
     let two_parts = b"--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nraw\r\n--boundary\r\nContent-Disposition: form-data; name=\"mode\"\r\n\r\ndebug\r\n--boundary--\r\n";
     let separator = redactor_with_output_limit(31).redact_body(
         BodyCapture::complete(two_parts),
-        Some(&HeaderValue::from_static(
-            "multipart/form-data; boundary=boundary",
-        )),
+        Some(&HeaderValue::from_static("multipart/form-data; boundary=boundary")),
     );
     assert_eq!(separator.completion(), RedactionCompletion::Truncated);
 
     let one_part = b"--boundary\r\nContent-Disposition: form-data; name=\"mode\"\r\n\r\ndebug\r\n--boundary--\r\n";
     let closing = redactor_with_output_limit(30).redact_body(
         BodyCapture::complete(one_part),
-        Some(&HeaderValue::from_static(
-            "multipart/form-data; boundary=boundary",
-        )),
+        Some(&HeaderValue::from_static("multipart/form-data; boundary=boundary")),
     );
     assert_eq!(closing.completion(), RedactionCompletion::Truncated);
 }
@@ -143,9 +128,7 @@ fn test_bounded_multipart_rendering_propagates_nested_truncation() {
     let body = b"--boundary\r\nContent-Disposition: form-data; name=\"metadata\"\r\nContent-Type: application/json\r\n\r\n{\"a\":\"a-very-long-value\"}\r\n--boundary--\r\n";
     let result = redactor_with_output_limit(20).redact_body(
         BodyCapture::complete(body),
-        Some(&HeaderValue::from_static(
-            "multipart/form-data; boundary=boundary",
-        )),
+        Some(&HeaderValue::from_static("multipart/form-data; boundary=boundary")),
     );
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);

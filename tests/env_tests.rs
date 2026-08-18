@@ -52,10 +52,7 @@ fn test_redact_pair_session_respects_cumulative_output_limit() {
         .collect();
 
     assert!(rendered.iter().any(String::is_empty));
-    assert!(
-        rendered.iter().map(String::len).sum::<usize>()
-            <= limit.max_output_bytes()
-    );
+    assert!(rendered.iter().map(String::len).sum::<usize>() <= limit.max_output_bytes());
     assert!(session.remaining_output_bytes() <= limit.max_output_bytes());
 }
 
@@ -109,8 +106,7 @@ fn test_redact_os_pair_with_session_charges_invalid_components() {
     let name = OsString::from_vec(vec![b'N', 0xff]);
     let value = OsString::from_vec(vec![b'v', 0xfe]);
 
-    let rendered =
-        session.env_with_mut(|env| env.redact_os_pair(&name, &value));
+    let rendered = session.env_with_mut(|env| env.redact_os_pair(&name, &value));
 
     assert!(rendered.to_string().contains("<redacted>"));
     assert!(session.remaining_input_bytes() < 64);
@@ -135,10 +131,7 @@ fn test_redact_os_pairs_stops_before_input_budget_exhaustion() {
     .expect("the bounded policy should be valid");
     let redactor = EnvRedactor::new(Redactor::new(policy));
 
-    let result = redactor.redact_os_pairs(vec![(
-        "MODE".as_ref(),
-        "uninspected-secret".as_ref(),
-    )]);
+    let result = redactor.redact_os_pairs(vec![("MODE".as_ref(), "uninspected-secret".as_ref())]);
     let rendered = result.to_string();
 
     assert_eq!(result.completion(), RedactionCompletion::Truncated);
@@ -166,13 +159,7 @@ fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
     let redactor = EnvRedactor::new(Redactor::new(policy));
 
     let rendered = redactor
-        .redact_os_pairs(vec![
-            (
-                std::ffi::OsStr::new(""),
-                std::ffi::OsStr::new("")
-            );
-            128
-        ])
+        .redact_os_pairs(vec![(std::ffi::OsStr::new(""), std::ffi::OsStr::new("")); 128])
         .to_string();
 
     assert!(rendered.len() <= 64, "{rendered}");
@@ -185,10 +172,7 @@ fn test_redact_os_pairs_stops_after_output_budget_exhaustion() {
 fn test_redact_os_pairs_renders_complete_safe_assignments() {
     let result = EnvRedactor::default().redact_os_pairs(vec![
         (std::ffi::OsStr::new("MODE"), std::ffi::OsStr::new("debug")),
-        (
-            std::ffi::OsStr::new("PASSWORD"),
-            std::ffi::OsStr::new("secret"),
-        ),
+        (std::ffi::OsStr::new("PASSWORD"), std::ffi::OsStr::new("secret")),
     ]);
     let rendered = result.to_string();
 
@@ -223,9 +207,7 @@ fn test_redact_pair_masks_prefixed_sensitive_name() {
 #[test]
 fn test_redact_pair_ignores_empty_canonical_name() {
     assert_eq!(
-        EnvRedactor::default()
-            .redact_pair("___", "secret")
-            .to_string(),
+        EnvRedactor::default().redact_pair("___", "secret").to_string(),
         "___=secret",
     );
 }
@@ -284,9 +266,7 @@ fn test_redact_assignment_masks_secret_and_preserves_value_equals() {
         "PASSWORD=<redacted>",
     );
     assert_eq!(
-        EnvRedactor::default()
-            .redact_assignment("MODE=debug=tail")
-            .to_string(),
+        EnvRedactor::default().redact_assignment("MODE=debug=tail").to_string(),
         "MODE=debug=tail",
     );
 }
@@ -294,10 +274,7 @@ fn test_redact_assignment_masks_secret_and_preserves_value_equals() {
 /// Verifies text without an equals sign becomes an empty-valued pair.
 #[test]
 fn test_redact_assignment_renders_missing_value_as_empty() {
-    assert_eq!(
-        EnvRedactor::default().redact_assignment("PATH").to_string(),
-        "PATH=",
-    );
+    assert_eq!(EnvRedactor::default().redact_assignment("PATH").to_string(), "PATH=",);
 }
 
 /// Verifies callers can map the pair-oriented API over assignment iterators.
@@ -344,9 +321,7 @@ fn test_new_uses_custom_redaction_policy() {
         Some(Sensitivity::Secret),
     );
     assert_eq!(
-        redactor
-            .redact_pair("TENANT_VALUE", "tenant-secret")
-            .to_string(),
+        redactor.redact_pair("TENANT_VALUE", "tenant-secret").to_string(),
         "TENANT_VALUE=<redacted>",
     );
 }
@@ -370,9 +345,7 @@ fn test_redact_os_pair_masks_non_utf8_name_and_value() {
     let name = OsString::from_vec(b"CUSTOM_\xFF_KEY".to_vec());
     let value = OsString::from_vec(b"prefix-secret-\xFF-suffix".to_vec());
 
-    let rendered = EnvRedactor::default()
-        .redact_os_pair(&name, &value)
-        .to_string();
+    let rendered = EnvRedactor::default().redact_os_pair(&name, &value).to_string();
 
     assert_eq!(rendered, "CUSTOM_�_KEY=<redacted>");
     assert!(!rendered.contains("prefix-secret"));
@@ -415,9 +388,7 @@ fn test_redact_os_pairs_masks_non_utf8_components() {
     let name = OsString::from_vec(b"CUSTOM_\xFF_KEY".to_vec());
     let value = OsString::from_vec(b"prefix-secret-\xFF-suffix".to_vec());
 
-    let rendered = EnvRedactor::default()
-        .redact_os_pairs([(&*name, &*value)])
-        .to_string();
+    let rendered = EnvRedactor::default().redact_os_pairs([(&*name, &*value)]).to_string();
 
     assert_eq!(rendered, r#"["CUSTOM_�_KEY=<redacted>"]"#);
     assert!(!rendered.contains("prefix-secret"));
