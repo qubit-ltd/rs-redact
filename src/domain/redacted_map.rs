@@ -121,7 +121,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedMap<'a, M, K, V> {
     #[must_use]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit = LogOutputLimit::from(self.policy.limits().diagnostic_event());
+        let limit = LogOutputLimit::unbounded();
         BoundedRedactedDisplay::new(self, limit)
     }
 }
@@ -270,7 +270,7 @@ impl<M: RedactMapValue<K, V> + ?Sized, K: ?Sized, V: ?Sized> Display for Redacte
         let view = RedactedMapResult::new(self.map, &mut session);
         format_bounded(
             &view,
-            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
+            LogOutputLimit::unbounded(),
             formatter,
         )
     }

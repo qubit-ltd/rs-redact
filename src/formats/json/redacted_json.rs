@@ -86,7 +86,7 @@ impl<'value, 'policy> RedactedJson<'value, 'policy> {
     /// True for an object or array at or beyond the configured maximum depth.
     #[inline(always)]
     fn depth_limit_reached(&self) -> bool {
-        self.depth.saturating_add(1) > self.policy.json_depth_limit().maximum()
+        self.depth.saturating_add(1) > self.policy.limits().json().max_depth().unwrap_or(usize::MAX)
             && matches!(self.value, Value::Object(_) | Value::Array(_))
     }
 

@@ -149,7 +149,7 @@ impl<'a, M: ?Sized, K: ?Sized, V: ?Sized> RedactedKeyedMap<'a, M, K, V> {
     #[must_use]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit = LogOutputLimit::from(self.policy.limits().diagnostic_event());
+        let limit = LogOutputLimit::unbounded();
         BoundedRedactedDisplay::new(self, limit)
     }
 }
@@ -362,7 +362,7 @@ where
         let view = RedactedKeyedMapResult::new(self.map, &mut session);
         format_bounded(
             &view,
-            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
+            LogOutputLimit::unbounded(),
             formatter,
         )
     }

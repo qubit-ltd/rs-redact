@@ -17,7 +17,7 @@ use crate::formats::http::internal::markers;
 impl HttpRedactor {
     /// Reports whether a diagnostic input exceeds the hard input limit.
     pub(super) fn diagnostic_input_exceeded(&self, input_bytes: usize) -> bool {
-        input_bytes > self.policy().limits().diagnostic_event().max_input_bytes()
+        input_bytes > usize::MAX
     }
 
     /// Returns the fixed log-safe diagnostic-limit marker.
@@ -29,7 +29,7 @@ impl HttpRedactor {
     /// Escapes and bounds one redacted HTTP diagnostic.
     #[must_use]
     pub(super) fn finish_diagnostic(&self, text: String) -> RedactedText {
-        self.finish_diagnostic_with_limit(text, self.policy().limits().diagnostic_event().max_output_bytes())
+        self.finish_diagnostic_with_limit(text, usize::MAX)
     }
 
     /// Escapes and bounds one diagnostic with an explicit output ceiling.

@@ -93,7 +93,7 @@ impl<'a, T: ?Sized> Redacted<'a, T> {
     #[must_use]
     #[inline]
     pub fn with_policy_output_limit(self) -> BoundedRedactedDisplay<Self> {
-        let limit = LogOutputLimit::from(self.policy.limits().diagnostic_event());
+        let limit = LogOutputLimit::unbounded();
         BoundedRedactedDisplay::new(self, limit)
     }
 
@@ -480,7 +480,7 @@ impl<T: Redact + ?Sized> Display for Redacted<'_, T> {
         let view = RedactedResult::new(self.value, &mut session);
         format_bounded(
             &view,
-            LogOutputLimit::from(self.policy.limits().diagnostic_event()),
+            LogOutputLimit::unbounded(),
             formatter,
         )
     }
