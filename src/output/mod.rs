@@ -17,7 +17,6 @@ mod masked_value;
 mod redacted_debug;
 mod redacted_text;
 mod redaction_completion;
-pub(crate) mod redaction_output;
 
 pub use bounded_log_safe_display::BoundedLogSafeDisplay;
 pub use diagnostic_log_builder::DiagnosticLogBuilder;

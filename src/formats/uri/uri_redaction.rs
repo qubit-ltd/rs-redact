@@ -17,7 +17,7 @@ use super::UriRedactionReason;
 use super::UriRedactionStatus;
 use crate::RedactedText;
 use crate::RedactionCompletion;
-use crate::output::redaction_output::RedactionOutput;
+use crate::RedactionOutput;
 
 /// A log-safe URI together with explainable processing metadata.
 ///

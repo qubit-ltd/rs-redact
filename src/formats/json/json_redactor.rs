@@ -13,7 +13,7 @@ use super::bounded_json_redaction::redacted_json_value_bounded;
 use crate::RedactedText;
 use crate::RedactionPolicy;
 use crate::Sensitivity;
-use crate::output::redaction_output::RedactionOutput;
+use crate::RedactionOutput;
 
 /// Applies one immutable policy to JSON values or JSON text.
 #[derive(Debug, Clone, PartialEq, Eq)]

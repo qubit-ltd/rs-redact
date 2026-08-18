@@ -22,6 +22,34 @@ impl RedactionOutput {
         Self { text, summary }
     }
 
+    #[doc(hidden)]
+    pub(crate) fn complete(text: RedactedText) -> Self {
+        Self::new(text, RedactionSummary::complete())
+    }
+
+    #[doc(hidden)]
+    pub(crate) fn truncated(text: RedactedText) -> Option<Self> {
+        if text.as_str().is_empty() {
+            None
+        } else {
+            Some(Self::new(text, RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached)))
+        }
+    }
+
+    #[doc(hidden)]
+    pub(crate) fn exhausted() -> Self {
+        Self::new(RedactedText::from_escaped(std::borrow::Cow::Borrowed("")), RedactionSummary::exhausted())
+    }
+
+    #[doc(hidden)]
+    pub(crate) const fn log_safe_text(&self) -> &RedactedText { self.text() }
+
+    #[doc(hidden)]
+    pub(crate) const fn completion(&self) -> crate::RedactionCompletion { self.summary.completion() }
+
+    #[doc(hidden)]
+    pub(crate) fn into_log_safe_text(self) -> RedactedText { self.into_text() }
+
     /// Borrows the final text.
     #[must_use]
     pub const fn text(&self) -> &RedactedText {

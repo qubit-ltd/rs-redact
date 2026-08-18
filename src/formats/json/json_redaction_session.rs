@@ -23,7 +23,7 @@ use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::Sensitivity;
 use crate::output::MaskedValue;
-use crate::output::redaction_output::RedactionOutput;
+use crate::RedactionOutput;
 use crate::policy::FragmentCompletion;
 use crate::policy::RedactionAdmission;
 

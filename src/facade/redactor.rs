@@ -30,8 +30,7 @@ use crate::formats::json::JsonRedactor;
 #[cfg(feature = "uri")]
 use crate::formats::uri::UriRedactor;
 use crate::output::MaskedValue;
-use crate::output::redaction_output::RedactionOutput;
-use crate::policy::DiagnosticBudget;
+use crate::facade::RedactionOutput;
 use crate::policy::FragmentCompletion;
 use crate::policy::RedactionAdmission;
 use crate::policy::ResolvedField;
@@ -374,36 +373,6 @@ pub(crate) fn redaction_fragment_completion(text: &str, completion: FragmentComp
     }
 }
 
-/// Redacts one field through the supplied ordinary or diagnostic budget.
-#[must_use]
-fn redact_field_with_budget<'value>(
-    policy: &RedactionPolicy,
-    budget: &mut DiagnosticBudget,
-    field: &str,
-    value: &'value str,
-) -> FieldRedaction<'value> {
-    let fallback = opaque_mask(policy);
-    let fallback_bytes = log_safe_len(fallback);
-    let input_bytes = field.len().saturating_add(value.len());
-    let admission = budget.admit(input_bytes, usize::MAX, fallback_bytes);
-    let RedactionAdmission::Render { max_output_bytes } = admission else {
-        return admission_field_fallback(admission, fallback);
-    };
-
-    let (redacted, mask_truncated) = redact_field_unbudgeted(policy, field, value, max_output_bytes);
-    let output_bytes = log_safe_len(redacted.as_str());
-    if output_bytes <= max_output_bytes {
-        let completion = if mask_truncated {
-            FragmentCompletion::SessionTruncated
-        } else {
-            FragmentCompletion::Complete
-        };
-        budget.commit_output(output_bytes, completion);
-        return redacted;
-    }
-    terminal_field_fallback(budget, max_output_bytes, fallback, fallback_bytes)
-}
-
 /// Resolves one admitted field without charging its output.
 #[must_use]
 pub(crate) fn redact_field_unbudgeted<'value>(
@@ -439,36 +408,6 @@ pub(crate) fn redact_field_unbudgeted<'value>(
     }
 }
 
-/// Redacts one explicitly sensitive value through a supplied budget.
-#[must_use]
-fn redact_at_with_budget<'value>(
-    policy: &RedactionPolicy,
-    budget: &mut DiagnosticBudget,
-    level: Sensitivity,
-    value: &'value str,
-) -> MaskedValue<'value> {
-    let fallback = opaque_mask(policy);
-    let fallback_bytes = log_safe_len(fallback);
-    let admission = budget.admit(value.len(), usize::MAX, fallback_bytes);
-    let RedactionAdmission::Render { max_output_bytes } = admission else {
-        return admission_text_fallback(admission, fallback);
-    };
-    let (masked, mask_truncated) = policy
-        .masking()
-        .mask_bounded_with_truncation(level, value, max_output_bytes);
-    let output_bytes = log_safe_len(masked.as_ref());
-    if output_bytes <= max_output_bytes {
-        let completion = if mask_truncated {
-            FragmentCompletion::SessionTruncated
-        } else {
-            FragmentCompletion::Complete
-        };
-        budget.commit_output(output_bytes, completion);
-        return MaskedValue::new(masked);
-    }
-    terminal_text_fallback(budget, max_output_bytes, fallback, fallback_bytes)
-}
-
 /// Returns the policy's opaque Secret mask.
 #[inline(always)]
 pub(crate) fn opaque_mask(policy: &RedactionPolicy) -> &str {
@@ -495,37 +434,6 @@ pub(crate) fn admission_field_fallback<'value>(
 ) -> FieldRedaction<'value> {
     FieldRedaction::Masked {
         value: admission_text_fallback(admission, fallback),
-        sensitivity: Sensitivity::Secret,
-    }
-}
-
-/// Commits a terminal scalar fallback after rendered output exceeded its cap.
-#[must_use]
-fn terminal_text_fallback<'value>(
-    budget: &mut DiagnosticBudget,
-    max_output_bytes: usize,
-    fallback: &str,
-    fallback_bytes: usize,
-) -> MaskedValue<'value> {
-    if fallback_bytes <= max_output_bytes {
-        budget.commit_output(fallback_bytes, FragmentCompletion::SessionTruncated);
-        MaskedValue::new(Cow::Owned(fallback.to_owned()))
-    } else {
-        budget.commit_output(0, FragmentCompletion::SessionTruncated);
-        MaskedValue::new(Cow::Owned(String::new()))
-    }
-}
-
-/// Wraps a terminal scalar fallback as a field result.
-#[must_use]
-fn terminal_field_fallback<'value>(
-    budget: &mut DiagnosticBudget,
-    max_output_bytes: usize,
-    fallback: &str,
-    fallback_bytes: usize,
-) -> FieldRedaction<'value> {
-    FieldRedaction::Masked {
-        value: terminal_text_fallback(budget, max_output_bytes, fallback, fallback_bytes),
         sensitivity: Sensitivity::Secret,
     }
 }

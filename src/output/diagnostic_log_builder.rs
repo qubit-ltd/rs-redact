@@ -14,7 +14,7 @@ use std::fmt::Write as _;
 use super::RedactedText;
 use super::RedactionCompletion;
 use super::internal::BoundedLogEscapeWriter;
-use super::redaction_output::RedactionOutput;
+use crate::RedactionOutput;
 use crate::InputOutputLimit;
 use crate::LogOutputLimit;
 use crate::RedactionSession;

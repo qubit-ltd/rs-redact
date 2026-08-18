@@ -15,7 +15,7 @@ use super::redacted_argv_builder::RedactedArgvBuilder;
 use crate::InputOutputLimit;
 use crate::RedactedText;
 use crate::RedactionCompletion;
-use crate::output::redaction_output::RedactionOutput;
+use crate::RedactionOutput;
 
 /// A redacted argv rendering that is safe for a single-line text log.
 #[derive(Debug, Clone, PartialEq, Eq)]
