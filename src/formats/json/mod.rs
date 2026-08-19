@@ -14,4 +14,6 @@ mod json_redaction_session;
 
 pub use json_redaction_session::JsonRedactionSession;
 pub(crate) use json_redaction_session::admit_json_text_structure;
+#[cfg(feature = "http")]
+pub(crate) use json_redaction_session::admit_json_text_structure_at_depth;
 pub(crate) use json_redaction_session::redact_json_text_with_limit;

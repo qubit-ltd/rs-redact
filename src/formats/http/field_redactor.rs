@@ -86,6 +86,18 @@ impl<'a> FieldRedactor<'a> {
         }
     }
 
+    /// Reports whether the final atomic rule resolution protects `field`.
+    #[must_use]
+    pub(in crate::formats::http) fn is_sensitive(&self, field: &str) -> bool {
+        matches!(
+            stronger(
+                self.base_rules.resolve_field(field),
+                self.context_rules.resolve_field(field),
+            ),
+            ResolvedField::Sensitive { .. }
+        )
+    }
+
     /// Masks an explicitly sensitive native value with the shared mask table.
     pub(in crate::formats::http) fn mask_bounded<'value>(
         &self,

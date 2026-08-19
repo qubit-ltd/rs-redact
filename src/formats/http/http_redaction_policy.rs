@@ -7,6 +7,7 @@
 // =============================================================================
 //! Immutable policy snapshot for every HTTP redaction context.
 // qubit-style: allow type-file-name
+// qubit-style: allow multiple-public-types
 
 use std::sync::Arc;
 

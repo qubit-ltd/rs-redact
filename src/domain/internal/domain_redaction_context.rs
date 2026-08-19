@@ -2,6 +2,8 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Private domain traversal state backed by [`qubit_budget::StructureBudget`].
 // qubit-style: allow multiple-public-types
@@ -21,7 +23,7 @@ pub(crate) enum DomainEntry {
 pub(crate) struct DomainRedactionContext {
     budget: StructureBudget,
     current_depth: usize,
-    max_depth: usize,
+    max_depth: Option<usize>,
     traversal_closed: bool,
     collection_items_seen: usize,
     maximum_depth_observed: usize,
@@ -30,11 +32,10 @@ pub(crate) struct DomainRedactionContext {
 impl DomainRedactionContext {
     #[must_use]
     pub(crate) fn new(limits: StructureLimits) -> Self {
-        let max_depth = limits.max_depth().unwrap_or(usize::MAX);
         Self {
             budget: limits.budget(),
             current_depth: 0,
-            max_depth,
+            max_depth: limits.max_depth(),
             traversal_closed: false,
             collection_items_seen: 0,
             maximum_depth_observed: 0,
@@ -45,7 +46,7 @@ impl DomainRedactionContext {
         if self.traversal_closed {
             return DomainEntry::TraversalLimitReached;
         }
-        if self.current_depth >= self.max_depth {
+        if self.max_depth.is_some_and(|max_depth| self.current_depth >= max_depth) {
             return DomainEntry::DepthLimitReached;
         }
         if self.budget.enter_node(self.current_depth.saturating_add(1)).is_err() {
@@ -74,7 +75,7 @@ impl DomainRedactionContext {
         if self.traversal_closed {
             return DomainEntry::TraversalLimitReached;
         }
-        if depth > self.max_depth {
+        if self.max_depth.is_some_and(|max_depth| depth > max_depth) {
             return DomainEntry::DepthLimitReached;
         }
         if self.budget.charge_node().is_err() {

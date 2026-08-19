@@ -75,34 +75,6 @@ impl RedactionLimits {
     pub const fn json(&self) -> JsonValueLimits {
         self.json
     }
-
-    /// Returns the JSON point limits with structural dimensions removed.
-    /// A redaction transaction owns depth, node, and collection admission in
-    /// its one shared structural ledger; JSON traversal retains only its
-    /// format-specific scalar and payload limits.
-    #[cfg(feature = "json")]
-    #[must_use]
-    pub(crate) fn json_point_limits(&self) -> JsonValueLimits {
-        Self::json_point_limits_from(self.json)
-    }
-
-    /// Removes JSON-local structural limits while retaining JSON-specific
-    /// point limits. This is used by nested HTTP JSON rendering as well.
-    #[cfg(feature = "json")]
-    #[must_use]
-    pub(crate) fn json_point_limits_from(limits: JsonValueLimits) -> JsonValueLimits {
-        let mut builder = JsonValueLimits::builder().structure_limits(StructureLimits::new());
-        if let Some(limit) = limits.string_bytes_limit() {
-            builder = builder.string_bytes_limit(*limit);
-        }
-        if let Some(limit) = limits.number_bytes_limit() {
-            builder = builder.number_bytes_limit(*limit);
-        }
-        if let Some(limit) = limits.payload_bytes_limit() {
-            builder = builder.payload_bytes_limit(*limit);
-        }
-        builder.build()
-    }
 }
 
 impl RedactionLimitsBuilder {

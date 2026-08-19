@@ -6,6 +6,7 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Stateless redaction operations backed by an immutable policy.
+// qubit-style: allow multiple-public-types
 
 use std::ffi::OsStr;
 use std::fmt;
@@ -144,7 +145,7 @@ impl Redactor {
         I::IntoIter: ExactSizeIterator,
     {
         let mut session = self.session();
-        let handle = crate::formats::argv::ArgvRedactionSession::new(&mut session).redact_items(items);
+        let handle = session.redact_argv(items);
         session
             .finish()
             .into_resolved(handle)
@@ -155,7 +156,7 @@ impl Redactor {
     #[must_use]
     pub fn redact_env(&self, name: &str, value: &str) -> RedactionOutput {
         let mut session = self.session();
-        let handle = crate::formats::env::EnvRedactionSession::new(&mut session).redact_pair(name, value);
+        let handle = session.redact_env(name, value);
         session
             .finish()
             .into_resolved(handle)
@@ -258,11 +259,10 @@ impl Redactor {
     pub fn redact_uri(&self, input: &str) -> RedactionOutput {
         let mut session = self.session();
         let handle = session.redact_uri(input);
-        let output = session.finish();
-        output
-            .resolve(handle)
+        session
+            .finish()
+            .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
-            .clone()
     }
 }
 

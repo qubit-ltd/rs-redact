@@ -22,19 +22,32 @@ use crate::output::MaskedValue;
 /// `false` at the first rejected element; no later sibling is visited.
 #[must_use]
 pub(crate) fn admit_json_text_structure(session: &mut RedactionSession, text: &str) -> bool {
-    let Ok(value) = Value::from_str(text) else {
-        return session.admit_format_node(1);
-    };
-    admit_json_value_structure(session, &value)
+    admit_json_text_structure_at_depth(session, text, 1)
 }
 
-/// Admits one parsed JSON tree through the transaction-wide structural
-/// ledger. JSON's local traversal limits remain responsible only for JSON
-/// point limits; depth, nodes, and collection entries are owned by the
-/// session.
+/// Admits JSON text whose root is nested at `root_depth` in another format.
 #[must_use]
-pub(crate) fn admit_json_value_structure(session: &mut RedactionSession, root: &Value) -> bool {
-    let mut pending = vec![(root, 1usize, false)];
+pub(crate) fn admit_json_text_structure_at_depth(
+    session: &mut RedactionSession,
+    text: &str,
+    root_depth: usize,
+) -> bool {
+    let Ok(value) = Value::from_str(text) else {
+        return session.admit_format_node(root_depth);
+    };
+    admit_json_value_structure_at_depth(session, &value, root_depth)
+}
+
+/// Admits one parsed JSON tree nested at `root_depth` in another format.
+/// JSON-specific key, scalar, and payload limits are checked by the active
+/// `TransactionState`; depth, nodes, and collection entries also use the
+/// transaction-wide structural ledger shared with every format.
+#[must_use]
+fn admit_json_value_structure_at_depth(session: &mut RedactionSession, root: &Value, root_depth: usize) -> bool {
+    if !session.admit_json_value(root) {
+        return false;
+    }
+    let mut pending = vec![(root, root_depth, false)];
     while let Some((value, depth, collection_item)) = pending.pop() {
         if (collection_item && !session.admit_format_collection_item()) || !session.admit_format_node(depth) {
             return false;
@@ -143,20 +156,29 @@ impl<'session> JsonRedactionSession<'session> {
     /// Redacts JSON text as one individually resolvable transaction item.
     #[must_use]
     pub fn redact_text(&mut self, text: &str) -> RedactionHandle {
-        if !self.session.is_output_exhausted() && self.session.admit_input(text.len()) {
-            if !admit_json_text_structure(self.session, text) {
+        let owns_item_summary = self.session.begin_item_summary();
+        let handle = (|| {
+            if self.session.is_output_exhausted() {
                 return self.session.stage_format_text(
-                    crate::RedactedText::from_escaped("<truncated>"),
-                    crate::RedactionCompletion::Truncated,
+                    crate::RedactedText::from_escaped(String::new()),
+                    crate::RedactionCompletion::Exhausted,
                 );
             }
+            if !self.session.admit_input(text.len()) {
+                return self
+                    .session
+                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+            }
+            if !admit_json_text_structure(self.session, text) {
+                return self
+                    .session
+                    .stage_accounted_text(crate::RedactedText::from_escaped("<truncated>"));
+            }
             let result = self.redact_text_direct(text);
-            return self.session.stage_item(result);
-        }
-        self.session.stage_format_text(
-            crate::RedactedText::from_escaped(String::new()),
-            crate::RedactionCompletion::Exhausted,
-        )
+            self.session.stage_item(result)
+        })();
+        self.session.end_item_summary(owns_item_summary);
+        handle
     }
 }
 

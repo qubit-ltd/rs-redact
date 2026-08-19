@@ -10,16 +10,12 @@
 use std::io;
 use std::io::Write;
 
-use qubit_budget::ResourceBudget;
-
-use crate::policy::RedactionResource;
-
 /// Accumulates UTF-8 rendering bytes without exceeding a fixed budget.
 pub(in crate::formats::http) struct BoundedBodyWriter {
     /// Rendered bytes accepted before the first over-budget write.
     output: Vec<u8>,
-    /// Exact accounting for rendered bytes retained in `output`.
-    budget: ResourceBudget<RedactionResource, usize>,
+    /// Maximum number of rendered bytes retained in `output`.
+    max_bytes: usize,
 }
 
 impl BoundedBodyWriter {
@@ -37,7 +33,7 @@ impl BoundedBodyWriter {
     pub(in crate::formats::http) fn new(max_bytes: usize) -> Self {
         Self {
             output: Vec::new(),
-            budget: ResourceBudget::new(RedactionResource::Output, max_bytes),
+            max_bytes,
         }
     }
 
@@ -70,7 +66,7 @@ impl Write for BoundedBodyWriter {
     /// complete slice would exceed the configured limit. No partial slice is
     /// retained, so successful JSON serialization always retains valid UTF-8.
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        if self.budget.try_consume(buffer.len()).is_err() {
+        if self.output.len().saturating_add(buffer.len()) > self.max_bytes {
             return Err(io::Error::from(io::ErrorKind::WriteZero));
         }
         self.output.extend_from_slice(buffer);

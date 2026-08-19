@@ -108,6 +108,13 @@ impl BoundedLogWriter {
         self.truncate_to_payload_limit();
     }
 
+    /// Reports whether this writer omitted output because of its byte limit.
+    #[must_use]
+    #[inline(always)]
+    pub(in crate::formats::http) const fn is_output_truncated(&self) -> bool {
+        self.output_truncated
+    }
+
     /// Finishes the bounded rendering.
     ///
     /// # Returns

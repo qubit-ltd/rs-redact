@@ -123,6 +123,24 @@ impl RedactionUsage {
         self
     }
 
+    /// Records input whose omitted-byte count is supplied by the source.
+    #[cfg(feature = "http")]
+    #[must_use]
+    pub(crate) const fn with_source_input(
+        mut self,
+        presented: usize,
+        inspected: usize,
+        omitted: Option<usize>,
+    ) -> Self {
+        self.presented_input_bytes = self.presented_input_bytes.saturating_add(presented);
+        self.inspected_input_bytes = self.inspected_input_bytes.saturating_add(inspected);
+        self.omitted_input_bytes = match (self.omitted_input_bytes, omitted) {
+            (Some(previous), Some(current)) => Some(previous.saturating_add(current)),
+            _ => None,
+        };
+        self
+    }
+
     /// Merges two independently measured operation usages.
     #[must_use]
     const fn merge(self, other: Self) -> Self {
@@ -141,25 +159,6 @@ impl RedactionUsage {
             },
             omitted_input_bytes: match (self.omitted_input_bytes, other.omitted_input_bytes) {
                 (Some(left), Some(right)) => Some(left.saturating_add(right)),
-                _ => None,
-            },
-        }
-    }
-
-    /// Returns usage charged after `before` within one transaction.
-    #[must_use]
-    const fn since(self, before: Self) -> Self {
-        Self {
-            presented_input_bytes: self.presented_input_bytes.saturating_sub(before.presented_input_bytes),
-            inspected_input_bytes: self.inspected_input_bytes.saturating_sub(before.inspected_input_bytes),
-            output_bytes: self.output_bytes.saturating_sub(before.output_bytes),
-            visited_nodes: self.visited_nodes.saturating_sub(before.visited_nodes),
-            visited_collection_items: self
-                .visited_collection_items
-                .saturating_sub(before.visited_collection_items),
-            max_depth: self.max_depth,
-            omitted_input_bytes: match (self.omitted_input_bytes, before.omitted_input_bytes) {
-                (Some(current), Some(previous)) => Some(current.saturating_sub(previous)),
                 _ => None,
             },
         }
@@ -217,26 +216,6 @@ impl RedactionSummary {
             completion,
             reasons: self.reasons.union(other.reasons),
             usage: self.usage.merge(other.usage),
-        }
-    }
-
-    /// Extracts the contribution made after `before` in the same transaction.
-    ///
-    /// This is used for an individually resolvable transaction item after a
-    /// domain writer has charged shared traversal state directly. The returned
-    /// summary must never be merged back into the transaction: its usage is
-    /// already included in `self`.
-    #[must_use]
-    pub(crate) const fn since(self, before: Self) -> Self {
-        let completion = match (before.completion, self.completion) {
-            (RedactionCompletion::Complete, completion) => completion,
-            (RedactionCompletion::Truncated, RedactionCompletion::Exhausted) => RedactionCompletion::Exhausted,
-            _ => RedactionCompletion::Complete,
-        };
-        Self {
-            completion,
-            reasons: RedactionReasons(self.reasons.0 & !before.reasons.0),
-            usage: self.usage.since(before.usage),
         }
     }
 
@@ -322,6 +301,19 @@ impl RedactionSummary {
     #[must_use]
     pub(crate) const fn with_input(mut self, presented: usize, inspected: usize) -> Self {
         self.usage = self.usage.with_input(presented, inspected);
+        self
+    }
+
+    /// Records source-aware input use, preserving unknown omitted lengths.
+    #[cfg(feature = "http")]
+    #[must_use]
+    pub(crate) const fn with_source_input(
+        mut self,
+        presented: usize,
+        inspected: usize,
+        omitted: Option<usize>,
+    ) -> Self {
+        self.usage = self.usage.with_source_input(presented, inspected, omitted);
         self
     }
 

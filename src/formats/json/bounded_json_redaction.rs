@@ -10,7 +10,6 @@
 use std::io;
 use std::io::Write;
 
-use qubit_budget::ResourceBudget;
 use serde_json::Value;
 use serde_json::from_str;
 use serde_json::to_writer;
@@ -19,7 +18,6 @@ use super::internal::JsonRedactionState;
 use super::internal::JsonUnkeyedValuePolicy;
 use crate::RedactionPolicy;
 use crate::Sensitivity;
-use crate::policy::RedactionResource;
 
 /// Bounded JSON text paired with whether budget enforcement omitted content.
 pub(super) enum BoundedJsonRedaction {
@@ -57,19 +55,10 @@ pub(super) fn redacted_json_text_bounded(
         crate::UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
         crate::UnkeyedJsonValuePolicy::Redact => {
             let marker = policy.masking().mask_opaque(Sensitivity::Secret);
-            JsonUnkeyedValuePolicy::Redact {
-                marker,
-                truncated_marker: marker,
-            }
+            JsonUnkeyedValuePolicy::Redact { marker }
         }
     };
-    let mut mask_budget = ResourceBudget::new(RedactionResource::Mask, max_output);
-    if JsonRedactionState::from_policy(policy, unkeyed, Some(&mut mask_budget))
-        .redact(&mut value)
-        .is_mask_budget_exhausted()
-    {
-        return BoundedJsonRedaction::Truncated(opaque_secret(policy));
-    }
+    JsonRedactionState::from_policy(policy, unkeyed).redact(&mut value);
     /// Byte sink that rejects writes exceeding its output bound.
     struct Bounded(Vec<u8>, usize);
     impl Write for Bounded {

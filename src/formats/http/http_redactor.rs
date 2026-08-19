@@ -489,16 +489,11 @@ impl HttpPolicyExecutor<'_> {
                 false,
             );
         };
-        let (passed, mask_exhausted) = json::redact(
+        let passed = json::redact(
             &self.body_field_redactor(),
             &mut value,
-            self.policy.limits().json(),
             self.policy.unkeyed_json_value_policy(),
-            output_limit,
         );
-        if mask_exhausted {
-            return ParsedBody::new(markers::TRUNCATED.to_string(), BodyRenderStatus::Structured, true);
-        }
         match json::serialize_bounded(&value, output_limit) {
             Some((text, rendered_truncated)) => ParsedBody::new(
                 text,
@@ -554,7 +549,6 @@ impl HttpPolicyExecutor<'_> {
         match json::redact_ndjson(
             &self.body_field_redactor(),
             bounded,
-            self.policy.limits().json(),
             self.policy.unkeyed_json_value_policy(),
             output_limit,
         ) {
@@ -672,8 +666,9 @@ impl HttpPolicyExecutor<'_> {
         let source_truncated = capture.is_source_truncated() || budget_truncated || rendered_truncated;
         let mut writer = BoundedLogWriter::new(output_limit, source_truncated);
         let _ = writer.write_str(&parsed_text);
-        let (text, truncated) = writer.finish();
-        let _ = (capture, captured_len);
+        let output_truncated = rendered_truncated || writer.is_output_truncated();
+        let (text, _) = writer.finish();
+        let _ = captured_len;
         let provenance = match status {
             BodyRenderStatus::Redacted(BodyRenderReason::InvalidJson)
             | BodyRenderStatus::Redacted(BodyRenderReason::InvalidOrTruncatedJson)
@@ -689,13 +684,16 @@ impl HttpPolicyExecutor<'_> {
             }
             _ => None,
         };
-        let mut summary = if truncated {
+        let mut summary = if output_truncated {
             RedactionSummary::truncated(RedactionReason::OutputLimitReached)
         } else {
             RedactionSummary::complete()
         };
         if capture.is_source_truncated() {
-            summary = summary.merge(RedactionSummary::complete_with_reason(RedactionReason::SourceTruncated));
+            summary = summary.merge(RedactionSummary::truncated(RedactionReason::SourceTruncated));
+        }
+        if budget_truncated {
+            summary = summary.merge(RedactionSummary::truncated(RedactionReason::InputLimitReached));
         }
         summary =
             summary.merge(provenance.map_or_else(RedactionSummary::complete, RedactionSummary::complete_with_reason));
