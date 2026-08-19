@@ -27,17 +27,13 @@ fn test_floor_overrides_application_exact_allow() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        let _ = builder.edit_fields().floor(floor);
-        builder
-            .edit_fields()
-            .allow_exact("access_token")
-            .expect("the test builder input should be valid");
-        builder
-    })
-    .build()
-    .expect("the policy should build");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.floor(floor).allow_exact("access_token");
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the policy should build");
     assert_eq!(policy.sensitivity_for("access_token"), Some(Sensitivity::High));
 }
 
@@ -49,17 +45,13 @@ fn test_floor_overrides_application_suffix_allow() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        let _ = builder.edit_fields().floor(floor);
-        builder
-            .edit_fields()
-            .allow_suffix("access_token")
-            .expect("the test builder input should be valid");
-        builder
-    })
-    .build()
-    .expect("the policy should build");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.floor(floor).allow_suffix("access_token");
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the policy should build");
 
     assert_eq!(policy.sensitivity_for("service_access_token"), Some(Sensitivity::High),);
 }
@@ -71,24 +63,22 @@ fn test_floor_only_raises_sensitivity_when_application_level_is_higher() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        let _ = builder.edit_fields().floor(floor);
-        builder
-            .edit_fields()
-            .raise("credential", Sensitivity::Secret)
-            .expect("the test builder input should be valid");
-        builder
-            .edit_fields()
-            .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
-            .expect("the test mask policy should be valid");
-        builder
-    })
-    .build()
-    .expect("the policy should build");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .floor(floor)
+                .raise("credential", Sensitivity::Secret)
+                .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"));
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the policy should build");
     assert_eq!(policy.sensitivity_for("credential"), Some(Sensitivity::Secret),);
     assert_eq!(
-        Redactor::new(policy).redact_field("credential", "value").as_str(),
+        Redactor::new(policy)
+            .redact_field("credential", "value")
+            .text()
+            .as_str(),
         "[application]"
     );
 }
@@ -101,20 +91,16 @@ fn test_floor_and_application_unknown_fallbacks_combine() {
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Medium))
         .build()
         .expect("the floor should build");
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        let _ = builder.edit_fields().floor(floor);
-        builder
-            .edit_fields()
-            .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Secret));
-        builder
-            .edit_fields()
-            .mask(Sensitivity::Secret, MaskPolicy::fixed("[application-secret]"))
-            .expect("the test mask policy should be valid");
-        builder
-    })
-    .build()
-    .expect("the policy should build");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .floor(floor)
+                .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Secret))
+                .mask(Sensitivity::Secret, MaskPolicy::fixed("[application-secret]"));
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the policy should build");
 
     assert_eq!(
         policy.sensitivity_for("unconfigured_reference"),
@@ -123,6 +109,7 @@ fn test_floor_and_application_unknown_fallbacks_combine() {
     assert_eq!(
         Redactor::new(policy)
             .redact_field("unconfigured_reference", "value")
+            .text()
             .as_str(),
         "[application-secret]",
     );
@@ -137,24 +124,22 @@ fn test_application_mask_is_used_when_floor_misses() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        let _ = builder.edit_fields().floor(floor);
-        builder
-            .edit_fields()
-            .raise("application_only", Sensitivity::Secret)
-            .expect("the test builder input should be valid");
-        builder
-            .edit_fields()
-            .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
-            .expect("the test mask policy should be valid");
-        builder
-    })
-    .build()
-    .expect("the policy should build");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .floor(floor)
+                .raise("application_only", Sensitivity::Secret)
+                .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"));
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the policy should build");
 
     assert_eq!(
-        Redactor::new(policy).redact_field("application_only", "value").as_str(),
+        Redactor::new(policy)
+            .redact_field("application_only", "value")
+            .text()
+            .as_str(),
         "[application]",
     );
 }
@@ -167,14 +152,13 @@ fn test_floor_matching_is_independent_from_application_matching() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        let _ = builder.edit_fields().floor(floor);
-        let _ = builder.edit_fields().matching(FieldNameMatching::ExactOrTokenSuffix);
-        builder
-    })
-    .build()
-    .expect("the policy should build");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.floor(floor).matching(FieldNameMatching::ExactOrTokenSuffix);
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the policy should build");
 
     assert_eq!(policy.sensitivity_for("service_token"), None);
 }
@@ -186,14 +170,13 @@ fn test_disable_floor_is_last_call_wins() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        let _ = builder.edit_fields().floor(floor);
-        builder.edit_fields().disable_floor();
-        builder
-    })
-    .build()
-    .expect("the policy should build");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.floor(floor).disable_floor();
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the policy should build");
     assert_eq!(policy.sensitivity_for("credential"), None);
 }
 
@@ -205,14 +188,13 @@ fn test_with_floor_after_disable_floor_is_last_call_wins() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        builder.edit_fields().disable_floor();
-        let _ = builder.edit_fields().floor(floor);
-        builder
-    })
-    .build()
-    .expect("the policy should build");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.disable_floor().floor(floor);
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the policy should build");
 
     assert_eq!(policy.sensitivity_for("credential"), Some(Sensitivity::High),);
 }
@@ -221,17 +203,13 @@ fn test_with_floor_after_disable_floor_is_last_call_wins() {
 /// the complete floor configuration.
 #[test]
 fn test_builder_copy_and_standard_preserve_or_replace_floor_configuration() {
-    let disabled = ({
-        let mut builder = RedactionPolicy::builder();
-        builder.edit_fields().disable_floor();
-        builder
-            .edit_fields()
-            .raise("application_only", Sensitivity::High)
-            .expect("the test builder input should be valid");
-        builder
-    })
-    .build()
-    .expect("the disabled policy should build");
+    let disabled = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.disable_floor().raise("application_only", Sensitivity::High);
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the disabled policy should build");
     let copied = disabled.to_builder().build().expect("the copied policy should build");
     let reset = RedactionPolicy::default()
         .to_builder()
@@ -250,21 +228,16 @@ fn test_rule_views_keep_application_and_floor_sources_separate() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        let _ = builder.edit_fields().floor(floor);
-        builder
-            .edit_fields()
-            .raise("application_only", Sensitivity::Medium)
-            .expect("the test builder input should be valid");
-        builder
-            .edit_fields()
-            .allow_exact("application_visible")
-            .expect("the test builder input should be valid");
-        builder
-    })
-    .build()
-    .expect("the policy should build");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .floor(floor)
+                .raise("application_only", Sensitivity::Medium)
+                .allow_exact("application_visible");
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the policy should build");
 
     assert_eq!(
         policy
@@ -342,12 +315,14 @@ proptest! {
             .raise("shared_field", floor_level).expect("the test builder input should be valid")
             .build()
             .expect("the generated floor should build");
-        let policy = ({
-    let mut builder = RedactionPolicy::builder();
-    let _ = builder.edit_fields().floor(floor);
-    builder.edit_fields().raise("shared_field", application_level).expect("the test builder input should be valid");
-    builder
-}).build()
+        let policy = RedactionPolicy::builder()
+            .fields(|fields| {
+                fields
+                    .floor(floor)
+                    .raise("shared_field", application_level);
+            })
+            .expect("the field configuration should be valid")
+            .build()
             .expect("the generated policy should build");
 
         prop_assert!(
@@ -368,20 +343,24 @@ proptest! {
             .raise("shared_field", sensitivity_from_index(floor_index)).expect("the test builder input should be valid")
             .build()
             .expect("the generated floor should build");
-        let disabled = ({
-    let mut builder = RedactionPolicy::builder();
-    let _ = builder.edit_fields().floor(floor);
-    builder.edit_fields().disable_floor();
-    builder.edit_fields().raise("shared_field", sensitivity_from_index(application_index)).expect("the test builder input should be valid");
-    builder
-}).build()
+        let disabled = RedactionPolicy::builder()
+            .fields(|fields| {
+                fields
+                    .floor(floor)
+                    .disable_floor()
+                    .raise("shared_field", sensitivity_from_index(application_index));
+            })
+            .expect("the field configuration should be valid")
+            .build()
             .expect("the disabled policy should build");
-        let application_only = ({
-    let mut builder = RedactionPolicy::builder();
-    builder.edit_fields().disable_floor();
-    builder.edit_fields().raise("shared_field", sensitivity_from_index(application_index)).expect("the test builder input should be valid");
-    builder
-}).build()
+        let application_only = RedactionPolicy::builder()
+            .fields(|fields| {
+                fields
+                    .disable_floor()
+                    .raise("shared_field", sensitivity_from_index(application_index));
+            })
+            .expect("the field configuration should be valid")
+            .build()
             .expect("the application-only policy should build");
 
         prop_assert_eq!(

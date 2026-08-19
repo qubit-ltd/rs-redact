@@ -2,21 +2,18 @@
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+//! Regression coverage for the post-redesign public transaction API.
+
+use qubit_redact::Redact;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
 use qubit_redact::RedactionReasons;
-use qubit_redact::RedactionSessionError;
 use qubit_redact::RedactionSummary;
+use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
-use qubit_redact::config::RedactionConfig;
-use qubit_redact::config::RedactionConfigBuilder;
-use qubit_redact::domain::Redact;
-use qubit_redact::domain::RedactionWriter;
 
 struct Account {
     name: String,
@@ -24,159 +21,180 @@ struct Account {
 }
 
 impl Redact for Account {
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.record("Account", |fields| {
-            let _ = fields
-                .field("name", || self.name.clone())
+            fields
+                .unredacted("name", || self.name.clone())
                 .sensitive(Sensitivity::Secret, "password", || {
-                    panic!("secret accessor must not run")
+                    panic!("a secret accessor must not run")
                 });
         });
     }
 }
 
-#[test]
-fn test_transactional_field_builder_and_structured_writer() {
-    let policy = RedactionPolicy::builder()
+fn secret_policy(field: &str) -> RedactionPolicy {
+    RedactionPolicy::builder()
         .fields(|fields| {
-            let _ = fields
-                .secret_sensitive("password")
-                .high_sensitive("access_token")
-                .sensitive(Sensitivity::Medium, "birthday");
+            let _ = fields.secret_sensitive(field);
         })
         .expect("field configuration should be valid")
         .build()
-        .expect("policy should build");
+        .expect("policy should build")
+}
 
-    let output = Redactor::new(policy).redact(&Account {
-        name: "ada".to_owned(),
-        _password: "raw-password".to_owned(),
-    });
-    assert!(output.text().as_str().contains("ada"));
+#[test]
+fn transaction_aggregates_literal_field_and_value_and_publishes_handles_on_finish() {
+    let redactor = Redactor::new(secret_policy("request_token"));
+    let mut session = redactor.session();
+
+    let name = session.redact_field("name", "Ada");
+    let _ = session
+        .literal("request failed: ")
+        .field("request_token", "raw-token")
+        .literal("; account=")
+        .value(&Account {
+            name: "Ada".to_owned(),
+            _password: "raw-password".to_owned(),
+        });
+
+    let output = session.finish();
+    let name = output
+        .resolve(name)
+        .expect("a handle from this transaction resolves after finish");
+    assert_eq!(name.text().as_str(), "Ada");
+    assert_eq!(name.summary().completion(), RedactionCompletion::Complete);
+    assert!(output.text().as_str().contains("request failed: "));
+    assert!(output.text().as_str().contains("<redacted>"));
+    assert!(output.text().as_str().contains("Account"));
+    assert!(!output.text().as_str().contains("raw-token"));
     assert!(!output.text().as_str().contains("raw-password"));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(
+        output.summary().usage().output_bytes(),
+        output.text().as_str().len() + name.text().as_str().len()
+    );
 }
 
 #[test]
-fn test_set_default_replaces_only_future_snapshots() {
-    let policy = RedactionPolicy::builder()
-        .fields(|fields| {
-            let _ = fields.secret_sensitive("password");
-        })
-        .expect("field configuration should be valid")
-        .build()
-        .expect("policy should build");
-    let replacement = Redactor::new(policy);
-    let old = Redactor::set_default(replacement.clone());
-    let current = Redactor::current_default();
-    assert_eq!(current.policy().sensitivity_for("password"), Some(Sensitivity::Secret));
-    let restored = Redactor::set_default(old.clone());
-    assert_eq!(restored.policy(), replacement.policy());
+fn finished_session_resets_and_old_handles_cannot_cross_transactions() {
+    let mut session = Redactor::standard().session();
+    let first_handle = session.redact_field("name", "Ada");
+    let first = session.finish();
+    assert_eq!(first.resolve(first_handle).unwrap().text().as_str(), "Ada");
+
+    let _ = session.literal("next transaction");
+    let second = session.finish();
+    assert_eq!(second.text().as_str(), "next transaction");
+    assert!(second.resolve(first_handle).is_err());
+    assert_eq!(second.summary().completion(), RedactionCompletion::Complete);
 }
 
 #[test]
-fn test_chain_session_returns_final_displayable_text() {
-    let output = Redactor::standard()
-        .session()
-        .text("request failed: ")
-        .field("request_id", "abc")
-        .value(
-            "metadata",
-            &Account {
-                name: "ada".to_owned(),
-                _password: "raw-password".to_owned(),
-            },
-        )
-        .finish()
-        .expect("session should commit");
-    assert!(output.text().to_string().contains("request failed"));
+fn application_default_replacement_affects_new_trait_entries_only() {
+    let original = Redactor::application_default();
+    let replacement = Redactor::new(secret_policy("token"));
+    let previous = Redactor::replace_application_default(replacement.clone());
+    assert_eq!(previous, original);
+
+    let value = Account {
+        name: "Ada".to_owned(),
+        _password: "raw-password".to_owned(),
+    };
+    let output = value.redacted();
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
     assert!(!output.text().as_str().contains("raw-password"));
+
+    let restored = Redactor::replace_application_default(original);
+    assert_eq!(restored, replacement);
 }
 
 #[test]
-fn test_session_publishes_keyed_results_atomically_and_resets() {
-    let redactor = Redactor::standard();
-    let mut session = redactor.session();
-    let _ = session.text("request failed: ").field("request_id", "abc");
-    let output = session.finish().expect("session should commit");
-    assert_eq!(output.get("request_id").expect("field result").text().as_str(), "abc");
-    assert!(output.text().as_str().contains("request failed"));
-
-    let next = session.finish().expect("finished session can be reused");
-    assert!(next.text().as_str().is_empty());
-    assert_eq!(next.results().len(), 0);
-}
-
-#[test]
-fn test_session_rejects_duplicate_and_empty_keys_as_one_batch() {
-    let redactor = Redactor::standard();
-    let mut duplicate = redactor.session();
-    let _ = duplicate.field("request_id", "one").field("request_id", "two");
-    assert!(matches!(
-        duplicate.finish(),
-        Err(RedactionSessionError::DuplicateKey { .. })
-    ));
-
-    let mut empty = redactor.session();
-    let _ = empty.field("", "value");
-    assert!(matches!(empty.finish(), Err(RedactionSessionError::EmptyKey)));
-    let _ = empty.field("request_id", "next");
-    let output = empty.finish().expect("error state was reset");
-    assert_eq!(output.get("request_id").expect("next batch").text().as_str(), "next");
-}
-
-#[test]
-fn test_output_and_summary_accessors_preserve_machine_readable_state() {
-    let reasons = RedactionReasons::empty().with(RedactionReason::DepthLimitReached);
-    assert!(reasons.contains(RedactionReason::DepthLimitReached));
-
+fn summaries_keep_completion_reason_and_usage_machine_readable() {
     let truncated = RedactionSummary::truncated(RedactionReason::TraversalLimitReached);
     assert_eq!(truncated.completion(), RedactionCompletion::Truncated);
     assert!(truncated.reasons().contains(RedactionReason::TraversalLimitReached));
 
     let output = Redactor::standard().redact(&Account {
-        name: "ada".to_owned(),
-        _password: "secret".to_owned(),
+        name: "Ada".to_owned(),
+        _password: "raw-password".to_owned(),
     });
     let (text, summary) = output.into_parts();
-    assert!(!text.into_string().contains("secret"));
+    assert!(!text.as_str().contains("raw-password"));
     assert_eq!(summary.completion(), RedactionCompletion::Complete);
-
-    let output = Redactor::standard().redact(&Account {
-        name: "ada".to_owned(),
-        _password: "secret".to_owned(),
-    });
-    assert!(!output.into_text().as_str().contains("secret"));
+    assert_eq!(summary.usage().output_bytes(), text.as_str().len());
 }
 
+/// Verifies the one-item facade exposes the same final text and summary
+/// through borrowing and consuming output accessors.
 #[test]
-fn test_configuration_builder_produces_standard_snapshot() {
-    let config = RedactionConfigBuilder::standard()
-        .build()
-        .expect("standard configuration should build");
-    assert_eq!(config, RedactionConfig::standard());
-    let default_config = RedactionConfigBuilder::default()
-        .build()
-        .expect("default configuration should build");
-    assert_eq!(default_config, config);
+fn redaction_output_preserves_parts_across_all_public_accessors() {
+    let output = Redactor::standard().redact_field("password", "raw-password");
+
+    assert_eq!(output.text().as_str(), "<redacted>");
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+
+    let text = output.into_text();
+    assert_eq!(text.into_string(), "<redacted>");
+}
+
+/// Verifies the owned-text alias consumes the same safe final representation.
+#[test]
+fn redacted_text_into_string_returns_the_final_safe_text() {
+    let text = Redactor::standard()
+        .redact_field("password", "raw-password")
+        .into_text();
+
+    assert_eq!(text.into_string(), "<redacted>");
+}
+
+/// Verifies summary states and reason sets remain directly inspectable without
+/// requiring callers to parse rendered diagnostic text.
+#[test]
+fn summary_completion_reason_and_empty_usage_values_are_publicly_observable() {
+    let reasons = RedactionReasons::empty()
+        .with(RedactionReason::DepthLimitReached)
+        .union(RedactionReasons::empty().with(RedactionReason::InvalidJson));
+    assert!(reasons.contains(RedactionReason::DepthLimitReached));
+    assert!(reasons.contains(RedactionReason::InvalidJson));
+    assert!(!reasons.contains(RedactionReason::OutputLimitReached));
+
+    let complete = RedactionSummary::complete();
+    assert_eq!(complete.completion(), RedactionCompletion::Complete);
+    assert_eq!(complete.reasons(), RedactionReasons::empty());
+    assert_eq!(complete.usage().presented_input_bytes(), 0);
+    assert_eq!(complete.usage().inspected_input_bytes(), 0);
+    assert_eq!(complete.usage().output_bytes(), 0);
+    assert_eq!(complete.usage().visited_nodes(), 0);
+    assert_eq!(complete.usage().visited_collection_items(), 0);
+    assert_eq!(complete.usage().max_depth(), 0);
+    assert_eq!(complete.usage().omitted_input_bytes(), Some(0));
+
+    let exhausted = RedactionSummary::exhausted(RedactionReason::OutputLimitReached);
+    assert_eq!(exhausted.completion(), RedactionCompletion::Exhausted);
+    assert!(exhausted.reasons().contains(RedactionReason::OutputLimitReached));
+}
+
+/// Verifies the empty diagnostic summary remains a degraded, zero-use result.
+#[test]
+fn empty_summary_has_truncated_completion_and_no_recorded_usage() {
+    let summary = RedactionSummary::empty();
+
+    assert_eq!(summary.completion(), RedactionCompletion::Truncated);
+    assert!(summary.reasons().contains(RedactionReason::TraversalLimitReached));
+    assert_eq!(summary.usage().output_bytes(), 0);
 }
 
 #[cfg(feature = "http")]
 #[test]
-fn test_http_adapter_can_stage_a_keyed_result() {
-    let redactor = Redactor::standard();
-    let mut session = redactor.session();
-    let _ = session.http(|http| {
-        http.redact_url("request_url", "https://example.test/?token=secret");
-    });
-    let output = session.finish().expect("HTTP session should commit");
-    assert!(
-        output
-            .get("request_url")
-            .expect("URL result")
-            .text()
-            .as_str()
-            .contains("example.test")
-    );
-    assert!(!output.text().as_str().contains("secret"));
+fn http_handle_uses_the_same_single_transaction_publication_boundary() {
+    let mut session = Redactor::standard().session();
+    let url = session.redact_http_url("https://example.test/?token=raw-token");
+    let _ = session.literal(" request completed");
+
+    let output = session.finish();
+    let url = output.resolve(url).expect("HTTP handle resolves after finish");
+    assert!(url.text().as_str().contains("example.test"));
+    assert!(!url.text().as_str().contains("raw-token"));
+    assert!(output.text().as_str().contains("request completed"));
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
 }

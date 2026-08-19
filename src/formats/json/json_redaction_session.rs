@@ -7,61 +7,160 @@
 // =============================================================================
 //! Mutable JSON façade over one diagnostic redaction session.
 
-use super::JsonRedactionOutput;
-use super::bounded_json_redaction::BoundedJsonRedaction;
+use std::str::FromStr;
+
+use serde_json::Value;
+
 use super::bounded_json_redaction::redacted_json_text_bounded;
+use crate::RedactionHandle;
 use crate::RedactionOutput;
 use crate::RedactionSession;
 use crate::output::MaskedValue;
 
-/// Feature-gated JSON operations sharing one mutable diagnostic session.
-pub struct JsonRedactionSession<'session, 'policy> {
-    pub(super) session: &'session mut RedactionSession<'policy>,
+/// Admits every JSON node and collection element through the supplied
+/// transaction before a renderer may traverse the parsed value. Returns
+/// `false` at the first rejected element; no later sibling is visited.
+#[must_use]
+pub(crate) fn admit_json_text_structure(session: &mut RedactionSession, text: &str) -> bool {
+    let Ok(value) = Value::from_str(text) else {
+        return session.admit_format_node(1);
+    };
+    admit_json_value_structure(session, &value)
 }
 
-impl<'session, 'policy> JsonRedactionSession<'session, 'policy> {
+/// Admits one parsed JSON tree through the transaction-wide structural
+/// ledger. JSON's local traversal limits remain responsible only for JSON
+/// point limits; depth, nodes, and collection entries are owned by the
+/// session.
+#[must_use]
+pub(crate) fn admit_json_value_structure(session: &mut RedactionSession, root: &Value) -> bool {
+    let mut pending = vec![(root, 1usize, false)];
+    while let Some((value, depth, collection_item)) = pending.pop() {
+        if (collection_item && !session.admit_format_collection_item()) || !session.admit_format_node(depth) {
+            return false;
+        }
+        match value {
+            Value::Array(values) => {
+                for value in values.iter().rev() {
+                    pending.push((value, depth.saturating_add(1), true));
+                }
+            }
+            Value::Object(entries) => {
+                for (_, value) in entries.iter().rev() {
+                    pending.push((value, depth.saturating_add(1), true));
+                }
+            }
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+        }
+    }
+    true
+}
+
+/// Redacts JSON text under the output allowance supplied by its caller.
+///
+/// This helper owns no session state. The caller supplies the remaining
+/// transaction allowance, so JSON parsing cannot create a second output
+/// budget. The returned text is already escaped and never exceeds that
+/// allowance.
+#[must_use]
+pub(crate) fn redact_json_text_with_limit(
+    policy: &crate::RedactionPolicy,
+    text: &str,
+    max_output_bytes: usize,
+) -> RedactionOutput {
+    json_output_from_bounded(
+        redacted_json_text_bounded(text, policy, max_output_bytes),
+        max_output_bytes,
+    )
+}
+
+/// Converts bounded JSON rendering into the common safe output carrier.
+#[must_use]
+pub(crate) fn json_output_from_bounded(
+    bounded: super::bounded_json_redaction::BoundedJsonRedaction,
+    max_output_bytes: usize,
+) -> RedactionOutput {
+    let (rendered, raw_truncated, invalid_json) = bounded.into_parts();
+    let output_text = MaskedValue::new(std::borrow::Cow::Owned(rendered)).escape_for_log();
+    if output_text.as_str().len() > max_output_bytes {
+        let fallback = "<truncated>";
+        let provenance = if invalid_json {
+            crate::RedactionSummary::complete_with_reason(crate::RedactionReason::InvalidJson)
+        } else {
+            crate::RedactionSummary::complete()
+        };
+        let summary = crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached).merge(provenance);
+        let output = if fallback.len() <= max_output_bytes {
+            RedactionOutput::new(crate::RedactedText::from_escaped(fallback), summary)
+        } else {
+            RedactionOutput::new(crate::RedactedText::from_escaped(String::new()), summary)
+        };
+        return output;
+    }
+    if raw_truncated {
+        RedactionOutput::new(
+            output_text,
+            crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached),
+        )
+    } else if invalid_json {
+        RedactionOutput::new(
+            output_text,
+            crate::RedactionSummary::complete_with_reason(crate::RedactionReason::InvalidJson),
+        )
+    } else {
+        RedactionOutput::new(output_text, crate::RedactionSummary::complete())
+    }
+}
+
+/// Feature-gated JSON operations sharing one mutable diagnostic session.
+pub struct JsonRedactionSession<'session> {
+    pub(super) session: &'session mut RedactionSession,
+}
+
+impl<'session> JsonRedactionSession<'session> {
     /// Creates a JSON facade borrowing a parent session.
-    pub(crate) const fn new(session: &'session mut RedactionSession<'policy>) -> Self {
+    pub(crate) const fn new(session: &'session mut RedactionSession) -> Self {
         Self { session }
     }
 
-    /// Redacts JSON text and stages it under `key`.
-    pub fn redact_text(&mut self, key: &str, text: &str) -> &mut Self {
-        if !self.session.prepare_key(key) {
+    /// Redacts JSON text into the parent session's aggregate output.
+    pub fn text(&mut self, text: &str) -> &mut Self {
+        if self.session.is_output_exhausted() || !self.session.admit_input(text.len()) {
+            return self;
+        }
+        if !admit_json_text_structure(self.session, text) {
+            self.session.append_format_text(
+                crate::RedactedText::from_escaped("<truncated>"),
+                crate::RedactionCompletion::Truncated,
+            );
             return self;
         }
         let result = self.redact_text_direct(text);
-        let completion = result.completion();
-        self.session.stage_text(key, result.into_text(), completion);
+        self.session.append_format_output(&result);
         self
+    }
+
+    /// Redacts JSON text as one individually resolvable transaction item.
+    #[must_use]
+    pub fn redact_text(&mut self, text: &str) -> RedactionHandle {
+        if !self.session.is_output_exhausted() && self.session.admit_input(text.len()) {
+            if !admit_json_text_structure(self.session, text) {
+                return self.session.stage_format_text(
+                    crate::RedactedText::from_escaped("<truncated>"),
+                    crate::RedactionCompletion::Truncated,
+                );
+            }
+            let result = self.redact_text_direct(text);
+            return self.session.stage_item(result);
+        }
+        self.session.stage_format_text(
+            crate::RedactedText::from_escaped(String::new()),
+            crate::RedactionCompletion::Exhausted,
+        )
     }
 }
 
-impl JsonRedactionSession<'_, '_> {
-    /// Admits one JSON fragment and maps its bounded rendering into the shared
-    /// session completion model.
-    ///
-    /// Admission happens before `raw` is invoked. Input rejection emits the
-    /// configured non-empty opaque fallback when it fits and transitions the
-    /// session to truncated; output exhaustion skips `raw`, returns empty
-    /// output, and leaves the session closed to later reads. A rendered result
-    /// commits exactly its escaped byte length and closes the session when
-    /// either JSON processing or final output bounding omitted content.
-    #[must_use]
-    fn redact_owned(
-        &mut self,
-        raw: impl FnOnce(&crate::RedactionPolicy, usize) -> BoundedJsonRedaction,
-    ) -> JsonRedactionOutput {
-        let (rendered, raw_truncated) = raw(self.session.policy(), usize::MAX).into_parts();
-        let output_text = MaskedValue::new(std::borrow::Cow::Owned(rendered)).escape_for_log();
-        let output = if raw_truncated {
-            RedactionOutput::truncated(output_text).unwrap_or_else(RedactionOutput::empty)
-        } else {
-            RedactionOutput::complete(output_text)
-        };
-        JsonRedactionOutput::new(output)
-    }
-
+impl JsonRedactionSession<'_> {
     /// Parses and redacts JSON text into compact, log-safe JSON text.
     ///
     /// The text byte length is offered to the shared budget before parsing or
@@ -80,7 +179,60 @@ impl JsonRedactionSession<'_, '_> {
     /// A compact log-safe result carrying `Complete`, `Truncated`, or
     /// `Exhausted` completion.
     #[must_use]
-    pub(crate) fn redact_text_direct(&mut self, text: &str) -> JsonRedactionOutput {
-        self.redact_owned(|policy, limit| redacted_json_text_bounded(text, policy, limit))
+    pub(crate) fn redact_text_direct(&mut self, text: &str) -> RedactionOutput {
+        redact_json_text_with_limit(self.session.policy(), text, self.session.remaining_output_bytes())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::redact_json_text_with_limit;
+    use crate::RedactionCompletion;
+    use crate::RedactionPolicy;
+    use crate::Redactor;
+
+    /// Verifies the JSON execution helper receives and honors its caller's
+    /// final output allowance rather than selecting an independent budget.
+    #[test]
+    fn bounded_json_helper_never_exceeds_the_caller_allowance() {
+        let output = redact_json_text_with_limit(
+            &RedactionPolicy::standard(),
+            r#"{"description":"this value is deliberately longer than the allowance"}"#,
+            16,
+        );
+
+        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(crate::RedactionReason::OutputLimitReached)
+        );
+        assert!(output.text().as_str().len() <= 16);
+    }
+
+    /// Verifies a JSON adapter sees bytes already committed by the enclosing
+    /// transaction when choosing its rendering limit.
+    #[test]
+    fn json_session_uses_the_transaction_remaining_output_allowance() {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                let _ = limits.max_output_bytes(20);
+            })
+            .expect("the test limit draft should build")
+            .build()
+            .expect("the test policy should build");
+        let mut session = Redactor::new(policy).session();
+
+        let output = session
+            .literal("prefix")
+            .json(|json| {
+                json.text(r#"{"description":"this value is deliberately longer than the allowance"}"#);
+            })
+            .finish();
+
+        assert_eq!(output.text().as_str(), "prefix<truncated>");
+        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+        assert_eq!(output.summary().usage().output_bytes(), 17);
     }
 }

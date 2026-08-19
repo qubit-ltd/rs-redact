@@ -10,22 +10,10 @@
 #[cfg(feature = "serde")]
 use qubit_redact::RedactionPolicy;
 #[cfg(feature = "serde")]
-use qubit_redact::domain::RedactedMap;
 #[cfg(feature = "serde")]
 use qubit_redact::internal::RedactSerialize;
 #[cfg(feature = "serde")]
 use qubit_redact::internal::RedactedSerialize;
-/// Asserts at compile time that a type implements [`serde::Serialize`].
-#[cfg(feature = "serde")]
-fn assert_serialize<T: serde::Serialize>() {}
-
-/// Verifies redacted map views implement serde serialization.
-#[cfg(feature = "serde")]
-#[test]
-fn test_redacted_serialize_redacted_map_implements_serialize() {
-    assert_serialize::<RedactedMap<'static, std::collections::BTreeMap<String, String>>>();
-}
-
 #[cfg(feature = "serde")]
 struct SerializableValue;
 
@@ -49,4 +37,32 @@ fn test_redacted_serialize_adapter_delegates_to_nested_value() {
         serde_json::to_value(RedactedSerialize::new(&value, &policy)).expect("nested redacted value should serialize");
 
     assert_eq!(rendered, serde_json::json!("safe"));
+}
+
+/// The built-in nested container serializers must preserve their normal serde
+/// shape while routing each contained value through `RedactSerialize`.
+#[cfg(feature = "serde")]
+#[test]
+fn test_nested_redact_serialize_supports_option_box_and_vector_shapes() {
+    let policy = RedactionPolicy::default();
+    let present = Some(SerializableValue);
+    let absent: Option<SerializableValue> = None;
+    let boxed = Box::new(SerializableValue);
+    let values = vec![SerializableValue, SerializableValue];
+
+    let present = present.serialize_redacted(&policy, serde_json::value::Serializer);
+    let absent = absent.serialize_redacted(&policy, serde_json::value::Serializer);
+    let boxed = boxed.serialize_redacted(&policy, serde_json::value::Serializer);
+    let values = values.serialize_redacted(&policy, serde_json::value::Serializer);
+
+    assert_eq!(
+        present.expect("present option should serialize"),
+        serde_json::json!("safe")
+    );
+    assert_eq!(absent.expect("absent option should serialize"), serde_json::Value::Null);
+    assert_eq!(boxed.expect("boxed value should serialize"), serde_json::json!("safe"));
+    assert_eq!(
+        values.expect("vector should serialize"),
+        serde_json::json!(["safe", "safe"])
+    );
 }

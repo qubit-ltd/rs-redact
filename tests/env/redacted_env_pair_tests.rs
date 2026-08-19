@@ -5,12 +5,13 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-use qubit_redact::formats::env::EnvRedactor;
-/// Verifies that a redacted environment pair is displayable.
+use qubit_redact::Redactor;
+
+/// Verifies that a non-sensitive environment pair remains visible only after
+/// its one-shot transaction has completed.
 #[test]
-fn test_redacted_env_pair_displays_assignment() {
-    assert_eq!(
-        EnvRedactor::default().redact_pair("MODE", "debug").to_string(),
-        "MODE=debug"
-    );
+fn test_redactor_redact_env_returns_completed_safe_assignment() {
+    let output = Redactor::standard().redact_env("MODE", "debug");
+
+    assert_eq!(output.text().as_str(), "MODE=debug");
 }

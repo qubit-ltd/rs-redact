@@ -9,36 +9,49 @@
 
 use std::borrow::Cow;
 
-use super::HttpRedactor;
+use super::HttpPolicyExecutor;
 use crate::RedactedText;
+use crate::RedactionOutput;
+use crate::RedactionReason;
+use crate::RedactionSummary;
 use crate::formats::http::internal::BoundedLogWriter;
 use crate::formats::http::internal::markers;
 
-impl HttpRedactor {
-    /// Reports whether a diagnostic input exceeds the hard input limit.
-    pub(super) fn diagnostic_input_exceeded(&self, _input_bytes: usize) -> bool {
-        false
-    }
-
-    /// Returns the fixed log-safe diagnostic-limit marker.
-    #[must_use]
-    pub(super) fn diagnostic_limit_exceeded() -> RedactedText {
-        RedactedText::from_escaped(Cow::Borrowed(markers::DIAGNOSTIC_LIMIT_EXCEEDED))
-    }
-
-    /// Escapes and bounds one redacted HTTP diagnostic.
-    #[must_use]
-    pub(super) fn finish_diagnostic(&self, text: String) -> RedactedText {
-        self.finish_diagnostic_with_limit(text, usize::MAX)
-    }
-
+impl HttpPolicyExecutor<'_> {
     /// Escapes and bounds one diagnostic with an explicit output ceiling.
     #[must_use]
-    pub(super) fn finish_diagnostic_with_limit(&self, text: String, max_bytes: usize) -> RedactedText {
+    pub(super) fn finish_diagnostic_with_limit(
+        &self,
+        text: String,
+        max_bytes: usize,
+        provenance: Option<RedactionReason>,
+    ) -> super::HttpRendered {
         let mut writer = BoundedLogWriter::new(max_bytes, false);
         let _ = writer.write_str(&text);
-        let (text, _) = writer.finish();
-        RedactedText::from_escaped(Cow::Owned(text))
+        let (text, truncated) = writer.finish();
+        let summary = if truncated {
+            RedactionSummary::truncated(RedactionReason::OutputLimitReached)
+        } else {
+            RedactionSummary::complete()
+        }
+        .merge(provenance.map_or_else(RedactionSummary::complete, RedactionSummary::complete_with_reason));
+        super::HttpRendered {
+            output: RedactionOutput::new(RedactedText::from_escaped(Cow::Owned(text)), summary),
+        }
+    }
+
+    /// Publishes an already escaped bounded URL rendering with its exact
+    /// truncation state.
+    #[must_use]
+    pub(super) fn finish_rendered_url(&self, text: String, truncated: bool) -> super::HttpRendered {
+        let summary = if truncated {
+            RedactionSummary::truncated(RedactionReason::OutputLimitReached)
+        } else {
+            RedactionSummary::complete()
+        };
+        super::HttpRendered {
+            output: RedactionOutput::new(RedactedText::from_escaped(Cow::Owned(text)), summary),
+        }
     }
 }
 

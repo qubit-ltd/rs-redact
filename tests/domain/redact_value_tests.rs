@@ -1,107 +1,116 @@
 // =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
+//    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for scalar redacted-value wrappers.
+//! Tests for scalar redacted value representations.
 
 use std::borrow::Cow;
 
-use qubit_redact::MaskPolicy;
 use qubit_redact::MaskingPolicy;
 use qubit_redact::Sensitivity;
 use qubit_redact::domain::RedactValue;
-use qubit_redact::domain::RedactedValue;
-/// Creates a masking policy whose secret mask contains a log control.
-///
-/// # Returns
-///
-/// A policy useful for verifying log escaping after masking.
-fn create_control_masking_policy() -> MaskingPolicy {
-    let mut builder = MaskingPolicy::builder();
-    builder.secret(MaskPolicy::fixed("masked\nvalue"));
-    builder.build()
-}
 
-/// Verifies support for all borrowed and owned string forms.
+/// Every supported scalar input shape retains its intended visible container
+/// shape after masking.  Debug is deliberately used here because the return
+/// representation is an internal type exposed only through the trait.
 #[test]
-fn test_redact_value_supports_string_forms() {
+fn test_redact_value_masks_all_text_and_option_input_shapes() {
     let masking = MaskingPolicy::default();
-    let string = "raw-secret".to_owned();
-    let slice: &str = &string;
-    let reference = &slice;
-    let borrowed: Cow<'_, str> = Cow::Borrowed(slice);
-    let owned: Cow<'_, str> = Cow::Owned(string.clone());
+    let owned = String::from("raw-value");
+    let borrowed = "raw-value";
+    let cow: Cow<'_, str> = Cow::Owned(String::from("raw-value"));
+    let optional_owned = Some(String::from("raw-value"));
+    let optional_borrowed = Some("raw-value");
+    let optional_cow = Some(Cow::Borrowed("raw-value"));
 
-    for value in [
-        string.redact_value(Sensitivity::Secret, &masking),
-        slice.redact_value(Sensitivity::Secret, &masking),
-        reference.redact_value(Sensitivity::Secret, &masking),
-        borrowed.redact_value(Sensitivity::Secret, &masking),
-        owned.redact_value(Sensitivity::Secret, &masking),
-    ] {
-        assert_eq!(format!("{value:?}"), "\"<redacted>\"");
-        assert_eq!(value.to_string(), "<redacted>");
-    }
-    let explicit_reference = <&str as RedactValue>::redact_value(&slice, Sensitivity::Secret, &masking);
-    assert_eq!(explicit_reference.to_string(), "<redacted>");
-    assert_eq!(string, "raw-secret");
+    assert_eq!(
+        format!("{:?}", borrowed.redact_value(Sensitivity::High, &masking)),
+        "\"****\""
+    );
+    assert_eq!(
+        format!("{:?}", (&borrowed).redact_value(Sensitivity::High, &masking)),
+        "\"****\""
+    );
+    assert_eq!(
+        format!("{:?}", owned.redact_value(Sensitivity::High, &masking)),
+        "\"****\""
+    );
+    assert_eq!(
+        format!("{:?}", cow.redact_value(Sensitivity::High, &masking)),
+        "\"****\""
+    );
+    assert_eq!(
+        format!("{:?}", optional_owned.redact_value(Sensitivity::High, &masking)),
+        "Some(\"****\")"
+    );
+    assert_eq!(
+        format!("{:?}", optional_borrowed.redact_value(Sensitivity::High, &masking)),
+        "Some(\"****\")"
+    );
+    assert_eq!(
+        format!("{:?}", optional_cow.redact_value(Sensitivity::High, &masking)),
+        "Some(\"****\")"
+    );
 }
 
-/// Verifies that option wrappers preserve `Some` and `None` shapes.
+/// Absent options stay absent and the lower policy levels still use their
+/// configured edge-preserving algorithms.
 #[test]
-fn test_redact_value_preserves_option_shape() {
+fn test_redact_value_preserves_absence_and_uses_requested_level() {
     let masking = MaskingPolicy::default();
-    let some = Some("raw-secret".to_owned());
-    let borrowed = Some("raw-secret");
-    let cow = Some(Cow::Borrowed("raw-secret"));
-    let none: Option<String> = None;
+    let absent: Option<String> = None;
+    let absent_cow: Option<Cow<'_, str>> = None;
+    let empty = "";
+    let borrowed_cow = Cow::Borrowed("raw-value");
 
-    let redacted_some = some.redact_value(Sensitivity::Secret, &masking);
-    let redacted_borrowed = borrowed.redact_value(Sensitivity::Secret, &masking);
-    let redacted_cow = cow.redact_value(Sensitivity::Secret, &masking);
-    let redacted_none = none.redact_value(Sensitivity::Secret, &masking);
-    let explicit_borrowed = <Option<&str> as RedactValue>::redact_value(&borrowed, Sensitivity::Secret, &masking);
-    let explicit_none: Option<&str> = None;
-    let explicit_none = <Option<&str> as RedactValue>::redact_value(&explicit_none, Sensitivity::Secret, &masking);
-
-    assert_eq!(format!("{redacted_some:?}"), "Some(\"<redacted>\")");
-    assert_eq!(redacted_some.to_string(), "Some(<redacted>)");
-    assert_eq!(format!("{redacted_borrowed:?}"), "Some(\"<redacted>\")");
-    assert_eq!(format!("{redacted_cow:?}"), "Some(\"<redacted>\")");
-    assert_eq!(format!("{redacted_none:?}"), "None");
-    assert_eq!(redacted_none.to_string(), "None");
-    assert_eq!(explicit_borrowed.to_string(), "Some(<redacted>)");
-    assert_eq!(explicit_none.to_string(), "None");
-    assert!(matches!(redacted_some, RedactedValue::Some(_)));
-    assert!(matches!(redacted_none, RedactedValue::None));
-    assert_eq!(some.as_deref(), Some("raw-secret"));
+    assert_eq!(
+        format!("{:?}", absent.redact_value(Sensitivity::Secret, &masking)),
+        "None"
+    );
+    assert_eq!(
+        format!("{:?}", absent_cow.redact_value(Sensitivity::Secret, &masking)),
+        "None"
+    );
+    assert_eq!(
+        format!("{:?}", empty.redact_value(Sensitivity::Secret, &masking)),
+        "\"\""
+    );
+    assert_eq!(
+        format!("{:?}", borrowed_cow.redact_value(Sensitivity::High, &masking)),
+        "\"****\""
+    );
+    assert_eq!(
+        format!("{:?}", "abcdefgh".redact_value(Sensitivity::Low, &masking)),
+        "\"ab****gh\""
+    );
+    assert_eq!(
+        format!("{:?}", "abcdefgh".redact_value(Sensitivity::Medium, &masking)),
+        "\"*******h\""
+    );
 }
 
-/// Verifies that display escapes controls introduced by a configured mask.
+/// The hidden representation remains serializable without changing optional
+/// shape when the serde feature is enabled.
+#[cfg(feature = "serde")]
 #[test]
-fn test_redacted_value_display_is_log_safe() {
-    let masking = create_control_masking_policy();
-    let value = "raw-secret".redact_value(Sensitivity::Secret, &masking);
-    let optional = Some("raw-secret").redact_value(Sensitivity::Secret, &masking);
-
-    assert_eq!(format!("{value:?}"), "\"masked\\nvalue\"");
-    assert_eq!(value.to_string(), r"masked\nvalue");
-    assert_eq!(optional.to_string(), r"Some(masked\nvalue)");
-    assert!(!value.to_string().contains('\n'));
-}
-
-/// Verifies that masking empty borrowed text preserves its original borrow.
-#[test]
-fn test_redact_value_preserves_empty_borrow() {
-    let input = String::new();
+fn test_redact_value_serialization_preserves_plain_and_option_shapes() {
     let masking = MaskingPolicy::default();
-    let value = input.redact_value(Sensitivity::Secret, &masking);
-    let RedactedValue::Text(text) = value else {
-        panic!("plain text should retain the text variant");
-    };
+    let plain = "raw".redact_value(Sensitivity::Secret, &masking);
+    let present = Some("raw").redact_value(Sensitivity::Secret, &masking);
+    let absent: Option<&str> = None;
+    let absent = absent.redact_value(Sensitivity::Secret, &masking);
 
-    assert!(std::ptr::eq(text.as_str(), input.as_str()));
+    assert_eq!(
+        serde_json::to_value(plain).expect("plain scalar should serialize"),
+        serde_json::json!("<redacted>")
+    );
+    assert_eq!(
+        serde_json::to_value(present).expect("present option should serialize"),
+        serde_json::json!("<redacted>")
+    );
+    assert_eq!(
+        serde_json::to_value(absent).expect("absent option should serialize"),
+        serde_json::Value::Null
+    );
 }

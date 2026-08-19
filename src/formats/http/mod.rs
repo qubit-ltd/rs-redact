@@ -9,9 +9,6 @@
 
 mod body_capture;
 mod body_capture_error;
-mod body_redaction;
-mod body_redaction_reason;
-mod body_redaction_status;
 mod context_rules_builder;
 mod field_redactor;
 mod http_field_context;
@@ -21,23 +18,21 @@ mod http_redaction_policy_parts;
 mod http_redaction_session;
 mod http_redactor;
 mod internal;
-mod redacted_headers;
 mod text_body_policy;
 mod unkeyed_json_value_policy;
 mod url_path_policy;
 
 pub use body_capture::BodyCapture;
 pub use body_capture_error::BodyCaptureError;
-pub use body_redaction::BodyRedaction;
-pub use body_redaction_reason::BodyRedactionReason;
-pub use body_redaction_status::BodyRedactionStatus;
 pub(in crate::formats::http) use field_redactor::FieldRedactor;
 pub(crate) use http_field_context::HttpFieldContext;
 pub use http_redaction_policy::HttpPolicy;
 pub(crate) use http_redaction_policy_builder::HttpPolicyBuilder;
 pub use http_redaction_session::HttpRedactionSession;
-pub use http_redactor::HttpRedactor;
-pub use redacted_headers::RedactedHeaders;
 pub use text_body_policy::TextBodyPolicy;
 pub use unkeyed_json_value_policy::UnkeyedJsonValuePolicy;
 pub use url_path_policy::UrlPathPolicy;
+mod body_render_reason;
+mod body_render_status;
+pub(in crate::formats::http) use body_render_reason::BodyRenderReason;
+pub(in crate::formats::http) use body_render_status::BodyRenderStatus;

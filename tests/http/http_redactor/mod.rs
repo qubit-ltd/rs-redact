@@ -8,6 +8,5 @@
 //! Tests for internal HTTP redactor helpers through the public facade.
 
 mod body_tests;
-mod diagnostics_tests;
 mod headers_tests;
 mod url_rules_tests;

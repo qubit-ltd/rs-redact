@@ -17,4 +17,6 @@ pub enum RedactionCompletion {
     /// Input or output was omitted, but non-empty safe substitute text was
     /// emitted.
     Truncated,
+    /// The shared output budget could not retain a complete safe replacement.
+    Exhausted,
 }

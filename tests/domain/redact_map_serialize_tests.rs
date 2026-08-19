@@ -9,57 +9,21 @@
 
 #[cfg(feature = "serde")]
 use std::collections::BTreeMap;
-#[cfg(feature = "serde")]
-use std::io;
-#[cfg(feature = "serde")]
-use std::io::Write;
 
 #[cfg(feature = "serde")]
 use qubit_redact::RedactionPolicy;
 #[cfg(feature = "serde")]
-use qubit_redact::domain::RedactedMap;
-
-#[cfg(feature = "serde")]
-struct FailingWriter;
-
-#[cfg(feature = "serde")]
-impl Write for FailingWriter {
-    fn write(&mut self, _buffer: &[u8]) -> io::Result<usize> {
-        Err(io::Error::other("intentional test failure"))
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-#[cfg(feature = "serde")]
-struct FailAfter {
-    remaining: usize,
-}
-
-#[cfg(feature = "serde")]
-impl Write for FailAfter {
-    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        if buffer.len() > self.remaining {
-            return Err(io::Error::other("intentional test failure"));
-        }
-        self.remaining -= buffer.len();
-        Ok(buffer.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
+use qubit_redact::domain::RedactMapSerialize;
 
 /// Verifies map serialization masks values classified from their keys.
 #[cfg(feature = "serde")]
 #[test]
 fn test_redact_map_serialize_masks_sensitive_value() {
     let map = BTreeMap::from([(String::from("password"), String::from("raw"))]);
-    let serialized = serde_json::to_string(&RedactedMap::new(&map, RedactionPolicy::default()))
+    let mut serializer = serde_json::Serializer::new(Vec::new());
+    map.serialize_redacted_map(&RedactionPolicy::default(), &mut serializer)
         .expect("redacted map serialization should succeed");
+    let serialized = String::from_utf8(serializer.into_inner()).expect("JSON must be UTF-8");
 
     assert!(!serialized.contains("raw"));
 }
@@ -74,8 +38,11 @@ fn test_redact_map_serialize_supports_borrowed_keys_and_optional_values() {
         ("secret", None),
     ]);
 
-    let serialized = serde_json::to_value(RedactedMap::new(&map, RedactionPolicy::default()))
+    let mut serializer = serde_json::Serializer::new(Vec::new());
+    map.serialize_redacted_map(&RedactionPolicy::default(), &mut serializer)
         .expect("redacted map serialization should succeed");
+    let serialized: serde_json::Value =
+        serde_json::from_slice(&serializer.into_inner()).expect("serialized map must be valid JSON");
 
     assert_eq!(
         serialized,
@@ -85,20 +52,4 @@ fn test_redact_map_serialize_supports_borrowed_keys_and_optional_values() {
             "secret": null,
         }),
     );
-}
-
-#[cfg(feature = "serde")]
-#[test]
-fn test_redact_map_serialize_propagates_destination_errors() {
-    let map = BTreeMap::from([
-        (String::from("label"), String::from("visible")),
-        (String::from("password"), String::from("raw")),
-    ]);
-    let redacted = RedactedMap::new(&map, RedactionPolicy::default());
-
-    assert!(serde_json::to_writer(FailingWriter, &redacted).is_err());
-    let output_len = serde_json::to_vec(&redacted).expect("the map should serialize").len();
-    for remaining in 0..output_len {
-        assert!(serde_json::to_writer(FailAfter { remaining }, &redacted).is_err());
-    }
 }

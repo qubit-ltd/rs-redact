@@ -12,17 +12,17 @@ use qubit_redact::Sensitivity;
 /// Verifies complete HTTP policy assembly retains independent context rules.
 #[test]
 fn test_http_policy_parts_keep_context_rules_independent() {
-    let mut builder = RedactionPolicy::default().to_builder();
-    builder
-        .http()
-        .header()
-        .raise("x-api-key", Sensitivity::Secret)
-        .expect("the header rule must be valid");
-    builder
-        .http()
-        .query()
-        .raise("access_token", Sensitivity::High)
-        .expect("the query rule must be valid");
+    let builder = RedactionPolicy::default()
+        .to_builder()
+        .http(|http| {
+            http.header()
+                .raise("x-api-key", Sensitivity::Secret)
+                .expect("the header rule must be valid");
+            http.query()
+                .raise("access_token", Sensitivity::High)
+                .expect("the query rule must be valid");
+        })
+        .expect("the HTTP policy configuration must be valid");
     let policy = builder.build().expect("the configured policy must be valid");
 
     assert_eq!(

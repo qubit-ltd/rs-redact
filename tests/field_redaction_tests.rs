@@ -5,79 +5,59 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for typed scalar field-redaction results.
+//! Tests for final scalar field-redaction output.
 
-use qubit_redact::FieldRedaction;
-use qubit_redact::PassThroughReason;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
-/// Verifies masked fields expose a typed masked result.
+
+/// Verifies a sensitive field produces final masked text and completion data.
 #[test]
-fn test_redact_field_reports_masked_result() {
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        builder
-            .edit_fields()
-            .raise("tenant_secret", Sensitivity::Secret)
-            .expect("the test builder input should be valid");
-        builder
-    })
-    .build()
-    .expect("the policy should be valid");
+fn test_redact_field_returns_final_masked_output() {
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.raise("tenant_secret", Sensitivity::Secret);
+        })
+        .expect("the test builder input should be valid")
+        .build()
+        .expect("the policy should be valid");
 
     let result = Redactor::new(policy).redact_field("tenant_secret", "raw");
 
-    assert!(matches!(
-        &result,
-        FieldRedaction::Masked {
-            sensitivity: Sensitivity::Secret,
-            ..
-        }
-    ));
-    assert!(result.is_masked());
-    assert_eq!(result.as_str(), "<redacted>");
-    assert_eq!(result.sensitivity(), Some(Sensitivity::Secret));
-    assert_eq!(result.pass_through_reason(), None);
-    assert_eq!(result.clone().escape_for_log().as_str(), "<redacted>");
-    assert_eq!(result.into_owned(), "<redacted>");
+    assert_eq!(result.text().as_str(), "<redacted>");
+    assert_eq!(result.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(result.summary().usage().output_bytes(), "<redacted>".len());
 }
 
-/// Verifies allowed and unknown fields expose why their values were retained.
+/// Verifies explicit allows and unknown fields are retained in final output.
 #[test]
-fn test_redact_field_reports_pass_through_reason() {
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        builder.edit_fields().disable_floor();
-        builder
-            .edit_fields()
-            .allow_exact("display_name")
-            .expect("the test builder input should be valid");
-        builder
-    })
-    .build()
-    .expect("the policy should be valid");
+fn test_redact_field_preserves_explicitly_allowed_and_unknown_values() {
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.disable_floor().allow_exact("display_name");
+        })
+        .expect("the test builder input should be valid")
+        .build()
+        .expect("the policy should be valid");
     let redactor = Redactor::new(policy);
 
     let allowed = redactor.redact_field("display_name", "Alice");
     let unknown = redactor.redact_field("other", "visible");
 
-    assert_eq!(allowed.pass_through_reason(), Some(PassThroughReason::Allowed));
-    assert_eq!(unknown.pass_through_reason(), Some(PassThroughReason::Unknown));
-    assert!(!allowed.is_masked());
-    assert!(!unknown.is_masked());
-    assert_eq!(allowed.as_str(), "Alice");
-    assert_eq!(allowed.sensitivity(), None);
-    assert_eq!(allowed.into_owned(), "Alice");
-    assert_eq!(unknown.escape_for_log().as_str(), "visible");
+    assert_eq!(allowed.text().as_str(), "Alice");
+    assert_eq!(unknown.text().as_str(), "visible");
+    assert_eq!(allowed.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(unknown.summary().completion(), RedactionCompletion::Complete);
 }
 
-/// Verifies Debug remains available for inspecting processed field results.
+/// Verifies the public result is the final output model, rather than a typed
+/// intermediate scalar-result enum.
 #[test]
-fn test_redact_field_debug_is_available() {
+fn test_redact_field_debug_describes_final_output() {
     let result = Redactor::default().redact_field("password", "raw");
     let debug = format!("{result:?}");
 
-    assert!(debug.contains("Masked"));
+    assert!(debug.contains("RedactionOutput"));
     assert!(debug.contains("<redacted>"));
 }

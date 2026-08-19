@@ -11,12 +11,10 @@ use std::collections::BTreeMap;
 
 use http::HeaderMap;
 use http::HeaderValue;
-use qubit_budget::ResourceBudget;
 
-use super::HttpRedactor;
+use super::HttpPolicyExecutor;
 use crate::Sensitivity;
 use crate::formats::http::internal::BoundedLogWriter;
-use crate::policy::RedactionResource;
 
 /// Groups repeated header values under deterministically ordered names.
 pub(super) fn group_values(headers: &HeaderMap) -> BTreeMap<&str, Vec<&HeaderValue>> {
@@ -27,37 +25,7 @@ pub(super) fn group_values(headers: &HeaderMap) -> BTreeMap<&str, Vec<&HeaderVal
     values
 }
 
-/// Renders one header entry without inspecting any following entry.
-pub(in crate::formats::http) fn render_one(
-    redactor: &HttpRedactor,
-    name: &str,
-    value: &HeaderValue,
-    max_output_bytes: usize,
-) -> (String, bool) {
-    let mut writer = BoundedLogWriter::new(max_output_bytes, false);
-    let _ = writer.write_str(name);
-    let _ = writer.write_str(": [");
-    redactor.write_header_values(&mut writer, name, std::slice::from_ref(&value));
-    if !writer.is_full() {
-        let _ = writer.write_str("]");
-    }
-    writer.finish()
-}
-
-impl HttpRedactor {
-    /// Checks the complete header input against the diagnostic budget.
-    pub(super) fn headers_fit_input_budget(&self, headers: &HeaderMap) -> bool {
-        let mut input_budget = ResourceBudget::new(RedactionResource::Input, usize::MAX);
-        for (name, value) in headers {
-            if input_budget.try_consume(name.as_str().len()).is_err()
-                || input_budget.try_consume(value.as_bytes().len()).is_err()
-            {
-                return false;
-            }
-        }
-        true
-    }
-
+impl HttpPolicyExecutor<'_> {
     /// Writes deterministically grouped headers to a bounded writer.
     pub(super) fn write_grouped_headers(
         &self,

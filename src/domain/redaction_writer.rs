@@ -6,6 +6,7 @@
 //! Restricted structured writer used by domain redaction implementations.
 // qubit-style: allow multiple-public-types
 
+use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Write as _;
 
@@ -13,44 +14,33 @@ use crate::RedactionSession;
 use crate::Sensitivity;
 use crate::domain::Redact;
 use crate::domain::RedactMapValue;
-use crate::domain::RedactedMapResult;
-use crate::domain::RedactedResult;
-use crate::policy::DomainTraversalAdmission;
 
 /// Restricted writer for one redaction operation.
-pub struct RedactionWriter<'session, 'policy> {
+pub struct RedactionWriter<'session> {
     output: String,
-    session: &'session mut RedactionSession<'policy>,
+    session: &'session mut RedactionSession,
     field_truncated: bool,
-    frame_start: usize,
-    frame_limit: usize,
-    root_admitted: bool,
+    output_limit_reached: bool,
+    output_bytes: usize,
 }
 
-impl<'session, 'policy> RedactionWriter<'session, 'policy> {
+impl<'session> RedactionWriter<'session> {
     /// Creates a writer backed by an existing diagnostic session.
     #[must_use]
-    pub(crate) fn new(session: &'session mut RedactionSession<'policy>) -> Self {
-        let frame_limit = usize::MAX;
+    pub(crate) fn new(session: &'session mut RedactionSession) -> Self {
+        let output_capacity = session.remaining_output_bytes();
         Self {
-            output: if frame_limit == usize::MAX {
-                String::new()
-            } else {
-                String::with_capacity(frame_limit)
-            },
+            output: String::with_capacity(output_capacity),
             session,
             field_truncated: false,
-            frame_start: 0,
-            frame_limit,
-            root_admitted: false,
+            output_limit_reached: false,
+            output_bytes: 0,
         }
     }
 
     /// Creates a writer that owns the root output admission for one value.
-    pub(crate) fn new_root(session: &'session mut RedactionSession<'policy>) -> Self {
-        let mut writer = Self::new(session);
-        writer.root_admitted = true;
-        writer
+    pub(crate) fn new_root(session: &'session mut RedactionSession) -> Self {
+        Self::new(session)
     }
 
     /// Writes a trusted static structural literal.
@@ -59,96 +49,97 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
         if self.field_truncated {
             return;
         }
-        self.output.push_str(text);
-        self.mark_frame_overflow();
+        self.write_fragment(text);
     }
 
-    /// Writes trusted text whose lifetime is shorter than the writer call.
-    #[inline]
-    pub fn text(&mut self, text: &str) {
+    /// Writes explicitly trusted dynamic content without redaction.
+    ///
+    /// # Warning
+    ///
+    /// This method never consults field policy. It is only for content that
+    /// the caller has independently established as safe to expose; sensitive
+    /// values must be written through a redaction-aware field method instead.
+    pub fn unredacted<T>(&mut self, value: &T) -> &mut Self
+    where
+        T: Debug + ?Sized,
+    {
         if self.field_truncated {
-            return;
+            return self;
         }
-        self.output.push_str(text);
-        self.mark_frame_overflow();
+        self.write_debug(value);
+        self
     }
 
     /// Returns the immutable policy used by this writer.
     #[must_use]
     #[inline(always)]
-    pub const fn policy(&self) -> &'policy crate::RedactionPolicy {
+    pub fn policy(&self) -> &crate::RedactionPolicy {
         self.session.policy()
     }
 
-    pub(crate) fn session_mut(&mut self) -> &mut RedactionSession<'policy> {
-        self.session
+    pub(crate) fn begin_nested_value(&mut self) -> bool {
+        self.session.begin_domain_value()
     }
 
-    /// Creates an eagerly rendered nested domain view using this writer's
-    /// independent traversal context.
-    #[must_use]
-    pub fn redacted<'a, T>(&mut self, value: &'a T) -> RedactedResult<'a, T>
-    where
-        T: Redact + ?Sized,
-    {
-        RedactedResult::new(value, self.session)
+    pub(crate) fn finish_nested_value(&mut self) {
+        self.session.leave_domain_value();
     }
 
-    /// Creates an eagerly rendered map view using this writer's policy.
-    #[must_use]
-    pub fn redacted_map<'a, M, K, V>(&mut self, value: &'a M) -> RedactedMapResult<'a, M, K, V>
-    where
-        M: crate::domain::RedactMapValue<K, V> + ?Sized,
-        K: ?Sized,
-        V: ?Sized,
-    {
-        RedactedMapResult::new(value, self.session)
+    pub(crate) fn admit_nested_collection_item(&mut self) -> bool {
+        self.session.admit_domain_collection_item()
     }
 
-    /// Creates an eagerly rendered value using an explicit policy key.
-    #[must_use]
-    pub fn redacted_keyed<'a, T>(&mut self, key: &'a str, value: &'a T) -> crate::domain::RedactedKeyedResult<'a, T>
-    where
-        T: Redact + crate::domain::RedactValue + ?Sized,
-    {
-        crate::domain::RedactedKeyedResult::new(key, value, self.session)
+    pub(crate) fn trim_trailing_separator(&mut self) {
+        if self.output.ends_with(", ") {
+            self.output.truncate(self.output.len() - 2);
+            self.output_bytes = self.output_bytes.saturating_sub(2);
+        }
     }
 
-    /// Creates an eagerly rendered keyed map using this writer's policy.
-    #[must_use]
-    pub fn redacted_keyed_map<'a, M, K, V>(
-        &mut self,
-        value: &'a M,
-    ) -> crate::domain::RedactedKeyedMapResult<'a, M, K, V>
-    where
-        M: ?Sized,
-        K: AsRef<str> + Debug + ?Sized + 'a,
-        V: crate::domain::Redact + crate::domain::RedactValue + ?Sized + 'a,
-        for<'entry> &'entry M: IntoIterator<Item = (&'entry K, &'entry V)>,
-        <&'a M as IntoIterator>::IntoIter: ExactSizeIterator,
-    {
-        crate::domain::RedactedKeyedMapResult::new(value, self.session)
+    #[inline]
+    pub(crate) const fn is_truncated(&self) -> bool {
+        self.field_truncated
     }
 
+    /// Redacts JSON text through the session that owns this writer.
+    ///
+    /// The input and output allowances are borrowed from the active
+    /// transaction. This writer never constructs a standalone JSON redactor.
     #[cfg(feature = "json")]
-    pub fn redact_json_text(&mut self, value: &str) -> crate::RedactedText {
-        crate::formats::json::JsonRedactor::new(self.policy().clone())
-            .redact_text(value)
-            .into_text()
+    #[must_use]
+    pub fn redact_json_text(&mut self, value: &str) -> String {
+        if !self.session.admit_input(value.len()) {
+            self.truncate_without_output_limit();
+            return "<truncated>".to_owned();
+        }
+        // Structural admission happens before JSON redaction parses or walks
+        // the value. A domain writer therefore cannot create a private JSON
+        // traversal budget outside its parent transaction.
+        if !crate::formats::json::admit_json_text_structure(self.session, value) {
+            self.truncate_without_output_limit();
+            return "<truncated>".to_owned();
+        }
+        let allowance = self.session.remaining_output_bytes().min(self.remaining_output_bytes());
+        let output = crate::formats::json::redact_json_text_with_limit(self.session.policy(), value, allowance);
+        if output.summary().completion() != crate::RedactionCompletion::Complete {
+            self.truncate_without_output_limit();
+        }
+        self.session.record_format_provenance(*output.summary());
+        output.into_text().into_string()
     }
 
     /// Writes a named record through a field scope.
-    pub fn record<F>(&mut self, name: &str, configure: F)
+    pub fn record<F>(&mut self, name: &'static str, configure: F)
     where
-        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session, 'policy>),
+        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session>),
     {
         self.write_structured(name, " { ", " }", configure);
     }
 
     /// Writes a named tuple through a field scope.
-    pub fn tuple<F>(&mut self, name: &str, configure: F)
+    pub fn tuple<F>(&mut self, name: &'static str, configure: F)
     where
-        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session, 'policy>),
+        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session>),
     {
         self.write_structured(name, "(", ")", configure);
     }
@@ -156,118 +147,186 @@ impl<'session, 'policy> RedactionWriter<'session, 'policy> {
     /// Writes a bracketed sequence through a field scope.
     pub fn list<F>(&mut self, configure: F)
     where
-        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session, 'policy>),
+        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session>),
     {
         self.write_structured("", "[", "]", configure);
     }
 
-    /// Writes a unit variant or unit struct.
-    pub fn unit(&mut self, name: &str) {
-        self.output.push_str(name);
-        self.mark_frame_overflow();
-        self.mark_frame_overflow();
-    }
-
-    /// Writes one already-redacted value through the current session.
-    pub fn render<T, F>(&mut self, render: F)
+    /// Writes a bracketed sequence through an item scope.
+    pub fn sequence<F>(&mut self, configure: F)
     where
-        T: Debug,
-        F: FnOnce(&mut RedactionWriter<'_, 'policy>) -> T,
+        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session>),
     {
-        if !self.session.begin_domain_value() {
-            self.output.push_str("<truncated>");
-            return;
-        }
-        let max_output_bytes = usize::MAX;
-        let start = self.output.len();
-        let rendered = format!("{:?}", render(self));
-        self.output.push_str(&rendered);
-        let rendered_len = rendered.len();
-        if rendered_len > max_output_bytes {
-            self.truncate_with_marker(start, max_output_bytes);
-        }
-        self.session.leave_domain_value();
+        self.write_structured("", "[", "]", configure);
     }
 
-    /// Finishes the writer and returns output whose bytes were charged to the
-    /// shared session.
+    /// Writes a braced map through an entry scope.
+    pub fn map<F>(&mut self, configure: F)
+    where
+        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session>),
+    {
+        self.write_structured("", "{ ", " }", configure);
+    }
+
+    /// Writes a named enum variant through a field scope.
+    pub fn variant<F>(&mut self, enum_name: &'static str, variant_name: &'static str, configure: F)
+    where
+        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session>),
+    {
+        self.write_fragment(enum_name);
+        self.write_fragment("::");
+        self.write_structured(variant_name, " { ", " }", configure);
+    }
+
+    /// Writes a unit variant or unit struct.
+    pub fn unit(&mut self, name: &'static str) {
+        self.write_fragment(name);
+    }
+
+    /// Finishes the writer and reports whether its bounded frame omitted text.
     #[must_use]
-    pub(crate) fn finish(mut self) -> String {
-        if self.root_admitted {
-            let rendered_len = self.output.len();
-            if rendered_len > self.frame_limit {
-                self.truncate_with_marker(0, self.frame_limit);
-            }
-        }
-        self.output
+    pub(crate) fn finish_with_completion(self) -> (String, bool, bool) {
+        (self.output, self.field_truncated, self.output_limit_reached)
     }
 
     /// Writes one bounded structured frame and accounts for its domain node
     /// and output bytes.
-    fn write_structured<F>(&mut self, name: &str, opening: &str, closing: &str, configure: F)
+    fn write_structured<F>(&mut self, name: &'static str, opening: &'static str, closing: &'static str, configure: F)
     where
-        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session, 'policy>),
+        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session>),
     {
         if !self.session.begin_domain_value() {
-            self.output.push_str("<truncated>");
+            self.truncate_without_output_limit();
             return;
         }
-        let max_output_bytes = usize::MAX;
-        let start = self.output.len();
-        let previous_frame = (self.frame_start, self.frame_limit);
-        self.frame_start = start;
-        self.frame_limit = max_output_bytes;
-        self.output.push_str(name);
-        self.output.push_str(opening);
-        {
+        self.write_fragment(name);
+        self.write_fragment(opening);
+        if self.can_write() {
             let mut fields = RedactionFields {
                 writer: self,
                 named: opening == " { ",
             };
             configure(&mut fields);
         }
-        if self.output.ends_with(", ") {
-            self.output.truncate(self.output.len() - 2);
-        }
-        self.output.push_str(closing);
-        let rendered_len = self.output.len().saturating_sub(start);
-        if rendered_len > max_output_bytes {
-            self.truncate_with_marker(start, max_output_bytes);
+        if self.can_write() {
+            self.trim_trailing_separator();
+            self.write_fragment(closing);
         }
         self.session.leave_domain_value();
-        (self.frame_start, self.frame_limit) = previous_frame;
     }
 
-    fn truncate_with_marker(&mut self, start: usize, maximum: usize) {
-        const MARKER: &str = "<truncated>";
-        let marker_bytes = maximum.min(MARKER.len());
-        let content_limit = maximum.saturating_sub(marker_bytes);
-        self.output
-            .truncate(floor_char_boundary(&self.output, start.saturating_add(content_limit)));
-        self.output.push_str(&MARKER[..marker_bytes]);
+    /// Closes this writer after it has actually exceeded its output allowance.
+    fn truncate_for_output_limit(&mut self) {
+        self.output_limit_reached = true;
+        self.truncate_without_output_limit();
     }
 
-    /// Marks the active frame after its output ceiling is crossed.
+    /// Closes this writer without inventing output-limit provenance.
     ///
-    /// Replacement is deferred until the frame closes so collection callers
-    /// can stop visiting later values first.
+    /// Structural and input admission failures already record their specific
+    /// cause in the shared session. If their fallback marker itself cannot
+    /// fit, [`Self::write_fragment`] records the additional output limit.
+    fn truncate_without_output_limit(&mut self) {
+        if self.field_truncated {
+            return;
+        }
+        const MARKER: &str = "<truncated>";
+        let output_limit = self.session.remaining_output_bytes();
+        let marker_bytes = MARKER.len().min(output_limit);
+        self.truncate_to_output_bytes(output_limit.saturating_sub(marker_bytes));
+        self.append_complete_fragment(&MARKER[..marker_bytes]);
+        self.field_truncated = true;
+    }
+
+    /// Appends `text` only while its final log-escaped representation fits.
+    ///
+    /// Returning an error from the bounded `fmt::Write` adapter terminates a
+    /// caller's `Debug` implementation before it can format later chunks.
+    fn write_fragment(&mut self, text: &str) -> bool {
+        if self.field_truncated {
+            return false;
+        }
+        for character in text.chars() {
+            let bytes = encoded_log_safe_len(character);
+            if bytes > self.remaining_output_bytes() {
+                self.truncate_for_output_limit();
+                return false;
+            }
+            self.output.push(character);
+            self.output_bytes += bytes;
+        }
+        true
+    }
+
+    pub(crate) fn write_debug<T>(&mut self, value: &T)
+    where
+        T: Debug + ?Sized,
+    {
+        let mut formatter = BoundedDebugWriter { writer: self };
+        let _ = write!(&mut formatter, "{value:?}");
+    }
+
     #[inline]
-    fn mark_frame_overflow(&mut self) {
-        if self.output.len().saturating_sub(self.frame_start) > self.frame_limit {
-            self.field_truncated = true;
+    fn can_write(&self) -> bool {
+        !self.field_truncated && self.remaining_output_bytes() > 0
+    }
+
+    #[inline]
+    fn remaining_output_bytes(&self) -> usize {
+        self.session.remaining_output_bytes().saturating_sub(self.output_bytes)
+    }
+
+    fn append_complete_fragment(&mut self, text: &str) {
+        for character in text.chars() {
+            self.output.push(character);
+            self.output_bytes += encoded_log_safe_len(character);
+        }
+    }
+
+    fn truncate_to_output_bytes(&mut self, limit: usize) {
+        while self.output_bytes > limit {
+            let Some(character) = self.output.pop() else {
+                self.output_bytes = 0;
+                return;
+            };
+            self.output_bytes -= encoded_log_safe_len(character);
+        }
+    }
+}
+
+/// `fmt::Write` adapter that stops a `Debug` formatter at the writer's final
+/// escaped-output ceiling instead of first materializing an unbounded string.
+struct BoundedDebugWriter<'writer, 'session> {
+    writer: &'writer mut RedactionWriter<'session>,
+}
+
+impl fmt::Write for BoundedDebugWriter<'_, '_> {
+    fn write_str(&mut self, value: &str) -> fmt::Result {
+        if self.writer.write_fragment(value) {
+            Ok(())
+        } else {
+            Err(fmt::Error)
         }
     }
 }
 
 /// Field scope for a record or tuple writer.
-pub struct RedactionFields<'writer, 'session, 'policy> {
-    writer: &'writer mut RedactionWriter<'session, 'policy>,
+pub struct RedactionFields<'writer, 'session> {
+    writer: &'writer mut RedactionWriter<'session>,
     named: bool,
 }
 
-impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
-    /// Writes a field using its ordinary debug representation.
-    pub fn field<T, F>(&mut self, name: &str, access: F) -> &mut Self
+impl<'writer, 'session> RedactionFields<'writer, 'session> {
+    /// Writes a field that the implementer has explicitly classified as safe
+    /// to expose without redaction.
+    ///
+    /// # Warning
+    ///
+    /// This method does not consult runtime field policy and executes
+    /// `access`. Use it only for fields that are intentionally unredacted.
+    /// Every field requiring redaction must use [`Self::sensitive`] or another
+    /// redaction-aware writer method instead.
+    pub fn unredacted<T, F>(&mut self, name: &str, access: F) -> &mut Self
     where
         T: Debug,
         F: FnOnce() -> T,
@@ -277,13 +336,22 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
             return self;
         }
         self.write_prefix(name);
-        write!(self.writer.output, "{:?}", access()).expect("writing to an in-memory String cannot fail");
-        self.writer.output.push_str(", ");
-        self.writer.mark_frame_overflow();
+        if !self.writer.can_write() {
+            return self;
+        }
+        let value = access();
+        self.writer.write_debug(&value);
+        self.writer.write_fragment(", ");
         self
     }
 
     /// Writes a field with an explicit minimum sensitivity.
+    ///
+    /// The effective sensitivity is the stronger of `level` and the active
+    /// policy's classification for `name`. A policy may therefore raise this
+    /// field's protection, but can never lower the implementer's explicit
+    /// minimum. When that effective level is [`Sensitivity::High`] or
+    /// [`Sensitivity::Secret`], `access` is not evaluated.
     pub fn sensitive<T, F>(&mut self, level: Sensitivity, name: &str, access: F) -> &mut Self
     where
         T: Debug,
@@ -293,105 +361,126 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
             self.write_field_truncated();
             return self;
         }
-        let value = if matches!(level, Sensitivity::High | Sensitivity::Secret) {
-            self.writer.session.policy().masking().mask_opaque(level).to_owned()
+        let effective_level = self
+            .writer
+            .session
+            .policy()
+            .sensitivity_for(name)
+            .map_or(level, |policy_level| policy_level.max(level));
+        self.write_prefix(name);
+        if !self.writer.can_write() {
+            return self;
+        }
+        if matches!(effective_level, Sensitivity::High | Sensitivity::Secret) {
+            let value = self
+                .writer
+                .session
+                .policy()
+                .masking()
+                .mask_opaque_bounded(effective_level, self.writer.remaining_output_bytes());
+            self.writer.write_debug(&value);
         } else {
-            let raw = format!("{:?}", access());
-            self.writer.session.redact_at(level, &raw).into_owned()
-        };
-        self.write_prefix(name);
-        self.writer.output.push_str(&format!("{value:?}"));
-        self.writer.output.push_str(", ");
-        self.writer.mark_frame_overflow();
-        self
-    }
-
-    /// Writes a field whose redacted value is produced with the shared
-    /// session.
-    pub fn value<T, F>(&mut self, name: &str, render: F) -> &mut Self
-    where
-        T: Debug,
-        F: FnOnce(&mut RedactionWriter<'_, 'policy>) -> T,
-    {
-        if !self.admit_field() {
-            self.write_field_truncated();
-            return self;
-        }
-        let rendered = format!("{:?}", render(self.writer));
-        self.write_prefix(name);
-        self.writer.output.push_str(&rendered);
-        self.writer.output.push_str(", ");
-        self.writer.mark_frame_overflow();
-        self
-    }
-
-    /// Writes an optional value while preserving its `Some`/`None` shape.
-    pub fn optional_value<T, F>(&mut self, name: &str, value: &Option<T>, render: F) -> &mut Self
-    where
-        T: Debug,
-        F: FnOnce(&T, &mut RedactionWriter<'_, 'policy>) -> String,
-    {
-        if !self.admit_field() {
-            self.write_field_truncated();
-            return self;
-        }
-        self.write_prefix(name);
-        match value {
-            Some(value) => {
-                let rendered = render(value, self.writer);
-                self.writer.output.push_str("Some(");
-                self.writer.output.push_str(&rendered);
-                self.writer.output.push(')');
+            let raw_limit = self.writer.remaining_output_bytes();
+            let (raw, raw_truncated) = bounded_debug(&access(), raw_limit);
+            let (value, mask_truncated) = self.writer.session.policy().masking().mask_bounded_with_truncation(
+                effective_level,
+                &raw,
+                self.writer.remaining_output_bytes(),
+            );
+            self.writer.write_debug(value.as_ref());
+            if raw_truncated || mask_truncated {
+                self.writer.truncate_for_output_limit();
             }
-            None => self.writer.output.push_str("None"),
         }
-        self.writer.output.push_str(", ");
-        self.writer.mark_frame_overflow();
+        self.writer.write_fragment(", ");
         self
     }
 
-    /// Writes one tuple item through the shared session.
-    pub fn item<T, F>(&mut self, render: F) -> &mut Self
+    /// Writes one explicitly unredacted sequence item.
+    pub fn unredacted_item<T, F>(&mut self, access: F) -> &mut Self
     where
         T: Debug,
-        F: FnOnce(&mut RedactionWriter<'_, 'policy>) -> T,
+        F: FnOnce() -> T,
     {
         if !self.admit_item() {
             self.write_field_truncated();
             return self;
         }
-        let rendered = format!("{:?}", render(self.writer));
-        self.writer.output.push_str(&rendered);
-        self.writer.output.push_str(", ");
-        self.writer.mark_frame_overflow();
+        self.writer.write_debug(&access());
+        self.writer.write_fragment(", ");
         self
     }
 
-    /// Writes one pre-redacted tuple or list item without adding debug quotes.
-    pub fn item_text<F>(&mut self, render: F) -> &mut Self
+    /// Writes one explicitly sensitive sequence item.
+    pub fn sensitive_item<T, F>(&mut self, level: Sensitivity, access: F) -> &mut Self
     where
-        F: FnOnce(&mut RedactionWriter<'_, 'policy>) -> String,
+        T: Debug,
+        F: FnOnce() -> T,
+    {
+        self.sensitive(level, "", access)
+    }
+
+    /// Writes one explicitly unredacted map entry.
+    pub fn unredacted_entry<T, F>(&mut self, name: &str, access: F) -> &mut Self
+    where
+        T: Debug,
+        F: FnOnce() -> T,
+    {
+        self.unredacted(name, access)
+    }
+
+    /// Writes one explicitly sensitive map entry.
+    pub fn sensitive_entry<T, F>(&mut self, level: Sensitivity, name: &str, access: F) -> &mut Self
+    where
+        T: Debug,
+        F: FnOnce() -> T,
+    {
+        self.sensitive(level, name, access)
+    }
+
+    /// Writes one nested map entry through the parent transaction.
+    pub fn nested_entry<T>(&mut self, name: &str, value: &T) -> &mut Self
+    where
+        T: Redact + ?Sized,
+    {
+        self.nested(name, value)
+    }
+
+    /// Redacts JSON text for a named field through this shared transaction.
+    #[cfg(feature = "json")]
+    pub fn json(&mut self, name: &str, value: &str) -> &mut Self {
+        if !self.admit_field() {
+            self.write_field_truncated();
+            return self;
+        }
+        self.write_prefix(name);
+        if !self.writer.can_write() {
+            return self;
+        }
+        let rendered = self.writer.redact_json_text(value);
+        self.writer.write_debug(&rendered);
+        self.writer.write_fragment(", ");
+        self
+    }
+
+    /// Writes one nested domain value as a tuple or sequence item.
+    pub fn nested_item<T>(&mut self, value: &T) -> &mut Self
+    where
+        T: Redact + ?Sized,
     {
         if !self.admit_item() {
             self.write_field_truncated();
             return self;
         }
-        let rendered = render(self.writer);
-        if rendered.is_empty() {
-            self.writer.output.push_str("<truncated>");
-            self.writer.field_truncated = true;
-        } else {
-            self.writer.output.push_str(&rendered);
-        }
-        self.writer.output.push_str(", ");
-        self.writer.mark_frame_overflow();
+        value.write_redacted(self.writer);
+        self.writer.write_fragment(", ");
         self
     }
 
     /// Writes a nested bracketed sequence inside the current structure.
     pub fn list<F>(&mut self, configure: F) -> &mut Self
     where
-        F: for<'nested> FnOnce(&mut RedactionFields<'nested, 'session, 'policy>),
+        F: for<'nested> FnOnce(&mut RedactionFields<'nested, 'session>),
     {
         self.writer.write_structured("", "[", "]", configure);
         self
@@ -406,11 +495,12 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
             self.write_field_truncated();
             return self;
         }
-        let rendered = format!("{:?}", RedactedResult::new(value, self.writer.session),);
         self.write_prefix(name);
-        self.writer.output.push_str(&rendered);
-        self.writer.output.push_str(", ");
-        self.writer.mark_frame_overflow();
+        if !self.writer.can_write() {
+            return self;
+        }
+        value.write_redacted(self.writer);
+        self.writer.write_fragment(", ");
         self
     }
 
@@ -422,57 +512,245 @@ impl<'writer, 'session, 'policy> RedactionFields<'writer, 'session, 'policy> {
         V: ?Sized,
     {
         if !self.admit_field() {
-            self.writer.output.push_str("...: <truncated>");
+            self.writer.truncate_without_output_limit();
             return self;
         }
-        let rendered = format!("{:?}", RedactedMapResult::new(value, self.writer.session),);
         self.write_prefix(name);
-        self.writer.output.push_str(&rendered);
-        self.writer.output.push_str(", ");
-        self.writer.mark_frame_overflow();
+        if !self.writer.can_write() {
+            return self;
+        }
+        value.write_redacted_map_to(self.writer);
+        self.writer.write_fragment(", ");
         self
     }
 
     /// Returns whether the next field may be inspected.
     #[must_use]
     fn admit_field(&mut self) -> bool {
-        if self.writer.field_truncated {
+        if self.writer.field_truncated || !self.writer.can_write() {
             return false;
         }
-        self.writer.session.admit_domain_field() == DomainTraversalAdmission::Render
+        self.writer.session.admit_domain_field()
     }
 
     #[inline]
     fn admit_item(&mut self) -> bool {
-        !self.writer.field_truncated
-            && self.writer.session.admit_domain_collection_item() == DomainTraversalAdmission::Render
+        !self.writer.field_truncated && self.writer.session.admit_domain_collection_item()
     }
 
     fn write_prefix(&mut self, name: &str) {
         if self.named {
-            self.writer.output.push_str(name);
-            self.writer.output.push_str(": ");
+            self.writer.write_fragment(name);
+            self.writer.write_fragment(": ");
         }
     }
 
     fn write_field_truncated(&mut self) {
         if !self.writer.field_truncated {
             if self.named {
-                self.writer.output.push_str("...: <truncated>");
+                self.writer.write_fragment("...: <truncated>");
             } else {
-                self.writer.output.push_str("<truncated>");
+                self.writer.write_fragment("<truncated>");
             }
-            self.writer.field_truncated = true;
-            self.writer.mark_frame_overflow();
+            self.writer.truncate_without_output_limit();
         }
     }
 }
 
-/// Returns the greatest UTF-8 boundary not greater than `limit`.
-fn floor_char_boundary(value: &str, limit: usize) -> usize {
-    let mut boundary = limit.min(value.len());
-    while boundary > 0 && !value.is_char_boundary(boundary) {
-        boundary -= 1;
+/// Captures a `Debug` representation without allowing its formatter to grow
+/// an intermediate string beyond the caller's bounded need.
+fn bounded_debug<T>(value: &T, maximum: usize) -> (String, bool)
+where
+    T: Debug + ?Sized,
+{
+    let mut writer = BoundedCapture::new(maximum);
+    let _ = write!(&mut writer, "{value:?}");
+    writer.finish()
+}
+
+struct BoundedCapture {
+    output: String,
+    maximum: usize,
+    truncated: bool,
+}
+
+impl BoundedCapture {
+    fn new(maximum: usize) -> Self {
+        Self {
+            output: String::with_capacity(maximum),
+            maximum,
+            truncated: false,
+        }
     }
-    boundary
+
+    fn finish(self) -> (String, bool) {
+        (self.output, self.truncated)
+    }
+}
+
+impl fmt::Write for BoundedCapture {
+    fn write_str(&mut self, value: &str) -> fmt::Result {
+        let mut end = 0;
+        for (index, character) in value.char_indices() {
+            let next = index + character.len_utf8();
+            if next > self.maximum.saturating_sub(self.output.len()) {
+                self.truncated = true;
+                return Err(fmt::Error);
+            }
+            end = next;
+        }
+        self.output.push_str(&value[..end]);
+        Ok(())
+    }
+}
+
+fn encoded_log_safe_len(character: char) -> usize {
+    let mut buffer = [0_u8; 12];
+    crate::output::log_escape::encode_log_safe_character(character, &mut buffer)
+        .expect("the log-safe character encoder always produces UTF-8")
+        .len()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::RedactionWriter;
+    use crate::Redact;
+    use crate::Redactor;
+
+    struct Nested;
+
+    impl Redact for Nested {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.record("Nested", |fields| {
+                fields.unredacted("id", || 7_u8);
+            });
+        }
+    }
+
+    struct Container {
+        values: BTreeMap<String, String>,
+    }
+
+    impl Redact for Container {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.record("Container", |fields| {
+                fields.nested("nested", &Nested);
+                fields.map("values", &self.values);
+            });
+        }
+    }
+
+    /// Nested values and maps must render through the borrowed writer instead
+    /// of materializing a legacy lazy redaction result with its own path.
+    #[test]
+    fn nested_and_map_use_the_active_writer_transaction() {
+        let mut values = BTreeMap::new();
+        values.insert("name".to_owned(), "Ada".to_owned());
+        let output = Redactor::standard().redact(&Container { values });
+
+        assert!(output.text().as_str().contains("Nested { id: 7 }"));
+        assert!(output.text().as_str().contains("values: {\"name\": \"Ada\"}"));
+        assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());
+    }
+
+    #[cfg(feature = "json")]
+    struct JsonContainer;
+
+    #[cfg(feature = "json")]
+    impl Redact for JsonContainer {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.record("JsonContainer", |fields| {
+                fields.json("payload", "{invalid json");
+            });
+        }
+    }
+
+    /// JSON emitted from a domain writer must use the active session for input
+    /// accounting and retain parser provenance in that transaction summary.
+    #[cfg(feature = "json")]
+    #[test]
+    fn writer_json_uses_the_active_session_summary() {
+        let mut session = Redactor::standard().session();
+        let output = session.value(&JsonContainer).finish();
+
+        assert_eq!(output.summary().usage().presented_input_bytes(), "{invalid json".len());
+        assert!(output.summary().reasons().contains(crate::RedactionReason::InvalidJson));
+    }
+
+    /// A JSON value emitted by a domain writer must spend the same structural
+    /// budget as the enclosing domain transaction. The structural reason must
+    /// remain visible instead of being relabelled as output exhaustion.
+    #[cfg(feature = "json")]
+    #[test]
+    fn writer_json_uses_shared_structure_budget_and_preserves_its_reason() {
+        let policy = crate::RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_depth(1);
+            })
+            .expect("the limit draft should build")
+            .build()
+            .expect("the policy should build");
+        let mut session = Redactor::new(policy).session();
+
+        let output = session.value(&JsonContainerWithValidNestedValue).finish();
+
+        assert_eq!(output.summary().completion(), crate::RedactionCompletion::Truncated);
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(crate::RedactionReason::DepthLimitReached)
+        );
+        assert!(
+            !output
+                .summary()
+                .reasons()
+                .contains(crate::RedactionReason::OutputLimitReached)
+        );
+        assert!(output.text().as_str().contains("<truncated>"));
+    }
+
+    /// Individually resolved domain values must retain the structural reason
+    /// too; their per-item summary is derived from the same writer state.
+    #[cfg(feature = "json")]
+    #[test]
+    fn writer_json_handle_preserves_shared_structure_reason() {
+        let policy = crate::RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_depth(1);
+            })
+            .expect("the limit draft should build")
+            .build()
+            .expect("the policy should build");
+        let mut session = Redactor::new(policy).session();
+        let handle = session.redact_value(&JsonContainerWithValidNestedValue);
+        let output = session.finish();
+        let item = output.resolve(handle).expect("the handle should resolve");
+
+        assert!(
+            item.summary()
+                .reasons()
+                .contains(crate::RedactionReason::DepthLimitReached)
+        );
+        assert!(
+            !item
+                .summary()
+                .reasons()
+                .contains(crate::RedactionReason::OutputLimitReached)
+        );
+    }
+
+    #[cfg(feature = "json")]
+    struct JsonContainerWithValidNestedValue;
+
+    #[cfg(feature = "json")]
+    impl Redact for JsonContainerWithValidNestedValue {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.record("JsonContainer", |fields| {
+                fields.json("payload", r#"{"outer":{"inner":"value"}}"#);
+            });
+        }
+    }
 }

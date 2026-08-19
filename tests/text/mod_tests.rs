@@ -13,7 +13,7 @@ use qubit_redact::Redactor;
 fn test_text_module_reexports_compose() {
     let rendered = Redactor::default()
         .redact_field("message", "visible\nforged")
-        .escape_for_log()
+        .text()
         .to_string();
 
     assert_eq!(rendered, r"visible\nforged");

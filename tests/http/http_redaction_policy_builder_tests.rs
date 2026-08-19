@@ -13,9 +13,13 @@ use qubit_redact::formats::http::UrlPathPolicy;
 /// Verifies the HTTP builder updates its independently configured choices.
 #[test]
 fn test_http_policy_builder_updates_behavior_choices() {
-    let mut builder = RedactionPolicy::default().to_builder();
-    builder.http().url_path(UrlPathPolicy::Redact);
-    builder.http().text_body(TextBodyPolicy::PassThrough);
+    let builder = RedactionPolicy::default()
+        .to_builder()
+        .http(|http| {
+            http.url_path(UrlPathPolicy::Redact);
+            http.text_body(TextBodyPolicy::PassThrough);
+        })
+        .expect("the HTTP policy configuration must be valid");
     let policy = builder.build().expect("the configured policy must be valid");
 
     assert_eq!(policy.http().url_path_policy(), UrlPathPolicy::Redact);

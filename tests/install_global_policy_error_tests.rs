@@ -5,22 +5,26 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for global-policy installation errors.
+//! Tests for application-default redactor replacement.
 
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
-/// Verifies replacing the default redactor returns the previous snapshot.
+/// Verifies replacement returns the previous application-default snapshot.
 #[test]
-fn test_default_redactor_replacement_returns_previous_snapshot() {
-    let rejected = ({
-        let mut builder = RedactionPolicy::default().to_builder();
-        builder.edit_fields().disable_floor();
-        builder
-    })
-    .build()
-    .expect("the rejected policy must be valid");
-    let original = Redactor::default();
-    let previous = Redactor::set_default(Redactor::new(rejected));
+fn test_application_default_replacement_returns_previous_snapshot() {
+    let replacement_policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            let _ = fields.secret_sensitive("replacement_only_secret");
+        })
+        .expect("the replacement builder input must be valid")
+        .build()
+        .expect("the replacement policy must be valid");
+    let original = Redactor::application_default();
+    let replacement = Redactor::new(replacement_policy);
+    let previous = Redactor::replace_application_default(replacement.clone());
+
     assert_eq!(previous.policy(), original.policy());
-    let _ = Redactor::set_default(original);
+    assert_eq!(Redactor::application_default(), replacement);
+
+    let _ = Redactor::replace_application_default(original);
 }

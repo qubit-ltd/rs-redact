@@ -6,6 +6,3 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Cross-format input, output, and traversal limits.
-
-pub use crate::policy::RedactionLimits;
-pub use crate::policy::RedactionLimitsBuilder;

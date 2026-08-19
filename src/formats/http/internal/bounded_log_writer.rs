@@ -101,6 +101,13 @@ impl BoundedLogWriter {
         self.payload_limit().saturating_sub(self.output.len())
     }
 
+    /// Marks the final rendering as truncated after a nested renderer omitted
+    /// source text before returning its bounded representation.
+    pub(in crate::formats::http) fn mark_truncated(&mut self) {
+        self.truncated = true;
+        self.truncate_to_payload_limit();
+    }
+
     /// Finishes the bounded rendering.
     ///
     /// # Returns
@@ -108,6 +115,10 @@ impl BoundedLogWriter {
     /// Final log-safe text and whether any source or output was truncated.
     pub(in crate::formats::http) fn finish(mut self) -> (String, bool) {
         if self.truncated {
+            if self.max_bytes < markers::TRUNCATED.len() {
+                self.output.clear();
+                return (self.output, true);
+            }
             self.truncate_to_payload_limit();
             self.output.push_str(markers::TRUNCATED);
         }
@@ -127,7 +138,7 @@ impl BoundedLogWriter {
         let limit = self.payload_limit();
         if self.output.len().saturating_add(piece.len()) <= limit {
             self.output.push_str(piece);
-            let marker_payload_limit = self.max_bytes - markers::TRUNCATED.len();
+            let marker_payload_limit = self.max_bytes.saturating_sub(markers::TRUNCATED.len());
             if self.output.len() <= marker_payload_limit {
                 self.marker_boundary = self.output.len();
             }
@@ -147,7 +158,7 @@ impl BoundedLogWriter {
     #[inline(always)]
     fn payload_limit(&self) -> usize {
         if self.truncated {
-            self.max_bytes - markers::TRUNCATED.len()
+            self.max_bytes.saturating_sub(markers::TRUNCATED.len())
         } else {
             self.max_bytes
         }

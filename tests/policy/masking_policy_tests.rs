@@ -80,3 +80,16 @@ fn test_masking_policy_builder_updates_requested_levels() {
     assert_eq!(policy.mask(Sensitivity::High, "value"), "<high>");
     assert_eq!(policy.mask(Sensitivity::Secret, "value"), "<secret>");
 }
+
+/// Verifies low and medium builder methods remain independently usable
+/// statements, as required by callers that do not use a fluent chain.
+#[test]
+fn test_masking_policy_builder_sets_low_and_medium_independently() {
+    let mut builder = MaskingPolicy::builder();
+    builder.low(MaskPolicy::fixed("<low>"));
+    builder.medium(MaskPolicy::fixed("<medium>"));
+    let policy = builder.build();
+
+    assert_eq!(policy.mask(Sensitivity::Low, "value"), "<low>");
+    assert_eq!(policy.mask(Sensitivity::Medium, "value"), "<medium>");
+}

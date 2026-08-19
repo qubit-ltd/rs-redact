@@ -13,17 +13,15 @@ use qubit_redact::Sensitivity;
 /// Verifies canonical storage and candidate matching compose consistently.
 #[test]
 fn test_policy_internal_components_share_canonical_state() {
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        let _ = builder.edit_fields().matching(FieldNameMatching::ExactOrTokenSuffix);
-        builder
-            .edit_fields()
-            .raise("access-token", Sensitivity::High)
-            .expect("the test builder input should be valid");
-        builder
-    })
-    .build()
-    .expect("the canonicalized rule is valid");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .matching(FieldNameMatching::ExactOrTokenSuffix)
+                .raise("access-token", Sensitivity::High);
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the canonicalized rule is valid");
 
     assert_eq!(policy.sensitivity_for("serviceAccessToken"), Some(Sensitivity::High),);
 }

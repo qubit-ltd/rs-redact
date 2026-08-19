@@ -8,16 +8,18 @@
 //! Tests for content-type dispatch.
 
 use http::HeaderValue;
+use qubit_redact::Redactor;
 use qubit_redact::formats::http::BodyCapture;
-use qubit_redact::formats::http::BodyRedactionStatus;
-use qubit_redact::formats::http::HttpRedactor;
+
+use crate::http::support::redaction::redact_body;
 /// Verifies JSON content types select structured redaction.
 #[test]
 fn test_content_type_json_selects_structured_redaction() {
-    let result = HttpRedactor::default().redact_body(
+    let rendered = redact_body(
+        &Redactor::standard(),
         BodyCapture::complete(br#"{"password":"raw"}"#),
         Some(&HeaderValue::from_static("application/json")),
     );
 
-    assert_eq!(result.status(), BodyRedactionStatus::Structured);
+    assert!(!rendered.contains("raw"));
 }

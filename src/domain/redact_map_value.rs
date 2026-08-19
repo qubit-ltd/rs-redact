@@ -7,17 +7,10 @@
 // =============================================================================
 //! Formatting contract for text-valued map-like containers.
 
-use std::fmt;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use crate::RedactionSession;
-use crate::domain::DomainTruncated;
 use crate::domain::RedactValue;
-use crate::domain::internal::debug_output_exhausted;
-use crate::domain::redacted::complete_debug;
-use crate::policy::DomainTraversalAdmission;
-use crate::policy::DomainValueAdmission;
+use crate::domain::RedactionWriter;
 use crate::policy::ResolvedField;
 
 /// Formats map values after classifying each value by its runtime key.
@@ -33,23 +26,14 @@ use crate::policy::ResolvedField;
 /// * `K` - Runtime map-key type used for field classification.
 /// * `V` - Map-value type formatted through redaction.
 pub trait RedactMapValue<K: ?Sized, V: ?Sized> {
-    /// Writes a lazy redacted map representation.
+    /// Writes this map directly into an active structured writer.
     ///
-    /// # Parameters
-    ///
-    /// * `session` - Shared policy and budget used for every runtime key.
-    /// * `formatter` - Destination debug formatter.
-    ///
-    /// # Returns
-    ///
-    /// The formatter result for the complete map.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`fmt::Error`] when the destination cannot accept the complete
-    /// representation.
+    /// This is the transaction-aware map path used by [`RedactionWriter`]. It
+    /// must use the supplied writer for every key classification, traversal
+    /// admission, and byte budget; it must not create a new session or a lazy
+    /// rendering result.
     #[doc(hidden)]
-    fn write_redacted_map(&self, session: &mut RedactionSession<'_>, formatter: &mut Formatter<'_>) -> fmt::Result;
+    fn write_redacted_map_to(&self, writer: &mut RedactionWriter<'_>);
 }
 
 impl<M: ?Sized, K: ?Sized, V: ?Sized> RedactMapValue<K, V> for M
@@ -58,69 +42,41 @@ where
     K: AsRef<str> + Debug,
     V: RedactValue + Debug,
 {
-    /// Formats every entry through the map redaction contract.
-    ///
-    /// The map charges its domain-value node once. The blanket implementation
-    /// requires an [`ExactSizeIterator`] so `len() == 0` proves exhaustion
-    /// without consuming an entry; otherwise the map charges each collection
-    /// item before calling `next`. Limit exhaustion therefore writes one
-    /// unquoted marker and stops without pulling an unadmitted key or value.
-    /// Admitted values are classified and completed under an output-only frame;
-    /// exact value bytes are committed immediately, while the enclosing map
-    /// frame later charges keys and punctuation without double-charging nested
-    /// output. Pure map formatting does not consume diagnostic input bytes.
-    ///
-    /// # Parameters
-    ///
-    /// * `session` - Shared policy and budget used for every runtime key.
-    /// * `formatter` - Destination debug formatter.
-    ///
-    /// # Returns
-    ///
-    /// The formatter result for the complete map.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`fmt::Error`] when the destination rejects an entry or the
-    /// completed map.
-    #[inline]
-    fn write_redacted_map(&self, session: &mut RedactionSession<'_>, formatter: &mut Formatter<'_>) -> fmt::Result {
-        let alternate = formatter.alternate();
-        let DomainValueAdmission::Entered(mut scope) = session.enter_domain_value() else {
-            return Debug::fmt(&DomainTruncated, formatter);
-        };
-        let mut map = formatter.debug_map();
+    fn write_redacted_map_to(&self, writer: &mut RedactionWriter<'_>) {
+        if !writer.begin_nested_value() {
+            writer.literal("<truncated>");
+            return;
+        }
+        writer.literal("{");
         let mut entries = self.into_iter();
         loop {
-            if debug_output_exhausted() {
+            if writer.is_truncated() {
                 break;
             }
             if entries.len() == 0 {
                 break;
             }
-            if scope.admit_collection_item() == DomainTraversalAdmission::LimitReached {
-                map.entry(&DomainTruncated, &DomainTruncated);
+            if !writer.admit_nested_collection_item() {
+                writer.literal("<truncated>");
                 break;
             }
             let Some((key, value)) = entries.next() else {
                 break;
             };
             let key = key.as_ref();
-            let max_output_bytes = usize::MAX;
-            let resolved = scope.session().policy().resolve_field(key);
-            let completed = match resolved {
+            writer.write_debug(key);
+            writer.literal(": ");
+            match writer.policy().resolve_field(key) {
                 ResolvedField::Sensitive { sensitivity } => {
-                    let redacted = value.redact_value(sensitivity, scope.session().policy().masking());
-                    complete_debug(&redacted, max_output_bytes, alternate)
+                    let rendered = value.redact_value(sensitivity, writer.policy().masking());
+                    writer.write_debug(&rendered);
                 }
-                ResolvedField::PassThrough => complete_debug(&value, max_output_bytes, alternate),
-            };
-            let truncated = completed.truncated();
-            map.entry(&key, &completed);
-            if truncated || debug_output_exhausted() {
-                break;
+                ResolvedField::PassThrough => writer.write_debug(value),
             }
+            writer.literal(", ");
         }
-        map.finish()
+        writer.trim_trailing_separator();
+        writer.literal("}");
+        writer.finish_nested_value();
     }
 }

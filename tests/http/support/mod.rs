@@ -5,10 +5,6 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Complete immutable configuration for redaction operations.
+//! Shared support for HTTP integration tests.
 
-mod redaction_config;
-mod redaction_config_builder;
-
-pub use redaction_config::RedactionConfig;
-pub use redaction_config_builder::RedactionConfigBuilder;
+pub(crate) mod redaction;

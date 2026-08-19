@@ -9,7 +9,6 @@
 
 use std::borrow::Cow;
 
-use super::internal::mask_byte_limit;
 use crate::MaskingPolicy;
 use crate::Sensitivity;
 use crate::domain::RedactedValue;
@@ -210,11 +209,7 @@ impl RedactValue for Option<Cow<'_, str>> {
 #[inline(always)]
 #[must_use]
 fn redact_text<'a>(value: &'a str, level: Sensitivity, masking: &MaskingPolicy) -> MaskedValue<'a> {
-    let redacted = match mask_byte_limit() {
-        Some(max_bytes) => masking.mask_bounded(level, value, max_bytes),
-        None => masking.mask(level, value),
-    };
-    MaskedValue::new(redacted)
+    MaskedValue::new(masking.mask(level, value))
 }
 
 /// Masks optional text without inspecting it when absent.

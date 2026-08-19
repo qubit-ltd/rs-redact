@@ -13,5 +13,6 @@ pub mod env;
 pub mod http;
 #[cfg(feature = "json")]
 pub mod json;
+pub mod process;
 #[cfg(feature = "uri")]
 pub mod uri;

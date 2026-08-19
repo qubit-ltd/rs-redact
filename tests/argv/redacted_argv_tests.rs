@@ -1,17 +1,12 @@
-// =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
-//
-//    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
-// =============================================================================
 use std::ffi::OsStr;
 
+use qubit_redact::Redactor;
 use qubit_redact::formats::argv::ArgvItem;
-use qubit_redact::formats::argv::ArgvRedactor;
-/// Verifies that rendered argv output is safe to display.
+
 #[test]
-fn test_redacted_argv_display_is_safe() {
-    let rendered = ArgvRedactor::default().redact_items([ArgvItem::plain(OsStr::new("client"))]);
-    assert_eq!(rendered.to_string(), r#"["client"]"#);
+fn argv_transaction_output_is_log_safe() {
+    let output = Redactor::standard().redact_argv([ArgvItem::plain(OsStr::new("safe\nvalue"))]);
+
+    assert!(!output.text().as_str().contains('\n'));
+    assert!(output.text().as_str().contains(r"\n"));
 }

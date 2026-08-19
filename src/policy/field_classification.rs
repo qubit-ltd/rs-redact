@@ -107,3 +107,16 @@ impl<'a> FieldClassification<'a> {
         matches!(self, Self::Unknown)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::FieldClassification;
+
+    #[test]
+    fn unknown_predicates_are_mutually_exclusive() {
+        let classification = FieldClassification::Unknown;
+
+        assert!(!classification.is_allowed());
+        assert!(classification.is_unknown());
+    }
+}

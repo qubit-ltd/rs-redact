@@ -15,15 +15,14 @@ use crate::domain::Redact;
 use crate::domain::RedactMut;
 #[cfg(feature = "serde")]
 use crate::domain::RedactSerialize;
-use crate::domain::RedactedResult;
 
 impl<T: Redact> Redact for Option<T> {
     /// Formats `None` directly or a redacted `Some` value with the same policy.
     ///
     /// The option first charges its own domain-value node. A present field is
     /// charged before the inner reference is read, then the child enters the
-    /// same session through [`RedactedResult`]. Rejected value or field
-    /// admission writes one unquoted [`crate::domain::DomainTruncated`] marker.
+    /// same session through the structured writer. Rejected value or field
+    /// admission writes one unquoted structural truncation marker.
     /// No diagnostic input bytes are consumed by this domain traversal.
     ///
     /// # Parameters
@@ -39,11 +38,11 @@ impl<T: Redact> Redact for Option<T> {
     ///
     /// Returns [`std::fmt::Error`] when the destination or nested value rejects
     /// a write.
-    fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_, '_>) {
+    fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
         match self {
             None => writer.unit("None"),
             Some(value) => writer.tuple("Some", |fields| {
-                let _ = fields.item(|writer| RedactedResult::new(value, writer.session_mut()));
+                fields.nested_item(value);
             }),
         }
     }
@@ -65,7 +64,7 @@ impl<T: Redact + ?Sized> Redact for Box<T> {
     ///
     /// Returns [`std::fmt::Error`] when the boxed value cannot complete its
     /// output.
-    fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_, '_>) {
+    fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
         self.as_ref().write_redacted(writer)
     }
 }
@@ -95,10 +94,10 @@ impl<T: Redact> Redact for Vec<T> {
     ///
     /// Returns [`std::fmt::Error`] when the destination or an item rejects a
     /// write.
-    fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_, '_>) {
+    fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
         writer.list(|fields| {
             for value in self {
-                let _ = fields.item(|writer| RedactedResult::new(value, writer.session_mut()));
+                fields.nested_item(value);
             }
         });
     }

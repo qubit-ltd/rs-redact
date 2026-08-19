@@ -19,21 +19,16 @@ use qubit_redact::UnknownFieldPolicy;
 /// rules.
 #[test]
 fn test_redaction_rules_exact_allow_does_not_hide_suffix_sensitive_rule() {
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        builder
-            .edit_fields()
-            .raise("access_token", Sensitivity::High)
-            .expect("the test builder input should be valid");
-        builder
-            .edit_fields()
-            .allow_exact("access_token")
-            .expect("the test builder input should be valid");
-        let _ = builder.edit_fields().matching(FieldNameMatching::ExactOrTokenSuffix);
-        builder
-    })
-    .build()
-    .expect("the policy rules should be valid");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .raise("access_token", Sensitivity::High)
+                .allow_exact("access_token")
+                .matching(FieldNameMatching::ExactOrTokenSuffix);
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the policy rules should be valid");
 
     assert!(matches!(
         policy.classify_field("access_token"),
@@ -54,15 +49,13 @@ fn test_redaction_rules_exact_allow_does_not_hide_suffix_sensitive_rule() {
 /// Verifies unknown-field fallback sensitivity is applied after rule lookup.
 #[test]
 fn test_redaction_rules_unknown_field_falls_back_to_policy() {
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        builder
-            .edit_fields()
-            .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low));
-        builder
-    })
-    .build()
-    .expect("the fallback policy should be valid");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low));
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the fallback policy should be valid");
 
     assert_eq!(policy.sensitivity_for("unconfigured"), Some(Sensitivity::Low));
 }
@@ -71,17 +64,16 @@ fn test_redaction_rules_unknown_field_falls_back_to_policy() {
 /// configuration independently from any floor.
 #[test]
 fn test_redaction_rules_expose_application_matching_and_unknown_policy() {
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        builder.edit_fields().disable_floor();
-        let _ = builder.edit_fields().matching(FieldNameMatching::Exact);
-        builder
-            .edit_fields()
-            .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low));
-        builder
-    })
-    .build()
-    .expect("the application rules should be valid");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .disable_floor()
+                .matching(FieldNameMatching::Exact)
+                .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low));
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the application rules should be valid");
     let matching: fn(&RedactionRules) -> FieldNameMatching = RedactionRules::matching;
     let unknown_field_policy: fn(&RedactionRules) -> UnknownFieldPolicy = RedactionRules::unknown_field_policy;
 
@@ -102,13 +94,68 @@ fn test_redaction_rules_floor_resolves_overlaps_to_strongest_level() {
         .expect("the longer floor rule should be valid")
         .build()
         .expect("the overlapping floor should be valid");
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        let _ = builder.edit_fields().floor(floor);
-        builder
-    })
-    .build()
-    .expect("the policy should be valid");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.floor(floor);
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the policy should be valid");
 
     assert_eq!(policy.sensitivity_for("OPENAI_ACCESS_TOKEN"), Some(Sensitivity::Secret),);
+}
+
+/// Verifies direct immutable rule edits replace and then remove the floor
+/// without mutating the application rule snapshot.
+#[test]
+fn test_redaction_rules_with_floor_and_disable_floor_are_immutable() {
+    let floor = RedactionFloor::builder()
+        .raise("floor_only", Sensitivity::High)
+        .expect("the test floor field should be valid")
+        .build()
+        .expect("the test floor should build");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.disable_floor().raise("application_only", Sensitivity::Low);
+        })
+        .expect("the application configuration should be valid")
+        .build()
+        .expect("the base policy should build");
+    let with_floor = policy.rules().clone().with_floor(floor);
+    let without_floor = with_floor.clone().disable_floor();
+
+    assert!(policy.rules().floor().is_none());
+    assert_eq!(with_floor.sensitivity_for("floor_only"), Some(Sensitivity::High));
+    assert_eq!(with_floor.sensitivity_for("application_only"), Some(Sensitivity::Low));
+    assert_eq!(without_floor.sensitivity_for("floor_only"), None);
+    assert_eq!(
+        without_floor.sensitivity_for("application_only"),
+        Some(Sensitivity::Low)
+    );
+}
+
+/// Verifies an application allow rule explicitly suppresses its own fallback
+/// while retaining the classification information for diagnostics.
+#[test]
+fn test_redaction_rules_allow_rule_suppresses_unknown_field_fallback() {
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .disable_floor()
+                .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Secret))
+                .allow_suffix("diagnostic");
+        })
+        .expect("the policy draft should be valid")
+        .build()
+        .expect("the policy should build");
+
+    assert!(matches!(
+        policy.classify_field("request_diagnostic"),
+        FieldClassification::Allowed {
+            match_kind: FieldMatchKind::TokenSuffix,
+            ..
+        }
+    ));
+    assert_eq!(policy.sensitivity_for("request_diagnostic"), None);
+    assert_eq!(policy.sensitivity_for("other_field"), Some(Sensitivity::Secret));
 }

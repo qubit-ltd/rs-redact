@@ -21,7 +21,7 @@ pub trait RedactMut {
     /// * `policy` - Complete policy snapshot governing every mutation.
     fn redact_in_place_with(&mut self, policy: &RedactionPolicy);
 
-    /// Redacts this object in place with a snapshot of the current default.
+    /// Redacts this object in place with the deterministic standard policy.
     #[inline]
     fn redact_in_place(&mut self) {
         let policy = RedactionPolicy::default();
@@ -47,7 +47,7 @@ pub trait RedactMut {
         self
     }
 
-    /// Consumes and redacts this object with the current default snapshot.
+    /// Consumes and redacts this object with the deterministic standard policy.
     ///
     /// # Returns
     ///
@@ -80,7 +80,7 @@ pub trait RedactMut {
         self.clone().into_redacted_with(policy)
     }
 
-    /// Clones and redacts this object with the current default snapshot.
+    /// Clones and redacts this object with the deterministic standard policy.
     ///
     /// # Returns
     ///

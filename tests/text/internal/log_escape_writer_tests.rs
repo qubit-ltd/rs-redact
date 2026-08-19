@@ -17,7 +17,7 @@ struct UnsafeDiagnostic;
 
 impl Redact for UnsafeDiagnostic {
     /// Writes representative log-unsafe controls.
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.literal("line one\nline two\u{202e}");
     }
 }
@@ -27,7 +27,7 @@ struct ControlFirstDiagnostic;
 
 impl Redact for ControlFirstDiagnostic {
     /// Writes a control before any ordinary character.
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.literal("\nremaining");
     }
 }
@@ -37,7 +37,7 @@ struct SafeDiagnostic;
 
 impl Redact for SafeDiagnostic {
     /// Writes one ordinary character.
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_, '_>) {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.literal("a");
     }
 }
@@ -55,7 +55,7 @@ impl Write for FailingWriter {
 /// Verifies domain display streams escaped log-safe output.
 #[test]
 fn test_log_escape_writer_escapes_streamed_controls() {
-    let output = UnsafeDiagnostic.redacted().to_string();
+    let output = UnsafeDiagnostic.redacted().text().to_string();
 
     assert_eq!(output, "line one\\nline two\\u{202e}");
 }
@@ -64,8 +64,10 @@ fn test_log_escape_writer_escapes_streamed_controls() {
 #[test]
 fn test_log_escape_writer_propagates_destination_failure() {
     let mut output = FailingWriter;
-    let safe_result = write!(&mut output, "{}", SafeDiagnostic.redacted());
-    let escaped_result = write!(&mut output, "{}", ControlFirstDiagnostic.redacted());
+    let safe_output = SafeDiagnostic.redacted();
+    let escaped_output = ControlFirstDiagnostic.redacted();
+    let safe_result = write!(&mut output, "{}", safe_output.text());
+    let escaped_result = write!(&mut output, "{}", escaped_output.text());
 
     assert_eq!(safe_result, Err(fmt::Error));
     assert_eq!(escaped_result, Err(fmt::Error));

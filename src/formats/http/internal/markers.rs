@@ -9,8 +9,6 @@
 
 /// Appended when bounded output omits source data.
 pub(in crate::formats::http) const TRUNCATED: &str = "<truncated>";
-/// Replaces diagnostic input that exceeds its inspection budget.
-pub(in crate::formats::http) const DIAGNOSTIC_LIMIT_EXCEEDED: &str = "<redacted: diagnostic limit exceeded>";
 /// Replaces a URL that cannot be parsed safely.
 pub(in crate::formats::http) const INVALID_URL: &str = "<redacted: invalid URL>";
 /// Replaces a URL whose nested encoding exceeds the recursion limit.

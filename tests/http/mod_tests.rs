@@ -8,15 +8,18 @@
 //! Tests for the public HTTP module boundary.
 
 use http::HeaderValue;
+use qubit_redact::Redactor;
 use qubit_redact::formats::http::BodyCapture;
-use qubit_redact::formats::http::HttpRedactor;
+
+use super::support::redaction::redact_body;
 /// Verifies the module reexports compose into structured body redaction.
 #[test]
 fn test_http_module_reexports_compose() {
-    let result = HttpRedactor::default().redact_body(
+    let rendered = redact_body(
+        &Redactor::standard(),
         BodyCapture::complete(br#"{"password":"raw-secret"}"#),
         Some(&HeaderValue::from_static("application/json")),
     );
 
-    assert!(!result.to_string().contains("raw-secret"));
+    assert!(!rendered.contains("raw-secret"));
 }

@@ -13,10 +13,14 @@ use qubit_redact::formats::uri::UriPathPolicy;
 /// Verifies the URI builder updates path and fragment choices independently.
 #[test]
 fn test_uri_policy_builder_updates_behavior_choices() {
-    let mut builder = RedactionPolicy::default().to_builder();
-    builder.uri().path(UriPathPolicy::Redact);
-    builder.uri().fragment(UriFragmentPolicy::Preserve);
-    let policy = builder.build().expect("the configured policy must be valid");
+    let policy = RedactionPolicy::default()
+        .to_builder()
+        .uri(|uri| {
+            uri.path(UriPathPolicy::Redact).fragment(UriFragmentPolicy::Preserve);
+        })
+        .expect("the URI draft should be valid")
+        .build()
+        .expect("the configured policy must be valid");
 
     assert_eq!(policy.uri().path_policy(), UriPathPolicy::Redact);
     assert_eq!(policy.uri().fragment_policy(), UriFragmentPolicy::Preserve);
