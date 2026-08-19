@@ -1,3 +1,10 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 //! Public transaction-session contract tests.
 
 use std::cell::Cell;
@@ -841,6 +848,83 @@ fn test_writer_handle_output_limit_provenance_accumulates_after_input_limit() {
     assert!(item.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert!(output.summary().reasons().contains(RedactionReason::InputLimitReached));
     assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+}
+
+/// Repeated truncation reasons belong to every handle operation that causes
+/// them, even when the transaction had already recorded the same reason.
+#[test]
+fn test_each_handle_keeps_a_repeated_traversal_limit_reason() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(0);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
+
+    let first = session.redact_value(&WriterTupleValue);
+    let second = session.redact_value(&WriterTupleValue);
+    let output = session.finish();
+
+    for handle in [first, second] {
+        let item = output.resolve(handle).expect("handle should resolve");
+        assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
+        assert!(
+            item.summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+    }
+}
+
+/// An item reports the depth observed by that operation rather than the
+/// greatest depth reached by an earlier operation in the transaction.
+#[test]
+fn test_handle_max_depth_is_local_to_its_operation() {
+    let shapes = WriterShapesValue {
+        labels: BTreeMap::new(),
+    };
+    let mut session = Redactor::standard().session();
+
+    let _ = session.value(&shapes);
+    let handle = session.redact_value(&SafeValue);
+    let output = session.finish();
+    let item = output.resolve(handle).expect("handle should resolve");
+
+    assert!(output.summary().usage().max_depth() > 0);
+    assert_eq!(item.summary().usage().max_depth(), 0);
+}
+
+/// Input admission failure is attributed to the rejected handle rather than
+/// being mislabeled as an output or traversal failure.
+#[test]
+fn test_rejected_field_handle_reports_its_input_limit_usage() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_input_bytes(1);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
+
+    let handle = session.redact_field("name", "Ada");
+    let output = session.finish();
+    let item = output.resolve(handle).expect("handle should resolve");
+
+    assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
+    assert!(item.summary().reasons().contains(RedactionReason::InputLimitReached));
+    assert!(
+        !item
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+    assert!(!item.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert_eq!(item.summary().usage().presented_input_bytes(), 7);
+    assert_eq!(item.summary().usage().inspected_input_bytes(), 0);
+    assert_eq!(item.summary().usage().omitted_input_bytes(), Some(7));
 }
 
 /// A writer must stop the current `Debug` formatter at the shared output

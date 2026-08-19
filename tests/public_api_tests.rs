@@ -1,3 +1,10 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 //! Public transactional API surface checks.
 
 use qubit_redact::Redact;
@@ -11,6 +18,7 @@ use qubit_redact::RedactionSession;
 use qubit_redact::RedactionSessionOutput;
 use qubit_redact::RedactionSummary;
 use qubit_redact::RedactionUsage;
+use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 
 /// Proves the target public types are available through the crate root.
@@ -34,4 +42,8 @@ fn target_transactional_types_are_public() {
 /// Minimal type used only to prove the public trait is implementable.
 struct PublicApiValue;
 
-impl Redact for PublicApiValue {}
+impl Redact for PublicApiValue {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.literal("PublicApiValue");
+    }
+}

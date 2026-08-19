@@ -1,3 +1,10 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 //! HTTP adapter transaction contract tests.
 
 #![cfg(feature = "http")]
@@ -299,7 +306,7 @@ fn test_http_invalid_url_handle_is_safe_and_keeps_reason() {
 
 /// Headers are admitted as one structural collection. Once its shared
 /// collection allowance rejects the list, the renderer must not see a later
-/// confidential header and the handle reports transaction exhaustion.
+/// confidential header and the handle reports structural truncation.
 #[test]
 fn test_http_header_handle_stops_before_later_header_at_collection_limit() {
     let policy = RedactionPolicy::builder()
@@ -318,7 +325,12 @@ fn test_http_header_handle_stops_before_later_header_at_collection_limit() {
     let item = output.resolve(handle).expect("truncated header handle publishes");
 
     assert!(item.text().as_str().is_empty());
-    assert_eq!(item.summary().completion(), RedactionCompletion::Exhausted);
+    assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
+    assert!(
+        item.summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
     assert!(!item.text().as_str().contains("must-not-be-rendered"));
 }
 
@@ -346,4 +358,144 @@ fn test_http_inferred_json_body_uses_shared_structural_fallback() {
     assert_eq!(item.text().as_str(), "<truncated>");
     assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
     assert!(!item.text().as_str().contains("must-not-be-rendered"));
+}
+
+/// URL-encoded form fields are one transaction-owned collection. A later
+/// field must not reach the renderer after the shared collection limit closes.
+#[test]
+fn test_http_form_body_uses_shared_collection_budget() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(32).max_collection_items(1);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let content_type = HeaderValue::from_static("application/x-www-form-urlencoded");
+
+    let output = Redactor::new(policy).redact_http_body(
+        BodyCapture::complete(b"first=ok&password=must-not-be-rendered"),
+        Some(&content_type),
+    );
+
+    assert_eq!(output.text().as_str(), "<truncated>");
+    assert_eq!(output.summary().usage().visited_collection_items(), 1);
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+    assert!(!output.text().as_str().contains("must-not-be-rendered"));
+}
+
+/// Multipart parts and their nested JSON values remain in the enclosing
+/// transaction's collection and depth ledgers.
+#[test]
+fn test_http_multipart_body_uses_shared_structural_budget() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(32).max_collection_items(8).max_depth(2);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let body = b"--boundary\r\nContent-Disposition: form-data; name=\"metadata\"\r\nContent-Type: application/json\r\n\r\n{\"password\":\"must-not-be-rendered\"}\r\n--boundary--\r\n";
+
+    let output = Redactor::new(policy).redact_http_body(BodyCapture::complete(body), Some(&content_type));
+
+    assert_eq!(output.text().as_str(), "<truncated>");
+    assert_eq!(output.summary().usage().max_depth(), 2);
+    assert!(output.summary().reasons().contains(RedactionReason::DepthLimitReached));
+    assert!(!output.text().as_str().contains("must-not-be-rendered"));
+}
+
+/// Multipart part admission stops before a later part once the transaction's
+/// shared collection allowance is consumed.
+#[test]
+fn test_http_multipart_parts_use_shared_collection_budget() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(32).max_collection_items(1);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let body = b"--boundary\r\nContent-Disposition: form-data; name=\"first\"\r\n\r\nok\r\n--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nmust-not-be-rendered\r\n--boundary--\r\n";
+
+    let output = Redactor::new(policy).redact_http_body(BodyCapture::complete(body), Some(&content_type));
+
+    assert_eq!(output.text().as_str(), "<truncated>");
+    assert_eq!(output.summary().usage().visited_collection_items(), 1);
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+    assert!(!output.text().as_str().contains("must-not-be-rendered"));
+}
+
+/// A source-truncated capture reports source provenance and known omitted
+/// bytes without claiming that the transaction output limit was reached.
+#[test]
+fn test_http_known_source_truncation_has_truthful_summary_and_usage() {
+    let capture = BodyCapture::truncated(b"visible", 12).expect("total length exceeds capture");
+    let content_type = HeaderValue::from_static("text/plain");
+
+    let output = Redactor::standard().redact_http_body(capture, Some(&content_type));
+
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert!(output.summary().reasons().contains(RedactionReason::SourceTruncated));
+    assert!(!output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert_eq!(output.summary().usage().presented_input_bytes(), 22);
+    assert_eq!(output.summary().usage().inspected_input_bytes(), 17);
+    assert_eq!(output.summary().usage().omitted_input_bytes(), Some(5));
+}
+
+/// Unknown source length keeps omitted-byte accounting unknown while still
+/// recording the captured prefix inspected by the HTTP adapter.
+#[test]
+fn test_http_unknown_source_truncation_keeps_omitted_usage_unknown() {
+    let capture = BodyCapture::truncated_unknown(b"visible");
+
+    let output = Redactor::standard().redact_http_body(capture, None);
+
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert!(output.summary().reasons().contains(RedactionReason::SourceTruncated));
+    assert!(!output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert_eq!(output.summary().usage().presented_input_bytes(), 7);
+    assert_eq!(output.summary().usage().inspected_input_bytes(), 7);
+    assert_eq!(output.summary().usage().omitted_input_bytes(), None);
+}
+
+/// A handle created inside an aggregate HTTP namespace still owns only the
+/// usage and reasons of its single operation.
+#[test]
+fn test_http_namespace_handle_tracks_its_own_input_rejection() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_input_bytes(1);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
+    let mut handle = None;
+
+    session.http(|http| {
+        handle = Some(http.redact_url("https://example.test/"));
+    });
+    let output = session.finish();
+    let item = output
+        .resolve(handle.expect("HTTP namespace should return a handle"))
+        .expect("handle should resolve");
+
+    assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
+    assert!(item.summary().reasons().contains(RedactionReason::InputLimitReached));
+    assert!(!item.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert_eq!(item.summary().usage().presented_input_bytes(), 21);
+    assert_eq!(item.summary().usage().inspected_input_bytes(), 0);
 }

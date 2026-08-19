@@ -9,6 +9,7 @@
 
 #![cfg(feature = "json")]
 
+use qubit_budget::json::JsonValueLimits;
 use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionFloor;
@@ -62,6 +63,41 @@ fn test_json_documents_share_the_parent_structural_budget() {
     assert_eq!(output.summary().usage().visited_nodes(), 3);
     assert_eq!(output.summary().usage().visited_collection_items(), 2);
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+}
+
+/// JSON point and payload limits are transaction-owned and therefore carry
+/// forward across JSON operations instead of restarting in each adapter.
+#[test]
+fn test_json_documents_share_the_transaction_json_payload_budget() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.json(JsonValueLimits::builder().max_payload_bytes(4).build());
+        })
+        .expect("test limits should build")
+        .build()
+        .expect("test policy should build");
+    let mut session = Redactor::new(policy).session();
+
+    let first = session.redact_json(r#"{"a":"1"}"#);
+    let second = session.redact_json(r#"{"b":"22"}"#);
+    let output = session.finish();
+
+    assert_eq!(
+        output
+            .resolve(first)
+            .expect("first JSON item should publish")
+            .text()
+            .as_str(),
+        r#"{"a":"1"}"#
+    );
+    let second = output.resolve(second).expect("second JSON item should publish");
+    assert_eq!(second.text().as_str(), "<truncated>");
+    assert!(
+        second
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
 }
 
 #[test]
