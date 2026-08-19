@@ -13,11 +13,11 @@ use crate::RedactionOutput;
 use crate::RedactionSession;
 
 /// URI facade borrowing one diagnostic session.
-pub struct UriRedactionSession<'session> {
+pub struct UriRedactionWriter<'session> {
     session: &'session mut RedactionSession,
 }
 
-impl<'session> UriRedactionSession<'session> {
+impl<'session> UriRedactionWriter<'session> {
     /// Creates a URI facade borrowing a parent session.
     pub(crate) const fn new(session: &'session mut RedactionSession) -> Self {
         Self { session }
@@ -69,7 +69,7 @@ impl<'session> UriRedactionSession<'session> {
     }
 }
 
-impl UriRedactionSession<'_> {
+impl UriRedactionWriter<'_> {
     /// Redacts one URI while charging the shared input and output budgets.
     ///
     /// Input is admitted before parsing. If the session has no output left,

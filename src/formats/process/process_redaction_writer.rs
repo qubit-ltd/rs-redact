@@ -14,9 +14,9 @@ use crate::RedactionCompletion;
 use crate::RedactionHandle;
 use crate::RedactionSession;
 use crate::formats::argv::ArgvItem;
-use crate::formats::argv::ArgvRedactionSession;
+use crate::formats::argv::ArgvRedactionWriter;
 use crate::formats::argv::argv_redactor::redact_heuristically_with_policy;
-use crate::formats::env::EnvRedactionSession;
+use crate::formats::env::EnvRedactionWriter;
 use crate::formats::env::env_redactor::redact_os_pairs_with_policy;
 
 /// A borrowed process-command facade over one active redaction transaction.
@@ -24,7 +24,7 @@ use crate::formats::env::env_redactor::redact_os_pairs_with_policy;
 /// This type owns no redactor, policy, result, or budget. Each operation
 /// delegates directly to the argv or environment namespace of the parent
 /// session, so process diagnostics participate in the same atomic output.
-pub struct ProcessRedactionSession<'session> {
+pub struct ProcessRedactionWriter<'session> {
     /// The transaction receiving every rendered process component.
     session: &'session mut RedactionSession,
 }
@@ -114,7 +114,7 @@ where
     }
 }
 
-impl<'session> ProcessRedactionSession<'session> {
+impl<'session> ProcessRedactionWriter<'session> {
     /// Creates a process facade that borrows `session` for one adapter closure.
     ///
     /// # Parameters
@@ -168,13 +168,13 @@ impl<'session> ProcessRedactionSession<'session> {
         E::IntoIter: ExactSizeIterator,
     {
         let arguments = arguments.into_iter();
-        let mut argv = ArgvRedactionSession::new(self.session);
+        let mut argv = ArgvRedactionWriter::new(self.session);
         argv.heuristic_items(CommandItems {
             program: Some(ArgvItem::plain(program)),
             arguments,
         });
         if !self.session.is_output_exhausted() {
-            let mut environment = EnvRedactionSession::new(self.session);
+            let mut environment = EnvRedactionWriter::new(self.session);
             environment.os_pairs(variables);
         }
         self
@@ -276,7 +276,7 @@ impl<'session> ProcessRedactionSession<'session> {
         A: IntoIterator<Item = ArgvItem<'arguments>>,
         A::IntoIter: ExactSizeIterator,
     {
-        let mut argv = ArgvRedactionSession::new(self.session);
+        let mut argv = ArgvRedactionWriter::new(self.session);
         argv.heuristic_items(arguments);
         self
     }
@@ -303,7 +303,7 @@ impl<'session> ProcessRedactionSession<'session> {
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
         E::IntoIter: ExactSizeIterator,
     {
-        let mut env = EnvRedactionSession::new(self.session);
+        let mut env = EnvRedactionWriter::new(self.session);
         env.os_pairs(variables);
         self
     }
@@ -321,7 +321,7 @@ impl<'session> ProcessRedactionSession<'session> {
 mod tests {
     use std::ffi::OsStr;
 
-    use super::ProcessRedactionSession;
+    use super::ProcessRedactionWriter;
     use crate::Redactor;
     use crate::formats::argv::ArgvItem;
 
@@ -334,7 +334,7 @@ mod tests {
         ];
         let variables = [(OsStr::new("PASSWORD"), OsStr::new("env-secret"))];
         let mut session = Redactor::strict().session();
-        let mut process = ProcessRedactionSession::new(&mut session);
+        let mut process = ProcessRedactionWriter::new(&mut session);
 
         process.command(OsStr::new("client"), arguments, variables);
 

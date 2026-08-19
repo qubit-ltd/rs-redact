@@ -10,10 +10,10 @@
 pub(crate) mod internal;
 
 mod bounded_json_redaction;
-mod json_redaction_session;
+mod json_redaction_writer;
 
-pub use json_redaction_session::JsonRedactionSession;
-pub(crate) use json_redaction_session::admit_json_text_structure;
+pub use json_redaction_writer::JsonRedactionWriter;
+pub(crate) use json_redaction_writer::admit_json_text_structure;
 #[cfg(feature = "http")]
-pub(crate) use json_redaction_session::admit_json_text_structure_at_depth;
-pub(crate) use json_redaction_session::redact_json_text_with_limit;
+pub(crate) use json_redaction_writer::admit_json_text_structure_at_depth;
+pub(crate) use json_redaction_writer::redact_json_text_with_limit;

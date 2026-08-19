@@ -7,7 +7,7 @@
 // =============================================================================
 //! Redaction adapters for environment-variable diagnostics.
 
-mod env_redaction_session;
+mod env_redaction_writer;
 pub(crate) mod env_redactor;
 
-pub use env_redaction_session::EnvRedactionSession;
+pub use env_redaction_writer::EnvRedactionWriter;

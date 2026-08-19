@@ -15,12 +15,12 @@ use crate::RedactionHandle;
 use crate::RedactionSession;
 
 /// A borrowed environment façade over one mutable diagnostic session.
-pub struct EnvRedactionSession<'session> {
+pub struct EnvRedactionWriter<'session> {
     /// Shared policy and accounting owned by the parent session.
     session: &'session mut RedactionSession,
 }
 
-impl<'session> EnvRedactionSession<'session> {
+impl<'session> EnvRedactionWriter<'session> {
     /// Creates a façade from a mutable diagnostic session.
     #[inline(always)]
     #[must_use]

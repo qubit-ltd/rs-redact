@@ -126,11 +126,11 @@ pub(crate) fn json_output_from_bounded(
 }
 
 /// Feature-gated JSON operations sharing one mutable diagnostic session.
-pub struct JsonRedactionSession<'session> {
+pub struct JsonRedactionWriter<'session> {
     pub(super) session: &'session mut RedactionSession,
 }
 
-impl<'session> JsonRedactionSession<'session> {
+impl<'session> JsonRedactionWriter<'session> {
     /// Creates a JSON facade borrowing a parent session.
     pub(crate) const fn new(session: &'session mut RedactionSession) -> Self {
         Self { session }
@@ -182,7 +182,7 @@ impl<'session> JsonRedactionSession<'session> {
     }
 }
 
-impl JsonRedactionSession<'_> {
+impl JsonRedactionWriter<'_> {
     /// Parses and redacts JSON text into compact, log-safe JSON text.
     ///
     /// The text byte length is offered to the shared budget before parsing or

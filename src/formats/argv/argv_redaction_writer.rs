@@ -14,12 +14,12 @@ use crate::RedactionHandle;
 use crate::RedactionSession;
 
 /// A borrowed argv façade over one mutable diagnostic session.
-pub struct ArgvRedactionSession<'session> {
+pub struct ArgvRedactionWriter<'session> {
     /// Shared policy and accounting owned by the parent session.
     session: &'session mut RedactionSession,
 }
 
-impl<'session> ArgvRedactionSession<'session> {
+impl<'session> ArgvRedactionWriter<'session> {
     /// Creates a façade from a mutable diagnostic session.
     #[inline(always)]
     #[must_use]
