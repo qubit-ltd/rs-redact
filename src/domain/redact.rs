@@ -35,11 +35,19 @@ use crate::domain::RedactionWriter;
 /// fixed or policy-derived safe values without invoking their original `Debug`
 /// or `Display` implementation. Output is bounded by the library, but arbitrary
 /// user formatting logic may still perform its own computation or allocation.
+///
+/// Every implementation must define its redaction behavior explicitly:
+///
+/// ```compile_fail
+/// use qubit_redact::Redact;
+///
+/// struct MissingRedactionContract;
+///
+/// impl Redact for MissingRedactionContract {}
+/// ```
 pub trait Redact {
     /// Writes this value through the invariant-preserving structured writer.
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
-        writer.literal("<truncated>");
-    }
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>);
 
     /// Redacts this value with the current application-default redactor.
     ///

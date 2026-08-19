@@ -9,16 +9,12 @@
 
 use std::fmt;
 
-use qubit_budget::ResourceBudget;
-
-use super::super::RedactionResource;
-
 /// Accumulates at most a fixed number of UTF-8 bytes.
 pub(in crate::policy) struct BoundedMaskWriter {
     /// Retained masked prefix.
     output: String,
-    /// Exact accounting for retained masked bytes.
-    budget: ResourceBudget<RedactionResource, usize>,
+    /// Maximum retained masked bytes supplied by the transaction caller.
+    max_bytes: usize,
     /// Whether any complete masked bytes could not be retained.
     truncated: bool,
 }
@@ -37,7 +33,7 @@ impl BoundedMaskWriter {
     pub(in crate::policy) fn new(max_bytes: usize) -> Self {
         Self {
             output: String::new(),
-            budget: ResourceBudget::new(RedactionResource::Mask, max_bytes),
+            max_bytes,
             truncated: false,
         }
     }
@@ -67,14 +63,11 @@ impl fmt::Write for BoundedMaskWriter {
     ///
     /// This bounded in-memory writer does not return a formatting error.
     fn write_str(&mut self, value: &str) -> fmt::Result {
-        let remaining = self.budget.remaining();
+        let remaining = self.max_bytes.saturating_sub(self.output.len());
         let mut end = value.len().min(remaining);
         while !value.is_char_boundary(end) {
             end -= 1;
         }
-        self.budget
-            .try_consume(end)
-            .expect("the bounded UTF-8 prefix must fit its mask budget");
         self.output.push_str(&value[..end]);
         self.truncated |= end < value.len();
         Ok(())

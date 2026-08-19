@@ -9,8 +9,6 @@
 
 use std::io::Write;
 
-use qubit_budget::ResourceBudget;
-
 use super::BoundedBodyWriter;
 use super::MultipartPartMetadata;
 use super::content_type;
@@ -18,9 +16,9 @@ use super::form;
 use super::json;
 use super::markers;
 use crate::RedactionPolicy;
+use crate::RedactionSession;
 use crate::formats::http::FieldRedactor;
 use crate::formats::http::TextBodyPolicy;
-use crate::policy::RedactionResource;
 
 /// Redacts one complete multipart body into a deterministic summary.
 ///
@@ -52,19 +50,12 @@ pub(in crate::formats::http) fn redact(
         return Some((output.into_string()?, false, true));
     }
     let mut passed = false;
-    let mut mask_budget = ResourceBudget::new(RedactionResource::Mask, max_output_bytes);
     for (index, part) in parts.into_iter().enumerate() {
         if index > 0 && output.write_all(b"\n").is_err() {
             return Some((output.into_string()?, passed, true));
         }
-        let (line, part_passed, part_truncated) = redact_part(
-            redactor,
-            part,
-            policy,
-            require_form_data,
-            &mut mask_budget,
-            max_output_bytes,
-        )?;
+        let (line, part_passed, part_truncated) =
+            redact_part(redactor, part, policy, require_form_data, max_output_bytes)?;
         passed |= part_passed;
         if part_truncated || output.write_all(line.as_bytes()).is_err() {
             return Some((output.into_string()?, passed, true));
@@ -81,6 +72,82 @@ pub(in crate::formats::http) fn redact(
     Some((output.into_string()?, passed, false))
 }
 
+/// Charges multipart parts and nested structured values to one transaction.
+#[must_use]
+pub(in crate::formats::http) fn admit_structure(
+    session: &mut RedactionSession,
+    boundary: &str,
+    require_form_data: bool,
+    bytes: &[u8],
+) -> bool {
+    let Some(parts) = part_segments(bytes, boundary) else {
+        return true;
+    };
+    for part in parts {
+        if !session.admit_format_collection_item() || !session.admit_format_node(2) {
+            return false;
+        }
+        let Some((metadata, body)) = parse_part(part, require_form_data) else {
+            return true;
+        };
+        let Some(name) = metadata.name() else {
+            continue;
+        };
+        if metadata.filename().is_some() || body_field_is_sensitive(session, name) {
+            continue;
+        }
+        match metadata.content_type() {
+            Some(value) if content_type::is_json(value) => {
+                let Ok(text) = std::str::from_utf8(body) else {
+                    continue;
+                };
+                if !crate::formats::json::admit_json_text_structure_at_depth(session, text, 3) {
+                    return false;
+                }
+            }
+            Some(value) if content_type::is_ndjson(value) => {
+                let Ok(text) = std::str::from_utf8(body) else {
+                    continue;
+                };
+                for line in text.lines().filter(|line| !line.trim().is_empty()) {
+                    if !crate::formats::json::admit_json_text_structure_at_depth(session, line, 3) {
+                        return false;
+                    }
+                }
+            }
+            Some(value) if content_type::is_form(value) => {
+                if !admit_form_fields(session, body, 3) {
+                    return false;
+                }
+            }
+            Some(_) | None => {}
+        }
+    }
+    true
+}
+
+/// Charges each non-empty URL-encoded form field at `field_depth`.
+#[must_use]
+pub(in crate::formats::http) fn admit_form_fields(
+    session: &mut RedactionSession,
+    bytes: &[u8],
+    field_depth: usize,
+) -> bool {
+    if bytes.is_empty() {
+        return true;
+    }
+    bytes
+        .split(|byte| *byte == b'&')
+        .all(|_| session.admit_format_collection_item() && session.admit_format_node(field_depth))
+}
+
+/// Resolves body rules without retaining an immutable session borrow.
+#[must_use]
+fn body_field_is_sensitive(session: &RedactionSession, field: &str) -> bool {
+    let policy = session.policy();
+    FieldRedactor::new(policy.rules(), policy.body_rules(), policy.masking()).is_sensitive(field)
+}
+
 /// Redacts one multipart segment.
 ///
 /// # Parameters
@@ -89,7 +156,8 @@ pub(in crate::formats::http) fn redact(
 /// * `segment` - Part bytes without delimiter lines.
 /// * `policy` - HTTP policy that supplies body limits and rendering choices.
 /// * `require_form_data` - Whether disposition must be `form-data`.
-/// * `mask_budget` - Aggregate accounting for generated masks.
+/// * `max_output_bytes` - Remaining transaction output allowance supplied by
+///   the caller.
 ///
 /// # Returns
 ///
@@ -101,9 +169,32 @@ fn redact_part(
     segment: &[u8],
     policy: &RedactionPolicy,
     require_form_data: bool,
-    mask_budget: &mut ResourceBudget<RedactionResource, usize>,
     max_output_bytes: usize,
 ) -> Option<(String, bool, bool)> {
+    let (metadata, body) = parse_part(segment, require_form_data)?;
+    let name = metadata.name().unwrap_or(markers::MULTIPART_UNNAMED);
+    let (value, passed, truncated) = if metadata.filename().is_some() {
+        (markers::MULTIPART_FILE.to_string(), false, false)
+    } else if name == markers::MULTIPART_UNNAMED {
+        (markers::MULTIPART_PART.to_string(), false, false)
+    } else {
+        let body_text = std::str::from_utf8(body).ok()?;
+        if let Some(value) = redactor.redact_bounded_if_sensitive(name, body_text, max_output_bytes) {
+            let value = value.into_owned();
+            (value, false, false)
+        } else {
+            redact_non_sensitive_part(redactor, body, policy, metadata.content_type(), max_output_bytes)?
+        }
+    };
+    if truncated {
+        return Some((String::new(), passed, true));
+    }
+    Some((format!("{}={value}", name.escape_debug()), passed, false))
+}
+
+/// Parses one part's headers and metadata without inspecting its body.
+#[must_use]
+fn parse_part(segment: &[u8], require_form_data: bool) -> Option<(MultipartPartMetadata<'_>, &[u8])> {
     let (headers, body) = split_headers_body(segment)?;
     let mut disposition = None;
     let mut part_type = None;
@@ -118,33 +209,7 @@ fn redact_part(
         }
     }
     let metadata = MultipartPartMetadata::parse(disposition, part_type, require_form_data)?;
-    let name = metadata.name().unwrap_or(markers::MULTIPART_UNNAMED);
-    let (value, passed, truncated) = if metadata.filename().is_some() {
-        (markers::MULTIPART_FILE.to_string(), false, false)
-    } else if name == markers::MULTIPART_UNNAMED {
-        (markers::MULTIPART_PART.to_string(), false, false)
-    } else {
-        let body_text = std::str::from_utf8(body).ok()?;
-        if let Some(value) = redactor.redact_bounded_if_sensitive(name, body_text, remaining_mask_bytes(mask_budget)) {
-            let value = value.into_owned();
-            let consumed = mask_budget.consume_available(value.len());
-            debug_assert_eq!(consumed, value.len());
-            (value, false, false)
-        } else {
-            redact_non_sensitive_part(
-                redactor,
-                body,
-                policy,
-                metadata.content_type(),
-                mask_budget,
-                max_output_bytes,
-            )?
-        }
-    };
-    if truncated {
-        return Some((String::new(), passed, true));
-    }
-    Some((format!("{}={value}", name.escape_debug()), passed, false))
+    Some((metadata, body))
 }
 
 /// Redacts a non-sensitive named part according to its declared type.
@@ -155,7 +220,8 @@ fn redact_part(
 /// * `body` - Part body bytes.
 /// * `policy` - HTTP policy that supplies body limits and rendering choices.
 /// * `part_type` - Optional part Content-Type text.
-/// * `mask_budget` - Aggregate accounting for generated masks.
+/// * `max_output_bytes` - Remaining transaction output allowance supplied by
+///   the caller.
 ///
 /// # Returns
 ///
@@ -167,41 +233,21 @@ fn redact_non_sensitive_part(
     body: &[u8],
     policy: &RedactionPolicy,
     part_type: Option<&str>,
-    mask_budget: &mut ResourceBudget<RedactionResource, usize>,
     max_output_bytes: usize,
 ) -> Option<(String, bool, bool)> {
     let text = std::str::from_utf8(body).ok()?;
     match part_type {
         Some(value) if content_type::is_json(value) => {
             let mut value = serde_json::from_slice(body).ok()?;
-            let (passed, exhausted) = json::redact_with_mask_budget(
-                redactor,
-                &mut value,
-                policy.limits().json(),
-                policy.unkeyed_json_value_policy(),
-                mask_budget,
-            );
-            if exhausted {
-                return Some((markers::TRUNCATED.to_string(), false, true));
-            }
+            let passed = json::redact(redactor, &mut value, policy.unkeyed_json_value_policy());
             json::serialize_bounded(&value, max_output_bytes).map(|(text, truncated)| (text, passed, truncated))
         }
-        Some(value) if content_type::is_ndjson(value) => json::redact_ndjson_with_mask_budget(
-            redactor,
-            body,
-            policy.limits().json(),
-            policy.unkeyed_json_value_policy(),
-            mask_budget,
-            max_output_bytes,
-        ),
+        Some(value) if content_type::is_ndjson(value) => {
+            json::redact_ndjson(redactor, body, policy.unkeyed_json_value_policy(), max_output_bytes)
+        }
         Some(value) if content_type::is_form(value) => form::is_valid(body).then(|| {
-            let value = form::redact_bounded(redactor, body, remaining_mask_bytes(mask_budget));
-            let consumed = mask_budget.consume_available(value.len());
-            if consumed != value.len() {
-                (String::new(), false, true)
-            } else {
-                (value, false, false)
-            }
+            let value = form::redact_bounded(redactor, body, max_output_bytes);
+            (value, false, false)
         }),
         Some(value) if content_type::is_text(value) => match policy.text_body_policy() {
             TextBodyPolicy::Redact => Some((markers::MULTIPART_TEXT.to_string(), false, false)),
@@ -213,11 +259,6 @@ fn redact_non_sensitive_part(
         },
         Some(_) => Some((markers::MULTIPART_PART.to_string(), false, false)),
     }
-}
-
-/// Returns the mask balance as a platform string length.
-fn remaining_mask_bytes(budget: &ResourceBudget<RedactionResource, usize>) -> usize {
-    budget.remaining()
 }
 
 /// Splits a complete multipart body into strict delimiter-bounded segments.

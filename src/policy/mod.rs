@@ -23,7 +23,6 @@ mod redaction_floor_builder;
 mod redaction_limits;
 mod redaction_policy;
 mod redaction_policy_builder;
-mod redaction_resource;
 mod redaction_rules;
 mod redaction_rules_builder;
 mod resolved_field;
@@ -56,7 +55,6 @@ pub use redaction_policy_builder::HttpPolicyBuilderView;
 pub use redaction_policy_builder::RedactionPolicyBuilder;
 #[cfg(feature = "uri")]
 pub use redaction_policy_builder::UriPolicyBuilderView;
-pub(crate) use redaction_resource::RedactionResource;
 pub use redaction_rules::RedactionRules;
 pub(crate) use redaction_rules_builder::RedactionRulesBuilder;
 pub(crate) use resolved_field::ResolvedField;

@@ -5,20 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Stateful bounded traversal for mutable JSON redaction.
+//! Stateful JSON redaction after transaction-owned structural admission.
 
-use qubit_budget::BudgetError;
-use qubit_budget::MeasuredBudgetError;
-use qubit_budget::ResourceBudget;
-use qubit_budget::json::JsonResource;
-use qubit_budget::json::JsonValueLimits;
-use qubit_json::value::traverse::JsonTreeBudgetRejection;
-use qubit_json::value::traverse::JsonTreeContext;
-use qubit_json::value::traverse::JsonTreeControl;
-use qubit_json::value::traverse::JsonTreeLocation;
-use qubit_json::value::traverse::JsonTreeMutVisitor;
-use qubit_json::value::traverse::JsonTreeMutator;
-use qubit_json::value::traverse::JsonTreeProcessError;
 use serde_json::Value;
 
 use super::JsonRedactionOutcome;
@@ -27,219 +15,102 @@ use crate::MaskingPolicy;
 use crate::RedactionPolicy;
 use crate::RedactionRules;
 use crate::Sensitivity;
-use crate::policy::RedactionResource;
 use crate::policy::ResolvedField;
 
-mod stop {
-    /// Stops one mutable JSON traversal after the mask budget is exhausted.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) struct JsonRedactionStop;
-}
-
-use stop::JsonRedactionStop;
-
-/// Mutable state shared by one JSON tree traversal.
-pub(crate) struct JsonRedactionState<'policy, 'budget, 'marker> {
+/// Mutable state shared by one already-admitted JSON tree traversal.
+pub(crate) struct JsonRedactionState<'policy, 'marker> {
     /// Immutable base field rules.
     base_rules: &'policy RedactionRules,
     /// Context-specific field enhancements.
     context_rules: &'policy RedactionRules,
     /// Single mask table used for every sensitivity level.
     masking: &'policy MaskingPolicy,
-    /// Maximum root-inclusive depth admitted by each traversal.
-    json_limits: JsonValueLimits,
     /// Handling for scalars without an object-key context.
     unkeyed: JsonUnkeyedValuePolicy<'marker>,
-    /// Aggregate accounting for newly generated masks.
-    mask_budget: Option<&'budget mut ResourceBudget<RedactionResource, usize>>,
     /// Whether an unkeyed scalar remained visible during traversal.
     passed_unkeyed: bool,
 }
 
-impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
+impl<'policy, 'marker> JsonRedactionState<'policy, 'marker> {
     /// Creates traversal state for one JSON document.
-    ///
-    /// # Parameters
-    ///
-    /// * rules - Immutable field rules used to classify object keys.
-    /// * json_depth_limit - Maximum recursive container depth.
-    /// * unkeyed - Handling selected for scalars without a key.
-    /// * mask_budget - Shared aggregate generated-mask accounting.
-    ///
-    /// # Returns
-    ///
-    /// Mutable traversal state borrowing all operation inputs.
     #[inline(always)]
-    pub(crate) fn new(
+    pub(crate) const fn new(
         base_rules: &'policy RedactionRules,
         context_rules: &'policy RedactionRules,
         masking: &'policy MaskingPolicy,
-        json_limits: JsonValueLimits,
         unkeyed: JsonUnkeyedValuePolicy<'marker>,
-        mask_budget: Option<&'budget mut ResourceBudget<RedactionResource, usize>>,
     ) -> Self {
         Self {
             base_rules,
             context_rules,
             masking,
-            json_limits,
             unkeyed,
-            mask_budget,
             passed_unkeyed: false,
         }
     }
 
     /// Creates traversal state from one complete policy snapshot.
     #[inline(always)]
-    pub(crate) fn from_policy(
-        policy: &'policy RedactionPolicy,
-        unkeyed: JsonUnkeyedValuePolicy<'marker>,
-        mask_budget: Option<&'budget mut ResourceBudget<RedactionResource, usize>>,
-    ) -> Self {
-        Self::new(
-            policy.rules(),
-            policy.rules(),
-            policy.masking(),
-            policy.limits().json_point_limits(),
-            unkeyed,
-            mask_budget,
-        )
+    pub(crate) fn from_policy(policy: &'policy RedactionPolicy, unkeyed: JsonUnkeyedValuePolicy<'marker>) -> Self {
+        Self::new(policy.rules(), policy.rules(), policy.masking(), unkeyed)
     }
 
-    /// Redacts one complete JSON tree.
-    ///
-    /// # Parameters
-    ///
-    /// * value - Tree mutated in place.
-    ///
-    /// # Returns
-    ///
-    /// The aggregate outcome for unkeyed scalar handling.
+    /// Redacts one complete tree whose nodes, collections, and depth were
+    /// already admitted by the owning transaction.
     pub(crate) fn redact(&mut self, value: &mut Value) -> JsonRedactionOutcome {
         self.passed_unkeyed = false;
-        let mut budget = self.json_limits.budget();
-        let mut transaction = budget.transaction();
-        let result = JsonTreeMutator::new(&mut transaction).process(value, self);
-        match result {
-            Ok(()) => {
-                transaction.commit();
-                JsonRedactionOutcome::Complete {
-                    passed_unkeyed: self.passed_unkeyed,
+        self.redact_unkeyed(value);
+        JsonRedactionOutcome::Complete {
+            passed_unkeyed: self.passed_unkeyed,
+        }
+    }
+
+    /// Redacts a root or array value.
+    fn redact_unkeyed(&mut self, value: &mut Value) {
+        match value {
+            Value::Array(values) => {
+                for value in values {
+                    self.redact_unkeyed(value);
                 }
             }
-            Err(JsonTreeProcessError::Visitor(JsonRedactionStop)) => JsonRedactionOutcome::MaskBudgetExhausted,
-            Err(JsonTreeProcessError::Budget(error)) => {
-                unreachable!("the redaction visitor handles every configured depth rejection: {error}")
+            Value::Object(entries) => {
+                for (key, value) in entries {
+                    self.redact_keyed(key, value);
+                }
+            }
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
+                self.redact_unkeyed_scalar(value);
             }
         }
     }
 
-    /// Applies field rules to one value associated with an object key.
-    ///
-    /// # Parameters
-    ///
-    /// * key - Object key used to resolve sensitivity.
-    /// * value - Value potentially masked in place.
-    ///
-    /// # Returns
-    ///
-    /// Whether traversal should descend into the value. This function does not
-    /// currently fail, but exposes the visitor stop type for a uniform policy
-    /// interface.
-    fn visit_keyed_value(&mut self, key: &str, value: &mut Value) -> Result<JsonTreeControl, JsonRedactionStop> {
+    /// Applies the resolved rule to one object value.
+    fn redact_keyed(&mut self, key: &str, value: &mut Value) {
         match self.resolve_field(key) {
-            ResolvedField::Sensitive { sensitivity } => {
-                self.mask_keyed_value(value, sensitivity);
-                Ok(JsonTreeControl::SkipSubtree)
-            }
-            ResolvedField::PassThrough if matches!(value, Value::Object(_) | Value::Array(_)) => {
-                Ok(JsonTreeControl::Descend)
-            }
-            ResolvedField::PassThrough => Ok(JsonTreeControl::SkipSubtree),
-        }
-    }
-
-    /// Applies unkeyed policy to one root or array value.
-    ///
-    /// # Parameters
-    ///
-    /// * value - Value potentially masked in place.
-    ///
-    /// # Returns
-    ///
-    /// Whether traversal should descend, or a stop signal when no unkeyed mask
-    /// can fit the remaining mask budget.
-    fn visit_unkeyed_value(&mut self, value: &mut Value) -> Result<JsonTreeControl, JsonRedactionStop> {
-        if matches!(value, Value::Object(_) | Value::Array(_)) {
-            Ok(JsonTreeControl::Descend)
-        } else {
-            self.redact_unkeyed_scalar(value)?;
-            Ok(JsonTreeControl::SkipSubtree)
+            ResolvedField::Sensitive { sensitivity } => self.mask_keyed_value(value, sensitivity),
+            ResolvedField::PassThrough => match value {
+                Value::Array(values) => {
+                    for value in values {
+                        self.redact_unkeyed(value);
+                    }
+                }
+                Value::Object(entries) => {
+                    for (key, value) in entries {
+                        self.redact_keyed(key, value);
+                    }
+                }
+                Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+            },
         }
     }
 
     /// Applies the configured policy to one root or array scalar.
-    ///
-    /// # Parameters
-    ///
-    /// * value - Scalar potentially replaced by a diagnostic marker.
-    ///
-    /// # Returns
-    ///
-    /// Returns `JsonRedactionStop` when neither configured marker fits the
-    /// remaining mask budget.
-    fn redact_unkeyed_scalar(&mut self, value: &mut Value) -> Result<(), JsonRedactionStop> {
+    fn redact_unkeyed_scalar(&mut self, value: &mut Value) {
         match self.unkeyed {
-            JsonUnkeyedValuePolicy::PassThrough => {
-                self.passed_unkeyed = true;
-                Ok(())
+            JsonUnkeyedValuePolicy::PassThrough => self.passed_unkeyed = true,
+            JsonUnkeyedValuePolicy::Redact { marker, .. } => {
+                *value = Value::String(marker.to_owned());
             }
-            JsonUnkeyedValuePolicy::Redact {
-                marker,
-                truncated_marker,
-            } => match self.take_unkeyed_marker(marker, truncated_marker) {
-                Some(marker) => {
-                    *value = Value::String(marker);
-                    Ok(())
-                }
-                None => Err(JsonRedactionStop),
-            },
-        }
-    }
-
-    /// Handles a node rejected by the operation-local JSON budget.
-    ///
-    /// Depth rejection follows the node's field or unkeyed policy. Any other
-    /// rejection fails closed with an opaque secret mask.
-    fn handle_budget_rejection(
-        &mut self,
-        value: &mut Value,
-        context: JsonTreeContext<'_>,
-        error: &MeasuredBudgetError<JsonResource, usize>,
-    ) -> Result<(), JsonRedactionStop> {
-        if !is_depth_rejection(error) {
-            self.mask_opaque_value(value, Sensitivity::Secret);
-            return Ok(());
-        }
-        match context.location {
-            JsonTreeLocation::ObjectValue { key } => match self.resolve_field(key) {
-                ResolvedField::Sensitive { sensitivity } => {
-                    self.mask_keyed_value(value, sensitivity);
-                    Ok(())
-                }
-                ResolvedField::PassThrough if matches!(value, Value::Object(_) | Value::Array(_)) => {
-                    self.mask_opaque_value(value, Sensitivity::Secret);
-                    Ok(())
-                }
-                ResolvedField::PassThrough => Ok(()),
-            },
-            JsonTreeLocation::Root | JsonTreeLocation::ArrayElement { .. }
-                if matches!(value, Value::Object(_) | Value::Array(_)) =>
-            {
-                self.mask_opaque_value(value, Sensitivity::Secret);
-                Ok(())
-            }
-            JsonTreeLocation::Root | JsonTreeLocation::ArrayElement { .. } => self.redact_unkeyed_scalar(value),
         }
     }
 
@@ -251,155 +122,14 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
         )
     }
 
-    /// Replaces one keyed sensitive value with an appropriately bounded mask.
-    ///
-    /// # Parameters
-    ///
-    /// * value - Sensitive value replaced in place.
-    /// * level - Sensitivity selecting the masking rule.
-    fn mask_keyed_value(&mut self, value: &mut Value, level: Sensitivity) {
-        let remaining = self.remaining_mask_bytes();
+    /// Replaces one keyed sensitive value with its configured mask.
+    fn mask_keyed_value(&self, value: &mut Value, level: Sensitivity) {
         let masked = if let Value::String(text) = value {
-            self.masking.mask_bounded(level, text, remaining).into_owned()
+            self.masking.mask(level, text).into_owned()
         } else {
-            self.masking.mask_opaque_bounded(level, remaining)
+            self.masking.mask_opaque(level).to_owned()
         };
-        let consumed = self.consume_mask_available(masked.len());
-        debug_assert_eq!(consumed, masked.len());
-        if let Value::String(text) = value {
-            *text = masked;
-        } else {
-            replace_value_iteratively(value, Value::String(masked));
-        }
-    }
-
-    /// Replaces any JSON value with an opaque mask at the requested level.
-    fn mask_opaque_value(&mut self, value: &mut Value, level: Sensitivity) {
-        let masked = self.masking.mask_opaque_bounded(level, self.remaining_mask_bytes());
-        let consumed = self.consume_mask_available(masked.len());
-        debug_assert_eq!(consumed, masked.len());
-        if let Value::String(text) = value {
-            *text = masked;
-        } else {
-            replace_value_iteratively(value, Value::String(masked));
-        }
-    }
-
-    /// Consumes the remaining budget for one unkeyed marker.
-    ///
-    /// # Parameters
-    ///
-    /// * marker - Preferred marker.
-    /// * truncated_marker - Shorter fallback marker.
-    ///
-    /// # Returns
-    ///
-    /// The preferred marker or fallback marker. Returns `None` when neither
-    /// fits, so callers can use a non-allocating JSON null replacement.
-    fn take_unkeyed_marker(&mut self, marker: &str, truncated_marker: &str) -> Option<String> {
-        let selected = if self.mask_available(marker.len()) {
-            marker
-        } else if self.mask_available(truncated_marker.len()) {
-            truncated_marker
-        } else {
-            return None;
-        };
-        self.consume_mask(selected.len());
-        Some(selected.to_owned())
-    }
-
-    /// Returns the configured mask balance or an effectively unbounded value
-    /// when this transformation has no mask budget.
-    fn remaining_mask_bytes(&self) -> usize {
-        self.mask_budget
-            .as_deref()
-            .map(|budget| budget.remaining())
-            .unwrap_or(usize::MAX)
-    }
-
-    /// Checks whether a complete generated mask fits the configured budget.
-    fn mask_available(&self, bytes: usize) -> bool {
-        self.mask_budget
-            .as_deref()
-            .is_none_or(|budget| budget.check_available(bytes).is_ok())
-    }
-
-    /// Consumes a complete preauthorized generated mask when configured.
-    fn consume_mask(&mut self, bytes: usize) {
-        if let Some(budget) = self.mask_budget.as_deref_mut() {
-            budget
-                .try_consume(bytes)
-                .expect("a preauthorized mask must remain consumable");
-        }
-    }
-
-    /// Consumes the available portion of one bounded generated mask.
-    fn consume_mask_available(&mut self, requested: usize) -> usize {
-        self.mask_budget
-            .as_deref_mut()
-            .map_or(requested, |budget| budget.consume_available(requested))
-    }
-}
-
-impl JsonTreeMutVisitor<JsonResource, usize> for JsonRedactionState<'_, '_, '_> {
-    /// Error used to stop traversal after a resource budget is exhausted.
-    type Error = JsonRedactionStop;
-
-    /// Applies the current-node redaction policy and controls descent.
-    fn visit(&mut self, value: &mut Value, context: JsonTreeContext<'_>) -> Result<JsonTreeControl, Self::Error> {
-        match context.location {
-            JsonTreeLocation::ObjectValue { key } => self.visit_keyed_value(key, value),
-            JsonTreeLocation::Root | JsonTreeLocation::ArrayElement { .. } => self.visit_unkeyed_value(value),
-        }
-    }
-
-    /// Fails closed for rejected nodes and always skips their subtrees.
-    fn reject_budget(
-        &mut self,
-        value: &mut Value,
-        context: JsonTreeContext<'_>,
-        error: &MeasuredBudgetError<JsonResource, usize>,
-    ) -> Result<JsonTreeBudgetRejection, Self::Error> {
-        self.handle_budget_rejection(value, context, error)?;
-        Ok(JsonTreeBudgetRejection::SkipSubtree)
-    }
-}
-
-/// Reports whether the budget failure is the configured depth rejection.
-fn is_depth_rejection(error: &MeasuredBudgetError<JsonResource, usize>) -> bool {
-    matches!(
-        error,
-        MeasuredBudgetError::Budget(BudgetError::LimitExceeded {
-            resource: JsonResource::Depth,
-            ..
-        })
-    )
-}
-
-/// Replaces a JSON value and releases its former tree without recursive drop.
-///
-/// # Parameters
-///
-/// * value - JSON slot receiving the replacement.
-/// * replacement - New value stored in the slot.
-fn replace_value_iteratively(value: &mut Value, replacement: Value) {
-    let original = std::mem::replace(value, replacement);
-    drop_value_iteratively(original);
-}
-
-/// Releases a JSON value tree by emptying every container before it drops.
-///
-/// # Parameters
-///
-/// * root - Detached JSON tree to release.
-fn drop_value_iteratively(root: Value) {
-    let mut pending = vec![root];
-    while let Some(mut value) = pending.pop() {
-        match &mut value {
-            Value::Array(values) => pending.append(values),
-            Value::Object(entries) => pending.extend(std::mem::take(entries).into_values()),
-            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
-        }
+        *value = Value::String(masked);
     }
 }
 
@@ -421,7 +151,6 @@ fn stronger(base: ResolvedField, context: ResolvedField) -> ResolvedField {
 
 #[cfg(test)]
 mod tests {
-    use qubit_budget::ResourceBudget;
     use serde_json::json;
 
     use super::JsonRedactionOutcome;
@@ -429,7 +158,6 @@ mod tests {
     use super::JsonUnkeyedValuePolicy;
     use crate::RedactionPolicy;
     use crate::Sensitivity;
-    use crate::policy::RedactionResource;
 
     #[test]
     fn sensitive_non_string_value_is_replaced_by_an_opaque_mask() {
@@ -441,35 +169,13 @@ mod tests {
             .build()
             .expect("test policy should build");
         let mut value = json!({"password": {"nested": "raw-secret"}});
-        let mut masks = ResourceBudget::new(RedactionResource::Mask, 128);
-        let mut state = JsonRedactionState::from_policy(&policy, JsonUnkeyedValuePolicy::PassThrough, Some(&mut masks));
+        let mut state = JsonRedactionState::from_policy(&policy, JsonUnkeyedValuePolicy::PassThrough);
 
         let outcome = state.redact(&mut value);
 
         assert!(matches!(outcome, JsonRedactionOutcome::Complete { .. }));
         assert_ne!(value["password"], json!({"nested": "raw-secret"}));
         assert!(value["password"].is_string());
-    }
-
-    #[test]
-    fn unkeyed_redaction_stops_when_no_complete_marker_fits() {
-        let policy = RedactionPolicy::standard();
-        let mut value = json!(["first", "second"]);
-        let mut masks = ResourceBudget::new(RedactionResource::Mask, 1);
-        let mut state = JsonRedactionState::from_policy(
-            &policy,
-            JsonUnkeyedValuePolicy::Redact {
-                marker: "mask",
-                truncated_marker: "x",
-            },
-            Some(&mut masks),
-        );
-
-        let outcome = state.redact(&mut value);
-
-        assert_eq!(outcome, JsonRedactionOutcome::MaskBudgetExhausted);
-        assert_eq!(value[0], json!("x"));
-        assert_eq!(value[1], json!("second"));
     }
 
     #[test]
@@ -481,22 +187,13 @@ mod tests {
             .expect("base rules should build")
             .build()
             .expect("base policy should build");
-        let context = RedactionPolicy::builder()
-            .limits(|limits| {
-                limits.max_nodes(1);
-            })
-            .expect("context limits should build")
-            .build()
-            .expect("context policy should build");
+        let context = RedactionPolicy::standard();
         let mut value = json!({"credential": "raw-secret"});
-        let mut masks = ResourceBudget::new(RedactionResource::Mask, 128);
         let mut state = JsonRedactionState::new(
             base.rules(),
             context.rules(),
             base.masking(),
-            base.limits().json_point_limits(),
             JsonUnkeyedValuePolicy::PassThrough,
-            Some(&mut masks),
         );
 
         let outcome = state.redact(&mut value);

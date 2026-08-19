@@ -69,26 +69,32 @@ impl<'session> ArgvRedactionSession<'session> {
         I: IntoIterator<Item = ArgvItem<'items>>,
         I::IntoIter: ExactSizeIterator,
     {
-        if self.session.is_output_exhausted() {
-            return self.session.stage_format_text(
-                crate::RedactedText::from_escaped(String::new()),
-                crate::RedactionCompletion::Exhausted,
-            );
-        }
-        let Some(items) = self.collect_admitted_items(items) else {
-            return self.session.stage_format_text(
-                crate::RedactedText::from_escaped(String::new()),
-                crate::RedactionCompletion::Truncated,
-            );
-        };
-        let result = redact_items_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
-        if result.text().as_str().is_empty() && result.summary().completion() == crate::RedactionCompletion::Truncated {
-            return self.session.stage_format_text(
-                crate::RedactedText::from_escaped(String::new()),
-                crate::RedactionCompletion::Exhausted,
-            );
-        }
-        self.session.stage_item(result)
+        let owns_item_summary = self.session.begin_item_summary();
+        let handle = (|| {
+            if self.session.is_output_exhausted() {
+                return self.session.stage_format_text(
+                    crate::RedactedText::from_escaped(String::new()),
+                    crate::RedactionCompletion::Exhausted,
+                );
+            }
+            let Some(items) = self.collect_admitted_items(items) else {
+                return self
+                    .session
+                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+            };
+            let result = redact_items_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
+            if result.text().as_str().is_empty()
+                && result.summary().completion() == crate::RedactionCompletion::Truncated
+            {
+                return self.session.stage_format_text(
+                    crate::RedactedText::from_escaped(String::new()),
+                    crate::RedactionCompletion::Exhausted,
+                );
+            }
+            self.session.stage_item(result)
+        })();
+        self.session.end_item_summary(owns_item_summary);
+        handle
     }
 
     /// Redacts heuristic items as one individually resolvable transaction item.
@@ -98,27 +104,33 @@ impl<'session> ArgvRedactionSession<'session> {
         I: IntoIterator<Item = ArgvItem<'items>>,
         I::IntoIter: ExactSizeIterator,
     {
-        if self.session.is_output_exhausted() {
-            return self.session.stage_format_text(
-                crate::RedactedText::from_escaped(String::new()),
-                crate::RedactionCompletion::Exhausted,
-            );
-        }
-        let Some(items) = self.collect_admitted_items(items) else {
-            return self.session.stage_format_text(
-                crate::RedactedText::from_escaped(String::new()),
-                crate::RedactionCompletion::Truncated,
-            );
-        };
-        let result =
-            redact_heuristically_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
-        if result.text().as_str().is_empty() && result.summary().completion() == crate::RedactionCompletion::Truncated {
-            return self.session.stage_format_text(
-                crate::RedactedText::from_escaped(String::new()),
-                crate::RedactionCompletion::Exhausted,
-            );
-        }
-        self.session.stage_item(result)
+        let owns_item_summary = self.session.begin_item_summary();
+        let handle = (|| {
+            if self.session.is_output_exhausted() {
+                return self.session.stage_format_text(
+                    crate::RedactedText::from_escaped(String::new()),
+                    crate::RedactionCompletion::Exhausted,
+                );
+            }
+            let Some(items) = self.collect_admitted_items(items) else {
+                return self
+                    .session
+                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+            };
+            let result =
+                redact_heuristically_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
+            if result.text().as_str().is_empty()
+                && result.summary().completion() == crate::RedactionCompletion::Truncated
+            {
+                return self.session.stage_format_text(
+                    crate::RedactedText::from_escaped(String::new()),
+                    crate::RedactionCompletion::Exhausted,
+                );
+            }
+            self.session.stage_item(result)
+        })();
+        self.session.end_item_summary(owns_item_summary);
+        handle
     }
 
     /// Collects only items admitted by the parent transaction. Structural and

@@ -2,7 +2,10 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+// qubit-style: allow multiple-public-types
 //! Aggregate process-command rendering through one borrowed transaction.
 
 use std::ffi::OsStr;
@@ -196,47 +199,58 @@ impl<'session> ProcessRedactionSession<'session> {
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
         E::IntoIter: ExactSizeIterator,
     {
-        if self.session.is_output_exhausted() {
-            return self.exhausted_handle();
-        }
-        if !self.session.admit_format_node(1) {
-            return self.exhausted_handle();
-        }
-        let policy = self.session.policy().clone();
-        let remaining = self.session.remaining_output_bytes();
-        let (argv, command_failed) = {
-            let mut command = AdmittedCommandItems {
-                session: self.session,
-                program: Some(ArgvItem::plain(program)),
-                arguments: arguments.into_iter(),
-                failed: false,
+        let owns_item_summary = self.session.begin_item_summary();
+        let handle = (|| {
+            if self.session.is_output_exhausted() {
+                return self.exhausted_handle();
+            }
+            if !self.session.admit_format_node(1) {
+                return self
+                    .session
+                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+            }
+            let policy = self.session.policy().clone();
+            let remaining = self.session.remaining_output_bytes();
+            let (argv, command_failed) = {
+                let mut command = AdmittedCommandItems {
+                    session: self.session,
+                    program: Some(ArgvItem::plain(program)),
+                    arguments: arguments.into_iter(),
+                    failed: false,
+                };
+                let output = redact_heuristically_with_policy(&policy, &mut command, remaining);
+                (output, command.failed)
             };
-            let output = redact_heuristically_with_policy(&policy, &mut command, remaining);
-            (output, command.failed)
-        };
-        if command_failed {
-            return self.exhausted_handle();
-        }
-        let remaining = remaining.saturating_sub(argv.text().as_str().len());
-        let (environment, environment_failed) = {
-            let mut pairs = AdmittedEnvironmentPairs {
-                session: self.session,
-                variables: variables.into_iter(),
-                failed: false,
-                marker: std::marker::PhantomData,
+            if command_failed {
+                return self
+                    .session
+                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+            }
+            let remaining = remaining.saturating_sub(argv.text().as_str().len());
+            let (environment, environment_failed) = {
+                let mut pairs = AdmittedEnvironmentPairs {
+                    session: self.session,
+                    variables: variables.into_iter(),
+                    failed: false,
+                    marker: std::marker::PhantomData,
+                };
+                let output = redact_os_pairs_with_policy(&policy, &mut pairs, remaining);
+                (output, pairs.failed)
             };
-            let output = redact_os_pairs_with_policy(&policy, &mut pairs, remaining);
-            (output, pairs.failed)
-        };
-        if environment_failed {
-            return self.exhausted_handle();
-        }
-        let text = format!("{}{}", argv.text().as_str(), environment.text().as_str());
-        let summary = argv.summary().merge(*environment.summary());
-        self.session.stage_item(crate::RedactionOutput::new(
-            crate::RedactedText::from_escaped(text),
-            summary,
-        ))
+            if environment_failed {
+                return self
+                    .session
+                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+            }
+            let text = format!("{}{}", argv.text().as_str(), environment.text().as_str());
+            let summary = argv.summary().merge(*environment.summary());
+            self.session.stage_item(crate::RedactionOutput::new(
+                crate::RedactedText::from_escaped(text),
+                summary,
+            ))
+        })();
+        self.session.end_item_summary(owns_item_summary);
+        handle
     }
 
     /// Redacts command-line arguments into the parent aggregate output.

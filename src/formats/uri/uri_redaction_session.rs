@@ -43,20 +43,29 @@ impl<'session> UriRedactionSession<'session> {
     /// Redacts a URI as one individually resolvable transaction item.
     #[must_use]
     pub fn redact_uri(&mut self, value: &str) -> RedactionHandle {
-        if !self.session.is_output_exhausted() && self.session.admit_input(value.len()) {
-            if !self.admit_uri_structure(value) {
+        let owns_item_summary = self.session.begin_item_summary();
+        let handle = (|| {
+            if self.session.is_output_exhausted() {
                 return self.session.stage_format_text(
-                    crate::RedactedText::from_escaped("<truncated>"),
-                    crate::RedactionCompletion::Truncated,
+                    crate::RedactedText::from_escaped(String::new()),
+                    crate::RedactionCompletion::Exhausted,
                 );
             }
+            if !self.session.admit_input(value.len()) {
+                return self
+                    .session
+                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+            }
+            if !self.admit_uri_structure(value) {
+                return self
+                    .session
+                    .stage_accounted_text(crate::RedactedText::from_escaped("<truncated>"));
+            }
             let result = self.redact_uri_direct(value);
-            return self.session.stage_item(result);
-        }
-        self.session.stage_format_text(
-            crate::RedactedText::from_escaped(String::new()),
-            crate::RedactionCompletion::Exhausted,
-        )
+            self.session.stage_item(result)
+        })();
+        self.session.end_item_summary(owns_item_summary);
+        handle
     }
 }
 

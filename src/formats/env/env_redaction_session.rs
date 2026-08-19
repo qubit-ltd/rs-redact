@@ -70,35 +70,35 @@ impl<'session> EnvRedactionSession<'session> {
     /// Redacts one pair as an individually resolvable transaction item.
     #[must_use]
     pub fn redact_pair(&mut self, name: &str, value: &str) -> RedactionHandle {
-        if self.session.is_output_exhausted() {
-            return self.session.stage_format_text(
-                crate::RedactedText::from_escaped(String::new()),
-                crate::RedactionCompletion::Exhausted,
+        let owns_item_summary = self.session.begin_item_summary();
+        let handle = (|| {
+            if self.session.is_output_exhausted() {
+                return self.exhausted_handle();
+            }
+            if !self.session.admit_format_node(1)
+                || !self.session.admit_format_collection_item()
+                || !self.session.admit_format_node(2)
+                || !self.session.admit_input(name.len().saturating_add(value.len()))
+            {
+                return self
+                    .session
+                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+            }
+            let result = redact_pair_with_policy(
+                self.session.policy(),
+                name,
+                value,
+                self.session.remaining_output_bytes(),
             );
-        }
-        if !self.session.admit_format_node(1)
-            || !self.session.admit_format_collection_item()
-            || !self.session.admit_format_node(2)
-            || !self.session.admit_input(name.len().saturating_add(value.len()))
-        {
-            return self.session.stage_format_text(
-                crate::RedactedText::from_escaped(String::new()),
-                crate::RedactionCompletion::Truncated,
-            );
-        }
-        let result = redact_pair_with_policy(
-            self.session.policy(),
-            name,
-            value,
-            self.session.remaining_output_bytes(),
-        );
-        if result.text().as_str().is_empty() && result.summary().completion() == crate::RedactionCompletion::Truncated {
-            return self.session.stage_format_text(
-                crate::RedactedText::from_escaped(String::new()),
-                crate::RedactionCompletion::Exhausted,
-            );
-        }
-        self.session.stage_item(result)
+            if result.text().as_str().is_empty()
+                && result.summary().completion() == crate::RedactionCompletion::Truncated
+            {
+                return self.exhausted_handle();
+            }
+            self.session.stage_item(result)
+        })();
+        self.session.end_item_summary(owns_item_summary);
+        handle
     }
 
     /// Redacts an environment list as one individually resolvable transaction
@@ -109,26 +109,27 @@ impl<'session> EnvRedactionSession<'session> {
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
         I::IntoIter: ExactSizeIterator,
     {
-        if self.session.is_output_exhausted() {
-            return self.session.stage_format_text(
-                crate::RedactedText::from_escaped(String::new()),
-                crate::RedactionCompletion::Exhausted,
-            );
-        }
-        let Some(pairs) = self.collect_admitted_pairs(pairs) else {
-            return self.session.stage_format_text(
-                crate::RedactedText::from_escaped(String::new()),
-                crate::RedactionCompletion::Truncated,
-            );
-        };
-        let result = redact_os_pairs_with_policy(self.session.policy(), pairs, self.session.remaining_output_bytes());
-        if result.text().as_str().is_empty() && result.summary().completion() == crate::RedactionCompletion::Truncated {
-            return self.session.stage_format_text(
-                crate::RedactedText::from_escaped(String::new()),
-                crate::RedactionCompletion::Exhausted,
-            );
-        }
-        self.session.stage_item(result)
+        let owns_item_summary = self.session.begin_item_summary();
+        let handle = (|| {
+            if self.session.is_output_exhausted() {
+                return self.exhausted_handle();
+            }
+            let Some(pairs) = self.collect_admitted_pairs(pairs) else {
+                return self
+                    .session
+                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+            };
+            let result =
+                redact_os_pairs_with_policy(self.session.policy(), pairs, self.session.remaining_output_bytes());
+            if result.text().as_str().is_empty()
+                && result.summary().completion() == crate::RedactionCompletion::Truncated
+            {
+                return self.exhausted_handle();
+            }
+            self.session.stage_item(result)
+        })();
+        self.session.end_item_summary(owns_item_summary);
+        handle
     }
 
     /// Collects pairs only while their individual structural and input
@@ -159,5 +160,14 @@ impl<'session> EnvRedactionSession<'session> {
             admitted.push((name, value));
         }
         Some(admitted)
+    }
+
+    /// Stages the standard empty output after shared output exhaustion.
+    #[must_use]
+    fn exhausted_handle(&mut self) -> RedactionHandle {
+        self.session.stage_format_text(
+            crate::RedactedText::from_escaped(String::new()),
+            crate::RedactionCompletion::Exhausted,
+        )
     }
 }

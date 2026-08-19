@@ -2,9 +2,13 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Opaque references to one item published by a completed transaction.
 // qubit-style: allow multiple-public-types
+
+use std::fmt;
 
 /// Opaque reference to one redacted item produced during a session transaction.
 ///
@@ -44,3 +48,14 @@ pub enum RedactionHandleError {
     /// The handle points outside the transaction's published item range.
     MissingItem,
 }
+
+impl fmt::Display for RedactionHandleError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DifferentTransaction => formatter.write_str("the handle belongs to a different transaction"),
+            Self::MissingItem => formatter.write_str("the handle does not identify a published item"),
+        }
+    }
+}
+
+impl std::error::Error for RedactionHandleError {}

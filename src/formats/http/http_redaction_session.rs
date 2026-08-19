@@ -53,20 +53,22 @@ impl<'session> HttpRedactionSession<'session> {
     /// Redacts a URL as one individually resolvable transaction item.
     #[must_use]
     pub fn redact_url(&mut self, value: &str) -> RedactionHandle {
-        if !self.session.is_output_exhausted()
-            && self.session.admit_format_node(1)
-            && self.session.admit_input(value.len())
-        {
+        let owns_item_summary = self.session.begin_item_summary();
+        let handle = (|| {
+            if self.session.is_output_exhausted() {
+                return self.exhausted_handle();
+            }
+            if !self.session.admit_format_node(1) || !self.session.admit_input(value.len()) {
+                return self.stage_accounted_text(String::new());
+            }
             if !self.admit_url_structure(value) {
-                return self.session.stage_format_text(
-                    RedactedText::from_escaped("<truncated>"),
-                    crate::RedactionCompletion::Truncated,
-                );
+                return self.stage_accounted_text("<truncated>");
             }
             let result = self.redact_url_str_direct(value);
-            return self.session.stage_item(result.into_output());
-        }
-        self.exhausted_handle()
+            self.session.stage_item(result.into_output())
+        })();
+        self.session.end_item_summary(owns_item_summary);
+        handle
     }
 
     /// Redacts headers into the parent session's aggregate output.
@@ -82,11 +84,20 @@ impl<'session> HttpRedactionSession<'session> {
     /// Redacts headers as one individually resolvable transaction item.
     #[must_use]
     pub fn redact_headers(&mut self, headers: &HeaderMap) -> RedactionHandle {
-        if let Some(headers) = self.collect_admitted_headers(headers) {
-            let result = self.redact_headers_direct(&headers);
-            return self.session.stage_item(result.into_output());
-        }
-        self.exhausted_handle()
+        let owns_item_summary = self.session.begin_item_summary();
+        let handle = (|| {
+            if let Some(headers) = self.collect_admitted_headers(headers) {
+                let result = self.redact_headers_direct(&headers);
+                return self.session.stage_item(result.into_output());
+            }
+            if self.session.is_output_exhausted() {
+                self.exhausted_handle()
+            } else {
+                self.stage_accounted_text(String::new())
+            }
+        })();
+        self.session.end_item_summary(owns_item_summary);
+        handle
     }
 }
 
@@ -192,10 +203,12 @@ impl<'session> HttpRedactionSession<'session> {
     /// A bounded body result with completion and capture metadata.
     #[must_use]
     pub fn body(&mut self, capture: BodyCapture<'_>, content_type: Option<&HeaderValue>) -> &mut Self {
-        if self.session.is_output_exhausted() || !self.session.admit_input(body_input_bytes(capture, content_type)) {
+        if self.session.is_output_exhausted()
+            || !admit_body_input(self.session, capture, content_type.map(|v| v.as_bytes().len()))
+        {
             return self;
         }
-        if !self.admit_json_body_structure(capture, content_type.map(|value| value.as_bytes())) {
+        if !self.admit_body_structure(capture, content_type.map(|value| value.as_bytes())) {
             self.session.append_format_text(
                 RedactedText::from_escaped("<truncated>"),
                 crate::RedactionCompletion::Truncated,
@@ -214,20 +227,25 @@ impl<'session> HttpRedactionSession<'session> {
     /// item.
     #[must_use]
     pub fn redact_body(&mut self, capture: BodyCapture<'_>, content_type: Option<&HeaderValue>) -> RedactionHandle {
-        if !self.session.is_output_exhausted() && self.session.admit_input(body_input_bytes(capture, content_type)) {
-            if !self.admit_json_body_structure(capture, content_type.map(|value| value.as_bytes())) {
-                return self.session.stage_format_text(
-                    RedactedText::from_escaped("<truncated>"),
-                    crate::RedactionCompletion::Truncated,
-                );
+        let owns_item_summary = self.session.begin_item_summary();
+        let handle = (|| {
+            if self.session.is_output_exhausted() {
+                return self.exhausted_handle();
+            }
+            if !admit_body_input(self.session, capture, content_type.map(|value| value.as_bytes().len())) {
+                return self.stage_accounted_text(String::new());
+            }
+            if !self.admit_body_structure(capture, content_type.map(|value| value.as_bytes())) {
+                return self.stage_accounted_text("<truncated>");
             }
             let remaining = self.session.remaining_output_bytes();
             let result = self.body_result(capture, content_type, |policy| {
                 super::http_redactor::redact_body_with_policy(policy, capture, content_type, remaining)
             });
-            return self.session.stage_item(result.into_output());
-        }
-        self.exhausted_handle()
+            self.session.stage_item(result.into_output())
+        })();
+        self.session.end_item_summary(owns_item_summary);
+        handle
     }
 
     /// Redacts a captured HTTP body with text Content-Type.
@@ -249,14 +267,10 @@ impl<'session> HttpRedactionSession<'session> {
     /// A bounded body result with completion and capture metadata.
     #[must_use]
     pub fn body_with_content_type_text(&mut self, capture: BodyCapture<'_>, content_type: Option<&str>) -> &mut Self {
-        if self.session.is_output_exhausted()
-            || !self
-                .session
-                .admit_input(capture.bytes().len().saturating_add(content_type.map_or(0, str::len)))
-        {
+        if self.session.is_output_exhausted() || !admit_body_input(self.session, capture, content_type.map(str::len)) {
             return self;
         }
-        if !self.admit_json_body_structure(capture, content_type.map(str::as_bytes)) {
+        if !self.admit_body_structure(capture, content_type.map(str::as_bytes)) {
             self.session.append_format_text(
                 RedactedText::from_escaped("<truncated>"),
                 crate::RedactionCompletion::Truncated,
@@ -284,13 +298,16 @@ impl<'session> HttpRedactionSession<'session> {
         capture: BodyCapture<'_>,
         content_type: Option<&str>,
     ) -> RedactionHandle {
-        let input_bytes = capture.bytes().len().saturating_add(content_type.map_or(0, str::len));
-        if !self.session.is_output_exhausted() && self.session.admit_input(input_bytes) {
-            if !self.admit_json_body_structure(capture, content_type.map(str::as_bytes)) {
-                return self.session.stage_format_text(
-                    RedactedText::from_escaped("<truncated>"),
-                    crate::RedactionCompletion::Truncated,
-                );
+        let owns_item_summary = self.session.begin_item_summary();
+        let handle = (|| {
+            if self.session.is_output_exhausted() {
+                return self.exhausted_handle();
+            }
+            if !admit_body_input(self.session, capture, content_type.map(str::len)) {
+                return self.stage_accounted_text(String::new());
+            }
+            if !self.admit_body_structure(capture, content_type.map(str::as_bytes)) {
+                return self.stage_accounted_text("<truncated>");
             }
             let remaining = self.session.remaining_output_bytes();
             let result = self.body_result(capture, None, |policy| {
@@ -301,9 +318,10 @@ impl<'session> HttpRedactionSession<'session> {
                     remaining,
                 )
             });
-            return self.session.stage_item(result.into_output());
-        }
-        self.exhausted_handle()
+            self.session.stage_item(result.into_output())
+        })();
+        self.session.end_item_summary(owns_item_summary);
+        handle
     }
 
     /// Admits one body operation before calling its potentially inspecting
@@ -323,28 +341,58 @@ impl<'session> HttpRedactionSession<'session> {
         render(self.session.policy())
     }
 
-    /// Charges JSON-body structure before the HTTP renderer parses it. This
-    /// keeps HTTP JSON bodies on the parent transaction's structural ledger
-    /// instead of allocating a fresh JSON traversal budget.
-    fn admit_json_body_structure(&mut self, capture: BodyCapture<'_>, content_type: Option<&[u8]>) -> bool {
-        let is_json = content_type.is_some_and(|value| {
-            std::str::from_utf8(value).ok().is_some_and(|value| {
-                value.split(';').next().is_some_and(|media| {
-                    media.trim().eq_ignore_ascii_case("application/json") || media.trim().ends_with("+json")
-                })
-            })
-        }) || (content_type.is_none()
+    /// Charges body structure before the HTTP renderer parses it. JSON and
+    /// NDJSON reuse the parent transaction's JSON ledger; form fields and
+    /// multipart parts use the same structural ledger before rendering.
+    fn admit_body_structure(&mut self, capture: BodyCapture<'_>, content_type: Option<&[u8]>) -> bool {
+        let has_content_type = content_type.is_some();
+        let content_type = content_type
+            .and_then(|value| std::str::from_utf8(value).ok())
+            .and_then(super::internal::content_type::parse);
+        let inferred_json = !has_content_type
             && matches!(
                 capture.bytes().iter().copied().find(|byte| !byte.is_ascii_whitespace()),
                 Some(b'{') | Some(b'[')
-            ));
-        if !is_json {
-            return self.session.admit_format_node(1);
+            );
+        if matches!(&content_type, Some(super::internal::content_type::ContentType::Json)) || inferred_json {
+            let Ok(text) = std::str::from_utf8(capture.bytes()) else {
+                return self.session.admit_format_node(1);
+            };
+            return crate::formats::json::admit_json_text_structure(self.session, text);
         }
-        let Ok(text) = std::str::from_utf8(capture.bytes()) else {
-            return self.session.admit_format_node(1);
-        };
-        crate::formats::json::admit_json_text_structure(self.session, text)
+        if matches!(&content_type, Some(super::internal::content_type::ContentType::Ndjson)) {
+            let Ok(text) = std::str::from_utf8(capture.bytes()) else {
+                return self.session.admit_format_node(1);
+            };
+            let mut admitted_any = false;
+            for line in text.lines().filter(|line| !line.trim().is_empty()) {
+                admitted_any = true;
+                if !crate::formats::json::admit_json_text_structure(self.session, line) {
+                    return false;
+                }
+            }
+            return admitted_any || self.session.admit_format_node(1);
+        }
+        if !self.session.admit_format_node(1) {
+            return false;
+        }
+        match content_type {
+            Some(super::internal::content_type::ContentType::Form) => {
+                super::internal::multipart::admit_form_fields(self.session, capture.bytes(), 2)
+            }
+            Some(super::internal::content_type::ContentType::Multipart {
+                boundary: Some(boundary),
+                require_form_data,
+            }) => {
+                super::internal::multipart::admit_structure(self.session, &boundary, require_form_data, capture.bytes())
+            }
+            Some(super::internal::content_type::ContentType::Multipart { boundary: None, .. })
+            | Some(super::internal::content_type::ContentType::Text)
+            | Some(super::internal::content_type::ContentType::Other)
+            | None => true,
+            Some(super::internal::content_type::ContentType::Json)
+            | Some(super::internal::content_type::ContentType::Ndjson) => unreachable!("handled above"),
+        }
     }
 
     /// Stages the standard empty output when admission is no longer possible.
@@ -355,12 +403,27 @@ impl<'session> HttpRedactionSession<'session> {
             crate::RedactionCompletion::Exhausted,
         )
     }
+
+    /// Stages text whose completion, reasons, and usage were already recorded
+    /// by the active item-accounting scope.
+    #[must_use]
+    fn stage_accounted_text<T>(&mut self, text: T) -> RedactionHandle
+    where
+        T: Into<std::borrow::Cow<'static, str>>,
+    {
+        self.session.stage_item(crate::RedactionOutput::new(
+            RedactedText::from_escaped(text.into()),
+            crate::RedactionSummary::complete(),
+        ))
+    }
 }
 
 /// Counts bytes presented by a body operation before parser dispatch.
-fn body_input_bytes(capture: BodyCapture<'_>, content_type: Option<&HeaderValue>) -> usize {
-    capture
-        .bytes()
-        .len()
-        .saturating_add(content_type.map_or(0, |value| value.as_bytes().len()))
+fn admit_body_input(session: &mut RedactionSession, capture: BodyCapture<'_>, content_type_len: Option<usize>) -> bool {
+    let content_type_len = content_type_len.unwrap_or(0);
+    let inspectable = capture.bytes().len().saturating_add(content_type_len);
+    let total = capture
+        .total_len()
+        .map(|length| length.saturating_add(content_type_len));
+    session.admit_source_input(total, inspectable)
 }

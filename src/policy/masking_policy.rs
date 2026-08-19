@@ -117,6 +117,7 @@ impl MaskingPolicy {
     #[must_use]
     #[inline(always)]
     #[cfg(any(feature = "json", feature = "http"))]
+    #[cfg(feature = "http")]
     pub(crate) fn mask_bounded<'a>(&self, level: Sensitivity, value: &'a str, max_bytes: usize) -> Cow<'a, str> {
         self.for_level(level).mask_bounded(value, max_bytes)
     }
