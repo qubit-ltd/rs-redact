@@ -8,9 +8,9 @@
 //! Redaction adapters for process argument vectors.
 
 mod argv_item;
-mod argv_redaction_session;
+mod argv_redaction_writer;
 pub(crate) mod argv_redactor;
 mod pending_field;
 
 pub use argv_item::ArgvItem;
-pub use argv_redaction_session::ArgvRedactionSession;
+pub use argv_redaction_writer::ArgvRedactionWriter;

@@ -9,17 +9,13 @@
 // qubit-style: allow multiple-public-types
 
 use std::ffi::OsStr;
-use std::fmt;
-use std::fmt::Write;
 use std::sync::Arc;
 use std::sync::PoisonError;
 
-use crate::RedactionCompletion;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
 use crate::domain::Redact;
 use crate::facade::RedactionOutput;
-use crate::policy::ResolvedField;
 
 /// Applies one immutable policy to scalar values and string maps.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -263,102 +259,6 @@ impl Redactor {
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
-    }
-}
-
-/// Converts log-safe fragment text and completion into the shared carrier.
-///
-/// # Parameters
-///
-/// * `text` - Log-safe fragment text, borrowed or owned.
-/// * `completion` - Completion established by session admission and rendering.
-///
-/// # Returns
-///
-/// An owned output preserving complete, non-empty truncated, and empty
-/// exhausted invariants.
-pub(crate) fn redaction_output(text: crate::RedactedText, completion: RedactionCompletion) -> RedactionOutput {
-    match completion {
-        RedactionCompletion::Complete => RedactionOutput::complete(text),
-        RedactionCompletion::Truncated => RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::empty),
-        RedactionCompletion::Exhausted => RedactionOutput::new(
-            text,
-            crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached),
-        ),
-    }
-}
-
-/// Resolves and renders one admitted field into its final bounded log text.
-///
-/// The limit applies to the final escaped representation, not to the
-/// intermediate masked value.  In particular, a masking policy may retain a
-/// control character that expands during log escaping.  Rendering directly to
-/// [`BoundedFieldWriter`] keeps that expansion within the transaction budget
-/// and avoids constructing an unbounded intermediate string.
-#[must_use]
-pub(crate) fn redact_field_text_for_output(
-    policy: &RedactionPolicy,
-    field: &str,
-    value: &str,
-    max_output_bytes: usize,
-) -> (crate::RedactedText, RedactionCompletion) {
-    let mut writer = BoundedFieldWriter::new(max_output_bytes);
-    let result = match policy.resolve_field(field) {
-        ResolvedField::Sensitive { sensitivity } => {
-            policy.masking().for_level(sensitivity).write_masked(value, &mut writer)
-        }
-        ResolvedField::PassThrough => writer.write_str(value),
-    };
-    if result.is_err() || writer.overflowed() {
-        return (
-            crate::RedactedText::from_escaped(String::new()),
-            RedactionCompletion::Exhausted,
-        );
-    }
-    (
-        crate::RedactedText::from_escaped(writer.finish()),
-        RedactionCompletion::Complete,
-    )
-}
-
-/// Streams already-masked field text through log escaping with a hard final
-/// byte ceiling.
-struct BoundedFieldWriter {
-    output: String,
-    max_output_bytes: usize,
-    overflowed: bool,
-}
-
-impl BoundedFieldWriter {
-    fn new(max_output_bytes: usize) -> Self {
-        Self {
-            output: String::new(),
-            max_output_bytes,
-            overflowed: false,
-        }
-    }
-
-    const fn overflowed(&self) -> bool {
-        self.overflowed
-    }
-
-    fn finish(self) -> String {
-        self.output
-    }
-}
-
-impl fmt::Write for BoundedFieldWriter {
-    fn write_str(&mut self, value: &str) -> fmt::Result {
-        for character in value.chars() {
-            let mut encoded = [0_u8; 12];
-            let piece = crate::output::log_escape::encode_log_safe_character(character, &mut encoded)?;
-            if self.output.len().saturating_add(piece.len()) > self.max_output_bytes {
-                self.overflowed = true;
-                return Err(fmt::Error);
-            }
-            self.output.push_str(piece);
-        }
-        Ok(())
     }
 }
 

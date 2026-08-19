@@ -20,11 +20,11 @@ use crate::RedactionHandle;
 use crate::RedactionSession;
 
 /// Feature-gated HTTP operations sharing one mutable diagnostic session.
-pub struct HttpRedactionSession<'session> {
+pub struct HttpRedactionWriter<'session> {
     pub(super) session: &'session mut RedactionSession,
 }
 
-impl<'session> HttpRedactionSession<'session> {
+impl<'session> HttpRedactionWriter<'session> {
     /// Creates an HTTP facade borrowing a parent session.
     pub(crate) const fn new(session: &'session mut RedactionSession) -> Self {
         Self { session }
@@ -101,7 +101,7 @@ impl<'session> HttpRedactionSession<'session> {
     }
 }
 
-impl<'session> HttpRedactionSession<'session> {
+impl<'session> HttpRedactionWriter<'session> {
     /// Parses and redacts one URL string.
     #[must_use]
     fn redact_url_str_direct(&mut self, text: &str) -> super::http_redactor::HttpRendered {

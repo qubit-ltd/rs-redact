@@ -8,6 +8,8 @@
 //! Mutable accounting for one bounded diagnostic redaction event.
 
 use std::ffi::OsStr;
+use std::fmt;
+use std::fmt::Write;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
@@ -20,16 +22,15 @@ use crate::RedactionCompletion;
 use crate::RedactionHandle;
 use crate::domain::Redact;
 use crate::facade::RedactionOutput;
-use crate::facade::redactor::redact_field_text_for_output;
-use crate::facade::redactor::redaction_output;
-use crate::formats::argv::ArgvRedactionSession;
-use crate::formats::env::EnvRedactionSession;
+use crate::formats::argv::ArgvRedactionWriter;
+use crate::formats::env::EnvRedactionWriter;
 #[cfg(feature = "http")]
-use crate::formats::http::HttpRedactionSession;
+use crate::formats::http::HttpRedactionWriter;
 #[cfg(feature = "json")]
-use crate::formats::json::JsonRedactionSession;
-use crate::formats::process::ProcessRedactionSession;
+use crate::formats::json::JsonRedactionWriter;
+use crate::formats::process::ProcessRedactionWriter;
 use crate::policy::RedactionPolicy;
+use crate::policy::ResolvedField;
 
 /// Allocates transaction identities across every session in this process.
 ///
@@ -157,13 +158,13 @@ impl RedactionSession {
     /// Runs an argv adapter while retaining the session borrow.
     pub fn argv<F>(&mut self, configure: F) -> &mut Self
     where
-        F: for<'session> FnOnce(&mut ArgvRedactionSession<'session>),
+        F: for<'session> FnOnce(&mut ArgvRedactionWriter<'session>),
     {
         if self.is_output_exhausted() {
             return self;
         }
         self.run_adapter(|session| {
-            let mut adapter = ArgvRedactionSession::new(session);
+            let mut adapter = ArgvRedactionWriter::new(session);
             configure(&mut adapter);
         });
         self
@@ -179,19 +180,19 @@ impl RedactionSession {
         if self.is_output_exhausted() {
             return self.stage_exhausted_handle();
         }
-        self.run_handle(|session| ArgvRedactionSession::new(session).redact_items(items))
+        self.run_handle(|session| ArgvRedactionWriter::new(session).redact_items(items))
     }
 
     /// Runs an environment adapter while retaining the session borrow.
     pub fn env<F>(&mut self, configure: F) -> &mut Self
     where
-        F: for<'session> FnOnce(&mut EnvRedactionSession<'session>),
+        F: for<'session> FnOnce(&mut EnvRedactionWriter<'session>),
     {
         if self.is_output_exhausted() {
             return self;
         }
         self.run_adapter(|session| {
-            let mut adapter = EnvRedactionSession::new(session);
+            let mut adapter = EnvRedactionWriter::new(session);
             configure(&mut adapter);
         });
         self
@@ -203,7 +204,7 @@ impl RedactionSession {
         if self.is_output_exhausted() {
             return self.stage_exhausted_handle();
         }
-        self.run_handle(|session| EnvRedactionSession::new(session).redact_pair(name, value))
+        self.run_handle(|session| EnvRedactionWriter::new(session).redact_pair(name, value))
     }
 
     /// Redacts environment assignments as one individually resolvable item.
@@ -216,20 +217,20 @@ impl RedactionSession {
         if self.is_output_exhausted() {
             return self.stage_exhausted_handle();
         }
-        self.run_handle(|session| EnvRedactionSession::new(session).redact_os_pairs(pairs))
+        self.run_handle(|session| EnvRedactionWriter::new(session).redact_os_pairs(pairs))
     }
 
     /// Runs a process-command adapter while retaining the session borrow.
     #[must_use]
     pub fn process<F>(&mut self, configure: F) -> &mut Self
     where
-        F: for<'session> FnOnce(&mut ProcessRedactionSession<'session>),
+        F: for<'session> FnOnce(&mut ProcessRedactionWriter<'session>),
     {
         if self.is_output_exhausted() {
             return self;
         }
         self.run_adapter(|session| {
-            let mut adapter = ProcessRedactionSession::new(session);
+            let mut adapter = ProcessRedactionWriter::new(session);
             configure(&mut adapter);
         });
         self
@@ -252,20 +253,20 @@ impl RedactionSession {
         if self.is_output_exhausted() {
             return self.stage_exhausted_handle();
         }
-        self.run_handle(|session| ProcessRedactionSession::new(session).redact_command(program, arguments, variables))
+        self.run_handle(|session| ProcessRedactionWriter::new(session).redact_command(program, arguments, variables))
     }
 
     /// Runs an HTTP adapter while retaining the session borrow.
     #[cfg(feature = "http")]
     pub fn http<F>(&mut self, configure: F) -> &mut Self
     where
-        F: for<'session> FnOnce(&mut HttpRedactionSession<'session>),
+        F: for<'session> FnOnce(&mut HttpRedactionWriter<'session>),
     {
         if self.is_output_exhausted() {
             return self;
         }
         self.run_adapter(|session| {
-            let mut adapter = HttpRedactionSession::new(session);
+            let mut adapter = HttpRedactionWriter::new(session);
             configure(&mut adapter);
         });
         self
@@ -278,7 +279,7 @@ impl RedactionSession {
         if self.is_output_exhausted() {
             return self.stage_exhausted_handle();
         }
-        self.run_handle(|session| HttpRedactionSession::new(session).redact_url(value))
+        self.run_handle(|session| HttpRedactionWriter::new(session).redact_url(value))
     }
 
     /// Redacts an HTTP header collection as an individually resolvable item.
@@ -288,7 +289,7 @@ impl RedactionSession {
         if self.is_output_exhausted() {
             return self.stage_exhausted_handle();
         }
-        self.run_handle(|session| HttpRedactionSession::new(session).redact_headers(headers))
+        self.run_handle(|session| HttpRedactionWriter::new(session).redact_headers(headers))
     }
 
     /// Redacts one captured HTTP body as an individually resolvable item.
@@ -302,20 +303,20 @@ impl RedactionSession {
         if self.is_output_exhausted() {
             return self.stage_exhausted_handle();
         }
-        self.run_handle(|session| HttpRedactionSession::new(session).redact_body(capture, content_type))
+        self.run_handle(|session| HttpRedactionWriter::new(session).redact_body(capture, content_type))
     }
 
     /// Runs a JSON adapter while retaining the session borrow.
     #[cfg(feature = "json")]
     pub fn json<F>(&mut self, configure: F) -> &mut Self
     where
-        F: for<'session> FnOnce(&mut JsonRedactionSession<'session>),
+        F: for<'session> FnOnce(&mut JsonRedactionWriter<'session>),
     {
         if self.is_output_exhausted() {
             return self;
         }
         self.run_adapter(|session| {
-            let mut adapter = JsonRedactionSession::new(session);
+            let mut adapter = JsonRedactionWriter::new(session);
             configure(&mut adapter);
         });
         self
@@ -328,20 +329,20 @@ impl RedactionSession {
         if self.is_output_exhausted() {
             return self.stage_exhausted_handle();
         }
-        self.run_handle(|session| crate::formats::json::JsonRedactionSession::new(session).redact_text(text))
+        self.run_handle(|session| crate::formats::json::JsonRedactionWriter::new(session).redact_text(text))
     }
 
     /// Runs a URI adapter while retaining the session borrow.
     #[cfg(feature = "uri")]
     pub fn uri<F>(&mut self, configure: F) -> &mut Self
     where
-        F: for<'session> FnOnce(&mut crate::formats::uri::UriRedactionSession<'session>),
+        F: for<'session> FnOnce(&mut crate::formats::uri::UriRedactionWriter<'session>),
     {
         if self.is_output_exhausted() {
             return self;
         }
         self.run_adapter(|session| {
-            let mut adapter = crate::formats::uri::UriRedactionSession::new(session);
+            let mut adapter = crate::formats::uri::UriRedactionWriter::new(session);
             configure(&mut adapter);
         });
         self
@@ -354,7 +355,7 @@ impl RedactionSession {
         if self.is_output_exhausted() {
             return self.stage_exhausted_handle();
         }
-        self.run_handle(|session| crate::formats::uri::UriRedactionSession::new(session).redact_uri(input))
+        self.run_handle(|session| crate::formats::uri::UriRedactionWriter::new(session).redact_uri(input))
     }
 
     /// Begins a domain value for the structured writer without exposing an
@@ -842,5 +843,88 @@ impl RedactionSession {
         let policy = self.policy();
         let (redacted, completion) = redact_field_text_for_output(policy, field, value, self.remaining_output_bytes());
         (redacted, completion)
+    }
+}
+
+/// Converts runtime-owned safe text and completion into the transaction's
+/// internal output carrier.
+fn redaction_output(text: crate::RedactedText, completion: RedactionCompletion) -> crate::RedactionOutput {
+    match completion {
+        RedactionCompletion::Complete => crate::RedactionOutput::complete(text),
+        RedactionCompletion::Truncated => {
+            crate::RedactionOutput::truncated(text).unwrap_or_else(crate::RedactionOutput::empty)
+        }
+        RedactionCompletion::Exhausted => crate::RedactionOutput::new(
+            text,
+            crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached),
+        ),
+    }
+}
+
+/// Resolves and renders one admitted field through the transaction's final
+/// escaped-output ceiling.
+fn redact_field_text_for_output(
+    policy: &RedactionPolicy,
+    field: &str,
+    value: &str,
+    max_output_bytes: usize,
+) -> (crate::RedactedText, RedactionCompletion) {
+    let mut writer = BoundedFieldWriter::new(max_output_bytes);
+    let result = match policy.resolve_field(field) {
+        ResolvedField::Sensitive { sensitivity } => {
+            policy.masking().for_level(sensitivity).write_masked(value, &mut writer)
+        }
+        ResolvedField::PassThrough => writer.write_str(value),
+    };
+    if result.is_err() || writer.overflowed() {
+        return (
+            crate::RedactedText::from_escaped(String::new()),
+            RedactionCompletion::Exhausted,
+        );
+    }
+    (
+        crate::RedactedText::from_escaped(writer.finish()),
+        RedactionCompletion::Complete,
+    )
+}
+
+/// Streams masked field text through log escaping under the transaction's
+/// final byte ceiling.
+struct BoundedFieldWriter {
+    output: String,
+    max_output_bytes: usize,
+    overflowed: bool,
+}
+
+impl BoundedFieldWriter {
+    fn new(max_output_bytes: usize) -> Self {
+        Self {
+            output: String::new(),
+            max_output_bytes,
+            overflowed: false,
+        }
+    }
+
+    const fn overflowed(&self) -> bool {
+        self.overflowed
+    }
+
+    fn finish(self) -> String {
+        self.output
+    }
+}
+
+impl fmt::Write for BoundedFieldWriter {
+    fn write_str(&mut self, value: &str) -> fmt::Result {
+        for character in value.chars() {
+            let mut encoded = [0_u8; 12];
+            let piece = crate::output::log_escape::encode_log_safe_character(character, &mut encoded)?;
+            if self.output.len().saturating_add(piece.len()) > self.max_output_bytes {
+                self.overflowed = true;
+                return Err(fmt::Error);
+            }
+            self.output.push_str(piece);
+        }
+        Ok(())
     }
 }

@@ -15,7 +15,7 @@ use crate::Sensitivity;
 /// A borrowed argument with optional authoritative sensitivity metadata.
 ///
 /// Plain items may be inspected by
-/// [`super::ArgvRedactionSession::heuristic_items`]. Sensitive items are always
+/// [`super::ArgvRedactionWriter::heuristic_items`]. Sensitive items are always
 /// masked at their explicit level and never interpreted as command-line syntax.
 ///
 /// # Type Parameters
