@@ -206,7 +206,7 @@ pub struct RedactionSummary {
 impl RedactionSummary {
     /// Merges completion and reasons from two operations.
     #[must_use]
-    pub const fn merge(self, other: Self) -> Self {
+    pub(crate) const fn merge(self, other: Self) -> Self {
         let completion = match (self.completion, other.completion) {
             (RedactionCompletion::Exhausted, _) | (_, RedactionCompletion::Exhausted) => RedactionCompletion::Exhausted,
             (RedactionCompletion::Truncated, _) | (_, RedactionCompletion::Truncated) => RedactionCompletion::Truncated,
@@ -221,7 +221,7 @@ impl RedactionSummary {
 
     /// Creates a complete summary.
     #[must_use]
-    pub const fn complete() -> Self {
+    pub(crate) const fn complete() -> Self {
         Self {
             completion: RedactionCompletion::Complete,
             reasons: RedactionReasons::empty(),
@@ -242,7 +242,7 @@ impl RedactionSummary {
 
     /// Creates a degraded summary.
     #[must_use]
-    pub const fn truncated(reason: RedactionReason) -> Self {
+    pub(crate) const fn truncated(reason: RedactionReason) -> Self {
         Self {
             completion: RedactionCompletion::Truncated,
             reasons: RedactionReasons::empty().with(reason),
@@ -253,7 +253,7 @@ impl RedactionSummary {
     /// Creates an empty degraded result.
     #[must_use]
     #[doc(hidden)]
-    pub const fn empty() -> Self {
+    pub(crate) const fn empty() -> Self {
         Self {
             completion: RedactionCompletion::Truncated,
             reasons: RedactionReasons::empty().with(RedactionReason::TraversalLimitReached),
@@ -282,7 +282,7 @@ impl RedactionSummary {
 
     /// Creates a summary for a transaction that exhausted safe output capacity.
     #[must_use]
-    pub const fn exhausted(reason: RedactionReason) -> Self {
+    pub(crate) const fn exhausted(reason: RedactionReason) -> Self {
         Self {
             completion: RedactionCompletion::Exhausted,
             reasons: RedactionReasons::empty().with(reason),
