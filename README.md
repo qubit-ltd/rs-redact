@@ -1,58 +1,71 @@
 # qubit-redact
 
-Rule-driven redaction for scalar fields, command arguments, environment pairs,
-JSON, HTTP, URI, and Rust domain values.
+`qubit-redact` redacts scalar fields, Rust domain values, argv, environment,
+process commands, JSON, HTTP, and URI diagnostics under one immutable policy.
 
-## Direct operations
+## One operation
 
-Direct adapters are independent operations and return owned results. They do
-not share input/output byte counters:
+Each `Redactor` convenience method creates one transaction and returns a
+`RedactionOutput`.
 
 ```rust
 use qubit_redact::Redactor;
 
-let redactor = Redactor::standard();
-let output = redactor.redact_field("password", "secret");
-assert_eq!(output.as_str(), "<redacted>");
-
-let url = redactor.http().redact_url_str("https://example.test/?token=secret");
-assert!(!url.as_str().contains("secret"));
+let output = Redactor::strict().redact_field("password", "raw-secret");
+assert!(!output.text().as_str().contains("raw-secret"));
 ```
 
-## Atomic sessions
+## One diagnostic transaction
 
-Use a session only to publish several named adapter results atomically. Each
-staged value is prepared independently and `finish` either publishes the whole
-batch or rejects it:
+Use `RedactionSession` when several fragments must share one input, output, and
+structural budget. Aggregate operations return the session for chaining; only
+`finish()` publishes text and resets the session for its next transaction.
 
 ```rust
-use std::ffi::OsStr;
-use qubit_redact::formats::argv::ArgvItem;
 use qubit_redact::Redactor;
 
-let redactor = Redactor::standard();
-let mut session = redactor.session();
-session.argv(|argv| { argv.redact_items("argv", [ArgvItem::plain(OsStr::new("client"))]); });
-let committed = session.finish().expect("the batch is valid");
-assert!(committed.get("argv").is_some());
+let mut session = Redactor::strict().session();
+session
+    .literal("login failed for ")
+    .field("user", "Ada")
+    .literal(", password: ")
+    .field("password", "raw-secret");
+let output = session.finish();
+assert!(!output.text().as_str().contains("raw-secret"));
 ```
 
-`RedactionOutput` exposes `text()`, `summary()`, `into_text()`, and
-`into_parts()`. Completion is either `Complete` or `Truncated`; summaries retain
-structural, parsing, and source-capture reasons.
+For separately consumed results, request a `RedactionHandle` and resolve it
+only from the output returned by the same completed transaction:
 
-## Domain and derive
+```rust
+use qubit_redact::Redactor;
 
-Implement `Redact` or derive it with `qubit-redact-derive`. Nested values are
-rendered through the writer-owned traversal context, so every top-level view has
-an independent structural budget and cannot leak raw sensitive values.
+let mut session = Redactor::strict().session();
+let password = session.redact_field("password", "raw-secret");
+let output = session.finish();
+assert!(!output.resolve(password)?.text().as_str().contains("raw-secret"));
+# Ok::<(), qubit_redact::RedactionHandleError>(())
+```
 
-## Safety model
+`literal` accepts only program-authored `&'static str` and still consumes the
+shared output budget. Dynamic text must pass through an appropriate redaction
+operation.
 
-Structural limits come from `qubit-budget`. JSON value limits are used for JSON
-decoding and traversal. HTTP `BodyCapture` reports source length and ingress
-truncation; it does not impose a policy-wide byte counter. Destination writers
-own any presentation ceiling explicitly.
+## Application default
+
+`Redactor::default()` is always the deterministic standard policy. Applications
+can install a complete snapshot for `Redact::redacted()` with
+`Redactor::replace_application_default`; existing redactors and sessions keep
+their own snapshots.
+
+## Domain values
+
+Implement `Redact` or use `qubit-redact-derive`. Fields without a
+`#[redact(...)]` annotation, and fields explicitly marked `skip`, are
+intentionally unredacted. Sensitive fields must therefore be annotated
+explicitly. `RedactionWriter::literal` accepts only program literals;
+`RedactionWriter::unredacted` is the explicit escape hatch for trusted dynamic
+content.
 
 ## License
 
