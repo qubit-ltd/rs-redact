@@ -15,7 +15,6 @@ use std::fmt::Write as _;
 use crate::RedactionSession;
 use crate::Sensitivity;
 use crate::domain::Redact;
-use crate::domain::RedactMapValue;
 
 /// Restricted writer for one redaction operation.
 pub struct RedactionWriter<'session> {
@@ -79,28 +78,11 @@ impl<'session> RedactionWriter<'session> {
         self.session.policy()
     }
 
-    pub(crate) fn begin_nested_value(&mut self) -> bool {
-        self.session.begin_domain_value()
-    }
-
-    pub(crate) fn finish_nested_value(&mut self) {
-        self.session.leave_domain_value();
-    }
-
-    pub(crate) fn admit_nested_collection_item(&mut self) -> bool {
-        self.session.admit_domain_collection_item()
-    }
-
     pub(crate) fn trim_trailing_separator(&mut self) {
         if self.output.ends_with(", ") {
             self.output.truncate(self.output.len() - 2);
             self.output_bytes = self.output_bytes.saturating_sub(2);
         }
-    }
-
-    #[inline]
-    pub(crate) const fn is_truncated(&self) -> bool {
-        self.field_truncated
     }
 
     /// Redacts JSON text through the session that owns this writer.
@@ -506,26 +488,6 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         self
     }
 
-    /// Writes a text-keyed map through the current session.
-    pub fn map<M, K, V>(&mut self, name: &str, value: &M) -> &mut Self
-    where
-        M: RedactMapValue<K, V> + ?Sized,
-        K: ?Sized,
-        V: ?Sized,
-    {
-        if !self.admit_field() {
-            self.writer.truncate_without_output_limit();
-            return self;
-        }
-        self.write_prefix(name);
-        if !self.writer.can_write() {
-            return self;
-        }
-        value.write_redacted_map_to(self.writer);
-        self.writer.write_fragment(", ");
-        self
-    }
-
     /// Returns whether the next field may be inspected.
     #[must_use]
     fn admit_field(&mut self) -> bool {
@@ -615,8 +577,6 @@ fn encoded_log_safe_len(character: char) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use super::RedactionWriter;
     use crate::Redact;
     use crate::Redactor;
@@ -631,29 +591,23 @@ mod tests {
         }
     }
 
-    struct Container {
-        values: BTreeMap<String, String>,
-    }
+    struct Container;
 
     impl Redact for Container {
         fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
             writer.record("Container", |fields| {
                 fields.nested("nested", &Nested);
-                fields.map("values", &self.values);
             });
         }
     }
 
-    /// Nested values and maps must render through the borrowed writer instead
-    /// of materializing a legacy lazy redaction result with its own path.
+    /// Nested values render through the borrowed writer instead of
+    /// materializing a legacy lazy redaction result with its own path.
     #[test]
-    fn nested_and_map_use_the_active_writer_transaction() {
-        let mut values = BTreeMap::new();
-        values.insert("name".to_owned(), "Ada".to_owned());
-        let output = Redactor::standard().redact(&Container { values });
+    fn nested_values_use_the_active_writer_transaction() {
+        let output = Redactor::standard().redact(&Container);
 
         assert!(output.text().as_str().contains("Nested { id: 7 }"));
-        assert!(output.text().as_str().contains("values: {\"name\": \"Ada\"}"));
         assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());
     }
 

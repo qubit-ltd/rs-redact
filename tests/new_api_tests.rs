@@ -12,7 +12,6 @@ use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
 use qubit_redact::RedactionReasons;
-use qubit_redact::RedactionSummary;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
@@ -112,10 +111,6 @@ fn application_default_replacement_affects_new_trait_entries_only() {
 
 #[test]
 fn summaries_keep_completion_reason_and_usage_machine_readable() {
-    let truncated = RedactionSummary::truncated(RedactionReason::TraversalLimitReached);
-    assert_eq!(truncated.completion(), RedactionCompletion::Truncated);
-    assert!(truncated.reasons().contains(RedactionReason::TraversalLimitReached));
-
     let output = Redactor::standard().redact(&Account {
         name: "Ada".to_owned(),
         _password: "raw-password".to_owned(),
@@ -149,8 +144,8 @@ fn redacted_text_into_string_returns_the_final_safe_text() {
     assert_eq!(text.into_string(), "<redacted>");
 }
 
-/// Verifies summary states and reason sets remain directly inspectable without
-/// requiring callers to parse rendered diagnostic text.
+/// Verifies reason sets remain directly inspectable without requiring callers
+/// to parse rendered diagnostic text.
 #[test]
 fn summary_completion_reason_and_empty_usage_values_are_publicly_observable() {
     let reasons = RedactionReasons::empty()
@@ -159,31 +154,6 @@ fn summary_completion_reason_and_empty_usage_values_are_publicly_observable() {
     assert!(reasons.contains(RedactionReason::DepthLimitReached));
     assert!(reasons.contains(RedactionReason::InvalidJson));
     assert!(!reasons.contains(RedactionReason::OutputLimitReached));
-
-    let complete = RedactionSummary::complete();
-    assert_eq!(complete.completion(), RedactionCompletion::Complete);
-    assert_eq!(complete.reasons(), RedactionReasons::empty());
-    assert_eq!(complete.usage().presented_input_bytes(), 0);
-    assert_eq!(complete.usage().inspected_input_bytes(), 0);
-    assert_eq!(complete.usage().output_bytes(), 0);
-    assert_eq!(complete.usage().visited_nodes(), 0);
-    assert_eq!(complete.usage().visited_collection_items(), 0);
-    assert_eq!(complete.usage().max_depth(), 0);
-    assert_eq!(complete.usage().omitted_input_bytes(), Some(0));
-
-    let exhausted = RedactionSummary::exhausted(RedactionReason::OutputLimitReached);
-    assert_eq!(exhausted.completion(), RedactionCompletion::Exhausted);
-    assert!(exhausted.reasons().contains(RedactionReason::OutputLimitReached));
-}
-
-/// Verifies the empty diagnostic summary remains a degraded, zero-use result.
-#[test]
-fn empty_summary_has_truncated_completion_and_no_recorded_usage() {
-    let summary = RedactionSummary::empty();
-
-    assert_eq!(summary.completion(), RedactionCompletion::Truncated);
-    assert!(summary.reasons().contains(RedactionReason::TraversalLimitReached));
-    assert_eq!(summary.usage().output_bytes(), 0);
 }
 
 #[cfg(feature = "http")]

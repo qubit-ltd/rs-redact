@@ -8,10 +8,6 @@
 //! Mirrored integration tests for domain-object redaction APIs.
 
 mod internal;
-mod redact_map_serialize_tests;
 mod redact_map_value_mut_tests;
-mod redact_map_value_tests;
-mod redact_serialize_tests;
 mod redact_tests;
 mod redact_value_mut_tests;
-mod redact_value_tests;

@@ -31,15 +31,29 @@
 //! be passed to a redaction operation. Derived fields that lack
 //! `#[redact(...)]`, or explicitly use `skip`, are intentionally unredacted;
 //! every sensitive field must therefore be annotated.
+//!
+//! Transaction summaries are observations produced exclusively by a completed
+//! transaction; callers cannot fabricate one outside the runtime.
+//!
+//! ```compile_fail
+//! use qubit_redact::RedactionSummary;
+//!
+//! let _ = RedactionSummary::complete();
+//! ```
+//!
+//! Legacy domain-level rendering traits do not provide an alternate output
+//! path. Domain values must be written through [`Redact`] and a
+//! [`RedactionSession`].
+//!
+//! ```compile_fail
+//! use qubit_redact::domain::RedactValue;
+//! ```
 
 extern crate self as qubit_redact;
 
 pub mod domain;
 mod facade;
 pub mod formats;
-#[cfg(feature = "serde")]
-#[doc(hidden)]
-pub mod internal;
 mod json_feature_gate;
 mod limits;
 mod output;

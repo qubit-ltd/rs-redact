@@ -8,7 +8,6 @@
 //! Public transaction-session contract tests.
 
 use std::cell::Cell;
-use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::fmt;
 use std::panic::AssertUnwindSafe;
@@ -143,12 +142,9 @@ impl Redact for WriterShapeLeaf {
     }
 }
 
-/// A hand-written domain value that uses tuple, nested-list, nested-value,
-/// and map operations.  Generated implementations depend on each of these
-/// writer entry points sharing their parent transaction.
-struct WriterShapesValue {
-    labels: BTreeMap<String, String>,
-}
+/// A hand-written domain value that uses nested-list and nested-value
+/// operations through its parent transaction.
+struct WriterShapesValue;
 
 impl Redact for WriterShapesValue {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
@@ -157,8 +153,7 @@ impl Redact for WriterShapesValue {
                 .list(|items| {
                     items.nested_item(&WriterShapeLeaf).nested_item(&WriterShapeLeaf);
                 })
-                .nested("leaf", &WriterShapeLeaf)
-                .map("labels", &self.labels);
+                .nested("leaf", &WriterShapeLeaf);
         });
     }
 }
@@ -764,15 +759,10 @@ fn test_writer_low_sensitivity_evaluates_and_masks_the_source() {
 }
 
 /// Verifies every structured-writer shape remains inside the single parent
-/// transaction and that map entries still receive runtime field protection.
+/// transaction.
 #[test]
 fn test_writer_structured_shapes_share_the_parent_transaction() {
-    let shapes = WriterShapesValue {
-        labels: BTreeMap::from([
-            ("label".to_owned(), "visible".to_owned()),
-            ("password".to_owned(), "raw-secret".to_owned()),
-        ]),
-    };
+    let shapes = WriterShapesValue;
     let mut session = Redactor::standard().session();
 
     let output = session.value(&shapes).value(&WriterTupleValue).finish();
@@ -780,8 +770,6 @@ fn test_writer_structured_shapes_share_the_parent_transaction() {
     assert!(output.text().as_str().contains("[Leaf, Leaf]"));
     assert!(output.text().as_str().contains("leaf: Leaf"));
     assert!(output.text().as_str().contains("Pair(Leaf, Leaf)"));
-    assert!(output.text().as_str().contains("\"label\": \"visible\""));
-    assert!(!output.text().as_str().contains("raw-secret"));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
     assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());
 }
@@ -882,9 +870,7 @@ fn test_each_handle_keeps_a_repeated_traversal_limit_reason() {
 /// greatest depth reached by an earlier operation in the transaction.
 #[test]
 fn test_handle_max_depth_is_local_to_its_operation() {
-    let shapes = WriterShapesValue {
-        labels: BTreeMap::new(),
-    };
+    let shapes = WriterShapesValue;
     let mut session = Redactor::standard().session();
 
     let _ = session.value(&shapes);
