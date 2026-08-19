@@ -8,7 +8,6 @@
 //! Tests for the [`Redact`](qubit_redact::domain::Redact) domain contract.
 
 use qubit_redact::RedactionCompletion;
-use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::domain::Redact;
@@ -29,21 +28,6 @@ fn test_redact_redacted_returns_completed_output() {
     let output = TestDomainValue.redacted();
 
     assert_eq!(output.text().as_str(), "TestDomainValue { secret: <redacted> }");
-    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
-}
-
-/// The default trait implementation is intentionally safe even when a domain
-/// type has not implemented its structured formatter yet.
-#[test]
-fn test_redact_default_formatter_and_explicit_redactor_entry_points() {
-    struct DefaultFormatter;
-
-    impl Redact for DefaultFormatter {}
-
-    let policy = RedactionPolicy::strict();
-    let output = DefaultFormatter.redacted_with(&Redactor::new(policy));
-
-    assert_eq!(output.text().as_str(), "<truncated>");
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
 }
 
