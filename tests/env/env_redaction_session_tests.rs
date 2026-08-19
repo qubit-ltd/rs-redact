@@ -9,38 +9,119 @@
 use std::ffi::OsStr;
 
 use qubit_redact::RedactionCompletion;
+use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
-use qubit_redact::formats::env::RedactedEnv;
-use qubit_redact::formats::env::RedactedEnvPair;
 
 #[test]
-fn session_stages_direct_environment_results() {
-    fn assert_result_traits<T: Clone + std::fmt::Debug + Eq>() {}
-    assert_result_traits::<RedactedEnvPair>();
-    assert_result_traits::<RedactedEnv>();
-    let redactor = Redactor::default();
+fn session_environment_operations_share_aggregate_and_handle_transaction_output() {
+    let redactor = Redactor::standard();
     let mut session = redactor.session();
-    let _ = session.env(|env| {
-        env.redact_pair("pair", "MODE", "debug");
-        env.redact_os_pairs_as("list", [(OsStr::new("MODE"), OsStr::new("debug"))]);
+    session.env(|env| {
+        env.pair("MODE", "debug");
+        env.os_pairs([(OsStr::new("REGION"), OsStr::new("ap-east-1"))]);
     });
-    let output = session.finish().expect("session should commit");
-    assert_eq!(output.get("pair").unwrap().text().as_str(), "MODE=debug");
-    assert_eq!(output.get("list").unwrap().text().as_str(), r#"["MODE=debug"]"#);
+    let password = session.redact_env("PASSWORD", "raw-secret");
+    let output = session.finish();
+
+    assert_eq!(output.text().as_str(), r#"MODE=debug["REGION=ap-east-1"]"#,);
     assert_eq!(
-        output.get("pair").unwrap().summary().completion(),
+        output
+            .resolve(password)
+            .expect("handle belongs to the committed transaction")
+            .text()
+            .as_str(),
+        "PASSWORD=<redacted>",
+    );
+    assert_eq!(
+        output
+            .resolve(password)
+            .expect("handle belongs to the committed transaction")
+            .summary()
+            .completion(),
         RedactionCompletion::Complete
     );
 }
 
 #[test]
-fn duplicate_environment_key_fails_before_rendering() {
-    let redactor = Redactor::default();
-    let mut session = redactor.session();
-    let _ = session.env(|env| {
-        env.redact_pair("same", "MODE", "one");
-        env.redact_pair("same", "MODE", "two");
+fn session_environment_pair_and_handle_share_one_output_budget() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_output_bytes(10);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
+
+    session.env(|env| {
+        env.pair("MODE", "debug");
     });
-    assert!(session.finish().is_err());
-    assert!(session.finish().unwrap().results().is_empty());
+    let password = session.redact_env("PASSWORD", "raw-secret");
+    let output = session.finish();
+
+    assert_eq!(output.text().as_str(), "MODE=debug");
+    let password = output
+        .resolve(password)
+        .expect("handle belongs to the committed transaction");
+    assert!(password.text().as_str().is_empty());
+    assert_eq!(password.summary().completion(), RedactionCompletion::Exhausted);
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert_eq!(output.summary().usage().output_bytes(), 10);
+}
+
+#[test]
+fn session_environment_os_pair_handle_publishes_after_finish() {
+    let mut session = Redactor::standard().session();
+    let handle = session.redact_env_pairs([
+        (OsStr::new("REGION"), OsStr::new("ap-east-1")),
+        (OsStr::new("PASSWORD"), OsStr::new("raw-secret")),
+    ]);
+    let output = session.finish();
+
+    let item = output
+        .resolve(handle)
+        .expect("environment handle should publish after finish");
+    assert!(item.text().as_str().contains("REGION=ap-east-1"));
+    assert!(!item.text().as_str().contains("raw-secret"));
+}
+
+/// An explicit environment pair must use runtime classification in both the
+/// aggregate and staged-handle paths, without exposing the sensitive value.
+#[test]
+fn session_environment_aggregate_and_handle_mask_classified_value() {
+    let mut session = Redactor::strict().session();
+    session.env(|env| {
+        env.pair("PASSWORD", "aggregate-secret");
+    });
+    let handle = session.redact_env("PASSWORD", "handle-secret");
+    let output = session.finish();
+    let item = output.resolve(handle).expect("environment handle publishes");
+
+    assert!(!output.text().as_str().contains("aggregate-secret"));
+    assert!(!item.text().as_str().contains("handle-secret"));
+    assert_eq!(item.summary().completion(), RedactionCompletion::Complete);
+}
+
+/// Environment list traversal must fail closed at the common collection
+/// ledger, rather than partially rendering an admitted prefix independently.
+#[test]
+fn session_environment_list_handle_stops_at_collection_limit() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_collection_items(1);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
+    let handle = session.redact_env_pairs([
+        (OsStr::new("FIRST"), OsStr::new("visible")),
+        (OsStr::new("PASSWORD"), OsStr::new("must-not-be-rendered")),
+    ]);
+    let output = session.finish();
+    let item = output.resolve(handle).expect("truncated environment handle publishes");
+
+    assert!(item.text().as_str().is_empty());
+    assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
+    assert!(!item.text().as_str().contains("must-not-be-rendered"));
 }

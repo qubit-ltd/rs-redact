@@ -14,6 +14,10 @@ use crate::output::RedactionCompletion;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum RedactionReason {
+    /// The admitted input prefix reached the configured input-byte limit.
+    InputLimitReached,
+    /// The shared transaction output reached its configured byte limit.
+    OutputLimitReached,
     /// Structural traversal reached a configured limit.
     TraversalLimitReached,
     /// Maximum traversal depth was reached.
@@ -28,6 +32,138 @@ pub enum RedactionReason {
     InvalidContentType,
     /// Source content type is unsupported.
     UnsupportedContentType,
+}
+
+/// Measured resource use for one redaction transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RedactionUsage {
+    presented_input_bytes: usize,
+    inspected_input_bytes: usize,
+    output_bytes: usize,
+    visited_nodes: usize,
+    visited_collection_items: usize,
+    max_depth: usize,
+    omitted_input_bytes: Option<usize>,
+}
+
+impl RedactionUsage {
+    /// Creates an empty measurement for a newly started transaction.
+    #[must_use]
+    pub const fn empty() -> Self {
+        Self {
+            presented_input_bytes: 0,
+            inspected_input_bytes: 0,
+            output_bytes: 0,
+            visited_nodes: 0,
+            visited_collection_items: 0,
+            max_depth: 0,
+            omitted_input_bytes: Some(0),
+        }
+    }
+
+    /// Returns the bytes supplied by callers before input admission.
+    #[must_use]
+    pub const fn presented_input_bytes(self) -> usize {
+        self.presented_input_bytes
+    }
+
+    /// Returns the bytes the transaction actually inspected.
+    #[must_use]
+    pub const fn inspected_input_bytes(self) -> usize {
+        self.inspected_input_bytes
+    }
+
+    /// Returns the final escaped bytes retained by the transaction.
+    #[must_use]
+    pub const fn output_bytes(self) -> usize {
+        self.output_bytes
+    }
+
+    /// Returns the admitted domain or format nodes visited by the transaction.
+    #[must_use]
+    pub const fn visited_nodes(self) -> usize {
+        self.visited_nodes
+    }
+
+    /// Returns the admitted collection items visited by the transaction.
+    #[must_use]
+    pub const fn visited_collection_items(self) -> usize {
+        self.visited_collection_items
+    }
+
+    /// Returns the greatest active structural depth observed by the
+    /// transaction.
+    #[must_use]
+    pub const fn max_depth(self) -> usize {
+        self.max_depth
+    }
+
+    /// Returns omitted source bytes when the source length is known.
+    #[must_use]
+    pub const fn omitted_input_bytes(self) -> Option<usize> {
+        self.omitted_input_bytes
+    }
+
+    /// Adds bytes written to the final output buffer.
+    #[must_use]
+    pub(crate) const fn with_added_output_bytes(mut self, bytes: usize) -> Self {
+        self.output_bytes = self.output_bytes.saturating_add(bytes);
+        self
+    }
+
+    /// Records input supplied to and, when admitted, inspected by an adapter.
+    #[must_use]
+    pub(crate) const fn with_input(mut self, presented: usize, inspected: usize) -> Self {
+        self.presented_input_bytes = self.presented_input_bytes.saturating_add(presented);
+        self.inspected_input_bytes = self.inspected_input_bytes.saturating_add(inspected);
+        self.omitted_input_bytes = match self.omitted_input_bytes {
+            Some(omitted) => Some(omitted.saturating_add(presented.saturating_sub(inspected))),
+            None => None,
+        };
+        self
+    }
+
+    /// Merges two independently measured operation usages.
+    #[must_use]
+    const fn merge(self, other: Self) -> Self {
+        Self {
+            presented_input_bytes: self.presented_input_bytes.saturating_add(other.presented_input_bytes),
+            inspected_input_bytes: self.inspected_input_bytes.saturating_add(other.inspected_input_bytes),
+            output_bytes: self.output_bytes.saturating_add(other.output_bytes),
+            visited_nodes: self.visited_nodes.saturating_add(other.visited_nodes),
+            visited_collection_items: self
+                .visited_collection_items
+                .saturating_add(other.visited_collection_items),
+            max_depth: if self.max_depth > other.max_depth {
+                self.max_depth
+            } else {
+                other.max_depth
+            },
+            omitted_input_bytes: match (self.omitted_input_bytes, other.omitted_input_bytes) {
+                (Some(left), Some(right)) => Some(left.saturating_add(right)),
+                _ => None,
+            },
+        }
+    }
+
+    /// Returns usage charged after `before` within one transaction.
+    #[must_use]
+    const fn since(self, before: Self) -> Self {
+        Self {
+            presented_input_bytes: self.presented_input_bytes.saturating_sub(before.presented_input_bytes),
+            inspected_input_bytes: self.inspected_input_bytes.saturating_sub(before.inspected_input_bytes),
+            output_bytes: self.output_bytes.saturating_sub(before.output_bytes),
+            visited_nodes: self.visited_nodes.saturating_sub(before.visited_nodes),
+            visited_collection_items: self
+                .visited_collection_items
+                .saturating_sub(before.visited_collection_items),
+            max_depth: self.max_depth,
+            omitted_input_bytes: match (self.omitted_input_bytes, before.omitted_input_bytes) {
+                (Some(current), Some(previous)) => Some(current.saturating_sub(previous)),
+                _ => None,
+            },
+        }
+    }
 }
 
 /// Compact set of summary reasons.
@@ -65,6 +201,7 @@ impl RedactionReasons {
 pub struct RedactionSummary {
     completion: RedactionCompletion,
     reasons: RedactionReasons,
+    usage: RedactionUsage,
 }
 
 impl RedactionSummary {
@@ -72,12 +209,34 @@ impl RedactionSummary {
     #[must_use]
     pub const fn merge(self, other: Self) -> Self {
         let completion = match (self.completion, other.completion) {
+            (RedactionCompletion::Exhausted, _) | (_, RedactionCompletion::Exhausted) => RedactionCompletion::Exhausted,
             (RedactionCompletion::Truncated, _) | (_, RedactionCompletion::Truncated) => RedactionCompletion::Truncated,
             _ => RedactionCompletion::Complete,
         };
         Self {
             completion,
             reasons: self.reasons.union(other.reasons),
+            usage: self.usage.merge(other.usage),
+        }
+    }
+
+    /// Extracts the contribution made after `before` in the same transaction.
+    ///
+    /// This is used for an individually resolvable transaction item after a
+    /// domain writer has charged shared traversal state directly. The returned
+    /// summary must never be merged back into the transaction: its usage is
+    /// already included in `self`.
+    #[must_use]
+    pub(crate) const fn since(self, before: Self) -> Self {
+        let completion = match (before.completion, self.completion) {
+            (RedactionCompletion::Complete, completion) => completion,
+            (RedactionCompletion::Truncated, RedactionCompletion::Exhausted) => RedactionCompletion::Exhausted,
+            _ => RedactionCompletion::Complete,
+        };
+        Self {
+            completion,
+            reasons: RedactionReasons(self.reasons.0 & !before.reasons.0),
+            usage: self.usage.since(before.usage),
         }
     }
 
@@ -87,6 +246,18 @@ impl RedactionSummary {
         Self {
             completion: RedactionCompletion::Complete,
             reasons: RedactionReasons::empty(),
+            usage: RedactionUsage::empty(),
+        }
+    }
+
+    /// Creates a complete summary that records non-truncating provenance.
+    #[must_use]
+    #[cfg(any(feature = "json", feature = "http", feature = "uri"))]
+    pub(crate) const fn complete_with_reason(reason: RedactionReason) -> Self {
+        Self {
+            completion: RedactionCompletion::Complete,
+            reasons: RedactionReasons::empty().with(reason),
+            usage: RedactionUsage::empty(),
         }
     }
 
@@ -96,6 +267,7 @@ impl RedactionSummary {
         Self {
             completion: RedactionCompletion::Truncated,
             reasons: RedactionReasons::empty().with(reason),
+            usage: RedactionUsage::empty(),
         }
     }
 
@@ -106,6 +278,7 @@ impl RedactionSummary {
         Self {
             completion: RedactionCompletion::Truncated,
             reasons: RedactionReasons::empty().with(RedactionReason::TraversalLimitReached),
+            usage: RedactionUsage::empty(),
         }
     }
 
@@ -119,5 +292,55 @@ impl RedactionSummary {
     #[must_use]
     pub const fn reasons(self) -> RedactionReasons {
         self.reasons
+    }
+
+    /// Returns resource use measured by the operation that produced this
+    /// summary.
+    #[must_use]
+    pub const fn usage(self) -> RedactionUsage {
+        self.usage
+    }
+
+    /// Creates a summary for a transaction that exhausted safe output capacity.
+    #[must_use]
+    pub const fn exhausted(reason: RedactionReason) -> Self {
+        Self {
+            completion: RedactionCompletion::Exhausted,
+            reasons: RedactionReasons::empty().with(reason),
+            usage: RedactionUsage::empty(),
+        }
+    }
+
+    /// Adds bytes written to the transaction's final output buffer.
+    #[must_use]
+    pub(crate) const fn with_added_output_bytes(mut self, bytes: usize) -> Self {
+        self.usage = self.usage.with_added_output_bytes(bytes);
+        self
+    }
+
+    /// Records format input presented to this summary.
+    #[must_use]
+    pub(crate) const fn with_input(mut self, presented: usize, inspected: usize) -> Self {
+        self.usage = self.usage.with_input(presented, inspected);
+        self
+    }
+
+    /// Records one structural node admitted by the shared transaction.
+    #[must_use]
+    pub(crate) const fn with_domain_node(mut self, depth: usize) -> Self {
+        self.usage.visited_nodes = self.usage.visited_nodes.saturating_add(1);
+        self.usage.max_depth = if self.usage.max_depth > depth {
+            self.usage.max_depth
+        } else {
+            depth
+        };
+        self
+    }
+
+    /// Records one admitted collection item.
+    #[must_use]
+    pub(crate) const fn with_collection_item(mut self) -> Self {
+        self.usage.visited_collection_items = self.usage.visited_collection_items.saturating_add(1);
+        self
     }
 }

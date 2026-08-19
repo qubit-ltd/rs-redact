@@ -10,216 +10,164 @@
 use std::borrow::Cow;
 use std::ffi::OsStr;
 
-use super::RedactedEnv;
-use super::RedactedEnvPair;
 use crate::RedactedText;
-use crate::Redactor;
+use crate::RedactionOutput;
+use crate::RedactionReason;
+use crate::RedactionSummary;
 use crate::Sensitivity;
 use crate::output::MaskedValue;
+use crate::policy::RedactionPolicy;
 use crate::policy::ResolvedField;
 
-/// Applies one immutable redaction policy to environment-variable values.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EnvRedactor {
-    /// Core redactor supplying field classification and masking policies.
-    redactor: Redactor,
+/// Redacts one UTF-8 environment-variable pair with a borrowed policy.
+///
+/// The shared-session façade uses this helper so it never constructs a second
+/// core redactor or a separate output budget.
+#[inline]
+pub(super) fn redact_pair_with_policy(
+    policy: &RedactionPolicy,
+    name: &str,
+    value: &str,
+    max_output_bytes: usize,
+) -> RedactionOutput {
+    render_pair_output(policy, OsStr::new(name), OsStr::new(value), max_output_bytes)
 }
 
-impl EnvRedactor {
-    /// Creates an environment redactor from a core redactor.
-    ///
-    /// # Parameters
-    ///
-    /// * `redactor` - Core redactor whose immutable policy will be used.
-    ///
-    /// # Returns
-    ///
-    /// An environment redactor owning the supplied policy snapshot.
-    #[must_use]
-    #[inline(always)]
-    pub const fn new(redactor: Redactor) -> Self {
-        Self { redactor }
+/// Redacts environment pairs with a borrowed policy.
+///
+/// The aggregate session supplies the parent policy through this helper and
+/// applies its one global output budget when it commits the returned text.
+pub(crate) fn redact_os_pairs_with_policy<'a, I>(
+    policy: &RedactionPolicy,
+    pairs: I,
+    max_output_bytes: usize,
+) -> RedactionOutput
+where
+    I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
+{
+    let mut writer = String::from("[");
+    let mut has_item = false;
+    let mut locally_truncated = false;
+    for (name, value) in pairs {
+        let (pair, truncated) = redact_os_pair_bounded_with_policy(policy, name, value, max_output_bytes);
+        locally_truncated |= truncated;
+        let separator_len = usize::from(has_item) * 2;
+        let rendered_len = format!("{pair:?}").len();
+        if writer
+            .len()
+            .saturating_add(separator_len)
+            .saturating_add(rendered_len)
+            .saturating_add(1)
+            > max_output_bytes
+        {
+            locally_truncated = true;
+            break;
+        }
+        write_debug_item(&mut writer, &mut has_item, &pair);
     }
-
-    /// Returns the core redactor backing this adapter.
-    ///
-    /// # Returns
-    ///
-    /// A borrowed view of the core redactor.
-    #[inline(always)]
-    #[must_use]
-    pub const fn redactor(&self) -> &Redactor {
-        &self.redactor
-    }
-
-    /// Redacts one UTF-8 environment-variable pair.
-    ///
-    /// Both components are escaped before they can be displayed. The value is
-    /// classified from `name` using the adapter's immutable policy.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Environment-variable name used for classification.
-    /// * `value` - Environment-variable value to redact when sensitive.
-    ///
-    /// # Returns
-    ///
-    /// A log-safe pair rendered as `NAME=VALUE`.
-    #[inline]
-    #[must_use]
-    pub fn redact_pair(&self, name: &str, value: &str) -> RedactedEnvPair {
-        self.redact_os_pair(OsStr::new(name), OsStr::new(value))
-    }
-
-    /// Redacts one environment pair whose components may not be UTF-8.
-    ///
-    /// If either component is invalid UTF-8, the original value is never
-    /// rendered or supplied to an edge-preserving mask. Instead, the secret
-    /// opaque replacement is used. A non-UTF-8 name is
-    /// rendered lossily and escaped for diagnostics.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Operating-system environment-variable name.
-    /// * `value` - Operating-system environment-variable value.
-    ///
-    /// # Returns
-    ///
-    /// A fail-closed, log-safe pair rendered as `NAME=VALUE`.
-    #[must_use]
-    pub fn redact_os_pair(&self, name: &OsStr, value: &OsStr) -> RedactedEnvPair {
-        let max_output = usize::MAX;
-        let (rendered, locally_truncated) = self.redact_os_pair_bounded(name, value, max_output);
-        if locally_truncated {
-            RedactedEnvPair::truncated(RedactedText::from_escaped(rendered))
+    if locally_truncated {
+        const FALLBACK: &str = "<truncated>";
+        return if FALLBACK.len() <= max_output_bytes {
+            RedactionOutput::new(
+                RedactedText::from_escaped(FALLBACK),
+                RedactionSummary::truncated(RedactionReason::OutputLimitReached),
+            )
         } else {
-            RedactedEnvPair::complete(RedactedText::from_escaped(rendered))
-        }
-    }
-
-    /// Redacts environment pairs into one bounded log-safe list.
-    ///
-    /// The adapter stops before inspecting a pair that would exceed the
-    /// policy's diagnostic input budget. It also stops once the escaped list
-    /// reaches the diagnostic output budget.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `'a` - Lifetime of environment names and values yielded by the
-    ///   iterator.
-    /// * `I` - Iterator source yielding borrowed environment pairs.
-    ///
-    /// # Parameters
-    ///
-    /// * `pairs` - Operating-system environment names and values to redact.
-    ///
-    /// # Returns
-    ///
-    /// A bounded batch result whose completion state distinguishes full
-    /// rendering, a non-empty safe truncation marker, and empty exhaustion.
-    /// Input is pulled lazily and is not advanced after exhaustion.
-    #[must_use]
-    pub fn redact_os_pairs<'a, I>(&self, pairs: I) -> RedactedEnv
-    where
-        I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
-        I::IntoIter: ExactSizeIterator,
-    {
-        let mut writer = String::from("[");
-        let mut has_item = false;
-        let mut locally_truncated = false;
-        for (name, value) in pairs {
-            let (pair, truncated) = self.redact_os_pair_bounded(name, value, usize::MAX);
-            locally_truncated |= truncated;
-            write_debug_item(&mut writer, &mut has_item, &pair);
-        }
-        writer.push(']');
-        let rendered = writer;
-        if locally_truncated {
-            RedactedEnv::truncated(RedactedText::from_escaped(rendered))
-        } else {
-            RedactedEnv::complete(RedactedText::from_escaped(rendered))
-        }
-    }
-
-    /// Redacts one UTF-8 `NAME=value` assignment.
-    ///
-    /// Input without `=` is treated as a name with an empty value and therefore
-    /// renders as `NAME=`.
-    ///
-    /// # Parameters
-    ///
-    /// * `assignment` - Assignment text to split at its first equals sign.
-    ///
-    /// # Returns
-    ///
-    /// A log-safe pair rendered as `NAME=VALUE`.
-    #[inline]
-    #[must_use]
-    pub fn redact_assignment(&self, assignment: &str) -> RedactedEnvPair {
-        let (name, value) = assignment.split_once('=').unwrap_or((assignment, ""));
-        self.redact_pair(name, value)
-    }
-
-    /// Renders one environment pair while bounding any materialized mask.
-    ///
-    /// # Parameters
-    ///
-    /// * `name` - Environment-variable name used for classification.
-    /// * `value` - Environment-variable value to redact when sensitive.
-    /// * `max_mask_bytes` - Maximum bytes materialized for one mask.
-    ///
-    /// # Returns
-    ///
-    /// A log-safe assignment whose mask allocation fits `max_mask_bytes`, and
-    /// whether the configured mask was locally shortened.
-    pub(super) fn redact_os_pair_bounded(&self, name: &OsStr, value: &OsStr, max_mask_bytes: usize) -> (String, bool) {
-        let (pair, locally_truncated) = match (name.to_str(), value.to_str()) {
-            (Some(name), Some(value)) => {
-                let resolved = self.redactor.policy().resolve_field(name);
-                let (value, locally_truncated) = match resolved {
-                    ResolvedField::Sensitive { sensitivity } => {
-                        let (masked, truncated) = self.redactor.policy().masking().mask_bounded_with_truncation(
-                            sensitivity,
-                            value,
-                            max_mask_bytes,
-                        );
-                        (masked.into_owned(), truncated)
-                    }
-                    ResolvedField::PassThrough => (value.to_owned(), false),
-                };
-                (
-                    RedactedEnvPair::new(log_safe_owned(name.to_owned()), log_safe_owned(value)),
-                    locally_truncated,
-                )
-            }
-            _ => {
-                let masking = self.redactor.policy().masking();
-                let complete_len = masking.mask_opaque(Sensitivity::Secret).len();
-                let masked = masking.mask_opaque_bounded(Sensitivity::Secret, max_mask_bytes);
-                let locally_truncated = masked.len() < complete_len;
-                (
-                    RedactedEnvPair::new(
-                        log_safe_owned(name.to_string_lossy().into_owned()),
-                        log_safe_owned(masked),
-                    ),
-                    locally_truncated,
-                )
-            }
+            RedactionOutput::new(
+                RedactedText::from_escaped(""),
+                RedactionSummary::truncated(RedactionReason::OutputLimitReached),
+            )
         };
-        (pair.to_string(), locally_truncated)
     }
+    if writer.len().saturating_add(1) > max_output_bytes {
+        const FALLBACK: &str = "<truncated>";
+        return if FALLBACK.len() <= max_output_bytes {
+            RedactionOutput::new(
+                RedactedText::from_escaped(FALLBACK),
+                RedactionSummary::truncated(RedactionReason::OutputLimitReached),
+            )
+        } else {
+            RedactionOutput::new(
+                RedactedText::from_escaped(""),
+                RedactionSummary::truncated(RedactionReason::OutputLimitReached),
+            )
+        };
+    }
+    writer.push(']');
+    RedactionOutput::new(RedactedText::from_escaped(writer), RedactionSummary::complete())
 }
 
-impl Default for EnvRedactor {
-    /// Creates an environment redactor from the current default policy
-    /// snapshot.
-    ///
-    /// # Returns
-    ///
-    /// An environment redactor backed by [`Redactor::default`].
-    fn default() -> Self {
-        Self::new(Redactor::default())
+/// Renders one environment assignment as the shared output model, refusing
+/// to materialize a separately publishable pair result.
+fn render_pair_output(
+    policy: &RedactionPolicy,
+    name: &OsStr,
+    value: &OsStr,
+    max_output_bytes: usize,
+) -> RedactionOutput {
+    let (rendered, locally_truncated) = redact_os_pair_bounded_with_policy(policy, name, value, max_output_bytes);
+    if locally_truncated || rendered.len() > max_output_bytes {
+        const FALLBACK: &str = "<truncated>";
+        return if FALLBACK.len() <= max_output_bytes {
+            RedactionOutput::new(
+                RedactedText::from_escaped(FALLBACK),
+                RedactionSummary::truncated(RedactionReason::OutputLimitReached),
+            )
+        } else {
+            RedactionOutput::new(
+                RedactedText::from_escaped(""),
+                RedactionSummary::truncated(RedactionReason::OutputLimitReached),
+            )
+        };
     }
+    RedactionOutput::new(RedactedText::from_escaped(rendered), RedactionSummary::complete())
+}
+
+/// Renders one environment pair while bounding its materialized mask.
+pub(super) fn redact_os_pair_bounded_with_policy(
+    policy: &RedactionPolicy,
+    name: &OsStr,
+    value: &OsStr,
+    max_mask_bytes: usize,
+) -> (String, bool) {
+    let (pair, locally_truncated) = match (name.to_str(), value.to_str()) {
+        (Some(name), Some(value)) => {
+            let resolved = policy.resolve_field(name);
+            let (value, locally_truncated) = match resolved {
+                ResolvedField::Sensitive { sensitivity } => {
+                    let (masked, truncated) =
+                        policy
+                            .masking()
+                            .mask_bounded_with_truncation(sensitivity, value, max_mask_bytes);
+                    (masked.into_owned(), truncated)
+                }
+                ResolvedField::PassThrough => (value.to_owned(), false),
+            };
+            (
+                format!(
+                    "{}={}",
+                    log_safe_owned(name.to_owned()).as_str(),
+                    log_safe_owned(value).as_str()
+                ),
+                locally_truncated,
+            )
+        }
+        _ => {
+            let masking = policy.masking();
+            let complete_len = masking.mask_opaque(Sensitivity::Secret).len();
+            let masked = masking.mask_opaque_bounded(Sensitivity::Secret, max_mask_bytes);
+            let locally_truncated = masked.len() < complete_len;
+            (
+                format!(
+                    "{}={}",
+                    log_safe_owned(name.to_string_lossy().into_owned()).as_str(),
+                    log_safe_owned(masked).as_str(),
+                ),
+                locally_truncated,
+            )
+        }
+    };
+    (pair, locally_truncated)
 }
 
 /// Escapes an owned string and labels it safe for text-log display.

@@ -2,28 +2,24 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Policy-driven URI redaction facade.
+//! Bounded URI rendering used by the shared redaction session.
 
 use std::borrow::Cow;
-use std::fmt;
 use std::fmt::Write;
 
 use fluent_uri::Uri;
 
-use super::UriComponent;
 use super::UriFragmentPolicy;
-use super::UriInspection;
 use super::UriPathPolicy;
-use super::UriRedaction;
-use super::UriRedactionReason;
-use super::UriRedactionStatus;
 use super::internal::BoundedUriWriter;
 use super::internal::UriComponentWriter;
+use crate::RedactedText;
 use crate::RedactionCompletion;
+use crate::RedactionOutput;
 use crate::RedactionPolicy;
+use crate::RedactionReason;
+use crate::RedactionSummary;
 use crate::Sensitivity;
 use crate::output::MaskedValue;
 use crate::policy::ResolvedField;
@@ -31,121 +27,17 @@ use crate::policy::ResolvedField;
 /// Safe replacement used when URI parsing or decoding fails.
 const INVALID_URI: &str = "<invalid URI>";
 
-/// Redacts URI strings using one immutable policy snapshot.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UriRedactor {
-    policy: RedactionPolicy,
-}
-
-impl UriRedactor {
-    /// Creates a URI redactor from an explicit immutable policy.
-    #[must_use]
-    #[inline]
-    pub const fn new(policy: RedactionPolicy) -> Self {
-        Self { policy }
-    }
-
-    /// Returns the immutable URI policy snapshot.
-    #[must_use]
-    #[inline]
-    pub const fn policy(&self) -> &RedactionPolicy {
-        &self.policy
-    }
-
-    /// Creates a mutable diagnostic session for shared URI operations.
-    #[must_use]
-    #[inline]
-    pub fn session(&self) -> crate::RedactionSession<'_> {
-        crate::RedactionSession::new(&self.policy)
-    }
-
-    /// Redacts one absolute URI and returns safe text plus metadata.
-    ///
-    /// Parsing is strict. Invalid syntax, invalid UTF-8 in a percent-encoded
-    /// field, and budget violations all return a fixed marker without any
-    /// portion of the input URI.
-    #[must_use]
-    pub fn redact_uri_str(&self, input: &str) -> UriRedaction {
-        if input.len() > input_limit(&self.policy) {
-            return invalid_result(UriRedactionReason::InputLimitExceeded);
-        }
-        redact_uri_str_bounded(&self.policy, input, usize::MAX, false).0
-    }
-
-    /// Inspects one absolute URI and returns metadata without rendering text.
-    ///
-    /// Parsing, strict percent decoding, and component classification follow
-    /// the same URI policy as [`Self::redact_uri_str`]. The input budget still
-    /// applies, while the output budget and truncation behavior do not.
-    #[must_use]
-    pub fn inspect_uri_str(&self, input: &str) -> UriInspection {
-        if input.len() > input_limit(&self.policy) {
-            return invalid_inspection(UriRedactionReason::InputLimitExceeded);
-        }
-
-        let parsed = match Uri::<&str>::parse(input) {
-            Ok(parsed) => parsed,
-            Err(_) => {
-                return invalid_inspection(UriRedactionReason::InvalidUri);
-            }
-        };
-        let mut reasons = Vec::new();
-        let mut components = Vec::new();
-
-        if let Some(authority) = parsed.authority()
-            && inspect_authority(authority.as_str(), &self.policy, &mut reasons, &mut components).is_err()
-        {
-            return invalid_inspection(UriRedactionReason::InvalidUri);
-        }
-
-        let path = parsed.path().as_str();
-        if self.policy.path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
-            mark_component(UriComponent::Path, &mut reasons, &mut components);
-        }
-
-        if let Some(query) = parsed.query()
-            && let Err(reason) = inspect_query(query.as_str(), &self.policy, &mut reasons, &mut components)
-        {
-            return invalid_inspection(reason);
-        }
-
-        if let Some(fragment) = parsed.fragment()
-            && self.policy.fragment_policy() == UriFragmentPolicy::Redact
-            && !fragment.as_str().is_empty()
-        {
-            mark_component(UriComponent::Fragment, &mut reasons, &mut components);
-        }
-
-        let status = if components.is_empty() {
-            UriRedactionStatus::PassedThrough
-        } else {
-            UriRedactionStatus::Redacted
-        };
-        UriInspection {
-            status,
-            reasons,
-            components,
-        }
-    }
-}
-
-/// Renders one URI under an explicit output ceiling and reports the source of
-/// truncation to the shared session.
+/// Renders one URI under the output ceiling supplied by its parent session.
+///
+/// This function owns neither a policy snapshot nor a budget. It returns the
+/// common [`RedactionOutput`] carrier, so URI rendering cannot publish a
+/// second result model or make an independent completion decision.
 #[must_use]
-pub(crate) fn redact_uri_str_bounded(
-    policy: &RedactionPolicy,
-    input: &str,
-    max_output_bytes: usize,
-    session_limited: bool,
-) -> (UriRedaction, RedactionCompletion) {
+pub(crate) fn redact_uri_with_limit(policy: &RedactionPolicy, input: &str, max_output_bytes: usize) -> RedactionOutput {
     let parsed = match Uri::<&str>::parse(input) {
         Ok(parsed) => parsed,
-        Err(_) => {
-            return bounded_invalid_result(UriRedactionReason::InvalidUri, max_output_bytes, session_limited);
-        }
+        Err(_) => return invalid_output(max_output_bytes),
     };
-    let mut reasons = Vec::new();
-    let mut components = Vec::new();
     let mut rendered = BoundedUriWriter::new(max_output_bytes);
     let scheme = parsed.scheme().as_str();
     let scheme_end = scheme.len() + 1;
@@ -153,26 +45,16 @@ pub(crate) fn redact_uri_str_bounded(
 
     if let Some(authority) = parsed.authority() {
         rendered.write_str("//");
-        if redact_authority(
-            authority.as_str(),
-            policy,
-            &mut reasons,
-            &mut components,
-            &mut rendered,
-            session_limited,
-        )
-        .is_err()
-        {
-            return bounded_invalid_result(UriRedactionReason::InvalidUri, max_output_bytes, session_limited);
+        if redact_authority(authority.as_str(), policy, &mut rendered).is_err() {
+            return invalid_output(max_output_bytes);
         }
-        if session_limited && rendered.is_full() {
-            return finish_uri_rendering(rendered, reasons, components, session_limited);
+        if rendered.is_full() {
+            return finish_uri_rendering(rendered);
         }
     }
 
     let path = parsed.path().as_str();
     if policy.path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
-        mark_component(UriComponent::Path, &mut reasons, &mut components);
         if path.starts_with('/') {
             rendered.write_str("/%3Credacted%3E");
         } else {
@@ -181,224 +63,101 @@ pub(crate) fn redact_uri_str_bounded(
     } else {
         rendered.write_str(path);
     }
-    if session_limited && rendered.is_full() {
-        return finish_uri_rendering(rendered, reasons, components, session_limited);
+    if rendered.is_full() {
+        return finish_uri_rendering(rendered);
     }
 
     if let Some(query) = parsed.query() {
         rendered.write_str("?");
-        if let Err(reason) = redact_query(
-            query.as_str(),
-            policy,
-            &mut reasons,
-            &mut components,
-            &mut rendered,
-            session_limited,
-        ) {
-            return bounded_invalid_result(reason, max_output_bytes, session_limited);
+        if redact_query(query.as_str(), policy, &mut rendered).is_err() {
+            return invalid_output(max_output_bytes);
         }
-        if session_limited && rendered.is_full() {
-            return finish_uri_rendering(rendered, reasons, components, session_limited);
+        if rendered.is_full() {
+            return finish_uri_rendering(rendered);
         }
     }
 
     if let Some(fragment) = parsed.fragment() {
         rendered.write_str("#");
         if policy.fragment_policy() == UriFragmentPolicy::Redact && !fragment.as_str().is_empty() {
-            mark_component(UriComponent::Fragment, &mut reasons, &mut components);
             write_opaque_mask(policy, Sensitivity::High, &mut rendered);
         } else {
             rendered.write_str(fragment.as_str());
         }
     }
 
-    finish_uri_rendering(rendered, reasons, components, session_limited)
+    finish_uri_rendering(rendered)
 }
 
-/// Finishes one URI rendering and records truncation metadata.
+/// Converts bounded URI bytes to the runtime's single output carrier.
 #[must_use]
-fn finish_uri_rendering(
-    rendered: BoundedUriWriter,
-    mut reasons: Vec<UriRedactionReason>,
-    components: Vec<UriComponent>,
-    session_limited: bool,
-) -> (UriRedaction, RedactionCompletion) {
-    let status = if components.is_empty() {
-        UriRedactionStatus::PassedThrough
-    } else {
-        UriRedactionStatus::Redacted
+fn finish_uri_rendering(rendered: BoundedUriWriter) -> RedactionOutput {
+    let (rendered, completion) = rendered.finish_with_completion(true);
+    let text = safe_text(rendered);
+    let summary = match completion {
+        RedactionCompletion::Complete => RedactionSummary::complete(),
+        RedactionCompletion::Truncated | RedactionCompletion::Exhausted => {
+            RedactionSummary::truncated(RedactionReason::OutputLimitReached)
+        }
     };
-    let (safe, completion) = rendered.finish_with_completion(session_limited);
-    let truncated = completion != RedactionCompletion::Complete;
-    if truncated {
-        reasons.push(UriRedactionReason::OutputTruncated);
+    RedactionOutput::new(text, summary)
+}
+
+/// Emits a bounded marker for invalid URI input without retaining input bytes.
+#[must_use]
+fn invalid_output(max_output_bytes: usize) -> RedactionOutput {
+    if INVALID_URI.len() <= max_output_bytes {
+        return RedactionOutput::new(
+            safe_text(INVALID_URI.to_owned()),
+            RedactionSummary::complete_with_reason(RedactionReason::InvalidUri),
+        );
     }
-    (
-        UriRedaction::new(safe_text(safe), status, reasons, components, completion),
-        completion,
+    RedactionOutput::new(
+        RedactedText::from_escaped(String::new()),
+        RedactionSummary::truncated(RedactionReason::OutputLimitReached)
+            .merge(RedactionSummary::complete_with_reason(RedactionReason::InvalidUri)),
     )
 }
 
-/// Builds the stateless point limit for one complete URI input.
-///
-/// The URI facade does not accumulate input across calls; callers that compose
-/// several URI fragments use [`crate::RedactionSession`] instead.
-#[inline(always)]
-fn input_limit(_policy: &RedactionPolicy) -> usize {
-    usize::MAX
-}
-
-/// Produces an invalid result while respecting the effective output ceiling.
-#[must_use]
-fn bounded_invalid_result(
-    reason: UriRedactionReason,
-    max_output_bytes: usize,
-    _session_limited: bool,
-) -> (UriRedaction, RedactionCompletion) {
-    if max_output_bytes < INVALID_URI.len() {
-        return (empty_invalid_result(reason), RedactionCompletion::Truncated);
-    }
-    (invalid_result(reason), RedactionCompletion::Complete)
-}
-
-impl Default for UriRedactor {
-    /// Creates a redactor from the process-wide URI policy snapshot.
-    #[inline]
-    fn default() -> Self {
-        Self::new(crate::Redactor::default().policy().clone())
-    }
-}
-
 /// Redacts userinfo while preserving the authority's raw host and port.
-fn redact_authority(
-    authority: &str,
-    policy: &RedactionPolicy,
-    reasons: &mut Vec<UriRedactionReason>,
-    components: &mut Vec<UriComponent>,
-    rendered: &mut BoundedUriWriter,
-    stop_on_full: bool,
-) -> Result<(), ()> {
+fn redact_authority(authority: &str, policy: &RedactionPolicy, rendered: &mut BoundedUriWriter) -> Result<(), ()> {
     let Some((userinfo, host)) = authority.rsplit_once('@') else {
         rendered.write_str(authority);
         return Ok(());
     };
     let Some((username, password)) = userinfo.split_once(':') else {
-        redact_userinfo_value(
-            userinfo,
-            "username",
-            UriComponent::Username,
-            policy,
-            reasons,
-            components,
-            rendered,
-        )?;
+        redact_userinfo_value(userinfo, "username", policy, rendered)?;
         rendered.write_str("@");
-        if stop_on_full && rendered.is_full() {
+        if rendered.is_full() {
             return Ok(());
         }
         rendered.write_str(host);
         return Ok(());
     };
-    redact_userinfo_value(
-        username,
-        "username",
-        UriComponent::Username,
-        policy,
-        reasons,
-        components,
-        rendered,
-    )?;
+    redact_userinfo_value(username, "username", policy, rendered)?;
     rendered.write_str(":");
-    if stop_on_full && rendered.is_full() {
+    if rendered.is_full() {
         return Ok(());
     }
-    redact_userinfo_value(
-        password,
-        "password",
-        UriComponent::Password,
-        policy,
-        reasons,
-        components,
-        rendered,
-    )?;
+    redact_userinfo_value(password, "password", policy, rendered)?;
     rendered.write_str("@");
-    if stop_on_full && rendered.is_full() {
+    if rendered.is_full() {
         return Ok(());
     }
     rendered.write_str(host);
     Ok(())
 }
 
-/// Inspects userinfo without allocating a rendered URI.
-fn inspect_authority(
-    authority: &str,
-    policy: &RedactionPolicy,
-    reasons: &mut Vec<UriRedactionReason>,
-    components: &mut Vec<UriComponent>,
-) -> Result<(), ()> {
-    let Some((userinfo, _host)) = authority.rsplit_once('@') else {
-        return Ok(());
-    };
-    let Some((username, password)) = userinfo.split_once(':') else {
-        inspect_userinfo_value(
-            userinfo,
-            "username",
-            UriComponent::Username,
-            policy,
-            reasons,
-            components,
-        )?;
-        return Ok(());
-    };
-    inspect_userinfo_value(
-        username,
-        "username",
-        UriComponent::Username,
-        policy,
-        reasons,
-        components,
-    )?;
-    inspect_userinfo_value(
-        password,
-        "password",
-        UriComponent::Password,
-        policy,
-        reasons,
-        components,
-    )?;
-    Ok(())
-}
-
-/// Applies a named field policy to one userinfo component without rendering.
-fn inspect_userinfo_value(
-    raw: &str,
-    field: &str,
-    component: UriComponent,
-    policy: &RedactionPolicy,
-    reasons: &mut Vec<UriRedactionReason>,
-    components: &mut Vec<UriComponent>,
-) -> Result<(), ()> {
-    decode_uri_component(raw).map_err(|_| ())?;
-    if matches!(policy.resolve_field(field), ResolvedField::Sensitive { .. }) {
-        mark_component(component, reasons, components);
-    }
-    Ok(())
-}
-
-/// Applies a named field policy to one raw userinfo component.
+/// Applies the core field policy to one raw userinfo component.
 fn redact_userinfo_value(
     raw: &str,
     field: &str,
-    component: UriComponent,
     policy: &RedactionPolicy,
-    reasons: &mut Vec<UriRedactionReason>,
-    components: &mut Vec<UriComponent>,
     rendered: &mut BoundedUriWriter,
 ) -> Result<(), ()> {
-    let decoded = decode_uri_component(raw).map_err(|_| ())?;
+    let decoded = decode_uri_component(raw)?;
     match policy.resolve_field(field) {
         ResolvedField::Sensitive { sensitivity } => {
-            mark_component(component, reasons, components);
             write_sensitive_value(policy, sensitivity, &decoded, rendered);
         }
         ResolvedField::PassThrough => {
@@ -409,31 +168,23 @@ fn redact_userinfo_value(
 }
 
 /// Redacts query values after strict percent decoding.
-fn redact_query(
-    query: &str,
-    policy: &RedactionPolicy,
-    reasons: &mut Vec<UriRedactionReason>,
-    components: &mut Vec<UriComponent>,
-    rendered: &mut BoundedUriWriter,
-    stop_on_full: bool,
-) -> Result<(), UriRedactionReason> {
+fn redact_query(query: &str, policy: &RedactionPolicy, rendered: &mut BoundedUriWriter) -> Result<(), ()> {
     for (index, pair) in query.split('&').enumerate() {
-        if stop_on_full && rendered.is_full() {
+        if rendered.is_full() {
             return Ok(());
         }
         if index != 0 {
             rendered.write_str("&");
         }
         let Some((raw_key, raw_value)) = pair.split_once('=') else {
-            decode_uri_component(pair).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
+            decode_uri_component(pair)?;
             rendered.write_str(pair);
             continue;
         };
-        let key = decode_uri_component(raw_key).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
-        let value = decode_uri_component(raw_value).map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
+        let key = decode_uri_component(raw_key)?;
+        let value = decode_uri_component(raw_value)?;
         match policy.resolve_field(&key) {
             ResolvedField::Sensitive { sensitivity } => {
-                mark_component(UriComponent::Query, reasons, components);
                 rendered.write_str(raw_key);
                 rendered.write_str("=");
                 write_sensitive_value(policy, sensitivity, &value, rendered);
@@ -441,27 +192,6 @@ fn redact_query(
             ResolvedField::PassThrough => {
                 rendered.write_str(pair);
             }
-        }
-    }
-    Ok(())
-}
-
-/// Inspects query fields after strict percent decoding without rendering.
-fn inspect_query(
-    query: &str,
-    policy: &RedactionPolicy,
-    reasons: &mut Vec<UriRedactionReason>,
-    components: &mut Vec<UriComponent>,
-) -> Result<(), UriRedactionReason> {
-    for pair in query.split('&') {
-        let Some((raw_key, raw_value)) = pair.split_once('=') else {
-            decode_uri_component(pair).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
-            continue;
-        };
-        let key = decode_uri_component(raw_key).map_err(|_| UriRedactionReason::UndecodableQueryKey)?;
-        decode_uri_component(raw_value).map_err(|_| UriRedactionReason::UndecodableQueryValue)?;
-        if matches!(policy.resolve_field(&key), ResolvedField::Sensitive { .. }) {
-            mark_component(UriComponent::Query, reasons, components);
         }
     }
     Ok(())
@@ -522,66 +252,8 @@ const fn hex_value(byte: u8) -> Option<u8> {
     }
 }
 
-/// Records a sensitive component and its corresponding reason once.
-fn mark_component(component: UriComponent, reasons: &mut Vec<UriRedactionReason>, components: &mut Vec<UriComponent>) {
-    if !components.contains(&component) {
-        components.push(component);
-    }
-    let reason = UriRedactionReason::SensitiveComponent(component);
-    if !reasons.contains(&reason) {
-        reasons.push(reason);
-    }
-}
-
-/// Builds a fixed-marker result for malformed or over-budget input.
-#[must_use]
-pub(super) fn invalid_result(reason: UriRedactionReason) -> UriRedaction {
-    let completion = if reason == UriRedactionReason::InputLimitExceeded {
-        RedactionCompletion::Truncated
-    } else {
-        RedactionCompletion::Complete
-    };
-    UriRedaction::new(
-        safe_text(INVALID_URI.to_owned()),
-        UriRedactionStatus::Invalid,
-        vec![reason],
-        Vec::new(),
-        completion,
-    )
-}
-
-/// Preserves fail-closed metadata without emitting bytes after exhaustion.
-#[must_use]
-pub(super) fn empty_invalid_result(reason: UriRedactionReason) -> UriRedaction {
-    UriRedaction::new(
-        safe_text(String::new()),
-        UriRedactionStatus::Invalid,
-        vec![reason],
-        Vec::new(),
-        RedactionCompletion::Truncated,
-    )
-}
-
-/// Builds metadata for malformed or over-budget input.
-#[must_use]
-fn invalid_inspection(reason: UriRedactionReason) -> UriInspection {
-    UriInspection {
-        status: UriRedactionStatus::Invalid,
-        reasons: vec![reason],
-        components: Vec::new(),
-    }
-}
-
 /// Converts owned output into the library's log-safe text wrapper.
 #[must_use]
-fn safe_text(value: String) -> crate::RedactedText {
+fn safe_text(value: String) -> RedactedText {
     MaskedValue::new(Cow::Owned(value)).escape_for_log()
-}
-
-impl fmt::Display for UriRedactor {
-    /// Formats the policy snapshot without exposing URI input.
-    #[inline]
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("UriRedactor")
-    }
 }

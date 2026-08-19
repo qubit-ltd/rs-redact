@@ -116,6 +116,7 @@ impl MaskingPolicy {
     /// The borrowed empty input or an owned mask bounded by `max_bytes`.
     #[must_use]
     #[inline(always)]
+    #[cfg(any(feature = "json", feature = "http"))]
     pub(crate) fn mask_bounded<'a>(&self, level: Sensitivity, value: &'a str, max_bytes: usize) -> Cow<'a, str> {
         self.for_level(level).mask_bounded(value, max_bytes)
     }
@@ -259,5 +260,23 @@ impl Default for MaskingPolicy {
     /// The built-in masking configuration.
     fn default() -> Self {
         Self::builder().build()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MaskingPolicy;
+    use crate::MaskPolicy;
+    use crate::Sensitivity;
+
+    #[test]
+    fn builder_low_and_medium_replace_their_respective_policies() {
+        let mut builder = MaskingPolicy::builder();
+        builder.low(MaskPolicy::fixed("low"));
+        builder.medium(MaskPolicy::fixed("medium"));
+        let policy = builder.build();
+
+        assert_eq!(policy.for_level(Sensitivity::Low).mask("value"), "low");
+        assert_eq!(policy.for_level(Sensitivity::Medium).mask("value"), "medium");
     }
 }

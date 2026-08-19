@@ -57,8 +57,8 @@ impl RedactionOutput {
 
     /// Borrows the execution summary.
     #[must_use]
-    pub const fn summary(&self) -> RedactionSummary {
-        self.summary
+    pub const fn summary(&self) -> &RedactionSummary {
+        &self.summary
     }
 
     /// Consumes the output and returns its final text.

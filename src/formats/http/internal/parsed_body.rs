@@ -7,14 +7,14 @@
 // =============================================================================
 //! Parser output shared by HTTP body redaction helpers.
 
-use crate::formats::http::BodyRedactionStatus;
+use crate::formats::http::BodyRenderStatus;
 
 /// Unescaped parser output paired with its body-redaction status.
 pub(in crate::formats::http) struct ParsedBody {
     /// Redacted text before final log escaping.
     text: String,
     /// How the parser processed the body.
-    status: BodyRedactionStatus,
+    status: BodyRenderStatus,
     /// Whether bounded structured rendering omitted output.
     rendered_truncated: bool,
 }
@@ -35,7 +35,7 @@ impl ParsedBody {
     #[must_use]
     pub(in crate::formats::http) const fn new(
         text: String,
-        status: BodyRedactionStatus,
+        status: BodyRenderStatus,
         rendered_truncated: bool,
     ) -> Self {
         Self {
@@ -53,7 +53,7 @@ impl ParsedBody {
     /// in that order.
     #[must_use]
     #[inline(always)]
-    pub(in crate::formats::http) fn into_parts(self) -> (String, BodyRedactionStatus, bool) {
+    pub(in crate::formats::http) fn into_parts(self) -> (String, BodyRenderStatus, bool) {
         (self.text, self.status, self.rendered_truncated)
     }
 }

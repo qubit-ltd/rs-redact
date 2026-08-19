@@ -80,7 +80,7 @@ pub(in crate::formats::http) fn redact_with_mask_budget(
         redactor.base_rules(),
         redactor.context_rules(),
         redactor.masking(),
-        json_limits,
+        crate::policy::RedactionLimits::json_point_limits_from(json_limits),
         unkeyed,
         Some(mask_budget),
     )

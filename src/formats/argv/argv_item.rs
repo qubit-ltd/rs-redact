@@ -15,7 +15,7 @@ use crate::Sensitivity;
 /// A borrowed argument with optional authoritative sensitivity metadata.
 ///
 /// Plain items may be inspected by
-/// [`super::ArgvRedactor::redact_heuristically`]. Sensitive items are always
+/// [`super::ArgvRedactionSession::heuristic_items`]. Sensitive items are always
 /// masked at their explicit level and never interpreted as command-line syntax.
 ///
 /// # Type Parameters
@@ -97,7 +97,7 @@ impl<'a> ArgvItem<'a> {
     ///
     /// The borrowed argument value.
     #[inline(always)]
-    pub(super) const fn value(&self) -> &'a OsStr {
+    pub(crate) const fn value(&self) -> &'a OsStr {
         self.value
     }
 

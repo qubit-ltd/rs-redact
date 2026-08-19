@@ -20,24 +20,22 @@ fn test_resolved_field_uses_application_mask_at_floor_level() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the floor should be valid");
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        let _ = builder.edit_fields().floor(floor);
-        builder
-            .edit_fields()
-            .raise("tenant_secret", Sensitivity::Secret)
-            .expect("the test builder input should be valid");
-        builder
-            .edit_fields()
-            .mask(Sensitivity::Secret, MaskPolicy::fixed("[application-secret]"))
-            .expect("the test mask policy should be valid");
-        builder
-    })
-    .build()
-    .expect("the application policy should be valid");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .floor(floor)
+                .raise("tenant_secret", Sensitivity::Secret)
+                .mask(Sensitivity::Secret, MaskPolicy::fixed("[application-secret]"));
+        })
+        .expect("the field configuration should be valid")
+        .build()
+        .expect("the application policy should be valid");
 
     assert_eq!(
-        Redactor::new(policy).redact_field("tenant_secret", "source").as_str(),
+        Redactor::new(policy)
+            .redact_field("tenant_secret", "source")
+            .text()
+            .as_str(),
         "[application-secret]",
     );
 }

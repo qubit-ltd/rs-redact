@@ -9,7 +9,9 @@
 
 use http::HeaderMap;
 use http::HeaderValue;
-use qubit_redact::formats::http::HttpRedactor;
+use qubit_redact::RedactionPolicy;
+
+use crate::http::support::redaction::redact_headers;
 /// Verifies repeated values remain grouped beneath their sorted header name.
 #[test]
 fn test_headers_group_repeated_values_in_insertion_order() {
@@ -18,7 +20,7 @@ fn test_headers_group_repeated_values_in_insertion_order() {
     headers.append("x-visible", HeaderValue::from_static("first"));
     headers.append("x-visible", HeaderValue::from_static("second"));
 
-    let rendered = HttpRedactor::default().redact_headers(&headers).to_string();
+    let rendered = redact_headers(RedactionPolicy::standard(), &headers);
 
     assert_eq!(rendered, "x-visible: [first, second]\\nz-last: [z]");
 }

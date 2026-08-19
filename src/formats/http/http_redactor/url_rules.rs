@@ -8,4 +8,4 @@
 //! URL redaction limits.
 
 /// Maximum number of recursively embedded HTTP URLs to redact.
-pub(super) const MAX_NESTED_URL_DEPTH: usize = 8;
+pub(in crate::formats::http) const MAX_NESTED_URL_DEPTH: usize = 8;

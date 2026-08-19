@@ -7,7 +7,9 @@
 // =============================================================================
 //! Tests for nested URL redaction limits.
 
-use qubit_redact::formats::http::HttpRedactor;
+use qubit_redact::Redactor;
+
+use crate::http::support::redaction::redact_url;
 /// Verifies excessive nested URL recursion fails closed without exposing
 /// secrets.
 #[test]
@@ -25,15 +27,13 @@ fn test_url_rules_limit_nested_url_recursion() {
         nested = format!("https://layer-{layer}.test/?next={encoded}");
     }
 
-    let rendered = HttpRedactor::default().redact_url_str(&nested);
+    let rendered = redact_url(&Redactor::standard(), &nested);
 
-    assert!(!rendered.as_ref().contains("deep-user"));
-    assert!(!rendered.as_ref().contains("deep-secret"));
+    assert!(!rendered.contains("deep-user"));
+    assert!(!rendered.contains("deep-secret"));
     assert!(
-        rendered.as_ref().contains("nested")
-            && rendered.as_ref().contains("limit")
-            && rendered.as_ref().contains("exceeded"),
+        rendered.contains("nested") && rendered.contains("limit") && rendered.contains("exceeded"),
         "unexpected redaction: {}",
-        rendered.as_ref(),
+        rendered,
     );
 }

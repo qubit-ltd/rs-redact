@@ -8,9 +8,6 @@
 //! Immutable field classification and value-masking primitives.
 
 mod allow_rule;
-mod domain_traversal_admission;
-mod domain_value_admission;
-mod domain_value_scope;
 pub mod field;
 mod field_classification;
 mod field_match_kind;
@@ -38,9 +35,6 @@ mod unkeyed_json_value_policy;
 mod unknown_field_policy;
 
 pub use allow_rule::AllowRule;
-pub use domain_traversal_admission::DomainTraversalAdmission;
-pub use domain_value_admission::DomainValueAdmission;
-pub use domain_value_scope::DomainValueScope;
 pub use field_classification::FieldClassification;
 pub use field_match_kind::FieldMatchKind;
 pub use field_name_matching::FieldNameMatching;
@@ -59,7 +53,6 @@ pub use redaction_policy_builder::FieldsBuilder;
 pub use redaction_policy_builder::HttpContextBuilderView;
 #[cfg(feature = "http")]
 pub use redaction_policy_builder::HttpPolicyBuilderView;
-pub use redaction_policy_builder::LimitsBuilder;
 pub use redaction_policy_builder::RedactionPolicyBuilder;
 #[cfg(feature = "uri")]
 pub use redaction_policy_builder::UriPolicyBuilderView;
@@ -73,6 +66,3 @@ pub use sensitivity::Sensitivity;
 #[cfg(feature = "json")]
 pub use unkeyed_json_value_policy::UnkeyedJsonValuePolicy;
 pub use unknown_field_policy::UnknownFieldPolicy;
-
-pub(crate) use crate::domain::internal::DomainTruncation;
-pub use crate::runtime::RedactionSession;

@@ -8,18 +8,19 @@
 //! Tests for URL-encoded form redaction.
 
 use http::HeaderValue;
+use qubit_redact::Redactor;
 use qubit_redact::formats::http::BodyCapture;
-use qubit_redact::formats::http::BodyRedactionStatus;
-use qubit_redact::formats::http::HttpRedactor;
+
+use crate::http::support::redaction::redact_body;
 /// Verifies form values are classified from their field names.
 #[test]
 fn test_form_masks_password_value() {
-    let result = HttpRedactor::default().redact_body(
+    let rendered = redact_body(
+        &Redactor::standard(),
         BodyCapture::complete(b"password=raw&label=visible"),
         Some(&HeaderValue::from_static("application/x-www-form-urlencoded")),
     );
 
-    assert_eq!(result.status(), BodyRedactionStatus::Structured);
-    assert!(!result.to_string().contains("raw"));
-    assert!(result.to_string().contains("visible"));
+    assert!(!rendered.contains("raw"));
+    assert!(rendered.contains("visible"));
 }

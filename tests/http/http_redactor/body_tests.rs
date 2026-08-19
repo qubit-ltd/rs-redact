@@ -7,15 +7,18 @@
 // =============================================================================
 //! Tests for body dispatch normalization.
 
+use qubit_redact::Redactor;
 use qubit_redact::formats::http::BodyCapture;
-use qubit_redact::formats::http::BodyRedactionStatus;
-use qubit_redact::formats::http::HttpRedactor;
+
+use crate::http::support::redaction::redact_body;
 /// Verifies whitespace-surrounded JSON is detected before body dispatch.
 #[test]
 fn test_body_dispatch_detects_whitespace_surrounded_json() {
-    let body =
-        HttpRedactor::default().redact_body(BodyCapture::complete(b" \t\r\n{\"password\":\"raw-secret\"}\n "), None);
+    let rendered = redact_body(
+        &Redactor::standard(),
+        BodyCapture::complete(b" \t\r\n{\"password\":\"raw-secret\"}\n "),
+        None,
+    );
 
-    assert_eq!(body.status(), BodyRedactionStatus::Structured);
-    assert!(!body.to_string().contains("raw-secret"));
+    assert!(!rendered.contains("raw-secret"));
 }

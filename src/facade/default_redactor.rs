@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Process-wide default redactor snapshot.
+//! Process-wide application-default redactor snapshot.
 
 use std::sync::OnceLock;
 use std::sync::RwLock;

@@ -8,9 +8,6 @@
 //! Mirrored integration tests for URI helpers.
 
 #[cfg(feature = "uri")]
-#[cfg(feature = "uri")]
-mod uri_component_tests;
-#[cfg(feature = "uri")]
 mod uri_fragment_policy_tests;
 mod uri_path_policy_tests;
 #[cfg(feature = "uri")]
@@ -19,7 +16,4 @@ mod uri_redaction_policy_builder_tests;
 mod uri_redaction_policy_inner_tests;
 #[cfg(feature = "uri")]
 mod uri_redaction_policy_tests;
-#[cfg(feature = "uri")]
-mod uri_redaction_reason_tests;
-mod uri_redaction_status_tests;
 mod uri_redaction_tests;

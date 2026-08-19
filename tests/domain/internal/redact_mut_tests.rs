@@ -47,3 +47,21 @@ fn test_redact_mut_default_and_clone_helpers_delegate_to_explicit_mutation() {
     assert_eq!(in_place.0, "<redacted>");
     assert_eq!(original.0, "raw");
 }
+
+/// Covers the container implementations used by derived mutable redaction.
+#[test]
+fn test_redact_mut_container_implementations_preserve_shape_and_visit_children() {
+    let policy = RedactionPolicy::default();
+    let mut absent: Option<MutableValue> = None;
+    let mut boxed = Box::new(MutableValue("boxed".to_owned()));
+    let mut values = vec![MutableValue("first".to_owned()), MutableValue("second".to_owned())];
+
+    absent.redact_in_place_with(&policy);
+    boxed.redact_in_place_with(&policy);
+    values.redact_in_place_with(&policy);
+
+    assert!(absent.is_none());
+    assert_eq!(boxed.0, "<redacted>");
+    assert_eq!(values[0].0, "<redacted>");
+    assert_eq!(values[1].0, "<redacted>");
+}

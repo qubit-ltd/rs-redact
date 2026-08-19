@@ -10,10 +10,13 @@
 #![cfg(feature = "json")]
 
 use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionFloor;
 use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionReason;
+use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
-use qubit_redact::formats::json::redact_json_text_in_place;
+use qubit_redact::UnkeyedJsonValuePolicy;
 
 #[test]
 fn test_json_uses_policy_mask_for_floor_matched_key() {
@@ -22,24 +25,100 @@ fn test_json_uses_policy_mask_for_floor_matched_key() {
         .expect("the test builder input should be valid")
         .build()
         .expect("the floor should build");
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        let _ = builder.edit_fields().floor(floor);
-        builder
-            .edit_fields()
-            .raise("credential", Sensitivity::Secret)
-            .expect("the test builder input should be valid");
-        builder
-            .edit_fields()
-            .mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"))
-            .expect("the test mask policy should be valid");
-        builder
-    })
-    .build()
-    .expect("the policy should build");
-    let mut value = r#"{"credential":"value"}"#.to_owned();
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            let _ = fields.floor(floor).sensitive(Sensitivity::Secret, "credential");
+            fields.mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"));
+        })
+        .expect("the test field draft should build")
+        .build()
+        .expect("the policy should build");
+    let value = r#"{"credential":"value"}"#;
 
-    redact_json_text_in_place(&mut value, &policy);
+    let output = Redactor::new(policy).redact_json(value);
 
-    assert_eq!(value, r#"{"credential":"[application]"}"#);
+    assert_eq!(output.text().as_str(), r#"{"credential":"[application]"}"#);
+}
+
+#[test]
+fn test_json_documents_share_the_parent_structural_budget() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(3).max_collection_items(2);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
+
+    session.json(|json| {
+        json.text(r#"{"first":"one"}"#);
+        json.text(r#"{"second":"must-not-be-traversed"}"#);
+    });
+    let output = session.finish();
+
+    assert!(output.text().as_str().contains("first"));
+    assert!(!output.text().as_str().contains("must-not-be-traversed"));
+    assert_eq!(output.summary().usage().visited_nodes(), 3);
+    assert_eq!(output.summary().usage().visited_collection_items(), 2);
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+}
+
+#[test]
+fn test_json_masks_unkeyed_scalars_when_policy_requires_it() {
+    let policy = RedactionPolicy::builder()
+        .unkeyed_json_value_policy(UnkeyedJsonValuePolicy::Redact)
+        .build()
+        .expect("policy should build");
+
+    let output = Redactor::new(policy).redact_json(r#"["root-secret", {"password": 7}]"#);
+
+    assert!(!output.text().as_str().contains("root-secret"));
+    assert!(!output.text().as_str().contains("7"));
+    assert!(output.text().as_str().contains("password"));
+}
+
+#[test]
+fn test_json_invalid_input_reports_safe_invalid_json_result() {
+    let output = Redactor::strict().redact_json(r#"{"password":"raw""#);
+
+    assert!(!output.text().as_str().contains("raw"));
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
+}
+
+/// The JSON handle path must preserve parser provenance and publish the
+/// replacement only when its enclosing transaction finishes.
+#[test]
+fn test_json_handle_reports_invalid_input_without_exposing_source() {
+    let mut session = Redactor::strict().session();
+    let handle = session.redact_json(r#"{"password":"raw""#);
+    let output = session.finish();
+    let item = output
+        .resolve(handle)
+        .expect("finished transaction publishes JSON handle");
+
+    assert!(!item.text().as_str().contains("raw"));
+    assert!(item.summary().reasons().contains(RedactionReason::InvalidJson));
+    assert_eq!(item.summary().completion(), RedactionCompletion::Complete);
+}
+
+/// JSON parsing must not receive a document once the shared structural
+/// transaction ledger has rejected its root or a collection member.
+#[test]
+fn test_json_handle_uses_shared_structural_fallback() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(1);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
+    let handle = session.redact_json(r#"{"password":"must-not-be-rendered"}"#);
+    let output = session.finish();
+    let item = output.resolve(handle).expect("truncated JSON handle publishes");
+
+    assert_eq!(item.text().as_str(), "<truncated>");
+    assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
+    assert!(!item.text().as_str().contains("must-not-be-rendered"));
 }

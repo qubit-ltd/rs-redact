@@ -9,26 +9,11 @@
 use qubit_budget::StructureBudget;
 use qubit_budget::StructureLimits;
 
-use crate::policy::DomainTraversalAdmission;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DomainValueBudgetAdmission {
+pub(crate) enum DomainEntry {
     Entered,
     DepthLimitReached,
     TraversalLimitReached,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DomainTruncationCheckpoint {
-    depth_generation: usize,
-    traversal_generation: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DomainTruncation {
-    None,
-    Depth,
-    Traversal,
 }
 
 /// Tracks one value's independent structural traversal budget.
@@ -38,8 +23,6 @@ pub(crate) struct DomainRedactionContext {
     current_depth: usize,
     max_depth: usize,
     traversal_closed: bool,
-    depth_generation: usize,
-    traversal_generation: usize,
     collection_items_seen: usize,
     maximum_depth_observed: usize,
 }
@@ -53,52 +36,66 @@ impl DomainRedactionContext {
             current_depth: 0,
             max_depth,
             traversal_closed: false,
-            depth_generation: 0,
-            traversal_generation: 0,
             collection_items_seen: 0,
             maximum_depth_observed: 0,
         }
     }
 
-    pub(crate) fn enter_value(&mut self) -> DomainValueBudgetAdmission {
+    pub(crate) fn enter_value(&mut self) -> DomainEntry {
         if self.traversal_closed {
-            return DomainValueBudgetAdmission::TraversalLimitReached;
+            return DomainEntry::TraversalLimitReached;
         }
         if self.current_depth >= self.max_depth {
-            self.depth_generation = self.depth_generation.wrapping_add(1);
-            return DomainValueBudgetAdmission::DepthLimitReached;
+            return DomainEntry::DepthLimitReached;
         }
         if self.budget.enter_node(self.current_depth.saturating_add(1)).is_err() {
             self.close_traversal();
-            return DomainValueBudgetAdmission::TraversalLimitReached;
+            return DomainEntry::TraversalLimitReached;
         }
         self.current_depth += 1;
         self.maximum_depth_observed = self.maximum_depth_observed.max(self.current_depth);
-        DomainValueBudgetAdmission::Entered
+        DomainEntry::Entered
     }
 
-    pub(crate) fn admit_field(&mut self) -> DomainTraversalAdmission {
+    pub(crate) fn admit_field(&mut self) -> bool {
         if self.traversal_closed {
-            return DomainTraversalAdmission::LimitReached;
+            return false;
         }
         if self.budget.charge_node().is_err() {
             self.close_traversal();
-            return DomainTraversalAdmission::LimitReached;
+            return false;
         }
-        DomainTraversalAdmission::Render
+        true
     }
 
-    pub(crate) fn admit_collection_item(&mut self) -> DomainTraversalAdmission {
+    /// Charges one non-domain structural node to this transaction's shared
+    /// budget without changing the domain writer's active nesting scope.
+    pub(crate) fn admit_format_node(&mut self, depth: usize) -> DomainEntry {
         if self.traversal_closed {
-            return DomainTraversalAdmission::LimitReached;
+            return DomainEntry::TraversalLimitReached;
+        }
+        if depth > self.max_depth {
+            return DomainEntry::DepthLimitReached;
+        }
+        if self.budget.charge_node().is_err() {
+            self.close_traversal();
+            return DomainEntry::TraversalLimitReached;
+        }
+        self.maximum_depth_observed = self.maximum_depth_observed.max(depth);
+        DomainEntry::Entered
+    }
+
+    pub(crate) fn admit_collection_item(&mut self) -> bool {
+        if self.traversal_closed {
+            return false;
         }
         let next = self.collection_items_seen.saturating_add(1);
         if self.budget.check_sequence_items(next).is_err() {
             self.close_traversal();
-            return DomainTraversalAdmission::LimitReached;
+            return false;
         }
         self.collection_items_seen = next;
-        DomainTraversalAdmission::Render
+        true
     }
 
     pub(crate) fn leave_value(&mut self) {
@@ -106,25 +103,12 @@ impl DomainRedactionContext {
         self.current_depth -= 1;
     }
 
-    pub(crate) const fn truncation_checkpoint(&self) -> DomainTruncationCheckpoint {
-        DomainTruncationCheckpoint {
-            depth_generation: self.depth_generation,
-            traversal_generation: self.traversal_generation,
-        }
-    }
-
-    pub(crate) const fn truncation_since(&self, checkpoint: DomainTruncationCheckpoint) -> DomainTruncation {
-        if self.traversal_generation != checkpoint.traversal_generation {
-            DomainTruncation::Traversal
-        } else if self.depth_generation != checkpoint.depth_generation {
-            DomainTruncation::Depth
-        } else {
-            DomainTruncation::None
-        }
+    #[must_use]
+    pub(crate) const fn current_depth(&self) -> usize {
+        self.current_depth
     }
 
     fn close_traversal(&mut self) {
         self.traversal_closed = true;
-        self.traversal_generation = self.traversal_generation.wrapping_add(1);
     }
 }

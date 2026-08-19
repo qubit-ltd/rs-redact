@@ -8,15 +8,16 @@
 //! Shared execution-time accounting for bounded redaction operations.
 
 mod internal;
+mod redaction_budget;
+mod redaction_handle;
 mod redaction_session;
-mod redaction_session_error;
 mod redaction_session_output;
+mod transaction_guard;
+mod transaction_state;
 
+pub use redaction_handle::RedactionHandle;
+pub use redaction_handle::RedactionHandleError;
 pub use redaction_session::RedactionSession;
-pub use redaction_session_error::RedactionSessionError;
 pub use redaction_session_output::RedactionSessionOutput;
 
-pub(crate) use crate::domain::internal::DomainRedactionContext;
-pub(crate) use crate::domain::internal::DomainTruncation;
-pub(crate) use crate::domain::internal::DomainTruncationCheckpoint;
-pub(crate) use crate::domain::internal::DomainValueBudgetAdmission;
+pub(crate) use crate::domain::internal::DomainEntry;

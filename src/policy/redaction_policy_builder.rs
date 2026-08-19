@@ -14,6 +14,7 @@ use super::PolicyError;
 use super::PolicyLocation;
 use super::RedactionFloor;
 use super::RedactionLimits;
+use super::RedactionLimitsBuilder;
 use super::RedactionPolicy;
 use super::RedactionRules;
 use super::RedactionRulesBuilder;
@@ -113,41 +114,48 @@ impl RedactionPolicyBuilder {
         Ok(draft)
     }
 
-    /// Returns the mutable base-field configuration view.
+    /// Configures HTTP policy through an isolated draft.
     ///
-    /// This method is retained internally while downstream crates migrate to
-    /// the transactional [`Self::fields`] closure.
-    #[doc(hidden)]
-    #[must_use]
-    #[inline(always)]
-    pub fn edit_fields(&mut self) -> FieldsBuilder<'_> {
-        FieldsBuilder {
-            builder: self,
-            error: None,
-        }
-    }
-
-    /// Returns the mutable HTTP configuration view.
-    #[must_use]
-    #[inline(always)]
+    /// The draft replaces this namespace only after the closure returns, so a
+    /// failed build never partially updates the caller's builder.
     #[cfg(feature = "http")]
-    pub fn http(&mut self) -> HttpPolicyBuilderView<'_> {
-        HttpPolicyBuilderView { builder: self }
+    pub fn http<F>(self, configure: F) -> Result<Self, PolicyError>
+    where
+        F: FnOnce(&mut HttpPolicyBuilderView<'_>),
+    {
+        let mut draft = self.clone();
+        let mut view = HttpPolicyBuilderView { builder: &mut draft };
+        configure(&mut view);
+        Ok(draft)
     }
 
-    /// Returns the mutable URI configuration view.
-    #[must_use]
-    #[inline(always)]
+    /// Configures URI policy through an isolated draft.
     #[cfg(feature = "uri")]
-    pub fn uri(&mut self) -> UriPolicyBuilderView<'_> {
-        UriPolicyBuilderView { builder: &mut self.uri }
+    pub fn uri<F>(self, configure: F) -> Result<Self, PolicyError>
+    where
+        F: FnOnce(&mut UriPolicyBuilderView<'_>),
+    {
+        let mut draft = self.clone();
+        let mut view = UriPolicyBuilderView {
+            builder: &mut draft.uri,
+        };
+        configure(&mut view);
+        Ok(draft)
     }
 
-    /// Returns the mutable static-limits configuration view.
-    #[must_use]
-    #[inline(always)]
-    pub fn limits(&mut self) -> LimitsBuilder<'_> {
-        LimitsBuilder { builder: self }
+    /// Configures transaction limits through a draft that is applied
+    /// atomically.
+    ///
+    /// The closure mutates only a temporary limits builder. Once it returns,
+    /// the completed limits replace this builder's limits as one update.
+    pub fn limits<F>(mut self, configure: F) -> Result<Self, PolicyError>
+    where
+        F: FnOnce(&mut RedactionLimitsBuilder),
+    {
+        let mut limits = RedactionLimits::builder_from(&self.limits);
+        configure(&mut limits);
+        self.limits = limits.build();
+        Ok(self)
     }
 
     /// Validates that `field` has a non-empty canonical application-rule name.
@@ -198,15 +206,12 @@ impl RedactionPolicyBuilder {
 }
 
 mod views {
-    use qubit_budget::StructureLimits;
-
     use super::FieldNameMatching;
     use super::MaskPolicy;
     use super::MaskingPolicy;
     use super::PolicyError;
     use super::PolicyLocation;
     use super::RedactionFloor;
-    use super::RedactionLimits;
     use super::RedactionPolicyBuilder;
     #[cfg(feature = "http")]
     use super::RedactionRules;
@@ -222,7 +227,6 @@ mod views {
 
     impl FieldsBuilder<'_> {
         /// Raises one field's minimum sensitivity in a transactional draft.
-        #[must_use]
         #[inline(always)]
         fn set_sensitive(&mut self, field: &str, level: Sensitivity) -> &mut Self {
             if self.error.is_none()
@@ -234,42 +238,36 @@ mod views {
         }
 
         /// Marks a field as low sensitivity.
-        #[must_use]
         #[inline(always)]
         pub fn low_sensitive(&mut self, field: &str) -> &mut Self {
             self.set_sensitive(field, Sensitivity::Low)
         }
 
         /// Marks a field as medium sensitivity.
-        #[must_use]
         #[inline(always)]
         pub fn medium_sensitive(&mut self, field: &str) -> &mut Self {
             self.set_sensitive(field, Sensitivity::Medium)
         }
 
         /// Marks a field as high sensitivity.
-        #[must_use]
         #[inline(always)]
         pub fn high_sensitive(&mut self, field: &str) -> &mut Self {
             self.set_sensitive(field, Sensitivity::High)
         }
 
         /// Marks a field as secret sensitivity.
-        #[must_use]
         #[inline(always)]
         pub fn secret_sensitive(&mut self, field: &str) -> &mut Self {
             self.set_sensitive(field, Sensitivity::Secret)
         }
 
         /// Raises a field's minimum sensitivity to `level`.
-        #[must_use]
         #[inline(always)]
         pub fn sensitive(&mut self, level: Sensitivity, field: &str) -> &mut Self {
             self.set_sensitive(field, level)
         }
 
         /// Sets field-name matching for the base policy.
-        #[must_use]
         #[inline(always)]
         pub fn matching(&mut self, matching: FieldNameMatching) -> &mut Self {
             self.builder.rules.matching(matching);
@@ -289,39 +287,63 @@ mod views {
         }
 
         /// Raises a base field's minimum sensitivity.
-        pub fn raise(&mut self, field: &str, level: Sensitivity) -> Result<&mut Self, PolicyError> {
-            self.builder.rules.raise(field, level)?;
-            Ok(self)
+        pub fn raise(&mut self, field: &str, level: Sensitivity) -> &mut Self {
+            if self.error.is_none()
+                && let Err(error) = self.builder.rules.raise(field, level)
+            {
+                self.error = Some(error);
+            }
+            self
         }
 
         /// Replaces one base field rule without weakening floors.
-        pub fn override_level(&mut self, field: &str, level: Sensitivity) -> Result<&mut Self, PolicyError> {
-            self.builder.rules.override_level(field, level)?;
-            Ok(self)
+        pub fn override_level(&mut self, field: &str, level: Sensitivity) -> &mut Self {
+            if self.error.is_none()
+                && let Err(error) = self.builder.rules.override_level(field, level)
+            {
+                self.error = Some(error);
+            }
+            self
         }
 
         /// Adds a base exact allow rule.
-        pub fn allow_exact(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
-            self.builder.rules.allow_canonical_exact(field)?;
-            Ok(self)
+        pub fn allow_exact(&mut self, field: &str) -> &mut Self {
+            if self.error.is_none()
+                && let Err(error) = self.builder.rules.allow_canonical_exact(field)
+            {
+                self.error = Some(error);
+            }
+            self
         }
 
         /// Adds a base suffix allow rule.
-        pub fn allow_suffix(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
-            self.builder.rules.allow_suffix(field)?;
-            Ok(self)
+        pub fn allow_suffix(&mut self, field: &str) -> &mut Self {
+            if self.error.is_none()
+                && let Err(error) = self.builder.rules.allow_suffix(field)
+            {
+                self.error = Some(error);
+            }
+            self
         }
 
         /// Removes a base exact allow rule.
-        pub fn remove_allow_exact(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
-            self.builder.rules.remove_allow_canonical_exact(field)?;
-            Ok(self)
+        pub fn remove_allow_exact(&mut self, field: &str) -> &mut Self {
+            if self.error.is_none()
+                && let Err(error) = self.builder.rules.remove_allow_canonical_exact(field)
+            {
+                self.error = Some(error);
+            }
+            self
         }
 
         /// Removes a base suffix allow rule.
-        pub fn remove_allow_suffix(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
-            self.builder.rules.remove_allow_suffix(field)?;
-            Ok(self)
+        pub fn remove_allow_suffix(&mut self, field: &str) -> &mut Self {
+            if self.error.is_none()
+                && let Err(error) = self.builder.rules.remove_allow_suffix(field)
+            {
+                self.error = Some(error);
+            }
+            self
         }
 
         /// Removes all base allow rules.
@@ -331,7 +353,6 @@ mod views {
         }
 
         /// Replaces the base minimum-protection floor.
-        #[must_use]
         #[inline(always)]
         pub fn floor(&mut self, floor: RedactionFloor) -> &mut Self {
             self.builder.floor = Some(floor);
@@ -345,13 +366,17 @@ mod views {
         }
 
         /// Replaces one shared masking level.
-        pub fn mask(&mut self, level: Sensitivity, policy: MaskPolicy) -> Result<&mut Self, PolicyError> {
+        pub fn mask(&mut self, level: Sensitivity, policy: MaskPolicy) -> &mut Self {
             let mut masking = MaskingPolicy::builder_from(&self.builder.masking);
             masking.policy(level, policy);
             let masking = masking.build();
-            masking.validate(PolicyLocation::Rules)?;
-            self.builder.masking = masking;
-            Ok(self)
+            if self.error.is_none() {
+                match masking.validate(PolicyLocation::Rules) {
+                    Ok(()) => self.builder.masking = masking,
+                    Err(error) => self.error = Some(error),
+                }
+            }
+            self
         }
     }
 
@@ -515,21 +540,6 @@ mod views {
             self
         }
     }
-
-    /// Mutable view over policy limits.
-    pub struct LimitsBuilder<'a> {
-        pub(super) builder: &'a mut RedactionPolicyBuilder,
-    }
-
-    impl LimitsBuilder<'_> {
-        /// Sets the cumulative domain-structure traversal limits.
-        pub fn domain(&mut self, limits: StructureLimits) -> &mut Self {
-            let mut builder = RedactionLimits::builder_from(&self.builder.limits);
-            builder.domain(limits);
-            self.builder.limits = builder.build();
-            self
-        }
-    }
 }
 
 pub use views::FieldsBuilder;
@@ -537,7 +547,6 @@ pub use views::FieldsBuilder;
 pub use views::HttpContextBuilderView;
 #[cfg(feature = "http")]
 pub use views::HttpPolicyBuilderView;
-pub use views::LimitsBuilder;
 #[cfg(feature = "uri")]
 pub use views::UriPolicyBuilderView;
 

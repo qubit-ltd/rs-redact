@@ -9,12 +9,8 @@
 
 mod argv_item;
 mod argv_redaction_session;
-mod argv_redactor;
+pub(crate) mod argv_redactor;
 mod pending_field;
-mod redacted_argv;
-mod redacted_argv_builder;
 
 pub use argv_item::ArgvItem;
 pub use argv_redaction_session::ArgvRedactionSession;
-pub use argv_redactor::ArgvRedactor;
-pub use redacted_argv::RedactedArgv;

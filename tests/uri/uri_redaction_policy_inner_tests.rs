@@ -14,10 +14,14 @@ use qubit_redact::formats::uri::UriPathPolicy;
 #[test]
 fn test_uri_policy_inner_keeps_built_snapshot_immutable() {
     let base = RedactionPolicy::default();
-    let mut builder = base.to_builder();
-    builder.uri().path(UriPathPolicy::Redact);
-    builder.uri().fragment(UriFragmentPolicy::Preserve);
-    let configured = builder.build().expect("the configured policy must be valid");
+    let configured = base
+        .to_builder()
+        .uri(|uri| {
+            uri.path(UriPathPolicy::Redact).fragment(UriFragmentPolicy::Preserve);
+        })
+        .expect("the URI draft should be valid")
+        .build()
+        .expect("the configured policy must be valid");
 
     assert_eq!(base.uri().path_policy(), UriPathPolicy::Preserve);
     assert_eq!(base.uri().fragment_policy(), UriFragmentPolicy::Redact);

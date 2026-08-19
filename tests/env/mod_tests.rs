@@ -7,13 +7,18 @@
 // =============================================================================
 //! Tests for the public environment module boundary.
 
-use qubit_redact::formats::env::EnvRedactor;
+use qubit_redact::Redactor;
+
 /// Verifies the module exposes a complete assignment redaction path.
 #[test]
-fn test_env_module_reexports_compose() {
-    let rendered = EnvRedactor::default()
-        .redact_assignment("PASSWORD=raw-secret")
-        .to_string();
+fn test_environment_namespace_composes_with_a_transaction_session() {
+    let mut session = Redactor::standard().session();
+    let output = session
+        .literal("environment: ")
+        .env(|env| {
+            env.pair("PASSWORD", "raw-secret");
+        })
+        .finish();
 
-    assert!(!rendered.contains("raw-secret"));
+    assert_eq!(output.text().as_str(), "environment: PASSWORD=<redacted>");
 }

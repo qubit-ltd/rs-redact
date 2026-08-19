@@ -10,13 +10,10 @@
 use std::borrow::Cow;
 use std::fmt;
 use std::fmt::Debug;
-use std::fmt::Display;
 use std::fmt::Formatter;
 
 use crate::MaskingPolicy;
-use crate::RedactedText;
 use crate::Sensitivity;
-use crate::domain::internal::mask_byte_limit;
 use crate::output::MaskedValue;
 
 /// Redacted text retaining its original plain or optional container shape.
@@ -54,10 +51,7 @@ impl<'a> RedactedValue<'a> {
     #[inline(always)]
     #[must_use]
     pub fn opaque(level: Sensitivity, masking: &MaskingPolicy) -> Self {
-        let replacement = match mask_byte_limit() {
-            Some(max_bytes) => masking.mask_opaque_bounded(level, max_bytes),
-            None => masking.mask_opaque(level).to_owned(),
-        };
+        let replacement = masking.mask_opaque(level).to_owned();
         Self::Text(MaskedValue::new(Cow::Owned(replacement)))
     }
 }
@@ -117,51 +111,4 @@ impl serde::Serialize for RedactedValue<'_> {
             Self::None => serializer.serialize_none(),
         }
     }
-}
-
-impl Display for RedactedValue<'_> {
-    /// Writes masked contents escaped for a plain-text log boundary.
-    ///
-    /// # Parameters
-    ///
-    /// * `formatter` - Destination formatting context.
-    ///
-    /// # Returns
-    ///
-    /// The formatter result for the complete log-safe value.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`fmt::Error`] when the destination cannot accept the complete
-    /// log-safe representation.
-    #[inline]
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Text(text) => Display::fmt(&log_safe(text), formatter),
-            Self::Some(text) => {
-                formatter.write_str("Some(")?;
-                Display::fmt(&log_safe(text), formatter)?;
-                formatter.write_str(")")
-            }
-            Self::None => formatter.write_str("None"),
-        }
-    }
-}
-
-/// Borrows masked text and escapes it for a plain-text log boundary.
-///
-/// # Type Parameters
-///
-/// * `'a` - Lifetime of the masked text and returned log-safe view.
-///
-/// # Parameters
-///
-/// * `text` - Masked text to render safely.
-///
-/// # Returns
-///
-/// A log-safe view that borrows `text` when it contains no unsafe controls.
-#[must_use]
-fn log_safe(text: &MaskedValue<'_>) -> RedactedText {
-    MaskedValue::new(Cow::Borrowed(text.as_str())).escape_for_log()
 }

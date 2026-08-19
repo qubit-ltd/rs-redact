@@ -5,10 +5,15 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! A test value intentionally lacking a debug implementation.
+//! Private state used while rendering an HTTP body.
 
-// qubit-style: allow test-file-name
+use super::BodyRenderReason;
 
-/// Proves redacted debug wrappers do not require the wrapped type to implement
-/// [`std::fmt::Debug`].
-pub(crate) struct NoDebug;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::formats::http) enum BodyRenderStatus {
+    Empty,
+    Structured,
+    PassedThrough,
+    Redacted(BodyRenderReason),
+    Binary,
+}

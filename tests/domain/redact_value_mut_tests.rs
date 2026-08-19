@@ -37,3 +37,18 @@ fn test_redact_value_mut_preserves_empty_and_absent_values() {
     assert!(cow.is_empty());
     assert!(absent.is_none());
 }
+
+/// Covers the owned `Cow` branch and a present nested optional value.
+#[test]
+fn test_redact_value_mut_replaces_cow_and_present_option_values() {
+    let masking = MaskingPolicy::default();
+    let mut cow: Cow<'_, str> = Cow::Owned(String::from("raw"));
+    let mut present = Some(String::from("raw"));
+
+    cow.redact_value_in_place(Sensitivity::High, &masking);
+    present.redact_value_in_place(Sensitivity::Secret, &masking);
+
+    assert_eq!(cow.as_ref(), "****");
+    assert!(matches!(cow, Cow::Owned(_)));
+    assert_eq!(present.as_deref(), Some("<redacted>"));
+}

@@ -100,7 +100,7 @@ impl<'policy, 'budget, 'marker> JsonRedactionState<'policy, 'budget, 'marker> {
             policy.rules(),
             policy.rules(),
             policy.masking(),
-            policy.limits().json(),
+            policy.limits().json_point_limits(),
             unkeyed,
             mask_budget,
         )
@@ -416,5 +416,93 @@ fn stronger(base: ResolvedField, context: ResolvedField) -> ResolvedField {
             ResolvedField::Sensitive { sensitivity }
         }
         (ResolvedField::PassThrough, ResolvedField::PassThrough) => ResolvedField::PassThrough,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use qubit_budget::ResourceBudget;
+    use serde_json::json;
+
+    use super::JsonRedactionOutcome;
+    use super::JsonRedactionState;
+    use super::JsonUnkeyedValuePolicy;
+    use crate::RedactionPolicy;
+    use crate::Sensitivity;
+    use crate::policy::RedactionResource;
+
+    #[test]
+    fn sensitive_non_string_value_is_replaced_by_an_opaque_mask() {
+        let policy = RedactionPolicy::builder()
+            .fields(|fields| {
+                fields.sensitive(Sensitivity::Secret, "password");
+            })
+            .expect("test rules should build")
+            .build()
+            .expect("test policy should build");
+        let mut value = json!({"password": {"nested": "raw-secret"}});
+        let mut masks = ResourceBudget::new(RedactionResource::Mask, 128);
+        let mut state = JsonRedactionState::from_policy(&policy, JsonUnkeyedValuePolicy::PassThrough, Some(&mut masks));
+
+        let outcome = state.redact(&mut value);
+
+        assert!(matches!(outcome, JsonRedactionOutcome::Complete { .. }));
+        assert_ne!(value["password"], json!({"nested": "raw-secret"}));
+        assert!(value["password"].is_string());
+    }
+
+    #[test]
+    fn unkeyed_redaction_stops_when_no_complete_marker_fits() {
+        let policy = RedactionPolicy::standard();
+        let mut value = json!(["first", "second"]);
+        let mut masks = ResourceBudget::new(RedactionResource::Mask, 1);
+        let mut state = JsonRedactionState::from_policy(
+            &policy,
+            JsonUnkeyedValuePolicy::Redact {
+                marker: "mask",
+                truncated_marker: "x",
+            },
+            Some(&mut masks),
+        );
+
+        let outcome = state.redact(&mut value);
+
+        assert_eq!(outcome, JsonRedactionOutcome::MaskBudgetExhausted);
+        assert_eq!(value[0], json!("x"));
+        assert_eq!(value[1], json!("second"));
+    }
+
+    #[test]
+    fn context_rules_do_not_weaken_a_base_sensitive_rule() {
+        let base = RedactionPolicy::builder()
+            .fields(|fields| {
+                fields.sensitive(Sensitivity::Secret, "credential");
+            })
+            .expect("base rules should build")
+            .build()
+            .expect("base policy should build");
+        let context = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_nodes(1);
+            })
+            .expect("context limits should build")
+            .build()
+            .expect("context policy should build");
+        let mut value = json!({"credential": "raw-secret"});
+        let mut masks = ResourceBudget::new(RedactionResource::Mask, 128);
+        let mut state = JsonRedactionState::new(
+            base.rules(),
+            context.rules(),
+            base.masking(),
+            base.limits().json_point_limits(),
+            JsonUnkeyedValuePolicy::PassThrough,
+            Some(&mut masks),
+        );
+
+        let outcome = state.redact(&mut value);
+
+        assert!(matches!(outcome, JsonRedactionOutcome::Complete { .. }));
+        assert!(!value.to_string().contains("raw-secret"));
+        assert!(value["credential"].is_string());
     }
 }

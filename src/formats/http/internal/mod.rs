@@ -10,7 +10,6 @@
 mod bounded_body_writer;
 mod bounded_log_writer;
 pub(super) mod content_type;
-pub(super) mod diagnostic_text;
 pub(super) mod form;
 mod header_parameter;
 pub(super) mod json;

@@ -39,13 +39,6 @@ impl RedactedText {
     pub fn into_string(self) -> String {
         self.0
     }
-
-    /// Consumes the wrapper and returns its owned text.
-    #[must_use]
-    #[inline]
-    pub fn into_owned(self) -> String {
-        self.0
-    }
 }
 
 impl AsRef<str> for RedactedText {

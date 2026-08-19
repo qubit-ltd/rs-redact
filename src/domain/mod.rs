@@ -18,14 +18,9 @@ mod redact_mut;
 mod redact_serialize;
 mod redact_value;
 mod redact_value_mut;
-mod redacted;
-mod redacted_keyed_map;
-mod redacted_keyed_value;
-mod redacted_map;
 mod redacted_value;
 mod redaction_writer;
 
-pub use redact::DomainTruncated;
 pub use redact::Redact;
 #[cfg(feature = "serde")]
 #[doc(hidden)]
@@ -38,14 +33,6 @@ pub use redact_mut::RedactMut;
 pub use redact_serialize::RedactSerialize;
 pub use redact_value::RedactValue;
 pub use redact_value_mut::RedactValueMut;
-pub use redacted::Redacted;
-pub use redacted::RedactedResult;
-pub use redacted_keyed_map::RedactedKeyedMap;
-pub use redacted_keyed_map::RedactedKeyedMapResult;
-pub use redacted_keyed_value::RedactedKeyedResult;
-pub use redacted_keyed_value::RedactedKeyedValue;
-pub use redacted_map::RedactedMap;
-pub use redacted_map::RedactedMapResult;
-pub use redacted_value::RedactedValue;
+pub(crate) use redacted_value::RedactedValue;
 pub use redaction_writer::RedactionFields;
 pub use redaction_writer::RedactionWriter;

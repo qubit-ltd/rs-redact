@@ -7,36 +7,24 @@
 // =============================================================================
 //! Stateless redaction operations backed by an immutable policy.
 
+use std::ffi::OsStr;
+use std::fmt;
+use std::fmt::Write;
+use std::sync::Arc;
 use std::sync::PoisonError;
 
-use crate::FieldClassification;
-use crate::FieldRedaction;
-use crate::PassThroughReason;
 use crate::RedactionCompletion;
 use crate::RedactionPolicy;
 use crate::RedactionSession;
-use crate::Sensitivity;
-use crate::config::RedactionConfig;
 use crate::domain::Redact;
-use crate::domain::RedactMapValueMut;
-use crate::domain::RedactedKeyedValue;
 use crate::facade::RedactionOutput;
-use crate::formats::argv::ArgvRedactor;
-use crate::formats::env::EnvRedactor;
-#[cfg(feature = "http")]
-use crate::formats::http::HttpRedactor;
-#[cfg(feature = "json")]
-use crate::formats::json::JsonRedactor;
-#[cfg(feature = "uri")]
-use crate::formats::uri::UriRedactor;
-use crate::output::MaskedValue;
 use crate::policy::ResolvedField;
 
 /// Applies one immutable policy to scalar values and string maps.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Redactor {
     /// Field classification and masking configuration.
-    policy: RedactionPolicy,
+    policy: Arc<RedactionPolicy>,
 }
 
 impl Redactor {
@@ -51,12 +39,9 @@ impl Redactor {
     /// A redactor that owns the supplied policy snapshot.
     #[must_use]
     #[inline(always)]
-    pub fn new<C>(config: C) -> Self
-    where
-        C: Into<RedactionConfig>,
-    {
+    pub fn new(policy: RedactionPolicy) -> Self {
         Self {
-            policy: config.into().into_policy(),
+            policy: Arc::new(policy),
         }
     }
 
@@ -70,10 +55,10 @@ impl Redactor {
     /// Returns a snapshot of the current application default redactor.
     ///
     /// The returned value is detached from the global slot. Later calls to
-    /// [`Self::set_default`] do not alter this redactor or sessions created
-    /// from it.
+    /// [`Self::replace_application_default`] do not alter this redactor or
+    /// sessions created from it.
     #[must_use]
-    pub fn current_default() -> Self {
+    pub fn application_default() -> Self {
         match crate::facade::default_redactor::slot().read() {
             Ok(redactor) => redactor.clone(),
             Err(error) => PoisonError::into_inner(error).clone(),
@@ -87,7 +72,7 @@ impl Redactor {
     /// redactors and sessions keep their own snapshots. The previous default
     /// is returned so callers can restore it after a scoped change.
     #[must_use]
-    pub fn set_default(redactor: Self) -> Self {
+    pub fn replace_application_default(redactor: Self) -> Self {
         let mut current = match crate::facade::default_redactor::slot().write() {
             Ok(guard) => guard,
             Err(error) => PoisonError::into_inner(error),
@@ -102,23 +87,20 @@ impl Redactor {
         T: Redact + ?Sized,
     {
         let mut session = self.session();
-        let mut writer = crate::domain::RedactionWriter::new_root(&mut session);
-        value.write_redacted(&mut writer);
-        let rendered = writer.finish();
-        session.append_committed_output(&rendered);
-        let text = crate::RedactedText::from_escaped(
-            crate::output::log_escape::escape_log_control_characters(std::borrow::Cow::Owned(rendered)).into_owned(),
-        );
-        crate::RedactionOutput::new(text, crate::RedactionSummary::complete())
+        let handle = session.redact_value(value);
+        session
+            .finish()
+            .into_resolved(handle)
+            .expect("a handle created by the completed transaction must resolve")
     }
 
     /// Creates a redactor with the strict policy for untrusted scalar data.
     ///
-    /// Unknown fields are masked at [`Sensitivity::Secret`].
+    /// Unknown fields are masked at [`crate::Sensitivity::Secret`].
     #[must_use]
     #[inline]
     pub fn strict() -> Self {
-        Self::new(RedactionConfig::strict())
+        Self::new(RedactionPolicy::strict())
     }
 
     /// Returns the immutable policy used by this redactor.
@@ -128,189 +110,159 @@ impl Redactor {
     /// A borrowed view of the redactor's policy snapshot.
     #[must_use]
     #[inline(always)]
-    pub const fn policy(&self) -> &RedactionPolicy {
-        &self.policy
+    pub fn policy(&self) -> &RedactionPolicy {
+        self.policy.as_ref()
     }
 
     /// Creates mutable accounting for one diagnostic event.
     ///
     /// # Returns
     ///
-    /// A session borrowing this redactor's immutable policy.
+    /// A session owning a clone of this redactor's immutable policy snapshot.
     #[must_use]
     #[inline]
-    pub fn session(&self) -> RedactionSession<'_> {
-        RedactionSession::new(&self.policy)
+    pub fn session(&self) -> RedactionSession {
+        RedactionSession::from_snapshot(Arc::clone(&self.policy))
     }
 
-    /// Creates an argument-vector adapter using this policy snapshot.
+    /// Redacts one scalar field through a complete one-item transaction.
     #[must_use]
-    #[inline]
-    pub fn argv(&self) -> ArgvRedactor {
-        ArgvRedactor::new(self.clone())
+    pub fn redact_field(&self, field: &str, value: &str) -> RedactionOutput {
+        let mut session = self.session();
+        let handle = session.redact_field(field, value);
+        session
+            .finish()
+            .into_resolved(handle)
+            .expect("a handle created by the completed transaction must resolve")
     }
 
-    /// Creates an environment adapter using this policy snapshot.
+    /// Redacts an argument vector through one completed session transaction.
     #[must_use]
-    #[inline]
-    pub fn env(&self) -> EnvRedactor {
-        EnvRedactor::new(self.clone())
+    pub fn redact_argv<'items, I>(&self, items: I) -> RedactionOutput
+    where
+        I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let mut session = self.session();
+        let handle = crate::formats::argv::ArgvRedactionSession::new(&mut session).redact_items(items);
+        session
+            .finish()
+            .into_resolved(handle)
+            .expect("a handle created by the completed transaction must resolve")
     }
 
-    /// Creates an HTTP adapter using this policy snapshot.
-    #[cfg(feature = "http")]
+    /// Redacts one environment assignment through one completed transaction.
     #[must_use]
-    #[inline]
-    pub fn http(&self) -> HttpRedactor {
-        HttpRedactor::new(self.policy.clone())
+    pub fn redact_env(&self, name: &str, value: &str) -> RedactionOutput {
+        let mut session = self.session();
+        let handle = crate::formats::env::EnvRedactionSession::new(&mut session).redact_pair(name, value);
+        session
+            .finish()
+            .into_resolved(handle)
+            .expect("a handle created by the completed transaction must resolve")
     }
 
-    /// Creates an immediate JSON adapter using this policy snapshot.
+    /// Redacts environment assignments through one completed transaction.
+    #[must_use]
+    pub fn redact_env_pairs<'items, I>(&self, pairs: I) -> RedactionOutput
+    where
+        I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let mut session = self.session();
+        let handle = session.redact_env_pairs(pairs);
+        session
+            .finish()
+            .into_resolved(handle)
+            .expect("a handle created by the completed transaction must resolve")
+    }
+
+    /// Redacts one process command through one completed session transaction.
+    #[must_use]
+    pub fn redact_process<'arguments, 'variables, A, E>(
+        &self,
+        program: &'arguments OsStr,
+        arguments: A,
+        variables: E,
+    ) -> RedactionOutput
+    where
+        A: IntoIterator<Item = crate::formats::argv::ArgvItem<'arguments>>,
+        A::IntoIter: ExactSizeIterator,
+        E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
+        E::IntoIter: ExactSizeIterator,
+    {
+        let mut session = self.session();
+        let handle = session.redact_process(program, arguments, variables);
+        session
+            .finish()
+            .into_resolved(handle)
+            .expect("a handle created by the completed transaction must resolve")
+    }
+
+    /// Redacts JSON text through one completed session transaction.
     #[cfg(feature = "json")]
     #[must_use]
-    #[inline]
-    pub fn json(&self) -> JsonRedactor {
-        JsonRedactor::new(self.policy.clone())
+    pub fn redact_json(&self, text: &str) -> RedactionOutput {
+        let mut session = self.session();
+        let handle = session.redact_json(text);
+        session
+            .finish()
+            .into_resolved(handle)
+            .expect("a handle created by the completed transaction must resolve")
     }
 
-    /// Creates a URI adapter using this policy snapshot.
+    /// Redacts an HTTP URL through one completed session transaction.
+    #[cfg(feature = "http")]
+    #[must_use]
+    pub fn redact_http_url(&self, value: &str) -> RedactionOutput {
+        let mut session = self.session();
+        let handle = session.redact_http_url(value);
+        session
+            .finish()
+            .into_resolved(handle)
+            .expect("a handle created by the completed transaction must resolve")
+    }
+
+    /// Redacts an HTTP header collection through one completed transaction.
+    #[cfg(feature = "http")]
+    #[must_use]
+    pub fn redact_http_headers(&self, headers: &http::HeaderMap) -> RedactionOutput {
+        let mut session = self.session();
+        let handle = session.redact_http_headers(headers);
+        session
+            .finish()
+            .into_resolved(handle)
+            .expect("a handle created by the completed transaction must resolve")
+    }
+
+    /// Redacts one captured HTTP body through one completed session
+    /// transaction.
+    #[cfg(feature = "http")]
+    #[must_use]
+    pub fn redact_http_body(
+        &self,
+        capture: crate::formats::http::BodyCapture<'_>,
+        content_type: Option<&http::HeaderValue>,
+    ) -> RedactionOutput {
+        let mut session = self.session();
+        let handle = session.redact_http_body(capture, content_type);
+        session
+            .finish()
+            .into_resolved(handle)
+            .expect("a handle created by the completed transaction must resolve")
+    }
+
+    /// Redacts a URI through one completed session transaction.
     #[cfg(feature = "uri")]
     #[must_use]
-    #[inline]
-    pub fn uri(&self) -> UriRedactor {
-        UriRedactor::new(self.policy.clone())
-    }
-
-    /// Redacts one value according to its field name.
-    ///
-    /// Unknown and explicitly allowed fields retain a borrow of `value`.
-    /// Sensitive fields return the value produced by the configured mask.
-    /// This method classifies only `field`; it never scans `value` for secret
-    /// syntax. Do not pass an arbitrary error message or complete diagnostic
-    /// under a generic field name and expect embedded credentials to be found.
-    /// Use structured fields, [`Self::redact_at`] for an opaque value whose
-    /// sensitivity is already known, or a fixed safe public summary with the
-    /// original error retained only as an error source.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `'a` - Lifetime of the input and any borrowed redacted result.
-    ///
-    /// # Parameters
-    ///
-    /// * `field` - Raw field name to classify.
-    /// * `value` - Field value to redact when classified as sensitive.
-    ///
-    /// # Returns
-    ///
-    /// A typed result that distinguishes masked values from pass-through
-    /// values while borrowing safe input where possible.
-    #[must_use]
-    #[inline]
-    pub fn redact_field<'a>(&self, field: &str, value: &'a str) -> FieldRedaction<'a> {
-        let (redacted, _) = redact_field_unbudgeted(&self.policy, field, value, usize::MAX);
-        redacted
-    }
-
-    /// Redacts one value at an explicit sensitivity level.
-    ///
-    /// This ignores field classification and allow rules. Use it at a boundary
-    /// where the value is known to be sensitive regardless of its field name.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `'a` - Lifetime of the input and any borrowed redacted result.
-    ///
-    /// # Parameters
-    ///
-    /// * `level` - Sensitivity required by the calling boundary.
-    /// * `value` - Value to mask.
-    ///
-    /// # Returns
-    ///
-    /// Typed redacted text produced by the configured mask for `level`.
-    #[must_use]
-    #[inline]
-    pub fn redact_at<'a>(&self, level: Sensitivity, value: &'a str) -> MaskedValue<'a> {
-        let masked = self.policy.masking().mask(level, value);
-        MaskedValue::new(masked)
-    }
-
-    /// Creates a lazy redacted view selected by an external key.
-    ///
-    /// The returned view borrows this redactor's policy snapshot. When its key
-    /// is sensitive, it masks the complete value through
-    /// [`RedactValue`](crate::domain::RedactValue). Otherwise it delegates to
-    /// the value's recursive redaction contracts.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `'value` - Lifetime of the borrowed key and value.
-    /// * `T` - Value type rendered or serialized through redaction.
-    ///
-    /// # Parameters
-    ///
-    /// * `key` - Field name used only for policy classification.
-    /// * `value` - Value to render or serialize through the selected policy.
-    ///
-    /// # Returns
-    ///
-    /// A lazy keyed redaction view borrowing `key` and `value`.
-    #[must_use]
-    #[inline(always)]
-    pub fn redact_keyed<'value, T: ?Sized>(
-        &self,
-        key: &'value str,
-        value: &'value T,
-    ) -> RedactedKeyedValue<'value, '_, T> {
-        RedactedKeyedValue::new(key, value, &self.policy)
-    }
-
-    /// Creates a redacted copy of a text-keyed, mutable text-valued map.
-    ///
-    /// The source map is never modified. Its concrete collection type is
-    /// preserved by cloning the collection before applying in-place redaction.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `M` - Cloneable map-like collection returned after redaction.
-    /// * `K` - Runtime key type used for field classification.
-    /// * `V` - Mutable map-value type redacted in the cloned collection.
-    ///
-    /// # Parameters
-    ///
-    /// * `map` - Map whose values are classified by their corresponding keys.
-    ///
-    /// # Returns
-    ///
-    /// A map of the same type containing redacted values.
-    #[must_use]
-    pub fn redact_map<M, K: ?Sized, V: ?Sized>(&self, map: &M) -> M
-    where
-        M: Clone + RedactMapValueMut<K, V>,
-    {
-        let mut redacted = map.clone();
-        RedactMapValueMut::redact_map_in_place(&mut redacted, &self.policy);
-        redacted
-    }
-
-    /// Redacts sensitive values of a text-keyed map in place.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `M` - Mutable map-like collection type.
-    /// * `K` - Runtime key type used for field classification.
-    /// * `V` - Mutable map-value type redacted in place.
-    ///
-    /// # Parameters
-    ///
-    /// * `map` - Mutable map whose values are classified by their keys.
-    #[inline(always)]
-    pub fn redact_map_in_place<M, K: ?Sized, V: ?Sized>(&self, map: &mut M)
-    where
-        M: RedactMapValueMut<K, V> + ?Sized,
-    {
-        RedactMapValueMut::redact_map_in_place(map, &self.policy);
+    pub fn redact_uri(&self, input: &str) -> RedactionOutput {
+        let mut session = self.session();
+        let handle = session.redact_uri(input);
+        let output = session.finish();
+        output
+            .resolve(handle)
+            .expect("a handle created by the completed transaction must resolve")
+            .clone()
     }
 }
 
@@ -329,56 +281,95 @@ pub(crate) fn redaction_output(text: crate::RedactedText, completion: RedactionC
     match completion {
         RedactionCompletion::Complete => RedactionOutput::complete(text),
         RedactionCompletion::Truncated => RedactionOutput::truncated(text).unwrap_or_else(RedactionOutput::empty),
+        RedactionCompletion::Exhausted => RedactionOutput::new(
+            text,
+            crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached),
+        ),
     }
 }
 
-/// Resolves one admitted field without charging its output.
+/// Resolves and renders one admitted field into its final bounded log text.
+///
+/// The limit applies to the final escaped representation, not to the
+/// intermediate masked value.  In particular, a masking policy may retain a
+/// control character that expands during log escaping.  Rendering directly to
+/// [`BoundedFieldWriter`] keeps that expansion within the transaction budget
+/// and avoids constructing an unbounded intermediate string.
 #[must_use]
-pub(crate) fn redact_field_unbudgeted<'value>(
+pub(crate) fn redact_field_text_for_output(
     policy: &RedactionPolicy,
     field: &str,
-    value: &'value str,
+    value: &str,
     max_output_bytes: usize,
-) -> (FieldRedaction<'value>, bool) {
-    match policy.resolve_field(field) {
+) -> (crate::RedactedText, RedactionCompletion) {
+    let mut writer = BoundedFieldWriter::new(max_output_bytes);
+    let result = match policy.resolve_field(field) {
         ResolvedField::Sensitive { sensitivity } => {
-            let (masked, truncated) = if max_output_bytes == usize::MAX {
-                (policy.masking().mask(sensitivity, value), false)
-            } else {
-                policy
-                    .masking()
-                    .mask_bounded_with_truncation(sensitivity, value, max_output_bytes)
-            };
-            (
-                FieldRedaction::Masked {
-                    value: MaskedValue::new(masked),
-                    sensitivity,
-                },
-                truncated,
-            )
+            policy.masking().for_level(sensitivity).write_masked(value, &mut writer)
         }
-        ResolvedField::PassThrough => {
-            let reason = match policy.classify_field(field) {
-                FieldClassification::Allowed { .. } => PassThroughReason::Allowed,
-                FieldClassification::Sensitive { .. } | FieldClassification::Unknown => PassThroughReason::Unknown,
-            };
-            (FieldRedaction::PassedThrough { value, reason }, false)
+        ResolvedField::PassThrough => writer.write_str(value),
+    };
+    if result.is_err() || writer.overflowed() {
+        return (
+            crate::RedactedText::from_escaped(String::new()),
+            RedactionCompletion::Exhausted,
+        );
+    }
+    (
+        crate::RedactedText::from_escaped(writer.finish()),
+        RedactionCompletion::Complete,
+    )
+}
+
+/// Streams already-masked field text through log escaping with a hard final
+/// byte ceiling.
+struct BoundedFieldWriter {
+    output: String,
+    max_output_bytes: usize,
+    overflowed: bool,
+}
+
+impl BoundedFieldWriter {
+    fn new(max_output_bytes: usize) -> Self {
+        Self {
+            output: String::new(),
+            max_output_bytes,
+            overflowed: false,
         }
+    }
+
+    const fn overflowed(&self) -> bool {
+        self.overflowed
+    }
+
+    fn finish(self) -> String {
+        self.output
+    }
+}
+
+impl fmt::Write for BoundedFieldWriter {
+    fn write_str(&mut self, value: &str) -> fmt::Result {
+        for character in value.chars() {
+            let mut encoded = [0_u8; 12];
+            let piece = crate::output::log_escape::encode_log_safe_character(character, &mut encoded)?;
+            if self.output.len().saturating_add(piece.len()) > self.max_output_bytes {
+                self.overflowed = true;
+                return Err(fmt::Error);
+            }
+            self.output.push_str(piece);
+        }
+        Ok(())
     }
 }
 
 impl Default for Redactor {
-    /// Creates a redactor from the current global redaction configuration.
+    /// Creates a redactor from the deterministic standard policy.
     ///
     /// # Returns
     ///
-    /// A redactor that is unaffected by later policy configuration attempts.
-    /// Before the application installs a global policy this is the fixed
-    /// standard baseline, not an application-specific coverage guarantee.
-    /// Applications requiring stricter handling must install their complete
-    /// policy before construction or pass an explicit policy to [`Self::new`].
+    /// This implementation never reads mutable process-wide application state.
     #[inline(always)]
     fn default() -> Self {
-        Self::current_default()
+        Self::standard()
     }
 }

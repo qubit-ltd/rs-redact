@@ -18,13 +18,13 @@ fn test_text_body_policy_default_is_redact() {
 /// Verifies the HTTP policy builder accepts the explicit pass-through opt-in.
 #[test]
 fn test_text_body_policy_builder_accepts_pass_through() {
-    let policy = ({
-        let mut builder = RedactionPolicy::builder();
-        builder.http().text_body(TextBodyPolicy::PassThrough);
-        builder
-    })
-    .build()
-    .expect("HTTP redaction policy should be valid");
+    let policy = RedactionPolicy::builder()
+        .http(|http| {
+            http.text_body(TextBodyPolicy::PassThrough);
+        })
+        .expect("HTTP policy configuration should be valid")
+        .build()
+        .expect("HTTP redaction policy should be valid");
 
     assert_eq!(policy.text_body_policy(), TextBodyPolicy::PassThrough);
 }
