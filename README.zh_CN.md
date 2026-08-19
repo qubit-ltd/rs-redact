@@ -1,41 +1,67 @@
 # qubit-redact
 
-面向字段、命令参数、环境变量、JSON、HTTP、URI 和 Rust 领域对象的规则驱动脱敏库。
+`qubit-redact` 在一份不可变 policy 下，对标量字段、Rust domain value、argv、环境变量、
+进程命令、JSON、HTTP 和 URI 诊断信息脱敏。
 
-## Direct 操作
+## 单项操作
 
-Direct adapter 是彼此独立的操作，返回拥有所有权的结果，不共享输入或输出字节计数：
+`Redactor` 的便利方法各自创建一个 transaction，并返回 `RedactionOutput`。
 
 ```rust
 use qubit_redact::Redactor;
 
-let redactor = Redactor::standard();
-let output = redactor.redact_field("password", "secret");
-assert_eq!(output.as_str(), "<redacted>");
-
-let url = redactor.http().redact_url_str("https://example.test/?token=secret");
-assert!(!url.as_str().contains("secret"));
+let output = Redactor::strict().redact_field("password", "raw-secret");
+assert!(!output.text().as_str().contains("raw-secret"));
 ```
 
-## 原子 Session
+## 一轮诊断 transaction
 
-只有在需要一次性发布多个具名 adapter 结果时才使用 Session。每个结果独立准备，
-`finish` 要么发布整个批次，要么拒绝批次。
+多段诊断信息应使用 `RedactionSession`，让所有输入、输出和结构预算共享。聚合 API
+返回 session 以支持链式调用；只有 `finish()` 发布结果，并把 session 重置为下一轮
+transaction 可复用状态。
 
-`RedactionOutput` 提供 `text()`、`summary()`、`into_text()` 和 `into_parts()`；完成状态
-只有 `Complete` 与 `Truncated`，summary 保留结构、解析和输入 capture 原因。
+```rust
+use qubit_redact::Redactor;
 
-## Domain 与 derive
+let mut session = Redactor::strict().session();
+session
+    .literal("login failed for ")
+    .field("user", "Ada")
+    .literal(", password: ")
+    .field("password", "raw-secret");
+let output = session.finish();
+assert!(!output.text().as_str().contains("raw-secret"));
+```
 
-实现 `Redact` 或使用 `qubit-redact-derive` 派生。嵌套值通过 writer-owned traversal
-上下文渲染，每个顶层 view 拥有独立结构预算，避免泄漏原始敏感值。
+若需取得某一单项结果，调用 `redact_*` 获得 `RedactionHandle`，并且只能在同一轮
+`finish()` 返回的输出上解析：
 
-## 安全模型
+```rust
+use qubit_redact::Redactor;
 
-结构限制来自 `qubit-budget`；JSON 使用 JSON value limits；HTTP `BodyCapture` 报告
-输入长度和入口截断状态，不再使用策略级共享字节计数。任何展示上限都由目标 writer
-显式拥有。
+let mut session = Redactor::strict().session();
+let password = session.redact_field("password", "raw-secret");
+let output = session.finish();
+assert!(!output.resolve(password)?.text().as_str().contains("raw-secret"));
+# Ok::<(), qubit_redact::RedactionHandleError>(())
+```
 
-## 许可证
+`literal` 只接受程序作者写出的 `&'static str`，但仍消耗共享输出预算。动态文本必须
+通过相应的脱敏操作处理。
 
-Apache-2.0。
+## 应用默认值
+
+`Redactor::default()` 始终是确定性的标准 policy。应用可通过
+`Redactor::replace_application_default` 安装供 `Redact::redacted()` 使用的完整快照；
+已经创建的 redactor 和 session 保持自己的快照。
+
+## Domain value
+
+可实现 `Redact`，或使用 `qubit-redact-derive`。未标记 `#[redact(...)]` 的字段与显式
+`skip` 字段，刻意保持不脱敏；因此必须明确标注所有敏感字段。
+`RedactionWriter::literal` 只接收程序字面量，`RedactionWriter::unredacted` 则明确表示
+可信的动态内容。
+
+## License
+
+Apache-2.0.

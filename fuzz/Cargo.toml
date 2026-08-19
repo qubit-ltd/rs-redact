@@ -27,3 +27,10 @@ path = "fuzz_targets/direct_inputs.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "transaction_sequences"
+path = "fuzz_targets/transaction_sequences.rs"
+test = false
+doc = false
+bench = false

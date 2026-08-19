@@ -1,20 +1,26 @@
 # User guide
 
-Start with `Redactor::standard()` and use direct adapters for one operation:
+Choose `Redactor::strict()` unless an application-specific `RedactionPolicy`
+has been built and injected explicitly. A `Redactor` owns an immutable policy
+snapshot; its `session()` method creates a reusable `RedactionSession` sharing
+that snapshot.
 
-```rust
-use qubit_redact::Redactor;
-let output = Redactor::standard().redact_field("token", "raw-token");
-assert_eq!(output.as_str(), "****");
-```
+All aggregate session operations (`literal`, `field`, `value`, `argv`, `env`,
+`process`, `json`, `http`, and `uri`) write one composed result. All individual
+operations (`redact_field`, `redact_value`, and format-specific `redact_*`)
+return opaque handles. A handle has no text conversion and is valid only after
+the transaction's `finish()`.
 
-For a multi-value diagnostic, stage keyed results in a `RedactionSession` and
-call `finish`. Publication is atomic and each adapter consumes a finite input
-iterator exactly once.
+Every byte of literals, redacted values, escaping, markers, and every format is
+charged once against the same session output budget. When that budget is
+exhausted, later accessors and adapter closures are not run. A panic from user
+redaction code discards the active transaction, resets the session, and resumes
+unwinding; nothing from that transaction is published.
 
-JSON uses the policy's `JsonValueLimits`; HTTP uses `BodyCapture` metadata and
-fail-closed parsing; URI results expose component and reason metadata. None of
-these paths uses a policy-wide input/output byte budget.
+`RedactedText` is final, safe redacted text. `RedactionOutput` adds a summary
+for one item. `RedactionSessionOutput` adds aggregate text, the aggregate
+summary, and handle resolution.
 
-Domain implementations should write through `RedactionWriter`. Derived structs,
-maps, and nested JSON values use the writer's independent structural context.
+For derived domain types, an unannotated field is intentionally unredacted.
+Use `#[redact(...)]` for every sensitive field. Use writer `literal` only for
+program literals and `unredacted` only for trusted dynamic content.
