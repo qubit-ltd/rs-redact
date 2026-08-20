@@ -9,8 +9,8 @@
 
 mod argv_item;
 mod argv_redaction_writer;
-pub(crate) mod argv_redactor;
 mod pending_field;
+pub(crate) mod redaction;
 
 pub use argv_item::ArgvItem;
 pub use argv_redaction_writer::ArgvRedactionWriter;

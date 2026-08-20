@@ -8,8 +8,8 @@
 //! Shared-session argument-vector redaction.
 
 use super::ArgvItem;
-use super::argv_redactor::redact_heuristically_with_policy;
-use super::argv_redactor::redact_items_with_policy;
+use super::redaction::redact_heuristically_with_policy;
+use super::redaction::redact_items_with_policy;
 use crate::RedactionHandle;
 use crate::RedactionSession;
 

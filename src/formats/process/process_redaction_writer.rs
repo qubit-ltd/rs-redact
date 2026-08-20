@@ -18,9 +18,9 @@ use crate::RedactionHandle;
 use crate::RedactionSession;
 use crate::formats::argv::ArgvItem;
 use crate::formats::argv::ArgvRedactionWriter;
-use crate::formats::argv::argv_redactor::redact_heuristically_with_policy;
+use crate::formats::argv::redaction::redact_heuristically_with_policy;
 use crate::formats::env::EnvRedactionWriter;
-use crate::formats::env::env_redactor::redact_os_pairs_with_policy;
+use crate::formats::env::redaction::redact_os_pairs_with_policy;
 
 /// A borrowed process-command facade over one active redaction transaction.
 ///

@@ -12,9 +12,9 @@ use http::HeaderValue;
 use url::Url;
 
 use super::BodyCapture;
-use super::http_redactor::url_rules;
 use super::internal::nested_url;
 use super::internal::nested_url::NestedUrl;
+use super::redaction::url_rules;
 use crate::RedactedText;
 use crate::RedactionHandle;
 use crate::RedactionSession;
@@ -109,18 +109,14 @@ impl<'session> HttpRedactionWriter<'session> {
 impl<'session> HttpRedactionWriter<'session> {
     /// Parses and redacts one URL string.
     #[must_use]
-    fn redact_url_str_direct(&mut self, text: &str) -> super::http_redactor::HttpRendered {
-        super::http_redactor::redact_url_str_with_policy(
-            self.session.policy(),
-            text,
-            self.session.remaining_output_bytes(),
-        )
+    fn redact_url_str_direct(&mut self, text: &str) -> super::redaction::HttpRendered {
+        super::redaction::redact_url_str_with_policy(self.session.policy(), text, self.session.remaining_output_bytes())
     }
 
     /// Redacts all HTTP headers.
     #[must_use]
-    fn redact_headers_direct(&mut self, headers: &HeaderMap) -> super::http_redactor::HttpRendered {
-        super::http_redactor::redact_headers_with_policy(
+    fn redact_headers_direct(&mut self, headers: &HeaderMap) -> super::redaction::HttpRendered {
+        super::redaction::redact_headers_with_policy(
             self.session.policy(),
             headers,
             self.session.remaining_output_bytes(),
@@ -222,7 +218,7 @@ impl<'session> HttpRedactionWriter<'session> {
         }
         let remaining = self.session.remaining_output_bytes();
         let result = self.body_result(capture, content_type, |policy| {
-            super::http_redactor::redact_body_with_policy(policy, capture, content_type, remaining)
+            super::redaction::redact_body_with_policy(policy, capture, content_type, remaining)
         });
         self.session.append_format_output(result.output());
         self
@@ -245,7 +241,7 @@ impl<'session> HttpRedactionWriter<'session> {
             }
             let remaining = self.session.remaining_output_bytes();
             let result = self.body_result(capture, content_type, |policy| {
-                super::http_redactor::redact_body_with_policy(policy, capture, content_type, remaining)
+                super::redaction::redact_body_with_policy(policy, capture, content_type, remaining)
             });
             self.session.stage_item(result.into_output())
         })();
@@ -284,12 +280,7 @@ impl<'session> HttpRedactionWriter<'session> {
         }
         let remaining = self.session.remaining_output_bytes();
         let result = self.body_result(capture, None, |policy| {
-            super::http_redactor::redact_body_with_content_type_text_with_policy(
-                policy,
-                capture,
-                content_type,
-                remaining,
-            )
+            super::redaction::redact_body_with_content_type_text_with_policy(policy, capture, content_type, remaining)
         });
         self.session.append_format_output(result.output());
         self
@@ -316,7 +307,7 @@ impl<'session> HttpRedactionWriter<'session> {
             }
             let remaining = self.session.remaining_output_bytes();
             let result = self.body_result(capture, None, |policy| {
-                super::http_redactor::redact_body_with_content_type_text_with_policy(
+                super::redaction::redact_body_with_content_type_text_with_policy(
                     policy,
                     capture,
                     content_type,
@@ -341,8 +332,8 @@ impl<'session> HttpRedactionWriter<'session> {
         &self,
         _capture: BodyCapture<'_>,
         _content_type: Option<&HeaderValue>,
-        render: impl FnOnce(&crate::RedactionPolicy) -> super::http_redactor::HttpRendered,
-    ) -> super::http_redactor::HttpRendered {
+        render: impl FnOnce(&crate::RedactionPolicy) -> super::redaction::HttpRendered,
+    ) -> super::redaction::HttpRendered {
         render(self.session.policy())
     }
 
