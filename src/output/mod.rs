@@ -8,10 +8,10 @@
 //! Typed redaction output values and bounded log-safe writers.
 
 pub(crate) mod log_escape;
+#[cfg(feature = "http")]
 mod masked_value;
 mod redaction_completion;
 
+#[cfg(feature = "http")]
 pub(crate) use masked_value::MaskedValue;
 pub use redaction_completion::RedactionCompletion;
-
-pub(crate) use crate::facade::RedactedText;

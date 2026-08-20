@@ -8,17 +8,22 @@
 //! Shared execution-time accounting for bounded redaction operations.
 
 mod bounded_field_writer;
+mod item_range;
+mod output_buffer;
 mod redaction_budget;
 mod redaction_handle;
 mod redaction_session;
 mod redaction_session_output;
+mod rendered_operation;
 mod summary_builder;
 mod transaction_guard;
+mod transaction_phase;
 mod transaction_state;
 
 pub use redaction_handle::RedactionHandle;
 pub use redaction_handle::RedactionHandleError;
 pub use redaction_session::RedactionSession;
 pub use redaction_session_output::RedactionSessionOutput;
+pub(crate) use rendered_operation::RenderedOperation;
 
 pub(crate) use crate::domain::internal::DomainEntry;
