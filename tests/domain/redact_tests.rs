@@ -34,7 +34,7 @@ fn test_redact_redacted_returns_completed_output() {
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
 }
 
-/// Exercises the writer's record, tuple, list, unit, trusted, and opaque
+/// Exercises the writer's record, tuple, sequence, unit, trusted, and opaque
 /// sensitive-field helpers through the supported domain contract.
 #[test]
 fn test_redaction_writer_structured_helper_shapes_and_opaque_access() {
@@ -42,6 +42,16 @@ fn test_redaction_writer_structured_helper_shapes_and_opaque_access() {
     use std::sync::atomic::Ordering;
 
     struct Structured<'a>(&'a AtomicUsize);
+
+    struct Numbers;
+
+    impl Redact for Numbers {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.sequence(|items| {
+                items.unredacted_item(|| 1_u8).unredacted_item(|| 2_u8);
+            });
+        }
+    }
 
     impl Redact for Structured<'_> {
         fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
@@ -52,10 +62,7 @@ fn test_redaction_writer_structured_helper_shapes_and_opaque_access() {
                     "must not be read"
                 });
                 fields.nested("pair", &Pair);
-                fields.list(|items| {
-                    items.unredacted("", || 1_u8);
-                    items.unredacted("", || 2_u8);
-                });
+                fields.nested("numbers", &Numbers);
             });
         }
     }
@@ -77,7 +84,57 @@ fn test_redaction_writer_structured_helper_shapes_and_opaque_access() {
     assert_eq!(accesses.load(Ordering::SeqCst), 0);
     assert_eq!(
         output.text().as_str(),
-        "Structured { unit: \"Unit\", secret: \"<redacted>\", pair: Pair(1, 2), [1, 2] }"
+        "Structured { unit: \"Unit\", secret: \"<redacted>\", pair: Pair(1, 2), numbers: [1, 2] }"
+    );
+}
+
+/// Verifies item-only and entry-only scopes preserve masking and accessor
+/// short-circuit semantics after their capabilities are split.
+#[test]
+fn test_redaction_writer_sequence_and_map_scopes_enforce_their_contracts() {
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+
+    struct SequenceValue<'access>(&'access AtomicUsize);
+
+    impl Redact for SequenceValue<'_> {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.sequence(|items| {
+                items
+                    .unredacted_item(|| "visible")
+                    .sensitive_item(Sensitivity::Secret, || {
+                        self.0.fetch_add(1, Ordering::SeqCst);
+                        "must not be read"
+                    });
+            });
+        }
+    }
+
+    struct MapValue<'access>(&'access AtomicUsize);
+
+    impl Redact for MapValue<'_> {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.map(|entries| {
+                entries
+                    .unredacted_entry("public", || "visible")
+                    .sensitive_entry(Sensitivity::Secret, "secret", || {
+                        self.0.fetch_add(1, Ordering::SeqCst);
+                        "must not be read"
+                    })
+                    .nested_entry("nested", &TestDomainValue);
+            });
+        }
+    }
+
+    let accesses = AtomicUsize::new(0);
+    let sequence = Redactor::standard().redact(&SequenceValue(&accesses));
+    let map = Redactor::standard().redact(&MapValue(&accesses));
+
+    assert_eq!(accesses.load(Ordering::SeqCst), 0);
+    assert_eq!(sequence.text().as_str(), r#"["visible", "<redacted>"]"#);
+    assert_eq!(
+        map.text().as_str(),
+        r#"{ public: "visible", secret: "<redacted>", nested: TestDomainValue { secret: <redacted> } }"#
     );
 }
 

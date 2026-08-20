@@ -31,7 +31,8 @@ impl Redact for SafeRecord {
 }
 
 /// Verifies multiple domain renderings draw from the same transaction output
-/// budget and publish a bounded, explicitly truncated result.
+/// budget and publish a bounded exhausted result once the second rendering is
+/// attempted after the first has closed the transaction.
 #[test]
 fn test_domain_rendering_uses_one_bounded_transaction_output_budget() {
     let policy = RedactionPolicy::builder()
@@ -47,5 +48,5 @@ fn test_domain_rendering_uses_one_bounded_transaction_output_budget() {
 
     assert!(output.text().as_str().len() <= 24);
     assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());
-    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
 }

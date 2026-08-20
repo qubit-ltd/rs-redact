@@ -140,7 +140,7 @@ struct WriterShapeLeaf;
 
 impl Redact for WriterShapeLeaf {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
-        writer.unit("Leaf");
+        writer.literal("Leaf");
     }
 }
 
@@ -148,13 +148,21 @@ impl Redact for WriterShapeLeaf {
 /// operations through its parent transaction.
 struct WriterShapesValue;
 
+struct WriterShapeList;
+
+impl Redact for WriterShapeList {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.sequence(|items| {
+            items.nested_item(&WriterShapeLeaf).nested_item(&WriterShapeLeaf);
+        });
+    }
+}
+
 impl Redact for WriterShapesValue {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.record("Shapes", |fields| {
             fields
-                .list(|items| {
-                    items.nested_item(&WriterShapeLeaf).nested_item(&WriterShapeLeaf);
-                })
+                .nested("items", &WriterShapeList)
                 .nested("leaf", &WriterShapeLeaf);
         });
     }
@@ -166,7 +174,7 @@ struct WriterTupleValue;
 impl Redact for WriterTupleValue {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.tuple("Pair", |fields| {
-            fields.nested_item(&WriterShapeLeaf).nested_item(&WriterShapeLeaf);
+            fields.nested("", &WriterShapeLeaf).nested("", &WriterShapeLeaf);
         });
     }
 }
@@ -1133,6 +1141,39 @@ fn test_process_handle_publishes_one_safe_combined_item_after_finish() {
     assert!(!item.text().as_str().contains("argv-secret"));
     assert!(!item.text().as_str().contains("env-secret"));
     assert_eq!(item.summary().completion(), RedactionCompletion::Complete);
+}
+
+/// An argv portion that exactly fills the remaining output budget must close
+/// the transaction before the process adapter can pull its first environment
+/// pair. The combined handle fails closed because that unrendered successor
+/// cannot be retained as part of a complete process item.
+#[test]
+fn test_process_handle_exact_argv_fill_does_not_pull_environment_iterator() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            let _ = limits.max_output_bytes(r#"["client"]"#.len());
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let environment_pulls = Cell::new(0_usize);
+    let variables = [(OsStr::new("PASSWORD"), OsStr::new("must-not-be-read"))]
+        .into_iter()
+        .inspect(|_| {
+            environment_pulls.set(environment_pulls.get().saturating_add(1));
+        });
+    let mut session = Redactor::new(policy).session();
+
+    let handle = session.redact_process(OsStr::new("client"), Vec::<ArgvItem<'_>>::new(), variables);
+    let output = session.finish();
+    let item = output
+        .resolve(handle)
+        .expect("the exhausted process item must remain resolvable");
+
+    assert_eq!(environment_pulls.get(), 0);
+    assert!(item.text().as_str().is_empty());
+    assert_eq!(item.summary().completion(), RedactionCompletion::Exhausted);
+    assert!(item.summary().reasons().contains(RedactionReason::OutputLimitReached));
 }
 
 /// A process handle observes the shared output ledger before it invokes argv
