@@ -30,8 +30,8 @@ fuzz_target!(|data: &[u8]| {
     let data = &data[..data.len().min(4096)];
     let mut session = Redactor::standard().session();
     let output_limit = session.policy().limits().max_output_bytes();
-    let mut pending_handle = None;
-    let mut previous_handle = None;
+    let mut pending_handles = Vec::new();
+    let mut previous_handles = Vec::new();
     for chunk in data.chunks(8).take(128) {
         let selector = chunk.first().copied().unwrap_or_default();
         let value = String::from_utf8_lossy(chunk);
@@ -40,7 +40,7 @@ fuzz_target!(|data: &[u8]| {
                 let _ = session.literal("event=").field("name", &value);
             }
             1 => {
-                pending_handle = Some(session.redact_field("password", &value));
+                pending_handles.push(session.redact_field("password", &value));
             }
             2 => {
                 let json = format!(r#"{{"password":"{selector}"}}"#);
@@ -49,26 +49,26 @@ fuzz_target!(|data: &[u8]| {
                 });
             }
             3 => {
-                pending_handle = Some(session.redact_http_url("https://fuzz.example/?password=transaction-secret"));
+                pending_handles.push(session.redact_http_url("https://fuzz.example/?password=transaction-secret"));
             }
             4 => {
-                pending_handle = Some(session.redact_uri("https://fuzz.example/?password=transaction-secret"));
+                pending_handles.push(session.redact_uri("https://fuzz.example/?password=transaction-secret"));
             }
             5 => {
                 let items = [ArgvItem::plain(OsStr::new("--password=transaction-secret"))];
-                pending_handle = Some(session.redact_argv(items));
+                pending_handles.push(session.redact_argv(items));
             }
             6 => {
-                pending_handle = Some(session.redact_env("PASSWORD", &value));
+                pending_handles.push(session.redact_env("PASSWORD", &value));
             }
             7 => {
                 let arguments = [ArgvItem::plain(OsStr::new("--password=transaction-secret"))];
                 let variables = [(OsStr::new("PASSWORD"), OsStr::new("transaction-secret"))];
-                pending_handle = Some(session.redact_process(OsStr::new("client"), arguments, variables));
+                pending_handles.push(session.redact_process(OsStr::new("client"), arguments, variables));
             }
             8 => {
                 let content_type = HeaderValue::from_static("application/json");
-                pending_handle = Some(session.redact_http_body(
+                pending_handles.push(session.redact_http_body(
                     BodyCapture::complete(br#"{"password":"transaction-secret"}"#),
                     Some(&content_type),
                 ));
@@ -76,28 +76,31 @@ fuzz_target!(|data: &[u8]| {
             _ => {
                 let output = session.finish();
                 check_output(&output, output_limit);
-                if let Some(handle) = pending_handle.take() {
+                for handle in pending_handles.drain(..) {
                     assert!(output.resolve(handle).is_ok());
-                    previous_handle = Some(handle);
+                    previous_handles.push(handle);
                 }
-                if let Some(handle) = previous_handle {
+                if !previous_handles.is_empty() {
                     let next = session.finish();
                     check_output(&next, output_limit);
-                    assert_eq!(next.resolve(handle), Err(RedactionHandleError::DifferentTransaction));
-                    previous_handle = None;
+                    for handle in previous_handles.drain(..) {
+                        assert_eq!(next.resolve(handle), Err(RedactionHandleError::DifferentTransaction));
+                    }
                 }
             }
         }
     }
     let output = session.finish();
     check_output(&output, output_limit);
-    if let Some(handle) = pending_handle {
+    for handle in pending_handles {
         assert!(output.resolve(handle).is_ok());
-        previous_handle = Some(handle);
+        previous_handles.push(handle);
     }
-    if let Some(handle) = previous_handle {
+    if !previous_handles.is_empty() {
         let next = session.finish();
         check_output(&next, output_limit);
-        assert_eq!(next.resolve(handle), Err(RedactionHandleError::DifferentTransaction));
+        for handle in previous_handles {
+            assert_eq!(next.resolve(handle), Err(RedactionHandleError::DifferentTransaction));
+        }
     }
 });
