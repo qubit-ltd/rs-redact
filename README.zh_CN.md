@@ -7,25 +7,27 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
 
-`qubit-redact` 用来构建有资源上限、适合写入日志的脱敏诊断信息。它让标量字段、领域对象、
-命令数据、JSON、HTTP 与 URI 共用同一份策略快照、预算和发布边界，适合需要组合多类数据
-但又不能接受局部脱敏失控的 Rust 应用。
+`qubit-redact` 用于把字段、Rust 领域对象、命令数据、JSON、HTTP 和 URI 组合成有资源上限、
+可安全写入日志的诊断信息。它适合需要为整条事件统一决定脱敏规则、预算和发布时机的应用，
+而不是让每个待记录的值各自处理这些问题。
 
 ## 安装
+
+按需启用格式集成：
 
 ```toml
 [dependencies]
 qubit-redact = { version = "0.5", features = ["http", "json", "uri"] }
 ```
 
-最低 Rust 版本为 1.94。`serde`、`json`、`http`、`uri` feature 分别启用对应集成；
-argv、env、process、字段和领域 writer 不依赖可选 feature。
+最低支持 Rust 1.94。`serde`、`json`、`http` 与 `uri` 是可选 feature；字段、领域对象、
+argv、环境变量和进程数据在默认 feature 集中即可使用。
 
 ## 快速开始
 
-假设 HTTP 客户端失败时既要拼出一段诊断文本，又要把脱敏 URL 单独交给结构化遥测。
-可复用 session 会让两份结果共用一轮 transaction 的资源上限，并且在 `finish()` 前
-不会发布 handle 对应的文本：
+某个 API 客户端需要记录失败原因，同时将脱敏后的 URL 交给结构化遥测。access token 绝不能
+出现在发布的文本中，而且两份结果必须共用同一组资源上限。先构建不可变 policy，再让一个
+session 承担这一轮事件：
 
 ```rust
 use qubit_redact::RedactionPolicy;
@@ -54,44 +56,31 @@ assert!(!safe_url.text().as_str().contains("raw-secret"));
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-同一个 session 可以立刻开始下一轮 transaction。handle 只能由创建它的那轮
-`RedactionSessionOutput` 解析。
+`finish()` 是发布边界：它返回聚合文本、当前 transaction 的摘要和单项结果。
+`RedactionHandle` 是不透明句柄，只能使用创建它的那份 `RedactionSessionOutput` 解析。随后，
+同一个 session 可按原 policy 快照立即处理下一条事件。
 
 ## 为什么需要这个项目
 
-如果日志工具分别处理每个值，各项可能看到不同的策略快照，组合结果也可能绕过总输出
-上限；用户回调发生 panic 时，还可能留下部分结果。`RedactionSession` 把一轮诊断所需的
-状态全部私有暂存。`finish()` 一次性发布聚合文本、单项结果和机器可读的
-`RedactionSummary`，随后自动重置 session。用户脱敏代码 panic 时，当前 transaction
-会整体回滚，panic 继续向外传播。
+分别调用各类格式化工具看似容易组合，却容易造成策略不一致：URL 与响应 body 可能使用不同
+规则，各自绕过总输出预算；在回调失败前，半成品也可能已经泄露。`RedactionSession` 会在
+组装期间私有保存整条事件。聚合 API 和单项 API 共用同一份策略和 transaction 预算，只有
+`finish()` 才会原子发布完成结果。用户编写的脱敏逻辑发生 panic 时，当前 transaction 会被
+丢弃，随后继续展开 panic。
 
 ## 核心能力
 
-- 提供确定性的 `standard()`、`strict()`，以及供 `Redact::redacted()` 使用的原子化
-  应用默认快照。
-- 字段规则、资源限制、HTTP 和 URI 配置都通过事务式 policy namespace 构建。
-- argv、env、process、JSON、HTTP、URI 同时提供聚合 API 和不透明 handle API，
-  并共用 transaction runtime。
-- 通过 `Redact` 与 `RedactionWriter` 显式描述领域对象，同时记录完成状态、原因和资源
-  用量。
-- 最终输出保持 UTF-8 与日志安全。预算耗尽或格式非法时安全降级，由 summary 报告，
-  `finish()` 本身不返回错误。
+- 提供不可变 `RedactionPolicy` 快照，以及确定性的 `standard()` 和默认安全关闭的
+  `strict()` policy。
+- 以事务方式配置字段规则、掩码、资源上限和已启用的 HTTP/URI/JSON 行为。
+- argv、环境变量、进程、JSON、HTTP、URI 均支持聚合文本和可单独解析的单项结果。
+- 通过 `Redact` 与 `RedactionWriter` 显式渲染领域对象。
+- 通过 `RedactionSummary` 提供可供程序读取的完成状态、原因和资源用量。
+- 输出保持 UTF-8 与日志安全；遇到输入、输出或结构上限时会安全降级。
 
-本库不会根据任意值内容猜测敏感性。业务类型新增字段后必须审查标注。
-`RedactionWriter::unredacted` 是明确的信任边界，不能传入秘密数据。动态 map 使用
-`RedactionFields::map` 时，每个 entry 都会按自己的 key 走当前 policy 分类。
-
-## 从旧 API 迁移
-
-| 已移除概念 | 事务式替代方案 |
-| --- | --- |
-| `RedactionConfig` 与可变 edit view | `RedactionPolicy::builder()` namespace |
-| 各格式独立 redactor facade | `Redactor::redact_*` 或 session format API |
-| lazy/display result wrapper | `finish()` 后的 `RedactionOutput` |
-| keyed session result | 不透明 `RedactionHandle` 与 `output.resolve(handle)` |
-| 用 session error 表示安全降级 | `RedactionSummary` 的完成状态、原因和用量 |
-
-项目不提供 deprecated alias 或兼容模块。
+本库不会从任意值内容中猜测秘密信息。新增业务字段时应逐一审查并明确标注。`unredacted`
+是信任边界，不是图省事的旁路，只能接收已经独立确认可公开的数据。资源上限约束的是整条
+诊断事件，不是彼此独立的格式配额。
 
 ## 延伸阅读
 

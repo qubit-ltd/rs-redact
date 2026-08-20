@@ -1,27 +1,34 @@
 # qubit-redact User Guide
 
-[简体中文](user_guide.zh_CN.md) · [README](../README.md) ·
-[API documentation](https://docs.rs/qubit-redact)
+[中文用户指南](user_guide.zh_CN.md) · [README](../README.md) · [API documentation](https://docs.rs/qubit-redact)
 
-This guide covers `qubit-redact` 0.5 and Rust 1.94 or later. It is for
-application and library authors who need to compose diagnostics from several
-data sources without losing a single redaction policy or resource boundary.
+This guide covers `qubit-redact` 0.5 on Rust 1.94 or later. It is for Rust
+application and library authors who need to assemble diagnostic data from more
+than one source without giving every source an independent chance to reveal a
+secret or exceed the event budget.
+
+## Purpose and Audience
+
+Use this crate when a diagnostic event contains trusted program text alongside
+untrusted fields, domain values, command lines, JSON, HTTP data, or URIs.
+Build a policy once, create a session for each independently mutable event, and
+publish only its completed output. If you only need a one-off value, the
+`Redactor::redact_*` methods create and finish that transaction for you.
 
 ## Conceptual Model
 
-Four objects define the normal workflow:
+Four objects define the normal path:
 
-1. `RedactionPolicy` is an immutable snapshot containing field rules, masking
-   choices, format policy, and transaction limits.
-2. `Redactor` owns an `Arc` snapshot. `standard()` and `strict()` are
-   deterministic; `application_default()` is the process-wide snapshot used by
-   `Redact::redacted()`.
-3. `RedactionSession` is reusable, but its current transaction is private.
-   Aggregate operations append composed text; item operations return opaque
-   `RedactionHandle` values.
-4. `finish()` atomically publishes a `RedactionSessionOutput`, then starts a
-   fresh transaction with the same policy. The output contains aggregate text,
-   one transaction summary, and the item arena used by `resolve()`.
+1. `RedactionPolicy` is an immutable snapshot of field rules, masking, format
+   behavior, and resource limits.
+2. `Redactor` shares that snapshot and creates sessions. `standard()` and
+   `strict()` are fixed policies; `application_default()` is the snapshot used
+   by `Redact::redacted()`.
+3. `RedactionSession` owns one private, mutable transaction. Aggregate calls
+   append to its event text; item calls return opaque `RedactionHandle` values.
+4. `finish()` publishes `RedactionSessionOutput`: aggregate text, a
+   `RedactionSummary`, and the item arena used to resolve handles. It also
+   starts the session's next transaction with the same policy.
 
 ```text
 policy snapshot -> reusable session -> private transaction -> finish()
@@ -29,32 +36,30 @@ policy snapshot -> reusable session -> private transaction -> finish()
                                       +-> opaque handles   -> resolved items
 ```
 
-Completion is machine-readable: `Complete`, `Truncated`, or `Exhausted`.
-Reasons distinguish input, output, traversal, depth, source-truncation, and
-format failures. Usage reports presented and inspected input, retained output,
-visited structure, maximum depth, and known or unknown omitted bytes.
+The summary records completion (`Complete`, `Truncated`, or `Exhausted`),
+reasons, and resource usage. Treat it as the programmatic account of safe
+degradation; do not infer state by parsing replacement text.
 
 ## Scenario: One Safe Request-Failure Event
 
-An API client needs one log line containing a request ID and domain value, plus
-separate URL and response-body values for telemetry. The success criteria are:
-
-- the access token and password never appear in any published text;
-- every fragment shares one output and traversal limit;
-- URL and body handles are unreadable until the transaction finishes; and
-- the session is reusable for the next request.
+An API client must emit `request_id` in a human-readable failure message and
+send the request URL and JSON error body to telemetry. `access_token` and
+`password` must not appear in either published result. All fragments must share
+one input, output, and traversal budget. The URL and body remain unreadable
+until the event is complete.
 
 ## Installation and Minimal Configuration
 
-Enable only the formats that the application uses:
+Enable the integrations the scenario uses:
 
 ```toml
 [dependencies]
 qubit-redact = { version = "0.5", features = ["http", "json", "uri"] }
 ```
 
-Build one immutable policy. Namespace closures update drafts and are applied
-only after validation succeeds:
+Policies are immutable after `build()`. Namespace closures operate on drafts,
+so an invalid configuration returns `PolicyError` without partially changing
+the builder:
 
 ```rust
 use qubit_redact::RedactionPolicy;
@@ -78,12 +83,16 @@ let policy = RedactionPolicy::builder()
 # Ok::<(), qubit_redact::PolicyError>(())
 ```
 
-`Redactor::strict()` is a useful fail-closed starting point. Use a custom
-policy when the application has reviewed which fields may remain visible.
+`Redactor::strict()` is the appropriate starting point when unknown scalar
+fields must be masked. Use a custom policy only after deciding which fields may
+remain visible.
 
 ## Core Workflow
 
-### Aggregate text and separately resolved items
+### Build the event and resolve item results
+
+Aggregate operations return `&mut RedactionSession`; item operations return a
+handle. Neither form publishes text before `finish()`.
 
 ```rust
 use http::HeaderValue;
@@ -98,7 +107,7 @@ let url = session.redact_http_url(
 );
 let content_type = HeaderValue::from_static("application/json");
 let body = session.redact_http_body(
-    BodyCapture::complete(br#"{"password":"raw-password"}"#),
+    BodyCapture::complete(br#"{\"password\":\"raw-password\"}"#),
     Some(&content_type),
 );
 session
@@ -119,14 +128,13 @@ assert_eq!(output.summary().usage().output_bytes(),
 # Ok::<(), qubit_redact::RedactionHandleError>(())
 ```
 
-Aggregate calls never create item handles, and item calls never append to the
-aggregate text. Both still contribute to the transaction summary and budget.
-A handle from one transaction returns `DifferentTransaction` when resolved
-against another transaction's output.
+Aggregate text and handle items use the same transaction accounting, but they
+are intentionally separate outputs. Resolving a handle with another event's
+output returns `DifferentTransaction`.
 
 ### Reuse the session
 
-`finish(&mut self)` installs the next transaction immediately:
+Finishing an event immediately installs the next transaction:
 
 ```rust
 use qubit_redact::Redactor;
@@ -139,9 +147,13 @@ assert_eq!(first.text().as_str(), "first");
 assert_eq!(second.text().as_str(), "second");
 ```
 
-### Domain objects
+Keep a session local to one mutable workflow. Share `Redactor` values and their
+immutable policy snapshots instead.
 
-Every `Redact` implementation must explicitly define `write_redacted`:
+### Describe domain values explicitly
+
+Implement `Redact` to declare how a domain type is traversed. The writer never
+guesses whether a field is sensitive:
 
 ```rust
 use qubit_redact::Redact;
@@ -165,59 +177,35 @@ impl Redact for Account {
 }
 ```
 
-`unredacted` deliberately bypasses field-name policy. It is suitable only for
-content independently reviewed as safe. `sensitive` applies its explicit
-level as a minimum, while `nested` delegates to another `Redact` value and
-`json` uses the active JSON policy. The crate never guesses sensitivity from a
-field name or value content.
-
-For a map whose runtime keys name the values, pass its exact-size iterator to
-`map`. Each key is classified independently before its value is rendered:
-
-```rust
-use std::collections::BTreeMap;
-
-# use qubit_redact::Redact;
-# use qubit_redact::RedactionWriter;
-struct Attributes(BTreeMap<String, String>);
-
-impl Redact for Attributes {
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
-        writer.record("Attributes", |fields| {
-            fields.map("values", self.0.iter());
-        });
-    }
-}
-```
-
-The iterator must implement `ExactSizeIterator`, allowing the writer to stop
-before advancing an entry that no longer fits the shared traversal budget.
+`unredacted` bypasses field-name policy and therefore requires independent
+review. `sensitive` sets an explicit minimum sensitivity. `nested` delegates
+to another `Redact` value, and `json` follows the active JSON policy. Use
+`skip` only for fields that must be neither accessed nor emitted.
 
 ## Advanced Usage
 
-### All six format families
+### Format families and one-shot operations
 
-Each family has an aggregate namespace, an item-handle method, and a
-`Redactor::redact_*` one-shot convenience path:
+Every family uses the same transaction runtime. Sessions expose aggregate
+namespaces and item methods; `Redactor::redact_*` provides a one-shot path.
 
 | Format | Aggregate namespace | Representative item method |
 | --- | --- | --- |
 | argv | `session.argv(...)` | `session.redact_argv(items)` |
-| env | `session.env(...)` | `session.redact_env(name, value)` |
+| environment | `session.env(...)` | `session.redact_env(name, value)` |
 | process | `session.process(...)` | `session.redact_process(...)` |
 | JSON | `session.json(...)` | `session.redact_json(text)` |
 | HTTP | `session.http(...)` | `redact_http_url/body/headers` |
 | URI | `session.uri(...)` | `session.redact_uri(text)` |
 
-Collection operations produce one handle for the whole collection while every
-element still consumes collection and structural accounting. HTTP intentionally
-has separate URL, header, and body item methods; there is no ambiguous
-multi-operation `redact_http` handle.
+Collection operations create one handle for the collection while each element
+still consumes collection and structural accounting. HTTP keeps URL, headers,
+and body as deliberately distinct item operations.
 
 ### Application default snapshot
 
-`Default for Redactor` always means `standard()` and never reads mutable global
-state. To change only the snapshot used by `Redact::redacted()`:
+`Default for Redactor` always means `standard()`. To change the snapshot used
+by `Redact::redacted()`, replace the complete redactor atomically:
 
 ```rust
 use qubit_redact::Redactor;
@@ -228,55 +216,55 @@ let _ = Redactor::replace_application_default(previous);
 assert_eq!(current, Redactor::strict());
 ```
 
-Existing redactors and sessions retain their earlier snapshots. Replacement is
-of the complete policy, so readers never observe a mixture of two policies.
+Existing redactors and sessions retain their previous snapshots. Readers see a
+complete old policy or a complete new policy, never a mixture.
 
-### Upstream-truncated HTTP bodies
+### Report upstream truncation honestly
 
-Use `BodyCapture::truncated(bytes, total_len)` when the source length is known,
-or `BodyCapture::truncated_unknown(bytes)` when it is not. The summary includes
-`SourceTruncated`; `omitted_input_bytes()` is `None` for unknown length. Never
-claim a complete capture when bytes were omitted before redaction.
+When an HTTP body was shortened before it reaches this crate, use
+`BodyCapture::truncated(bytes, total_len)` if the original size is known, or
+`BodyCapture::truncated_unknown(bytes)` otherwise. The summary then reports
+`SourceTruncated`; `omitted_input_bytes()` is `None` when the omitted size is
+unknown.
 
 ## Errors and Diagnostics
 
-Policy construction returns `PolicyError` for invalid configuration. Handle
-resolution returns only `DifferentTransaction` or `MissingItem`.
+Policy construction can return `PolicyError`. Resolving a handle can return
+`DifferentTransaction` or `MissingItem`.
 
-Input limits, output limits, structural limits, invalid JSON/URI/content type,
-unsupported content, and upstream truncation are safe redaction outcomes rather
-than `finish()` errors. Inspect `output.summary()` instead of parsing marker
-text. `Exhausted` means even the operation's complete safe substitute could not
-fit the shared output budget. Later item calls do not inspect their inputs and
-resolve to the transaction's canonical empty exhausted item.
+Input/output/structural limits, invalid JSON or URI, unsupported content,
+invalid content type, and upstream truncation are safe redaction outcomes, not
+`finish()` errors. Inspect `output.summary()` for their completion and reasons.
+`Exhausted` means the full safe substitute cannot fit the shared output budget;
+later item calls return the canonical empty exhausted item without inspecting
+their inputs.
 
-If user-supplied writer or adapter code panics, the active transaction is
-discarded, a fresh transaction is installed, and the panic continues. After a
-caller catches it with `catch_unwind`, the session is reusable; handles from
-the aborted transaction can never resolve.
+If a user-supplied writer or adapter panics, the active transaction is
+discarded, a fresh one is installed, and the panic continues. After
+`catch_unwind`, the session is reusable, but handles from the aborted event
+cannot resolve.
 
 ## Troubleshooting
 
-- Empty item text with `Exhausted`: inspect `OutputLimitReached` and increase
-  `max_output_bytes`, or reduce earlier operations in the same transaction.
-- `DifferentTransaction`: resolve the handle before discarding the exact
-  `RedactionSessionOutput` returned by its `finish()`.
-- Unexpected visible data: check for unannotated derive fields and explicit
-  `unredacted` calls. Neither path consults runtime field policy.
-- Unexpected early truncation: inspect presented versus inspected input,
-  visited nodes/items, and `max_depth` in `RedactionUsage`.
-- JSON/HTTP/URI methods unavailable: enable the corresponding Cargo feature.
+- **An item is empty and exhausted.** Inspect `OutputLimitReached`; increase
+  `max_output_bytes` or reduce earlier output in that event.
+- **`DifferentTransaction` is returned.** Resolve the handle using the exact
+  `RedactionSessionOutput` returned by the `finish()` that followed its call.
+- **Cleartext is visible unexpectedly.** Inspect explicit `unredacted` calls
+  and unannotated derived fields; neither is corrected by runtime field rules.
+- **Output truncates too early.** Compare presented and inspected input,
+  visited nodes/items, and maximum depth in `RedactionUsage` with the limits.
+- **A JSON, HTTP, or URI API is missing.** Enable its corresponding Cargo
+  feature.
 
 ## Limitations and Best Practices
 
-- Treat `literal` as a compile-time program-text API, never as a route for
-  runtime input.
-- Review every new domain field. Use `skip` only when the field should produce
-  neither access nor output.
-- Keep one session per independently mutable workflow; share immutable
-  `Redactor` policy snapshots where appropriate.
-- Size limits for the whole diagnostic event, not for each format in isolation.
-- Only text published by `finish()` or returned as `RedactionOutput` is the
+- Pass only program-authored `&'static str` text to `literal`; dynamic text
+  must enter a redaction operation.
+- Review each new domain field and every use of `unredacted`.
+- Size limits for the entire diagnostic event, including separately resolved
+  items.
+- Consider only text from `finish()` or a returned `RedactionOutput` to be the
   final typed redaction boundary.
 
 ## Further Reading
