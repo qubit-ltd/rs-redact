@@ -86,10 +86,16 @@ impl<'session> ProcessRedactionWriter<'session> {
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
         E::IntoIter: ExactSizeIterator,
     {
+        if self.session.is_output_exhausted() {
+            return self;
+        }
         let arguments = arguments.into_iter();
         let mut argv = ArgvRedactionWriter::new(self.session);
         argv.heuristic_items(CommandItems::new(ArgvItem::plain(program), arguments));
-        if !self.session.is_output_exhausted() {
+        if !self.session.is_output_exhausted()
+            && self.session.can_admit_format_node(1)
+            && self.session.can_admit_format_collection_item()
+        {
             let mut environment = EnvRedactionWriter::new(self.session);
             environment.os_pairs(variables);
         }
@@ -135,7 +141,10 @@ impl<'session> ProcessRedactionWriter<'session> {
                 let output = redact_heuristically_with_policy(&policy, &mut command, remaining);
                 (output, command.failed)
             };
-            if command_failed {
+            if command_failed
+                || !self.session.can_admit_format_node(1)
+                || !self.session.can_admit_format_collection_item()
+            {
                 return self.session.stage_accounted_text(String::new());
             }
             let remaining = remaining.saturating_sub(argv.text().len());

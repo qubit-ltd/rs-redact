@@ -566,6 +566,23 @@ impl RedactionSession {
         self.admit_domain_collection_item()
     }
 
+    /// Reports whether another format collection item can be admitted without
+    /// changing the active transaction.
+    #[must_use]
+    pub(crate) fn can_admit_format_collection_item(&self) -> bool {
+        self.transaction.budget.domain_context_ref().can_admit_collection_item()
+    }
+
+    /// Reports whether another format node at `depth` can be admitted without
+    /// changing the active transaction.
+    #[must_use]
+    pub(crate) fn can_admit_format_node(&self, depth: usize) -> bool {
+        self.transaction
+            .budget
+            .domain_context_ref()
+            .can_admit_format_node(depth)
+    }
+
     /// Admits JSON-specific key, scalar, payload, and local structural limits
     /// through the ledger stored in the active transaction.
     #[cfg(feature = "json")]

@@ -20,16 +20,20 @@ pub(super) struct AdmittedCommandItems<'session, 'arguments, I> {
 
 impl<'arguments, I> Iterator for AdmittedCommandItems<'_, 'arguments, I>
 where
-    I: Iterator<Item = ArgvItem<'arguments>>,
+    I: ExactSizeIterator<Item = ArgvItem<'arguments>>,
 {
     type Item = ArgvItem<'arguments>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.program.is_none() && self.arguments.len() == 0 {
+            return None;
+        }
+        if !self.session.admit_format_collection_item() || !self.session.admit_format_node(2) {
+            self.failed = true;
+            return None;
+        }
         let item = self.program.take().or_else(|| self.arguments.next())?;
-        if !self.session.admit_format_collection_item()
-            || !self.session.admit_format_node(2)
-            || !self.session.admit_input(item.value().as_encoded_bytes().len())
-        {
+        if !self.session.admit_input(item.value().as_encoded_bytes().len()) {
             self.failed = true;
             return None;
         }

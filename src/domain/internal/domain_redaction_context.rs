@@ -99,6 +99,31 @@ impl DomainRedactionContext {
         true
     }
 
+    /// Reports whether another format collection item can be admitted without
+    /// changing the cumulative traversal state.
+    #[must_use]
+    pub(crate) fn can_admit_collection_item(&self) -> bool {
+        !self.traversal_closed
+            && self
+                .budget
+                .limits()
+                .sequence_items_limit()
+                .is_none_or(|limit| self.collection_items_seen < limit.maximum())
+    }
+
+    /// Reports whether another format node at `depth` can be admitted without
+    /// changing the cumulative traversal state.
+    #[must_use]
+    pub(crate) fn can_admit_format_node(&self, depth: usize) -> bool {
+        if self.traversal_closed || self.max_depth.is_some_and(|maximum| depth > maximum) {
+            return false;
+        }
+        self.budget
+            .limits()
+            .nodes_limit()
+            .is_none_or(|limit| self.budget.used_nodes() < limit.maximum())
+    }
+
     pub(crate) fn leave_value(&mut self) {
         debug_assert!(self.current_depth > 0, "domain scope depth underflow");
         self.current_depth -= 1;
