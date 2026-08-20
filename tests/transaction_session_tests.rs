@@ -248,6 +248,32 @@ impl IntoIterator for PanickingArgvSource {
     }
 }
 
+/// An aggregate process argument source that must not be converted after the
+/// parent transaction has exhausted its output budget.
+struct PanickingIntoIterator;
+
+impl IntoIterator for PanickingIntoIterator {
+    type IntoIter = std::array::IntoIter<ArgvItem<'static>, 0>;
+    type Item = ArgvItem<'static>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        panic!("aggregate process arguments must not be converted after exhaustion");
+    }
+}
+
+/// An empty exact-size argument source for checking a later environment
+/// source when the process collection budget is already closed.
+struct EmptyArgvSource;
+
+impl IntoIterator for EmptyArgvSource {
+    type IntoIter = std::array::IntoIter<ArgvItem<'static>, 0>;
+    type Item = ArgvItem<'static>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        [].into_iter()
+    }
+}
+
 /// Verifies that `finish()` publishes one transaction and immediately starts a
 /// fresh transaction for the same reusable session.
 #[test]
@@ -421,6 +447,111 @@ fn test_process_stops_before_consuming_later_format_sources_after_structure_exha
     assert_eq!(output.summary().usage().visited_nodes(), 2);
     assert_eq!(output.summary().usage().visited_collection_items(), 1);
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+}
+
+/// Verifies an exhausted aggregate process transaction does not convert a
+/// later caller-owned argument source.
+#[test]
+fn test_exhausted_process_command_skips_argument_source_conversion() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_output_bytes(5);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
+
+    let panic = std::panic::catch_unwind(AssertUnwindSafe(|| {
+        let _ = session.process(|process| {
+            process.arguments([ArgvItem::plain(OsStr::new("x"))]);
+            process.command(
+                OsStr::new("program"),
+                PanickingIntoIterator,
+                std::iter::empty::<(&OsStr, &OsStr)>(),
+            );
+        });
+    }));
+
+    assert!(panic.is_ok(), "an exhausted transaction must not invoke into_iter");
+    let output = session.finish();
+    assert_eq!(output.text().as_str(), "[\"x\"]");
+    assert_eq!(output.summary().usage().output_bytes(), 5);
+}
+
+/// Verifies process handle iteration checks shared structure admission before
+/// pulling a later argv item or constructing the environment iterator.
+#[test]
+fn test_process_handle_admission_skips_later_sources() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(2).max_collection_items(1);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let observed_environment = Rc::new(Cell::new(false));
+    let mut session = Redactor::new(policy).session();
+
+    let panic = std::panic::catch_unwind(AssertUnwindSafe(|| {
+        let handle = session.redact_process(
+            OsStr::new("tool"),
+            PanickingArgvSource,
+            ObservedEnvSource(Rc::clone(&observed_environment)),
+        );
+        let output = session.finish();
+        assert!(
+            output
+                .resolve(handle)
+                .expect("process handle must publish")
+                .text()
+                .as_str()
+                .is_empty()
+        );
+    }));
+
+    assert!(panic.is_ok(), "admission must stop before pulling the later argv item");
+    assert!(
+        !observed_environment.get(),
+        "admission failure must stop before environment conversion"
+    );
+
+    let observed_environment = Rc::new(Cell::new(false));
+    let mut empty_argument_session = Redactor::new(
+        RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_nodes(2).max_collection_items(1);
+            })
+            .expect("limit draft should build")
+            .build()
+            .expect("policy should build"),
+    )
+    .session();
+    let panic = std::panic::catch_unwind(AssertUnwindSafe(|| {
+        let handle = empty_argument_session.redact_process(
+            OsStr::new("tool"),
+            EmptyArgvSource,
+            ObservedEnvSource(Rc::clone(&observed_environment)),
+        );
+        let output = empty_argument_session.finish();
+        assert!(
+            output
+                .resolve(handle)
+                .expect("process handle must publish")
+                .text()
+                .as_str()
+                .is_empty()
+        );
+    }));
+
+    assert!(
+        panic.is_ok(),
+        "closed structure must stop before environment conversion"
+    );
+    assert!(
+        !observed_environment.get(),
+        "closed structure must not construct the environment iterator"
+    );
 }
 
 /// Verifies that the escaped representation, rather than its unescaped source,

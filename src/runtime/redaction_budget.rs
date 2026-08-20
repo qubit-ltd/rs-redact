@@ -47,6 +47,11 @@ impl RedactionBudget {
         &mut self.domain_context
     }
 
+    /// Borrows the structural ledger for non-mutating admission queries.
+    pub(super) const fn domain_context_ref(&self) -> &DomainRedactionContext {
+        &self.domain_context
+    }
+
     #[cfg(feature = "json")]
     pub(super) fn admit_json_value(&mut self, root: &Value) -> bool {
         let mut transaction = self.json_budget.transaction();
