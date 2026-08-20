@@ -50,8 +50,11 @@ session.literal("request failed: ").field("request_id", "req-42");
 
 let output = session.finish();
 let safe_url = output.resolve(url)?;
-assert!(!output.text().as_str().contains("raw-secret"));
-assert!(!safe_url.text().as_str().contains("raw-secret"));
+assert_eq!(output.text().as_str(), "request failed: req-42");
+assert_eq!(
+    safe_url.text().as_str(),
+    "https://api.example.test/users?access_token=%3Credacted%3E",
+);
 
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
