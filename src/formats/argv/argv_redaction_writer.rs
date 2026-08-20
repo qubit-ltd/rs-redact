@@ -39,11 +39,7 @@ impl<'session> ArgvRedactionWriter<'session> {
         let Some(items) = self.collect_admitted_items(items) else {
             return self;
         };
-        let result = redact_items_with_policy(
-            self.session.policy(),
-            items,
-            self.session.remaining_output_bytes(),
-        );
+        let result = redact_items_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
         self.session.append_format_output(&result);
         self
     }
@@ -60,11 +56,8 @@ impl<'session> ArgvRedactionWriter<'session> {
         let Some(items) = self.collect_admitted_items(items) else {
             return self;
         };
-        let result = redact_heuristically_with_policy(
-            self.session.policy(),
-            items,
-            self.session.remaining_output_bytes(),
-        );
+        let result =
+            redact_heuristically_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
         self.session.append_format_output(&result);
         self
     }
@@ -89,11 +82,7 @@ impl<'session> ArgvRedactionWriter<'session> {
                     .session
                     .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
             };
-            let result = redact_items_with_policy(
-                self.session.policy(),
-                items,
-                self.session.remaining_output_bytes(),
-            );
+            let result = redact_items_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
             if result.text().as_str().is_empty()
                 && result.summary().completion() == crate::RedactionCompletion::Truncated
             {
@@ -128,11 +117,8 @@ impl<'session> ArgvRedactionWriter<'session> {
                     .session
                     .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
             };
-            let result = redact_heuristically_with_policy(
-                self.session.policy(),
-                items,
-                self.session.remaining_output_bytes(),
-            );
+            let result =
+                redact_heuristically_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
             if result.text().as_str().is_empty()
                 && result.summary().completion() == crate::RedactionCompletion::Truncated
             {
@@ -166,13 +152,8 @@ impl<'session> ArgvRedactionWriter<'session> {
             if !self.session.admit_format_collection_item() || !self.session.admit_format_node(2) {
                 return None;
             }
-            let item = iterator
-                .next()
-                .expect("exact-size iterator reported an item");
-            if !self
-                .session
-                .admit_input(item.value().as_encoded_bytes().len())
-            {
+            let item = iterator.next().expect("exact-size iterator reported an item");
+            if !self.session.admit_input(item.value().as_encoded_bytes().len()) {
                 return None;
             }
             admitted.push(item);

@@ -51,11 +51,7 @@ fn session_publishes_argv_handle_only_after_finish() {
     let output = session.finish();
 
     assert_eq!(
-        output
-            .resolve(handle)
-            .expect("published handle")
-            .text()
-            .as_str(),
+        output.resolve(handle).expect("published handle").text().as_str(),
         r#"["client"]"#
     );
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
@@ -111,9 +107,7 @@ fn argv_handle_stops_at_shared_collection_limit() {
         ArgvItem::plain(OsStr::new("later-secret")),
     ]);
     let output = session.finish();
-    let item = output
-        .resolve(handle)
-        .expect("truncated argv handle publishes");
+    let item = output.resolve(handle).expect("truncated argv handle publishes");
 
     assert!(item.text().as_str().is_empty());
     assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
@@ -133,9 +127,7 @@ fn argv_handle_does_not_preallocate_from_unadmitted_iterator_length() {
         .build()
         .expect("policy should build");
     let mut session = Redactor::new(policy).session();
-    let handle = session.redact_argv(HugeArgvIterator {
-        remaining: usize::MAX,
-    });
+    let handle = session.redact_argv(HugeArgvIterator { remaining: usize::MAX });
     let output = session.finish();
     let item = output.resolve(handle).expect("argv handle publishes");
 

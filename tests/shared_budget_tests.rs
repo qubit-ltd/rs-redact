@@ -33,20 +33,9 @@ fn create_one_byte_redactor() -> Redactor {
 }
 
 /// Verifies the exhausted session result and later-operation sentinel.
-fn assert_exhausted_before_later_operation(
-    output: RedactionSessionOutput,
-    later_called: &Cell<bool>,
-) {
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::OutputLimitReached)
-    );
+fn assert_exhausted_before_later_operation(output: RedactionSessionOutput, later_called: &Cell<bool>) {
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert!(!later_called.get());
 }
 
@@ -67,16 +56,8 @@ fn assert_operation_uses_the_transaction_budget(operation: impl FnOnce(&mut Reda
     operation(&mut session);
     let output = session.literal("later").finish();
 
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::OutputLimitReached)
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
 }
 
 /// Every runtime entry point must charge the same output ledger; this matrix

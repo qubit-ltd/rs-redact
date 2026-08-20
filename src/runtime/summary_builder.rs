@@ -64,16 +64,9 @@ impl SummaryBuilder {
     /// Records source-aware input accounting.
     #[cfg(feature = "http")]
     #[must_use]
-    pub(super) const fn with_source_input(
-        self,
-        presented: usize,
-        inspected: usize,
-        omitted: Option<usize>,
-    ) -> Self {
+    pub(super) const fn with_source_input(self, presented: usize, inspected: usize, omitted: Option<usize>) -> Self {
         Self {
-            summary: self
-                .summary
-                .with_source_input(presented, inspected, omitted),
+            summary: self.summary.with_source_input(presented, inspected, omitted),
         }
     }
 

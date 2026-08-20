@@ -95,14 +95,8 @@ fn session_environment_pair_and_handle_share_one_output_budget() {
         .resolve(password)
         .expect("handle belongs to the committed transaction");
     assert!(password.text().as_str().is_empty());
-    assert_eq!(
-        password.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
+    assert_eq!(password.summary().completion(), RedactionCompletion::Exhausted);
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
     assert_eq!(output.summary().usage().output_bytes(), 10);
 }
 
@@ -132,9 +126,7 @@ fn session_environment_aggregate_and_handle_mask_classified_value() {
     });
     let handle = session.redact_env("PASSWORD", "handle-secret");
     let output = session.finish();
-    let item = output
-        .resolve(handle)
-        .expect("environment handle publishes");
+    let item = output.resolve(handle).expect("environment handle publishes");
 
     assert!(!output.text().as_str().contains("aggregate-secret"));
     assert!(!item.text().as_str().contains("handle-secret"));
@@ -158,9 +150,7 @@ fn session_environment_list_handle_stops_at_collection_limit() {
         (OsStr::new("PASSWORD"), OsStr::new("must-not-be-rendered")),
     ]);
     let output = session.finish();
-    let item = output
-        .resolve(handle)
-        .expect("truncated environment handle publishes");
+    let item = output.resolve(handle).expect("truncated environment handle publishes");
 
     assert!(item.text().as_str().is_empty());
     assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
@@ -179,13 +169,9 @@ fn environment_handle_does_not_preallocate_from_unadmitted_iterator_length() {
         .build()
         .expect("policy should build");
     let mut session = Redactor::new(policy).session();
-    let handle = session.redact_env_pairs(HugeEnvironmentIterator {
-        remaining: usize::MAX,
-    });
+    let handle = session.redact_env_pairs(HugeEnvironmentIterator { remaining: usize::MAX });
     let output = session.finish();
-    let item = output
-        .resolve(handle)
-        .expect("environment handle publishes");
+    let item = output.resolve(handle).expect("environment handle publishes");
 
     assert!(item.text().as_str().is_empty());
     assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);

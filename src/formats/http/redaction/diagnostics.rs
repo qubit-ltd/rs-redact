@@ -34,10 +34,7 @@ impl HttpPolicyExecutor<'_> {
         } else {
             RedactionSummary::complete()
         }
-        .merge(provenance.map_or_else(
-            RedactionSummary::complete,
-            RedactionSummary::complete_with_reason,
-        ));
+        .merge(provenance.map_or_else(RedactionSummary::complete, RedactionSummary::complete_with_reason));
         super::HttpRendered {
             output: RedactionOutput::new(RedactedText::from_escaped(Cow::Owned(text)), summary),
         }
