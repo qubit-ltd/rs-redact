@@ -10,6 +10,9 @@
 
 use std::ffi::OsStr;
 
+use super::admitted_command_items::AdmittedCommandItems;
+use super::admitted_environment_pairs::AdmittedEnvironmentPairs;
+use super::command_items::CommandItems;
 use crate::RedactionCompletion;
 use crate::RedactionHandle;
 use crate::RedactionSession;
@@ -27,91 +30,6 @@ use crate::formats::env::env_redactor::redact_os_pairs_with_policy;
 pub struct ProcessRedactionWriter<'session> {
     /// The transaction receiving every rendered process component.
     session: &'session mut RedactionSession,
-}
-
-/// Streams a process executable followed by caller-provided arguments while
-/// preserving the exact remaining length required for pre-admission.
-struct CommandItems<'arguments, I> {
-    program: Option<ArgvItem<'arguments>>,
-    arguments: I,
-}
-
-/// Admits command arguments lazily before the renderer can inspect them.
-struct AdmittedCommandItems<'session, 'arguments, I> {
-    session: &'session mut RedactionSession,
-    program: Option<ArgvItem<'arguments>>,
-    arguments: I,
-    failed: bool,
-}
-
-impl<'arguments, I> Iterator for AdmittedCommandItems<'_, 'arguments, I>
-where
-    I: Iterator<Item = ArgvItem<'arguments>>,
-{
-    type Item = ArgvItem<'arguments>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let item = self.program.take().or_else(|| self.arguments.next())?;
-        if !self.session.admit_format_collection_item()
-            || !self.session.admit_format_node(2)
-            || !self.session.admit_input(item.value().as_encoded_bytes().len())
-        {
-            self.failed = true;
-            return None;
-        }
-        Some(item)
-    }
-}
-
-/// Admits environment pairs lazily before the renderer can inspect them.
-struct AdmittedEnvironmentPairs<'session, 'variables, I> {
-    session: &'session mut RedactionSession,
-    variables: I,
-    failed: bool,
-    marker: std::marker::PhantomData<&'variables ()>,
-}
-
-impl<'variables, I> Iterator for AdmittedEnvironmentPairs<'_, 'variables, I>
-where
-    I: Iterator<Item = (&'variables OsStr, &'variables OsStr)>,
-{
-    type Item = (&'variables OsStr, &'variables OsStr);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let (name, value) = self.variables.next()?;
-        if !self.session.admit_format_collection_item()
-            || !self.session.admit_format_node(2)
-            || !self.session.admit_input(
-                name.as_encoded_bytes()
-                    .len()
-                    .saturating_add(value.as_encoded_bytes().len()),
-            )
-        {
-            self.failed = true;
-            return None;
-        }
-        Some((name, value))
-    }
-}
-
-impl<'arguments, I> Iterator for CommandItems<'arguments, I>
-where
-    I: Iterator<Item = ArgvItem<'arguments>>,
-{
-    type Item = ArgvItem<'arguments>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.program.take().or_else(|| self.arguments.next())
-    }
-}
-
-impl<'arguments, I> ExactSizeIterator for CommandItems<'arguments, I>
-where
-    I: ExactSizeIterator<Item = ArgvItem<'arguments>>,
-{
-    fn len(&self) -> usize {
-        self.arguments.len().saturating_add(usize::from(self.program.is_some()))
-    }
 }
 
 impl<'session> ProcessRedactionWriter<'session> {
@@ -169,10 +87,7 @@ impl<'session> ProcessRedactionWriter<'session> {
     {
         let arguments = arguments.into_iter();
         let mut argv = ArgvRedactionWriter::new(self.session);
-        argv.heuristic_items(CommandItems {
-            program: Some(ArgvItem::plain(program)),
-            arguments,
-        });
+        argv.heuristic_items(CommandItems::new(ArgvItem::plain(program), arguments));
         if !self.session.is_output_exhausted() {
             let mut environment = EnvRedactionWriter::new(self.session);
             environment.os_pairs(variables);
