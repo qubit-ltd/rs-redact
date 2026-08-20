@@ -9,7 +9,6 @@
 
 pub(crate) mod log_escape;
 mod masked_value;
-mod redacted_text;
 mod redaction_completion;
 
 pub(crate) use masked_value::MaskedValue;
