@@ -29,6 +29,12 @@ pub enum PolicyError {
         /// Sensitivity level containing the invalid fixed mask.
         level: Sensitivity,
     },
+    /// The configured output ceiling cannot be represented by Rust's
+    /// collection allocators on this platform.
+    OutputLimitTooLarge {
+        /// Rejected configured output limit.
+        maximum: usize,
+    },
 }
 
 impl fmt::Display for PolicyError {
@@ -48,11 +54,18 @@ impl fmt::Display for PolicyError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyFieldName { location } => {
-                write!(formatter, "field name is empty after canonicalization in {location}",)
+                write!(
+                    formatter,
+                    "field name is empty after canonicalization in {location}",
+                )
             }
             Self::EmptyFixedReplacement { location, level } => write!(
                 formatter,
                 "fixed mask replacement for {level:?} sensitivity is empty in {location}",
+            ),
+            Self::OutputLimitTooLarge { maximum } => write!(
+                formatter,
+                "output limit {maximum} exceeds this platform's addressable collection capacity",
             ),
         }
     }

@@ -12,6 +12,37 @@ use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 
+/// Exact-size iterator that exposes the capacity-allocation bug without
+/// materializing a huge environment collection.
+struct HugeEnvironmentIterator {
+    remaining: usize,
+}
+
+impl Iterator for HugeEnvironmentIterator {
+    type Item = (&'static OsStr, &'static OsStr);
+
+    /// Returns one repeated non-sensitive assignment until exhausted.
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining == 0 {
+            return None;
+        }
+        self.remaining -= 1;
+        Some((OsStr::new("FIRST"), OsStr::new("visible")))
+    }
+
+    /// Reports the exact remaining length without allocating the suffix.
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
+
+impl ExactSizeIterator for HugeEnvironmentIterator {
+    /// Returns the iterator's exact remaining item count.
+    fn len(&self) -> usize {
+        self.remaining
+    }
+}
+
 #[test]
 fn session_environment_operations_share_aggregate_and_handle_transaction_output() {
     let redactor = Redactor::standard();
@@ -64,8 +95,14 @@ fn session_environment_pair_and_handle_share_one_output_budget() {
         .resolve(password)
         .expect("handle belongs to the committed transaction");
     assert!(password.text().as_str().is_empty());
-    assert_eq!(password.summary().completion(), RedactionCompletion::Exhausted);
-    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert_eq!(
+        password.summary().completion(),
+        RedactionCompletion::Exhausted
+    );
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Exhausted
+    );
     assert_eq!(output.summary().usage().output_bytes(), 10);
 }
 
@@ -95,7 +132,9 @@ fn session_environment_aggregate_and_handle_mask_classified_value() {
     });
     let handle = session.redact_env("PASSWORD", "handle-secret");
     let output = session.finish();
-    let item = output.resolve(handle).expect("environment handle publishes");
+    let item = output
+        .resolve(handle)
+        .expect("environment handle publishes");
 
     assert!(!output.text().as_str().contains("aggregate-secret"));
     assert!(!item.text().as_str().contains("handle-secret"));
@@ -119,9 +158,35 @@ fn session_environment_list_handle_stops_at_collection_limit() {
         (OsStr::new("PASSWORD"), OsStr::new("must-not-be-rendered")),
     ]);
     let output = session.finish();
-    let item = output.resolve(handle).expect("truncated environment handle publishes");
+    let item = output
+        .resolve(handle)
+        .expect("truncated environment handle publishes");
 
     assert!(item.text().as_str().is_empty());
     assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
     assert!(!item.text().as_str().contains("must-not-be-rendered"));
+}
+
+/// The collection limit must protect the runtime before a collection's
+/// advertised exact length influences allocation.
+#[test]
+fn environment_handle_does_not_preallocate_from_unadmitted_iterator_length() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_collection_items(1);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
+    let handle = session.redact_env_pairs(HugeEnvironmentIterator {
+        remaining: usize::MAX,
+    });
+    let output = session.finish();
+    let item = output
+        .resolve(handle)
+        .expect("environment handle publishes");
+
+    assert!(item.text().as_str().is_empty());
+    assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
 }

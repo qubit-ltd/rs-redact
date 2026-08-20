@@ -71,7 +71,10 @@ impl RedactionPolicyBuilder {
     #[must_use]
     pub(super) fn from_policy(policy: &RedactionPolicy) -> Self {
         Self {
-            rules: RedactionRulesBuilder::from_inner(&policy.rules().clone_application(), PolicyLocation::Rules),
+            rules: RedactionRulesBuilder::from_inner(
+                &policy.rules().clone_application(),
+                PolicyLocation::Rules,
+            ),
             masking: policy.masking().clone(),
             floor: policy.rules().floor().cloned(),
             limits: *policy.limits(),
@@ -163,7 +166,9 @@ impl RedactionPolicyBuilder {
     {
         let mut limits = RedactionLimits::builder_from(&self.limits);
         configure(&mut limits);
-        self.limits = limits.build();
+        let limits = limits.build();
+        limits.validate()?;
+        self.limits = limits;
         Ok(self)
     }
 
@@ -475,7 +480,10 @@ mod views {
 
         /// Sets the handling of root and array JSON scalar values in HTTP
         /// bodies.
-        pub fn unkeyed_json(&mut self, policy: crate::formats::http::UnkeyedJsonValuePolicy) -> &mut Self {
+        pub fn unkeyed_json(
+            &mut self,
+            policy: crate::formats::http::UnkeyedJsonValuePolicy,
+        ) -> &mut Self {
             self.builder.unkeyed_json_value_policy = policy;
             self
         }
@@ -509,7 +517,11 @@ mod views {
         }
 
         /// Replaces a context field rule without weakening the base policy.
-        pub fn override_level(&mut self, field: &str, level: Sensitivity) -> Result<&mut Self, PolicyError> {
+        pub fn override_level(
+            &mut self,
+            field: &str,
+            level: Sensitivity,
+        ) -> Result<&mut Self, PolicyError> {
             if self.error.is_none()
                 && let Err(error) = self.builder.override_level_mut(self.context, field, level)
             {

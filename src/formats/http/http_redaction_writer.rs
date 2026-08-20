@@ -110,7 +110,11 @@ impl<'session> HttpRedactionWriter<'session> {
     /// Parses and redacts one URL string.
     #[must_use]
     fn redact_url_str_direct(&mut self, text: &str) -> super::redaction::HttpRendered {
-        super::redaction::redact_url_str_with_policy(self.session.policy(), text, self.session.remaining_output_bytes())
+        super::redaction::redact_url_str_with_policy(
+            self.session.policy(),
+            text,
+            self.session.remaining_output_bytes(),
+        )
     }
 
     /// Redacts all HTTP headers.
@@ -157,7 +161,10 @@ impl<'session> HttpRedactionWriter<'session> {
                         return false;
                     }
                 }
-                NestedUrl::NotUrl | NestedUrl::Parsed(_) | NestedUrl::Invalid | NestedUrl::LimitExceeded => {}
+                NestedUrl::NotUrl
+                | NestedUrl::Parsed(_)
+                | NestedUrl::Invalid
+                | NestedUrl::LimitExceeded => {}
             }
         }
         true
@@ -170,7 +177,9 @@ impl<'session> HttpRedactionWriter<'session> {
         if self.session.is_output_exhausted() || !self.session.admit_format_node(1) {
             return None;
         }
-        let mut admitted = HeaderMap::with_capacity(headers.len());
+        // Header count has not yet passed the shared collection admission
+        // ledger, so it must not determine an allocation capacity.
+        let mut admitted = HeaderMap::new();
         for (name, value) in headers {
             if !self.session.admit_format_collection_item()
                 || !self.session.admit_format_node(2)
@@ -203,9 +212,17 @@ impl<'session> HttpRedactionWriter<'session> {
     ///
     /// A bounded body result with completion and capture metadata.
     #[must_use]
-    pub fn body(&mut self, capture: BodyCapture<'_>, content_type: Option<&HeaderValue>) -> &mut Self {
+    pub fn body(
+        &mut self,
+        capture: BodyCapture<'_>,
+        content_type: Option<&HeaderValue>,
+    ) -> &mut Self {
         if self.session.is_output_exhausted()
-            || !admit_body_input(self.session, capture, content_type.map(|v| v.as_bytes().len()))
+            || !admit_body_input(
+                self.session,
+                capture,
+                content_type.map(|v| v.as_bytes().len()),
+            )
         {
             return self;
         }
@@ -227,13 +244,21 @@ impl<'session> HttpRedactionWriter<'session> {
     /// Redacts a captured HTTP body as one individually resolvable transaction
     /// item.
     #[must_use]
-    pub fn redact_body(&mut self, capture: BodyCapture<'_>, content_type: Option<&HeaderValue>) -> RedactionHandle {
+    pub fn redact_body(
+        &mut self,
+        capture: BodyCapture<'_>,
+        content_type: Option<&HeaderValue>,
+    ) -> RedactionHandle {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
             if self.session.is_output_exhausted() {
                 return self.exhausted_handle();
             }
-            if !admit_body_input(self.session, capture, content_type.map(|value| value.as_bytes().len())) {
+            if !admit_body_input(
+                self.session,
+                capture,
+                content_type.map(|value| value.as_bytes().len()),
+            ) {
                 return self.stage_accounted_text(String::new());
             }
             if !self.admit_body_structure(capture, content_type.map(|value| value.as_bytes())) {
@@ -267,8 +292,14 @@ impl<'session> HttpRedactionWriter<'session> {
     ///
     /// A bounded body result with completion and capture metadata.
     #[must_use]
-    pub fn body_with_content_type_text(&mut self, capture: BodyCapture<'_>, content_type: Option<&str>) -> &mut Self {
-        if self.session.is_output_exhausted() || !admit_body_input(self.session, capture, content_type.map(str::len)) {
+    pub fn body_with_content_type_text(
+        &mut self,
+        capture: BodyCapture<'_>,
+        content_type: Option<&str>,
+    ) -> &mut Self {
+        if self.session.is_output_exhausted()
+            || !admit_body_input(self.session, capture, content_type.map(str::len))
+        {
             return self;
         }
         if !self.admit_body_structure(capture, content_type.map(str::as_bytes)) {
@@ -280,7 +311,12 @@ impl<'session> HttpRedactionWriter<'session> {
         }
         let remaining = self.session.remaining_output_bytes();
         let result = self.body_result(capture, None, |policy| {
-            super::redaction::redact_body_with_content_type_text_with_policy(policy, capture, content_type, remaining)
+            super::redaction::redact_body_with_content_type_text_with_policy(
+                policy,
+                capture,
+                content_type,
+                remaining,
+            )
         });
         self.session.append_format_output(result.output());
         self
@@ -340,23 +376,38 @@ impl<'session> HttpRedactionWriter<'session> {
     /// Charges body structure before the HTTP renderer parses it. JSON and
     /// NDJSON reuse the parent transaction's JSON ledger; form fields and
     /// multipart parts use the same structural ledger before rendering.
-    fn admit_body_structure(&mut self, capture: BodyCapture<'_>, content_type: Option<&[u8]>) -> bool {
+    fn admit_body_structure(
+        &mut self,
+        capture: BodyCapture<'_>,
+        content_type: Option<&[u8]>,
+    ) -> bool {
         let has_content_type = content_type.is_some();
         let content_type = content_type
             .and_then(|value| std::str::from_utf8(value).ok())
             .and_then(super::internal::content_type::parse);
         let inferred_json = !has_content_type
             && matches!(
-                capture.bytes().iter().copied().find(|byte| !byte.is_ascii_whitespace()),
+                capture
+                    .bytes()
+                    .iter()
+                    .copied()
+                    .find(|byte| !byte.is_ascii_whitespace()),
                 Some(b'{') | Some(b'[')
             );
-        if matches!(&content_type, Some(super::internal::content_type::ContentType::Json)) || inferred_json {
+        if matches!(
+            &content_type,
+            Some(super::internal::content_type::ContentType::Json)
+        ) || inferred_json
+        {
             let Ok(text) = std::str::from_utf8(capture.bytes()) else {
                 return self.session.admit_format_node(1);
             };
             return crate::formats::json::admit_json_text_structure(self.session, text);
         }
-        if matches!(&content_type, Some(super::internal::content_type::ContentType::Ndjson)) {
+        if matches!(
+            &content_type,
+            Some(super::internal::content_type::ContentType::Ndjson)
+        ) {
             let Ok(text) = std::str::from_utf8(capture.bytes()) else {
                 return self.session.admit_format_node(1);
             };
@@ -379,15 +430,22 @@ impl<'session> HttpRedactionWriter<'session> {
             Some(super::internal::content_type::ContentType::Multipart {
                 boundary: Some(boundary),
                 require_form_data,
-            }) => {
-                super::internal::multipart::admit_structure(self.session, &boundary, require_form_data, capture.bytes())
-            }
-            Some(super::internal::content_type::ContentType::Multipart { boundary: None, .. })
+            }) => super::internal::multipart::admit_structure(
+                self.session,
+                &boundary,
+                require_form_data,
+                capture.bytes(),
+            ),
+            Some(super::internal::content_type::ContentType::Multipart {
+                boundary: None, ..
+            })
             | Some(super::internal::content_type::ContentType::Text)
             | Some(super::internal::content_type::ContentType::Other)
             | None => true,
             Some(super::internal::content_type::ContentType::Json)
-            | Some(super::internal::content_type::ContentType::Ndjson) => unreachable!("handled above"),
+            | Some(super::internal::content_type::ContentType::Ndjson) => {
+                unreachable!("handled above")
+            }
         }
     }
 
@@ -415,7 +473,11 @@ impl<'session> HttpRedactionWriter<'session> {
 }
 
 /// Counts bytes presented by a body operation before parser dispatch.
-fn admit_body_input(session: &mut RedactionSession, capture: BodyCapture<'_>, content_type_len: Option<usize>) -> bool {
+fn admit_body_input(
+    session: &mut RedactionSession,
+    capture: BodyCapture<'_>,
+    content_type_len: Option<usize>,
+) -> bool {
     let content_type_len = content_type_len.unwrap_or(0);
     let inspectable = capture.bytes().len().saturating_add(content_type_len);
     let total = capture

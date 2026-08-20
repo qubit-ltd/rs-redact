@@ -34,7 +34,10 @@ impl HttpPolicyExecutor<'_> {
         } else {
             RedactionSummary::complete()
         }
-        .merge(provenance.map_or_else(RedactionSummary::complete, RedactionSummary::complete_with_reason));
+        .merge(provenance.map_or_else(
+            RedactionSummary::complete,
+            RedactionSummary::complete_with_reason,
+        ));
         super::HttpRendered {
             output: RedactionOutput::new(RedactedText::from_escaped(Cow::Owned(text)), summary),
         }
@@ -68,7 +71,9 @@ pub(in crate::formats::http) fn bound_safe_text(text: &str, max_bytes: usize) ->
         return (String::new(), true);
     }
     let payload_limit = max_bytes.saturating_sub(marker.len());
-    let mut output = String::with_capacity(max_bytes);
+    // `max_bytes` is an externally configured limit and may be much larger
+    // than the rendered prefix, so reserve only as text is actually retained.
+    let mut output = String::new();
     for character in text.chars() {
         if output.len().saturating_add(character.len_utf8()) > payload_limit {
             break;
