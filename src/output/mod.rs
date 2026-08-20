@@ -7,7 +7,6 @@
 // =============================================================================
 //! Typed redaction output values and bounded log-safe writers.
 
-pub(crate) mod internal;
 pub(crate) mod log_escape;
 mod masked_value;
 mod redacted_text;

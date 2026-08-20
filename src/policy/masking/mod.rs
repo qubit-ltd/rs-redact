@@ -7,6 +7,9 @@
 // =============================================================================
 //! Masking policy and mask construction helpers.
 
-pub use super::MaskPolicy;
-pub use super::MaskingPolicy;
-pub use super::MaskingPolicyBuilder;
+mod mask_policy;
+mod masking_policy;
+
+pub use mask_policy::MaskPolicy;
+pub use masking_policy::MaskingPolicy;
+pub use masking_policy::MaskingPolicyBuilder;

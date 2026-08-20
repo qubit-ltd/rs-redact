@@ -11,7 +11,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::fmt::Write;
 
-use super::internal::BoundedMaskWriter;
+use crate::policy::internal::BoundedMaskWriter;
 
 /// Strategy used to mask one sensitive field value.
 #[non_exhaustive]
