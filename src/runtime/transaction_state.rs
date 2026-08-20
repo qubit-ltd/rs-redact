@@ -8,9 +8,9 @@
 //! Unpublished mutable state owned by one redaction transaction.
 
 use super::redaction_budget::RedactionBudget;
+use super::summary_builder::SummaryBuilder;
 use crate::RedactionOutput;
 use crate::RedactionPolicy;
-use crate::RedactionSummary;
 
 /// All mutable accounting and unpublished output for one transaction.
 pub struct TransactionState {
@@ -19,9 +19,9 @@ pub struct TransactionState {
     pub(super) fragments: String,
     pub(super) items: Vec<RedactionOutput>,
     pub(super) output_exhausted: bool,
-    pub(super) summary: RedactionSummary,
+    pub(super) summary: SummaryBuilder,
     /// Summary accumulated only for the currently staged handle operation.
-    pub(super) item_summary: Option<RedactionSummary>,
+    pub(super) item_summary: Option<SummaryBuilder>,
 }
 
 impl TransactionState {
@@ -34,7 +34,7 @@ impl TransactionState {
             fragments: String::new(),
             items: Vec::new(),
             output_exhausted: false,
-            summary: RedactionSummary::complete(),
+            summary: SummaryBuilder::new(),
             item_summary: None,
         }
     }

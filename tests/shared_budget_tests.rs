@@ -10,10 +10,13 @@
 use std::cell::Cell;
 use std::ffi::OsStr;
 
+use qubit_redact::Redact;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
+use qubit_redact::RedactionSession;
 use qubit_redact::RedactionSessionOutput;
+use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::formats::argv::ArgvItem;
 
@@ -30,10 +33,98 @@ fn create_one_byte_redactor() -> Redactor {
 }
 
 /// Verifies the exhausted session result and later-operation sentinel.
-fn assert_exhausted_before_later_operation(output: RedactionSessionOutput, later_called: &Cell<bool>) {
-    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
-    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+fn assert_exhausted_before_later_operation(
+    output: RedactionSessionOutput,
+    later_called: &Cell<bool>,
+) {
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Exhausted
+    );
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::OutputLimitReached)
+    );
     assert!(!later_called.get());
+}
+
+/// Minimal domain operation used by the shared-runtime regression matrix.
+struct MatrixValue;
+
+impl Redact for MatrixValue {
+    /// Writes one trusted static byte into the active transaction.
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.literal("x");
+    }
+}
+
+/// Runs one operation against the smallest usable output budget and verifies
+/// that it closes the transaction before a later literal can be published.
+fn assert_operation_uses_the_transaction_budget(operation: impl FnOnce(&mut RedactionSession)) {
+    let mut session = create_one_byte_redactor().session();
+    operation(&mut session);
+    let output = session.literal("later").finish();
+
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Exhausted
+    );
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::OutputLimitReached)
+    );
+}
+
+/// Every runtime entry point must charge the same output ledger; this matrix
+/// prevents a newly added adapter from obtaining an independent budget.
+#[test]
+fn test_runtime_entry_points_share_the_output_budget_matrix() {
+    assert_operation_uses_the_transaction_budget(|session| {
+        let _ = session.literal("x");
+    });
+    assert_operation_uses_the_transaction_budget(|session| {
+        let _ = session.field("name", "x");
+    });
+    assert_operation_uses_the_transaction_budget(|session| {
+        let _ = session.value(&MatrixValue);
+    });
+    assert_operation_uses_the_transaction_budget(|session| {
+        session.argv(|argv| {
+            argv.items([ArgvItem::plain(OsStr::new("client"))]);
+        });
+    });
+    assert_operation_uses_the_transaction_budget(|session| {
+        session.env(|env| {
+            env.pair("MODE", "debug");
+        });
+    });
+    assert_operation_uses_the_transaction_budget(|session| {
+        let _ = session.process(|process| {
+            process.arguments([ArgvItem::plain(OsStr::new("client"))]);
+        });
+    });
+    #[cfg(feature = "json")]
+    assert_operation_uses_the_transaction_budget(|session| {
+        session.json(|json| {
+            json.text(r#"{"token":"secret"}"#);
+        });
+    });
+    #[cfg(feature = "uri")]
+    assert_operation_uses_the_transaction_budget(|session| {
+        session.uri(|uri| {
+            uri.value("https://example.test/?token=secret");
+        });
+    });
+    #[cfg(feature = "http")]
+    assert_operation_uses_the_transaction_budget(|session| {
+        session.http(|http| {
+            http.url("https://example.test/?token=secret");
+        });
+    });
 }
 
 /// Verifies that an argv fallback which cannot fit closes the whole

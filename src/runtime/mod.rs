@@ -12,6 +12,7 @@ mod redaction_budget;
 mod redaction_handle;
 mod redaction_session;
 mod redaction_session_output;
+mod summary_builder;
 mod transaction_guard;
 mod transaction_state;
 
