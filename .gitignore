@@ -1,5 +1,6 @@
 # Rust
 /target/
+/fuzz/corpus/
 /fuzz/artifacts/
 /fuzz/target/
 **/*.rs.bk
