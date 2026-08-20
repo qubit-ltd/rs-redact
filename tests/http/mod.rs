@@ -19,5 +19,4 @@ mod http_redactor;
 mod internal;
 mod mod_tests;
 mod text_body_policy_tests;
-mod unkeyed_json_value_policy_tests;
 mod url_path_policy_tests;

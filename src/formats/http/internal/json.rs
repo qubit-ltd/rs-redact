@@ -15,8 +15,8 @@ use serde_json::to_writer;
 
 use super::BoundedBodyWriter;
 use super::markers::UNKEYED_JSON;
+use crate::UnkeyedJsonValuePolicy;
 use crate::formats::http::FieldRedactor;
-use crate::formats::http::UnkeyedJsonValuePolicy;
 use crate::formats::json::internal::JsonRedactionState;
 use crate::formats::json::internal::JsonUnkeyedValuePolicy;
 
