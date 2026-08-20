@@ -16,15 +16,13 @@ use super::UriFragmentPolicy;
 use super::UriPathPolicy;
 use super::internal::BoundedUriWriter;
 use super::internal::UriComponentWriter;
-use crate::RedactedText;
 use crate::RedactionCompletion;
-use crate::RedactionOutput;
 use crate::RedactionPolicy;
 use crate::RedactionReason;
-use crate::RedactionSummary;
 use crate::Sensitivity;
-use crate::output::MaskedValue;
+use crate::output::log_escape::escape_log_control_characters;
 use crate::policy::ResolvedField;
+use crate::runtime::RenderedOperation;
 
 /// Safe replacement used when URI parsing or decoding fails.
 const INVALID_URI: &str = "<invalid URI>";
@@ -32,10 +30,14 @@ const INVALID_URI: &str = "<invalid URI>";
 /// Renders one URI under the output ceiling supplied by its parent session.
 ///
 /// This function owns neither a policy snapshot nor a budget. It returns the
-/// common [`RedactionOutput`] carrier, so URI rendering cannot publish a
-/// second result model or make an independent completion decision.
+/// unpublished renderer carrier, so URI rendering cannot publish a second
+/// result model or make an independent completion decision.
 #[must_use]
-pub(crate) fn redact_uri_with_limit(policy: &RedactionPolicy, input: &str, max_output_bytes: usize) -> RedactionOutput {
+pub(crate) fn redact_uri_with_limit(
+    policy: &RedactionPolicy,
+    input: &str,
+    max_output_bytes: usize,
+) -> RenderedOperation {
     let parsed = match Uri::<&str>::parse(input) {
         Ok(parsed) => parsed,
         Err(_) => return invalid_output(max_output_bytes),
@@ -93,32 +95,25 @@ pub(crate) fn redact_uri_with_limit(policy: &RedactionPolicy, input: &str, max_o
 
 /// Converts bounded URI bytes to the runtime's single output carrier.
 #[must_use]
-fn finish_uri_rendering(rendered: BoundedUriWriter) -> RedactionOutput {
+fn finish_uri_rendering(rendered: BoundedUriWriter) -> RenderedOperation {
     let (rendered, completion) = rendered.finish_with_completion(true);
     let text = safe_text(rendered);
-    let summary = match completion {
-        RedactionCompletion::Complete => RedactionSummary::complete(),
+    match completion {
+        RedactionCompletion::Complete => RenderedOperation::complete(text),
         RedactionCompletion::Truncated | RedactionCompletion::Exhausted => {
-            RedactionSummary::truncated(RedactionReason::OutputLimitReached)
+            RenderedOperation::truncated(text, RedactionReason::OutputLimitReached)
         }
-    };
-    RedactionOutput::new(text, summary)
+    }
 }
 
 /// Emits a bounded marker for invalid URI input without retaining input bytes.
 #[must_use]
-fn invalid_output(max_output_bytes: usize) -> RedactionOutput {
+fn invalid_output(max_output_bytes: usize) -> RenderedOperation {
     if INVALID_URI.len() <= max_output_bytes {
-        return RedactionOutput::new(
-            safe_text(INVALID_URI.to_owned()),
-            RedactionSummary::complete_with_reason(RedactionReason::InvalidUri),
-        );
+        return RenderedOperation::complete_with_reason(safe_text(INVALID_URI.to_owned()), RedactionReason::InvalidUri);
     }
-    RedactionOutput::new(
-        RedactedText::from_escaped(String::new()),
-        RedactionSummary::truncated(RedactionReason::OutputLimitReached)
-            .merge(RedactionSummary::complete_with_reason(RedactionReason::InvalidUri)),
-    )
+    RenderedOperation::truncated(String::new(), RedactionReason::OutputLimitReached)
+        .with_reason(RedactionReason::InvalidUri)
 }
 
 /// Redacts userinfo while preserving the authority's raw host and port.
@@ -256,6 +251,6 @@ const fn hex_value(byte: u8) -> Option<u8> {
 
 /// Converts owned output into the library's log-safe text wrapper.
 #[must_use]
-fn safe_text(value: String) -> RedactedText {
-    MaskedValue::new(Cow::Owned(value)).escape_for_log()
+fn safe_text(value: String) -> String {
+    escape_log_control_characters(Cow::Owned(value)).into_owned()
 }

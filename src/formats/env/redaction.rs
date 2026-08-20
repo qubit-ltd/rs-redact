@@ -10,14 +10,12 @@
 use std::borrow::Cow;
 use std::ffi::OsStr;
 
-use crate::RedactedText;
-use crate::RedactionOutput;
 use crate::RedactionReason;
-use crate::RedactionSummary;
 use crate::Sensitivity;
-use crate::output::MaskedValue;
+use crate::output::log_escape::escape_log_control_characters;
 use crate::policy::RedactionPolicy;
 use crate::policy::ResolvedField;
+use crate::runtime::RenderedOperation;
 
 /// Redacts one UTF-8 environment-variable pair with a borrowed policy.
 ///
@@ -29,7 +27,7 @@ pub(super) fn redact_pair_with_policy(
     name: &str,
     value: &str,
     max_output_bytes: usize,
-) -> RedactionOutput {
+) -> RenderedOperation {
     render_pair_output(policy, OsStr::new(name), OsStr::new(value), max_output_bytes)
 }
 
@@ -41,7 +39,7 @@ pub(crate) fn redact_os_pairs_with_policy<'a, I>(
     policy: &RedactionPolicy,
     pairs: I,
     max_output_bytes: usize,
-) -> RedactionOutput
+) -> RenderedOperation
 where
     I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
 {
@@ -68,59 +66,41 @@ where
     if locally_truncated {
         const FALLBACK: &str = "<truncated>";
         return if FALLBACK.len() <= max_output_bytes {
-            RedactionOutput::new(
-                RedactedText::from_escaped(FALLBACK),
-                RedactionSummary::truncated(RedactionReason::OutputLimitReached),
-            )
+            RenderedOperation::truncated(FALLBACK, RedactionReason::OutputLimitReached)
         } else {
-            RedactionOutput::new(
-                RedactedText::from_escaped(""),
-                RedactionSummary::truncated(RedactionReason::OutputLimitReached),
-            )
+            RenderedOperation::truncated("", RedactionReason::OutputLimitReached)
         };
     }
     if writer.len().saturating_add(1) > max_output_bytes {
         const FALLBACK: &str = "<truncated>";
         return if FALLBACK.len() <= max_output_bytes {
-            RedactionOutput::new(
-                RedactedText::from_escaped(FALLBACK),
-                RedactionSummary::truncated(RedactionReason::OutputLimitReached),
-            )
+            RenderedOperation::truncated(FALLBACK, RedactionReason::OutputLimitReached)
         } else {
-            RedactionOutput::new(
-                RedactedText::from_escaped(""),
-                RedactionSummary::truncated(RedactionReason::OutputLimitReached),
-            )
+            RenderedOperation::truncated("", RedactionReason::OutputLimitReached)
         };
     }
     writer.push(']');
-    RedactionOutput::new(RedactedText::from_escaped(writer), RedactionSummary::complete())
+    RenderedOperation::complete(writer)
 }
 
-/// Renders one environment assignment as the shared output model, refusing
-/// to materialize a separately publishable pair result.
+/// Renders one unpublished environment assignment without materializing a
+/// separately publishable pair result.
 fn render_pair_output(
     policy: &RedactionPolicy,
     name: &OsStr,
     value: &OsStr,
     max_output_bytes: usize,
-) -> RedactionOutput {
+) -> RenderedOperation {
     let (rendered, locally_truncated) = redact_os_pair_bounded_with_policy(policy, name, value, max_output_bytes);
     if locally_truncated || rendered.len() > max_output_bytes {
         const FALLBACK: &str = "<truncated>";
         return if FALLBACK.len() <= max_output_bytes {
-            RedactionOutput::new(
-                RedactedText::from_escaped(FALLBACK),
-                RedactionSummary::truncated(RedactionReason::OutputLimitReached),
-            )
+            RenderedOperation::truncated(FALLBACK, RedactionReason::OutputLimitReached)
         } else {
-            RedactionOutput::new(
-                RedactedText::from_escaped(""),
-                RedactionSummary::truncated(RedactionReason::OutputLimitReached),
-            )
+            RenderedOperation::truncated("", RedactionReason::OutputLimitReached)
         };
     }
-    RedactionOutput::new(RedactedText::from_escaped(rendered), RedactionSummary::complete())
+    RenderedOperation::complete(rendered)
 }
 
 /// Renders one environment pair while bounding its materialized mask.
@@ -181,8 +161,8 @@ pub(super) fn redact_os_pair_bounded_with_policy(
 /// An owned typed log-safe value.
 #[inline(always)]
 #[must_use]
-fn log_safe_owned(value: String) -> RedactedText {
-    MaskedValue::new(Cow::Owned(value)).escape_for_log()
+fn log_safe_owned(value: String) -> String {
+    escape_log_control_characters(Cow::Owned(value)).into_owned()
 }
 
 /// Appends one redacted assignment to a bounded debug-style list.

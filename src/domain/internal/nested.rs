@@ -35,9 +35,9 @@ impl<T: Redact> Redact for Option<T> {
     /// a write.
     fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
         match self {
-            None => writer.unit("None"),
+            None => writer.literal("None"),
             Some(value) => writer.tuple("Some", |fields| {
-                fields.nested_item(value);
+                fields.nested("", value);
             }),
         }
     }
@@ -90,9 +90,9 @@ impl<T: Redact> Redact for Vec<T> {
     /// Returns [`std::fmt::Error`] when the destination or an item rejects a
     /// write.
     fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
-        writer.list(|fields| {
+        writer.sequence(|items| {
             for value in self {
-                fields.nested_item(value);
+                items.nested_item(value);
             }
         });
     }

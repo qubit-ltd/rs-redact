@@ -18,5 +18,7 @@ pub use redact::Redact;
 pub use redact_map_value_mut::RedactMapValueMut;
 pub use redact_mut::RedactMut;
 pub use redact_value_mut::RedactValueMut;
+pub use redaction_writer::RedactionEntries;
 pub use redaction_writer::RedactionFields;
+pub use redaction_writer::RedactionItems;
 pub use redaction_writer::RedactionWriter;

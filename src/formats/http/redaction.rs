@@ -34,12 +34,10 @@ use super::internal::markers;
 use super::internal::multipart;
 use super::internal::nested_url;
 use super::internal::nested_url::NestedUrl;
-use crate::RedactedText;
-use crate::RedactionOutput;
 use crate::RedactionPolicy;
 use crate::RedactionReason;
-use crate::RedactionSummary;
 use crate::Sensitivity;
+use crate::runtime::RenderedOperation;
 
 /// Borrows one immutable policy while executing HTTP redaction algorithms.
 ///
@@ -57,18 +55,13 @@ pub(in crate::formats::http) struct HttpPolicyExecutor<'policy> {
 /// type: HTTP never publishes a second output model.  The session immediately
 /// commits its text and completion into its one `RedactionSessionOutput`.
 pub(in crate::formats::http) struct HttpRendered {
-    output: RedactionOutput,
+    operation: RenderedOperation,
 }
 
 impl HttpRendered {
     #[inline]
-    pub(in crate::formats::http) const fn output(&self) -> &RedactionOutput {
-        &self.output
-    }
-
-    #[inline]
-    pub(in crate::formats::http) fn into_output(self) -> RedactionOutput {
-        self.output
+    pub(in crate::formats::http) fn into_operation(self) -> RenderedOperation {
+        self.operation
     }
 }
 
@@ -136,14 +129,11 @@ impl HttpPolicyExecutor<'_> {
         self.write_grouped_headers(&mut writer, values);
         let (rendered, truncated) = writer.finish();
         HttpRendered {
-            output: RedactionOutput::new(
-                RedactedText::from_escaped(Cow::Owned(rendered)),
-                if truncated {
-                    RedactionSummary::truncated(RedactionReason::OutputLimitReached)
-                } else {
-                    RedactionSummary::complete()
-                },
-            ),
+            operation: if truncated {
+                RenderedOperation::truncated(rendered, RedactionReason::OutputLimitReached)
+            } else {
+                RenderedOperation::complete(rendered)
+            },
         }
     }
 
@@ -684,22 +674,25 @@ impl HttpPolicyExecutor<'_> {
             }
             _ => None,
         };
-        let mut summary = if output_truncated {
-            RedactionSummary::truncated(RedactionReason::OutputLimitReached)
+        let mut operation = if output_truncated {
+            RenderedOperation::truncated(text, RedactionReason::OutputLimitReached)
+        } else if capture.is_source_truncated() {
+            RenderedOperation::truncated(text, RedactionReason::SourceTruncated)
+        } else if budget_truncated {
+            RenderedOperation::truncated(text, RedactionReason::InputLimitReached)
         } else {
-            RedactionSummary::complete()
+            RenderedOperation::complete(text)
         };
         if capture.is_source_truncated() {
-            summary = summary.merge(RedactionSummary::truncated(RedactionReason::SourceTruncated));
+            operation = operation.with_reason(RedactionReason::SourceTruncated);
         }
         if budget_truncated {
-            summary = summary.merge(RedactionSummary::truncated(RedactionReason::InputLimitReached));
+            operation = operation.with_reason(RedactionReason::InputLimitReached);
         }
-        summary =
-            summary.merge(provenance.map_or_else(RedactionSummary::complete, RedactionSummary::complete_with_reason));
-        HttpRendered {
-            output: RedactionOutput::new(RedactedText::from_escaped(Cow::Owned(text)), summary),
+        if let Some(reason) = provenance {
+            operation = operation.with_reason(reason);
         }
+        HttpRendered { operation }
     }
 }
 

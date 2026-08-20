@@ -46,7 +46,7 @@ impl<'session> EnvRedactionWriter<'session> {
             value,
             self.session.remaining_output_bytes(),
         );
-        self.session.append_format_output(&result);
+        self.session.append_rendered_operation(result);
         self
     }
 
@@ -63,7 +63,7 @@ impl<'session> EnvRedactionWriter<'session> {
             return self;
         };
         let result = redact_os_pairs_with_policy(self.session.policy(), pairs, self.session.remaining_output_bytes());
-        self.session.append_format_output(&result);
+        self.session.append_rendered_operation(result);
         self
     }
 
@@ -80,9 +80,7 @@ impl<'session> EnvRedactionWriter<'session> {
                 || !self.session.admit_format_node(2)
                 || !self.session.admit_input(name.len().saturating_add(value.len()))
             {
-                return self
-                    .session
-                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+                return self.session.stage_accounted_text(String::new());
             }
             let result = redact_pair_with_policy(
                 self.session.policy(),
@@ -90,12 +88,10 @@ impl<'session> EnvRedactionWriter<'session> {
                 value,
                 self.session.remaining_output_bytes(),
             );
-            if result.text().as_str().is_empty()
-                && result.summary().completion() == crate::RedactionCompletion::Truncated
-            {
+            if result.text().is_empty() && result.completion() == crate::RedactionCompletion::Truncated {
                 return self.exhausted_handle();
             }
-            self.session.stage_item(result)
+            self.session.stage_rendered_operation(result)
         })();
         self.session.end_item_summary(owns_item_summary);
         handle
@@ -115,18 +111,14 @@ impl<'session> EnvRedactionWriter<'session> {
                 return self.exhausted_handle();
             }
             let Some(pairs) = self.collect_admitted_pairs(pairs) else {
-                return self
-                    .session
-                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+                return self.session.stage_accounted_text(String::new());
             };
             let result =
                 redact_os_pairs_with_policy(self.session.policy(), pairs, self.session.remaining_output_bytes());
-            if result.text().as_str().is_empty()
-                && result.summary().completion() == crate::RedactionCompletion::Truncated
-            {
+            if result.text().is_empty() && result.completion() == crate::RedactionCompletion::Truncated {
                 return self.exhausted_handle();
             }
-            self.session.stage_item(result)
+            self.session.stage_rendered_operation(result)
         })();
         self.session.end_item_summary(owns_item_summary);
         handle
@@ -167,9 +159,6 @@ impl<'session> EnvRedactionWriter<'session> {
     /// Stages the standard empty output after shared output exhaustion.
     #[must_use]
     fn exhausted_handle(&mut self) -> RedactionHandle {
-        self.session.stage_format_text(
-            crate::RedactedText::from_escaped(String::new()),
-            crate::RedactionCompletion::Exhausted,
-        )
+        self.session.stage_exhausted_handle()
     }
 }

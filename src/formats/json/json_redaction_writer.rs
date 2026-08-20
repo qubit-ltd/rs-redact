@@ -13,9 +13,9 @@ use serde_json::Value;
 
 use super::bounded_json_redaction::redacted_json_text_bounded;
 use crate::RedactionHandle;
-use crate::RedactionOutput;
 use crate::RedactionSession;
-use crate::output::MaskedValue;
+use crate::output::log_escape::escape_log_control_characters;
+use crate::runtime::RenderedOperation;
 
 /// Admits every JSON node and collection element through the supplied
 /// transaction before a renderer may traverse the parsed value. Returns
@@ -80,53 +80,39 @@ pub(crate) fn redact_json_text_with_limit(
     policy: &crate::RedactionPolicy,
     text: &str,
     max_output_bytes: usize,
-) -> RedactionOutput {
+) -> RenderedOperation {
     json_output_from_bounded(
         redacted_json_text_bounded(text, policy, max_output_bytes),
         max_output_bytes,
     )
 }
 
-/// Converts bounded JSON rendering into the common safe output carrier.
+/// Converts bounded JSON rendering into unpublished adapter state.
 #[must_use]
 pub(crate) fn json_output_from_bounded(
     bounded: super::bounded_json_redaction::BoundedJsonRedaction,
     max_output_bytes: usize,
-) -> RedactionOutput {
+) -> RenderedOperation {
     let (rendered, raw_truncated, invalid_json) = bounded.into_parts();
-    let output_text = MaskedValue::new(std::borrow::Cow::Owned(rendered)).escape_for_log();
-    if output_text.as_str().len() > max_output_bytes {
+    let output_text = escape_log_control_characters(std::borrow::Cow::Owned(rendered)).into_owned();
+    if output_text.len() > max_output_bytes {
         let fallback = "<truncated>";
-        let provenance = if invalid_json {
-            crate::RedactionSummary::complete_with_reason(crate::RedactionReason::InvalidJson)
+        let mut output = if fallback.len() <= max_output_bytes {
+            RenderedOperation::truncated(fallback, crate::RedactionReason::OutputLimitReached)
         } else {
-            crate::RedactionSummary::complete()
+            RenderedOperation::exhausted(String::new(), crate::RedactionReason::OutputLimitReached)
         };
-        let output = if fallback.len() <= max_output_bytes {
-            RedactionOutput::new(
-                crate::RedactedText::from_escaped(fallback),
-                crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached).merge(provenance),
-            )
-        } else {
-            RedactionOutput::new(
-                crate::RedactedText::from_escaped(String::new()),
-                crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached).merge(provenance),
-            )
-        };
+        if invalid_json {
+            output = output.with_reason(crate::RedactionReason::InvalidJson);
+        }
         return output;
     }
     if raw_truncated {
-        RedactionOutput::new(
-            output_text,
-            crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached),
-        )
+        RenderedOperation::truncated(output_text, crate::RedactionReason::OutputLimitReached)
     } else if invalid_json {
-        RedactionOutput::new(
-            output_text,
-            crate::RedactionSummary::complete_with_reason(crate::RedactionReason::InvalidJson),
-        )
+        RenderedOperation::complete_with_reason(output_text, crate::RedactionReason::InvalidJson)
     } else {
-        RedactionOutput::new(output_text, crate::RedactionSummary::complete())
+        RenderedOperation::complete(output_text)
     }
 }
 
@@ -151,14 +137,14 @@ impl<'session> JsonRedactionWriter<'session> {
             return self;
         }
         if !admit_json_text_structure(self.session, text) {
-            self.session.append_format_text(
-                crate::RedactedText::from_escaped("<truncated>"),
-                crate::RedactionCompletion::Truncated,
-            );
+            self.session.append_rendered_operation(RenderedOperation::truncated(
+                "<truncated>",
+                crate::RedactionReason::TraversalLimitReached,
+            ));
             return self;
         }
         let result = self.redact_text_direct(text);
-        self.session.append_format_output(&result);
+        self.session.append_rendered_operation(result);
         self
     }
 
@@ -168,24 +154,17 @@ impl<'session> JsonRedactionWriter<'session> {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
             if self.session.is_output_exhausted() {
-                return self.session.stage_format_text(
-                    crate::RedactedText::from_escaped(String::new()),
-                    crate::RedactionCompletion::Exhausted,
-                );
+                return self.session.stage_exhausted_handle();
             }
             let text = self.session.admit_input_prefix(text);
             if text.is_empty() {
-                return self
-                    .session
-                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+                return self.session.stage_accounted_text(String::new());
             }
             if !admit_json_text_structure(self.session, text) {
-                return self
-                    .session
-                    .stage_accounted_text(crate::RedactedText::from_escaped("<truncated>"));
+                return self.session.stage_accounted_text("<truncated>");
             }
             let result = self.redact_text_direct(text);
-            self.session.stage_item(result)
+            self.session.stage_rendered_operation(result)
         })();
         self.session.end_item_summary(owns_item_summary);
         handle
@@ -211,7 +190,7 @@ impl JsonRedactionWriter<'_> {
     /// A compact log-safe result carrying `Complete`, `Truncated`, or
     /// `Exhausted` completion.
     #[must_use]
-    pub(crate) fn redact_text_direct(&mut self, text: &str) -> RedactionOutput {
+    pub(crate) fn redact_text_direct(&mut self, text: &str) -> RenderedOperation {
         redact_json_text_with_limit(self.session.policy(), text, self.session.remaining_output_bytes())
     }
 }
@@ -233,14 +212,9 @@ mod tests {
             16,
         );
 
-        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
-        assert!(
-            output
-                .summary()
-                .reasons()
-                .contains(crate::RedactionReason::OutputLimitReached)
-        );
-        assert!(output.text().as_str().len() <= 16);
+        assert_eq!(output.completion(), RedactionCompletion::Truncated);
+        assert!(output.reasons().contains(crate::RedactionReason::OutputLimitReached));
+        assert!(output.text().len() <= 16);
     }
 
     /// Verifies a JSON adapter sees bytes already committed by the enclosing
