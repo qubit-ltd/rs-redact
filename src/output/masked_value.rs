@@ -24,25 +24,27 @@ impl<'a> MaskedValue<'a> {
         Self(value)
     }
 
-    /// Borrows the redacted contents.
-    #[must_use]
-    #[inline(always)]
-    pub fn as_str(&self) -> &str {
-        self.0.as_ref()
-    }
-
-    /// Converts the redacted contents into an owned string.
-    #[must_use]
-    #[inline(always)]
-    pub fn into_owned(self) -> String {
-        self.0.into_owned()
-    }
-
     /// Escapes the redacted contents for a plain-text boundary.
     #[inline]
     #[must_use]
     pub fn escape_for_log(self) -> RedactedText {
         RedactedText::from_escaped(escape_log_control_characters(self.0).into_owned())
+    }
+
+    /// Borrows the underlying value for crate-internal HTTP adapters.
+    #[cfg(feature = "http")]
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn as_str(&self) -> &str {
+        self.0.as_ref()
+    }
+
+    /// Converts the underlying value into an owned string for HTTP adapters.
+    #[cfg(feature = "http")]
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn into_owned(self) -> String {
+        self.0.into_owned()
     }
 
     /// Returns the underlying value to crate-internal adapters.
