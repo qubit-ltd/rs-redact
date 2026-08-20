@@ -10,13 +10,13 @@
 use std::sync::Arc;
 
 use super::FieldNameMatching;
-use super::PolicyError;
-use super::PolicyLocation;
 use super::RedactionFloor;
-use super::RedactionRulesBuilder;
 use super::SensitiveFieldPreset;
 use super::Sensitivity;
 use super::UnknownFieldPolicy;
+use crate::policy::PolicyError;
+use crate::policy::PolicyLocation;
+use crate::policy::RedactionRulesBuilder;
 
 /// Builder for a [`RedactionFloor`].
 #[derive(Debug, Clone)]

@@ -55,7 +55,6 @@ pub mod domain;
 mod facade;
 pub mod formats;
 mod json_feature_gate;
-mod limits;
 mod output;
 pub mod policy;
 pub(crate) mod runtime;

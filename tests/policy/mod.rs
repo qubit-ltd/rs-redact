@@ -7,23 +7,12 @@
 // =============================================================================
 //! Tests for redaction policy primitives.
 
-mod allow_rule_tests;
-mod field_classification_tests;
-mod field_match_kind_tests;
-mod field_name_matching_tests;
+mod field;
 mod internal;
-mod mask_policy_tests;
-mod masking_policy_tests;
+mod masking;
 mod mod_tests;
 mod policy_error_tests;
 mod policy_location_tests;
-mod redaction_floor_builder_tests;
-mod redaction_floor_tests;
 mod redaction_policy_tests;
 mod redaction_rules_builder_tests;
-mod redaction_rules_tests;
 mod resolved_field_tests;
-mod sensitive_field_preset_tests;
-mod sensitive_field_rule_tests;
-mod sensitivity_tests;
-mod unknown_field_policy_tests;

@@ -15,12 +15,12 @@ use super::FieldClassification;
 use super::FieldMatchKind;
 use super::FieldNameMatching;
 use super::RedactionFloor;
-use super::ResolvedField;
 use super::SensitiveFieldRule;
 use super::Sensitivity;
 use super::UnknownFieldPolicy;
-use super::internal::RedactionPolicyInner;
-use super::internal::visit_canonical_field_candidates;
+use crate::policy::ResolvedField;
+use crate::policy::internal::RedactionPolicyInner;
+use crate::policy::internal::visit_canonical_field_candidates;
 
 /// Immutable, cheap-to-clone field classification snapshot.
 #[derive(Debug, Clone, PartialEq, Eq)]

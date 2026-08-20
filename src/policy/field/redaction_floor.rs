@@ -14,7 +14,7 @@ use std::sync::LazyLock;
 use super::RedactionFloorBuilder;
 use super::SensitiveFieldPreset;
 use super::SensitiveFieldRule;
-use super::internal::RedactionPolicyInner;
+use crate::policy::internal::RedactionPolicyInner;
 
 /// Immutable minimum field-protection rules.
 ///
@@ -37,7 +37,7 @@ static STANDARD_FLOOR: LazyLock<RedactionFloor> = LazyLock::new(|| {
     ] {
         builder = builder.include_preset(preset);
     }
-    for &(field, level) in super::redaction_policy::STANDARD_EXTRA_FIELDS {
+    for &(field, level) in super::super::redaction_policy::STANDARD_EXTRA_FIELDS {
         builder = builder
             .raise(field, level)
             .expect("built-in standard floor fields must be valid");

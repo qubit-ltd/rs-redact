@@ -11,9 +11,9 @@
 use std::borrow::Cow;
 
 use super::MaskPolicy;
-use super::PolicyError;
-use super::PolicyLocation;
-use super::Sensitivity;
+use crate::policy::PolicyError;
+use crate::policy::PolicyLocation;
+use crate::policy::Sensitivity;
 
 /// Mutable construction state for a [`MaskingPolicy`].
 #[derive(Debug, Clone, PartialEq, Eq)]
