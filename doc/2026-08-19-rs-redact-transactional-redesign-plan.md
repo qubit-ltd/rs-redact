@@ -967,7 +967,7 @@ rg -n 'usize::MAX|RedactionCompletion::Complete|RedactionSummary::new|RedactedTe
 
 **步骤 4：更新双语文档。**
 
-README 与 user guide 必须包含：应用默认值命名、policy builder、聚合/handle 两种用法、finish 原子发布、session reuse、panic 语义、全部六类 format、unredacted 安全警告和破坏性迁移表。中英文示例使用同一 API，并由 doctest 覆盖核心示例。
+README 与 user guide 必须包含：应用默认值命名、policy builder、聚合/handle 两种用法、finish 原子发布、session reuse、panic 语义、全部六类 format 和 unredacted 安全警告。中英文示例使用同一 API，并由 doctest 覆盖核心示例。
 
 **步骤 5：执行 rs-redact 质量门禁。**
 
@@ -1051,4 +1051,3 @@ git status --short
 5. 七个直接下游全部完成破坏性迁移，不依赖兼容层。
 6. 设计文档、实施计划、双语 README、双语 user guide 与最终公开 API 一致。
 7. 最终 `git diff --check` 无错误，工作区中用户原有改动未被覆盖或清理。
-
