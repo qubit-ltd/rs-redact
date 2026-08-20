@@ -596,8 +596,16 @@ impl RedactionSession {
     /// Appends one completed format result through the sole transaction budget.
     pub(crate) fn append_format_output(&mut self, output: &crate::RedactionOutput) {
         self.record_summary(*output.summary());
-        if output.summary().completion() == RedactionCompletion::Exhausted {
+        let replacement_could_not_fit = output.text().as_str().is_empty()
+            && output
+                .summary()
+                .reasons()
+                .contains(crate::RedactionReason::OutputLimitReached);
+        if output.summary().completion() == RedactionCompletion::Exhausted || replacement_could_not_fit {
             self.output_exhausted = true;
+            self.record_summary(crate::RedactionSummary::exhausted(
+                crate::RedactionReason::OutputLimitReached,
+            ));
             return;
         }
         self.append_output_fragment(output.text().as_str());
@@ -773,8 +781,14 @@ impl RedactionSession {
         let item_index = self.items.len();
         let used = self.summary.usage().output_bytes();
         let remaining = self.budget.output_limit().saturating_sub(used);
+        let replacement_could_not_fit = output.text().as_str().is_empty()
+            && output
+                .summary()
+                .reasons()
+                .contains(crate::RedactionReason::OutputLimitReached);
         let output = if self.output_exhausted
             || output.summary().completion() == RedactionCompletion::Exhausted
+            || replacement_could_not_fit
             || output.text().as_str().len() > remaining
         {
             self.output_exhausted = true;
