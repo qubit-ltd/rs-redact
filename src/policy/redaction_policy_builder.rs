@@ -124,8 +124,17 @@ impl RedactionPolicyBuilder {
         F: FnOnce(&mut HttpPolicyBuilderView<'_>),
     {
         let mut draft = self.clone();
-        let mut view = HttpPolicyBuilderView { builder: &mut draft };
-        configure(&mut view);
+        let error = {
+            let mut view = HttpPolicyBuilderView {
+                builder: &mut draft,
+                error: None,
+            };
+            configure(&mut view);
+            view.error.take()
+        };
+        if let Some(error) = error {
+            return Err(error);
+        }
         Ok(draft)
     }
 
@@ -384,6 +393,7 @@ mod views {
     #[cfg(feature = "http")]
     pub struct HttpPolicyBuilderView<'a> {
         pub(super) builder: &'a mut RedactionPolicyBuilder,
+        pub(super) error: Option<PolicyError>,
     }
 
     /// Mutable view over URI-specific behavior.
@@ -414,6 +424,7 @@ mod views {
         pub fn header(&mut self) -> HttpContextBuilderView<'_> {
             HttpContextBuilderView {
                 builder: &mut self.builder.http,
+                error: &mut self.error,
                 context: crate::formats::http::HttpFieldContext::Header,
             }
         }
@@ -423,6 +434,7 @@ mod views {
         pub fn query(&mut self) -> HttpContextBuilderView<'_> {
             HttpContextBuilderView {
                 builder: &mut self.builder.http,
+                error: &mut self.error,
                 context: crate::formats::http::HttpFieldContext::Query,
             }
         }
@@ -432,6 +444,7 @@ mod views {
         pub fn body(&mut self) -> HttpContextBuilderView<'_> {
             HttpContextBuilderView {
                 builder: &mut self.builder.http,
+                error: &mut self.error,
                 context: crate::formats::http::HttpFieldContext::Body,
             }
         }
@@ -472,6 +485,7 @@ mod views {
     #[cfg(feature = "http")]
     pub struct HttpContextBuilderView<'a> {
         builder: &'a mut crate::formats::http::HttpPolicyBuilder,
+        error: &'a mut Option<PolicyError>,
         context: crate::formats::http::HttpFieldContext,
     }
 
@@ -485,37 +499,67 @@ mod views {
 
         /// Raises a context field's minimum sensitivity.
         pub fn raise(&mut self, field: &str, level: Sensitivity) -> Result<&mut Self, PolicyError> {
-            self.builder.raise_mut(self.context, field, level)?;
+            if self.error.is_none()
+                && let Err(error) = self.builder.raise_mut(self.context, field, level)
+            {
+                *self.error = Some(error.clone());
+                return Err(error);
+            }
             Ok(self)
         }
 
         /// Replaces a context field rule without weakening the base policy.
         pub fn override_level(&mut self, field: &str, level: Sensitivity) -> Result<&mut Self, PolicyError> {
-            self.builder.override_level_mut(self.context, field, level)?;
+            if self.error.is_none()
+                && let Err(error) = self.builder.override_level_mut(self.context, field, level)
+            {
+                *self.error = Some(error.clone());
+                return Err(error);
+            }
             Ok(self)
         }
 
         /// Adds a context exact allow rule; the base policy still applies.
         pub fn allow_exact(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
-            self.builder.allow_exact_mut(self.context, field)?;
+            if self.error.is_none()
+                && let Err(error) = self.builder.allow_exact_mut(self.context, field)
+            {
+                *self.error = Some(error.clone());
+                return Err(error);
+            }
             Ok(self)
         }
 
         /// Adds a context suffix allow rule; the base policy still applies.
         pub fn allow_suffix(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
-            self.builder.allow_suffix_mut(self.context, field)?;
+            if self.error.is_none()
+                && let Err(error) = self.builder.allow_suffix_mut(self.context, field)
+            {
+                *self.error = Some(error.clone());
+                return Err(error);
+            }
             Ok(self)
         }
 
         /// Removes a context exact allow rule.
         pub fn remove_allow_exact(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
-            self.builder.remove_allow_exact_mut(self.context, field)?;
+            if self.error.is_none()
+                && let Err(error) = self.builder.remove_allow_exact_mut(self.context, field)
+            {
+                *self.error = Some(error.clone());
+                return Err(error);
+            }
             Ok(self)
         }
 
         /// Removes a context suffix allow rule.
         pub fn remove_allow_suffix(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
-            self.builder.remove_allow_suffix_mut(self.context, field)?;
+            if self.error.is_none()
+                && let Err(error) = self.builder.remove_allow_suffix_mut(self.context, field)
+            {
+                *self.error = Some(error.clone());
+                return Err(error);
+            }
             Ok(self)
         }
 
