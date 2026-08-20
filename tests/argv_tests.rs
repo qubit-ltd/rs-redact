@@ -16,6 +16,7 @@ use proptest::prelude::prop_assert_eq;
 use proptest::prelude::proptest;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionReason;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::formats::argv::ArgvItem;
@@ -151,7 +152,8 @@ fn exact_output_budget_fill_skips_later_argv_adapter_work() {
     let output = session.finish();
 
     assert_eq!(output.text().as_str(), "safe");
-    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert_eq!(output.summary().usage().output_bytes(), 4);
 }
 

@@ -19,6 +19,8 @@ use qubit_redact::RedactionSessionOutput;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::formats::argv::ArgvItem;
+#[cfg(feature = "http")]
+use qubit_redact::formats::http::BodyCapture;
 
 /// Creates a redactor whose output ceiling cannot hold a fallback marker.
 fn create_one_byte_redactor() -> Redactor {
@@ -46,6 +48,161 @@ impl Redact for MatrixValue {
     /// Writes one trusted static byte into the active transaction.
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.literal("x");
+    }
+}
+
+/// One operation in the design-mandated adjacent shared-budget chain.
+#[cfg(all(feature = "json", feature = "http", feature = "uri"))]
+#[derive(Clone, Copy, Debug)]
+enum ChainOperation {
+    Literal,
+    Field,
+    Value,
+    Json,
+    HttpUrl,
+    HttpBody,
+    Uri,
+    Argv,
+    Env,
+    Process,
+}
+
+#[cfg(all(feature = "json", feature = "http", feature = "uri"))]
+impl ChainOperation {
+    fn apply(self, session: &mut RedactionSession, entered: &Cell<bool>) {
+        match self {
+            Self::Literal => {
+                let _ = session.literal("literal");
+            }
+            Self::Field => {
+                let _ = session.field("name", "field");
+            }
+            Self::Value => {
+                let _ = session.value(&ObservedValue(entered));
+            }
+            Self::Json => {
+                session.json(|json| {
+                    entered.set(true);
+                    json.text(r#"{"name":"json"}"#);
+                });
+            }
+            Self::HttpUrl => {
+                session.http(|http| {
+                    entered.set(true);
+                    http.url("https://example.test/path?name=http");
+                });
+            }
+            Self::HttpBody => {
+                session.http(|http| {
+                    entered.set(true);
+                    let _ = http.body(
+                        BodyCapture::complete(br#"{"name":"body"}"#),
+                        Some(&http::HeaderValue::from_static("application/json")),
+                    );
+                });
+            }
+            Self::Uri => {
+                session.uri(|uri| {
+                    entered.set(true);
+                    uri.value("https://example.test/path?name=uri");
+                });
+            }
+            Self::Argv => {
+                session.argv(|argv| {
+                    entered.set(true);
+                    argv.items([ArgvItem::plain(OsStr::new("argv"))]);
+                });
+            }
+            Self::Env => {
+                session.env(|env| {
+                    entered.set(true);
+                    env.pair("MODE", "env");
+                });
+            }
+            Self::Process => {
+                let _ = session.process(|process| {
+                    entered.set(true);
+                    process.arguments([ArgvItem::plain(OsStr::new("process"))]);
+                });
+            }
+        }
+    }
+
+    const fn has_observable_entry(self) -> bool {
+        !matches!(self, Self::Literal | Self::Field)
+    }
+}
+
+#[cfg(all(feature = "json", feature = "http", feature = "uri"))]
+struct ObservedValue<'observed>(&'observed Cell<bool>);
+
+#[cfg(all(feature = "json", feature = "http", feature = "uri"))]
+impl Redact for ObservedValue<'_> {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        self.0.set(true);
+        writer.literal("value");
+    }
+}
+
+/// Every adjacent pair in the required full-format chain is closed by the
+/// predecessor's exact output consumption. Observable successors must not
+/// enter their accessor, parser, or adapter closure, and no operation after
+/// the exhausted successor may run.
+#[cfg(all(feature = "json", feature = "http", feature = "uri"))]
+#[test]
+fn test_every_adjacent_operation_pair_closes_the_shared_budget_chain() {
+    use ChainOperation as Op;
+
+    let pairs = [
+        (Op::Literal, Op::Field),
+        (Op::Field, Op::Value),
+        (Op::Value, Op::Json),
+        (Op::Json, Op::HttpUrl),
+        (Op::HttpUrl, Op::HttpBody),
+        (Op::HttpBody, Op::Uri),
+        (Op::Uri, Op::Argv),
+        (Op::Argv, Op::Env),
+        (Op::Env, Op::Process),
+    ];
+
+    for (predecessor, successor) in pairs {
+        let measured_entry = Cell::new(false);
+        let mut measurement = Redactor::standard().session();
+        predecessor.apply(&mut measurement, &measured_entry);
+        let exact_limit = measurement.finish().summary().usage().output_bytes();
+        assert!(exact_limit > 0, "{predecessor:?} must produce measurable output");
+
+        let policy = RedactionPolicy::standard()
+            .to_builder()
+            .limits(|limits| {
+                limits.max_output_bytes(exact_limit);
+            })
+            .expect("the adjacent-pair output limit should be valid")
+            .build()
+            .expect("the adjacent-pair policy should build");
+        let predecessor_entered = Cell::new(false);
+        let successor_entered = Cell::new(false);
+        let after_exhaustion_entered = Cell::new(false);
+        let mut session = Redactor::new(policy).session();
+
+        predecessor.apply(&mut session, &predecessor_entered);
+        successor.apply(&mut session, &successor_entered);
+        session.env(|_| after_exhaustion_entered.set(true));
+        let output = session.finish();
+
+        assert_eq!(
+            output.summary().completion(),
+            RedactionCompletion::Exhausted,
+            "{predecessor:?} -> {successor:?} must exhaust the one shared budget"
+        );
+        assert_eq!(output.summary().usage().output_bytes(), exact_limit);
+        if successor.has_observable_entry() {
+            assert!(
+                !successor_entered.get(),
+                "{successor:?} entered after {predecessor:?} filled the budget"
+            );
+        }
+        assert!(!after_exhaustion_entered.get());
     }
 }
 
