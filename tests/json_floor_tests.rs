@@ -158,3 +158,30 @@ fn test_json_handle_uses_shared_structural_fallback() {
     assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
     assert!(!item.text().as_str().contains("must-not-be-rendered"));
 }
+
+/// Verifies that a JSON fallback which cannot fit closes the transaction.
+#[test]
+fn test_json_tiny_output_budget_is_exhausted() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_output_bytes(1);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
+
+    session.json(|json| {
+        json.text(r#"{"password":"must-not-fit"}"#);
+    });
+    let aggregate = session.finish();
+
+    assert_eq!(aggregate.text().as_str(), "");
+    assert_eq!(aggregate.summary().completion(), RedactionCompletion::Exhausted);
+    assert!(
+        aggregate
+            .summary()
+            .reasons()
+            .contains(RedactionReason::OutputLimitReached)
+    );
+}

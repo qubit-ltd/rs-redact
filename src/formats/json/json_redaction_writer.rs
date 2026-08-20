@@ -102,11 +102,16 @@ pub(crate) fn json_output_from_bounded(
         } else {
             crate::RedactionSummary::complete()
         };
-        let summary = crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached).merge(provenance);
         let output = if fallback.len() <= max_output_bytes {
-            RedactionOutput::new(crate::RedactedText::from_escaped(fallback), summary)
+            RedactionOutput::new(
+                crate::RedactedText::from_escaped(fallback),
+                crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached).merge(provenance),
+            )
         } else {
-            RedactionOutput::new(crate::RedactedText::from_escaped(String::new()), summary)
+            RedactionOutput::new(
+                crate::RedactedText::from_escaped(String::new()),
+                crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached).merge(provenance),
+            )
         };
         return output;
     }
@@ -138,7 +143,11 @@ impl<'session> JsonRedactionWriter<'session> {
 
     /// Redacts JSON text into the parent session's aggregate output.
     pub fn text(&mut self, text: &str) -> &mut Self {
-        if self.session.is_output_exhausted() || !self.session.admit_input(text.len()) {
+        if self.session.is_output_exhausted() {
+            return self;
+        }
+        let text = self.session.admit_input_prefix(text);
+        if text.is_empty() {
             return self;
         }
         if !admit_json_text_structure(self.session, text) {
@@ -164,7 +173,8 @@ impl<'session> JsonRedactionWriter<'session> {
                     crate::RedactionCompletion::Exhausted,
                 );
             }
-            if !self.session.admit_input(text.len()) {
+            let text = self.session.admit_input_prefix(text);
+            if text.is_empty() {
                 return self
                     .session
                     .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));

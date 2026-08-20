@@ -32,10 +32,11 @@ impl<'session> HttpRedactionWriter<'session> {
 
     /// Redacts a URL string into the parent session's aggregate output.
     pub fn url(&mut self, value: &str) -> &mut Self {
-        if self.session.is_output_exhausted()
-            || !self.session.admit_format_node(1)
-            || !self.session.admit_input(value.len())
-        {
+        if self.session.is_output_exhausted() || !self.session.admit_format_node(1) {
+            return self;
+        }
+        let value = self.session.admit_input_prefix(value);
+        if value.is_empty() {
             return self;
         }
         if !self.admit_url_structure(value) {
@@ -58,7 +59,11 @@ impl<'session> HttpRedactionWriter<'session> {
             if self.session.is_output_exhausted() {
                 return self.exhausted_handle();
             }
-            if !self.session.admit_format_node(1) || !self.session.admit_input(value.len()) {
+            if !self.session.admit_format_node(1) {
+                return self.stage_accounted_text(String::new());
+            }
+            let value = self.session.admit_input_prefix(value);
+            if value.is_empty() {
                 return self.stage_accounted_text(String::new());
             }
             if !self.admit_url_structure(value) {

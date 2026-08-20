@@ -23,6 +23,8 @@ use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::formats::argv::ArgvItem;
+#[cfg(feature = "http")]
+use qubit_redact::formats::http::BodyCapture;
 
 /// A domain value whose user-supplied redaction code panics deliberately.
 struct PanicValue;
@@ -961,10 +963,24 @@ fn test_argv_namespace_appends_to_the_shared_aggregate_output() {
 /// Verifies each aggregate format namespace borrows the same live
 /// transaction, rather than creating an independent result or budget.
 #[test]
+#[cfg(all(feature = "json", feature = "http", feature = "uri"))]
 fn test_all_format_namespaces_append_to_one_transaction() {
     let mut session = Redactor::standard().session();
 
     let output = session
+        .literal("literal=")
+        .field("label", "field")
+        .value(&SafeValue)
+        .json(|json| {
+            json.text(r#"{"json":"visible"}"#);
+        })
+        .http(|http| {
+            http.url("https://example.test/path?label=visible");
+            let _ = http.body(BodyCapture::complete(br#"{"body":"visible"}"#), None);
+        })
+        .uri(|uri| {
+            uri.value("https://example.test/path?label=visible");
+        })
         .argv(|argv| {
             argv.items([ArgvItem::plain(OsStr::new("client"))]);
         })
@@ -980,43 +996,45 @@ fn test_all_format_namespaces_append_to_one_transaction() {
         })
         .finish();
 
+    assert!(output.text().as_str().contains("literal=fieldvalue"));
+    assert!(output.text().as_str().contains("json"), "{}", output.text().as_str());
+    assert!(output.text().as_str().contains("body"), "{}", output.text().as_str());
+    assert!(output.text().as_str().contains("example.test"));
     assert!(output.text().as_str().contains("client"));
     assert!(output.text().as_str().contains("LABEL"));
     assert!(output.text().as_str().contains("tool"));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+}
 
-    #[cfg(feature = "json")]
-    {
-        let output = session
-            .json(|json| {
-                json.text(r#"{"label":"visible"}"#);
-            })
-            .finish();
-        assert!(output.text().as_str().contains("visible"));
-        assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
-    }
+/// Verifies that every later format closure is skipped after one transaction
+/// has exhausted its shared output budget.
+#[test]
+#[cfg(all(feature = "json", feature = "http", feature = "uri"))]
+fn test_all_format_namespaces_skip_after_output_exhaustion() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_output_bytes(1);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
 
-    #[cfg(feature = "uri")]
-    {
-        let output = session
-            .uri(|uri| {
-                uri.value("https://example.test/path?label=visible");
-            })
-            .finish();
-        assert!(output.text().as_str().contains("example.test"));
-        assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
-    }
+    let output = session
+        .literal("too-large")
+        .field("label", "must-not-be-read")
+        .value(&PanicValue)
+        .json(|_| panic!("JSON closure must not run"))
+        .http(|_| panic!("HTTP closure must not run"))
+        .uri(|_| panic!("URI closure must not run"))
+        .argv(|_| panic!("argv closure must not run"))
+        .env(|_| panic!("env closure must not run"))
+        .process(|_| panic!("process closure must not run"))
+        .finish();
 
-    #[cfg(feature = "http")]
-    {
-        let output = session
-            .http(|http| {
-                http.url("https://example.test/path?label=visible");
-            })
-            .finish();
-        assert!(output.text().as_str().contains("example.test"));
-        assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
-    }
+    assert_eq!(output.text().as_str(), "");
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
 }
 
 /// Verifies every non-HTTP format has both a session handle operation and a
@@ -1290,11 +1308,11 @@ fn test_exhausted_output_does_not_consume_later_handle_iterators() {
     );
 }
 
-/// Verifies a format rejects over-budget input before invoking its parser and
-/// reports the presented and inspected byte counts separately.
+/// Verifies a format limits parsing to the admitted input prefix and reports
+/// the presented and inspected byte counts separately.
 #[cfg(feature = "json")]
 #[test]
-fn test_json_input_budget_rejects_before_parsing() {
+fn test_json_input_budget_admits_the_parser_prefix() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
             let _ = limits.max_input_bytes(1);
@@ -1313,7 +1331,7 @@ fn test_json_input_budget_rejects_before_parsing() {
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
     assert!(output.summary().reasons().contains(RedactionReason::InputLimitReached));
     assert_eq!(output.summary().usage().presented_input_bytes(), "{invalid json".len());
-    assert_eq!(output.summary().usage().inspected_input_bytes(), 0);
+    assert_eq!(output.summary().usage().inspected_input_bytes(), 1);
 }
 
 /// Verifies a format handle remains separate from aggregate text until its
