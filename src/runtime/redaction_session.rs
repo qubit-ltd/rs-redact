@@ -16,6 +16,7 @@ use std::sync::atomic::Ordering;
 use super::DomainEntry;
 use super::bounded_field_writer::BoundedFieldWriter;
 use super::redaction_session_output::RedactionSessionOutput;
+use super::summary_builder::SummaryBuilder;
 use super::transaction_guard::TransactionGuard;
 use super::transaction_state::TransactionState;
 use crate::RedactionCompletion;
@@ -56,20 +57,6 @@ fn next_transaction_id() -> u64 {
 pub struct RedactionSession {
     policy: Arc<RedactionPolicy>,
     transaction: TransactionState,
-}
-
-impl std::ops::Deref for RedactionSession {
-    type Target = TransactionState;
-
-    fn deref(&self) -> &Self::Target {
-        &self.transaction
-    }
-}
-
-impl std::ops::DerefMut for RedactionSession {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.transaction
-    }
 }
 
 impl RedactionSession {
@@ -151,8 +138,10 @@ impl RedactionSession {
             let mut writer = crate::domain::RedactionWriter::new_root(session);
             value.write_redacted(&mut writer);
             let rendered = writer.finish_with_completion();
-            let escaped = crate::output::log_escape::escape_log_control_characters(std::borrow::Cow::Owned(rendered.0))
-                .into_owned();
+            let escaped = crate::output::log_escape::escape_log_control_characters(
+                std::borrow::Cow::Owned(rendered.0),
+            )
+            .into_owned();
             if rendered.2 {
                 session.record_summary(crate::RedactionSummary::truncated(
                     crate::RedactionReason::OutputLimitReached,
@@ -260,7 +249,9 @@ impl RedactionSession {
         if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
         }
-        self.run_handle(|session| ProcessRedactionWriter::new(session).redact_command(program, arguments, variables))
+        self.run_handle(|session| {
+            ProcessRedactionWriter::new(session).redact_command(program, arguments, variables)
+        })
     }
 
     /// Runs an HTTP adapter while retaining the session borrow.
@@ -310,7 +301,9 @@ impl RedactionSession {
         if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
         }
-        self.run_handle(|session| HttpRedactionWriter::new(session).redact_body(capture, content_type))
+        self.run_handle(|session| {
+            HttpRedactionWriter::new(session).redact_body(capture, content_type)
+        })
     }
 
     /// Runs a JSON adapter while retaining the session borrow.
@@ -336,7 +329,9 @@ impl RedactionSession {
         if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
         }
-        self.run_handle(|session| crate::formats::json::JsonRedactionWriter::new(session).redact_text(text))
+        self.run_handle(|session| {
+            crate::formats::json::JsonRedactionWriter::new(session).redact_text(text)
+        })
     }
 
     /// Runs a URI adapter while retaining the session borrow.
@@ -362,19 +357,21 @@ impl RedactionSession {
         if self.is_output_exhausted() {
             return self.stage_exhausted_handle();
         }
-        self.run_handle(|session| crate::formats::uri::UriRedactionWriter::new(session).redact_uri(input))
+        self.run_handle(|session| {
+            crate::formats::uri::UriRedactionWriter::new(session).redact_uri(input)
+        })
     }
 
     /// Begins a domain value for the structured writer without exposing an
     /// RAII scope to generated implementations.
     #[must_use]
     pub(crate) fn begin_domain_value(&mut self) -> bool {
-        match self.budget.domain_context().enter_value() {
+        match self.transaction.budget.domain_context().enter_value() {
             DomainEntry::Entered => {
-                let depth = self.budget.domain_context().current_depth();
-                self.summary = self.summary.with_domain_node(depth);
-                if let Some(item_summary) = self.item_summary {
-                    self.item_summary = Some(item_summary.with_domain_node(depth));
+                let depth = self.transaction.budget.domain_context().current_depth();
+                self.transaction.summary = self.transaction.summary.with_domain_node(depth);
+                if let Some(item_summary) = self.transaction.item_summary {
+                    self.transaction.item_summary = Some(item_summary.with_domain_node(depth));
                 }
                 true
             }
@@ -402,7 +399,7 @@ impl RedactionSession {
             completed.id,
             crate::RedactedText::from_escaped(completed.fragments),
             completed.items,
-            completed.summary,
+            completed.summary.build(),
         )
     }
 
@@ -413,32 +410,44 @@ impl RedactionSession {
 
     /// Appends a chain fragment at a UTF-8 boundary within remaining output.
     fn append_output_fragment(&mut self, fragment: &str) {
-        if self.output_exhausted {
+        if self.transaction.output_exhausted {
             // An exact earlier write is still complete. A later aggregate
             // literal, however, is an attempted write after the shared
             // budget closed and must make that exhaustion observable.
-            self.summary = self.summary.merge(crate::RedactionSummary::exhausted(
-                crate::RedactionReason::OutputLimitReached,
-            ));
+            self.transaction.summary =
+                self.transaction
+                    .summary
+                    .merge(crate::RedactionSummary::exhausted(
+                        crate::RedactionReason::OutputLimitReached,
+                    ));
             return;
         }
-        let escaped = crate::output::log_escape::escape_log_control_characters(std::borrow::Cow::Borrowed(fragment));
-        let used = self.summary.usage().output_bytes();
-        let remaining = self.budget.output_limit().saturating_sub(used);
+        let escaped = crate::output::log_escape::escape_log_control_characters(
+            std::borrow::Cow::Borrowed(fragment),
+        );
+        let used = self.transaction.summary.usage().output_bytes();
+        let remaining = self.transaction.budget.output_limit().saturating_sub(used);
         if escaped.len() > remaining {
-            self.output_exhausted = true;
-            self.summary = self.summary.merge(crate::RedactionSummary::exhausted(
-                crate::RedactionReason::OutputLimitReached,
-            ));
+            self.transaction.output_exhausted = true;
+            self.transaction.summary =
+                self.transaction
+                    .summary
+                    .merge(crate::RedactionSummary::exhausted(
+                        crate::RedactionReason::OutputLimitReached,
+                    ));
             return;
         }
-        self.fragments.push_str(&escaped);
-        self.summary = self.summary.with_added_output_bytes(escaped.len());
-        if self.summary.usage().output_bytes() == self.budget.output_limit() {
+        self.transaction.fragments.push_str(&escaped);
+        self.transaction.summary = self
+            .transaction
+            .summary
+            .with_added_output_bytes(escaped.len());
+        if self.transaction.summary.usage().output_bytes() == self.transaction.budget.output_limit()
+        {
             // Exact consumption remains a complete result, but no later
             // adapter may inspect input after the transaction has no output
             // capacity left.
-            self.output_exhausted = true;
+            self.transaction.output_exhausted = true;
         }
     }
 
@@ -452,7 +461,10 @@ impl RedactionSession {
 
     /// Runs an individually resolved operation with the same panic rollback
     /// contract as aggregate adapter closures.
-    fn run_handle(&mut self, operation: impl FnOnce(&mut Self) -> RedactionHandle) -> RedactionHandle {
+    fn run_handle(
+        &mut self,
+        operation: impl FnOnce(&mut Self) -> RedactionHandle,
+    ) -> RedactionHandle {
         let mut guard = TransactionGuard::new(self);
         let owns_item_summary = guard.session().begin_item_summary();
         let handle = operation(guard.session());
@@ -464,33 +476,33 @@ impl RedactionSession {
     /// Starts per-item accounting unless an outer handle entry already did so.
     #[must_use]
     pub(crate) fn begin_item_summary(&mut self) -> bool {
-        if self.item_summary.is_some() {
+        if self.transaction.item_summary.is_some() {
             return false;
         }
-        self.item_summary = Some(crate::RedactionSummary::complete());
+        self.transaction.item_summary = Some(SummaryBuilder::new());
         true
     }
 
     /// Ends per-item accounting when the caller created the active scope.
     pub(crate) fn end_item_summary(&mut self, owns_item_summary: bool) {
         if owns_item_summary {
-            self.item_summary = None;
+            self.transaction.item_summary = None;
         }
     }
 
     /// Merges one accounting delta into the transaction and active item.
     fn record_summary(&mut self, delta: crate::RedactionSummary) {
-        self.summary = self.summary.merge(delta);
-        if let Some(item_summary) = self.item_summary {
-            self.item_summary = Some(item_summary.merge(delta));
+        self.transaction.summary = self.transaction.summary.merge(delta);
+        if let Some(item_summary) = self.transaction.item_summary {
+            self.transaction.item_summary = Some(item_summary.merge(delta));
         }
     }
 
     /// Adds retained output bytes to the transaction and active item.
     fn record_output_bytes(&mut self, bytes: usize) {
-        self.summary = self.summary.with_added_output_bytes(bytes);
-        if let Some(item_summary) = self.item_summary {
-            self.item_summary = Some(item_summary.with_added_output_bytes(bytes));
+        self.transaction.summary = self.transaction.summary.with_added_output_bytes(bytes);
+        if let Some(item_summary) = self.transaction.item_summary {
+            self.transaction.item_summary = Some(item_summary.with_added_output_bytes(bytes));
         }
     }
 
@@ -498,12 +510,12 @@ impl RedactionSession {
     #[must_use]
     #[inline(always)]
     pub(crate) fn admit_domain_field(&mut self) -> bool {
-        let admission = self.budget.domain_context().admit_field();
+        let admission = self.transaction.budget.domain_context().admit_field();
         if admission {
-            let depth = self.budget.domain_context().current_depth();
-            self.summary = self.summary.with_domain_node(depth);
-            if let Some(item_summary) = self.item_summary {
-                self.item_summary = Some(item_summary.with_domain_node(depth));
+            let depth = self.transaction.budget.domain_context().current_depth();
+            self.transaction.summary = self.transaction.summary.with_domain_node(depth);
+            if let Some(item_summary) = self.transaction.item_summary {
+                self.transaction.item_summary = Some(item_summary.with_domain_node(depth));
             }
         } else {
             self.record_summary(crate::RedactionSummary::truncated(
@@ -517,11 +529,15 @@ impl RedactionSession {
     #[must_use]
     #[inline(always)]
     pub(crate) fn admit_domain_collection_item(&mut self) -> bool {
-        let admission = self.budget.domain_context().admit_collection_item();
+        let admission = self
+            .transaction
+            .budget
+            .domain_context()
+            .admit_collection_item();
         if admission {
-            self.summary = self.summary.with_collection_item();
-            if let Some(item_summary) = self.item_summary {
-                self.item_summary = Some(item_summary.with_collection_item());
+            self.transaction.summary = self.transaction.summary.with_collection_item();
+            if let Some(item_summary) = self.transaction.item_summary {
+                self.transaction.item_summary = Some(item_summary.with_collection_item());
             }
         } else {
             self.record_summary(crate::RedactionSummary::truncated(
@@ -536,11 +552,16 @@ impl RedactionSession {
     /// structured component.
     #[must_use]
     pub(crate) fn admit_format_node(&mut self, depth: usize) -> bool {
-        match self.budget.domain_context().admit_format_node(depth) {
+        match self
+            .transaction
+            .budget
+            .domain_context()
+            .admit_format_node(depth)
+        {
             DomainEntry::Entered => {
-                self.summary = self.summary.with_domain_node(depth);
-                if let Some(item_summary) = self.item_summary {
-                    self.item_summary = Some(item_summary.with_domain_node(depth));
+                self.transaction.summary = self.transaction.summary.with_domain_node(depth);
+                if let Some(item_summary) = self.transaction.item_summary {
+                    self.transaction.item_summary = Some(item_summary.with_domain_node(depth));
                 }
                 true
             }
@@ -572,7 +593,7 @@ impl RedactionSession {
     #[cfg(feature = "json")]
     #[must_use]
     pub(crate) fn admit_json_value(&mut self, value: &serde_json::Value) -> bool {
-        if self.budget.admit_json_value(value) {
+        if self.transaction.budget.admit_json_value(value) {
             true
         } else {
             self.record_summary(crate::RedactionSummary::truncated(
@@ -586,7 +607,7 @@ impl RedactionSession {
     /// charges.
     #[inline(always)]
     pub(crate) fn leave_domain_value(&mut self) {
-        self.budget.domain_context().leave_value();
+        self.transaction.budget.domain_context().leave_value();
     }
 
     /// Appends output rendered by the domain writer, retaining genuine output
@@ -608,8 +629,10 @@ impl RedactionSession {
                 .summary()
                 .reasons()
                 .contains(crate::RedactionReason::OutputLimitReached);
-        if output.summary().completion() == RedactionCompletion::Exhausted || replacement_could_not_fit {
-            self.output_exhausted = true;
+        if output.summary().completion() == RedactionCompletion::Exhausted
+            || replacement_could_not_fit
+        {
+            self.transaction.output_exhausted = true;
             self.record_summary(crate::RedactionSummary::exhausted(
                 crate::RedactionReason::OutputLimitReached,
             ));
@@ -621,7 +644,11 @@ impl RedactionSession {
     /// Appends a format's completed safe text without creating a second result
     /// model or budget.
     #[cfg(any(feature = "json", feature = "http", feature = "uri"))]
-    pub(crate) fn append_format_text(&mut self, text: crate::RedactedText, completion: crate::RedactionCompletion) {
+    pub(crate) fn append_format_text(
+        &mut self,
+        text: crate::RedactedText,
+        completion: crate::RedactionCompletion,
+    ) {
         let summary = match completion {
             crate::RedactionCompletion::Complete => crate::RedactionSummary::complete(),
             crate::RedactionCompletion::Truncated => {
@@ -661,7 +688,9 @@ impl RedactionSession {
                 continue;
             }
             let provenance = match summary.completion() {
-                RedactionCompletion::Complete => crate::RedactionSummary::complete_with_reason(reason),
+                RedactionCompletion::Complete => {
+                    crate::RedactionSummary::complete_with_reason(reason)
+                }
                 RedactionCompletion::Truncated => crate::RedactionSummary::truncated(reason),
                 RedactionCompletion::Exhausted => crate::RedactionSummary::exhausted(reason),
             };
@@ -673,7 +702,7 @@ impl RedactionSession {
     #[must_use]
     #[inline(always)]
     pub(crate) fn is_output_exhausted(&self) -> bool {
-        self.output_exhausted || self.remaining_output_bytes() == 0
+        self.transaction.output_exhausted || self.remaining_output_bytes() == 0
     }
 
     /// Stops an aggregate operation before it can observe caller input.
@@ -686,8 +715,8 @@ impl RedactionSession {
         if !self.is_output_exhausted() {
             return false;
         }
-        if self.remaining_output_bytes() == 0 && !self.output_exhausted {
-            self.output_exhausted = true;
+        if self.remaining_output_bytes() == 0 && !self.transaction.output_exhausted {
+            self.transaction.output_exhausted = true;
             self.record_summary(crate::RedactionSummary::exhausted(
                 crate::RedactionReason::OutputLimitReached,
             ));
@@ -699,9 +728,10 @@ impl RedactionSession {
     #[must_use]
     #[inline(always)]
     pub(crate) fn remaining_output_bytes(&self) -> usize {
-        self.budget
+        self.transaction
+            .budget
             .output_limit()
-            .saturating_sub(self.summary.usage().output_bytes())
+            .saturating_sub(self.transaction.summary.usage().output_bytes())
     }
 
     /// Admits one encoded format input before its parser or renderer can
@@ -710,21 +740,21 @@ impl RedactionSession {
     /// Rejected input is recorded as presented but uninspected and degrades
     /// the transaction without opening a second input budget.
     pub(crate) fn admit_input(&mut self, bytes: usize) -> bool {
-        let inspected = self.summary.usage().inspected_input_bytes();
+        let inspected = self.transaction.summary.usage().inspected_input_bytes();
         let limit = self.policy.limits().max_input_bytes();
         if bytes > limit.saturating_sub(inspected) {
-            self.summary = self.summary.with_input(bytes, 0);
-            if let Some(item_summary) = self.item_summary {
-                self.item_summary = Some(item_summary.with_input(bytes, 0));
+            self.transaction.summary = self.transaction.summary.with_input(bytes, 0);
+            if let Some(item_summary) = self.transaction.item_summary {
+                self.transaction.item_summary = Some(item_summary.with_input(bytes, 0));
             }
             self.record_summary(crate::RedactionSummary::truncated(
                 crate::RedactionReason::InputLimitReached,
             ));
             return false;
         }
-        self.summary = self.summary.with_input(bytes, bytes);
-        if let Some(item_summary) = self.item_summary {
-            self.item_summary = Some(item_summary.with_input(bytes, bytes));
+        self.transaction.summary = self.transaction.summary.with_input(bytes, bytes);
+        if let Some(item_summary) = self.transaction.item_summary {
+            self.transaction.item_summary = Some(item_summary.with_input(bytes, bytes));
         }
         true
     }
@@ -738,15 +768,19 @@ impl RedactionSession {
     #[cfg(any(feature = "json", feature = "http", feature = "uri"))]
     #[must_use]
     pub(crate) fn admit_input_prefix<'text>(&mut self, text: &'text str) -> &'text str {
-        let inspected = self.summary.usage().inspected_input_bytes();
-        let remaining = self.policy.limits().max_input_bytes().saturating_sub(inspected);
+        let inspected = self.transaction.summary.usage().inspected_input_bytes();
+        let remaining = self
+            .policy
+            .limits()
+            .max_input_bytes()
+            .saturating_sub(inspected);
         let mut admitted = text.len().min(remaining);
         while admitted > 0 && !text.is_char_boundary(admitted) {
             admitted -= 1;
         }
-        self.summary = self.summary.with_input(text.len(), admitted);
-        if let Some(item_summary) = self.item_summary {
-            self.item_summary = Some(item_summary.with_input(text.len(), admitted));
+        self.transaction.summary = self.transaction.summary.with_input(text.len(), admitted);
+        if let Some(item_summary) = self.transaction.item_summary {
+            self.transaction.item_summary = Some(item_summary.with_input(text.len(), admitted));
         }
         if admitted < text.len() {
             self.record_summary(crate::RedactionSummary::truncated(
@@ -759,16 +793,20 @@ impl RedactionSession {
     /// Admits a captured source whose complete length may be unknown.
     #[cfg(feature = "http")]
     pub(crate) fn admit_source_input(&mut self, total: Option<usize>, inspectable: usize) -> bool {
-        let already_inspected = self.summary.usage().inspected_input_bytes();
+        let already_inspected = self.transaction.summary.usage().inspected_input_bytes();
         let limit = self.policy.limits().max_input_bytes();
         let admitted = inspectable <= limit.saturating_sub(already_inspected);
         let inspected = if admitted { inspectable } else { 0 };
         let presented = total.unwrap_or(inspectable);
         let omitted = total.map(|length| length.saturating_sub(inspected));
 
-        self.summary = self.summary.with_source_input(presented, inspected, omitted);
-        if let Some(item_summary) = self.item_summary {
-            self.item_summary = Some(item_summary.with_source_input(presented, inspected, omitted));
+        self.transaction.summary = self
+            .transaction
+            .summary
+            .with_source_input(presented, inspected, omitted);
+        if let Some(item_summary) = self.transaction.item_summary {
+            self.transaction.item_summary =
+                Some(item_summary.with_source_input(presented, inspected, omitted));
         }
         if !admitted {
             self.record_summary(crate::RedactionSummary::truncated(
@@ -804,65 +842,83 @@ impl RedactionSession {
     /// Stores one individually resolvable output after charging the shared
     /// budget.
     pub(crate) fn stage_item(&mut self, output: crate::RedactionOutput) -> RedactionHandle {
-        let item_index = self.items.len();
-        let used = self.summary.usage().output_bytes();
-        let remaining = self.budget.output_limit().saturating_sub(used);
+        let item_index = self.transaction.items.len();
+        let used = self.transaction.summary.usage().output_bytes();
+        let remaining = self.transaction.budget.output_limit().saturating_sub(used);
         let replacement_could_not_fit = output.text().as_str().is_empty()
             && output
                 .summary()
                 .reasons()
                 .contains(crate::RedactionReason::OutputLimitReached);
-        let output = if self.output_exhausted
+        let output = if self.transaction.output_exhausted
             || output.summary().completion() == RedactionCompletion::Exhausted
             || replacement_could_not_fit
             || output.text().as_str().len() > remaining
         {
-            self.output_exhausted = true;
-            let summary = crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached);
+            self.transaction.output_exhausted = true;
+            let summary =
+                crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached);
             self.record_summary(*output.summary());
             self.record_summary(summary);
-            let item_summary = self.item_summary.unwrap_or(summary);
+            let item_summary = self
+                .transaction
+                .item_summary
+                .unwrap_or(SummaryBuilder::from_summary(summary));
             crate::RedactionOutput::new(
                 crate::RedactedText::from_escaped(std::borrow::Cow::Borrowed("")),
-                item_summary,
+                item_summary.build(),
             )
         } else {
-            let summary = output.summary().with_added_output_bytes(output.text().as_str().len());
+            let summary = output
+                .summary()
+                .with_added_output_bytes(output.text().as_str().len());
             self.record_summary(summary);
-            let item_summary = self.item_summary.unwrap_or(summary);
-            if self.summary.usage().output_bytes() == self.budget.output_limit() {
+            let item_summary = self
+                .transaction
+                .item_summary
+                .unwrap_or(SummaryBuilder::from_summary(summary));
+            if self.transaction.summary.usage().output_bytes()
+                == self.transaction.budget.output_limit()
+            {
                 // An exactly fitting handle is valid and complete; it simply
                 // closes this transaction to all subsequent work.
-                self.output_exhausted = true;
+                self.transaction.output_exhausted = true;
             }
-            crate::RedactionOutput::new(output.into_text(), item_summary)
+            crate::RedactionOutput::new(output.into_text(), item_summary.build())
         };
-        self.items.push(output);
-        RedactionHandle::new(self.id, item_index)
+        self.transaction.items.push(output);
+        RedactionHandle::new(self.transaction.id, item_index)
     }
 
     /// Stages a domain value whose writer has already charged traversal state
     /// to the shared transaction. This records that operation's delta without
     /// merging its domain charges a second time.
     fn stage_domain_item(&mut self, text: crate::RedactedText) -> RedactionHandle {
-        let item_index = self.items.len();
+        let item_index = self.transaction.items.len();
         if text.as_str().len() > self.remaining_output_bytes() {
-            self.output_exhausted = true;
-            let summary = crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached);
+            self.transaction.output_exhausted = true;
+            let summary =
+                crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached);
             self.record_summary(summary);
-            let item_summary = self.item_summary.unwrap_or(summary);
-            self.items.push(crate::RedactionOutput::new(
+            let item_summary = self
+                .transaction
+                .item_summary
+                .unwrap_or(SummaryBuilder::from_summary(summary));
+            self.transaction.items.push(crate::RedactionOutput::new(
                 crate::RedactedText::from_escaped(String::new()),
-                item_summary,
+                item_summary.build(),
             ));
         } else {
             self.record_output_bytes(text.as_str().len());
             let summary = self
+                .transaction
                 .item_summary
                 .expect("domain handles are staged inside an item-accounting scope");
-            self.items.push(crate::RedactionOutput::new(text, summary));
+            self.transaction
+                .items
+                .push(crate::RedactionOutput::new(text, summary.build()));
         }
-        RedactionHandle::new(self.id, item_index)
+        RedactionHandle::new(self.transaction.id, item_index)
     }
 
     /// Redacts one field into owned safe text with its fragment completion.
@@ -892,30 +948,41 @@ impl RedactionSession {
     /// Stages text after the active item scope has already recorded its
     /// completion, reasons, and usage.
     pub(crate) fn stage_accounted_text(&mut self, text: crate::RedactedText) -> RedactionHandle {
-        self.stage_item(crate::RedactionOutput::new(text, crate::RedactionSummary::complete()))
+        self.stage_item(crate::RedactionOutput::new(
+            text,
+            crate::RedactionSummary::complete(),
+        ))
     }
 
     /// Stages the standard empty result without inspecting a later input once
     /// the transaction's output budget has closed.
     #[must_use]
     fn stage_exhausted_handle(&mut self) -> RedactionHandle {
-        self.output_exhausted = true;
+        self.transaction.output_exhausted = true;
         self.stage_format_text(
             crate::RedactedText::from_escaped(String::new()),
             RedactionCompletion::Exhausted,
         )
     }
 
-    fn redact_field_with_completion(&mut self, field: &str, value: &str) -> (crate::RedactedText, RedactionCompletion) {
+    fn redact_field_with_completion(
+        &mut self,
+        field: &str,
+        value: &str,
+    ) -> (crate::RedactedText, RedactionCompletion) {
         let policy = self.policy();
-        let (redacted, completion) = redact_field_text_for_output(policy, field, value, self.remaining_output_bytes());
+        let (redacted, completion) =
+            redact_field_text_for_output(policy, field, value, self.remaining_output_bytes());
         (redacted, completion)
     }
 }
 
 /// Converts runtime-owned safe text and completion into the transaction's
 /// internal output carrier.
-fn redaction_output(text: crate::RedactedText, completion: RedactionCompletion) -> crate::RedactionOutput {
+fn redaction_output(
+    text: crate::RedactedText,
+    completion: RedactionCompletion,
+) -> crate::RedactionOutput {
     match completion {
         RedactionCompletion::Complete => crate::RedactionOutput::complete(text),
         RedactionCompletion::Truncated => {
@@ -938,9 +1005,10 @@ fn redact_field_text_for_output(
 ) -> (crate::RedactedText, RedactionCompletion) {
     let mut writer = BoundedFieldWriter::new(max_output_bytes);
     let result = match policy.resolve_field(field) {
-        ResolvedField::Sensitive { sensitivity } => {
-            policy.masking().for_level(sensitivity).write_masked(value, &mut writer)
-        }
+        ResolvedField::Sensitive { sensitivity } => policy
+            .masking()
+            .for_level(sensitivity)
+            .write_masked(value, &mut writer),
         ResolvedField::PassThrough => writer.write_str(value),
     };
     if result.is_err() || writer.overflowed() {
