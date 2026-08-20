@@ -7,7 +7,10 @@
 // =============================================================================
 //! Tests for the [`Redact`](qubit_redact::domain::Redact) domain contract.
 
+use std::collections::BTreeMap;
+
 use qubit_redact::RedactionCompletion;
+use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::domain::Redact;
@@ -76,4 +79,40 @@ fn test_redaction_writer_structured_helper_shapes_and_opaque_access() {
         output.text().as_str(),
         "Structured { unit: \"Unit\", secret: \"<redacted>\", pair: Pair(1, 2), [1, 2] }"
     );
+}
+
+/// Verifies a domain map classifies each dynamic key through the active policy.
+#[test]
+fn test_redaction_fields_map_classifies_each_dynamic_key() {
+    struct DynamicMapValue {
+        attributes: BTreeMap<String, String>,
+    }
+
+    impl Redact for DynamicMapValue {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.record("DynamicMapValue", |fields| {
+                fields.map("attributes", self.attributes.iter());
+            });
+        }
+    }
+
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            let _ = fields.secret_sensitive("password");
+        })
+        .expect("field policy should build")
+        .build()
+        .expect("policy should build");
+    let value = DynamicMapValue {
+        attributes: BTreeMap::from([
+            ("password".to_owned(), "raw-secret".to_owned()),
+            ("region".to_owned(), "eu-west".to_owned()),
+        ]),
+    };
+
+    let output = Redactor::new(policy).redact(&value);
+
+    assert!(!output.text().as_str().contains("raw-secret"));
+    assert!(output.text().as_str().contains("<redacted>"));
+    assert!(output.text().as_str().contains("eu-west"));
 }
