@@ -539,6 +539,12 @@ pub struct RedactionItems<'writer, 'session> {
 
 impl<'writer, 'session> RedactionItems<'writer, 'session> {
     /// Writes one explicitly unredacted sequence item.
+    ///
+    /// # Warning
+    ///
+    /// This method emits the accessed value without consulting field policy.
+    /// Use it only for data independently established as safe to expose;
+    /// sensitive values must use [`Self::sensitive_item`].
     pub fn unredacted_item<T, F>(&mut self, access: F) -> &mut Self
     where
         T: Debug,
@@ -611,6 +617,12 @@ pub struct RedactionEntries<'writer, 'session> {
 
 impl<'writer, 'session> RedactionEntries<'writer, 'session> {
     /// Writes one explicitly unredacted map entry.
+    ///
+    /// # Warning
+    ///
+    /// This method emits the accessed value without consulting field policy.
+    /// Use it only for data independently established as safe to expose;
+    /// sensitive values must use [`Self::sensitive_entry`].
     pub fn unredacted_entry<T, F>(&mut self, name: &str, access: F) -> &mut Self
     where
         T: Debug,
@@ -764,8 +776,8 @@ mod tests {
         }
     }
 
-    /// Nested values render through the borrowed writer instead of
-    /// materializing a legacy lazy redaction result with its own path.
+    /// Nested values render through the borrowed writer and the active
+    /// transaction.
     #[test]
     fn nested_values_use_the_active_writer_transaction() {
         let output = Redactor::standard().redact(&Container);

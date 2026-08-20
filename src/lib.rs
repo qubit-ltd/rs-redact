@@ -42,8 +42,8 @@
 //! let _ = RedactionSummary::complete();
 //! ```
 //!
-//! Legacy domain-level rendering traits do not provide an alternate output
-//! path. Domain values must be written through [`Redact`] and a
+//! The domain-level rendering traits do not provide an alternate output path.
+//! Domain values must be written through [`Redact`] and a
 //! [`RedactionSession`].
 //!
 //! ```compile_fail

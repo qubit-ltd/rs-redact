@@ -71,7 +71,7 @@ fn format_adapters_cannot_construct_published_output_models() {
 }
 
 /// The structured writer exposes only the scope names fixed by the redesign;
-/// removed compatibility aliases must not silently return.
+/// Removed aliases must not silently return.
 #[test]
 fn domain_writer_has_only_the_fixed_root_surface() {
     let writer = include_str!("../src/domain/redaction_writer.rs");
