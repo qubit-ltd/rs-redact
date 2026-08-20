@@ -8,13 +8,13 @@
 //! Mutable accounting for one bounded diagnostic redaction event.
 
 use std::ffi::OsStr;
-use std::fmt;
 use std::fmt::Write;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
 use super::DomainEntry;
+use super::bounded_field_writer::BoundedFieldWriter;
 use super::redaction_session_output::RedactionSessionOutput;
 use super::transaction_guard::TransactionGuard;
 use super::transaction_state::TransactionState;
@@ -695,6 +695,33 @@ impl RedactionSession {
         true
     }
 
+    /// Admits the UTF-8 prefix of one parser input that fits the shared input
+    /// budget and records the whole source as presented.
+    ///
+    /// The returned slice always ends on a character boundary. When it is
+    /// shorter than `text`, the transaction records `InputLimitReached` while
+    /// still allowing the parser to inspect the admitted prefix.
+    #[cfg(any(feature = "json", feature = "http", feature = "uri"))]
+    #[must_use]
+    pub(crate) fn admit_input_prefix<'text>(&mut self, text: &'text str) -> &'text str {
+        let inspected = self.summary.usage().inspected_input_bytes();
+        let remaining = self.policy.limits().max_input_bytes().saturating_sub(inspected);
+        let mut admitted = text.len().min(remaining);
+        while admitted > 0 && !text.is_char_boundary(admitted) {
+            admitted -= 1;
+        }
+        self.summary = self.summary.with_input(text.len(), admitted);
+        if let Some(item_summary) = self.item_summary {
+            self.item_summary = Some(item_summary.with_input(text.len(), admitted));
+        }
+        if admitted < text.len() {
+            self.record_summary(crate::RedactionSummary::truncated(
+                crate::RedactionReason::InputLimitReached,
+            ));
+        }
+        &text[..admitted]
+    }
+
     /// Admits a captured source whose complete length may be unknown.
     #[cfg(feature = "http")]
     pub(crate) fn admit_source_input(&mut self, total: Option<usize>, inspectable: usize) -> bool {
@@ -886,45 +913,4 @@ fn redact_field_text_for_output(
         crate::RedactedText::from_escaped(writer.finish()),
         RedactionCompletion::Complete,
     )
-}
-
-/// Streams masked field text through log escaping under the transaction's
-/// final byte ceiling.
-struct BoundedFieldWriter {
-    output: String,
-    max_output_bytes: usize,
-    overflowed: bool,
-}
-
-impl BoundedFieldWriter {
-    fn new(max_output_bytes: usize) -> Self {
-        Self {
-            output: String::new(),
-            max_output_bytes,
-            overflowed: false,
-        }
-    }
-
-    const fn overflowed(&self) -> bool {
-        self.overflowed
-    }
-
-    fn finish(self) -> String {
-        self.output
-    }
-}
-
-impl fmt::Write for BoundedFieldWriter {
-    fn write_str(&mut self, value: &str) -> fmt::Result {
-        for character in value.chars() {
-            let mut encoded = [0_u8; 12];
-            let piece = crate::output::log_escape::encode_log_safe_character(character, &mut encoded)?;
-            if self.output.len().saturating_add(piece.len()) > self.max_output_bytes {
-                self.overflowed = true;
-                return Err(fmt::Error);
-            }
-            self.output.push_str(piece);
-        }
-        Ok(())
-    }
 }

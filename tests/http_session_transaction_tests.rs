@@ -471,8 +471,8 @@ fn test_http_unknown_source_truncation_keeps_omitted_usage_unknown() {
     assert_eq!(output.summary().usage().omitted_input_bytes(), None);
 }
 
-/// A handle created inside an aggregate HTTP namespace still owns only the
-/// usage and reasons of its single operation.
+/// A URL handle created inside an aggregate HTTP namespace records only its
+/// admitted parser prefix and its own input-limit reason.
 #[test]
 fn test_http_namespace_handle_tracks_its_own_input_rejection() {
     let policy = RedactionPolicy::builder()
@@ -497,5 +497,5 @@ fn test_http_namespace_handle_tracks_its_own_input_rejection() {
     assert!(item.summary().reasons().contains(RedactionReason::InputLimitReached));
     assert!(!item.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert_eq!(item.summary().usage().presented_input_bytes(), 21);
-    assert_eq!(item.summary().usage().inspected_input_bytes(), 0);
+    assert_eq!(item.summary().usage().inspected_input_bytes(), 1);
 }

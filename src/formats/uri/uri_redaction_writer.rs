@@ -25,7 +25,11 @@ impl<'session> UriRedactionWriter<'session> {
 
     /// Redacts a URI into the parent session's aggregate output.
     pub fn value(&mut self, value: &str) -> &mut Self {
-        if self.session.is_output_exhausted() || !self.session.admit_input(value.len()) {
+        if self.session.is_output_exhausted() {
+            return self;
+        }
+        let value = self.session.admit_input_prefix(value);
+        if value.is_empty() {
             return self;
         }
         if !self.admit_uri_structure(value) {
@@ -51,7 +55,8 @@ impl<'session> UriRedactionWriter<'session> {
                     crate::RedactionCompletion::Exhausted,
                 );
             }
-            if !self.session.admit_input(value.len()) {
+            let value = self.session.admit_input_prefix(value);
+            if value.is_empty() {
                 return self
                     .session
                     .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));

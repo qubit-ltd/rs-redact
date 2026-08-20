@@ -29,8 +29,9 @@
 //!
 //! `literal` accepts only `&'static str` program literals. Dynamic text must
 //! be passed to a redaction operation. Derived fields that lack
-//! `#[redact(...)]`, or explicitly use `skip`, are intentionally unredacted;
-//! every sensitive field must therefore be annotated.
+//! `#[redact(...)]` are intentionally unredacted; fields that explicitly use
+//! `skip` are neither accessed nor emitted. Every sensitive field must
+//! therefore be annotated.
 //!
 //! Transaction summaries are observations produced exclusively by a completed
 //! transaction; callers cannot fabricate one outside the runtime.
