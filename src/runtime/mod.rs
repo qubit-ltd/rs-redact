@@ -7,6 +7,7 @@
 // =============================================================================
 //! Shared execution-time accounting for bounded redaction operations.
 
+mod bounded_field_writer;
 mod redaction_budget;
 mod redaction_handle;
 mod redaction_session;

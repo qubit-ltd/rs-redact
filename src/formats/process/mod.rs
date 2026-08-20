@@ -7,6 +7,9 @@
 // =============================================================================
 //! Process-command redaction built on the active transaction session.
 
+mod admitted_command_items;
+mod admitted_environment_pairs;
+mod command_items;
 mod process_redaction_writer;
 
 pub use process_redaction_writer::ProcessRedactionWriter;
