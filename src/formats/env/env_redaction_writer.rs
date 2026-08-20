@@ -36,9 +36,7 @@ impl<'session> EnvRedactionWriter<'session> {
         if !self.session.admit_format_node(1)
             || !self.session.admit_format_collection_item()
             || !self.session.admit_format_node(2)
-            || !self
-                .session
-                .admit_input(name.len().saturating_add(value.len()))
+            || !self.session.admit_input(name.len().saturating_add(value.len()))
         {
             return self;
         }
@@ -64,11 +62,7 @@ impl<'session> EnvRedactionWriter<'session> {
         let Some(pairs) = self.collect_admitted_pairs(pairs) else {
             return self;
         };
-        let result = redact_os_pairs_with_policy(
-            self.session.policy(),
-            pairs,
-            self.session.remaining_output_bytes(),
-        );
+        let result = redact_os_pairs_with_policy(self.session.policy(), pairs, self.session.remaining_output_bytes());
         self.session.append_format_output(&result);
         self
     }
@@ -84,9 +78,7 @@ impl<'session> EnvRedactionWriter<'session> {
             if !self.session.admit_format_node(1)
                 || !self.session.admit_format_collection_item()
                 || !self.session.admit_format_node(2)
-                || !self
-                    .session
-                    .admit_input(name.len().saturating_add(value.len()))
+                || !self.session.admit_input(name.len().saturating_add(value.len()))
             {
                 return self
                     .session
@@ -127,11 +119,8 @@ impl<'session> EnvRedactionWriter<'session> {
                     .session
                     .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
             };
-            let result = redact_os_pairs_with_policy(
-                self.session.policy(),
-                pairs,
-                self.session.remaining_output_bytes(),
-            );
+            let result =
+                redact_os_pairs_with_policy(self.session.policy(), pairs, self.session.remaining_output_bytes());
             if result.text().as_str().is_empty()
                 && result.summary().completion() == crate::RedactionCompletion::Truncated
             {
@@ -146,10 +135,7 @@ impl<'session> EnvRedactionWriter<'session> {
     /// Collects pairs only while their individual structural and input
     /// admissions succeed. This deliberately avoids materializing or
     /// rendering the suffix after a shared transaction limit is reached.
-    fn collect_admitted_pairs<'items, I>(
-        &mut self,
-        pairs: I,
-    ) -> Option<Vec<(&'items OsStr, &'items OsStr)>>
+    fn collect_admitted_pairs<'items, I>(&mut self, pairs: I) -> Option<Vec<(&'items OsStr, &'items OsStr)>>
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
         I::IntoIter: ExactSizeIterator,
@@ -165,9 +151,7 @@ impl<'session> EnvRedactionWriter<'session> {
             if !self.session.admit_format_collection_item() || !self.session.admit_format_node(2) {
                 return None;
             }
-            let (name, value) = iterator
-                .next()
-                .expect("exact-size iterator reported an item");
+            let (name, value) = iterator.next().expect("exact-size iterator reported an item");
             if !self.session.admit_input(
                 name.as_encoded_bytes()
                     .len()
