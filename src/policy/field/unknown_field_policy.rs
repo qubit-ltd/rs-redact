@@ -11,7 +11,7 @@ use super::Sensitivity;
 
 /// Determines how a policy handles a field with no matching rule.
 ///
-/// The default preserves compatibility by leaving unknown fields visible.
+/// The default leaves unknown fields visible.
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UnknownFieldPolicy {
