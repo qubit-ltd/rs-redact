@@ -231,7 +231,6 @@ impl RedactionSummary {
 
     /// Creates a complete summary that records non-truncating provenance.
     #[must_use]
-    #[cfg(any(feature = "json", feature = "http", feature = "uri"))]
     pub(crate) const fn complete_with_reason(reason: RedactionReason) -> Self {
         Self {
             completion: RedactionCompletion::Complete,
@@ -246,17 +245,6 @@ impl RedactionSummary {
         Self {
             completion: RedactionCompletion::Truncated,
             reasons: RedactionReasons::empty().with(reason),
-            usage: RedactionUsage::empty(),
-        }
-    }
-
-    /// Creates an empty degraded result.
-    #[must_use]
-    #[doc(hidden)]
-    pub(crate) const fn empty() -> Self {
-        Self {
-            completion: RedactionCompletion::Truncated,
-            reasons: RedactionReasons::empty().with(RedactionReason::TraversalLimitReached),
             usage: RedactionUsage::empty(),
         }
     }

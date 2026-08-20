@@ -9,9 +9,6 @@
 
 use std::borrow::Cow;
 
-use super::RedactedText;
-use super::log_escape::escape_log_control_characters;
-
 /// An internal value that has passed through field-sensitive masking.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaskedValue<'a>(Cow<'a, str>);
@@ -22,13 +19,6 @@ impl<'a> MaskedValue<'a> {
     #[inline(always)]
     pub(crate) const fn new(value: Cow<'a, str>) -> Self {
         Self(value)
-    }
-
-    /// Escapes the redacted contents for a plain-text boundary.
-    #[inline]
-    #[must_use]
-    pub fn escape_for_log(self) -> RedactedText {
-        RedactedText::from_escaped(escape_log_control_characters(self.0).into_owned())
     }
 
     /// Borrows the underlying value for crate-internal HTTP adapters.

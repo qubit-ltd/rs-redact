@@ -1,0 +1,118 @@
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+//! Unpublished format-rendering outcomes consumed by the transaction runtime.
+
+use crate::RedactionCompletion;
+use crate::RedactionReason;
+use crate::RedactionReasons;
+
+/// Carries rendered text and degradation provenance without constructing a
+/// publishable output or transaction summary inside a format adapter.
+pub(crate) struct RenderedOperation {
+    text: String,
+    completion: RedactionCompletion,
+    reasons: RedactionReasons,
+}
+
+impl RenderedOperation {
+    /// Creates a complete rendered operation without degradation provenance.
+    #[must_use]
+    pub(crate) fn complete(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            completion: RedactionCompletion::Complete,
+            reasons: RedactionReasons::empty(),
+        }
+    }
+
+    /// Creates a complete rendered operation with non-degrading provenance.
+    #[must_use]
+    #[cfg(any(feature = "json", feature = "http", feature = "uri"))]
+    pub(crate) fn complete_with_reason(text: impl Into<String>, reason: RedactionReason) -> Self {
+        Self::complete(text).with_reason(reason)
+    }
+
+    /// Creates a truncated rendered operation.
+    #[must_use]
+    pub(crate) fn truncated(text: impl Into<String>, reason: RedactionReason) -> Self {
+        Self {
+            text: text.into(),
+            completion: RedactionCompletion::Truncated,
+            reasons: RedactionReasons::empty().with(reason),
+        }
+    }
+
+    /// Creates an exhausted rendered operation.
+    #[must_use]
+    pub(crate) fn exhausted(text: impl Into<String>, reason: RedactionReason) -> Self {
+        Self {
+            text: text.into(),
+            completion: RedactionCompletion::Exhausted,
+            reasons: RedactionReasons::empty().with(reason),
+        }
+    }
+
+    /// Adds provenance without weakening the existing completion state.
+    #[must_use]
+    #[cfg(any(feature = "json", feature = "http", feature = "uri"))]
+    pub(crate) fn with_reason(mut self, reason: RedactionReason) -> Self {
+        self.reasons = self.reasons.with(reason);
+        self
+    }
+
+    /// Borrows the unpublished rendered text.
+    #[must_use]
+    pub(crate) fn text(&self) -> &str {
+        &self.text
+    }
+
+    /// Returns the renderer's completion state.
+    #[must_use]
+    pub(crate) const fn completion(&self) -> RedactionCompletion {
+        self.completion
+    }
+
+    /// Returns the renderer's accumulated provenance.
+    #[must_use]
+    pub(crate) const fn reasons(&self) -> RedactionReasons {
+        self.reasons
+    }
+
+    /// Combines two independently rendered parts into one unpublished result.
+    #[must_use]
+    pub(crate) fn merge(mut self, other: Self) -> Self {
+        self.text.push_str(other.text());
+        self.completion = match (self.completion, other.completion()) {
+            (RedactionCompletion::Exhausted, _) | (_, RedactionCompletion::Exhausted) => RedactionCompletion::Exhausted,
+            (RedactionCompletion::Truncated, _) | (_, RedactionCompletion::Truncated) => RedactionCompletion::Truncated,
+            _ => RedactionCompletion::Complete,
+        };
+        for reason in [
+            RedactionReason::InputLimitReached,
+            RedactionReason::OutputLimitReached,
+            RedactionReason::TraversalLimitReached,
+            RedactionReason::DepthLimitReached,
+            RedactionReason::SourceTruncated,
+            RedactionReason::InvalidJson,
+            RedactionReason::InvalidUri,
+            RedactionReason::InvalidContentType,
+            RedactionReason::UnsupportedContentType,
+        ] {
+            if other.reasons().contains(reason) {
+                self.reasons = self.reasons.with(reason);
+            }
+        }
+        self
+    }
+
+    /// Consumes this unpublished outcome into its runtime-owned parts.
+    #[must_use]
+    pub(crate) fn into_parts(self) -> (String, RedactionCompletion, RedactionReasons) {
+        (self.text, self.completion, self.reasons)
+    }
+}
