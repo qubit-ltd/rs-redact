@@ -477,7 +477,7 @@ mod views {
 
         /// Sets the handling of root and array JSON scalar values in HTTP
         /// bodies.
-        pub fn unkeyed_json(&mut self, policy: crate::formats::http::UnkeyedJsonValuePolicy) -> &mut Self {
+        pub fn unkeyed_json(&mut self, policy: crate::UnkeyedJsonValuePolicy) -> &mut Self {
             self.builder.unkeyed_json_value_policy = policy;
             self
         }
