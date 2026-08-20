@@ -157,10 +157,30 @@ impl Redact for Account {
 }
 ```
 
-`unredacted` 会刻意绕过字段名 policy，只能用于已经独立确认可公开的内容。derive 实现中，
-未标注字段映射为 `unredacted`；`#[redact(skip)]` 完全不生成访问和输出；`level`、
-`nested`、`map`、`json` 分别选择明确的 writer 路径。本库不会根据字段名或值内容自行猜测
-敏感性。
+`unredacted` 会刻意绕过字段名 policy，只能用于已经独立确认可公开的内容。`sensitive`
+把显式 level 作为最低敏感度；`nested` 委托另一个 `Redact` 值；`json` 使用当前 JSON
+policy。本库不会根据字段名或值内容自行猜测敏感性。
+
+动态 key 表示值名称的 map，应把实现 `ExactSizeIterator` 的迭代器传给 `map`。writer 会在
+渲染每个值前分别按其 key 分类：
+
+```rust
+use std::collections::BTreeMap;
+
+# use qubit_redact::Redact;
+# use qubit_redact::RedactionWriter;
+struct Attributes(BTreeMap<String, String>);
+
+impl Redact for Attributes {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("Attributes", |fields| {
+            fields.map("values", self.0.iter());
+        });
+    }
+}
+```
+
+精确剩余长度让 writer 能在共享遍历预算耗尽前停止，不会再推进下一个 entry。
 
 ## 进阶用法
 
@@ -212,7 +232,8 @@ policy 构建错误使用 `PolicyError`；handle 解析错误只有 `DifferentTr
 
 输入/输出/结构上限、非法 JSON/URI/content type、不支持的内容和上游截断，都属于安全
 脱敏结果，不会让 `finish()` 返回错误。应用应读取 `output.summary()`，不要解析文本 marker。
-`Exhausted` 表示当前操作连完整的安全替代文本也无法放进共享输出预算。
+`Exhausted` 表示当前操作连完整的安全替代文本也无法放进共享输出预算。之后的单项调用不会
+检查输入，而是解析到当前 transaction 中唯一的空 exhausted item。
 
 用户 writer 或 adapter 代码 panic 时，当前 transaction 会整体丢弃，session 安装新
 transaction 后继续展开 panic。调用方若用 `catch_unwind` 捕获，session 仍可复用；失败

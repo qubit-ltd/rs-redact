@@ -77,9 +77,9 @@ assert!(!safe_url.text().as_str().contains("raw-secret"));
 - 最终输出保持 UTF-8 与日志安全。预算耗尽或格式非法时安全降级，由 summary 报告，
   `finish()` 本身不返回错误。
 
-本库不会根据任意值内容猜测敏感性。derive 类型中，未标注字段会原样输出，
-`#[redact(skip)]` 则完全不生成字段访问和输出。业务类型新增字段后必须审查标注。
-`RedactionWriter::unredacted` 是明确的信任边界，不能传入秘密数据。
+本库不会根据任意值内容猜测敏感性。业务类型新增字段后必须审查标注。
+`RedactionWriter::unredacted` 是明确的信任边界，不能传入秘密数据。动态 map 使用
+`RedactionFields::map` 时，每个 entry 都会按自己的 key 走当前 policy 分类。
 
 ## 从旧 API 迁移
 

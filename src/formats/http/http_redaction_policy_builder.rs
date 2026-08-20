@@ -19,7 +19,7 @@ use crate::RedactionFloor;
 use crate::RedactionRules;
 use crate::Sensitivity;
 
-/// Mutable construction state for an [`HttpPolicy`].
+/// Mutable construction state for an [`super::HttpPolicy`].
 #[derive(Debug, Clone)]
 pub struct HttpPolicyBuilder {
     header: ContextRulesBuilder,

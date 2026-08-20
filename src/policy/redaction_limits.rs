@@ -74,8 +74,8 @@ impl RedactionLimits {
     ///
     /// # Errors
     ///
-    /// Returns [`PolicyError::OutputLimitTooLarge`] when the output ceiling
-    /// exceeds the maximum addressable Rust collection capacity.
+    /// Returns [`super::PolicyError::OutputLimitTooLarge`] when the output
+    /// ceiling exceeds the maximum addressable Rust collection capacity.
     pub(crate) fn validate(&self) -> Result<(), super::PolicyError> {
         if self.max_output_bytes > isize::MAX as usize {
             return Err(super::PolicyError::OutputLimitTooLarge {

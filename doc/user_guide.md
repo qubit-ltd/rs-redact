@@ -166,10 +166,32 @@ impl Redact for Account {
 ```
 
 `unredacted` deliberately bypasses field-name policy. It is suitable only for
-content independently reviewed as safe. In derive implementations, an
-unannotated field maps to `unredacted`; `#[redact(skip)]` generates no access
-or output; `level`, `nested`, `map`, and `json` select their explicit writer
-paths. The crate never guesses sensitivity from a field name or value content.
+content independently reviewed as safe. `sensitive` applies its explicit
+level as a minimum, while `nested` delegates to another `Redact` value and
+`json` uses the active JSON policy. The crate never guesses sensitivity from a
+field name or value content.
+
+For a map whose runtime keys name the values, pass its exact-size iterator to
+`map`. Each key is classified independently before its value is rendered:
+
+```rust
+use std::collections::BTreeMap;
+
+# use qubit_redact::Redact;
+# use qubit_redact::RedactionWriter;
+struct Attributes(BTreeMap<String, String>);
+
+impl Redact for Attributes {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("Attributes", |fields| {
+            fields.map("values", self.0.iter());
+        });
+    }
+}
+```
+
+The iterator must implement `ExactSizeIterator`, allowing the writer to stop
+before advancing an entry that no longer fits the shared traversal budget.
 
 ## Advanced Usage
 
@@ -225,7 +247,8 @@ Input limits, output limits, structural limits, invalid JSON/URI/content type,
 unsupported content, and upstream truncation are safe redaction outcomes rather
 than `finish()` errors. Inspect `output.summary()` instead of parsing marker
 text. `Exhausted` means even the operation's complete safe substitute could not
-fit the shared output budget.
+fit the shared output budget. Later item calls do not inspect their inputs and
+resolve to the transaction's canonical empty exhausted item.
 
 If user-supplied writer or adapter code panics, the active transaction is
 discarded, a fresh transaction is installed, and the panic continues. After a
