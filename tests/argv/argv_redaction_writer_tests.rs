@@ -12,6 +12,38 @@ use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::formats::argv::ArgvItem;
 
+/// Exact-size iterator that advertises an impractically large remaining
+/// length while only its first item can be admitted by the transaction.
+struct HugeArgvIterator {
+    remaining: usize,
+}
+
+impl Iterator for HugeArgvIterator {
+    type Item = ArgvItem<'static>;
+
+    /// Returns the next repeated trusted argument until the advertised length
+    /// is exhausted.
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining == 0 {
+            return None;
+        }
+        self.remaining -= 1;
+        Some(ArgvItem::plain(OsStr::new("first")))
+    }
+
+    /// Reports the exact number of remaining items without allocating them.
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
+
+impl ExactSizeIterator for HugeArgvIterator {
+    /// Returns the iterator's exact remaining item count.
+    fn len(&self) -> usize {
+        self.remaining
+    }
+}
+
 #[test]
 fn session_publishes_argv_handle_only_after_finish() {
     let mut session = Redactor::standard().session();
@@ -19,7 +51,11 @@ fn session_publishes_argv_handle_only_after_finish() {
     let output = session.finish();
 
     assert_eq!(
-        output.resolve(handle).expect("published handle").text().as_str(),
+        output
+            .resolve(handle)
+            .expect("published handle")
+            .text()
+            .as_str(),
         r#"["client"]"#
     );
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
@@ -75,9 +111,34 @@ fn argv_handle_stops_at_shared_collection_limit() {
         ArgvItem::plain(OsStr::new("later-secret")),
     ]);
     let output = session.finish();
-    let item = output.resolve(handle).expect("truncated argv handle publishes");
+    let item = output
+        .resolve(handle)
+        .expect("truncated argv handle publishes");
 
     assert!(item.text().as_str().is_empty());
     assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
     assert!(!item.text().as_str().contains("later-secret"));
+}
+
+/// Admission must happen before any iterator length is used as an allocation
+/// capacity, otherwise an attacker-controlled exact-size iterator can panic
+/// before the configured collection limit closes traversal.
+#[test]
+fn argv_handle_does_not_preallocate_from_unadmitted_iterator_length() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_collection_items(1);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
+    let handle = session.redact_argv(HugeArgvIterator {
+        remaining: usize::MAX,
+    });
+    let output = session.finish();
+    let item = output.resolve(handle).expect("argv handle publishes");
+
+    assert!(item.text().as_str().is_empty());
+    assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
 }

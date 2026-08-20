@@ -69,6 +69,22 @@ impl RedactionLimits {
         self.max_output_bytes
     }
 
+    /// Validates limits whose values would otherwise reach collection
+    /// allocation code during transaction rendering.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError::OutputLimitTooLarge`] when the output ceiling
+    /// exceeds the maximum addressable Rust collection capacity.
+    pub(crate) fn validate(&self) -> Result<(), super::PolicyError> {
+        if self.max_output_bytes > isize::MAX as usize {
+            return Err(super::PolicyError::OutputLimitTooLarge {
+                maximum: self.max_output_bytes,
+            });
+        }
+        Ok(())
+    }
+
     /// Returns the JSON value limits used by JSON traversal.
     #[cfg(feature = "json")]
     #[must_use]

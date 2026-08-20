@@ -40,9 +40,11 @@ impl<'session> RedactionWriter<'session> {
     /// Creates a writer backed by an existing diagnostic session.
     #[must_use]
     pub(crate) fn new(session: &'session mut RedactionSession) -> Self {
-        let output_capacity = session.remaining_output_bytes();
         Self {
-            output: String::with_capacity(output_capacity),
+            // The policy ceiling can be intentionally large; rendering grows
+            // on demand and is still bounded by the transaction on every
+            // write, so eagerly reserving that ceiling is unsafe.
+            output: String::new(),
             session,
             field_truncated: false,
             output_limit_reached: false,
@@ -114,8 +116,15 @@ impl<'session> RedactionWriter<'session> {
             self.truncate_without_output_limit();
             return;
         }
-        let allowance = self.session.remaining_output_bytes().min(self.remaining_output_bytes());
-        let output = crate::formats::json::redact_json_text_with_limit(self.session.policy(), value, allowance);
+        let allowance = self
+            .session
+            .remaining_output_bytes()
+            .min(self.remaining_output_bytes());
+        let output = crate::formats::json::redact_json_text_with_limit(
+            self.session.policy(),
+            value,
+            allowance,
+        );
         if output.summary().completion() != crate::RedactionCompletion::Complete {
             self.truncate_without_output_limit();
         }
@@ -186,8 +195,13 @@ impl<'session> RedactionWriter<'session> {
 
     /// Writes one bounded structured frame and accounts for its domain node
     /// and output bytes.
-    fn write_structured<F>(&mut self, name: &'static str, opening: &'static str, closing: &'static str, configure: F)
-    where
+    fn write_structured<F>(
+        &mut self,
+        name: &'static str,
+        opening: &'static str,
+        closing: &'static str,
+        configure: F,
+    ) where
         F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session>),
     {
         if !self.session.begin_domain_value() {
@@ -268,7 +282,9 @@ impl<'session> RedactionWriter<'session> {
 
     #[inline]
     fn remaining_output_bytes(&self) -> usize {
-        self.session.remaining_output_bytes().saturating_sub(self.output_bytes)
+        self.session
+            .remaining_output_bytes()
+            .saturating_sub(self.output_bytes)
     }
 
     fn append_complete_fragment(&mut self, text: &str) {
@@ -377,11 +393,16 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         } else {
             let raw_limit = self.writer.remaining_output_bytes();
             let (raw, raw_truncated) = bounded_debug(&access(), raw_limit);
-            let (value, mask_truncated) = self.writer.session.policy().masking().mask_bounded_with_truncation(
-                effective_level,
-                &raw,
-                self.writer.remaining_output_bytes(),
-            );
+            let (value, mask_truncated) = self
+                .writer
+                .session
+                .policy()
+                .masking()
+                .mask_bounded_with_truncation(
+                    effective_level,
+                    &raw,
+                    self.writer.remaining_output_bytes(),
+                );
             self.writer.write_debug(value.as_ref());
             if raw_truncated || mask_truncated {
                 self.writer.truncate_for_output_limit();
@@ -551,7 +572,8 @@ struct BoundedCapture {
 impl BoundedCapture {
     fn new(maximum: usize) -> Self {
         Self {
-            output: String::with_capacity(maximum),
+            // `maximum` is an admission limit, not an allocation request.
+            output: String::new(),
             maximum,
             truncated: false,
         }
@@ -618,7 +640,10 @@ mod tests {
         let output = Redactor::standard().redact(&Container);
 
         assert!(output.text().as_str().contains("Nested { id: 7 }"));
-        assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());
+        assert_eq!(
+            output.summary().usage().output_bytes(),
+            output.text().as_str().len()
+        );
     }
 
     #[cfg(feature = "json")]
@@ -641,8 +666,16 @@ mod tests {
         let mut session = Redactor::standard().session();
         let output = session.value(&JsonContainer).finish();
 
-        assert_eq!(output.summary().usage().presented_input_bytes(), "{invalid json".len());
-        assert!(output.summary().reasons().contains(crate::RedactionReason::InvalidJson));
+        assert_eq!(
+            output.summary().usage().presented_input_bytes(),
+            "{invalid json".len()
+        );
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(crate::RedactionReason::InvalidJson)
+        );
     }
 
     /// A JSON value emitted by a domain writer must spend the same structural
@@ -662,7 +695,10 @@ mod tests {
 
         let output = session.value(&JsonContainerWithValidNestedValue).finish();
 
-        assert_eq!(output.summary().completion(), crate::RedactionCompletion::Truncated);
+        assert_eq!(
+            output.summary().completion(),
+            crate::RedactionCompletion::Truncated
+        );
         assert!(
             output
                 .summary()
