@@ -1353,3 +1353,81 @@ fn test_uri_handle_is_resolved_only_from_the_completed_transaction() {
             .contains("example.test")
     );
 }
+
+/// A zero-sized output budget must be published as exhaustion even when the
+/// first aggregate operation is skipped before it can inspect its input.
+#[test]
+fn test_zero_output_budget_marks_skipped_aggregate_field_as_exhausted() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            let _ = limits.max_output_bytes(0);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
+
+    let output = session.field("password", "secret").finish();
+
+    assert!(output.text().as_str().is_empty());
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert_eq!(output.summary().usage().presented_input_bytes(), 0);
+}
+
+/// A recovered transaction must invalidate handles created before the panic.
+#[test]
+fn test_panic_rollback_invalidates_handles_from_the_discarded_transaction() {
+    let mut session = Redactor::standard().session();
+    let discarded = session.redact_field("before", "discarded");
+    let panic = std::panic::catch_unwind(AssertUnwindSafe(|| {
+        let _ = session.value(&PanicValue);
+    }));
+    assert!(panic.is_err());
+
+    let retained = session.redact_field("after", "retained");
+    let output = session.finish();
+
+    assert_eq!(
+        output.resolve(discarded),
+        Err(RedactionHandleError::DifferentTransaction)
+    );
+    assert_eq!(
+        output
+            .resolve(retained)
+            .expect("fresh handle belongs to output")
+            .text()
+            .as_str(),
+        "retained"
+    );
+}
+
+/// Chained and statement-style aggregate calls have identical publication
+/// semantics.
+#[test]
+fn test_chain_and_statement_aggregate_calls_are_equivalent() {
+    let mut chained = Redactor::standard().session();
+    let chained_output = chained.field("name", "Ada").literal("!").finish();
+
+    let mut statements = Redactor::standard().session();
+    let _ = statements.field("name", "Ada");
+    let _ = statements.literal("!");
+    let statement_output = statements.finish();
+
+    assert_eq!(chained_output.text(), statement_output.text());
+    assert_eq!(chained_output.summary(), statement_output.summary());
+}
+
+/// Reusing a session repeatedly publishes only the current transaction.
+#[test]
+fn test_three_consecutive_finishes_publish_independent_transactions() {
+    let mut session = Redactor::standard().session();
+
+    let first = session.literal("one").finish();
+    let second = session.literal("two").finish();
+    let third = session.literal("three").finish();
+
+    assert_eq!(first.text().as_str(), "one");
+    assert_eq!(second.text().as_str(), "two");
+    assert_eq!(third.text().as_str(), "three");
+}

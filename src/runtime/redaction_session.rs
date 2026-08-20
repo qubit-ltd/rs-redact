@@ -45,7 +45,14 @@ fn next_transaction_id() -> u64 {
 
 /// Carries one immutable policy and one mutable budget through a diagnostic
 /// event.
-#[derive(Debug)]
+/// A mutable, unpublished redaction transaction.
+///
+/// ```compile_fail
+/// use qubit_redact::Redactor;
+///
+/// let session = Redactor::standard().session();
+/// let _ = format!("{session:?}");
+/// ```
 pub struct RedactionSession {
     policy: Arc<RedactionPolicy>,
     transaction: TransactionState,
@@ -93,7 +100,7 @@ impl RedactionSession {
     /// Redacts and appends one scalar field in chain order.
     #[must_use]
     pub fn field(&mut self, field: &str, value: &str) -> &mut Self {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self;
         }
         if !self.admit_input(field.len().saturating_add(value.len())) {
@@ -113,7 +120,7 @@ impl RedactionSession {
     where
         T: Redact + ?Sized,
     {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self;
         }
         let mut guard = TransactionGuard::new(self);
@@ -137,7 +144,7 @@ impl RedactionSession {
     where
         T: Redact + ?Sized,
     {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
         }
         self.run_handle(|session| {
@@ -160,7 +167,7 @@ impl RedactionSession {
     where
         F: for<'session> FnOnce(&mut ArgvRedactionWriter<'session>),
     {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self;
         }
         self.run_adapter(|session| {
@@ -177,7 +184,7 @@ impl RedactionSession {
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
         I::IntoIter: ExactSizeIterator,
     {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
         }
         self.run_handle(|session| ArgvRedactionWriter::new(session).redact_items(items))
@@ -188,7 +195,7 @@ impl RedactionSession {
     where
         F: for<'session> FnOnce(&mut EnvRedactionWriter<'session>),
     {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self;
         }
         self.run_adapter(|session| {
@@ -201,7 +208,7 @@ impl RedactionSession {
     /// Redacts one environment assignment as an individually resolvable item.
     #[must_use]
     pub fn redact_env(&mut self, name: &str, value: &str) -> RedactionHandle {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
         }
         self.run_handle(|session| EnvRedactionWriter::new(session).redact_pair(name, value))
@@ -214,7 +221,7 @@ impl RedactionSession {
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
         I::IntoIter: ExactSizeIterator,
     {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
         }
         self.run_handle(|session| EnvRedactionWriter::new(session).redact_os_pairs(pairs))
@@ -226,7 +233,7 @@ impl RedactionSession {
     where
         F: for<'session> FnOnce(&mut ProcessRedactionWriter<'session>),
     {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self;
         }
         self.run_adapter(|session| {
@@ -250,7 +257,7 @@ impl RedactionSession {
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
         E::IntoIter: ExactSizeIterator,
     {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
         }
         self.run_handle(|session| ProcessRedactionWriter::new(session).redact_command(program, arguments, variables))
@@ -262,7 +269,7 @@ impl RedactionSession {
     where
         F: for<'session> FnOnce(&mut HttpRedactionWriter<'session>),
     {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self;
         }
         self.run_adapter(|session| {
@@ -276,7 +283,7 @@ impl RedactionSession {
     #[cfg(feature = "http")]
     #[must_use]
     pub fn redact_http_url(&mut self, value: &str) -> RedactionHandle {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
         }
         self.run_handle(|session| HttpRedactionWriter::new(session).redact_url(value))
@@ -286,7 +293,7 @@ impl RedactionSession {
     #[cfg(feature = "http")]
     #[must_use]
     pub fn redact_http_headers(&mut self, headers: &http::HeaderMap) -> RedactionHandle {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
         }
         self.run_handle(|session| HttpRedactionWriter::new(session).redact_headers(headers))
@@ -300,7 +307,7 @@ impl RedactionSession {
         capture: crate::formats::http::BodyCapture<'_>,
         content_type: Option<&http::HeaderValue>,
     ) -> RedactionHandle {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
         }
         self.run_handle(|session| HttpRedactionWriter::new(session).redact_body(capture, content_type))
@@ -312,7 +319,7 @@ impl RedactionSession {
     where
         F: for<'session> FnOnce(&mut JsonRedactionWriter<'session>),
     {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self;
         }
         self.run_adapter(|session| {
@@ -326,7 +333,7 @@ impl RedactionSession {
     #[cfg(feature = "json")]
     #[must_use]
     pub fn redact_json(&mut self, text: &str) -> RedactionHandle {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
         }
         self.run_handle(|session| crate::formats::json::JsonRedactionWriter::new(session).redact_text(text))
@@ -338,7 +345,7 @@ impl RedactionSession {
     where
         F: for<'session> FnOnce(&mut crate::formats::uri::UriRedactionWriter<'session>),
     {
-        if self.is_output_exhausted() {
+        if self.skip_aggregate_for_exhausted_output() {
             return self;
         }
         self.run_adapter(|session| {
@@ -362,9 +369,9 @@ impl RedactionSession {
     /// RAII scope to generated implementations.
     #[must_use]
     pub(crate) fn begin_domain_value(&mut self) -> bool {
-        match self.domain_context.enter_value() {
+        match self.budget.domain_context().enter_value() {
             DomainEntry::Entered => {
-                let depth = self.domain_context.current_depth();
+                let depth = self.budget.domain_context().current_depth();
                 self.summary = self.summary.with_domain_node(depth);
                 if let Some(item_summary) = self.item_summary {
                     self.item_summary = Some(item_summary.with_domain_node(depth));
@@ -491,9 +498,9 @@ impl RedactionSession {
     #[must_use]
     #[inline(always)]
     pub(crate) fn admit_domain_field(&mut self) -> bool {
-        let admission = self.domain_context.admit_field();
+        let admission = self.budget.domain_context().admit_field();
         if admission {
-            let depth = self.domain_context.current_depth();
+            let depth = self.budget.domain_context().current_depth();
             self.summary = self.summary.with_domain_node(depth);
             if let Some(item_summary) = self.item_summary {
                 self.item_summary = Some(item_summary.with_domain_node(depth));
@@ -510,7 +517,7 @@ impl RedactionSession {
     #[must_use]
     #[inline(always)]
     pub(crate) fn admit_domain_collection_item(&mut self) -> bool {
-        let admission = self.domain_context.admit_collection_item();
+        let admission = self.budget.domain_context().admit_collection_item();
         if admission {
             self.summary = self.summary.with_collection_item();
             if let Some(item_summary) = self.item_summary {
@@ -529,7 +536,7 @@ impl RedactionSession {
     /// structured component.
     #[must_use]
     pub(crate) fn admit_format_node(&mut self, depth: usize) -> bool {
-        match self.domain_context.admit_format_node(depth) {
+        match self.budget.domain_context().admit_format_node(depth) {
             DomainEntry::Entered => {
                 self.summary = self.summary.with_domain_node(depth);
                 if let Some(item_summary) = self.item_summary {
@@ -565,7 +572,7 @@ impl RedactionSession {
     #[cfg(feature = "json")]
     #[must_use]
     pub(crate) fn admit_json_value(&mut self, value: &serde_json::Value) -> bool {
-        if self.transaction.admit_json_value(value) {
+        if self.budget.admit_json_value(value) {
             true
         } else {
             self.record_summary(crate::RedactionSummary::truncated(
@@ -579,7 +586,7 @@ impl RedactionSession {
     /// charges.
     #[inline(always)]
     pub(crate) fn leave_domain_value(&mut self) {
-        self.domain_context.leave_value();
+        self.budget.domain_context().leave_value();
     }
 
     /// Appends output rendered by the domain writer, retaining genuine output
@@ -667,6 +674,25 @@ impl RedactionSession {
     #[inline(always)]
     pub(crate) fn is_output_exhausted(&self) -> bool {
         self.output_exhausted || self.remaining_output_bytes() == 0
+    }
+
+    /// Stops an aggregate operation before it can observe caller input.
+    ///
+    /// An exact prior write remains complete until a later operation is
+    /// attempted. A zero-sized transaction has no such prior write, so its
+    /// first skipped operation must still publish the output-limit failure.
+    #[inline(always)]
+    fn skip_aggregate_for_exhausted_output(&mut self) -> bool {
+        if !self.is_output_exhausted() {
+            return false;
+        }
+        if self.remaining_output_bytes() == 0 && !self.output_exhausted {
+            self.output_exhausted = true;
+            self.record_summary(crate::RedactionSummary::exhausted(
+                crate::RedactionReason::OutputLimitReached,
+            ));
+        }
+        true
     }
 
     /// Returns output capacity still available to one renderer.

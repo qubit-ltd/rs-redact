@@ -17,6 +17,17 @@ use crate::Sensitivity;
 use crate::domain::Redact;
 
 /// Restricted writer for one redaction operation.
+///
+/// ```compile_fail
+/// use qubit_redact::{Redact, RedactionWriter};
+///
+/// struct Value;
+/// impl Redact for Value {
+///     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+///         let _ = writer.redact_json_text("{\"token\":\"secret\"}");
+///     }
+/// }
+/// ```
 pub struct RedactionWriter<'session> {
     output: String,
     session: &'session mut RedactionSession,
@@ -85,23 +96,23 @@ impl<'session> RedactionWriter<'session> {
         }
     }
 
-    /// Redacts JSON text through the session that owns this writer.
+    /// Writes JSON text through the active transaction.
     ///
-    /// The input and output allowances are borrowed from the active
-    /// transaction. This writer never constructs a standalone JSON redactor.
+    /// This is intentionally private: structured redaction implementations
+    /// must never receive unpublished JSON text before `finish()` publishes
+    /// the surrounding transaction.
     #[cfg(feature = "json")]
-    #[must_use]
-    pub fn redact_json_text(&mut self, value: &str) -> String {
+    fn write_json_text(&mut self, value: &str) {
         if !self.session.admit_input(value.len()) {
             self.truncate_without_output_limit();
-            return "<truncated>".to_owned();
+            return;
         }
         // Structural admission happens before JSON redaction parses or walks
         // the value. A domain writer therefore cannot create a private JSON
         // traversal budget outside its parent transaction.
         if !crate::formats::json::admit_json_text_structure(self.session, value) {
             self.truncate_without_output_limit();
-            return "<truncated>".to_owned();
+            return;
         }
         let allowance = self.session.remaining_output_bytes().min(self.remaining_output_bytes());
         let output = crate::formats::json::redact_json_text_with_limit(self.session.policy(), value, allowance);
@@ -109,7 +120,7 @@ impl<'session> RedactionWriter<'session> {
             self.truncate_without_output_limit();
         }
         self.session.record_format_provenance(*output.summary());
-        output.into_text().into_string()
+        self.write_debug(output.text().as_str());
     }
 
     /// Writes a named record through a field scope.
@@ -441,8 +452,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         if !self.writer.can_write() {
             return self;
         }
-        let rendered = self.writer.redact_json_text(value);
-        self.writer.write_debug(&rendered);
+        self.writer.write_json_text(value);
         self.writer.write_fragment(", ");
         self
     }
