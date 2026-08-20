@@ -107,7 +107,7 @@ let url = session.redact_http_url(
 );
 let content_type = HeaderValue::from_static("application/json");
 let body = session.redact_http_body(
-    BodyCapture::complete(br#"{\"password\":\"raw-password\"}"#),
+    BodyCapture::complete(br#"{"password":"raw-password"}"#),
     Some(&content_type),
 );
 session
@@ -118,8 +118,12 @@ let output = session.finish();
 let safe_url = output.resolve(url)?;
 let safe_body = output.resolve(body)?;
 
-assert!(!safe_url.text().as_str().contains("raw-token"));
-assert!(!safe_body.text().as_str().contains("raw-password"));
+assert_eq!(output.text().as_str(), "request failed: <redacted>");
+assert_eq!(
+    safe_url.text().as_str(),
+    "https://api.example.test/<redacted>?access_token=%3Credacted%3E",
+);
+assert_eq!(safe_body.text().as_str(), r#"{"password":"<redacted>"}"#);
 assert_eq!(output.summary().usage().output_bytes(),
            output.text().as_str().len()
                + safe_url.text().as_str().len()
