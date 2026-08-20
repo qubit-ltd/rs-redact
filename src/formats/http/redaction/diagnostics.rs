@@ -7,15 +7,11 @@
 // =============================================================================
 //! Shared budget and log-boundary helpers for HTTP diagnostics.
 
-use std::borrow::Cow;
-
 use super::HttpPolicyExecutor;
-use crate::RedactedText;
-use crate::RedactionOutput;
 use crate::RedactionReason;
-use crate::RedactionSummary;
 use crate::formats::http::internal::BoundedLogWriter;
 use crate::formats::http::internal::markers;
+use crate::runtime::RenderedOperation;
 
 impl HttpPolicyExecutor<'_> {
     /// Escapes and bounds one diagnostic with an explicit output ceiling.
@@ -29,29 +25,27 @@ impl HttpPolicyExecutor<'_> {
         let mut writer = BoundedLogWriter::new(max_bytes, false);
         let _ = writer.write_str(&text);
         let (text, truncated) = writer.finish();
-        let summary = if truncated {
-            RedactionSummary::truncated(RedactionReason::OutputLimitReached)
+        let mut operation = if truncated {
+            RenderedOperation::truncated(text, RedactionReason::OutputLimitReached)
         } else {
-            RedactionSummary::complete()
+            RenderedOperation::complete(text)
+        };
+        if let Some(reason) = provenance {
+            operation = operation.with_reason(reason);
         }
-        .merge(provenance.map_or_else(RedactionSummary::complete, RedactionSummary::complete_with_reason));
-        super::HttpRendered {
-            output: RedactionOutput::new(RedactedText::from_escaped(Cow::Owned(text)), summary),
-        }
+        super::HttpRendered { operation }
     }
 
     /// Publishes an already escaped bounded URL rendering with its exact
     /// truncation state.
     #[must_use]
     pub(super) fn finish_rendered_url(&self, text: String, truncated: bool) -> super::HttpRendered {
-        let summary = if truncated {
-            RedactionSummary::truncated(RedactionReason::OutputLimitReached)
+        let operation = if truncated {
+            RenderedOperation::truncated(text, RedactionReason::OutputLimitReached)
         } else {
-            RedactionSummary::complete()
+            RenderedOperation::complete(text)
         };
-        super::HttpRendered {
-            output: RedactionOutput::new(RedactedText::from_escaped(Cow::Owned(text)), summary),
-        }
+        super::HttpRendered { operation }
     }
 }
 

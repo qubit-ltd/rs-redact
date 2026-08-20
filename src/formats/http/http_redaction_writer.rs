@@ -15,9 +15,9 @@ use super::BodyCapture;
 use super::internal::nested_url;
 use super::internal::nested_url::NestedUrl;
 use super::redaction::url_rules;
-use crate::RedactedText;
 use crate::RedactionHandle;
 use crate::RedactionSession;
+use crate::runtime::RenderedOperation;
 
 /// Feature-gated HTTP operations sharing one mutable diagnostic session.
 pub struct HttpRedactionWriter<'session> {
@@ -40,14 +40,14 @@ impl<'session> HttpRedactionWriter<'session> {
             return self;
         }
         if !self.admit_url_structure(value) {
-            self.session.append_format_text(
-                RedactedText::from_escaped("<truncated>"),
-                crate::RedactionCompletion::Truncated,
-            );
+            self.session.append_rendered_operation(RenderedOperation::truncated(
+                "<truncated>",
+                crate::RedactionReason::TraversalLimitReached,
+            ));
             return self;
         }
         let result = self.redact_url_str_direct(value);
-        self.session.append_format_output(result.output());
+        self.session.append_rendered_operation(result.into_operation());
         self
     }
 
@@ -70,7 +70,7 @@ impl<'session> HttpRedactionWriter<'session> {
                 return self.stage_accounted_text("<truncated>");
             }
             let result = self.redact_url_str_direct(value);
-            self.session.stage_item(result.into_output())
+            self.session.stage_rendered_operation(result.into_operation())
         })();
         self.session.end_item_summary(owns_item_summary);
         handle
@@ -82,7 +82,7 @@ impl<'session> HttpRedactionWriter<'session> {
             return self;
         };
         let result = self.redact_headers_direct(&headers);
-        self.session.append_format_output(result.output());
+        self.session.append_rendered_operation(result.into_operation());
         self
     }
 
@@ -93,7 +93,7 @@ impl<'session> HttpRedactionWriter<'session> {
         let handle = (|| {
             if let Some(headers) = self.collect_admitted_headers(headers) {
                 let result = self.redact_headers_direct(&headers);
-                return self.session.stage_item(result.into_output());
+                return self.session.stage_rendered_operation(result.into_operation());
             }
             if self.session.is_output_exhausted() {
                 self.exhausted_handle()
@@ -212,17 +212,17 @@ impl<'session> HttpRedactionWriter<'session> {
             return self;
         }
         if !self.admit_body_structure(capture, content_type.map(|value| value.as_bytes())) {
-            self.session.append_format_text(
-                RedactedText::from_escaped("<truncated>"),
-                crate::RedactionCompletion::Truncated,
-            );
+            self.session.append_rendered_operation(RenderedOperation::truncated(
+                "<truncated>",
+                crate::RedactionReason::TraversalLimitReached,
+            ));
             return self;
         }
         let remaining = self.session.remaining_output_bytes();
         let result = self.body_result(capture, content_type, |policy| {
             super::redaction::redact_body_with_policy(policy, capture, content_type, remaining)
         });
-        self.session.append_format_output(result.output());
+        self.session.append_rendered_operation(result.into_operation());
         self
     }
 
@@ -245,7 +245,7 @@ impl<'session> HttpRedactionWriter<'session> {
             let result = self.body_result(capture, content_type, |policy| {
                 super::redaction::redact_body_with_policy(policy, capture, content_type, remaining)
             });
-            self.session.stage_item(result.into_output())
+            self.session.stage_rendered_operation(result.into_operation())
         })();
         self.session.end_item_summary(owns_item_summary);
         handle
@@ -274,17 +274,17 @@ impl<'session> HttpRedactionWriter<'session> {
             return self;
         }
         if !self.admit_body_structure(capture, content_type.map(str::as_bytes)) {
-            self.session.append_format_text(
-                RedactedText::from_escaped("<truncated>"),
-                crate::RedactionCompletion::Truncated,
-            );
+            self.session.append_rendered_operation(RenderedOperation::truncated(
+                "<truncated>",
+                crate::RedactionReason::TraversalLimitReached,
+            ));
             return self;
         }
         let remaining = self.session.remaining_output_bytes();
         let result = self.body_result(capture, None, |policy| {
             super::redaction::redact_body_with_content_type_text_with_policy(policy, capture, content_type, remaining)
         });
-        self.session.append_format_output(result.output());
+        self.session.append_rendered_operation(result.into_operation());
         self
     }
 
@@ -316,7 +316,7 @@ impl<'session> HttpRedactionWriter<'session> {
                     remaining,
                 )
             });
-            self.session.stage_item(result.into_output())
+            self.session.stage_rendered_operation(result.into_operation())
         })();
         self.session.end_item_summary(owns_item_summary);
         handle
@@ -398,10 +398,7 @@ impl<'session> HttpRedactionWriter<'session> {
     /// Stages the standard empty output when admission is no longer possible.
     #[must_use]
     fn exhausted_handle(&mut self) -> RedactionHandle {
-        self.session.stage_format_text(
-            RedactedText::from_escaped(String::new()),
-            crate::RedactionCompletion::Exhausted,
-        )
+        self.session.stage_exhausted_handle()
     }
 
     /// Stages text whose completion, reasons, and usage were already recorded
@@ -409,12 +406,9 @@ impl<'session> HttpRedactionWriter<'session> {
     #[must_use]
     fn stage_accounted_text<T>(&mut self, text: T) -> RedactionHandle
     where
-        T: Into<std::borrow::Cow<'static, str>>,
+        T: Into<String>,
     {
-        self.session.stage_item(crate::RedactionOutput::new(
-            RedactedText::from_escaped(text.into()),
-            crate::RedactionSummary::complete(),
-        ))
+        self.session.stage_accounted_text(text)
     }
 }
 

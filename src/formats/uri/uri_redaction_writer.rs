@@ -9,8 +9,8 @@
 
 use super::redaction::redact_uri_with_limit;
 use crate::RedactionHandle;
-use crate::RedactionOutput;
 use crate::RedactionSession;
+use crate::runtime::RenderedOperation;
 
 /// URI facade borrowing one diagnostic session.
 pub struct UriRedactionWriter<'session> {
@@ -33,14 +33,14 @@ impl<'session> UriRedactionWriter<'session> {
             return self;
         }
         if !self.admit_uri_structure(value) {
-            self.session.append_format_text(
-                crate::RedactedText::from_escaped("<truncated>"),
-                crate::RedactionCompletion::Truncated,
-            );
+            self.session.append_rendered_operation(RenderedOperation::truncated(
+                "<truncated>",
+                crate::RedactionReason::TraversalLimitReached,
+            ));
             return self;
         }
         let result = self.redact_uri_direct(value);
-        self.session.append_format_output(&result);
+        self.session.append_rendered_operation(result);
         self
     }
 
@@ -50,24 +50,17 @@ impl<'session> UriRedactionWriter<'session> {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
             if self.session.is_output_exhausted() {
-                return self.session.stage_format_text(
-                    crate::RedactedText::from_escaped(String::new()),
-                    crate::RedactionCompletion::Exhausted,
-                );
+                return self.session.stage_exhausted_handle();
             }
             let value = self.session.admit_input_prefix(value);
             if value.is_empty() {
-                return self
-                    .session
-                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+                return self.session.stage_accounted_text(String::new());
             }
             if !self.admit_uri_structure(value) {
-                return self
-                    .session
-                    .stage_accounted_text(crate::RedactedText::from_escaped("<truncated>"));
+                return self.session.stage_accounted_text("<truncated>");
             }
             let result = self.redact_uri_direct(value);
-            self.session.stage_item(result)
+            self.session.stage_rendered_operation(result)
         })();
         self.session.end_item_summary(owns_item_summary);
         handle
@@ -86,7 +79,7 @@ impl UriRedactionWriter<'_> {
     /// output, and `Exhausted` only when the safe text is empty. Existing URI
     /// status is represented solely by the transaction's common summary.
     #[must_use]
-    pub(crate) fn redact_uri_direct(&mut self, input: &str) -> RedactionOutput {
+    pub(crate) fn redact_uri_direct(&mut self, input: &str) -> RenderedOperation {
         redact_uri_with_limit(self.session.policy(), input, self.session.remaining_output_bytes())
     }
 
@@ -127,14 +120,9 @@ mod tests {
             16,
         );
 
-        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
-        assert!(
-            output
-                .summary()
-                .reasons()
-                .contains(crate::RedactionReason::OutputLimitReached)
-        );
-        assert!(output.text().as_str().len() <= 16);
+        assert_eq!(output.completion(), RedactionCompletion::Truncated);
+        assert!(output.reasons().contains(crate::RedactionReason::OutputLimitReached));
+        assert!(output.text().len() <= 16);
     }
 
     /// Verifies a URI adapter receives the output allowance left after earlier

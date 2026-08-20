@@ -40,7 +40,7 @@ impl<'session> ArgvRedactionWriter<'session> {
             return self;
         };
         let result = redact_items_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
-        self.session.append_format_output(&result);
+        self.session.append_rendered_operation(result);
         self
     }
 
@@ -58,7 +58,7 @@ impl<'session> ArgvRedactionWriter<'session> {
         };
         let result =
             redact_heuristically_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
-        self.session.append_format_output(&result);
+        self.session.append_rendered_operation(result);
         self
     }
 
@@ -72,26 +72,16 @@ impl<'session> ArgvRedactionWriter<'session> {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
             if self.session.is_output_exhausted() {
-                return self.session.stage_format_text(
-                    crate::RedactedText::from_escaped(String::new()),
-                    crate::RedactionCompletion::Exhausted,
-                );
+                return self.session.stage_exhausted_handle();
             }
             let Some(items) = self.collect_admitted_items(items) else {
-                return self
-                    .session
-                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+                return self.session.stage_accounted_text(String::new());
             };
             let result = redact_items_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
-            if result.text().as_str().is_empty()
-                && result.summary().completion() == crate::RedactionCompletion::Truncated
-            {
-                return self.session.stage_format_text(
-                    crate::RedactedText::from_escaped(String::new()),
-                    crate::RedactionCompletion::Exhausted,
-                );
+            if result.text().is_empty() && result.completion() == crate::RedactionCompletion::Truncated {
+                return self.session.stage_exhausted_handle();
             }
-            self.session.stage_item(result)
+            self.session.stage_rendered_operation(result)
         })();
         self.session.end_item_summary(owns_item_summary);
         handle
@@ -107,27 +97,17 @@ impl<'session> ArgvRedactionWriter<'session> {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
             if self.session.is_output_exhausted() {
-                return self.session.stage_format_text(
-                    crate::RedactedText::from_escaped(String::new()),
-                    crate::RedactionCompletion::Exhausted,
-                );
+                return self.session.stage_exhausted_handle();
             }
             let Some(items) = self.collect_admitted_items(items) else {
-                return self
-                    .session
-                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+                return self.session.stage_accounted_text(String::new());
             };
             let result =
                 redact_heuristically_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
-            if result.text().as_str().is_empty()
-                && result.summary().completion() == crate::RedactionCompletion::Truncated
-            {
-                return self.session.stage_format_text(
-                    crate::RedactedText::from_escaped(String::new()),
-                    crate::RedactionCompletion::Exhausted,
-                );
+            if result.text().is_empty() && result.completion() == crate::RedactionCompletion::Truncated {
+                return self.session.stage_exhausted_handle();
             }
-            self.session.stage_item(result)
+            self.session.stage_rendered_operation(result)
         })();
         self.session.end_item_summary(owns_item_summary);
         handle

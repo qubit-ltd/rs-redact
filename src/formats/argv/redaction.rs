@@ -11,24 +11,22 @@ use std::ffi::OsStr;
 
 use super::ArgvItem;
 use super::pending_field::PendingField;
-use crate::RedactedText;
-use crate::RedactionOutput;
 use crate::RedactionReason;
-use crate::RedactionSummary;
 use crate::Sensitivity;
 use crate::policy::RedactionPolicy;
 use crate::policy::ResolvedField;
+use crate::runtime::RenderedOperation;
 
 /// Redacts explicitly classified argv items with the supplied session policy.
 ///
-/// The returned common output is unpublished until its parent transaction
-/// appends or stages it. `max_output_bytes` is the parent session's remaining
-/// capacity, never an independent adapter budget.
+/// The returned renderer state remains unpublished until its parent
+/// transaction commits it. `max_output_bytes` is the parent session's
+/// remaining capacity, never an independent adapter budget.
 pub(crate) fn redact_items_with_policy<'a, I>(
     policy: &RedactionPolicy,
     items: I,
     max_output_bytes: usize,
-) -> RedactionOutput
+) -> RenderedOperation
 where
     I: IntoIterator<Item = ArgvItem<'a>>,
 {
@@ -41,7 +39,7 @@ pub(crate) fn redact_heuristically_with_policy<'a, I>(
     policy: &RedactionPolicy,
     items: I,
     max_output_bytes: usize,
-) -> RedactionOutput
+) -> RenderedOperation
 where
     I: IntoIterator<Item = ArgvItem<'a>>,
 {
@@ -49,7 +47,12 @@ where
 }
 
 /// Renders a finite argv iterator with one immutable policy snapshot.
-fn render_direct<'a, I>(policy: &RedactionPolicy, items: I, heuristic: bool, max_output_bytes: usize) -> RedactionOutput
+fn render_direct<'a, I>(
+    policy: &RedactionPolicy,
+    items: I,
+    heuristic: bool,
+    max_output_bytes: usize,
+) -> RenderedOperation
 where
     I: IntoIterator<Item = ArgvItem<'a>>,
 {
@@ -92,23 +95,17 @@ where
         return truncated_output(max_output_bytes);
     }
     writer.push(']');
-    RedactionOutput::new(RedactedText::from_escaped(writer), RedactionSummary::complete())
+    RenderedOperation::complete(writer)
 }
 
-/// Returns the only common output model for an argv renderer that cannot
-/// retain its complete rendering within the parent transaction's capacity.
-fn truncated_output(max_output_bytes: usize) -> RedactionOutput {
+/// Returns unpublished fallback text when argv rendering cannot retain its
+/// complete representation within the parent transaction's capacity.
+fn truncated_output(max_output_bytes: usize) -> RenderedOperation {
     const FALLBACK: &str = "<truncated>";
     if FALLBACK.len() <= max_output_bytes {
-        RedactionOutput::new(
-            RedactedText::from_escaped(FALLBACK),
-            RedactionSummary::truncated(RedactionReason::OutputLimitReached),
-        )
+        RenderedOperation::truncated(FALLBACK, RedactionReason::OutputLimitReached)
     } else {
-        RedactionOutput::new(
-            RedactedText::from_escaped(""),
-            RedactionSummary::truncated(RedactionReason::OutputLimitReached),
-        )
+        RenderedOperation::truncated("", RedactionReason::OutputLimitReached)
     }
 }
 

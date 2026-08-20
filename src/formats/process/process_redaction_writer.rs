@@ -13,14 +13,15 @@ use std::ffi::OsStr;
 use super::admitted_command_items::AdmittedCommandItems;
 use super::admitted_environment_pairs::AdmittedEnvironmentPairs;
 use super::command_items::CommandItems;
-use crate::RedactionCompletion;
 use crate::RedactionHandle;
+use crate::RedactionReason;
 use crate::RedactionSession;
 use crate::formats::argv::ArgvItem;
 use crate::formats::argv::ArgvRedactionWriter;
 use crate::formats::argv::redaction::redact_heuristically_with_policy;
 use crate::formats::env::EnvRedactionWriter;
 use crate::formats::env::redaction::redact_os_pairs_with_policy;
+use crate::runtime::RenderedOperation;
 
 /// A borrowed process-command facade over one active redaction transaction.
 ///
@@ -120,9 +121,7 @@ impl<'session> ProcessRedactionWriter<'session> {
                 return self.exhausted_handle();
             }
             if !self.session.admit_format_node(1) {
-                return self
-                    .session
-                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+                return self.session.stage_accounted_text(String::new());
             }
             let policy = self.session.policy().clone();
             let remaining = self.session.remaining_output_bytes();
@@ -137,11 +136,14 @@ impl<'session> ProcessRedactionWriter<'session> {
                 (output, command.failed)
             };
             if command_failed {
-                return self
-                    .session
-                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+                return self.session.stage_accounted_text(String::new());
             }
-            let remaining = remaining.saturating_sub(argv.text().as_str().len());
+            let remaining = remaining.saturating_sub(argv.text().len());
+            if remaining == 0 {
+                return self.session.stage_rendered_operation(
+                    argv.merge(RenderedOperation::exhausted("", RedactionReason::OutputLimitReached)),
+                );
+            }
             let (environment, environment_failed) = {
                 let mut pairs = AdmittedEnvironmentPairs {
                     session: self.session,
@@ -153,16 +155,9 @@ impl<'session> ProcessRedactionWriter<'session> {
                 (output, pairs.failed)
             };
             if environment_failed {
-                return self
-                    .session
-                    .stage_accounted_text(crate::RedactedText::from_escaped(String::new()));
+                return self.session.stage_accounted_text(String::new());
             }
-            let text = format!("{}{}", argv.text().as_str(), environment.text().as_str());
-            let summary = argv.summary().merge(*environment.summary());
-            self.session.stage_item(crate::RedactionOutput::new(
-                crate::RedactedText::from_escaped(text),
-                summary,
-            ))
+            self.session.stage_rendered_operation(argv.merge(environment))
         })();
         self.session.end_item_summary(owns_item_summary);
         handle
@@ -225,10 +220,7 @@ impl<'session> ProcessRedactionWriter<'session> {
 
     #[must_use]
     fn exhausted_handle(&mut self) -> RedactionHandle {
-        self.session.stage_format_text(
-            crate::RedactedText::from_escaped(String::new()),
-            RedactionCompletion::Exhausted,
-        )
+        self.session.stage_exhausted_handle()
     }
 }
 
