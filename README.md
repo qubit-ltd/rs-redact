@@ -83,11 +83,11 @@ active transaction and continues unwinding.
 - Bounded UTF-8 and log-safe output. Budget exhaustion and invalid formats
   fail closed and are reported in the summary instead of aborting `finish()`.
 
-This crate does not infer sensitivity from arbitrary value contents. In derive
-implementations, an unannotated field is emitted unredacted, while
-`#[redact(skip)]` emits no field access or output. Every newly added business
-field must be reviewed. `RedactionWriter::unredacted` is an explicit trust
-boundary and must never receive secrets.
+This crate does not infer sensitivity from arbitrary value contents. Every
+newly added business field must be reviewed. `RedactionWriter::unredacted` is
+an explicit trust boundary and must never receive secrets. For dynamic maps,
+`RedactionFields::map` classifies each entry by its own key through the active
+policy.
 
 ## Migration from the Pre-Transaction API
 
