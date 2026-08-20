@@ -478,6 +478,29 @@ fn test_handle_result_consumes_the_shared_output_budget() {
     assert_eq!(output.summary().usage().output_bytes(), 0);
 }
 
+/// Verifies that later handle requests reuse one canonical exhausted item
+/// instead of growing the transaction item arena after output has closed.
+#[test]
+fn test_exhausted_handle_requests_reuse_one_published_item() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            let _ = limits.max_output_bytes(0);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
+
+    let first = session.redact_field("first", "value");
+    let second = session.redact_field("second", "value");
+    let output = session.finish();
+
+    assert_eq!(first, second);
+    let item = output.resolve(first).expect("exhausted handle resolves");
+    assert!(item.text().as_str().is_empty());
+    assert_eq!(item.summary().completion(), RedactionCompletion::Exhausted);
+}
+
 /// Verifies that an unredacted aggregate field is bounded after log escaping,
 /// rather than after its source representation has already been retained.
 #[test]
