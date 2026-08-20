@@ -9,8 +9,8 @@
 
 use std::ffi::OsStr;
 
-use super::env_redactor::redact_os_pairs_with_policy;
-use super::env_redactor::redact_pair_with_policy;
+use super::redaction::redact_os_pairs_with_policy;
+use super::redaction::redact_pair_with_policy;
 use crate::RedactionHandle;
 use crate::RedactionSession;
 

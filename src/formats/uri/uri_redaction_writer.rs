@@ -7,7 +7,7 @@
 // =============================================================================
 //! URI operations backed by one mutable diagnostic session.
 
-use super::uri_redactor::redact_uri_with_limit;
+use super::redaction::redact_uri_with_limit;
 use crate::RedactionHandle;
 use crate::RedactionOutput;
 use crate::RedactionSession;

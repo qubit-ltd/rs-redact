@@ -1,7 +1,7 @@
 multiple-public-types | src/domain/redact.rs | Domain marker and redaction contract are one scalar domain boundary.
 multiple-public-types | src/policy/masking/masking_policy.rs | Masking builder and immutable policy share one validated snapshot.
 multiple-public-types | src/policy/redaction_limits.rs | Aggregate limit builder and immutable snapshot share one policy boundary.
-multiple-public-types | src/formats/http/http_redactor.rs | The policy executor and private rendered fragment form one HTTP adapter boundary.
+multiple-public-types | src/formats/http/redaction.rs | The policy executor and private rendered fragment form one HTTP adapter boundary.
 multiple-public-types | src/runtime/redaction_handle.rs | A transaction-owned handle and its resolution error form one opaque item boundary.
 multiple-public-types | src/domain/redaction_writer.rs | Structured writer and its field scope form one domain output boundary.
 multiple-public-types | src/facade/redaction_summary.rs | Summary, reason, and usage types form one public execution-report boundary.

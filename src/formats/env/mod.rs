@@ -8,6 +8,6 @@
 //! Redaction adapters for environment-variable diagnostics.
 
 mod env_redaction_writer;
-pub(crate) mod env_redactor;
+pub(crate) mod redaction;
 
 pub use env_redaction_writer::EnvRedactionWriter;
