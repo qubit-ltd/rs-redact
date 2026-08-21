@@ -15,6 +15,7 @@ use super::bounded_json_redaction::redacted_json_text_bounded;
 use crate::RedactionHandle;
 use crate::RedactionSession;
 use crate::output::log_escape::escape_log_control_characters;
+use crate::runtime::OperationSink;
 use crate::runtime::RenderedOperation;
 
 /// Admits every JSON node and collection element through the supplied
@@ -98,21 +99,21 @@ pub(crate) fn json_output_from_bounded(
     if output_text.len() > max_output_bytes {
         let fallback = "<truncated>";
         let mut output = if fallback.len() <= max_output_bytes {
-            RenderedOperation::truncated(fallback, crate::RedactionReason::OutputLimitReached)
+            OperationSink::truncated(fallback, crate::RedactionReason::OutputLimitReached)
         } else {
-            RenderedOperation::exhausted(String::new(), crate::RedactionReason::OutputLimitReached)
+            OperationSink::exhausted(String::new(), crate::RedactionReason::OutputLimitReached)
         };
         if invalid_json {
             output = output.with_reason(crate::RedactionReason::InvalidJson);
         }
-        return output;
+        return output.finish();
     }
     if raw_truncated {
-        RenderedOperation::truncated(output_text, crate::RedactionReason::OutputLimitReached)
+        OperationSink::truncated(output_text, crate::RedactionReason::OutputLimitReached).finish()
     } else if invalid_json {
-        RenderedOperation::complete_with_reason(output_text, crate::RedactionReason::InvalidJson)
+        OperationSink::complete_with_reason(output_text, crate::RedactionReason::InvalidJson).finish()
     } else {
-        RenderedOperation::complete(output_text)
+        OperationSink::complete(output_text).finish()
     }
 }
 
@@ -138,10 +139,9 @@ impl<'session> JsonRedactionWriter<'session> {
             return self;
         }
         if !admit_json_text_structure(self.session, text) {
-            self.session.append_rendered_operation(RenderedOperation::truncated(
-                "<truncated>",
-                crate::RedactionReason::TraversalLimitReached,
-            ));
+            self.session.append_rendered_operation(
+                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
+            );
             return self;
         }
         let result = self.redact_text_direct(text);

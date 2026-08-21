@@ -7,9 +7,6 @@
 // =============================================================================
 //! In-place conversion of JSON text to its compact redacted representation.
 
-use std::io;
-use std::io::Write;
-
 use serde_json::Value;
 use serde_json::from_str;
 use serde_json::to_writer;
@@ -18,6 +15,7 @@ use super::internal::JsonRedactionState;
 use super::internal::JsonUnkeyedValuePolicy;
 use crate::RedactionPolicy;
 use crate::Sensitivity;
+use crate::runtime::OperationByteSink;
 
 /// Bounded JSON text paired with whether budget enforcement omitted content.
 pub(super) enum BoundedJsonRedaction {
@@ -59,27 +57,11 @@ pub(super) fn redacted_json_text_bounded(
         }
     };
     JsonRedactionState::from_policy(policy, unkeyed).redact(&mut value);
-    /// Byte sink that rejects writes exceeding its output bound.
-    struct Bounded(Vec<u8>, usize);
-    impl Write for Bounded {
-        /// Appends bytes when the bounded sink can retain the complete write.
-        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-            if self.0.len().saturating_add(bytes.len()) > self.1 {
-                return Err(io::Error::from(io::ErrorKind::WriteZero));
-            }
-            self.0.extend_from_slice(bytes);
-            Ok(bytes.len())
-        }
-        /// Flushes the bounded sink; no buffered data exists.
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
-    }
-    let mut writer = Bounded(Vec::new(), max_output);
+    let mut writer = OperationByteSink::new(max_output);
     if to_writer(&mut writer, &value).is_err() {
         return BoundedJsonRedaction::Truncated("<truncated>".to_owned());
     }
-    BoundedJsonRedaction::Complete(String::from_utf8(writer.0).unwrap_or_else(|_| opaque_secret(policy)))
+    BoundedJsonRedaction::Complete(writer.into_string().unwrap_or_else(|| opaque_secret(policy)))
 }
 
 /// Returns the configured opaque replacement for invalid JSON text.

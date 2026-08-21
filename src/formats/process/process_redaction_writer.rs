@@ -21,7 +21,7 @@ use crate::formats::argv::ArgvRedactionWriter;
 use crate::formats::argv::redaction::redact_heuristically_with_policy;
 use crate::formats::env::EnvRedactionWriter;
 use crate::formats::env::redaction::redact_os_pairs_with_policy;
-use crate::runtime::RenderedOperation;
+use crate::runtime::OperationSink;
 
 /// A borrowed process-command facade over one active redaction transaction.
 ///
@@ -150,7 +150,7 @@ impl<'session> ProcessRedactionWriter<'session> {
             let remaining = remaining.saturating_sub(argv.text().len());
             if remaining == 0 {
                 return self.session.stage_rendered_operation(
-                    argv.merge(RenderedOperation::exhausted("", RedactionReason::OutputLimitReached)),
+                    argv.merge(OperationSink::exhausted("", RedactionReason::OutputLimitReached).finish()),
                 );
             }
             let (environment, environment_failed) = {

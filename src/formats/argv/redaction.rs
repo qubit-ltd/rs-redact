@@ -15,6 +15,7 @@ use crate::RedactionReason;
 use crate::Sensitivity;
 use crate::policy::RedactionPolicy;
 use crate::policy::ResolvedField;
+use crate::runtime::OperationSink;
 use crate::runtime::RenderedOperation;
 
 /// Redacts explicitly classified argv items with the supplied session policy.
@@ -95,7 +96,7 @@ where
         return truncated_output(max_output_bytes);
     }
     writer.push(']');
-    RenderedOperation::complete(writer)
+    OperationSink::complete(writer).finish()
 }
 
 /// Returns unpublished fallback text when argv rendering cannot retain its
@@ -103,9 +104,9 @@ where
 fn truncated_output(max_output_bytes: usize) -> RenderedOperation {
     const FALLBACK: &str = "<truncated>";
     if FALLBACK.len() <= max_output_bytes {
-        RenderedOperation::truncated(FALLBACK, RedactionReason::OutputLimitReached)
+        OperationSink::truncated(FALLBACK, RedactionReason::OutputLimitReached).finish()
     } else {
-        RenderedOperation::truncated("", RedactionReason::OutputLimitReached)
+        OperationSink::truncated("", RedactionReason::OutputLimitReached).finish()
     }
 }
 

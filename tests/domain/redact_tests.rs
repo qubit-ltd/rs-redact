@@ -5,16 +5,16 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for the [`Redact`](qubit_redact::domain::Redact) domain contract.
+//! Tests for the [`Redact`](qubit_redact::Redact) domain contract.
 
 use std::collections::BTreeMap;
 
+use qubit_redact::Redact;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
-use qubit_redact::domain::Redact;
-use qubit_redact::domain::RedactionWriter;
 /// Minimal domain value used to verify the completed transaction contract.
 struct TestDomainValue;
 

@@ -70,6 +70,47 @@ fn format_adapters_cannot_construct_published_output_models() {
     });
 }
 
+/// Format output limits must be owned by the runtime sink instead of a
+/// format-local writer with an independently stored ceiling.
+#[test]
+fn format_adapters_use_the_runtime_operation_sink() {
+    let formats = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/formats");
+    visit_rust_sources(&formats, &mut |path, source| {
+        assert!(
+            !source.contains("RenderedOperation::"),
+            "{} constructs a rendered operation outside the runtime sink",
+            path.display(),
+        );
+    });
+
+    for (path, sink) in [
+        ("src/runtime/bounded_field_writer.rs", "OperationSink"),
+        ("src/formats/uri/internal/bounded_uri_writer.rs", "OperationSink"),
+        ("src/formats/http/internal/bounded_log_writer.rs", "OperationSink"),
+        ("src/formats/http/internal/bounded_body_writer.rs", "OperationByteSink"),
+        ("src/formats/json/bounded_json_redaction.rs", "OperationByteSink"),
+    ] {
+        let source = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(path))
+            .expect("the bounded writer source must be readable");
+        assert!(source.contains(sink), "{path} must delegate its ceiling to {sink}");
+    }
+}
+
+/// Resource counters belong to the transaction budget; summaries retain only
+/// completion and provenance until publication pairs them with a snapshot.
+#[test]
+fn transaction_budget_owns_usage_while_summary_builder_owns_status() {
+    let budget = include_str!("../src/runtime/redaction_budget.rs");
+    let summary = include_str!("../src/runtime/summary_builder.rs");
+
+    assert!(budget.contains("usage: RedactionUsage"));
+    assert!(budget.contains("active_operation_usage: Option<RedactionUsage>"));
+    assert!(!summary.contains("RedactionUsage::"));
+    assert!(!summary.contains("with_added_output_bytes"));
+    assert!(!summary.contains("with_input("));
+    assert!(!summary.contains("with_collection_item"));
+}
+
 /// The structured writer exposes only the scope names fixed by the redesign;
 /// Removed aliases must not silently return.
 #[test]

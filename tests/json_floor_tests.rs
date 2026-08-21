@@ -9,7 +9,6 @@
 
 #![cfg(feature = "json")]
 
-use qubit_budget::json::JsonValueLimits;
 use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionFloor;
@@ -71,7 +70,7 @@ fn test_json_documents_share_the_parent_structural_budget() {
 fn test_json_documents_share_the_transaction_json_payload_budget() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
-            limits.json(JsonValueLimits::builder().max_payload_bytes(4).build());
+            limits.max_json_payload_bytes(4);
         })
         .expect("test limits should build")
         .build()

@@ -5,13 +5,13 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Tests for [`RedactMapValueMut`](qubit_redact::domain::RedactMapValueMut).
+//! Tests for [`RedactMapValueMut`](qubit_redact::RedactMapValueMut).
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
+use qubit_redact::RedactMapValueMut;
 use qubit_redact::RedactionPolicy;
-use qubit_redact::domain::RedactMapValueMut;
 /// Verifies in-place map redaction replaces only sensitive values.
 #[test]
 fn test_redact_map_value_mut_replaces_sensitive_value() {

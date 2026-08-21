@@ -477,10 +477,9 @@ fn test_limits_view_updates_every_shared_limit() {
 
     assert_eq!(limits.max_input_bytes(), 101);
     assert_eq!(limits.max_output_bytes(), 53);
-    assert_eq!(limits.domain().max_depth(), Some(7));
-    assert_eq!(limits.domain().max_nodes(), Some(11));
-    assert_eq!(limits.domain().max_sequence_items(), Some(13));
-    assert_eq!(limits.domain().max_map_entries(), Some(13));
+    assert_eq!(limits.max_depth(), Some(7));
+    assert_eq!(limits.max_nodes(), Some(11));
+    assert_eq!(limits.max_collection_items(), Some(13));
 }
 
 /// Verifies the grouped HTTP builder exposes independent header, query, and

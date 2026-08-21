@@ -10,12 +10,12 @@
 use std::io;
 use std::io::Write;
 
+use crate::runtime::OperationByteSink;
+
 /// Accumulates UTF-8 rendering bytes without exceeding a fixed budget.
 pub(in crate::formats::http) struct BoundedBodyWriter {
-    /// Rendered bytes accepted before the first over-budget write.
-    output: Vec<u8>,
-    /// Maximum number of rendered bytes retained in `output`.
-    max_bytes: usize,
+    /// Runtime-owned bytes accepted before the first over-budget write.
+    sink: OperationByteSink,
 }
 
 impl BoundedBodyWriter {
@@ -32,8 +32,7 @@ impl BoundedBodyWriter {
     #[inline]
     pub(in crate::formats::http) fn new(max_bytes: usize) -> Self {
         Self {
-            output: Vec::new(),
-            max_bytes,
+            sink: OperationByteSink::new(max_bytes),
         }
     }
 
@@ -45,7 +44,7 @@ impl BoundedBodyWriter {
     #[must_use]
     #[inline]
     pub(in crate::formats::http) fn into_string(self) -> Option<String> {
-        String::from_utf8(self.output).ok()
+        self.sink.into_string()
     }
 }
 
@@ -66,11 +65,7 @@ impl Write for BoundedBodyWriter {
     /// complete slice would exceed the configured limit. No partial slice is
     /// retained, so successful JSON serialization always retains valid UTF-8.
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        if self.output.len().saturating_add(buffer.len()) > self.max_bytes {
-            return Err(io::Error::from(io::ErrorKind::WriteZero));
-        }
-        self.output.extend_from_slice(buffer);
-        Ok(buffer.len())
+        self.sink.write(buffer)
     }
 
     /// Flushes this in-memory writer.
@@ -84,6 +79,6 @@ impl Write for BoundedBodyWriter {
     /// This in-memory flush operation never returns an error.
     #[inline(always)]
     fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+        self.sink.flush()
     }
 }

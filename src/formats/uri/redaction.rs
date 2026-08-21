@@ -22,6 +22,7 @@ use crate::RedactionReason;
 use crate::Sensitivity;
 use crate::output::log_escape::escape_log_control_characters;
 use crate::policy::ResolvedField;
+use crate::runtime::OperationSink;
 use crate::runtime::RenderedOperation;
 
 /// Safe replacement used when URI parsing or decoding fails.
@@ -99,9 +100,9 @@ fn finish_uri_rendering(rendered: BoundedUriWriter) -> RenderedOperation {
     let (rendered, completion) = rendered.finish_with_completion(true);
     let text = safe_text(rendered);
     match completion {
-        RedactionCompletion::Complete => RenderedOperation::complete(text),
+        RedactionCompletion::Complete => OperationSink::complete(text).finish(),
         RedactionCompletion::Truncated | RedactionCompletion::Exhausted => {
-            RenderedOperation::truncated(text, RedactionReason::OutputLimitReached)
+            OperationSink::truncated(text, RedactionReason::OutputLimitReached).finish()
         }
     }
 }
@@ -110,10 +111,12 @@ fn finish_uri_rendering(rendered: BoundedUriWriter) -> RenderedOperation {
 #[must_use]
 fn invalid_output(max_output_bytes: usize) -> RenderedOperation {
     if INVALID_URI.len() <= max_output_bytes {
-        return RenderedOperation::complete_with_reason(safe_text(INVALID_URI.to_owned()), RedactionReason::InvalidUri);
+        return OperationSink::complete_with_reason(safe_text(INVALID_URI.to_owned()), RedactionReason::InvalidUri)
+            .finish();
     }
-    RenderedOperation::truncated(String::new(), RedactionReason::OutputLimitReached)
+    OperationSink::truncated(String::new(), RedactionReason::OutputLimitReached)
         .with_reason(RedactionReason::InvalidUri)
+        .finish()
 }
 
 /// Redacts userinfo while preserving the authority's raw host and port.

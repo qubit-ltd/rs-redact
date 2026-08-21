@@ -37,6 +37,7 @@ use super::internal::nested_url::NestedUrl;
 use crate::RedactionPolicy;
 use crate::RedactionReason;
 use crate::Sensitivity;
+use crate::runtime::OperationSink;
 use crate::runtime::RenderedOperation;
 
 /// Borrows one immutable policy while executing HTTP redaction algorithms.
@@ -129,11 +130,12 @@ impl HttpPolicyExecutor<'_> {
         self.write_grouped_headers(&mut writer, values);
         let (rendered, truncated) = writer.finish();
         HttpRendered {
-            operation: if truncated {
-                RenderedOperation::truncated(rendered, RedactionReason::OutputLimitReached)
+            operation: (if truncated {
+                OperationSink::truncated(rendered, RedactionReason::OutputLimitReached)
             } else {
-                RenderedOperation::complete(rendered)
-            },
+                OperationSink::complete(rendered)
+            })
+            .finish(),
         }
     }
 
@@ -675,13 +677,13 @@ impl HttpPolicyExecutor<'_> {
             _ => None,
         };
         let mut operation = if output_truncated {
-            RenderedOperation::truncated(text, RedactionReason::OutputLimitReached)
+            OperationSink::truncated(text, RedactionReason::OutputLimitReached)
         } else if capture.is_source_truncated() {
-            RenderedOperation::truncated(text, RedactionReason::SourceTruncated)
+            OperationSink::truncated(text, RedactionReason::SourceTruncated)
         } else if budget_truncated {
-            RenderedOperation::truncated(text, RedactionReason::InputLimitReached)
+            OperationSink::truncated(text, RedactionReason::InputLimitReached)
         } else {
-            RenderedOperation::complete(text)
+            OperationSink::complete(text)
         };
         if capture.is_source_truncated() {
             operation = operation.with_reason(RedactionReason::SourceTruncated);
@@ -692,7 +694,9 @@ impl HttpPolicyExecutor<'_> {
         if let Some(reason) = provenance {
             operation = operation.with_reason(reason);
         }
-        HttpRendered { operation }
+        HttpRendered {
+            operation: operation.finish(),
+        }
     }
 }
 

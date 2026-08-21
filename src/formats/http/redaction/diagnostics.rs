@@ -11,7 +11,7 @@ use super::HttpPolicyExecutor;
 use crate::RedactionReason;
 use crate::formats::http::internal::BoundedLogWriter;
 use crate::formats::http::internal::markers;
-use crate::runtime::RenderedOperation;
+use crate::runtime::OperationSink;
 
 impl HttpPolicyExecutor<'_> {
     /// Escapes and bounds one diagnostic with an explicit output ceiling.
@@ -26,14 +26,16 @@ impl HttpPolicyExecutor<'_> {
         let _ = writer.write_str(&text);
         let (text, truncated) = writer.finish();
         let mut operation = if truncated {
-            RenderedOperation::truncated(text, RedactionReason::OutputLimitReached)
+            OperationSink::truncated(text, RedactionReason::OutputLimitReached)
         } else {
-            RenderedOperation::complete(text)
+            OperationSink::complete(text)
         };
         if let Some(reason) = provenance {
             operation = operation.with_reason(reason);
         }
-        super::HttpRendered { operation }
+        super::HttpRendered {
+            operation: operation.finish(),
+        }
     }
 
     /// Publishes an already escaped bounded URL rendering with its exact
@@ -41,11 +43,13 @@ impl HttpPolicyExecutor<'_> {
     #[must_use]
     pub(super) fn finish_rendered_url(&self, text: String, truncated: bool) -> super::HttpRendered {
         let operation = if truncated {
-            RenderedOperation::truncated(text, RedactionReason::OutputLimitReached)
+            OperationSink::truncated(text, RedactionReason::OutputLimitReached)
         } else {
-            RenderedOperation::complete(text)
+            OperationSink::complete(text)
         };
-        super::HttpRendered { operation }
+        super::HttpRendered {
+            operation: operation.finish(),
+        }
     }
 }
 
