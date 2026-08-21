@@ -255,6 +255,11 @@ composer 和 batch 使用不同的私有发布容器：
 
 不得保留一个在公共语义上同时容纳 aggregate 和 item 的输出对象。
 
+实现中，`TransactionState` 将一个 `RedactionRuntime` 与恰好一个
+`PublicationBuffer::{Text, Batch}` 组合；两种 buffer 不会同时存在。为复用格式 writer 的借用
+边界，crate-private 的 `RedactionSession` 仅充当这份私有状态的运行时 façade，按创建入口固定为
+text 或 batch 模式。它不属于公共 API，也不重新引入旧的可复用 session 语义。
+
 ### 7.3 生命周期
 
 composer 与 batch 均为单次使用：
@@ -594,7 +599,9 @@ parser 与 writer 的局部不变量。
 - domain writer 和原地脱敏；
 - feature gate 与 crate root 公共导出；
 - panic 回滚和发布原子性；
-- exact-limit、truncated、exhausted 与 malformed input。
+- exact-limit、truncated、exhausted 与 malformed input；
+- 每个直接产生 batch handle 的 format 入口在 exact-limit 后均返回可解析的 exhausted handle，且不
+  读取输入、不调用 parser 或 adapter。
 
 ### 18.3 编译测试
 

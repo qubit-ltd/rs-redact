@@ -186,6 +186,19 @@ impl RedactionSession {
         self.run_handle(|session| ArgvRedactionWriter::new(session).redact_items(items))
     }
 
+    /// Redacts heuristic argv items as one individually resolvable item.
+    #[must_use]
+    pub fn redact_heuristic_argv<'items, I>(&mut self, items: I) -> RedactionHandle
+    where
+        I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        if self.skip_aggregate_for_exhausted_output() {
+            return self.stage_exhausted_handle();
+        }
+        self.run_handle(|session| ArgvRedactionWriter::new(session).redact_heuristic_items(items))
+    }
+
     /// Runs an environment adapter while retaining the session borrow.
     pub fn env<F>(&mut self, configure: F) -> &mut Self
     where
@@ -319,6 +332,23 @@ impl RedactionSession {
             return self.stage_exhausted_handle();
         }
         self.run_handle(|session| HttpRedactionWriter::new(session).redact_body(capture, content_type))
+    }
+
+    /// Redacts one captured HTTP body with textual content-type metadata as an
+    /// individually resolvable item.
+    #[cfg(feature = "http")]
+    #[must_use]
+    pub fn redact_http_body_with_content_type_text(
+        &mut self,
+        capture: crate::formats::http::BodyCapture<'_>,
+        content_type: Option<&str>,
+    ) -> RedactionHandle {
+        if self.skip_aggregate_for_exhausted_output() {
+            return self.stage_exhausted_handle();
+        }
+        self.run_handle(|session| {
+            HttpRedactionWriter::new(session).redact_body_with_content_type_text(capture, content_type)
+        })
     }
 
     /// Runs a JSON adapter while retaining the session borrow.

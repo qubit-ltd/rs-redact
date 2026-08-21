@@ -39,7 +39,7 @@ impl RedactionHandle {
 /// Explains why a private batch publication cannot resolve a handle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RedactionHandleError {
-    /// The handle was created by a different session transaction.
+    /// The handle was created by a different redaction transaction.
     DifferentTransaction,
     /// The handle points outside the transaction's published item range.
     MissingItem,

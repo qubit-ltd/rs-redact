@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Process-command redaction built on the active transaction session.
+//! Process-command redaction built on the active redaction transaction.
 
 mod admitted_command_items;
 mod admitted_environment_pairs;

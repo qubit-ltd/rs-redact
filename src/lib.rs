@@ -44,8 +44,8 @@
 //! let _ = RedactionSummary::complete();
 //! ```
 //!
-//! The pre-0.5 transaction session is an implementation detail and cannot be
-//! imported as a public compatibility API.
+//! The removed pre-0.5 transaction API cannot be imported as a public
+//! compatibility API.
 //!
 //! ```compile_fail
 //! use qubit_redact::RedactionSession;

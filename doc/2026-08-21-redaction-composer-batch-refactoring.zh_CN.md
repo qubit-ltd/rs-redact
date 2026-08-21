@@ -262,7 +262,7 @@ impl Redactor {
 
 ### 8.1 共享与分离
 
-公共类型分离不意味着复制底层算法。建议将当前 `TransactionState` 拆成：
+公共类型分离不意味着复制底层算法。落地实现将 `TransactionState` 组织为：
 
 ```text
 RedactionRuntime
@@ -272,22 +272,18 @@ RedactionRuntime
 ├── TransactionPhase
 └── domain/format 临时 frame
 
-RedactedTextComposer
+TransactionState
 ├── RedactionRuntime
-└── TextOutputBuffer
-
-RedactionBatch
-├── RedactionRuntime
-├── BatchId
-└── Vec<staged item>
+└── PublicationBuffer::{Text(TextOutputBuffer), Batch(BatchOutputBuffer)}
 ```
 
 `RedactionRuntime` 只负责 policy、admission、预算、summary、掩码选择和格式/domain 执行上下文；
 它不决定最终结果是一段文本还是一批 item。
 
-composer 与 batch 分别拥有自己的发布缓冲区，避免继续保留一个同时包含 aggregate ranges 和
-item ranges 的 `OutputBuffer`。格式算法先产生内部 `RenderedOperation`，再由当前公共模型提交到
-对应缓冲区。
+每个 `TransactionState` 恰好选择一个发布缓冲区：composer 使用 `TextOutputBuffer`，batch 使用
+`BatchOutputBuffer`。crate-private 的 `RedactionSession` 只作为该状态的运行时 façade，用于复用
+格式 writer 的借用边界；它按创建入口固定为 text 或 batch，既不公开导出，也不同时持有 aggregate
+与 item 输出。格式算法先产生内部 `RenderedOperation`，再由当前公共模型提交到对应缓冲区。
 
 ### 8.2 唯一预算
 
@@ -297,6 +293,8 @@ item ranges 的 `OutputBuffer`。格式算法先产生内部 `RenderedOperation`
 - 安全替代文本、截断标记和控制字符转义后的最终字节都计入输出预算；
 - 进入 `OutputExhausted` 后，不再检查后续输入或调用 parser；batch 后续调用返回 canonical
   exhausted item 的 handle；composer 后续链式操作只累计可观察的 exhausted summary；
+- 此规则同样适用于由批量 facade 提供的便捷 format 方法；它们必须直接走 batch item 路径，不能
+  借 aggregate namespace 回调间接取得 handle；
 - handle 解析不复制、不重新脱敏，也不重新计费。
 
 ### 8.3 发布与 panic
@@ -414,7 +412,8 @@ batch 仍处于安全的空状态；panic 前产生的 handle 不再属于之后
 2. 聚合文本与独立 item 不再出现在同一个公共类型中；
 3. 所有格式和 domain 路径共享同一套 policy、预算、summary 与安全发布实现；
 4. 不存在旧 session/output/handle 的兼容导出；
-5. README、中文用户指南、crate docs 和核心设计文档只使用新术语；
+5. README、中文用户指南、crate docs 和核心设计文档只使用新术语；历史迁移说明以及验证已删除
+   符号不可导入的 `compile_fail` 示例除外；
 6. 默认 feature、`--all-features`、doctest、fuzz 和 CI 检查全部通过；
 7. 直接下游不再引用旧 API。
 
