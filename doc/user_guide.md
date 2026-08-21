@@ -245,10 +245,10 @@ invalid content type, and upstream truncation are safe redaction outcomes, not
 later item calls return the canonical empty exhausted item without inspecting
 their inputs.
 
-If a user-supplied writer or adapter panics, the active transaction is
-discarded, a fresh one is installed, and the panic continues. After
-`catch_unwind`, the session is reusable, but handles from the aborted event
-cannot resolve.
+If a user-supplied writer or adapter panics, the active unpublished result is
+discarded and the panic continues. A composer is consumed by unwinding. A batch
+installs a fresh empty identity, so after `catch_unwind` it is reusable while
+handles from before the panic cannot resolve.
 
 ## Troubleshooting
 
@@ -277,4 +277,4 @@ cannot resolve.
 - [README](../README.md)
 - [中文用户指南](user_guide.zh_CN.md)
 - [API documentation](https://docs.rs/qubit-redact)
-- [Transactional architecture](2026-08-19-rs-redact-transactional-redesign-design.md)
+- [Core design (Chinese)](design.zh_CN.md)

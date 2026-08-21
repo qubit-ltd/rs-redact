@@ -72,7 +72,8 @@ assert_eq!(
 分别调用各类格式化工具看似容易组合，却容易造成策略不一致：URL 与响应 body 可能使用不同
 规则，各自绕过总输出预算；在回调失败前，半成品也可能已经泄露。composer 与 batch 在
 组装期间私有保存各自结果，只有 `finish()` 才会原子发布完成结果。用户编写的脱敏逻辑发生
-panic 时，当前未发布结果会被丢弃，随后继续展开 panic。
+panic 时，当前未发布结果会被丢弃，随后继续展开 panic。捕获 batch 的 panic 后，该 batch
+处于空且可复用的状态；panic 前创建的 handle 失效。
 
 ## 核心能力
 
@@ -93,7 +94,7 @@ panic 时，当前未发布结果会被丢弃，随后继续展开 panic。
 - [中文用户指南](doc/user_guide.zh_CN.md)
 - [English user guide](doc/user_guide.md)
 - [API 文档](https://docs.rs/qubit-redact)
-- [事务式架构设计](doc/2026-08-19-rs-redact-transactional-redesign-design.md)
+- [核心设计](doc/design.zh_CN.md)
 
 ## 测试
 
