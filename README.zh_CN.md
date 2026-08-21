@@ -26,8 +26,7 @@ argv、环境变量和进程数据在默认 feature 集中即可使用。
 ## 快速开始
 
 某个 API 客户端需要记录失败原因，同时将脱敏后的 URL 交给结构化遥测。access token 绝不能
-出现在发布的文本中，而且两份结果必须共用同一组资源上限。先构建不可变 policy，再让一个
-session 承担这一轮事件：
+出现在发布的文本中。先构建不可变 policy；事件文本使用 composer，遥测值使用 batch：
 
 ```rust
 use qubit_redact::RedactionPolicy;
@@ -42,14 +41,19 @@ let policy = RedactionPolicy::builder()
     })?
     .build()?;
 
-let mut session = Redactor::new(policy).session();
-let url = session.redact_http_url(
+let redactor = Redactor::new(policy);
+let output = redactor
+    .text_composer()
+    .literal("request failed: ")
+    .field("request_id", "req-42")
+    .finish();
+
+let mut batch = redactor.batch();
+let url = batch.redact_http_url(
     "https://api.example.test/users?access_token=raw-secret",
 );
-session.literal("request failed: ").field("request_id", "req-42");
-
-let output = session.finish();
-let safe_url = output.resolve(url)?;
+let batch_output = batch.finish();
+let safe_url = batch_output.resolve(url)?;
 assert_eq!(output.text().as_str(), "request failed: req-42");
 assert_eq!(
     safe_url.text().as_str(),
@@ -59,17 +63,16 @@ assert_eq!(
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-`finish()` 是发布边界：它返回聚合文本、当前 transaction 的摘要和单项结果。
-`RedactionHandle` 是不透明句柄，只能使用创建它的那份 `RedactionSessionOutput` 解析。随后，
-同一个 session 可按原 policy 快照立即处理下一条事件。
+两类 `finish()` 都是消费式发布边界。`RedactedTextComposer` 只发布一段有序文本；
+`RedactionBatch` 只发布可由 `RedactionBatchHandle` 解析的独立结果。两者是不同场景，
+分别拥有各自的一组资源预算。
 
 ## 为什么需要这个项目
 
 分别调用各类格式化工具看似容易组合，却容易造成策略不一致：URL 与响应 body 可能使用不同
-规则，各自绕过总输出预算；在回调失败前，半成品也可能已经泄露。`RedactionSession` 会在
-组装期间私有保存整条事件。聚合 API 和单项 API 共用同一份策略和 transaction 预算，只有
-`finish()` 才会原子发布完成结果。用户编写的脱敏逻辑发生 panic 时，当前 transaction 会被
-丢弃，随后继续展开 panic。
+规则，各自绕过总输出预算；在回调失败前，半成品也可能已经泄露。composer 与 batch 在
+组装期间私有保存各自结果，只有 `finish()` 才会原子发布完成结果。用户编写的脱敏逻辑发生
+panic 时，当前未发布结果会被丢弃，随后继续展开 panic。
 
 ## 核心能力
 

@@ -11,29 +11,28 @@ secret or exceed the event budget.
 
 Use this crate when a diagnostic event contains trusted program text alongside
 untrusted fields, domain values, command lines, JSON, HTTP data, or URIs.
-Build a policy once, create a session for each independently mutable event, and
-publish only its completed output. If you only need a one-off value, the
-`Redactor::redact_*` methods create and finish that transaction for you.
+Build a policy once, create a text composer for an ordered message or a batch
+for independently resolvable values, and publish only completed output. If you
+only need a one-off value, `Redactor::redact_*` creates and finishes a batch.
 
 ## Conceptual Model
 
-Four objects define the normal path:
+Five objects define the normal path:
 
 1. `RedactionPolicy` is an immutable snapshot of field rules, masking, format
    behavior, and resource limits.
-2. `Redactor` shares that snapshot and creates sessions. `standard()` and
+2. `Redactor` shares that snapshot and creates composers and batches. `standard()` and
    `strict()` are fixed policies; `application_default()` is the snapshot used
    by `Redact::redacted()`.
-3. `RedactionSession` owns one private, mutable transaction. Aggregate calls
-   append to its event text; item calls return opaque `RedactionHandle` values.
-4. `finish()` publishes `RedactionSessionOutput`: aggregate text, a
-   `RedactionSummary`, and the item arena used to resolve handles. It also
-   starts the session's next transaction with the same policy.
+3. `RedactedTextComposer` uses consuming chained calls to build one ordered
+   `RedactionTextOutput`.
+4. `RedactionBatch` accumulates independently resolvable values through opaque
+   `RedactionBatchHandle` values and publishes `RedactionBatchOutput`.
+5. Both objects publish through consuming `finish()` and own separate budgets.
 
 ```text
-policy snapshot -> reusable session -> private transaction -> finish()
-                                      |                    -> aggregate text
-                                      +-> opaque handles   -> resolved items
+policy snapshot -> Redactor -> text_composer() -> ordered text -> RedactionTextOutput
+                            └-> batch()         -> handles -> RedactionBatchOutput
 ```
 
 The summary records completion (`Complete`, `Truncated`, or `Exhausted`),
@@ -91,8 +90,8 @@ remain visible.
 
 ### Build the event and resolve item results
 
-Aggregate operations return `&mut RedactionSession`; item operations return a
-handle. Neither form publishes text before `finish()`.
+The composer only publishes text; the batch only publishes resolvable items.
+They do not mix and do not share a budget.
 
 ```rust
 use http::HeaderValue;
@@ -101,22 +100,25 @@ use qubit_redact::Redactor;
 use qubit_redact::formats::http::BodyCapture;
 
 # let policy = RedactionPolicy::strict();
-let mut session = Redactor::new(policy).session();
-let url = session.redact_http_url(
+let redactor = Redactor::new(policy);
+let output = redactor
+    .text_composer()
+    .literal("request failed: ")
+    .field("request_id", "req-42")
+    .finish();
+
+let mut batch = redactor.batch();
+let url = batch.redact_http_url(
     "https://api.example.test/users?access_token=raw-token",
 );
 let content_type = HeaderValue::from_static("application/json");
-let body = session.redact_http_body(
+let body = batch.redact_http_body(
     BodyCapture::complete(br#"{"password":"raw-password"}"#),
     Some(&content_type),
 );
-session
-    .literal("request failed: ")
-    .field("request_id", "req-42");
-
-let output = session.finish();
-let safe_url = output.resolve(url)?;
-let safe_body = output.resolve(body)?;
+let batch_output = batch.finish();
+let safe_url = batch_output.resolve(url)?;
+let safe_body = batch_output.resolve(body)?;
 
 assert_eq!(output.text().as_str(), "request failed: <redacted>");
 assert_eq!(
@@ -124,35 +126,34 @@ assert_eq!(
     "https://api.example.test/<redacted>?access_token=%3Credacted%3E",
 );
 assert_eq!(safe_body.text().as_str(), r#"{"password":"<redacted>"}"#);
-assert_eq!(output.summary().usage().output_bytes(),
-           output.text().as_str().len()
-               + safe_url.text().as_str().len()
-               + safe_body.text().as_str().len());
+assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());
+assert_eq!(batch_output.summary().usage().output_bytes(),
+           safe_url.text().as_str().len() + safe_body.text().as_str().len());
 
-# Ok::<(), qubit_redact::RedactionHandleError>(())
+# Ok::<(), qubit_redact::RedactionBatchHandleError>(())
 ```
 
-Aggregate text and handle items use the same transaction accounting, but they
-are intentionally separate outputs. Resolving a handle with another event's
-output returns `DifferentTransaction`.
+Aggregate text and batch items are intentionally separate outputs. Resolving a
+handle with another batch's output returns `DifferentBatch`.
 
-### Reuse the session
+### Create a new object for each publication
 
-Finishing an event immediately installs the next transaction:
+Composers and batches are single-use. Create another object from the same
+redactor for the next publication:
 
 ```rust
 use qubit_redact::Redactor;
 
-let mut session = Redactor::strict().session();
-let first = session.literal("first").finish();
-let second = session.literal("second").finish();
+let redactor = Redactor::strict();
+let first = redactor.text_composer().literal("first").finish();
+let second = redactor.text_composer().literal("second").finish();
 
 assert_eq!(first.text().as_str(), "first");
 assert_eq!(second.text().as_str(), "second");
 ```
 
-Keep a session local to one mutable workflow. Share `Redactor` values and their
-immutable policy snapshots instead.
+Keep each composer or batch local to one workflow. Share `Redactor` values and
+their immutable policy snapshots instead.
 
 ### Describe domain values explicitly
 
@@ -190,17 +191,18 @@ to another `Redact` value, and `json` follows the active JSON policy. Use
 
 ### Format families and one-shot operations
 
-Every family uses the same transaction runtime. Sessions expose aggregate
-namespaces and item methods; `Redactor::redact_*` provides a one-shot path.
+Every family uses the same runtime implementation. Composers expose aggregate
+namespaces, batches expose item methods, and `Redactor::redact_*` provides a
+one-shot path.
 
 | Format | Aggregate namespace | Representative item method |
 | --- | --- | --- |
-| argv | `session.argv(...)` | `session.redact_argv(items)` |
-| environment | `session.env(...)` | `session.redact_env(name, value)` |
-| process | `session.process(...)` | `session.redact_process(...)` |
-| JSON | `session.json(...)` | `session.redact_json(text)` |
-| HTTP | `session.http(...)` | `redact_http_url/body/headers` |
-| URI | `session.uri(...)` | `session.redact_uri(text)` |
+| argv | `composer.argv(...)` | `batch.redact_argv(items)` |
+| environment | `composer.env(...)` | `batch.redact_env(name, value)` |
+| process | `composer.process(...)` | `batch.redact_process(...)` |
+| JSON | `composer.json(...)` | `batch.redact_json(text)` |
+| HTTP | `composer.http(...)` | `batch.redact_http_url/body/headers` |
+| URI | `composer.uri(...)` | `batch.redact_uri(text)` |
 
 Collection operations create one handle for the collection while each element
 still consumes collection and structural accounting. HTTP keeps URL, headers,
@@ -220,8 +222,8 @@ let _ = Redactor::replace_application_default(previous);
 assert_eq!(current, Redactor::strict());
 ```
 
-Existing redactors and sessions retain their previous snapshots. Readers see a
-complete old policy or a complete new policy, never a mixture.
+Existing redactors, composers, and batches retain their previous snapshots.
+Readers see a complete old policy or a complete new policy, never a mixture.
 
 ### Report upstream truncation honestly
 
@@ -233,8 +235,8 @@ unknown.
 
 ## Errors and Diagnostics
 
-Policy construction can return `PolicyError`. Resolving a handle can return
-`DifferentTransaction` or `MissingItem`.
+Policy construction can return `PolicyError`. Resolving a batch handle can
+return `DifferentBatch` or `MissingItem`.
 
 Input/output/structural limits, invalid JSON or URI, unsupported content,
 invalid content type, and upstream truncation are safe redaction outcomes, not
@@ -252,8 +254,8 @@ cannot resolve.
 
 - **An item is empty and exhausted.** Inspect `OutputLimitReached`; increase
   `max_output_bytes` or reduce earlier output in that event.
-- **`DifferentTransaction` is returned.** Resolve the handle using the exact
-  `RedactionSessionOutput` returned by the `finish()` that followed its call.
+- **`DifferentBatch` is returned.** Resolve the handle using the exact
+  `RedactionBatchOutput` returned by the `batch.finish()` that followed its call.
 - **Cleartext is visible unexpectedly.** Inspect explicit `unredacted` calls
   and unannotated derived fields; neither is corrected by runtime field rules.
 - **Output truncates too early.** Compare presented and inspected input,
@@ -266,10 +268,9 @@ cannot resolve.
 - Pass only program-authored `&'static str` text to `literal`; dynamic text
   must enter a redaction operation.
 - Review each new domain field and every use of `unredacted`.
-- Size limits for the entire diagnostic event, including separately resolved
-  items.
-- Consider only text from `finish()` or a returned `RedactionOutput` to be the
-  final typed redaction boundary.
+- Size limits cover one composer text or one batch of items independently.
+- Consider only `RedactionTextOutput` or values resolved from a
+  `RedactionBatchOutput` to be final typed redaction boundaries.
 
 ## Further Reading
 
