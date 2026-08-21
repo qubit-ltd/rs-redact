@@ -30,7 +30,7 @@ impl<'session> EnvRedactionWriter<'session> {
 
     /// Redacts one pair into the parent session's aggregate output.
     pub fn pair(&mut self, name: &str, value: &str) -> &mut Self {
-        if self.session.is_output_exhausted() {
+        if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
         if !self.session.admit_format_node(1)
@@ -56,7 +56,7 @@ impl<'session> EnvRedactionWriter<'session> {
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
         I::IntoIter: ExactSizeIterator,
     {
-        if self.session.is_output_exhausted() {
+        if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
         let Some(pairs) = self.collect_admitted_pairs(pairs) else {

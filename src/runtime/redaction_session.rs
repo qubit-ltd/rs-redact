@@ -827,8 +827,9 @@ impl RedactionSession {
     /// An exact prior write remains complete until a later operation is
     /// attempted. A zero-sized transaction has no such prior write, so its
     /// first skipped operation must still publish the output-limit failure.
+    #[must_use]
     #[inline(always)]
-    fn skip_aggregate_for_exhausted_output(&mut self) -> bool {
+    pub(crate) fn skip_aggregate_for_exhausted_output(&mut self) -> bool {
         if !self.is_output_exhausted() {
             return false;
         }

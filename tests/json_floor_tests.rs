@@ -121,6 +121,40 @@ fn test_json_invalid_input_reports_safe_invalid_json_result() {
     assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
 }
 
+/// Empty input is invalid JSON, so it must preserve parser provenance rather
+/// than being mistaken for an input-budget admission failure.
+#[test]
+fn test_json_empty_input_reports_safe_invalid_json_result() {
+    let output = Redactor::strict().redact_json("");
+
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
+}
+
+/// The composer path must retain invalid-JSON provenance for an empty
+/// document instead of treating it as an omitted input prefix.
+#[test]
+fn test_json_composer_empty_input_reports_safe_invalid_json_result() {
+    let output = Redactor::strict()
+        .text_composer()
+        .json(|json| {
+            json.text("");
+        })
+        .finish();
+
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
+}
+
+/// The batch path must retain invalid-JSON provenance for an empty document.
+#[test]
+fn test_json_batch_empty_input_reports_safe_invalid_json_result() {
+    let mut batch = Redactor::strict().batch();
+    let handle = batch.redact_json("");
+    let output = batch.finish();
+    let item = output.resolve(handle).expect("the completed batch resolves its handle");
+
+    assert!(item.summary().reasons().contains(RedactionReason::InvalidJson));
+}
+
 /// The JSON handle path must preserve parser provenance and publish the
 /// replacement only when its enclosing transaction finishes.
 #[test]

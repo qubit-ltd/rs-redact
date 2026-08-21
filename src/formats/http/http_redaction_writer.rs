@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Mutable HTTP façade over one [`RedactionSession`].
+//! Mutable HTTP façade over one active redaction transaction.
 
 use http::HeaderMap;
 use http::HeaderValue;
@@ -32,11 +32,12 @@ impl<'session> HttpRedactionWriter<'session> {
 
     /// Redacts a URL string into the parent session's aggregate output.
     pub fn url(&mut self, value: &str) -> &mut Self {
-        if self.session.is_output_exhausted() || !self.session.admit_format_node(1) {
+        if self.session.skip_aggregate_for_exhausted_output() || !self.session.admit_format_node(1) {
             return self;
         }
+        let input_was_empty = value.is_empty();
         let value = self.session.admit_input_prefix(value);
-        if value.is_empty() {
+        if value.is_empty() && !input_was_empty {
             return self;
         }
         if !self.admit_url_structure(value) {
@@ -62,8 +63,9 @@ impl<'session> HttpRedactionWriter<'session> {
             if !self.session.admit_format_node(1) {
                 return self.stage_accounted_text(String::new());
             }
+            let input_was_empty = value.is_empty();
             let value = self.session.admit_input_prefix(value);
-            if value.is_empty() {
+            if value.is_empty() && !input_was_empty {
                 return self.stage_accounted_text(String::new());
             }
             if !self.admit_url_structure(value) {
@@ -167,7 +169,7 @@ impl<'session> HttpRedactionWriter<'session> {
     /// source iterator stops as soon as any shared structural or input limit
     /// rejects an entry, so the renderer never observes the suffix.
     fn collect_admitted_headers(&mut self, headers: &HeaderMap) -> Option<HeaderMap> {
-        if self.session.is_output_exhausted() || !self.session.admit_format_node(1) {
+        if self.session.skip_aggregate_for_exhausted_output() || !self.session.admit_format_node(1) {
             return None;
         }
         // Header count has not yet passed the shared collection admission
@@ -206,7 +208,7 @@ impl<'session> HttpRedactionWriter<'session> {
     /// A bounded body result with completion and capture metadata.
     #[must_use]
     pub fn body(&mut self, capture: BodyCapture<'_>, content_type: Option<&HeaderValue>) -> &mut Self {
-        if self.session.is_output_exhausted()
+        if self.session.skip_aggregate_for_exhausted_output()
             || !admit_body_input(self.session, capture, content_type.map(|v| v.as_bytes().len()))
         {
             return self;
@@ -274,7 +276,9 @@ impl<'session> HttpRedactionWriter<'session> {
     /// A bounded body result with completion and capture metadata.
     #[must_use]
     pub fn body_with_content_type_text(&mut self, capture: BodyCapture<'_>, content_type: Option<&str>) -> &mut Self {
-        if self.session.is_output_exhausted() || !admit_body_input(self.session, capture, content_type.map(str::len)) {
+        if self.session.skip_aggregate_for_exhausted_output()
+            || !admit_body_input(self.session, capture, content_type.map(str::len))
+        {
             return self;
         }
         if !self.admit_body_structure(capture, content_type.map(str::as_bytes)) {

@@ -116,6 +116,39 @@ fn test_http_direct_handle_and_redactor_convenience_operations() {
     assert!(headers_output.text().as_str().contains("authorization"));
 }
 
+/// Empty input is not a valid absolute URL and must retain the parser's safe
+/// invalid-URI provenance on the public one-shot path.
+#[test]
+fn test_http_empty_url_reports_safe_invalid_uri_result() {
+    let output = Redactor::strict().redact_http_url("");
+
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
+}
+
+/// The composer path must retain invalid-URI provenance for an empty URL.
+#[test]
+fn test_http_composer_empty_url_reports_safe_invalid_uri_result() {
+    let output = Redactor::strict()
+        .text_composer()
+        .http(|http| {
+            http.url("");
+        })
+        .finish();
+
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
+}
+
+/// The batch path must retain invalid-URI provenance for an empty URL.
+#[test]
+fn test_http_batch_empty_url_reports_safe_invalid_uri_result() {
+    let mut batch = Redactor::strict().batch();
+    let handle = batch.redact_http_url("");
+    let output = batch.finish();
+    let item = output.resolve(handle).expect("the completed batch resolves its handle");
+
+    assert!(item.summary().reasons().contains(RedactionReason::InvalidUri));
+}
+
 /// Verifies URL rendering receives only the output capacity still available
 /// to its parent transaction rather than an independent unbounded ceiling.
 #[test]

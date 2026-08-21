@@ -129,11 +129,12 @@ impl<'session> JsonRedactionWriter<'session> {
 
     /// Redacts JSON text into the parent session's aggregate output.
     pub fn text(&mut self, text: &str) -> &mut Self {
-        if self.session.is_output_exhausted() {
+        if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
+        let input_was_empty = text.is_empty();
         let text = self.session.admit_input_prefix(text);
-        if text.is_empty() {
+        if text.is_empty() && !input_was_empty {
             return self;
         }
         if !admit_json_text_structure(self.session, text) {
@@ -156,8 +157,9 @@ impl<'session> JsonRedactionWriter<'session> {
             if self.session.is_output_exhausted() {
                 return self.session.stage_exhausted_handle();
             }
+            let input_was_empty = text.is_empty();
             let text = self.session.admit_input_prefix(text);
-            if text.is_empty() {
+            if text.is_empty() && !input_was_empty {
                 return self.session.stage_accounted_text(String::new());
             }
             if !admit_json_text_structure(self.session, text) {

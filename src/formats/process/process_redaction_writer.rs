@@ -86,16 +86,16 @@ impl<'session> ProcessRedactionWriter<'session> {
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
         E::IntoIter: ExactSizeIterator,
     {
-        if self.session.is_output_exhausted() {
+        if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
         let arguments = arguments.into_iter();
         let mut argv = ArgvRedactionWriter::new(self.session);
         argv.heuristic_items(CommandItems::new(ArgvItem::plain(program), arguments));
-        if !self.session.is_output_exhausted()
-            && self.session.can_admit_format_node(1)
-            && self.session.can_admit_format_collection_item()
-        {
+        if self.session.skip_aggregate_for_exhausted_output() {
+            return self;
+        }
+        if self.session.can_admit_format_node(1) && self.session.can_admit_format_collection_item() {
             let mut environment = EnvRedactionWriter::new(self.session);
             environment.os_pairs(variables);
         }
