@@ -20,11 +20,12 @@ fn argv_rendering_is_bounded_by_the_transaction_policy() {
         .expect("limits draft")
         .build()
         .expect("policy");
-    let mut session = Redactor::new(policy).session();
-    session.argv(|argv| {
-        argv.items([ArgvItem::plain(OsStr::new("client"))]);
-    });
-    let output = session.finish();
+    let output = Redactor::new(policy)
+        .text_composer()
+        .argv(|argv| {
+            argv.items([ArgvItem::plain(OsStr::new("client"))]);
+        })
+        .finish();
 
     assert!(output.text().as_str().len() <= 2);
 }

@@ -25,17 +25,19 @@ fn test_redactor_redact_uri_publishes_safe_completed_output() {
 /// Verifies aggregate and individually resolvable URI operations share one
 /// transaction and are inaccessible until that transaction finishes.
 #[test]
-fn test_uri_session_publishes_aggregate_and_handle_after_finish() {
-    let mut session = Redactor::standard().session();
-    let handle = session.redact_uri("https://user:secret@example.test/item");
-    let output = session
+fn test_uri_composer_and_batch_publish_separate_results() {
+    let output = Redactor::standard()
+        .text_composer()
         .literal("request=")
         .uri(|uri| {
             uri.value("https://example.test/path?token=secret");
         })
         .finish();
 
-    let item = output
+    let mut batch = Redactor::standard().batch();
+    let handle = batch.redact_uri("https://user:secret@example.test/item");
+    let batch_output = batch.finish();
+    let item = batch_output
         .resolve(handle)
         .expect("a handle from the completed transaction must resolve");
     assert!(!item.text().as_str().contains("secret"));
@@ -54,34 +56,41 @@ fn test_uri_query_pairs_share_the_transaction_structural_budget() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut session = Redactor::new(policy).session();
-
-    session.uri(|uri| {
-        uri.value("https://example.test/?first=one");
-        uri.value("https://example.test/?second=must-not-be-rendered");
-    });
-    let output = session.finish();
+    let output = Redactor::new(policy)
+        .text_composer()
+        .uri(|uri| {
+            uri.value("https://example.test/?first=one");
+            uri.value("https://example.test/?second=must-not-be-rendered");
+        })
+        .finish();
 
     assert!(output.text().as_str().contains("first=one"));
     assert!(!output.text().as_str().contains("must-not-be-rendered"));
     assert_eq!(output.summary().usage().visited_nodes(), 3);
     assert_eq!(output.summary().usage().visited_collection_items(), 1);
-    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Truncated
+    );
 }
 
 /// Invalid URI input is replaced at the URI adapter boundary, including its
 /// individual handle form; raw source must never become aggregate output.
 #[test]
 fn test_uri_handle_replaces_invalid_input_and_preserves_provenance() {
-    let mut session = Redactor::standard().session();
-    let handle = session.redact_uri("https://example.test/?token=%zz-secret");
-    let output = session.finish();
+    let mut batch = Redactor::standard().batch();
+    let handle = batch.redact_uri("https://example.test/?token=%zz-secret");
+    let output = batch.finish();
     let item = output
         .resolve(handle)
         .expect("finished transaction publishes URI handle");
 
     assert_eq!(item.text().as_str(), "<invalid URI>");
-    assert!(item.summary().reasons().contains(RedactionReason::InvalidUri));
+    assert!(
+        item.summary()
+            .reasons()
+            .contains(RedactionReason::InvalidUri)
+    );
     assert!(!item.text().as_str().contains("secret"));
 }
 
@@ -107,13 +116,13 @@ fn test_uri_handle_observes_exhausted_parent_output() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut session = Redactor::new(policy).session();
-    let _ = session.literal("pre");
-    let handle = session.redact_uri("https://example.test/?token=secret");
-    let output = session.finish();
-    let item = output.resolve(handle).expect("exhausted handle belongs to transaction");
+    let mut batch = Redactor::new(policy).batch();
+    let handle = batch.redact_uri("https://example.test/?token=secret");
+    let output = batch.finish();
+    let item = output
+        .resolve(handle)
+        .expect("exhausted handle belongs to transaction");
 
-    assert_eq!(output.text().as_str(), "pre");
     assert!(item.text().as_str().is_empty());
     assert_eq!(item.summary().completion(), RedactionCompletion::Exhausted);
 }

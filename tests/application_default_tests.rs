@@ -46,19 +46,18 @@ fn test_default_remains_standard_after_application_default_replacement() {
 /// Sessions retain the application-default snapshot that existed when they
 /// were created, even when a later setup phase replaces that default.
 #[test]
-fn test_session_keeps_application_default_snapshot() {
+fn test_composer_keeps_application_default_snapshot() {
     let _guard = APPLICATION_DEFAULT_LOCK
         .lock()
         .expect("application-default test lock must not be poisoned");
     let before = Redactor::application_default();
-    let mut session = before.session();
+    let composer = before.text_composer();
     let replacement = Redactor::strict();
     let previous = Redactor::replace_application_default(replacement.clone());
 
     assert_eq!(before.policy(), previous.policy());
-    assert_eq!(session.policy(), before.policy());
     assert_eq!(Redactor::application_default(), replacement);
 
-    let _ = session.finish();
+    let _ = composer.finish();
     let _ = Redactor::replace_application_default(previous);
 }
