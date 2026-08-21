@@ -12,16 +12,18 @@
 //! # Qubit Redact
 //!
 //! Policy-driven, bounded redaction for fields, domain values, and diagnostic
-//! formats. A [`RedactionSession`] is a reusable atomic transaction: aggregate
-//! APIs append to one result, item APIs return [`RedactionHandle`]s, and only
-//! [`RedactionSession::finish`] publishes text and resets the session.
+//! formats. [`RedactedTextComposer`] builds one ordered text result, while
+//! [`RedactionBatch`] builds independently resolvable results. Each object is
+//! single-use and publishes only through its consuming `finish` method.
 //!
 //! ```
 //! use qubit_redact::Redactor;
 //!
-//! let mut session = Redactor::strict().session();
-//! session.literal("password=").field("password", "raw-secret");
-//! let output = session.finish();
+//! let output = Redactor::strict()
+//!     .text_composer()
+//!     .literal("password=")
+//!     .field("password", "raw-secret")
+//!     .finish();
 //! assert!(!output.text().as_str().contains("raw-secret"));
 //! ```
 //!
@@ -44,7 +46,7 @@
 //!
 //! The domain-level rendering traits do not provide an alternate output path.
 //! Domain values must be written through [`Redact`] and a
-//! [`RedactionSession`].
+//! [`RedactedTextComposer`] or [`RedactionBatch`].
 //!
 //! ```compile_fail
 //! use qubit_redact::domain::RedactValue;
@@ -64,10 +66,15 @@ mod serde_feature_gate;
 pub use domain::Redact;
 pub use domain::RedactionWriter;
 pub use facade::RedactedText;
-pub use facade::RedactionOutput;
+pub use facade::RedactedTextComposer;
+pub use facade::RedactionBatch;
+pub use facade::RedactionBatchHandle;
+pub use facade::RedactionBatchHandleError;
+pub use facade::RedactionBatchOutput;
 pub use facade::RedactionReason;
 pub use facade::RedactionReasons;
 pub use facade::RedactionSummary;
+pub use facade::RedactionTextOutput;
 pub use facade::RedactionUsage;
 pub use facade::Redactor;
 pub use output::RedactionCompletion;
@@ -93,7 +100,7 @@ pub use policy::Sensitivity;
 #[cfg(feature = "json")]
 pub use policy::UnkeyedJsonValuePolicy;
 pub use policy::UnknownFieldPolicy;
-pub use runtime::RedactionHandle;
-pub use runtime::RedactionHandleError;
-pub use runtime::RedactionSession;
-pub use runtime::RedactionSessionOutput;
+
+pub(crate) use runtime::RedactionHandle;
+pub(crate) use runtime::RedactionHandleError;
+pub(crate) use runtime::RedactionSession;

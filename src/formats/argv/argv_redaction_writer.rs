@@ -64,7 +64,7 @@ impl<'session> ArgvRedactionWriter<'session> {
 
     /// Redacts items as one individually resolvable transaction item.
     #[must_use]
-    pub fn redact_items<'items, I>(&mut self, items: I) -> RedactionHandle
+    pub(crate) fn redact_items<'items, I>(&mut self, items: I) -> RedactionHandle
     where
         I: IntoIterator<Item = ArgvItem<'items>>,
         I::IntoIter: ExactSizeIterator,
@@ -89,7 +89,7 @@ impl<'session> ArgvRedactionWriter<'session> {
 
     /// Redacts heuristic items as one individually resolvable transaction item.
     #[must_use]
-    pub fn redact_heuristic_items<'items, I>(&mut self, items: I) -> RedactionHandle
+    pub(crate) fn redact_heuristic_items<'items, I>(&mut self, items: I) -> RedactionHandle
     where
         I: IntoIterator<Item = ArgvItem<'items>>,
         I::IntoIter: ExactSizeIterator,

@@ -12,10 +12,12 @@ use std::ffi::OsStr;
 use std::sync::Arc;
 use std::sync::PoisonError;
 
+use crate::RedactedTextComposer;
+use crate::RedactionBatch;
 use crate::RedactionPolicy;
-use crate::RedactionSession;
 use crate::domain::Redact;
-use crate::facade::RedactionOutput;
+use crate::facade::RedactionTextOutput;
+use crate::runtime::RedactionSession;
 
 /// Applies one immutable policy to scalar values and string maps.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,7 +55,7 @@ impl Redactor {
     ///
     /// The returned value is detached from the global slot. Later calls to
     /// [`Self::replace_application_default`] do not alter this redactor or
-    /// sessions created from it.
+    /// composers and batches created from it.
     #[must_use]
     pub fn application_default() -> Self {
         match crate::facade::default_redactor::slot().read() {
@@ -66,7 +68,7 @@ impl Redactor {
     ///
     /// The replacement is linearizable: concurrent readers observe either the
     /// complete previous snapshot or the complete new snapshot. Existing
-    /// redactors and sessions keep their own snapshots. The previous default
+    /// redactors, composers, and batches keep their own snapshots. The previous default
     /// is returned so callers can restore it after a scoped change.
     #[must_use]
     pub fn replace_application_default(redactor: Self) -> Self {
@@ -79,13 +81,13 @@ impl Redactor {
 
     /// Redacts one domain value into final text and an execution summary.
     #[must_use]
-    pub fn redact<T>(&self, value: &T) -> crate::RedactionOutput
+    pub fn redact<T>(&self, value: &T) -> crate::RedactionTextOutput
     where
         T: Redact + ?Sized,
     {
-        let mut session = self.session();
-        let handle = session.redact_value(value);
-        session
+        let mut batch = self.batch();
+        let handle = batch.redact_value(value);
+        batch
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
@@ -111,38 +113,54 @@ impl Redactor {
         self.policy.as_ref()
     }
 
-    /// Creates mutable accounting for one diagnostic event.
+    /// Creates private accounting for one text-composition operation.
     ///
     /// # Returns
     ///
-    /// A session owning a clone of this redactor's immutable policy snapshot.
+    /// A private runtime owning a clone of this redactor's immutable policy snapshot.
     #[must_use]
     #[inline]
-    pub fn session(&self) -> RedactionSession {
-        RedactionSession::from_snapshot(Arc::clone(&self.policy))
+    pub(crate) fn text_runtime(&self) -> RedactionSession {
+        RedactionSession::from_text_snapshot(Arc::clone(&self.policy))
+    }
+
+    /// Creates the private runtime selected for independently resolvable items.
+    #[must_use]
+    pub(crate) fn batch_runtime(&self) -> RedactionSession {
+        RedactionSession::from_batch_snapshot(Arc::clone(&self.policy))
+    }
+
+    #[must_use]
+    pub fn text_composer(&self) -> RedactedTextComposer {
+        RedactedTextComposer::from_session(self.text_runtime())
+    }
+
+    #[must_use]
+    pub fn batch(&self) -> RedactionBatch {
+        RedactionBatch::from_session(self.batch_runtime())
     }
 
     /// Redacts one scalar field through a complete one-item transaction.
     #[must_use]
-    pub fn redact_field(&self, field: &str, value: &str) -> RedactionOutput {
-        let mut session = self.session();
-        let handle = session.redact_field(field, value);
-        session
+    pub fn redact_field(&self, field: &str, value: &str) -> RedactionTextOutput {
+        let mut batch = self.batch();
+        let handle = batch.redact_field(field, value);
+        batch
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
     }
 
-    /// Redacts an argument vector through one completed session transaction.
+    /// Redacts an argument vector through one completed batch operation.
     #[must_use]
-    pub fn redact_argv<'items, I>(&self, items: I) -> RedactionOutput
+    pub fn redact_argv<'items, I>(&self, items: I) -> RedactionTextOutput
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
         I::IntoIter: ExactSizeIterator,
     {
-        let mut session = self.session();
-        let handle = session.redact_argv(items);
-        session
+        let mut batch = self.batch();
+        let handle = batch.redact_argv(items);
+        batch
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
@@ -150,10 +168,10 @@ impl Redactor {
 
     /// Redacts one environment assignment through one completed transaction.
     #[must_use]
-    pub fn redact_env(&self, name: &str, value: &str) -> RedactionOutput {
-        let mut session = self.session();
-        let handle = session.redact_env(name, value);
-        session
+    pub fn redact_env(&self, name: &str, value: &str) -> RedactionTextOutput {
+        let mut batch = self.batch();
+        let handle = batch.redact_env(name, value);
+        batch
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
@@ -161,14 +179,14 @@ impl Redactor {
 
     /// Redacts environment assignments through one completed transaction.
     #[must_use]
-    pub fn redact_env_pairs<'items, I>(&self, pairs: I) -> RedactionOutput
+    pub fn redact_env_pairs<'items, I>(&self, pairs: I) -> RedactionTextOutput
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
         I::IntoIter: ExactSizeIterator,
     {
-        let mut session = self.session();
-        let handle = session.redact_env_pairs(pairs);
-        session
+        let mut batch = self.batch();
+        let handle = batch.redact_env_pairs(pairs);
+        batch
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
@@ -181,16 +199,16 @@ impl Redactor {
         program: &'arguments OsStr,
         arguments: A,
         variables: E,
-    ) -> RedactionOutput
+    ) -> RedactionTextOutput
     where
         A: IntoIterator<Item = crate::formats::argv::ArgvItem<'arguments>>,
         A::IntoIter: ExactSizeIterator,
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
         E::IntoIter: ExactSizeIterator,
     {
-        let mut session = self.session();
-        let handle = session.redact_process(program, arguments, variables);
-        session
+        let mut batch = self.batch();
+        let handle = batch.redact_process(program, arguments, variables);
+        batch
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
@@ -199,10 +217,10 @@ impl Redactor {
     /// Redacts JSON text through one completed session transaction.
     #[cfg(feature = "json")]
     #[must_use]
-    pub fn redact_json(&self, text: &str) -> RedactionOutput {
-        let mut session = self.session();
-        let handle = session.redact_json(text);
-        session
+    pub fn redact_json(&self, text: &str) -> RedactionTextOutput {
+        let mut batch = self.batch();
+        let handle = batch.redact_json(text);
+        batch
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
@@ -211,10 +229,10 @@ impl Redactor {
     /// Redacts an HTTP URL through one completed session transaction.
     #[cfg(feature = "http")]
     #[must_use]
-    pub fn redact_http_url(&self, value: &str) -> RedactionOutput {
-        let mut session = self.session();
-        let handle = session.redact_http_url(value);
-        session
+    pub fn redact_http_url(&self, value: &str) -> RedactionTextOutput {
+        let mut batch = self.batch();
+        let handle = batch.redact_http_url(value);
+        batch
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
@@ -223,10 +241,10 @@ impl Redactor {
     /// Redacts an HTTP header collection through one completed transaction.
     #[cfg(feature = "http")]
     #[must_use]
-    pub fn redact_http_headers(&self, headers: &http::HeaderMap) -> RedactionOutput {
-        let mut session = self.session();
-        let handle = session.redact_http_headers(headers);
-        session
+    pub fn redact_http_headers(&self, headers: &http::HeaderMap) -> RedactionTextOutput {
+        let mut batch = self.batch();
+        let handle = batch.redact_http_headers(headers);
+        batch
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
@@ -240,10 +258,10 @@ impl Redactor {
         &self,
         capture: crate::formats::http::BodyCapture<'_>,
         content_type: Option<&http::HeaderValue>,
-    ) -> RedactionOutput {
-        let mut session = self.session();
-        let handle = session.redact_http_body(capture, content_type);
-        session
+    ) -> RedactionTextOutput {
+        let mut batch = self.batch();
+        let handle = batch.redact_http_body(capture, content_type);
+        batch
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
@@ -252,10 +270,10 @@ impl Redactor {
     /// Redacts a URI through one completed session transaction.
     #[cfg(feature = "uri")]
     #[must_use]
-    pub fn redact_uri(&self, input: &str) -> RedactionOutput {
-        let mut session = self.session();
-        let handle = session.redact_uri(input);
-        session
+    pub fn redact_uri(&self, input: &str) -> RedactionTextOutput {
+        let mut batch = self.batch();
+        let handle = batch.redact_uri(input);
+        batch
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
