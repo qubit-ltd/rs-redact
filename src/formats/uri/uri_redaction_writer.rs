@@ -25,7 +25,7 @@ impl<'session> UriRedactionWriter<'session> {
 
     /// Redacts a URI into the parent session's aggregate output.
     pub fn value(&mut self, value: &str) -> &mut Self {
-        if self.session.is_output_exhausted() {
+        if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
         let value = self.session.admit_input_prefix(value);

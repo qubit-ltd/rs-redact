@@ -33,7 +33,7 @@ impl<'session> ArgvRedactionWriter<'session> {
         I: IntoIterator<Item = ArgvItem<'items>>,
         I::IntoIter: ExactSizeIterator,
     {
-        if self.session.is_output_exhausted() {
+        if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
         let Some(items) = self.collect_admitted_items(items) else {
@@ -50,7 +50,7 @@ impl<'session> ArgvRedactionWriter<'session> {
         I: IntoIterator<Item = ArgvItem<'items>>,
         I::IntoIter: ExactSizeIterator,
     {
-        if self.session.is_output_exhausted() {
+        if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
         let Some(items) = self.collect_admitted_items(items) else {
