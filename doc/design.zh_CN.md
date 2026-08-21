@@ -14,7 +14,8 @@
 拆分的迁移细节见
 [`2026-08-21-redaction-composer-batch-refactoring.zh_CN.md`](2026-08-21-redaction-composer-batch-refactoring.zh_CN.md)。
 
-本文描述目标设计，不表示当前工作树中的所有符号已经完成迁移。
+本文描述当前公开 API 的设计。运行时可以保留不向调用方公开的实现辅助类型，但不得以兼容层
+重新导出旧的 session、handle 或 output API。
 
 ## 2. 项目目标与边界
 
@@ -137,9 +138,9 @@ composer 只生成一段文本，不产生 handle，也不承担结构化事件�
 
 ```rust
 let mut batch = redactor.batch();
-let user = batch.value(&user);
-let url = batch.http_url(raw_url);
-let headers = batch.http_headers(&headers);
+let user = batch.redact_value(&user);
+let url = batch.redact_http_url(raw_url);
+let headers = batch.redact_http_headers(&headers);
 
 let output = batch.finish();
 let safe_user = output.resolve(user)?;

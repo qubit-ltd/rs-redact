@@ -28,9 +28,9 @@ are available with the default feature set.
 ## Quick Start
 
 An API client wants one failure message and a separately retained URL for
-telemetry. The access token must never be published, and both values must use
-the same limits. Build the immutable policy once, then let one session own the
-event:
+telemetry. The access token must never be published. Build the immutable policy
+once; use a text composer for the message and a batch for independently
+resolvable telemetry values:
 
 ```rust
 use qubit_redact::RedactionPolicy;
@@ -45,14 +45,19 @@ let policy = RedactionPolicy::builder()
     })?
     .build()?;
 
-let mut session = Redactor::new(policy).session();
-let url = session.redact_http_url(
+let redactor = Redactor::new(policy);
+let output = redactor
+    .text_composer()
+    .literal("request failed: ")
+    .field("request_id", "req-42")
+    .finish();
+
+let mut batch = redactor.batch();
+let url = batch.redact_http_url(
     "https://api.example.test/users?access_token=raw-secret",
 );
-session.literal("request failed: ").field("request_id", "req-42");
-
-let output = session.finish();
-let safe_url = output.resolve(url)?;
+let batch_output = batch.finish();
+let safe_url = batch_output.resolve(url)?;
 assert_eq!(output.text().as_str(), "request failed: req-42");
 assert_eq!(
     safe_url.text().as_str(),
@@ -62,20 +67,21 @@ assert_eq!(
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-`finish()` is the publication boundary: it returns aggregate text, the
-transaction summary, and the item results. An opaque `RedactionHandle` can be
-resolved only with the `RedactionSessionOutput` that created it. The session is
-then ready for the next event with the same policy snapshot.
+Both consuming `finish()` methods are publication boundaries.
+`RedactedTextComposer` publishes one ordered `RedactionTextOutput`;
+`RedactionBatch` publishes independently resolvable items through opaque
+`RedactionBatchHandle` values and `RedactionBatchOutput`. The two objects own
+separate resource budgets.
 
 ## Why This Project Exists
 
 Independent formatting helpers are easy to compose but easy to get wrong: a
 URL and a response body can use different rules, each can consume an unrelated
 output allowance, and partially rendered data can escape before a callback
-fails. `RedactionSession` keeps an event private while it is being assembled.
-All aggregate and item operations share one policy and transaction budget;
-`finish()` publishes the completed result atomically. If user redaction code
-panics, the active transaction is discarded and unwinding continues.
+fails. The composer and batch keep their respective work private while it is
+being assembled, and `finish()` atomically publishes the completed result. If
+user redaction code panics, the active unpublished result is discarded and
+unwinding continues.
 
 ## What It Provides
 
@@ -83,8 +89,8 @@ panics, the active transaction is discarded and unwinding continues.
   and fail-closed `strict()` policies.
 - Transactional configuration of field rules, masking, limits, and enabled
   HTTP/URI/JSON behavior.
-- Aggregate text APIs and separately resolved item APIs for argv, environment,
-  process, JSON, HTTP, and URI data.
+- `RedactedTextComposer` APIs for aggregate text and `RedactionBatch` APIs for
+  independently resolved argv, environment, process, JSON, HTTP, and URI data.
 - Explicit domain rendering through `Redact` and `RedactionWriter`.
 - Machine-readable completion, reasons, and usage in `RedactionSummary`.
 - UTF-8, log-safe output that safely degrades when an input, output, or
@@ -101,7 +107,7 @@ format in isolation.
 - [English user guide](doc/user_guide.md)
 - [中文用户指南](doc/user_guide.zh_CN.md)
 - [API documentation](https://docs.rs/qubit-redact)
-- [Transactional architecture](doc/2026-08-19-rs-redact-transactional-redesign-design.md)
+- [核心设计（中文）](doc/design.zh_CN.md)
 
 ## Testing
 

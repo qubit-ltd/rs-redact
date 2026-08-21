@@ -127,26 +127,26 @@ batch 方法借用 `&mut self` 并返回 handle：
 
 ```rust
 impl RedactionBatch {
-    pub fn field(&mut self, field: &str, value: &str) -> RedactionBatchHandle;
-    pub fn value<T: Redact + ?Sized>(&mut self, value: &T) -> RedactionBatchHandle;
-    pub fn argv<'a, I>(&mut self, items: I) -> RedactionBatchHandle;
-    pub fn env(&mut self, name: &str, value: &str) -> RedactionBatchHandle;
-    pub fn env_pairs<'a, I>(&mut self, pairs: I) -> RedactionBatchHandle;
-    pub fn process<'a, 'b, A, E>(
+    pub fn redact_field(&mut self, field: &str, value: &str) -> RedactionBatchHandle;
+    pub fn redact_value<T: Redact + ?Sized>(&mut self, value: &T) -> RedactionBatchHandle;
+    pub fn redact_argv<'a, I>(&mut self, items: I) -> RedactionBatchHandle;
+    pub fn redact_env(&mut self, name: &str, value: &str) -> RedactionBatchHandle;
+    pub fn redact_env_pairs<'a, I>(&mut self, pairs: I) -> RedactionBatchHandle;
+    pub fn redact_process<'a, 'b, A, E>(
         &mut self,
         program: &'a OsStr,
         arguments: A,
         variables: E,
     ) -> RedactionBatchHandle;
-    pub fn json(&mut self, text: &str) -> RedactionBatchHandle;
-    pub fn http_url(&mut self, value: &str) -> RedactionBatchHandle;
-    pub fn http_headers(&mut self, headers: &HeaderMap) -> RedactionBatchHandle;
-    pub fn http_body(
+    pub fn redact_json(&mut self, text: &str) -> RedactionBatchHandle;
+    pub fn redact_http_url(&mut self, value: &str) -> RedactionBatchHandle;
+    pub fn redact_http_headers(&mut self, headers: &HeaderMap) -> RedactionBatchHandle;
+    pub fn redact_http_body(
         &mut self,
         capture: BodyCapture<'_>,
         content_type: Option<&HeaderValue>,
     ) -> RedactionBatchHandle;
-    pub fn uri(&mut self, value: &str) -> RedactionBatchHandle;
+    pub fn redact_uri(&mut self, value: &str) -> RedactionBatchHandle;
 
     pub fn finish(self) -> RedactionBatchOutput;
 }
@@ -160,10 +160,10 @@ impl RedactionBatch {
 ```rust
 let mut batch = redactor.batch();
 
-let user = batch.value(&user);
-let payload = batch.json(json);
-let headers = batch.http_headers(&headers);
-let url = batch.http_url(url);
+let user = batch.redact_value(&user);
+let payload = batch.redact_json(json);
+let headers = batch.redact_http_headers(&headers);
+let url = batch.redact_http_url(url);
 
 let output = batch.finish();
 let safe_user = output.resolve(user)?;
@@ -329,7 +329,7 @@ batch 仍处于安全的空状态；panic 前产生的 handle 不再属于之后
 | --- | --- |
 | `Redactor::session()` | `Redactor::text_composer()` 或 `Redactor::batch()` |
 | `RedactionSession` 聚合方法 | `RedactedTextComposer` 消费式链式方法 |
-| `RedactionSession::redact_*()` | `RedactionBatch` 无 `redact_` 前缀的方法 |
+| `RedactionSession::redact_*()` | `RedactionBatch::redact_*()` 方法 |
 | `RedactionSession::finish()` 聚合结果 | `RedactedTextComposer::finish()` |
 | `RedactionSession::finish()` item 结果 | `RedactionBatch::finish()` |
 | `RedactionOutput` | `RedactionTextOutput` |
