@@ -74,21 +74,31 @@
 //! [`RedactedTextComposer`] or [`RedactionBatch`].
 //!
 //! ```compile_fail
-//! use qubit_redact::domain::RedactValue;
+//! use qubit_redact::domain::Redact;
+//! ```
+//!
+//! ```compile_fail
+//! use qubit_redact::policy::RedactionPolicy;
 //! ```
 
 extern crate self as qubit_redact;
 
-pub mod domain;
+mod domain;
 mod facade;
 pub mod formats;
 mod json_feature_gate;
 mod output;
-pub mod policy;
+mod policy;
 pub(crate) mod runtime;
 mod serde_feature_gate;
 
 pub use domain::Redact;
+pub use domain::RedactMapValueMut;
+pub use domain::RedactMut;
+pub use domain::RedactValueMut;
+pub use domain::RedactionEntries;
+pub use domain::RedactionFields;
+pub use domain::RedactionItems;
 pub use domain::RedactionWriter;
 pub use facade::RedactedText;
 pub use facade::RedactedTextComposer;
@@ -107,6 +117,11 @@ pub use policy::AllowRule;
 pub use policy::FieldClassification;
 pub use policy::FieldMatchKind;
 pub use policy::FieldNameMatching;
+pub use policy::FieldsBuilder;
+#[cfg(feature = "http")]
+pub use policy::HttpContextBuilderView;
+#[cfg(feature = "http")]
+pub use policy::HttpPolicyBuilderView;
 pub use policy::MaskPolicy;
 pub use policy::MaskingPolicy;
 pub use policy::MaskingPolicyBuilder;
@@ -125,6 +140,8 @@ pub use policy::Sensitivity;
 #[cfg(feature = "json")]
 pub use policy::UnkeyedJsonValuePolicy;
 pub use policy::UnknownFieldPolicy;
+#[cfg(feature = "uri")]
+pub use policy::UriPolicyBuilderView;
 pub(crate) use runtime::RedactionHandle;
 pub(crate) use runtime::RedactionHandleError;
 pub(crate) use runtime::RedactionSession;

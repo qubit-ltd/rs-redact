@@ -10,6 +10,7 @@
 use super::redaction::redact_uri_with_limit;
 use crate::RedactionHandle;
 use crate::RedactionSession;
+use crate::runtime::OperationSink;
 use crate::runtime::RenderedOperation;
 
 /// URI facade borrowing one diagnostic session.
@@ -33,10 +34,9 @@ impl<'session> UriRedactionWriter<'session> {
             return self;
         }
         if !self.admit_uri_structure(value) {
-            self.session.append_rendered_operation(RenderedOperation::truncated(
-                "<truncated>",
-                crate::RedactionReason::TraversalLimitReached,
-            ));
+            self.session.append_rendered_operation(
+                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
+            );
             return self;
         }
         let result = self.redact_uri_direct(value);

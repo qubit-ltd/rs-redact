@@ -15,6 +15,7 @@ use crate::Sensitivity;
 use crate::output::log_escape::escape_log_control_characters;
 use crate::policy::RedactionPolicy;
 use crate::policy::ResolvedField;
+use crate::runtime::OperationSink;
 use crate::runtime::RenderedOperation;
 
 /// Redacts one UTF-8 environment-variable pair with a borrowed policy.
@@ -66,21 +67,21 @@ where
     if locally_truncated {
         const FALLBACK: &str = "<truncated>";
         return if FALLBACK.len() <= max_output_bytes {
-            RenderedOperation::truncated(FALLBACK, RedactionReason::OutputLimitReached)
+            OperationSink::truncated(FALLBACK, RedactionReason::OutputLimitReached).finish()
         } else {
-            RenderedOperation::truncated("", RedactionReason::OutputLimitReached)
+            OperationSink::truncated("", RedactionReason::OutputLimitReached).finish()
         };
     }
     if writer.len().saturating_add(1) > max_output_bytes {
         const FALLBACK: &str = "<truncated>";
         return if FALLBACK.len() <= max_output_bytes {
-            RenderedOperation::truncated(FALLBACK, RedactionReason::OutputLimitReached)
+            OperationSink::truncated(FALLBACK, RedactionReason::OutputLimitReached).finish()
         } else {
-            RenderedOperation::truncated("", RedactionReason::OutputLimitReached)
+            OperationSink::truncated("", RedactionReason::OutputLimitReached).finish()
         };
     }
     writer.push(']');
-    RenderedOperation::complete(writer)
+    OperationSink::complete(writer).finish()
 }
 
 /// Renders one unpublished environment assignment without materializing a
@@ -95,12 +96,12 @@ fn render_pair_output(
     if locally_truncated || rendered.len() > max_output_bytes {
         const FALLBACK: &str = "<truncated>";
         return if FALLBACK.len() <= max_output_bytes {
-            RenderedOperation::truncated(FALLBACK, RedactionReason::OutputLimitReached)
+            OperationSink::truncated(FALLBACK, RedactionReason::OutputLimitReached).finish()
         } else {
-            RenderedOperation::truncated("", RedactionReason::OutputLimitReached)
+            OperationSink::truncated("", RedactionReason::OutputLimitReached).finish()
         };
     }
-    RenderedOperation::complete(rendered)
+    OperationSink::complete(rendered).finish()
 }
 
 /// Renders one environment pair while bounding its materialized mask.

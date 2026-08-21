@@ -17,7 +17,7 @@ use super::internal::nested_url::NestedUrl;
 use super::redaction::url_rules;
 use crate::RedactionHandle;
 use crate::RedactionSession;
-use crate::runtime::RenderedOperation;
+use crate::runtime::OperationSink;
 
 /// Feature-gated HTTP operations sharing one mutable diagnostic session.
 pub struct HttpRedactionWriter<'session> {
@@ -41,10 +41,9 @@ impl<'session> HttpRedactionWriter<'session> {
             return self;
         }
         if !self.admit_url_structure(value) {
-            self.session.append_rendered_operation(RenderedOperation::truncated(
-                "<truncated>",
-                crate::RedactionReason::TraversalLimitReached,
-            ));
+            self.session.append_rendered_operation(
+                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
+            );
             return self;
         }
         let result = self.redact_url_str_direct(value);
@@ -214,10 +213,9 @@ impl<'session> HttpRedactionWriter<'session> {
             return self;
         }
         if !self.admit_body_structure(capture, content_type.map(|value| value.as_bytes())) {
-            self.session.append_rendered_operation(RenderedOperation::truncated(
-                "<truncated>",
-                crate::RedactionReason::TraversalLimitReached,
-            ));
+            self.session.append_rendered_operation(
+                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
+            );
             return self;
         }
         let remaining = self.session.remaining_output_bytes();
@@ -282,10 +280,9 @@ impl<'session> HttpRedactionWriter<'session> {
             return self;
         }
         if !self.admit_body_structure(capture, content_type.map(str::as_bytes)) {
-            self.session.append_rendered_operation(RenderedOperation::truncated(
-                "<truncated>",
-                crate::RedactionReason::TraversalLimitReached,
-            ));
+            self.session.append_rendered_operation(
+                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
+            );
             return self;
         }
         let remaining = self.session.remaining_output_bytes();

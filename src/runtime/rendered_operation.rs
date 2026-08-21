@@ -20,49 +20,14 @@ pub(crate) struct RenderedOperation {
 }
 
 impl RenderedOperation {
-    /// Creates a complete rendered operation without degradation provenance.
+    /// Creates an unpublished operation from the runtime sink's final state.
     #[must_use]
-    pub(crate) fn complete(text: impl Into<String>) -> Self {
+    pub(super) const fn from_parts(text: String, completion: RedactionCompletion, reasons: RedactionReasons) -> Self {
         Self {
-            text: text.into(),
-            completion: RedactionCompletion::Complete,
-            reasons: RedactionReasons::empty(),
+            text,
+            completion,
+            reasons,
         }
-    }
-
-    /// Creates a complete rendered operation with non-degrading provenance.
-    #[must_use]
-    #[cfg(any(feature = "json", feature = "http", feature = "uri"))]
-    pub(crate) fn complete_with_reason(text: impl Into<String>, reason: RedactionReason) -> Self {
-        Self::complete(text).with_reason(reason)
-    }
-
-    /// Creates a truncated rendered operation.
-    #[must_use]
-    pub(crate) fn truncated(text: impl Into<String>, reason: RedactionReason) -> Self {
-        Self {
-            text: text.into(),
-            completion: RedactionCompletion::Truncated,
-            reasons: RedactionReasons::empty().with(reason),
-        }
-    }
-
-    /// Creates an exhausted rendered operation.
-    #[must_use]
-    pub(crate) fn exhausted(text: impl Into<String>, reason: RedactionReason) -> Self {
-        Self {
-            text: text.into(),
-            completion: RedactionCompletion::Exhausted,
-            reasons: RedactionReasons::empty().with(reason),
-        }
-    }
-
-    /// Adds provenance without weakening the existing completion state.
-    #[must_use]
-    #[cfg(any(feature = "json", feature = "http", feature = "uri"))]
-    pub(crate) fn with_reason(mut self, reason: RedactionReason) -> Self {
-        self.reasons = self.reasons.with(reason);
-        self
     }
 
     /// Borrows the unpublished rendered text.

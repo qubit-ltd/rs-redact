@@ -147,6 +147,21 @@ impl RedactionUsage {
         self
     }
 
+    /// Records one admitted structural node.
+    #[must_use]
+    pub(crate) const fn with_domain_node(mut self, depth: usize) -> Self {
+        self.visited_nodes = self.visited_nodes.saturating_add(1);
+        self.max_depth = if self.max_depth > depth { self.max_depth } else { depth };
+        self
+    }
+
+    /// Records one admitted collection item.
+    #[must_use]
+    pub(crate) const fn with_collection_item(mut self) -> Self {
+        self.visited_collection_items = self.visited_collection_items.saturating_add(1);
+        self
+    }
+
     /// Merges two independently measured operation usages.
     #[must_use]
     const fn merge(self, other: Self) -> Self {
@@ -210,6 +225,20 @@ pub struct RedactionSummary {
 }
 
 impl RedactionSummary {
+    /// Creates a summary from runtime-owned completion, reasons, and usage.
+    #[must_use]
+    pub(crate) const fn from_parts(
+        completion: RedactionCompletion,
+        reasons: RedactionReasons,
+        usage: RedactionUsage,
+    ) -> Self {
+        Self {
+            completion,
+            reasons,
+            usage,
+        }
+    }
+
     /// Merges completion and reasons from two operations.
     #[must_use]
     pub(crate) const fn merge(self, other: Self) -> Self {
@@ -282,51 +311,5 @@ impl RedactionSummary {
             reasons: RedactionReasons::empty().with(reason),
             usage: RedactionUsage::empty(),
         }
-    }
-
-    /// Adds bytes written to the transaction's final output buffer.
-    #[must_use]
-    pub(crate) const fn with_added_output_bytes(mut self, bytes: usize) -> Self {
-        self.usage = self.usage.with_added_output_bytes(bytes);
-        self
-    }
-
-    /// Records format input presented to this summary.
-    #[must_use]
-    pub(crate) const fn with_input(mut self, presented: usize, inspected: usize) -> Self {
-        self.usage = self.usage.with_input(presented, inspected);
-        self
-    }
-
-    /// Records source-aware input use, preserving unknown omitted lengths.
-    #[cfg(feature = "http")]
-    #[must_use]
-    pub(crate) const fn with_source_input(
-        mut self,
-        presented: usize,
-        inspected: usize,
-        omitted: Option<usize>,
-    ) -> Self {
-        self.usage = self.usage.with_source_input(presented, inspected, omitted);
-        self
-    }
-
-    /// Records one structural node admitted by the shared transaction.
-    #[must_use]
-    pub(crate) const fn with_domain_node(mut self, depth: usize) -> Self {
-        self.usage.visited_nodes = self.usage.visited_nodes.saturating_add(1);
-        self.usage.max_depth = if self.usage.max_depth > depth {
-            self.usage.max_depth
-        } else {
-            depth
-        };
-        self
-    }
-
-    /// Records one admitted collection item.
-    #[must_use]
-    pub(crate) const fn with_collection_item(mut self) -> Self {
-        self.usage.visited_collection_items = self.usage.visited_collection_items.saturating_add(1);
-        self
     }
 }

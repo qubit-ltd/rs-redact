@@ -14,13 +14,16 @@ use qubit_budget::json::JsonValueBudget;
 #[cfg(feature = "json")]
 use serde_json::Value;
 
+use super::StructuralBudget;
 use crate::RedactionLimits;
-use crate::domain::internal::DomainRedactionContext;
+use crate::RedactionUsage;
 
 /// The single mutable budget ledger for an active transaction.
 pub(super) struct RedactionBudget {
     output_limit: usize,
-    domain_context: DomainRedactionContext,
+    structural: StructuralBudget,
+    usage: RedactionUsage,
+    active_operation_usage: Option<RedactionUsage>,
     #[cfg(feature = "json")]
     json_budget: JsonValueBudget,
 }
@@ -31,9 +34,11 @@ impl RedactionBudget {
     pub(super) fn new(limits: &RedactionLimits) -> Self {
         Self {
             output_limit: limits.max_output_bytes(),
-            domain_context: DomainRedactionContext::new(limits.domain()),
+            structural: StructuralBudget::new(limits.structural_limits()),
+            usage: RedactionUsage::empty(),
+            active_operation_usage: None,
             #[cfg(feature = "json")]
-            json_budget: limits.json().budget(),
+            json_budget: limits.json_limits().budget(),
         }
     }
 
@@ -43,13 +48,82 @@ impl RedactionBudget {
         self.output_limit
     }
 
-    pub(super) fn domain_context(&mut self) -> &mut DomainRedactionContext {
-        &mut self.domain_context
+    /// Returns cumulative resource use for the active transaction.
+    #[must_use]
+    pub(super) const fn usage(&self) -> RedactionUsage {
+        self.usage
+    }
+
+    /// Starts resource accounting for one individually published operation.
+    pub(super) fn begin_operation_usage(&mut self) -> bool {
+        if self.active_operation_usage.is_some() {
+            return false;
+        }
+        self.active_operation_usage = Some(RedactionUsage::empty());
+        true
+    }
+
+    /// Returns the active operation's resource snapshot.
+    #[must_use]
+    pub(super) const fn active_operation_usage(&self) -> Option<RedactionUsage> {
+        self.active_operation_usage
+    }
+
+    /// Ends resource accounting for an individually published operation.
+    pub(super) fn end_operation_usage(&mut self, owns_operation: bool) {
+        if owns_operation {
+            self.active_operation_usage = None;
+        }
+    }
+
+    /// Records retained safe output bytes.
+    pub(super) fn record_output_bytes(&mut self, bytes: usize) {
+        self.usage = self.usage.with_added_output_bytes(bytes);
+        if let Some(usage) = self.active_operation_usage {
+            self.active_operation_usage = Some(usage.with_added_output_bytes(bytes));
+        }
+    }
+
+    /// Records ordinary presented and inspected input bytes.
+    pub(super) fn record_input(&mut self, presented: usize, inspected: usize) {
+        self.usage = self.usage.with_input(presented, inspected);
+        if let Some(usage) = self.active_operation_usage {
+            self.active_operation_usage = Some(usage.with_input(presented, inspected));
+        }
+    }
+
+    /// Records source-aware input accounting.
+    #[cfg(feature = "http")]
+    pub(super) fn record_source_input(&mut self, presented: usize, inspected: usize, omitted: Option<usize>) {
+        self.usage = self.usage.with_source_input(presented, inspected, omitted);
+        if let Some(usage) = self.active_operation_usage {
+            self.active_operation_usage = Some(usage.with_source_input(presented, inspected, omitted));
+        }
+    }
+
+    /// Records one admitted structural node.
+    pub(super) fn record_structural_node(&mut self, depth: usize) {
+        self.usage = self.usage.with_domain_node(depth);
+        if let Some(usage) = self.active_operation_usage {
+            self.active_operation_usage = Some(usage.with_domain_node(depth));
+        }
+    }
+
+    /// Records one admitted collection item.
+    pub(super) fn record_collection_item(&mut self) {
+        self.usage = self.usage.with_collection_item();
+        if let Some(usage) = self.active_operation_usage {
+            self.active_operation_usage = Some(usage.with_collection_item());
+        }
+    }
+
+    pub(super) fn structural(&mut self) -> &mut StructuralBudget {
+        &mut self.structural
     }
 
     /// Borrows the structural ledger for non-mutating admission queries.
-    pub(super) const fn domain_context_ref(&self) -> &DomainRedactionContext {
-        &self.domain_context
+    pub(super) const fn structural_ref(&self) -> &StructuralBudget {
+        &self.structural
     }
 
     #[cfg(feature = "json")]

@@ -5,31 +5,26 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Private domain traversal state backed by [`qubit_budget::StructureBudget`].
-// qubit-style: allow multiple-public-types
+//! Transaction-owned structural accounting backed by
+//! [`qubit_budget::StructureBudget`].
 
 use qubit_budget::StructureBudget;
 use qubit_budget::StructureLimits;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DomainEntry {
-    Entered,
-    DepthLimitReached,
-    TraversalLimitReached,
-}
+use super::structural_entry::StructuralEntry;
 
-/// Tracks one value's independent structural traversal budget.
+/// Tracks the shared structural resources of one redaction transaction.
 #[derive(Debug)]
-pub(crate) struct DomainRedactionContext {
+pub(crate) struct StructuralBudget {
     budget: StructureBudget,
     current_depth: usize,
     max_depth: Option<usize>,
     traversal_closed: bool,
     collection_items_seen: usize,
-    maximum_depth_observed: usize,
 }
 
-impl DomainRedactionContext {
+impl StructuralBudget {
+    /// Creates the structural ledger from immutable transaction limits.
     #[must_use]
     pub(crate) fn new(limits: StructureLimits) -> Self {
         Self {
@@ -38,26 +33,26 @@ impl DomainRedactionContext {
             max_depth: limits.max_depth(),
             traversal_closed: false,
             collection_items_seen: 0,
-            maximum_depth_observed: 0,
         }
     }
 
-    pub(crate) fn enter_value(&mut self) -> DomainEntry {
+    /// Enters an explicitly nested domain value.
+    pub(crate) fn enter_value(&mut self) -> StructuralEntry {
         if self.traversal_closed {
-            return DomainEntry::TraversalLimitReached;
+            return StructuralEntry::TraversalLimitReached;
         }
         if self.max_depth.is_some_and(|max_depth| self.current_depth >= max_depth) {
-            return DomainEntry::DepthLimitReached;
+            return StructuralEntry::DepthLimitReached;
         }
         if self.budget.enter_node(self.current_depth.saturating_add(1)).is_err() {
             self.close_traversal();
-            return DomainEntry::TraversalLimitReached;
+            return StructuralEntry::TraversalLimitReached;
         }
         self.current_depth += 1;
-        self.maximum_depth_observed = self.maximum_depth_observed.max(self.current_depth);
-        DomainEntry::Entered
+        StructuralEntry::Entered
     }
 
+    /// Charges one field node without changing the nesting depth.
     pub(crate) fn admit_field(&mut self) -> bool {
         if self.traversal_closed {
             return false;
@@ -69,23 +64,22 @@ impl DomainRedactionContext {
         true
     }
 
-    /// Charges one non-domain structural node to this transaction's shared
-    /// budget without changing the domain writer's active nesting scope.
-    pub(crate) fn admit_format_node(&mut self, depth: usize) -> DomainEntry {
+    /// Charges a format node without changing domain nesting depth.
+    pub(crate) fn admit_format_node(&mut self, depth: usize) -> StructuralEntry {
         if self.traversal_closed {
-            return DomainEntry::TraversalLimitReached;
+            return StructuralEntry::TraversalLimitReached;
         }
         if self.max_depth.is_some_and(|max_depth| depth > max_depth) {
-            return DomainEntry::DepthLimitReached;
+            return StructuralEntry::DepthLimitReached;
         }
         if self.budget.charge_node().is_err() {
             self.close_traversal();
-            return DomainEntry::TraversalLimitReached;
+            return StructuralEntry::TraversalLimitReached;
         }
-        self.maximum_depth_observed = self.maximum_depth_observed.max(depth);
-        DomainEntry::Entered
+        StructuralEntry::Entered
     }
 
+    /// Charges one collection item.
     pub(crate) fn admit_collection_item(&mut self) -> bool {
         if self.traversal_closed {
             return false;
@@ -99,8 +93,7 @@ impl DomainRedactionContext {
         true
     }
 
-    /// Reports whether another format collection item can be admitted without
-    /// changing the cumulative traversal state.
+    /// Reports whether one more collection item can be admitted.
     #[must_use]
     pub(crate) fn can_admit_collection_item(&self) -> bool {
         !self.traversal_closed
@@ -111,8 +104,7 @@ impl DomainRedactionContext {
                 .is_none_or(|limit| self.collection_items_seen < limit.maximum())
     }
 
-    /// Reports whether another format node at `depth` can be admitted without
-    /// changing the cumulative traversal state.
+    /// Reports whether a format node at `depth` can be admitted.
     #[must_use]
     pub(crate) fn can_admit_format_node(&self, depth: usize) -> bool {
         if self.traversal_closed || self.max_depth.is_some_and(|maximum| depth > maximum) {
@@ -124,16 +116,19 @@ impl DomainRedactionContext {
             .is_none_or(|limit| self.budget.used_nodes() < limit.maximum())
     }
 
+    /// Leaves one explicitly nested domain value.
     pub(crate) fn leave_value(&mut self) {
         debug_assert!(self.current_depth > 0, "domain scope depth underflow");
         self.current_depth -= 1;
     }
 
+    /// Returns the active domain nesting depth.
     #[must_use]
     pub(crate) const fn current_depth(&self) -> usize {
         self.current_depth
     }
 
+    /// Closes traversal after a resource limit rejects it.
     fn close_traversal(&mut self) {
         self.traversal_closed = true;
     }

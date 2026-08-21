@@ -7,8 +7,4 @@
 // =============================================================================
 //! Private support for domain-object redaction.
 
-mod domain_redaction_context;
 mod nested;
-
-pub(crate) use domain_redaction_context::DomainEntry;
-pub(crate) use domain_redaction_context::DomainRedactionContext;

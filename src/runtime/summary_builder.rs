@@ -5,90 +5,61 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Mutable construction of transaction-owned redaction summaries.
+//! Completion and provenance state separated from transaction resource usage.
 
+use crate::RedactionCompletion;
+use crate::RedactionReasons;
 use crate::RedactionSummary;
+use crate::RedactionUsage;
 
-/// Transaction-local accounting builder that is converted to a public summary
-/// only when a transaction publishes its result.
+/// Transaction-local completion state converted to a public summary only at
+/// publication time. Resource accounting remains exclusively in
+/// [`super::redaction_budget::RedactionBudget`].
 #[derive(Clone, Copy)]
 pub(super) struct SummaryBuilder {
-    summary: RedactionSummary,
+    completion: RedactionCompletion,
+    reasons: RedactionReasons,
 }
 
 impl SummaryBuilder {
-    /// Creates an empty complete transaction summary.
+    /// Creates an empty complete transaction state.
     #[must_use]
     pub(super) const fn new() -> Self {
         Self {
-            summary: RedactionSummary::complete(),
+            completion: RedactionCompletion::Complete,
+            reasons: RedactionReasons::empty(),
         }
     }
 
-    /// Wraps an existing immutable summary as transaction-local state.
+    /// Wraps the completion and provenance of an immutable summary.
     #[must_use]
     pub(super) const fn from_summary(summary: RedactionSummary) -> Self {
-        Self { summary }
+        Self {
+            completion: summary.completion(),
+            reasons: summary.reasons(),
+        }
     }
 
-    /// Returns the completed immutable summary snapshot.
+    /// Returns a summary paired with runtime-owned resource usage.
     #[must_use]
-    pub(super) const fn build(self) -> RedactionSummary {
-        self.summary
+    pub(super) const fn build(self, usage: RedactionUsage) -> RedactionSummary {
+        RedactionSummary::from_parts(self.completion, self.reasons, usage)
     }
 
-    /// Merges an operation delta into this builder.
+    /// Merges an operation's completion and provenance into this state.
     #[must_use]
     pub(super) const fn merge(self, delta: RedactionSummary) -> Self {
         Self {
-            summary: self.summary.merge(delta),
+            completion: match (self.completion, delta.completion()) {
+                (RedactionCompletion::Exhausted, _) | (_, RedactionCompletion::Exhausted) => {
+                    RedactionCompletion::Exhausted
+                }
+                (RedactionCompletion::Truncated, _) | (_, RedactionCompletion::Truncated) => {
+                    RedactionCompletion::Truncated
+                }
+                _ => RedactionCompletion::Complete,
+            },
+            reasons: self.reasons.union(delta.reasons()),
         }
-    }
-
-    /// Adds retained output bytes.
-    #[must_use]
-    pub(super) const fn with_added_output_bytes(self, bytes: usize) -> Self {
-        Self {
-            summary: self.summary.with_added_output_bytes(bytes),
-        }
-    }
-
-    /// Records ordinary presented and inspected input bytes.
-    #[must_use]
-    pub(super) const fn with_input(self, presented: usize, inspected: usize) -> Self {
-        Self {
-            summary: self.summary.with_input(presented, inspected),
-        }
-    }
-
-    /// Records source-aware input accounting.
-    #[cfg(feature = "http")]
-    #[must_use]
-    pub(super) const fn with_source_input(self, presented: usize, inspected: usize, omitted: Option<usize>) -> Self {
-        Self {
-            summary: self.summary.with_source_input(presented, inspected, omitted),
-        }
-    }
-
-    /// Records one admitted structural node at `depth`.
-    #[must_use]
-    pub(super) const fn with_domain_node(self, depth: usize) -> Self {
-        Self {
-            summary: self.summary.with_domain_node(depth),
-        }
-    }
-
-    /// Records one admitted collection item.
-    #[must_use]
-    pub(super) const fn with_collection_item(self) -> Self {
-        Self {
-            summary: self.summary.with_collection_item(),
-        }
-    }
-
-    /// Returns resource usage collected so far.
-    #[must_use]
-    pub(super) const fn usage(self) -> crate::RedactionUsage {
-        self.summary.usage()
     }
 }

@@ -51,9 +51,9 @@ impl RedactionLimits {
         }
     }
 
-    /// Returns the structural limits used by domain traversal.
+    /// Returns the internal structural limits for transaction construction.
     #[must_use]
-    pub const fn domain(&self) -> StructureLimits {
+    pub(crate) const fn structural_limits(&self) -> StructureLimits {
         self.domain
     }
 
@@ -67,6 +67,30 @@ impl RedactionLimits {
     #[must_use]
     pub const fn max_output_bytes(&self) -> usize {
         self.max_output_bytes
+    }
+
+    /// Returns the maximum nested structural depth.
+    #[must_use]
+    pub const fn max_depth(&self) -> Option<usize> {
+        self.domain.max_depth()
+    }
+
+    /// Returns the maximum number of structural nodes.
+    #[must_use]
+    pub const fn max_nodes(&self) -> Option<usize> {
+        self.domain.max_nodes()
+    }
+
+    /// Returns the shared maximum item count for one sequence or map.
+    #[must_use]
+    pub const fn max_collection_items(&self) -> Option<usize> {
+        self.domain.max_sequence_items()
+    }
+
+    /// Returns the maximum structural key length.
+    #[must_use]
+    pub const fn max_key_bytes(&self) -> Option<usize> {
+        self.domain.max_key_bytes()
     }
 
     /// Validates limits whose values would otherwise reach collection
@@ -85,11 +109,60 @@ impl RedactionLimits {
         Ok(())
     }
 
-    /// Returns the JSON value limits used by JSON traversal.
+    /// Returns the internal JSON limits for transaction construction.
     #[cfg(feature = "json")]
     #[must_use]
-    pub const fn json(&self) -> JsonValueLimits {
+    pub(crate) const fn json_limits(&self) -> JsonValueLimits {
         self.json
+    }
+
+    /// Returns the maximum JSON nesting depth.
+    #[cfg(feature = "json")]
+    #[must_use]
+    pub const fn max_json_depth(&self) -> Option<usize> {
+        self.json.max_depth()
+    }
+
+    /// Returns the maximum number of JSON nodes.
+    #[cfg(feature = "json")]
+    #[must_use]
+    pub const fn max_json_nodes(&self) -> Option<usize> {
+        self.json.max_nodes()
+    }
+
+    /// Returns the maximum number of items in one JSON collection.
+    #[cfg(feature = "json")]
+    #[must_use]
+    pub const fn max_json_collection_items(&self) -> Option<usize> {
+        self.json.max_sequence_items()
+    }
+
+    /// Returns the maximum JSON object-key length.
+    #[cfg(feature = "json")]
+    #[must_use]
+    pub const fn max_json_key_bytes(&self) -> Option<usize> {
+        self.json.max_key_bytes()
+    }
+
+    /// Returns the maximum JSON string length.
+    #[cfg(feature = "json")]
+    #[must_use]
+    pub const fn max_json_string_bytes(&self) -> Option<usize> {
+        self.json.max_string_bytes()
+    }
+
+    /// Returns the maximum JSON number representation length.
+    #[cfg(feature = "json")]
+    #[must_use]
+    pub const fn max_json_number_bytes(&self) -> Option<usize> {
+        self.json.max_number_bytes()
+    }
+
+    /// Returns the cumulative JSON payload-byte maximum.
+    #[cfg(feature = "json")]
+    #[must_use]
+    pub const fn max_json_payload_bytes(&self) -> Option<usize> {
+        self.json.max_payload_bytes()
     }
 }
 
@@ -128,16 +201,64 @@ impl RedactionLimitsBuilder {
             .build();
         self
     }
-    /// Sets the structural limits used by domain traversal.
-    pub fn domain(&mut self, limits: StructureLimits) -> &mut Self {
-        self.domain = limits;
+
+    /// Sets the maximum structural key length.
+    pub fn max_key_bytes(&mut self, maximum: usize) -> &mut Self {
+        self.domain = self.domain.into_builder().max_key_bytes(maximum).build();
         self
     }
 
-    /// Sets the JSON value limits.
+    /// Sets the maximum JSON nesting depth.
     #[cfg(feature = "json")]
-    pub fn json(&mut self, limits: JsonValueLimits) -> &mut Self {
-        self.json = limits;
+    pub fn max_json_depth(&mut self, maximum: usize) -> &mut Self {
+        self.json = self.json.into_builder().max_depth(maximum).build();
+        self
+    }
+
+    /// Sets the maximum number of JSON nodes.
+    #[cfg(feature = "json")]
+    pub fn max_json_nodes(&mut self, maximum: usize) -> &mut Self {
+        self.json = self.json.into_builder().max_nodes(maximum).build();
+        self
+    }
+
+    /// Sets the maximum number of items in one JSON collection.
+    #[cfg(feature = "json")]
+    pub fn max_json_collection_items(&mut self, maximum: usize) -> &mut Self {
+        self.json = self
+            .json
+            .into_builder()
+            .max_sequence_items(maximum)
+            .max_map_entries(maximum)
+            .build();
+        self
+    }
+
+    /// Sets the maximum JSON object-key length.
+    #[cfg(feature = "json")]
+    pub fn max_json_key_bytes(&mut self, maximum: usize) -> &mut Self {
+        self.json = self.json.into_builder().max_key_bytes(maximum).build();
+        self
+    }
+
+    /// Sets the maximum JSON string length.
+    #[cfg(feature = "json")]
+    pub fn max_json_string_bytes(&mut self, maximum: usize) -> &mut Self {
+        self.json = self.json.into_builder().max_string_bytes(maximum).build();
+        self
+    }
+
+    /// Sets the maximum JSON number representation length.
+    #[cfg(feature = "json")]
+    pub fn max_json_number_bytes(&mut self, maximum: usize) -> &mut Self {
+        self.json = self.json.into_builder().max_number_bytes(maximum).build();
+        self
+    }
+
+    /// Sets the cumulative JSON payload-byte maximum.
+    #[cfg(feature = "json")]
+    pub fn max_json_payload_bytes(&mut self, maximum: usize) -> &mut Self {
+        self.json = self.json.into_builder().max_payload_bytes(maximum).build();
         self
     }
 

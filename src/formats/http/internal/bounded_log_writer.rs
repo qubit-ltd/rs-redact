@@ -5,174 +5,73 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Bounded construction of log-safe HTTP body text.
-
-use std::fmt;
+//! HTTP-specific façade over the runtime-owned bounded operation sink.
 
 use super::markers;
-use crate::output::log_escape::encode_log_safe_character;
+use crate::RedactionCompletion;
+use crate::RedactionReason;
+use crate::runtime::OperationSink;
 
-/// Accumulates escaped log text without exceeding a final byte budget.
+/// Accumulates log-safe HTTP text through one runtime-owned output allowance.
 pub(in crate::formats::http) struct BoundedLogWriter {
-    /// Escaped payload accumulated so far.
-    output: String,
-    /// Last complete escaped-piece boundary that leaves room for the marker.
-    marker_boundary: usize,
-    /// Maximum final length including the truncation marker.
-    max_bytes: usize,
-    /// Whether the final result requires a truncation marker.
-    truncated: bool,
-    /// Whether an output piece failed to fit in the final byte budget.
-    output_truncated: bool,
+    /// Shared bounded storage and marker state for this unpublished rendering.
+    sink: OperationSink,
 }
 
 impl BoundedLogWriter {
-    /// Creates a bounded writer.
-    ///
-    /// # Parameters
-    ///
-    /// * `max_bytes` - Maximum final output bytes, including the marker.
-    /// * `source_truncated` - Whether source bytes were already omitted.
-    ///
-    /// # Returns
-    ///
-    /// An empty writer that reserves marker space when source is truncated.
+    /// Creates a writer that reserves the HTTP truncation marker when needed.
     pub(in crate::formats::http) fn new(max_bytes: usize, source_truncated: bool) -> Self {
         Self {
-            output: String::new(),
-            marker_boundary: 0,
-            max_bytes,
-            truncated: source_truncated,
-            output_truncated: false,
+            sink: OperationSink::new(max_bytes, markers::TRUNCATED, source_truncated),
         }
     }
 
-    /// Writes text while escaping log-unsafe characters and enforcing budget.
-    ///
-    /// # Parameters
-    ///
-    /// * `value` - Redacted text to append.
-    ///
-    /// # Returns
-    ///
-    /// `Ok(())` after appending the longest escaped prefix that fits.
-    ///
-    /// # Errors
-    ///
-    /// This implementation currently cannot return a formatting error.
-    pub(in crate::formats::http) fn write_str(&mut self, value: &str) -> fmt::Result {
-        if self.is_full() {
+    /// Writes log-safe text until the operation allowance closes.
+    pub(in crate::formats::http) fn write_str(&mut self, value: &str) -> std::fmt::Result {
+        if self.sink.is_full() {
             return Ok(());
         }
-        let value = if self.truncated {
+        let value = if self.sink.is_truncated() {
             value.strip_suffix(markers::TRUNCATED).unwrap_or(value)
         } else {
             value
         };
-        for character in value.chars() {
-            let mut encoded = [0_u8; 12];
-            let piece = encode_log_safe_character(character, &mut encoded)?;
-            if !self.append_piece(piece) {
-                break;
-            }
-        }
-        Ok(())
+        self.sink.write_log_safe(value)
     }
 
-    /// Reports whether no more payload can affect the final result.
-    ///
-    /// # Returns
-    ///
-    /// `true` after output truncation or when a source-truncated payload has
-    /// filled all bytes preceding the marker.
+    /// Reports whether later payload cannot affect the final operation text.
     #[must_use]
     #[inline(always)]
     pub(in crate::formats::http) fn is_full(&self) -> bool {
-        self.output_truncated || (self.truncated && self.output.len() >= self.payload_limit())
+        self.sink.is_full()
     }
 
-    /// Returns bytes still available before the current payload limit.
-    ///
-    /// # Returns
-    ///
-    /// Remaining payload bytes before any required truncation marker.
-    #[inline(always)]
-    pub(in crate::formats::http) fn remaining_bytes(&self) -> usize {
-        self.payload_limit().saturating_sub(self.output.len())
-    }
-
-    /// Marks the final rendering as truncated after a nested renderer omitted
-    /// source text before returning its bounded representation.
-    pub(in crate::formats::http) fn mark_truncated(&mut self) {
-        self.truncated = true;
-        self.truncate_to_payload_limit();
-    }
-
-    /// Reports whether this writer omitted output because of its byte limit.
+    /// Returns bytes available before any reserved truncation marker.
     #[must_use]
     #[inline(always)]
-    pub(in crate::formats::http) const fn is_output_truncated(&self) -> bool {
-        self.output_truncated
+    pub(in crate::formats::http) fn remaining_bytes(&self) -> usize {
+        self.sink.remaining_bytes()
     }
 
-    /// Finishes the bounded rendering.
-    ///
-    /// # Returns
-    ///
-    /// Final log-safe text and whether any source or output was truncated.
-    pub(in crate::formats::http) fn finish(mut self) -> (String, bool) {
-        if self.truncated {
-            if self.max_bytes < markers::TRUNCATED.len() {
-                self.output.clear();
-                return (self.output, true);
-            }
-            self.truncate_to_payload_limit();
-            self.output.push_str(markers::TRUNCATED);
-        }
-        (self.output, self.truncated)
+    /// Preserves nested source omission in the final HTTP representation.
+    pub(in crate::formats::http) fn mark_truncated(&mut self) {
+        self.sink.mark_truncated();
     }
 
-    /// Appends one already-escaped character representation.
-    ///
-    /// # Parameters
-    ///
-    /// * `piece` - One complete UTF-8 character or escape sequence.
-    ///
-    /// # Returns
-    ///
-    /// `true` when appended, or `false` after marking output truncated.
-    fn append_piece(&mut self, piece: &str) -> bool {
-        let limit = self.payload_limit();
-        if self.output.len().saturating_add(piece.len()) <= limit {
-            self.output.push_str(piece);
-            let marker_payload_limit = self.max_bytes.saturating_sub(markers::TRUNCATED.len());
-            if self.output.len() <= marker_payload_limit {
-                self.marker_boundary = self.output.len();
-            }
-            return true;
-        }
-        self.truncated = true;
-        self.output_truncated = true;
-        self.truncate_to_payload_limit();
-        false
-    }
-
-    /// Returns the current payload limit before any marker.
-    ///
-    /// # Returns
-    ///
-    /// The full limit for complete output, otherwise marker-reserved bytes.
+    /// Reports whether the output bound, rather than source omission, closed
+    /// this writer.
+    #[must_use]
     #[inline(always)]
-    fn payload_limit(&self) -> usize {
-        if self.truncated {
-            self.max_bytes.saturating_sub(markers::TRUNCATED.len())
-        } else {
-            self.max_bytes
-        }
+    pub(in crate::formats::http) fn is_output_truncated(&self) -> bool {
+        self.sink.output_truncated()
     }
 
-    /// Truncates accumulated text to a complete marker-reserved piece.
-    fn truncate_to_payload_limit(&mut self) {
-        self.output.truncate(self.marker_boundary);
+    /// Finalizes text and reports whether any source or output was truncated.
+    pub(in crate::formats::http) fn finish(self) -> (String, bool) {
+        let (text, completion, _) = self
+            .sink
+            .finish_with_reason(RedactionReason::OutputLimitReached)
+            .into_parts();
+        (text, completion != RedactionCompletion::Complete)
     }
 }

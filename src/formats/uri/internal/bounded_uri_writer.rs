@@ -8,21 +8,16 @@
 //! Byte-bounded URI rendering.
 
 use crate::RedactionCompletion;
-use crate::output::log_escape::encode_log_safe_character;
+use crate::RedactionReason;
+use crate::runtime::OperationSink;
 
 /// Marker appended when a URI cannot fit within the output bound.
 const TRUNCATED: &str = "<truncated>";
 
 /// Accumulates escaped URI text without exceeding the final output budget.
 pub(crate) struct BoundedUriWriter {
-    /// Escaped payload accumulated so far.
-    output: String,
-    /// Last complete piece boundary that leaves room for the marker.
-    marker_boundary: usize,
-    /// Maximum final output bytes including the marker.
-    max_bytes: usize,
-    /// Whether a piece failed to fit and output must be marked truncated.
-    truncated: bool,
+    /// Runtime-owned bounded rendering state.
+    sink: OperationSink,
 }
 
 impl BoundedUriWriter {
@@ -30,16 +25,13 @@ impl BoundedUriWriter {
     #[must_use]
     pub(crate) fn new(max_bytes: usize) -> Self {
         Self {
-            output: String::new(),
-            marker_boundary: 0,
-            max_bytes,
-            truncated: false,
+            sink: OperationSink::new(max_bytes, TRUNCATED, false),
         }
     }
 
     /// Writes text after escaping log-unsafe characters.
     pub(crate) fn write_str(&mut self, value: &str) -> bool {
-        if self.truncated {
+        if self.sink.is_full() {
             return false;
         }
         let mut remaining = value;
@@ -49,7 +41,7 @@ impl BoundedUriWriter {
                 && remaining.as_bytes()[1].is_ascii_hexdigit()
                 && remaining.as_bytes()[2].is_ascii_hexdigit()
             {
-                if !self.append_piece(&remaining[..3]) {
+                if !self.sink.write_atom(&remaining[..3]) {
                     return false;
                 }
                 remaining = &remaining[3..];
@@ -57,11 +49,11 @@ impl BoundedUriWriter {
             }
             let character = remaining.chars().next().expect("non-empty text has a first character");
             let mut encoded = [0_u8; 12];
-            let Ok(piece) = encode_log_safe_character(character, &mut encoded) else {
-                self.truncate();
+            let Ok(piece) = crate::output::log_escape::encode_log_safe_character(character, &mut encoded) else {
+                self.sink.mark_truncated();
                 return false;
             };
-            if !self.append_piece(piece) {
+            if !self.sink.write_atom(piece) {
                 return false;
             }
             remaining = &remaining[character.len_utf8()..];
@@ -73,57 +65,24 @@ impl BoundedUriWriter {
     pub(crate) fn write_percent_encoded(&mut self, byte: u8) -> bool {
         let encoded = [b'%', hex_digit(byte >> 4), hex_digit(byte & 0x0f)];
         let piece = std::str::from_utf8(&encoded).expect("percent encoding is always valid ASCII");
-        self.append_piece(piece)
+        self.sink.write_atom(piece)
     }
 
     /// Reports whether output can no longer accept payload.
     #[must_use]
     #[inline]
-    pub(crate) const fn is_full(&self) -> bool {
-        self.truncated
+    pub(crate) fn is_full(&self) -> bool {
+        self.sink.is_full()
     }
 
     /// Finishes output and reports whether the effective bound was a domain
     /// limit or the shared session limit.
-    pub(crate) fn finish_with_completion(mut self, _session_limited: bool) -> (String, RedactionCompletion) {
-        if self.truncated {
-            if self.max_bytes < TRUNCATED.len() {
-                return (String::new(), RedactionCompletion::Truncated);
-            }
-            self.output.truncate(self.marker_boundary);
-            self.output.push_str(TRUNCATED);
-        }
-        (
-            self.output,
-            if self.truncated {
-                RedactionCompletion::Truncated
-            } else {
-                RedactionCompletion::Complete
-            },
-        )
-    }
-
-    /// Appends one complete escaped piece when it fits.
-    fn append_piece(&mut self, piece: &str) -> bool {
-        if self.truncated {
-            return false;
-        }
-        if self.output.len().saturating_add(piece.len()) > self.max_bytes {
-            self.truncate();
-            return false;
-        }
-        self.output.push_str(piece);
-        let payload_limit = self.max_bytes.saturating_sub(TRUNCATED.len());
-        if self.output.len() <= payload_limit {
-            self.marker_boundary = self.output.len();
-        }
-        true
-    }
-
-    /// Marks output truncated after retaining the last marker-safe boundary.
-    fn truncate(&mut self) {
-        self.output.truncate(self.marker_boundary);
-        self.truncated = true;
+    pub(crate) fn finish_with_completion(self, _session_limited: bool) -> (String, RedactionCompletion) {
+        let (text, completion, _) = self
+            .sink
+            .finish_with_reason(RedactionReason::OutputLimitReached)
+            .into_parts();
+        (text, completion)
     }
 }
 
