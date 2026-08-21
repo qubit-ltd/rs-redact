@@ -32,11 +32,11 @@ policy 快照 -> Redactor -> text_composer() -> 有序文本 -> RedactionTextOut
 摘要会记录完成状态（`Complete`、`Truncated`、`Exhausted`）、原因和资源用量。程序应以它作为
 安全降级的依据，不要解析替换后的文本来推断状态。
 
-## 贯穿场景：安全记录一次请求失败
+## 场景：安全记录一次请求失败
 
 某 API 客户端既要在可读的失败日志中写入 `request_id`，也要把 URL 与 JSON 错误 body 发送到
-遥测系统。`access_token` 和 `password` 不能出现在任何发布结果中；所有片段共享同一组输入、
-输出和遍历预算；URL 与 body 要等 batch 完成后才能读取。
+遥测系统。`access_token` 和 `password` 不能出现在任何发布结果中。日志文本与遥测 batch 共享同一份
+不可变 policy 快照，但各自拥有独立的输入、输出和遍历预算；URL 与 body 要等 batch 完成后才能读取。
 
 ## 安装与最小配置
 

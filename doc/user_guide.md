@@ -39,13 +39,14 @@ The summary records completion (`Complete`, `Truncated`, or `Exhausted`),
 reasons, and resource usage. Treat it as the programmatic account of safe
 degradation; do not infer state by parsing replacement text.
 
-## Scenario: One Safe Request-Failure Event
+## Scenario: Safely Record a Request Failure
 
 An API client must emit `request_id` in a human-readable failure message and
 send the request URL and JSON error body to telemetry. `access_token` and
-`password` must not appear in either published result. All fragments must share
-one input, output, and traversal budget. The URL and body remain unreadable
-until the event is complete.
+`password` must not appear in either published result. The human-readable
+message and telemetry batch share one immutable policy snapshot, but each
+publication owns an independent input, output, and traversal budget. The URL
+and body remain unreadable until the batch is complete.
 
 ## Installation and Minimal Configuration
 
