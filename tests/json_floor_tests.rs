@@ -28,7 +28,9 @@ fn test_json_uses_policy_mask_for_floor_matched_key() {
         .expect("the floor should build");
     let policy = RedactionPolicy::builder()
         .fields(|fields| {
-            let _ = fields.floor(floor).sensitive(Sensitivity::Secret, "credential");
+            let _ = fields
+                .floor(floor)
+                .sensitive(Sensitivity::Secret, "credential");
             fields.mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"));
         })
         .expect("the test field draft should build")
@@ -50,19 +52,22 @@ fn test_json_documents_share_the_parent_structural_budget() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut session = Redactor::new(policy).session();
-
-    session.json(|json| {
-        json.text(r#"{"first":"one"}"#);
-        json.text(r#"{"second":"must-not-be-traversed"}"#);
-    });
-    let output = session.finish();
+    let output = Redactor::new(policy)
+        .text_composer()
+        .json(|json| {
+            json.text(r#"{"first":"one"}"#);
+            json.text(r#"{"second":"must-not-be-traversed"}"#);
+        })
+        .finish();
 
     assert!(output.text().as_str().contains("first"));
     assert!(!output.text().as_str().contains("must-not-be-traversed"));
     assert_eq!(output.summary().usage().visited_nodes(), 3);
     assert_eq!(output.summary().usage().visited_collection_items(), 2);
-    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Truncated
+    );
 }
 
 /// JSON point and payload limits are transaction-owned and therefore carry
@@ -76,11 +81,10 @@ fn test_json_documents_share_the_transaction_json_payload_budget() {
         .expect("test limits should build")
         .build()
         .expect("test policy should build");
-    let mut session = Redactor::new(policy).session();
-
-    let first = session.redact_json(r#"{"a":"1"}"#);
-    let second = session.redact_json(r#"{"b":"22"}"#);
-    let output = session.finish();
+    let mut batch = Redactor::new(policy).batch();
+    let first = batch.redact_json(r#"{"a":"1"}"#);
+    let second = batch.redact_json(r#"{"b":"22"}"#);
+    let output = batch.finish();
 
     assert_eq!(
         output
@@ -90,7 +94,9 @@ fn test_json_documents_share_the_transaction_json_payload_budget() {
             .as_str(),
         r#"{"a":"1"}"#
     );
-    let second = output.resolve(second).expect("second JSON item should publish");
+    let second = output
+        .resolve(second)
+        .expect("second JSON item should publish");
     assert_eq!(second.text().as_str(), "<truncated>");
     assert!(
         second
@@ -119,22 +125,31 @@ fn test_json_invalid_input_reports_safe_invalid_json_result() {
     let output = Redactor::strict().redact_json(r#"{"password":"raw""#);
 
     assert!(!output.text().as_str().contains("raw"));
-    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::InvalidJson)
+    );
 }
 
 /// The JSON handle path must preserve parser provenance and publish the
 /// replacement only when its enclosing transaction finishes.
 #[test]
 fn test_json_handle_reports_invalid_input_without_exposing_source() {
-    let mut session = Redactor::strict().session();
-    let handle = session.redact_json(r#"{"password":"raw""#);
-    let output = session.finish();
+    let mut batch = Redactor::strict().batch();
+    let handle = batch.redact_json(r#"{"password":"raw""#);
+    let output = batch.finish();
     let item = output
         .resolve(handle)
         .expect("finished transaction publishes JSON handle");
 
     assert!(!item.text().as_str().contains("raw"));
-    assert!(item.summary().reasons().contains(RedactionReason::InvalidJson));
+    assert!(
+        item.summary()
+            .reasons()
+            .contains(RedactionReason::InvalidJson)
+    );
     assert_eq!(item.summary().completion(), RedactionCompletion::Complete);
 }
 
@@ -149,10 +164,12 @@ fn test_json_handle_uses_shared_structural_fallback() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut session = Redactor::new(policy).session();
-    let handle = session.redact_json(r#"{"password":"must-not-be-rendered"}"#);
-    let output = session.finish();
-    let item = output.resolve(handle).expect("truncated JSON handle publishes");
+    let mut batch = Redactor::new(policy).batch();
+    let handle = batch.redact_json(r#"{"password":"must-not-be-rendered"}"#);
+    let output = batch.finish();
+    let item = output
+        .resolve(handle)
+        .expect("truncated JSON handle publishes");
 
     assert_eq!(item.text().as_str(), "<truncated>");
     assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
@@ -169,15 +186,18 @@ fn test_json_tiny_output_budget_is_exhausted() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut session = Redactor::new(policy).session();
-
-    session.json(|json| {
-        json.text(r#"{"password":"must-not-fit"}"#);
-    });
-    let aggregate = session.finish();
+    let aggregate = Redactor::new(policy)
+        .text_composer()
+        .json(|json| {
+            json.text(r#"{"password":"must-not-fit"}"#);
+        })
+        .finish();
 
     assert_eq!(aggregate.text().as_str(), "");
-    assert_eq!(aggregate.summary().completion(), RedactionCompletion::Exhausted);
+    assert_eq!(
+        aggregate.summary().completion(),
+        RedactionCompletion::Exhausted
+    );
     assert!(
         aggregate
             .summary()

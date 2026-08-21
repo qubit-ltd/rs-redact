@@ -25,12 +25,32 @@ fn test_lib_exports_public_api() {
     assert_eq!(field.text().as_str(), "Ada");
 
     let argv = [ArgvItem::plain(OsStr::new("client"))];
-    assert!(redactor.redact_argv(argv).text().as_str().contains("client"));
-    assert!(redactor.redact_env("HOME", "/tmp").text().as_str().contains("HOME"));
+    assert!(
+        redactor
+            .redact_argv(argv)
+            .text()
+            .as_str()
+            .contains("client")
+    );
+    assert!(
+        redactor
+            .redact_env("HOME", "/tmp")
+            .text()
+            .as_str()
+            .contains("HOME")
+    );
 
-    let mut session = redactor.session();
-    let item = session.redact_field("name", "Ada");
-    let output = session.literal(" context").finish();
+    let output = redactor.text_composer().literal(" context").finish();
     assert_eq!(output.text().as_str(), " context");
-    assert_eq!(output.resolve(item).expect("same transaction").text().as_str(), "Ada");
+    let mut batch = redactor.batch();
+    let item = batch.redact_field("name", "Ada");
+    assert_eq!(
+        batch
+            .finish()
+            .resolve(item)
+            .expect("same batch")
+            .text()
+            .as_str(),
+        "Ada"
+    );
 }

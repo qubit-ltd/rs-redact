@@ -24,36 +24,23 @@ fn visit_rust_sources(directory: &Path, inspect: &mut impl FnMut(&Path, &str)) {
     }
 }
 
-/// All mutable transaction accounting must be owned by the dedicated runtime
-/// state, with final summaries built only at publication time.
+/// Shared accounting must not choose either public publication model.
 #[test]
-fn transaction_state_has_one_authoritative_accounting_model() {
-    let state = include_str!("../src/runtime/transaction_state.rs");
-    let phase = include_str!("../src/runtime/transaction_phase.rs");
-    let session = include_str!("../src/runtime/redaction_session.rs");
-    let writer = include_str!("../src/domain/redaction_writer.rs");
-    let writer_definition = writer
-        .split("impl<'session> RedactionWriter")
-        .next()
-        .expect("writer definition precedes its implementation");
+fn runtime_and_buffers_keep_publication_models_separate() {
+    let runtime = include_str!("../src/runtime/redaction_runtime.rs");
+    let transaction = include_str!("../src/runtime/transaction_state.rs");
+    let publication = include_str!("../src/runtime/publication_buffer.rs");
+    let text = include_str!("../src/runtime/text_output_buffer.rs");
+    let batch = include_str!("../src/runtime/batch_output_buffer.rs");
 
-    assert!(!state.contains("RedactionSummary"));
-    assert!(!session.contains("impl std::ops::Deref for RedactionSession"));
-    assert!(!session.contains("impl std::ops::DerefMut for RedactionSession"));
-    assert!(!session.contains("RedactionOutput::"));
-    assert!(!session.contains("RedactedText::from_"));
-    assert!(state.contains("output: OutputBuffer"));
-    assert!(state.contains("items: Vec<ItemRange>"));
-    assert!(state.contains("phase: TransactionPhase"));
-    assert!(phase.contains("enum TransactionPhase"));
-    assert!(phase.contains("Active"));
-    assert!(phase.contains("OutputExhausted"));
-    assert!(!state.contains("output_exhausted: bool"));
-    assert!(!state.contains("fragments: String"));
-    assert!(!state.contains("domain_frame: String"));
-    assert!(!state.contains("items: Vec<RedactionOutput>"));
-    assert!(!writer_definition.contains("output: String"));
-    assert!(!writer_definition.contains("output_bytes: usize"));
+    assert!(!runtime.contains("aggregate_ranges"));
+    assert!(!runtime.contains("items: Vec"));
+    assert!(!text.contains("ItemRange"));
+    assert!(!batch.contains("aggregate_ranges"));
+    assert!(transaction.contains("publication: PublicationBuffer"));
+    assert!(!transaction.contains("text: TextOutputBuffer"));
+    assert!(!transaction.contains("batch: BatchOutputBuffer"));
+    assert!(publication.contains("enum PublicationBuffer"));
 }
 
 /// Format adapters must report rendering outcomes to the runtime instead of
@@ -62,7 +49,11 @@ fn transaction_state_has_one_authoritative_accounting_model() {
 fn format_adapters_cannot_construct_published_output_models() {
     let formats = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/formats");
     visit_rust_sources(&formats, &mut |path, source| {
-        for forbidden in ["RedactionOutput::", "RedactionSummary::", "RedactedText::from_"] {
+        for forbidden in [
+            "RedactionTextOutput::",
+            "RedactionSummary::",
+            "RedactedText::from_",
+        ] {
             assert!(
                 !source.contains(forbidden),
                 "{} constructs forbidden runtime output through {forbidden}",
@@ -98,7 +89,15 @@ fn domain_writer_has_only_the_fixed_root_surface() {
     assert!(!writer.contains("pub fn unit"));
     assert_eq!(
         public_methods,
-        ["literal", "unredacted", "record", "tuple", "sequence", "map", "variant"]
+        [
+            "literal",
+            "unredacted",
+            "record",
+            "tuple",
+            "sequence",
+            "map",
+            "variant"
+        ]
     );
 }
 

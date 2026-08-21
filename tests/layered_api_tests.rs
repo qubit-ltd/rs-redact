@@ -14,7 +14,7 @@ use qubit_redact::Redactor;
 use qubit_redact::formats::argv::ArgvItem;
 
 #[test]
-fn test_redactor_session_composes_policy_classified_fields_and_formats() {
+fn test_text_composer_composes_policy_classified_fields_and_formats() {
     let policy = RedactionPolicy::builder()
         .fields(|fields| {
             let _ = fields.secret_sensitive("password");
@@ -23,9 +23,8 @@ fn test_redactor_session_composes_policy_classified_fields_and_formats() {
         .build()
         .expect("policy should build");
     let redactor = Redactor::new(policy);
-    let mut session = redactor.session();
-
-    let first = session
+    let first = redactor
+        .text_composer()
         .literal("request password=")
         .field("password", "super-secret")
         .literal(" argv=")
@@ -34,12 +33,16 @@ fn test_redactor_session_composes_policy_classified_fields_and_formats() {
         })
         .finish();
 
-    assert_eq!(first.text().as_str(), "request password=<redacted> argv=[\"client\"]");
+    assert_eq!(
+        first.text().as_str(),
+        "request password=<redacted> argv=[\"client\"]"
+    );
     assert!(!first.text().as_str().contains("super-secret"));
 
-    // `finish` publishes the transaction and immediately makes the same
-    // session ready for a separately accounted next transaction.
-    let second = session.field("password", "second-secret").finish();
+    let second = redactor
+        .text_composer()
+        .field("password", "second-secret")
+        .finish();
     assert_eq!(second.text().as_str(), "<redacted>");
     assert!(!second.text().as_str().contains("second-secret"));
 }

@@ -2,27 +2,18 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Regression coverage for the session-wide output budget.
+//! Regression coverage for publication-model-local output budgets.
 
 use std::cell::Cell;
 use std::ffi::OsStr;
 
-use qubit_redact::Redact;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
-use qubit_redact::RedactionSession;
-use qubit_redact::RedactionSessionOutput;
-use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::formats::argv::ArgvItem;
-#[cfg(feature = "http")]
-use qubit_redact::formats::http::BodyCapture;
 
-/// Creates a redactor whose output ceiling cannot hold a fallback marker.
 fn create_one_byte_redactor() -> Redactor {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
@@ -34,400 +25,75 @@ fn create_one_byte_redactor() -> Redactor {
     Redactor::new(policy)
 }
 
-/// Verifies the exhausted session result and later-operation sentinel.
-fn assert_exhausted_before_later_operation(output: RedactionSessionOutput, later_called: &Cell<bool>) {
-    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
-    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
-    assert!(!later_called.get());
-}
-
-/// Minimal domain operation used by the shared-runtime regression matrix.
-struct MatrixValue;
-
-impl Redact for MatrixValue {
-    /// Writes one trusted static byte into the active transaction.
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
-        writer.literal("x");
-    }
-}
-
-/// One operation in the design-mandated adjacent shared-budget chain.
-#[cfg(all(feature = "json", feature = "http", feature = "uri"))]
-#[derive(Clone, Copy, Debug)]
-enum ChainOperation {
-    Literal,
-    Field,
-    Value,
-    Json,
-    HttpUrl,
-    HttpBody,
-    Uri,
-    Argv,
-    Env,
-    Process,
-}
-
-#[cfg(all(feature = "json", feature = "http", feature = "uri"))]
-impl ChainOperation {
-    fn apply(self, session: &mut RedactionSession, entered: &Cell<bool>) {
-        match self {
-            Self::Literal => {
-                let _ = session.literal("literal");
-            }
-            Self::Field => {
-                let _ = session.field("name", "field");
-            }
-            Self::Value => {
-                let _ = session.value(&ObservedValue(entered));
-            }
-            Self::Json => {
-                session.json(|json| {
-                    entered.set(true);
-                    json.text(r#"{"name":"json"}"#);
-                });
-            }
-            Self::HttpUrl => {
-                session.http(|http| {
-                    entered.set(true);
-                    http.url("https://example.test/path?name=http");
-                });
-            }
-            Self::HttpBody => {
-                session.http(|http| {
-                    entered.set(true);
-                    let _ = http.body(
-                        BodyCapture::complete(br#"{"name":"body"}"#),
-                        Some(&http::HeaderValue::from_static("application/json")),
-                    );
-                });
-            }
-            Self::Uri => {
-                session.uri(|uri| {
-                    entered.set(true);
-                    uri.value("https://example.test/path?name=uri");
-                });
-            }
-            Self::Argv => {
-                session.argv(|argv| {
-                    entered.set(true);
-                    argv.items([ArgvItem::plain(OsStr::new("argv"))]);
-                });
-            }
-            Self::Env => {
-                session.env(|env| {
-                    entered.set(true);
-                    env.pair("MODE", "env");
-                });
-            }
-            Self::Process => {
-                let _ = session.process(|process| {
-                    entered.set(true);
-                    process.arguments([ArgvItem::plain(OsStr::new("process"))]);
-                });
-            }
-        }
-    }
-
-    const fn has_observable_entry(self) -> bool {
-        !matches!(self, Self::Literal | Self::Field)
-    }
-}
-
-#[cfg(all(feature = "json", feature = "http", feature = "uri"))]
-struct ObservedValue<'observed>(&'observed Cell<bool>);
-
-#[cfg(all(feature = "json", feature = "http", feature = "uri"))]
-impl Redact for ObservedValue<'_> {
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
-        self.0.set(true);
-        writer.literal("value");
-    }
-}
-
-/// Every adjacent pair in the required full-format chain is closed by the
-/// predecessor's exact output consumption. Observable successors must not
-/// enter their accessor, parser, or adapter closure, and no operation after
-/// the exhausted successor may run.
-#[cfg(all(feature = "json", feature = "http", feature = "uri"))]
 #[test]
-fn test_every_adjacent_operation_pair_closes_the_shared_budget_chain() {
-    use ChainOperation as Op;
-
-    let pairs = [
-        (Op::Literal, Op::Field),
-        (Op::Field, Op::Value),
-        (Op::Value, Op::Json),
-        (Op::Json, Op::HttpUrl),
-        (Op::HttpUrl, Op::HttpBody),
-        (Op::HttpBody, Op::Uri),
-        (Op::Uri, Op::Argv),
-        (Op::Argv, Op::Env),
-        (Op::Env, Op::Process),
-    ];
-
-    for (predecessor, successor) in pairs {
-        let measured_entry = Cell::new(false);
-        let mut measurement = Redactor::standard().session();
-        predecessor.apply(&mut measurement, &measured_entry);
-        let exact_limit = measurement.finish().summary().usage().output_bytes();
-        assert!(exact_limit > 0, "{predecessor:?} must produce measurable output");
-
-        let policy = RedactionPolicy::standard()
-            .to_builder()
-            .limits(|limits| {
-                limits.max_output_bytes(exact_limit);
-            })
-            .expect("the adjacent-pair output limit should be valid")
-            .build()
-            .expect("the adjacent-pair policy should build");
-        let predecessor_entered = Cell::new(false);
-        let successor_entered = Cell::new(false);
-        let after_exhaustion_entered = Cell::new(false);
-        let mut session = Redactor::new(policy).session();
-
-        predecessor.apply(&mut session, &predecessor_entered);
-        successor.apply(&mut session, &successor_entered);
-        session.env(|_| after_exhaustion_entered.set(true));
-        let output = session.finish();
-
-        assert_eq!(
-            output.summary().completion(),
-            RedactionCompletion::Exhausted,
-            "{predecessor:?} -> {successor:?} must exhaust the one shared budget"
-        );
-        assert_eq!(output.summary().usage().output_bytes(), exact_limit);
-        if successor.has_observable_entry() {
-            assert!(
-                !successor_entered.get(),
-                "{successor:?} entered after {predecessor:?} filled the budget"
-            );
-        }
-        assert!(!after_exhaustion_entered.get());
-    }
-}
-
-/// Runs one operation against the smallest usable output budget and verifies
-/// that it closes the transaction before a later literal can be published.
-fn assert_operation_uses_the_transaction_budget(operation: impl FnOnce(&mut RedactionSession)) {
-    let mut session = create_one_byte_redactor().session();
-    operation(&mut session);
-    let output = session.literal("later").finish();
-
-    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
-    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
-}
-
-/// Every runtime entry point must charge the same output ledger; this matrix
-/// prevents a newly added adapter from obtaining an independent budget.
-#[test]
-fn test_runtime_entry_points_share_the_output_budget_matrix() {
-    assert_operation_uses_the_transaction_budget(|session| {
-        let _ = session.literal("x");
-    });
-    assert_operation_uses_the_transaction_budget(|session| {
-        let _ = session.field("name", "x");
-    });
-    assert_operation_uses_the_transaction_budget(|session| {
-        let _ = session.value(&MatrixValue);
-    });
-    assert_operation_uses_the_transaction_budget(|session| {
-        session.argv(|argv| {
-            argv.items([ArgvItem::plain(OsStr::new("client"))]);
-        });
-    });
-    assert_operation_uses_the_transaction_budget(|session| {
-        session.env(|env| {
-            env.pair("MODE", "debug");
-        });
-    });
-    assert_operation_uses_the_transaction_budget(|session| {
-        let _ = session.process(|process| {
-            process.arguments([ArgvItem::plain(OsStr::new("client"))]);
-        });
-    });
-    #[cfg(feature = "json")]
-    assert_operation_uses_the_transaction_budget(|session| {
-        session.json(|json| {
-            json.text(r#"{"token":"secret"}"#);
-        });
-    });
-    #[cfg(feature = "uri")]
-    assert_operation_uses_the_transaction_budget(|session| {
-        session.uri(|uri| {
-            uri.value("https://example.test/?token=secret");
-        });
-    });
-    #[cfg(feature = "http")]
-    assert_operation_uses_the_transaction_budget(|session| {
-        session.http(|http| {
-            http.url("https://example.test/?token=secret");
-        });
-    });
-}
-
-/// Verifies that an argv fallback which cannot fit closes the whole
-/// transaction before later closures can inspect their inputs.
-#[test]
-fn test_format_exhaustion_skips_following_operation() {
+fn composer_stops_later_adapter_after_output_exhaustion() {
     let later_called = Cell::new(false);
-    let mut session = create_one_byte_redactor().session();
-
-    let output = session
+    let output = create_one_byte_redactor()
+        .text_composer()
         .argv(|argv| {
             argv.items([ArgvItem::plain(OsStr::new("client"))]);
         })
         .env(|_| later_called.set(true))
         .finish();
 
-    assert_exhausted_before_later_operation(output, &later_called);
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Exhausted
+    );
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::OutputLimitReached)
+    );
+    assert!(!later_called.get());
 }
 
-/// Verifies environment rendering closes the transaction when its safe
-/// fallback cannot fit.
 #[test]
-fn test_env_exhaustion_skips_following_operation() {
-    let later_called = Cell::new(false);
-    let mut session = create_one_byte_redactor().session();
+fn batch_stops_later_item_after_output_exhaustion() {
+    let mut batch = create_one_byte_redactor().batch();
+    let first = batch.redact_argv([ArgvItem::plain(OsStr::new("client"))]);
+    let second = batch.redact_env("MODE", "debug");
+    let output = batch.finish();
 
-    let output = session
-        .env(|env| {
-            env.pair("PASSWORD", "secret");
-        })
-        .argv(|_| later_called.set(true))
-        .finish();
-
-    assert_exhausted_before_later_operation(output, &later_called);
-}
-
-/// Verifies process rendering inherits argv's exhausted transaction state.
-#[test]
-fn test_process_exhaustion_skips_following_operation() {
-    let later_called = Cell::new(false);
-    let mut session = create_one_byte_redactor().session();
-
-    let output = session
-        .process(|process| {
-            process.arguments([ArgvItem::plain(OsStr::new("client"))]);
-        })
-        .env(|_| later_called.set(true))
-        .finish();
-
-    assert_exhausted_before_later_operation(output, &later_called);
-}
-
-/// Verifies that an exhausted item operation also closes the aggregate
-/// transaction before later adapter closures run.
-#[test]
-fn test_exhausted_item_skips_following_operation() {
-    let later_called = Cell::new(false);
-    let mut session = create_one_byte_redactor().session();
-
-    let handle = session.redact_argv([ArgvItem::plain(OsStr::new("client"))]);
-    let output = session.env(|_| later_called.set(true)).finish();
-
-    assert_exhausted_before_later_operation(output.clone(), &later_called);
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Exhausted
+    );
     assert_eq!(
         output
-            .resolve(handle)
-            .expect("the exhausted item handle should resolve")
+            .resolve(first)
+            .expect("first item resolves")
+            .summary()
+            .completion(),
+        RedactionCompletion::Exhausted
+    );
+    assert_eq!(
+        output
+            .resolve(second)
+            .expect("exhausted item resolves")
             .summary()
             .completion(),
         RedactionCompletion::Exhausted
     );
 }
 
-/// Verifies an exhausted argv handle retains the input and traversal charges
-/// incurred before its safe replacement was found not to fit.
 #[test]
-fn test_exhausted_argv_handle_retains_admitted_usage() {
-    let mut session = create_one_byte_redactor().session();
+fn composer_and_batch_own_independent_budget_ledgers() {
+    let redactor = create_one_byte_redactor();
+    let text = redactor.text_composer().literal("x").finish();
+    let mut batch = redactor.batch();
+    let item = batch.redact_field("name", "x");
+    let output = batch.finish();
 
-    let handle = session.redact_argv([ArgvItem::plain(OsStr::new("client"))]);
-    let output = session.finish();
-    let item = output
-        .resolve(handle)
-        .expect("the exhausted argv handle should resolve");
-
-    assert_eq!(item.summary(), output.summary());
-    assert_eq!(item.summary().usage().presented_input_bytes(), 6);
-    assert_eq!(item.summary().usage().inspected_input_bytes(), 6);
-    assert_eq!(item.summary().usage().output_bytes(), 0);
-    assert_eq!(item.summary().usage().visited_nodes(), 2);
-    assert_eq!(item.summary().usage().visited_collection_items(), 1);
-    assert_eq!(item.summary().usage().max_depth(), 2);
-}
-
-/// Verifies an exhausted environment handle retains the input and traversal
-/// charges incurred before its safe replacement was found not to fit.
-#[test]
-fn test_exhausted_env_handle_retains_admitted_usage() {
-    let mut session = create_one_byte_redactor().session();
-
-    let handle = session.redact_env("MODE", "debug");
-    let output = session.finish();
-    let item = output
-        .resolve(handle)
-        .expect("the exhausted environment handle should resolve");
-
-    assert_eq!(item.summary(), output.summary());
-    assert_eq!(item.summary().usage().presented_input_bytes(), 9);
-    assert_eq!(item.summary().usage().inspected_input_bytes(), 9);
-    assert_eq!(item.summary().usage().output_bytes(), 0);
-    assert_eq!(item.summary().usage().visited_nodes(), 2);
-    assert_eq!(item.summary().usage().visited_collection_items(), 1);
-    assert_eq!(item.summary().usage().max_depth(), 2);
-}
-
-/// Verifies URI rendering closes the transaction when its safe fallback does
-/// not fit.
-#[cfg(feature = "uri")]
-#[test]
-fn test_uri_exhaustion_skips_following_operation() {
-    let later_called = Cell::new(false);
-    let mut session = create_one_byte_redactor().session();
-
-    let output = session
-        .uri(|uri| {
-            uri.value("https://example.test/path?token=secret");
-        })
-        .env(|_| later_called.set(true))
-        .finish();
-
-    assert_exhausted_before_later_operation(output, &later_called);
-}
-
-/// Verifies JSON rendering closes the transaction when its safe fallback does
-/// not fit.
-#[cfg(feature = "json")]
-#[test]
-fn test_json_exhaustion_skips_following_operation() {
-    let later_called = Cell::new(false);
-    let mut session = create_one_byte_redactor().session();
-
-    let output = session
-        .json(|json| {
-            json.text(r#"{"token":"secret"}"#);
-        })
-        .env(|_| later_called.set(true))
-        .finish();
-
-    assert_exhausted_before_later_operation(output, &later_called);
-}
-
-/// Verifies HTTP URL rendering closes the transaction when its safe fallback
-/// does not fit.
-#[cfg(feature = "http")]
-#[test]
-fn test_http_url_exhaustion_skips_following_operation() {
-    let later_called = Cell::new(false);
-    let mut session = create_one_byte_redactor().session();
-
-    let output = session
-        .http(|http| {
-            http.url("https://example.test/path?token=secret");
-        })
-        .env(|_| later_called.set(true))
-        .finish();
-
-    assert_exhausted_before_later_operation(output, &later_called);
+    assert_eq!(text.text().as_str(), "x");
+    assert_eq!(text.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(
+        output
+            .resolve(item)
+            .expect("batch item resolves")
+            .text()
+            .as_str(),
+        "x"
+    );
 }

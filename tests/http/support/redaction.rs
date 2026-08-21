@@ -13,7 +13,11 @@ use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::formats::http::BodyCapture;
 
-pub(crate) fn redact_body(redactor: &Redactor, capture: BodyCapture<'_>, content_type: Option<&HeaderValue>) -> String {
+pub(crate) fn redact_body(
+    redactor: &Redactor,
+    capture: BodyCapture<'_>,
+    content_type: Option<&HeaderValue>,
+) -> String {
     redactor
         .redact_http_body(capture, content_type)
         .text()
@@ -26,9 +30,13 @@ pub(crate) fn redact_url(redactor: &Redactor, value: &str) -> String {
 }
 
 pub(crate) fn redact_headers(policy: RedactionPolicy, headers: &HeaderMap) -> String {
-    let mut session = Redactor::new(policy).session();
-    session.http(|http| {
-        http.headers(headers);
-    });
-    session.finish().text().as_str().to_owned()
+    Redactor::new(policy)
+        .text_composer()
+        .http(|http| {
+            http.headers(headers);
+        })
+        .finish()
+        .text()
+        .as_str()
+        .to_owned()
 }

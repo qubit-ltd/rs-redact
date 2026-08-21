@@ -42,11 +42,19 @@ fn test_domain_rendering_uses_one_bounded_transaction_output_budget() {
         .expect("the limit draft should build")
         .build()
         .expect("the policy should build");
-    let mut session = Redactor::new(policy).session();
-
-    let output = session.value(&SafeRecord).value(&SafeRecord).finish();
+    let output = Redactor::new(policy)
+        .text_composer()
+        .value(&SafeRecord)
+        .value(&SafeRecord)
+        .finish();
 
     assert!(output.text().as_str().len() <= 24);
-    assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());
-    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert_eq!(
+        output.summary().usage().output_bytes(),
+        output.text().as_str().len()
+    );
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Exhausted
+    );
 }

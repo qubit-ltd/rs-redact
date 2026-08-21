@@ -11,9 +11,9 @@ use qubit_redact::Redactor;
 
 /// Verifies the module exposes a complete assignment redaction path.
 #[test]
-fn test_environment_namespace_composes_with_a_transaction_session() {
-    let mut session = Redactor::standard().session();
-    let output = session
+fn test_environment_namespace_composes_with_a_text_composer() {
+    let output = Redactor::standard()
+        .text_composer()
         .literal("environment: ")
         .env(|env| {
             env.pair("PASSWORD", "raw-secret");

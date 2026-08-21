@@ -25,11 +25,11 @@ struct Account {
 impl Redact for Account {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.record("Account", |fields| {
-            fields
-                .unredacted("name", || self.name.clone())
-                .sensitive(Sensitivity::Secret, "password", || {
-                    panic!("a secret accessor must not run")
-                });
+            fields.unredacted("name", || self.name.clone()).sensitive(
+                Sensitivity::Secret,
+                "password",
+                || panic!("a secret accessor must not run"),
+            );
         });
     }
 }
@@ -45,48 +45,46 @@ fn secret_policy(field: &str) -> RedactionPolicy {
 }
 
 #[test]
-fn transaction_aggregates_literal_field_and_value_and_publishes_handles_on_finish() {
+fn composer_and_batch_publish_separate_models() {
     let redactor = Redactor::new(secret_policy("request_token"));
-    let mut session = redactor.session();
-
-    let name = session.redact_field("name", "Ada");
-    let _ = session
+    let text = redactor
+        .text_composer()
         .literal("request failed: ")
         .field("request_token", "raw-token")
         .literal("; account=")
         .value(&Account {
             name: "Ada".to_owned(),
             _password: "raw-password".to_owned(),
-        });
-
-    let output = session.finish();
+        })
+        .finish();
+    let mut batch = redactor.batch();
+    let name = batch.redact_field("name", "Ada");
+    let output = batch.finish();
     let name = output
         .resolve(name)
         .expect("a handle from this transaction resolves after finish");
     assert_eq!(name.text().as_str(), "Ada");
     assert_eq!(name.summary().completion(), RedactionCompletion::Complete);
-    assert!(output.text().as_str().contains("request failed: "));
-    assert!(output.text().as_str().contains("<redacted>"));
-    assert!(output.text().as_str().contains("Account"));
-    assert!(!output.text().as_str().contains("raw-token"));
-    assert!(!output.text().as_str().contains("raw-password"));
+    assert!(text.text().as_str().contains("request failed: "));
+    assert!(text.text().as_str().contains("<redacted>"));
+    assert!(text.text().as_str().contains("Account"));
+    assert!(!text.text().as_str().contains("raw-token"));
+    assert!(!text.text().as_str().contains("raw-password"));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
     assert_eq!(
         output.summary().usage().output_bytes(),
-        output.text().as_str().len() + name.text().as_str().len()
+        name.text().as_str().len()
     );
 }
 
 #[test]
-fn finished_session_resets_and_old_handles_cannot_cross_transactions() {
-    let mut session = Redactor::standard().session();
-    let first_handle = session.redact_field("name", "Ada");
-    let first = session.finish();
+fn batch_handles_cannot_cross_batches() {
+    let mut first_batch = Redactor::standard().batch();
+    let first_handle = first_batch.redact_field("name", "Ada");
+    let first = first_batch.finish();
     assert_eq!(first.resolve(first_handle).unwrap().text().as_str(), "Ada");
 
-    let _ = session.literal("next transaction");
-    let second = session.finish();
-    assert_eq!(second.text().as_str(), "next transaction");
+    let second = Redactor::standard().batch().finish();
     assert!(second.resolve(first_handle).is_err());
     assert_eq!(second.summary().completion(), RedactionCompletion::Complete);
 }
@@ -166,15 +164,12 @@ fn test_redaction_usage_default_matches_empty_usage() {
 
 #[cfg(feature = "http")]
 #[test]
-fn http_handle_uses_the_same_single_transaction_publication_boundary() {
-    let mut session = Redactor::standard().session();
-    let url = session.redact_http_url("https://example.test/?token=raw-token");
-    let _ = session.literal(" request completed");
-
-    let output = session.finish();
-    let url = output.resolve(url).expect("HTTP handle resolves after finish");
+fn http_batch_handle_publishes_independent_result() {
+    let mut batch = Redactor::standard().batch();
+    let url = batch.redact_http_url("https://example.test/?token=raw-token");
+    let output = batch.finish();
+    let url = output.resolve(url).expect("HTTP batch handle resolves");
     assert!(url.text().as_str().contains("example.test"));
     assert!(!url.text().as_str().contains("raw-token"));
-    assert!(output.text().as_str().contains("request completed"));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
 }
