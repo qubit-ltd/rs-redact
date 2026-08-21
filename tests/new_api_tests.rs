@@ -12,6 +12,7 @@ use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
 use qubit_redact::RedactionReasons;
+use qubit_redact::RedactionUsage;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
@@ -154,6 +155,13 @@ fn summary_completion_reason_and_empty_usage_values_are_publicly_observable() {
     assert!(reasons.contains(RedactionReason::DepthLimitReached));
     assert!(reasons.contains(RedactionReason::InvalidJson));
     assert!(!reasons.contains(RedactionReason::OutputLimitReached));
+}
+
+/// Verifies the default usage value preserves the public empty-usage contract.
+#[test]
+fn test_redaction_usage_default_matches_empty_usage() {
+    assert_eq!(RedactionUsage::default(), RedactionUsage::empty());
+    assert_eq!(RedactionUsage::default().omitted_input_bytes(), Some(0));
 }
 
 #[cfg(feature = "http")]

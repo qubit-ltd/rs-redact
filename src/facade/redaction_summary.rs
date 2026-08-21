@@ -35,7 +35,7 @@ pub enum RedactionReason {
 }
 
 /// Measured resource use for one redaction transaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RedactionUsage {
     presented_input_bytes: usize,
     inspected_input_bytes: usize,
@@ -44,6 +44,12 @@ pub struct RedactionUsage {
     visited_collection_items: usize,
     max_depth: usize,
     omitted_input_bytes: Option<usize>,
+}
+
+impl Default for RedactionUsage {
+    fn default() -> Self {
+        Self::empty()
+    }
 }
 
 impl RedactionUsage {

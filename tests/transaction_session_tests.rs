@@ -55,6 +55,16 @@ impl Redact for SafeValue {
     }
 }
 
+/// A value whose structural fallback marker cannot fit in the shared output
+/// budget after traversal admission rejects its record.
+struct StructurallyTruncatedValue;
+
+impl Redact for StructurallyTruncatedValue {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("StructurallyTruncatedValue", |_| {});
+    }
+}
+
 /// A hand-written value with one explicitly unredacted field and one field
 /// whose fixed sensitivity must prevent source access.
 struct WriterContractValue;
@@ -816,6 +826,56 @@ fn test_value_handle_keeps_its_operation_summary_without_double_charging() {
     assert_eq!(item.text().as_str(), "value");
     assert_eq!(item.summary().usage().output_bytes(), 5);
     assert_eq!(output.summary().usage().output_bytes(), 5);
+}
+
+/// Verifies a structural domain fallback that cannot fit reports output
+/// exhaustion instead of publishing a partial marker.
+#[test]
+fn test_domain_fallback_that_cannot_fit_exhausts_the_aggregate() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(0).max_output_bytes(1);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let output = Redactor::new(policy).redact(&StructurallyTruncatedValue);
+
+    assert!(output.text().as_str().is_empty());
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+}
+
+/// Verifies an individual domain handle preserves the same exhausted outcome
+/// when its structural fallback marker cannot fit.
+#[test]
+fn test_domain_fallback_that_cannot_fit_exhausts_a_handle() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(0).max_output_bytes(1);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut session = Redactor::new(policy).session();
+    let handle = session.redact_value(&StructurallyTruncatedValue);
+    let output = session.finish();
+    let item = output.resolve(handle).expect("the value handle should resolve");
+
+    assert!(item.text().as_str().is_empty());
+    assert_eq!(item.summary().completion(), RedactionCompletion::Exhausted);
+    assert!(
+        item.summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+    assert!(item.summary().reasons().contains(RedactionReason::OutputLimitReached));
 }
 
 /// Verifies that aggregate JSON retains invalid-source provenance in the one
