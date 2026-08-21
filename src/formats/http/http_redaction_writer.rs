@@ -53,7 +53,7 @@ impl<'session> HttpRedactionWriter<'session> {
 
     /// Redacts a URL as one individually resolvable transaction item.
     #[must_use]
-    pub fn redact_url(&mut self, value: &str) -> RedactionHandle {
+    pub(crate) fn redact_url(&mut self, value: &str) -> RedactionHandle {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
             if self.session.is_output_exhausted() {
@@ -88,7 +88,7 @@ impl<'session> HttpRedactionWriter<'session> {
 
     /// Redacts headers as one individually resolvable transaction item.
     #[must_use]
-    pub fn redact_headers(&mut self, headers: &HeaderMap) -> RedactionHandle {
+    pub(crate) fn redact_headers(&mut self, headers: &HeaderMap) -> RedactionHandle {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
             if let Some(headers) = self.collect_admitted_headers(headers) {
@@ -229,7 +229,7 @@ impl<'session> HttpRedactionWriter<'session> {
     /// Redacts a captured HTTP body as one individually resolvable transaction
     /// item.
     #[must_use]
-    pub fn redact_body(&mut self, capture: BodyCapture<'_>, content_type: Option<&HeaderValue>) -> RedactionHandle {
+    pub(crate) fn redact_body(&mut self, capture: BodyCapture<'_>, content_type: Option<&HeaderValue>) -> RedactionHandle {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
             if self.session.is_output_exhausted() {
@@ -291,7 +291,7 @@ impl<'session> HttpRedactionWriter<'session> {
     /// Redacts a captured HTTP body with text Content-Type as one transaction
     /// item.
     #[must_use]
-    pub fn redact_body_with_content_type_text(
+    pub(crate) fn redact_body_with_content_type_text(
         &mut self,
         capture: BodyCapture<'_>,
         content_type: Option<&str>,

@@ -94,8 +94,15 @@ impl<'session> RedactionWriter<'session> {
             self.truncate_without_output_limit();
             return;
         }
-        let allowance = self.session.remaining_output_bytes().min(self.remaining_output_bytes());
-        let output = crate::formats::json::redact_json_text_with_limit(self.session.policy(), value, allowance);
+        let allowance = self
+            .session
+            .remaining_output_bytes()
+            .min(self.remaining_output_bytes());
+        let output = crate::formats::json::redact_json_text_with_limit(
+            self.session.policy(),
+            value,
+            allowance,
+        );
         if output.completion() != crate::RedactionCompletion::Complete {
             self.truncate_without_output_limit();
         }
@@ -280,11 +287,11 @@ impl<'session> RedactionWriter<'session> {
         }
         let raw_limit = self.remaining_output_bytes();
         let (raw, raw_truncated) = bounded_debug(value, raw_limit);
-        let (masked, mask_truncated) =
-            self.session
-                .policy()
-                .masking()
-                .mask_bounded_with_truncation(level, &raw, self.remaining_output_bytes());
+        let (masked, mask_truncated) = self
+            .session
+            .policy()
+            .masking()
+            .mask_bounded_with_truncation(level, &raw, self.remaining_output_bytes());
         self.write_debug(masked.as_ref());
         if raw_truncated || mask_truncated {
             self.truncate_for_output_limit();
@@ -390,11 +397,16 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         } else {
             let raw_limit = self.writer.remaining_output_bytes();
             let (raw, raw_truncated) = bounded_debug(&access(), raw_limit);
-            let (value, mask_truncated) = self.writer.session.policy().masking().mask_bounded_with_truncation(
-                effective_level,
-                &raw,
-                self.writer.remaining_output_bytes(),
-            );
+            let (value, mask_truncated) = self
+                .writer
+                .session
+                .policy()
+                .masking()
+                .mask_bounded_with_truncation(
+                    effective_level,
+                    &raw,
+                    self.writer.remaining_output_bytes(),
+                );
             self.writer.write_debug(value.as_ref());
             if raw_truncated || mask_truncated {
                 self.writer.truncate_for_output_limit();
@@ -501,7 +513,8 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
 
     #[inline]
     fn admit_item(&mut self) -> bool {
-        !self.writer.session.domain_frame_is_truncated() && self.writer.session.admit_domain_collection_item()
+        !self.writer.session.domain_frame_is_truncated()
+            && self.writer.session.admit_domain_collection_item()
     }
 
     fn write_prefix(&mut self, name: &str) {
@@ -590,7 +603,8 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
     }
 
     fn admit_item(&mut self) -> bool {
-        !self.writer.session.domain_frame_is_truncated() && self.writer.session.admit_domain_collection_item()
+        !self.writer.session.domain_frame_is_truncated()
+            && self.writer.session.admit_domain_collection_item()
     }
 
     fn write_truncated(&mut self) {
@@ -677,7 +691,8 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
     }
 
     fn admit_entry(&mut self) -> bool {
-        !self.writer.session.domain_frame_is_truncated() && self.writer.session.admit_domain_collection_item()
+        !self.writer.session.domain_frame_is_truncated()
+            && self.writer.session.admit_domain_collection_item()
     }
 
     fn write_prefix(&mut self, name: &str) {
@@ -774,7 +789,10 @@ mod tests {
         let output = Redactor::standard().redact(&Container);
 
         assert!(output.text().as_str().contains("Nested { id: 7 }"));
-        assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());
+        assert_eq!(
+            output.summary().usage().output_bytes(),
+            output.text().as_str().len()
+        );
     }
 
     #[cfg(feature = "json")]
@@ -794,11 +812,21 @@ mod tests {
     #[cfg(feature = "json")]
     #[test]
     fn writer_json_uses_the_active_session_summary() {
-        let mut session = Redactor::standard().session();
-        let output = session.value(&JsonContainer).finish();
+        let output = Redactor::standard()
+            .text_composer()
+            .value(&JsonContainer)
+            .finish();
 
-        assert_eq!(output.summary().usage().presented_input_bytes(), "{invalid json".len());
-        assert!(output.summary().reasons().contains(crate::RedactionReason::InvalidJson));
+        assert_eq!(
+            output.summary().usage().presented_input_bytes(),
+            "{invalid json".len()
+        );
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(crate::RedactionReason::InvalidJson)
+        );
     }
 
     /// A JSON value emitted by a domain writer must spend the same structural
@@ -814,11 +842,15 @@ mod tests {
             .expect("the limit draft should build")
             .build()
             .expect("the policy should build");
-        let mut session = Redactor::new(policy).session();
+        let output = Redactor::new(policy)
+            .text_composer()
+            .value(&JsonContainerWithValidNestedValue)
+            .finish();
 
-        let output = session.value(&JsonContainerWithValidNestedValue).finish();
-
-        assert_eq!(output.summary().completion(), crate::RedactionCompletion::Truncated);
+        assert_eq!(
+            output.summary().completion(),
+            crate::RedactionCompletion::Truncated
+        );
         assert!(
             output
                 .summary()
@@ -846,9 +878,9 @@ mod tests {
             .expect("the limit draft should build")
             .build()
             .expect("the policy should build");
-        let mut session = Redactor::new(policy).session();
-        let handle = session.redact_value(&JsonContainerWithValidNestedValue);
-        let output = session.finish();
+        let mut batch = Redactor::new(policy).batch();
+        let handle = batch.redact_value(&JsonContainerWithValidNestedValue);
+        let output = batch.finish();
         let item = output.resolve(handle).expect("the handle should resolve");
 
         assert!(

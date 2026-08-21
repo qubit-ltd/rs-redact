@@ -46,7 +46,7 @@ impl<'session> UriRedactionWriter<'session> {
 
     /// Redacts a URI as one individually resolvable transaction item.
     #[must_use]
-    pub fn redact_uri(&mut self, value: &str) -> RedactionHandle {
+    pub(crate) fn redact_uri(&mut self, value: &str) -> RedactionHandle {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
             if self.session.is_output_exhausted() {
@@ -136,9 +136,8 @@ mod tests {
             .expect("the test limit draft should build")
             .build()
             .expect("the test policy should build");
-        let mut session = Redactor::new(policy).session();
-
-        let output = session
+        let output = Redactor::new(policy)
+            .text_composer()
             .literal("prefix")
             .uri(|uri| {
                 uri.value("https://example.test/a/very/long/path?token=secret");

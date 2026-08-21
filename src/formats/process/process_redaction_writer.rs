@@ -109,7 +109,7 @@ impl<'session> ProcessRedactionWriter<'session> {
     /// single handle. No temporary session or independent adapter budget is
     /// created.
     #[must_use]
-    pub fn redact_command<'arguments, 'variables, A, E>(
+    pub(crate) fn redact_command<'arguments, 'variables, A, E>(
         &mut self,
         program: &'arguments OsStr,
         arguments: A,
@@ -249,12 +249,12 @@ mod tests {
             ArgvItem::plain(OsStr::new("argv-secret")),
         ];
         let variables = [(OsStr::new("PASSWORD"), OsStr::new("env-secret"))];
-        let mut session = Redactor::strict().session();
+        let mut session = Redactor::strict().text_runtime();
         let mut process = ProcessRedactionWriter::new(&mut session);
 
         process.command(OsStr::new("client"), arguments, variables);
 
-        let output = session.finish();
+        let output = session.finish_text();
         assert!(!output.text().as_str().contains("argv-secret"));
         assert!(!output.text().as_str().contains("env-secret"));
     }

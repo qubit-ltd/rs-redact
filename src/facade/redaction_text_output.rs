@@ -12,12 +12,12 @@ use super::RedactionSummary;
 
 /// Complete result of one redaction operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RedactionOutput {
+pub struct RedactionTextOutput {
     text: RedactedText,
     summary: RedactionSummary,
 }
 
-impl RedactionOutput {
+impl RedactionTextOutput {
     /// Creates a complete output.
     #[must_use]
     pub(crate) fn new(text: RedactedText, summary: RedactionSummary) -> Self {

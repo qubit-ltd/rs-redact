@@ -8,7 +8,7 @@
 //! Non-destructive redaction contract for domain objects.
 // qubit-style: allow multiple-public-types
 
-use crate::RedactionOutput;
+use crate::RedactionTextOutput;
 use crate::Redactor;
 use crate::domain::RedactionWriter;
 
@@ -56,7 +56,7 @@ pub trait Redact {
     /// The completed transaction output.
     #[inline(always)]
     #[must_use]
-    fn redacted(&self) -> RedactionOutput
+    fn redacted(&self) -> RedactionTextOutput
     where
         Self: Sized,
     {
@@ -74,7 +74,7 @@ pub trait Redact {
     /// The completed transaction output.
     #[inline(always)]
     #[must_use]
-    fn redacted_with(&self, redactor: &Redactor) -> RedactionOutput
+    fn redacted_with(&self, redactor: &Redactor) -> RedactionTextOutput
     where
         Self: Sized,
     {

@@ -10,19 +10,11 @@
 
 use std::fmt;
 
-/// Opaque reference to one redacted item produced during a session transaction.
+/// Private reference to one redacted item produced during a batch transaction.
 ///
 /// A handle intentionally has no text formatting implementation. Call
-/// [`crate::RedactionSessionOutput::resolve`] after `finish()` publishes the
-/// transaction to obtain its safe text.
-///
-/// ```compile_fail
-/// use qubit_redact::Redactor;
-///
-/// let mut session = Redactor::strict().session();
-/// let handle = session.redact_field("password", "raw-secret");
-/// let _ = format!("{handle}");
-/// ```
+/// The public [`crate::RedactionBatchHandle`] is created from this private
+/// token before an operation returns to the caller.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RedactionHandle {
     pub(super) transaction_id: u64,
@@ -32,15 +24,19 @@ pub struct RedactionHandle {
 impl RedactionHandle {
     /// Creates a handle for one transaction-owned item.
     #[must_use]
-    pub(super) const fn new(transaction_id: u64, item_index: usize) -> Self {
+    pub(crate) const fn new(transaction_id: u64, item_index: usize) -> Self {
         Self {
             transaction_id,
             item_index,
         }
     }
+
+    pub(crate) const fn parts(self) -> (u64, usize) {
+        (self.transaction_id, self.item_index)
+    }
 }
 
-/// Explains why a transaction output cannot resolve a handle.
+/// Explains why a private batch publication cannot resolve a handle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RedactionHandleError {
     /// The handle was created by a different session transaction.
@@ -52,8 +48,12 @@ pub enum RedactionHandleError {
 impl fmt::Display for RedactionHandleError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::DifferentTransaction => formatter.write_str("the handle belongs to a different transaction"),
-            Self::MissingItem => formatter.write_str("the handle does not identify a published item"),
+            Self::DifferentTransaction => {
+                formatter.write_str("the handle belongs to a different transaction")
+            }
+            Self::MissingItem => {
+                formatter.write_str("the handle does not identify a published item")
+            }
         }
     }
 }

@@ -69,7 +69,7 @@ impl<'session> EnvRedactionWriter<'session> {
 
     /// Redacts one pair as an individually resolvable transaction item.
     #[must_use]
-    pub fn redact_pair(&mut self, name: &str, value: &str) -> RedactionHandle {
+    pub(crate) fn redact_pair(&mut self, name: &str, value: &str) -> RedactionHandle {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
             if self.session.is_output_exhausted() {
@@ -100,7 +100,7 @@ impl<'session> EnvRedactionWriter<'session> {
     /// Redacts an environment list as one individually resolvable transaction
     /// item.
     #[must_use]
-    pub fn redact_os_pairs<'items, I>(&mut self, pairs: I) -> RedactionHandle
+    pub(crate) fn redact_os_pairs<'items, I>(&mut self, pairs: I) -> RedactionHandle
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
         I::IntoIter: ExactSizeIterator,
