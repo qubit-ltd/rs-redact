@@ -52,8 +52,8 @@ pub(in crate::formats::http) struct HttpPolicyExecutor<'policy> {
 /// One completed HTTP rendering owned by the parent transaction.
 ///
 /// This is deliberately an implementation detail rather than an HTTP result
-/// type: HTTP never publishes a second output model.  The session immediately
-/// commits its text and completion into its one `RedactionSessionOutput`.
+/// type: HTTP never publishes a second output model. The parent transaction
+/// commits its text and completion into its composer or batch publication.
 pub(in crate::formats::http) struct HttpRendered {
     operation: RenderedOperation,
 }
