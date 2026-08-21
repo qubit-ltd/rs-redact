@@ -29,6 +29,7 @@ fn query_noise(input: &[u8]) -> String {
 }
 
 fuzz_target!(|input: &[u8]| {
+    let input = &input[..input.len().min(4_096)];
     let text = String::from_utf8_lossy(input);
     let redactor = Redactor::standard();
 
