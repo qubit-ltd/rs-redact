@@ -131,11 +131,29 @@ impl Redactor {
         RedactionSession::from_batch_snapshot(Arc::clone(&self.policy))
     }
 
+    /// Starts one ordered text-composition transaction.
+    ///
+    /// The returned composer owns a fresh budget ledger initialized from this
+    /// redactor's immutable policy snapshot. Its consuming `finish` method
+    /// publishes one [`RedactionTextOutput`].
+    ///
+    /// # Returns
+    ///
+    /// A composer for one independently bounded ordered text result.
     #[must_use]
     pub fn text_composer(&self) -> RedactedTextComposer {
         RedactedTextComposer::from_session(self.text_runtime())
     }
 
+    /// Starts one batch of independently resolvable redaction items.
+    ///
+    /// The returned batch owns a fresh budget ledger initialized from this
+    /// redactor's immutable policy snapshot. Its consuming `finish` method
+    /// publishes a [`crate::RedactionBatchOutput`].
+    ///
+    /// # Returns
+    /// A mutable batch that issues handles resolvable only from its finished
+    /// output.
     #[must_use]
     pub fn batch(&self) -> RedactionBatch {
         RedactionBatch::from_session(self.batch_runtime())

@@ -44,6 +44,31 @@
 //! let _ = RedactionSummary::complete();
 //! ```
 //!
+//! The pre-0.5 transaction session is an implementation detail and cannot be
+//! imported as a public compatibility API.
+//!
+//! ```compile_fail
+//! use qubit_redact::RedactionSession;
+//! ```
+//!
+//! Composer and batch APIs deliberately do not overlap, and both publication
+//! methods consume their owner.
+//!
+//! ```compile_fail
+//! use qubit_redact::Redactor;
+//!
+//! let composer = Redactor::strict().text_composer();
+//! let _ = composer.finish();
+//! let _ = composer.literal("cannot reuse a finished composer");
+//! ```
+//!
+//! ```compile_fail
+//! use qubit_redact::Redactor;
+//!
+//! let mut batch = Redactor::strict().batch();
+//! batch.literal("batch has no aggregate text API");
+//! ```
+//!
 //! The domain-level rendering traits do not provide an alternate output path.
 //! Domain values must be written through [`Redact`] and a
 //! [`RedactedTextComposer`] or [`RedactionBatch`].
