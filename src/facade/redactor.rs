@@ -211,7 +211,7 @@ impl Redactor {
             .expect("a handle created by the completed transaction must resolve")
     }
 
-    /// Redacts one process command through one completed session transaction.
+    /// Redacts one process command through one completed batch transaction.
     #[must_use]
     pub fn redact_process<'arguments, 'variables, A, E>(
         &self,
@@ -233,7 +233,7 @@ impl Redactor {
             .expect("a handle created by the completed transaction must resolve")
     }
 
-    /// Redacts JSON text through one completed session transaction.
+    /// Redacts JSON text through one completed batch transaction.
     #[cfg(feature = "json")]
     #[must_use]
     pub fn redact_json(&self, text: &str) -> RedactionTextOutput {
@@ -245,7 +245,7 @@ impl Redactor {
             .expect("a handle created by the completed transaction must resolve")
     }
 
-    /// Redacts an HTTP URL through one completed session transaction.
+    /// Redacts an HTTP URL through one completed batch transaction.
     #[cfg(feature = "http")]
     #[must_use]
     pub fn redact_http_url(&self, value: &str) -> RedactionTextOutput {
@@ -286,7 +286,7 @@ impl Redactor {
             .expect("a handle created by the completed transaction must resolve")
     }
 
-    /// Redacts a URI through one completed session transaction.
+    /// Redacts a URI through one completed batch transaction.
     #[cfg(feature = "uri")]
     #[must_use]
     pub fn redact_uri(&self, input: &str) -> RedactionTextOutput {

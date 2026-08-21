@@ -17,9 +17,8 @@ use crate::policy::ResolvedField;
 
 /// Borrowed field-rule executor used within one HTTP redaction call.
 ///
-/// It deliberately owns no policy snapshot: the parent
-/// [`RedactionSession`](crate::RedactionSession) supplies context rules for
-/// each operation.
+/// It deliberately owns no policy snapshot: the parent runtime supplies
+/// context rules for each operation.
 pub(in crate::formats::http) struct FieldRedactor<'a> {
     base_rules: &'a RedactionRules,
     context_rules: &'a RedactionRules,

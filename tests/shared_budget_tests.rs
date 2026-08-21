@@ -71,6 +71,55 @@ fn batch_stops_later_item_after_output_exhaustion() {
 }
 
 #[test]
+fn batch_heuristic_argv_returns_an_exhausted_handle_without_reading_items() {
+    let later_pulled = Cell::new(false);
+    let mut batch = create_one_byte_redactor().batch();
+    let first = batch.redact_field("name", "x");
+    let second = batch.redact_heuristic_argv(
+        [ArgvItem::plain(OsStr::new("must-not-be-read"))]
+            .into_iter()
+            .inspect(|_| later_pulled.set(true)),
+    );
+    let output = batch.finish();
+
+    assert!(output.resolve(first).is_ok());
+    assert_eq!(
+        output
+            .resolve(second)
+            .expect("exhausted item resolves")
+            .summary()
+            .completion(),
+        RedactionCompletion::Exhausted
+    );
+    assert!(!later_pulled.get());
+}
+
+#[cfg(feature = "http")]
+#[test]
+fn batch_http_body_text_returns_an_exhausted_handle() {
+    use qubit_redact::RedactionReason;
+    use qubit_redact::formats::http::BodyCapture;
+
+    let mut batch = create_one_byte_redactor().batch();
+    let first = batch.redact_field("name", "x");
+    let second = batch
+        .redact_http_body_with_content_type_text(BodyCapture::complete(b"not-valid-json"), Some("application/json"));
+    let output = batch.finish();
+
+    assert!(output.resolve(first).is_ok());
+    assert_eq!(
+        output
+            .resolve(second)
+            .expect("exhausted item resolves")
+            .summary()
+            .completion(),
+        RedactionCompletion::Exhausted
+    );
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert!(!output.summary().reasons().contains(RedactionReason::InvalidJson));
+}
+
+#[test]
 fn composer_and_batch_own_independent_budget_ledgers() {
     let redactor = create_one_byte_redactor();
     let text = redactor.text_composer().literal("x").finish();

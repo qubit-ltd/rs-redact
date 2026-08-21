@@ -86,11 +86,7 @@ impl RedactionBatch {
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
         I::IntoIter: ExactSizeIterator,
     {
-        let mut handle = None;
-        self.session.argv(|argv| {
-            handle = Some(argv.redact_heuristic_items(items));
-        });
-        Self::wrap(handle.expect("argv adapter must return a handle"))
+        Self::wrap(self.session.redact_heuristic_argv(items))
     }
     /// Redacts one environment assignment as one item.
     ///
@@ -172,11 +168,10 @@ impl RedactionBatch {
         capture: crate::formats::http::BodyCapture<'_>,
         content_type: Option<&str>,
     ) -> RedactionBatchHandle {
-        let mut handle = None;
-        let _ = self.session.http(|http| {
-            handle = Some(http.redact_body_with_content_type_text(capture, content_type));
-        });
-        Self::wrap(handle.expect("HTTP body adapter must return a handle"))
+        Self::wrap(
+            self.session
+                .redact_http_body_with_content_type_text(capture, content_type),
+        )
     }
     /// Redacts one URI as one item.
     #[cfg(feature = "uri")]
