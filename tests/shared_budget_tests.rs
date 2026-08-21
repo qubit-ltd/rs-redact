@@ -36,16 +36,8 @@ fn composer_stops_later_adapter_after_output_exhaustion() {
         .env(|_| later_called.set(true))
         .finish();
 
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::OutputLimitReached)
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert!(!later_called.get());
 }
 
@@ -56,10 +48,7 @@ fn batch_stops_later_item_after_output_exhaustion() {
     let second = batch.redact_env("MODE", "debug");
     let output = batch.finish();
 
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
     assert_eq!(
         output
             .resolve(first)
@@ -88,12 +77,5 @@ fn composer_and_batch_own_independent_budget_ledgers() {
 
     assert_eq!(text.text().as_str(), "x");
     assert_eq!(text.summary().completion(), RedactionCompletion::Complete);
-    assert_eq!(
-        output
-            .resolve(item)
-            .expect("batch item resolves")
-            .text()
-            .as_str(),
-        "x"
-    );
+    assert_eq!(output.resolve(item).expect("batch item resolves").text().as_str(), "x");
 }

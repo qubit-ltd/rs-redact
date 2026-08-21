@@ -5,12 +5,15 @@
 // =============================================================================
 //! Transactional publication contracts for composer and batch.
 
+use std::ffi::OsStr;
+use std::panic::AssertUnwindSafe;
+
 use qubit_redact::Redact;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
-use std::panic::AssertUnwindSafe;
+use qubit_redact::formats::argv::ArgvItem;
 
 struct SafeValue;
 
@@ -54,11 +57,7 @@ fn batch_resolves_items_only_from_its_own_output() {
     let output = batch.finish();
 
     assert_eq!(
-        output
-            .resolve(first)
-            .expect("first item resolves")
-            .text()
-            .as_str(),
+        output.resolve(first).expect("first item resolves").text().as_str(),
         "Ada"
     );
     assert!(
@@ -96,10 +95,7 @@ fn output_limit_is_observable_without_publishing_raw_input() {
         .field("password", "raw-secret")
         .finish();
 
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
     assert!(!output.text().as_str().contains("raw-secret"));
 }
 
@@ -121,4 +117,52 @@ fn batch_recovers_from_user_redaction_panic_without_publishing_partial_item() {
             .as_str(),
         "<redacted>"
     );
+}
+
+#[test]
+fn batch_panic_invalidates_handles_created_before_rollback() {
+    let mut batch = Redactor::strict().batch();
+    let stale = batch.redact_field("password", "raw-secret");
+    let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
+        let _ = batch.redact_value(&PanickingValue);
+    }));
+    assert!(result.is_err());
+
+    let current = batch.redact_field("password", "raw-secret");
+    let output = batch.finish();
+    assert!(output.resolve(stale).is_err());
+    assert_eq!(
+        output
+            .resolve(current)
+            .expect("post-panic item resolves")
+            .text()
+            .as_str(),
+        "<redacted>"
+    );
+}
+
+#[test]
+fn process_composer_batch_and_one_shot_publish_equivalent_safe_text() {
+    let redactor = Redactor::standard();
+    let program = OsStr::new("client");
+    let arguments = [ArgvItem::plain(OsStr::new("--password=raw-secret"))];
+    let variables = [(OsStr::new("PASSWORD"), OsStr::new("raw-secret"))];
+
+    let composer = redactor
+        .text_composer()
+        .process(|process| {
+            process.command(program, arguments, variables);
+        })
+        .finish();
+
+    let mut batch = redactor.batch();
+    let handle = batch.redact_process(program, arguments, variables);
+    let batch = batch.finish();
+
+    let one_shot = redactor.redact_process(program, arguments, variables);
+    let batch_text = batch.resolve(handle).expect("batch process resolves").text().as_str();
+
+    assert_eq!(composer.text().as_str(), batch_text);
+    assert_eq!(composer.text().as_str(), one_shot.text().as_str());
+    assert!(!composer.text().as_str().contains("raw-secret"));
 }

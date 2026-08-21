@@ -43,17 +43,24 @@ fn runtime_and_buffers_keep_publication_models_separate() {
     assert!(publication.contains("enum PublicationBuffer"));
 }
 
+/// Publishing a batch must move the item text staged by the runtime instead
+/// of reconstructing each item from slices of an aggregate buffer.
+#[test]
+fn batch_publication_moves_staged_text_without_range_copying() {
+    let batch = include_str!("../src/runtime/batch_output_buffer.rs");
+
+    assert!(batch.contains("items: Vec<RedactionTextOutput>"));
+    assert!(!batch.contains("ItemRange"));
+    assert!(!batch.contains("to_owned()"));
+}
+
 /// Format adapters must report rendering outcomes to the runtime instead of
 /// constructing publishable output, summaries, or safe-text wrappers.
 #[test]
 fn format_adapters_cannot_construct_published_output_models() {
     let formats = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/formats");
     visit_rust_sources(&formats, &mut |path, source| {
-        for forbidden in [
-            "RedactionTextOutput::",
-            "RedactionSummary::",
-            "RedactedText::from_",
-        ] {
+        for forbidden in ["RedactionTextOutput::", "RedactionSummary::", "RedactedText::from_"] {
             assert!(
                 !source.contains(forbidden),
                 "{} constructs forbidden runtime output through {forbidden}",
@@ -89,15 +96,7 @@ fn domain_writer_has_only_the_fixed_root_surface() {
     assert!(!writer.contains("pub fn unit"));
     assert_eq!(
         public_methods,
-        [
-            "literal",
-            "unredacted",
-            "record",
-            "tuple",
-            "sequence",
-            "map",
-            "variant"
-        ]
+        ["literal", "unredacted", "record", "tuple", "sequence", "map", "variant"]
     );
 }
 

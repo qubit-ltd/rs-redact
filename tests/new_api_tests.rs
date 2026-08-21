@@ -25,11 +25,11 @@ struct Account {
 impl Redact for Account {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.record("Account", |fields| {
-            fields.unredacted("name", || self.name.clone()).sensitive(
-                Sensitivity::Secret,
-                "password",
-                || panic!("a secret accessor must not run"),
-            );
+            fields
+                .unredacted("name", || self.name.clone())
+                .sensitive(Sensitivity::Secret, "password", || {
+                    panic!("a secret accessor must not run")
+                });
         });
     }
 }
@@ -71,10 +71,7 @@ fn composer_and_batch_publish_separate_models() {
     assert!(!text.text().as_str().contains("raw-token"));
     assert!(!text.text().as_str().contains("raw-password"));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
-    assert_eq!(
-        output.summary().usage().output_bytes(),
-        name.text().as_str().len()
-    );
+    assert_eq!(output.summary().usage().output_bytes(), name.text().as_str().len());
 }
 
 #[test]

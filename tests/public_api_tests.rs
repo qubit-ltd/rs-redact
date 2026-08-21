@@ -48,11 +48,7 @@ fn batch_resolves_independent_items_without_aggregate_text() {
     let output = batch.finish();
 
     assert_eq!(
-        output
-            .resolve(handle)
-            .expect("batch handle resolves")
-            .text()
-            .as_str(),
+        output.resolve(handle).expect("batch handle resolves").text().as_str(),
         "<redacted>"
     );
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
@@ -65,11 +61,7 @@ fn batch_redacts_one_domain_value() {
     let output = batch.finish();
 
     assert_eq!(
-        output
-            .resolve(handle)
-            .expect("domain handle resolves")
-            .text()
-            .as_str(),
+        output.resolve(handle).expect("domain handle resolves").text().as_str(),
         "PublicApiValue"
     );
 }
