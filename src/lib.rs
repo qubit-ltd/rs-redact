@@ -100,7 +100,6 @@ pub use policy::Sensitivity;
 #[cfg(feature = "json")]
 pub use policy::UnkeyedJsonValuePolicy;
 pub use policy::UnknownFieldPolicy;
-
 pub(crate) use runtime::RedactionHandle;
 pub(crate) use runtime::RedactionHandleError;
 pub(crate) use runtime::RedactionSession;

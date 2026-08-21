@@ -229,7 +229,11 @@ impl<'session> HttpRedactionWriter<'session> {
     /// Redacts a captured HTTP body as one individually resolvable transaction
     /// item.
     #[must_use]
-    pub(crate) fn redact_body(&mut self, capture: BodyCapture<'_>, content_type: Option<&HeaderValue>) -> RedactionHandle {
+    pub(crate) fn redact_body(
+        &mut self,
+        capture: BodyCapture<'_>,
+        content_type: Option<&HeaderValue>,
+    ) -> RedactionHandle {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
             if self.session.is_output_exhausted() {

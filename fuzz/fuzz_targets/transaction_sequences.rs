@@ -50,8 +50,7 @@ fuzz_target!(|data: &[u8]| {
                 assert!(output.resolve(handle).is_ok());
             }
             3 => {
-                let handle =
-                    batch.redact_http_url("https://fuzz.example/?password=transaction-secret");
+                let handle = batch.redact_http_url("https://fuzz.example/?password=transaction-secret");
                 let output = batch.finish();
                 check_output(&output, output_limit);
                 assert!(output.resolve(handle).is_ok());

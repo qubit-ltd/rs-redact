@@ -48,12 +48,8 @@ pub enum RedactionHandleError {
 impl fmt::Display for RedactionHandleError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::DifferentTransaction => {
-                formatter.write_str("the handle belongs to a different transaction")
-            }
-            Self::MissingItem => {
-                formatter.write_str("the handle does not identify a published item")
-            }
+            Self::DifferentTransaction => formatter.write_str("the handle belongs to a different transaction"),
+            Self::MissingItem => formatter.write_str("the handle does not identify a published item"),
         }
     }
 }
