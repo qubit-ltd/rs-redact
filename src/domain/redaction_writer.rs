@@ -244,16 +244,7 @@ impl<'session> RedactionWriter<'session> {
     /// cause in the shared session. If their fallback marker itself cannot
     /// fit, [`Self::write_fragment`] records the additional output limit.
     fn truncate_without_output_limit(&mut self) {
-        if self.session.domain_frame_is_truncated() {
-            return;
-        }
-        const MARKER: &str = "<truncated>";
-        let output_limit = self.session.remaining_output_bytes();
-        let marker_bytes = MARKER.len().min(output_limit);
-        self.session
-            .truncate_domain_frame_to(output_limit.saturating_sub(marker_bytes));
-        self.session.append_domain_frame_fragment(&MARKER[..marker_bytes]);
-        self.session.mark_domain_frame_truncated();
+        self.session.truncate_domain_frame_without_output_limit();
     }
 
     /// Appends `text` only while its final log-escaped representation fits.

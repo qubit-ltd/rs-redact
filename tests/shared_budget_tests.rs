@@ -336,6 +336,48 @@ fn test_exhausted_item_skips_following_operation() {
     );
 }
 
+/// Verifies an exhausted argv handle retains the input and traversal charges
+/// incurred before its safe replacement was found not to fit.
+#[test]
+fn test_exhausted_argv_handle_retains_admitted_usage() {
+    let mut session = create_one_byte_redactor().session();
+
+    let handle = session.redact_argv([ArgvItem::plain(OsStr::new("client"))]);
+    let output = session.finish();
+    let item = output
+        .resolve(handle)
+        .expect("the exhausted argv handle should resolve");
+
+    assert_eq!(item.summary(), output.summary());
+    assert_eq!(item.summary().usage().presented_input_bytes(), 6);
+    assert_eq!(item.summary().usage().inspected_input_bytes(), 6);
+    assert_eq!(item.summary().usage().output_bytes(), 0);
+    assert_eq!(item.summary().usage().visited_nodes(), 2);
+    assert_eq!(item.summary().usage().visited_collection_items(), 1);
+    assert_eq!(item.summary().usage().max_depth(), 2);
+}
+
+/// Verifies an exhausted environment handle retains the input and traversal
+/// charges incurred before its safe replacement was found not to fit.
+#[test]
+fn test_exhausted_env_handle_retains_admitted_usage() {
+    let mut session = create_one_byte_redactor().session();
+
+    let handle = session.redact_env("MODE", "debug");
+    let output = session.finish();
+    let item = output
+        .resolve(handle)
+        .expect("the exhausted environment handle should resolve");
+
+    assert_eq!(item.summary(), output.summary());
+    assert_eq!(item.summary().usage().presented_input_bytes(), 9);
+    assert_eq!(item.summary().usage().inspected_input_bytes(), 9);
+    assert_eq!(item.summary().usage().output_bytes(), 0);
+    assert_eq!(item.summary().usage().visited_nodes(), 2);
+    assert_eq!(item.summary().usage().visited_collection_items(), 1);
+    assert_eq!(item.summary().usage().max_depth(), 2);
+}
+
 /// Verifies URI rendering closes the transaction when its safe fallback does
 /// not fit.
 #[cfg(feature = "uri")]

@@ -142,6 +142,9 @@ impl RedactionSession {
             let rendered = writer.finish_with_completion();
             let escaped = crate::output::log_escape::escape_log_control_characters(std::borrow::Cow::Owned(rendered.0))
                 .into_owned();
+            if rendered.2 && escaped.is_empty() {
+                return session.stage_exhausted_handle();
+            }
             if rendered.2 {
                 session.record_summary(crate::RedactionSummary::truncated(
                     crate::RedactionReason::OutputLimitReached,
@@ -677,9 +680,14 @@ impl RedactionSession {
             return;
         }
         const MARKER: &str = "<truncated>";
-        let marker_bytes = MARKER.len().min(self.remaining_output_bytes());
-        self.truncate_domain_frame_to(self.remaining_output_bytes().saturating_sub(marker_bytes));
-        self.append_domain_frame_fragment(&MARKER[..marker_bytes]);
+        if MARKER.len() > self.remaining_output_bytes() {
+            self.truncate_domain_frame_to(0);
+            self.mark_domain_frame_output_limit_reached();
+            self.transaction.phase = TransactionPhase::OutputExhausted;
+        } else {
+            self.truncate_domain_frame_to(self.remaining_output_bytes().saturating_sub(MARKER.len()));
+            self.append_domain_frame_fragment(MARKER);
+        }
         self.mark_domain_frame_truncated();
     }
 
@@ -709,9 +717,12 @@ impl RedactionSession {
     /// exhaustion alongside any earlier input or structural provenance.
     pub(crate) fn append_domain_output(&mut self, output: &str, output_limit_reached: bool) {
         if output_limit_reached {
-            self.record_summary(crate::RedactionSummary::truncated(
-                crate::RedactionReason::OutputLimitReached,
-            ));
+            let summary = if output.is_empty() || self.transaction.phase == TransactionPhase::OutputExhausted {
+                crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached)
+            } else {
+                crate::RedactionSummary::truncated(crate::RedactionReason::OutputLimitReached)
+            };
+            self.record_summary(summary);
         }
         self.append_output_fragment(output);
     }
@@ -998,9 +1009,14 @@ impl RedactionSession {
         }
         let summary = crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached);
         self.record_summary(summary);
+        let item_summary = self
+            .transaction
+            .item_summary
+            .unwrap_or(SummaryBuilder::from_summary(summary))
+            .build();
         let item_index = self.transaction.items.len();
         let range = self.transaction.output.push_item("");
-        self.transaction.items.push(ItemRange::new(range, summary));
+        self.transaction.items.push(ItemRange::new(range, item_summary));
         self.transaction.exhausted_handle_item = Some(item_index);
         RedactionHandle::new(self.transaction.id, item_index)
     }
