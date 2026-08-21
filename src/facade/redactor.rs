@@ -68,8 +68,8 @@ impl Redactor {
     ///
     /// The replacement is linearizable: concurrent readers observe either the
     /// complete previous snapshot or the complete new snapshot. Existing
-    /// redactors, composers, and batches keep their own snapshots. The previous default
-    /// is returned so callers can restore it after a scoped change.
+    /// redactors, composers, and batches keep their own snapshots. The previous
+    /// default is returned so callers can restore it after a scoped change.
     #[must_use]
     pub fn replace_application_default(redactor: Self) -> Self {
         let mut current = match crate::facade::default_redactor::slot().write() {
@@ -117,7 +117,8 @@ impl Redactor {
     ///
     /// # Returns
     ///
-    /// A private runtime owning a clone of this redactor's immutable policy snapshot.
+    /// A private runtime owning a clone of this redactor's immutable policy
+    /// snapshot.
     #[must_use]
     #[inline]
     pub(crate) fn text_runtime(&self) -> RedactionSession {

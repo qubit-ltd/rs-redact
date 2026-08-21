@@ -2,16 +2,14 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Unpublished independently resolvable text owned by the batch path.
 
-use super::item_range::ItemRange;
-use crate::RedactedText;
 use crate::RedactionTextOutput;
 
 pub(super) struct BatchOutputBuffer {
-    storage: String,
-    items: Vec<ItemRange>,
+    items: Vec<RedactionTextOutput>,
     exhausted_item: Option<usize>,
 }
 
@@ -19,18 +17,17 @@ impl BatchOutputBuffer {
     #[must_use]
     pub(super) const fn new() -> Self {
         Self {
-            storage: String::new(),
             items: Vec::new(),
             exhausted_item: None,
         }
     }
 
-    pub(super) fn push(&mut self, text: &str, summary: crate::RedactionSummary) -> usize {
-        let start = self.storage.len();
-        self.storage.push_str(text);
+    pub(super) fn push(&mut self, text: String, summary: crate::RedactionSummary) -> usize {
         let index = self.items.len();
-        self.items
-            .push(ItemRange::new(start..self.storage.len(), summary));
+        self.items.push(RedactionTextOutput::new(
+            crate::RedactedText::from_escaped(text),
+            summary,
+        ));
         index
     }
 
@@ -49,13 +46,5 @@ impl BatchOutputBuffer {
     #[must_use]
     pub(super) fn publish(self) -> Vec<RedactionTextOutput> {
         self.items
-            .into_iter()
-            .map(|item| {
-                RedactionTextOutput::new(
-                    RedactedText::from_escaped(self.storage[item.range].to_owned()),
-                    item.summary,
-                )
-            })
-            .collect()
     }
 }

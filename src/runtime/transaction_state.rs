@@ -9,10 +9,9 @@
 
 use std::sync::Arc;
 
-use crate::RedactionPolicy;
-
 use super::publication_buffer::PublicationBuffer;
 use super::redaction_runtime::RedactionRuntime;
+use crate::RedactionPolicy;
 
 /// All mutable accounting and unpublished output for one transaction.
 pub struct TransactionState {

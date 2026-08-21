@@ -1,42 +1,8 @@
-use std::fmt;
-
-use crate::RedactionTextOutput;
+use super::RedactionBatchHandle;
+use super::RedactionBatchOutput;
 use crate::domain::Redact;
-use crate::runtime::BatchPublication;
 use crate::runtime::RedactionHandle;
 use crate::runtime::RedactionSession;
-
-/// Opaque reference to one unpublished item in a [`RedactionBatch`].
-///
-/// ```compile_fail
-/// use qubit_redact::Redactor;
-///
-/// let mut batch = Redactor::strict().batch();
-/// let handle = batch.redact_field("password", "raw-secret");
-/// let _ = format!("{handle}");
-/// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RedactionBatchHandle {
-    batch_id: u64,
-    item_index: usize,
-}
-
-/// Error returned when a batch output cannot resolve a handle.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RedactionBatchHandleError {
-    DifferentBatch,
-    MissingItem,
-}
-
-impl fmt::Display for RedactionBatchHandleError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::DifferentBatch => "the handle belongs to a different batch",
-            Self::MissingItem => "the handle does not identify a published item",
-        })
-    }
-}
-impl std::error::Error for RedactionBatchHandleError {}
 
 /// Accumulates independently resolvable redaction items under one budget.
 pub struct RedactionBatch {
@@ -53,10 +19,7 @@ impl RedactionBatch {
     pub fn redact_field(&mut self, field: &str, value: &str) -> RedactionBatchHandle {
         let handle = self.session.redact_field(field, value);
         let (batch_id, item_index) = handle.parts();
-        RedactionBatchHandle {
-            batch_id,
-            item_index,
-        }
+        RedactionBatchHandle { batch_id, item_index }
     }
     /// Redacts one domain value and returns its opaque batch handle.
     pub fn redact_value<T>(&mut self, value: &T) -> RedactionBatchHandle
@@ -65,10 +28,7 @@ impl RedactionBatch {
     {
         let handle = self.session.redact_value(value);
         let (batch_id, item_index) = handle.parts();
-        RedactionBatchHandle {
-            batch_id,
-            item_index,
-        }
+        RedactionBatchHandle { batch_id, item_index }
     }
     /// Redacts an explicit argv sequence as one item.
     pub fn redact_argv<'items, I>(&mut self, items: I) -> RedactionBatchHandle
@@ -78,7 +38,8 @@ impl RedactionBatch {
     {
         Self::wrap(self.session.redact_argv(items))
     }
-    /// Redacts an argv sequence with heuristic option classification as one item.
+    /// Redacts an argv sequence with heuristic option classification as one
+    /// item.
     pub fn redact_heuristic_argv<'items, I>(&mut self, items: I) -> RedactionBatchHandle
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
@@ -162,65 +123,12 @@ impl RedactionBatch {
     /// Consumes the batch and publishes its item results and summary.
     #[must_use]
     pub fn finish(mut self) -> RedactionBatchOutput {
-        RedactionBatchOutput {
-            output: self.session.finish_batch(),
-        }
+        RedactionBatchOutput::from_publication(self.session.finish_batch())
     }
 
     /// Converts the runtime-private handle into its public batch counterpart.
     fn wrap(handle: RedactionHandle) -> RedactionBatchHandle {
         let (batch_id, item_index) = handle.parts();
-        RedactionBatchHandle {
-            batch_id,
-            item_index,
-        }
-    }
-}
-
-/// Published independently resolvable results from one [`RedactionBatch`].
-pub struct RedactionBatchOutput {
-    output: BatchPublication,
-}
-
-impl RedactionBatchOutput {
-    /// Returns the aggregate accounting summary for the batch.
-    #[must_use]
-    pub const fn summary(&self) -> &crate::RedactionSummary {
-        self.output.summary()
-    }
-
-    /// Resolves `handle` without cloning its text.
-    ///
-    /// Returns [`RedactionBatchHandleError::DifferentBatch`] when `handle`
-    /// was created by another batch, or `MissingItem` for an invalid index.
-    pub fn resolve(
-        &self,
-        handle: RedactionBatchHandle,
-    ) -> Result<&RedactionTextOutput, RedactionBatchHandleError> {
-        self.output
-            .resolve(RedactionHandle::new(handle.batch_id, handle.item_index))
-            .map_err(|error| match error {
-                crate::RedactionHandleError::DifferentTransaction => {
-                    RedactionBatchHandleError::DifferentBatch
-                }
-                crate::RedactionHandleError::MissingItem => RedactionBatchHandleError::MissingItem,
-            })
-    }
-
-    /// Consumes the output and moves the text selected by `handle` out of it.
-    ///
-    /// Returns the same errors as [`Self::resolve`].
-    pub fn into_resolved(
-        self,
-        handle: RedactionBatchHandle,
-    ) -> Result<RedactionTextOutput, RedactionBatchHandleError> {
-        self.output
-            .into_resolved(RedactionHandle::new(handle.batch_id, handle.item_index))
-            .map_err(|error| match error {
-                crate::RedactionHandleError::DifferentTransaction => {
-                    RedactionBatchHandleError::DifferentBatch
-                }
-                crate::RedactionHandleError::MissingItem => RedactionBatchHandleError::MissingItem,
-            })
+        RedactionBatchHandle { batch_id, item_index }
     }
 }
