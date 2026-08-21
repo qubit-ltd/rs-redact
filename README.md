@@ -81,7 +81,8 @@ output allowance, and partially rendered data can escape before a callback
 fails. The composer and batch keep their respective work private while it is
 being assembled, and `finish()` atomically publishes the completed result. If
 user redaction code panics, the active unpublished result is discarded and
-unwinding continues.
+unwinding continues. A caught batch panic leaves that batch empty and reusable;
+handles created before the panic are invalid.
 
 ## What It Provides
 

@@ -224,7 +224,8 @@ HTTP body 在进入本库前已被截断时：如果知道原始长度，使用
 batch 中唯一的空 exhausted item。
 
 用户提供的 writer 或 adapter 发生 panic 时，当前未发布对象会被丢弃，随后继续展开 panic。
-调用方使用 `catch_unwind` 后可从 redactor 创建新对象，但失败对象产生的 handle 无法解析。
+composer 会随展开被消费；batch 会安装新的空 identity，因此调用方使用 `catch_unwind` 后可以
+继续复用该 batch，但 panic 前产生的 handle 无法解析。
 
 ## 排障
 
@@ -249,4 +250,4 @@ batch 中唯一的空 exhausted item。
 - [中文 README](../README.zh_CN.md)
 - [English user guide](user_guide.md)
 - [API 文档](https://docs.rs/qubit-redact)
-- [事务式架构设计](2026-08-19-rs-redact-transactional-redesign-design.md)
+- [核心设计](design.zh_CN.md)
