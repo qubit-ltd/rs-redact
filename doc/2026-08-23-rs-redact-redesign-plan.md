@@ -84,7 +84,7 @@ flowchart TD
 
 **调度：** 前置无；写入集合仅 policy/summary/inspection；本地运行 focused tests；T10 负责全量；立即审查。
 
-- [ ] **步骤 1：先写 policy 状态回归测试**
+- [x] **步骤 1：先写 policy 状态回归测试**
 
 ```rust
 #[test]
@@ -98,13 +98,13 @@ fn disabled_policy_can_be_toggled_without_losing_configuration() {
 }
 ```
 
-- [ ] **步骤 2：运行测试并确认因 API 缺失失败**
+- [x] **步骤 2：运行测试并确认因 API 缺失失败**
 
 运行：`cd rs-redact && cargo test --test policy_tests disabled_policy_can_be_toggled_without_losing_configuration`
 
 预期：编译失败，提示 `disabled`、`is_disabled` 或 `set_disabled` 不存在。
 
-- [ ] **步骤 3：实现 policy 字段和复制语义**
+- [x] **步骤 3：实现 policy 字段和复制语义**
 
 ```rust
 pub struct RedactionPolicy {
@@ -128,7 +128,7 @@ pub fn set_disabled(&mut self, disabled: bool) -> &mut Self {
 
 同时让 `RedactionPolicyBuilder` 的 `from_policy()`/`build()` 携带 `disabled`。
 
-- [ ] **步骤 4：为 summary 与 inspection 写 disabled 测试并实现状态传播**
+- [x] **步骤 4：为 summary 与 inspection 写 disabled 测试并实现状态传播**
 
 ```rust
 let output = Redactor::new(RedactionPolicy::disabled()).redact_field("token", "raw");
@@ -141,13 +141,13 @@ assert!(inspection.is_redaction_disabled());
 
 保持 `RedactionInspectionResult = Result<RedactionInspection, RedactionInspectionError>` 不变；在 `RedactionInspection` 中增加布尔状态，避免把原有成功/失败通道改成不兼容的枚举。
 
-- [ ] **步骤 5：运行 focused tests**
+- [x] **步骤 5：运行 focused tests**
 
 运行：`cd rs-redact && cargo test --test policy_tests --test inspection_tests --test application_default_tests`
 
 预期：全部通过；现有 application-default 快照测试不回归。
 
-- [ ] **步骤 6：记录检查点，不执行 Git 写操作**
+- [x] **步骤 6：记录检查点，不执行 Git 写操作**
 
 记录 T1 的测试命令和结果；等待立即审查。
 
@@ -176,7 +176,7 @@ assert!(inspection.is_redaction_disabled());
 
 **调度：** 前置 T1；写入 domain/lib；本地 domain tests；T10 全量；立即审查。
 
-- [ ] **步骤 1：写编译与行为测试，证明旧 API 消失且容器可递归**
+- [x] **步骤 1：写编译与行为测试，证明旧 API 消失且容器可递归**
 
 ```rust
 struct Child { token: String }
@@ -195,13 +195,13 @@ assert!(!output.text().as_str().contains("raw"));
 
 为 tuple 1—12、数组和 `Option<Vec<T>>` 添加代表性测试。derive compile fixture 延后到 T5，避免 T2 反向依赖尚未重导出的宏。
 
-- [ ] **步骤 2：运行测试并确认旧实现无法满足新 trait/capability**
+- [x] **步骤 2：运行测试并确认旧实现无法满足新 trait/capability**
 
 运行：`cd rs-redact && cargo test --test domain_tests`
 
 预期：新测试编译失败或行为失败。
 
-- [ ] **步骤 3：把 `Redact` 收敛为唯一方法并删除 mutable 模块/导出**
+- [x] **步骤 3：把 `Redact` 收敛为唯一方法并删除 mutable 模块/导出**
 
 ```rust
 pub trait Redact {
@@ -211,7 +211,7 @@ pub trait Redact {
 
 从 `domain/mod.rs`、`lib.rs` 和 doctest 删除所有 mutable re-export 与方法示例。
 
-- [ ] **步骤 4：实现递归容器与密封 capability**
+- [x] **步骤 4：实现递归容器与密封 capability**
 
 ```rust
 #[doc(hidden)]
@@ -243,7 +243,7 @@ pub trait RedactSerialize {
 
 父级 nested 调用必须把同一份 `policy` 传给子级；实现不得重新读取 application default。预算上下文由 derive 生成的结构化 carrier 内部持有，不暴露第二套公开 transaction API。
 
-- [ ] **步骤 5：让 writer 集中处理 enabled/disabled 字段模式**
+- [x] **步骤 5：让 writer 集中处理 enabled/disabled 字段模式**
 
 ```rust
 pub fn skipped<T, F>(&mut self, name: &str, access: F) -> &mut Self
@@ -258,13 +258,13 @@ where T: Debug, F: FnOnce() -> T {
 
 同样为 `sensitive`、`nested`、`map`、`json` 在入口实现 disabled 原样分支；启用模式保持惰性与预算顺序。
 
-- [ ] **步骤 6：运行 domain focused tests**
+- [x] **步骤 6：运行 domain focused tests**
 
 运行：`cd rs-redact && cargo test --test domain_tests --test field_redaction_tests`
 
 预期：新旧非 mutable 测试通过，源码中 `rg 'RedactMut|redact_in_place|to_redacted|into_redacted' src tests` 无生产命中。
 
-- [ ] **步骤 7：记录检查点，不执行 Git 写操作**
+- [x] **步骤 7：记录检查点，不执行 Git 写操作**
 
 ### T3：通用字段格式化与一次解析的借用 JSON API
 
@@ -288,7 +288,7 @@ where T: Debug, F: FnOnce() -> T {
 
 **调度：** 前置 T1；与 T2 写集不同可同批；本地 field/json tests；T10 全量；立即审查。
 
-- [ ] **步骤 1：写 lazy formatting 回归**
+- [x] **步骤 1：写 lazy formatting 回归**
 
 ```rust
 struct PanicDisplay;
@@ -302,7 +302,7 @@ assert!(!output.text().as_str().is_empty());
 
 另测 `format_args!("{debug_only:?}")`、Low/Medium 会格式化、超限 fail-closed。
 
-- [ ] **步骤 2：把三个字段入口改为 `T: Display + ?Sized` 并先分类后格式化**
+- [x] **步骤 2：把三个字段入口改为 `T: Display + ?Sized` 并先分类后格式化**
 
 ```rust
 pub fn redact_field<T>(&self, field: &str, value: &T) -> RedactionTextOutput
@@ -311,7 +311,7 @@ where T: Display + ?Sized;
 
 batch、composer、session 使用同一泛型，不增加 debug/display 方法族。
 
-- [ ] **步骤 3：写借用 Value 与“文本只解析一次”测试**
+- [x] **步骤 3：写借用 Value 与“文本只解析一次”测试**
 
 ```rust
 let value = serde_json::json!({"token": "raw", "name": "ada"});
@@ -322,7 +322,7 @@ assert_eq!(value["token"], "raw");
 
 为 deep/node/input limit、invalid JSON opaque fallback、inspection 添加测试；测试 hook 断言文本 seed 只进入一次 parse。
 
-- [ ] **步骤 4：让 structure seed/visitor 构建 admitted `Value`，渲染器借用遍历**
+- [x] **步骤 4：让 structure seed/visitor 构建 admitted `Value`，渲染器借用遍历**
 
 ```rust
 pub(crate) fn admit_json_text(
@@ -333,11 +333,11 @@ pub(crate) fn admit_json_text(
 
 删除“先 admission parse、再 redaction parse”的双解析；Value API 直接借用，不 clone、不 `to_string()`。
 
-- [ ] **步骤 5：接通 facade、batch、writer 与 fields API**
+- [x] **步骤 5：接通 facade、batch、writer 与 fields API**
 
 实现设计中的五个 Value 入口，并确保所有入口共享 transaction budget 和 summary。
 
-- [ ] **步骤 6：运行 focused tests并记录检查点**
+- [x] **步骤 6：运行 focused tests并记录检查点**
 
 运行：`cd rs-redact && cargo test --features json --test field_redaction_tests --test streaming_display_allocation_tests --test json_tests --test json_floor_tests`
 
@@ -360,7 +360,7 @@ pub(crate) fn admit_json_text(
 
 **调度：** 前置 T2；写入 derive/src；本地 `cargo test --lib`；T10 全量；立即审查。
 
-- [ ] **步骤 1：在新模块内先写属性 model 单元测试**
+- [x] **步骤 1：在新模块内先写属性 model 单元测试**
 
 ```rust
 assert!(matches!(parse_field("value: String"), FieldMode::Unmarked));
@@ -370,7 +370,7 @@ assert!(parse_container("#[redact(no_mut)] struct X;").is_err());
 
 覆盖删除的 `plain/no_mut/require_explicit`、重复模式、未知 level 和 Serde 属性解析。
 
-- [ ] **步骤 2：迁移可靠 parser/model/runtime-path 代码，删除历史双轨字段**
+- [x] **步骤 2：迁移可靠 parser/model/runtime-path 代码，删除历史双轨字段**
 
 ```rust
 enum FieldMode {
@@ -385,7 +385,7 @@ enum FieldMode {
 
 保留 enum tagging、rename、generics、crate rename 解析；不迁移 `RedactOptions`、mutable expansion 与 inherent convenience generation。
 
-- [ ] **步骤 3：让 `src/lib.rs` 直接调用内部 expansion**
+- [x] **步骤 3：让 `src/lib.rs` 直接调用内部 expansion**
 
 ```rust
 #[proc_macro_derive(Redact, attributes(redact, serde))]
@@ -397,13 +397,13 @@ pub fn derive_redact(input: TokenStream) -> TokenStream {
 }
 ```
 
-- [ ] **步骤 4：运行主 crate 单元测试**
+- [x] **步骤 4：运行主 crate 单元测试**
 
 运行：`cd rs-redact-derive && cargo test --lib`
 
 预期：parser/model/runtime-path 单元测试通过；此任务暂不删除 `core/`，由 T6 在下游切换前统一删除。
 
-- [ ] **步骤 5：记录检查点，不执行 Git 写操作**
+- [x] **步骤 5：记录检查点，不执行 Git 写操作**
 
 ### T5：实现新 Redact、格式化与结构化 Serde expansion
 
@@ -425,7 +425,7 @@ pub fn derive_redact(input: TokenStream) -> TokenStream {
 
 **调度：** 前置 T2/T3/T4；写 derive expansion/tests；本地 trybuild/runtime；T10 全量；立即审查。
 
-- [ ] **步骤 1：新增通过/失败 fixture**
+- [x] **步骤 1：新增通过/失败 fixture**
 
 通过：递归 LevelValue 容器、nested `Option<Vec<T>>`、map、JSON string variants、disabled skip 恢复、Serde numeric leaf 变 string。
 
@@ -438,13 +438,13 @@ struct Bad { #[redact(level = "secret")] child: Child }
 
 并覆盖敏感字段 `serialize_with`、错误 map key/value、nested Serde 子类型缺 capability。
 
-- [ ] **步骤 2：运行 trybuild，确认新 fixture 先失败**
+- [x] **步骤 2：运行 trybuild，确认新 fixture 先失败**
 
 运行：`cd rs-redact-derive && cargo test --test compile_tests`
 
 预期：新 pass fixture 编译失败、新 fail stderr 尚未匹配。
 
-- [ ] **步骤 3：生成 writer 调用和字段 capability assertion**
+- [x] **步骤 3：生成 writer 调用和字段 capability assertion**
 
 ```rust
 match mode {
@@ -459,11 +459,11 @@ match mode {
 
 enum 的 skip 字段仍绑定，因为 disabled 模式需要恢复值。
 
-- [ ] **步骤 4：生成 Debug/Display 和结构化 Serialize**
+- [x] **步骤 4：生成 Debug/Display 和结构化 Serialize**
 
 直接 `Serialize` 获取一次 application-default policy；结构化 field carrier 保留 Serde rename/tag/shape。masked 非空叶子序列化成 string；`None` 为 null。生成公开 `#[doc(hidden)] RedactSerialize` 供 nested 子类型实现，父级传入同一 policy。
 
-- [ ] **步骤 5：实现 Serde 组合规则**
+- [x] **步骤 5：实现 Serde 组合规则**
 
 ```rust
 let should_emit = if policy.is_disabled() {
@@ -475,13 +475,13 @@ let should_emit = if policy.is_disabled() {
 
 `Skip` 启用时不调用 predicate；敏感模式拒绝 `with/serialize_with`；无标记字段保留 adapter。
 
-- [ ] **步骤 6：运行 derive focused tests**
+- [x] **步骤 6：运行 derive focused tests**
 
 运行：`cd rs-redact-derive && cargo test --all-features --test compile_tests --test unified_redact_tests --test serde_expansion_tests --test serde_enum_representation_tests`
 
 预期：全部通过；更新后的 stderr 具有字段名和修复建议。
 
-- [ ] **步骤 7：记录检查点，不执行 Git 写操作**
+- [x] **步骤 7：记录检查点，不执行 Git 写操作**
 
 ### T6：删除 derive-core并由 runtime 默认重导出宏
 
@@ -502,7 +502,7 @@ let should_emit = if policy.is_disabled() {
 
 **调度：** 前置 T5；写 Cargo/lib/core 删除；本地 feature checks；T10 全量；立即审查。
 
-- [ ] **步骤 1：先写默认与 no-default feature fixture**
+- [x] **步骤 1：先写默认与 no-default feature fixture**
 
 ```rust
 use qubit_redact::Redact;
@@ -512,7 +512,7 @@ struct X { value: String }
 
 默认依赖应通过；`default-features = false` 未启用 derive 应给出预期缺失；显式 `features = ["derive"]` 应通过。
 
-- [ ] **步骤 2：增加 optional derive 依赖和重导出**
+- [x] **步骤 2：增加 optional derive 依赖和重导出**
 
 ```toml
 [features]
@@ -527,11 +527,11 @@ pub use qubit_redact_derive::Redact;
 
 保持 `rs-redact-derive` 对 runtime 的 dev-dependency 为 `default-features = false`。
 
-- [ ] **步骤 3：删除 core package 和所有依赖/fixture lock 记录**
+- [x] **步骤 3：删除 core package 和所有依赖/fixture lock 记录**
 
 用 Cargo 正常更新 lockfile；不得手工批量替换无关依赖版本。
 
-- [ ] **步骤 4：运行 feature focused checks**
+- [x] **步骤 4：运行 feature focused checks**
 
 运行：
 
@@ -544,7 +544,7 @@ pub use qubit_redact_derive::Redact;
 
 预期：无依赖环；两 crate 全部通过。
 
-- [ ] **步骤 5：记录检查点，不执行 Git 写操作**
+- [x] **步骤 5：记录检查点，不执行 Git 写操作**
 
 ### T7：让 `#[Model(redact)]` 委托公开 derive
 
@@ -563,7 +563,7 @@ pub use qubit_redact_derive::Redact;
 
 **调度：** 前置 T6；写 model-derive；本地全 crate tests；T10 全量；立即审查。
 
-- [ ] **步骤 1：写 expansion 测试，断言委托 token 而非内联 impl**
+- [x] **步骤 1：写 expansion 测试，断言委托 token 而非内联 impl**
 
 ```rust
 assert!(tokens.contains("qubit_redact :: Redact"));
@@ -573,13 +573,13 @@ assert!(!tokens.contains("impl qubit_redact :: Redact for"));
 
 增加 renamed `qubit-redact` fixture。
 
-- [ ] **步骤 2：移除 derive-core imports/dependency并保留字段属性**
+- [x] **步骤 2：移除 derive-core imports/dependency并保留字段属性**
 
 删除 `RedactOptions`、`expand_with_options` 和 `remove_redact_field_attributes()` 调用。用 `proc_macro_crate` 解析 `qubit-redact`，把 `Redact` derive 及 `debug/display/serde` container options 附加到输出 item。
 
 同时把 `rs-model-derive` 的测试 runtime 依赖改为 `default-features = false, features = ["derive", "serde"]`，确保测试覆盖实际委托路径且不意外依赖 runtime 默认 feature。
 
-- [ ] **步骤 3：确保 Model 选项映射准确**
+- [x] **步骤 3：确保 Model 选项映射准确**
 
 ```rust
 let redact_options = [
@@ -591,13 +591,13 @@ let redact_options = [
 
 `no_serialize` 不生成 `serde`，`no_debug/no_display` 同理；字段带 Redact 属性仍自动启用 Redact derive。
 
-- [ ] **步骤 4：运行 model-derive tests**
+- [x] **步骤 4：运行 model-derive tests**
 
 运行：`cd /home/starfish/working/qubit/rust-platform/rs-model-derive && cargo test`
 
 预期：unit、trybuild、runtime fixtures 全通过；Cargo 不再出现 `qubit-redact-derive-core`。
 
-- [ ] **步骤 5：记录检查点，不执行 Git 写操作**
+- [x] **步骤 5：记录检查点，不执行 Git 写操作**
 
 ### T8：迁移 rs-platform 真实下游
 
@@ -611,7 +611,7 @@ let redact_options = [
 
 **调度：** 前置 T7；写平台测试/必要模型；本地受影响包；T10 workspace；批量审查。
 
-- [ ] **步骤 1：改写 ErrorInfo mutable 测试**
+- [x] **步骤 1：改写 ErrorInfo mutable 测试**
 
 ```rust
 fn assert_redact<T: Redact>() {}
@@ -625,7 +625,7 @@ fn redaction_does_not_modify_error_info() {
 }
 ```
 
-- [ ] **步骤 2：运行静态搜索并分类剩余旧 API**
+- [x] **步骤 2：运行静态搜索并分类剩余旧 API**
 
 运行：
 
@@ -637,13 +637,13 @@ rg -n 'RedactMut|redact_in_place|to_redacted|into_redacted|\.redacted\(|\.inspec
 
 预期：无生产调用；仅允许文档迁移待办命中。
 
-- [ ] **步骤 3：运行受影响 package tests，确认 capability 设计覆盖现有模型**
+- [x] **步骤 3：运行受影响 package tests，确认 capability 设计覆盖现有模型**
 
 运行：`cd /home/starfish/working/qubit/rust-platform/rs-platform && cargo test -p qubit-platform-core`；随后运行 `cargo check --workspace`，一次覆盖 address/iam/audit/device/person/tenant/file/notification 等 Redact 模型包。
 
 预期：现有 `String`/`Option<String>` level、nested 容器、`ErrorInfo` map 全部无需修改模型源码即可编译。若结果否定已批准 capability 设计，不在 T8 临时扩张类型范围，而是记录具体字段并回到 T2/T5 修订 capability 与回归 fixture。
 
-- [ ] **步骤 4：记录 dirty 文件对照和检查点，不执行 Git 写操作**
+- [x] **步骤 4：记录 dirty 文件对照和检查点，不执行 Git 写操作**
 
 ### T9：更新 Rustdoc、中英文 README 与用户手册
 
@@ -664,7 +664,7 @@ rg -n 'RedactMut|redact_in_place|to_redacted|into_redacted|\.redacted\(|\.inspec
 
 **调度：** 前置 T5/T6/T7；文档写集与 T8 不重叠，可同批；T10 doctest；批量审查。
 
-- [ ] **步骤 1：删除所有旧 API 文案并写 trait/policy Rustdoc**
+- [x] **步骤 1：删除所有旧 API 文案并写 trait/policy Rustdoc**
 
 示例必须使用：
 
@@ -675,11 +675,11 @@ policy.set_disabled(false);
 let output = Redactor::new(policy).redact(&value);
 ```
 
-- [ ] **步骤 2：补齐五类字段模式、集合 capability 和 disabled 对照示例**
+- [x] **步骤 2：补齐五类字段模式、集合 capability 和 disabled 对照示例**
 
 中英文都展示 `level Vec<T>`、`nested Option<Vec<T>>`、map、JSON fail-closed、skip 恢复。
 
-- [ ] **步骤 3：补齐惰性非字符串字段和结构化 REST Serde 示例**
+- [x] **步骤 3：补齐惰性非字符串字段和结构化 REST Serde 示例**
 
 ```rust
 redactor.redact_field("request", &format_args!("{request:?}"));
@@ -688,11 +688,11 @@ let body = serde_json::to_string(&response)?;
 
 说明 masked 数字/布尔叶子变为 JSON string，直接 Serde 没有 summary 返回通道。
 
-- [ ] **步骤 4：说明 summary 检查契约和 Model 宏委托**
+- [x] **步骤 4：说明 summary 检查契约和 Model 宏委托**
 
 明确 enabled 文本即使截断仍保密安全；完整性/原因调用方才检查 summary；inspection 安全决策 fail-closed。
 
-- [ ] **步骤 5：运行 doctest/readme fixture并记录检查点**
+- [x] **步骤 5：运行 doctest/readme fixture并记录检查点**
 
 运行：`(cd rs-redact && cargo test --doc --all-features)`；`(cd rs-redact-derive && cargo test --all-features --test compile_tests)`；`(cd /home/starfish/working/qubit/rust-platform/rs-model-derive && cargo test model_attribute)`。
 
