@@ -576,6 +576,15 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         self
     }
 
+    /// Writes a supported map field through its sealed capability.
+    pub fn map_value<T>(&mut self, name: &str, value: &T) -> &mut Self
+    where
+        T: super::RedactMapValue,
+    {
+        value.write_redacted_map(self, name);
+        self
+    }
+
     /// Omits a field while redaction is enabled and restores it when disabled.
     pub fn skipped<T, F>(&mut self, name: &str, access: F) -> &mut Self
     where
