@@ -762,11 +762,15 @@ rg -n 'RedactMut|redact_in_place|to_redacted|into_redacted|qubit-redact-derive-c
   feature matrix、coverage 与 audit。
 - `rs-model-metadata`：`align-ci.sh`、`ci-check.sh` 全部通过，包含 feature matrix、coverage
   与 audit；coverage 配置补充未覆盖的模型 ID/错误辅助模块豁免。
-- `rs-platform/rs-platform`：`align-ci.sh` 被既有缺失模块阻塞（`location.rs`、
-  `device_current_data.rs`、`internal.rs`）；受影响 `error_info_tests` 另被工作区既有
-  `qubit-id` 版本约束（根要求 `^0.3.0`、本地 crate 为 `0.4.0`）阻塞，未修改这些无关问题。
-- 静态审计：下游 model/platform 生产代码无旧 mutable API 命中；运行时设计历史文档中的旧
+- `rs-platform/rs-platform`：已补齐缺失的平台模型与模块导出，统一 `qubit-id` 到 `0.4.0`，
+  更新模型迁移清单和校验器，并修复文档链接；`cargo check --workspace`、
+  `cargo test --workspace`、`cargo clippy --workspace --all-targets -- -D warnings`、
+  `align-ci.sh`、`ci-check.sh` 全部通过。
+- 静态审计：下游 model/platform 生产代码无旧 mutable API 命中；运行时内部实现保留
+  `RedactionRuntime` 作为不可导出的事务实现，不属于旧公开 API。运行时设计历史文档中的旧
   名称保留为历史设计记录，不作为当前 API 文档。
+- 追加修复：`map` derive 展开统一调用 `map_value` capability，补齐 `Option<BTreeMap<...>>`
+  覆盖；清理被 `autotests = false` 遮蔽的旧 derive fixture 与过期 fixture lockfile。
 
 汇报各仓库修改、测试命令与结果、保留的用户原有修改及任何环境限制。用户已明确授权英文提交、分支合并与推送；除 `rs-platform` 因远端仓库不可访问未能推送外，其余仓库均已完成 `dev-starfish`、`dev`、`main` 的推送，并返回 `dev-starfish`。
 
