@@ -121,6 +121,29 @@ fn transaction_budget_owns_usage_while_summary_builder_owns_status() {
     assert!(!summary.contains("with_collection_item"));
 }
 
+/// The runtime owns operational accounting and terminal summary construction;
+/// the session only forwards writers to that transaction state and consumes it
+/// when publication completes.
+#[test]
+fn runtime_owns_accounting_and_session_completion_is_consuming() {
+    let runtime = include_str!("../src/runtime/redaction_runtime.rs");
+    let session = include_str!("../src/runtime/redaction_session.rs");
+
+    for method in [
+        "fn record_summary(",
+        "fn begin_domain_value(",
+        "fn admit_domain_field(",
+        "fn admit_input(",
+        "fn admit_format_node(",
+        "fn remaining_output_bytes(",
+        "fn into_summary(self)",
+    ] {
+        assert!(runtime.contains(method), "runtime must own {method}");
+    }
+    assert!(!session.contains("fn finish_text(&mut self)"));
+    assert!(!session.contains("fn finish_batch(&mut self)"));
+}
+
 /// The structured writer exposes only the scope names fixed by the redesign;
 /// Removed aliases must not silently return.
 #[test]

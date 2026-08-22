@@ -181,7 +181,7 @@ impl RedactionBatch {
     }
     /// Consumes the batch and publishes its item results and summary.
     #[must_use]
-    pub fn finish(mut self) -> RedactionBatchOutput {
+    pub fn finish(self) -> RedactionBatchOutput {
         RedactionBatchOutput::from_publication(self.session.finish_batch())
     }
 
