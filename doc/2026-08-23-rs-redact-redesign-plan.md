@@ -779,6 +779,10 @@ rg -n 'RedactMut|redact_in_place|to_redacted|into_redacted|qubit-redact-derive-c
   `rs-redact-derive` 的 `cargo test --all-features`、结构化 Serde runtime tests 与全目标
   clippy 通过。新增回归覆盖 nested、`Option<Vec<_>>`、map、JSON、level 集合以及 disabled
   skip 恢复行为。
+- 追加修复：结构化 Serde 增加隐藏的共享 scope，传播 `max_depth`、`max_nodes`、
+  `max_collection_items` 与累计 `max_input_bytes`；超限时字段 fail-closed 为 opaque mask。
+  新增 depth/collection budget 回归，并确认 disabled JSON 保持 JSON 文本字符串，不擅自解析为
+  嵌套对象。
 
 汇报各仓库修改、测试命令与结果、保留的用户原有修改及任何环境限制。用户已明确授权英文提交、分支合并与推送；除 `rs-platform` 因远端仓库不可访问未能推送外，其余仓库均已完成 `dev-starfish`、`dev`、`main` 的推送，并返回 `dev-starfish`。
 

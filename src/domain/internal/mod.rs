@@ -18,6 +18,8 @@ pub use redact_serialize::RedactLevelSerialize;
 pub use redact_serialize::RedactMapSerialize;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use redact_serialize::RedactSerialize;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use redact_serialize::RedactSerializeScope;
 #[cfg(feature = "json")]
 pub use redact_serialize::RedactedJsonSerializeRef;
 #[cfg(any(feature = "serde", feature = "json"))]
@@ -26,3 +28,5 @@ pub use redact_serialize::RedactedLevelSerializeRef;
 pub use redact_serialize::RedactedMapSerializeRef;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use redact_serialize::RedactedSerializeRef;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use redact_serialize::serialize_structured;
