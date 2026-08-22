@@ -749,7 +749,7 @@ rg -n 'RedactMut|redact_in_place|to_redacted|into_redacted|qubit-redact-derive-c
 
 预期：除迁移说明或专门 compile-fail fixture 外无命中。
 
-- [ ] **步骤 6：整理最终证据并等待用户决定 Git 操作**
+- [x] **步骤 6：整理最终证据并完成 Git 操作**
 
 ### 执行记录（2026-08-23）
 
@@ -768,7 +768,7 @@ rg -n 'RedactMut|redact_in_place|to_redacted|into_redacted|qubit-redact-derive-c
 - 静态审计：下游 model/platform 生产代码无旧 mutable API 命中；运行时设计历史文档中的旧
   名称保留为历史设计记录，不作为当前 API 文档。
 
-汇报各仓库修改、测试命令与结果、保留的用户原有修改、任何环境限制；不自行 add/commit/push。
+汇报各仓库修改、测试命令与结果、保留的用户原有修改及任何环境限制。用户已明确授权英文提交、分支合并与推送；除 `rs-platform` 因远端仓库不可访问未能推送外，其余仓库均已完成 `dev-starfish`、`dev`、`main` 的推送，并返回 `dev-starfish`。
 
 ## 规范覆盖自审
 
