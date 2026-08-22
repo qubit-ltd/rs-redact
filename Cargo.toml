@@ -33,7 +33,7 @@ doctest = true
 [features]
 default = ["serde", "derive"]
 derive = ["dep:qubit-redact-derive"]
-serde = ["dep:serde"]
+serde = ["dep:serde", "dep:bigdecimal"]
 json = ["dep:serde", "dep:serde_json", "dep:qubit-json", "qubit-budget/json"]
 http = [
     "json",
@@ -45,6 +45,7 @@ uri = ["dep:fluent-uri"]
 
 [dependencies]
 qubit-budget = { version = "0.3" }
+bigdecimal = { version = "0.4", optional = true, features = ["serde"] }
 qubit-json = { version = "0.8", path = "../rs-json", optional = true }
 form_urlencoded = { version = "1.2", optional = true }
 fluent-uri = { version = "0.4.1", optional = true }
