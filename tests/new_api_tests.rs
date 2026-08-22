@@ -97,7 +97,7 @@ fn application_default_replacement_affects_new_trait_entries_only() {
         name: "Ada".to_owned(),
         _password: "raw-password".to_owned(),
     };
-    let output = value.redacted();
+    let output = Redactor::application_default().redact(&value);
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
     assert!(!output.text().as_str().contains("raw-password"));
 

@@ -7,17 +7,18 @@
 // =============================================================================
 //! Runtime traits and borrowed views for domain-object redaction.
 
-pub(crate) mod internal;
+#[doc(hidden)]
+pub mod internal;
 mod redact;
-mod redact_map_value_mut;
-mod redact_mut;
-mod redact_value_mut;
+mod redact_json_value;
+mod redact_level_value;
+mod redact_map_value;
 mod redaction_writer;
 
 pub use redact::Redact;
-pub use redact_map_value_mut::RedactMapValueMut;
-pub use redact_mut::RedactMut;
-pub use redact_value_mut::RedactValueMut;
+pub use redact_json_value::RedactJsonValue;
+pub use redact_level_value::RedactLevelValue;
+pub use redact_map_value::RedactMapValue;
 pub use redaction_writer::RedactionEntries;
 pub use redaction_writer::RedactionFields;
 pub use redaction_writer::RedactionItems;

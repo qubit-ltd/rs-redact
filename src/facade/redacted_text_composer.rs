@@ -32,7 +32,10 @@ impl RedactedTextComposer {
 
     /// Redacts and appends one scalar field.
     #[must_use]
-    pub fn field(mut self, field: &str, value: &str) -> Self {
+    pub fn field<T>(mut self, field: &str, value: &T) -> Self
+    where
+        T: std::fmt::Display + ?Sized,
+    {
         let _ = self.session.field(field, value);
         self
     }

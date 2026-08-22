@@ -102,7 +102,16 @@ fn domain_writer_has_only_the_fixed_root_surface() {
     assert!(!writer.contains("pub fn unit"));
     assert_eq!(
         public_methods,
-        ["literal", "unredacted", "record", "tuple", "sequence", "map", "variant"]
+        [
+            "literal",
+            "unredacted",
+            "unmarked",
+            "record",
+            "tuple",
+            "sequence",
+            "map",
+            "variant"
+        ]
     );
 }
 

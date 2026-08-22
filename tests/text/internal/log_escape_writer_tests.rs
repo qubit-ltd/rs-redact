@@ -12,6 +12,7 @@ use std::fmt::Write;
 
 use qubit_redact::Redact;
 use qubit_redact::RedactionWriter;
+use qubit_redact::Redactor;
 /// Redacted value that emits log-unsafe controls.
 struct UnsafeDiagnostic;
 
@@ -55,7 +56,7 @@ impl Write for FailingWriter {
 /// Verifies domain display streams escaped log-safe output.
 #[test]
 fn test_log_escape_writer_escapes_streamed_controls() {
-    let output = UnsafeDiagnostic.redacted().text().to_string();
+    let output = Redactor::standard().redact(&UnsafeDiagnostic).text().to_string();
 
     assert_eq!(output, "line one\\nline two\\u{202e}");
 }
@@ -64,8 +65,8 @@ fn test_log_escape_writer_escapes_streamed_controls() {
 #[test]
 fn test_log_escape_writer_propagates_destination_failure() {
     let mut output = FailingWriter;
-    let safe_output = SafeDiagnostic.redacted();
-    let escaped_output = ControlFirstDiagnostic.redacted();
+    let safe_output = Redactor::standard().redact(&SafeDiagnostic);
+    let escaped_output = Redactor::standard().redact(&ControlFirstDiagnostic);
     let safe_result = write!(&mut output, "{}", safe_output.text());
     let escaped_result = write!(&mut output, "{}", escaped_output.text());
 

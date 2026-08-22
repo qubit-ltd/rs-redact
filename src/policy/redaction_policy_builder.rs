@@ -38,6 +38,7 @@ use super::UnknownFieldPolicy;
 /// ```
 #[derive(Debug, Clone)]
 pub struct RedactionPolicyBuilder {
+    disabled: bool,
     rules: RedactionRulesBuilder,
     masking: MaskingPolicy,
     floor: Option<RedactionFloor>,
@@ -55,6 +56,7 @@ impl RedactionPolicyBuilder {
     #[must_use]
     pub fn new() -> Self {
         Self {
+            disabled: false,
             rules: RedactionRulesBuilder::empty(PolicyLocation::Rules),
             masking: MaskingPolicy::default(),
             floor: Some(RedactionFloor::standard()),
@@ -71,6 +73,7 @@ impl RedactionPolicyBuilder {
     #[must_use]
     pub(super) fn from_policy(policy: &RedactionPolicy) -> Self {
         Self {
+            disabled: policy.is_disabled(),
             rules: RedactionRulesBuilder::from_inner(&policy.rules().clone_application(), PolicyLocation::Rules),
             masking: policy.masking().clone(),
             floor: policy.rules().floor().cloned(),
@@ -212,6 +215,7 @@ impl RedactionPolicyBuilder {
             uri,
             #[cfg(feature = "json")]
             self.unkeyed_json_value_policy,
+            self.disabled,
         ))
     }
 }

@@ -1,38 +1,8 @@
-// =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
-//
-//    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
-// =============================================================================
 //! Container implementations for explicit nested redaction.
 
-use crate::RedactionPolicy;
 use crate::domain::Redact;
-use crate::domain::RedactMut;
 
 impl<T: Redact> Redact for Option<T> {
-    /// Formats `None` directly or a redacted `Some` value with the same policy.
-    ///
-    /// The option first charges its own domain-value node. A present field is
-    /// charged before the inner reference is read, then the child enters the
-    /// same session through the structured writer. Rejected value or field
-    /// admission writes one unquoted structural truncation marker.
-    /// No diagnostic input bytes are consumed by this domain traversal.
-    ///
-    /// # Parameters
-    ///
-    /// * `session` - Shared diagnostic session for a present nested value.
-    /// * `formatter` - Destination formatting context.
-    ///
-    /// # Returns
-    ///
-    /// The formatter result for the preserved option shape.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`std::fmt::Error`] when the destination or nested value rejects
-    /// a write.
     fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
         match self {
             None => writer.literal("None"),
@@ -44,51 +14,12 @@ impl<T: Redact> Redact for Option<T> {
 }
 
 impl<T: Redact + ?Sized> Redact for Box<T> {
-    /// Transparently delegates formatting to the boxed object.
-    ///
-    /// # Parameters
-    ///
-    /// * `session` - Shared diagnostic session forwarded to the boxed value.
-    /// * `formatter` - Destination formatting context.
-    ///
-    /// # Returns
-    ///
-    /// The boxed value's formatter result.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`std::fmt::Error`] when the boxed value cannot complete its
-    /// output.
     fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
         self.as_ref().write_redacted(writer)
     }
 }
 
 impl<T: Redact> Redact for Vec<T> {
-    /// Formats every item through a redacted view sharing the same policy.
-    ///
-    /// The vector charges its domain-value node once and checks structural
-    /// capacity before charging and advancing one item. An
-    /// exhausted item budget cannot pull or format another value, while an
-    /// exactly full vector does not perform a false terminal admission. Every
-    /// child reuses the same session, so node, depth, output, and collection
-    /// charges accumulate. Traversal or output exhaustion terminates the list;
-    /// a branch-local depth marker leaves later siblings eligible. Domain
-    /// traversal never consumes input bytes.
-    ///
-    /// # Parameters
-    ///
-    /// * `session` - Shared diagnostic session used by every item.
-    /// * `formatter` - Destination formatting context.
-    ///
-    /// # Returns
-    ///
-    /// The formatter result for the complete list.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`std::fmt::Error`] when the destination or an item rejects a
-    /// write.
     fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
         writer.sequence(|items| {
             for value in self {
@@ -98,42 +29,39 @@ impl<T: Redact> Redact for Vec<T> {
     }
 }
 
-impl<T: RedactMut> RedactMut for Option<T> {
-    /// Redacts a present nested object with the supplied policy.
-    ///
-    /// # Parameters
-    ///
-    /// * `policy` - Complete policy applied when the option is present.
-    #[inline]
-    fn redact_in_place_with(&mut self, policy: &RedactionPolicy) {
-        if let Some(value) = self {
-            value.redact_in_place_with(policy);
-        }
+impl<T: Redact, const N: usize> Redact for [T; N] {
+    fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
+        writer.sequence(|items| {
+            for value in self {
+                items.nested_item(value);
+            }
+        });
     }
 }
 
-impl<T: RedactMut + ?Sized> RedactMut for Box<T> {
-    /// Transparently delegates mutation to the boxed object.
-    ///
-    /// # Parameters
-    ///
-    /// * `policy` - Complete policy forwarded to the boxed value.
-    #[inline(always)]
-    fn redact_in_place_with(&mut self, policy: &RedactionPolicy) {
-        self.as_mut().redact_in_place_with(policy);
-    }
+macro_rules! tuple_redact {
+    ($($name:ident),+ $(,)?) => {
+        impl<$($name: Redact),+> Redact for ($($name,)+) {
+            #[allow(non_snake_case)]
+            fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
+                let ($($name,)+) = self;
+                writer.tuple("Tuple", |fields| {
+                    $(fields.nested("", $name);)+
+                });
+            }
+        }
+    };
 }
 
-impl<T: RedactMut> RedactMut for Vec<T> {
-    /// Redacts every nested item with the supplied policy.
-    ///
-    /// # Parameters
-    ///
-    /// * `policy` - Complete policy applied to every item.
-    #[inline]
-    fn redact_in_place_with(&mut self, policy: &RedactionPolicy) {
-        for value in self {
-            value.redact_in_place_with(policy);
-        }
-    }
-}
+tuple_redact!(A);
+tuple_redact!(A, B);
+tuple_redact!(A, B, C);
+tuple_redact!(A, B, C, D);
+tuple_redact!(A, B, C, D, E);
+tuple_redact!(A, B, C, D, E, F);
+tuple_redact!(A, B, C, D, E, F, G);
+tuple_redact!(A, B, C, D, E, F, G, H);
+tuple_redact!(A, B, C, D, E, F, G, H, I);
+tuple_redact!(A, B, C, D, E, F, G, H, I, J);
+tuple_redact!(A, B, C, D, E, F, G, H, I, J, K);
+tuple_redact!(A, B, C, D, E, F, G, H, I, J, K, L);

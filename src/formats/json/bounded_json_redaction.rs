@@ -46,6 +46,9 @@ pub(super) fn redacted_json_text_bounded(
     policy: &RedactionPolicy,
     max_output: usize,
 ) -> BoundedJsonRedaction {
+    if policy.is_disabled() {
+        return BoundedJsonRedaction::Complete(text.to_owned());
+    }
     let Ok(mut value) = from_str::<Value>(text) else {
         return BoundedJsonRedaction::Invalid(opaque_secret(policy));
     };
