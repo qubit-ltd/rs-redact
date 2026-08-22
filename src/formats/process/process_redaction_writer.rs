@@ -95,10 +95,8 @@ impl<'session> ProcessRedactionWriter<'session> {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        if self.session.can_admit_format_node(1) && self.session.can_admit_format_collection_item() {
-            let mut environment = EnvRedactionWriter::new(self.session);
-            environment.os_pairs(variables);
-        }
+        let mut environment = EnvRedactionWriter::new(self.session);
+        environment.os_pairs(variables);
         self
     }
 
@@ -141,10 +139,7 @@ impl<'session> ProcessRedactionWriter<'session> {
                 let output = redact_heuristically_with_policy(&policy, &mut command, remaining);
                 (output, command.failed)
             };
-            if command_failed
-                || !self.session.can_admit_format_node(1)
-                || !self.session.can_admit_format_collection_item()
-            {
+            if command_failed || !self.session.admit_format_node(1) {
                 return self.session.stage_accounted_text(String::new());
             }
             let remaining = remaining.saturating_sub(argv.text().len());

@@ -93,29 +93,6 @@ impl StructuralBudget {
         true
     }
 
-    /// Reports whether one more collection item can be admitted.
-    #[must_use]
-    pub(crate) fn can_admit_collection_item(&self) -> bool {
-        !self.traversal_closed
-            && self
-                .budget
-                .limits()
-                .sequence_items_limit()
-                .is_none_or(|limit| self.collection_items_seen < limit.maximum())
-    }
-
-    /// Reports whether a format node at `depth` can be admitted.
-    #[must_use]
-    pub(crate) fn can_admit_format_node(&self, depth: usize) -> bool {
-        if self.traversal_closed || self.max_depth.is_some_and(|maximum| depth > maximum) {
-            return false;
-        }
-        self.budget
-            .limits()
-            .nodes_limit()
-            .is_none_or(|limit| self.budget.used_nodes() < limit.maximum())
-    }
-
     /// Leaves one explicitly nested domain value.
     pub(crate) fn leave_value(&mut self) {
         debug_assert!(self.current_depth > 0, "domain scope depth underflow");

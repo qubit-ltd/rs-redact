@@ -121,11 +121,6 @@ impl RedactionBudget {
         &mut self.structural
     }
 
-    /// Borrows the structural ledger for non-mutating admission queries.
-    pub(super) const fn structural_ref(&self) -> &StructuralBudget {
-        &self.structural
-    }
-
     #[cfg(feature = "json")]
     pub(super) fn admit_json_value(&mut self, root: &Value) -> bool {
         let mut transaction = self.json_budget.transaction();
