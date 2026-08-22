@@ -223,6 +223,7 @@ impl RedactionReasons {
 /// Machine-readable summary of one redaction operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RedactionSummary {
+    redaction_disabled: bool,
     completion: RedactionCompletion,
     reasons: RedactionReasons,
     usage: RedactionUsage,
@@ -232,11 +233,13 @@ impl RedactionSummary {
     /// Creates a summary from runtime-owned completion, reasons, and usage.
     #[must_use]
     pub(crate) const fn from_parts(
+        redaction_disabled: bool,
         completion: RedactionCompletion,
         reasons: RedactionReasons,
         usage: RedactionUsage,
     ) -> Self {
         Self {
+            redaction_disabled,
             completion,
             reasons,
             usage,
@@ -252,6 +255,7 @@ impl RedactionSummary {
             _ => RedactionCompletion::Complete,
         };
         Self {
+            redaction_disabled: self.redaction_disabled || other.redaction_disabled,
             completion,
             reasons: self.reasons.union(other.reasons),
             usage: self.usage.merge(other.usage),
@@ -262,6 +266,7 @@ impl RedactionSummary {
     #[must_use]
     pub(crate) const fn complete() -> Self {
         Self {
+            redaction_disabled: false,
             completion: RedactionCompletion::Complete,
             reasons: RedactionReasons::empty(),
             usage: RedactionUsage::empty(),
@@ -272,6 +277,7 @@ impl RedactionSummary {
     #[must_use]
     pub(crate) const fn complete_with_reason(reason: RedactionReason) -> Self {
         Self {
+            redaction_disabled: false,
             completion: RedactionCompletion::Complete,
             reasons: RedactionReasons::empty().with(reason),
             usage: RedactionUsage::empty(),
@@ -282,6 +288,7 @@ impl RedactionSummary {
     #[must_use]
     pub(crate) const fn truncated(reason: RedactionReason) -> Self {
         Self {
+            redaction_disabled: false,
             completion: RedactionCompletion::Truncated,
             reasons: RedactionReasons::empty().with(reason),
             usage: RedactionUsage::empty(),
@@ -292,6 +299,12 @@ impl RedactionSummary {
     #[must_use]
     pub const fn completion(self) -> RedactionCompletion {
         self.completion
+    }
+
+    /// Returns whether redaction was globally disabled for this operation.
+    #[must_use]
+    pub const fn is_redaction_disabled(self) -> bool {
+        self.redaction_disabled
     }
 
     /// Returns accumulated reasons.
@@ -311,6 +324,7 @@ impl RedactionSummary {
     #[must_use]
     pub(crate) const fn exhausted(reason: RedactionReason) -> Self {
         Self {
+            redaction_disabled: false,
             completion: RedactionCompletion::Exhausted,
             reasons: RedactionReasons::empty().with(reason),
             usage: RedactionUsage::empty(),

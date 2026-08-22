@@ -6,5 +6,3 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Tests for internal domain writer support.
-
-mod redact_mut_tests;

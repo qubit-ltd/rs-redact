@@ -17,6 +17,7 @@ use crate::RedactionUsage;
 /// [`super::redaction_budget::RedactionBudget`].
 #[derive(Clone, Copy)]
 pub(super) struct SummaryBuilder {
+    redaction_disabled: bool,
     completion: RedactionCompletion,
     reasons: RedactionReasons,
 }
@@ -24,8 +25,9 @@ pub(super) struct SummaryBuilder {
 impl SummaryBuilder {
     /// Creates an empty complete transaction state.
     #[must_use]
-    pub(super) const fn new() -> Self {
+    pub(super) const fn new(redaction_disabled: bool) -> Self {
         Self {
+            redaction_disabled,
             completion: RedactionCompletion::Complete,
             reasons: RedactionReasons::empty(),
         }
@@ -35,6 +37,7 @@ impl SummaryBuilder {
     #[must_use]
     pub(super) const fn from_summary(summary: RedactionSummary) -> Self {
         Self {
+            redaction_disabled: summary.is_redaction_disabled(),
             completion: summary.completion(),
             reasons: summary.reasons(),
         }
@@ -43,13 +46,14 @@ impl SummaryBuilder {
     /// Returns a summary paired with runtime-owned resource usage.
     #[must_use]
     pub(super) const fn build(self, usage: RedactionUsage) -> RedactionSummary {
-        RedactionSummary::from_parts(self.completion, self.reasons, usage)
+        RedactionSummary::from_parts(self.redaction_disabled, self.completion, self.reasons, usage)
     }
 
     /// Merges an operation's completion and provenance into this state.
     #[must_use]
     pub(super) const fn merge(self, delta: RedactionSummary) -> Self {
         Self {
+            redaction_disabled: self.redaction_disabled || delta.is_redaction_disabled(),
             completion: match (self.completion, delta.completion()) {
                 (RedactionCompletion::Exhausted, _) | (_, RedactionCompletion::Exhausted) => {
                     RedactionCompletion::Exhausted

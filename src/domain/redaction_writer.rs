@@ -75,6 +75,15 @@ impl<'session> RedactionWriter<'session> {
         self
     }
 
+    /// Writes a field without applying redaction policy.
+    #[inline]
+    pub fn unmarked<T>(&mut self, value: &T) -> &mut Self
+    where
+        T: Debug + ?Sized,
+    {
+        self.unredacted(value)
+    }
+
     pub(crate) fn trim_trailing_separator(&mut self) {
         self.session.trim_domain_frame_separator();
     }
@@ -370,6 +379,16 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         self
     }
 
+    /// Writes a field that has no explicit redaction mode.
+    #[inline]
+    pub fn unmarked<T, F>(&mut self, name: &str, access: F) -> &mut Self
+    where
+        T: Debug,
+        F: FnOnce() -> T,
+    {
+        self.unredacted(name, access)
+    }
+
     /// Writes a field with an explicit minimum sensitivity.
     ///
     /// The effective sensitivity is the stronger of `level` and the active
@@ -385,6 +404,9 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         if !self.admit_field() {
             self.write_field_truncated();
             return self;
+        }
+        if self.writer.session.policy().is_disabled() {
+            return self.unredacted(name, access);
         }
         let effective_level = self
             .writer
@@ -432,6 +454,9 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             self.write_field_truncated();
             return self;
         }
+        if self.writer.session.policy().is_disabled() {
+            return self.unredacted(name, || value);
+        }
         self.write_prefix(name);
         if !self.writer.can_write() {
             return self;
@@ -448,6 +473,12 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     {
         if !self.admit_field() {
             self.write_field_truncated();
+            return self;
+        }
+        if self.writer.session.policy().is_disabled() {
+            self.write_prefix(name);
+            value.write_redacted(self.writer);
+            self.writer.write_fragment(", ");
             return self;
         }
         self.write_prefix(name);
@@ -472,6 +503,28 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     {
         if !self.admit_field() {
             self.write_field_truncated();
+            return self;
+        }
+        if self.writer.session.policy().is_disabled() {
+            self.write_prefix(name);
+            if !self.writer.can_write() {
+                return self;
+            }
+            self.writer.write_fragment("{");
+            let mut entries = entries.into_iter();
+            while let Some((key, value)) = entries.next() {
+                if !self.admit_item() {
+                    self.write_field_truncated();
+                    break;
+                }
+                self.writer.write_debug(key.as_ref());
+                self.writer.write_fragment(": ");
+                self.writer.write_debug(&value);
+                if entries.size_hint().1 != Some(0) {
+                    self.writer.write_fragment(", ");
+                }
+            }
+            self.writer.write_fragment("}");
             return self;
         }
         self.write_prefix(name);
@@ -521,6 +574,19 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             self.writer.write_fragment(", ");
         }
         self
+    }
+
+    /// Omits a field while redaction is enabled and restores it when disabled.
+    pub fn skipped<T, F>(&mut self, name: &str, access: F) -> &mut Self
+    where
+        T: Debug,
+        F: FnOnce() -> T,
+    {
+        if self.writer.session.policy().is_disabled() {
+            self.unredacted(name, access)
+        } else {
+            self
+        }
     }
 
     /// Returns whether the next field may be inspected.

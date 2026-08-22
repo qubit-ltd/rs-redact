@@ -28,7 +28,7 @@ impl Redact for TestDomainValue {
 /// Verifies that the trait creates final transaction output.
 #[test]
 fn test_redact_redacted_returns_completed_output() {
-    let output = TestDomainValue.redacted();
+    let output = Redactor::standard().redact(&TestDomainValue);
 
     assert_eq!(output.text().as_str(), "TestDomainValue { secret: <redacted> }");
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);

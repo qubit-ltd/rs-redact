@@ -99,14 +99,14 @@ impl RedactionSession {
 
     /// Redacts and appends one scalar field in chain order.
     #[must_use]
-    pub fn field(&mut self, field: &str, value: &str) -> &mut Self {
+    pub fn field<T>(&mut self, field: &str, value: &T) -> &mut Self
+    where
+        T: std::fmt::Display + ?Sized,
+    {
         if self.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        if !self.admit_input(field.len().saturating_add(value.len())) {
-            return self;
-        }
-        let rendered = self.redact_field_output(field, value);
+        let rendered = self.redact_field_display_output(field, value);
         self.append_rendered_operation(rendered);
         self
     }
@@ -442,7 +442,11 @@ impl RedactionSession {
         if summary.completion() == RedactionCompletion::Complete
             && summary.reasons() == crate::RedactionReasons::empty()
         {
-            return Ok(crate::RedactionInspection::new(max_sensitivity, summary.usage()));
+            return Ok(crate::RedactionInspection::new(
+                summary.is_redaction_disabled(),
+                max_sensitivity,
+                summary.usage(),
+            ));
         }
         Err(crate::RedactionInspectionError::new(summary.reasons(), summary.usage()))
     }
@@ -885,15 +889,15 @@ impl RedactionSession {
     /// The returned handle does not expose text before [`Self::finish_batch`]
     /// publishes the transaction.
     #[must_use]
-    pub fn redact_field(&mut self, field: &str, value: &str) -> RedactionHandle {
+    pub fn redact_field<T>(&mut self, field: &str, value: &T) -> RedactionHandle
+    where
+        T: std::fmt::Display + ?Sized,
+    {
         if self.is_output_exhausted() {
             return self.stage_exhausted_handle();
         }
         self.run_handle(|session| {
-            if !session.admit_input(field.len().saturating_add(value.len())) {
-                return session.stage_accounted_text(String::new());
-            }
-            let output = session.redact_field_output(field, value);
+            let output = session.redact_field_display_output(field, value);
             session.stage_rendered_operation(output)
         })
     }
@@ -944,8 +948,26 @@ impl RedactionSession {
     }
 
     /// Redacts one field into owned safe text with its fragment completion.
+    #[allow(dead_code)]
     pub(crate) fn redact_field_output(&mut self, field: &str, value: &str) -> RenderedOperation {
         let (redacted, completion) = self.redact_field_with_completion(field, value);
+        match completion {
+            RedactionCompletion::Complete => OperationSink::complete(redacted).finish(),
+            RedactionCompletion::Truncated => {
+                OperationSink::truncated(redacted, crate::RedactionReason::OutputLimitReached).finish()
+            }
+            RedactionCompletion::Exhausted => {
+                OperationSink::exhausted(redacted, crate::RedactionReason::OutputLimitReached).finish()
+            }
+        }
+    }
+
+    pub(crate) fn redact_field_display_output<T>(&mut self, field: &str, value: &T) -> RenderedOperation
+    where
+        T: std::fmt::Display + ?Sized,
+    {
+        let (redacted, completion) =
+            redact_field_display_for_output(self.policy(), field, value, self.remaining_output_bytes());
         match completion {
             RedactionCompletion::Complete => OperationSink::complete(redacted).finish(),
             RedactionCompletion::Truncated => {
@@ -1054,6 +1076,7 @@ impl RedactionSession {
         RedactionHandle::new(self.transaction.id, item_index)
     }
 
+    #[allow(dead_code)]
     fn redact_field_with_completion(&mut self, field: &str, value: &str) -> (String, RedactionCompletion) {
         let policy = self.policy();
         let (redacted, completion) = redact_field_text_for_output(policy, field, value, self.remaining_output_bytes());
@@ -1109,6 +1132,7 @@ fn encoded_log_safe_len(character: char) -> usize {
 
 /// Resolves and renders one admitted field through the transaction's final
 /// escaped-output ceiling.
+#[allow(dead_code)]
 fn redact_field_text_for_output(
     policy: &RedactionPolicy,
     field: &str,
@@ -1116,14 +1140,52 @@ fn redact_field_text_for_output(
     max_output_bytes: usize,
 ) -> (String, RedactionCompletion) {
     let mut writer = BoundedFieldWriter::new(max_output_bytes);
-    let result = match policy.resolve_field(field) {
-        ResolvedField::Sensitive { sensitivity } => {
-            policy.masking().for_level(sensitivity).write_masked(value, &mut writer)
+    let result = if policy.is_disabled() {
+        writer.write_str(value)
+    } else {
+        match policy.resolve_field(field) {
+            ResolvedField::Sensitive { sensitivity } => {
+                policy.masking().for_level(sensitivity).write_masked(value, &mut writer)
+            }
+            ResolvedField::PassThrough => writer.write_str(value),
         }
-        ResolvedField::PassThrough => writer.write_str(value),
     };
     if result.is_err() || writer.overflowed() {
         return (String::new(), RedactionCompletion::Exhausted);
     }
     (writer.finish(), RedactionCompletion::Complete)
+}
+
+fn redact_field_display_for_output<T>(
+    policy: &RedactionPolicy,
+    field: &str,
+    value: &T,
+    max_output_bytes: usize,
+) -> (String, RedactionCompletion)
+where
+    T: std::fmt::Display + ?Sized,
+{
+    let mut raw_writer = BoundedFieldWriter::new(max_output_bytes);
+    let raw_result = match policy.resolve_field(field) {
+        ResolvedField::Sensitive {
+            sensitivity: crate::Sensitivity::High | crate::Sensitivity::Secret,
+        } if !policy.is_disabled() => Ok(()),
+        _ => std::fmt::Write::write_fmt(&mut raw_writer, format_args!("{value}")),
+    };
+    if raw_result.is_err() || raw_writer.overflowed() {
+        return (String::new(), RedactionCompletion::Exhausted);
+    }
+    if policy.is_disabled() || matches!(policy.resolve_field(field), ResolvedField::PassThrough) {
+        return (raw_writer.finish(), RedactionCompletion::Complete);
+    }
+    let ResolvedField::Sensitive { sensitivity } = policy.resolve_field(field) else {
+        unreachable!();
+    };
+    let raw = raw_writer.finish();
+    let mut output = BoundedFieldWriter::new(max_output_bytes);
+    let result = policy.masking().for_level(sensitivity).write_masked(&raw, &mut output);
+    if result.is_err() || output.overflowed() {
+        return (String::new(), RedactionCompletion::Exhausted);
+    }
+    (output.finish(), RedactionCompletion::Complete)
 }

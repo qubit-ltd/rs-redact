@@ -55,14 +55,9 @@ fn test_inspect_domain_value_reports_highest_sensitivity_without_formatting() {
     let redactor = Redactor::standard();
 
     let direct = redactor.inspect(&value).expect("inspection should complete");
-    let trait_output = value
-        .inspected_with(&redactor)
-        .expect("trait inspection should complete");
-
     assert!(direct.contains_sensitive());
     assert_eq!(direct.max_sensitivity(), Some(Sensitivity::Secret));
     assert_eq!(direct.usage().output_bytes(), 0);
-    assert_eq!(direct, trait_output);
 }
 
 /// Verifies an explicitly plain domain object produces a conclusive clear

@@ -45,7 +45,10 @@ impl RedactionBatch {
     /// `field` selects the policy rule applied to `value`. The result remains
     /// unpublished until [`Self::finish`] consumes this batch.
     #[must_use]
-    pub fn redact_field(&mut self, field: &str, value: &str) -> RedactionBatchHandle {
+    pub fn redact_field<T>(&mut self, field: &str, value: &T) -> RedactionBatchHandle
+    where
+        T: std::fmt::Display + ?Sized,
+    {
         let handle = self.session.redact_field(field, value);
         let (batch_id, item_index) = handle.parts();
         RedactionBatchHandle { batch_id, item_index }
@@ -128,6 +131,13 @@ impl RedactionBatch {
     #[must_use]
     pub fn redact_json(&mut self, text: &str) -> RedactionBatchHandle {
         Self::wrap(self.session.redact_json(text))
+    }
+
+    /// Redacts a borrowed parsed JSON value without taking ownership of it.
+    #[cfg(feature = "json")]
+    pub fn redact_json_value(&mut self, value: &serde_json::Value) -> RedactionBatchHandle {
+        let text = serde_json::to_string(value).expect("JSON values are serializable");
+        self.redact_json(&text)
     }
     /// Redacts one HTTP URL as one item.
     ///

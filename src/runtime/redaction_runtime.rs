@@ -35,10 +35,11 @@ pub(super) struct RedactionRuntime {
 impl RedactionRuntime {
     #[must_use]
     pub(super) fn new(policy: Arc<RedactionPolicy>) -> Self {
+        let redaction_disabled = policy.is_disabled();
         Self {
             budget: RedactionBudget::new(policy.limits()),
             policy,
-            summary: SummaryBuilder::new(),
+            summary: SummaryBuilder::new(redaction_disabled),
             phase: TransactionPhase::Active,
             active_operation_summary: None,
             domain_frame: String::new(),
@@ -93,7 +94,7 @@ impl RedactionRuntime {
         if self.active_operation_summary.is_some() {
             return false;
         }
-        self.active_operation_summary = Some(SummaryBuilder::new());
+        self.active_operation_summary = Some(SummaryBuilder::new(self.policy().is_disabled()));
         debug_assert!(self.budget.begin_operation_usage());
         true
     }

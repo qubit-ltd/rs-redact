@@ -34,6 +34,7 @@ pub type RedactionInspectionResult = Result<RedactionInspection, RedactionInspec
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RedactionInspection {
+    redaction_disabled: bool,
     /// Strongest sensitivity observed during the complete traversal.
     max_sensitivity: Option<Sensitivity>,
     /// Resource use excluding any output bytes, because inspection does not
@@ -44,8 +45,16 @@ pub struct RedactionInspection {
 impl RedactionInspection {
     /// Creates a conclusive inspection from runtime-owned metadata.
     #[must_use]
-    pub(crate) const fn new(max_sensitivity: Option<Sensitivity>, usage: RedactionUsage) -> Self {
-        Self { max_sensitivity, usage }
+    pub(crate) const fn new(
+        redaction_disabled: bool,
+        max_sensitivity: Option<Sensitivity>,
+        usage: RedactionUsage,
+    ) -> Self {
+        Self {
+            redaction_disabled,
+            max_sensitivity,
+            usage,
+        }
     }
 
     /// Reports whether the complete traversal found sensitive data.
@@ -53,6 +62,12 @@ impl RedactionInspection {
     #[inline(always)]
     pub const fn contains_sensitive(&self) -> bool {
         self.max_sensitivity.is_some()
+    }
+
+    /// Returns whether redaction was globally disabled for this inspection.
+    #[must_use]
+    pub const fn is_redaction_disabled(&self) -> bool {
+        self.redaction_disabled
     }
 
     /// Returns the strongest sensitivity found by the complete traversal.

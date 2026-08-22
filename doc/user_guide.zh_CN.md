@@ -1,263 +1,88 @@
-# qubit-redact 用户指南
+# qubit-redact 用户手册
 
-[English](user_guide.md) · [README](../README.zh_CN.md) · [API 文档](https://docs.rs/qubit-redact)
+[README](../README.zh_CN.md) · [English User Guide](user_guide.md) · [Derive Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.zh_CN.md)
 
-本指南适用于 `qubit-redact` 0.5，要求 Rust 1.94 或更高版本。它面向需要把多处来源的诊断
-数据组合起来、又不希望每处数据各自决定是否泄露秘密信息或占用多少预算的 Rust 应用和库作者。
+`qubit-redact` 在不修改源对象的前提下生成有界、策略感知的输出。`Redactor` 持有策略快照，
+一次脱敏操作拥有最终的 `RedactedText`。
 
-## 手册目标与读者
+## 1. 渲染领域值
 
-当一条诊断事件同时包含可信的程序文本和不可信字段、领域对象、命令行、JSON、HTTP 数据或 URI
-时，适合使用本库。先构建 policy；每段事件文本使用一个 composer，每批独立结果使用一个 batch；
-只发布已经完成的输出。若只需要处理一个值，可直接调用 `Redactor::redact_*`，它会替你创建并完成
-一个 batch。
-
-> **警告：** `#[derive(Redact)]` 生成的未标注字段永久按明文处理，任何运行期 policy 或
-> inspection 都不会重新分类。新增字段必须人工复查；需要强制每个字段选择模式时，显式启用
-> `#[redact(require_explicit)]`。`#[redact(skip)]` 会绕过脱敏。
-
-## 概念模型
-
-正常路径包含五个对象：
-
-1. `RedactionPolicy` 是不可变快照，保存字段规则、掩码方式、格式行为和资源上限。
-2. `Redactor` 共享该快照并创建 composer 与 batch。`standard()` 与 `strict()` 是固定 policy；
-   `application_default()` 是 `Redact::redacted()` 使用的进程级快照。
-3. `RedactedTextComposer` 以消费式链调用构造一段有序文本，并发布 `RedactionTextOutput`。
-4. `RedactionBatch` 以可变借用累积独立结果，返回不透明的 `RedactionBatchHandle`，并发布
-   `RedactionBatchOutput`。
-5. 两个对象都由消费式 `finish()` 发布，且各自拥有独立的预算与摘要。
-
-```text
-policy 快照 -> Redactor -> text_composer() -> 有序文本 -> RedactionTextOutput
-                     └-> batch()         -> handle 集合 -> RedactionBatchOutput
-```
-
-摘要会记录完成状态（`Complete`、`Truncated`、`Exhausted`）、原因和资源用量。程序应以它作为
-安全降级的依据，不要解析替换后的文本来推断状态。
-
-inspection 是不生成文本的判定路径。每个一次性 `redact_*` 都有成对的 `inspect_*`，覆盖
-显式/启发式 argv、环境变量、进程、JSON、HTTP URL/headers/body 和 URI。成功结果包含最高
-`Sensitivity` 与资源用量，输出字节为零；输入畸形或输入/结构预算不足时返回
-`RedactionInspectionError`，调用方必须安全关闭。禁止通过比较脱敏结果和原文判断敏感性：
-掩码可能恰好等于原值，空的敏感值也仍然属于敏感数据。
-
-## 场景：安全记录一次请求失败
-
-某 API 客户端既要在可读的失败日志中写入 `request_id`，也要把 URL 与 JSON 错误 body 发送到
-遥测系统。`access_token` 和 `password` 不能出现在任何发布结果中。日志文本与遥测 batch 共享同一份
-不可变 policy 快照，但各自拥有独立的输入、输出和遍历预算；URL 与 body 要等 batch 完成后才能读取。
-
-## 安装与最小配置
-
-启用本场景实际使用的集成：
-
-```toml
-[dependencies]
-qubit-redact = { version = "0.5", features = ["http", "json", "uri"] }
-```
-
-`build()` 之后 policy 不可变。各 namespace 闭包先在 draft 中操作；如果配置无效，会返回
-`PolicyError`，原 builder 不会被部分更新：
+实现小型运行时 trait，或在下游 crate 中使用 derive：
 
 ```rust
-use qubit_redact::RedactionPolicy;
+use qubit_redact::{Redact, RedactionWriter, Redactor, Sensitivity};
 
-let policy = RedactionPolicy::builder()
-    .fields(|fields| {
-        fields
-            .secret_sensitive("password")
-            .secret_sensitive("access_token");
-    })?
-    .limits(|limits| {
-        limits
-            .max_input_bytes(64 * 1024)
-            .max_output_bytes(16 * 1024)
-            .max_nodes(1024)
-            .max_collection_items(256)
-            .max_depth(32);
-    })?
-    .build()?;
+struct Login { user: String, password: String }
 
-# Ok::<(), qubit_redact::PolicyError>(())
-```
-
-未知标量字段也必须遮蔽时，可从 `Redactor::strict()` 开始。只有在已明确审核哪些字段允许可见
-之后，才应构建自定义 policy。
-
-## 核心工作流
-
-### 分别组装事件文本和单项结果
-
-composer 只生成文本，batch 只生成可解析项；二者不混用，也不会共享预算。
-
-```rust
-use http::HeaderValue;
-use qubit_redact::RedactionPolicy;
-use qubit_redact::Redactor;
-use qubit_redact::formats::http::BodyCapture;
-
-# let policy = RedactionPolicy::strict();
-let redactor = Redactor::new(policy);
-let output = redactor
-    .text_composer()
-    .literal("request failed: ")
-    .field("request_id", "req-42")
-    .finish();
-
-let mut batch = redactor.batch();
-let url = batch.redact_http_url(
-    "https://api.example.test/users?access_token=raw-token",
-);
-let content_type = HeaderValue::from_static("application/json");
-let body = batch.redact_http_body(
-    BodyCapture::complete(br#"{"password":"raw-password"}"#),
-    Some(&content_type),
-);
-let batch_output = batch.finish();
-let safe_url = batch_output.resolve(url)?;
-let safe_body = batch_output.resolve(body)?;
-
-assert_eq!(output.text().as_str(), "request failed: <redacted>");
-assert_eq!(
-    safe_url.text().as_str(),
-    "https://api.example.test/<redacted>?access_token=%3Credacted%3E",
-);
-assert_eq!(safe_body.text().as_str(), r#"{"password":"<redacted>"}"#);
-assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());
-assert_eq!(batch_output.summary().usage().output_bytes(),
-           safe_url.text().as_str().len() + safe_body.text().as_str().len());
-
-# Ok::<(), qubit_redact::RedactionBatchHandleError>(())
-```
-
-聚合文本和单项结果是刻意分离的输出。使用另一个 batch 的输出解析 handle 时，会得到
-`DifferentBatch`。
-
-### 为每次发布创建新对象
-
-composer 和 batch 都是一次性对象；需要下一次发布时，从同一 `Redactor` 新建对象：
-
-```rust
-use qubit_redact::Redactor;
-
-let redactor = Redactor::strict();
-let first = redactor.text_composer().literal("first").finish();
-let second = redactor.text_composer().literal("second").finish();
-
-assert_eq!(first.text().as_str(), "first");
-assert_eq!(second.text().as_str(), "second");
-```
-
-每个独立的文本或 batch 工作流应持有自己的对象；`Redactor` 及其不可变 policy 快照可以共享。
-
-### 显式描述领域对象
-
-实现 `Redact`，明确说明领域类型如何遍历。writer 不会自行猜测字段是否敏感：
-
-```rust
-use qubit_redact::Redact;
-use qubit_redact::RedactionWriter;
-use qubit_redact::Sensitivity;
-
-struct Account {
-    name: String,
-    password: String,
-}
-
-impl Redact for Account {
+impl Redact for Login {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
-        writer.record("Account", |fields| {
-            fields.unredacted("name", || self.name.as_str());
-            fields.sensitive(Sensitivity::Secret, "password", || {
-                self.password.as_str()
-            });
+        writer.record("Login", |fields| {
+            fields.unmarked("user", || self.user.as_str());
+            fields.sensitive(Sensitivity::Secret, "password", || self.password.as_str());
         });
     }
 }
+
+let login = Login { user: "ada".into(), password: "raw".into() };
+let output = Redactor::standard().redact(&login);
+assert!(!output.text().as_str().contains("raw"));
+assert_eq!(login.password, "raw");
 ```
 
-`unredacted` 会绕过字段名 policy，必须经过独立审查。`sensitive` 指定最低敏感度；`nested`
-委托给另一个 `Redact` 值；`json` 遵循当前 JSON policy。`skip` 仅用于既不应访问也不应输出的字段。
+子系统需要显式策略时使用 `Redactor::new(policy)`。运行时没有可变脱敏 API，也不提供内存擦除。
 
-## 进阶用法
+## 2. Writer scope
 
-### 格式与一次性操作
+`RedactionWriter` 提供显式字段决策：
 
-所有格式都使用同一套 runtime 实现。composer 提供聚合 namespace，batch 提供单项方法；
-`Redactor::redact_*` 提供一次性入口。
+- `unmarked(name, access)` 输出经过审查的普通值；
+- `sensitive(level, name, access)` 应用敏感等级掩码；
+- `nested(name, value)` 委托给另一个 `Redact` 实现；
+- `map(name, value)` 对支持的 Map 按 key 处理；
+- `json(name, value)` 递归处理 JSON；
+- `skipped(name, access)` 省略字段且不渲染其值。
 
-| 格式 | 聚合 namespace | 代表性单项方法 |
-| --- | --- | --- |
-| argv | `composer.argv(...)` | `batch.redact_argv(items)` |
-| 环境变量 | `composer.env(...)` | `batch.redact_env(name, value)` |
-| 进程 | `composer.process(...)` | `batch.redact_process(...)` |
-| JSON | `composer.json(...)` | `batch.redact_json(text)` |
-| HTTP | `composer.http(...)` | `batch.redact_http_url/body/headers` |
-| URI | `composer.uri(...)` | `batch.redact_uri(text)` |
+每个操作都参与同一个输出预算和摘要。可能包含敏感数据的字段不能因为当前策略在其他
+位置会掩码，就省略其字段决策。
 
-集合操作会为整个集合创建一个 handle，但每个元素仍会分别消耗集合和结构记账。HTTP 将 URL、
-headers 和 body 刻意拆成不同的单项操作。
+## 3. 其他格式
 
-### 应用默认快照
+运行时为 JSON 文本和值、URI、HTTP header/query、环境变量、argv 和进程描述提供有界脱敏。
+每种格式保留自身解析和转义规则，同时共享策略决策和事务预算。
 
-`Default for Redactor` 始终等价于 `standard()`。如需替换 `Redact::redacted()` 使用的快照，
-可原子替换完整 redactor：
+解析 JSON 时输入只被借用且保持不变：
 
 ```rust
 use qubit_redact::Redactor;
 
-let previous = Redactor::replace_application_default(Redactor::strict());
-let current = Redactor::application_default();
-let _ = Redactor::replace_application_default(previous);
-assert_eq!(current, Redactor::strict());
+let value = serde_json::json!({"password": "raw", "visible": "shown"});
+let output = Redactor::standard().redact_json_value(&value);
+let inspection = Redactor::standard().inspect_json_value(&value);
+assert!(!output.text().as_str().contains("raw"));
+assert_eq!(value["password"], "raw");
+let _ = inspection;
 ```
 
-已经创建的 redactor、composer 和 batch 继续使用旧快照。读取方只会观察到完整的旧 policy 或完整的新
-policy，不会看到两者混合的状态。
+`RedactionBatch::redact_json_value` 以及其他 batch 方法会共享预算，并发布可解析为最终文本
+和摘要的 handle。
 
-### 如实报告上游截断
+## 4. Inspection 与禁用策略
 
-HTTP body 在进入本库前已被截断时：如果知道原始长度，使用
-`BodyCapture::truncated(bytes, total_len)`；不知道时使用
-`BodyCapture::truncated_unknown(bytes)`。摘要会包含 `SourceTruncated`；遗漏字节数未知时，
-`omitted_input_bytes()` 返回 `None`。
+Inspection 会报告规则匹配、敏感度和完成状态，但不会发布原始值。它适合在确定日志或序列化
+边界前解释某字段为何会被掩码。
 
-## 错误与诊断
+`RedactionPolicy::disabled()` 是显式退出选项，会保留原始渲染值；调用方必须把它限制在经过审查的本地边界内。
 
-构建 policy 可能返回 `PolicyError`。解析 batch handle 只会返回 `DifferentBatch` 或
-`MissingItem`。
+## 5. 验证
 
-输入、输出和结构上限，非法 JSON/URI、不支持的内容、非法 content type 及上游截断，都是安全的
-脱敏结果，而非 `finish()` 错误。请检查 `output.summary()` 的完成状态和原因。`Exhausted`
-表示完整的安全替代内容已无法放入共享输出预算；之后的单项调用不会再检查输入，而是返回当前
-batch 中唯一的空 exhausted item。
+```bash
+cargo test --all-features
+./align-ci.sh
+./ci-check.sh
+```
 
-用户提供的 writer 或 adapter 发生 panic 时，当前未发布对象会被丢弃，随后继续展开 panic。
-composer 会随展开被消费；batch 会安装新的空 identity，因此调用方使用 `catch_unwind` 后可以
-继续复用该 batch，但 panic 前产生的 handle 无法解析。
+字段属性和生成实现参见 [derive 手册](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.zh_CN.md)。
 
-## 排障
+## 许可证
 
-- **单项文本为空且为 exhausted。** 检查 `OutputLimitReached`；提高 `max_output_bytes`，或减少
-  同一事件中更早的输出。
-- **收到 `DifferentBatch`。** 使用创建 handle 后那次 `batch.finish()` 返回的准确
-  `RedactionBatchOutput` 进行解析。
-- **出现意外明文。** 检查显式 `unredacted` 调用与未标注的 derive 字段；运行期字段规则不会修正
-  这两条路径。
-- **过早截断。** 对比 `RedactionUsage` 中提交与检查的输入、访问的节点/集合项、最大深度和上限。
-- **找不到 JSON、HTTP 或 URI API。** 在 Cargo 中启用对应 feature。
-
-## 限制与最佳实践
-
-- `literal` 只能接收程序内的 `&'static str` 文本；运行时文本必须进入脱敏操作。
-- 审查每个新增领域字段及每次 `unredacted` 的使用。
-- 资源上限分别覆盖一段 composer 文本或一批 batch 结果。
-- 只有 `finish()` 发布的 `RedactionTextOutput` 或 `RedactionBatchOutput` 中的结果才是最终的强类型脱敏边界。
-
-## 延伸阅读
-
-- [中文 README](../README.zh_CN.md)
-- [English user guide](user_guide.md)
-- [API 文档](https://docs.rs/qubit-redact)
-- [核心设计](design.zh_CN.md)
+Apache-2.0，详见 [LICENSE](../LICENSE)。

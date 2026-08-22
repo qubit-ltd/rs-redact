@@ -185,7 +185,10 @@ impl Redactor {
 
     /// Redacts one scalar field through a complete one-item transaction.
     #[must_use]
-    pub fn redact_field(&self, field: &str, value: &str) -> RedactionTextOutput {
+    pub fn redact_field<T>(&self, field: &str, value: &T) -> RedactionTextOutput
+    where
+        T: std::fmt::Display + ?Sized,
+    {
         let mut batch = self.batch();
         let handle = batch.redact_field(field, value);
         batch
@@ -341,12 +344,27 @@ impl Redactor {
             .expect("a handle created by the completed transaction must resolve")
     }
 
+    /// Redacts a borrowed parsed JSON value without taking ownership of it.
+    #[cfg(feature = "json")]
+    #[must_use]
+    pub fn redact_json_value(&self, value: &serde_json::Value) -> RedactionTextOutput {
+        let text = serde_json::to_string(value).expect("JSON values are serializable");
+        self.redact_json(&text)
+    }
+
     /// Inspects one JSON document without rendering it.
     #[cfg(feature = "json")]
     pub fn inspect_json(&self, text: &str) -> RedactionInspectionResult {
         let mut session = self.inspection_runtime();
         crate::formats::json::inspection::inspect_text(&mut session, text);
         session.finish_inspection()
+    }
+
+    /// Inspects a borrowed parsed JSON value without taking ownership of it.
+    #[cfg(feature = "json")]
+    pub fn inspect_json_value(&self, value: &serde_json::Value) -> RedactionInspectionResult {
+        let text = serde_json::to_string(value).expect("JSON values are serializable");
+        self.inspect_json(&text)
     }
 
     /// Redacts an HTTP URL through one completed batch transaction.

@@ -122,16 +122,16 @@
 //! [`RedactedTextComposer`] or [`RedactionBatch`].
 //!
 //! ```compile_fail
-//! use qubit_redact::domain::Redact;
-//! ```
-//!
-//! ```compile_fail
 //! use qubit_redact::policy::RedactionPolicy;
 //! ```
 
 extern crate self as qubit_redact;
 
-mod domain;
+#[cfg(feature = "derive")]
+pub use qubit_redact_derive::Redact;
+
+#[doc(hidden)]
+pub mod domain;
 mod facade;
 pub mod formats;
 mod json_feature_gate;
@@ -141,9 +141,12 @@ pub(crate) mod runtime;
 mod serde_feature_gate;
 
 pub use domain::Redact;
-pub use domain::RedactMapValueMut;
-pub use domain::RedactMut;
-pub use domain::RedactValueMut;
+#[doc(hidden)]
+pub use domain::RedactJsonValue;
+#[doc(hidden)]
+pub use domain::RedactLevelValue;
+#[doc(hidden)]
+pub use domain::RedactMapValue;
 pub use domain::RedactionEntries;
 pub use domain::RedactionFields;
 pub use domain::RedactionItems;

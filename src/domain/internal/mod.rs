@@ -8,3 +8,7 @@
 //! Private support for domain-object redaction.
 
 mod nested;
+#[cfg(feature = "serde")]
+mod redact_serialize;
+#[cfg(feature = "serde")]
+pub use redact_serialize::RedactSerialize;

@@ -64,6 +64,7 @@ static STANDARD_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
             .expect("the built-in URI policy must be valid"),
         #[cfg(feature = "json")]
         UnkeyedJsonValuePolicy::PassThrough,
+        false,
     )
 });
 /// Lazily initialized fixed strict policy.
@@ -94,11 +95,13 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
             .expect("the built-in URI policy must be valid"),
         #[cfg(feature = "json")]
         UnkeyedJsonValuePolicy::Redact,
+        false,
     )
 });
 /// Immutable redaction policy.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionPolicy {
+    disabled: bool,
     rules: RedactionRules,
     masking: Arc<MaskingPolicy>,
     limits: RedactionLimits,
@@ -133,6 +136,28 @@ impl RedactionPolicy {
         STRICT_POLICY.clone()
     }
 
+    /// Returns the standard policy with redaction globally disabled.
+    #[must_use]
+    pub fn disabled() -> Self {
+        let mut policy = Self::standard();
+        policy.disabled = true;
+        policy
+    }
+
+    /// Returns whether this policy bypasses redaction while retaining limits.
+    #[must_use]
+    pub const fn is_disabled(&self) -> bool {
+        self.disabled
+    }
+
+    /// Changes the global redaction switch and returns this policy for
+    /// chaining.
+    #[must_use]
+    pub fn set_disabled(&mut self, disabled: bool) -> &mut Self {
+        self.disabled = disabled;
+        self
+    }
+
     /// Creates a deterministic builder with no application rules and the
     /// standard minimum-protection floor.
     #[must_use]
@@ -159,8 +184,10 @@ impl RedactionPolicy {
         #[cfg(feature = "http")] http: crate::formats::http::HttpPolicy,
         #[cfg(feature = "uri")] uri: crate::formats::uri::UriPolicy,
         #[cfg(feature = "json")] unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
+        disabled: bool,
     ) -> Self {
         Self {
+            disabled,
             rules,
             masking: Arc::new(masking),
             limits,
