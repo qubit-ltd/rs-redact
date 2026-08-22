@@ -21,19 +21,23 @@ pub(super) struct AdmittedEnvironmentPairs<'session, 'variables, I> {
 
 impl<'variables, I> Iterator for AdmittedEnvironmentPairs<'_, 'variables, I>
 where
-    I: ExactSizeIterator<Item = (&'variables OsStr, &'variables OsStr)>,
+    I: Iterator<Item = (&'variables OsStr, &'variables OsStr)>,
 {
     type Item = (&'variables OsStr, &'variables OsStr);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.variables.len() == 0 {
+        if self.variables.size_hint().1 == Some(0) {
             return None;
         }
-        if !self.session.admit_format_collection_item() || !self.session.admit_format_node(2) {
+        if !self.session.preflight_format_item(2) {
             self.failed = true;
             return None;
         }
         let (name, value) = self.variables.next()?;
+        if !self.session.admit_format_collection_item() || !self.session.admit_format_node(2) {
+            self.failed = true;
+            return None;
+        }
         if !self.session.admit_input(
             name.as_encoded_bytes()
                 .len()

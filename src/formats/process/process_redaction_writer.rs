@@ -61,9 +61,9 @@ impl<'session> ProcessRedactionWriter<'session> {
     /// # Type Parameters
     ///
     /// * `'arguments` - Lifetime of borrowed argument values.
-    /// * `A` - Finite argument source with an exact remaining length.
+    /// * `A` - Finite argument source.
     /// * `'variables` - Lifetime of borrowed environment names and values.
-    /// * `E` - Finite environment source with an exact remaining length.
+    /// * `E` - Finite environment source.
     ///
     /// # Parameters
     ///
@@ -82,9 +82,7 @@ impl<'session> ProcessRedactionWriter<'session> {
     ) -> &mut Self
     where
         A: IntoIterator<Item = ArgvItem<'arguments>>,
-        A::IntoIter: ExactSizeIterator,
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
-        E::IntoIter: ExactSizeIterator,
     {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
@@ -115,9 +113,7 @@ impl<'session> ProcessRedactionWriter<'session> {
     ) -> RedactionHandle
     where
         A: IntoIterator<Item = ArgvItem<'arguments>>,
-        A::IntoIter: ExactSizeIterator,
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
-        E::IntoIter: ExactSizeIterator,
     {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
@@ -176,7 +172,7 @@ impl<'session> ProcessRedactionWriter<'session> {
     /// # Type Parameters
     ///
     /// * `'arguments` - Lifetime of borrowed argument values.
-    /// * `A` - Finite argument source with an exact remaining length.
+    /// * `A` - Finite argument source.
     ///
     /// # Parameters
     ///
@@ -188,7 +184,6 @@ impl<'session> ProcessRedactionWriter<'session> {
     pub fn arguments<'arguments, A>(&mut self, arguments: A) -> &mut Self
     where
         A: IntoIterator<Item = ArgvItem<'arguments>>,
-        A::IntoIter: ExactSizeIterator,
     {
         let mut argv = ArgvRedactionWriter::new(self.session);
         argv.heuristic_items(arguments);
@@ -203,7 +198,7 @@ impl<'session> ProcessRedactionWriter<'session> {
     /// # Type Parameters
     ///
     /// * `'variables` - Lifetime of borrowed environment names and values.
-    /// * `E` - Finite environment source with an exact remaining length.
+    /// * `E` - Finite environment source.
     ///
     /// # Parameters
     ///
@@ -215,7 +210,6 @@ impl<'session> ProcessRedactionWriter<'session> {
     pub fn variables<'variables, E>(&mut self, variables: E) -> &mut Self
     where
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
-        E::IntoIter: ExactSizeIterator,
     {
         let mut env = EnvRedactionWriter::new(self.session);
         env.os_pairs(variables);

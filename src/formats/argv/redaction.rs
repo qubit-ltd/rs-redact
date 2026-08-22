@@ -300,6 +300,75 @@ fn mask_opaque_value_bounded(policy: &RedactionPolicy, max_output_bytes: usize) 
     (masked, truncated)
 }
 
+/// Classifies one heuristic argv item without materializing a mask.
+#[must_use]
+pub(super) fn inspect_heuristic_item(
+    policy: &RedactionPolicy,
+    item: ArgvItem<'_>,
+    pending_field: &mut Option<PendingField>,
+) -> Option<Sensitivity> {
+    if let Some(sensitivity) = item.sensitivity() {
+        *pending_field = None;
+        return Some(sensitivity);
+    }
+    let Some(value) = item.value().to_str() else {
+        *pending_field = Some(PendingField {
+            field: String::new(),
+            exact: false,
+        });
+        return Some(Sensitivity::Secret);
+    };
+    let option = option_field(value);
+    if let Some(pending) = pending_field.take() {
+        if let Some((field, exact)) = option
+            && option_is_sensitive(policy, field, exact)
+        {
+            *pending_field = Some(PendingField {
+                field: field.to_owned(),
+                exact,
+            });
+        }
+        if pending.field.is_empty() {
+            return Some(Sensitivity::Secret);
+        }
+        return match if pending.exact {
+            policy.resolve_field_exact(&pending.field)
+        } else {
+            policy.resolve_field(&pending.field)
+        } {
+            ResolvedField::Sensitive { sensitivity } => Some(sensitivity),
+            ResolvedField::PassThrough => None,
+        };
+    }
+    let field = if !value.starts_with('-') {
+        value
+            .split_once('=')
+            .and_then(|(field, _)| (!field.is_empty()).then_some(field))
+    } else if let Some(property) = value.strip_prefix("-D") {
+        property
+            .split_once('=')
+            .and_then(|(field, _)| (!field.is_empty()).then_some(field))
+    } else if value.starts_with("--") {
+        value.split_once('=').and_then(|(left, _)| option_name(left))
+    } else {
+        None
+    };
+    if let Some(field) = field
+        && let ResolvedField::Sensitive { sensitivity } = policy.resolve_field(field)
+    {
+        return Some(sensitivity);
+    }
+    if let Some((field, exact)) = option
+        && option_is_sensitive(policy, field, exact)
+    {
+        *pending_field = Some(PendingField {
+            field: field.to_owned(),
+            exact,
+        });
+    }
+    None
+}
+
 /// Returns an option name without its leading dashes.
 #[inline]
 fn option_name(value: &str) -> Option<&str> {

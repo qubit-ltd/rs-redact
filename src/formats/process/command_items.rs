@@ -34,13 +34,13 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         self.program.take().or_else(|| self.arguments.next())
     }
-}
 
-impl<'arguments, I> ExactSizeIterator for CommandItems<'arguments, I>
-where
-    I: ExactSizeIterator<Item = ArgvItem<'arguments>>,
-{
-    fn len(&self) -> usize {
-        self.arguments.len().saturating_add(usize::from(self.program.is_some()))
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let program_len = usize::from(self.program.is_some());
+        let (lower, upper) = self.arguments.size_hint();
+        (
+            lower.saturating_add(program_len),
+            upper.and_then(|value| value.checked_add(program_len)),
+        )
     }
 }

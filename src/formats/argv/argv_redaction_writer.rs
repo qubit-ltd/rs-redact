@@ -31,7 +31,6 @@ impl<'session> ArgvRedactionWriter<'session> {
     pub fn items<'items, I>(&mut self, items: I) -> &mut Self
     where
         I: IntoIterator<Item = ArgvItem<'items>>,
-        I::IntoIter: ExactSizeIterator,
     {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
@@ -48,7 +47,6 @@ impl<'session> ArgvRedactionWriter<'session> {
     pub fn heuristic_items<'items, I>(&mut self, items: I) -> &mut Self
     where
         I: IntoIterator<Item = ArgvItem<'items>>,
-        I::IntoIter: ExactSizeIterator,
     {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
@@ -67,7 +65,6 @@ impl<'session> ArgvRedactionWriter<'session> {
     pub(crate) fn redact_items<'items, I>(&mut self, items: I) -> RedactionHandle
     where
         I: IntoIterator<Item = ArgvItem<'items>>,
-        I::IntoIter: ExactSizeIterator,
     {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
@@ -92,7 +89,6 @@ impl<'session> ArgvRedactionWriter<'session> {
     pub(crate) fn redact_heuristic_items<'items, I>(&mut self, items: I) -> RedactionHandle
     where
         I: IntoIterator<Item = ArgvItem<'items>>,
-        I::IntoIter: ExactSizeIterator,
     {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
@@ -119,20 +115,28 @@ impl<'session> ArgvRedactionWriter<'session> {
     fn collect_admitted_items<'items, I>(&mut self, items: I) -> Option<Vec<ArgvItem<'items>>>
     where
         I: IntoIterator<Item = ArgvItem<'items>>,
-        I::IntoIter: ExactSizeIterator,
     {
         if !self.session.admit_format_node(1) {
             return None;
         }
-        let mut iterator = items.into_iter();
+        let iterator = items.into_iter();
         // Iterator length is caller-controlled metadata. Allocate only after
         // an item has passed the transaction's shared admission checks.
         let mut admitted = Vec::new();
-        while iterator.len() > 0 {
+        let mut iterator = iterator;
+        loop {
+            if iterator.size_hint().1 == Some(0) {
+                break;
+            }
+            if !self.session.preflight_format_item(2) {
+                return None;
+            }
+            let Some(item) = iterator.next() else {
+                break;
+            };
             if !self.session.admit_format_collection_item() || !self.session.admit_format_node(2) {
                 return None;
             }
-            let item = iterator.next().expect("exact-size iterator reported an item");
             if !self.session.admit_input(item.value().as_encoded_bytes().len()) {
                 return None;
             }

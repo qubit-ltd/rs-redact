@@ -8,6 +8,7 @@
 //! Explicit logical in-place redaction contract for domain objects.
 
 use crate::RedactionPolicy;
+use crate::Redactor;
 
 /// Replaces sensitive field values inside a domain object.
 ///
@@ -21,11 +22,11 @@ pub trait RedactMut {
     /// * `policy` - Complete policy snapshot governing every mutation.
     fn redact_in_place_with(&mut self, policy: &RedactionPolicy);
 
-    /// Redacts this object in place with the deterministic standard policy.
+    /// Redacts this object in place with the application-default policy.
     #[inline]
     fn redact_in_place(&mut self) {
-        let policy = RedactionPolicy::default();
-        self.redact_in_place_with(&policy);
+        let redactor = Redactor::application_default();
+        self.redact_in_place_with(redactor.policy());
     }
 
     /// Consumes and redacts this object with an explicit policy.
@@ -47,7 +48,7 @@ pub trait RedactMut {
         self
     }
 
-    /// Consumes and redacts this object with the deterministic standard policy.
+    /// Consumes and redacts this object with the application-default policy.
     ///
     /// # Returns
     ///
@@ -58,8 +59,8 @@ pub trait RedactMut {
     where
         Self: Sized,
     {
-        let policy = RedactionPolicy::default();
-        self.into_redacted_with(&policy)
+        let redactor = Redactor::application_default();
+        self.into_redacted_with(redactor.policy())
     }
 
     /// Clones and redacts this object with an explicit policy.
@@ -80,7 +81,7 @@ pub trait RedactMut {
         self.clone().into_redacted_with(policy)
     }
 
-    /// Clones and redacts this object with the deterministic standard policy.
+    /// Clones and redacts this object with the application-default policy.
     ///
     /// # Returns
     ///
@@ -91,7 +92,7 @@ pub trait RedactMut {
     where
         Self: Clone + Sized,
     {
-        let policy = RedactionPolicy::default();
-        self.to_redacted_with(&policy)
+        let redactor = Redactor::application_default();
+        self.to_redacted_with(redactor.policy())
     }
 }

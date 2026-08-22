@@ -97,6 +97,18 @@ impl<'a> FieldRedactor<'a> {
         )
     }
 
+    /// Returns the final sensitivity selected for one field.
+    #[must_use]
+    pub(in crate::formats::http) fn sensitivity(&self, field: &str) -> Option<Sensitivity> {
+        match stronger(
+            self.base_rules.resolve_field(field),
+            self.context_rules.resolve_field(field),
+        ) {
+            ResolvedField::Sensitive { sensitivity } => Some(sensitivity),
+            ResolvedField::PassThrough => None,
+        }
+    }
+
     /// Masks an explicitly sensitive native value with the shared mask table.
     pub(in crate::formats::http) fn mask_bounded<'value>(
         &self,

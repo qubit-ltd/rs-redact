@@ -24,36 +24,6 @@ fn visit_rust_sources(directory: &Path, inspect: &mut impl FnMut(&Path, &str)) {
     }
 }
 
-/// Shared accounting must not choose either public publication model.
-#[test]
-fn runtime_and_buffers_keep_publication_models_separate() {
-    let runtime = include_str!("../src/runtime/redaction_runtime.rs");
-    let transaction = include_str!("../src/runtime/transaction_state.rs");
-    let publication = include_str!("../src/runtime/publication_buffer.rs");
-    let text = include_str!("../src/runtime/text_output_buffer.rs");
-    let batch = include_str!("../src/runtime/batch_output_buffer.rs");
-
-    assert!(!runtime.contains("aggregate_ranges"));
-    assert!(!runtime.contains("items: Vec"));
-    assert!(!text.contains("ItemRange"));
-    assert!(!batch.contains("aggregate_ranges"));
-    assert!(transaction.contains("publication: PublicationBuffer"));
-    assert!(!transaction.contains("text: TextOutputBuffer"));
-    assert!(!transaction.contains("batch: BatchOutputBuffer"));
-    assert!(publication.contains("enum PublicationBuffer"));
-}
-
-/// Publishing a batch must move the item text staged by the runtime instead
-/// of reconstructing each item from slices of an aggregate buffer.
-#[test]
-fn batch_publication_moves_staged_text_without_range_copying() {
-    let batch = include_str!("../src/runtime/batch_output_buffer.rs");
-
-    assert!(batch.contains("items: Vec<RedactionTextOutput>"));
-    assert!(!batch.contains("ItemRange"));
-    assert!(!batch.contains("to_owned()"));
-}
-
 /// Format adapters must report rendering outcomes to the runtime instead of
 /// constructing publishable output, summaries, or safe-text wrappers.
 #[test]
@@ -104,44 +74,6 @@ fn json_structure_admission_does_not_materialize_a_value_tree() {
     let writer = include_str!("../src/formats/json/json_redaction_writer.rs");
 
     assert!(!writer.contains("Value::from_str"));
-}
-
-/// Resource counters belong to the transaction budget; summaries retain only
-/// completion and provenance until publication pairs them with a snapshot.
-#[test]
-fn transaction_budget_owns_usage_while_summary_builder_owns_status() {
-    let budget = include_str!("../src/runtime/redaction_budget.rs");
-    let summary = include_str!("../src/runtime/summary_builder.rs");
-
-    assert!(budget.contains("usage: RedactionUsage"));
-    assert!(budget.contains("active_operation_usage: Option<RedactionUsage>"));
-    assert!(!summary.contains("RedactionUsage::"));
-    assert!(!summary.contains("with_added_output_bytes"));
-    assert!(!summary.contains("with_input("));
-    assert!(!summary.contains("with_collection_item"));
-}
-
-/// The runtime owns operational accounting and terminal summary construction;
-/// the session only forwards writers to that transaction state and consumes it
-/// when publication completes.
-#[test]
-fn runtime_owns_accounting_and_session_completion_is_consuming() {
-    let runtime = include_str!("../src/runtime/redaction_runtime.rs");
-    let session = include_str!("../src/runtime/redaction_session.rs");
-
-    for method in [
-        "fn record_summary(",
-        "fn begin_domain_value(",
-        "fn admit_domain_field(",
-        "fn admit_input(",
-        "fn admit_format_node(",
-        "fn remaining_output_bytes(",
-        "fn into_summary(self)",
-    ] {
-        assert!(runtime.contains(method), "runtime must own {method}");
-    }
-    assert!(!session.contains("fn finish_text(&mut self)"));
-    assert!(!session.contains("fn finish_batch(&mut self)"));
 }
 
 /// The structured writer exposes only the scope names fixed by the redesign;

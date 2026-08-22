@@ -50,16 +50,19 @@ fn assert_format_api_is_feature_gated(method: &str) {
 #[test]
 fn json_api_is_unavailable_without_the_json_feature() {
     assert_format_api_is_feature_gated("redact_json");
+    assert_format_api_is_feature_gated("inspect_json");
 }
 
 /// HTTP methods must not leak from the default feature surface.
 #[test]
 fn http_api_is_unavailable_without_the_http_feature() {
     assert_format_api_is_feature_gated("redact_http_url");
+    assert_format_api_is_feature_gated("inspect_http_url");
 }
 
 /// URI methods must not leak from the default feature surface.
 #[test]
 fn uri_api_is_unavailable_without_the_uri_feature() {
     assert_format_api_is_feature_gated("redact_uri");
+    assert_format_api_is_feature_gated("inspect_uri");
 }

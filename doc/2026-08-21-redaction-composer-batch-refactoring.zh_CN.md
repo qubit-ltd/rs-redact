@@ -153,7 +153,8 @@ impl RedactionBatch {
 ```
 
 泛型约束与 feature gate 沿用现有对应 API。上面的签名用于固定命名和返回关系，不省略现有
-`ExactSizeIterator` 等资源记账所需约束。
+资源记账约束。argv、env 与 process 输入只要求普通有限 `IntoIterator`；运行时在推进迭代器前
+检查结构预算，不依赖调用方提供精确长度。
 
 代表性用法：
 

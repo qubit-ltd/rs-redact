@@ -32,6 +32,10 @@ pub enum RedactionReason {
     InvalidContentType,
     /// Source content type is unsupported.
     UnsupportedContentType,
+    /// Source data was not a valid URL-encoded form.
+    InvalidForm,
+    /// Source data was not a valid multipart body.
+    InvalidMultipart,
 }
 
 /// Measured resource use for one redaction transaction.

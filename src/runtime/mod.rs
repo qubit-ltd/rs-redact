@@ -10,6 +10,7 @@
 mod batch_output_buffer;
 mod batch_publication;
 mod bounded_field_writer;
+mod inspection_accumulator;
 #[cfg(any(feature = "json", feature = "http"))]
 mod operation_byte_sink;
 mod operation_sink;

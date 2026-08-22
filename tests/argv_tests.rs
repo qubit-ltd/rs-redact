@@ -24,7 +24,6 @@ use qubit_redact::formats::argv::ArgvItem;
 fn explicit<'a, I>(items: I) -> String
 where
     I: IntoIterator<Item = ArgvItem<'a>>,
-    I::IntoIter: ExactSizeIterator,
 {
     Redactor::standard().redact_argv(items).text().as_str().to_owned()
 }
@@ -32,7 +31,6 @@ where
 fn heuristic<'a, I>(items: I) -> String
 where
     I: IntoIterator<Item = ArgvItem<'a>>,
-    I::IntoIter: ExactSizeIterator,
 {
     Redactor::standard()
         .text_composer()

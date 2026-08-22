@@ -110,7 +110,6 @@ fn assert_non_utf8_argv_is_redacted() {
 fn redact_argv_heuristically<'a, I>(items: I) -> String
 where
     I: IntoIterator<Item = ArgvItem<'a>>,
-    I::IntoIter: ExactSizeIterator,
 {
     let output = Redactor::standard()
         .text_composer()

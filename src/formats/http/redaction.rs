@@ -674,6 +674,14 @@ impl HttpPolicyExecutor<'_> {
             BodyRenderStatus::Redacted(BodyRenderReason::UnsupportedMediaType) => {
                 Some(RedactionReason::UnsupportedContentType)
             }
+            BodyRenderStatus::Redacted(BodyRenderReason::InvalidFormUrlEncoded)
+            | BodyRenderStatus::Redacted(BodyRenderReason::InvalidOrTruncatedFormUrlEncoded) => {
+                Some(RedactionReason::InvalidForm)
+            }
+            BodyRenderStatus::Redacted(BodyRenderReason::InvalidMultipart)
+            | BodyRenderStatus::Redacted(BodyRenderReason::TruncatedMultipart) => {
+                Some(RedactionReason::InvalidMultipart)
+            }
             _ => None,
         };
         let mut operation = if output_truncated {

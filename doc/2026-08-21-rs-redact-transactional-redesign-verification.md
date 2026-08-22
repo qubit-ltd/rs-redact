@@ -2,6 +2,10 @@
 
 日期：2026-08-21
 
+> **历史记录：** 本文描述 2026-08-21 当时的实现，部分 arena/item-range 与范围结论已经过时。
+> 当前架构、inspection、derive application-default 和下游事件预算以
+> [`design.zh_CN.md`](design.zh_CN.md) 为准。
+
 ## 范围
 
 本记录只覆盖 `rs-redact`。`rs-redact-derive` 和七个直接下游尚未迁移，按本轮明确范围不纳入完成判定，也未修改。

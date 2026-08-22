@@ -23,6 +23,7 @@ mod http_redaction_policy;
 mod http_redaction_policy_builder;
 mod http_redaction_policy_parts;
 mod http_redaction_writer;
+pub(crate) mod inspection;
 mod internal;
 mod redaction;
 mod text_body_policy;

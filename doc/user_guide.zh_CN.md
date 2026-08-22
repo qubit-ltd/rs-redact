@@ -12,6 +12,10 @@
 只发布已经完成的输出。若只需要处理一个值，可直接调用 `Redactor::redact_*`，它会替你创建并完成
 一个 batch。
 
+> **警告：** `#[derive(Redact)]` 生成的未标注字段永久按明文处理，任何运行期 policy 或
+> inspection 都不会重新分类。新增字段必须人工复查；需要强制每个字段选择模式时，显式启用
+> `#[redact(require_explicit)]`。`#[redact(skip)]` 会绕过脱敏。
+
 ## 概念模型
 
 正常路径包含五个对象：
@@ -31,6 +35,12 @@ policy 快照 -> Redactor -> text_composer() -> 有序文本 -> RedactionTextOut
 
 摘要会记录完成状态（`Complete`、`Truncated`、`Exhausted`）、原因和资源用量。程序应以它作为
 安全降级的依据，不要解析替换后的文本来推断状态。
+
+inspection 是不生成文本的判定路径。每个一次性 `redact_*` 都有成对的 `inspect_*`，覆盖
+显式/启发式 argv、环境变量、进程、JSON、HTTP URL/headers/body 和 URI。成功结果包含最高
+`Sensitivity` 与资源用量，输出字节为零；输入畸形或输入/结构预算不足时返回
+`RedactionInspectionError`，调用方必须安全关闭。禁止通过比较脱敏结果和原文判断敏感性：
+掩码可能恰好等于原值，空的敏感值也仍然属于敏感数据。
 
 ## 场景：安全记录一次请求失败
 
