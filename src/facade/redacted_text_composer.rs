@@ -112,7 +112,7 @@ impl RedactedTextComposer {
 
     /// Consumes the composer and publishes its redacted text and summary.
     #[must_use]
-    pub fn finish(mut self) -> RedactionTextOutput {
+    pub fn finish(self) -> RedactionTextOutput {
         self.session.finish_text()
     }
 }
