@@ -29,8 +29,9 @@ impl<'session> UriRedactionWriter<'session> {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
+        let input_was_empty = value.is_empty();
         let value = self.session.admit_input_prefix(value);
-        if value.is_empty() {
+        if value.is_empty() && !input_was_empty {
             return self;
         }
         if !self.admit_uri_structure(value) {
@@ -52,8 +53,9 @@ impl<'session> UriRedactionWriter<'session> {
             if self.session.is_output_exhausted() {
                 return self.session.stage_exhausted_handle();
             }
+            let input_was_empty = value.is_empty();
             let value = self.session.admit_input_prefix(value);
-            if value.is_empty() {
+            if value.is_empty() && !input_was_empty {
                 return self.session.stage_accounted_text(String::new());
             }
             if !self.admit_uri_structure(value) {

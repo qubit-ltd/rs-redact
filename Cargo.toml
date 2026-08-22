@@ -31,9 +31,9 @@ name = "qubit_redact"
 doctest = true
 
 [features]
-default = []
+default = ["serde"]
 serde = ["dep:serde"]
-json = ["dep:serde_json", "dep:qubit-json", "qubit-budget/json"]
+json = ["dep:serde", "dep:serde_json", "dep:qubit-json", "qubit-budget/json"]
 http = [
     "json",
     "dep:form_urlencoded",

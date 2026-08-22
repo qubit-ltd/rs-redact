@@ -7,9 +7,17 @@
 // =============================================================================
 //! Mutable JSON façade over one diagnostic redaction session.
 
-use std::str::FromStr;
+use std::fmt;
 
-use serde_json::Value;
+use serde::Deserializer;
+use serde::de::DeserializeSeed;
+use serde::de::Error;
+use serde::de::IgnoredAny;
+use serde::de::MapAccess;
+use serde::de::SeqAccess;
+use serde::de::Visitor;
+use serde_json::Deserializer as JsonDeserializer;
+use serde_json::from_str;
 
 use super::bounded_json_redaction::redacted_json_text_bounded;
 use crate::RedactionHandle;
@@ -33,41 +41,153 @@ pub(crate) fn admit_json_text_structure_at_depth(
     text: &str,
     root_depth: usize,
 ) -> bool {
-    let Ok(value) = Value::from_str(text) else {
+    let mut deserializer = JsonDeserializer::from_str(text);
+    let mut rejected = false;
+    let admitted = JsonStructureSeed {
+        session,
+        depth: root_depth,
+        collection_item: false,
+        rejected: &mut rejected,
+    }
+    .deserialize(&mut deserializer)
+    .and_then(|()| deserializer.end());
+    if admitted.is_err() && !rejected {
         return session.admit_format_node(root_depth);
-    };
-    admit_json_value_structure_at_depth(session, &value, root_depth)
-}
-
-/// Admits one parsed JSON tree nested at `root_depth` in another format.
-/// JSON-specific key, scalar, and payload limits are checked by the active
-/// `TransactionState`; depth, nodes, and collection entries also use the
-/// transaction-wide structural ledger shared with every format.
-#[must_use]
-fn admit_json_value_structure_at_depth(session: &mut RedactionSession, root: &Value, root_depth: usize) -> bool {
-    if !session.admit_json_value(root) {
+    }
+    if admitted.is_err() {
         return false;
     }
-    let mut pending = vec![(root, root_depth, false)];
-    while let Some((value, depth, collection_item)) = pending.pop() {
-        if (collection_item && !session.admit_format_collection_item()) || !session.admit_format_node(depth) {
-            return false;
+    let Ok(value) = from_str(text) else {
+        return session.admit_format_node(root_depth);
+    };
+    session.admit_json_value(&value)
+}
+
+/// A serde seed that charges one JSON value before its contents are decoded.
+struct JsonStructureSeed<'session, 'rejected> {
+    session: &'session mut RedactionSession,
+    depth: usize,
+    collection_item: bool,
+    rejected: &'rejected mut bool,
+}
+
+impl<'de> DeserializeSeed<'de> for JsonStructureSeed<'_, '_> {
+    type Value = ();
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        if (self.collection_item && !self.session.admit_format_collection_item())
+            || !self.session.admit_format_node(self.depth)
+        {
+            *self.rejected = true;
+            return Err(D::Error::custom("JSON structural budget rejected a value"));
         }
-        match value {
-            Value::Array(values) => {
-                for value in values.iter().rev() {
-                    pending.push((value, depth.saturating_add(1), true));
-                }
-            }
-            Value::Object(entries) => {
-                for (_, value) in entries.iter().rev() {
-                    pending.push((value, depth.saturating_add(1), true));
-                }
-            }
-            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
-        }
+        deserializer.deserialize_any(JsonStructureVisitor {
+            session: self.session,
+            depth: self.depth,
+            rejected: self.rejected,
+        })
     }
-    true
+}
+
+/// A streaming visitor that admits JSON structure without building a complete
+/// intermediate tree before the transaction budget accepts it.
+struct JsonStructureVisitor<'session, 'rejected> {
+    session: &'session mut RedactionSession,
+    depth: usize,
+    rejected: &'rejected mut bool,
+}
+
+impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a JSON value")
+    }
+
+    fn visit_bool<E>(self, _value: bool) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(())
+    }
+
+    fn visit_i64<E>(self, _value: i64) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(())
+    }
+
+    fn visit_u64<E>(self, _value: u64) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(())
+    }
+
+    fn visit_f64<E>(self, _value: f64) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(())
+    }
+
+    fn visit_str<E>(self, _value: &str) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(())
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(())
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(())
+    }
+
+    fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let child_depth = self.depth.saturating_add(1);
+        while sequence
+            .next_element_seed(JsonStructureSeed {
+                session: self.session,
+                depth: child_depth,
+                collection_item: true,
+                rejected: self.rejected,
+            })?
+            .is_some()
+        {}
+        Ok(())
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let child_depth = self.depth.saturating_add(1);
+        while map.next_key::<IgnoredAny>()?.is_some() {
+            map.next_value_seed(JsonStructureSeed {
+                session: self.session,
+                depth: child_depth,
+                collection_item: true,
+                rejected: self.rejected,
+            })?;
+        }
+        Ok(())
+    }
 }
 
 /// Redacts JSON text under the output allowance supplied by its caller.
