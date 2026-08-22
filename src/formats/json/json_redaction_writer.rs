@@ -7,19 +7,12 @@
 // =============================================================================
 //! Mutable JSON façade over one diagnostic redaction session.
 
-use std::fmt;
-
-use serde::Deserializer;
 use serde::de::DeserializeSeed;
-use serde::de::Error;
-use serde::de::IgnoredAny;
-use serde::de::MapAccess;
-use serde::de::SeqAccess;
-use serde::de::Visitor;
 use serde_json::Deserializer as JsonDeserializer;
 use serde_json::from_str;
 
 use super::bounded_json_redaction::redacted_json_text_bounded;
+use super::internal::JsonStructureSeed;
 use crate::RedactionHandle;
 use crate::RedactionSession;
 use crate::output::log_escape::escape_log_control_characters;
@@ -61,133 +54,6 @@ pub(crate) fn admit_json_text_structure_at_depth(
         return session.admit_format_node(root_depth);
     };
     session.admit_json_value(&value)
-}
-
-/// A serde seed that charges one JSON value before its contents are decoded.
-struct JsonStructureSeed<'session, 'rejected> {
-    session: &'session mut RedactionSession,
-    depth: usize,
-    collection_item: bool,
-    rejected: &'rejected mut bool,
-}
-
-impl<'de> DeserializeSeed<'de> for JsonStructureSeed<'_, '_> {
-    type Value = ();
-
-    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        if (self.collection_item && !self.session.admit_format_collection_item())
-            || !self.session.admit_format_node(self.depth)
-        {
-            *self.rejected = true;
-            return Err(D::Error::custom("JSON structural budget rejected a value"));
-        }
-        deserializer.deserialize_any(JsonStructureVisitor {
-            session: self.session,
-            depth: self.depth,
-            rejected: self.rejected,
-        })
-    }
-}
-
-/// A streaming visitor that admits JSON structure without building a complete
-/// intermediate tree before the transaction budget accepts it.
-struct JsonStructureVisitor<'session, 'rejected> {
-    session: &'session mut RedactionSession,
-    depth: usize,
-    rejected: &'rejected mut bool,
-}
-
-impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
-    type Value = ();
-
-    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("a JSON value")
-    }
-
-    fn visit_bool<E>(self, _value: bool) -> Result<Self::Value, E>
-    where
-        E: Error,
-    {
-        Ok(())
-    }
-
-    fn visit_i64<E>(self, _value: i64) -> Result<Self::Value, E>
-    where
-        E: Error,
-    {
-        Ok(())
-    }
-
-    fn visit_u64<E>(self, _value: u64) -> Result<Self::Value, E>
-    where
-        E: Error,
-    {
-        Ok(())
-    }
-
-    fn visit_f64<E>(self, _value: f64) -> Result<Self::Value, E>
-    where
-        E: Error,
-    {
-        Ok(())
-    }
-
-    fn visit_str<E>(self, _value: &str) -> Result<Self::Value, E>
-    where
-        E: Error,
-    {
-        Ok(())
-    }
-
-    fn visit_none<E>(self) -> Result<Self::Value, E>
-    where
-        E: Error,
-    {
-        Ok(())
-    }
-
-    fn visit_unit<E>(self) -> Result<Self::Value, E>
-    where
-        E: Error,
-    {
-        Ok(())
-    }
-
-    fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        let child_depth = self.depth.saturating_add(1);
-        while sequence
-            .next_element_seed(JsonStructureSeed {
-                session: self.session,
-                depth: child_depth,
-                collection_item: true,
-                rejected: self.rejected,
-            })?
-            .is_some()
-        {}
-        Ok(())
-    }
-
-    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-    where
-        A: MapAccess<'de>,
-    {
-        let child_depth = self.depth.saturating_add(1);
-        while map.next_key::<IgnoredAny>()?.is_some() {
-            map.next_value_seed(JsonStructureSeed {
-                session: self.session,
-                depth: child_depth,
-                collection_item: true,
-                rejected: self.rejected,
-            })?;
-        }
-        Ok(())
-    }
 }
 
 /// Redacts JSON text under the output allowance supplied by its caller.
