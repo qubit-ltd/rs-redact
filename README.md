@@ -12,6 +12,12 @@ domain values, command data, JSON, HTTP, and URIs. It is for applications that
 need one coherent redaction decision for a whole event, rather than a separate
 policy, budget, and publication point for every value they log.
 
+> **WARNING — derived fields are plain by default.** A field without a
+> `#[redact(...)]` attribute is always emitted without redaction. `strict()`,
+> the application default, and `inspect()` do not infer sensitivity for it.
+> Review every newly added field. `#[redact(require_explicit)]` is an opt-in
+> compile-time review aid; `#[redact(skip)]` deliberately bypasses redaction.
+
 ## Installation
 
 Choose only the format integrations your application uses:
@@ -94,6 +100,10 @@ handles created before the panic are invalid.
   independently resolved argv, environment, process, JSON, HTTP, and URI data.
 - Explicit domain rendering through `Redact` and `RedactionWriter`.
 - Machine-readable completion, reasons, and usage in `RedactionSummary`.
+- Non-rendering `inspect`/`inspect_*` counterparts for every one-shot
+  `redact`/`redact_*` capability. Successful inspection reports the maximum
+  `Sensitivity`; incomplete inspection returns an error and emits zero output
+  bytes.
 - UTF-8, log-safe output that safely degrades when an input, output, or
   structural limit is reached.
 
@@ -102,6 +112,24 @@ business field and mark it deliberately. `unredacted` is an explicit trust
 boundary, not a convenience escape hatch; it must receive only independently
 reviewed safe data. Limits apply to the complete diagnostic event, not to each
 format in isolation.
+
+Use inspection for decisions, never by comparing rendered text with the input:
+
+```rust
+use qubit_redact::Redactor;
+
+let raw_url = "https://example.test/?token=secret";
+let inspection = Redactor::standard()
+    .inspect_http_url(raw_url)
+    .expect("the URL must be completely inspected");
+if inspection.contains_sensitive() {
+    // reject or route through redaction
+}
+```
+
+Treat every inspection error as sensitive (fail closed). The paired APIs cover
+domain values, fields, argv (explicit and heuristic), environment values and
+pairs, processes, JSON, HTTP URL/headers/body, and URI input.
 
 ## Learn More
 

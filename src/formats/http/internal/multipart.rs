@@ -16,7 +16,9 @@ use super::form;
 use super::json;
 use super::markers;
 use crate::RedactionPolicy;
+use crate::RedactionReason;
 use crate::RedactionSession;
+use crate::Sensitivity;
 use crate::formats::http::FieldRedactor;
 use crate::formats::http::TextBodyPolicy;
 
@@ -124,6 +126,76 @@ pub(in crate::formats::http) fn admit_structure(
         }
     }
     true
+}
+
+/// Classifies every multipart part without rendering or retaining body data.
+pub(in crate::formats::http) fn inspect(
+    session: &mut RedactionSession,
+    boundary: &str,
+    require_form_data: bool,
+    bytes: &[u8],
+) {
+    let Some(parts) = part_segments(bytes, boundary) else {
+        session.fail_inspection(RedactionReason::InvalidMultipart);
+        return;
+    };
+    for part in parts {
+        if !session.preflight_format_item(2) || !session.admit_format_collection_item() || !session.admit_format_node(2)
+        {
+            return;
+        }
+        let Some((metadata, body)) = parse_part(part, require_form_data) else {
+            session.fail_inspection(RedactionReason::InvalidMultipart);
+            return;
+        };
+        let Some(name) = metadata.name() else {
+            session.observe_sensitivity(Sensitivity::Secret);
+            continue;
+        };
+        if metadata.filename().is_some() {
+            session.observe_sensitivity(Sensitivity::Secret);
+            continue;
+        }
+        let field_redactor = FieldRedactor::new(
+            session.policy().rules(),
+            session.policy().body_rules(),
+            session.policy().masking(),
+        );
+        if let Some(sensitivity) = field_redactor.sensitivity(name) {
+            session.observe_sensitivity(sensitivity);
+            continue;
+        }
+        match metadata.content_type() {
+            Some(value) if content_type::is_json(value) => {
+                crate::formats::http::inspection::inspect_json_bytes(session, body);
+            }
+            Some(value) if content_type::is_ndjson(value) => {
+                crate::formats::http::inspection::inspect_ndjson(session, body);
+            }
+            Some(value) if content_type::is_form(value) => {
+                crate::formats::http::inspection::inspect_form(session, body);
+            }
+            Some(value) if content_type::is_text(value) => {
+                if std::str::from_utf8(body).is_err() {
+                    session.fail_inspection(RedactionReason::InvalidMultipart);
+                    return;
+                }
+                if session.policy().text_body_policy() == TextBodyPolicy::Redact {
+                    session.observe_sensitivity(Sensitivity::Secret);
+                }
+            }
+            None => {
+                if std::str::from_utf8(body).is_err() {
+                    session.fail_inspection(RedactionReason::InvalidMultipart);
+                    return;
+                }
+                if session.policy().text_body_policy() == TextBodyPolicy::Redact {
+                    session.observe_sensitivity(Sensitivity::Secret);
+                }
+            }
+            Some(_) => session.observe_sensitivity(Sensitivity::Secret),
+        }
+    }
 }
 
 /// Charges each non-empty URL-encoded form field at `field_depth`.

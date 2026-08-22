@@ -74,6 +74,14 @@ impl RedactionSession {
         }
     }
 
+    /// Creates runtime state for one non-rendering sensitivity inspection.
+    #[must_use]
+    pub(crate) fn from_inspection_snapshot(policy: Arc<RedactionPolicy>) -> RedactionSession {
+        RedactionSession {
+            transaction: TransactionState::new_inspection(policy, next_transaction_id()),
+        }
+    }
+
     /// Returns the immutable policy snapshot used by this session.
     #[inline(always)]
     #[must_use]
@@ -177,7 +185,6 @@ impl RedactionSession {
     pub fn redact_argv<'items, I>(&mut self, items: I) -> RedactionHandle
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
-        I::IntoIter: ExactSizeIterator,
     {
         if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
@@ -190,7 +197,6 @@ impl RedactionSession {
     pub fn redact_heuristic_argv<'items, I>(&mut self, items: I) -> RedactionHandle
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
-        I::IntoIter: ExactSizeIterator,
     {
         if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
@@ -227,7 +233,6 @@ impl RedactionSession {
     pub fn redact_env_pairs<'items, I>(&mut self, pairs: I) -> RedactionHandle
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
-        I::IntoIter: ExactSizeIterator,
     {
         if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
@@ -261,9 +266,7 @@ impl RedactionSession {
     ) -> RedactionHandle
     where
         A: IntoIterator<Item = crate::formats::argv::ArgvItem<'arguments>>,
-        A::IntoIter: ExactSizeIterator,
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
-        E::IntoIter: ExactSizeIterator,
     {
         if self.skip_aggregate_for_exhausted_output() {
             return self.stage_exhausted_handle();
@@ -429,13 +432,31 @@ impl RedactionSession {
         BatchPublication::new(id, publication.into_batch(), runtime.into_summary())
     }
 
+    /// Publishes one conclusive inspection or a fail-closed error.
+    pub(crate) fn finish_inspection(self) -> crate::RedactionInspectionResult {
+        let TransactionState {
+            runtime, publication, ..
+        } = self.transaction;
+        publication.finish_inspection();
+        let (max_sensitivity, summary) = runtime.into_inspection_parts();
+        if summary.completion() == RedactionCompletion::Complete
+            && summary.reasons() == crate::RedactionReasons::empty()
+        {
+            return Ok(crate::RedactionInspection::new(max_sensitivity, summary.usage()));
+        }
+        Err(crate::RedactionInspectionError::new(summary.reasons(), summary.usage()))
+    }
+
     /// Replaces all state owned by the active transaction with a fresh state.
     pub(super) fn reset_transaction(&mut self) {
         let policy = self.transaction.runtime.policy.clone();
         self.transaction = if self.transaction.publication.is_text() {
             TransactionState::new_text(policy, next_transaction_id())
-        } else {
+        } else if self.transaction.publication.is_batch() {
             TransactionState::new_batch(policy, next_transaction_id())
+        } else {
+            debug_assert!(self.transaction.publication.is_inspection());
+            TransactionState::new_inspection(policy, next_transaction_id())
         };
     }
 
@@ -548,6 +569,20 @@ impl RedactionSession {
         self.admit_domain_collection_item()
     }
 
+    /// Checks structural capacity before advancing an untrusted iterator.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn preflight_format_item(&mut self, depth: usize) -> bool {
+        self.transaction.runtime.preflight_format_item(depth)
+    }
+
+    /// Checks collection capacity before advancing an untrusted iterator.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn preflight_collection_item(&mut self) -> bool {
+        self.transaction.runtime.preflight_collection_item()
+    }
+
     /// Admits JSON-specific key, scalar, payload, and local structural limits
     /// through the ledger stored in the active transaction.
     #[cfg(feature = "json")]
@@ -570,16 +605,53 @@ impl RedactionSession {
         self.transaction.runtime.domain_frame_truncated
     }
 
+    /// Reports whether the active transaction classifies without rendering.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn is_inspection(&self) -> bool {
+        self.transaction.runtime.is_inspection()
+    }
+
+    /// Records a policy-resolved sensitivity during inspection.
+    #[inline(always)]
+    pub(crate) fn observe_sensitivity(&mut self, sensitivity: crate::Sensitivity) {
+        self.transaction.runtime.observe_sensitivity(sensitivity);
+    }
+
+    /// Marks inspection inconclusive for one machine-readable cause.
+    #[cfg(any(feature = "json", feature = "http", feature = "uri"))]
+    pub(crate) fn fail_inspection(&mut self, reason: crate::RedactionReason) {
+        debug_assert!(self.is_inspection());
+        self.record_summary(crate::RedactionSummary::truncated(reason));
+    }
+
+    /// Classifies one named scalar field without rendering its value.
+    pub(crate) fn inspect_field(&mut self, field: &str, value: &str) {
+        debug_assert!(self.is_inspection());
+        if !self.admit_input(field.len().saturating_add(value.len())) {
+            return;
+        }
+        if let ResolvedField::Sensitive { sensitivity } = self.policy().resolve_field(field) {
+            self.observe_sensitivity(sensitivity);
+        }
+    }
+
     /// Returns output capacity still available to the active domain frame.
     #[must_use]
     #[inline(always)]
     pub(crate) fn remaining_domain_frame_output_bytes(&self) -> usize {
+        if self.is_inspection() {
+            return usize::MAX;
+        }
         self.remaining_output_bytes()
             .saturating_sub(self.transaction.runtime.domain_frame_output_bytes)
     }
 
     /// Appends one complete raw fragment to the transaction-owned domain frame.
     pub(crate) fn append_domain_frame_fragment(&mut self, text: &str) {
+        if self.is_inspection() {
+            return;
+        }
         for character in text.chars() {
             self.transaction.runtime.domain_frame.push(character);
             self.transaction.runtime.domain_frame_output_bytes += encoded_log_safe_len(character);
@@ -590,6 +662,9 @@ impl RedactionSession {
     pub(crate) fn write_domain_fragment(&mut self, text: &str) -> bool {
         if self.transaction.runtime.domain_frame_truncated {
             return false;
+        }
+        if self.is_inspection() {
+            return true;
         }
         for character in text.chars() {
             if encoded_log_safe_len(character) > self.remaining_domain_frame_output_bytes() {
@@ -634,6 +709,10 @@ impl RedactionSession {
         if self.transaction.runtime.domain_frame_truncated {
             return;
         }
+        if self.is_inspection() {
+            self.mark_domain_frame_truncated();
+            return;
+        }
         const MARKER: &str = "<truncated>";
         if MARKER.len() > self.remaining_output_bytes() {
             self.truncate_domain_frame_to(0);
@@ -648,6 +727,9 @@ impl RedactionSession {
 
     /// Removes a final separator from the transaction-owned domain frame.
     pub(crate) fn trim_domain_frame_separator(&mut self) {
+        if self.is_inspection() {
+            return;
+        }
         if self.transaction.runtime.domain_frame.ends_with(", ") {
             self.transaction
                 .runtime
@@ -739,6 +821,9 @@ impl RedactionSession {
     #[must_use]
     #[inline(always)]
     pub(crate) fn is_output_exhausted(&self) -> bool {
+        if self.is_inspection() {
+            return false;
+        }
         self.transaction.runtime.is_output_exhausted()
     }
 
@@ -750,6 +835,9 @@ impl RedactionSession {
     #[must_use]
     #[inline(always)]
     pub(crate) fn skip_aggregate_for_exhausted_output(&mut self) -> bool {
+        if self.is_inspection() {
+            return false;
+        }
         self.transaction.runtime.skip_aggregate_for_exhausted_output()
     }
 
@@ -757,6 +845,9 @@ impl RedactionSession {
     #[must_use]
     #[inline(always)]
     pub(crate) fn remaining_output_bytes(&self) -> usize {
+        if self.is_inspection() {
+            return usize::MAX;
+        }
         self.transaction.runtime.remaining_output_bytes()
     }
 

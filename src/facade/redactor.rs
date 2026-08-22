@@ -14,6 +14,7 @@ use std::sync::PoisonError;
 
 use crate::RedactedTextComposer;
 use crate::RedactionBatch;
+use crate::RedactionInspectionResult;
 use crate::RedactionPolicy;
 use crate::domain::Redact;
 use crate::facade::RedactionTextOutput;
@@ -93,6 +94,23 @@ impl Redactor {
             .expect("a handle created by the completed transaction must resolve")
     }
 
+    /// Inspects one domain value without rendering any field content.
+    ///
+    /// # Errors
+    ///
+    /// Returns an inconclusive result when structural or input admission
+    /// prevents the complete domain value from being classified.
+    pub fn inspect<T>(&self, value: &T) -> RedactionInspectionResult
+    where
+        T: Redact + ?Sized,
+    {
+        let mut session = self.inspection_runtime();
+        let mut writer = crate::domain::RedactionWriter::new_root(&mut session);
+        value.write_redacted(&mut writer);
+        let _ = writer.finish_with_completion();
+        session.finish_inspection()
+    }
+
     /// Creates a redactor with the strict policy for untrusted scalar data.
     ///
     /// Unknown fields are masked at [`crate::Sensitivity::Secret`].
@@ -129,6 +147,12 @@ impl Redactor {
     #[must_use]
     pub(crate) fn batch_runtime(&self) -> RedactionSession {
         RedactionSession::from_batch_snapshot(Arc::clone(&self.policy))
+    }
+
+    /// Creates private accounting for one non-rendering inspection.
+    #[must_use]
+    pub(crate) fn inspection_runtime(&self) -> RedactionSession {
+        RedactionSession::from_inspection_snapshot(Arc::clone(&self.policy))
     }
 
     /// Starts one ordered text-composition transaction.
@@ -170,12 +194,18 @@ impl Redactor {
             .expect("a handle created by the completed transaction must resolve")
     }
 
+    /// Inspects one scalar field without rendering its value.
+    pub fn inspect_field(&self, field: &str, value: &str) -> RedactionInspectionResult {
+        let mut session = self.inspection_runtime();
+        session.inspect_field(field, value);
+        session.finish_inspection()
+    }
+
     /// Redacts an argument vector through one completed batch operation.
     #[must_use]
     pub fn redact_argv<'items, I>(&self, items: I) -> RedactionTextOutput
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
-        I::IntoIter: ExactSizeIterator,
     {
         let mut batch = self.batch();
         let handle = batch.redact_argv(items);
@@ -183,6 +213,40 @@ impl Redactor {
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
+    }
+
+    /// Inspects explicitly classified argv items without rendering them.
+    pub fn inspect_argv<'items, I>(&self, items: I) -> RedactionInspectionResult
+    where
+        I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
+    {
+        let mut session = self.inspection_runtime();
+        crate::formats::argv::inspection::inspect_items(&mut session, items, false);
+        session.finish_inspection()
+    }
+
+    /// Redacts argv items using heuristic option classification.
+    #[must_use]
+    pub fn redact_heuristic_argv<'items, I>(&self, items: I) -> RedactionTextOutput
+    where
+        I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
+    {
+        let mut batch = self.batch();
+        let handle = batch.redact_heuristic_argv(items);
+        batch
+            .finish()
+            .into_resolved(handle)
+            .expect("a handle created by the completed transaction must resolve")
+    }
+
+    /// Inspects argv items using heuristic option classification.
+    pub fn inspect_heuristic_argv<'items, I>(&self, items: I) -> RedactionInspectionResult
+    where
+        I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
+    {
+        let mut session = self.inspection_runtime();
+        crate::formats::argv::inspection::inspect_items(&mut session, items, true);
+        session.finish_inspection()
     }
 
     /// Redacts one environment assignment through one completed transaction.
@@ -196,12 +260,18 @@ impl Redactor {
             .expect("a handle created by the completed transaction must resolve")
     }
 
+    /// Inspects one environment assignment without rendering it.
+    pub fn inspect_env(&self, name: &str, value: &str) -> RedactionInspectionResult {
+        let mut session = self.inspection_runtime();
+        crate::formats::env::inspection::inspect_pair(&mut session, name, value);
+        session.finish_inspection()
+    }
+
     /// Redacts environment assignments through one completed transaction.
     #[must_use]
     pub fn redact_env_pairs<'items, I>(&self, pairs: I) -> RedactionTextOutput
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
-        I::IntoIter: ExactSizeIterator,
     {
         let mut batch = self.batch();
         let handle = batch.redact_env_pairs(pairs);
@@ -209,6 +279,16 @@ impl Redactor {
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
+    }
+
+    /// Inspects environment assignments without rendering them.
+    pub fn inspect_env_pairs<'items, I>(&self, pairs: I) -> RedactionInspectionResult
+    where
+        I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
+    {
+        let mut session = self.inspection_runtime();
+        crate::formats::env::inspection::inspect_os_pairs(&mut session, pairs);
+        session.finish_inspection()
     }
 
     /// Redacts one process command through one completed batch transaction.
@@ -221,9 +301,7 @@ impl Redactor {
     ) -> RedactionTextOutput
     where
         A: IntoIterator<Item = crate::formats::argv::ArgvItem<'arguments>>,
-        A::IntoIter: ExactSizeIterator,
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
-        E::IntoIter: ExactSizeIterator,
     {
         let mut batch = self.batch();
         let handle = batch.redact_process(program, arguments, variables);
@@ -231,6 +309,24 @@ impl Redactor {
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
+    }
+
+    /// Inspects one process command without rendering its components.
+    pub fn inspect_process<'arguments, 'variables, A, E>(
+        &self,
+        program: &'arguments OsStr,
+        arguments: A,
+        variables: E,
+    ) -> RedactionInspectionResult
+    where
+        A: IntoIterator<Item = crate::formats::argv::ArgvItem<'arguments>>,
+        E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
+    {
+        let mut session = self.inspection_runtime();
+        let command = std::iter::once(crate::formats::argv::ArgvItem::plain(program)).chain(arguments);
+        crate::formats::argv::inspection::inspect_items(&mut session, command, true);
+        crate::formats::env::inspection::inspect_os_pairs(&mut session, variables);
+        session.finish_inspection()
     }
 
     /// Redacts JSON text through one completed batch transaction.
@@ -245,6 +341,14 @@ impl Redactor {
             .expect("a handle created by the completed transaction must resolve")
     }
 
+    /// Inspects one JSON document without rendering it.
+    #[cfg(feature = "json")]
+    pub fn inspect_json(&self, text: &str) -> RedactionInspectionResult {
+        let mut session = self.inspection_runtime();
+        crate::formats::json::inspection::inspect_text(&mut session, text);
+        session.finish_inspection()
+    }
+
     /// Redacts an HTTP URL through one completed batch transaction.
     #[cfg(feature = "http")]
     #[must_use]
@@ -257,6 +361,14 @@ impl Redactor {
             .expect("a handle created by the completed transaction must resolve")
     }
 
+    /// Inspects one HTTP URL without rendering it.
+    #[cfg(feature = "http")]
+    pub fn inspect_http_url(&self, value: &str) -> RedactionInspectionResult {
+        let mut session = self.inspection_runtime();
+        crate::formats::http::inspection::inspect_url(&mut session, value);
+        session.finish_inspection()
+    }
+
     /// Redacts an HTTP header collection through one completed transaction.
     #[cfg(feature = "http")]
     #[must_use]
@@ -267,6 +379,14 @@ impl Redactor {
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
+    }
+
+    /// Inspects HTTP headers without rendering their values.
+    #[cfg(feature = "http")]
+    pub fn inspect_http_headers(&self, headers: &http::HeaderMap) -> RedactionInspectionResult {
+        let mut session = self.inspection_runtime();
+        crate::formats::http::inspection::inspect_headers(&mut session, headers);
+        session.finish_inspection()
     }
 
     /// Redacts one captured HTTP body through one completed session
@@ -286,6 +406,46 @@ impl Redactor {
             .expect("a handle created by the completed transaction must resolve")
     }
 
+    /// Inspects one captured HTTP body without rendering it.
+    #[cfg(feature = "http")]
+    pub fn inspect_http_body(
+        &self,
+        capture: crate::formats::http::BodyCapture<'_>,
+        content_type: Option<&http::HeaderValue>,
+    ) -> RedactionInspectionResult {
+        let mut session = self.inspection_runtime();
+        crate::formats::http::inspection::inspect_body(&mut session, capture, content_type);
+        session.finish_inspection()
+    }
+
+    /// Redacts one captured HTTP body using textual Content-Type metadata.
+    #[cfg(feature = "http")]
+    #[must_use]
+    pub fn redact_http_body_with_content_type_text(
+        &self,
+        capture: crate::formats::http::BodyCapture<'_>,
+        content_type: Option<&str>,
+    ) -> RedactionTextOutput {
+        let mut batch = self.batch();
+        let handle = batch.redact_http_body_with_content_type_text(capture, content_type);
+        batch
+            .finish()
+            .into_resolved(handle)
+            .expect("a handle created by the completed transaction must resolve")
+    }
+
+    /// Inspects one captured HTTP body using textual Content-Type metadata.
+    #[cfg(feature = "http")]
+    pub fn inspect_http_body_with_content_type_text(
+        &self,
+        capture: crate::formats::http::BodyCapture<'_>,
+        content_type: Option<&str>,
+    ) -> RedactionInspectionResult {
+        let mut session = self.inspection_runtime();
+        crate::formats::http::inspection::inspect_body_with_content_type_text(&mut session, capture, content_type);
+        session.finish_inspection()
+    }
+
     /// Redacts a URI through one completed batch transaction.
     #[cfg(feature = "uri")]
     #[must_use]
@@ -296,6 +456,14 @@ impl Redactor {
             .finish()
             .into_resolved(handle)
             .expect("a handle created by the completed transaction must resolve")
+    }
+
+    /// Inspects one URI without rendering it.
+    #[cfg(feature = "uri")]
+    pub fn inspect_uri(&self, input: &str) -> RedactionInspectionResult {
+        let mut session = self.inspection_runtime();
+        crate::formats::uri::inspection::inspect_uri(&mut session, input);
+        session.finish_inspection()
     }
 }
 

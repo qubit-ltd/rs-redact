@@ -10,6 +10,7 @@
 pub(crate) mod internal;
 
 mod bounded_json_redaction;
+pub(crate) mod inspection;
 mod json_redaction_writer;
 
 pub use json_redaction_writer::JsonRedactionWriter;

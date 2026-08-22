@@ -5,7 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+use std::cell::Cell;
 use std::ffi::OsStr;
+use std::rc::Rc;
 
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
@@ -135,4 +137,41 @@ fn argv_handle_does_not_preallocate_from_unadmitted_iterator_length() {
 
     assert!(item.text().as_str().is_empty());
     assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
+}
+
+/// Once the shared collection budget is exhausted, an iterator's protected
+/// suffix must not be advanced merely to discover whether another item exists.
+#[test]
+fn argv_handle_does_not_consume_suffix_after_collection_limit() {
+    let calls = Rc::new(Cell::new(0));
+    let observed = Rc::clone(&calls);
+    let items = std::iter::from_fn(move || {
+        let call = observed.get();
+        observed.set(call + 1);
+        match call {
+            0 => Some(ArgvItem::plain(OsStr::new("first"))),
+            1 => Some(ArgvItem::plain(OsStr::new("protected-suffix"))),
+            _ => None,
+        }
+    });
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_collection_items(1);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let mut batch = Redactor::new(policy).batch();
+    let handle = batch.redact_argv(items);
+    let output = batch.finish();
+
+    assert_eq!(calls.get(), 1);
+    assert_eq!(
+        output
+            .resolve(handle)
+            .expect("argv handle publishes")
+            .summary()
+            .completion(),
+        RedactionCompletion::Truncated,
+    );
 }

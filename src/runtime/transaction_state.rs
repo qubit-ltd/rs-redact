@@ -40,4 +40,14 @@ impl TransactionState {
             publication: PublicationBuffer::batch(),
         }
     }
+
+    /// Creates state for a non-rendering sensitivity inspection.
+    #[must_use]
+    pub(super) fn new_inspection(policy: Arc<RedactionPolicy>, id: u64) -> Self {
+        Self {
+            id,
+            runtime: RedactionRuntime::new_inspection(policy),
+            publication: PublicationBuffer::inspection(),
+        }
+    }
 }

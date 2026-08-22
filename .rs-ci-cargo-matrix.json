@@ -3,14 +3,14 @@
   "checks": [
     {
       "name": "core",
-      "commands": ["check", "test", "doc"],
+      "commands": ["check", "test", "doc", "clippy"],
       "packages": ["qubit-redact"],
       "defaultFeatures": false,
       "features": []
     },
     {
       "name": "serde",
-      "commands": ["check", "test", "doc"],
+      "commands": ["check", "test", "doc", "clippy"],
       "packages": ["qubit-redact"],
       "defaultFeatures": false,
       "features": ["serde"]
@@ -24,14 +24,14 @@
     },
     {
       "name": "http",
-      "commands": ["check", "test", "doc"],
+      "commands": ["check", "test", "doc", "clippy"],
       "packages": ["qubit-redact"],
       "defaultFeatures": false,
       "features": ["http"]
     },
     {
       "name": "uri",
-      "commands": ["check", "test", "doc"],
+      "commands": ["check", "test", "doc", "clippy"],
       "packages": ["qubit-redact"],
       "defaultFeatures": false,
       "features": ["uri"]

@@ -8,6 +8,7 @@
 //! Non-destructive redaction contract for domain objects.
 // qubit-style: allow multiple-public-types
 
+use crate::RedactionInspectionResult;
 use crate::RedactionTextOutput;
 use crate::Redactor;
 use crate::domain::RedactionWriter;
@@ -23,8 +24,11 @@ use crate::domain::RedactionWriter;
 /// # Warning
 ///
 /// For derive implementations, an unannotated field is deliberately emitted
-/// without redaction. Every sensitive field must be explicitly annotated with
-/// `#[redact(...)]`; `#[redact(skip)]` also deliberately bypasses redaction.
+/// without redaction under every policy, including `strict()`, the application
+/// default, and inspection. Every sensitive field must be explicitly annotated
+/// with `#[redact(...)]`; `#[redact(skip)]` also deliberately bypasses
+/// redaction. `#[redact(require_explicit)]` is only an opt-in compile-time
+/// review aid, so type owners must review every newly added field.
 ///
 /// Pure domain formatting consumes output bytes and domain structure budget,
 /// but never consumes diagnostic input bytes. An adapter that inspects encoded
@@ -79,5 +83,37 @@ pub trait Redact {
         Self: Sized,
     {
         redactor.redact(self)
+    }
+
+    /// Inspects this value with the current application-default redactor.
+    ///
+    /// # Errors
+    ///
+    /// Returns an inconclusive result when resource limits prevent complete
+    /// classification.
+    #[inline(always)]
+    fn inspected(&self) -> RedactionInspectionResult
+    where
+        Self: Sized,
+    {
+        Redactor::application_default().inspect(self)
+    }
+
+    /// Inspects this value using an explicit redactor snapshot.
+    ///
+    /// # Parameters
+    ///
+    /// * `redactor` - Explicit immutable policy snapshot and inspection entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an inconclusive result when resource limits prevent complete
+    /// classification.
+    #[inline(always)]
+    fn inspected_with(&self, redactor: &Redactor) -> RedactionInspectionResult
+    where
+        Self: Sized,
+    {
+        redactor.inspect(self)
     }
 }

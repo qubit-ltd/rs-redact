@@ -130,7 +130,7 @@ impl OperationSink {
     /// Returns the remaining payload bytes before a required marker.
     #[must_use]
     #[inline(always)]
-    #[cfg(any(feature = "http", feature = "uri"))]
+    #[cfg(feature = "http")]
     pub(crate) fn remaining_bytes(&self) -> usize {
         self.payload_limit().saturating_sub(self.output.len())
     }

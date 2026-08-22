@@ -71,7 +71,6 @@ impl RedactionBatch {
     pub fn redact_argv<'items, I>(&mut self, items: I) -> RedactionBatchHandle
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
-        I::IntoIter: ExactSizeIterator,
     {
         Self::wrap(self.session.redact_argv(items))
     }
@@ -84,7 +83,6 @@ impl RedactionBatch {
     pub fn redact_heuristic_argv<'items, I>(&mut self, items: I) -> RedactionBatchHandle
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
-        I::IntoIter: ExactSizeIterator,
     {
         Self::wrap(self.session.redact_heuristic_argv(items))
     }
@@ -103,7 +101,6 @@ impl RedactionBatch {
     pub fn redact_env_pairs<'items, I>(&mut self, pairs: I) -> RedactionBatchHandle
     where
         I: IntoIterator<Item = (&'items std::ffi::OsStr, &'items std::ffi::OsStr)>,
-        I::IntoIter: ExactSizeIterator,
     {
         Self::wrap(self.session.redact_env_pairs(pairs))
     }
@@ -120,9 +117,7 @@ impl RedactionBatch {
     ) -> RedactionBatchHandle
     where
         A: IntoIterator<Item = crate::formats::argv::ArgvItem<'arguments>>,
-        A::IntoIter: ExactSizeIterator,
         E: IntoIterator<Item = (&'variables std::ffi::OsStr, &'variables std::ffi::OsStr)>,
-        E::IntoIter: ExactSizeIterator,
     {
         Self::wrap(self.session.redact_process(program, arguments, variables))
     }

@@ -156,6 +156,14 @@ batch 可以包含异构 item。一个集合型输入仍是一个逻辑 item，�
 一个结果的场景，统一返回 `RedactionTextOutput`。它们内部复用 batch 的单 item 路径，不维护
 第二套实现。
 
+### 5.6 非渲染 inspection
+
+每个一次性 `redact`/`redact_*` 入口都有对应的 `inspect`/`inspect_*`。inspection 复用相同
+policy、字段分类、parser、输入预算和结构预算，但使用独立的 inspection publication 模式：不创建
+mask、文本或输出字节，只聚合最高 `Sensitivity` 与 `RedactionUsage`。只有完整遍历才能返回
+`RedactionInspection`；输入畸形、source 截断或任何 admission 失败都返回携带 reasons 与 usage 的
+`RedactionInspectionError`。调用方必须 fail closed，不能通过比较脱敏文本和原文推断敏感性。
+
 ## 6. Policy 模块
 
 ### 6.1 构建与事务验证
@@ -223,8 +231,9 @@ Low < Medium < High < Secret
 - `strict()` 用于不可信边界，对未知标量采用更保守策略，并收紧可能包含秘密的格式组件；
 - `Redactor::application_default()` 返回进程级完整快照；
 - `replace_application_default()` 在线性化写锁下替换完整 redactor，并返回旧值；
-- 已创建的 redactor、composer 和 batch 保留原快照，不受之后替换影响；
-- `Redact::redacted()` 使用 application default；显式 `redacted_with()` 只使用传入 redactor。
+- 已创建的 redactor、composer、batch 和 inspection 保留原快照，不受之后替换影响；
+- `Redact::redacted()`、`inspected()`、derive `Debug`/`Display` 与 `RedactMut` 无参数入口使用
+  application default；显式 `_with` 入口只使用传入的 redactor 或 policy。
 
 全局槽只保存不可变 redactor 快照，不保存活动预算或输出。
 
@@ -246,17 +255,19 @@ crate-private 的 `RedactionRuntime` 统一拥有：
 
 ### 7.2 发布存储
 
-composer 和 batch 使用不同的私有发布容器：
+composer、batch 和 inspection 使用不同的私有发布容器：
 
 - composer 的 `TextOutputBuffer` 只保存有序文本片段；
-- batch 保存 item ranges、item summary 和 batch identity；
+- batch 直接保存各 item 的 `RedactionTextOutput`、item summary 和 batch identity，不再通过共享
+  arena 的字符串 range 发布；
+- inspection 只保存 sensitivity accumulator，不保存任何输出 buffer；
 - 两者共享 `RenderedOperation` 等内部安全结果表示；
 - 最终发布移动已有存储，不重新脱敏或重新计费。
 
 不得保留一个在公共语义上同时容纳 aggregate 和 item 的输出对象。
 
 实现中，`TransactionState` 将一个 `RedactionRuntime` 与恰好一个
-`PublicationBuffer::{Text, Batch}` 组合；两种 buffer 不会同时存在。为复用格式 writer 的借用
+`PublicationBuffer::{Text, Batch, Inspection}` 组合；三种模式不会同时存在。为复用格式 writer 的借用
 边界，crate-private 的 `RedactionSession` 仅充当这份私有状态的运行时 façade，按创建入口固定为
 text 或 batch 模式。它不属于公共 API，也不重新引入旧的可复用 session 语义。
 
@@ -415,7 +426,7 @@ pub trait Redact {
 
 | 属性 | 语义 |
 | --- | --- |
-| 无属性 | 按普通 `Debug` 明确直通 |
+| 无属性 | 在所有 policy 和 inspection 下永久按普通 `Debug` 明确直通 |
 | `#[redact(plain)]` | 显式直通 |
 | `#[redact(level = "...")]` | 以指定 sensitivity 为最低等级掩码 |
 | `#[redact(skip)]` | 不访问、不输出 |
@@ -431,8 +442,9 @@ pub trait Redact {
 - `no_mut`：不生成原地脱敏实现；
 - `require_explicit`：要求每个字段显式选择模式。
 
-未标注字段默认直通是有意设计，不是自动隐私保证。安全敏感类型应优先使用
-`#[redact(require_explicit)]` 作为编译期审查辅助。新增业务字段时必须重新审查标注。
+> **警告：未标注字段永久直通。** strict、application default 和 inspection 都不会推断其
+> sensitivity。`#[redact(require_explicit)]` 只是可选的编译期审查辅助，不改变默认语义；
+> `#[redact(skip)]` 也会主动绕过脱敏。新增业务字段时必须重新审查标注。
 
 derive 需要正确处理 crate rename、泛型 bounds、tuple/unit 类型、enum tagging 和 serde 属性，错误
 必须在编译期给出针对性诊断。
@@ -629,7 +641,10 @@ parser 与 writer 的局部不变量。
 ### 18.5 文档与 CI
 
 README、中文用户指南、crate-level docs 和所有 rustdoc 示例必须参与 doctest。默认 feature 与
-`--all-features` 均需通过测试；CI 同时执行格式、lint、覆盖率和必要的 derive trybuild 测试。
+`--all-features` 均需通过测试；项目级 `.rs-ci-cargo-matrix.json` 还必须分别 clippy
+no-default、serde-only、json-only、http-only 与 uri-only。此前 CI 漏掉 uri-only warning 的原因是
+项目 matrix 的 URI 单 feature 项只运行 check/test/doc、没有运行 clippy；共享 runner 已正确执行
+项目声明，并不是 runner 失效。本次为每个单 feature 项补齐 clippy。
 
 ## 19. 安全不变量
 
@@ -647,6 +662,7 @@ README、中文用户指南、crate-level docs 和所有 rustdoc 示例必须参
 10. 所有最终文本有效 UTF-8、控制字符安全且计入预算；
 11. handle 在发布前不能转成文本，只能由所属 batch output 解析；
 12. panic 不发布半成品。
+13. inspection 不生成任何 mask 或文本；不完整检查只能返回错误。
 
 ## 20. 扩展规则
 

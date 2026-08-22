@@ -67,8 +67,8 @@ impl<T: Redact + ?Sized> Redact for Box<T> {
 impl<T: Redact> Redact for Vec<T> {
     /// Formats every item through a redacted view sharing the same policy.
     ///
-    /// The vector charges its domain-value node once and checks the iterator's
-    /// exact remaining length before charging and advancing one item. An
+    /// The vector charges its domain-value node once and checks structural
+    /// capacity before charging and advancing one item. An
     /// exhausted item budget cannot pull or format another value, while an
     /// exactly full vector does not perform a false terminal admission. Every
     /// child reuses the same session, so node, depth, output, and collection

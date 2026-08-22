@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use super::inspection_accumulator::InspectionAccumulator;
 use super::redaction_budget::RedactionBudget;
 use super::structural_entry::StructuralEntry;
 use super::summary_builder::SummaryBuilder;
@@ -27,6 +28,8 @@ pub(super) struct RedactionRuntime {
     pub(super) domain_frame_output_bytes: usize,
     pub(super) domain_frame_truncated: bool,
     pub(super) domain_frame_output_limit_reached: bool,
+    /// Sensitivity accumulator present only for non-rendering inspection.
+    pub(super) inspection: Option<InspectionAccumulator>,
 }
 
 impl RedactionRuntime {
@@ -42,7 +45,38 @@ impl RedactionRuntime {
             domain_frame_output_bytes: 0,
             domain_frame_truncated: false,
             domain_frame_output_limit_reached: false,
+            inspection: None,
         }
+    }
+
+    /// Creates accounting for a non-rendering inspection transaction.
+    #[must_use]
+    pub(super) fn new_inspection(policy: Arc<RedactionPolicy>) -> Self {
+        let mut runtime = Self::new(policy);
+        runtime.inspection = Some(InspectionAccumulator::default());
+        runtime
+    }
+
+    /// Reports whether this transaction classifies without rendering.
+    #[must_use]
+    #[inline(always)]
+    pub(super) const fn is_inspection(&self) -> bool {
+        self.inspection.is_some()
+    }
+
+    /// Records one sensitivity in the active inspection transaction.
+    pub(super) fn observe_sensitivity(&mut self, sensitivity: crate::Sensitivity) {
+        if let Some(inspection) = self.inspection.as_mut() {
+            inspection.observe(sensitivity);
+        }
+    }
+
+    /// Consumes a completed inspection into classification and accounting.
+    #[must_use]
+    pub(super) fn into_inspection_parts(self) -> (Option<crate::Sensitivity>, RedactionSummary) {
+        let sensitivity = self.inspection.and_then(InspectionAccumulator::max_sensitivity);
+        let summary = self.summary.build(self.budget.usage());
+        (sensitivity, summary)
     }
 
     #[inline(always)]
@@ -98,6 +132,44 @@ impl RedactionRuntime {
                 false
             }
         }
+    }
+
+    /// Checks whether one collection item and one format node can be charged
+    /// before advancing an untrusted iterator.
+    #[must_use]
+    pub(super) fn preflight_format_item(&mut self, depth: usize) -> bool {
+        let limits = self.policy().limits();
+        let usage = self.budget.usage();
+        if limits.max_depth().is_some_and(|maximum| depth > maximum) {
+            self.record_summary(RedactionSummary::truncated(RedactionReason::DepthLimitReached));
+            return false;
+        }
+        if limits
+            .max_collection_items()
+            .is_some_and(|maximum| usage.visited_collection_items() >= maximum)
+            || limits
+                .max_nodes()
+                .is_some_and(|maximum| usage.visited_nodes() >= maximum)
+        {
+            self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
+            return false;
+        }
+        true
+    }
+
+    /// Checks collection capacity before advancing an untrusted iterator.
+    #[must_use]
+    pub(super) fn preflight_collection_item(&mut self) -> bool {
+        let limits = self.policy().limits();
+        let usage = self.budget.usage();
+        if limits
+            .max_collection_items()
+            .is_some_and(|maximum| usage.visited_collection_items() >= maximum)
+        {
+            self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
+            return false;
+        }
+        true
     }
 
     #[must_use]

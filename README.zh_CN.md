@@ -11,6 +11,11 @@
 可安全写入日志的诊断信息。它适合需要为整条事件统一决定脱敏规则、预算和发布时机的应用，
 而不是让每个待记录的值各自处理这些问题。
 
+> **警告——derive 字段默认永久明文。** 没有 `#[redact(...)]` 标记的字段始终不脱敏；
+> `strict()`、application default 和 `inspect()` 都不会推断它是敏感字段。新增字段必须逐一
+> 人工复查。`#[redact(require_explicit)]` 只是可选的编译期审查工具；`#[redact(skip)]`
+> 会主动绕过该字段的脱敏，而不是保护它。
+
 ## 安装
 
 按需启用格式集成：
@@ -83,11 +88,30 @@ panic 时，当前未发布结果会被丢弃，随后继续展开 panic。捕�
 - argv、环境变量、进程、JSON、HTTP、URI 均支持聚合文本和可单独解析的单项结果。
 - 通过 `Redact` 与 `RedactionWriter` 显式渲染领域对象。
 - 通过 `RedactionSummary` 提供可供程序读取的完成状态、原因和资源用量。
+- 每个一次性 `redact`/`redact_*` 能力都有不渲染的 `inspect`/`inspect_*` 对应接口。
+  完整检查返回最高 `Sensitivity`；检查不完整则返回错误，且输出字节始终为零。
 - 输出保持 UTF-8 与日志安全；遇到输入、输出或结构上限时会安全降级。
 
 本库不会从任意值内容中猜测秘密信息。新增业务字段时应逐一审查并明确标注。`unredacted`
 是信任边界，不是图省事的旁路，只能接收已经独立确认可公开的数据。资源上限约束的是整条
 诊断事件，不是彼此独立的格式配额。
+
+程序判断敏感性时应使用 inspection，禁止比较脱敏文本与原文：
+
+```rust
+use qubit_redact::Redactor;
+
+let raw_url = "https://example.test/?token=secret";
+let inspection = Redactor::standard()
+    .inspect_http_url(raw_url)
+    .expect("必须完整检查 URL");
+if inspection.contains_sensitive() {
+    // 拒绝输入或转入脱敏输出路径
+}
+```
+
+任何 inspection 错误都必须按敏感数据处理（fail closed）。成对接口覆盖领域对象、字段、
+显式/启发式 argv、环境变量与环境变量对、进程、JSON、HTTP URL/headers/body 和 URI。
 
 ## 延伸阅读
 

@@ -54,7 +54,6 @@ impl<'session> EnvRedactionWriter<'session> {
     pub fn os_pairs<'items, I>(&mut self, pairs: I) -> &mut Self
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
-        I::IntoIter: ExactSizeIterator,
     {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
@@ -103,7 +102,6 @@ impl<'session> EnvRedactionWriter<'session> {
     pub(crate) fn redact_os_pairs<'items, I>(&mut self, pairs: I) -> RedactionHandle
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
-        I::IntoIter: ExactSizeIterator,
     {
         let owns_item_summary = self.session.begin_item_summary();
         let handle = (|| {
@@ -130,20 +128,28 @@ impl<'session> EnvRedactionWriter<'session> {
     fn collect_admitted_pairs<'items, I>(&mut self, pairs: I) -> Option<Vec<(&'items OsStr, &'items OsStr)>>
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
-        I::IntoIter: ExactSizeIterator,
     {
         if !self.session.admit_format_node(1) {
             return None;
         }
-        let mut iterator = pairs.into_iter();
+        let iterator = pairs.into_iter();
         // Iterator length is caller-controlled metadata. Allocate only after
         // an entry has passed the transaction's shared admission checks.
         let mut admitted = Vec::new();
-        while iterator.len() > 0 {
+        let mut iterator = iterator;
+        loop {
+            if iterator.size_hint().1 == Some(0) {
+                break;
+            }
+            if !self.session.preflight_format_item(2) {
+                return None;
+            }
+            let Some((name, value)) = iterator.next() else {
+                break;
+            };
             if !self.session.admit_format_collection_item() || !self.session.admit_format_node(2) {
                 return None;
             }
-            let (name, value) = iterator.next().expect("exact-size iterator reported an item");
             if !self.session.admit_input(
                 name.as_encoded_bytes()
                     .len()

@@ -68,6 +68,9 @@ impl<'session> RedactionWriter<'session> {
         if self.session.domain_frame_is_truncated() {
             return self;
         }
+        if self.session.is_inspection() {
+            return self;
+        }
         self.write_debug(value);
         self
     }
@@ -83,6 +86,10 @@ impl<'session> RedactionWriter<'session> {
     /// the surrounding transaction.
     #[cfg(feature = "json")]
     fn write_json_text(&mut self, value: &str) {
+        if self.session.is_inspection() {
+            crate::formats::json::inspection::inspect_text(self.session, value);
+            return;
+        }
         if !self.session.admit_input(value.len()) {
             self.truncate_without_output_limit();
             return;
@@ -259,6 +266,9 @@ impl<'session> RedactionWriter<'session> {
     where
         T: Debug + ?Sized,
     {
+        if self.session.is_inspection() {
+            return;
+        }
         let mut formatter = BoundedDebugWriter { writer: self };
         let _ = write!(&mut formatter, "{value:?}");
     }
@@ -269,6 +279,10 @@ impl<'session> RedactionWriter<'session> {
     where
         T: Debug + ?Sized,
     {
+        if self.session.is_inspection() {
+            self.session.observe_sensitivity(level);
+            return;
+        }
         if matches!(level, Sensitivity::High | Sensitivity::Secret) {
             let masked = self
                 .session
@@ -343,6 +357,9 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             self.write_field_truncated();
             return self;
         }
+        if self.writer.session.is_inspection() {
+            return self;
+        }
         self.write_prefix(name);
         if !self.writer.can_write() {
             return self;
@@ -375,6 +392,10 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             .policy()
             .sensitivity_for(name)
             .map_or(level, |policy_level| policy_level.max(level));
+        if self.writer.session.is_inspection() {
+            self.writer.session.observe_sensitivity(effective_level);
+            return self;
+        }
         self.write_prefix(name);
         if !self.writer.can_write() {
             return self;
@@ -446,7 +467,6 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     pub fn map<I, K, V>(&mut self, name: &str, entries: I) -> &mut Self
     where
         I: IntoIterator<Item = (K, V)>,
-        I::IntoIter: ExactSizeIterator,
         K: AsRef<str> + Debug,
         V: Debug,
     {
@@ -460,15 +480,28 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         }
         self.writer.write_fragment("{");
         let mut entries = entries.into_iter();
-        while entries.len() != 0 {
-            if !self.admit_item() {
+        loop {
+            if entries.size_hint().1 == Some(0) {
+                break;
+            }
+            if !self.writer.session.preflight_collection_item() {
                 self.write_field_truncated();
                 break;
             }
             let Some((key, value)) = entries.next() else {
                 break;
             };
+            if !self.admit_item() {
+                self.write_field_truncated();
+                break;
+            }
             let key = key.as_ref();
+            if self.writer.session.is_inspection() {
+                if let ResolvedField::Sensitive { sensitivity } = self.writer.session.policy().resolve_field(key) {
+                    self.writer.session.observe_sensitivity(sensitivity);
+                }
+                continue;
+            }
             self.writer.write_debug(key);
             self.writer.write_fragment(": ");
             match self.writer.session.policy().resolve_field(key) {
@@ -545,6 +578,9 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
             self.write_truncated();
             return self;
         }
+        if self.writer.session.is_inspection() {
+            return self;
+        }
         self.writer.write_debug(&access());
         self.writer.write_fragment(", ");
         self
@@ -558,6 +594,10 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
     {
         if !self.admit_item() {
             self.write_truncated();
+            return self;
+        }
+        if self.writer.session.is_inspection() {
+            self.writer.session.observe_sensitivity(level);
             return self;
         }
         if matches!(level, Sensitivity::High | Sensitivity::Secret) {
@@ -623,6 +663,9 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
             self.write_truncated();
             return self;
         }
+        if self.writer.session.is_inspection() {
+            return self;
+        }
         self.write_prefix(name);
         self.writer.write_debug(&access());
         self.writer.write_fragment(", ");
@@ -645,6 +688,10 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
             .policy()
             .sensitivity_for(name)
             .map_or(level, |policy_level| policy_level.max(level));
+        if self.writer.session.is_inspection() {
+            self.writer.session.observe_sensitivity(effective_level);
+            return self;
+        }
         self.write_prefix(name);
         if matches!(effective_level, Sensitivity::High | Sensitivity::Secret) {
             let value = self

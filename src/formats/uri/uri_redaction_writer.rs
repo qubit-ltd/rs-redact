@@ -89,20 +89,26 @@ impl UriRedactionWriter<'_> {
     /// decodes individual components. The raw query scan stops at the first
     /// rejected pair, so a later suffix cannot be rendered.
     fn admit_uri_structure(&mut self, input: &str) -> bool {
-        if !self.session.admit_format_node(1) {
+        admit_uri_structure(self.session, input)
+    }
+}
+
+/// Charges URI root and query-pair structure without parsing component values.
+#[must_use]
+pub(crate) fn admit_uri_structure(session: &mut RedactionSession, input: &str) -> bool {
+    if !session.admit_format_node(1) {
+        return false;
+    }
+    let without_fragment = input.split_once('#').map_or(input, |(prefix, _)| prefix);
+    let Some((_, query)) = without_fragment.split_once('?') else {
+        return true;
+    };
+    for _ in query.split('&') {
+        if !session.admit_format_collection_item() || !session.admit_format_node(2) {
             return false;
         }
-        let without_fragment = input.split_once('#').map_or(input, |(prefix, _)| prefix);
-        let Some((_, query)) = without_fragment.split_once('?') else {
-            return true;
-        };
-        for _ in query.split('&') {
-            if !self.session.admit_format_collection_item() || !self.session.admit_format_node(2) {
-                return false;
-            }
-        }
-        true
     }
+    true
 }
 
 #[cfg(test)]

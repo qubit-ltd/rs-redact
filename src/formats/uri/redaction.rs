@@ -198,7 +198,7 @@ fn redact_query(query: &str, policy: &RedactionPolicy, rendered: &mut BoundedUri
 }
 
 /// Decodes percent escapes without applying form-urlencoded `+` semantics.
-fn decode_uri_component(raw: &str) -> Result<String, ()> {
+pub(super) fn decode_uri_component(raw: &str) -> Result<String, ()> {
     let bytes = raw.as_bytes();
     let mut decoded = Vec::with_capacity(bytes.len());
     let mut index = 0;
