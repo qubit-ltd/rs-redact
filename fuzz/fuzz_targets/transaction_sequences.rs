@@ -13,6 +13,7 @@ use qubit_redact::RedactionBatchHandle;
 use qubit_redact::RedactionBatchOutput;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
 use qubit_redact::formats::argv::ArgvItem;
 use qubit_redact::formats::http::BodyCapture;
 
@@ -67,12 +68,18 @@ fuzz_target!(|data: &[u8]| {
             3 => batch.redact_http_url("https://fuzz.example/?password=transaction-secret"),
             4 => batch.redact_uri("https://fuzz.example/?password=transaction-secret"),
             5 => {
-                let items = [ArgvItem::plain(OsStr::new("--password=transaction-secret"))];
+                let items = [ArgvItem::sensitive(
+                    OsStr::new("--password=transaction-secret"),
+                    Sensitivity::Secret,
+                )];
                 batch.redact_argv(items)
             }
             6 => batch.redact_env("PASSWORD", &value),
             7 => {
-                let arguments = [ArgvItem::plain(OsStr::new("--password=transaction-secret"))];
+                let arguments = [ArgvItem::sensitive(
+                    OsStr::new("--password=transaction-secret"),
+                    Sensitivity::Secret,
+                )];
                 let variables = [(OsStr::new("PASSWORD"), OsStr::new("transaction-secret"))];
                 batch.redact_process(OsStr::new("client"), arguments, variables)
             }
