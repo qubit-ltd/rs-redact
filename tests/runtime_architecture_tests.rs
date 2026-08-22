@@ -96,6 +96,16 @@ fn format_adapters_use_the_runtime_operation_sink() {
     }
 }
 
+/// JSON structure admission must stream parser events into the transaction
+/// ledger, so a rejected document is never first materialized as a complete
+/// `serde_json::Value` tree.
+#[test]
+fn json_structure_admission_does_not_materialize_a_value_tree() {
+    let writer = include_str!("../src/formats/json/json_redaction_writer.rs");
+
+    assert!(!writer.contains("Value::from_str"));
+}
+
 /// Resource counters belong to the transaction budget; summaries retain only
 /// completion and provenance until publication pairs them with a snapshot.
 #[test]

@@ -51,6 +51,28 @@
 //! use qubit_redact::RedactionSession;
 //! ```
 //!
+//! ```compile_fail
+//! use qubit_redact::RedactionSessionOutput;
+//! ```
+//!
+//! ```compile_fail
+//! use qubit_redact::RedactionOutput;
+//! ```
+//!
+//! ```compile_fail
+//! use qubit_redact::RedactionHandle;
+//! ```
+//!
+//! ```compile_fail
+//! use qubit_redact::RedactionHandleError;
+//! ```
+//!
+//! ```compile_fail
+//! use qubit_redact::Redactor;
+//!
+//! let _ = Redactor::strict().session();
+//! ```
+//!
 //! Composer and batch APIs deliberately do not overlap, and both publication
 //! methods consume their owner.
 //!
@@ -67,6 +89,32 @@
 //!
 //! let mut batch = Redactor::strict().batch();
 //! batch.literal("batch has no aggregate text API");
+//! ```
+//!
+//! ```compile_fail
+//! use qubit_redact::Redactor;
+//!
+//! let mut batch = Redactor::strict().batch();
+//! let _ = batch.redact_field("password", "raw-secret");
+//! let _ = batch.finish();
+//! let _ = batch.redact_field("password", "cannot reuse a finished batch");
+//! ```
+//!
+//! ```compile_fail
+//! use qubit_redact::Redactor;
+//!
+//! let composer = Redactor::strict().text_composer();
+//! let _ = composer.redact_field("password", "batch methods are unavailable");
+//! ```
+//!
+//! ```compile_fail
+//! use qubit_redact::Redactor;
+//!
+//! let mut batch = Redactor::strict().batch();
+//! let handle = batch.redact_field("password", "raw-secret");
+//! let output = batch.finish();
+//! let _ = output.text();
+//! let _ = handle.to_string();
 //! ```
 //!
 //! The domain-level rendering traits do not provide an alternate output path.
