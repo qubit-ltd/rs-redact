@@ -783,6 +783,9 @@ rg -n 'RedactMut|redact_in_place|to_redacted|into_redacted|qubit-redact-derive-c
   `max_collection_items` 与累计 `max_input_bytes`；超限时字段 fail-closed 为 opaque mask。
   新增 depth/collection budget 回归，并确认 disabled JSON 保持 JSON 文本字符串，不擅自解析为
   嵌套对象。
+- 最终复核：计划内 56 个步骤均已勾选；结构化 Serde 的预算回归和 JSON disabled 回归已纳入
+  `rs-redact-derive` 全量 CI。`rs-platform` 的锁文件变更已提交为 `fdee6da`，其本地
+  `dev`、`main`、`dev-starfish` 已同步；远程仍返回 `Repository not found`。
 
 汇报各仓库修改、测试命令与结果、保留的用户原有修改及任何环境限制。用户已明确授权英文提交、分支合并与推送；除 `rs-platform` 因远端仓库不可访问未能推送外，其余仓库均已完成 `dev-starfish`、`dev`、`main` 的推送，并返回 `dev-starfish`。
 
