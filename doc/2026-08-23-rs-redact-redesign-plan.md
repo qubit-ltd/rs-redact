@@ -705,7 +705,7 @@ let body = serde_json::to_string(&response)?;
 
 **调度：** 前置 T8/T9；串行运行重型命令；本任务拥有全部集成验证；立即审查。
 
-- [ ] **步骤 1：重新检查所有仓库工作区状态并确认用户修改未被覆盖**
+- [x] **步骤 1：重新检查所有仓库工作区状态并确认用户修改未被覆盖**
 
 运行：
 
@@ -717,27 +717,27 @@ git -C /home/starfish/working/qubit/rust-platform/rs-model-metadata status --sho
 git -C /home/starfish/working/qubit/rust-platform/rs-platform status --short
 ```
 
-- [ ] **步骤 2：运行两个 redact crate 的全量验证**
+- [x] **步骤 2：运行两个 redact crate 的全量验证**
 
 ```bash
 (cd rs-redact && cargo test --all-features && cargo clippy --all-targets --all-features -- -D warnings && cargo doc --no-deps --all-features)
 (cd rs-redact-derive && cargo test --all-features && cargo clippy --all-targets --all-features -- -D warnings && cargo doc --no-deps --all-features)
 ```
 
-- [ ] **步骤 3：运行 model 两仓库验证**
+- [x] **步骤 3：运行 model 两仓库验证**
 
 ```bash
 (cd /home/starfish/working/qubit/rust-platform/rs-model-derive && cargo test && cargo clippy --all-targets -- -D warnings)
 (cd /home/starfish/working/qubit/rust-platform/rs-model-metadata && cargo test && cargo clippy --all-targets -- -D warnings)
 ```
 
-- [ ] **步骤 4：运行 rs-platform workspace 验证**
+- [x] **步骤 4：运行 rs-platform workspace 验证**
 
 运行：`cd /home/starfish/working/qubit/rust-platform/rs-platform && cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings`
 
 预期：所有包通过；若因外部服务/环境导致非代码失败，记录精确命令、错误和已通过的子集，不掩盖失败。
 
-- [ ] **步骤 5：执行最终静态审计**
+- [x] **步骤 5：执行最终静态审计**
 
 ```bash
 rg -n 'RedactMut|redact_in_place|to_redacted|into_redacted|qubit-redact-derive-core|require_explicit|no_mut|redact\(plain\)' \
