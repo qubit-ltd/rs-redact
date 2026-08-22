@@ -771,6 +771,14 @@ rg -n 'RedactMut|redact_in_place|to_redacted|into_redacted|qubit-redact-derive-c
   名称保留为历史设计记录，不作为当前 API 文档。
 - 追加修复：`map` derive 展开统一调用 `map_value` capability，补齐 `Option<BTreeMap<...>>`
   覆盖；清理被 `autotests = false` 遮蔽的旧 derive fixture 与过期 fixture lockfile。
+- 追加修复：结构化 Serde derive 不再把 `nested`、`map`、`json` 和集合型 `level`
+  字段当作原值直出；新增隐藏 capability 和运行时 carriers，保持结构形状、共享
+  immutable policy，并在 disabled 模式恢复原值。`redact(skip)` 仅在 enabled 模式省略，
+  普通 Serde skip 仍始终省略。
+- 追加验证：`rs-redact` 的 `cargo test --all-features` 与全目标 clippy 通过；
+  `rs-redact-derive` 的 `cargo test --all-features`、结构化 Serde runtime tests 与全目标
+  clippy 通过。新增回归覆盖 nested、`Option<Vec<_>>`、map、JSON、level 集合以及 disabled
+  skip 恢复行为。
 
 汇报各仓库修改、测试命令与结果、保留的用户原有修改及任何环境限制。用户已明确授权英文提交、分支合并与推送；除 `rs-platform` 因远端仓库不可访问未能推送外，其余仓库均已完成 `dev-starfish`、`dev`、`main` 的推送，并返回 `dev-starfish`。
 

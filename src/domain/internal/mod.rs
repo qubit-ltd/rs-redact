@@ -8,7 +8,21 @@
 //! Private support for domain-object redaction.
 
 mod nested;
-#[cfg(feature = "serde")]
+#[cfg(any(feature = "serde", feature = "json"))]
 mod redact_serialize;
-#[cfg(feature = "serde")]
+#[cfg(feature = "json")]
+pub use redact_serialize::RedactJsonSerialize;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use redact_serialize::RedactLevelSerialize;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use redact_serialize::RedactMapSerialize;
+#[cfg(any(feature = "serde", feature = "json"))]
 pub use redact_serialize::RedactSerialize;
+#[cfg(feature = "json")]
+pub use redact_serialize::RedactedJsonSerializeRef;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use redact_serialize::RedactedLevelSerializeRef;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use redact_serialize::RedactedMapSerializeRef;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use redact_serialize::RedactedSerializeRef;

@@ -6,6 +6,7 @@ multiple-public-types | src/runtime/redaction_handle.rs | A transaction-owned ha
 multiple-public-types | src/domain/redaction_writer.rs | Structured writer and its field scope form one domain output boundary.
 multiple-public-types | src/facade/redaction_summary.rs | Summary, reason, and usage types form one public execution-report boundary.
 multiple-public-types | src/domain/internal/domain_redaction_context.rs | Domain admission and truncation state share one traversal boundary.
+multiple-public-types | src/domain/internal/redact_serialize.rs | Structured Serde capabilities and their borrowed carriers share one hidden serialization boundary.
 multiple-public-types | src/facade/redactor.rs | The public redactor and its private bounded field sink share one facade execution boundary.
 multiple-public-types | src/formats/http/http_redaction_policy.rs | The public HTTP policy and its private Arc payload form one immutable snapshot.
 multiple-public-types | src/formats/process/process_redaction_session.rs | The public process adapter and its private lazy admission iterators form one transaction boundary.
