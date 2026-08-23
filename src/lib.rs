@@ -142,6 +142,7 @@ mod serde_feature_gate;
 
 pub use domain::Redact;
 #[doc(hidden)]
+#[cfg(feature = "json")]
 pub use domain::RedactJsonValue;
 #[doc(hidden)]
 pub use domain::RedactLevelValue;

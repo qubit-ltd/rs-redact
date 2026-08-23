@@ -11,12 +11,16 @@ mod serde {
     pub use ::serde::Serializer;
 
     pub mod ser {
+        pub use ::serde::ser::Error;
+        pub use ::serde::ser::Impossible;
         pub use ::serde::ser::SerializeMap;
         pub use ::serde::ser::SerializeSeq;
+        pub use ::serde::ser::SerializeStruct;
         pub use ::serde::ser::SerializeTuple;
     }
 }
 
+use self::serde::ser::Error as SerdeError;
 use self::serde::ser::SerializeMap;
 use self::serde::ser::SerializeSeq;
 use self::serde::ser::SerializeTuple;
@@ -144,6 +148,232 @@ where
     result
 }
 
+/// Serializes a map-like newtype payload with an injected internal enum tag.
+#[doc(hidden)]
+pub fn serialize_internally_tagged<S, T>(
+    serializer: S,
+    enum_name: &'static str,
+    variant_name: &'static str,
+    tag: &'static str,
+    tag_value: &'static str,
+    value: &T,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+    T: serde::Serialize + ?Sized,
+{
+    value.serialize(InternallyTaggedSerializer {
+        serializer,
+        enum_name,
+        variant_name,
+        tag,
+        tag_value,
+    })
+}
+
+struct InternallyTaggedSerializer<S> {
+    serializer: S,
+    enum_name: &'static str,
+    variant_name: &'static str,
+    tag: &'static str,
+    tag_value: &'static str,
+}
+
+struct InternallyTaggedMap<M> {
+    map: M,
+}
+
+impl<M: serde::ser::SerializeMap> serde::ser::SerializeMap for InternallyTaggedMap<M> {
+    type Ok = M::Ok;
+    type Error = M::Error;
+
+    fn serialize_key<T: ?Sized + serde::Serialize>(&mut self, key: &T) -> Result<(), Self::Error> {
+        self.map.serialize_key(key)
+    }
+
+    fn serialize_value<T: ?Sized + serde::Serialize>(&mut self, value: &T) -> Result<(), Self::Error> {
+        self.map.serialize_value(value)
+    }
+
+    fn serialize_entry<K: ?Sized + serde::Serialize, V: ?Sized + serde::Serialize>(
+        &mut self,
+        key: &K,
+        value: &V,
+    ) -> Result<(), Self::Error> {
+        self.map.serialize_entry(key, value)
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        self.map.end()
+    }
+}
+
+impl<M: serde::ser::SerializeMap> serde::ser::SerializeStruct for InternallyTaggedMap<M> {
+    type Ok = M::Ok;
+    type Error = M::Error;
+
+    fn serialize_field<T: ?Sized + serde::Serialize>(
+        &mut self,
+        key: &'static str,
+        value: &T,
+    ) -> Result<(), Self::Error> {
+        self.map.serialize_entry(key, value)
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        self.map.end()
+    }
+}
+
+impl<S: serde::Serializer> serde::Serializer for InternallyTaggedSerializer<S> {
+    type Ok = S::Ok;
+    type Error = S::Error;
+    type SerializeSeq = serde::ser::Impossible<S::Ok, S::Error>;
+    type SerializeTuple = serde::ser::Impossible<S::Ok, S::Error>;
+    type SerializeTupleStruct = serde::ser::Impossible<S::Ok, S::Error>;
+    type SerializeTupleVariant = serde::ser::Impossible<S::Ok, S::Error>;
+    type SerializeMap = InternallyTaggedMap<S::SerializeMap>;
+    type SerializeStruct = InternallyTaggedMap<S::SerializeMap>;
+    type SerializeStructVariant = serde::ser::Impossible<S::Ok, S::Error>;
+
+    fn serialize_map(self, length: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
+        let mut map = self
+            .serializer
+            .serialize_map(length.map(|length| length.saturating_add(1)))?;
+        map.serialize_entry(self.tag, self.tag_value)?;
+        Ok(InternallyTaggedMap { map })
+    }
+
+    fn serialize_struct(self, _name: &'static str, length: usize) -> Result<Self::SerializeStruct, Self::Error> {
+        self.serialize_map(Some(length))
+    }
+
+    fn serialize_bool(self, _value: bool) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_i8(self, _value: i8) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_i16(self, _value: i16) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_i32(self, _value: i32) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_i64(self, _value: i64) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_i128(self, _value: i128) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_u8(self, _value: u8) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_u16(self, _value: u16) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_u32(self, _value: u32) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_u64(self, _value: u64) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_u128(self, _value: u128) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_f32(self, _value: f32) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_f64(self, _value: f64) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_char(self, _value: char) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_str(self, _value: &str) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_bytes(self, _value: &[u8]) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_some<T: ?Sized + serde::Serialize>(self, _value: &T) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_unit_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+    ) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_newtype_struct<T: ?Sized + serde::Serialize>(
+        self,
+        _name: &'static str,
+        _value: &T,
+    ) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_newtype_variant<T: ?Sized + serde::Serialize>(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _value: &T,
+    ) -> Result<Self::Ok, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_seq(self, _length: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_tuple(self, _length: usize) -> Result<Self::SerializeTuple, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_tuple_struct(
+        self,
+        _name: &'static str,
+        _length: usize,
+    ) -> Result<Self::SerializeTupleStruct, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_tuple_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _length: usize,
+    ) -> Result<Self::SerializeTupleVariant, Self::Error> {
+        self.unsupported()
+    }
+    fn serialize_struct_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _length: usize,
+    ) -> Result<Self::SerializeStructVariant, Self::Error> {
+        self.unsupported()
+    }
+}
+
+impl<S: serde::Serializer> InternallyTaggedSerializer<S> {
+    fn unsupported<T>(self) -> Result<T, S::Error> {
+        Err(SerdeError::custom(format_args!(
+            "cannot serialize internally tagged {} variant {} newtype from a non-map value",
+            self.enum_name, self.variant_name,
+        )))
+    }
+}
+
 /// Internal structured serialization capability generated by the derive crate.
 #[doc(hidden)]
 pub trait RedactSerialize {
@@ -205,12 +435,28 @@ macro_rules! scalar_level_serialize {
                 if policy.is_disabled() {
                     serde::Serialize::serialize(self, serializer)
                 } else {
-                    let masked = policy.masking().mask_opaque(level);
-                    serializer.serialize_str(masked.as_ref())
+                    serialize_masked_display(self, serializer, policy, level)
                 }
             }
         })+
     };
+}
+
+fn serialize_masked_display<S, T>(
+    value: &T,
+    serializer: S,
+    policy: &crate::RedactionPolicy,
+    level: crate::Sensitivity,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+    T: std::fmt::Display + ?Sized,
+{
+    if matches!(level, crate::Sensitivity::High | crate::Sensitivity::Secret) {
+        return serializer.serialize_str(policy.masking().mask_opaque(level));
+    }
+    let raw = value.to_string();
+    serializer.serialize_str(policy.masking().mask(level, &raw).as_ref())
 }
 
 scalar_level_serialize!(
@@ -231,8 +477,7 @@ impl RedactLevelSerialize for bigdecimal::BigDecimal {
         if policy.is_disabled() {
             serde::Serialize::serialize(self, serializer)
         } else {
-            let masked = policy.masking().mask_opaque(level);
-            serializer.serialize_str(masked.as_ref())
+            serialize_masked_display(self, serializer, policy, level)
         }
     }
 }
@@ -250,8 +495,7 @@ impl<'a> RedactLevelSerialize for Cow<'a, str> {
         if policy.is_disabled() {
             serde::Serialize::serialize(self, serializer)
         } else {
-            let masked = policy.masking().mask_opaque(level);
-            serializer.serialize_str(masked.as_ref())
+            serialize_masked_display(self, serializer, policy, level)
         }
     }
 }
@@ -269,8 +513,7 @@ impl RedactLevelSerialize for &str {
         if policy.is_disabled() {
             serde::Serialize::serialize(self, serializer)
         } else {
-            let masked = policy.masking().mask_opaque(level);
-            serializer.serialize_str(masked.as_ref())
+            serialize_masked_display(self, serializer, policy, level)
         }
     }
 }
@@ -475,7 +718,7 @@ macro_rules! map_redact_serialize {
         impl<K, V> RedactMapSerialize for $map
         where
             K: AsRef<str> + serde::Serialize,
-            V: serde::Serialize,
+            V: RedactLevelSerialize + serde::Serialize,
         {
             fn serialize_redacted_map<S>(
                 &self,
@@ -493,8 +736,7 @@ macro_rules! map_redact_serialize {
                     let key_name = key.as_ref();
                     if !policy.is_disabled() {
                         if let Some(level) = policy.sensitivity_for(key_name) {
-                            let masked = policy.masking().mask_opaque(level).to_owned();
-                            map.serialize_entry(key, &masked)?;
+                            map.serialize_entry(key, &RedactedLevelSerializeRef::new(value, policy, level))?;
                             continue;
                         }
                     }
@@ -507,7 +749,7 @@ macro_rules! map_redact_serialize {
         impl<K, V> RedactMapSerialize for Option<$map>
         where
             K: AsRef<str> + serde::Serialize,
-            V: serde::Serialize,
+            V: RedactLevelSerialize + serde::Serialize,
         {
             fn serialize_redacted_map<S>(
                 &self,
@@ -582,26 +824,37 @@ where
         let replacement = masked();
         return serializer.serialize_str(replacement.as_ref());
     }
-    let Ok(mut value) = serde_json::from_str::<serde_json::Value>(text) else {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(text) else {
         let replacement = masked();
         return serializer.serialize_str(replacement.as_ref());
     };
-    let mut session = crate::Redactor::new(policy.clone()).inspection_runtime();
-    if !session.admit_input(text.len()) || !session.admit_json_value(&value) {
+    if !admit_structured_json_value(&value) {
         let replacement = masked();
         return serializer.serialize_str(replacement.as_ref());
     }
-    let unkeyed = match policy.unkeyed_json_value_policy() {
-        crate::UnkeyedJsonValuePolicy::PassThrough => {
-            crate::formats::json::internal::JsonUnkeyedValuePolicy::PassThrough
-        }
-        crate::UnkeyedJsonValuePolicy::Redact => {
-            let marker = policy.masking().mask_opaque(crate::Sensitivity::Secret);
-            crate::formats::json::internal::JsonUnkeyedValuePolicy::Redact { marker }
-        }
+    let output = crate::formats::json::redact_json_value_with_limit(policy, &value, usize::MAX);
+    serializer.serialize_str(output.text())
+}
+
+#[cfg(feature = "json")]
+fn admit_structured_json_value(value: &serde_json::Value) -> bool {
+    if !admit_node() {
+        return false;
+    }
+    let admitted = match value {
+        serde_json::Value::Array(values) => values
+            .iter()
+            .all(|value| admit_collection_items(1) && admit_structured_json_value(value)),
+        serde_json::Value::Object(entries) => entries
+            .values()
+            .all(|value| admit_collection_items(1) && admit_structured_json_value(value)),
+        serde_json::Value::Null
+        | serde_json::Value::Bool(_)
+        | serde_json::Value::Number(_)
+        | serde_json::Value::String(_) => true,
     };
-    crate::formats::json::internal::JsonRedactionState::from_policy(policy, unkeyed).redact(&mut value);
-    serde::Serialize::serialize(&value, serializer)
+    leave_node();
+    admitted
 }
 
 #[cfg(feature = "json")]

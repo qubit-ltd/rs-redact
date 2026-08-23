@@ -95,6 +95,9 @@ impl HttpPolicyExecutor<'_> {
     #[inline]
     #[must_use]
     fn redact_url_str(&self, input: &str, output_limit: usize) -> HttpRendered {
+        if self.policy.is_disabled() {
+            return self.finish_diagnostic_with_limit(input.to_owned(), output_limit, None);
+        }
         Url::parse(input).map_or_else(
             |_| {
                 self.finish_diagnostic_with_limit(
@@ -215,6 +218,13 @@ impl HttpPolicyExecutor<'_> {
         invalid_content_type: bool,
         output_limit: usize,
     ) -> HttpRendered {
+        if self.policy.is_disabled() {
+            return self.finish_diagnostic_with_limit(
+                String::from_utf8_lossy(capture.bytes()).into_owned(),
+                output_limit,
+                None,
+            );
+        }
         let input_len = capture.bytes().len();
         let bounded = &capture.bytes()[..input_len];
         let budget_truncated = input_len < capture.bytes().len();

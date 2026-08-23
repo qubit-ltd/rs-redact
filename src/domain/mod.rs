@@ -10,12 +10,14 @@
 #[doc(hidden)]
 pub mod internal;
 mod redact;
+#[cfg(feature = "json")]
 mod redact_json_value;
 mod redact_level_value;
 mod redact_map_value;
 mod redaction_writer;
 
 pub use redact::Redact;
+#[cfg(feature = "json")]
 pub use redact_json_value::RedactJsonValue;
 pub use redact_level_value::RedactLevelValue;
 pub use redact_map_value::RedactMapValue;

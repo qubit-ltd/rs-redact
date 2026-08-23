@@ -9,9 +9,12 @@
 
 use serde::de::DeserializeSeed;
 use serde_json::Deserializer as JsonDeserializer;
-use serde_json::from_str;
+use serde_json::Value;
 
+use super::JsonAdmissionError;
+use super::bounded_json_redaction::BoundedJsonRedaction;
 use super::bounded_json_redaction::redacted_json_text_bounded;
+use super::bounded_json_redaction::redacted_json_value_bounded;
 use super::internal::JsonStructureSeed;
 use crate::RedactionHandle;
 use crate::RedactionSession;
@@ -23,17 +26,33 @@ use crate::runtime::RenderedOperation;
 /// transaction before a renderer may traverse the parsed value. Returns
 /// `false` at the first rejected element; no later sibling is visited.
 #[must_use]
+#[cfg(feature = "http")]
 pub(crate) fn admit_json_text_structure(session: &mut RedactionSession, text: &str) -> bool {
     admit_json_text_structure_at_depth(session, text, 1)
 }
 
 /// Admits JSON text whose root is nested at `root_depth` in another format.
 #[must_use]
+#[cfg(feature = "http")]
 pub(crate) fn admit_json_text_structure_at_depth(
     session: &mut RedactionSession,
     text: &str,
     root_depth: usize,
 ) -> bool {
+    admit_json_text_value_at_depth(session, text, root_depth).is_ok()
+}
+
+pub(crate) fn admit_json_text_value(session: &mut RedactionSession, text: &str) -> Result<Value, JsonAdmissionError> {
+    admit_json_text_value_at_depth(session, text, 1)
+}
+
+pub(crate) fn admit_json_text_value_at_depth(
+    session: &mut RedactionSession,
+    text: &str,
+    root_depth: usize,
+) -> Result<Value, JsonAdmissionError> {
+    #[cfg(test)]
+    super::parse_counter::record_json_parse();
     let mut deserializer = JsonDeserializer::from_str(text);
     let mut rejected = false;
     let admitted = JsonStructureSeed {
@@ -43,17 +62,13 @@ pub(crate) fn admit_json_text_structure_at_depth(
         rejected: &mut rejected,
     }
     .deserialize(&mut deserializer)
-    .and_then(|()| deserializer.end());
-    if admitted.is_err() && !rejected {
-        return session.admit_format_node(root_depth);
+    .and_then(|value| deserializer.end().map(|()| value));
+    match admitted {
+        Ok(value) if session.admit_json_value(&value) => Ok(value),
+        Ok(_) => Err(JsonAdmissionError::Limit),
+        Err(_) if rejected => Err(JsonAdmissionError::Limit),
+        Err(_) => Err(JsonAdmissionError::Invalid),
     }
-    if admitted.is_err() {
-        return false;
-    }
-    let Ok(value) = from_str(text) else {
-        return session.admit_format_node(root_depth);
-    };
-    session.admit_json_value(&value)
 }
 
 /// Redacts JSON text under the output allowance supplied by its caller.
@@ -124,13 +139,35 @@ impl<'session> JsonRedactionWriter<'session> {
         if text.is_empty() && !input_was_empty {
             return self;
         }
-        if !admit_json_text_structure(self.session, text) {
+        let result = if self.session.policy().is_disabled() {
+            self.redact_text_direct(text)
+        } else {
+            match admit_json_text_value(self.session, text) {
+                Ok(value) => self.redact_value_direct(&value),
+                Err(JsonAdmissionError::Invalid) => {
+                    invalid_json_output(self.session.policy(), self.session.remaining_output_bytes())
+                }
+                Err(JsonAdmissionError::Limit) => {
+                    OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish()
+                }
+            }
+        };
+        self.session.append_rendered_operation(result);
+        self
+    }
+
+    /// Redacts a borrowed parsed JSON value into the aggregate transaction.
+    pub fn value(&mut self, value: &Value) -> &mut Self {
+        if self.session.skip_aggregate_for_exhausted_output() {
+            return self;
+        }
+        if !self.session.admit_json_value(value) {
             self.session.append_rendered_operation(
                 OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
             );
             return self;
         }
-        let result = self.redact_text_direct(text);
+        let result = self.redact_value_direct(value);
         self.session.append_rendered_operation(result);
         self
     }
@@ -148,12 +185,36 @@ impl<'session> JsonRedactionWriter<'session> {
             if text.is_empty() && !input_was_empty {
                 return self.session.stage_accounted_text(String::new());
             }
-            if !admit_json_text_structure(self.session, text) {
-                return self.session.stage_accounted_text("<truncated>");
-            }
-            let result = self.redact_text_direct(text);
+            let result = if self.session.policy().is_disabled() {
+                self.redact_text_direct(text)
+            } else {
+                match admit_json_text_value(self.session, text) {
+                    Ok(value) => self.redact_value_direct(&value),
+                    Err(JsonAdmissionError::Invalid) => {
+                        invalid_json_output(self.session.policy(), self.session.remaining_output_bytes())
+                    }
+                    Err(JsonAdmissionError::Limit) => {
+                        return self.session.stage_accounted_text("<truncated>");
+                    }
+                }
+            };
             self.session.stage_rendered_operation(result)
         })();
+        self.session.end_item_summary(owns_item_summary);
+        handle
+    }
+
+    #[must_use]
+    pub(crate) fn redact_value(&mut self, value: &Value) -> RedactionHandle {
+        let owns_item_summary = self.session.begin_item_summary();
+        let handle = if self.session.is_output_exhausted() {
+            self.session.stage_exhausted_handle()
+        } else if !self.session.admit_json_value(value) {
+            self.session.stage_accounted_text("<truncated>")
+        } else {
+            let result = self.redact_value_direct(value);
+            self.session.stage_rendered_operation(result)
+        };
         self.session.end_item_summary(owns_item_summary);
         handle
     }
@@ -181,14 +242,67 @@ impl JsonRedactionWriter<'_> {
     pub(crate) fn redact_text_direct(&mut self, text: &str) -> RenderedOperation {
         redact_json_text_with_limit(self.session.policy(), text, self.session.remaining_output_bytes())
     }
+
+    #[must_use]
+    pub(crate) fn redact_value_direct(&mut self, value: &Value) -> RenderedOperation {
+        redact_json_value_with_limit(self.session.policy(), value, self.session.remaining_output_bytes())
+    }
+}
+
+#[must_use]
+pub(crate) fn redact_json_value_with_limit(
+    policy: &crate::RedactionPolicy,
+    value: &Value,
+    max_output_bytes: usize,
+) -> RenderedOperation {
+    json_output_from_bounded(
+        redacted_json_value_bounded(value, policy, max_output_bytes),
+        max_output_bytes,
+    )
+}
+
+pub(crate) fn invalid_json_output(policy: &crate::RedactionPolicy, max_output_bytes: usize) -> RenderedOperation {
+    json_output_from_bounded(
+        BoundedJsonRedaction::Invalid(policy.masking().mask_opaque(crate::Sensitivity::Secret).to_owned()),
+        max_output_bytes,
+    )
 }
 
 #[cfg(test)]
 mod tests {
+    use super::super::parse_counter::json_parse_count;
+    use super::super::parse_counter::reset_json_parse_count;
     use super::redact_json_text_with_limit;
     use crate::RedactionCompletion;
     use crate::RedactionPolicy;
     use crate::Redactor;
+
+    #[test]
+    fn enabled_json_text_is_parsed_exactly_once() {
+        reset_json_parse_count();
+
+        let output = Redactor::standard().redact_json(r#"{"token":"raw-secret"}"#);
+
+        assert_eq!(json_parse_count(), 1);
+        assert!(!output.text().as_str().contains("raw-secret"));
+    }
+
+    #[test]
+    fn admitted_json_tree_covers_every_scalar_parser_representation() {
+        for text in [
+            "null",
+            "true",
+            "-1",
+            "1",
+            "1.5",
+            r#""visible""#,
+            r#"[null,true,-1,1,1.5,"visible"]"#,
+        ] {
+            let output = Redactor::standard().redact_json(text);
+
+            assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+        }
+    }
 
     /// Verifies the JSON execution helper receives and honors its caller's
     /// final output allowance rather than selecting an independent budget.

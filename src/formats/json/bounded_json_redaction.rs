@@ -7,12 +7,14 @@
 // =============================================================================
 //! In-place conversion of JSON text to its compact redacted representation.
 
+use serde::Serialize;
+use serde::Serializer;
+use serde::ser::SerializeMap;
+use serde::ser::SerializeSeq;
 use serde_json::Value;
 use serde_json::from_str;
 use serde_json::to_writer;
 
-use super::internal::JsonRedactionState;
-use super::internal::JsonUnkeyedValuePolicy;
 use crate::RedactionPolicy;
 use crate::Sensitivity;
 use crate::runtime::OperationByteSink;
@@ -49,22 +51,99 @@ pub(super) fn redacted_json_text_bounded(
     if policy.is_disabled() {
         return BoundedJsonRedaction::Complete(text.to_owned());
     }
-    let Ok(mut value) = from_str::<Value>(text) else {
+    #[cfg(test)]
+    super::parse_counter::record_json_parse();
+    let Ok(value) = from_str::<Value>(text) else {
         return BoundedJsonRedaction::Invalid(opaque_secret(policy));
     };
-    let unkeyed = match policy.unkeyed_json_value_policy() {
-        crate::UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
-        crate::UnkeyedJsonValuePolicy::Redact => {
-            let marker = policy.masking().mask_opaque(Sensitivity::Secret);
-            JsonUnkeyedValuePolicy::Redact { marker }
-        }
-    };
-    JsonRedactionState::from_policy(policy, unkeyed).redact(&mut value);
+    redacted_json_value_bounded(&value, policy, max_output)
+}
+
+/// Redacts a borrowed parsed JSON value without cloning or reparsing it.
+pub(super) fn redacted_json_value_bounded(
+    value: &Value,
+    policy: &RedactionPolicy,
+    max_output: usize,
+) -> BoundedJsonRedaction {
     let mut writer = OperationByteSink::new(max_output);
-    if to_writer(&mut writer, &value).is_err() {
+    let redacted = RedactedValue {
+        value,
+        policy,
+        context: ValueContext::Unkeyed,
+    };
+    if to_writer(&mut writer, &redacted).is_err() {
         return BoundedJsonRedaction::Truncated("<truncated>".to_owned());
     }
     BoundedJsonRedaction::Complete(writer.into_string().unwrap_or_else(|| opaque_secret(policy)))
+}
+
+#[derive(Clone, Copy)]
+enum ValueContext {
+    Unkeyed,
+    Keyed(Sensitivity),
+    PassThrough,
+}
+
+struct RedactedValue<'value, 'policy> {
+    value: &'value Value,
+    policy: &'policy RedactionPolicy,
+    context: ValueContext,
+}
+
+impl Serialize for RedactedValue<'_, '_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if self.policy.is_disabled() {
+            return self.value.serialize(serializer);
+        }
+        if let ValueContext::Keyed(level) = self.context {
+            let masked = match self.value {
+                Value::String(text) => self.policy.masking().mask(level, text),
+                _ => std::borrow::Cow::Borrowed(self.policy.masking().mask_opaque(level)),
+            };
+            return serializer.serialize_str(masked.as_ref());
+        }
+        match self.value {
+            Value::Array(values) => {
+                let mut sequence = serializer.serialize_seq(Some(values.len()))?;
+                for value in values {
+                    sequence.serialize_element(&Self {
+                        value,
+                        policy: self.policy,
+                        context: ValueContext::Unkeyed,
+                    })?;
+                }
+                sequence.end()
+            }
+            Value::Object(entries) => {
+                let mut map = serializer.serialize_map(Some(entries.len()))?;
+                for (key, value) in entries {
+                    let context = match self.policy.resolve_field(key) {
+                        crate::policy::ResolvedField::Sensitive { sensitivity } => ValueContext::Keyed(sensitivity),
+                        crate::policy::ResolvedField::PassThrough => ValueContext::PassThrough,
+                    };
+                    map.serialize_entry(
+                        key,
+                        &Self {
+                            value,
+                            policy: self.policy,
+                            context,
+                        },
+                    )?;
+                }
+                map.end()
+            }
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_)
+                if matches!(self.context, ValueContext::Unkeyed)
+                    && self.policy.unkeyed_json_value_policy() == crate::UnkeyedJsonValuePolicy::Redact =>
+            {
+                serializer.serialize_str(self.policy.masking().mask_opaque(Sensitivity::Secret).as_ref())
+            }
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => self.value.serialize(serializer),
+        }
+    }
 }
 
 /// Returns the configured opaque replacement for invalid JSON text.

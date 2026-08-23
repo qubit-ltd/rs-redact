@@ -1,19 +1,31 @@
 //! Sealed capability for fields using the `level` mode.
 
 use std::borrow::Cow;
+use std::fmt::Debug;
+
+use super::RedactionItems;
+use super::RedactionWriter;
+use crate::Sensitivity;
 
 mod private {
     pub trait Sealed {}
 }
 
-/// Marker capability implemented only for values supported by `level`.
+/// Capability implemented only for values supported by `level`.
 #[doc(hidden)]
-pub trait RedactLevelValue: private::Sealed {}
+pub trait RedactLevelValue: private::Sealed + Debug {
+    #[doc(hidden)]
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity);
+}
 
 macro_rules! scalar {
     ($($type:ty),+ $(,)?) => {
         $(impl private::Sealed for $type {}
-          impl RedactLevelValue for $type {})+
+          impl RedactLevelValue for $type {
+              fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+                  writer.write_level_scalar(level, self);
+              }
+          })+
     };
 }
 
@@ -39,29 +51,80 @@ scalar!(
     f64
 );
 
+#[cfg(feature = "serde")]
+impl private::Sealed for bigdecimal::BigDecimal {}
+#[cfg(feature = "serde")]
+impl RedactLevelValue for bigdecimal::BigDecimal {
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+        writer.write_level_scalar(level, self);
+    }
+}
+
+impl<T: RedactLevelValue + ?Sized> private::Sealed for &T {}
+impl<T: RedactLevelValue + ?Sized> RedactLevelValue for &T {
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+        (*self).write_redacted_level(writer, level);
+    }
+}
+
 impl<T: RedactLevelValue> private::Sealed for Option<T> {}
-impl<T: RedactLevelValue> RedactLevelValue for Option<T> {}
+impl<T: RedactLevelValue> RedactLevelValue for Option<T> {
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+        match self {
+            Some(value) => {
+                writer.literal("Some(");
+                value.write_redacted_level(writer, level);
+                writer.literal(")");
+            }
+            None => writer.literal("None"),
+        }
+    }
+}
 impl<T: RedactLevelValue> private::Sealed for Vec<T> {}
-impl<T: RedactLevelValue> RedactLevelValue for Vec<T> {}
+impl<T: RedactLevelValue> RedactLevelValue for Vec<T> {
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+        writer.sequence(|items| write_items(items, self.iter(), level));
+    }
+}
 impl<T: RedactLevelValue, const N: usize> private::Sealed for [T; N] {}
-impl<T: RedactLevelValue, const N: usize> RedactLevelValue for [T; N] {}
+impl<T: RedactLevelValue, const N: usize> RedactLevelValue for [T; N] {
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+        writer.sequence(|items| write_items(items, self.iter(), level));
+    }
+}
+
+fn write_items<'value, T, I>(items: &mut RedactionItems<'_, '_>, values: I, level: Sensitivity)
+where
+    T: RedactLevelValue + 'value,
+    I: IntoIterator<Item = &'value T>,
+{
+    for value in values {
+        items.level_value(value, level);
+    }
+}
 
 macro_rules! tuple {
-    ($($name:ident),+) => {
+    ($($index:tt:$name:ident),+) => {
         impl<$($name: RedactLevelValue),+> private::Sealed for ($($name,)+) {}
-        impl<$($name: RedactLevelValue),+> RedactLevelValue for ($($name,)+) {}
+        impl<$($name: RedactLevelValue),+> RedactLevelValue for ($($name,)+) {
+            fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+                writer.level_tuple(|items| {
+                    $(items.level_value(&self.$index, level);)+
+                });
+            }
+        }
     };
 }
 
-tuple!(A);
-tuple!(A, B);
-tuple!(A, B, C);
-tuple!(A, B, C, D);
-tuple!(A, B, C, D, E);
-tuple!(A, B, C, D, E, F);
-tuple!(A, B, C, D, E, F, G);
-tuple!(A, B, C, D, E, F, G, H);
-tuple!(A, B, C, D, E, F, G, H, I);
-tuple!(A, B, C, D, E, F, G, H, I, J);
-tuple!(A, B, C, D, E, F, G, H, I, J, K);
-tuple!(A, B, C, D, E, F, G, H, I, J, K, L);
+tuple!(0:A);
+tuple!(0:A, 1:B);
+tuple!(0:A, 1:B, 2:C);
+tuple!(0:A, 1:B, 2:C, 3:D);
+tuple!(0:A, 1:B, 2:C, 3:D, 4:E);
+tuple!(0:A, 1:B, 2:C, 3:D, 4:E, 5:F);
+tuple!(0:A, 1:B, 2:C, 3:D, 4:E, 5:F, 6:G);
+tuple!(0:A, 1:B, 2:C, 3:D, 4:E, 5:F, 6:G, 7:H);
+tuple!(0:A, 1:B, 2:C, 3:D, 4:E, 5:F, 6:G, 7:H, 8:I);
+tuple!(0:A, 1:B, 2:C, 3:D, 4:E, 5:F, 6:G, 7:H, 8:I, 9:J);
+tuple!(0:A, 1:B, 2:C, 3:D, 4:E, 5:F, 6:G, 7:H, 8:I, 9:J, 10:K);
+tuple!(0:A, 1:B, 2:C, 3:D, 4:E, 5:F, 6:G, 7:H, 8:I, 9:J, 10:K, 11:L);

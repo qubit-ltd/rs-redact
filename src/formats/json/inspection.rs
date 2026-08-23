@@ -8,9 +8,9 @@
 //! Non-rendering sensitivity inspection for JSON documents.
 
 use serde_json::Value;
-use serde_json::from_str;
 
-use super::admit_json_text_structure;
+use super::JsonAdmissionError;
+use super::admit_json_text_value;
 use crate::RedactionReason;
 use crate::RedactionSession;
 use crate::Sensitivity;
@@ -22,14 +22,27 @@ pub(crate) fn inspect_text(session: &mut RedactionSession, text: &str) {
     if !session.admit_input(text.len()) {
         return;
     }
-    if !admit_json_text_structure(session, text) {
+    if session.policy().is_disabled() {
         return;
     }
-    let Ok(value) = from_str::<Value>(text) else {
-        session.fail_inspection(RedactionReason::InvalidJson);
-        return;
+    let value = match admit_json_text_value(session, text) {
+        Ok(value) => value,
+        Err(JsonAdmissionError::Invalid) => {
+            session.fail_inspection(RedactionReason::InvalidJson);
+            return;
+        }
+        Err(JsonAdmissionError::Limit) => return,
     };
     inspect_value(session, &value, true);
+}
+
+pub(crate) fn inspect_borrowed_value(session: &mut RedactionSession, value: &Value) {
+    if session.policy().is_disabled() {
+        return;
+    }
+    if session.admit_json_value(value) {
+        inspect_value(session, value, true);
+    }
 }
 
 /// Classifies a parsed JSON subtree using the active base policy.
