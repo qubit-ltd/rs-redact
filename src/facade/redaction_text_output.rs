@@ -9,6 +9,7 @@
 
 use super::RedactedText;
 use super::RedactionSummary;
+use crate::RedactionCompletion;
 
 /// Complete result of one redaction operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,25 +37,39 @@ impl RedactionTextOutput {
         &self.summary
     }
 
-    /// Consumes the output and returns its final text.
+    /// Consumes a complete output and returns its final text.
+    ///
+    /// # Errors
+    ///
+    /// Returns the execution summary when the safe output was truncated or
+    /// exhausted. Callers must choose an explicit presentation marker or
+    /// recoverable handling path for incomplete output.
+    pub fn into_complete_text(self) -> Result<RedactedText, RedactionSummary> {
+        if self.summary.completion() == RedactionCompletion::Complete {
+            Ok(self.text)
+        } else {
+            Err(self.summary)
+        }
+    }
+
+    /// Consumes the output and returns a caller-selected marker when it is
+    /// incomplete.
+    ///
+    /// The marker is escaped before becoming [`RedactedText`], so it remains
+    /// safe for diagnostic presentation.
     #[must_use]
-    pub fn into_text(self) -> RedactedText {
-        self.text
+    pub fn into_text_or_marker(self, marker: &str) -> RedactedText {
+        self.into_complete_text().unwrap_or_else(|_| {
+            RedactedText::from_escaped(
+                crate::output::log_escape::escape_log_control_characters(std::borrow::Cow::Borrowed(marker))
+                    .into_owned(),
+            )
+        })
     }
 
     /// Consumes the output and returns both parts.
     #[must_use]
     pub fn into_parts(self) -> (RedactedText, RedactionSummary) {
         (self.text, self.summary)
-    }
-}
-
-#[cfg(feature = "serde")]
-impl serde::Serialize for RedactionTextOutput {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(self.text.as_str())
     }
 }

@@ -16,7 +16,7 @@ redaction result is owned.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5", features = ["derive"] }
+qubit-redact = { version = "0.5" }
 ```
 
 ## Quick Start
@@ -34,22 +34,36 @@ let output = Redactor::standard()
 
 assert!(output.text().as_str().contains("ada"));
 assert!(!output.text().as_str().contains("raw-password"));
+let text = output
+    .into_complete_text()
+    .expect("the default budget must retain this example");
+assert!(text.as_str().contains("ada"));
 ```
 
 For a domain type, implement `Redact` or use
 [`qubit-redact-derive`](https://crates.io/crates/qubit-redact-derive):
 
 ```rust
-use qubit_redact::RedactionWriter;
+use qubit_redact::{Redact, RedactionWriter, Sensitivity};
 
-pub trait Redact {
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_>);
+struct Login { user: String, password: String }
+
+impl Redact for Login {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("Login", |fields| {
+            fields.unmarked("user", || self.user.as_str());
+            fields.sensitive(Sensitivity::Secret, "password", || self.password.as_str());
+        });
+    }
 }
 ```
 
 Then call `Redactor::standard().redact(&value)` or construct an explicit policy
-with `Redactor::new(policy)`. The runtime has no mutable redaction trait and does
-not mutate or erase the source value.
+with `Redactor::new(policy)`. Inspect `output.summary().completion()` before
+presentation: `into_complete_text()` rejects incomplete output and
+`into_text_or_marker("<redaction incomplete>")` makes a fallback explicit.
+The runtime has no mutable redaction trait and does not mutate or erase the
+source value.
 
 ## Capabilities
 
@@ -58,7 +72,7 @@ not mutate or erase the source value.
 - inspection APIs that report matched rules without emitting raw values;
 - parsed `serde_json::Value` APIs that borrow and leave the input unchanged;
 - batch APIs that share one budget and summary across related values;
-- optional `serde` and derive integrations.
+- opt-in `serde` and derive integrations; the default feature set is minimal.
 
 Disabled policies preserve raw output for explicit local opt-out use. Treat that
 mode as a deliberate boundary decision and never use it for unreviewed logs.

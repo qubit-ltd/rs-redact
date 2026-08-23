@@ -126,8 +126,27 @@ fn redaction_output_preserves_parts_across_all_public_accessors() {
     assert_eq!(output.text().as_str(), "<redacted>");
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
 
-    let text = output.into_text();
+    let text = output.into_complete_text().expect("field output must be complete");
     assert_eq!(text.into_string(), "<redacted>");
+}
+
+/// Verifies incomplete output requires an explicit fallback presentation.
+#[test]
+fn redaction_output_rejects_incomplete_text_and_uses_the_selected_marker() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_output_bytes(1);
+        })
+        .expect("limit configuration should be valid")
+        .build()
+        .expect("policy should build");
+    let output = Redactor::new(policy).redact_field("password", "raw-password");
+
+    assert!(output.clone().into_complete_text().is_err());
+    assert_eq!(
+        output.into_text_or_marker("<redaction incomplete>").as_str(),
+        "<redaction incomplete>",
+    );
 }
 
 /// Verifies the owned-text alias consumes the same safe final representation.
@@ -135,7 +154,8 @@ fn redaction_output_preserves_parts_across_all_public_accessors() {
 fn redacted_text_into_string_returns_the_final_safe_text() {
     let text = Redactor::standard()
         .redact_field("password", "raw-password")
-        .into_text();
+        .into_complete_text()
+        .expect("field output must be complete");
 
     assert_eq!(text.into_string(), "<redacted>");
 }

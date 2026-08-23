@@ -165,29 +165,6 @@ impl RedactionUsage {
         self.visited_collection_items = self.visited_collection_items.saturating_add(1);
         self
     }
-
-    /// Merges two independently measured operation usages.
-    #[must_use]
-    const fn merge(self, other: Self) -> Self {
-        Self {
-            presented_input_bytes: self.presented_input_bytes.saturating_add(other.presented_input_bytes),
-            inspected_input_bytes: self.inspected_input_bytes.saturating_add(other.inspected_input_bytes),
-            output_bytes: self.output_bytes.saturating_add(other.output_bytes),
-            visited_nodes: self.visited_nodes.saturating_add(other.visited_nodes),
-            visited_collection_items: self
-                .visited_collection_items
-                .saturating_add(other.visited_collection_items),
-            max_depth: if self.max_depth > other.max_depth {
-                self.max_depth
-            } else {
-                other.max_depth
-            },
-            omitted_input_bytes: match (self.omitted_input_bytes, other.omitted_input_bytes) {
-                (Some(left), Some(right)) => Some(left.saturating_add(right)),
-                _ => None,
-            },
-        }
-    }
 }
 
 /// Compact set of summary reasons.
@@ -246,22 +223,6 @@ impl RedactionSummary {
         }
     }
 
-    /// Merges completion and reasons from two operations.
-    #[must_use]
-    pub(crate) const fn merge(self, other: Self) -> Self {
-        let completion = match (self.completion, other.completion) {
-            (RedactionCompletion::Exhausted, _) | (_, RedactionCompletion::Exhausted) => RedactionCompletion::Exhausted,
-            (RedactionCompletion::Truncated, _) | (_, RedactionCompletion::Truncated) => RedactionCompletion::Truncated,
-            _ => RedactionCompletion::Complete,
-        };
-        Self {
-            redaction_disabled: self.redaction_disabled || other.redaction_disabled,
-            completion,
-            reasons: self.reasons.union(other.reasons),
-            usage: self.usage.merge(other.usage),
-        }
-    }
-
     /// Creates a complete summary.
     #[must_use]
     pub(crate) const fn complete() -> Self {
@@ -269,17 +230,6 @@ impl RedactionSummary {
             redaction_disabled: false,
             completion: RedactionCompletion::Complete,
             reasons: RedactionReasons::empty(),
-            usage: RedactionUsage::empty(),
-        }
-    }
-
-    /// Creates a complete summary that records non-truncating provenance.
-    #[must_use]
-    pub(crate) const fn complete_with_reason(reason: RedactionReason) -> Self {
-        Self {
-            redaction_disabled: false,
-            completion: RedactionCompletion::Complete,
-            reasons: RedactionReasons::empty().with(reason),
             usage: RedactionUsage::empty(),
         }
     }

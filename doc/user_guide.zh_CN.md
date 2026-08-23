@@ -6,6 +6,17 @@
 源对象：`Redactor` 持有不可变策略快照，每个 composer 或 batch 独占一份预算，只发布
 最终文本与摘要。
 
+## completion 是结果的一部分
+
+每个渲染入口都会返回 `RedactionTextOutput`：安全文本和 `RedactionSummary`。只有
+`Complete` 的结果可以用 `into_complete_text()` 取走文本；`Truncated` 或 `Exhausted`
+会返回摘要，调用方必须决定本地展示策略。需要明确的降级标记时，使用
+`into_text_or_marker("<redaction incomplete>")`，不要静默把部分 URL、请求头或命令描述
+当作完整信息展示。
+
+`Truncated` 至少保留了非空的安全替代文本；`Exhausted` 表示共享输出预算无法容纳完整替代。
+`reasons()` 可说明 JSON、form、multipart 等解析降级及预算原因。
+
 ## 1. 渲染领域值
 
 实现小型运行时 trait，或在下游 crate 中使用 derive：

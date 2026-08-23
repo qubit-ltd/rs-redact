@@ -14,7 +14,7 @@ JSON、HTTP 值、URI、环境变量和进程参数。源对象只被借用，�
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5", features = ["derive"] }
+qubit-redact = { version = "0.5" }
 ```
 
 ## 快速开始
@@ -32,21 +32,34 @@ let output = Redactor::standard()
 
 assert!(output.text().as_str().contains("ada"));
 assert!(!output.text().as_str().contains("raw-password"));
+let text = output
+    .into_complete_text()
+    .expect("the default budget must retain this example");
+assert!(text.as_str().contains("ada"));
 ```
 
 领域类型可自行实现 `Redact`，或使用
 [`qubit-redact-derive`](https://crates.io/crates/qubit-redact-derive)：
 
 ```rust
-use qubit_redact::RedactionWriter;
+use qubit_redact::{Redact, RedactionWriter, Sensitivity};
 
-pub trait Redact {
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_>);
+struct Login { user: String, password: String }
+
+impl Redact for Login {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("Login", |fields| {
+            fields.unmarked("user", || self.user.as_str());
+            fields.sensitive(Sensitivity::Secret, "password", || self.password.as_str());
+        });
+    }
 }
 ```
 
 调用 `Redactor::standard().redact(&value)`，或用 `Redactor::new(policy)` 构造显式策略。
-运行时没有可变脱敏 trait，不会修改或擦除源对象。
+输出包含文本和摘要。展示前应检查 `output.summary().completion()`：
+`into_complete_text()` 会拒绝不完整输出，`into_text_or_marker("<redaction incomplete>")`
+要求调用方明确选择降级标记。运行时没有可变脱敏 trait，不会修改或擦除源对象。
 
 ## 能力
 
@@ -55,7 +68,7 @@ pub trait Redact {
 - 只报告匹配规则而不输出原始值的 inspection API；
 - 借用 `serde_json::Value` 且保持输入不变的解析 JSON API；
 - 在一批相关值之间共享预算和摘要的 batch API；
-- 可选的 `serde` 与 derive 集成。
+- 可选的 `serde` 与 derive 集成；默认 feature 集保持最小化。
 
 禁用策略会保留原始输出，只应作为明确的本地退出边界使用，不能用于未经审查的日志。
 
