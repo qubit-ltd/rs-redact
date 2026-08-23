@@ -118,3 +118,59 @@ fn disabled_policy_restores_http_url_headers_and_body() {
     );
     assert!(body_output.text().as_str().contains("body-secret"));
 }
+
+#[cfg(feature = "http")]
+#[test]
+fn test_disabled_policy_restores_invalid_http_json_without_validation() {
+    use http::HeaderValue;
+    use qubit_redact::formats::http::BodyCapture;
+
+    let body = b"not valid JSON: raw-secret";
+    let output = Redactor::new(RedactionPolicy::disabled()).redact_http_body(
+        BodyCapture::complete(body),
+        Some(&HeaderValue::from_static("application/json")),
+    );
+
+    assert_eq!(output.text().as_str(), "not valid JSON: raw-secret");
+    assert!(output.summary().is_redaction_disabled());
+}
+
+#[cfg(feature = "http")]
+#[test]
+fn test_disabled_policy_restores_other_invalid_structured_http_bodies() {
+    use http::HeaderValue;
+    use qubit_redact::formats::http::BodyCapture;
+
+    let composer = Redactor::new(RedactionPolicy::disabled())
+        .text_composer()
+        .http(|http| {
+            let _ = http.body_with_content_type_text(
+                BodyCapture::complete(b"password=%ZZraw-secret"),
+                Some("application/x-www-form-urlencoded"),
+            );
+        })
+        .finish();
+    assert_eq!(composer.text().as_str(), "password=%ZZraw-secret");
+    assert!(composer.summary().is_redaction_disabled());
+
+    let mut batch = Redactor::new(RedactionPolicy::disabled()).batch();
+    let ndjson = batch.redact_http_body(
+        BodyCapture::complete(b"not-json: raw-ndjson-secret"),
+        Some(&HeaderValue::from_static("application/x-ndjson")),
+    );
+    let multipart = batch.redact_http_body(
+        BodyCapture::complete(b"malformed multipart raw-secret"),
+        Some(&HeaderValue::from_static("multipart/form-data")),
+    );
+    let output = batch.finish();
+
+    assert_eq!(
+        output.resolve(ndjson).expect("NDJSON handle").text().as_str(),
+        "not-json: raw-ndjson-secret",
+    );
+    assert_eq!(
+        output.resolve(multipart).expect("multipart handle").text().as_str(),
+        "malformed multipart raw-secret",
+    );
+    assert!(output.summary().is_redaction_disabled());
+}

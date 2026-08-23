@@ -25,6 +25,7 @@ use super::BodyRenderStatus;
 use super::FieldRedactor;
 use super::TextBodyPolicy;
 use super::UrlPathPolicy;
+use super::admitted_body::AdmittedBody;
 use super::internal::BoundedLogWriter;
 use super::internal::ParsedBody;
 use super::internal::content_type;
@@ -142,80 +143,18 @@ impl HttpPolicyExecutor<'_> {
         }
     }
 
-    /// Redacts a checked body capture under hard input and output limits.
+    /// Redacts a checked body while reusing any structured value built during
+    /// admission.
     ///
-    /// Parsers can observe only the prefix selected before dispatch. The final
-    /// representation is escaped first and then bounded with a complete
-    /// truncation marker.
-    ///
-    /// # Parameters
-    ///
-    /// * `capture` - Checked complete or source-truncated body capture.
-    /// * `content_type` - Optional Content-Type used for parser selection.
-    ///
-    /// # Returns
-    ///
-    /// A bounded result exposing only log-safe text and truthful metadata.
+    /// The admitted representation is consumed exactly once. Invalid content
+    /// types and syntactically invalid structured bodies remain fail-closed.
     #[must_use]
-    fn redact_body(
-        &self,
-        capture: BodyCapture<'_>,
-        content_type: Option<&HeaderValue>,
-        output_limit: usize,
-    ) -> HttpRendered {
-        let (content_type, invalid_content_type) = match content_type {
-            Some(value) => match value.to_str() {
-                Ok(value) => (Some(value), false),
-                Err(_) => (None, true),
-            },
-            None => (None, false),
-        };
-        self.redact_body_with_content_type(capture, content_type, invalid_content_type, output_limit)
-    }
-
-    /// Redacts a checked body capture selected by optional Content-Type text.
-    ///
-    /// This accepts text from callers that do not retain a native HTTP header.
-    /// Malformed Content-Type syntax is redacted fail-closed.
-    ///
-    /// # Parameters
-    ///
-    /// * `capture` - Checked complete or source-truncated body capture.
-    /// * `content_type` - Optional Content-Type text used for parser selection.
-    ///
-    /// # Returns
-    ///
-    /// A bounded result exposing only log-safe text and truthful metadata.
-    #[must_use]
-    fn redact_body_with_content_type_text(
-        &self,
-        capture: BodyCapture<'_>,
-        content_type: Option<&str>,
-        output_limit: usize,
-    ) -> HttpRendered {
-        let invalid_content_type = false;
-        self.redact_body_with_content_type(capture, content_type, invalid_content_type, output_limit)
-    }
-
-    /// Redacts a checked body capture after normalizing Content-Type input.
-    ///
-    /// # Parameters
-    ///
-    /// * `capture` - Checked complete or source-truncated body capture.
-    /// * `content_type` - UTF-8 Content-Type text available for parser
-    ///   selection.
-    /// * `invalid_content_type` - Whether a supplied header was non-UTF-8 or
-    ///   exceeded the diagnostic input budget.
-    ///
-    /// # Returns
-    ///
-    /// A bounded result exposing only log-safe text and truthful metadata.
-    #[must_use]
-    fn redact_body_with_content_type(
+    fn redact_body_with_content_type_and_admission(
         &self,
         capture: BodyCapture<'_>,
         content_type: Option<&str>,
         invalid_content_type: bool,
+        mut admitted: AdmittedBody,
         output_limit: usize,
     ) -> HttpRendered {
         if self.policy.is_disabled() {
@@ -233,7 +172,16 @@ impl HttpPolicyExecutor<'_> {
         let parsed = if invalid_content_type {
             Self::invalid_content_type_body()
         } else {
-            self.redact_body_inner(bounded, content_type, truncated, output_limit)
+            match &mut admitted {
+                AdmittedBody::Json(value) => self.redact_json_value(bounded, value, truncated, output_limit),
+                AdmittedBody::InvalidJson => Self::invalid_json_body(),
+                AdmittedBody::Ndjson {
+                    lines,
+                    trailing_newline,
+                } => self.redact_ndjson_values(lines, *trailing_newline, truncated, output_limit),
+                AdmittedBody::InvalidNdjson => Self::invalid_ndjson_body(),
+                AdmittedBody::Other => self.redact_body_inner(bounded, content_type, truncated, output_limit),
+            }
         };
         Self::finish_body_redaction(parsed, capture, input_len, budget_truncated, output_limit)
     }
@@ -443,13 +391,29 @@ impl HttpPolicyExecutor<'_> {
             );
         }
         if matches!(&content_type, Some(content_type::ContentType::Ndjson)) {
-            return self.redact_ndjson(bounded, truncated, output_limit);
+            return if truncated {
+                ParsedBody::new(
+                    markers::INVALID_OR_TRUNCATED_NDJSON.to_string(),
+                    BodyRenderStatus::Redacted(BodyRenderReason::InvalidOrTruncatedNdjson),
+                    false,
+                )
+            } else {
+                Self::invalid_ndjson_body()
+            };
         }
         let trimmed = body::trim_ascii_whitespace(bounded);
         if matches!(&content_type, Some(content_type::ContentType::Json))
             || (content_type.is_none() && matches!(trimmed.first(), Some(b'{') | Some(b'[')))
         {
-            return self.redact_json(bounded, truncated, output_limit);
+            return if truncated {
+                ParsedBody::new(
+                    markers::INVALID_OR_TRUNCATED_JSON.to_string(),
+                    BodyRenderStatus::Redacted(BodyRenderReason::InvalidOrTruncatedJson),
+                    false,
+                )
+            } else {
+                Self::invalid_json_body()
+            };
         }
         if matches!(&content_type, Some(content_type::ContentType::Form)) {
             return self.redact_body_form(bounded, truncated, output_limit);
@@ -461,19 +425,18 @@ impl HttpPolicyExecutor<'_> {
         )
     }
 
-    /// Redacts one bounded JSON document.
+    /// Redacts one admitted JSON tree without parsing its source again.
     ///
-    /// # Parameters
-    ///
-    /// * `bounded` - Complete bounded JSON bytes.
-    /// * `truncated` - Whether source bytes follow the prefix.
-    ///
-    /// # Returns
-    ///
-    /// Redacted JSON or a fixed fail-closed marker, status, and
-    /// rendering-truncation state.
+    /// Source truncation and bounded array output retain the same diagnostic
+    /// markers as the direct parser path.
     #[must_use]
-    fn redact_json(&self, bounded: &[u8], truncated: bool, output_limit: usize) -> ParsedBody {
+    fn redact_json_value(
+        &self,
+        bounded: &[u8],
+        value: &mut serde_json::Value,
+        truncated: bool,
+        output_limit: usize,
+    ) -> ParsedBody {
         if truncated {
             return ParsedBody::new(
                 markers::INVALID_OR_TRUNCATED_JSON.to_string(),
@@ -481,22 +444,15 @@ impl HttpPolicyExecutor<'_> {
                 false,
             );
         }
-        if matches!(bounded.first(), Some(b'[')) && bounded.len() > output_limit {
+        if matches!(value, serde_json::Value::Array(_)) && bounded.len() > output_limit {
             return ParsedBody::new(markers::TRUNCATED.to_string(), BodyRenderStatus::Structured, true);
         }
-        let Ok(mut value) = serde_json::from_slice(bounded) else {
-            return ParsedBody::new(
-                markers::INVALID_JSON.to_string(),
-                BodyRenderStatus::Redacted(BodyRenderReason::InvalidJson),
-                false,
-            );
-        };
         let passed = json::redact(
             &self.body_field_redactor(),
-            &mut value,
+            value,
             self.policy.unkeyed_json_value_policy(),
         );
-        match json::serialize_bounded(&value, output_limit) {
+        match json::serialize_bounded(value, output_limit) {
             Some((text, rendered_truncated)) => ParsedBody::new(
                 text,
                 if passed {
@@ -514,6 +470,16 @@ impl HttpPolicyExecutor<'_> {
         }
     }
 
+    /// Creates the fail-closed result for syntactically invalid JSON.
+    #[must_use]
+    fn invalid_json_body() -> ParsedBody {
+        ParsedBody::new(
+            markers::INVALID_JSON.to_string(),
+            BodyRenderStatus::Redacted(BodyRenderReason::InvalidJson),
+            false,
+        )
+    }
+
     /// Creates the fail-closed result for an invalid Content-Type.
     ///
     /// # Returns
@@ -528,19 +494,18 @@ impl HttpPolicyExecutor<'_> {
         )
     }
 
-    /// Redacts newline-delimited JSON from a bounded slice.
+    /// Redacts admitted NDJSON values without parsing their source lines again.
     ///
-    /// # Parameters
-    ///
-    /// * `bounded` - Complete bounded NDJSON bytes.
-    /// * `truncated` - Whether source bytes follow the prefix.
-    ///
-    /// # Returns
-    ///
-    /// Redacted NDJSON or a fixed fail-closed marker, status, and
-    /// rendering-truncation state.
+    /// Empty line positions and a final newline are retained in the rendered
+    /// representation before log-control escaping.
     #[must_use]
-    fn redact_ndjson(&self, bounded: &[u8], truncated: bool, output_limit: usize) -> ParsedBody {
+    fn redact_ndjson_values(
+        &self,
+        lines: &mut [Option<serde_json::Value>],
+        trailing_newline: bool,
+        truncated: bool,
+        output_limit: usize,
+    ) -> ParsedBody {
         if truncated {
             return ParsedBody::new(
                 markers::INVALID_OR_TRUNCATED_NDJSON.to_string(),
@@ -548,9 +513,10 @@ impl HttpPolicyExecutor<'_> {
                 false,
             );
         }
-        match json::redact_ndjson(
+        match json::redact_ndjson_values(
             &self.body_field_redactor(),
-            bounded,
+            lines,
+            trailing_newline,
             self.policy.unkeyed_json_value_policy(),
             output_limit,
         ) {
@@ -563,12 +529,18 @@ impl HttpPolicyExecutor<'_> {
                 },
                 rendered_truncated,
             ),
-            None => ParsedBody::new(
-                markers::INVALID_NDJSON.to_string(),
-                BodyRenderStatus::Redacted(BodyRenderReason::InvalidNdjson),
-                false,
-            ),
+            None => Self::invalid_ndjson_body(),
         }
+    }
+
+    /// Creates the fail-closed result for syntactically invalid NDJSON.
+    #[must_use]
+    fn invalid_ndjson_body() -> ParsedBody {
+        ParsedBody::new(
+            markers::INVALID_NDJSON.to_string(),
+            BodyRenderStatus::Redacted(BodyRenderReason::InvalidNdjson),
+            false,
+        )
     }
 
     /// Redacts a bounded URL-encoded body.
@@ -734,26 +706,46 @@ pub(crate) fn redact_headers_with_policy(
     HttpPolicyExecutor { policy }.redact_headers_with_limit(headers, output_limit)
 }
 
-/// Redacts a captured body through a parent session's immutable policy
-/// snapshot.
+/// Redacts a captured body while reusing structure built by session admission.
 #[must_use]
-pub(crate) fn redact_body_with_policy(
+pub(super) fn redact_admitted_body_with_policy(
     policy: &RedactionPolicy,
     capture: BodyCapture<'_>,
     content_type: Option<&HeaderValue>,
+    admitted: AdmittedBody,
     output_limit: usize,
 ) -> HttpRendered {
-    HttpPolicyExecutor { policy }.redact_body(capture, content_type, output_limit)
+    let (content_type, invalid_content_type) = match content_type {
+        Some(value) => match value.to_str() {
+            Ok(value) => (Some(value), false),
+            Err(_) => (None, true),
+        },
+        None => (None, false),
+    };
+    HttpPolicyExecutor { policy }.redact_body_with_content_type_and_admission(
+        capture,
+        content_type,
+        invalid_content_type,
+        admitted,
+        output_limit,
+    )
 }
 
-/// Redacts a captured body with textual content type through a parent policy
-/// snapshot.
+/// Redacts a captured body selected by text Content-Type while reusing
+/// structure built by session admission.
 #[must_use]
-pub(crate) fn redact_body_with_content_type_text_with_policy(
+pub(super) fn redact_admitted_body_with_content_type_text_with_policy(
     policy: &RedactionPolicy,
     capture: BodyCapture<'_>,
     content_type: Option<&str>,
+    admitted: AdmittedBody,
     output_limit: usize,
 ) -> HttpRendered {
-    HttpPolicyExecutor { policy }.redact_body_with_content_type_text(capture, content_type, output_limit)
+    HttpPolicyExecutor { policy }.redact_body_with_content_type_and_admission(
+        capture,
+        content_type,
+        false,
+        admitted,
+        output_limit,
+    )
 }

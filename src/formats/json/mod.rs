@@ -14,12 +14,10 @@ pub(crate) mod inspection;
 mod json_admission_error;
 mod json_redaction_writer;
 #[cfg(test)]
-mod parse_counter;
+pub(crate) mod parse_counter;
 
 pub(crate) use json_admission_error::JsonAdmissionError;
 pub use json_redaction_writer::JsonRedactionWriter;
-#[cfg(feature = "http")]
-pub(crate) use json_redaction_writer::admit_json_text_structure;
 #[cfg(feature = "http")]
 pub(crate) use json_redaction_writer::admit_json_text_structure_at_depth;
 pub(crate) use json_redaction_writer::admit_json_text_value;

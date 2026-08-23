@@ -22,15 +22,6 @@ use crate::output::log_escape::escape_log_control_characters;
 use crate::runtime::OperationSink;
 use crate::runtime::RenderedOperation;
 
-/// Admits every JSON node and collection element through the supplied
-/// transaction before a renderer may traverse the parsed value. Returns
-/// `false` at the first rejected element; no later sibling is visited.
-#[must_use]
-#[cfg(feature = "http")]
-pub(crate) fn admit_json_text_structure(session: &mut RedactionSession, text: &str) -> bool {
-    admit_json_text_structure_at_depth(session, text, 1)
-}
-
 /// Admits JSON text whose root is nested at `root_depth` in another format.
 #[must_use]
 #[cfg(feature = "http")]

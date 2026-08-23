@@ -106,10 +106,54 @@ pub(in crate::formats::http) fn redact_ndjson(
         if line.trim().is_empty() {
             continue;
         }
+        #[cfg(test)]
+        crate::formats::json::parse_counter::record_json_parse();
         let mut value = from_str(line).ok()?;
         let line_passed = redact(redactor, &mut value, unkeyed);
         passed |= line_passed;
         if to_writer(&mut output, &value).is_err() {
+            return output.into_string().map(|text| (text, passed, true));
+        }
+    }
+    if trailing_newline && output.write_all(b"\n").is_err() {
+        return output.into_string().map(|text| (text, passed, true));
+    }
+    output.into_string().map(|text| (text, passed, false))
+}
+
+/// Redacts already admitted NDJSON values without parsing their source again.
+///
+/// # Parameters
+///
+/// * `redactor` - Structured-body field redactor.
+/// * `lines` - Parsed values and empty records in source-line order.
+/// * `trailing_newline` - Whether the source ended with a newline.
+/// * `unkeyed` - Policy for unkeyed scalar values.
+/// * `max_output_bytes` - Maximum final rendered NDJSON bytes.
+///
+/// # Returns
+///
+/// Redacted NDJSON, a pass-through flag, and a rendering-truncation flag, or
+/// `None` if the bounded writer cannot produce UTF-8 text.
+#[must_use]
+pub(in crate::formats::http) fn redact_ndjson_values(
+    redactor: &FieldRedactor<'_>,
+    lines: &mut [Option<Value>],
+    trailing_newline: bool,
+    unkeyed: UnkeyedJsonValuePolicy,
+    max_output_bytes: usize,
+) -> Option<(String, bool, bool)> {
+    let mut output = BoundedBodyWriter::new(max_output_bytes);
+    let mut passed = false;
+    for (index, line) in lines.iter_mut().enumerate() {
+        if index > 0 && output.write_all(b"\n").is_err() {
+            return output.into_string().map(|text| (text, passed, true));
+        }
+        let Some(value) = line else {
+            continue;
+        };
+        passed |= redact(redactor, value, unkeyed);
+        if to_writer(&mut output, value).is_err() {
             return output.into_string().map(|text| (text, passed, true));
         }
     }

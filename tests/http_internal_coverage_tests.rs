@@ -112,6 +112,24 @@ fn test_http_multipart_covers_sensitive_json_text_and_invalid_boundaries() {
 }
 
 #[test]
+fn test_http_multipart_redacts_ndjson_parts_and_rejects_invalid_records() {
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let body = b"--boundary\r\nContent-Disposition: form-data; name=\"events\"\r\nContent-Type: application/x-ndjson\r\n\r\n{\"password\":\"first-secret\"}\n\n{\"token\":\"second-secret\"}\n\r\n--boundary--\r\n";
+    let output = Redactor::standard().redact_http_body(BodyCapture::complete(body), Some(&content_type));
+    let rendered = output.text().as_str();
+
+    assert!(!rendered.contains("first-secret"));
+    assert!(!rendered.contains("second-secret"));
+    assert!(rendered.contains("<multipart>"));
+
+    let invalid = b"--boundary\r\nContent-Disposition: form-data; name=\"events\"\r\nContent-Type: application/x-ndjson\r\n\r\n{\"password\":\"first-secret\"}\nnot-json second-secret\r\n--boundary--\r\n";
+    let output = Redactor::standard().redact_http_body(BodyCapture::complete(invalid), Some(&content_type));
+
+    assert!(!output.text().as_str().contains("first-secret"));
+    assert!(!output.text().as_str().contains("second-secret"));
+}
+
+#[test]
 fn test_http_context_rules_are_independent_and_sensitive_headers_override_allowance() {
     let redactor = configured_redactor(|builder| {
         *builder = std::mem::take(builder)
@@ -171,4 +189,27 @@ fn test_http_tiny_output_budget_marks_truncation_without_exposing_body() {
     assert!(!output.text().as_str().contains("raw-secret"));
     assert_ne!(output.summary().completion(), RedactionCompletion::Complete);
     assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+
+    let ndjson = redactor.redact_http_body(
+        BodyCapture::complete(b"{\"password\":\"first-secret\"}\n{\"token\":\"second-secret\"}\n"),
+        Some(&HeaderValue::from_static("application/x-ndjson")),
+    );
+
+    assert!(!ndjson.text().as_str().contains("first-secret"));
+    assert!(!ndjson.text().as_str().contains("second-secret"));
+    assert_ne!(ndjson.summary().completion(), RedactionCompletion::Complete);
+    assert!(ndjson.summary().reasons().contains(RedactionReason::OutputLimitReached));
+
+    let separator_limited = redactor.redact_http_body(
+        BodyCapture::complete(b"{\"a\":\"bbbb\"}\n{}"),
+        Some(&HeaderValue::from_static("application/x-ndjson")),
+    );
+
+    assert_ne!(separator_limited.summary().completion(), RedactionCompletion::Complete);
+    assert!(
+        separator_limited
+            .summary()
+            .reasons()
+            .contains(RedactionReason::OutputLimitReached)
+    );
 }
