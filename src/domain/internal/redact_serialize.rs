@@ -5,6 +5,10 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::fmt;
+
+#[cfg(feature = "serde")]
+use bigdecimal::BigDecimal;
 
 mod serde {
     pub use ::serde::Serialize;
@@ -131,6 +135,58 @@ fn admit_input(bytes: usize) -> bool {
         state.input_bytes = next;
         true
     })
+}
+
+/// Returns the input bytes still available to the active structured serializer.
+#[must_use]
+fn remaining_input_bytes() -> usize {
+    STRUCTURED_SERDE_BUDGET.with(|slot| {
+        let state = slot.borrow();
+        state.as_ref().map_or(usize::MAX, |state| {
+            state.policy.max_input_bytes().saturating_sub(state.input_bytes)
+        })
+    })
+}
+
+/// Accumulates one display value without allocating past its input allowance.
+struct BoundedDisplayWriter {
+    output: String,
+    remaining: usize,
+}
+
+impl BoundedDisplayWriter {
+    /// Creates a writer limited to `remaining` UTF-8 bytes.
+    #[must_use]
+    fn new(remaining: usize) -> Self {
+        Self {
+            output: String::new(),
+            remaining,
+        }
+    }
+
+    /// Returns the complete formatted value after successful formatting.
+    #[must_use]
+    fn finish(self) -> String {
+        self.output
+    }
+}
+
+impl fmt::Write for BoundedDisplayWriter {
+    /// Appends a complete fragment or stops formatting before exceeding the
+    /// configured input allowance.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the complete fragment does not fit. No
+    /// partial fragment is retained in that case.
+    fn write_str(&mut self, value: &str) -> fmt::Result {
+        if value.len() > self.remaining {
+            return Err(fmt::Error);
+        }
+        self.output.push_str(value);
+        self.remaining -= value.len();
+        Ok(())
+    }
 }
 
 /// Runs one generated structured serializer under the shared budget.
@@ -433,7 +489,7 @@ macro_rules! scalar_level_serialize {
                 S: serde::Serializer,
             {
                 if policy.is_disabled() {
-                    serde::Serialize::serialize(self, serializer)
+                    serialize_disabled_display(self, serializer, policy)
                 } else {
                     serialize_masked_display(self, serializer, policy, level)
                 }
@@ -455,8 +511,50 @@ where
     if matches!(level, crate::Sensitivity::High | crate::Sensitivity::Secret) {
         return serializer.serialize_str(policy.masking().mask_opaque(level));
     }
-    let raw = value.to_string();
+    let Some(raw) = format_admitted_display(value) else {
+        return serializer.serialize_str(policy.masking().mask_opaque(crate::Sensitivity::Secret));
+    };
     serializer.serialize_str(policy.masking().mask(level, &raw).as_ref())
+}
+
+/// Serializes a raw disabled-mode scalar only after bounded input admission.
+///
+/// Values that exceed the remaining allowance serialize as the stable secret
+/// opaque mask instead of invoking their ordinary serializer.
+fn serialize_disabled_display<S, T>(
+    value: &T,
+    serializer: S,
+    policy: &crate::RedactionPolicy,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+    T: std::fmt::Display + serde::Serialize + ?Sized,
+{
+    if format_admitted_display(value).is_none() {
+        return serializer.serialize_str(policy.masking().mask_opaque(crate::Sensitivity::Secret));
+    }
+    serde::Serialize::serialize(value, serializer)
+}
+
+/// Formats and charges one scalar without allocating past the remaining input
+/// allowance.
+///
+/// Returns the complete formatted value after charging it, or `None` when
+/// formatting fails or the value exceeds the cumulative allowance.
+#[must_use]
+fn format_admitted_display<T>(value: &T) -> Option<String>
+where
+    T: std::fmt::Display + ?Sized,
+{
+    let mut writer = BoundedDisplayWriter::new(remaining_input_bytes());
+    if fmt::write(&mut writer, format_args!("{value}")).is_err() {
+        return None;
+    }
+    let raw = writer.finish();
+    if !admit_input(raw.len()) {
+        return None;
+    }
+    Some(raw)
 }
 
 scalar_level_serialize!(
@@ -464,7 +562,7 @@ scalar_level_serialize!(
 );
 
 #[cfg(feature = "serde")]
-impl RedactLevelSerialize for bigdecimal::BigDecimal {
+impl RedactLevelSerialize for BigDecimal {
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -475,7 +573,7 @@ impl RedactLevelSerialize for bigdecimal::BigDecimal {
         S: serde::Serializer,
     {
         if policy.is_disabled() {
-            serde::Serialize::serialize(self, serializer)
+            serialize_disabled_display(self, serializer, policy)
         } else {
             serialize_masked_display(self, serializer, policy, level)
         }
@@ -493,7 +591,7 @@ impl<'a> RedactLevelSerialize for Cow<'a, str> {
         S: serde::Serializer,
     {
         if policy.is_disabled() {
-            serde::Serialize::serialize(self, serializer)
+            serialize_disabled_display(self, serializer, policy)
         } else {
             serialize_masked_display(self, serializer, policy, level)
         }
@@ -511,7 +609,7 @@ impl RedactLevelSerialize for &str {
         S: serde::Serializer,
     {
         if policy.is_disabled() {
-            serde::Serialize::serialize(self, serializer)
+            serialize_disabled_display(self, serializer, policy)
         } else {
             serialize_masked_display(self, serializer, policy, level)
         }
@@ -971,3 +1069,36 @@ tuple_redact_serialize!(9; A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 
 tuple_redact_serialize!(10; A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 6, H => 7, I => 8, J => 9);
 tuple_redact_serialize!(11; A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 6, H => 7, I => 8, J => 9, K => 10);
 tuple_redact_serialize!(12; A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 6, H => 7, I => 8, J => 9, K => 10, L => 11);
+
+#[cfg(all(test, feature = "serde"))]
+mod tests {
+    use bigdecimal::BigDecimal;
+
+    use super::RedactSerializeScope;
+    use super::RedactedLevelSerializeRef;
+    use crate::RedactionPolicy;
+    use crate::Sensitivity;
+
+    /// Verifies decimal leaves use the same cumulative bounded formatter as
+    /// primitive structured values.
+    #[test]
+    fn test_big_decimal_level_values_share_the_input_budget() {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_input_bytes(4);
+            })
+            .expect("limits")
+            .build()
+            .expect("redaction policy");
+        let values = vec![
+            "123".parse::<BigDecimal>().expect("first decimal"),
+            "45".parse::<BigDecimal>().expect("second decimal"),
+        ];
+        let _scope = RedactSerializeScope::new(&policy);
+
+        let encoded = serde_json::to_value(RedactedLevelSerializeRef::new(&values, &policy, Sensitivity::Low))
+            .expect("structured decimal serialization");
+
+        assert_eq!(encoded[1], "<redacted>");
+    }
+}
