@@ -18,21 +18,32 @@ use crate::RedactionPolicy;
 use crate::RedactionReason;
 use crate::RedactionSummary;
 
+/// Holds policy, resource accounting, and publication-independent state.
 pub(super) struct RedactionRuntime {
+    /// Immutable policy snapshot shared by the active transaction.
     pub(super) policy: Arc<RedactionPolicy>,
+    /// Mutable resource ledger for the active transaction.
     pub(super) budget: RedactionBudget,
+    /// Aggregate summary accumulated across all operations.
     pub(super) summary: SummaryBuilder,
+    /// Whether future output is still admissible.
     pub(super) phase: TransactionPhase,
+    /// Summary scope for an individually published operation, when active.
     pub(super) active_operation_summary: Option<SummaryBuilder>,
+    /// Buffered output for the current structured domain frame.
     pub(super) domain_frame: String,
+    /// Number of bytes retained in the current domain frame.
     pub(super) domain_frame_output_bytes: usize,
+    /// Whether the current domain frame omitted output.
     pub(super) domain_frame_truncated: bool,
+    /// Whether the domain frame reached its output allowance.
     pub(super) domain_frame_output_limit_reached: bool,
     /// Sensitivity accumulator present only for non-rendering inspection.
     pub(super) inspection: Option<InspectionAccumulator>,
 }
 
 impl RedactionRuntime {
+    /// Creates runtime state for one active transaction.
     #[must_use]
     pub(super) fn new(policy: Arc<RedactionPolicy>) -> Self {
         let redaction_disabled = policy.is_disabled();
@@ -80,16 +91,19 @@ impl RedactionRuntime {
         (sensitivity, summary)
     }
 
+    /// Returns the immutable policy snapshot.
     #[inline(always)]
     #[must_use]
     pub(super) fn policy(&self) -> &RedactionPolicy {
         self.policy.as_ref()
     }
 
+    /// Consumes runtime state into its aggregate summary.
     pub(super) fn into_summary(self) -> RedactionSummary {
         self.summary.build(self.budget.usage())
     }
 
+    /// Starts isolated accounting for one individually published item.
     pub(super) fn begin_item_summary(&mut self) -> bool {
         if self.active_operation_summary.is_some() {
             return false;
@@ -99,6 +113,7 @@ impl RedactionRuntime {
         true
     }
 
+    /// Ends isolated accounting when this call created the item scope.
     pub(super) fn end_item_summary(&mut self, owns_item_summary: bool) {
         if owns_item_summary {
             self.active_operation_summary = None;
@@ -106,6 +121,7 @@ impl RedactionRuntime {
         }
     }
 
+    /// Merges one result summary into transaction and item summaries.
     pub(super) fn record_summary(&mut self, delta: RedactionSummary) {
         self.summary = self.summary.merge(delta);
         if let Some(item_summary) = self.active_operation_summary {
@@ -113,10 +129,12 @@ impl RedactionRuntime {
         }
     }
 
+    /// Charges retained output bytes to the active accounting scopes.
     pub(super) fn record_output_bytes(&mut self, bytes: usize) {
         self.budget.record_output_bytes(bytes);
     }
 
+    /// Admits one structured format node or records its rejection.
     #[must_use]
     pub(super) fn admit_format_node(&mut self, depth: usize) -> bool {
         match self.budget.structural().admit_format_node(depth) {
@@ -173,6 +191,7 @@ impl RedactionRuntime {
         true
     }
 
+    /// Enters one structured domain value or records its rejection.
     #[must_use]
     pub(super) fn begin_domain_value(&mut self) -> bool {
         match self.budget.structural().enter_value() {
@@ -192,6 +211,7 @@ impl RedactionRuntime {
         }
     }
 
+    /// Admits one field in the active structured domain value.
     #[must_use]
     #[inline(always)]
     pub(super) fn admit_domain_field(&mut self) -> bool {
@@ -205,6 +225,7 @@ impl RedactionRuntime {
         admission
     }
 
+    /// Admits one collection item in the active structured domain value.
     #[must_use]
     #[inline(always)]
     pub(super) fn admit_domain_collection_item(&mut self) -> bool {
@@ -217,11 +238,13 @@ impl RedactionRuntime {
         admission
     }
 
+    /// Releases the current structured domain-value depth.
     #[inline(always)]
     pub(super) fn leave_domain_value(&mut self) {
         self.budget.structural().leave_value();
     }
 
+    /// Admits a parsed JSON value through JSON-specific limits.
     #[cfg(feature = "json")]
     #[must_use]
     pub(super) fn admit_json_value(&mut self, value: &serde_json::Value) -> bool {
@@ -233,6 +256,7 @@ impl RedactionRuntime {
         }
     }
 
+    /// Returns output capacity not yet charged to this transaction.
     #[must_use]
     #[inline(always)]
     pub(super) fn remaining_output_bytes(&self) -> usize {
@@ -241,12 +265,14 @@ impl RedactionRuntime {
             .saturating_sub(self.budget.usage().output_bytes())
     }
 
+    /// Reports whether no further output can be admitted.
     #[must_use]
     #[inline(always)]
     pub(super) fn is_output_exhausted(&self) -> bool {
         self.phase == TransactionPhase::OutputExhausted || self.remaining_output_bytes() == 0
     }
 
+    /// Records output exhaustion and tells the caller to skip aggregate work.
     #[must_use]
     #[inline(always)]
     pub(super) fn skip_aggregate_for_exhausted_output(&mut self) -> bool {
@@ -258,6 +284,7 @@ impl RedactionRuntime {
         true
     }
 
+    /// Charges input bytes only when the whole input remains admissible.
     pub(super) fn admit_input(&mut self, bytes: usize) -> bool {
         let inspected = self.budget.usage().inspected_input_bytes();
         let limit = self.policy().limits().max_input_bytes();
@@ -270,6 +297,7 @@ impl RedactionRuntime {
         true
     }
 
+    /// Admits the UTF-8 prefix that fits in the remaining input allowance.
     #[cfg(any(feature = "json", feature = "http", feature = "uri"))]
     #[must_use]
     pub(super) fn admit_input_prefix<'text>(&mut self, text: &'text str) -> &'text str {
@@ -286,6 +314,7 @@ impl RedactionRuntime {
         &text[..admitted]
     }
 
+    /// Charges HTTP source input while preserving capture truncation metadata.
     #[cfg(feature = "http")]
     pub(super) fn admit_source_input(&mut self, total: Option<usize>, inspectable: usize) -> bool {
         let already_inspected = self.budget.usage().inspected_input_bytes();

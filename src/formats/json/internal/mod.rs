@@ -15,6 +15,8 @@ mod json_structure_seed;
 mod json_structure_visitor;
 #[cfg(feature = "http")]
 mod json_unkeyed_value_policy;
+mod redacted_value;
+mod value_context;
 
 #[cfg(feature = "http")]
 pub(crate) use json_redaction_outcome::JsonRedactionOutcome;
@@ -24,3 +26,4 @@ pub(super) use json_structure_seed::JsonStructureSeed;
 pub(super) use json_structure_visitor::JsonStructureVisitor;
 #[cfg(feature = "http")]
 pub(crate) use json_unkeyed_value_policy::JsonUnkeyedValuePolicy;
+pub(super) use redacted_value::RedactedValue;

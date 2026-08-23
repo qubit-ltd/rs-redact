@@ -117,10 +117,12 @@ impl RedactionBudget {
         }
     }
 
+    /// Borrows the structural budget for one admission decision.
     pub(super) fn structural(&mut self) -> &mut StructuralBudget {
         &mut self.structural
     }
 
+    /// Admits an entire parsed JSON tree atomically against JSON limits.
     #[cfg(feature = "json")]
     pub(super) fn admit_json_value(&mut self, root: &Value) -> bool {
         let mut transaction = self.json_budget.transaction();

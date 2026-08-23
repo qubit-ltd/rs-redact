@@ -40,6 +40,7 @@ use crate::policy::ResolvedField;
 /// per-session counter would allow two independent sessions to collide.
 static NEXT_TRANSACTION_ID: AtomicU64 = AtomicU64::new(1);
 
+/// Allocates the next process-wide identity for an unpublished transaction.
 #[inline(always)]
 fn next_transaction_id() -> u64 {
     NEXT_TRANSACTION_ID.fetch_add(1, Ordering::Relaxed)
