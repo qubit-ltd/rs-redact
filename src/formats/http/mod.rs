@@ -14,6 +14,7 @@
 //! use qubit_redact::formats::http::UnkeyedJsonValuePolicy;
 //! ```
 
+mod admitted_body;
 mod body_capture;
 mod body_capture_error;
 mod context_rules_builder;
