@@ -10,12 +10,14 @@
 `qubit-redact` 是策略感知的 Rust 脱敏运行时。它通过同一个有界诊断 session 处理领域对象、
 JSON、HTTP 值、URI、环境变量和进程参数。源对象只被借用，脱敏结果拥有自己的文本。
 
-## 快速开始
+## 安装
 
 ```toml
 [dependencies]
 qubit-redact = { version = "0.5", features = ["derive"] }
 ```
+
+## 快速开始
 
 ```rust
 use qubit_redact::Redactor;
@@ -57,17 +59,42 @@ pub trait Redact {
 
 禁用策略会保留原始输出，只应作为明确的本地退出边界使用，不能用于未经审查的日志。
 
-## 开发
+## 延伸阅读
+
+参见[英文用户手册](doc/user_guide.md)、[中文用户手册](doc/user_guide.zh_CN.md)、
+[API 文档](https://docs.rs/qubit-redact)和
+[derive 文档](https://docs.rs/qubit-redact-derive)。
+
+## 测试
 
 ```bash
-cargo test --all-features
-./align-ci.sh
-./ci-check.sh
-```
+# 使用默认 feature 集运行测试
+cargo test
 
-参见[英文用户手册](doc/user_guide.md)、[中文用户手册](doc/user_guide.zh_CN.md)和
-[derive 文档](https://docs.rs/qubit-redact-derive)。
+# 使用项目声明的全部 feature 运行测试
+cargo test --all-features
+
+# 运行项目 CI 检查
+./ci-check.sh
+
+# 检查代码覆盖率
+./coverage.sh
+```
 
 ## 许可证
 
-Apache-2.0，详见 [LICENSE](LICENSE)。
+Copyright (c) 2025 - 2026. Haixing Hu. All rights reserved.
+
+本项目基于 Apache License 2.0 授权。完整许可证文本请参阅
+[LICENSE](LICENSE)。
+
+## 贡献
+
+欢迎贡献。请遵循 Rust API 指南，及时更新公共 API 文档与测试，并在提交
+Pull Request 前运行 `./align-ci.sh`格式化代码，运行`./ci-check.sh`对齐CI要求。
+
+## 作者
+
+**Haixing Hu** - *Qubit Co. Ltd.*
+
+仓库地址：[https://github.com/qubit-ltd/rs-redact](https://github.com/qubit-ltd/rs-redact)

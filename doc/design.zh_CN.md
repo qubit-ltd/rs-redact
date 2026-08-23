@@ -232,8 +232,8 @@ Low < Medium < High < Secret
 - `Redactor::application_default()` 返回进程级完整快照；
 - `replace_application_default()` 在线性化写锁下替换完整 redactor，并返回旧值；
 - 已创建的 redactor、composer、batch 和 inspection 保留原快照，不受之后替换影响；
-- `Redact::redacted()`、`inspected()`、derive `Debug`/`Display` 与 `RedactMut` 无参数入口使用
-  application default；显式 `_with` 入口只使用传入的 redactor 或 policy。
+- derive 生成的 `Debug`、`Display` 和结构化 `Serialize` 使用 application default；
+- `Redactor` 的显式 redaction、inspection、composer 与 batch 入口只使用该实例持有的 policy 快照。
 
 全局槽只保存不可变 redactor 快照，不保存活动预算或输出。
 
@@ -411,25 +411,20 @@ pub trait Redact {
 
 `unredacted` 是信任边界。框架不会根据字段名或内容推翻显式直通决定。
 
-### 10.2 原地修改
+### 10.2 借用输出
 
-`RedactMut`、`RedactValueMut` 和 `RedactMapValueMut` 支持在所有权与类型条件允许时原地替换敏感
-内容。它们与文本呈现共享分类与掩码语义，但不是发布 `RedactedText` 的替代路径。
-
-包含无法安全原地替换的借用字段时，类型必须只实现不可变脱敏，derive 侧通过
-`#[redact(no_mut)]` 明确关闭 `RedactMut` 生成。
+运行时只提供借用的 `Redact` 契约，不原地修改业务对象，也不生成脱敏后的业务对象副本。所有公开
+文本结果都经由 `Redactor`、composer 或 batch 发布，并携带同一事务生成的 summary。
 
 ## 11. Derive 模块
 
-`qubit-redact-derive` 为 struct 和 enum 生成 `Redact`，默认同时生成可行的 `RedactMut`。字段模式
-映射如下：
+`qubit-redact-derive` 为 struct 和 enum 生成 `Redact`。字段模式映射如下：
 
 | 属性 | 语义 |
 | --- | --- |
 | 无属性 | 在所有 policy 和 inspection 下永久按普通 `Debug` 明确直通 |
-| `#[redact(plain)]` | 显式直通 |
 | `#[redact(level = "...")]` | 以指定 sensitivity 为最低等级掩码 |
-| `#[redact(skip)]` | 不访问、不输出 |
+| `#[redact(skip)]` | 启用脱敏时不访问、不输出；禁用时恢复 |
 | `#[redact(nested)]` | 委托嵌套类型 |
 | `#[redact(map)]` | 按 map key 动态分类 |
 | `#[redact(json)]` | 解析字符串 JSON 并按 object key 分类 |
@@ -438,13 +433,11 @@ pub trait Redact {
 
 - `debug`：生成脱敏 `Debug`；
 - `display`：生成脱敏 `Display`；
-- `serde`：生成脱敏序列化支持；
-- `no_mut`：不生成原地脱敏实现；
-- `require_explicit`：要求每个字段显式选择模式。
+- `serde`：生成结构化脱敏 `Serialize` 和嵌套序列化 capability。
 
 > **警告：未标注字段永久直通。** strict、application default 和 inspection 都不会推断其
-> sensitivity。`#[redact(require_explicit)]` 只是可选的编译期审查辅助，不改变默认语义；
-> `#[redact(skip)]` 也会主动绕过脱敏。新增业务字段时必须重新审查标注。
+> sensitivity。新增业务字段时必须重新审查标注；需要隐藏的字段必须显式使用 `level`、`nested`、
+> `map`、`json` 或 `skip`。
 
 derive 需要正确处理 crate rename、泛型 bounds、tuple/unit 类型、enum tagging 和 serde 属性，错误
 必须在编译期给出针对性诊断。
@@ -567,7 +560,7 @@ batch handle 与 output 不匹配时，`resolve()` 返回 `RedactionBatchHandleE
 - policy 内部规则和格式策略使用 `Arc` 共享不可变数据；
 - 最终发布尽量移动已有字符串，避免再次脱敏和重复记账；
 - batch handle 只保存 identity 与索引，不持有文本；
-- parser 在 admission 之后运行，不能先分配完整中间结构再检查预算；
+- JSON parser 在构建 admitted tree 的同时执行 admission，renderer 与 inspection 复用该树，禁止二次解析；
 - domain 与集合遍历在访问元素前检查深度、节点和 item 上限；
 - mask writer、JSON writer、HTTP body writer 和 URI writer 都必须支持 bounded 写入；
 - 不使用 `usize::MAX` 或局部无限预算绕过顶层限制。
@@ -582,7 +575,7 @@ batch handle 与 output 不匹配时，`resolve()` 返回 `RedactionBatchHandleE
 src/
 ├── facade/       Redactor、RedactedText、RedactionTextOutput、summary
 ├── policy/       字段规则、floor、masking、limits、policy builder
-├── domain/       Redact/RedactMut traits 与借用 writer scopes
+├── domain/       Redact trait、结构化 Serde capability 与借用 writer scopes
 ├── formats/      argv、env、process、json、http、uri adapters
 ├── runtime/      private runtime、budget、composer、batch、handle、buffers
 └── output/       completion、日志字符 escape、内部安全输出辅助

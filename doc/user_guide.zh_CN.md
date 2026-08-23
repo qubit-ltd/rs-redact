@@ -2,8 +2,9 @@
 
 [README](../README.zh_CN.md) · [English User Guide](user_guide.md) · [Derive Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.zh_CN.md)
 
-`qubit-redact` 在不修改源对象的前提下生成有界、策略感知的输出。`Redactor` 持有策略快照，
-一次脱敏操作拥有最终的 `RedactedText`。
+本手册面向使用 `qubit-redact` 0.5 构建日志与诊断边界的应用和库作者。运行时不会修改
+源对象：`Redactor` 持有不可变策略快照，每个 composer 或 batch 独占一份预算，只发布
+最终文本与摘要。
 
 ## 1. 渲染领域值
 
@@ -45,6 +46,30 @@ assert_eq!(login.password, "raw");
 每个操作都参与同一个输出预算和摘要。可能包含敏感数据的字段不能因为当前策略在其他
 位置会掩码，就省略其字段决策。
 
+标量字段 API 接受惰性的 `Display` 值。运行时先判定敏感等级，再决定是否格式化；因此
+`High` 和 `Secret` 字段不会触发格式化。只有 `Debug` 的值可以借助 `format_args!`：
+
+```rust
+use std::fmt;
+
+use qubit_redact::Redactor;
+
+struct Request;
+
+impl fmt::Debug for Request {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("reviewed-debug-view")
+    }
+}
+
+let request = Request;
+let output = Redactor::strict().redact_field(
+    "request",
+    &format_args!("{request:?}"),
+);
+assert!(!output.text().as_str().is_empty());
+```
+
 ## 3. 其他格式
 
 运行时为 JSON 文本和值、URI、HTTP header/query、环境变量、argv 和进程描述提供有界脱敏。
@@ -66,14 +91,44 @@ let _ = inspection;
 `RedactionBatch::redact_json_value` 以及其他 batch 方法会共享预算，并发布可解析为最终文本
 和摘要的 handle。
 
+JSON 文本只解析一次，解析过程同时完成结构准入并构造 admitted tree。非法 JSON 或遍历
+超限时会整体 fail-closed。借用 `Value` 的路径不会 clone、转成字符串或修改调用方对象；
+领域实现可用 `fields.json_value("payload", &value)` 写入不带额外字符串引号的 JSON 值。
+
 ## 4. Inspection 与禁用策略
 
 Inspection 会报告规则匹配、敏感度和完成状态，但不会发布原始值。它适合在确定日志或序列化
 边界前解释某字段为何会被掩码。
 
-`RedactionPolicy::disabled()` 是显式退出选项，会保留原始渲染值；调用方必须把它限制在经过审查的本地边界内。
+`RedactionPolicy::disabled()` 是显式退出选项。字段、JSON、URI、HTTP、环境变量、argv、
+进程、derive 字段模式和生成的 Serde 输出都会恢复原值，但仍受运行时资源上限约束。
 
-## 5. 验证
+```rust
+use qubit_redact::{RedactionPolicy, Redactor};
+
+let mut policy = RedactionPolicy::disabled();
+assert!(policy.is_disabled());
+policy.set_disabled(false);
+let output = Redactor::new(policy).redact_field("password", "raw-secret");
+assert!(!output.summary().is_redaction_disabled());
+assert!(!output.text().as_str().contains("raw-secret"));
+```
+
+策略启用时，`Complete`、`Truncated` 和 `Exhausted` 文本都应保持保密安全。只有调用方
+关心完整性、审计原因或重试决策时才检查 `summary().completion()` 与
+`summary().reasons()`，不要解析 `<truncated>` 等文本标记推断状态。若 inspection 用于
+安全决策，任何 inspection error 都表示分类不完整，应按敏感处理。
+
+## 5. 排障与限制
+
+- 发现原值时，先检查 `output.summary().is_redaction_disabled()` 以及创建 composer 或
+  batch 时采用的策略快照。
+- 出现非预期截断时，检查 `completion()`、`reasons()` 和 `usage()`；同一事务内的操作
+  会有意共享资源上限。
+- 字段未命中时，核对字段名并复查所有未标注字段；运行时不会推断业务敏感度。
+- 本 crate 只保护经过其运行时的调用，不擦除源对象内存，也不保护无关日志或序列化路径。
+
+## 6. 验证
 
 ```bash
 cargo test --all-features

@@ -12,12 +12,14 @@ objects, JSON, HTTP values, URIs, environment variables, and process arguments
 through one bounded diagnostic session. The source value is borrowed and the
 redaction result is owned.
 
-## Quick start
+## Installation
 
 ```toml
 [dependencies]
 qubit-redact = { version = "0.5", features = ["derive"] }
 ```
+
+## Quick Start
 
 ```rust
 use qubit_redact::Redactor;
@@ -61,17 +63,43 @@ not mutate or erase the source value.
 Disabled policies preserve raw output for explicit local opt-out use. Treat that
 mode as a deliberate boundary decision and never use it for unreviewed logs.
 
-## Development
-
-```bash
-cargo test --all-features
-./align-ci.sh
-./ci-check.sh
-```
+## Learn More
 
 Read the [English user guide](doc/user_guide.md), [中文用户手册](doc/user_guide.zh_CN.md),
-and [derive documentation](https://docs.rs/qubit-redact-derive).
+[API documentation](https://docs.rs/qubit-redact), and
+[derive documentation](https://docs.rs/qubit-redact-derive).
+
+## Testing
+
+```bash
+# Run tests with the default feature set
+cargo test
+
+# Run tests with all declared features
+cargo test --all-features
+
+# Project CI checks
+./ci-check.sh
+
+# Check code coverage
+./coverage.sh
+```
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+Copyright (c) 2025 - 2026. Haixing Hu. All rights reserved.
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the
+full license text.
+
+## Contributing
+
+Contributions are welcome. Please follow the Rust API guidelines, keep public
+API documentation and tests current, and run `./align-ci.sh` to format code and
+`./ci-check.sh` to satisfy CI requirements before submitting a pull request.
+
+## Author
+
+**Haixing Hu** - *Qubit Co. Ltd.*
+
+Repository: [https://github.com/qubit-ltd/rs-redact](https://github.com/qubit-ltd/rs-redact)

@@ -124,7 +124,9 @@ derive 字段上的 `level`、`nested`、`map`、`json`、`skip` 在禁用模式
 
 - `String`、`&str`、`Cow<'_, str>`、`char`、`bool`；
 - 所有有符号与无符号整数；
-- `f32`、`f64`。
+- `f32`、`f64`；
+- 启用 `serde` feature 时的 `bigdecimal::BigDecimal`，用于保持下游模型的 decimal
+  字段与结构化 Serde capability 一致。
 
 递归规则：
 
