@@ -57,7 +57,9 @@ impl HttpPolicyExecutor<'_> {
             }
             let rendered = value.to_str().unwrap_or("<non-utf8>");
             let remaining = writer.remaining_bytes();
-            if value.is_sensitive() {
+            if self.policy.is_disabled() {
+                let _ = writer.write_str(rendered);
+            } else if value.is_sensitive() {
                 let redacted = self
                     .header_field_redactor()
                     .mask_bounded(Sensitivity::Secret, rendered, remaining);

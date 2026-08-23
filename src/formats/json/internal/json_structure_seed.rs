@@ -10,6 +10,7 @@
 use serde::Deserializer;
 use serde::de::DeserializeSeed;
 use serde::de::Error;
+use serde_json::Value;
 
 use super::JsonStructureVisitor;
 use crate::RedactionSession;
@@ -23,7 +24,7 @@ pub(crate) struct JsonStructureSeed<'session, 'rejected> {
 }
 
 impl<'de> DeserializeSeed<'de> for JsonStructureSeed<'_, '_> {
-    type Value = ();
+    type Value = Value;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where

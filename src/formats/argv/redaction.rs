@@ -62,7 +62,10 @@ where
     let mut pending = None;
     let mut locally_truncated = false;
     for item in items {
-        let (rendered, item_truncated) = if heuristic {
+        let (rendered, item_truncated) = if policy.is_disabled() {
+            pending = None;
+            (item.value().to_string_lossy().into_owned(), false)
+        } else if heuristic {
             if let Some(level) = item.sensitivity() {
                 pending = None;
                 mask_os_value_bounded(policy, item.value(), level, max_output_bytes)

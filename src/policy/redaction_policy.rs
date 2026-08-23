@@ -98,7 +98,21 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
         false,
     )
 });
-/// Immutable redaction policy.
+/// Immutable field classification, masking, format, and resource policy.
+///
+/// A disabled policy intentionally restores original values while retaining
+/// resource limits. Toggle it only as a reviewed startup configuration.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::RedactionPolicy;
+///
+/// let mut policy = RedactionPolicy::disabled();
+/// assert!(policy.is_disabled());
+/// policy.set_disabled(false);
+/// assert!(!policy.is_disabled());
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionPolicy {
     disabled: bool,

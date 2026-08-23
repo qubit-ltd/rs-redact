@@ -136,8 +136,7 @@ impl RedactionBatch {
     /// Redacts a borrowed parsed JSON value without taking ownership of it.
     #[cfg(feature = "json")]
     pub fn redact_json_value(&mut self, value: &serde_json::Value) -> RedactionBatchHandle {
-        let text = serde_json::to_string(value).expect("JSON values are serializable");
-        self.redact_json(&text)
+        Self::wrap(self.session.redact_json_value(value))
     }
     /// Redacts one HTTP URL as one item.
     ///

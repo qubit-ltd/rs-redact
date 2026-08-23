@@ -29,4 +29,6 @@ pub use redact_serialize::RedactedMapSerializeRef;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use redact_serialize::RedactedSerializeRef;
 #[cfg(any(feature = "serde", feature = "json"))]
+pub use redact_serialize::serialize_internally_tagged;
+#[cfg(any(feature = "serde", feature = "json"))]
 pub use redact_serialize::serialize_structured;

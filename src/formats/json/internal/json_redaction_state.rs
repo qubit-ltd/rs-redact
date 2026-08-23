@@ -12,6 +12,7 @@ use serde_json::Value;
 use super::JsonRedactionOutcome;
 use super::JsonUnkeyedValuePolicy;
 use crate::MaskingPolicy;
+#[cfg(test)]
 use crate::RedactionPolicy;
 use crate::RedactionRules;
 use crate::Sensitivity;
@@ -50,6 +51,7 @@ impl<'policy, 'marker> JsonRedactionState<'policy, 'marker> {
     }
 
     /// Creates traversal state from one complete policy snapshot.
+    #[cfg(test)]
     #[inline(always)]
     pub(crate) fn from_policy(policy: &'policy RedactionPolicy, unkeyed: JsonUnkeyedValuePolicy<'marker>) -> Self {
         Self::new(policy.rules(), policy.rules(), policy.masking(), unkeyed)

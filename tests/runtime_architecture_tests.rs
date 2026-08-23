@@ -66,14 +66,14 @@ fn format_adapters_use_the_runtime_operation_sink() {
     }
 }
 
-/// JSON structure admission must stream parser events into the transaction
-/// ledger, so a rejected document is never first materialized as a complete
-/// `serde_json::Value` tree.
+/// JSON structure admission must build the admitted value during its only
+/// parse, then pass that borrowed tree directly to the renderer.
 #[test]
-fn json_structure_admission_does_not_materialize_a_value_tree() {
+fn json_structure_admission_builds_and_reuses_one_admitted_value_tree() {
     let writer = include_str!("../src/formats/json/json_redaction_writer.rs");
 
-    assert!(!writer.contains("Value::from_str"));
+    assert_eq!(writer.matches("JsonDeserializer::from_str").count(), 1);
+    assert!(writer.contains("Ok(value) => self.redact_value_direct(&value)"));
 }
 
 /// The structured writer exposes only the scope names fixed by the redesign;

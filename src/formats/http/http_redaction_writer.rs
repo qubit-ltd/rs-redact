@@ -357,6 +357,18 @@ impl<'session> HttpRedactionWriter<'session> {
                 capture.bytes().iter().copied().find(|byte| !byte.is_ascii_whitespace()),
                 Some(b'{') | Some(b'[')
             );
+        if capture.is_source_truncated()
+            && (matches!(
+                &content_type,
+                Some(super::internal::content_type::ContentType::Json)
+                    | Some(super::internal::content_type::ContentType::Ndjson)
+            ) || inferred_json)
+        {
+            // A captured prefix is intentionally incomplete JSON. Admit only
+            // the enclosing format node and let the renderer publish the
+            // invalid/truncated provenance without attempting a partial parse.
+            return self.session.admit_format_node(1);
+        }
         if matches!(&content_type, Some(super::internal::content_type::ContentType::Json)) || inferred_json {
             let Ok(text) = std::str::from_utf8(capture.bytes()) else {
                 return self.session.admit_format_node(1);

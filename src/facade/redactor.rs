@@ -20,7 +20,19 @@ use crate::domain::Redact;
 use crate::facade::RedactionTextOutput;
 use crate::runtime::RedactionSession;
 
-/// Applies one immutable policy to scalar values and string maps.
+/// Applies one immutable policy snapshot to supported diagnostic values.
+///
+/// Composers and batches created from a redactor retain this snapshot even if
+/// the process-wide application default changes later.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::Redactor;
+///
+/// let output = Redactor::strict().redact_field("password", "raw-secret");
+/// assert!(!output.text().as_str().contains("raw-secret"));
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Redactor {
     /// Field classification and masking configuration.
@@ -348,8 +360,12 @@ impl Redactor {
     #[cfg(feature = "json")]
     #[must_use]
     pub fn redact_json_value(&self, value: &serde_json::Value) -> RedactionTextOutput {
-        let text = serde_json::to_string(value).expect("JSON values are serializable");
-        self.redact_json(&text)
+        let mut batch = self.batch();
+        let handle = batch.redact_json_value(value);
+        batch
+            .finish()
+            .into_resolved(handle)
+            .expect("a handle created by the completed transaction must resolve")
     }
 
     /// Inspects one JSON document without rendering it.
@@ -363,8 +379,9 @@ impl Redactor {
     /// Inspects a borrowed parsed JSON value without taking ownership of it.
     #[cfg(feature = "json")]
     pub fn inspect_json_value(&self, value: &serde_json::Value) -> RedactionInspectionResult {
-        let text = serde_json::to_string(value).expect("JSON values are serializable");
-        self.inspect_json(&text)
+        let mut session = self.inspection_runtime();
+        crate::formats::json::inspection::inspect_borrowed_value(&mut session, value);
+        session.finish_inspection()
     }
 
     /// Redacts an HTTP URL through one completed batch transaction.

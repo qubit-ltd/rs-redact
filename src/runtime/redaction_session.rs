@@ -379,6 +379,16 @@ impl RedactionSession {
         self.run_handle(|session| crate::formats::json::JsonRedactionWriter::new(session).redact_text(text))
     }
 
+    /// Redacts a borrowed parsed JSON value as one transaction item.
+    #[cfg(feature = "json")]
+    #[must_use]
+    pub fn redact_json_value(&mut self, value: &serde_json::Value) -> RedactionHandle {
+        if self.skip_aggregate_for_exhausted_output() {
+            return self.stage_exhausted_handle();
+        }
+        self.run_handle(|session| crate::formats::json::JsonRedactionWriter::new(session).redact_value(value))
+    }
+
     /// Runs a URI adapter while retaining the session borrow.
     #[cfg(feature = "uri")]
     pub fn uri<F>(&mut self, configure: F) -> &mut Self

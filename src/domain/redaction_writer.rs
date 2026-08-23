@@ -15,9 +15,32 @@ use std::fmt::Write as _;
 use crate::RedactionSession;
 use crate::Sensitivity;
 use crate::domain::Redact;
+use crate::domain::RedactLevelValue;
 use crate::policy::ResolvedField;
 
 /// Restricted writer for one redaction operation.
+///
+/// Implementations use structural scopes to classify every field explicitly.
+/// The writer borrows one transaction and never publishes intermediate text.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::{Redact, RedactionWriter, Redactor, Sensitivity};
+///
+/// struct Credential(&'static str);
+///
+/// impl Redact for Credential {
+///     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+///         writer.record("Credential", |fields| {
+///             fields.sensitive(Sensitivity::Secret, "token", || self.0);
+///         });
+///     }
+/// }
+///
+/// let output = Redactor::standard().redact(&Credential("raw-token"));
+/// assert!(!output.text().as_str().contains("raw-token"));
+/// ```
 ///
 /// ```compile_fail
 /// use qubit_redact::{Redact, RedactionWriter};
@@ -106,17 +129,47 @@ impl<'session> RedactionWriter<'session> {
         // Structural admission happens before JSON redaction parses or walks
         // the value. A domain writer therefore cannot create a private JSON
         // traversal budget outside its parent transaction.
-        if !crate::formats::json::admit_json_text_structure(self.session, value) {
-            self.truncate_without_output_limit();
-            return;
-        }
+        let admitted = match crate::formats::json::admit_json_text_value(self.session, value) {
+            Ok(value) => value,
+            Err(crate::formats::json::JsonAdmissionError::Invalid) => {
+                let allowance = self.session.remaining_output_bytes().min(self.remaining_output_bytes());
+                let output = crate::formats::json::invalid_json_output(self.session.policy(), allowance);
+                self.session.record_rendered_provenance(&output);
+                self.write_debug(output.text());
+                return;
+            }
+            Err(crate::formats::json::JsonAdmissionError::Limit) => {
+                self.truncate_without_output_limit();
+                return;
+            }
+        };
         let allowance = self.session.remaining_output_bytes().min(self.remaining_output_bytes());
-        let output = crate::formats::json::redact_json_text_with_limit(self.session.policy(), value, allowance);
+        let output = crate::formats::json::redact_json_value_with_limit(self.session.policy(), &admitted, allowance);
         if output.completion() != crate::RedactionCompletion::Complete {
             self.truncate_without_output_limit();
         }
         self.session.record_rendered_provenance(&output);
         self.write_debug(output.text());
+    }
+
+    /// Writes a borrowed parsed JSON value as an unquoted JSON fragment.
+    #[cfg(feature = "json")]
+    fn write_json_value(&mut self, value: &serde_json::Value) {
+        if self.session.is_inspection() {
+            crate::formats::json::inspection::inspect_borrowed_value(self.session, value);
+            return;
+        }
+        if !self.session.admit_json_value(value) {
+            self.truncate_without_output_limit();
+            return;
+        }
+        let allowance = self.session.remaining_output_bytes().min(self.remaining_output_bytes());
+        let output = crate::formats::json::redact_json_value_with_limit(self.session.policy(), value, allowance);
+        if output.completion() != crate::RedactionCompletion::Complete {
+            self.truncate_without_output_limit();
+        }
+        self.session.record_rendered_provenance(&output);
+        self.write_fragment(output.text());
     }
 
     /// Writes a named record through a field scope.
@@ -314,6 +367,24 @@ impl<'session> RedactionWriter<'session> {
         }
     }
 
+    pub(crate) fn write_level_scalar<T>(&mut self, level: Sensitivity, value: &T)
+    where
+        T: Debug + ?Sized,
+    {
+        if self.session.policy().is_disabled() {
+            self.write_debug(value);
+        } else {
+            self.write_masked_debug(level, value);
+        }
+    }
+
+    pub(crate) fn level_tuple<F>(&mut self, configure: F)
+    where
+        F: for<'writer> FnOnce(&mut RedactionItems<'writer, 'session>),
+    {
+        self.write_item_structure("", "(", ")", configure);
+    }
+
     #[inline]
     fn can_write(&self) -> bool {
         !self.session.domain_frame_is_truncated() && self.remaining_output_bytes() > 0
@@ -447,6 +518,37 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         self
     }
 
+    /// Writes a sealed level-capable value while preserving its recursive
+    /// container shape and masking every scalar leaf independently.
+    #[doc(hidden)]
+    pub fn sensitive_value<T>(&mut self, level: Sensitivity, name: &str, value: &T) -> &mut Self
+    where
+        T: RedactLevelValue + ?Sized,
+    {
+        if !self.admit_field() {
+            self.write_field_truncated();
+            return self;
+        }
+        let effective_level = self
+            .writer
+            .session
+            .policy()
+            .sensitivity_for(name)
+            .map_or(level, |policy_level| policy_level.max(level));
+        if self.writer.session.is_inspection() {
+            if !self.writer.session.policy().is_disabled() {
+                self.writer.session.observe_sensitivity(effective_level);
+            }
+            return self;
+        }
+        self.write_prefix(name);
+        if self.writer.can_write() {
+            value.write_redacted_level(self.writer, effective_level);
+            self.writer.write_fragment(", ");
+        }
+        self
+    }
+
     /// Redacts JSON text for a named field through this shared transaction.
     #[cfg(feature = "json")]
     pub fn json(&mut self, name: &str, value: &str) -> &mut Self {
@@ -463,6 +565,32 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         }
         self.writer.write_json_text(value);
         self.writer.write_fragment(", ");
+        self
+    }
+
+    /// Writes a borrowed parsed JSON value without cloning or modifying it.
+    #[cfg(feature = "json")]
+    pub fn json_value(&mut self, name: &str, value: &serde_json::Value) -> &mut Self {
+        if !self.admit_field() {
+            self.write_field_truncated();
+            return self;
+        }
+        self.write_prefix(name);
+        if self.writer.can_write() {
+            self.writer.write_json_value(value);
+            self.writer.write_fragment(", ");
+        }
+        self
+    }
+
+    /// Writes a supported JSON string variant through its sealed capability.
+    #[cfg(feature = "json")]
+    #[doc(hidden)]
+    pub fn json_text_value<T>(&mut self, name: &str, value: &T) -> &mut Self
+    where
+        T: super::RedactJsonValue + ?Sized,
+    {
+        value.write_redacted_json(self, name);
         self
     }
 
@@ -499,7 +627,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<str> + Debug,
-        V: Debug,
+        V: RedactLevelValue,
     {
         if !self.admit_field() {
             self.write_field_truncated();
@@ -559,7 +687,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             self.writer.write_fragment(": ");
             match self.writer.session.policy().resolve_field(key) {
                 ResolvedField::Sensitive { sensitivity } => {
-                    self.writer.write_masked_debug(sensitivity, &value);
+                    value.write_redacted_level(self.writer, sensitivity);
                 }
                 ResolvedField::PassThrough => self.writer.write_debug(&value),
             }
@@ -686,6 +814,19 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
         } else {
             self.writer.write_masked_debug(level, &access());
         }
+        self.writer.write_fragment(", ");
+        self
+    }
+
+    pub(crate) fn level_value<T>(&mut self, value: &T, level: Sensitivity) -> &mut Self
+    where
+        T: RedactLevelValue + ?Sized,
+    {
+        if !self.admit_item() {
+            self.write_truncated();
+            return self;
+        }
+        value.write_redacted_level(self.writer, level);
         self.writer.write_fragment(", ");
         self
     }

@@ -113,7 +113,11 @@ pub(super) fn redact_os_pair_bounded_with_policy(
 ) -> (String, bool) {
     let (pair, locally_truncated) = match (name.to_str(), value.to_str()) {
         (Some(name), Some(value)) => {
-            let resolved = policy.resolve_field(name);
+            let resolved = if policy.is_disabled() {
+                ResolvedField::PassThrough
+            } else {
+                policy.resolve_field(name)
+            };
             let (value, locally_truncated) = match resolved {
                 ResolvedField::Sensitive { sensitivity } => {
                     let (masked, truncated) =
@@ -133,6 +137,14 @@ pub(super) fn redact_os_pair_bounded_with_policy(
                 locally_truncated,
             )
         }
+        _ if policy.is_disabled() => (
+            format!(
+                "{}={}",
+                log_safe_owned(name.to_string_lossy().into_owned()).as_str(),
+                log_safe_owned(value.to_string_lossy().into_owned()).as_str(),
+            ),
+            false,
+        ),
         _ => {
             let masking = policy.masking();
             let complete_len = masking.mask_opaque(Sensitivity::Secret).len();

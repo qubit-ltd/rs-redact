@@ -173,3 +173,108 @@ fn test_redaction_fields_map_classifies_each_dynamic_key() {
     assert!(output.text().as_str().contains("<redacted>"));
     assert!(output.text().as_str().contains("eu-west"));
 }
+
+/// Verifies level mode preserves recursive container shape and masks each
+/// scalar leaf independently.
+#[test]
+fn test_redaction_fields_sensitive_value_masks_recursive_leaves() {
+    struct RecursiveLevelValue {
+        values: Option<Vec<(u32, String)>>,
+    }
+
+    impl Redact for RecursiveLevelValue {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.record("RecursiveLevelValue", |fields| {
+                fields.sensitive_value(Sensitivity::Secret, "values", &self.values);
+            });
+        }
+    }
+
+    let value = RecursiveLevelValue {
+        values: Some(vec![(42, "raw-secret".to_owned())]),
+    };
+
+    let enabled = Redactor::standard().redact(&value);
+    assert_eq!(
+        enabled.text().as_str(),
+        "RecursiveLevelValue { values: Some([(\"<redacted>\", \"<redacted>\")]) }"
+    );
+    assert!(!enabled.text().as_str().contains("42"));
+    assert!(!enabled.text().as_str().contains("raw-secret"));
+
+    let disabled = Redactor::new(RedactionPolicy::disabled()).redact(&value);
+    assert_eq!(
+        disabled.text().as_str(),
+        "RecursiveLevelValue { values: Some([(42, \"raw-secret\")]) }"
+    );
+}
+
+/// Verifies the optional decimal scalar capability is consistent between the
+/// domain writer and structured Serde paths used by downstream models.
+#[cfg(feature = "serde")]
+#[test]
+fn test_redaction_fields_sensitive_value_supports_big_decimal() {
+    struct DecimalValue(bigdecimal::BigDecimal);
+
+    impl Redact for DecimalValue {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.record("DecimalValue", |fields| {
+                fields.sensitive_value(Sensitivity::Medium, "coordinate", &self.0);
+            });
+        }
+    }
+
+    let value = DecimalValue(bigdecimal::BigDecimal::from(123));
+    let enabled = Redactor::standard().redact(&value);
+    let disabled = Redactor::new(RedactionPolicy::disabled()).redact(&value);
+
+    assert!(!enabled.text().as_str().contains("123"));
+    assert!(disabled.text().as_str().contains("123"));
+}
+
+/// Verifies map values use the level capability recursively when a key is
+/// classified and remain ordinary values otherwise.
+#[test]
+fn test_redaction_fields_map_value_masks_recursive_leaves_by_key() {
+    struct RecursiveMapValue {
+        attributes: BTreeMap<String, Option<Vec<u32>>>,
+    }
+
+    impl Redact for RecursiveMapValue {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.record("RecursiveMapValue", |fields| {
+                fields.map_value("attributes", &self.attributes);
+            });
+        }
+    }
+
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            let _ = fields.secret_sensitive("secret_numbers");
+        })
+        .expect("field policy should build")
+        .build()
+        .expect("policy should build");
+    let value = RecursiveMapValue {
+        attributes: BTreeMap::from([
+            ("public_numbers".to_owned(), Some(vec![1, 2])),
+            ("secret_numbers".to_owned(), Some(vec![3, 4])),
+        ]),
+    };
+
+    let output = Redactor::new(policy).redact(&value);
+    assert!(
+        output.text().as_str().contains("\"public_numbers\": Some([1, 2])"),
+        "{}",
+        output.text().as_str()
+    );
+    assert!(
+        output
+            .text()
+            .as_str()
+            .contains("\"secret_numbers\": Some([\"<redacted>\", \"<redacted>\"])"),
+        "{}",
+        output.text().as_str()
+    );
+    assert!(!output.text().as_str().contains("Some([3, 4])"));
+}

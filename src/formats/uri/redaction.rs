@@ -39,6 +39,11 @@ pub(crate) fn redact_uri_with_limit(
     input: &str,
     max_output_bytes: usize,
 ) -> RenderedOperation {
+    if policy.is_disabled() {
+        let mut rendered = BoundedUriWriter::new(max_output_bytes);
+        rendered.write_str(input);
+        return finish_uri_rendering(rendered);
+    }
     let parsed = match Uri::<&str>::parse(input) {
         Ok(parsed) => parsed,
         Err(_) => return invalid_output(max_output_bytes),
