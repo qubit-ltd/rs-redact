@@ -618,12 +618,12 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         self
     }
 
-    /// Writes a text-keyed map whose values are classified by their own keys.
+    /// Writes admitted entries from a supported text-keyed map.
     ///
     /// Each entry is admitted before the iterator advances. Sensitive keys use
     /// the active runtime policy; keys not selected by that policy retain their
     /// debug representation.
-    pub fn map<I, K, V>(&mut self, name: &str, entries: I) -> &mut Self
+    pub(crate) fn map_entries<I, K, V>(&mut self, name: &str, entries: I) -> &mut Self
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<str> + Debug,
@@ -705,12 +705,21 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     }
 
     /// Writes a supported map field through its sealed capability.
-    pub fn map_value<T>(&mut self, name: &str, value: &T) -> &mut Self
+    pub fn map<T>(&mut self, name: &str, value: &T) -> &mut Self
     where
         T: super::RedactMapValue,
     {
         value.write_redacted_map(self, name);
         self
+    }
+
+    /// Writes a supported map field through its sealed capability.
+    #[doc(hidden)]
+    pub fn map_value<T>(&mut self, name: &str, value: &T) -> &mut Self
+    where
+        T: super::RedactMapValue,
+    {
+        self.map(name, value)
     }
 
     /// Omits a field while redaction is enabled and restores it when disabled.
