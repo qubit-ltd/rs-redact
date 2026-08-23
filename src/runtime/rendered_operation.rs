@@ -8,7 +8,6 @@
 //! Unpublished format-rendering outcomes consumed by the transaction runtime.
 
 use crate::RedactionCompletion;
-use crate::RedactionReason;
 use crate::RedactionReasons;
 
 /// Carries rendered text and degradation provenance without constructing a
@@ -57,21 +56,7 @@ impl RenderedOperation {
             (RedactionCompletion::Truncated, _) | (_, RedactionCompletion::Truncated) => RedactionCompletion::Truncated,
             _ => RedactionCompletion::Complete,
         };
-        for reason in [
-            RedactionReason::InputLimitReached,
-            RedactionReason::OutputLimitReached,
-            RedactionReason::TraversalLimitReached,
-            RedactionReason::DepthLimitReached,
-            RedactionReason::SourceTruncated,
-            RedactionReason::InvalidJson,
-            RedactionReason::InvalidUri,
-            RedactionReason::InvalidContentType,
-            RedactionReason::UnsupportedContentType,
-        ] {
-            if other.reasons().contains(reason) {
-                self.reasons = self.reasons.with(reason);
-            }
-        }
+        self.reasons = self.reasons.union(other.reasons());
         self
     }
 

@@ -7,6 +7,19 @@ need bounded diagnostic output without changing the source value. A `Redactor`
 owns an immutable policy snapshot; each composer or batch owns one budget and
 publishes only final text plus its summary.
 
+## Completion is part of the result
+
+Every rendering entry point returns `RedactionTextOutput`: safe text and a
+`RedactionSummary`. A complete result may be consumed with
+`into_complete_text()`. A truncated or exhausted result returns its summary so
+the caller must choose the local presentation policy. For an intentional
+fallback marker, use `into_text_or_marker("<redaction incomplete>")` rather
+than silently presenting a partial URL, header block, or command description.
+
+`Truncated` retains a non-empty safe substitute; `Exhausted` could not retain a
+complete replacement under the shared output budget. `reasons()` identifies
+parser and budget degradation, including invalid JSON, form, and multipart data.
+
 ## 1. Render a domain value
 
 Implement the small runtime trait, or derive it in a downstream crate:

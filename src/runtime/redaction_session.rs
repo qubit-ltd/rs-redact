@@ -802,34 +802,8 @@ impl RedactionSession {
     /// belong to the one active transaction and are recorded immediately.
     #[cfg(feature = "json")]
     pub(crate) fn record_rendered_provenance(&mut self, operation: &RenderedOperation) {
-        use crate::RedactionReason;
-
         let summary = rendered_summary(operation.completion(), operation.reasons());
-
-        // The JSON text is embedded in a domain frame, whose bytes are
-        // charged when that frame is appended. Retain only completion and
-        // reasons here; merging helper usage would double-charge the session.
-        for reason in [
-            RedactionReason::InputLimitReached,
-            RedactionReason::OutputLimitReached,
-            RedactionReason::TraversalLimitReached,
-            RedactionReason::DepthLimitReached,
-            RedactionReason::SourceTruncated,
-            RedactionReason::InvalidJson,
-            RedactionReason::InvalidUri,
-            RedactionReason::InvalidContentType,
-            RedactionReason::UnsupportedContentType,
-        ] {
-            if !summary.reasons().contains(reason) {
-                continue;
-            }
-            let provenance = match summary.completion() {
-                RedactionCompletion::Complete => crate::RedactionSummary::complete_with_reason(reason),
-                RedactionCompletion::Truncated => crate::RedactionSummary::truncated(reason),
-                RedactionCompletion::Exhausted => crate::RedactionSummary::exhausted(reason),
-            };
-            self.record_summary(provenance);
-        }
+        self.record_summary(summary);
     }
 
     /// Reports whether the active transaction has exhausted its output budget.
@@ -1097,33 +1071,11 @@ impl RedactionSession {
 
 /// Converts unpublished renderer provenance into the runtime's summary model.
 fn rendered_summary(completion: RedactionCompletion, reasons: crate::RedactionReasons) -> crate::RedactionSummary {
-    let mut summary = crate::RedactionSummary::complete();
-    let mut found_reason = false;
-    for reason in [
-        crate::RedactionReason::InputLimitReached,
-        crate::RedactionReason::OutputLimitReached,
-        crate::RedactionReason::TraversalLimitReached,
-        crate::RedactionReason::DepthLimitReached,
-        crate::RedactionReason::SourceTruncated,
-        crate::RedactionReason::InvalidJson,
-        crate::RedactionReason::InvalidUri,
-        crate::RedactionReason::InvalidContentType,
-        crate::RedactionReason::UnsupportedContentType,
-    ] {
-        if reasons.contains(reason) {
-            found_reason = true;
-            summary = summary.merge(match completion {
-                RedactionCompletion::Complete => crate::RedactionSummary::complete_with_reason(reason),
-                RedactionCompletion::Truncated => crate::RedactionSummary::truncated(reason),
-                RedactionCompletion::Exhausted => crate::RedactionSummary::exhausted(reason),
-            });
-        }
-    }
-    if found_reason || completion == RedactionCompletion::Complete {
-        return summary;
+    if reasons != crate::RedactionReasons::empty() || completion == RedactionCompletion::Complete {
+        return crate::RedactionSummary::from_parts(false, completion, reasons, crate::RedactionUsage::empty());
     }
     match completion {
-        RedactionCompletion::Complete => summary,
+        RedactionCompletion::Complete => crate::RedactionSummary::complete(),
         RedactionCompletion::Truncated => {
             crate::RedactionSummary::truncated(crate::RedactionReason::TraversalLimitReached)
         }

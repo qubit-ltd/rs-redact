@@ -98,15 +98,16 @@ fn uri_api_is_unavailable_without_the_uri_feature() {
     assert_format_api_is_feature_gated("inspect_uri");
 }
 
-/// The default feature set re-exports the derive macro.
+/// The minimal default feature set does not re-export the derive macro.
 #[test]
-fn test_default_features_export_the_redact_derive() {
+fn test_default_features_hide_the_redact_derive() {
     let output = check_derive_dependency("default", "");
     assert!(
-        output.status.success(),
-        "default dependency must export the derive macro: {}",
-        String::from_utf8_lossy(&output.stderr),
+        !output.status.success(),
+        "default dependency must not export the derive macro",
     );
+    let diagnostics = String::from_utf8_lossy(&output.stderr);
+    assert!(diagnostics.contains("derive macro") && diagnostics.contains("Redact"));
 }
 
 /// Disabling defaults removes the derive macro from the dependency surface.

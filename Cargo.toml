@@ -31,7 +31,7 @@ name = "qubit_redact"
 doctest = true
 
 [features]
-default = ["serde", "derive"]
+default = []
 derive = ["dep:qubit-redact-derive"]
 serde = ["dep:serde", "dep:bigdecimal"]
 json = ["dep:serde", "dep:serde_json", "dep:qubit-json", "qubit-budget/json"]

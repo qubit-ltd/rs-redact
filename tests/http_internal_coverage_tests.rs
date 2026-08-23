@@ -62,6 +62,7 @@ fn test_http_body_invalid_form_and_truncated_ndjson_fail_closed() {
     let form_type = HeaderValue::from_static("application/x-www-form-urlencoded");
     let form = redactor.redact_http_body(BodyCapture::complete(b"password=%ZZraw-secret"), Some(&form_type));
     assert!(!form.text().as_str().contains("raw-secret"));
+    assert!(form.summary().reasons().contains(RedactionReason::InvalidForm));
 
     let ndjson_type = HeaderValue::from_static("application/x-ndjson");
     let ndjson = redactor.redact_http_body(
@@ -109,6 +110,12 @@ fn test_http_multipart_covers_sensitive_json_text_and_invalid_boundaries() {
         Some(&content_type),
     );
     assert!(!malformed.text().as_str().contains("raw-secret"));
+    assert!(
+        malformed
+            .summary()
+            .reasons()
+            .contains(RedactionReason::InvalidMultipart)
+    );
 }
 
 #[test]
