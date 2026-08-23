@@ -2,9 +2,10 @@
 
 [README](../README.md) · [中文用户手册](user_guide.zh_CN.md) · [Derive Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.md)
 
-`qubit-redact` creates bounded, policy-aware output without changing the source
-value. A `Redactor` owns the policy snapshot; a redaction operation owns the
-final `RedactedText`.
+This guide covers `qubit-redact` 0.5 for application and library authors who
+need bounded diagnostic output without changing the source value. A `Redactor`
+owns an immutable policy snapshot; each composer or batch owns one budget and
+publishes only final text plus its summary.
 
 ## 1. Render a domain value
 
@@ -48,6 +49,31 @@ Each operation participates in the same output budget and summary. A field
 that may contain sensitive data must not be left unmarked merely because the
 current policy happens to mask it elsewhere.
 
+Scalar field APIs accept lazy `Display` values. A `High` or `Secret` decision
+happens before formatting, so rejected content is never formatted. A
+Debug-only value can be supplied through `format_args!`:
+
+```rust
+use std::fmt;
+
+use qubit_redact::Redactor;
+
+struct Request;
+
+impl fmt::Debug for Request {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("reviewed-debug-view")
+    }
+}
+
+let request = Request;
+let output = Redactor::strict().redact_field(
+    "request",
+    &format_args!("{request:?}"),
+);
+assert!(!output.text().as_str().is_empty());
+```
+
 ## 3. Other formats
 
 The runtime provides bounded redaction for JSON text and values, URI, HTTP
@@ -71,16 +97,51 @@ let _ = inspection;
 `RedactionBatch::redact_json_value` and the other batch methods share a budget
 and publish handles that resolve to final text and summaries.
 
+JSON text is parsed once into an admitted tree. Invalid JSON and traversal
+limit failures fail closed as an opaque or truncated safe result. The borrowed
+`Value` path does not clone, stringify, or mutate the caller's value. Within a
+domain implementation, `fields.json_value("payload", &value)` writes a parsed
+value as JSON rather than as a quoted JSON string.
+
 ## 4. Inspection and disabled policies
 
 Inspection reports rule matches, sensitivity, and completion without publishing
 raw values. Use it to explain why a field would be masked before choosing a
 serialization or logging boundary.
 
-`RedactionPolicy::disabled()` is an explicit opt-out. It preserves the raw
-rendered value, so callers must keep it behind a reviewed local boundary.
+`RedactionPolicy::disabled()` is an explicit opt-out. It restores raw values
+for fields, JSON, URI, HTTP, environment, argv, process, derive field modes,
+and generated Serde output. The source is still bounded by runtime limits.
 
-## 5. Verification
+```rust
+use qubit_redact::{RedactionPolicy, Redactor};
+
+let mut policy = RedactionPolicy::disabled();
+assert!(policy.is_disabled());
+policy.set_disabled(false);
+let output = Redactor::new(policy).redact_field("password", "raw-secret");
+assert!(!output.summary().is_redaction_disabled());
+assert!(!output.text().as_str().contains("raw-secret"));
+```
+
+Enabled `Complete`, `Truncated`, and `Exhausted` text remains confidentiality
+safe. Check `summary().completion()` and `summary().reasons()` only when the
+caller needs completeness, audit provenance, or retry decisions; do not parse
+text markers to infer state. When inspection drives a security decision, treat
+an inspection error as sensitive because classification was inconclusive.
+
+## 5. Troubleshooting and limits
+
+- Unexpected raw output: first check `output.summary().is_redaction_disabled()`
+  and the policy snapshot used to create the composer or batch.
+- Unexpected truncation: inspect `completion()`, `reasons()`, and `usage()`;
+  related operations intentionally share limits.
+- Missing masking: verify the field name and review every unmarked field. The
+  runtime does not infer application-specific sensitivity.
+- This crate protects only calls routed through its runtime. It does not erase
+  source memory or protect unrelated logging and serialization paths.
+
+## 6. Verification
 
 ```bash
 cargo test --all-features
