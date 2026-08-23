@@ -148,7 +148,7 @@ fn test_redaction_fields_map_classifies_each_dynamic_key() {
     impl Redact for DynamicMapValue {
         fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
             writer.record("DynamicMapValue", |fields| {
-                fields.map("attributes", self.attributes.iter());
+                fields.map("attributes", &self.attributes);
             });
         }
     }
