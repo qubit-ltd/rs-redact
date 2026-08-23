@@ -5,6 +5,7 @@
 // =============================================================================
 //! Failure classes produced while admitting JSON text.
 
+/// Distinguishes invalid JSON from JSON rejected by resource limits.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum JsonAdmissionError {
     /// The input is not one complete JSON value.

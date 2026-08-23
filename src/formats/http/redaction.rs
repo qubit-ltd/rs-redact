@@ -61,6 +61,8 @@ pub(in crate::formats::http) struct HttpRendered {
 }
 
 impl HttpRendered {
+    /// Consumes this internal wrapper into the runtime operation
+    /// representation.
     #[inline]
     pub(in crate::formats::http) fn into_operation(self) -> RenderedOperation {
         self.operation

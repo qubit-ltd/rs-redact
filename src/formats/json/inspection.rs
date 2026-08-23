@@ -36,6 +36,7 @@ pub(crate) fn inspect_text(session: &mut RedactionSession, text: &str) {
     inspect_value(session, &value, true);
 }
 
+/// Classifies one already-parsed JSON value without rendering it.
 pub(crate) fn inspect_borrowed_value(session: &mut RedactionSession, value: &Value) {
     if session.policy().is_disabled() {
         return;

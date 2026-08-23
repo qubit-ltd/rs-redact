@@ -33,10 +33,12 @@ pub(crate) fn admit_json_text_structure_at_depth(
     admit_json_text_value_at_depth(session, text, root_depth).is_ok()
 }
 
+/// Parses and admits one complete JSON text value at the root depth.
 pub(crate) fn admit_json_text_value(session: &mut RedactionSession, text: &str) -> Result<Value, JsonAdmissionError> {
     admit_json_text_value_at_depth(session, text, 1)
 }
 
+/// Parses and admits JSON text whose root appears at the supplied depth.
 pub(crate) fn admit_json_text_value_at_depth(
     session: &mut RedactionSession,
     text: &str,
@@ -195,6 +197,7 @@ impl<'session> JsonRedactionWriter<'session> {
         handle
     }
 
+    /// Redacts a parsed JSON value as an individually resolvable item.
     #[must_use]
     pub(crate) fn redact_value(&mut self, value: &Value) -> RedactionHandle {
         let owns_item_summary = self.session.begin_item_summary();
@@ -234,12 +237,14 @@ impl JsonRedactionWriter<'_> {
         redact_json_text_with_limit(self.session.policy(), text, self.session.remaining_output_bytes())
     }
 
+    /// Redacts a parsed value under the session's remaining output allowance.
     #[must_use]
     pub(crate) fn redact_value_direct(&mut self, value: &Value) -> RenderedOperation {
         redact_json_value_with_limit(self.session.policy(), value, self.session.remaining_output_bytes())
     }
 }
 
+/// Redacts a parsed JSON value under a caller-supplied output allowance.
 #[must_use]
 pub(crate) fn redact_json_value_with_limit(
     policy: &crate::RedactionPolicy,
@@ -252,6 +257,7 @@ pub(crate) fn redact_json_value_with_limit(
     )
 }
 
+/// Creates fail-closed output for JSON text that could not be parsed.
 pub(crate) fn invalid_json_output(policy: &crate::RedactionPolicy, max_output_bytes: usize) -> RenderedOperation {
     json_output_from_bounded(
         BoundedJsonRedaction::Invalid(policy.masking().mask_opaque(crate::Sensitivity::Secret).to_owned()),
