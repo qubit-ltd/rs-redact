@@ -50,6 +50,9 @@ pub(super) fn redacted_json_text_bounded(
     }
     #[cfg(test)]
     super::parse_counter::record_json_parse();
+    if !super::is_valid_json_text(text) {
+        return BoundedJsonRedaction::Invalid(opaque_secret(policy));
+    }
     let Ok(value) = from_str::<Value>(text) else {
         return BoundedJsonRedaction::Invalid(opaque_secret(policy));
     };
@@ -81,4 +84,18 @@ pub(super) fn redacted_json_value_bounded(
 /// An owned complete replacement selected at Secret sensitivity.
 fn opaque_secret(policy: &RedactionPolicy) -> String {
     policy.masking().mask_opaque(Sensitivity::Secret).to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BoundedJsonRedaction;
+    use super::redacted_json_text_bounded;
+    use crate::RedactionPolicy;
+
+    #[test]
+    fn bounded_json_text_rejects_integer_above_u64() {
+        let result = redacted_json_text_bounded(r#"{"id":18446744073709551616}"#, &RedactionPolicy::standard(), 256);
+
+        assert!(matches!(result, BoundedJsonRedaction::Invalid(_)));
+    }
 }

@@ -108,6 +108,9 @@ pub(in crate::formats::http) fn redact_ndjson(
         }
         #[cfg(test)]
         crate::formats::json::parse_counter::record_json_parse();
+        if !crate::formats::json::is_valid_json_text(line) {
+            return None;
+        }
         let mut value = from_str(line).ok()?;
         let line_passed = redact(redactor, &mut value, unkeyed);
         passed |= line_passed;

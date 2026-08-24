@@ -46,6 +46,9 @@ pub(crate) fn admit_json_text_value_at_depth(
 ) -> Result<Value, JsonAdmissionError> {
     #[cfg(test)]
     super::parse_counter::record_json_parse();
+    if !super::is_valid_json_text(text) {
+        return Err(JsonAdmissionError::Invalid);
+    }
     let mut deserializer = JsonDeserializer::from_str(text);
     let mut rejected = false;
     let admitted = JsonStructureSeed {
