@@ -19,6 +19,10 @@ redaction result is owned.
 qubit-redact = { version = "0.5" }
 ```
 
+The default feature set is empty. Enable integrations explicitly, for example
+`features = ["derive"]` for `#[derive(Redact)]`, or
+`features = ["serde", "derive"]` for derived redacted serialization.
+
 ## Quick Start
 
 ```rust
@@ -62,6 +66,9 @@ Then call `Redactor::standard().redact(&value)` or construct an explicit policy
 with `Redactor::new(policy)`. Inspect `output.summary().completion()` before
 presentation: `into_complete_text()` rejects incomplete output and
 `into_text_or_marker("<redaction incomplete>")` makes a fallback explicit.
+Borrowing callers can use `complete_text()` or
+`text_or_marker("<redaction incomplete>")`; this is especially useful after
+resolving several items from a batch.
 The runtime has no mutable redaction trait and does not mutate or erase the
 source value.
 
@@ -74,8 +81,10 @@ source value.
 - batch APIs that share one budget and summary across related values;
 - opt-in `serde` and derive integrations; the default feature set is minimal.
 
-Disabled policies preserve raw output for explicit local opt-out use. Treat that
-mode as a deliberate boundary decision and never use it for unreviewed logs.
+Disabled policies intentionally restore every supported raw value. Limits and
+control-character escaping remain active, but confidentiality redaction does
+not. Treat this as reviewed startup configuration, never a request-controlled
+switch or a mode for unreviewed logs.
 
 ## Learn More
 

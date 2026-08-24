@@ -2,7 +2,7 @@
 
 版本目标：`qubit-redact` 0.5.0
 
-更新日期：2026-08-21
+更新日期：2026-08-24
 
 ## 1. 文档定位
 
@@ -49,13 +49,15 @@ UTF-8 有效、控制字符安全并可写入日志或遥测系统的文本。
 - `qubit-redact-derive`：`#[derive(Redact)]` 过程宏及其编译期校验。
 
 derive crate 只生成对运行时公共 domain API 的调用，不复制字段解析、掩码、预算或格式算法。
-运行时 crate 不依赖 derive crate；应用可选择手写 trait 实现或使用 derive。
+运行时 crate 仅在显式启用 `derive` feature 时可选依赖并重导出 derive crate；应用也可选择
+手写 trait 实现。
 
 `qubit-redact` 的 feature 边界如下：
 
 | Feature | 能力 |
 | --- | --- |
-| 默认 | 字段、domain、argv、env、process、policy、运行时和输出 |
+| 默认（`default = []`） | 字段、domain、argv、env、process、policy、运行时和输出 |
+| `derive` | 重导出 `#[derive(Redact)]` 过程宏 |
 | `serde` | 与脱敏序列化相关的 trait 支持 |
 | `json` | JSON 文档解析、结构预算和 JSON domain 字段 |
 | `http` | HTTP URL、headers、body；同时启用 `json` |
@@ -143,9 +145,9 @@ let url = batch.redact_http_url(raw_url);
 let headers = batch.redact_http_headers(&headers);
 
 let output = batch.finish();
-let safe_user = output.resolve(user)?;
-let safe_url = output.resolve(url)?;
-let safe_headers = output.resolve(headers)?;
+let safe_user = output.resolve(user)?.text_or_marker("<redaction incomplete>");
+let safe_url = output.resolve(url)?.text_or_marker("<redaction incomplete>");
+let safe_headers = output.resolve(headers)?.text_or_marker("<redaction incomplete>");
 ```
 
 batch 可以包含异构 item。一个集合型输入仍是一个逻辑 item，但集合内部逐项消耗结构预算。
@@ -353,6 +355,11 @@ composer 的预算覆盖完整组合文本；batch 的预算覆盖全部 item �
 `RedactionTextOutput` 包含一份 `RedactedText` 和一份 `RedactionSummary`。它是所有最终单文本
 结果的统一类型，包括 composer 输出、batch item 和一次性 redactor 输出。
 
+拥有输出的调用方使用 `into_complete_text()` 或 `into_text_or_marker(marker)`；需要继续借用
+batch publication 的调用方使用 `complete_text()` 或 `text_or_marker(marker)`。后一组方法在
+完整路径零分配，不完整路径返回经过控制字符转义的调用方 marker。调用方不得直接把不完整
+item 的 `text()` 当作完整 URL、header 或命令描述展示。
+
 ### 9.3 RedactionBatchOutput
 
 `RedactionBatchOutput` 包含 batch identity、item 列表和整批 summary。它没有 `text()`；调用方
@@ -476,7 +483,8 @@ JSON adapter 接受文本 JSON 文档，按 object key 递归应用字段规则�
 总输入输出预算约束。unkeyed scalar 的处理由 `UnkeyedJsonValuePolicy` 决定。
 
 无效 JSON 不返回 parser error 给调用方；它产生安全替代文本并记录 `InvalidJson`。一个 JSON 文档
-在 batch 中是一个逻辑 item。本版本不提供独立 JSON AST 公共输入 API。
+在 batch 中是一个逻辑 item。调用方还可以通过借用的 `serde_json::Value` 公共输入 API 避免
+重复解析；该路径不会 clone、字符串化或修改调用方的 JSON value。
 
 ### 12.5 HTTP
 

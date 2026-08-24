@@ -103,6 +103,16 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
 /// A disabled policy intentionally restores original values while retaining
 /// resource limits. Toggle it only as a reviewed startup configuration.
 ///
+/// # Warning
+///
+/// Disabling this policy opts out of confidentiality redaction. Every supported
+/// format, derived field mode, and redaction-specific skip path may publish its
+/// original value. Resource limits and diagnostic control-character escaping
+/// still apply, but they do not make the output redacted. Do not let untrusted
+/// requests enable this mode dynamically. Callers can observe it through
+/// [`crate::RedactionSummary::is_redaction_disabled`] and
+/// [`crate::RedactionInspection::is_redaction_disabled`].
+///
 /// # Examples
 ///
 /// ```
@@ -150,7 +160,15 @@ impl RedactionPolicy {
         STRICT_POLICY.clone()
     }
 
-    /// Returns the standard policy with redaction globally disabled.
+    /// Returns the standard policy with confidentiality redaction globally
+    /// disabled.
+    ///
+    /// # Warning
+    ///
+    /// Outputs produced with this policy may contain every original value.
+    /// Limits and control-character escaping remain active, but masking and
+    /// redaction-specific field decisions do not. Use this only as reviewed
+    /// startup configuration, never as a request-controlled switch.
     #[must_use]
     pub fn disabled() -> Self {
         let mut policy = Self::standard();
@@ -158,7 +176,10 @@ impl RedactionPolicy {
         policy
     }
 
-    /// Returns whether this policy bypasses redaction while retaining limits.
+    /// Returns whether this policy publishes original values while retaining
+    /// limits and control-character escaping.
+    ///
+    /// A `true` result means confidentiality redaction is disabled.
     #[must_use]
     pub const fn is_disabled(&self) -> bool {
         self.disabled
@@ -166,6 +187,12 @@ impl RedactionPolicy {
 
     /// Changes the global redaction switch and returns this policy for
     /// chaining.
+    ///
+    /// # Warning
+    ///
+    /// Passing `true` allows every supported redaction entry to publish its
+    /// original value. Only reviewed startup configuration should enable this
+    /// mode; do not derive the value from an untrusted request.
     #[must_use]
     pub fn set_disabled(&mut self, disabled: bool) -> &mut Self {
         self.disabled = disabled;

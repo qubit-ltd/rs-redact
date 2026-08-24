@@ -13,6 +13,9 @@
 会返回摘要，调用方必须决定本地展示策略。需要明确的降级标记时，使用
 `into_text_or_marker("<redaction incomplete>")`，不要静默把部分 URL、请求头或命令描述
 当作完整信息展示。
+输出需要保持借用时，可使用 `complete_text()` 或
+`text_or_marker("<redaction incomplete>")`。batch 调用方可以用这两个借用式方法对每个
+已解析 item 独立应用相同规则。
 
 `Truncated` 至少保留了非空的安全替代文本；`Exhausted` 表示共享输出预算无法容纳完整替代。
 `reasons()` 可说明 JSON、form、multipart 等解析降级及预算原因。
@@ -55,7 +58,8 @@ assert_eq!(login.password, "raw");
 - `skipped(name, access)` 省略字段且不渲染其值。
 
 每个操作都参与同一个输出预算和摘要。可能包含敏感数据的字段不能因为当前策略在其他
-位置会掩码，就省略其字段决策。
+位置会掩码，就省略其字段决策。未标注字段是永久由下游承担的信任决定；strict policy 和
+inspection 都不会推断或提升其敏感度。
 
 标量字段 API 接受惰性的 `Display` 值。运行时先判定敏感等级，再决定是否格式化；因此
 `High` 和 `Secret` 字段不会触发格式化。只有 `Debug` 的值可以借助 `format_args!`：
@@ -111,8 +115,10 @@ JSON 文本只解析一次，解析过程同时完成结构准入并构造 admit
 Inspection 会报告规则匹配、敏感度和完成状态，但不会发布原始值。它适合在确定日志或序列化
 边界前解释某字段为何会被掩码。
 
-`RedactionPolicy::disabled()` 是显式退出选项。字段、JSON、URI、HTTP、环境变量、argv、
+`RedactionPolicy::disabled()` 是显式关闭保密脱敏的选项。字段、JSON、URI、HTTP、环境变量、argv、
 进程、derive 字段模式和生成的 Serde 输出都会恢复原值，但仍受运行时资源上限约束。
+控制字符转义也仍然生效，但这两项机制都不表示结果已经脱敏。只能通过经过审查的启动配置
+启用它，不能让不可信请求动态切换。
 
 ```rust
 use qubit_redact::{RedactionPolicy, Redactor};
