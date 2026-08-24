@@ -78,6 +78,8 @@ source value.
 - `Sensitivity`-based masking with field, key, and path policy rules;
 - inspection APIs that report matched rules without emitting raw values;
 - parsed `serde_json::Value` APIs that borrow and leave the input unchanged;
+- JSON text follows `qubit-json`'s numeric boundary: negative integers fit
+  `i64`, non-negative integers fit `u64`, and fractions are finite `f64`;
 - batch APIs that share one budget and summary across related values;
 - opt-in `serde` and derive integrations; the default feature set is minimal.
 
