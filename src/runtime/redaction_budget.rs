@@ -12,6 +12,8 @@ use qubit_budget::json::JsonMeasurement;
 #[cfg(feature = "json")]
 use qubit_budget::json::JsonValueBudget;
 #[cfg(feature = "json")]
+use qubit_json::value::json_number_lexeme_length;
+#[cfg(feature = "json")]
 use serde_json::Value;
 
 use super::StructuralBudget;
@@ -140,7 +142,7 @@ impl RedactionBudget {
                 Value::Bool(_) => JsonMeasurement::Boolean { depth },
                 Value::Number(number) => JsonMeasurement::Number {
                     depth,
-                    bytes: number.as_str().len(),
+                    bytes: json_number_lexeme_length(number),
                 },
                 Value::String(text) => JsonMeasurement::String {
                     depth,

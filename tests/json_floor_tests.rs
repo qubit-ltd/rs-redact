@@ -120,6 +120,26 @@ fn test_json_invalid_input_reports_safe_invalid_json_result() {
     assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
 }
 
+/// JSON redaction shares qubit-json's signed/unsigned 64-bit number boundary.
+#[test]
+fn test_json_rejects_integer_outside_64_bit_range() {
+    let output = Redactor::strict().redact_json("18446744073709551616");
+
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
+    assert!(!output.text().as_str().contains("18446744073709551616"));
+}
+
+/// serde_json's former private number marker remains an ordinary object key.
+#[test]
+fn test_json_preserves_former_number_marker_object() {
+    let input = r#"{"$serde_json::private::Number":"123"}"#;
+    let output = Redactor::strict().redact_json(input);
+
+    assert!(output.text().as_str().contains("$serde_json::private::Number"));
+    assert!(output.text().as_str().starts_with('{'));
+    assert!(!output.summary().reasons().contains(RedactionReason::InvalidJson));
+}
+
 /// Empty input is invalid JSON, so it must preserve parser provenance rather
 /// than being mistaken for an input-budget admission failure.
 #[test]

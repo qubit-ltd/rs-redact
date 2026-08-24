@@ -190,6 +190,10 @@ fn inspect_parsed_url(session: &mut RedactionSession, url: &Url, depth: usize) {
 
 /// Parses and classifies one complete JSON body.
 pub(in crate::formats::http) fn inspect_json_bytes(session: &mut RedactionSession, bytes: &[u8]) {
+    if !crate::formats::json::is_valid_json_bytes(bytes) {
+        session.fail_inspection(RedactionReason::InvalidJson);
+        return;
+    }
     let Ok(value) = from_slice::<Value>(bytes) else {
         session.fail_inspection(RedactionReason::InvalidJson);
         return;

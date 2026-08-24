@@ -922,6 +922,10 @@ where
         let replacement = masked();
         return serializer.serialize_str(replacement.as_ref());
     }
+    if !crate::formats::json::is_valid_json_text(text) {
+        let replacement = masked();
+        return serializer.serialize_str(replacement.as_ref());
+    }
     let Ok(value) = serde_json::from_str::<serde_json::Value>(text) else {
         let replacement = masked();
         return serializer.serialize_str(replacement.as_ref());
