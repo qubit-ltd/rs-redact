@@ -7,6 +7,8 @@
 // =============================================================================
 //! Final output paired with its execution summary.
 
+use std::borrow::Cow;
+
 use super::RedactedText;
 use super::RedactionSummary;
 use crate::RedactionCompletion;
@@ -35,6 +37,39 @@ impl RedactionTextOutput {
     #[must_use]
     pub const fn summary(&self) -> &RedactionSummary {
         &self.summary
+    }
+
+    /// Borrows the final text when the operation completed without truncation
+    /// or exhaustion.
+    ///
+    /// # Errors
+    ///
+    /// Returns the execution summary when the safe output was truncated or
+    /// exhausted. Callers must choose an explicit presentation marker or
+    /// recoverable handling path for incomplete output.
+    pub fn complete_text(&self) -> Result<&RedactedText, &RedactionSummary> {
+        if self.summary.completion() == RedactionCompletion::Complete {
+            Ok(&self.text)
+        } else {
+            Err(&self.summary)
+        }
+    }
+
+    /// Borrows the final text or returns an escaped caller-selected marker
+    /// when the operation was incomplete.
+    ///
+    /// The complete path does not allocate. An incomplete marker is escaped
+    /// before publication so control characters cannot forge diagnostic log
+    /// structure. The marker is selected after the transaction and therefore
+    /// does not consume its resource budget.
+    #[must_use]
+    pub fn text_or_marker(&self, marker: &str) -> Cow<'_, str> {
+        self.complete_text().map_or_else(
+            |_| {
+                Cow::Owned(crate::output::log_escape::escape_log_control_characters(Cow::Borrowed(marker)).into_owned())
+            },
+            |text| Cow::Borrowed(text.as_str()),
+        )
     }
 
     /// Consumes a complete output and returns its final text.

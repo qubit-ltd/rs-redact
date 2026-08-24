@@ -7,6 +7,8 @@
 // =============================================================================
 //! Regression coverage for the post-redesign public transaction API.
 
+use std::borrow::Cow;
+
 use qubit_redact::Redact;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
@@ -125,6 +127,14 @@ fn redaction_output_preserves_parts_across_all_public_accessors() {
 
     assert_eq!(output.text().as_str(), "<redacted>");
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(
+        output.complete_text().expect("field output must be complete").as_str(),
+        "<redacted>",
+    );
+    assert!(matches!(
+        output.text_or_marker("<redaction incomplete>"),
+        Cow::Borrowed("<redacted>"),
+    ));
 
     let text = output.into_complete_text().expect("field output must be complete");
     assert_eq!(text.into_string(), "<redacted>");
@@ -142,6 +152,11 @@ fn redaction_output_rejects_incomplete_text_and_uses_the_selected_marker() {
         .expect("policy should build");
     let output = Redactor::new(policy).redact_field("password", "raw-password");
 
+    assert!(output.complete_text().is_err());
+    assert_eq!(
+        output.text_or_marker("<redaction\nincomplete>"),
+        "<redaction\\nincomplete>",
+    );
     assert!(output.clone().into_complete_text().is_err());
     assert_eq!(
         output.into_text_or_marker("<redaction incomplete>").as_str(),
