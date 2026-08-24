@@ -15,6 +15,9 @@ Every rendering entry point returns `RedactionTextOutput`: safe text and a
 the caller must choose the local presentation policy. For an intentional
 fallback marker, use `into_text_or_marker("<redaction incomplete>")` rather
 than silently presenting a partial URL, header block, or command description.
+When the output must remain borrowed, use `complete_text()` or
+`text_or_marker("<redaction incomplete>")`. These borrowed helpers let batch
+callers apply the same rule independently to every resolved item.
 
 `Truncated` retains a non-empty safe substitute; `Exhausted` could not retain a
 complete replacement under the shared output budget. `reasons()` identifies
@@ -60,7 +63,9 @@ runtime has no mutable redaction API and does not provide memory zeroization.
 
 Each operation participates in the same output budget and summary. A field
 that may contain sensitive data must not be left unmarked merely because the
-current policy happens to mask it elsewhere.
+current policy happens to mask it elsewhere. Unmarked fields are a permanent
+downstream-owned trust decision: strict policy and inspection do not infer or
+upgrade their sensitivity.
 
 Scalar field APIs accept lazy `Display` values. A `High` or `Secret` decision
 happens before formatting, so rejected content is never formatted. A
@@ -122,9 +127,12 @@ Inspection reports rule matches, sensitivity, and completion without publishing
 raw values. Use it to explain why a field would be masked before choosing a
 serialization or logging boundary.
 
-`RedactionPolicy::disabled()` is an explicit opt-out. It restores raw values
+`RedactionPolicy::disabled()` is an explicit confidentiality opt-out. It restores raw values
 for fields, JSON, URI, HTTP, environment, argv, process, derive field modes,
-and generated Serde output. The source is still bounded by runtime limits.
+and generated Serde output. The source is still bounded by runtime limits and
+control characters remain escaped, but neither mechanism makes the result
+redacted. Enable this only as reviewed startup configuration and never from an
+untrusted request.
 
 ```rust
 use qubit_redact::{RedactionPolicy, Redactor};

@@ -17,6 +17,10 @@ JSON、HTTP 值、URI、环境变量和进程参数。源对象只被借用，�
 qubit-redact = { version = "0.5" }
 ```
 
+默认 feature 集为空。集成能力必须显式启用，例如使用 `features = ["derive"]`
+获得 `#[derive(Redact)]`，或使用 `features = ["serde", "derive"]` 获得派生的
+脱敏序列化。
+
 ## 快速开始
 
 ```rust
@@ -60,6 +64,8 @@ impl Redact for Login {
 输出包含文本和摘要。展示前应检查 `output.summary().completion()`：
 `into_complete_text()` 会拒绝不完整输出，`into_text_or_marker("<redaction incomplete>")`
 要求调用方明确选择降级标记。运行时没有可变脱敏 trait，不会修改或擦除源对象。
+借用调用方可使用 `complete_text()` 或 `text_or_marker("<redaction incomplete>")`；
+这尤其适合解析同一 batch 中的多个 item。
 
 ## 能力
 
@@ -70,7 +76,8 @@ impl Redact for Login {
 - 在一批相关值之间共享预算和摘要的 batch API；
 - 可选的 `serde` 与 derive 集成；默认 feature 集保持最小化。
 
-禁用策略会保留原始输出，只应作为明确的本地退出边界使用，不能用于未经审查的日志。
+禁用策略会有意恢复所有支持入口的原值。资源限制和控制字符转义仍然生效，但保密脱敏不再
+生效。它只能作为经过审查的启动配置，不能由请求动态开启，也不能用于未经审查的日志。
 
 ## 延伸阅读
 

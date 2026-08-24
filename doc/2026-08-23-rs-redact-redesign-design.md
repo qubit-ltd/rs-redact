@@ -288,7 +288,7 @@ RedactedTextComposer::field()
 仅实现 `Debug` 的值可以通过惰性的 `fmt::Arguments` 使用：
 
 ```rust
-redactor.redact_field("request", format_args!("{request:?}"));
+redactor.redact_field("request", &format_args!("{request:?}"));
 ```
 
 执行顺序：先分类；`High`、`Secret` 不触发 `fmt`；`Low`、`Medium` 有界格式化后 mask；pass-through 也有界格式化；超限时 fail-closed。
@@ -351,11 +351,11 @@ DeriveInput
 
 ## 13. derive 宏重导出
 
-`qubit-redact` 增加默认启用的 `derive` feature：
+`qubit-redact` 提供显式启用的 `derive` feature，并保持最小默认 feature 集：
 
 ```toml
 [features]
-default = ["serde", "derive"]
+default = []
 derive = ["dep:qubit-redact-derive"]
 ```
 
@@ -366,7 +366,11 @@ derive = ["dep:qubit-redact-derive"]
 pub use qubit_redact_derive::Redact;
 ```
 
-trait 与 derive 宏位于不同命名空间，可以同名。普通用户只需依赖 `qubit-redact`：
+trait 与 derive 宏位于不同命名空间，可以同名。使用宏的调用方显式启用 `derive`：
+
+```toml
+qubit-redact = { version = "0.5", features = ["derive"] }
+```
 
 ```rust
 use qubit_redact::Redact;
@@ -378,7 +382,7 @@ struct Request {
 }
 ```
 
-`default-features = false` 的调用方如需宏，必须显式启用 `derive`。使用 `#[redact(serde)]` 时，调用方仍需直接依赖 `serde`。
+使用 `#[redact(serde)]` 时，调用方还需启用 runtime 的 `serde` feature，并直接依赖 `serde`。
 
 这不形成普通依赖循环：`qubit-redact-derive` 不以普通依赖方式依赖 runtime；其 runtime 依赖仅用于测试，并保持 `default-features = false`，不重新启用自身 derive。
 
@@ -467,7 +471,7 @@ struct Request {
 同步完成代码和下游验证后：
 
 1. 发布 `qubit-redact-derive`；
-2. 发布默认重导出 derive 的 `qubit-redact`；
+2. 发布可显式启用并重导出 derive 的 `qubit-redact`；
 3. 更新并发布/集成 `rs-model-derive`；
 4. 更新 `rs-model-metadata` 与 `rs-platform`。
 
