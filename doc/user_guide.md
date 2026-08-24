@@ -121,6 +121,12 @@ limit failures fail closed as an opaque or truncated safe result. The borrowed
 domain implementation, `fields.json_value("payload", &value)` writes a parsed
 value as JSON rather than as a quoted JSON string.
 
+JSON text uses `qubit-json`'s explicit number contract: negative integers must
+fit `i64`, non-negative integers must fit `u64`, and fractional/exponential
+tokens must produce finite `f64`. Out-of-range text follows the same fail-closed
+invalid-JSON path. A former serde_json private Number-marker key is an ordinary
+object key.
+
 ## 4. Inspection and disabled policies
 
 Inspection reports rule matches, sensitivity, and completion without publishing

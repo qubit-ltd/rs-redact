@@ -110,6 +110,10 @@ JSON 文本只解析一次，解析过程同时完成结构准入并构造 admit
 超限时会整体 fail-closed。借用 `Value` 的路径不会 clone、转成字符串或修改调用方对象；
 领域实现可用 `fields.json_value("payload", &value)` 写入不带额外字符串引号的 JSON 值。
 
+JSON 文本采用 `qubit-json` 的明确数字契约：负整数必须装入 `i64`，非负整数必须装入 `u64`，
+小数/指数必须得到有限 `f64`。越界文本沿用 fail-closed 的无效 JSON 路径；serde_json 旧私有
+Number marker key 是普通 object key。
+
 ## 4. Inspection 与禁用策略
 
 Inspection 会报告规则匹配、敏感度和完成状态，但不会发布原始值。它适合在确定日志或序列化

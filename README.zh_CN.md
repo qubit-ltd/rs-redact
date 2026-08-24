@@ -73,6 +73,8 @@ impl Redact for Login {
 - 基于 `Sensitivity` 的掩码以及字段、key、路径规则；
 - 只报告匹配规则而不输出原始值的 inspection API；
 - 借用 `serde_json::Value` 且保持输入不变的解析 JSON API；
+- JSON 文本遵循 `qubit-json` 数字边界：负整数装入 `i64`，非负整数装入 `u64`，小数为有限
+  `f64`；
 - 在一批相关值之间共享预算和摘要的 batch API；
 - 可选的 `serde` 与 derive 集成；默认 feature 集保持最小化。
 
