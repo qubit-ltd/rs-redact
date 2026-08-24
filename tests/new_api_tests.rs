@@ -89,6 +89,50 @@ fn batch_handles_cannot_cross_batches() {
 }
 
 #[test]
+fn batch_output_resolves_complete_text_or_the_selected_marker() {
+    let mut complete_batch = Redactor::standard().batch();
+    let complete_handle = complete_batch.redact_field("name", "Ada");
+    let complete_output = complete_batch.finish();
+    assert!(matches!(
+        complete_output
+            .resolve_text_or_marker(complete_handle, "<redaction incomplete>")
+            .expect("a handle from this batch should resolve"),
+        Cow::Borrowed("Ada"),
+    ));
+
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_output_bytes(1);
+        })
+        .expect("limit configuration should be valid")
+        .build()
+        .expect("policy should build");
+    let mut incomplete_batch = Redactor::new(policy).batch();
+    let incomplete_handle = incomplete_batch.redact_field("password", "raw-password");
+    let incomplete_output = incomplete_batch.finish();
+    assert_eq!(
+        incomplete_output
+            .resolve_text_or_marker(incomplete_handle, "<redaction\nincomplete>")
+            .expect("a handle from this batch should resolve"),
+        "<redaction\\nincomplete>",
+    );
+}
+
+#[test]
+fn batch_output_marker_resolution_rejects_a_foreign_handle() {
+    let mut first_batch = Redactor::standard().batch();
+    let first_handle = first_batch.redact_field("name", "Ada");
+    let _ = first_batch.finish();
+
+    let second_output = Redactor::standard().batch().finish();
+    assert!(
+        second_output
+            .resolve_text_or_marker(first_handle, "<redaction incomplete>")
+            .is_err(),
+    );
+}
+
+#[test]
 fn application_default_replacement_affects_new_trait_entries_only() {
     let original = Redactor::application_default();
     let replacement = Redactor::new(secret_policy("token"));
@@ -185,6 +229,29 @@ fn summary_completion_reason_and_empty_usage_values_are_publicly_observable() {
     assert!(reasons.contains(RedactionReason::DepthLimitReached));
     assert!(reasons.contains(RedactionReason::InvalidJson));
     assert!(!reasons.contains(RedactionReason::OutputLimitReached));
+}
+
+/// Verifies every currently published reason has an independent set bit.
+#[test]
+fn every_redaction_reason_round_trips_through_the_reason_set() {
+    let reasons = [
+        RedactionReason::InputLimitReached,
+        RedactionReason::OutputLimitReached,
+        RedactionReason::TraversalLimitReached,
+        RedactionReason::DepthLimitReached,
+        RedactionReason::SourceTruncated,
+        RedactionReason::InvalidJson,
+        RedactionReason::InvalidUri,
+        RedactionReason::InvalidContentType,
+        RedactionReason::UnsupportedContentType,
+        RedactionReason::InvalidForm,
+        RedactionReason::InvalidMultipart,
+    ];
+
+    for reason in reasons {
+        let set = RedactionReasons::empty().with(reason);
+        assert!(set.contains(reason), "{reason:?} should round-trip");
+    }
 }
 
 /// Verifies the default usage value preserves the public empty-usage contract.

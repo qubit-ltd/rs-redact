@@ -135,6 +135,7 @@ impl RedactionBatch {
 
     /// Redacts a borrowed parsed JSON value without taking ownership of it.
     #[cfg(feature = "json")]
+    #[must_use]
     pub fn redact_json_value(&mut self, value: &serde_json::Value) -> RedactionBatchHandle {
         Self::wrap(self.session.redact_json_value(value))
     }

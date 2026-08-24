@@ -38,15 +38,41 @@ pub enum RedactionReason {
     InvalidMultipart,
 }
 
+impl RedactionReason {
+    /// Returns the stable bit assigned to this reason in a reason set.
+    const fn bit(self) -> u64 {
+        match self {
+            Self::InputLimitReached => 1 << 0,
+            Self::OutputLimitReached => 1 << 1,
+            Self::TraversalLimitReached => 1 << 2,
+            Self::DepthLimitReached => 1 << 3,
+            Self::SourceTruncated => 1 << 4,
+            Self::InvalidJson => 1 << 5,
+            Self::InvalidUri => 1 << 6,
+            Self::InvalidContentType => 1 << 7,
+            Self::UnsupportedContentType => 1 << 8,
+            Self::InvalidForm => 1 << 9,
+            Self::InvalidMultipart => 1 << 10,
+        }
+    }
+}
+
 /// Measured resource use for one redaction transaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RedactionUsage {
+    /// Bytes presented at public input boundaries.
     presented_input_bytes: usize,
+    /// Presented bytes admitted for inspection.
     inspected_input_bytes: usize,
+    /// Escaped bytes retained in final output.
     output_bytes: usize,
+    /// Structural nodes admitted during traversal.
     visited_nodes: usize,
+    /// Sequence and map items admitted during traversal.
     visited_collection_items: usize,
+    /// Greatest active structural depth observed.
     max_depth: usize,
+    /// Known bytes omitted at admission boundaries.
     omitted_input_bytes: Option<usize>,
 }
 
@@ -73,30 +99,35 @@ impl RedactionUsage {
 
     /// Returns the bytes supplied by callers before input admission.
     #[must_use]
+    #[inline(always)]
     pub const fn presented_input_bytes(self) -> usize {
         self.presented_input_bytes
     }
 
     /// Returns the bytes the transaction actually inspected.
     #[must_use]
+    #[inline(always)]
     pub const fn inspected_input_bytes(self) -> usize {
         self.inspected_input_bytes
     }
 
     /// Returns the final escaped bytes retained by the transaction.
     #[must_use]
+    #[inline(always)]
     pub const fn output_bytes(self) -> usize {
         self.output_bytes
     }
 
     /// Returns the admitted domain or format nodes visited by the transaction.
     #[must_use]
+    #[inline(always)]
     pub const fn visited_nodes(self) -> usize {
         self.visited_nodes
     }
 
     /// Returns the admitted collection items visited by the transaction.
     #[must_use]
+    #[inline(always)]
     pub const fn visited_collection_items(self) -> usize {
         self.visited_collection_items
     }
@@ -104,12 +135,14 @@ impl RedactionUsage {
     /// Returns the greatest active structural depth observed by the
     /// transaction.
     #[must_use]
+    #[inline(always)]
     pub const fn max_depth(self) -> usize {
         self.max_depth
     }
 
     /// Returns omitted source bytes when the source length is known.
     #[must_use]
+    #[inline(always)]
     pub const fn omitted_input_bytes(self) -> Option<usize> {
         self.omitted_input_bytes
     }
@@ -169,7 +202,10 @@ impl RedactionUsage {
 
 /// Compact set of summary reasons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct RedactionReasons(u16);
+pub struct RedactionReasons(
+    /// Stable bit flags for the reasons accumulated by one operation.
+    u64,
+);
 
 impl RedactionReasons {
     /// Creates an empty reason set.
@@ -181,13 +217,13 @@ impl RedactionReasons {
     /// Adds one reason.
     #[must_use]
     pub const fn with(self, reason: RedactionReason) -> Self {
-        Self(self.0 | (1 << reason as u8))
+        Self(self.0 | reason.bit())
     }
 
     /// Returns whether a reason is present.
     #[must_use]
     pub const fn contains(self, reason: RedactionReason) -> bool {
-        self.0 & (1 << reason as u8) != 0
+        self.0 & reason.bit() != 0
     }
 
     /// Combines two reason sets.
@@ -200,9 +236,13 @@ impl RedactionReasons {
 /// Machine-readable summary of one redaction operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RedactionSummary {
+    /// Whether the operation intentionally bypassed redaction.
     redaction_disabled: bool,
+    /// Final completion state of the operation.
     completion: RedactionCompletion,
+    /// Reasons explaining degraded completion.
     reasons: RedactionReasons,
+    /// Resource accounting captured by the operation.
     usage: RedactionUsage,
 }
 
@@ -247,18 +287,21 @@ impl RedactionSummary {
 
     /// Returns completion state.
     #[must_use]
+    #[inline(always)]
     pub const fn completion(self) -> RedactionCompletion {
         self.completion
     }
 
     /// Returns whether redaction was globally disabled for this operation.
     #[must_use]
+    #[inline(always)]
     pub const fn is_redaction_disabled(self) -> bool {
         self.redaction_disabled
     }
 
     /// Returns accumulated reasons.
     #[must_use]
+    #[inline(always)]
     pub const fn reasons(self) -> RedactionReasons {
         self.reasons
     }
@@ -266,6 +309,7 @@ impl RedactionSummary {
     /// Returns resource use measured by the operation that produced this
     /// summary.
     #[must_use]
+    #[inline(always)]
     pub const fn usage(self) -> RedactionUsage {
         self.usage
     }
