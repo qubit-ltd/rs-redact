@@ -29,12 +29,14 @@ impl RedactionTextOutput {
 
     /// Borrows the final text.
     #[must_use]
+    #[inline(always)]
     pub const fn text(&self) -> &RedactedText {
         &self.text
     }
 
     /// Borrows the execution summary.
     #[must_use]
+    #[inline(always)]
     pub const fn summary(&self) -> &RedactionSummary {
         &self.summary
     }
@@ -104,6 +106,7 @@ impl RedactionTextOutput {
 
     /// Consumes the output and returns both parts.
     #[must_use]
+    #[inline(always)]
     pub fn into_parts(self) -> (RedactedText, RedactionSummary) {
         (self.text, self.summary)
     }

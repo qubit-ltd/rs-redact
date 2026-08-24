@@ -53,6 +53,7 @@ use crate::policy::ResolvedField;
 /// }
 /// ```
 pub struct RedactionWriter<'session> {
+    /// Transaction session receiving classified output and accounting.
     session: &'session mut RedactionSession,
 }
 
@@ -107,6 +108,7 @@ impl<'session> RedactionWriter<'session> {
         self.unredacted(value)
     }
 
+    /// Removes the trailing separator from the active domain frame.
     pub(crate) fn trim_trailing_separator(&mut self) {
         self.session.trim_domain_frame_separator();
     }
@@ -251,6 +253,7 @@ impl<'session> RedactionWriter<'session> {
         self.session.leave_domain_value();
     }
 
+    /// Writes one named sequence-like domain structure.
     fn write_item_structure<F>(
         &mut self,
         name: &'static str,
@@ -276,6 +279,7 @@ impl<'session> RedactionWriter<'session> {
         self.session.leave_domain_value();
     }
 
+    /// Writes one named map-like domain structure.
     fn write_entry_structure<F>(
         &mut self,
         name: &'static str,
@@ -324,6 +328,7 @@ impl<'session> RedactionWriter<'session> {
         self.session.write_domain_fragment(text)
     }
 
+    /// Streams a debug representation into the bounded output session.
     pub(crate) fn write_debug<T>(&mut self, value: &T)
     where
         T: Debug + ?Sized,
@@ -367,6 +372,7 @@ impl<'session> RedactionWriter<'session> {
         }
     }
 
+    /// Writes a scalar using the supplied sensitivity level.
     pub(crate) fn write_level_scalar<T>(&mut self, level: Sensitivity, value: &T)
     where
         T: Debug + ?Sized,
@@ -378,6 +384,7 @@ impl<'session> RedactionWriter<'session> {
         }
     }
 
+    /// Writes a tuple whose items carry explicit sensitivities.
     pub(crate) fn level_tuple<F>(&mut self, configure: F)
     where
         F: for<'writer> FnOnce(&mut RedactionItems<'writer, 'session>),
@@ -385,11 +392,13 @@ impl<'session> RedactionWriter<'session> {
         self.write_item_structure("", "(", ")", configure);
     }
 
+    /// Returns whether the active frame can accept another fragment.
     #[inline]
     fn can_write(&self) -> bool {
         !self.session.domain_frame_is_truncated() && self.remaining_output_bytes() > 0
     }
 
+    /// Returns bytes still available to the active domain frame.
     #[inline]
     fn remaining_output_bytes(&self) -> usize {
         self.session.remaining_domain_frame_output_bytes()
@@ -399,6 +408,7 @@ impl<'session> RedactionWriter<'session> {
 /// `fmt::Write` adapter that stops a `Debug` formatter at the writer's final
 /// escaped-output ceiling instead of first materializing an unbounded string.
 struct BoundedDebugWriter<'writer, 'session> {
+    /// Domain writer receiving complete formatter fragments.
     writer: &'writer mut RedactionWriter<'session>,
 }
 
@@ -414,7 +424,9 @@ impl fmt::Write for BoundedDebugWriter<'_, '_> {
 
 /// Field scope for a record or tuple writer.
 pub struct RedactionFields<'writer, 'session> {
+    /// Domain writer receiving field output.
     writer: &'writer mut RedactionWriter<'session>,
+    /// Whether field names are emitted before values.
     named: bool,
 }
 
@@ -744,11 +756,13 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         self.writer.session.admit_domain_field()
     }
 
+    /// Admits one tuple item against the active collection limit.
     #[inline]
     fn admit_item(&mut self) -> bool {
         !self.writer.session.domain_frame_is_truncated() && self.writer.session.admit_domain_collection_item()
     }
 
+    /// Writes the field-name prefix for named structures.
     fn write_prefix(&mut self, name: &str) {
         if self.named {
             self.writer.write_fragment(name);
@@ -756,6 +770,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         }
     }
 
+    /// Publishes the structural truncation marker once.
     fn write_field_truncated(&mut self) {
         if !self.writer.session.domain_frame_is_truncated() {
             if self.named {
@@ -770,6 +785,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
 
 /// Item-only scope for a sequence writer.
 pub struct RedactionItems<'writer, 'session> {
+    /// Domain writer receiving sequence items.
     writer: &'writer mut RedactionWriter<'session>,
 }
 
@@ -827,6 +843,7 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
         self
     }
 
+    /// Writes one item with an explicitly supplied sensitivity.
     pub(crate) fn level_value<T>(&mut self, value: &T, level: Sensitivity) -> &mut Self
     where
         T: RedactLevelValue + ?Sized,
@@ -854,10 +871,12 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
         self
     }
 
+    /// Admits one item against the active collection limit.
     fn admit_item(&mut self) -> bool {
         !self.writer.session.domain_frame_is_truncated() && self.writer.session.admit_domain_collection_item()
     }
 
+    /// Publishes the sequence truncation marker once.
     fn write_truncated(&mut self) {
         if !self.writer.session.domain_frame_is_truncated() {
             self.writer.write_fragment("<truncated>");
@@ -868,6 +887,7 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
 
 /// Entry-only scope for a map writer.
 pub struct RedactionEntries<'writer, 'session> {
+    /// Domain writer receiving map entries.
     writer: &'writer mut RedactionWriter<'session>,
 }
 
@@ -948,15 +968,18 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
         self
     }
 
+    /// Admits one entry against the active collection limit.
     fn admit_entry(&mut self) -> bool {
         !self.writer.session.domain_frame_is_truncated() && self.writer.session.admit_domain_collection_item()
     }
 
+    /// Writes a map key and separator.
     fn write_prefix(&mut self, name: &str) {
         self.writer.write_fragment(name);
         self.writer.write_fragment(": ");
     }
 
+    /// Publishes the map truncation marker once.
     fn write_truncated(&mut self) {
         if !self.writer.session.domain_frame_is_truncated() {
             self.writer.write_fragment("...: <truncated>");
@@ -977,12 +1000,16 @@ where
 }
 
 struct BoundedCapture {
+    /// Complete UTF-8 fragments accepted so far.
     output: String,
+    /// Maximum bytes admitted to the capture.
     maximum: usize,
+    /// Whether formatting attempted to exceed the maximum.
     truncated: bool,
 }
 
 impl BoundedCapture {
+    /// Creates an empty capture with `maximum` admitted bytes.
     fn new(maximum: usize) -> Self {
         Self {
             // `maximum` is an admission limit, not an allocation request.
@@ -992,6 +1019,7 @@ impl BoundedCapture {
         }
     }
 
+    /// Returns captured text and whether it was truncated.
     fn finish(self) -> (String, bool) {
         (self.output, self.truncated)
     }

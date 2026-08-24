@@ -53,42 +53,49 @@ impl RedactionLimits {
 
     /// Returns the internal structural limits for transaction construction.
     #[must_use]
+    #[inline(always)]
     pub(crate) const fn structural_limits(&self) -> StructureLimits {
         self.domain
     }
 
     /// Returns the maximum source bytes one transaction may inspect.
     #[must_use]
+    #[inline(always)]
     pub const fn max_input_bytes(&self) -> usize {
         self.max_input_bytes
     }
 
     /// Returns the maximum safe output bytes one transaction may retain.
     #[must_use]
+    #[inline(always)]
     pub const fn max_output_bytes(&self) -> usize {
         self.max_output_bytes
     }
 
     /// Returns the maximum nested structural depth.
     #[must_use]
+    #[inline(always)]
     pub const fn max_depth(&self) -> Option<usize> {
         self.domain.max_depth()
     }
 
     /// Returns the maximum number of structural nodes.
     #[must_use]
+    #[inline(always)]
     pub const fn max_nodes(&self) -> Option<usize> {
         self.domain.max_nodes()
     }
 
     /// Returns the shared maximum item count for one sequence or map.
     #[must_use]
+    #[inline(always)]
     pub const fn max_collection_items(&self) -> Option<usize> {
         self.domain.max_sequence_items()
     }
 
     /// Returns the maximum structural key length.
     #[must_use]
+    #[inline(always)]
     pub const fn max_key_bytes(&self) -> Option<usize> {
         self.domain.max_key_bytes()
     }
@@ -112,6 +119,7 @@ impl RedactionLimits {
     /// Returns the internal JSON limits for transaction construction.
     #[cfg(feature = "json")]
     #[must_use]
+    #[inline(always)]
     pub(crate) const fn json_limits(&self) -> JsonValueLimits {
         self.json
     }
@@ -119,6 +127,7 @@ impl RedactionLimits {
     /// Returns the maximum JSON nesting depth.
     #[cfg(feature = "json")]
     #[must_use]
+    #[inline(always)]
     pub const fn max_json_depth(&self) -> Option<usize> {
         self.json.max_depth()
     }
@@ -126,6 +135,7 @@ impl RedactionLimits {
     /// Returns the maximum number of JSON nodes.
     #[cfg(feature = "json")]
     #[must_use]
+    #[inline(always)]
     pub const fn max_json_nodes(&self) -> Option<usize> {
         self.json.max_nodes()
     }
@@ -133,6 +143,7 @@ impl RedactionLimits {
     /// Returns the maximum number of items in one JSON collection.
     #[cfg(feature = "json")]
     #[must_use]
+    #[inline(always)]
     pub const fn max_json_collection_items(&self) -> Option<usize> {
         self.json.max_sequence_items()
     }
@@ -140,6 +151,7 @@ impl RedactionLimits {
     /// Returns the maximum JSON object-key length.
     #[cfg(feature = "json")]
     #[must_use]
+    #[inline(always)]
     pub const fn max_json_key_bytes(&self) -> Option<usize> {
         self.json.max_key_bytes()
     }
@@ -147,6 +159,7 @@ impl RedactionLimits {
     /// Returns the maximum JSON string length.
     #[cfg(feature = "json")]
     #[must_use]
+    #[inline(always)]
     pub const fn max_json_string_bytes(&self) -> Option<usize> {
         self.json.max_string_bytes()
     }
@@ -154,6 +167,7 @@ impl RedactionLimits {
     /// Returns the maximum JSON number representation length.
     #[cfg(feature = "json")]
     #[must_use]
+    #[inline(always)]
     pub const fn max_json_number_bytes(&self) -> Option<usize> {
         self.json.max_number_bytes()
     }
@@ -161,6 +175,7 @@ impl RedactionLimits {
     /// Returns the cumulative JSON payload-byte maximum.
     #[cfg(feature = "json")]
     #[must_use]
+    #[inline(always)]
     pub const fn max_json_payload_bytes(&self) -> Option<usize> {
         self.json.max_payload_bytes()
     }

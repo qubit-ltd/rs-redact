@@ -64,6 +64,15 @@ impl Redactor {
         Self::new(RedactionPolicy::standard())
     }
 
+    /// Creates a redactor with the strict policy for untrusted scalar data.
+    ///
+    /// Unknown fields are masked at [`crate::Sensitivity::Secret`].
+    #[must_use]
+    #[inline]
+    pub fn strict() -> Self {
+        Self::new(RedactionPolicy::strict())
+    }
+
     /// Returns a snapshot of the current application default redactor.
     ///
     /// The returned value is detached from the global slot. Later calls to
@@ -121,15 +130,6 @@ impl Redactor {
         value.write_redacted(&mut writer);
         let _ = writer.finish_with_completion();
         session.finish_inspection()
-    }
-
-    /// Creates a redactor with the strict policy for untrusted scalar data.
-    ///
-    /// Unknown fields are masked at [`crate::Sensitivity::Secret`].
-    #[must_use]
-    #[inline]
-    pub fn strict() -> Self {
-        Self::new(RedactionPolicy::strict())
     }
 
     /// Returns the immutable policy used by this redactor.
