@@ -8,11 +8,9 @@
 //! Immutable limits owned by one active redaction transaction.
 
 #[cfg(feature = "json")]
-use qubit_budget::json::JsonMeasurement;
-#[cfg(feature = "json")]
 use qubit_budget::json::JsonValueBudget;
 #[cfg(feature = "json")]
-use qubit_json::value::json_number_lexeme_length;
+use qubit_json::value::traverse::JsonTreeReader;
 #[cfg(feature = "json")]
 use serde_json::Value;
 
@@ -128,51 +126,8 @@ impl RedactionBudget {
     #[cfg(feature = "json")]
     pub(super) fn admit_json_value(&mut self, root: &Value) -> bool {
         let mut transaction = self.json_budget.transaction();
-        let mut pending = vec![(root, 1usize, None::<&str>)];
-        while let Some((value, depth, key)) = pending.pop() {
-            if let Some(key) = key
-                && transaction
-                    .try_admit(JsonMeasurement::Key { bytes: key.len() })
-                    .is_err()
-            {
-                return false;
-            }
-            let measurement = match value {
-                Value::Null => JsonMeasurement::Null { depth },
-                Value::Bool(_) => JsonMeasurement::Boolean { depth },
-                Value::Number(number) => JsonMeasurement::Number {
-                    depth,
-                    bytes: json_number_lexeme_length(number),
-                },
-                Value::String(text) => JsonMeasurement::String {
-                    depth,
-                    bytes: text.len(),
-                },
-                Value::Array(values) => JsonMeasurement::Array {
-                    depth,
-                    items: values.len(),
-                },
-                Value::Object(entries) => JsonMeasurement::Object {
-                    depth,
-                    entries: entries.len(),
-                },
-            };
-            if transaction.try_admit(measurement).is_err() {
-                return false;
-            }
-            match value {
-                Value::Array(values) => {
-                    for value in values.iter().rev() {
-                        pending.push((value, depth.saturating_add(1), None));
-                    }
-                }
-                Value::Object(entries) => {
-                    for (key, value) in entries.iter().rev() {
-                        pending.push((value, depth.saturating_add(1), Some(key.as_str())));
-                    }
-                }
-                Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
-            }
+        if JsonTreeReader::new(&mut transaction).account(root).is_err() {
+            return false;
         }
         transaction.commit();
         true

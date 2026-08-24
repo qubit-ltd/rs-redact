@@ -66,6 +66,7 @@ impl RedactionInspection {
 
     /// Returns whether redaction was globally disabled for this inspection.
     #[must_use]
+    #[inline(always)]
     pub const fn is_redaction_disabled(&self) -> bool {
         self.redaction_disabled
     }

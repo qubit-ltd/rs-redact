@@ -38,15 +38,23 @@ use super::UnknownFieldPolicy;
 /// ```
 #[derive(Debug, Clone)]
 pub struct RedactionPolicyBuilder {
+    /// Whether the resulting policy bypasses redaction.
     disabled: bool,
+    /// Mutable application field rules.
     rules: RedactionRulesBuilder,
+    /// Shared masking strategies by sensitivity.
     masking: MaskingPolicy,
+    /// Optional minimum-protection floor.
     floor: Option<RedactionFloor>,
+    /// Resource limits for each transaction.
     limits: RedactionLimits,
+    /// Mutable HTTP-specific policy state.
     #[cfg(feature = "http")]
     http: crate::formats::http::HttpPolicyBuilder,
+    /// Mutable URI-specific policy state.
     #[cfg(feature = "uri")]
     uri: crate::formats::uri::UriPolicyBuilder,
+    /// Handling for JSON scalars without a field key.
     #[cfg(feature = "json")]
     unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
 }
@@ -236,7 +244,9 @@ mod views {
 
     /// Mutable view over the base field policy.
     pub struct FieldsBuilder<'a> {
+        /// Root builder receiving validated field changes.
         pub(super) builder: &'a mut RedactionPolicyBuilder,
+        /// First validation error recorded by the transactional view.
         pub(super) error: Option<PolicyError>,
     }
 
@@ -398,13 +408,16 @@ mod views {
     /// Mutable view over all HTTP context differences.
     #[cfg(feature = "http")]
     pub struct HttpPolicyBuilderView<'a> {
+        /// Root builder receiving HTTP policy changes.
         pub(super) builder: &'a mut RedactionPolicyBuilder,
+        /// First validation error recorded by the transactional view.
         pub(super) error: Option<PolicyError>,
     }
 
     /// Mutable view over URI-specific behavior.
     #[cfg(feature = "uri")]
     pub struct UriPolicyBuilderView<'a> {
+        /// URI builder receiving view changes.
         pub(super) builder: &'a mut crate::formats::uri::UriPolicyBuilder,
     }
 
@@ -490,8 +503,11 @@ mod views {
     /// Mutable view over one HTTP field context.
     #[cfg(feature = "http")]
     pub struct HttpContextBuilderView<'a> {
+        /// HTTP builder receiving context-specific changes.
         builder: &'a mut crate::formats::http::HttpPolicyBuilder,
+        /// Shared transaction error slot.
         error: &'a mut Option<PolicyError>,
+        /// Field context targeted by this view.
         context: crate::formats::http::HttpFieldContext,
     }
 
