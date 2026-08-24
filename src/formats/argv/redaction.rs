@@ -381,3 +381,134 @@ fn option_name(value: &str) -> Option<&str> {
     let name = value.trim_start_matches('-');
     if name.is_empty() { None } else { Some(name) }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsStr;
+    #[cfg(unix)]
+    use std::ffi::OsString;
+    #[cfg(unix)]
+    use std::os::unix::ffi::OsStringExt;
+
+    use super::ArgvItem;
+    use super::PendingField;
+    use super::inspect_heuristic_item;
+    use super::redact_heuristically_with_policy;
+    use crate::RedactionCompletion;
+    use crate::RedactionPolicy;
+    use crate::Sensitivity;
+
+    /// Covers explicit metadata, assignments, inline options, JVM properties,
+    /// and replacement of a pending sensitive option.
+    #[test]
+    fn heuristic_rendering_covers_supported_sensitive_shapes() {
+        let policy = RedactionPolicy::standard();
+        let output = redact_heuristically_with_policy(
+            &policy,
+            [
+                ArgvItem::sensitive(OsStr::new("explicit"), Sensitivity::Secret),
+                ArgvItem::plain(OsStr::new("password=assignment")),
+                ArgvItem::plain(OsStr::new("--token=inline")),
+                ArgvItem::plain(OsStr::new("-Dpassword=jvm")),
+                ArgvItem::plain(OsStr::new("--password")),
+                ArgvItem::plain(OsStr::new("--token")),
+                ArgvItem::plain(OsStr::new("pending")),
+                ArgvItem::plain(OsStr::new("=plain")),
+                ArgvItem::plain(OsStr::new("-D=plain")),
+            ],
+            usize::MAX,
+        );
+
+        for secret in ["explicit", "assignment", "inline", "jvm", "pending"] {
+            assert!(!output.text().contains(secret));
+        }
+        assert_eq!(output.completion(), RedactionCompletion::Complete);
+    }
+
+    /// Covers heuristic inspection state transitions and pass-through fields.
+    #[test]
+    fn heuristic_inspection_covers_pending_and_inline_shapes() {
+        let policy = RedactionPolicy::standard();
+        let mut pending = None;
+
+        assert_eq!(
+            inspect_heuristic_item(
+                &policy,
+                ArgvItem::sensitive(OsStr::new("explicit"), Sensitivity::High),
+                &mut pending,
+            ),
+            Some(Sensitivity::High),
+        );
+        assert_eq!(
+            inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("password=value")), &mut pending),
+            Some(Sensitivity::Secret),
+        );
+        assert_eq!(
+            inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("-Dpassword=value")), &mut pending),
+            Some(Sensitivity::Secret),
+        );
+        assert_eq!(
+            inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("--password=value")), &mut pending),
+            Some(Sensitivity::Secret),
+        );
+        assert_eq!(
+            inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("--password")), &mut pending),
+            None,
+        );
+        assert_eq!(
+            inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("--token")), &mut pending),
+            Some(Sensitivity::Secret),
+        );
+        assert_eq!(
+            inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("value")), &mut pending),
+            Some(Sensitivity::High),
+        );
+        pending = Some(PendingField {
+            field: String::from("visible"),
+            exact: false,
+        });
+        assert_eq!(
+            inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("value")), &mut pending),
+            None,
+        );
+    }
+
+    /// Covers fail-closed handling for non-UTF-8 heuristic items.
+    #[cfg(unix)]
+    #[test]
+    fn heuristic_paths_fail_closed_for_non_utf8_items() {
+        let policy = RedactionPolicy::standard();
+        let value = OsString::from_vec(vec![0xff]);
+        let output = redact_heuristically_with_policy(
+            &policy,
+            [ArgvItem::plain(&value), ArgvItem::plain(OsStr::new("tail"))],
+            usize::MAX,
+        );
+        assert!(!output.text().contains("tail"));
+
+        let mut pending = None;
+        assert_eq!(
+            inspect_heuristic_item(&policy, ArgvItem::plain(&value), &mut pending),
+            Some(Sensitivity::Secret),
+        );
+        assert_eq!(
+            inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("tail")), &mut pending),
+            Some(Sensitivity::Secret),
+        );
+    }
+
+    /// Covers both bounded fallback representations.
+    #[test]
+    fn heuristic_rendering_bounds_truncated_fallbacks() {
+        let policy = RedactionPolicy::standard();
+        let item = ArgvItem::plain(OsStr::new("long-visible-value"));
+
+        let fallback = redact_heuristically_with_policy(&policy, [item], 11);
+        assert_eq!(fallback.text(), "<truncated>");
+        assert_eq!(fallback.completion(), RedactionCompletion::Truncated);
+
+        let empty = redact_heuristically_with_policy(&policy, [item], 0);
+        assert!(empty.text().is_empty());
+        assert_eq!(empty.completion(), RedactionCompletion::Truncated);
+    }
+}

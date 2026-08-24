@@ -192,3 +192,57 @@ pub(super) fn write_debug_item(writer: &mut String, has_item: &mut bool, item: &
     writer.push_str(&format!("{item:?}"));
     *has_item = true;
 }
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsStr;
+    #[cfg(unix)]
+    use std::ffi::OsString;
+    #[cfg(unix)]
+    use std::os::unix::ffi::OsStringExt;
+
+    use super::redact_os_pair_bounded_with_policy;
+    use super::redact_os_pairs_with_policy;
+    use crate::RedactionCompletion;
+    use crate::RedactionPolicy;
+
+    /// Covers sensitive, pass-through, and bounded environment collections.
+    #[test]
+    fn environment_rendering_covers_classification_and_fallbacks() {
+        let policy = RedactionPolicy::standard();
+        let pairs = [
+            (OsStr::new("MODE"), OsStr::new("debug")),
+            (OsStr::new("PASSWORD"), OsStr::new("secret")),
+        ];
+        let complete = redact_os_pairs_with_policy(&policy, pairs, usize::MAX);
+        assert!(complete.text().contains("MODE=debug"));
+        assert!(!complete.text().contains("secret"));
+
+        let fallback = redact_os_pairs_with_policy(&policy, pairs, 11);
+        assert_eq!(fallback.text(), "<truncated>");
+        assert_eq!(fallback.completion(), RedactionCompletion::Truncated);
+
+        let empty = redact_os_pairs_with_policy(&policy, pairs, 0);
+        assert!(empty.text().is_empty());
+        assert_eq!(empty.completion(), RedactionCompletion::Truncated);
+    }
+
+    /// Covers enabled and disabled handling of non-UTF-8 environment values.
+    #[cfg(unix)]
+    #[test]
+    fn environment_rendering_handles_non_utf8_pairs_by_policy() {
+        let name = OsString::from_vec(vec![b'N', 0xff]);
+        let value = OsString::from_vec(vec![b'V', 0xff]);
+
+        let (enabled, enabled_truncated) =
+            redact_os_pair_bounded_with_policy(&RedactionPolicy::standard(), &name, &value, usize::MAX);
+        assert!(!enabled_truncated);
+        assert!(enabled.contains("redacted"));
+
+        let (disabled, disabled_truncated) =
+            redact_os_pair_bounded_with_policy(&RedactionPolicy::disabled(), &name, &value, usize::MAX);
+        assert!(!disabled_truncated);
+        assert!(disabled.contains('N'));
+        assert!(disabled.contains('V'));
+    }
+}
