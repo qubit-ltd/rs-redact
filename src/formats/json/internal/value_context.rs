@@ -15,7 +15,10 @@ pub(super) enum ValueContext {
     /// The value has no governing object-field rule.
     Unkeyed,
     /// The enclosing object key resolved to this sensitivity.
-    Keyed(Sensitivity),
+    Keyed(
+        /// Sensitivity selected by the enclosing object's field rule.
+        Sensitivity,
+    ),
     /// The enclosing object key permits the original value to pass through.
     PassThrough,
 }

@@ -1,0 +1,36 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+//! Borrowed adapter for generated structured redaction.
+
+use super::redact_serialize::RedactSerialize;
+
+/// Borrowed serializer adapter that carries one immutable redaction policy.
+#[doc(hidden)]
+pub struct RedactedSerializeRef<'value, 'policy, T: ?Sized> {
+    /// Borrowed source value.
+    value: &'value T,
+    /// Policy used by generated serialization.
+    policy: &'policy crate::RedactionPolicy,
+}
+
+impl<'value, 'policy, T: ?Sized> RedactedSerializeRef<'value, 'policy, T> {
+    /// Creates a policy-carrying borrowed serializer adapter.
+    #[must_use]
+    pub fn new(value: &'value T, policy: &'policy crate::RedactionPolicy) -> Self {
+        Self { value, policy }
+    }
+}
+
+impl<T: ?Sized + RedactSerialize> serde::Serialize for RedactedSerializeRef<'_, '_, T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.value.serialize_redacted(serializer, self.policy)
+    }
+}

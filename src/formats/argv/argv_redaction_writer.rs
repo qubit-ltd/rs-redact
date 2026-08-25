@@ -10,20 +10,20 @@
 use super::ArgvItem;
 use super::redaction::redact_heuristically_with_policy;
 use super::redaction::redact_items_with_policy;
-use crate::RedactionHandle;
-use crate::RedactionSession;
+use crate::runtime::TextSession;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// A borrowed argv façade over one mutable diagnostic session.
 pub struct ArgvRedactionWriter<'session> {
     /// Shared policy and accounting owned by the parent session.
-    session: &'session mut RedactionSession,
+    session: &'session mut TextSession,
 }
 
 impl<'session> ArgvRedactionWriter<'session> {
     /// Creates a façade from a mutable diagnostic session.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn new(session: &'session mut RedactionSession) -> Self {
+    pub(crate) const fn new(session: &'session mut TextSession) -> Self {
         Self { session }
     }
 
@@ -58,55 +58,6 @@ impl<'session> ArgvRedactionWriter<'session> {
             redact_heuristically_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
         self.session.append_rendered_operation(result);
         self
-    }
-
-    /// Redacts items as one individually resolvable transaction item.
-    #[must_use]
-    pub(crate) fn redact_items<'items, I>(&mut self, items: I) -> RedactionHandle
-    where
-        I: IntoIterator<Item = ArgvItem<'items>>,
-    {
-        let owns_item_summary = self.session.begin_item_summary();
-        let handle = (|| {
-            if self.session.is_output_exhausted() {
-                return self.session.stage_exhausted_handle();
-            }
-            let Some(items) = self.collect_admitted_items(items) else {
-                return self.session.stage_accounted_text(String::new());
-            };
-            let result = redact_items_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
-            if result.text().is_empty() && result.completion() == crate::RedactionCompletion::Truncated {
-                return self.session.stage_exhausted_handle();
-            }
-            self.session.stage_rendered_operation(result)
-        })();
-        self.session.end_item_summary(owns_item_summary);
-        handle
-    }
-
-    /// Redacts heuristic items as one individually resolvable transaction item.
-    #[must_use]
-    pub(crate) fn redact_heuristic_items<'items, I>(&mut self, items: I) -> RedactionHandle
-    where
-        I: IntoIterator<Item = ArgvItem<'items>>,
-    {
-        let owns_item_summary = self.session.begin_item_summary();
-        let handle = (|| {
-            if self.session.is_output_exhausted() {
-                return self.session.stage_exhausted_handle();
-            }
-            let Some(items) = self.collect_admitted_items(items) else {
-                return self.session.stage_accounted_text(String::new());
-            };
-            let result =
-                redact_heuristically_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
-            if result.text().is_empty() && result.completion() == crate::RedactionCompletion::Truncated {
-                return self.session.stage_exhausted_handle();
-            }
-            self.session.stage_rendered_operation(result)
-        })();
-        self.session.end_item_summary(owns_item_summary);
-        handle
     }
 
     /// Collects only items admitted by the parent transaction. Structural and

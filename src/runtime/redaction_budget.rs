@@ -20,10 +20,15 @@ use crate::RedactionUsage;
 
 /// The single mutable budget ledger for an active transaction.
 pub(super) struct RedactionBudget {
+    /// Transaction-wide ceiling for retained safe output.
     output_limit: usize,
+    /// Shared structural ledger used across domain and format traversal.
     structural: StructuralBudget,
+    /// Cumulative transaction resource measurements.
     usage: RedactionUsage,
+    /// Resource delta for the active independently published item.
     active_operation_usage: Option<RedactionUsage>,
+    /// JSON-specific ledger for tree and payload limits.
     #[cfg(feature = "json")]
     json_budget: JsonValueBudget,
 }

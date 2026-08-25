@@ -57,6 +57,7 @@ pub(in crate::formats::http) struct HttpPolicyExecutor<'policy> {
 /// type: HTTP never publishes a second output model. The parent transaction
 /// commits its text and completion into its composer or batch publication.
 pub(in crate::formats::http) struct HttpRendered {
+    /// Bounded text and provenance awaiting parent-session publication.
     operation: RenderedOperation,
 }
 

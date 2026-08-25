@@ -9,6 +9,7 @@
 
 pub(crate) mod internal;
 
+pub(crate) mod batch_redaction;
 mod bounded_json_redaction;
 pub(crate) mod inspection;
 mod json_admission_error;

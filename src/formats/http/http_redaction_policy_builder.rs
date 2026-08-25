@@ -22,10 +22,15 @@ use crate::Sensitivity;
 /// Mutable construction state for an [`super::HttpPolicy`].
 #[derive(Debug, Clone)]
 pub struct HttpPolicyBuilder {
+    /// Mutable header classification state.
     header: ContextRulesBuilder,
+    /// Mutable query and form classification state.
     query: ContextRulesBuilder,
+    /// Mutable structured-body classification state.
     body: ContextRulesBuilder,
+    /// Selected URL path visibility rule.
     url_path_policy: UrlPathPolicy,
+    /// Selected opaque text-body visibility rule.
     text_body_policy: TextBodyPolicy,
 }
 

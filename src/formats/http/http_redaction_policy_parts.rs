@@ -14,9 +14,14 @@ use crate::RedactionRules;
 
 /// Complete private construction state for an HTTP redaction policy.
 pub(super) struct HttpPolicyParts {
+    /// Validated header classification snapshot.
     pub(super) header_rules: RedactionRules,
+    /// Validated query and form classification snapshot.
     pub(super) query_rules: RedactionRules,
+    /// Validated structured-body classification snapshot.
     pub(super) body_rules: RedactionRules,
+    /// Validated URL path visibility choice.
     pub(super) url_path_policy: UrlPathPolicy,
+    /// Validated opaque text-body visibility choice.
     pub(super) text_body_policy: TextBodyPolicy,
 }

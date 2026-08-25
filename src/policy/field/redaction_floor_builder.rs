@@ -21,6 +21,7 @@ use crate::policy::RedactionRulesBuilder;
 /// Builder for a [`RedactionFloor`].
 #[derive(Debug, Clone)]
 pub struct RedactionFloorBuilder {
+    /// Mutable rules validated in the floor policy location.
     rules: RedactionRulesBuilder,
 }
 

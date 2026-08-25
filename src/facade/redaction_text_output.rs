@@ -14,9 +14,21 @@ use super::RedactionSummary;
 use crate::RedactionCompletion;
 
 /// Complete result of one redaction operation.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::RedactionCompletion;
+/// use qubit_redact::Redactor;
+///
+/// let output = Redactor::strict().redact_field("password", "raw-secret");
+/// assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionTextOutput {
+    /// Final log-safe text owned by this completed transaction.
     text: RedactedText,
+    /// Completion, provenance, and resource use for the same transaction.
     summary: RedactionSummary,
 }
 

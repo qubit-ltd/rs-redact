@@ -10,10 +10,11 @@
 use super::ArgvItem;
 use super::pending_field::PendingField;
 use super::redaction::inspect_heuristic_item;
-use crate::RedactionSession;
+use crate::runtime::InspectionSession;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// Inspects an argv source under the transaction's shared structural budget.
-pub(crate) fn inspect_items<'items, I>(session: &mut RedactionSession, items: I, heuristic: bool)
+pub(crate) fn inspect_items<'items, I>(session: &mut InspectionSession, items: I, heuristic: bool)
 where
     I: IntoIterator<Item = ArgvItem<'items>>,
 {

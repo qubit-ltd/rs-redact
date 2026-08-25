@@ -17,7 +17,9 @@ use crate::policy::RedactionRulesBuilder;
 /// Construction state for a single HTTP field context.
 #[derive(Debug, Clone)]
 pub(super) struct ContextRulesBuilder {
+    /// Mutable application rules for this HTTP field namespace.
     pub(super) rules: RedactionRulesBuilder,
+    /// Optional minimum floor applied after application rules.
     pub(super) floor: Option<RedactionFloor>,
 }
 

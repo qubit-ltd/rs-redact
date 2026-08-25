@@ -16,13 +16,21 @@ use crate::RedactionReasons;
 
 /// Accumulates one log-safe rendering without exceeding its admitted allowance.
 pub(crate) struct OperationSink {
+    /// Log-safe payload retained for the unpublished operation.
     output: String,
+    /// Last byte boundary at which the truncation marker still fits.
     marker_boundary: usize,
+    /// Maximum bytes the operation may retain, including its marker.
     maximum: usize,
+    /// Static safe marker appended when payload output is omitted.
     marker: &'static str,
+    /// Whether source metadata or rendering indicates omission.
     truncated: bool,
+    /// Whether the output ceiling rejected any rendered text.
     output_truncated: bool,
+    /// Strongest completion state accumulated by this operation.
     completion: RedactionCompletion,
+    /// Machine-readable provenance accumulated by this operation.
     reasons: RedactionReasons,
 }
 

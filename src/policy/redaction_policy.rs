@@ -125,14 +125,22 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionPolicy {
+    /// Explicit escape switch that restores source values while retaining
+    /// limits.
     disabled: bool,
+    /// Immutable field-classification layers.
     rules: RedactionRules,
+    /// Shared masks selected after sensitivity resolution.
     masking: Arc<MaskingPolicy>,
+    /// Resource ceilings applied to every transaction created from this policy.
     limits: RedactionLimits,
+    /// HTTP-specific immutable policy snapshot.
     #[cfg(feature = "http")]
     http: Arc<crate::formats::http::HttpPolicy>,
+    /// URI-specific immutable policy snapshot.
     #[cfg(feature = "uri")]
     uri: Arc<crate::formats::uri::UriPolicy>,
+    /// Fallback behavior for JSON scalars without an object key.
     #[cfg(feature = "json")]
     unkeyed_json_value_policy: UnkeyedJsonValuePolicy,
 }

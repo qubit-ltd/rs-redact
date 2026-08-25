@@ -18,7 +18,10 @@ use crate::RedactionInspectionResult;
 use crate::RedactionPolicy;
 use crate::domain::Redact;
 use crate::facade::RedactionTextOutput;
-use crate::runtime::RedactionSession;
+use crate::runtime::BatchSession;
+use crate::runtime::InspectionSession;
+use crate::runtime::TextSession;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// Applies one immutable policy snapshot to supported diagnostic values.
 ///
@@ -126,10 +129,8 @@ impl Redactor {
         T: Redact + ?Sized,
     {
         let mut session = self.inspection_runtime();
-        let mut writer = crate::domain::RedactionWriter::new_root(&mut session);
-        value.write_redacted(&mut writer);
-        let _ = writer.finish_with_completion();
-        session.finish_inspection()
+        session.inspect(value);
+        session.finish()
     }
 
     /// Returns the immutable policy used by this redactor.
@@ -151,20 +152,20 @@ impl Redactor {
     /// snapshot.
     #[must_use]
     #[inline]
-    pub(crate) fn text_runtime(&self) -> RedactionSession {
-        RedactionSession::from_text_snapshot(Arc::clone(&self.policy))
+    pub(crate) fn text_runtime(&self) -> TextSession {
+        TextSession::new(Arc::clone(&self.policy))
     }
 
     /// Creates the private runtime selected for independently resolvable items.
     #[must_use]
-    pub(crate) fn batch_runtime(&self) -> RedactionSession {
-        RedactionSession::from_batch_snapshot(Arc::clone(&self.policy))
+    pub(crate) fn batch_runtime(&self) -> BatchSession {
+        BatchSession::new(Arc::clone(&self.policy))
     }
 
     /// Creates private accounting for one non-rendering inspection.
     #[must_use]
-    pub(crate) fn inspection_runtime(&self) -> RedactionSession {
-        RedactionSession::from_inspection_snapshot(Arc::clone(&self.policy))
+    pub(crate) fn inspection_runtime(&self) -> InspectionSession {
+        InspectionSession::new(Arc::clone(&self.policy))
     }
 
     /// Starts one ordered text-composition transaction.
@@ -213,7 +214,7 @@ impl Redactor {
     pub fn inspect_field(&self, field: &str, value: &str) -> RedactionInspectionResult {
         let mut session = self.inspection_runtime();
         session.inspect_field(field, value);
-        session.finish_inspection()
+        session.finish()
     }
 
     /// Redacts an argument vector through one completed batch operation.
@@ -237,7 +238,7 @@ impl Redactor {
     {
         let mut session = self.inspection_runtime();
         crate::formats::argv::inspection::inspect_items(&mut session, items, false);
-        session.finish_inspection()
+        session.finish()
     }
 
     /// Redacts argv items using heuristic option classification.
@@ -261,7 +262,7 @@ impl Redactor {
     {
         let mut session = self.inspection_runtime();
         crate::formats::argv::inspection::inspect_items(&mut session, items, true);
-        session.finish_inspection()
+        session.finish()
     }
 
     /// Redacts one environment assignment through one completed transaction.
@@ -279,7 +280,7 @@ impl Redactor {
     pub fn inspect_env(&self, name: &str, value: &str) -> RedactionInspectionResult {
         let mut session = self.inspection_runtime();
         crate::formats::env::inspection::inspect_pair(&mut session, name, value);
-        session.finish_inspection()
+        session.finish()
     }
 
     /// Redacts environment assignments through one completed transaction.
@@ -303,7 +304,7 @@ impl Redactor {
     {
         let mut session = self.inspection_runtime();
         crate::formats::env::inspection::inspect_os_pairs(&mut session, pairs);
-        session.finish_inspection()
+        session.finish()
     }
 
     /// Redacts one process command through one completed batch transaction.
@@ -341,7 +342,7 @@ impl Redactor {
         let command = std::iter::once(crate::formats::argv::ArgvItem::plain(program)).chain(arguments);
         crate::formats::argv::inspection::inspect_items(&mut session, command, true);
         crate::formats::env::inspection::inspect_os_pairs(&mut session, variables);
-        session.finish_inspection()
+        session.finish()
     }
 
     /// Redacts JSON text through one completed batch transaction.
@@ -373,7 +374,7 @@ impl Redactor {
     pub fn inspect_json(&self, text: &str) -> RedactionInspectionResult {
         let mut session = self.inspection_runtime();
         crate::formats::json::inspection::inspect_text(&mut session, text);
-        session.finish_inspection()
+        session.finish()
     }
 
     /// Inspects a borrowed parsed JSON value without taking ownership of it.
@@ -381,7 +382,7 @@ impl Redactor {
     pub fn inspect_json_value(&self, value: &serde_json::Value) -> RedactionInspectionResult {
         let mut session = self.inspection_runtime();
         crate::formats::json::inspection::inspect_borrowed_value(&mut session, value);
-        session.finish_inspection()
+        session.finish()
     }
 
     /// Redacts an HTTP URL through one completed batch transaction.
@@ -401,7 +402,7 @@ impl Redactor {
     pub fn inspect_http_url(&self, value: &str) -> RedactionInspectionResult {
         let mut session = self.inspection_runtime();
         crate::formats::http::inspection::inspect_url(&mut session, value);
-        session.finish_inspection()
+        session.finish()
     }
 
     /// Redacts an HTTP header collection through one completed transaction.
@@ -421,7 +422,7 @@ impl Redactor {
     pub fn inspect_http_headers(&self, headers: &http::HeaderMap) -> RedactionInspectionResult {
         let mut session = self.inspection_runtime();
         crate::formats::http::inspection::inspect_headers(&mut session, headers);
-        session.finish_inspection()
+        session.finish()
     }
 
     /// Redacts one captured HTTP body through one completed session
@@ -450,7 +451,7 @@ impl Redactor {
     ) -> RedactionInspectionResult {
         let mut session = self.inspection_runtime();
         crate::formats::http::inspection::inspect_body(&mut session, capture, content_type);
-        session.finish_inspection()
+        session.finish()
     }
 
     /// Redacts one captured HTTP body using textual Content-Type metadata.
@@ -478,7 +479,7 @@ impl Redactor {
     ) -> RedactionInspectionResult {
         let mut session = self.inspection_runtime();
         crate::formats::http::inspection::inspect_body_with_content_type_text(&mut session, capture, content_type);
-        session.finish_inspection()
+        session.finish()
     }
 
     /// Redacts a URI through one completed batch transaction.
@@ -498,7 +499,7 @@ impl Redactor {
     pub fn inspect_uri(&self, input: &str) -> RedactionInspectionResult {
         let mut session = self.inspection_runtime();
         crate::formats::uri::inspection::inspect_uri(&mut session, input);
-        session.finish_inspection()
+        session.finish()
     }
 }
 

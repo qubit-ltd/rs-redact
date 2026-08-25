@@ -13,8 +13,11 @@ use crate::RedactionReasons;
 /// Carries rendered text and degradation provenance without constructing a
 /// publishable output or transaction summary inside a format adapter.
 pub(crate) struct RenderedOperation {
+    /// Log-safe unpublished text produced by one adapter.
     text: String,
+    /// Completion state produced by bounded rendering.
     completion: RedactionCompletion,
+    /// Machine-readable degradation provenance.
     reasons: RedactionReasons,
 }
 

@@ -77,6 +77,7 @@ pub struct RedactionUsage {
 }
 
 impl Default for RedactionUsage {
+    /// Creates the empty resource measurement used by a fresh transaction.
     fn default() -> Self {
         Self::empty()
     }

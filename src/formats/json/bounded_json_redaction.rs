@@ -19,11 +19,20 @@ use crate::runtime::OperationByteSink;
 /// Bounded JSON text paired with whether budget enforcement omitted content.
 pub(super) enum BoundedJsonRedaction {
     /// The complete redacted representation fit within the bound.
-    Complete(String),
+    Complete(
+        /// Complete compact JSON text within the caller's output allowance.
+        String,
+    ),
     /// A non-empty safe substitute represents budget-omitted content.
-    Truncated(String),
+    Truncated(
+        /// Safe bounded fallback or prefix retained after omission.
+        String,
+    ),
     /// A syntactically invalid source was replaced without exposing it.
-    Invalid(String),
+    Invalid(
+        /// Opaque replacement emitted instead of invalid source text.
+        String,
+    ),
 }
 
 impl BoundedJsonRedaction {

@@ -11,7 +11,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
-use super::redaction_writer::RedactionFields;
+use super::redaction_fields::RedactionFields;
 
 mod private {
     pub trait Sealed {}

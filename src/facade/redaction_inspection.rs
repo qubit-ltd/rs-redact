@@ -34,6 +34,7 @@ pub type RedactionInspectionResult = Result<RedactionInspection, RedactionInspec
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RedactionInspection {
+    /// Whether policy evaluation was bypassed for this complete traversal.
     redaction_disabled: bool,
     /// Strongest sensitivity observed during the complete traversal.
     max_sensitivity: Option<Sensitivity>,

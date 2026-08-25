@@ -15,8 +15,20 @@ use std::fmt;
 /// The value has crossed the plain-text safety boundary. It is owned and safe
 /// to render with [`std::fmt::Display`]. Any length restriction belongs to the
 /// caller's final logging or presentation sink, not to this type.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::Redactor;
+///
+/// let output = Redactor::strict().redact_field("password", "raw-secret");
+/// assert_eq!(output.text().as_str(), "<redacted>");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct RedactedText(String);
+pub struct RedactedText(
+    /// Owned text that has already crossed the redaction safety boundary.
+    String,
+);
 
 impl RedactedText {
     /// Creates final text from an already escaped representation.
@@ -42,6 +54,7 @@ impl RedactedText {
 }
 
 impl AsRef<str> for RedactedText {
+    /// Borrows the safe text through the standard string-reference contract.
     #[inline(always)]
     fn as_ref(&self) -> &str {
         self.as_str()
@@ -49,6 +62,7 @@ impl AsRef<str> for RedactedText {
 }
 
 impl fmt::Display for RedactedText {
+    /// Writes only the finalized safe text to the destination formatter.
     #[inline(always)]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())

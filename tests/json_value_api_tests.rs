@@ -39,6 +39,34 @@ fn parsed_json_value_api_does_not_mutate_borrowed_value() {
 }
 
 #[test]
+fn redaction_items_borrow_and_redact_parsed_json_values() {
+    struct JsonSequence<'value>(&'value [Value]);
+
+    impl Redact for JsonSequence<'_> {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.sequence(|items| {
+                for value in self.0 {
+                    items.json_value_item(value);
+                }
+            });
+        }
+    }
+
+    let values = [
+        json!({"password": "first-secret"}),
+        json!({"password": 12345, "label": "visible"}),
+    ];
+    let originals = values.clone();
+    let output = Redactor::standard().redact(&JsonSequence(&values));
+    let text = output.text().as_str();
+
+    assert!(!text.contains("first-secret"), "{text}");
+    assert!(!text.contains("12345"), "{text}");
+    assert!(text.contains("visible"), "{text}");
+    assert_eq!(values, originals);
+}
+
+#[test]
 fn disabled_policy_preserves_parsed_json_wire_text() {
     let value = json!({"password": "raw-secret"});
     let policy = RedactionPolicy::disabled();

@@ -18,22 +18,28 @@ use serde_json::Number;
 use serde_json::Value;
 
 use super::JsonStructureSeed;
-use crate::RedactionSession;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// Streams JSON structure through the transaction ledger.
 pub(crate) struct JsonStructureVisitor<'session, 'rejected> {
-    pub(super) session: &'session mut RedactionSession,
+    /// Transaction ledger shared by every nested seed.
+    pub(super) session: &'session mut dyn RuntimeSession,
+    /// Root-inclusive depth of the value currently being decoded.
     pub(super) depth: usize,
+    /// Shared flag set when structural limits reject the stream.
     pub(super) rejected: &'rejected mut bool,
 }
 
 impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
+    /// Parsed JSON tree assembled from admitted events.
     type Value = Value;
 
+    /// Describes the complete JSON value expected from the deserializer.
     fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("a JSON value")
     }
 
+    /// Converts an admitted Boolean event into its JSON representation.
     fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E>
     where
         E: Error,
@@ -41,6 +47,7 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
         Ok(Value::Bool(value))
     }
 
+    /// Converts an admitted signed integer into its JSON representation.
     fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
     where
         E: Error,
@@ -48,6 +55,7 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
         Ok(Value::Number(Number::from(value)))
     }
 
+    /// Converts an admitted unsigned integer into its JSON representation.
     fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
     where
         E: Error,
@@ -55,6 +63,7 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
         Ok(Value::Number(Number::from(value)))
     }
 
+    /// Converts a finite admitted float into its JSON number representation.
     fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
     where
         E: Error,
@@ -64,6 +73,7 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
             .ok_or_else(|| E::custom("non-finite JSON number"))
     }
 
+    /// Copies a borrowed admitted string into the retained JSON tree.
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
     where
         E: Error,
@@ -71,6 +81,7 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
         Ok(Value::String(value.to_owned()))
     }
 
+    /// Retains an owned admitted string without another allocation.
     fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
     where
         E: Error,
@@ -78,6 +89,7 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
         Ok(Value::String(value))
     }
 
+    /// Maps an absent optional representation to JSON null.
     fn visit_none<E>(self) -> Result<Self::Value, E>
     where
         E: Error,
@@ -85,6 +97,7 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
         Ok(Value::Null)
     }
 
+    /// Maps the unit representation to JSON null.
     fn visit_unit<E>(self) -> Result<Self::Value, E>
     where
         E: Error,
@@ -92,6 +105,7 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
         Ok(Value::Null)
     }
 
+    /// Decodes admitted sequence elements in source order.
     fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
     where
         A: SeqAccess<'de>,
@@ -109,6 +123,7 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
         Ok(Value::Array(values))
     }
 
+    /// Decodes admitted object entries while retaining their parsed keys.
     fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
     where
         A: MapAccess<'de>,
@@ -140,12 +155,12 @@ mod tests {
 
     use super::JsonStructureVisitor;
     use crate::RedactionPolicy;
-    use crate::RedactionSession;
+    use crate::runtime::TextSession;
 
     #[test]
     fn visitor_accepts_owned_strings_and_deserializer_empty_values() {
         let policy = Arc::new(RedactionPolicy::standard());
-        let mut session = RedactionSession::from_text_snapshot(policy);
+        let mut session = TextSession::new(policy);
         let mut rejected = false;
 
         let expectation = format!(

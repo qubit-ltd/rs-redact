@@ -10,8 +10,8 @@
 use super::RedactionBatchHandle;
 use super::RedactionBatchOutput;
 use crate::domain::Redact;
+use crate::runtime::BatchSession;
 use crate::runtime::RedactionHandle;
-use crate::runtime::RedactionSession;
 
 /// Accumulates independently resolvable redaction items under one budget.
 ///
@@ -31,13 +31,14 @@ use crate::runtime::RedactionSession;
 /// assert!(!item.text().as_str().contains("raw-secret"));
 /// ```
 pub struct RedactionBatch {
-    session: RedactionSession,
+    /// Typed transaction that owns unpublished independently resolvable items.
+    session: BatchSession,
 }
 
 impl RedactionBatch {
     /// Creates a batch backed by one private runtime transaction.
     #[must_use]
-    pub(crate) const fn from_session(session: RedactionSession) -> Self {
+    pub(crate) const fn from_session(session: BatchSession) -> Self {
         Self { session }
     }
     /// Redacts one named scalar field and returns its opaque batch handle.
@@ -187,7 +188,7 @@ impl RedactionBatch {
     /// Consumes the batch and publishes its item results and summary.
     #[must_use]
     pub fn finish(self) -> RedactionBatchOutput {
-        RedactionBatchOutput::from_publication(self.session.finish_batch())
+        RedactionBatchOutput::from_publication(self.session.finish())
     }
 
     /// Converts the runtime-private handle into its public batch counterpart.

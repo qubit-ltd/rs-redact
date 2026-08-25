@@ -10,18 +10,12 @@
 
 use std::ffi::OsStr;
 
-use super::admitted_command_items::AdmittedCommandItems;
-use super::admitted_environment_pairs::AdmittedEnvironmentPairs;
 use super::command_items::CommandItems;
-use crate::RedactionHandle;
-use crate::RedactionReason;
-use crate::RedactionSession;
 use crate::formats::argv::ArgvItem;
 use crate::formats::argv::ArgvRedactionWriter;
-use crate::formats::argv::redaction::redact_heuristically_with_policy;
 use crate::formats::env::EnvRedactionWriter;
-use crate::formats::env::redaction::redact_os_pairs_with_policy;
-use crate::runtime::OperationSink;
+use crate::runtime::TextSession;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// A borrowed process-command facade over one active redaction transaction.
 ///
@@ -30,7 +24,7 @@ use crate::runtime::OperationSink;
 /// session, so process diagnostics participate in the same atomic output.
 pub struct ProcessRedactionWriter<'session> {
     /// The transaction receiving every rendered process component.
-    session: &'session mut RedactionSession,
+    session: &'session mut TextSession,
 }
 
 impl<'session> ProcessRedactionWriter<'session> {
@@ -46,7 +40,7 @@ impl<'session> ProcessRedactionWriter<'session> {
     /// A façade that cannot outlive the borrowed transaction.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn new(session: &'session mut RedactionSession) -> Self {
+    pub(crate) const fn new(session: &'session mut TextSession) -> Self {
         Self { session }
     }
 
@@ -96,71 +90,6 @@ impl<'session> ProcessRedactionWriter<'session> {
         let mut environment = EnvRedactionWriter::new(self.session);
         environment.os_pairs(variables);
         self
-    }
-
-    /// Redacts a complete process command as one individually resolvable item.
-    ///
-    /// The argv and environment portions are rendered under the output
-    /// capacity still owned by this transaction, then committed together as a
-    /// single handle. No temporary session or independent adapter budget is
-    /// created.
-    #[must_use]
-    pub(crate) fn redact_command<'arguments, 'variables, A, E>(
-        &mut self,
-        program: &'arguments OsStr,
-        arguments: A,
-        variables: E,
-    ) -> RedactionHandle
-    where
-        A: IntoIterator<Item = ArgvItem<'arguments>>,
-        E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
-    {
-        let owns_item_summary = self.session.begin_item_summary();
-        let handle = (|| {
-            if self.session.is_output_exhausted() {
-                return self.exhausted_handle();
-            }
-            if !self.session.admit_format_node(1) {
-                return self.session.stage_accounted_text(String::new());
-            }
-            let policy = self.session.policy().clone();
-            let remaining = self.session.remaining_output_bytes();
-            let (argv, command_failed) = {
-                let mut command = AdmittedCommandItems {
-                    session: self.session,
-                    program: Some(ArgvItem::plain(program)),
-                    arguments: arguments.into_iter(),
-                    failed: false,
-                };
-                let output = redact_heuristically_with_policy(&policy, &mut command, remaining);
-                (output, command.failed)
-            };
-            if command_failed || !self.session.admit_format_node(1) {
-                return self.session.stage_accounted_text(String::new());
-            }
-            let remaining = remaining.saturating_sub(argv.text().len());
-            if remaining == 0 {
-                return self.session.stage_rendered_operation(
-                    argv.merge(OperationSink::exhausted("", RedactionReason::OutputLimitReached).finish()),
-                );
-            }
-            let (environment, environment_failed) = {
-                let mut pairs = AdmittedEnvironmentPairs {
-                    session: self.session,
-                    variables: variables.into_iter(),
-                    failed: false,
-                    marker: std::marker::PhantomData,
-                };
-                let output = redact_os_pairs_with_policy(&policy, &mut pairs, remaining);
-                (output, pairs.failed)
-            };
-            if environment_failed {
-                return self.session.stage_accounted_text(String::new());
-            }
-            self.session.stage_rendered_operation(argv.merge(environment))
-        })();
-        self.session.end_item_summary(owns_item_summary);
-        handle
     }
 
     /// Redacts command-line arguments into the parent aggregate output.
@@ -215,11 +144,6 @@ impl<'session> ProcessRedactionWriter<'session> {
         env.os_pairs(variables);
         self
     }
-
-    #[must_use]
-    fn exhausted_handle(&mut self) -> RedactionHandle {
-        self.session.stage_exhausted_handle()
-    }
 }
 
 #[cfg(test)]
@@ -243,7 +167,7 @@ mod tests {
 
         process.command(OsStr::new("client"), arguments, variables);
 
-        let output = session.finish_text();
+        let output = session.finish();
         assert!(!output.text().as_str().contains("argv-secret"));
         assert!(!output.text().as_str().contains("env-secret"));
     }

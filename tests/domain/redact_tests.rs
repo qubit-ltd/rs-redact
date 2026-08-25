@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 
 use qubit_redact::Redact;
 use qubit_redact::RedactionCompletion;
+use qubit_redact::RedactionFloor;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
@@ -156,6 +157,7 @@ fn test_redaction_fields_map_classifies_each_dynamic_key() {
     let policy = RedactionPolicy::builder()
         .fields(|fields| {
             let _ = fields.secret_sensitive("password");
+            let _ = fields.secret_sensitive("value");
         })
         .expect("field policy should build")
         .build()
@@ -172,6 +174,133 @@ fn test_redaction_fields_map_classifies_each_dynamic_key() {
     assert!(!output.text().as_str().contains("raw-secret"));
     assert!(output.text().as_str().contains("<redacted>"));
     assert!(output.text().as_str().contains("eu-west"));
+}
+
+/// Verifies a field value can be classified by a sibling policy key.
+#[test]
+fn test_redaction_fields_keyed_value_classifies_by_policy_key() {
+    struct DynamicPairValue {
+        key: String,
+        value: Option<String>,
+    }
+
+    impl Redact for DynamicPairValue {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.record("DynamicPairValue", |fields| {
+                fields.unmarked("key", || &self.key);
+                fields.keyed_value("value", &self.key, &self.value);
+            });
+        }
+    }
+
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            let _ = fields.secret_sensitive("password");
+        })
+        .expect("field policy should build")
+        .build()
+        .expect("policy should build");
+    let redactor = Redactor::new(policy);
+
+    let sensitive = redactor.redact(&DynamicPairValue {
+        key: "password".to_owned(),
+        value: Some("raw-secret".to_owned()),
+    });
+    let public = redactor.redact(&DynamicPairValue {
+        key: "region".to_owned(),
+        value: Some("eu-west".to_owned()),
+    });
+
+    assert!(!sensitive.text().as_str().contains("raw-secret"));
+    assert!(
+        sensitive.text().as_str().contains("value: Some(\"<redacted>\")"),
+        "{}",
+        sensitive.text().as_str()
+    );
+    assert!(
+        public.text().as_str().contains("value: Some(\"eu-west\")"),
+        "{}",
+        public.text().as_str()
+    );
+}
+
+/// Verifies keyed values use the complete policy, including strict unknowns,
+/// disabled mode, floor rules, and inspection.
+#[test]
+fn test_redaction_fields_keyed_value_uses_complete_policy() {
+    struct DynamicPairValue {
+        key: String,
+        value: Option<Vec<String>>,
+    }
+
+    impl Redact for DynamicPairValue {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.record("DynamicPairValue", |fields| {
+                fields.unmarked("key", || &self.key);
+                fields.keyed_value("value", &self.key, &self.value);
+            });
+        }
+    }
+
+    let value = DynamicPairValue {
+        key: "region".to_owned(),
+        value: Some(vec!["eu-west".to_owned()]),
+    };
+    let disabled = Redactor::new(RedactionPolicy::disabled()).redact(&value);
+    assert!(
+        disabled.text().as_str().contains(r#"Some(["eu-west"])"#),
+        "{}",
+        disabled.text().as_str()
+    );
+
+    let strict = Redactor::strict().redact(&value);
+    assert!(!strict.text().as_str().contains("eu-west"));
+    assert!(strict.text().as_str().contains("<redacted>"));
+
+    let floor = RedactionFloor::builder()
+        .raise("region", Sensitivity::High)
+        .expect("floor field should build")
+        .build()
+        .expect("floor should build");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.floor(floor).allow_exact("region");
+        })
+        .expect("field policy should build")
+        .build()
+        .expect("policy should build");
+    let redactor = Redactor::new(policy);
+    let floored = redactor.redact(&value);
+    let inspection = redactor.inspect(&value).expect("inspection should complete");
+
+    assert!(!floored.text().as_str().contains("eu-west"));
+    assert_eq!(inspection.max_sensitivity(), Some(Sensitivity::High));
+    assert_eq!(inspection.usage().output_bytes(), 0);
+}
+
+/// Verifies structured Serde uses the same keyed policy decision as text.
+#[cfg(feature = "serde")]
+#[test]
+fn test_redacted_keyed_serialize_ref_classifies_by_policy_key() {
+    use qubit_redact::domain::internal::RedactedKeyedSerializeRef;
+
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            let _ = fields.secret_sensitive("password");
+        })
+        .expect("field policy should build")
+        .build()
+        .expect("policy should build");
+
+    let secret = Some("raw-secret".to_owned());
+    let public = Some("eu-west".to_owned());
+    let secret_json = serde_json::to_value(RedactedKeyedSerializeRef::new(&secret, "password", &policy))
+        .expect("secret keyed value should serialize");
+    let public_json = serde_json::to_value(RedactedKeyedSerializeRef::new(&public, "region", &policy))
+        .expect("public keyed value should serialize");
+
+    assert_eq!(secret_json, serde_json::json!("<redacted>"));
+    assert_eq!(public_json, serde_json::json!("eu-west"));
 }
 
 /// Verifies level mode preserves recursive container shape and masks each

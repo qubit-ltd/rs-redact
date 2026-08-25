@@ -20,8 +20,11 @@ use crate::policy::ResolvedField;
 /// It deliberately owns no policy snapshot: the parent runtime supplies
 /// context rules for each operation.
 pub(in crate::formats::http) struct FieldRedactor<'a> {
+    /// Application-wide field rules evaluated for every HTTP context.
     base_rules: &'a RedactionRules,
+    /// Context-specific rules evaluated alongside the base rules.
     context_rules: &'a RedactionRules,
+    /// Mask generator used after the strongest rule is resolved.
     masking: &'a MaskingPolicy,
 }
 

@@ -9,13 +9,18 @@
 
 use std::ffi::OsStr;
 
-use crate::RedactionSession;
+use crate::runtime::BatchSession;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// Admits environment pairs before the renderer can inspect them.
 pub(super) struct AdmittedEnvironmentPairs<'session, 'variables, I> {
-    pub(super) session: &'session mut RedactionSession,
+    /// Batch transaction charged before each pair is yielded.
+    pub(super) session: &'session mut BatchSession,
+    /// Remaining caller-provided environment pairs consumed lazily.
     pub(super) variables: I,
+    /// Whether admission stopped the iterator before source exhaustion.
     pub(super) failed: bool,
+    /// Borrow lifetime retained independently of the iterator's concrete type.
     pub(super) marker: std::marker::PhantomData<&'variables ()>,
 }
 
@@ -23,8 +28,10 @@ impl<'variables, I> Iterator for AdmittedEnvironmentPairs<'_, 'variables, I>
 where
     I: Iterator<Item = (&'variables OsStr, &'variables OsStr)>,
 {
+    /// One admitted operating-system name and value pair.
     type Item = (&'variables OsStr, &'variables OsStr);
 
+    /// Admits and returns the next pair without observing later input.
     fn next(&mut self) -> Option<Self::Item> {
         if self.variables.size_hint().1 == Some(0) {
             return None;

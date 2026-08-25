@@ -25,7 +25,9 @@ use crate::policy::internal::visit_canonical_field_candidates;
 /// Immutable, cheap-to-clone field classification snapshot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionRules {
+    /// Immutable application-owned classification rules.
     application: Arc<RedactionPolicyInner>,
+    /// Optional minimum protection evaluated after application rules.
     floor: Option<RedactionFloor>,
 }
 

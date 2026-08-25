@@ -18,13 +18,27 @@ use crate::policy::Sensitivity;
 /// Mutable construction state for a [`MaskingPolicy`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaskingPolicyBuilder {
+    /// Draft mask for low-sensitivity values.
     low: MaskPolicy,
+    /// Draft mask for medium-sensitivity values.
     medium: MaskPolicy,
+    /// Draft mask for high-sensitivity values.
     high: MaskPolicy,
+    /// Draft mask for secret values.
     secret: MaskPolicy,
 }
 
 /// Mask policies assigned to all supported sensitivity levels.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::MaskingPolicy;
+/// use qubit_redact::Sensitivity;
+///
+/// let masking = MaskingPolicy::builder().build();
+/// assert_eq!(masking.mask(Sensitivity::Secret, "raw"), "<redacted>");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaskingPolicy {
     /// Policy for low-sensitivity values.

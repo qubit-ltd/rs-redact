@@ -7,6 +7,7 @@
 // =============================================================================
 //! Policy-driven URI redaction.
 
+pub(crate) mod batch_redaction;
 pub(crate) mod inspection;
 mod internal;
 mod redaction;

@@ -14,12 +14,13 @@ use super::UriPathPolicy;
 use super::redaction::decode_uri_component;
 use super::uri_redaction_writer::admit_uri_structure;
 use crate::RedactionReason;
-use crate::RedactionSession;
 use crate::Sensitivity;
 use crate::policy::ResolvedField;
+use crate::runtime::InspectionSession;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// Parses and completely classifies one URI under the active policy.
-pub(crate) fn inspect_uri(session: &mut RedactionSession, input: &str) {
+pub(crate) fn inspect_uri(session: &mut InspectionSession, input: &str) {
     if !session.admit_input(input.len()) || !admit_uri_structure(session, input) {
         return;
     }
@@ -52,7 +53,7 @@ pub(crate) fn inspect_uri(session: &mut RedactionSession, input: &str) {
 }
 
 /// Classifies username and password components after strict percent decoding.
-fn inspect_authority(session: &mut RedactionSession, authority: &str) -> Result<(), ()> {
+fn inspect_authority(session: &mut InspectionSession, authority: &str) -> Result<(), ()> {
     let Some((userinfo, _)) = authority.rsplit_once('@') else {
         return Ok(());
     };
@@ -67,7 +68,7 @@ fn inspect_authority(session: &mut RedactionSession, authority: &str) -> Result<
 }
 
 /// Classifies URI query values after strict percent decoding.
-fn inspect_query(session: &mut RedactionSession, query: &str) -> Result<(), ()> {
+fn inspect_query(session: &mut InspectionSession, query: &str) -> Result<(), ()> {
     for pair in query.split('&') {
         let Some((raw_key, raw_value)) = pair.split_once('=') else {
             let _ = decode_uri_component(pair)?;
@@ -83,7 +84,7 @@ fn inspect_query(session: &mut RedactionSession, query: &str) -> Result<(), ()> 
 }
 
 /// Classifies one decoded userinfo component by its semantic field name.
-fn inspect_named_component(session: &mut RedactionSession, field: &str, raw: &str) -> Result<(), ()> {
+fn inspect_named_component(session: &mut InspectionSession, field: &str, raw: &str) -> Result<(), ()> {
     let _ = decode_uri_component(raw)?;
     if let ResolvedField::Sensitive { sensitivity } = session.policy().resolve_field(field) {
         session.observe_sensitivity(sensitivity);

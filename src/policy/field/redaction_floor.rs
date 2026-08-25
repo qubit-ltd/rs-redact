@@ -22,6 +22,7 @@ use crate::policy::internal::RedactionPolicyInner;
 /// unknown-field fallback. It intentionally has no allow rules or mask table.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionFloor {
+    /// Shared immutable rule state containing only minimum protections.
     pub(crate) inner: Arc<RedactionPolicyInner>,
 }
 
