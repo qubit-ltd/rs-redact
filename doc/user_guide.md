@@ -58,6 +58,8 @@ runtime has no mutable redaction API and does not provide memory zeroization.
 - `sensitive(level, name, access)` applies a sensitivity mask;
 - `nested(name, value)` delegates to another `Redact` implementation;
 - `map(name, value)` applies key-aware handling to supported maps;
+- `keyed_value(name, key, value)` classifies one field value by a sibling
+  runtime key, using the same policy semantics as a map entry;
 - `json(name, value)` applies recursive JSON handling;
 - `skipped(name, access)` omits a field without rendering its value.
 
@@ -119,7 +121,27 @@ JSON text is parsed once into an admitted tree. Invalid JSON and traversal
 limit failures fail closed as an opaque or truncated safe result. The borrowed
 `Value` path does not clone, stringify, or mutate the caller's value. Within a
 domain implementation, `fields.json_value("payload", &value)` writes a parsed
-value as JSON rather than as a quoted JSON string.
+value as JSON rather than as a quoted JSON string. Sequence implementations use
+`items.json_value_item(&value)` for the same recursive JSON policy; this matters
+for downstream collections whose declared data type is JSON, because each item
+must be traversed as JSON instead of formatted as an opaque scalar.
+
+```rust
+use qubit_redact::Redact;
+use qubit_redact::RedactionWriter;
+
+struct Documents(Vec<serde_json::Value>);
+
+impl Redact for Documents {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.sequence(|items| {
+            for value in &self.0 {
+                items.json_value_item(value);
+            }
+        });
+    }
+}
+```
 
 JSON text uses `qubit-json`'s explicit number contract: negative integers must
 fit `i64`, non-negative integers must fit `u64`, and fractional/exponential
