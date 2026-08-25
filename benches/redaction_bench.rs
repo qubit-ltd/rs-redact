@@ -34,6 +34,16 @@ fn benchmark_redaction(criterion: &mut Criterion) {
     group.bench_function("one-shot/sensitive-field", |bencher| {
         bencher.iter(|| redactor.redact_field("password", black_box("raw-secret")));
     });
+    group.bench_function("batch/single-sensitive-field", |bencher| {
+        bencher.iter(|| {
+            let mut batch = redactor.batch();
+            let handle = batch.redact_field("password", black_box("raw-secret"));
+            batch
+                .finish()
+                .into_resolved(handle)
+                .expect("a handle created by the completed transaction must resolve")
+        });
+    });
     group.bench_function("composer/ordered-fields", |bencher| {
         bencher.iter(|| {
             redactor
@@ -56,8 +66,28 @@ fn benchmark_redaction(criterion: &mut Criterion) {
     group.bench_function("json/text", |bencher| {
         bencher.iter(|| redactor.redact_json(black_box(json)));
     });
+    group.bench_function("batch/single-json/text", |bencher| {
+        bencher.iter(|| {
+            let mut batch = redactor.batch();
+            let handle = batch.redact_json(black_box(json));
+            batch
+                .finish()
+                .into_resolved(handle)
+                .expect("a handle created by the completed transaction must resolve")
+        });
+    });
     group.bench_function("json/borrowed-value", |bencher| {
         bencher.iter(|| redactor.redact_json_value(black_box(&json_value)));
+    });
+    group.bench_function("batch/single-json/borrowed-value", |bencher| {
+        bencher.iter(|| {
+            let mut batch = redactor.batch();
+            let handle = batch.redact_json_value(black_box(&json_value));
+            batch
+                .finish()
+                .into_resolved(handle)
+                .expect("a handle created by the completed transaction must resolve")
+        });
     });
     group.bench_function("unicode/scalar", |bencher| {
         bencher.iter(|| redactor.redact_field("display_name", black_box("账户🔐é")));
