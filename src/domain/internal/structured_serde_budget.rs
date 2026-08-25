@@ -7,6 +7,7 @@
 // =============================================================================
 //! Mutable counters for one structured Serde budget scope.
 
+/// Tracks structural and input counters for one nested Serde scope.
 pub(super) struct StructuredSerdeBudget {
     /// Limits copied from the active redaction policy.
     pub(super) policy: crate::policy::RedactionLimits,

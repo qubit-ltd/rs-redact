@@ -13,6 +13,7 @@ use crate::Sensitivity;
 use crate::domain::Redact;
 use crate::domain::RedactionWriter;
 
+/// Provides bounded redaction operations for map-like domain values.
 pub struct RedactionEntries<'writer, 'session> {
     /// Domain writer receiving map entries.
     pub(super) writer: &'writer mut RedactionWriter<'session>,

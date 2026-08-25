@@ -15,6 +15,10 @@ use serde::ser::SerializeMap;
 
 use super::internally_tagged_map::InternallyTaggedMap;
 
+/// Serializes a map-like value with one internally tagged enum field.
+///
+/// Returns the underlying serializer's error when the value cannot be
+/// represented as a map or when the serializer rejects an emitted entry.
 #[doc(hidden)]
 pub fn serialize_internally_tagged<S, T>(
     serializer: S,
@@ -37,6 +41,7 @@ where
     })
 }
 
+/// Adapts a serializer so only map-like values can receive an internal tag.
 struct InternallyTaggedSerializer<S> {
     /// Underlying serializer receiving the tagged map.
     serializer: S,
@@ -50,7 +55,6 @@ struct InternallyTaggedSerializer<S> {
     tag_value: &'static str,
 }
 
-/// Map adapter returned after injecting an internal enum tag.
 impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
     type Ok = S::Ok;
     type Error = S::Error;

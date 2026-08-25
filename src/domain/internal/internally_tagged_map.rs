@@ -7,6 +7,7 @@
 // =============================================================================
 //! Serde map adapter for internally tagged newtype variants.
 
+/// Forwards map and struct entries to the underlying Serde map serializer.
 pub(super) struct InternallyTaggedMap<M> {
     /// Underlying serialized map.
     pub(super) map: M,

@@ -14,6 +14,7 @@ use crate::domain::Redact;
 use crate::domain::RedactLevelValue;
 use crate::domain::RedactionWriter;
 
+/// Provides bounded redaction operations for sequence-like domain values.
 pub struct RedactionItems<'writer, 'session> {
     /// Domain writer receiving sequence items.
     pub(super) writer: &'writer mut RedactionWriter<'session>,

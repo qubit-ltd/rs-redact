@@ -11,6 +11,12 @@ use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Write as _;
 
+/// Formats a debug value while retaining only complete UTF-8 fragments within
+/// `maximum` bytes.
+///
+/// Returns the retained text and whether formatting produced content beyond
+/// the limit. The value is formatted once and no partial UTF-8 character is
+/// retained.
 pub(in crate::domain) fn bounded_debug<T>(value: &T, maximum: usize) -> (String, bool)
 where
     T: Debug + ?Sized,
@@ -20,6 +26,7 @@ where
     writer.finish()
 }
 
+/// Collects complete debug-output fragments up to a byte limit.
 struct BoundedCapture {
     /// Complete UTF-8 fragments accepted so far.
     output: String,
@@ -47,6 +54,8 @@ impl BoundedCapture {
 }
 
 impl fmt::Write for BoundedCapture {
+    /// Appends `value` only when the complete string fits in the remaining
+    /// byte budget; otherwise records truncation and rejects the write.
     fn write_str(&mut self, value: &str) -> fmt::Result {
         let mut end = 0;
         for (index, character) in value.char_indices() {
