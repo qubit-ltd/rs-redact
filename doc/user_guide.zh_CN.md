@@ -54,6 +54,8 @@ assert_eq!(login.password, "raw");
 - `sensitive(level, name, access)` 应用敏感等级掩码；
 - `nested(name, value)` 委托给另一个 `Redact` 实现；
 - `map(name, value)` 对支持的 Map 按 key 处理；
+- `keyed_value(name, key, value)` 使用兄弟运行时 key 对单个字段值分类，
+  语义与一条 Map entry 相同；
 - `json(name, value)` 递归处理 JSON；
 - `skipped(name, access)` 省略字段且不渲染其值。
 
@@ -109,6 +111,26 @@ let _ = inspection;
 JSON 文本只解析一次，解析过程同时完成结构准入并构造 admitted tree。非法 JSON 或遍历
 超限时会整体 fail-closed。借用 `Value` 的路径不会 clone、转成字符串或修改调用方对象；
 领域实现可用 `fields.json_value("payload", &value)` 写入不带额外字符串引号的 JSON 值。
+序列实现则应逐项调用 `items.json_value_item(&value)`，它会执行同样的递归 JSON 策略。对于
+声明数据类型为 JSON 的下游集合，这一点尤其重要：每一项都必须按 JSON 结构遍历，不能作为
+不透明标量格式化。
+
+```rust
+use qubit_redact::Redact;
+use qubit_redact::RedactionWriter;
+
+struct Documents(Vec<serde_json::Value>);
+
+impl Redact for Documents {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.sequence(|items| {
+            for value in &self.0 {
+                items.json_value_item(value);
+            }
+        });
+    }
+}
+```
 
 JSON 文本采用 `qubit-json` 的明确数字契约：负整数必须装入 `i64`，非负整数必须装入 `u64`，
 小数/指数必须得到有限 `f64`。越界文本沿用 fail-closed 的无效 JSON 路径；serde_json 旧私有
