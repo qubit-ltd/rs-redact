@@ -9,7 +9,6 @@
 
 use std::sync::Arc;
 
-use super::inspection_accumulator::InspectionAccumulator;
 use super::redaction_budget::RedactionBudget;
 use super::structural_entry::StructuralEntry;
 use super::summary_builder::SummaryBuilder;
@@ -19,7 +18,7 @@ use crate::RedactionReason;
 use crate::RedactionSummary;
 
 /// Holds policy, resource accounting, and publication-independent state.
-pub(super) struct RedactionRuntime {
+pub(crate) struct RuntimeCore {
     /// Immutable policy snapshot shared by the active transaction.
     pub(super) policy: Arc<RedactionPolicy>,
     /// Mutable resource ledger for the active transaction.
@@ -38,11 +37,9 @@ pub(super) struct RedactionRuntime {
     pub(super) domain_frame_truncated: bool,
     /// Whether the domain frame reached its output allowance.
     pub(super) domain_frame_output_limit_reached: bool,
-    /// Sensitivity accumulator present only for non-rendering inspection.
-    pub(super) inspection: Option<InspectionAccumulator>,
 }
 
-impl RedactionRuntime {
+impl RuntimeCore {
     /// Creates runtime state for one active transaction.
     #[must_use]
     pub(super) fn new(policy: Arc<RedactionPolicy>) -> Self {
@@ -57,38 +54,7 @@ impl RedactionRuntime {
             domain_frame_output_bytes: 0,
             domain_frame_truncated: false,
             domain_frame_output_limit_reached: false,
-            inspection: None,
         }
-    }
-
-    /// Creates accounting for a non-rendering inspection transaction.
-    #[must_use]
-    pub(super) fn new_inspection(policy: Arc<RedactionPolicy>) -> Self {
-        let mut runtime = Self::new(policy);
-        runtime.inspection = Some(InspectionAccumulator::default());
-        runtime
-    }
-
-    /// Reports whether this transaction classifies without rendering.
-    #[must_use]
-    #[inline(always)]
-    pub(super) const fn is_inspection(&self) -> bool {
-        self.inspection.is_some()
-    }
-
-    /// Records one sensitivity in the active inspection transaction.
-    pub(super) fn observe_sensitivity(&mut self, sensitivity: crate::Sensitivity) {
-        if let Some(inspection) = self.inspection.as_mut() {
-            inspection.observe(sensitivity);
-        }
-    }
-
-    /// Consumes a completed inspection into classification and accounting.
-    #[must_use]
-    pub(super) fn into_inspection_parts(self) -> (Option<crate::Sensitivity>, RedactionSummary) {
-        let sensitivity = self.inspection.and_then(InspectionAccumulator::max_sensitivity);
-        let summary = self.summary.build(self.budget.usage());
-        (sensitivity, summary)
     }
 
     /// Returns the immutable policy snapshot.

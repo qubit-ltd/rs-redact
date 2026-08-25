@@ -15,19 +15,38 @@ use qubit_budget::json::JsonValueLimits;
 /// Mutable construction state for [`RedactionLimits`].
 #[derive(Debug, Clone, Copy)]
 pub struct RedactionLimitsBuilder {
+    /// Draft maximum source bytes admitted for inspection.
     max_input_bytes: usize,
+    /// Draft maximum safe bytes retained in output.
     max_output_bytes: usize,
+    /// Draft structural limits shared by domain and format traversal.
     domain: StructureLimits,
+    /// Draft JSON-specific structural and payload limits.
     #[cfg(feature = "json")]
     json: JsonValueLimits,
 }
 
 /// Structural and JSON limits for one redaction operation.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::RedactionLimits;
+///
+/// let mut builder = RedactionLimits::builder();
+/// builder.max_output_bytes(128);
+/// let limits = builder.build();
+/// assert_eq!(limits.max_output_bytes(), 128);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RedactionLimits {
+    /// Maximum source bytes admitted for inspection.
     max_input_bytes: usize,
+    /// Maximum safe bytes retained in output.
     max_output_bytes: usize,
+    /// Structural limits shared by domain and format traversal.
     domain: StructureLimits,
+    /// JSON-specific structural and payload limits.
     #[cfg(feature = "json")]
     json: JsonValueLimits,
 }
@@ -291,6 +310,7 @@ impl RedactionLimitsBuilder {
 }
 
 impl Default for RedactionLimitsBuilder {
+    /// Returns conservative finite defaults for every mutable limit.
     fn default() -> Self {
         Self {
             max_input_bytes: 64 * 1024,
@@ -309,6 +329,7 @@ impl Default for RedactionLimitsBuilder {
 }
 
 impl Default for RedactionLimits {
+    /// Builds the immutable standard limit snapshot.
     fn default() -> Self {
         Self::builder().build()
     }

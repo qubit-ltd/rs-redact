@@ -36,6 +36,21 @@ use super::UnknownFieldPolicy;
 ///
 /// let _ = RedactionPolicy::builder().raise("token", Sensitivity::Secret);
 /// ```
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::RedactionPolicy;
+///
+/// let policy = RedactionPolicy::builder()
+///     .fields(|fields| {
+///         let _ = fields.secret_sensitive("api_token");
+///     })
+///     .expect("valid field rules")
+///     .build()
+///     .expect("valid policy");
+/// assert!(policy.sensitivity_for("api_token").is_some());
+/// ```
 #[derive(Debug, Clone)]
 pub struct RedactionPolicyBuilder {
     /// Whether the resulting policy bypasses redaction.

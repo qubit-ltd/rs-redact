@@ -16,17 +16,17 @@ use super::bounded_json_redaction::BoundedJsonRedaction;
 use super::bounded_json_redaction::redacted_json_text_bounded;
 use super::bounded_json_redaction::redacted_json_value_bounded;
 use super::internal::JsonStructureSeed;
-use crate::RedactionHandle;
-use crate::RedactionSession;
 use crate::output::log_escape::escape_log_control_characters;
 use crate::runtime::OperationSink;
 use crate::runtime::RenderedOperation;
+use crate::runtime::TextSession;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// Admits JSON text whose root is nested at `root_depth` in another format.
 #[must_use]
 #[cfg(feature = "http")]
 pub(crate) fn admit_json_text_structure_at_depth(
-    session: &mut RedactionSession,
+    session: &mut dyn RuntimeSession,
     text: &str,
     root_depth: usize,
 ) -> bool {
@@ -34,13 +34,13 @@ pub(crate) fn admit_json_text_structure_at_depth(
 }
 
 /// Parses and admits one complete JSON text value at the root depth.
-pub(crate) fn admit_json_text_value(session: &mut RedactionSession, text: &str) -> Result<Value, JsonAdmissionError> {
+pub(crate) fn admit_json_text_value(session: &mut dyn RuntimeSession, text: &str) -> Result<Value, JsonAdmissionError> {
     admit_json_text_value_at_depth(session, text, 1)
 }
 
 /// Parses and admits JSON text whose root appears at the supplied depth.
 pub(crate) fn admit_json_text_value_at_depth(
-    session: &mut RedactionSession,
+    session: &mut dyn RuntimeSession,
     text: &str,
     root_depth: usize,
 ) -> Result<Value, JsonAdmissionError> {
@@ -116,12 +116,13 @@ pub(crate) fn json_output_from_bounded(
 
 /// Feature-gated JSON operations sharing one mutable diagnostic session.
 pub struct JsonRedactionWriter<'session> {
-    pub(super) session: &'session mut RedactionSession,
+    /// Text transaction that owns structural accounting and aggregate output.
+    pub(super) session: &'session mut TextSession,
 }
 
 impl<'session> JsonRedactionWriter<'session> {
     /// Creates a JSON facade borrowing a parent session.
-    pub(crate) const fn new(session: &'session mut RedactionSession) -> Self {
+    pub(crate) const fn new(session: &'session mut TextSession) -> Self {
         Self { session }
     }
 
@@ -166,54 +167,6 @@ impl<'session> JsonRedactionWriter<'session> {
         let result = self.redact_value_direct(value);
         self.session.append_rendered_operation(result);
         self
-    }
-
-    /// Redacts JSON text as one individually resolvable transaction item.
-    #[must_use]
-    pub(crate) fn redact_text(&mut self, text: &str) -> RedactionHandle {
-        let owns_item_summary = self.session.begin_item_summary();
-        let handle = (|| {
-            if self.session.is_output_exhausted() {
-                return self.session.stage_exhausted_handle();
-            }
-            let input_was_empty = text.is_empty();
-            let text = self.session.admit_input_prefix(text);
-            if text.is_empty() && !input_was_empty {
-                return self.session.stage_accounted_text(String::new());
-            }
-            let result = if self.session.policy().is_disabled() {
-                self.redact_text_direct(text)
-            } else {
-                match admit_json_text_value(self.session, text) {
-                    Ok(value) => self.redact_value_direct(&value),
-                    Err(JsonAdmissionError::Invalid) => {
-                        invalid_json_output(self.session.policy(), self.session.remaining_output_bytes())
-                    }
-                    Err(JsonAdmissionError::Limit) => {
-                        return self.session.stage_accounted_text("<truncated>");
-                    }
-                }
-            };
-            self.session.stage_rendered_operation(result)
-        })();
-        self.session.end_item_summary(owns_item_summary);
-        handle
-    }
-
-    /// Redacts a parsed JSON value as an individually resolvable item.
-    #[must_use]
-    pub(crate) fn redact_value(&mut self, value: &Value) -> RedactionHandle {
-        let owns_item_summary = self.session.begin_item_summary();
-        let handle = if self.session.is_output_exhausted() {
-            self.session.stage_exhausted_handle()
-        } else if !self.session.admit_json_value(value) {
-            self.session.stage_accounted_text("<truncated>")
-        } else {
-            let result = self.redact_value_direct(value);
-            self.session.stage_rendered_operation(result)
-        };
-        self.session.end_item_summary(owns_item_summary);
-        handle
     }
 }
 

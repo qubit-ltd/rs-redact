@@ -17,6 +17,17 @@ use crate::runtime::RedactionHandle;
 
 /// Published independently resolvable results from one
 /// [`crate::RedactionBatch`].
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::Redactor;
+///
+/// let mut batch = Redactor::strict().batch();
+/// let handle = batch.redact_field("password", "raw-secret");
+/// let output = batch.finish();
+/// assert!(output.resolve(handle).is_ok());
+/// ```
 pub struct RedactionBatchOutput {
     /// Private publication that owns the batch identity, items, and summary.
     output: BatchPublication,

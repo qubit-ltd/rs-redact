@@ -14,6 +14,7 @@ use crate::RedactionReason;
 
 /// Streams one field through log escaping without exceeding its output limit.
 pub(crate) struct BoundedFieldWriter {
+    /// Runtime sink that owns escaping and the final byte ceiling.
     sink: OperationSink,
 }
 

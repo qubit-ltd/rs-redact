@@ -8,19 +8,20 @@
 //! URI operations backed by one mutable diagnostic session.
 
 use super::redaction::redact_uri_with_limit;
-use crate::RedactionHandle;
-use crate::RedactionSession;
 use crate::runtime::OperationSink;
 use crate::runtime::RenderedOperation;
+use crate::runtime::TextSession;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// URI facade borrowing one diagnostic session.
 pub struct UriRedactionWriter<'session> {
-    session: &'session mut RedactionSession,
+    /// Text transaction that owns policy, accounting, and aggregate output.
+    session: &'session mut TextSession,
 }
 
 impl<'session> UriRedactionWriter<'session> {
     /// Creates a URI facade borrowing a parent session.
-    pub(crate) const fn new(session: &'session mut RedactionSession) -> Self {
+    pub(crate) const fn new(session: &'session mut TextSession) -> Self {
         Self { session }
     }
 
@@ -43,29 +44,6 @@ impl<'session> UriRedactionWriter<'session> {
         let result = self.redact_uri_direct(value);
         self.session.append_rendered_operation(result);
         self
-    }
-
-    /// Redacts a URI as one individually resolvable transaction item.
-    #[must_use]
-    pub(crate) fn redact_uri(&mut self, value: &str) -> RedactionHandle {
-        let owns_item_summary = self.session.begin_item_summary();
-        let handle = (|| {
-            if self.session.is_output_exhausted() {
-                return self.session.stage_exhausted_handle();
-            }
-            let input_was_empty = value.is_empty();
-            let value = self.session.admit_input_prefix(value);
-            if value.is_empty() && !input_was_empty {
-                return self.session.stage_accounted_text(String::new());
-            }
-            if !self.admit_uri_structure(value) {
-                return self.session.stage_accounted_text("<truncated>");
-            }
-            let result = self.redact_uri_direct(value);
-            self.session.stage_rendered_operation(result)
-        })();
-        self.session.end_item_summary(owns_item_summary);
-        handle
     }
 }
 
@@ -95,7 +73,7 @@ impl UriRedactionWriter<'_> {
 
 /// Charges URI root and query-pair structure without parsing component values.
 #[must_use]
-pub(crate) fn admit_uri_structure(session: &mut RedactionSession, input: &str) -> bool {
+pub(crate) fn admit_uri_structure(session: &mut dyn RuntimeSession, input: &str) -> bool {
     if !session.admit_format_node(1) {
         return false;
     }

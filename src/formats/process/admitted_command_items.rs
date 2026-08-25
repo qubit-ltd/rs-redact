@@ -7,14 +7,19 @@
 // =============================================================================
 //! Lazily admitted process command item iteration.
 
-use crate::RedactionSession;
 use crate::formats::argv::ArgvItem;
+use crate::runtime::BatchSession;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// Admits command arguments before the renderer can inspect them.
 pub(super) struct AdmittedCommandItems<'session, 'arguments, I> {
-    pub(super) session: &'session mut RedactionSession,
+    /// Batch transaction charged before each argument is yielded.
+    pub(super) session: &'session mut BatchSession,
+    /// Executable retained as the first pending argv item.
     pub(super) program: Option<ArgvItem<'arguments>>,
+    /// Remaining caller-provided arguments consumed lazily.
     pub(super) arguments: I,
+    /// Whether admission stopped the iterator before source exhaustion.
     pub(super) failed: bool,
 }
 
@@ -22,8 +27,10 @@ impl<'arguments, I> Iterator for AdmittedCommandItems<'_, 'arguments, I>
 where
     I: Iterator<Item = ArgvItem<'arguments>>,
 {
+    /// One admitted executable or command-line argument.
     type Item = ArgvItem<'arguments>;
 
+    /// Admits and returns the next command item without observing later input.
     fn next(&mut self) -> Option<Self::Item> {
         if self.program.is_none() && self.arguments.size_hint().1 == Some(0) {
             return None;

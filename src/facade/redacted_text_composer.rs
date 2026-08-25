@@ -9,17 +9,31 @@
 
 use crate::RedactionTextOutput;
 use crate::domain::Redact;
-use crate::runtime::RedactionSession;
+use crate::runtime::TextSession;
 
 /// Builds one ordered, redacted text value through consuming chained calls.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::Redactor;
+///
+/// let output = Redactor::strict()
+///     .text_composer()
+///     .literal("password=")
+///     .field("password", "raw-secret")
+///     .finish();
+/// assert!(!output.text().as_str().contains("raw-secret"));
+/// ```
 pub struct RedactedTextComposer {
-    session: RedactionSession,
+    /// Typed transaction that exclusively owns this composer's text output.
+    session: TextSession,
 }
 
 impl RedactedTextComposer {
     /// Creates a composer backed by one private runtime transaction.
     #[must_use]
-    pub(crate) const fn from_session(session: RedactionSession) -> Self {
+    pub(crate) const fn from_session(session: TextSession) -> Self {
         Self { session }
     }
 
@@ -116,6 +130,6 @@ impl RedactedTextComposer {
     /// Consumes the composer and publishes its redacted text and summary.
     #[must_use]
     pub fn finish(self) -> RedactionTextOutput {
-        self.session.finish_text()
+        self.session.finish()
     }
 }

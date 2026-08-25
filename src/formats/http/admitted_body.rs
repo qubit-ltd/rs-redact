@@ -14,7 +14,10 @@ pub(super) enum AdmittedBody {
     /// The body is not one complete top-level JSON document.
     Other,
     /// One top-level JSON document admitted under the shared budgets.
-    Json(Value),
+    Json(
+        /// Parsed tree retained so rendering does not parse the input again.
+        Value,
+    ),
     /// A body selected as JSON failed syntactic validation.
     InvalidJson,
     /// Non-empty NDJSON lines admitted under the shared budgets.

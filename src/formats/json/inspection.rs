@@ -12,13 +12,13 @@ use serde_json::Value;
 use super::JsonAdmissionError;
 use super::admit_json_text_value;
 use crate::RedactionReason;
-use crate::RedactionSession;
 use crate::Sensitivity;
 use crate::UnkeyedJsonValuePolicy;
 use crate::policy::ResolvedField;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// Parses and completely classifies one JSON document.
-pub(crate) fn inspect_text(session: &mut RedactionSession, text: &str) {
+pub(crate) fn inspect_text(session: &mut dyn RuntimeSession, text: &str) {
     if !session.admit_input(text.len()) {
         return;
     }
@@ -37,7 +37,7 @@ pub(crate) fn inspect_text(session: &mut RedactionSession, text: &str) {
 }
 
 /// Classifies one already-parsed JSON value without rendering it.
-pub(crate) fn inspect_borrowed_value(session: &mut RedactionSession, value: &Value) {
+pub(crate) fn inspect_borrowed_value(session: &mut dyn RuntimeSession, value: &Value) {
     if session.policy().is_disabled() {
         return;
     }
@@ -47,7 +47,7 @@ pub(crate) fn inspect_borrowed_value(session: &mut RedactionSession, value: &Val
 }
 
 /// Classifies a parsed JSON subtree using the active base policy.
-fn inspect_value(session: &mut RedactionSession, value: &Value, unkeyed: bool) {
+fn inspect_value(session: &mut dyn RuntimeSession, value: &Value, unkeyed: bool) {
     match value {
         Value::Array(values) => {
             for value in values {

@@ -9,6 +9,7 @@
 
 mod admitted_command_items;
 mod admitted_environment_pairs;
+pub(crate) mod batch_redaction;
 mod command_items;
 mod process_redaction_writer;
 

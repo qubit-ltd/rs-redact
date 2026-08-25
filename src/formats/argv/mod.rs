@@ -9,6 +9,7 @@
 
 mod argv_item;
 mod argv_redaction_writer;
+pub(crate) mod batch_redaction;
 pub(crate) mod inspection;
 mod pending_field;
 pub(crate) mod redaction;

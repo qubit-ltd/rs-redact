@@ -199,4 +199,3 @@ pub use policy::UnknownFieldPolicy;
 pub use policy::UriPolicyBuilderView;
 pub(crate) use runtime::RedactionHandle;
 pub(crate) use runtime::RedactionHandleError;
-pub(crate) use runtime::RedactionSession;

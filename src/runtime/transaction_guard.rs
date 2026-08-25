@@ -7,17 +7,19 @@
 // =============================================================================
 //! Panic rollback guard for one public transaction operation.
 
-use super::RedactionSession;
+use super::resettable_session::ResettableSession;
 
 /// Resets its borrowed session if user code unwinds before commit.
-pub(super) struct TransactionGuard<'session> {
-    session: &'session mut RedactionSession,
+pub(super) struct TransactionGuard<'session, S: ResettableSession> {
+    /// Borrowed mode-specific session restored if unwinding occurs.
+    session: &'session mut S,
+    /// Whether the guarded operation completed and retained its changes.
     committed: bool,
 }
 
-impl<'session> TransactionGuard<'session> {
+impl<'session, S: ResettableSession> TransactionGuard<'session, S> {
     /// Starts a rollback boundary for `session`.
-    pub(super) fn new(session: &'session mut RedactionSession) -> Self {
+    pub(super) fn new(session: &'session mut S) -> Self {
         Self {
             session,
             committed: false,
@@ -25,7 +27,7 @@ impl<'session> TransactionGuard<'session> {
     }
 
     /// Borrows the active session for the guarded operation.
-    pub(super) fn session(&mut self) -> &mut RedactionSession {
+    pub(super) fn session(&mut self) -> &mut S {
         self.session
     }
 
@@ -35,7 +37,8 @@ impl<'session> TransactionGuard<'session> {
     }
 }
 
-impl Drop for TransactionGuard<'_> {
+impl<S: ResettableSession> Drop for TransactionGuard<'_, S> {
+    /// Restores a fresh same-mode transaction only during panic unwinding.
     fn drop(&mut self) {
         if !self.committed && std::thread::panicking() {
             self.session.reset_transaction();

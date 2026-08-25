@@ -17,6 +17,7 @@ use super::uri_redaction_policy_inner::UriPolicyInner;
 /// Immutable URI policy that delegates field decisions to the core policy.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UriPolicy {
+    /// Shared immutable choices behind cheap policy clones.
     pub(crate) inner: Arc<UriPolicyInner>,
 }
 

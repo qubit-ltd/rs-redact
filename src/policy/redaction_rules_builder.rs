@@ -22,11 +22,17 @@ use super::internal::canonicalize_field_name;
 /// Mutable construction state for one set of redaction rules.
 #[derive(Debug, Clone)]
 pub(crate) struct RedactionRulesBuilder {
+    /// Canonical sensitive fields and their strongest configured levels.
     sensitive: BTreeMap<String, Sensitivity>,
+    /// Canonical exact-match pass-through rules.
     allow_exact: BTreeSet<String>,
+    /// Canonical token-suffix pass-through rules.
     allow_suffix: BTreeSet<String>,
+    /// Field-name candidate strategy used during resolution.
     matching: FieldNameMatching,
+    /// Fallback applied when no explicit rule matches.
     unknown_field_policy: UnknownFieldPolicy,
+    /// Validation context attached to construction errors.
     location: PolicyLocation,
 }
 

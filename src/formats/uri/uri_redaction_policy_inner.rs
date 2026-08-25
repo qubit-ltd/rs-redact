@@ -14,6 +14,8 @@ use super::UriPathPolicy;
 /// Shared immutable URI policy state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct UriPolicyInner {
+    /// Immutable visibility rule for path components.
     pub(crate) path_policy: UriPathPolicy,
+    /// Immutable visibility rule for URI fragments.
     pub(crate) fragment_policy: UriFragmentPolicy,
 }

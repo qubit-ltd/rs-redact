@@ -15,6 +15,7 @@
 //! ```
 
 mod admitted_body;
+pub(crate) mod batch_redaction;
 mod body_capture;
 mod body_capture_error;
 mod context_rules_builder;

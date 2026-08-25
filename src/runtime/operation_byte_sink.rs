@@ -12,7 +12,9 @@ use std::io::Write;
 
 /// Bounds serializer output before it becomes an unpublished operation.
 pub(crate) struct OperationByteSink {
+    /// Serializer bytes retained only after complete-token admission.
     output: Vec<u8>,
+    /// Maximum bytes the operation may retain.
     maximum: usize,
 }
 

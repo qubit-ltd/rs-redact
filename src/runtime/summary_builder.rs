@@ -17,8 +17,11 @@ use crate::RedactionUsage;
 /// [`super::redaction_budget::RedactionBudget`].
 #[derive(Clone, Copy)]
 pub(super) struct SummaryBuilder {
+    /// Whether any contributing operation used disabled policy mode.
     redaction_disabled: bool,
+    /// Strongest completion state accumulated so far.
     completion: RedactionCompletion,
+    /// Union of machine-readable degradation causes.
     reasons: RedactionReasons,
 }
 

@@ -40,6 +40,32 @@ fn format_adapters_cannot_construct_published_output_models() {
     });
 }
 
+/// Publication ownership is represented by distinct session types, so the
+/// former wrong-mode publication branches cannot return.
+#[test]
+fn publication_modes_are_owned_by_distinct_session_types() {
+    let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/runtime");
+    let module = fs::read_to_string(runtime.join("mod.rs")).expect("the runtime module must be readable");
+
+    for module_name in ["text_session", "batch_session", "inspection_session"] {
+        assert!(module.contains(&format!("mod {module_name};")));
+    }
+    for removed in ["publication_buffer", "redaction_session", "transaction_state"] {
+        assert!(!module.contains(&format!("mod {removed};")));
+        assert!(!runtime.join(format!("{removed}.rs")).exists());
+    }
+
+    visit_rust_sources(&runtime, &mut |path, source| {
+        for forbidden in ["PublicationBuffer", "RedactionSession", "TransactionState"] {
+            assert!(
+                !source.contains(forbidden),
+                "{} still depends on removed mode state {forbidden}",
+                path.display(),
+            );
+        }
+    });
+}
+
 /// Format output limits must be owned by the runtime sink instead of a
 /// format-local writer with an independently stored ceiling.
 #[test]
@@ -119,21 +145,9 @@ fn domain_writer_has_only_the_fixed_root_surface() {
 /// caller cannot accidentally use an operation from the wrong scope.
 #[test]
 fn domain_writer_capabilities_are_split_by_scope() {
-    let writer = include_str!("../src/domain/redaction_writer.rs");
-    let fields = writer
-        .split("impl<'writer, 'session> RedactionFields")
-        .nth(1)
-        .and_then(|source| source.split("pub struct RedactionItems").next())
-        .expect("the field scope must precede the item scope");
-    let items = writer
-        .split("impl<'writer, 'session> RedactionItems")
-        .nth(1)
-        .and_then(|source| source.split("pub struct RedactionEntries").next())
-        .expect("the item scope must precede the entry scope");
-    let entries = writer
-        .split("impl<'writer, 'session> RedactionEntries")
-        .nth(1)
-        .expect("the entry scope must exist");
+    let fields = include_str!("../src/domain/redaction_fields.rs");
+    let items = include_str!("../src/domain/redaction_items.rs");
+    let entries = include_str!("../src/domain/redaction_entries.rs");
 
     for method in ["unredacted_item", "sensitive_item", "nested_item"] {
         assert!(!fields.contains(&format!("pub fn {method}")));

@@ -9,17 +9,18 @@
 
 use std::ffi::OsStr;
 
-use crate::RedactionSession;
 use crate::Sensitivity;
 use crate::policy::ResolvedField;
+use crate::runtime::InspectionSession;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// Inspects one UTF-8 environment assignment.
-pub(crate) fn inspect_pair(session: &mut RedactionSession, name: &str, value: &str) {
+pub(crate) fn inspect_pair(session: &mut InspectionSession, name: &str, value: &str) {
     inspect_os_pairs(session, [(OsStr::new(name), OsStr::new(value))]);
 }
 
 /// Inspects borrowed operating-system environment assignments.
-pub(crate) fn inspect_os_pairs<'items, I>(session: &mut RedactionSession, pairs: I)
+pub(crate) fn inspect_os_pairs<'items, I>(session: &mut InspectionSession, pairs: I)
 where
     I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
 {

@@ -11,7 +11,10 @@ use std::borrow::Cow;
 
 /// An internal value that has passed through field-sensitive masking.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MaskedValue<'a>(Cow<'a, str>);
+pub struct MaskedValue<'a>(
+    /// Borrowed pass-through text or an owned mask selected by policy.
+    Cow<'a, str>,
+);
 
 impl<'a> MaskedValue<'a> {
     /// Creates typed redacted text from an already processed value.

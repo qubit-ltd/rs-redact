@@ -17,7 +17,9 @@ use std::fmt;
 /// token before an operation returns to the caller.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RedactionHandle {
+    /// Identity of the batch transaction that created this handle.
     pub(super) transaction_id: u64,
+    /// Position of the referenced item inside that batch.
     pub(super) item_index: usize,
 }
 
@@ -31,6 +33,7 @@ impl RedactionHandle {
         }
     }
 
+    /// Returns the transaction identity and item position for facade wrapping.
     pub(crate) const fn parts(self) -> (u64, usize) {
         (self.transaction_id, self.item_index)
     }
@@ -46,6 +49,7 @@ pub enum RedactionHandleError {
 }
 
 impl fmt::Display for RedactionHandleError {
+    /// Writes a stable diagnostic without including item contents.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::DifferentTransaction => formatter.write_str("the handle belongs to a different transaction"),

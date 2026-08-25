@@ -19,16 +19,22 @@ use crate::RedactionRules;
 /// Combines HTTP field rules, behavior choices, and resource limits.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HttpPolicy {
+    /// Shared immutable context policies behind cheap policy clones.
     inner: Arc<HttpPolicyInner>,
 }
 
 /// Shared immutable HTTP behavior state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct HttpPolicyInner {
+    /// Header-name classification snapshot.
     header_rules: RedactionRules,
+    /// URL-query and form-field classification snapshot.
     query_rules: RedactionRules,
+    /// Structured-body field classification snapshot.
     body_rules: RedactionRules,
+    /// Visibility rule for URL path components.
     url_path_policy: UrlPathPolicy,
+    /// Visibility rule for opaque UTF-8 bodies.
     text_body_policy: TextBodyPolicy,
 }
 

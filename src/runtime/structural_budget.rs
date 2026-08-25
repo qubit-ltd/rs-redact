@@ -16,10 +16,15 @@ use super::structural_entry::StructuralEntry;
 /// Tracks the shared structural resources of one redaction transaction.
 #[derive(Debug)]
 pub(crate) struct StructuralBudget {
+    /// Underlying node, collection, and key budget.
     budget: StructureBudget,
+    /// Active domain-value nesting depth.
     current_depth: usize,
+    /// Optional maximum domain or format nesting depth.
     max_depth: Option<usize>,
+    /// Whether a prior rejection prevents any later traversal.
     traversal_closed: bool,
+    /// Cumulative collection items admitted across namespaces.
     collection_items_seen: usize,
 }
 

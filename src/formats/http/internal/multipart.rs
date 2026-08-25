@@ -17,10 +17,11 @@ use super::json;
 use super::markers;
 use crate::RedactionPolicy;
 use crate::RedactionReason;
-use crate::RedactionSession;
 use crate::Sensitivity;
 use crate::formats::http::FieldRedactor;
 use crate::formats::http::TextBodyPolicy;
+use crate::runtime::InspectionSession;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// Redacts one complete multipart body into a deterministic summary.
 ///
@@ -77,7 +78,7 @@ pub(in crate::formats::http) fn redact(
 /// Charges multipart parts and nested structured values to one transaction.
 #[must_use]
 pub(in crate::formats::http) fn admit_structure(
-    session: &mut RedactionSession,
+    session: &mut dyn RuntimeSession,
     boundary: &str,
     require_form_data: bool,
     bytes: &[u8],
@@ -130,7 +131,7 @@ pub(in crate::formats::http) fn admit_structure(
 
 /// Classifies every multipart part without rendering or retaining body data.
 pub(in crate::formats::http) fn inspect(
-    session: &mut RedactionSession,
+    session: &mut InspectionSession,
     boundary: &str,
     require_form_data: bool,
     bytes: &[u8],
@@ -201,7 +202,7 @@ pub(in crate::formats::http) fn inspect(
 /// Charges each non-empty URL-encoded form field at `field_depth`.
 #[must_use]
 pub(in crate::formats::http) fn admit_form_fields(
-    session: &mut RedactionSession,
+    session: &mut dyn RuntimeSession,
     bytes: &[u8],
     field_depth: usize,
 ) -> bool {
@@ -215,7 +216,7 @@ pub(in crate::formats::http) fn admit_form_fields(
 
 /// Resolves body rules without retaining an immutable session borrow.
 #[must_use]
-fn body_field_is_sensitive(session: &RedactionSession, field: &str) -> bool {
+fn body_field_is_sensitive(session: &dyn RuntimeSession, field: &str) -> bool {
     let policy = session.policy();
     FieldRedactor::new(policy.rules(), policy.body_rules(), policy.masking()).is_sensitive(field)
 }

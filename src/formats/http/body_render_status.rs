@@ -19,7 +19,10 @@ pub(in crate::formats::http) enum BodyRenderStatus {
     /// Policy allowed the original body text to remain visible.
     PassedThrough,
     /// Fail-closed rendering was selected for the recorded reason.
-    Redacted(BodyRenderReason),
+    Redacted(
+        /// Machine-readable reason that selected fail-closed body output.
+        BodyRenderReason,
+    ),
     /// The body is binary and is represented without decoding it.
     Binary,
 }

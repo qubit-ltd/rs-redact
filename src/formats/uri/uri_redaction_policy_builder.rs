@@ -16,7 +16,9 @@ use crate::PolicyError;
 /// Mutable construction state for an immutable URI policy.
 #[derive(Debug, Clone)]
 pub struct UriPolicyBuilder {
+    /// Selected visibility rule for path components.
     path_policy: UriPathPolicy,
+    /// Selected visibility rule for URI fragments.
     fragment_policy: UriFragmentPolicy,
 }
 

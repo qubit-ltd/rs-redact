@@ -25,12 +25,13 @@ use super::internal::nested_url;
 use super::internal::nested_url::NestedUrl;
 use super::redaction::url_rules;
 use crate::RedactionReason;
-use crate::RedactionSession;
 use crate::Sensitivity;
 use crate::UnkeyedJsonValuePolicy;
+use crate::runtime::InspectionSession;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// Completely classifies one absolute HTTP URL.
-pub(crate) fn inspect_url(session: &mut RedactionSession, input: &str) {
+pub(crate) fn inspect_url(session: &mut InspectionSession, input: &str) {
     if !session.admit_input(input.len()) || !session.admit_format_node(1) {
         return;
     }
@@ -42,7 +43,7 @@ pub(crate) fn inspect_url(session: &mut RedactionSession, input: &str) {
 }
 
 /// Completely classifies one HTTP header collection.
-pub(crate) fn inspect_headers(session: &mut RedactionSession, headers: &HeaderMap) {
+pub(crate) fn inspect_headers(session: &mut InspectionSession, headers: &HeaderMap) {
     if !session.admit_format_node(1) {
         return;
     }
@@ -66,7 +67,7 @@ pub(crate) fn inspect_headers(session: &mut RedactionSession, headers: &HeaderMa
 
 /// Completely classifies one body using a native Content-Type header.
 pub(crate) fn inspect_body(
-    session: &mut RedactionSession,
+    session: &mut InspectionSession,
     capture: BodyCapture<'_>,
     content_type: Option<&HeaderValue>,
 ) {
@@ -85,7 +86,7 @@ pub(crate) fn inspect_body(
 
 /// Completely classifies one body using textual Content-Type metadata.
 pub(crate) fn inspect_body_with_content_type_text(
-    session: &mut RedactionSession,
+    session: &mut InspectionSession,
     capture: BodyCapture<'_>,
     content_type: Option<&str>,
 ) {
@@ -144,7 +145,7 @@ pub(crate) fn inspect_body_with_content_type_text(
 
 /// Recursively classifies URL credentials, path, query, fragment, and nested
 /// URLs.
-fn inspect_parsed_url(session: &mut RedactionSession, url: &Url, depth: usize) {
+fn inspect_parsed_url(session: &mut InspectionSession, url: &Url, depth: usize) {
     if !url.username().is_empty() {
         session.observe_sensitivity(Sensitivity::High);
     }
@@ -189,7 +190,7 @@ fn inspect_parsed_url(session: &mut RedactionSession, url: &Url, depth: usize) {
 }
 
 /// Parses and classifies one complete JSON body.
-pub(in crate::formats::http) fn inspect_json_bytes(session: &mut RedactionSession, bytes: &[u8]) {
+pub(in crate::formats::http) fn inspect_json_bytes(session: &mut InspectionSession, bytes: &[u8]) {
     if !crate::formats::json::is_valid_json_bytes(bytes) {
         session.fail_inspection(RedactionReason::InvalidJson);
         return;
@@ -205,7 +206,7 @@ pub(in crate::formats::http) fn inspect_json_bytes(session: &mut RedactionSessio
 }
 
 /// Classifies JSON values against HTTP body-context rules.
-fn inspect_json_value(session: &mut RedactionSession, value: &Value, unkeyed: bool) {
+fn inspect_json_value(session: &mut InspectionSession, value: &Value, unkeyed: bool) {
     match value {
         Value::Array(values) => {
             for value in values {
@@ -231,14 +232,14 @@ fn inspect_json_value(session: &mut RedactionSession, value: &Value, unkeyed: bo
 }
 
 /// Parses and classifies every non-empty NDJSON line.
-pub(in crate::formats::http) fn inspect_ndjson(session: &mut RedactionSession, bytes: &[u8]) {
+pub(in crate::formats::http) fn inspect_ndjson(session: &mut InspectionSession, bytes: &[u8]) {
     for line in bytes.split(|byte| *byte == b'\n').filter(|line| !line.is_empty()) {
         inspect_json_bytes(session, line);
     }
 }
 
 /// Parses and classifies one URL-encoded form body.
-pub(in crate::formats::http) fn inspect_form(session: &mut RedactionSession, bytes: &[u8]) {
+pub(in crate::formats::http) fn inspect_form(session: &mut InspectionSession, bytes: &[u8]) {
     if !form::is_valid(bytes) {
         session.fail_inspection(RedactionReason::InvalidForm);
         return;
@@ -259,7 +260,7 @@ fn body_first_non_whitespace(bytes: &[u8]) -> Option<u8> {
 }
 
 /// Borrows HTTP query classification rules.
-fn query_fields(session: &RedactionSession) -> FieldRedactor<'_> {
+fn query_fields(session: &InspectionSession) -> FieldRedactor<'_> {
     FieldRedactor::new(
         session.policy().rules(),
         session.policy().query_rules(),
@@ -268,7 +269,7 @@ fn query_fields(session: &RedactionSession) -> FieldRedactor<'_> {
 }
 
 /// Borrows HTTP header classification rules.
-fn header_fields(session: &RedactionSession) -> FieldRedactor<'_> {
+fn header_fields(session: &InspectionSession) -> FieldRedactor<'_> {
     FieldRedactor::new(
         session.policy().rules(),
         session.policy().header_rules(),
@@ -277,7 +278,7 @@ fn header_fields(session: &RedactionSession) -> FieldRedactor<'_> {
 }
 
 /// Borrows HTTP body classification rules.
-fn body_fields(session: &RedactionSession) -> FieldRedactor<'_> {
+fn body_fields(session: &InspectionSession) -> FieldRedactor<'_> {
     FieldRedactor::new(
         session.policy().rules(),
         session.policy().body_rules(),
