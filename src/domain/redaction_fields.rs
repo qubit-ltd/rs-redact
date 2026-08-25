@@ -17,6 +17,7 @@ use crate::domain::internal::bounded_capture::bounded_debug;
 use crate::domain::internal::resolve_keyed_field;
 use crate::policy::ResolvedField;
 
+/// Provides bounded redaction operations for named domain fields.
 pub struct RedactionFields<'writer, 'session> {
     /// Domain writer receiving field output.
     pub(super) writer: &'writer mut RedactionWriter<'session>,
