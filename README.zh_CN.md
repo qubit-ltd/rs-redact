@@ -61,11 +61,28 @@ impl Redact for Login {
 ```
 
 调用 `Redactor::standard().redact(&value)`，或用 `Redactor::new(policy)` 构造显式策略。
-输出包含文本和摘要。展示前应检查 `output.summary().completion()`：
-`into_complete_text()` 会拒绝不完整输出，`into_text_or_marker("<redaction incomplete>")`
-要求调用方明确选择降级标记。运行时没有可变脱敏 trait，不会修改或擦除源对象。
-借用调用方可使用 `complete_text()` 或 `text_or_marker("<redaction incomplete>")`；
-这尤其适合解析同一 batch 中的多个 item。
+启用脱敏时，`Complete`、`Truncated`、`Exhausted` 三种状态下的文本都满足保密安全要求；
+后两者只表示诊断信息不完整。`Debug`、`Display` 和普通日志可以直接展示
+`output.text()`。只有审计、重试或业务逻辑依赖完整性时，才需要检查
+`output.summary()`；这类调用方仍可使用 `into_complete_text()` 或 marker helper。
+
+一批互相独立的诊断值可以只选择一次降级标记，再无错误样板地解析所有 handle：
+
+```rust
+use qubit_redact::Redactor;
+
+let mut batch = Redactor::standard().batch();
+let user = batch.redact_field("user", "ada");
+let password = batch.redact_field("password", "raw-password");
+let diagnostics = batch.finish_for_diagnostics("<redaction incomplete>");
+
+assert_eq!(diagnostics.text(user).as_str(), "ada");
+assert!(!diagnostics.text(password).as_str().contains("raw-password"));
+```
+
+derive 未标注字段和通过 `unmarked` 写入的值会有意保持不脱敏。字段是否敏感属于下游业务
+领域知识，框架既无法可靠推断，也不应要求占绝大多数的普通字段逐一声明“不敏感”。下游
+类型应显式标记敏感字段，并在领域模型变化时重新审查。运行时不会修改或擦除源对象。
 
 ## 能力
 
@@ -78,8 +95,10 @@ impl Redact for Login {
 - 在一批相关值之间共享预算和摘要的 batch API；
 - 可选的 `serde` 与 derive 集成；默认 feature 集保持最小化。
 
-禁用策略会有意恢复所有支持入口的原值。资源限制和控制字符转义仍然生效，但保密脱敏不再
-生效。它只能作为经过审查的启动配置，不能由请求动态开启，也不能用于未经审查的日志。
+禁用策略会有意恢复所有支持入口的原值。这是框架特意保留的进程级调试逃生口，不代表框架
+替下游授权。资源限制和控制字符转义仍然生效，但保密脱敏不再生效；授权、调用时机、运行
+环境和误用后果由下游负责。替换应用默认值只影响之后取得的策略快照，已经创建的
+`Redactor`、composer 和 batch 继续持有原快照。
 
 ## 延伸阅读
 

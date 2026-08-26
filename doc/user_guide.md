@@ -10,18 +10,39 @@ publishes only final text plus its summary.
 ## Completion is part of the result
 
 Every rendering entry point returns `RedactionTextOutput`: safe text and a
-`RedactionSummary`. A complete result may be consumed with
-`into_complete_text()`. A truncated or exhausted result returns its summary so
-the caller must choose the local presentation policy. For an intentional
-fallback marker, use `into_text_or_marker("<redaction incomplete>")` rather
-than silently presenting a partial URL, header block, or command description.
-When the output must remain borrowed, use `complete_text()` or
-`text_or_marker("<redaction incomplete>")`. These borrowed helpers let batch
-callers apply the same rule independently to every resolved item.
+`RedactionSummary`. With redaction enabled, text published as `Complete`,
+`Truncated`, or `Exhausted` remains confidentiality-safe. The latter two states
+mean that diagnostic information is incomplete, not that the text leaked its
+source. `Debug`, `Display`, and ordinary diagnostic logging can therefore use
+`output.text()` directly; forcing those callers to branch on a reason would not
+give them a meaningful recovery action.
 
-`Truncated` retains a non-empty safe substitute; `Exhausted` could not retain a
-complete replacement under the shared output budget. `reasons()` identifies
-parser and budget degradation, including invalid JSON, form, and multipart data.
+Inspect `completion()` and `reasons()` when completeness itself affects audit,
+retry, program logic, or a structured output contract. Such callers can use
+`complete_text()` / `into_complete_text()` to reject incomplete results, or
+`text_or_marker()` / `into_text_or_marker()` to select a presentation fallback.
+`Truncated` retains a safe admitted representation; `Exhausted` means the
+shared budget could not retain a complete replacement. Reasons identify parser
+and budget degradation, including invalid JSON, form, and multipart data.
+
+For several independently resolved diagnostic fields, choose the fallback once:
+
+```rust
+use qubit_redact::Redactor;
+
+let mut batch = Redactor::standard().batch();
+let user = batch.redact_field("user", "ada");
+let password = batch.redact_field("password", "raw-password");
+let output = batch.finish_for_diagnostics("<redaction incomplete>");
+
+assert_eq!(output.text(user).as_str(), "ada");
+assert!(!output.text(password).as_str().contains("raw-password"));
+```
+
+`finish_for_diagnostics()` maps an incomplete item, an invalid item, and a
+handle from another batch to the same escaped marker without returning
+`Result`. Callers that need to distinguish those programming errors retain the
+strict `finish()` plus `RedactionBatchOutput::resolve()` path.
 
 ## 1. Render a domain value
 
@@ -63,11 +84,15 @@ runtime has no mutable redaction API and does not provide memory zeroization.
 - `json(name, value)` applies recursive JSON handling;
 - `skipped(name, access)` omits a field without rendering its value.
 
-Each operation participates in the same output budget and summary. A field
-that may contain sensitive data must not be left unmarked merely because the
-current policy happens to mask it elsewhere. Unmarked fields are a permanent
-downstream-owned trust decision: strict policy and inspection do not infer or
-upgrade their sensitivity.
+Each operation participates in the same output budget and summary. Unmarked
+fields are intentionally passed through because sensitivity is a property of
+the downstream business domain, not something a generic framework can infer
+from a Rust type, field name, or current contents. Ordinary fields are the vast
+majority, so requiring an explicit "not sensitive" annotation on all of them
+would add noise without adding knowledge. Downstream code must explicitly mark
+fields that can contain sensitive data and repeat that review when its domain
+model changes. Strict policy and inspection deliberately do not override that
+domain decision.
 
 Scalar field APIs accept lazy `Display` values. A `High` or `Secret` decision
 happens before formatting, so rejected content is never formatted. A
@@ -155,12 +180,15 @@ Inspection reports rule matches, sensitivity, and completion without publishing
 raw values. Use it to explain why a field would be masked before choosing a
 serialization or logging boundary.
 
-`RedactionPolicy::disabled()` is an explicit confidentiality opt-out. It restores raw values
-for fields, JSON, URI, HTTP, environment, argv, process, derive field modes,
-and generated Serde output. The source is still bounded by runtime limits and
+`RedactionPolicy::disabled()` is an explicit confidentiality opt-out and an
+intentional process-wide debugging escape hatch. It restores raw values for
+fields, JSON, URI, HTTP, environment, argv, process, derive field modes, and
+generated Serde output. The source is still bounded by runtime limits and
 control characters remain escaped, but neither mechanism makes the result
-redacted. Enable this only as reviewed startup configuration and never from an
-untrusted request.
+redacted. The framework executes the selected policy; downstream code owns the
+authorization, environment, timing, and consequences of disabling it. A
+request-controlled switch is usually unsafe, but preventing deliberate or
+accidental API misuse is not a framework guarantee.
 
 ```rust
 use qubit_redact::{RedactionPolicy, Redactor};
@@ -178,6 +206,11 @@ safe. Check `summary().completion()` and `summary().reasons()` only when the
 caller needs completeness, audit provenance, or retry decisions; do not parse
 text markers to infer state. When inspection drives a security decision, treat
 an inspection error as sensitive because classification was inconclusive.
+
+`Redactor::replace_application_default()` affects future calls to
+`application_default()` and generated formatting that obtains a new snapshot.
+Existing redactors, composers, and batches keep the immutable snapshot they
+already own; replacement does not retroactively toggle in-flight work.
 
 ## 5. Troubleshooting and limits
 

@@ -63,14 +63,35 @@ impl Redact for Login {
 ```
 
 Then call `Redactor::standard().redact(&value)` or construct an explicit policy
-with `Redactor::new(policy)`. Inspect `output.summary().completion()` before
-presentation: `into_complete_text()` rejects incomplete output and
-`into_text_or_marker("<redaction incomplete>")` makes a fallback explicit.
-Borrowing callers can use `complete_text()` or
-`text_or_marker("<redaction incomplete>")`; this is especially useful after
-resolving several items from a batch.
-The runtime has no mutable redaction trait and does not mutate or erase the
-source value.
+with `Redactor::new(policy)`. When redaction is enabled, the text remains
+confidentiality-safe for `Complete`, `Truncated`, and `Exhausted`; the latter
+two states mean only that diagnostic information is incomplete. `Debug`,
+`Display`, and ordinary logs may render `output.text()` directly. Inspect
+`output.summary()` only when completeness affects auditing, retry, or program
+logic. `into_complete_text()` and the marker helpers remain available for such
+explicit presentation policies.
+
+For several independently formatted diagnostic values, select one fallback
+once and resolve every handle without error-handling boilerplate:
+
+```rust
+use qubit_redact::Redactor;
+
+let mut batch = Redactor::standard().batch();
+let user = batch.redact_field("user", "ada");
+let password = batch.redact_field("password", "raw-password");
+let diagnostics = batch.finish_for_diagnostics("<redaction incomplete>");
+
+assert_eq!(diagnostics.text(user).as_str(), "ada");
+assert!(!diagnostics.text(password).as_str().contains("raw-password"));
+```
+
+Unannotated derive fields and values written through `unmarked` are
+intentionally unredacted. Field sensitivity is application-domain knowledge:
+the framework cannot infer it reliably and should not force explicit
+"non-sensitive" annotations onto the ordinary majority of fields. Downstream
+types must explicitly mark sensitive fields and review that decision when their
+domain model changes. The runtime does not mutate or erase the source value.
 
 ## Capabilities
 
@@ -83,10 +104,13 @@ source value.
 - batch APIs that share one budget and summary across related values;
 - opt-in `serde` and derive integrations; the default feature set is minimal.
 
-Disabled policies intentionally restore every supported raw value. Limits and
-control-character escaping remain active, but confidentiality redaction does
-not. Treat this as reviewed startup configuration, never a request-controlled
-switch or a mode for unreviewed logs.
+Disabled policies intentionally restore every supported raw value. This is a
+deliberate process-wide debugging escape hatch, not an attempt by the framework
+to authorize its use. Limits and control-character escaping remain active, but
+confidentiality redaction does not. Downstream code owns authorization, timing,
+environment controls, and any misuse. Replacing the application default affects
+future snapshots; existing redactors, composers, and batches retain the policy
+snapshot they already own.
 
 ## Learn More
 
