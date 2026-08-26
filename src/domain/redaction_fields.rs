@@ -73,7 +73,31 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     /// policy's classification for `name`. A policy may therefore raise this
     /// field's protection, but can never lower the implementer's explicit
     /// minimum. When that effective level is [`Sensitivity::High`] or
-    /// [`Sensitivity::Secret`], `access` is not evaluated.
+    /// [`Sensitivity::Secret`], `access` is not evaluated while redaction is
+    /// enabled.
+    ///
+    /// `access` must nevertheless be a valid lazy accessor for the actual
+    /// field value. In particular, callers must not replace it with a panic or
+    /// an unrelated sentinel merely because `level` is
+    /// [`Sensitivity::Secret`]: a disabled policy restores source values and
+    /// therefore evaluates the closure. Lower effective sensitivity levels
+    /// may also require the raw value to produce a partial mask.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` - Minimum sensitivity enforced for the field.
+    /// * `name` - Diagnostic field name used for policy classification.
+    /// * `access` - Lazy accessor that returns the actual field value whenever
+    ///   the selected policy needs it.
+    ///
+    /// # Returns
+    ///
+    /// This field writer for continued chained output.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from `access` when the selected policy evaluates the
+    /// closure, including when redaction is disabled.
     pub fn sensitive<T, F>(&mut self, level: Sensitivity, name: &str, access: F) -> &mut Self
     where
         T: Debug,
