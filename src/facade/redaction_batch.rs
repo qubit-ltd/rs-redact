@@ -7,6 +7,7 @@
 // =============================================================================
 //! Independently resolvable redaction items owned by one batch transaction.
 
+use super::RedactionBatchDiagnostics;
 use super::RedactionBatchHandle;
 use super::RedactionBatchOutput;
 use crate::domain::Redact;
@@ -189,6 +190,18 @@ impl RedactionBatch {
     #[must_use]
     pub fn finish(self) -> RedactionBatchOutput {
         RedactionBatchOutput::from_publication(self.session.finish())
+    }
+
+    /// Consumes the batch and prepares fail-closed diagnostic presentation.
+    ///
+    /// Complete items retain their redacted text. Incomplete items and invalid
+    /// handles resolve to the escaped `marker` without returning an error. Use
+    /// [`Self::finish`] when program logic must distinguish handle errors or
+    /// inspect individual completion states.
+    #[must_use]
+    #[inline]
+    pub fn finish_for_diagnostics(self, marker: &str) -> RedactionBatchDiagnostics {
+        RedactionBatchDiagnostics::new(self.finish(), marker)
     }
 
     /// Converts the runtime-private handle into its public batch counterpart.

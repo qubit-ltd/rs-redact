@@ -13,7 +13,12 @@ use super::RedactedText;
 use super::RedactionSummary;
 use crate::RedactionCompletion;
 
-/// Complete result of one redaction operation.
+/// Published safe text and completion metadata from one redaction operation.
+///
+/// When redaction is enabled, [`Self::text`] remains confidentiality-safe for
+/// every completion state. `Truncated` and `Exhausted` describe incomplete
+/// diagnostics, not unsafe text. Callers need to reject or replace such text
+/// only when their own contract requires completeness.
 ///
 /// # Examples
 ///
@@ -59,8 +64,8 @@ impl RedactionTextOutput {
     /// # Errors
     ///
     /// Returns the execution summary when the safe output was truncated or
-    /// exhausted. Callers must choose an explicit presentation marker or
-    /// recoverable handling path for incomplete output.
+    /// exhausted. The error reports completeness; it does not imply that the
+    /// published text is unsafe for diagnostics.
     pub fn complete_text(&self) -> Result<&RedactedText, &RedactionSummary> {
         if self.summary.completion() == RedactionCompletion::Complete {
             Ok(&self.text)
@@ -91,8 +96,8 @@ impl RedactionTextOutput {
     /// # Errors
     ///
     /// Returns the execution summary when the safe output was truncated or
-    /// exhausted. Callers must choose an explicit presentation marker or
-    /// recoverable handling path for incomplete output.
+    /// exhausted. The error reports completeness; it does not imply that the
+    /// published text is unsafe for diagnostics.
     pub fn into_complete_text(self) -> Result<RedactedText, RedactionSummary> {
         if self.summary.completion() == RedactionCompletion::Complete {
             Ok(self.text)

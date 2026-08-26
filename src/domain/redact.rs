@@ -14,15 +14,21 @@ use crate::domain::RedactionWriter;
 /// Implementations borrow the original value and write only its safe
 /// representation. Redaction execution is owned by [`crate::Redactor`].
 ///
-/// # Warning
+/// # Field classification responsibility
 ///
 /// An unannotated derive field, or a value written through `unmarked` or
-/// `unredacted`, is an explicit trust boundary owned by the downstream type.
-/// Standard, strict, application-default, and inspection policies do not infer
-/// sensitivity from that field's name or contents and do not upgrade it later.
-/// Review every field whenever a domain type changes. Fields that can contain
-/// sensitive data must explicitly use an appropriate capability such as
-/// `sensitive`, `nested`, `map`, or `json`.
+/// `unredacted`, is intentionally not redacted. Sensitivity is business-domain
+/// knowledge that this framework cannot reliably infer from a Rust type, field
+/// name, or current value. Ordinary fields are the large majority, so requiring
+/// an explicit "not sensitive" annotation on every one would add noise without
+/// adding classification knowledge.
+///
+/// The downstream type therefore owns this trust boundary: it must explicitly
+/// use `sensitive`, `nested`, `map`, `keyed_value`, or `json` for fields that
+/// can contain sensitive data, and repeat that review when the domain model
+/// changes. Standard, strict, application-default, and inspection policies
+/// deliberately do not override an unmarked-field decision. This is a stable
+/// division of responsibility, not an omitted framework safety check.
 ///
 /// # Examples
 ///
