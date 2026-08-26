@@ -8,17 +8,34 @@
 
 ## completion 是结果的一部分
 
-每个渲染入口都会返回 `RedactionTextOutput`：安全文本和 `RedactionSummary`。只有
-`Complete` 的结果可以用 `into_complete_text()` 取走文本；`Truncated` 或 `Exhausted`
-会返回摘要，调用方必须决定本地展示策略。需要明确的降级标记时，使用
-`into_text_or_marker("<redaction incomplete>")`，不要静默把部分 URL、请求头或命令描述
-当作完整信息展示。
-输出需要保持借用时，可使用 `complete_text()` 或
-`text_or_marker("<redaction incomplete>")`。batch 调用方可以用这两个借用式方法对每个
-已解析 item 独立应用相同规则。
+每个渲染入口都会返回 `RedactionTextOutput`：安全文本和 `RedactionSummary`。启用脱敏时，
+`Complete`、`Truncated`、`Exhausted` 三种状态下发布的文本都满足保密安全要求。后两种
+状态表示诊断信息不完整，不表示源数据已经泄露。因此 `Debug`、`Display` 和普通诊断日志
+可以直接使用 `output.text()`；强制这些调用方逐一分析原因，也不会产生可执行的恢复动作。
 
-`Truncated` 至少保留了非空的安全替代文本；`Exhausted` 表示共享输出预算无法容纳完整替代。
-`reasons()` 可说明 JSON、form、multipart 等解析降级及预算原因。
+只有审计、重试、业务判断或结构化输出契约依赖完整性时，才检查 `completion()` 和
+`reasons()`。这类调用方可以用 `complete_text()` / `into_complete_text()` 拒绝不完整结果，
+或用 `text_or_marker()` / `into_text_or_marker()` 选择展示降级标记。`Truncated` 保留安全的
+已接纳表示，`Exhausted` 表示共享预算无法容纳完整替代；原因集合可说明 JSON、form、
+multipart 等解析降级和预算限制。
+
+多个独立诊断字段只需选择一次降级标记：
+
+```rust
+use qubit_redact::Redactor;
+
+let mut batch = Redactor::standard().batch();
+let user = batch.redact_field("user", "ada");
+let password = batch.redact_field("password", "raw-password");
+let output = batch.finish_for_diagnostics("<redaction incomplete>");
+
+assert_eq!(output.text(user).as_str(), "ada");
+assert!(!output.text(password).as_str().contains("raw-password"));
+```
+
+`finish_for_diagnostics()` 会把不完整 item、无效 item 和其他 batch 的 handle 都映射成同一个
+已转义 marker，不返回 `Result`。确实需要区分这些程序错误的调用方仍使用严格路径：
+`finish()` 加 `RedactionBatchOutput::resolve()`。
 
 ## 1. 渲染领域值
 
@@ -59,9 +76,11 @@ assert_eq!(login.password, "raw");
 - `json(name, value)` 递归处理 JSON；
 - `skipped(name, access)` 省略字段且不渲染其值。
 
-每个操作都参与同一个输出预算和摘要。可能包含敏感数据的字段不能因为当前策略在其他
-位置会掩码，就省略其字段决策。未标注字段是永久由下游承担的信任决定；strict policy 和
-inspection 都不会推断或提升其敏感度。
+每个操作都参与同一个输出预算和摘要。未标注字段会有意保持原样，因为敏感性属于下游业务
+领域知识，通用框架无法从 Rust 类型、字段名或当前内容中可靠推断。现实中普通字段占绝大
+多数，要求它们逐一声明“不敏感”只会增加噪声，并不会增加有效知识。下游必须显式标记可能
+包含敏感数据的字段，并在领域模型变化时重新审查；strict policy 和 inspection 都不会覆盖
+这个领域决策。
 
 标量字段 API 接受惰性的 `Display` 值。运行时先判定敏感等级，再决定是否格式化；因此
 `High` 和 `Secret` 字段不会触发格式化。只有 `Debug` 的值可以借助 `format_args!`：
@@ -141,10 +160,12 @@ Number marker key 是普通 object key。
 Inspection 会报告规则匹配、敏感度和完成状态，但不会发布原始值。它适合在确定日志或序列化
 边界前解释某字段为何会被掩码。
 
-`RedactionPolicy::disabled()` 是显式关闭保密脱敏的选项。字段、JSON、URI、HTTP、环境变量、argv、
-进程、derive 字段模式和生成的 Serde 输出都会恢复原值，但仍受运行时资源上限约束。
-控制字符转义也仍然生效，但这两项机制都不表示结果已经脱敏。只能通过经过审查的启动配置
-启用它，不能让不可信请求动态切换。
+`RedactionPolicy::disabled()` 是显式关闭保密脱敏的选项，也是框架有意保留的进程级调试
+逃生口。字段、JSON、URI、HTTP、环境变量、argv、进程、derive 字段模式和生成的 Serde
+输出都会恢复原值，但仍受运行时资源上限约束。控制字符转义也仍然生效，但这两项机制都不
+表示结果已经脱敏。框架只负责执行所选策略；是否有权禁用、在哪个环境和时机禁用，以及误用
+后果都由下游负责。让不可信请求控制该开关通常是不安全的，但阻止下游故意或错误调用 API
+不属于框架保证。
 
 ```rust
 use qubit_redact::{RedactionPolicy, Redactor};
@@ -161,6 +182,10 @@ assert!(!output.text().as_str().contains("raw-secret"));
 关心完整性、审计原因或重试决策时才检查 `summary().completion()` 与
 `summary().reasons()`，不要解析 `<truncated>` 等文本标记推断状态。若 inspection 用于
 安全决策，任何 inspection error 都表示分类不完整，应按敏感处理。
+
+`Redactor::replace_application_default()` 影响之后调用 `application_default()` 取得的对象，
+以及每次重新获取快照的生成格式化代码。已经创建的 `Redactor`、composer 和 batch 继续
+持有原有不可变快照；替换不会追溯切换正在进行的工作。
 
 ## 5. 排障与限制
 

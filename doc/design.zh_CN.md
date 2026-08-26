@@ -136,7 +136,9 @@ composer 只生成一段文本，不产生 handle，也不承担结构化事件�
 ### 5.4 RedactionBatch
 
 `RedactionBatch` 表示一次“在共享预算下处理多个独立值”的工作。每次添加操作返回一个
-`RedactionBatchHandle`，`finish(self)` 原子发布 `RedactionBatchOutput`。
+`RedactionBatchHandle`。严格程序逻辑使用 `finish(self)` 原子发布 `RedactionBatchOutput`；
+`Debug`、`Display` 和日志等展示路径使用 `finish_for_diagnostics(marker)`，一次选定安全降级
+标记后无错误地解析全部 item。
 
 ```rust
 let mut batch = redactor.batch();
@@ -144,10 +146,10 @@ let user = batch.redact_value(&user);
 let url = batch.redact_http_url(raw_url);
 let headers = batch.redact_http_headers(&headers);
 
-let output = batch.finish();
-let safe_user = output.resolve(user)?.text_or_marker("<redaction incomplete>");
-let safe_url = output.resolve(url)?.text_or_marker("<redaction incomplete>");
-let safe_headers = output.resolve(headers)?.text_or_marker("<redaction incomplete>");
+let output = batch.finish_for_diagnostics("<redaction incomplete>");
+let safe_user = output.text(user);
+let safe_url = output.text(url);
+let safe_headers = output.text(headers);
 ```
 
 batch 可以包含异构 item。一个集合型输入仍是一个逻辑 item，但集合内部逐项消耗结构预算。
@@ -239,6 +241,11 @@ Low < Medium < High < Secret
 
 全局槽只保存不可变 redactor 快照，不保存活动预算或输出。
 
+应用默认值允许替换成 disabled policy，这是框架有意保留的进程级调试逃生口。替换只影响之后
+取得的 application-default 快照；既有 redactor、composer、batch 和 inspection 不会被追溯
+切换。框架负责忠实执行调用方选定的策略，不负责判断下游是否有权禁用，也无法阻止下游故意
+或错误调用公开 API；授权、环境、时机和误用后果由下游负责。
+
 ## 7. 私有运行时与事务模型
 
 ### 7.1 RedactionRuntime
@@ -280,6 +287,7 @@ composer 与 batch 均为单次使用：
 ```rust
 pub fn finish(self) -> RedactionTextOutput;
 pub fn finish(self) -> RedactionBatchOutput;
+pub fn finish_for_diagnostics(self, marker: &str) -> RedactionBatchDiagnostics;
 ```
 
 一个对象、一份预算和一次发布严格一一对应。完成下一次工作时从 `Redactor` 创建新对象。
@@ -355,10 +363,12 @@ composer 的预算覆盖完整组合文本；batch 的预算覆盖全部 item �
 `RedactionTextOutput` 包含一份 `RedactedText` 和一份 `RedactionSummary`。它是所有最终单文本
 结果的统一类型，包括 composer 输出、batch item 和一次性 redactor 输出。
 
-拥有输出的调用方使用 `into_complete_text()` 或 `into_text_or_marker(marker)`；需要继续借用
-batch publication 的调用方使用 `complete_text()` 或 `text_or_marker(marker)`。后一组方法在
-完整路径零分配，不完整路径返回经过控制字符转义的调用方 marker。调用方不得直接把不完整
-item 的 `text()` 当作完整 URL、header 或命令描述展示。
+策略启用时，`Complete`、`Truncated`、`Exhausted` 三种状态的 `text()` 都满足保密安全要求；
+后两者表达诊断信息不完整，不表达原值泄漏。`Debug`、`Display` 和普通日志可以直接展示这份
+安全文本，不必强制分析无法处理的降级原因。只有审计、重试、业务判断或结构化契约依赖
+完整性时，调用方才使用 `complete_text()` / `into_complete_text()` 拒绝不完整结果，或使用
+`text_or_marker(marker)` / `into_text_or_marker(marker)` 选择展示标记。这些 helper 在完整路径
+零分配，不完整路径返回经过控制字符转义的调用方 marker。
 
 ### 9.3 RedactionBatchOutput
 
@@ -369,6 +379,12 @@ item 的 `text()` 当作完整 URL、header 或命令描述展示。
 
 - `DifferentBatch`：handle 属于另一批；
 - `MissingItem`：同一 identity 下索引无效。
+
+诊断路径由 `RedactionBatchDiagnostics` 承担。它拥有严格 output 和一份创建时仅转义一次的
+marker；`text(handle)` 对完整 item 返回真实脱敏文本，对 `Truncated`、`Exhausted`、
+`DifferentBatch` 和 `MissingItem` 都返回同一 marker，不返回 `Result`。这种折叠是有意的：
+展示代码的目标是输出安全诊断信息，对具体原因通常没有恢复动作。必须区分程序错误的调用方
+继续使用 `RedactionBatchOutput::resolve()`。
 
 ### 9.4 Summary
 
@@ -390,7 +406,8 @@ completion 只能单调恶化，reason 只累积。核心 reason 包括：
 - `InvalidContentType`；
 - `UnsupportedContentType`。
 
-应用必须检查 summary，而不是解析替换文本推断降级原因。
+只有应用逻辑依赖完整性或降级原因时才必须检查 summary，并且应读取结构化状态而不是解析
+替换文本。普通诊断展示不承担该义务。
 
 ## 10. Domain object 模块
 
@@ -442,9 +459,11 @@ pub trait Redact {
 - `display`：生成脱敏 `Display`；
 - `serde`：生成结构化脱敏 `Serialize` 和嵌套序列化 capability。
 
-> **警告：未标注字段永久直通。** strict、application default 和 inspection 都不会推断其
-> sensitivity。新增业务字段时必须重新审查标注；需要隐藏的字段必须显式使用 `level`、`nested`、
-> `map`、`json` 或 `skip`。
+> **设计决策：未标注字段永久直通。** 字段敏感性属于下游业务领域知识，框架无法从名称、
+> Rust 类型或当前内容中可靠推断，也不应替业务所有者作决定。普通字段占现实模型的绝大多数，
+> 要求每个字段显式声明“不敏感”只会制造噪声，不会增加分类知识。因此下游只需显式标记敏感
+> 字段，并在模型变化时重新审查；strict、application default 和 inspection 都不会覆盖该领域
+> 决策。需要隐藏的字段必须显式使用 `level`、`nested`、`map`、`json` 或 `skip`。
 
 derive 需要正确处理 crate rename、泛型 bounds、tuple/unit 类型、enum tagging 和 serde 属性，错误
 必须在编译期给出针对性诊断。
@@ -549,6 +568,9 @@ HTTP URL 与通用 URI 共享核心字段、掩码和预算语义，但保留各
 
 batch handle 与 output 不匹配时，`resolve()` 返回 `RedactionBatchHandleError`。这是调用关系错误，
 不代表脱敏算法失败。
+
+诊断展示 API 会把该错误与 item 不完整统一降级为预先转义的 marker，因为展示调用方没有可执行
+的恢复策略。严格 API 继续保留错误区分，二者不能混为同一调用契约。
 
 用户代码 panic 保持 panic 语义，只负责回滚未发布状态，不包装为上述错误。
 
@@ -660,10 +682,12 @@ no-default、serde-only、json-only、http-only 与 uri-only。此前 CI 漏掉 
 7. floor 只能提高保护，应用 allow 不能绕过 floor；
 8. 显式 sensitive 等级是最低等级，policy 只能增强；
 9. `unredacted` 与未标注 derive 字段是显式信任边界；
-10. 所有最终文本有效 UTF-8、控制字符安全且计入预算；
-11. handle 在发布前不能转成文本，只能由所属 batch output 解析；
-12. panic 不发布半成品。
-13. inspection 不生成任何 mask 或文本；不完整检查只能返回错误。
+10. 启用策略时所有 completion 状态的最终文本都满足保密安全；完整性是独立维度；
+11. 所有最终文本有效 UTF-8、控制字符安全且计入预算；
+12. handle 在发布前不能转成文本，只能由所属 batch output 或其诊断包装解析；
+13. panic 不发布半成品；
+14. inspection 不生成任何 mask 或文本；不完整检查只能返回错误；
+15. 全局 disabled 是下游负责授权的调试逃生口，不是框架权限系统。
 
 ## 20. 扩展规则
 
