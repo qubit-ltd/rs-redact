@@ -9,6 +9,8 @@
 
 use std::io::Write;
 
+use qubit_json::decode::JsonDecoder;
+
 use super::BoundedBodyWriter;
 use super::MultipartPartMetadata;
 use super::content_type;
@@ -311,10 +313,7 @@ fn redact_non_sensitive_part(
     let text = std::str::from_utf8(body).ok()?;
     match part_type {
         Some(value) if content_type::is_json(value) => {
-            if !crate::formats::json::is_valid_json_bytes(body) {
-                return None;
-            }
-            let mut value = serde_json::from_slice(body).ok()?;
+            let mut value = JsonDecoder::unlimited().decode_utf8(body).ok()?;
             let passed = json::redact(redactor, &mut value, policy.unkeyed_json_value_policy());
             json::serialize_bounded(&value, max_output_bytes).map(|(text, truncated)| (text, passed, truncated))
         }

@@ -98,7 +98,8 @@ fn format_adapters_use_the_runtime_operation_sink() {
 fn json_structure_admission_builds_and_reuses_one_admitted_value_tree() {
     let writer = include_str!("../src/formats/json/json_redaction_writer.rs");
 
-    assert_eq!(writer.matches("JsonDeserializer::from_str").count(), 1);
+    assert_eq!(writer.matches("decode_seed_str").count(), 1);
+    assert!(!writer.contains("JsonDeserializer::from_str"));
     assert!(writer.contains("Ok(value) => self.redact_value_direct(&value)"));
 }
 

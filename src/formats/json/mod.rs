@@ -13,15 +13,11 @@ pub(crate) mod batch_redaction;
 mod bounded_json_redaction;
 pub(crate) mod inspection;
 mod json_admission_error;
-mod json_number_contract;
 mod json_redaction_writer;
 #[cfg(test)]
 pub(crate) mod parse_counter;
 
 pub(crate) use json_admission_error::JsonAdmissionError;
-#[cfg(feature = "http")]
-pub(crate) use json_number_contract::is_valid_json_bytes;
-pub(crate) use json_number_contract::is_valid_json_text;
 pub use json_redaction_writer::JsonRedactionWriter;
 #[cfg(feature = "http")]
 pub(crate) use json_redaction_writer::admit_json_text_structure_at_depth;

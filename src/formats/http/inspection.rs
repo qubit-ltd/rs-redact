@@ -11,8 +11,8 @@ use std::str;
 
 use http::HeaderMap;
 use http::HeaderValue;
+use qubit_json::decode::JsonDecoder;
 use serde_json::Value;
-use serde_json::from_slice;
 use url::Url;
 
 use super::BodyCapture;
@@ -191,11 +191,7 @@ fn inspect_parsed_url(session: &mut InspectionSession, url: &Url, depth: usize) 
 
 /// Parses and classifies one complete JSON body.
 pub(in crate::formats::http) fn inspect_json_bytes(session: &mut InspectionSession, bytes: &[u8]) {
-    if !crate::formats::json::is_valid_json_bytes(bytes) {
-        session.fail_inspection(RedactionReason::InvalidJson);
-        return;
-    }
-    let Ok(value) = from_slice::<Value>(bytes) else {
+    let Ok(value) = JsonDecoder::unlimited().decode_utf8::<Value>(bytes) else {
         session.fail_inspection(RedactionReason::InvalidJson);
         return;
     };
