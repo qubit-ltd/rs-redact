@@ -101,15 +101,19 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
 /// Immutable field classification, masking, format, and resource policy.
 ///
 /// A disabled policy intentionally restores original values while retaining
-/// resource limits. Toggle it only as a reviewed startup configuration.
+/// resource limits. It is a deliberate debugging escape hatch whose
+/// authorization belongs to downstream code.
 ///
 /// # Warning
 ///
 /// Disabling this policy opts out of confidentiality redaction. Every supported
 /// format, derived field mode, and redaction-specific skip path may publish its
 /// original value. Resource limits and diagnostic control-character escaping
-/// still apply, but they do not make the output redacted. Do not let untrusted
-/// requests enable this mode dynamically. Callers can observe it through
+/// still apply, but they do not make the output redacted. The framework
+/// faithfully executes the chosen policy; it cannot and does not attempt to
+/// prevent downstream code from deliberately or accidentally disabling
+/// redaction. Callers own the authorization, environment, timing, and
+/// consequences of that choice. They can observe it through
 /// [`crate::RedactionSummary::is_redaction_disabled`] and
 /// [`crate::RedactionInspection::is_redaction_disabled`].
 ///
@@ -175,8 +179,8 @@ impl RedactionPolicy {
     ///
     /// Outputs produced with this policy may contain every original value.
     /// Limits and control-character escaping remain active, but masking and
-    /// redaction-specific field decisions do not. Use this only as reviewed
-    /// startup configuration, never as a request-controlled switch.
+    /// redaction-specific field decisions do not. This deliberate debugging
+    /// capability transfers confidentiality responsibility to the caller.
     #[must_use]
     pub fn disabled() -> Self {
         let mut policy = Self::standard();
@@ -199,8 +203,8 @@ impl RedactionPolicy {
     /// # Warning
     ///
     /// Passing `true` allows every supported redaction entry to publish its
-    /// original value. Only reviewed startup configuration should enable this
-    /// mode; do not derive the value from an untrusted request.
+    /// original value. The caller owns authorization and operational controls;
+    /// the framework does not distinguish debugging use from misuse.
     #[must_use]
     pub fn set_disabled(&mut self, disabled: bool) -> &mut Self {
         self.disabled = disabled;

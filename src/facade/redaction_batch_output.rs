@@ -7,8 +7,6 @@
 // =============================================================================
 //! Published independently resolvable batch results.
 
-use std::borrow::Cow;
-
 use super::RedactionBatchHandle;
 use super::RedactionBatchHandleError;
 use crate::RedactionTextOutput;
@@ -58,19 +56,6 @@ impl RedactionBatchOutput {
                 crate::RedactionHandleError::DifferentTransaction => RedactionBatchHandleError::DifferentBatch,
                 crate::RedactionHandleError::MissingItem => RedactionBatchHandleError::MissingItem,
             })
-    }
-
-    /// Resolves `handle` to complete text or an escaped fallback marker.
-    ///
-    /// The marker is used only when the resolved item is incomplete. Returns
-    /// the same handle errors as [`Self::resolve`].
-    #[inline(always)]
-    pub fn resolve_text_or_marker(
-        &self,
-        handle: RedactionBatchHandle,
-        marker: &str,
-    ) -> Result<Cow<'_, str>, RedactionBatchHandleError> {
-        self.resolve(handle).map(|output| output.text_or_marker(marker))
     }
 
     /// Consumes the output and moves the text selected by `handle` out of it.

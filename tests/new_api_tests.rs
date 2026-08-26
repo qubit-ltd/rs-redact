@@ -8,6 +8,7 @@
 //! Regression coverage for the post-redesign public transaction API.
 
 use std::borrow::Cow;
+use std::ffi::OsStr;
 
 use qubit_redact::Redact;
 use qubit_redact::RedactionCompletion;
@@ -89,16 +90,11 @@ fn batch_handles_cannot_cross_batches() {
 }
 
 #[test]
-fn batch_output_resolves_complete_text_or_the_selected_marker() {
+fn batch_diagnostics_resolves_complete_text_or_the_selected_marker() {
     let mut complete_batch = Redactor::standard().batch();
     let complete_handle = complete_batch.redact_field("name", "Ada");
-    let complete_output = complete_batch.finish();
-    assert!(matches!(
-        complete_output
-            .resolve_text_or_marker(complete_handle, "<redaction incomplete>")
-            .expect("a handle from this batch should resolve"),
-        Cow::Borrowed("Ada"),
-    ));
+    let complete_output = complete_batch.finish_for_diagnostics("<redaction incomplete>");
+    assert_eq!(complete_output.text(complete_handle).as_str(), "Ada");
 
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
@@ -109,27 +105,44 @@ fn batch_output_resolves_complete_text_or_the_selected_marker() {
         .expect("policy should build");
     let mut incomplete_batch = Redactor::new(policy).batch();
     let incomplete_handle = incomplete_batch.redact_field("password", "raw-password");
-    let incomplete_output = incomplete_batch.finish();
+    let incomplete_output = incomplete_batch.finish_for_diagnostics("<redaction\nincomplete>");
     assert_eq!(
-        incomplete_output
-            .resolve_text_or_marker(incomplete_handle, "<redaction\nincomplete>")
-            .expect("a handle from this batch should resolve"),
+        incomplete_output.text(incomplete_handle).as_str(),
         "<redaction\\nincomplete>",
     );
+    assert_eq!(incomplete_output.summary().completion(), RedactionCompletion::Exhausted,);
 }
 
 #[test]
-fn batch_output_marker_resolution_rejects_a_foreign_handle() {
+fn batch_diagnostics_maps_truncated_text_to_the_selected_marker() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_collection_items(1);
+        })
+        .expect("limit configuration should be valid")
+        .build()
+        .expect("policy should build");
+    let mut batch = Redactor::new(policy).batch();
+    let handle = batch.redact_env_pairs([
+        (OsStr::new("FIRST"), OsStr::new("visible")),
+        (OsStr::new("PASSWORD"), OsStr::new("raw-password")),
+    ]);
+    let diagnostics = batch.finish_for_diagnostics("<redaction incomplete>");
+
+    assert_eq!(diagnostics.text(handle).as_str(), "<redaction incomplete>",);
+    assert_eq!(diagnostics.summary().completion(), RedactionCompletion::Truncated,);
+}
+
+#[test]
+fn batch_diagnostics_maps_a_foreign_handle_to_the_selected_marker() {
     let mut first_batch = Redactor::standard().batch();
     let first_handle = first_batch.redact_field("name", "Ada");
     let _ = first_batch.finish();
 
-    let second_output = Redactor::standard().batch().finish();
-    assert!(
-        second_output
-            .resolve_text_or_marker(first_handle, "<redaction incomplete>")
-            .is_err(),
-    );
+    let second_output = Redactor::standard()
+        .batch()
+        .finish_for_diagnostics("<redaction incomplete>");
+    assert_eq!(second_output.text(first_handle).as_str(), "<redaction incomplete>",);
 }
 
 #[test]

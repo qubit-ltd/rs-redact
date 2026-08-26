@@ -31,9 +31,23 @@
 //!
 //! `literal` accepts only `&'static str` program literals. Dynamic text must
 //! be passed to a redaction operation. Derived fields that lack
-//! `#[redact(...)]` are intentionally unredacted; fields that explicitly use
-//! `skip` are neither accessed nor emitted. Every sensitive field must
-//! therefore be annotated.
+//! `#[redact(...)]` are intentionally unredacted. Field sensitivity belongs to
+//! the downstream domain: the framework cannot infer it reliably, and forcing
+//! explicit "not sensitive" annotations onto the ordinary majority of fields
+//! would add noise rather than knowledge. Downstream types must explicitly mark
+//! sensitive fields and review that classification when their model changes.
+//! Fields that explicitly use `skip` are neither accessed nor emitted.
+//!
+//! With redaction enabled, `Complete`, `Truncated`, and `Exhausted` output text
+//! remains confidentiality-safe. Diagnostic formatters may publish that safe
+//! text without interpreting an incompleteness reason; callers inspect
+//! summaries only when completeness affects their own program contract.
+//!
+//! A disabled application-default policy is an intentional process-wide
+//! debugging escape hatch. It restores raw values. The framework executes the
+//! selected policy, while downstream code owns authorization, timing, and any
+//! misuse. Existing redactors, composers, and batches retain their policy
+//! snapshots when the application default is replaced.
 //!
 //! Transaction summaries are observations produced exclusively by a completed
 //! transaction; callers cannot fabricate one outside the runtime.
@@ -155,6 +169,7 @@ pub use domain::RedactionWriter;
 pub use facade::RedactedText;
 pub use facade::RedactedTextComposer;
 pub use facade::RedactionBatch;
+pub use facade::RedactionBatchDiagnostics;
 pub use facade::RedactionBatchHandle;
 pub use facade::RedactionBatchHandleError;
 pub use facade::RedactionBatchOutput;
