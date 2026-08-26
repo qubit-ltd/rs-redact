@@ -11,6 +11,7 @@ use qubit_redact::Redact;
 use qubit_redact::RedactedText;
 use qubit_redact::RedactedTextComposer;
 use qubit_redact::RedactionBatch;
+use qubit_redact::RedactionBatchDiagnostics;
 use qubit_redact::RedactionBatchHandle;
 use qubit_redact::RedactionBatchHandleError;
 use qubit_redact::RedactionBatchOutput;
@@ -36,6 +37,7 @@ fn target_transactional_types_are_public() {
     let _: Option<RedactedText> = None;
     let _: Option<RedactedTextComposer> = None;
     let _: Option<RedactionBatch> = None;
+    let _: Option<RedactionBatchDiagnostics> = None;
     let _: Option<RedactionBatchHandle> = None;
     let _: Option<RedactionBatchHandleError> = None;
     let _: Option<RedactionBatchOutput> = None;
