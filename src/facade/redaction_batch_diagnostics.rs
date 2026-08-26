@@ -81,3 +81,29 @@ impl RedactionBatchDiagnostics {
         self.output.summary()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::ptr;
+
+    use super::RedactionBatchHandle;
+    use crate::Redactor;
+
+    /// A missing item from the same batch reuses the escaped diagnostic marker.
+    #[test]
+    fn test_text_reuses_escaped_marker_for_missing_same_batch_item() {
+        let mut batch = Redactor::standard().batch();
+        let valid = batch.redact_field("name", "Ada");
+        let missing = RedactionBatchHandle {
+            batch_id: valid.batch_id,
+            item_index: usize::MAX,
+        };
+        let diagnostics = batch.finish_for_diagnostics("<redaction\nincomplete>");
+
+        let first = diagnostics.text(missing);
+        let second = diagnostics.text(missing);
+
+        assert_eq!(first.as_str(), "<redaction\\nincomplete>");
+        assert!(ptr::eq(first, second));
+    }
+}

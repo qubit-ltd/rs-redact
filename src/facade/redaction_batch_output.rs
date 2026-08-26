@@ -70,3 +70,27 @@ impl RedactionBatchOutput {
             })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::RedactionBatchHandle;
+    use super::RedactionBatchHandleError;
+    use crate::Redactor;
+
+    /// The public facade preserves the same-batch missing-item distinction.
+    #[test]
+    fn test_resolve_reports_missing_item_for_same_batch_invalid_index() {
+        let mut batch = Redactor::standard().batch();
+        let valid = batch.redact_field("name", "Ada");
+        let missing = RedactionBatchHandle {
+            batch_id: valid.batch_id,
+            item_index: usize::MAX,
+        };
+        let output = batch.finish();
+
+        assert!(matches!(
+            output.resolve(missing),
+            Err(RedactionBatchHandleError::MissingItem),
+        ));
+    }
+}

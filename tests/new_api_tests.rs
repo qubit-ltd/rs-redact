@@ -11,6 +11,7 @@ use std::borrow::Cow;
 use std::ffi::OsStr;
 
 use qubit_redact::Redact;
+use qubit_redact::RedactionBatchHandleError;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
@@ -85,7 +86,10 @@ fn batch_handles_cannot_cross_batches() {
     assert_eq!(first.resolve(first_handle).unwrap().text().as_str(), "Ada");
 
     let second = Redactor::standard().batch().finish();
-    assert!(second.resolve(first_handle).is_err());
+    assert!(matches!(
+        second.resolve(first_handle),
+        Err(RedactionBatchHandleError::DifferentBatch),
+    ));
     assert_eq!(second.summary().completion(), RedactionCompletion::Complete);
 }
 
