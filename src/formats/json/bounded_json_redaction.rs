@@ -7,8 +7,8 @@
 // =============================================================================
 //! In-place conversion of JSON text to its compact redacted representation.
 
+use qubit_json::decode::JsonDecoder;
 use serde_json::Value;
-use serde_json::from_str;
 use serde_json::to_writer;
 
 use super::internal::RedactedValue;
@@ -59,10 +59,7 @@ pub(super) fn redacted_json_text_bounded(
     }
     #[cfg(test)]
     super::parse_counter::record_json_parse();
-    if !super::is_valid_json_text(text) {
-        return BoundedJsonRedaction::Invalid(opaque_secret(policy));
-    }
-    let Ok(value) = from_str::<Value>(text) else {
+    let Ok(value) = JsonDecoder::unlimited().decode_str::<Value>(text) else {
         return BoundedJsonRedaction::Invalid(opaque_secret(policy));
     };
     redacted_json_value_bounded(&value, policy, max_output)

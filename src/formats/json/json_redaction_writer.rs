@@ -7,8 +7,7 @@
 // =============================================================================
 //! Mutable JSON façade over one diagnostic redaction session.
 
-use serde::de::DeserializeSeed;
-use serde_json::Deserializer as JsonDeserializer;
+use qubit_json::decode::JsonDecoder;
 use serde_json::Value;
 
 use super::JsonAdmissionError;
@@ -46,19 +45,16 @@ pub(crate) fn admit_json_text_value_at_depth(
 ) -> Result<Value, JsonAdmissionError> {
     #[cfg(test)]
     super::parse_counter::record_json_parse();
-    if !super::is_valid_json_text(text) {
-        return Err(JsonAdmissionError::Invalid);
-    }
-    let mut deserializer = JsonDeserializer::from_str(text);
     let mut rejected = false;
-    let admitted = JsonStructureSeed {
-        session,
-        depth: root_depth,
-        collection_item: false,
-        rejected: &mut rejected,
-    }
-    .deserialize(&mut deserializer)
-    .and_then(|value| deserializer.end().map(|()| value));
+    let admitted = JsonDecoder::unlimited().decode_seed_str(
+        JsonStructureSeed {
+            session,
+            depth: root_depth,
+            collection_item: false,
+            rejected: &mut rejected,
+        },
+        text,
+    );
     match admitted {
         Ok(value) if session.admit_json_value(&value) => Ok(value),
         Ok(_) => Err(JsonAdmissionError::Limit),

@@ -9,8 +9,8 @@
 
 use std::io::Write;
 
+use qubit_json::decode::JsonDecoder;
 use serde_json::Value;
-use serde_json::from_str;
 use serde_json::to_writer;
 
 use super::BoundedBodyWriter;
@@ -108,10 +108,7 @@ pub(in crate::formats::http) fn redact_ndjson(
         }
         #[cfg(test)]
         crate::formats::json::parse_counter::record_json_parse();
-        if !crate::formats::json::is_valid_json_text(line) {
-            return None;
-        }
-        let mut value = from_str(line).ok()?;
+        let mut value = JsonDecoder::unlimited().decode_str(line).ok()?;
         let line_passed = redact(redactor, &mut value, unkeyed);
         passed |= line_passed;
         if to_writer(&mut output, &value).is_err() {
