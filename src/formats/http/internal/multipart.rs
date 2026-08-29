@@ -9,10 +9,10 @@
 
 use std::io::Write;
 
-use super::BoundedBodyWriter;
-use super::MultipartPartMetadata;
 use super::super::admitted_body::AdmittedMultipart;
 use super::super::admitted_body::AdmittedMultipartBody;
+use super::BoundedBodyWriter;
+use super::MultipartPartMetadata;
 use super::content_type;
 use super::form;
 use super::json;
@@ -67,14 +67,8 @@ pub(in crate::formats::http) fn redact(
             return Some((output.into_string()?, passed, true));
         }
         let parsed = admitted.as_ref().map(|admitted| admitted.parts[index].as_ref());
-        let (line, part_passed, part_truncated) = redact_part(
-            redactor,
-            part,
-            policy,
-            require_form_data,
-            max_output_bytes,
-            parsed,
-        )?;
+        let (line, part_passed, part_truncated) =
+            redact_part(redactor, part, policy, require_form_data, max_output_bytes, parsed)?;
         passed |= part_passed;
         if part_truncated || output.write_all(line.as_bytes()).is_err() {
             return Some((output.into_string()?, passed, true));
@@ -134,9 +128,14 @@ pub(in crate::formats::http) fn admit_structure(
                 };
                 let mut lines = Vec::new();
                 for line in text.lines().filter(|line| !line.trim().is_empty()) {
-                    lines.push(Some(crate::formats::json::admit_json_text_value_at_depth(session, line, 3).ok()?));
+                    lines.push(Some(
+                        crate::formats::json::admit_json_text_value_at_depth(session, line, 3).ok()?,
+                    ));
                 }
-                Some(AdmittedMultipartBody::Ndjson { lines, trailing_newline: text.ends_with('\n') })
+                Some(AdmittedMultipartBody::Ndjson {
+                    lines,
+                    trailing_newline: text.ends_with('\n'),
+                })
             }
             Some(value) if content_type::is_form(value) => {
                 if !admit_form_fields(session, body, 3) {
@@ -279,7 +278,14 @@ fn redact_part(
             let value = value.into_owned();
             (value, false, false)
         } else {
-            redact_non_sensitive_part(redactor, body, policy, metadata.content_type(), max_output_bytes, admitted)?
+            redact_non_sensitive_part(
+                redactor,
+                body,
+                policy,
+                metadata.content_type(),
+                max_output_bytes,
+                admitted,
+            )?
         }
     };
     if truncated {
@@ -343,7 +349,11 @@ fn redact_non_sensitive_part(
             json::serialize_bounded(&value, max_output_bytes).map(|(text, truncated)| (text, passed, truncated))
         }
         Some(value) if content_type::is_ndjson(value) => {
-            let AdmittedMultipartBody::Ndjson { lines, trailing_newline } = admitted?? else {
+            let AdmittedMultipartBody::Ndjson {
+                lines,
+                trailing_newline,
+            } = admitted??
+            else {
                 return None;
             };
             let mut lines = lines.clone();
