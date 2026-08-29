@@ -98,6 +98,37 @@ fn test_json_documents_share_the_transaction_json_payload_budget() {
     );
 }
 
+/// A document rejected by the JSON-specific budget never reaches structural
+/// materialization and therefore leaves structural capacity for later items.
+#[test]
+fn test_json_budget_rejection_preserves_structural_capacity() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(2).max_json_payload_bytes(2);
+        })
+        .expect("test limits should build")
+        .build()
+        .expect("test policy should build");
+    let mut batch = Redactor::new(policy).batch();
+    let rejected = batch.redact_json(r#"{"oversized":"payload"}"#);
+    let admitted = batch.redact_json(r#"{"a":"1"}"#);
+    let output = batch.finish();
+
+    let rejected = output.resolve(rejected).expect("rejected item should publish");
+    assert_eq!(rejected.text().as_str(), "<truncated>");
+    assert!(
+        rejected
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+
+    let admitted = output.resolve(admitted).expect("admitted item should publish");
+    assert_eq!(admitted.text().as_str(), r#"{"a":"1"}"#);
+    assert_eq!(output.summary().usage().visited_nodes(), 2);
+    assert_eq!(output.summary().usage().visited_collection_items(), 1);
+}
+
 #[test]
 fn test_json_masks_unkeyed_scalars_when_policy_requires_it() {
     let policy = RedactionPolicy::builder()

@@ -7,6 +7,8 @@
 // =============================================================================
 //! Mutable JSON façade over one diagnostic redaction session.
 
+use qubit_budget::json::JsonDecodeSession;
+use qubit_json::decode::JsonDecodeErrorKind;
 use qubit_json::decode::JsonDecoder;
 use serde_json::Value;
 
@@ -27,13 +29,6 @@ pub(crate) fn admit_json_text_value(session: &mut dyn RuntimeSession, text: &str
 }
 
 /// Parses and admits JSON text whose root appears at the supplied depth.
-///
-/// TODO: split structural and JSON-budget borrows in `RuntimeSession`, narrow
-/// `JsonStructureSeed` to its structural dependency, and create a borrowing
-/// `JsonDecodeSession` here. That will admit JSON resources during lexical
-/// scanning and remove the successful post-materialization tree traversal
-/// while preserving the current structural-limit, JSON-limit, and syntax-error
-/// result mapping.
 pub(crate) fn admit_json_text_value_at_depth(
     session: &mut dyn RuntimeSession,
     text: &str,
@@ -42,9 +37,11 @@ pub(crate) fn admit_json_text_value_at_depth(
     #[cfg(test)]
     super::parse_counter::record_json_parse();
     let mut rejected = false;
-    let admitted = JsonDecoder::unlimited().decode_seed_str(
+    let (mut admission, json_budget) = session.split_json_admission();
+    let mut decoder = JsonDecoder::new(JsonDecodeSession::borrowing_value(json_budget));
+    let admitted = decoder.decode_seed_str(
         JsonStructureSeed {
-            session,
+            admission: &mut admission,
             depth: root_depth,
             collection_item: false,
             rejected: &mut rejected,
@@ -52,9 +49,12 @@ pub(crate) fn admit_json_text_value_at_depth(
         text,
     );
     match admitted {
-        Ok(value) if session.admit_json_value(&value) => Ok(value),
-        Ok(_) => Err(JsonAdmissionError::Limit),
+        Ok(value) => Ok(value),
         Err(_) if rejected => Err(JsonAdmissionError::Limit),
+        Err(error) if error.kind() == JsonDecodeErrorKind::Budget => {
+            session.record_json_value_limit_reached();
+            Err(JsonAdmissionError::Limit)
+        }
         Err(_) => Err(JsonAdmissionError::Invalid),
     }
 }

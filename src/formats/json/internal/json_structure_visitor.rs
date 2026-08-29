@@ -18,19 +18,19 @@ use serde_json::Number;
 use serde_json::Value;
 
 use super::JsonStructureSeed;
-use crate::runtime::runtime_session::RuntimeSession;
+use crate::runtime::JsonStructureAdmission;
 
 /// Streams JSON structure through the transaction ledger.
-pub(crate) struct JsonStructureVisitor<'session, 'rejected> {
-    /// Transaction ledger shared by every nested seed.
-    pub(super) session: &'session mut dyn RuntimeSession,
+pub(crate) struct JsonStructureVisitor<'admission, 'runtime, 'rejected> {
+    /// Narrow structural ledger shared by every nested seed.
+    pub(super) admission: &'admission mut JsonStructureAdmission<'runtime>,
     /// Root-inclusive depth of the value currently being decoded.
     pub(super) depth: usize,
     /// Shared flag set when structural limits reject the stream.
     pub(super) rejected: &'rejected mut bool,
 }
 
-impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
+impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
     /// Parsed JSON tree assembled from admitted events.
     type Value = Value;
 
@@ -113,7 +113,7 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
         let child_depth = self.depth.saturating_add(1);
         let mut values = Vec::new();
         while let Some(value) = sequence.next_element_seed(JsonStructureSeed {
-            session: self.session,
+            admission: self.admission,
             depth: child_depth,
             collection_item: true,
             rejected: self.rejected,
@@ -132,7 +132,7 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_> {
         let mut values = Map::new();
         while let Some(key) = map.next_key::<String>()? {
             let value = map.next_value_seed(JsonStructureSeed {
-                session: self.session,
+                admission: self.admission,
                 depth: child_depth,
                 collection_item: true,
                 rejected: self.rejected,
@@ -156,6 +156,7 @@ mod tests {
     use super::JsonStructureVisitor;
     use crate::RedactionPolicy;
     use crate::runtime::TextSession;
+    use crate::runtime::runtime_session::RuntimeSession;
 
     #[test]
     fn visitor_accepts_owned_strings_and_deserializer_empty_values() {
@@ -163,17 +164,19 @@ mod tests {
         let mut session = TextSession::new(policy);
         let mut rejected = false;
 
+        let (mut admission, _) = session.split_json_admission();
+
         let expectation = format!(
             "{}",
             &JsonStructureVisitor {
-                session: &mut session,
+                admission: &mut admission,
                 depth: 1,
                 rejected: &mut rejected,
             } as &dyn Expected,
         );
         let float = Visitor::visit_f64::<Error>(
             JsonStructureVisitor {
-                session: &mut session,
+                admission: &mut admission,
                 depth: 1,
                 rejected: &mut rejected,
             },
@@ -182,7 +185,7 @@ mod tests {
         .expect("finite float");
         let owned = Visitor::visit_string::<Error>(
             JsonStructureVisitor {
-                session: &mut session,
+                admission: &mut admission,
                 depth: 1,
                 rejected: &mut rejected,
             },
@@ -190,13 +193,13 @@ mod tests {
         )
         .expect("owned string");
         let none = Visitor::visit_none::<Error>(JsonStructureVisitor {
-            session: &mut session,
+            admission: &mut admission,
             depth: 1,
             rejected: &mut rejected,
         })
         .expect("none");
         let unit = Visitor::visit_unit::<Error>(JsonStructureVisitor {
-            session: &mut session,
+            admission: &mut admission,
             depth: 1,
             rejected: &mut rejected,
         })

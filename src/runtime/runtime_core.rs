@@ -9,6 +9,9 @@
 
 use std::sync::Arc;
 
+#[cfg(feature = "json")]
+use qubit_budget::json::JsonValueBudget;
+
 use super::redaction_budget::RedactionBudget;
 use super::structural_entry::StructuralEntry;
 use super::summary_builder::SummaryBuilder;
@@ -101,9 +104,37 @@ impl RuntimeCore {
     }
 
     /// Borrows the transaction-wide JSON budget for lexical decoder admission.
-    #[cfg(feature = "json")]
-    pub(crate) fn json_value_budget_mut(&mut self) -> &mut qubit_budget::json::JsonValueBudget {
+    #[cfg(feature = "http")]
+    pub(crate) fn json_value_budget_mut(&mut self) -> &mut JsonValueBudget {
         self.budget.json_value_budget_mut()
+    }
+
+    /// Splits JSON structure accounting from lexical value accounting.
+    #[cfg(feature = "json")]
+    pub(crate) fn split_json_admission(&mut self) -> (super::JsonStructureAdmission<'_>, &mut JsonValueBudget) {
+        let Self {
+            budget,
+            summary,
+            active_operation_summary,
+            ..
+        } = self;
+        let (structural, usage, active_operation_usage, json_budget) = budget.split_json_admission();
+        (
+            super::JsonStructureAdmission::new(
+                structural,
+                usage,
+                active_operation_usage,
+                summary,
+                active_operation_summary,
+            ),
+            json_budget,
+        )
+    }
+
+    /// Records rejection by the transaction-wide JSON value budget.
+    #[cfg(feature = "json")]
+    pub(crate) fn record_json_value_limit_reached(&mut self) {
+        self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
     }
 
     /// Admits one structured format node or records its rejection.

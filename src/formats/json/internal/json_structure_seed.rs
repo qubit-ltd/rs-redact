@@ -13,12 +13,12 @@ use serde::de::Error;
 use serde_json::Value;
 
 use super::JsonStructureVisitor;
-use crate::runtime::runtime_session::RuntimeSession;
+use crate::runtime::JsonStructureAdmission;
 
 /// Charges one JSON value before its contents are decoded.
-pub(crate) struct JsonStructureSeed<'session, 'rejected> {
-    /// Transaction ledger charged before the deserializer observes a node.
-    pub(crate) session: &'session mut dyn RuntimeSession,
+pub(crate) struct JsonStructureSeed<'admission, 'runtime, 'rejected> {
+    /// Narrow structural ledger charged before materializing a node.
+    pub(crate) admission: &'admission mut JsonStructureAdmission<'runtime>,
     /// Root-inclusive depth assigned to the value being decoded.
     pub(crate) depth: usize,
     /// Whether this value consumes one collection-item allowance.
@@ -27,7 +27,7 @@ pub(crate) struct JsonStructureSeed<'session, 'rejected> {
     pub(crate) rejected: &'rejected mut bool,
 }
 
-impl<'de> DeserializeSeed<'de> for JsonStructureSeed<'_, '_> {
+impl<'de> DeserializeSeed<'de> for JsonStructureSeed<'_, '_, '_> {
     /// Parsed JSON tree produced while structural admission is charged.
     type Value = Value;
 
@@ -36,14 +36,12 @@ impl<'de> DeserializeSeed<'de> for JsonStructureSeed<'_, '_> {
     where
         D: Deserializer<'de>,
     {
-        if (self.collection_item && !self.session.admit_format_collection_item())
-            || !self.session.admit_format_node(self.depth)
-        {
+        if (self.collection_item && !self.admission.admit_collection_item()) || !self.admission.admit_node(self.depth) {
             *self.rejected = true;
             return Err(D::Error::custom("JSON structural budget rejected a value"));
         }
         deserializer.deserialize_any(JsonStructureVisitor {
-            session: self.session,
+            admission: self.admission,
             depth: self.depth,
             rejected: self.rejected,
         })

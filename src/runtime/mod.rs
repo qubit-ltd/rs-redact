@@ -15,6 +15,8 @@ mod field_rendering;
 mod inspection_accumulator;
 mod inspection_runtime;
 mod inspection_session;
+#[cfg(feature = "json")]
+mod json_structure_admission;
 #[cfg(any(feature = "json", feature = "http"))]
 mod operation_byte_sink;
 mod operation_sink;
@@ -38,6 +40,8 @@ mod transaction_phase;
 pub(crate) use batch_publication::BatchPublication;
 pub(crate) use batch_session::BatchSession;
 pub(crate) use inspection_session::InspectionSession;
+#[cfg(feature = "json")]
+pub(crate) use json_structure_admission::JsonStructureAdmission;
 #[cfg(any(feature = "json", feature = "http"))]
 pub(crate) use operation_byte_sink::OperationByteSink;
 pub(crate) use operation_sink::OperationSink;
