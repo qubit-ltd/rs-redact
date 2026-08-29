@@ -11,6 +11,8 @@ use std::str;
 
 use http::HeaderMap;
 use http::HeaderValue;
+use qubit_budget::json::JsonDecodeSession;
+use qubit_json::decode::JsonDecodeErrorKind;
 use qubit_json::decode::JsonDecoder;
 use serde_json::Value;
 use url::Url;
@@ -191,14 +193,18 @@ fn inspect_parsed_url(session: &mut InspectionSession, url: &Url, depth: usize) 
 
 /// Parses and classifies one complete JSON body.
 pub(in crate::formats::http) fn inspect_json_bytes(session: &mut InspectionSession, bytes: &[u8]) {
-    let Ok(value) = JsonDecoder::unlimited().decode_utf8::<Value>(bytes) else {
-        session.fail_inspection(RedactionReason::InvalidJson);
-        return;
+    let decoded = {
+        let budget = session.runtime_mut().json_value_budget_mut();
+        let mut decoder = JsonDecoder::new(JsonDecodeSession::borrowing_value(budget));
+        decoder.decode_utf8::<Value>(bytes)
     };
-    if !session.admit_json_value(&value) {
-        return;
+    match decoded {
+        Ok(value) => inspect_json_value(session, &value, true),
+        Err(error) if error.kind() == JsonDecodeErrorKind::Budget => {
+            session.fail_inspection(RedactionReason::TraversalLimitReached);
+        }
+        Err(_) => session.fail_inspection(RedactionReason::InvalidJson),
     }
-    inspect_json_value(session, &value, true);
 }
 
 /// Classifies JSON values against HTTP body-context rules.

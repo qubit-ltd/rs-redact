@@ -21,23 +21,19 @@ use crate::runtime::RenderedOperation;
 use crate::runtime::TextSession;
 use crate::runtime::runtime_session::RuntimeSession;
 
-/// Admits JSON text whose root is nested at `root_depth` in another format.
-#[must_use]
-#[cfg(feature = "http")]
-pub(crate) fn admit_json_text_structure_at_depth(
-    session: &mut dyn RuntimeSession,
-    text: &str,
-    root_depth: usize,
-) -> bool {
-    admit_json_text_value_at_depth(session, text, root_depth).is_ok()
-}
-
 /// Parses and admits one complete JSON text value at the root depth.
 pub(crate) fn admit_json_text_value(session: &mut dyn RuntimeSession, text: &str) -> Result<Value, JsonAdmissionError> {
     admit_json_text_value_at_depth(session, text, 1)
 }
 
 /// Parses and admits JSON text whose root appears at the supplied depth.
+///
+/// TODO: split structural and JSON-budget borrows in `RuntimeSession`, narrow
+/// `JsonStructureSeed` to its structural dependency, and create a borrowing
+/// `JsonDecodeSession` here. That will admit JSON resources during lexical
+/// scanning and remove the successful post-materialization tree traversal
+/// while preserving the current structural-limit, JSON-limit, and syntax-error
+/// result mapping.
 pub(crate) fn admit_json_text_value_at_depth(
     session: &mut dyn RuntimeSession,
     text: &str,

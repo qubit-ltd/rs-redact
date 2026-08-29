@@ -86,6 +86,7 @@ pub(in crate::formats::http) fn serialize_bounded(value: &Value, max_output_byte
 ///
 /// Redacted NDJSON, a pass-through flag, and a rendering-truncation flag, or
 /// `None` for invalid input.
+#[allow(dead_code)]
 #[must_use]
 pub(in crate::formats::http) fn redact_ndjson(
     redactor: &FieldRedactor<'_>,

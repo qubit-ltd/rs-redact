@@ -183,7 +183,8 @@ impl HttpPolicyExecutor<'_> {
                     trailing_newline,
                 } => self.redact_ndjson_values(lines, *trailing_newline, truncated, output_limit),
                 AdmittedBody::InvalidNdjson => Self::invalid_ndjson_body(),
-                AdmittedBody::Other => self.redact_body_inner(bounded, content_type, truncated, output_limit),
+                AdmittedBody::Multipart(parts) => self.redact_body_inner(bounded, content_type, truncated, output_limit, Some(parts)),
+                AdmittedBody::Other => self.redact_body_inner(bounded, content_type, truncated, output_limit, None),
             }
         };
         Self::finish_body_redaction(parsed, capture, input_len, budget_truncated, output_limit)
@@ -344,6 +345,7 @@ impl HttpPolicyExecutor<'_> {
         content_type: Option<&str>,
         truncated: bool,
         output_limit: usize,
+        admitted: Option<&mut super::admitted_body::AdmittedMultipart>,
     ) -> ParsedBody {
         if bounded.is_empty() {
             return ParsedBody::new(String::new(), BodyRenderStatus::Empty, false);
@@ -375,6 +377,7 @@ impl HttpPolicyExecutor<'_> {
                     bounded,
                     self.policy,
                     output_limit,
+                    admitted,
                 )
             {
                 return ParsedBody::new(

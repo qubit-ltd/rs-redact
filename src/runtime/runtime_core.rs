@@ -100,6 +100,12 @@ impl RuntimeCore {
         self.budget.record_output_bytes(bytes);
     }
 
+    /// Borrows the transaction-wide JSON budget for lexical decoder admission.
+    #[cfg(feature = "json")]
+    pub(crate) fn json_value_budget_mut(&mut self) -> &mut qubit_budget::json::JsonValueBudget {
+        self.budget.json_value_budget_mut()
+    }
+
     /// Admits one structured format node or records its rejection.
     #[must_use]
     pub(super) fn admit_format_node(&mut self, depth: usize) -> bool {
