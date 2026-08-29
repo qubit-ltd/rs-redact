@@ -137,4 +137,10 @@ impl RedactionBudget {
         transaction.commit();
         true
     }
+
+    /// Borrows the transaction-wide JSON value budget for decoder admission.
+    #[cfg(feature = "json")]
+    pub(super) fn json_value_budget_mut(&mut self) -> &mut JsonValueBudget {
+        &mut self.json_budget
+    }
 }

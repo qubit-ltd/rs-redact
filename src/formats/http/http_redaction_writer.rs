@@ -297,7 +297,10 @@ pub(crate) fn admit_body_structure(
         Some(super::internal::content_type::ContentType::Multipart {
             boundary: Some(boundary),
             require_form_data,
-        }) => super::internal::multipart::admit_structure(session, &boundary, require_form_data, capture.bytes()),
+        }) => {
+            return super::internal::multipart::admit_structure(session, &boundary, require_form_data, capture.bytes())
+                .map(AdmittedBody::Multipart);
+        }
         Some(super::internal::content_type::ContentType::Multipart { boundary: None, .. })
         | Some(super::internal::content_type::ContentType::Text)
         | Some(super::internal::content_type::ContentType::Other)

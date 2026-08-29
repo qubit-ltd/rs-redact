@@ -9,10 +9,10 @@
 
 use std::io::Write;
 
-use qubit_json::decode::JsonDecoder;
-
 use super::BoundedBodyWriter;
 use super::MultipartPartMetadata;
+use super::super::admitted_body::AdmittedMultipart;
+use super::super::admitted_body::AdmittedMultipartBody;
 use super::content_type;
 use super::form;
 use super::json;
@@ -47,8 +47,15 @@ pub(in crate::formats::http) fn redact(
     bytes: &[u8],
     policy: &RedactionPolicy,
     max_output_bytes: usize,
+    admitted: Option<&mut AdmittedMultipart>,
 ) -> Option<(String, bool, bool)> {
     let parts = part_segments(bytes, boundary)?;
+    if admitted
+        .as_ref()
+        .is_some_and(|admitted| admitted.parts.len() != parts.len())
+    {
+        return None;
+    }
     let has_parts = !parts.is_empty();
     let mut output = BoundedBodyWriter::new(max_output_bytes);
     if output.write_all(b"<multipart>\n").is_err() {
@@ -59,8 +66,15 @@ pub(in crate::formats::http) fn redact(
         if index > 0 && output.write_all(b"\n").is_err() {
             return Some((output.into_string()?, passed, true));
         }
-        let (line, part_passed, part_truncated) =
-            redact_part(redactor, part, policy, require_form_data, max_output_bytes)?;
+        let parsed = admitted.as_ref().map(|admitted| admitted.parts[index].as_ref());
+        let (line, part_passed, part_truncated) = redact_part(
+            redactor,
+            part,
+            policy,
+            require_form_data,
+            max_output_bytes,
+            parsed,
+        )?;
         passed |= part_passed;
         if part_truncated || output.write_all(line.as_bytes()).is_err() {
             return Some((output.into_string()?, passed, true));
@@ -84,51 +98,57 @@ pub(in crate::formats::http) fn admit_structure(
     boundary: &str,
     require_form_data: bool,
     bytes: &[u8],
-) -> bool {
+) -> Option<AdmittedMultipart> {
     let Some(parts) = part_segments(bytes, boundary) else {
-        return true;
+        return Some(AdmittedMultipart { parts: Vec::new() });
     };
+    let mut admitted = Vec::with_capacity(parts.len());
     for part in parts {
         if !session.admit_format_collection_item() || !session.admit_format_node(2) {
-            return false;
+            return None;
         }
         let Some((metadata, body)) = parse_part(part, require_form_data) else {
-            return true;
+            return Some(AdmittedMultipart { parts: Vec::new() });
         };
         let Some(name) = metadata.name() else {
+            admitted.push(None);
             continue;
         };
         if metadata.filename().is_some() || body_field_is_sensitive(session, name) {
+            admitted.push(None);
             continue;
         }
-        match metadata.content_type() {
+        let value = match metadata.content_type() {
             Some(value) if content_type::is_json(value) => {
                 let Ok(text) = std::str::from_utf8(body) else {
+                    admitted.push(None);
                     continue;
                 };
-                if !crate::formats::json::admit_json_text_structure_at_depth(session, text, 3) {
-                    return false;
-                }
+                let value = crate::formats::json::admit_json_text_value_at_depth(session, text, 3).ok()?;
+                Some(AdmittedMultipartBody::Json(value))
             }
             Some(value) if content_type::is_ndjson(value) => {
                 let Ok(text) = std::str::from_utf8(body) else {
+                    admitted.push(None);
                     continue;
                 };
+                let mut lines = Vec::new();
                 for line in text.lines().filter(|line| !line.trim().is_empty()) {
-                    if !crate::formats::json::admit_json_text_structure_at_depth(session, line, 3) {
-                        return false;
-                    }
+                    lines.push(Some(crate::formats::json::admit_json_text_value_at_depth(session, line, 3).ok()?));
                 }
+                Some(AdmittedMultipartBody::Ndjson { lines, trailing_newline: text.ends_with('\n') })
             }
             Some(value) if content_type::is_form(value) => {
                 if !admit_form_fields(session, body, 3) {
-                    return false;
+                    return None;
                 }
+                None
             }
-            Some(_) | None => {}
-        }
+            Some(_) | None => None,
+        };
+        admitted.push(value);
     }
-    true
+    Some(AdmittedMultipart { parts: admitted })
 }
 
 /// Classifies every multipart part without rendering or retaining body data.
@@ -245,6 +265,7 @@ fn redact_part(
     policy: &RedactionPolicy,
     require_form_data: bool,
     max_output_bytes: usize,
+    admitted: Option<Option<&AdmittedMultipartBody>>,
 ) -> Option<(String, bool, bool)> {
     let (metadata, body) = parse_part(segment, require_form_data)?;
     let name = metadata.name().unwrap_or(markers::MULTIPART_UNNAMED);
@@ -258,7 +279,7 @@ fn redact_part(
             let value = value.into_owned();
             (value, false, false)
         } else {
-            redact_non_sensitive_part(redactor, body, policy, metadata.content_type(), max_output_bytes)?
+            redact_non_sensitive_part(redactor, body, policy, metadata.content_type(), max_output_bytes, admitted)?
         }
     };
     if truncated {
@@ -309,16 +330,30 @@ fn redact_non_sensitive_part(
     policy: &RedactionPolicy,
     part_type: Option<&str>,
     max_output_bytes: usize,
+    admitted: Option<Option<&AdmittedMultipartBody>>,
 ) -> Option<(String, bool, bool)> {
     let text = std::str::from_utf8(body).ok()?;
     match part_type {
         Some(value) if content_type::is_json(value) => {
-            let mut value = JsonDecoder::unlimited().decode_utf8(body).ok()?;
+            let mut value = match admitted? {
+                Some(AdmittedMultipartBody::Json(value)) => value.clone(),
+                _ => return None,
+            };
             let passed = json::redact(redactor, &mut value, policy.unkeyed_json_value_policy());
             json::serialize_bounded(&value, max_output_bytes).map(|(text, truncated)| (text, passed, truncated))
         }
         Some(value) if content_type::is_ndjson(value) => {
-            json::redact_ndjson(redactor, body, policy.unkeyed_json_value_policy(), max_output_bytes)
+            let AdmittedMultipartBody::Ndjson { lines, trailing_newline } = admitted?? else {
+                return None;
+            };
+            let mut lines = lines.clone();
+            json::redact_ndjson_values(
+                redactor,
+                &mut lines,
+                *trailing_newline,
+                policy.unkeyed_json_value_policy(),
+                max_output_bytes,
+            )
         }
         Some(value) if content_type::is_form(value) => form::is_valid(body).then(|| {
             let value = form::redact_bounded(redactor, body, max_output_bytes);
