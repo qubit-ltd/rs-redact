@@ -33,6 +33,15 @@ pub(super) struct RedactionBudget {
     json_budget: JsonValueBudget,
 }
 
+/// Disjoint budget fields borrowed during one JSON text admission.
+#[cfg(feature = "json")]
+pub(super) type JsonAdmissionBudgetParts<'budget> = (
+    &'budget mut StructuralBudget,
+    &'budget mut RedactionUsage,
+    &'budget mut Option<RedactionUsage>,
+    &'budget mut JsonValueBudget,
+);
+
 impl RedactionBudget {
     /// Creates the budget from the immutable policy limits.
     #[must_use]
@@ -139,8 +148,19 @@ impl RedactionBudget {
     }
 
     /// Borrows the transaction-wide JSON value budget for decoder admission.
-    #[cfg(feature = "json")]
+    #[cfg(feature = "http")]
     pub(super) fn json_value_budget_mut(&mut self) -> &mut JsonValueBudget {
         &mut self.json_budget
+    }
+
+    /// Splits structural accounting from lexical JSON value accounting.
+    #[cfg(feature = "json")]
+    pub(super) fn split_json_admission(&mut self) -> JsonAdmissionBudgetParts<'_> {
+        (
+            &mut self.structural,
+            &mut self.usage,
+            &mut self.active_operation_usage,
+            &mut self.json_budget,
+        )
     }
 }

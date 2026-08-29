@@ -8,6 +8,9 @@
 //! Shared accounting capabilities implemented by every transaction mode.
 
 #[cfg(feature = "json")]
+use qubit_budget::json::JsonValueBudget;
+
+#[cfg(feature = "json")]
 use super::rendered_operation::RenderedOperation;
 #[cfg(feature = "json")]
 use super::rendered_summary::rendered_summary;
@@ -114,6 +117,18 @@ pub(crate) trait RuntimeSession {
     #[must_use]
     fn admit_json_value(&mut self, value: &serde_json::Value) -> bool {
         self.runtime_mut().admit_json_value(value)
+    }
+
+    /// Splits JSON structure accounting from lexical value accounting.
+    #[cfg(feature = "json")]
+    fn split_json_admission(&mut self) -> (super::JsonStructureAdmission<'_>, &mut JsonValueBudget) {
+        self.runtime_mut().split_json_admission()
+    }
+
+    /// Records rejection by the transaction-wide JSON value budget.
+    #[cfg(feature = "json")]
+    fn record_json_value_limit_reached(&mut self) {
+        self.runtime_mut().record_json_value_limit_reached();
     }
 
     /// Releases one active domain-value depth.
