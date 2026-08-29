@@ -183,7 +183,9 @@ impl HttpPolicyExecutor<'_> {
                     trailing_newline,
                 } => self.redact_ndjson_values(lines, *trailing_newline, truncated, output_limit),
                 AdmittedBody::InvalidNdjson => Self::invalid_ndjson_body(),
-                AdmittedBody::Multipart(parts) => self.redact_body_inner(bounded, content_type, truncated, output_limit, Some(parts)),
+                AdmittedBody::Multipart(parts) => {
+                    self.redact_body_inner(bounded, content_type, truncated, output_limit, Some(parts))
+                }
                 AdmittedBody::Other => self.redact_body_inner(bounded, content_type, truncated, output_limit, None),
             }
         };
