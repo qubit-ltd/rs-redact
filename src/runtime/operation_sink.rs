@@ -221,3 +221,44 @@ impl OperationSink {
         }
     }
 }
+
+#[cfg(all(test, feature = "http"))]
+mod tests {
+    use super::OperationSink;
+    use crate::RedactionCompletion;
+    use crate::RedactionReason;
+
+    /// Verifies source truncation reserves the marker and provenance helpers
+    /// remain bounded by the operation allowance.
+    #[test]
+    fn source_truncation_preserves_marker_and_reason() {
+        let mut sink = OperationSink::new(16, "<truncated>", false);
+        assert!(sink.write_atom("visible"));
+        sink.mark_truncated();
+        assert_eq!(sink.remaining_bytes(), 5);
+
+        let operation = sink.finish_with_reason(RedactionReason::SourceTruncated);
+        let (text, completion, reasons) = operation.into_parts();
+
+        assert_eq!(text, "<truncated>");
+        assert_eq!(completion, RedactionCompletion::Truncated);
+        assert!(reasons.contains(RedactionReason::SourceTruncated));
+
+        let (_, completion, reasons) = OperationSink::complete("safe")
+            .with_reason(RedactionReason::InvalidJson)
+            .finish()
+            .into_parts();
+        assert_eq!(completion, RedactionCompletion::Complete);
+        assert!(reasons.contains(RedactionReason::InvalidJson));
+
+        let mut batch = crate::Redactor::standard().batch();
+        let handle = batch.redact_field("name", &"visible");
+        let output = batch.finish();
+        assert!(output.resolve(handle).is_ok());
+
+        let diagnostics = crate::Redactor::standard()
+            .batch()
+            .finish_for_diagnostics("<incomplete>");
+        assert_eq!(diagnostics.summary().completion(), RedactionCompletion::Complete);
+    }
+}
