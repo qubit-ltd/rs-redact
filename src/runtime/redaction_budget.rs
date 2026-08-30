@@ -140,11 +140,9 @@ impl RedactionBudget {
     #[cfg(feature = "json")]
     pub(super) fn admit_json_value(&mut self, root: &Value) -> bool {
         let mut transaction = self.json_budget.transaction();
-        if JsonTreeReader::new(&mut transaction).account(root).is_err() {
-            return false;
-        }
-        transaction.commit();
-        true
+        let admitted = JsonTreeReader::new(&mut transaction).account(root).is_ok();
+        let committed = transaction.commit().is_ok();
+        admitted && committed
     }
 
     /// Borrows the transaction-wide JSON value budget for decoder admission.
