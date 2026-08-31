@@ -188,6 +188,11 @@ impl<T: RedactLevelValue, const N: usize> RedactLevelValue for [T; N] {
     }
 }
 
+/// Writes each value from `values` into `items` at the supplied sensitivity
+/// `level`.
+///
+/// The iterator is consumed in order and does not allocate intermediate
+/// storage.
 fn write_items<'value, T, I>(items: &mut RedactionItems<'_, '_>, values: I, level: Sensitivity)
 where
     T: RedactLevelValue + 'value,
