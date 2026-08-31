@@ -8,7 +8,17 @@
 //! Sealed capability for fields using the `level` mode.
 
 use std::borrow::Cow;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use std::collections::BinaryHeap;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::collections::LinkedList;
+use std::collections::VecDeque;
 use std::fmt::Debug;
+use std::hash::Hash;
+use std::rc::Rc;
+use std::sync::Arc;
 
 use super::RedactionItems;
 use super::RedactionWriter;
@@ -91,6 +101,84 @@ impl<T: RedactLevelValue> private::Sealed for Vec<T> {}
 impl<T: RedactLevelValue> RedactLevelValue for Vec<T> {
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         writer.sequence(|items| write_items(items, self.iter(), level));
+    }
+}
+impl<T: RedactLevelValue> private::Sealed for [T] {}
+impl<T: RedactLevelValue> RedactLevelValue for [T] {
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+        writer.sequence(|items| write_items(items, self.iter(), level));
+    }
+}
+
+macro_rules! sequence_container {
+    ($($type:ident),+ $(,)?) => {
+        $(impl<T: RedactLevelValue> private::Sealed for $type<T> {}
+          impl<T: RedactLevelValue> RedactLevelValue for $type<T> {
+              fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+                  writer.sequence(|items| write_items(items, self.iter(), level));
+              }
+          })+
+    };
+}
+
+sequence_container!(VecDeque, LinkedList);
+
+impl<T: RedactLevelValue + Ord> private::Sealed for BinaryHeap<T> {}
+impl<T: RedactLevelValue + Ord> RedactLevelValue for BinaryHeap<T> {
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+        writer.sequence(|items| write_items(items, self.iter(), level));
+    }
+}
+impl<T: RedactLevelValue + Ord> private::Sealed for BTreeSet<T> {}
+impl<T: RedactLevelValue + Ord> RedactLevelValue for BTreeSet<T> {
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+        writer.sequence(|items| write_items(items, self.iter(), level));
+    }
+}
+impl<T: RedactLevelValue + Eq + Hash> private::Sealed for HashSet<T> {}
+impl<T: RedactLevelValue + Eq + Hash> RedactLevelValue for HashSet<T> {
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+        writer.sequence(|items| write_items(items, self.iter(), level));
+    }
+}
+
+impl<T: RedactLevelValue + ?Sized> private::Sealed for Box<T> {}
+impl<T: RedactLevelValue + ?Sized> RedactLevelValue for Box<T> {
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+        (**self).write_redacted_level(writer, level);
+    }
+}
+impl<T: RedactLevelValue + ?Sized> private::Sealed for Rc<T> {}
+impl<T: RedactLevelValue + ?Sized> RedactLevelValue for Rc<T> {
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+        (**self).write_redacted_level(writer, level);
+    }
+}
+impl<T: RedactLevelValue + ?Sized> private::Sealed for Arc<T> {}
+impl<T: RedactLevelValue + ?Sized> RedactLevelValue for Arc<T> {
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+        (**self).write_redacted_level(writer, level);
+    }
+}
+
+impl<K: Debug + Eq + Hash, V: RedactLevelValue> private::Sealed for HashMap<K, V> {}
+impl<K: Debug + Eq + Hash, V: RedactLevelValue> RedactLevelValue for HashMap<K, V> {
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+        writer.map(|entries| {
+            for (key, value) in self {
+                entries.level_value_entry(&format!("{key:?}"), value, level);
+            }
+        });
+    }
+}
+impl<K: Debug + Ord, V: RedactLevelValue> private::Sealed for BTreeMap<K, V> {}
+impl<K: Debug + Ord, V: RedactLevelValue> RedactLevelValue for BTreeMap<K, V> {
+    fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
+        writer.map(|entries| {
+            for (key, value) in self {
+                entries.level_value_entry(&format!("{key:?}"), value, level);
+            }
+        });
     }
 }
 impl<T: RedactLevelValue, const N: usize> private::Sealed for [T; N] {}

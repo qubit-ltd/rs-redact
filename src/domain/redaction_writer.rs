@@ -190,6 +190,23 @@ impl<'session> RedactionWriter<'session> {
         self.write_field_structure(name, "(", ")", configure);
     }
 
+    /// Writes exactly one field without a nominal record or tuple wrapper.
+    ///
+    /// This is intended for transparent domain newtypes. The configured field
+    /// still passes through the ordinary classified field operations and the
+    /// same admission limits as a structured value.
+    pub fn transparent<F>(&mut self, configure: F)
+    where
+        F: for<'writer> FnOnce(&mut RedactionFields<'writer, 'session>),
+    {
+        let mut fields = RedactionFields {
+            writer: self,
+            named: false,
+        };
+        configure(&mut fields);
+        self.trim_trailing_separator();
+    }
+
     /// Writes a bracketed sequence through an item scope.
     pub fn sequence<F>(&mut self, configure: F)
     where

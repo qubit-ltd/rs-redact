@@ -135,6 +135,7 @@ fn domain_writer_has_only_the_fixed_root_surface() {
             "unmarked",
             "record",
             "tuple",
+            "transparent",
             "sequence",
             "map",
             "variant"

@@ -335,6 +335,49 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         self
     }
 
+    /// Writes map keys at a fixed level and leaves values unmarked.
+    pub(crate) fn map_key_level_entries<'value, I, K, V>(
+        &mut self,
+        name: &str,
+        entries: I,
+        key_level: Sensitivity,
+        value_level: Option<Sensitivity>,
+    ) -> &mut Self
+    where
+        I: IntoIterator<Item = (&'value K, &'value V)>,
+        K: super::RedactLevelValue + 'value,
+        V: super::RedactLevelValue + 'value,
+    {
+        if !self.admit_field() {
+            self.write_field_truncated();
+            return self;
+        }
+        self.write_prefix(name);
+        self.writer.map(|output| {
+            for (key, value) in entries {
+                output.key_level_entry(key, value, key_level, value_level);
+            }
+        });
+        self.writer.write_fragment(", ");
+        self
+    }
+
+    /// Writes a supported map with an explicit key sensitivity.
+    #[doc(hidden)]
+    pub fn map_level_values<T>(
+        &mut self,
+        name: &str,
+        value: &T,
+        key_level: Sensitivity,
+        value_level: Option<Sensitivity>,
+    ) -> &mut Self
+    where
+        T: super::RedactMapKeyValue + ?Sized,
+    {
+        value.write_redacted_map_levels(self, name, key_level, value_level);
+        self
+    }
+
     /// Writes a supported map field through its sealed capability.
     pub fn map<T>(&mut self, name: &str, value: &T) -> &mut Self
     where

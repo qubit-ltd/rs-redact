@@ -8,13 +8,24 @@
 //! Structured serialization for values with an explicit sensitivity.
 
 use std::borrow::Cow;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use std::collections::BinaryHeap;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::collections::LinkedList;
+use std::collections::VecDeque;
 use std::fmt;
 use std::fmt::Display;
+use std::hash::Hash;
+use std::rc::Rc;
+use std::sync::Arc;
 
 #[cfg(feature = "serde")]
 use bigdecimal::BigDecimal;
 use serde::Serialize;
 use serde::Serializer;
+use serde::ser::SerializeMap;
 use serde::ser::SerializeSeq;
 use serde::ser::SerializeTuple;
 
@@ -212,6 +223,107 @@ impl<T: RedactLevelSerialize> RedactLevelSerialize for Vec<T> {
             sequence.serialize_element(&RedactedLevelSerializeRef::new(value, policy, level))?;
         }
         sequence.end()
+    }
+}
+
+macro_rules! sequence_level_serialize {
+    ($($type:ident),+ $(,)?) => {
+        $(impl<T: RedactLevelSerialize> RedactLevelSerialize for $type<T> {
+            fn serialize_redacted_level<S>(&self, serializer: S, policy: &RedactionPolicy, level: Sensitivity) -> Result<S::Ok, S::Error>
+            where S: Serializer {
+                if !admit_collection_items(self.len()) {
+                    return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+                }
+                let mut sequence = serializer.serialize_seq(Some(self.len()))?;
+                for value in self {
+                    sequence.serialize_element(&RedactedLevelSerializeRef::new(value, policy, level))?;
+                }
+                sequence.end()
+            }
+        })+
+    };
+}
+
+sequence_level_serialize!(VecDeque, LinkedList, BinaryHeap, BTreeSet, HashSet);
+
+impl<T: RedactLevelSerialize + ?Sized> RedactLevelSerialize for Box<T> {
+    fn serialize_redacted_level<S>(
+        &self,
+        serializer: S,
+        policy: &RedactionPolicy,
+        level: Sensitivity,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        (**self).serialize_redacted_level(serializer, policy, level)
+    }
+}
+impl<T: RedactLevelSerialize + ?Sized> RedactLevelSerialize for Rc<T> {
+    fn serialize_redacted_level<S>(
+        &self,
+        serializer: S,
+        policy: &RedactionPolicy,
+        level: Sensitivity,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        (**self).serialize_redacted_level(serializer, policy, level)
+    }
+}
+impl<T: RedactLevelSerialize + ?Sized> RedactLevelSerialize for Arc<T> {
+    fn serialize_redacted_level<S>(
+        &self,
+        serializer: S,
+        policy: &RedactionPolicy,
+        level: Sensitivity,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        (**self).serialize_redacted_level(serializer, policy, level)
+    }
+}
+
+impl<K: Serialize + Eq + Hash, V: RedactLevelSerialize> RedactLevelSerialize for HashMap<K, V> {
+    fn serialize_redacted_level<S>(
+        &self,
+        serializer: S,
+        policy: &RedactionPolicy,
+        level: Sensitivity,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if !admit_collection_items(self.len()) {
+            return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+        }
+        let mut map = serializer.serialize_map(Some(self.len()))?;
+        for (key, value) in self {
+            map.serialize_entry(key, &RedactedLevelSerializeRef::new(value, policy, level))?;
+        }
+        map.end()
+    }
+}
+impl<K: Serialize + Ord, V: RedactLevelSerialize> RedactLevelSerialize for BTreeMap<K, V> {
+    fn serialize_redacted_level<S>(
+        &self,
+        serializer: S,
+        policy: &RedactionPolicy,
+        level: Sensitivity,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if !admit_collection_items(self.len()) {
+            return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+        }
+        let mut map = serializer.serialize_map(Some(self.len()))?;
+        for (key, value) in self {
+            map.serialize_entry(key, &RedactedLevelSerializeRef::new(value, policy, level))?;
+        }
+        map.end()
     }
 }
 

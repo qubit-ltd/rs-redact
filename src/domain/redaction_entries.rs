@@ -81,6 +81,49 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
         self
     }
 
+    /// Writes a map value with an explicit sensitivity while preserving its
+    /// recursive level-capable shape.
+    pub(crate) fn level_value_entry<T>(&mut self, name: &str, value: &T, level: Sensitivity) -> &mut Self
+    where
+        T: super::RedactLevelValue + ?Sized,
+    {
+        if !self.admit_entry() {
+            self.write_truncated();
+            return self;
+        }
+        self.write_prefix(name);
+        value.write_redacted_level(self.writer, level);
+        self.writer.write_fragment(", ");
+        self
+    }
+
+    /// Writes a level-redacted key and an optionally level-redacted value.
+    pub(crate) fn key_level_entry<K, V>(
+        &mut self,
+        key: &K,
+        value: &V,
+        key_level: Sensitivity,
+        value_level: Option<Sensitivity>,
+    ) -> &mut Self
+    where
+        K: super::RedactLevelValue + ?Sized,
+        V: super::RedactLevelValue + ?Sized,
+    {
+        if !self.admit_entry() {
+            self.write_truncated();
+            return self;
+        }
+        key.write_redacted_level(self.writer, key_level);
+        self.writer.write_fragment(": ");
+        if let Some(level) = value_level {
+            value.write_redacted_level(self.writer, level);
+        } else {
+            self.writer.write_debug(value);
+        }
+        self.writer.write_fragment(", ");
+        self
+    }
+
     /// Writes one nested map entry through the parent transaction.
     pub fn nested_entry<T>(&mut self, name: &str, value: &T) -> &mut Self
     where
