@@ -2,11 +2,21 @@
 
 [README](../README.zh_CN.md) · [English User Guide](user_guide.md) · [Derive Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.zh_CN.md)
 
-本手册面向使用 `qubit-redact` 0.5 构建日志与诊断边界的应用和库作者。运行时不会修改
-源对象：`Redactor` 持有不可变策略快照，每个 composer 或 batch 独占一份预算，只发布
-最终文本与摘要。
+## 手册目标与读者
 
-## completion 是结果的一部分
+本手册面向使用 `qubit-redact` 0.5 构建日志与诊断边界的应用和库作者。适用于值可能进入
+日志、错误信息或技术支持工具，且应用必须自行判断字段敏感性的场景。它不保护绕过运行时的输出，
+也不会擦除源对象内存。
+
+## 概念模型
+
+`Redactor` 持有不可变策略快照。composer 或 batch 会开启一次有界渲染事务，发布拥有独立内容
+的文本和摘要：
+
+```text
+被借用的值 -> 策略判定 + 共享预算 -> RedactionTextOutput
+                                -> 安全文本 + 完成状态摘要
+```
 
 每个渲染入口都会返回 `RedactionTextOutput`：安全文本和 `RedactionSummary`。启用脱敏时，
 `Complete`、`Truncated`、`Exhausted` 三种状态下发布的文本都满足保密安全要求。后两种
@@ -19,7 +29,10 @@
 已接纳表示，`Exhausted` 表示共享预算无法容纳完整替代；原因集合可说明 JSON、form、
 multipart 等解析降级和预算限制。
 
-多个独立诊断字段只需选择一次降级标记：
+## 贯穿场景：发布不含密码的登录诊断信息
+
+认证服务需要在一条诊断事件中记录用户名和含密码的请求字段：用户名应保留，密码不能出现在输出中，
+预算不足时还要使用统一的降级标记。batch 会让这组值共享同一份策略和预算：
 
 ```rust
 use qubit_redact::Redactor;
@@ -37,7 +50,21 @@ assert!(!output.text(password).as_str().contains("raw-password"));
 已转义 marker，不返回 `Result`。确实需要区分这些程序错误的调用方仍使用严格路径：
 `finish()` 加 `RedactionBatchOutput::resolve()`。
 
-## 1. 渲染领域值
+## 安装与最小配置
+
+加入依赖后，只启用应用实际使用的集成能力：
+
+```toml
+[dependencies]
+qubit-redact = { version = "0.5" }
+```
+
+默认 feature 集为空。使用 `#[derive(Redact)]` 时启用 `derive`，需要脱敏序列化时启用
+`serde`；只有处理相应输入格式时才启用 `json`、`http` 或 `uri`。
+
+## 核心工作流
+
+### 渲染领域值
 
 实现小型运行时 trait，或在下游 crate 中使用 derive：
 
@@ -63,7 +90,7 @@ assert_eq!(login.password, "raw");
 
 子系统需要显式策略时使用 `Redactor::new(policy)`。运行时没有可变脱敏 API，也不提供内存擦除。
 
-## 2. Writer scope
+### 选择字段写入方式
 
 `RedactionWriter` 提供显式字段决策：
 
@@ -106,7 +133,7 @@ let output = Redactor::strict().redact_field(
 assert!(!output.text().as_str().is_empty());
 ```
 
-## 3. 其他格式
+### 渲染其他格式
 
 运行时为 JSON 文本和值、URI、HTTP header/query、环境变量、argv 和进程描述提供有界脱敏。
 每种格式保留自身解析和转义规则，同时共享策略决策和事务预算。
@@ -155,7 +182,9 @@ JSON 文本采用 `qubit-json` 的明确数字契约：负整数必须装入 `i6
 小数/指数必须得到有限 `f64`。越界文本沿用 fail-closed 的无效 JSON 路径；serde_json 旧私有
 Number marker key 是普通 object key。
 
-## 4. Inspection 与禁用策略
+## 进阶用法
+
+### 检查决策与控制策略
 
 Inspection 会报告规则匹配、敏感度和完成状态，但不会发布原始值。它适合在确定日志或序列化
 边界前解释某字段为何会被掩码。
@@ -187,16 +216,36 @@ assert!(!output.text().as_str().contains("raw-secret"));
 以及每次重新获取快照的生成格式化代码。已经创建的 `Redactor`、composer 和 batch 继续
 持有原有不可变快照；替换不会追溯切换正在进行的工作。
 
-## 5. 排障与限制
+## 错误与诊断
+
+当调用方需要区分完整结果与预算或解析降级时，检查 `summary().completion()`、
+`summary().reasons()` 和 `summary().usage()`；不要解析展示文本来推断状态。严格的展示路径可用
+`complete_text()` 和 `into_complete_text()` 拒绝不完整结果；诊断展示可用 `text_or_marker()` 和
+`into_text_or_marker()` 选择明确的降级标记。若 inspection 结果用于安全判断，任何 inspection
+error 都意味着分类不完整，应按敏感结果处理。
+
+## 排障
 
 - 发现原值时，先检查 `output.summary().is_redaction_disabled()` 以及创建 composer 或
   batch 时采用的策略快照。
 - 出现非预期截断时，检查 `completion()`、`reasons()` 和 `usage()`；同一事务内的操作
   会有意共享资源上限。
 - 字段未命中时，核对字段名并复查所有未标注字段；运行时不会推断业务敏感度。
+
+## 限制与最佳实践
+
+- 应依据业务领域知识标记敏感字段；`unmarked` 和未标注的 derive 字段会有意保持可见。
+- 不要将 `RedactionPolicy::disabled()` 暴露给请求控制的输入；它会恢复原值，只适合作为进程级
+  调试逃生口。
 - 本 crate 只保护经过其运行时的调用，不擦除源对象内存，也不保护无关日志或序列化路径。
 
-## 6. 验证
+## 延伸阅读
+
+参见 [README](../README.zh_CN.md)、[English User Guide](user_guide.md)、
+[API 文档](https://docs.rs/qubit-redact)和
+[derive 手册](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.zh_CN.md)。
+
+验证本地检出内容可运行：
 
 ```bash
 cargo test --all-features
@@ -204,7 +253,6 @@ cargo test --all-features
 ./ci-check.sh
 ```
 
-字段属性和生成实现参见 [derive 手册](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.zh_CN.md)。
 
 ## 许可证
 

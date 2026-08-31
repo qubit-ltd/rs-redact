@@ -2,12 +2,23 @@
 
 [README](../README.md) · [中文用户手册](user_guide.zh_CN.md) · [Derive Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.md)
 
-This guide covers `qubit-redact` 0.5 for application and library authors who
-need bounded diagnostic output without changing the source value. A `Redactor`
-owns an immutable policy snapshot; each composer or batch owns one budget and
-publishes only final text plus its summary.
+## Purpose and Audience
 
-## Completion is part of the result
+This guide covers `qubit-redact` 0.5 for application and library authors who
+need bounded diagnostic output without changing the source value. Use it when
+values may reach logs, errors, or support tooling and the application must
+decide which fields are sensitive. It does not protect output that bypasses the
+runtime or erase source memory.
+
+## Conceptual Model
+
+`Redactor` owns an immutable policy snapshot. A composer or batch starts one
+bounded rendering transaction and publishes owned text plus a summary:
+
+```text
+borrowed value -> policy decision + shared budget -> RedactionTextOutput
+                                              -> safe text + completion summary
+```
 
 Every rendering entry point returns `RedactionTextOutput`: safe text and a
 `RedactionSummary`. With redaction enabled, text published as `Complete`,
@@ -25,7 +36,12 @@ retry, program logic, or a structured output contract. Such callers can use
 shared budget could not retain a complete replacement. Reasons identify parser
 and budget degradation, including invalid JSON, form, and multipart data.
 
-For several independently resolved diagnostic fields, choose the fallback once:
+## Scenario: publish login diagnostics without a password
+
+An authentication service wants to include a user name and a password-bearing
+request field in one diagnostic event. The user name must remain visible, the
+password must not appear in output, and a budget failure must use one known
+fallback. A batch gives every related value the same policy and budget:
 
 ```rust
 use qubit_redact::Redactor;
@@ -44,7 +60,22 @@ handle from another batch to the same escaped marker without returning
 `Result`. Callers that need to distinguish those programming errors retain the
 strict `finish()` plus `RedactionBatchOutput::resolve()` path.
 
-## 1. Render a domain value
+## Installation and Minimal Configuration
+
+Add the crate, then opt into only the integrations used by the application:
+
+```toml
+[dependencies]
+qubit-redact = { version = "0.5" }
+```
+
+The default feature set is empty. Enable `derive` for `#[derive(Redact)]`,
+`serde` for redacted serialization, and the `json`, `http`, or `uri` feature
+only when the corresponding input format is needed.
+
+## Core Workflow
+
+### Render a domain value
 
 Implement the small runtime trait, or derive it in a downstream crate:
 
@@ -71,7 +102,7 @@ assert_eq!(login.password, "raw");
 Use `Redactor::new(policy)` when a subsystem needs an explicit policy. The
 runtime has no mutable redaction API and does not provide memory zeroization.
 
-## 2. Writer scopes
+### Choose field scopes
 
 `RedactionWriter` exposes explicit field decisions:
 
@@ -119,7 +150,7 @@ let output = Redactor::strict().redact_field(
 assert!(!output.text().as_str().is_empty());
 ```
 
-## 3. Other formats
+### Render other formats
 
 The runtime provides bounded redaction for JSON text and values, URI, HTTP
 headers/query data, environment variables, argv, and process descriptions.
@@ -174,7 +205,9 @@ tokens must produce finite `f64`. Out-of-range text follows the same fail-closed
 invalid-JSON path. A former serde_json private Number-marker key is an ordinary
 object key.
 
-## 4. Inspection and disabled policies
+## Advanced Usage
+
+### Inspect decisions and control policies
 
 Inspection reports rule matches, sensitivity, and completion without publishing
 raw values. Use it to explain why a field would be masked before choosing a
@@ -212,7 +245,18 @@ an inspection error as sensitive because classification was inconclusive.
 Existing redactors, composers, and batches keep the immutable snapshot they
 already own; replacement does not retroactively toggle in-flight work.
 
-## 5. Troubleshooting and limits
+## Errors and Diagnostics
+
+Use `summary().completion()`, `summary().reasons()`, and `summary().usage()`
+when the caller needs to distinguish a complete result from a budget or parser
+degradation. Do not infer that state by parsing displayed text. For strict
+presentation, `complete_text()` and `into_complete_text()` reject an incomplete
+result; for diagnostic presentation, `text_or_marker()` and
+`into_text_or_marker()` select an explicit fallback. An inspection error means
+classification was inconclusive and should be treated as sensitive when the
+result controls a security decision.
+
+## Troubleshooting
 
 - Unexpected raw output: first check `output.summary().is_redaction_disabled()`
   and the policy snapshot used to create the composer or batch.
@@ -220,10 +264,24 @@ already own; replacement does not retroactively toggle in-flight work.
   related operations intentionally share limits.
 - Missing masking: verify the field name and review every unmarked field. The
   runtime does not infer application-specific sensitivity.
+
+## Limitations and Best Practices
+
+- Mark fields as sensitive from domain knowledge; `unmarked` and unannotated
+  derive fields intentionally remain visible.
+- Do not expose `RedactionPolicy::disabled()` to request-controlled inputs; it
+  restores raw values and is intended only as a process-wide debugging escape
+  hatch.
 - This crate protects only calls routed through its runtime. It does not erase
   source memory or protect unrelated logging and serialization paths.
 
-## 6. Verification
+## Further Reading
+
+Read the [README](../README.md), [中文用户手册](user_guide.zh_CN.md),
+[API documentation](https://docs.rs/qubit-redact), and the
+[derive guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.md).
+
+To validate a local checkout:
 
 ```bash
 cargo test --all-features
@@ -231,8 +289,6 @@ cargo test --all-features
 ./ci-check.sh
 ```
 
-See the [derive guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.md)
-for field attributes and generated implementations.
 
 ## License
 

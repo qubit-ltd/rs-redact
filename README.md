@@ -7,10 +7,11 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
-`qubit-redact` is a policy-aware Rust redaction runtime. It renders domain
-objects, JSON, HTTP values, URIs, environment variables, and process arguments
-through one bounded diagnostic session. The source value is borrowed and the
-redaction result is owned.
+`qubit-redact` is a policy-aware Rust redaction runtime for application and
+library authors who need useful diagnostics without exposing secrets. It
+renders borrowed domain objects, JSON, HTTP values, URIs, environment
+variables, and process arguments through one bounded session, then returns an
+owned redacted result.
 
 ## Installation
 
@@ -93,6 +94,15 @@ the framework cannot infer it reliably and should not force explicit
 types must explicitly mark sensitive fields and review that decision when their
 domain model changes. The runtime does not mutate or erase the source value.
 
+## Why This Project Exists
+
+Diagnostic values commonly cross logging, error-reporting, and support
+boundaries before their sensitivity has been reviewed. Ad-hoc masking makes
+each call site choose its own format, limits, and fallback behavior. This crate
+keeps those decisions in one immutable policy snapshot, shares one bounded
+budget across related output, and lets callers observe whether the published
+diagnostic is complete without reformatting its source.
+
 ## Capabilities
 
 - bounded text, JSON, URI, HTTP, environment, argv, and process rendering;
@@ -103,6 +113,9 @@ domain model changes. The runtime does not mutate or erase the source value.
   `i64`, non-negative integers fit `u64`, and fractions are finite `f64`;
 - batch APIs that share one budget and summary across related values;
 - opt-in `serde` and derive integrations; the default feature set is minimal.
+
+It does not infer application-specific sensitivity, erase source memory, or
+protect logging and serialization paths that do not use this runtime.
 
 Disabled policies intentionally restore every supported raw value. This is a
 deliberate process-wide debugging escape hatch, not an attempt by the framework
