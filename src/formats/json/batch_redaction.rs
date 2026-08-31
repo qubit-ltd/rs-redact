@@ -12,7 +12,7 @@ use serde_json::Value;
 use super::JsonAdmissionError;
 use super::json_redaction_writer::admit_json_text_value;
 use super::json_redaction_writer::invalid_json_output;
-use super::json_redaction_writer::redact_json_text_with_limit;
+use super::json_redaction_writer::passthrough_json_text_with_limit;
 use super::json_redaction_writer::redact_json_value_with_limit;
 use crate::runtime::BatchSession;
 use crate::runtime::RedactionHandle;
@@ -29,7 +29,7 @@ pub(crate) fn redact_text(session: &mut BatchSession, text: &str) -> RedactionHa
         return session.stage_accounted_text(String::new());
     }
     let result = if session.policy().is_disabled() {
-        redact_json_text_with_limit(session.policy(), text, session.remaining_output_bytes())
+        passthrough_json_text_with_limit(text, session.remaining_output_bytes())
     } else {
         match admit_json_text_value(session, text) {
             Ok(value) => redact_json_value_with_limit(session.policy(), &value, session.remaining_output_bytes()),

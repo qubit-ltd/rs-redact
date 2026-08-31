@@ -10,6 +10,8 @@
 use std::borrow::Cow;
 
 #[cfg(feature = "json")]
+use qubit_budget::json::JsonDecodeLimits;
+#[cfg(feature = "json")]
 use qubit_json::decode::JsonDecoder;
 
 use super::redact_serialize_scope::admit_collection_items;
@@ -45,7 +47,11 @@ where
         let replacement = masked();
         return serializer.serialize_str(replacement.as_ref());
     }
-    let Ok(value) = JsonDecoder::unlimited().decode_str::<serde_json::Value>(text) else {
+    let limits = JsonDecodeLimits::builder()
+        .max_input_bytes(policy.limits().max_input_bytes())
+        .value_limits(policy.limits().json_limits())
+        .build();
+    let Ok(value) = JsonDecoder::with_limits(limits).decode_str::<serde_json::Value>(text) else {
         let replacement = masked();
         return serializer.serialize_str(replacement.as_ref());
     };
@@ -60,23 +66,56 @@ where
 /// Admits every node and item in a parsed JSON value.
 #[cfg(feature = "json")]
 fn admit_structured_json_value(value: &serde_json::Value) -> bool {
-    if !admit_node() {
-        return false;
+    enum Admission<'value> {
+        Enter(&'value serde_json::Value),
+        Child(&'value serde_json::Value),
+        Leave,
     }
-    let admitted = match value {
-        serde_json::Value::Array(values) => values
-            .iter()
-            .all(|value| admit_collection_items(1) && admit_structured_json_value(value)),
-        serde_json::Value::Object(entries) => entries
-            .values()
-            .all(|value| admit_collection_items(1) && admit_structured_json_value(value)),
-        serde_json::Value::Null
-        | serde_json::Value::Bool(_)
-        | serde_json::Value::Number(_)
-        | serde_json::Value::String(_) => true,
-    };
-    leave_node();
-    admitted
+
+    let mut pending = vec![Admission::Enter(value)];
+    let mut entered = 0_usize;
+    while let Some(admission) = pending.pop() {
+        match admission {
+            Admission::Enter(value) => {
+                if !admit_node() {
+                    while entered > 0 {
+                        leave_node();
+                        entered -= 1;
+                    }
+                    return false;
+                }
+                entered += 1;
+                pending.push(Admission::Leave);
+                match value {
+                    serde_json::Value::Array(values) => {
+                        pending.extend(values.iter().rev().map(Admission::Child));
+                    }
+                    serde_json::Value::Object(entries) => {
+                        pending.extend(entries.values().rev().map(Admission::Child));
+                    }
+                    serde_json::Value::Null
+                    | serde_json::Value::Bool(_)
+                    | serde_json::Value::Number(_)
+                    | serde_json::Value::String(_) => {}
+                }
+            }
+            Admission::Child(value) => {
+                if !admit_collection_items(1) {
+                    while entered > 0 {
+                        leave_node();
+                        entered -= 1;
+                    }
+                    return false;
+                }
+                pending.push(Admission::Enter(value));
+            }
+            Admission::Leave => {
+                leave_node();
+                entered -= 1;
+            }
+        }
+    }
+    true
 }
 
 #[cfg(feature = "json")]
@@ -155,5 +194,30 @@ impl<'a> RedactJsonSerialize for Option<Cow<'a, str>> {
             Some(value) => serialize_json_text(serializer, value, policy),
             None => serializer.serialize_none(),
         }
+    }
+}
+
+#[cfg(all(test, feature = "json"))]
+mod tests {
+    use super::super::RedactedJsonSerializeRef;
+    use crate::RedactionPolicy;
+
+    /// Verifies JSON-text fields are rejected by the decoder before an
+    /// over-limit tree can be materialized.
+    #[test]
+    fn json_text_serde_adapter_enforces_json_decode_limits() {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_json_nodes(1);
+            })
+            .expect("limits")
+            .build()
+            .expect("redaction policy");
+        let source = r#"{"outer":{"token":"raw-secret"}}"#;
+
+        let encoded = serde_json::to_value(RedactedJsonSerializeRef::new(source, &policy))
+            .expect("JSON-text adapter serialization");
+
+        assert_eq!(encoded, "<redacted>");
     }
 }

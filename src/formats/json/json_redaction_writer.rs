@@ -14,7 +14,6 @@ use serde_json::Value;
 
 use super::JsonAdmissionError;
 use super::bounded_json_redaction::BoundedJsonRedaction;
-use super::bounded_json_redaction::redacted_json_text_bounded;
 use super::bounded_json_redaction::redacted_json_value_bounded;
 use super::internal::JsonStructureSeed;
 use crate::output::log_escape::escape_log_control_characters;
@@ -59,22 +58,13 @@ pub(crate) fn admit_json_text_value_at_depth(
     }
 }
 
-/// Redacts JSON text under the output allowance supplied by its caller.
+/// Copies trusted JSON text under the output allowance supplied by its caller.
 ///
-/// This helper owns no session state. The caller supplies the remaining
-/// transaction allowance, so JSON parsing cannot create a second output
-/// budget. The returned text is already escaped and never exceeds that
-/// allowance.
+/// Disabled policies intentionally do not parse or redact their input. This
+/// helper performs only log-control escaping and output-bound enforcement.
 #[must_use]
-pub(crate) fn redact_json_text_with_limit(
-    policy: &crate::RedactionPolicy,
-    text: &str,
-    max_output_bytes: usize,
-) -> RenderedOperation {
-    json_output_from_bounded(
-        redacted_json_text_bounded(text, policy, max_output_bytes),
-        max_output_bytes,
-    )
+pub(crate) fn passthrough_json_text_with_limit(text: &str, max_output_bytes: usize) -> RenderedOperation {
+    json_output_from_bounded(BoundedJsonRedaction::Complete(text.to_owned()), max_output_bytes)
 }
 
 /// Converts bounded JSON rendering into unpublished adapter state.
@@ -182,7 +172,7 @@ impl JsonRedactionWriter<'_> {
     /// `Exhausted` completion.
     #[must_use]
     pub(crate) fn redact_text_direct(&mut self, text: &str) -> RenderedOperation {
-        redact_json_text_with_limit(self.session.policy(), text, self.session.remaining_output_bytes())
+        passthrough_json_text_with_limit(text, self.session.remaining_output_bytes())
     }
 
     /// Redacts a parsed value under the session's remaining output allowance.
@@ -217,7 +207,7 @@ pub(crate) fn invalid_json_output(policy: &crate::RedactionPolicy, max_output_by
 mod tests {
     use super::super::parse_counter::json_parse_count;
     use super::super::parse_counter::reset_json_parse_count;
-    use super::redact_json_text_with_limit;
+    use super::passthrough_json_text_with_limit;
     use crate::RedactionCompletion;
     use crate::RedactionPolicy;
     use crate::Redactor;
@@ -253,8 +243,7 @@ mod tests {
     /// final output allowance rather than selecting an independent budget.
     #[test]
     fn bounded_json_helper_never_exceeds_the_caller_allowance() {
-        let output = redact_json_text_with_limit(
-            &RedactionPolicy::standard(),
+        let output = passthrough_json_text_with_limit(
             r#"{"description":"this value is deliberately longer than the allowance"}"#,
             16,
         );

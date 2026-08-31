@@ -9,7 +9,6 @@
 
 use std::io::Write;
 
-use qubit_json::decode::JsonDecoder;
 use serde_json::Value;
 use serde_json::to_writer;
 
@@ -71,55 +70,6 @@ pub(in crate::formats::http) fn serialize_bounded(value: &Value, max_output_byte
     }
     writer.flush().ok()?;
     writer.into_string().map(|text| (text, false))
-}
-
-/// Redacts every non-empty line of one NDJSON document.
-///
-/// # Parameters
-///
-/// * `redactor` - Structured-body field redactor.
-/// * `bytes` - Complete NDJSON bytes.
-/// * `unkeyed` - Policy for unkeyed scalar values.
-/// * `max_output_bytes` - Maximum final rendered NDJSON bytes.
-///
-/// # Returns
-///
-/// Redacted NDJSON, a pass-through flag, and a rendering-truncation flag, or
-/// `None` for invalid input.
-#[allow(dead_code)]
-#[must_use]
-pub(in crate::formats::http) fn redact_ndjson(
-    redactor: &FieldRedactor<'_>,
-    bytes: &[u8],
-    unkeyed: UnkeyedJsonValuePolicy,
-    max_output_bytes: usize,
-) -> Option<(String, bool, bool)> {
-    let text = std::str::from_utf8(bytes).ok()?;
-    let trailing_newline = text.ends_with('\n');
-    let mut output = BoundedBodyWriter::new(max_output_bytes);
-    let mut needs_separator = false;
-    let mut passed = false;
-    for line in text.lines() {
-        if needs_separator && output.write_all(b"\n").is_err() {
-            return output.into_string().map(|text| (text, passed, true));
-        }
-        needs_separator = true;
-        if line.trim().is_empty() {
-            continue;
-        }
-        #[cfg(test)]
-        crate::formats::json::parse_counter::record_json_parse();
-        let mut value = JsonDecoder::unlimited().decode_str(line).ok()?;
-        let line_passed = redact(redactor, &mut value, unkeyed);
-        passed |= line_passed;
-        if to_writer(&mut output, &value).is_err() {
-            return output.into_string().map(|text| (text, passed, true));
-        }
-    }
-    if trailing_newline && output.write_all(b"\n").is_err() {
-        return output.into_string().map(|text| (text, passed, true));
-    }
-    output.into_string().map(|text| (text, passed, false))
 }
 
 /// Redacts already admitted NDJSON values without parsing their source again.
