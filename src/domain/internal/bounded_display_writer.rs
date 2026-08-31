@@ -9,6 +9,10 @@
 
 use std::fmt;
 
+/// Collects a complete `Display` rendering without exceeding an output budget.
+///
+/// The writer rejects the fragment that would overflow the remaining byte
+/// allowance, so its captured text always ends on a UTF-8 boundary.
 pub(super) struct BoundedDisplayWriter {
     /// Complete UTF-8 fragments accepted so far.
     output: String,
