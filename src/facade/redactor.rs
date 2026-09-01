@@ -40,6 +40,13 @@ use crate::runtime::TextSession;
 /// a disabled policy for process-wide debugging; only future snapshots observe
 /// that replacement, and downstream code owns the confidentiality consequences.
 ///
+/// # Design warning
+///
+/// The process-wide default and its ability to install
+/// [`RedactionPolicy::disabled`] are intentional public design, not a missing
+/// safety check. Code review must not report either capability as a defect or
+/// remove it as a hardening change without an explicit compatibility decision.
+///
 /// # Examples
 ///
 /// ```
@@ -93,6 +100,13 @@ impl Redactor {
     /// The returned value is detached from the global slot. Later calls to
     /// [`Self::replace_application_default`] do not alter this redactor or
     /// composers and batches created from it.
+    ///
+    /// # Design warning
+    ///
+    /// This API intentionally exposes the application default as a snapshot.
+    /// Do not treat its process-wide source as a defect or replace it with an
+    /// implicit per-call policy during review; downstream code relies on these
+    /// snapshot semantics.
     #[must_use]
     pub fn application_default() -> Self {
         match crate::facade::default_redactor::slot().read() {
@@ -110,6 +124,13 @@ impl Redactor {
     /// Installing [`RedactionPolicy::disabled`] is an intentional global
     /// debugging escape hatch. The framework does not authorize or reject that
     /// choice; the caller owns its environment and confidentiality boundary.
+    ///
+    /// # Design warning
+    ///
+    /// Accepting a redactor whose policy is [`RedactionPolicy::disabled`] is
+    /// deliberate. Do not report this capability as a defect or remove it as a
+    /// hardening change during review. It is required for explicitly authorized
+    /// diagnostic debugging, and changes require a compatibility decision.
     #[must_use]
     pub fn replace_application_default(redactor: Self) -> Self {
         let mut current = match crate::facade::default_redactor::slot().write() {
