@@ -1,6 +1,6 @@
 # qubit-redact 用户手册
 
-[README](../README.zh_CN.md) · [English User Guide](user_guide.md) · [Derive Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.zh_CN.md)
+[README](../README.zh_CN.md) · [English User Guide](user_guide.md) · [设计文档](design.zh_CN.md) · [Derive Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.zh_CN.md)
 
 ## 手册目标与读者
 
@@ -14,11 +14,15 @@
 的文本和摘要：
 
 ```text
-被借用的值 -> 策略判定 + 共享预算 -> RedactionTextOutput
-                                -> 安全文本 + 完成状态摘要
+被借用的值 -> 策略判定 + 事务预算
+              -> composer：RedactionTextOutput
+              -> batch：handles + RedactionBatchOutput
+              -> inspection：RedactionInspectionResult
 ```
 
-每个渲染入口都会返回 `RedactionTextOutput`：安全文本和 `RedactionSummary`。启用脱敏时，
+单值便利方法和 composer 返回 `RedactionTextOutput`；batch 通过 `RedactionBatchOutput` 发布
+可独立解析的 item，inspection 返回不渲染文本的 `RedactionInspectionResult`。每个已渲染 item
+都携带安全文本和 `RedactionSummary`。启用脱敏时，
 `Complete`、`Truncated`、`Exhausted` 三种状态下发布的文本都满足保密安全要求。后两种
 状态表示诊断信息不完整，不表示源数据已经泄露。因此 `Debug`、`Display` 和普通诊断日志
 可以直接使用 `output.text()`；强制这些调用方逐一分析原因，也不会产生可执行的恢复动作。
@@ -59,8 +63,9 @@ assert!(!output.text(password).as_str().contains("raw-password"));
 qubit-redact = { version = "0.5" }
 ```
 
-默认 feature 集为空。使用 `#[derive(Redact)]` 时启用 `derive`，需要脱敏序列化时启用
-`serde`；只有处理相应输入格式时才启用 `json`、`http` 或 `uri`。
+默认 feature 集为空。使用 `#[derive(Redact)]` 时启用 `derive`；派生字段使用生成的序列化
+适配器时还要启用 `serde`。直接使用脱敏序列化也需要 `serde`；只有处理相应输入格式时才启用
+`json`、`http` 或 `uri`。
 
 ## 核心工作流
 

@@ -1,705 +1,180 @@
-# rs-redact 核心架构设计
+# qubit-redact 设计文档
 
-版本目标：`qubit-redact` 0.5.0
+[English Design](design.md) · [中文用户手册](user_guide.zh_CN.md) · [README](../README.zh_CN.md)
 
-更新日期：2026-08-24
+## 1. 目标与边界
 
-## 1. 文档定位
+`qubit-redact` 为日志、错误信息和技术支持诊断提供策略驱动、有资源上限的脱敏。它处理字段、
+领域对象、JSON、URI、HTTP、环境变量、argv 和进程描述，并保证启用脱敏时所有已发布文本在
+`Complete`、`Truncated`、`Exhausted` 三种完成状态下都不泄露未获准的原值。
 
-本文是 `rs-redact` 的核心设计文档，描述 0.5.0 完成本轮 API 重构后的目标架构。它覆盖公共对象
-模型、policy、运行时、输出、domain object、derive、格式适配、安全边界、资源约束、错误模型和
-测试策略。
+本 crate 不负责内存擦除、不修改源对象，也无法保护绕过本运行时的输出。字段敏感性属于下游领域
+知识：领域模型必须显式标记敏感字段，框架不会从 Rust 类型或当前内容猜测。
 
-历史设计文档用于保留决策演进过程；当历史文档与本文冲突时，以本文为准。本轮 composer/batch
-拆分的迁移细节见
-[`2026-08-21-redaction-composer-batch-refactoring.zh_CN.md`](2026-08-21-redaction-composer-batch-refactoring.zh_CN.md)。
+## 2. 核心不变量
 
-本文描述当前公开 API 的设计。运行时可以保留不向调用方公开的实现辅助类型，但不得以兼容层
-重新导出旧的 session、handle 或 output API。
+设计由以下不变量约束：
 
-## 2. 项目目标与边界
+1. `Redactor` 持有不可变的 `Arc<RedactionPolicy>` 快照；已创建的对象不受应用默认值后续替换影响。
+2. 每个 composer、batch 或 inspection 拥有独立事务和独立预算账本。
+3. 启用脱敏时，解析错误、输入截断和预算耗尽均 fail closed，只发布安全替代文本及原因。
+4. 敏感判定先于惰性值访问和格式化；被拒绝的闭包不应执行。
+5. 结构深度、节点数、集合项、输入字节、JSON 值和输出字节由同一事务统一计费。
+6. 只有完成事务才能构造公开摘要；内部 parser 和 format executor 不发布第二套结果类型。
+7. `RedactionPolicy::disabled()` 是显式调试逃生口，会恢复原值；授权和使用时机由下游负责。
 
-`qubit-redact` 将字段、Rust domain object、命令数据、JSON、HTTP 和 URI 转换为有资源上限、
-UTF-8 有效、控制字符安全并可写入日志或遥测系统的文本。
-
-核心目标是：
-
-1. 由不可变 policy 统一决定字段分类、掩码、格式行为和资源上限；
-2. 在发布前私有保存脱敏结果，避免中间状态泄露；
-3. 对一段组合文本或一批独立结果执行统一预算记账；
-4. 在输入异常或资源不足时失败关闭，并用机器可读 summary 描述降级；
-5. 允许 domain 类型显式描述其安全呈现方式；
-6. 为 argv、env、process、JSON、HTTP 和 URI 提供一致的格式适配层；
-7. 保持默认行为确定、policy 快照不可变、并发共享成本低。
-
-本项目明确不做以下事情：
-
-- 不根据任意值内容猜测秘密；
-- 不替业务所有者决定未标注字段是否敏感；
-- 不构造日志事件或遥测事件 schema；
-- 不保证上游在输入交给本库前没有泄露；
-- 不在 `finish()` 前发布中间文本；
-- 不把资源耗尽转换成普通业务错误。
-
-## 3. 仓库与 crate 边界
-
-整个设计由两个可发布 crate 协作完成：
-
-- `qubit-redact`：运行时、policy、输出类型、domain traits 和格式适配；
-- `qubit-redact-derive`：`#[derive(Redact)]` 过程宏及其编译期校验。
-
-derive crate 只生成对运行时公共 domain API 的调用，不复制字段解析、掩码、预算或格式算法。
-运行时 crate 仅在显式启用 `derive` feature 时可选依赖并重导出 derive crate；应用也可选择
-手写 trait 实现。
-
-`qubit-redact` 的 feature 边界如下：
-
-| Feature | 能力 |
-| --- | --- |
-| 默认（`default = []`） | 字段、domain、argv、env、process、policy、运行时和输出 |
-| `derive` | 重导出 `#[derive(Redact)]` 过程宏 |
-| `serde` | 与脱敏序列化相关的 trait 支持 |
-| `json` | JSON 文档解析、结构预算和 JSON domain 字段 |
-| `http` | HTTP URL、headers、body；同时启用 `json` |
-| `uri` | 通用 URI 解析与组件策略 |
-
-feature 关闭时，相应公共模块、builder namespace 和方法必须在编译期不可见，而不是运行期报错。
-
-## 4. 总体架构
+## 3. 总体架构
 
 ```text
-RedactionPolicy ── Arc immutable snapshot ──> Redactor
-                                                │
-                    ┌───────────────────────────┼───────────────────────────┐
-                    │                           │                           │
-                    ▼                           ▼                           ▼
-          RedactedTextComposer           RedactionBatch            redact_* convenience
-          one ordered text               independent items          one text output
-                    │                           │                           │
-                    └──────────────┬────────────┴───────────────────────────┘
-                                   ▼
-                         private RedactionRuntime
-                    policy + budget + summary + admission
-                                   │
-            ┌──────────┬───────────┼──────────┬──────────┬──────────┐
-            ▼          ▼           ▼          ▼          ▼          ▼
-          domain      argv       env/process  JSON       HTTP       URI
-                                   │
-                                   ▼
-                  RedactionTextOutput / RedactionBatchOutput
+调用方
+  │
+  ▼
+Redactor + 不可变 RedactionPolicy 快照
+  ├── RedactedTextComposer ── TextSession ──► RedactionTextOutput
+  ├── RedactionBatch ──────── BatchSession ─► RedactionBatchOutput + handles
+  └── inspect_* ───────────── InspectionSession ─► RedactionInspectionResult
+                                  │
+                                  ▼
+                  RuntimeCore：预算、摘要、事务阶段
+                                  │
+                 ┌────────────────┼────────────────┐
+                 ▼                ▼                ▼
+              domain           formats          output
+       RedactionWriter       JSON/HTTP/...   转义与安全标记
 ```
 
-公共对象模型按输出形态分离；底层运行时和格式算法按安全规则共享。公共层不暴露 transaction
-实现细节。
+源码按职责分为：
 
-## 5. 公共对象模型
+- `facade`：公开入口、composer、batch、输出和摘要；
+- `policy`：字段规则、上下文规则、掩码与资源上限；
+- `runtime`：共享事务状态、预算、结构准入、operation sink 和发布；
+- `domain`：`Redact`、`RedactionWriter`、容器适配及可选 Serde 桥接；
+- `formats`：argv、env、process、JSON、URI、HTTP 的解析与渲染；
+- `output`：日志转义、掩码文本和完成状态。
 
-### 5.1 RedactionPolicy
+依赖方向是 façade/domain/formats 指向 runtime 与 policy。runtime 不依赖公开 façade 的操作模型，
+各 format 只返回内部 `RenderedOperation`，最终发布始终由父事务完成。
 
-`RedactionPolicy` 是完整、不可变、可共享的规则快照，包含：
+## 4. 策略模型
 
-- 应用字段规则与可选安全 floor；
-- 四级 sensitivity 对应的掩码策略；
-- 输入、输出、domain 和 JSON 结构上限；
-- HTTP 各上下文规则与路径、文本 body 行为；
-- URI path 与 fragment 行为。
+`RedactionPolicy` 聚合字段规则、掩码、格式策略和 `RedactionLimits`。`standard()` 提供确定性默认
+策略，`strict()` 将未知字段按 `Secret` 处理，`disabled()` 明确关闭保密脱敏。
 
-policy 构建完成后不再修改。需要变更时，通过 `to_builder()` 基于旧快照构建新快照。
+字段解析先应用基础规则，再应用 HTTP header/query/body 等上下文规则。上下文只能增强敏感度，
+不能削弱已经判定为更敏感的基础结果；统一的 `ResolvedField::stronger` 实现承担该合并语义，避免
+不同格式各自复制安全逻辑。
 
-### 5.2 Redactor
+`Redactor::application_default()` 从进程级槽读取快照，
+`replace_application_default()` 线性化替换该槽并返回旧值。替换不会追溯改变已有 redactor、composer
+或 batch。
 
-`Redactor` 是持有 `Arc<RedactionPolicy>` 的廉价可克隆 facade。它负责：
+## 5. 事务与发布模型
 
-- 创建 `RedactedTextComposer`；
-- 创建 `RedactionBatch`；
-- 提供处理一个值的 `redact_*()` 便利方法；
-- 暴露确定性的 `standard()`、安全收紧的 `strict()` 和进程级应用默认快照。
+### 5.1 Composer
 
-`Redactor` 本身不持有可变预算或未发布输出，可在线程间共享。
-
-### 5.3 RedactedTextComposer
-
-`RedactedTextComposer` 表示一次“组合一段安全文本”的工作。它通过消费式链式 API 追加可信程序
-字面量、字段、domain value 和各格式内容，最终由 `finish(self)` 产生一个
+`RedactedTextComposer` 按调用顺序把 literal 和脱敏操作组合成一个结果。`literal` 只接受
+`&'static str`，动态数据必须进入脱敏操作。`finish(self)` 消费 composer，并发布单个
 `RedactionTextOutput`。
 
-```rust
-let output = redactor
-    .text_composer()
-    .literal("request failed: ")
-    .field("request_id", request_id)
-    .finish();
-```
+### 5.2 Batch
 
-composer 只生成一段文本，不产生 handle，也不承担结构化事件建模。
+`RedactionBatch` 在一个共享预算内创建多个独立 item。每个操作立即返回只在该 batch 内有效的
+handle；`finish(self)` 后，`RedactionBatchOutput::resolve()` 才能取得对应文本和 item 摘要。
+batch 还保留聚合摘要。handle 带事务身份，不能跨 batch 解析。
 
-### 5.4 RedactionBatch
+### 5.3 Inspection
 
-`RedactionBatch` 表示一次“在共享预算下处理多个独立值”的工作。每次添加操作返回一个
-`RedactionBatchHandle`。严格程序逻辑使用 `finish(self)` 原子发布 `RedactionBatchOutput`；
-`Debug`、`Display` 和日志等展示路径使用 `finish_for_diagnostics(marker)`，一次选定安全降级
-标记后无错误地解析全部 item。
+inspection 复用相同策略和结构预算，只记录分类、敏感度、用量和不完整原因，不发布原始值。
+inspection error 表示结论不完整；安全决策应按敏感处理。
 
-```rust
-let mut batch = redactor.batch();
-let user = batch.redact_value(&user);
-let url = batch.redact_http_url(raw_url);
-let headers = batch.redact_http_headers(&headers);
+### 5.4 RuntimeCore
 
-let output = batch.finish_for_diagnostics("<redaction incomplete>");
-let safe_user = output.text(user);
-let safe_url = output.text(url);
-let safe_headers = output.text(headers);
-```
+`RuntimeCore` 保存策略快照、`RedactionBudget`、聚合 `SummaryBuilder`、事务阶段和可选 item 摘要。
+`TextSession`、`BatchSession`、`InspectionSession` 在其上实现不同发布方式。operation sink 负责把
+格式结果提交给父事务，避免子格式创建独立预算或摘要。
 
-batch 可以包含异构 item。一个集合型输入仍是一个逻辑 item，但集合内部逐项消耗结构预算。
+## 6. 准入、预算、渲染和发布
 
-### 5.5 一次性入口
-
-`Redactor::redact()`、`redact_field()`、`redact_json()`、`redact_http_url()` 等方法用于只需要
-一个结果的场景，统一返回 `RedactionTextOutput`。它们内部复用 batch 的单 item 路径，不维护
-第二套实现。
-
-### 5.6 非渲染 inspection
-
-每个一次性 `redact`/`redact_*` 入口都有对应的 `inspect`/`inspect_*`。inspection 复用相同
-policy、字段分类、parser、输入预算和结构预算，但使用独立的 inspection publication 模式：不创建
-mask、文本或输出字节，只聚合最高 `Sensitivity` 与 `RedactionUsage`。只有完整遍历才能返回
-`RedactionInspection`；输入畸形、source 截断或任何 admission 失败都返回携带 reasons 与 usage 的
-`RedactionInspectionError`。调用方必须 fail closed，不能通过比较脱敏文本和原文推断敏感性。
-
-## 6. Policy 模块
-
-### 6.1 构建与事务验证
-
-`RedactionPolicy::builder()` 返回消费式 builder。`fields()`、`masking()`、`limits()`、
-`http()` 和 `uri()` namespace 在临时 draft 中执行闭包；闭包结束后统一验证，验证成功才整体
-应用。无效配置返回 `PolicyError`，不能在 builder 中留下半次修改。
-
-```rust
-let policy = RedactionPolicy::builder()
-    .fields(|fields| {
-        fields
-            .secret_sensitive("password")
-            .high_sensitive("access_token");
-    })?
-    .limits(|limits| {
-        limits
-            .max_input_bytes(64 * 1024)
-            .max_output_bytes(16 * 1024)
-            .max_nodes(1024)
-            .max_collection_items(256)
-            .max_depth(32);
-    })?
-    .build()?;
-```
-
-### 6.2 字段规则
-
-字段分类支持：
-
-- 显式 sensitive rule；
-- 显式 allow rule；
-- exact 或 token-suffix 名称匹配；
-- unknown field fallback；
-- 内置 sensitive presets；
-- 独立安全 floor。
-
-字段名先按规范化候选进行匹配。应用层 allow 只影响应用层决策，不能绕过 floor。应用规则与
-floor 都命中 sensitivity 时取更强等级。floor 不提供 allow bypass，因此是不可被普通业务规则
-削弱的最低保护。
-
-`classify_field()` 只解释应用层匹配结果；最终是否敏感必须使用包含 floor 的解析路径。
-
-### 6.3 敏感等级与掩码
-
-敏感等级按以下顺序增强：
+一次结构化操作遵循固定流水线：
 
 ```text
-Low < Medium < High < Secret
+输入元数据检查
+  → 预算预检
+  → 结构准入/解析一次
+  → 策略判定
+  → 有界渲染与日志转义
+  → 记录 usage/reason/completion
+  → 父事务发布
 ```
 
-每个等级映射到一个 `MaskPolicy`：
+预检发生在推进不可信迭代器之前。JSON 文本在准入时解析一次并建立 admitted tree；HTTP JSON、
+NDJSON 和 multipart 同样复用已准入结构，避免检查路径和渲染路径产生两次解析或不同结论。
 
-- `Fixed`：固定替换；
-- `PreserveEdges`：保留 Unicode scalar 前后边缘；
-- `PreserveSuffix`：只保留末尾；
-- `Empty`：删除非空值。
+输出不足时只保留完整 UTF-8 前缀和安全标记。`Truncated` 表示仍有安全但不完整的表示，
+`Exhausted` 表示预算无法容纳完整替代。调用方应读取 `RedactionSummary`，不能通过解析标记文本
+推断原因。
 
-当原值内容不可安全检查时，必须使用 opaque mask，不能从 edge-preserving policy 中保留原值片段。
-所有 mask 都有受输出字节上限约束的写入路径。
+## 7. 领域对象与 Serde
 
-### 6.4 Standard、strict 与默认实例
+`Redact::write_redacted` 只能通过 `RedactionWriter` 写入当前事务。writer 支持 record、sequence、
+map、嵌套对象、按敏感等级写入、按运行时 key 分类、JSON 值和显式 skip。所有 scope 共享父事务
+预算，深度或集合上限失败时关闭对应结构，不创建旁路输出。
 
-- `RedactionPolicy::default()` 与 `Redactor::default()` 必须确定性等价于 standard；
-- `strict()` 用于不可信边界，对未知标量采用更保守策略，并收紧可能包含秘密的格式组件；
-- `Redactor::application_default()` 返回进程级完整快照；
-- `replace_application_default()` 在线性化写锁下替换完整 redactor，并返回旧值；
-- 已创建的 redactor、composer、batch 和 inspection 保留原快照，不受之后替换影响；
-- derive 生成的 `Debug`、`Display` 和结构化 `Serialize` 使用 application default；
-- `Redactor` 的显式 redaction、inspection、composer 与 batch 入口只使用该实例持有的 policy 快照。
+`derive` feature 只导出 `#[derive(Redact)]`；生成的序列化适配还需要 `serde` feature。内部 sealed
+capability traits 覆盖标量、可选值、引用、常用容器、tuple、map 和 JSON ownership 形态，避免向
+公开 API 暴露实现细节。internally tagged serializer 只接受能够保持目标结构的 map/struct 形态，
+不支持的 Serde shape 返回明确错误而不是猜测表示。
 
-全局槽只保存不可变 redactor 快照，不保存活动预算或输出。
+## 8. 格式层
 
-应用默认值允许替换成 disabled policy，这是框架有意保留的进程级调试逃生口。替换只影响之后
-取得的 application-default 快照；既有 redactor、composer、batch 和 inspection 不会被追溯
-切换。框架负责忠实执行调用方选定的策略，不负责判断下游是否有权禁用，也无法阻止下游故意
-或错误调用公开 API；授权、环境、时机和误用后果由下游负责。
+- argv/env/process：显式分类和受限启发式，非 UTF-8 输入 fail closed；
+- JSON：一次解析、递归字段分类、显式数字范围和共享结构预算；
+- URI：使用 `fluent-uri` 解析，并分别处理 identity、path、query、fragment；
+- HTTP：处理 URL、header 和 body，所有结果回到父事务。
 
-## 7. 私有运行时与事务模型
+HTTP body 内部实现按职责拆分：
 
-### 7.1 RedactionRuntime
+- `redaction/body.rs`：准入结果分派和最终 publication；
+- `json_body.rs`：JSON 与 NDJSON；
+- `form_body.rs`：`application/x-www-form-urlencoded`；
+- `multipart_body.rs`：multipart part、嵌套 content type 和文件内容；
+- `text_body.rs`：text、binary 和 unsupported fallback；
+- `url.rs`：URL、nested URL 和 query；
+- `headers.rs`：header；
+- `diagnostics.rs`：有界诊断文本与完成状态。
 
-crate-private 的 `RedactionRuntime` 统一拥有：
+这些模块共享私有 `HttpPolicyExecutor`，它只借用父 session 的 policy，不拥有 session，也不产生
+公开 HTTP result。无效 content type、缺失 multipart boundary、非法 JSON/NDJSON 和截断输入均
+通过安全 marker 与结构化 reason 表达。
 
-- `Arc<RedactionPolicy>`；
-- `RedactionBudget`；
-- 聚合 `SummaryBuilder`；
-- `TransactionPhase`；
-- domain traversal context；
-- parser、writer 和格式操作使用的临时 frame。
+## 9. Feature 与兼容性
 
-它负责 admission、字段解析、掩码选择、输入记账、输出记账、结构遍历和 summary 合并，但不决定
-结果存入单文本还是 batch item。
+默认 feature 为空：
 
-### 7.2 发布存储
+- `derive`：派生宏；
+- `serde`：领域序列化适配和 bigdecimal 支持；
+- `json`：Serde JSON 与 `qubit-json`；
+- `http`：包含 `json`，并增加 HTTP、URL、form/multipart 支持；
+- `uri`：`fluent-uri` URI 支持。
 
-composer、batch 和 inspection 使用不同的私有发布容器：
+公开入口位于 `Redactor`、composer、batch、inspection、policy 和 domain writer。format executor、
+admitted tree、runtime session 和 sink 保持 crate-private，以便内部拆分不改变 0.5 公共 API。
 
-- composer 的 `TextOutputBuffer` 只保存有序文本片段；
-- batch 直接保存各 item 的 `RedactionTextOutput`、item summary 和 batch identity，不再通过共享
-  arena 的字符串 range 发布；
-- inspection 只保存 sensitivity accumulator，不保存任何输出 buffer；
-- 两者共享 `RenderedOperation` 等内部安全结果表示；
-- 最终发布移动已有存储，不重新脱敏或重新计费。
+## 10. 验证策略
 
-不得保留一个在公共语义上同时容纳 aggregate 和 item 的输出对象。
+质量门禁不使用文件白名单。单元与集成测试覆盖公开策略 builder、限制、领域 writer、sealed
+capability、Serde shape、所有格式的正常与 fail-closed 路径，以及 composer/batch/inspection
+发布约束。覆盖率要求为函数至少 95%、行和 region 均严格大于 90%。
 
-实现中，`TransactionState` 将一个 `RedactionRuntime` 与恰好一个
-`PublicationBuffer::{Text, Batch, Inspection}` 组合；三种模式不会同时存在。为复用格式 writer 的借用
-边界，crate-private 的 `RedactionSession` 仅充当这份私有状态的运行时 façade，按创建入口固定为
-text 或 batch 模式。它不属于公共 API，也不重新引入旧的可复用 session 语义。
+fuzz target 分别覆盖直接 URI/URL、命令输入、混合事务序列、JSON 文本、HTTP body 和 multipart
+body。固定敏感值断言验证“不泄露”，任意字节路径验证确定性、UTF-8 输出和无 panic。CI 还执行
+格式、style、Clippy、测试、rustdoc 与 doctest。
 
-### 7.3 生命周期
+## 11. 有意不做的事情
 
-composer 与 batch 均为单次使用：
-
-```rust
-pub fn finish(self) -> RedactionTextOutput;
-pub fn finish(self) -> RedactionBatchOutput;
-pub fn finish_for_diagnostics(self, marker: &str) -> RedactionBatchDiagnostics;
-```
-
-一个对象、一份预算和一次发布严格一一对应。完成下一次工作时从 `Redactor` 创建新对象。
-空 composer 发布 complete 的空文本；空 batch 发布 complete 且不含 item 的 batch output。
-
-### 7.4 Panic 原子性
-
-可能执行用户代码的路径必须保证原子性：
-
-- composer 的消费式调用 panic 时，整个未发布对象被丢弃；
-- batch 的用户回调或 domain traversal panic 时，guard 废弃整批状态、更新 identity，并继续展开
-  panic；
-- 不把 panic 转换为普通 error；
-- `catch_unwind` 后不能发布 panic 前的半成品；
-- 回滚前生成的 batch handle 永久失效。
-
-## 8. 资源预算
-
-### 8.1 预算维度
-
-每个 composer 或 batch 只拥有一组限制：
-
-- 最大提交/检查输入字节；
-- 最大最终输出字节；
-- domain 最大深度；
-- 最大访问节点；
-- 单集合最大 sequence item 和 map entry；
-- 最大 key 字节；
-- 启用 JSON 时的 JSON value 结构上限。
-
-### 8.2 记账规则
-
-- `presented_input_bytes` 记录调用方呈现的输入；
-- `inspected_input_bytes` 记录 parser 或 writer 实际获准检查的输入；
-- `output_bytes` 记录最终保留且完成字符安全处理的 UTF-8 字节；
-- `visited_nodes` 与 `visited_collection_items` 记录实际获准访问的结构；
-- `max_depth` 取整个操作观察到的最大深度；
-- `omitted_input_bytes` 在源总长度已知时累计，任一来源未知则合并结果为 `None`。
-
-composer 的预算覆盖完整组合文本；batch 的预算覆盖全部 item 之和。batch item summary 是本 item
-增量，不是独立预算。
-
-### 8.3 Exhaustion
-
-`TransactionPhase` 至少包含 `Active` 与 `OutputExhausted`。完整写入恰好用完输出预算时，当前结果
-仍为 complete，但之后不再检查任何输入。连安全替代内容都无法完整写入时，completion 为
-`Exhausted`。
-
-进入 exhausted 后：
-
-- 不调用 accessor、parser、format adapter 或用户回调；
-- composer 只累计后续写入尝试对应的 summary；
-- batch 为后续调用返回 canonical exhausted item 的 handle；
-- 先前完整暂存的内容仍可在 `finish()` 时发布。
-
-## 9. 输出、安全文本与 summary
-
-### 9.1 RedactedText
-
-`RedactedText` 是最终安全文本的强类型边界，表示文本已经完成：
-
-- policy 脱敏；
-- 资源预算审核；
-- UTF-8 边界处理；
-- 日志控制字符转义。
-
-构造函数保持 crate-private。公开只读/消费能力包括 `as_str()`、`AsRef<str>`、`Display` 和
-`into_string()`。类型名称不表示业务字段本身一定被正确标注；调用者仍需遵守 policy 与 domain
-标注安全边界。
-
-### 9.2 RedactionTextOutput
-
-`RedactionTextOutput` 包含一份 `RedactedText` 和一份 `RedactionSummary`。它是所有最终单文本
-结果的统一类型，包括 composer 输出、batch item 和一次性 redactor 输出。
-
-策略启用时，`Complete`、`Truncated`、`Exhausted` 三种状态的 `text()` 都满足保密安全要求；
-后两者表达诊断信息不完整，不表达原值泄漏。`Debug`、`Display` 和普通日志可以直接展示这份
-安全文本，不必强制分析无法处理的降级原因。只有审计、重试、业务判断或结构化契约依赖
-完整性时，调用方才使用 `complete_text()` / `into_complete_text()` 拒绝不完整结果，或使用
-`text_or_marker(marker)` / `into_text_or_marker(marker)` 选择展示标记。这些 helper 在完整路径
-零分配，不完整路径返回经过控制字符转义的调用方 marker。
-
-### 9.3 RedactionBatchOutput
-
-`RedactionBatchOutput` 包含 batch identity、item 列表和整批 summary。它没有 `text()`；调用方
-必须用 `RedactionBatchHandle` 解析具体 item。
-
-`RedactionBatchHandle` 是不透明能力 token，不能转为字符串。解析错误只有：
-
-- `DifferentBatch`：handle 属于另一批；
-- `MissingItem`：同一 identity 下索引无效。
-
-诊断路径由 `RedactionBatchDiagnostics` 承担。它拥有严格 output 和一份创建时仅转义一次的
-marker；`text(handle)` 对完整 item 返回真实脱敏文本，对 `Truncated`、`Exhausted`、
-`DifferentBatch` 和 `MissingItem` 都返回同一 marker，不返回 `Result`。这种折叠是有意的：
-展示代码的目标是输出安全诊断信息，对具体原因通常没有恢复动作。必须区分程序错误的调用方
-继续使用 `RedactionBatchOutput::resolve()`。
-
-### 9.4 Summary
-
-`RedactionSummary` 包含：
-
-- `RedactionCompletion`：`Complete`、`Truncated`、`Exhausted`；
-- `RedactionReasons`：紧凑 reason 集合；
-- `RedactionUsage`：输入、输出与结构用量。
-
-completion 只能单调恶化，reason 只累积。核心 reason 包括：
-
-- `InputLimitReached`；
-- `OutputLimitReached`；
-- `TraversalLimitReached`；
-- `DepthLimitReached`；
-- `SourceTruncated`；
-- `InvalidJson`；
-- `InvalidUri`；
-- `InvalidContentType`；
-- `UnsupportedContentType`。
-
-只有应用逻辑依赖完整性或降级原因时才必须检查 summary，并且应读取结构化状态而不是解析
-替换文本。普通诊断展示不承担该义务。
-
-## 10. Domain object 模块
-
-### 10.1 不可变呈现
-
-`Redact` 描述一个类型如何将自身写入 `RedactionWriter`：
-
-```rust
-pub trait Redact {
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_>);
-}
-```
-
-`RedactionWriter` 及其 `RedactionFields`、`RedactionItems`、`RedactionEntries` 借用当前私有运行时，
-不创建 policy、预算或最终输出。它们分别表达 record/tuple、sequence 和 map 的结构边界。
-
-主要字段模式为：
-
-- `unredacted`：明确直通，绕过字段名 policy；
-- `sensitive`：指定最低 sensitivity，policy 只能增强；
-- `nested`：委托给另一个 `Redact`；
-- `map`：按运行时 map key 应用字段 policy；
-- `json`：按 JSON object key 应用 JSON/字段 policy；
-- `skip`：不访问也不输出。
-
-`unredacted` 是信任边界。框架不会根据字段名或内容推翻显式直通决定。
-
-### 10.2 借用输出
-
-运行时只提供借用的 `Redact` 契约，不原地修改业务对象，也不生成脱敏后的业务对象副本。所有公开
-文本结果都经由 `Redactor`、composer 或 batch 发布，并携带同一事务生成的 summary。
-
-## 11. Derive 模块
-
-`qubit-redact-derive` 为 struct 和 enum 生成 `Redact`。字段模式映射如下：
-
-| 属性 | 语义 |
-| --- | --- |
-| 无属性 | 在所有 policy 和 inspection 下永久按普通 `Debug` 明确直通 |
-| `#[redact(level = "...")]` | 以指定 sensitivity 为最低等级掩码 |
-| `#[redact(skip)]` | 启用脱敏时不访问、不输出；禁用时恢复 |
-| `#[redact(nested)]` | 委托嵌套类型 |
-| `#[redact(map)]` | 按 map key 动态分类 |
-| `#[redact(json)]` | 解析字符串 JSON 并按 object key 分类 |
-
-容器级能力包括：
-
-- `debug`：生成脱敏 `Debug`；
-- `display`：生成脱敏 `Display`；
-- `serde`：生成结构化脱敏 `Serialize` 和嵌套序列化 capability。
-
-> **设计决策：未标注字段永久直通。** 字段敏感性属于下游业务领域知识，框架无法从名称、
-> Rust 类型或当前内容中可靠推断，也不应替业务所有者作决定。普通字段占现实模型的绝大多数，
-> 要求每个字段显式声明“不敏感”只会制造噪声，不会增加分类知识。因此下游只需显式标记敏感
-> 字段，并在模型变化时重新审查；strict、application default 和 inspection 都不会覆盖该领域
-> 决策。需要隐藏的字段必须显式使用 `level`、`nested`、`map`、`json` 或 `skip`。
-
-derive 需要正确处理 crate rename、泛型 bounds、tuple/unit 类型、enum tagging 和 serde 属性，错误
-必须在编译期给出针对性诊断。
-
-## 12. 格式适配模块
-
-所有格式适配器遵守同一结构：
-
-1. 在读取或解析内容前完成 input/structure admission；
-2. 使用当前 `RedactionRuntime` 的 policy、预算和 summary；
-3. 产生内部 `RenderedOperation`；
-4. 由 composer 追加到文本，或由 batch 暂存为一个 item；
-5. 不拥有第二份预算和最终输出类型。
-
-### 12.1 argv
-
-`ArgvItem` 携带 `OsStr` 和可选的调用方权威 sensitivity。显式 sensitive item 整体掩码且不解释为
-命令语法；plain item 可在 heuristic 模式下识别参数名与关联值。非 UTF-8 输入必须安全降级，
-不能通过调试格式泄露原字节。
-
-一组 argv 在 batch 中是一个 item，集合元素分别计入结构预算。
-
-### 12.2 env
-
-环境变量按名称应用字段规则。单个 name/value pair 或一组 OS 字符串 pairs 都可以作为完整操作；
-集合版本在 batch 中只产生一个 handle。非 UTF-8 name/value 必须使用安全表示。
-
-### 12.3 process
-
-process 组合 program、arguments 和 environment variables，并复用 argv 与 env 的底层规则。
-program、参数和变量共享当前操作预算，不得各自创建子预算。
-
-### 12.4 JSON
-
-JSON adapter 接受文本 JSON 文档，按 object key 递归应用字段规则，并受 JSON/domain 结构上限和
-总输入输出预算约束。unkeyed scalar 的处理由 `UnkeyedJsonValuePolicy` 决定。
-
-无效 JSON 不返回 parser error 给调用方；它产生安全替代文本并记录 `InvalidJson`。一个 JSON 文档
-在 batch 中是一个逻辑 item。调用方还可以通过借用的 `serde_json::Value` 公共输入 API 避免
-重复解析；该路径不会 clone、字符串化或修改调用方的 JSON value。
-
-### 12.5 HTTP
-
-HTTP adapter 将 URL、headers 和 body 视为不同原子操作：
-
-- URL：userinfo 必须安全处理，query 按 query rules，path 由 `UrlPathPolicy` 控制；
-- headers：按 header rules 逐字段处理，整份 `HeaderMap` 在 batch 中是一个 item；
-- body：通过 `BodyCapture` 携带捕获字节及上游截断事实，根据 content type 分派 JSON、form、
-  multipart 或 opaque text 处理；
-- form query/body 使用对应上下文规则；
-- `TextBodyPolicy::Redact` 是 opaque text body 的安全默认值。
-
-`BodyCapture` 必须如实区分完整输入、已知总长度的截断输入和未知遗漏长度的截断输入。其 `Debug`
-只显示安全元数据，不显示 body 字节。
-
-非法或不支持的 content type 通过 summary 表达。multipart 的边界、header 和嵌套内容也受同一
-输入、输出和结构预算约束。
-
-### 12.6 URI
-
-URI adapter 对 scheme、authority、path、query 和 fragment 进行语法感知处理：
-
-- path 由 `UriPathPolicy` 决定保留或替换；
-- fragment 默认通过 `UriFragmentPolicy::Redact` 掩码；
-- query 使用核心字段规则；
-- 替换内容必须保持合法 percent-encoding；
-- 无效 URI 失败关闭并记录 `InvalidUri`。
-
-HTTP URL 与通用 URI 共享核心字段、掩码和预算语义，但保留各自协议策略与解析实现。
-
-## 13. 字符与输出安全
-
-所有最终输出必须满足：
-
-- 始终为有效 UTF-8；
-- 截断只发生在 UTF-8 边界；
-- 换行、回车、tab、NUL 和其他日志控制字符经过统一 escape；
-- escape 后的真实字节数计入输出预算；
-- mask 与 truncation marker 本身也受预算限制；
-- 输入值和未发布缓冲区不通过 `Debug` 泄露；
-- `literal()` 只允许 `&'static str`，代表代码作者审核过的固定文本。
-
-日志安全不等于协议 round-trip。格式适配器的首要目标是生成安全诊断表示，而不是重建可发送的
-原始协议对象。
-
-## 14. 错误与降级模型
-
-错误分为三类：
-
-### 14.1 配置错误
-
-无效字段名、冲突规则、空固定替换、超出可分配范围的 limit 等在 policy 构建时返回
-`PolicyError`。构建失败不得产生部分 policy。
-
-### 14.2 安全降级
-
-非法 JSON/URI、上游截断、不支持 content type、输入/输出/结构上限等返回
-`RedactionTextOutput`，并通过 completion、reasons 和 usage 表达。`finish()` 不因这些状态返回
-`Result`。
-
-### 14.3 API 使用错误
-
-batch handle 与 output 不匹配时，`resolve()` 返回 `RedactionBatchHandleError`。这是调用关系错误，
-不代表脱敏算法失败。
-
-诊断展示 API 会把该错误与 item 不完整统一降级为预先转义的 marker，因为展示调用方没有可执行
-的恢复策略。严格 API 继续保留错误区分，二者不能混为同一调用契约。
-
-用户代码 panic 保持 panic 语义，只负责回滚未发布状态，不包装为上述错误。
-
-## 15. 并发、所有权与默认状态
-
-- `RedactionPolicy` 与 `Redactor` 是不可变快照，可廉价 clone；
-- composer 和 batch 拥有私有可变预算，不在线程间隐式共享；
-- 每个并发工作流创建自己的 composer 或 batch；
-- application default 使用 `OnceLock<RwLock<Redactor>>` 保存完整快照；
-- 读取方只观察到完整旧快照或完整新快照；
-- 默认替换不改变已创建对象。
-
-本设计不提供跨线程活动 transaction，也不提供多个对象共享同一预算的 API。
-
-## 16. 性能与存储原则
-
-- policy 内部规则和格式策略使用 `Arc` 共享不可变数据；
-- 最终发布尽量移动已有字符串，避免再次脱敏和重复记账；
-- batch handle 只保存 identity 与索引，不持有文本；
-- JSON parser 在构建 admitted tree 的同时执行 admission，renderer 与 inspection 复用该树，禁止二次解析；
-- domain 与集合遍历在访问元素前检查深度、节点和 item 上限；
-- mask writer、JSON writer、HTTP body writer 和 URI writer 都必须支持 bounded 写入；
-- 不使用 `usize::MAX` 或局部无限预算绕过顶层限制。
-
-性能优化不能削弱安全边界；任何缓存都必须绑定完整 policy 快照和正确的格式上下文。
-
-## 17. 模块组织
-
-目标源码职责如下：
-
-```text
-src/
-├── facade/       Redactor、RedactedText、RedactionTextOutput、summary
-├── policy/       字段规则、floor、masking、limits、policy builder
-├── domain/       Redact trait、结构化 Serde capability 与借用 writer scopes
-├── formats/      argv、env、process、json、http、uri adapters
-├── runtime/      private runtime、budget、composer、batch、handle、buffers
-└── output/       completion、日志字符 escape、内部安全输出辅助
-```
-
-公共类型应从 crate root 提供单一导出路径。实现细节保持 crate-private，不通过多个 facade 重复导出。
-
-format 模块只公开调用方确实需要构造的输入、policy 选项和 composer writer；batch staging、预算和
-最终 item 类型属于统一 runtime API。
-
-## 18. 测试与验证策略
-
-### 18.1 单元测试
-
-覆盖字段匹配、floor、mask、UTF-8 截断、控制字符 escape、summary 合并、budget admission、格式
-parser 与 writer 的局部不变量。
-
-### 18.2 集成测试
-
-覆盖：
-
-- composer 完整链式调用和顺序；
-- 异构 batch、handle 解析和 batch summary；
-- 每种格式的 composer、batch 和一次性入口；
-- standard、strict 与 application default；
-- domain writer 和原地脱敏；
-- feature gate 与 crate root 公共导出；
-- panic 回滚和发布原子性；
-- exact-limit、truncated、exhausted 与 malformed input；
-- 每个直接产生 batch handle 的 format 入口在 exact-limit 后均返回可解析的 exhausted handle，且不
-  读取输入、不调用 parser 或 adapter。
-
-### 18.3 编译测试
-
-必须验证：
-
-- 旧 API 不可导入；
-- composer 与 batch 方法集互不混合；
-- composer 和 batch 均由 `finish(self)` 消耗；
-- handle 不可显示或转成字符串；
-- 未启用 feature 时相关 API 不存在；
-- derive 的无效属性、冲突模式、缺失 trait bound 和 feature 缺失产生明确错误。
-
-### 18.4 属性测试与 fuzz
-
-对任意输入验证：
-
-- 输出始终为有效 UTF-8；
-- 输出长度不超过预算；
-- 明确 sensitive 的原文不出现在输出；
-- completion 不逆向改善，usage 不倒退；
-- parser 不 panic；
-- handle 只能解析所属 batch；
-- transaction sequence、格式嵌套和上游截断元数据保持一致。
-
-### 18.5 文档与 CI
-
-README、中文用户指南、crate-level docs 和所有 rustdoc 示例必须参与 doctest。默认 feature 与
-`--all-features` 均需通过测试；项目级 `.rs-ci-cargo-matrix.json` 还必须分别 clippy
-no-default、serde-only、json-only、http-only 与 uri-only。此前 CI 漏掉 uri-only warning 的原因是
-项目 matrix 的 URI 单 feature 项只运行 check/test/doc、没有运行 clippy；共享 runner 已正确执行
-项目声明，并不是 runner 失效。本次为每个单 feature 项补齐 clippy。
-
-## 19. 安全不变量
-
-任何实现和扩展都不得破坏以下不变量：
-
-1. 未经 `finish()` 不发布中间文本；
-2. composer 与 batch 在公共 API 中互不混合；
-3. 一次工作只有一份 policy 快照和一组资源预算；
-4. format writer 和 domain writer 不创建旁路输出或旁路预算；
-5. parser 在 admission 后才检查内容；
-6. exhausted 后不继续访问输入；
-7. floor 只能提高保护，应用 allow 不能绕过 floor；
-8. 显式 sensitive 等级是最低等级，policy 只能增强；
-9. `unredacted` 与未标注 derive 字段是显式信任边界；
-10. 启用策略时所有 completion 状态的最终文本都满足保密安全；完整性是独立维度；
-11. 所有最终文本有效 UTF-8、控制字符安全且计入预算；
-12. handle 在发布前不能转成文本，只能由所属 batch output 或其诊断包装解析；
-13. panic 不发布半成品；
-14. inspection 不生成任何 mask 或文本；不完整检查只能返回错误；
-15. 全局 disabled 是下游负责授权的调试逃生口，不是框架权限系统。
-
-## 20. 扩展规则
-
-新增格式或公共能力时必须先回答：
-
-1. 它产生一段组合文本、一个 batch item，还是两者都支持？
-2. 输入在何处完成 admission，如何证明 parser 不会越过预算？
-3. 字段上下文使用哪组 rules，安全默认值是什么？
-4. 无效输入如何失败关闭，使用哪些 completion 和 reason？
-5. 上游截断信息能否如实保留？
-6. 控制字符、UTF-8 和协议编码如何处理？
-7. composer、batch、一次性 redactor、feature gate、fuzz 和文档分别需要哪些测试？
-
-如果一个扩展需要自己的 policy、预算、summary 或最终输出模型，应先证明它无法复用核心运行时；
-默认禁止建立平行脱敏栈。
+- 不自动推断领域字段敏感性；
+- 不提供绕开事务的公开 formatter 或可伪造摘要；
+- 不承诺原值内存清零；
+- 不把 `disabled()` 包装成授权系统；
+- 不为 HTTP 或 JSON 建立独立于事务的公开输出模型；
+- 不在预算耗尽后继续遍历不可信输入以追求更完整的诊断。

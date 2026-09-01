@@ -1,6 +1,6 @@
 # qubit-redact User Guide
 
-[README](../README.md) · [中文用户手册](user_guide.zh_CN.md) · [Derive Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.md)
+[README](../README.md) · [中文用户手册](user_guide.zh_CN.md) · [Design](design.md) · [Derive Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.md)
 
 ## Purpose and Audience
 
@@ -16,12 +16,16 @@ runtime or erase source memory.
 bounded rendering transaction and publishes owned text plus a summary:
 
 ```text
-borrowed value -> policy decision + shared budget -> RedactionTextOutput
-                                              -> safe text + completion summary
+borrowed value -> policy decision + transaction budget
+                  -> composer: RedactionTextOutput
+                  -> batch: handles + RedactionBatchOutput
+                  -> inspection: RedactionInspectionResult
 ```
 
-Every rendering entry point returns `RedactionTextOutput`: safe text and a
-`RedactionSummary`. With redaction enabled, text published as `Complete`,
+Single-value conveniences and composers return `RedactionTextOutput`. Batches
+publish independently resolvable items through `RedactionBatchOutput`; inspection
+returns a non-rendering `RedactionInspectionResult`. Every rendered item carries
+safe text and a `RedactionSummary`. With redaction enabled, text published as `Complete`,
 `Truncated`, or `Exhausted` remains confidentiality-safe. The latter two states
 mean that diagnostic information is incomplete, not that the text leaked its
 source. `Debug`, `Display`, and ordinary diagnostic logging can therefore use
@@ -69,8 +73,9 @@ Add the crate, then opt into only the integrations used by the application:
 qubit-redact = { version = "0.5" }
 ```
 
-The default feature set is empty. Enable `derive` for `#[derive(Redact)]`,
-`serde` for redacted serialization, and the `json`, `http`, or `uri` feature
+The default feature set is empty. Enable `derive` for `#[derive(Redact)]` and
+also enable `serde` when derived fields use generated serialization adapters.
+Enable `serde` directly for redacted serialization, and the `json`, `http`, or `uri` feature
 only when the corresponding input format is needed.
 
 ## Core Workflow
