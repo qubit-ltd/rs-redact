@@ -34,3 +34,24 @@ path = "fuzz_targets/transaction_sequences.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "json_text"
+path = "fuzz_targets/json_text.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "http_body"
+path = "fuzz_targets/http_body.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "multipart_body"
+path = "fuzz_targets/multipart_body.rs"
+test = false
+doc = false
+bench = false
