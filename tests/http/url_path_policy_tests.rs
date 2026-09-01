@@ -16,14 +16,23 @@ use super::support::redaction::redact_url;
 #[test]
 fn test_url_path_policy_default_is_preserve() {
     assert_eq!(UrlPathPolicy::default(), UrlPathPolicy::Preserve);
-    assert_eq!(RedactionPolicy::default().url_path_policy(), UrlPathPolicy::Preserve,);
+    assert_eq!(
+        RedactionPolicy::default().url_path_policy(),
+        UrlPathPolicy::Preserve,
+    );
 }
 
 /// Verifies strict HTTP redaction explicitly hides non-root URL paths.
 #[test]
 fn test_url_path_policy_strict_is_redact() {
-    assert_eq!(RedactionPolicy::strict().url_path_policy(), UrlPathPolicy::Redact,);
-    assert_eq!(Redactor::strict().policy().url_path_policy(), UrlPathPolicy::Redact,);
+    assert_eq!(
+        RedactionPolicy::strict().url_path_policy(),
+        UrlPathPolicy::Redact,
+    );
+    assert_eq!(
+        Redactor::strict().policy().url_path_policy(),
+        UrlPathPolicy::Redact,
+    );
 }
 /// Verifies the preserve opt-in retains a complete path without a query.
 #[test]

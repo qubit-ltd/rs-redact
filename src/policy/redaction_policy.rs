@@ -87,7 +87,8 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
             let mut http = crate::formats::http::HttpPolicyBuilder::new();
             http.url_path_mut(crate::formats::http::UrlPathPolicy::Redact);
             http.text_body_mut(crate::formats::http::TextBodyPolicy::Redact);
-            http.build().expect("the built-in HTTP policy must be valid")
+            http.build()
+                .expect("the built-in HTTP policy must be valid")
         },
         #[cfg(feature = "uri")]
         crate::formats::uri::UriPolicyBuilder::new()

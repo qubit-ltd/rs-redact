@@ -47,8 +47,14 @@ fn test_redact_field_preserves_explicitly_allowed_and_unknown_values() {
 
     assert_eq!(allowed.text().as_str(), "Alice");
     assert_eq!(unknown.text().as_str(), "visible");
-    assert_eq!(allowed.summary().completion(), RedactionCompletion::Complete);
-    assert_eq!(unknown.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(
+        allowed.summary().completion(),
+        RedactionCompletion::Complete
+    );
+    assert_eq!(
+        unknown.summary().completion(),
+        RedactionCompletion::Complete
+    );
 }
 
 /// Verifies the public result is the final output model, rather than a typed

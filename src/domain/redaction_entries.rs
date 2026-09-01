@@ -83,7 +83,12 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
 
     /// Writes a map value with an explicit sensitivity while preserving its
     /// recursive level-capable shape.
-    pub(crate) fn level_value_entry<T>(&mut self, name: &str, value: &T, level: Sensitivity) -> &mut Self
+    pub(crate) fn level_value_entry<T>(
+        &mut self,
+        name: &str,
+        value: &T,
+        level: Sensitivity,
+    ) -> &mut Self
     where
         T: super::RedactLevelValue + ?Sized,
     {
@@ -141,7 +146,8 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
 
     /// Admits one entry against the active collection limit.
     fn admit_entry(&mut self) -> bool {
-        !self.writer.session.domain_frame_is_truncated() && self.writer.session.admit_domain_collection_item()
+        !self.writer.session.domain_frame_is_truncated()
+            && self.writer.session.admit_domain_collection_item()
     }
 
     /// Writes a map key and separator.

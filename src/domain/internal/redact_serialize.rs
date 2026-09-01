@@ -15,7 +15,11 @@ use crate::RedactionPolicy;
 #[doc(hidden)]
 pub trait RedactSerialize {
     /// Serializes this value through its generated redaction policy adapter.
-    fn serialize_redacted<S>(&self, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(
+        &self,
+        serializer: S,
+        policy: &RedactionPolicy,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer;
 }

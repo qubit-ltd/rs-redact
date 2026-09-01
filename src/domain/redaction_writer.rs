@@ -134,8 +134,12 @@ impl<'session> RedactionWriter<'session> {
         let admitted = match crate::formats::json::admit_json_text_value(self.session, value) {
             Ok(value) => value,
             Err(crate::formats::json::JsonAdmissionError::Invalid) => {
-                let allowance = self.session.remaining_output_bytes().min(self.remaining_output_bytes());
-                let output = crate::formats::json::invalid_json_output(self.session.policy(), allowance);
+                let allowance = self
+                    .session
+                    .remaining_output_bytes()
+                    .min(self.remaining_output_bytes());
+                let output =
+                    crate::formats::json::invalid_json_output(self.session.policy(), allowance);
                 self.session.record_rendered_provenance(&output);
                 self.write_debug(output.text());
                 return;
@@ -145,8 +149,15 @@ impl<'session> RedactionWriter<'session> {
                 return;
             }
         };
-        let allowance = self.session.remaining_output_bytes().min(self.remaining_output_bytes());
-        let output = crate::formats::json::redact_json_value_with_limit(self.session.policy(), &admitted, allowance);
+        let allowance = self
+            .session
+            .remaining_output_bytes()
+            .min(self.remaining_output_bytes());
+        let output = crate::formats::json::redact_json_value_with_limit(
+            self.session.policy(),
+            &admitted,
+            allowance,
+        );
         if output.completion() != crate::RedactionCompletion::Complete {
             self.truncate_without_output_limit();
         }
@@ -165,8 +176,15 @@ impl<'session> RedactionWriter<'session> {
             self.truncate_without_output_limit();
             return;
         }
-        let allowance = self.session.remaining_output_bytes().min(self.remaining_output_bytes());
-        let output = crate::formats::json::redact_json_value_with_limit(self.session.policy(), value, allowance);
+        let allowance = self
+            .session
+            .remaining_output_bytes()
+            .min(self.remaining_output_bytes());
+        let output = crate::formats::json::redact_json_value_with_limit(
+            self.session.policy(),
+            value,
+            allowance,
+        );
         if output.completion() != crate::RedactionCompletion::Complete {
             self.truncate_without_output_limit();
         }
@@ -378,11 +396,11 @@ impl<'session> RedactionWriter<'session> {
         }
         let raw_limit = self.remaining_output_bytes();
         let (raw, raw_truncated) = bounded_debug(value, raw_limit);
-        let (masked, mask_truncated) =
-            self.session
-                .policy()
-                .masking()
-                .mask_bounded_with_truncation(level, &raw, self.remaining_output_bytes());
+        let (masked, mask_truncated) = self
+            .session
+            .policy()
+            .masking()
+            .mask_bounded_with_truncation(level, &raw, self.remaining_output_bytes());
         self.write_debug(masked.as_ref());
         if raw_truncated || mask_truncated {
             self.truncate_for_output_limit();
@@ -455,7 +473,10 @@ mod tests {
         let output = Redactor::standard().redact(&Container);
 
         assert!(output.text().as_str().contains("Nested { id: 7 }"));
-        assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());
+        assert_eq!(
+            output.summary().usage().output_bytes(),
+            output.text().as_str().len()
+        );
     }
 
     #[cfg(feature = "json")]
@@ -475,10 +496,21 @@ mod tests {
     #[cfg(feature = "json")]
     #[test]
     fn writer_json_uses_the_active_session_summary() {
-        let output = Redactor::standard().text_composer().value(&JsonContainer).finish();
+        let output = Redactor::standard()
+            .text_composer()
+            .value(&JsonContainer)
+            .finish();
 
-        assert_eq!(output.summary().usage().presented_input_bytes(), "{invalid json".len());
-        assert!(output.summary().reasons().contains(crate::RedactionReason::InvalidJson));
+        assert_eq!(
+            output.summary().usage().presented_input_bytes(),
+            "{invalid json".len()
+        );
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(crate::RedactionReason::InvalidJson)
+        );
     }
 
     /// A JSON value emitted by a domain writer must spend the same structural
@@ -499,7 +531,10 @@ mod tests {
             .value(&JsonContainerWithValidNestedValue)
             .finish();
 
-        assert_eq!(output.summary().completion(), crate::RedactionCompletion::Truncated);
+        assert_eq!(
+            output.summary().completion(),
+            crate::RedactionCompletion::Truncated
+        );
         assert!(
             output
                 .summary()

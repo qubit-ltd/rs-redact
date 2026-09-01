@@ -23,8 +23,16 @@ pub struct RedactedLevelSerializeRef<'value, 'policy, T: ?Sized> {
 impl<'value, 'policy, T: ?Sized> RedactedLevelSerializeRef<'value, 'policy, T> {
     /// Creates a policy-carrying borrowed level adapter.
     #[must_use]
-    pub fn new(value: &'value T, policy: &'policy crate::RedactionPolicy, level: crate::Sensitivity) -> Self {
-        Self { value, policy, level }
+    pub fn new(
+        value: &'value T,
+        policy: &'policy crate::RedactionPolicy,
+        level: crate::Sensitivity,
+    ) -> Self {
+        Self {
+            value,
+            policy,
+            level,
+        }
     }
 }
 
@@ -33,6 +41,7 @@ impl<T: ?Sized + RedactLevelSerialize> serde::Serialize for RedactedLevelSeriali
     where
         S: serde::Serializer,
     {
-        self.value.serialize_redacted_level(serializer, self.policy, self.level)
+        self.value
+            .serialize_redacted_level(serializer, self.policy, self.level)
     }
 }

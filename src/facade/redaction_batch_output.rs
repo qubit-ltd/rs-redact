@@ -49,11 +49,16 @@ impl RedactionBatchOutput {
     ///
     /// Returns [`RedactionBatchHandleError::DifferentBatch`] when `handle`
     /// was created by another batch, or `MissingItem` for an invalid index.
-    pub fn resolve(&self, handle: RedactionBatchHandle) -> Result<&RedactionTextOutput, RedactionBatchHandleError> {
+    pub fn resolve(
+        &self,
+        handle: RedactionBatchHandle,
+    ) -> Result<&RedactionTextOutput, RedactionBatchHandleError> {
         self.output
             .resolve(RedactionHandle::new(handle.batch_id, handle.item_index))
             .map_err(|error| match error {
-                crate::RedactionHandleError::DifferentTransaction => RedactionBatchHandleError::DifferentBatch,
+                crate::RedactionHandleError::DifferentTransaction => {
+                    RedactionBatchHandleError::DifferentBatch
+                }
                 crate::RedactionHandleError::MissingItem => RedactionBatchHandleError::MissingItem,
             })
     }
@@ -61,11 +66,16 @@ impl RedactionBatchOutput {
     /// Consumes the output and moves the text selected by `handle` out of it.
     ///
     /// Returns the same errors as [`Self::resolve`].
-    pub fn into_resolved(self, handle: RedactionBatchHandle) -> Result<RedactionTextOutput, RedactionBatchHandleError> {
+    pub fn into_resolved(
+        self,
+        handle: RedactionBatchHandle,
+    ) -> Result<RedactionTextOutput, RedactionBatchHandleError> {
         self.output
             .into_resolved(RedactionHandle::new(handle.batch_id, handle.item_index))
             .map_err(|error| match error {
-                crate::RedactionHandleError::DifferentTransaction => RedactionBatchHandleError::DifferentBatch,
+                crate::RedactionHandleError::DifferentTransaction => {
+                    RedactionBatchHandleError::DifferentBatch
+                }
                 crate::RedactionHandleError::MissingItem => RedactionBatchHandleError::MissingItem,
             })
     }

@@ -17,7 +17,10 @@ fn test_unknown_field_policy_defaults_to_pass_through() {
         .build()
         .expect("the empty policy should build");
 
-    assert_eq!(policy.unknown_field_policy(), UnknownFieldPolicy::PassThrough,);
+    assert_eq!(
+        policy.unknown_field_policy(),
+        UnknownFieldPolicy::PassThrough,
+    );
     assert_eq!(policy.sensitivity_for("new_field"), None);
     assert!(policy.classify_field("new_field").is_unknown());
 }
@@ -38,7 +41,10 @@ fn test_unknown_field_policy_applies_after_explicit_rules() {
         .expect("the fallback policy should build");
 
     assert_eq!(policy.sensitivity_for("new_field"), Some(Sensitivity::High),);
-    assert_eq!(policy.sensitivity_for("configured"), Some(Sensitivity::Secret),);
+    assert_eq!(
+        policy.sensitivity_for("configured"),
+        Some(Sensitivity::Secret),
+    );
     assert_eq!(policy.sensitivity_for("public"), None);
     assert!(policy.classify_field("new_field").is_unknown());
 }
@@ -53,11 +59,17 @@ fn test_unknown_field_policy_is_preserved_by_builder_from() {
         .expect("the field configuration should be valid")
         .build()
         .expect("the base policy should build");
-    let copied = base.to_builder().build().expect("the copied policy should build");
+    let copied = base
+        .to_builder()
+        .build()
+        .expect("the copied policy should build");
 
     assert_eq!(
         copied.unknown_field_policy(),
         UnknownFieldPolicy::Redact(Sensitivity::Medium),
     );
-    assert_eq!(copied.sensitivity_for("unconfigured"), Some(Sensitivity::Medium),);
+    assert_eq!(
+        copied.sensitivity_for("unconfigured"),
+        Some(Sensitivity::Medium),
+    );
 }

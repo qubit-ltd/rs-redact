@@ -49,6 +49,12 @@ fn test_domain_rendering_uses_one_bounded_transaction_output_budget() {
         .finish();
 
     assert!(output.text().as_str().len() <= 24);
-    assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());
-    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert_eq!(
+        output.summary().usage().output_bytes(),
+        output.text().as_str().len()
+    );
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Exhausted
+    );
 }

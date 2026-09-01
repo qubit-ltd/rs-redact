@@ -31,7 +31,10 @@ impl Redact for TestDomainValue {
 fn test_redact_redacted_returns_completed_output() {
     let output = Redactor::standard().redact(&TestDomainValue);
 
-    assert_eq!(output.text().as_str(), "TestDomainValue { secret: <redacted> }");
+    assert_eq!(
+        output.text().as_str(),
+        "TestDomainValue { secret: <redacted> }"
+    );
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
 }
 
@@ -213,7 +216,10 @@ fn test_redaction_fields_keyed_value_classifies_by_policy_key() {
 
     assert!(!sensitive.text().as_str().contains("raw-secret"));
     assert!(
-        sensitive.text().as_str().contains("value: Some(\"<redacted>\")"),
+        sensitive
+            .text()
+            .as_str()
+            .contains("value: Some(\"<redacted>\")"),
         "{}",
         sensitive.text().as_str()
     );
@@ -271,7 +277,9 @@ fn test_redaction_fields_keyed_value_uses_complete_policy() {
         .expect("policy should build");
     let redactor = Redactor::new(policy);
     let floored = redactor.redact(&value);
-    let inspection = redactor.inspect(&value).expect("inspection should complete");
+    let inspection = redactor
+        .inspect(&value)
+        .expect("inspection should complete");
 
     assert!(!floored.text().as_str().contains("eu-west"));
     assert_eq!(inspection.max_sensitivity(), Some(Sensitivity::High));
@@ -294,10 +302,12 @@ fn test_redacted_keyed_serialize_ref_classifies_by_policy_key() {
 
     let secret = Some("raw-secret".to_owned());
     let public = Some("eu-west".to_owned());
-    let secret_json = serde_json::to_value(RedactedKeyedSerializeRef::new(&secret, "password", &policy))
-        .expect("secret keyed value should serialize");
-    let public_json = serde_json::to_value(RedactedKeyedSerializeRef::new(&public, "region", &policy))
-        .expect("public keyed value should serialize");
+    let secret_json =
+        serde_json::to_value(RedactedKeyedSerializeRef::new(&secret, "password", &policy))
+            .expect("secret keyed value should serialize");
+    let public_json =
+        serde_json::to_value(RedactedKeyedSerializeRef::new(&public, "region", &policy))
+            .expect("public keyed value should serialize");
 
     assert_eq!(secret_json, serde_json::json!("<redacted>"));
     assert_eq!(public_json, serde_json::json!("eu-west"));
@@ -393,7 +403,10 @@ fn test_redaction_fields_map_value_masks_recursive_leaves_by_key() {
 
     let output = Redactor::new(policy).redact(&value);
     assert!(
-        output.text().as_str().contains("\"public_numbers\": Some([1, 2])"),
+        output
+            .text()
+            .as_str()
+            .contains("\"public_numbers\": Some([1, 2])"),
         "{}",
         output.text().as_str()
     );

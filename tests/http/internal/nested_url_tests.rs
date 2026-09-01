@@ -40,7 +40,10 @@ fn test_deeply_encoded_nested_url_does_not_expose_query_secret() {
     for _ in 0..9 {
         nested = url::form_urlencoded::byte_serialize(nested.as_bytes()).collect();
     }
-    let rendered = redact_url(&Redactor::standard(), &format!("https://outer.test/?next={nested}"));
+    let rendered = redact_url(
+        &Redactor::standard(),
+        &format!("https://outer.test/?next={nested}"),
+    );
 
     assert!(!rendered.contains("raw-secret"));
 }

@@ -29,11 +29,11 @@ struct Account {
 impl Redact for Account {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.record("Account", |fields| {
-            fields
-                .unredacted("name", || self.name.clone())
-                .sensitive(Sensitivity::Secret, "password", || {
-                    panic!("a secret accessor must not run")
-                });
+            fields.unredacted("name", || self.name.clone()).sensitive(
+                Sensitivity::Secret,
+                "password",
+                || panic!("a secret accessor must not run"),
+            );
         });
     }
 }
@@ -75,7 +75,10 @@ fn composer_and_batch_publish_separate_models() {
     assert!(!text.text().as_str().contains("raw-token"));
     assert!(!text.text().as_str().contains("raw-password"));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
-    assert_eq!(output.summary().usage().output_bytes(), name.text().as_str().len());
+    assert_eq!(
+        output.summary().usage().output_bytes(),
+        name.text().as_str().len()
+    );
 }
 
 #[test]
@@ -114,7 +117,10 @@ fn batch_diagnostics_resolves_complete_text_or_the_selected_marker() {
         incomplete_output.text(incomplete_handle).as_str(),
         "<redaction\\nincomplete>",
     );
-    assert_eq!(incomplete_output.summary().completion(), RedactionCompletion::Exhausted,);
+    assert_eq!(
+        incomplete_output.summary().completion(),
+        RedactionCompletion::Exhausted,
+    );
 }
 
 #[test]
@@ -134,7 +140,10 @@ fn batch_diagnostics_maps_truncated_text_to_the_selected_marker() {
     let diagnostics = batch.finish_for_diagnostics("<redaction incomplete>");
 
     assert_eq!(diagnostics.text(handle).as_str(), "<redaction incomplete>",);
-    assert_eq!(diagnostics.summary().completion(), RedactionCompletion::Truncated,);
+    assert_eq!(
+        diagnostics.summary().completion(),
+        RedactionCompletion::Truncated,
+    );
 }
 
 #[test]
@@ -146,7 +155,10 @@ fn batch_diagnostics_maps_a_foreign_handle_to_the_selected_marker() {
     let second_output = Redactor::standard()
         .batch()
         .finish_for_diagnostics("<redaction incomplete>");
-    assert_eq!(second_output.text(first_handle).as_str(), "<redaction incomplete>",);
+    assert_eq!(
+        second_output.text(first_handle).as_str(),
+        "<redaction incomplete>",
+    );
 }
 
 #[test]
@@ -189,7 +201,10 @@ fn redaction_output_preserves_parts_across_all_public_accessors() {
     assert_eq!(output.text().as_str(), "<redacted>");
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
     assert_eq!(
-        output.complete_text().expect("field output must be complete").as_str(),
+        output
+            .complete_text()
+            .expect("field output must be complete")
+            .as_str(),
         "<redacted>",
     );
     assert!(matches!(
@@ -197,7 +212,9 @@ fn redaction_output_preserves_parts_across_all_public_accessors() {
         Cow::Borrowed("<redacted>"),
     ));
 
-    let text = output.into_complete_text().expect("field output must be complete");
+    let text = output
+        .into_complete_text()
+        .expect("field output must be complete");
     assert_eq!(text.into_string(), "<redacted>");
 }
 
@@ -220,7 +237,9 @@ fn redaction_output_rejects_incomplete_text_and_uses_the_selected_marker() {
     );
     assert!(output.clone().into_complete_text().is_err());
     assert_eq!(
-        output.into_text_or_marker("<redaction incomplete>").as_str(),
+        output
+            .into_text_or_marker("<redaction incomplete>")
+            .as_str(),
         "<redaction incomplete>",
     );
 }
