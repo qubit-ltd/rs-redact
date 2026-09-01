@@ -73,18 +73,30 @@ impl HttpRendered {
 impl HttpPolicyExecutor<'_> {
     /// Borrows the header field-rule executor for the current operation.
     fn header_field_redactor(&self) -> FieldRedactor<'_> {
-        FieldRedactor::new(self.policy.rules(), self.policy.header_rules(), self.policy.masking())
+        FieldRedactor::new(
+            self.policy.rules(),
+            self.policy.header_rules(),
+            self.policy.masking(),
+        )
     }
 
     /// Borrows the query field-rule executor for the current operation.
     fn query_field_redactor(&self) -> FieldRedactor<'_> {
-        FieldRedactor::new(self.policy.rules(), self.policy.query_rules(), self.policy.masking())
+        FieldRedactor::new(
+            self.policy.rules(),
+            self.policy.query_rules(),
+            self.policy.masking(),
+        )
     }
 
     /// Borrows the structured-body field-rule executor for the current
     /// operation.
     fn body_field_redactor(&self) -> FieldRedactor<'_> {
-        FieldRedactor::new(self.policy.rules(), self.policy.body_rules(), self.policy.masking())
+        FieldRedactor::new(
+            self.policy.rules(),
+            self.policy.body_rules(),
+            self.policy.masking(),
+        )
     }
 
     /// Parses and redacts a URL, failing closed on invalid input.
@@ -131,7 +143,11 @@ impl HttpPolicyExecutor<'_> {
     /// An opaque result whose `Display` and `Debug` expose only safe text.
     /// Redacts headers under an explicit final output ceiling.
     #[must_use]
-    pub(super) fn redact_headers_with_limit(&self, headers: &HeaderMap, max_output_bytes: usize) -> HttpRendered {
+    pub(super) fn redact_headers_with_limit(
+        &self,
+        headers: &HeaderMap,
+        max_output_bytes: usize,
+    ) -> HttpRendered {
         let mut writer = BoundedLogWriter::new(max_output_bytes, false);
         let values = headers::group_values(headers);
         self.write_grouped_headers(&mut writer, values);
@@ -176,17 +192,25 @@ impl HttpPolicyExecutor<'_> {
             Self::invalid_content_type_body()
         } else {
             match &mut admitted {
-                AdmittedBody::Json(value) => self.redact_json_value(bounded, value, truncated, output_limit),
+                AdmittedBody::Json(value) => {
+                    self.redact_json_value(bounded, value, truncated, output_limit)
+                }
                 AdmittedBody::InvalidJson => Self::invalid_json_body(),
                 AdmittedBody::Ndjson {
                     lines,
                     trailing_newline,
                 } => self.redact_ndjson_values(lines, *trailing_newline, truncated, output_limit),
                 AdmittedBody::InvalidNdjson => Self::invalid_ndjson_body(),
-                AdmittedBody::Multipart(parts) => {
-                    self.redact_body_inner(bounded, content_type, truncated, output_limit, Some(parts))
+                AdmittedBody::Multipart(parts) => self.redact_body_inner(
+                    bounded,
+                    content_type,
+                    truncated,
+                    output_limit,
+                    Some(parts),
+                ),
+                AdmittedBody::Other => {
+                    self.redact_body_inner(bounded, content_type, truncated, output_limit, None)
                 }
-                AdmittedBody::Other => self.redact_body_inner(bounded, content_type, truncated, output_limit, None),
             }
         };
         Self::finish_body_redaction(parsed, capture, input_len, budget_truncated, output_limit)
@@ -202,7 +226,12 @@ impl HttpPolicyExecutor<'_> {
     /// # Returns
     ///
     /// An owned URL representation safe to combine with other redacted text.
-    fn redact_url_text_at_depth(&self, url: &Url, depth: usize, output_limit: usize) -> (String, bool) {
+    fn redact_url_text_at_depth(
+        &self,
+        url: &Url,
+        depth: usize,
+        output_limit: usize,
+    ) -> (String, bool) {
         let mut writer = BoundedLogWriter::new(output_limit, false);
         let _ = writer.write_str(url.scheme());
         let _ = writer.write_str(":");
@@ -262,7 +291,9 @@ impl HttpPolicyExecutor<'_> {
         }
         let mut redacted_query = String::new();
         for (key, value) in url.query_pairs() {
-            let remaining = writer.remaining_bytes().saturating_sub(redacted_query.len());
+            let remaining = writer
+                .remaining_bytes()
+                .saturating_sub(redacted_query.len());
             let value = self
                 .query_field_redactor()
                 .redact_bounded(&key, &value, remaining)
@@ -285,9 +316,11 @@ impl HttpPolicyExecutor<'_> {
             return;
         };
         let _ = writer.write_str("#");
-        let masked = self
-            .query_field_redactor()
-            .mask_bounded(Sensitivity::High, fragment, writer.remaining_bytes());
+        let masked = self.query_field_redactor().mask_bounded(
+            Sensitivity::High,
+            fragment,
+            writer.remaining_bytes(),
+        );
         let _ = writer.write_str(masked.as_ref());
     }
 
@@ -319,10 +352,13 @@ impl HttpPolicyExecutor<'_> {
         match nested_url::detect(raw) {
             NestedUrl::NotUrl => (Cow::Borrowed(raw), false),
             NestedUrl::Parsed(url) if depth < url_rules::MAX_NESTED_URL_DEPTH => {
-                let (text, truncated) = self.redact_url_text_at_depth(&url, depth + 1, output_limit);
+                let (text, truncated) =
+                    self.redact_url_text_at_depth(&url, depth + 1, output_limit);
                 (Cow::Owned(text), truncated)
             }
-            NestedUrl::Parsed(_) | NestedUrl::LimitExceeded => (Cow::Borrowed(markers::NESTED_URL_LIMIT), false),
+            NestedUrl::Parsed(_) | NestedUrl::LimitExceeded => {
+                (Cow::Borrowed(markers::NESTED_URL_LIMIT), false)
+            }
             NestedUrl::Invalid => (Cow::Borrowed(markers::INVALID_URL), false),
         }
     }
@@ -453,7 +489,11 @@ impl HttpPolicyExecutor<'_> {
             );
         }
         if matches!(value, serde_json::Value::Array(_)) && bounded.len() > output_limit {
-            return ParsedBody::new(markers::TRUNCATED.to_string(), BodyRenderStatus::Structured, true);
+            return ParsedBody::new(
+                markers::TRUNCATED.to_string(),
+                BodyRenderStatus::Structured,
+                true,
+            );
         }
         let passed = json::redact(
             &self.body_field_redactor(),
@@ -645,7 +685,8 @@ impl HttpPolicyExecutor<'_> {
         output_limit: usize,
     ) -> HttpRendered {
         let (parsed_text, status, rendered_truncated) = parsed.into_parts();
-        let source_truncated = capture.is_source_truncated() || budget_truncated || rendered_truncated;
+        let source_truncated =
+            capture.is_source_truncated() || budget_truncated || rendered_truncated;
         let mut writer = BoundedLogWriter::new(output_limit, source_truncated);
         let _ = writer.write_str(&parsed_text);
         let output_truncated = rendered_truncated || writer.is_output_truncated();
@@ -700,7 +741,11 @@ impl HttpPolicyExecutor<'_> {
 
 /// Parses and redacts an URL string through a parent session policy snapshot.
 #[must_use]
-pub(crate) fn redact_url_str_with_policy(policy: &RedactionPolicy, input: &str, output_limit: usize) -> HttpRendered {
+pub(crate) fn redact_url_str_with_policy(
+    policy: &RedactionPolicy,
+    input: &str,
+    output_limit: usize,
+) -> HttpRendered {
     HttpPolicyExecutor { policy }.redact_url_str(input, output_limit)
 }
 

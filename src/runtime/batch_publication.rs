@@ -25,7 +25,11 @@ pub(crate) struct BatchPublication {
 
 impl BatchPublication {
     /// Creates output for the completed batch identity and staged items.
-    pub(crate) fn new(transaction_id: u64, items: Vec<RedactionTextOutput>, summary: RedactionSummary) -> Self {
+    pub(crate) fn new(
+        transaction_id: u64,
+        items: Vec<RedactionTextOutput>,
+        summary: RedactionSummary,
+    ) -> Self {
         Self {
             transaction_id,
             items,
@@ -44,7 +48,10 @@ impl BatchPublication {
     /// Returns [`RedactionHandleError::DifferentTransaction`] for another
     /// batch identity and [`RedactionHandleError::MissingItem`] for an invalid
     /// index in this batch.
-    pub(crate) fn into_resolved(self, handle: RedactionHandle) -> Result<RedactionTextOutput, RedactionHandleError> {
+    pub(crate) fn into_resolved(
+        self,
+        handle: RedactionHandle,
+    ) -> Result<RedactionTextOutput, RedactionHandleError> {
         if handle.transaction_id != self.transaction_id {
             return Err(RedactionHandleError::DifferentTransaction);
         }
@@ -59,7 +66,10 @@ impl BatchPublication {
     /// Returns [`RedactionHandleError::DifferentTransaction`] for another
     /// batch identity and [`RedactionHandleError::MissingItem`] for an invalid
     /// index in this batch.
-    pub(crate) fn resolve(&self, handle: RedactionHandle) -> Result<&RedactionTextOutput, RedactionHandleError> {
+    pub(crate) fn resolve(
+        &self,
+        handle: RedactionHandle,
+    ) -> Result<&RedactionTextOutput, RedactionHandleError> {
         if handle.transaction_id != self.transaction_id {
             return Err(RedactionHandleError::DifferentTransaction);
         }
@@ -95,7 +105,10 @@ mod tests {
     /// publicly.
     #[test]
     fn test_resolve_returns_published_batch_item() {
-        let item = RedactionTextOutput::new(RedactedText::from_escaped("item"), RedactionSummary::complete());
+        let item = RedactionTextOutput::new(
+            RedactedText::from_escaped("item"),
+            RedactionSummary::complete(),
+        );
         let output = BatchPublication::new(3, vec![item], RedactionSummary::complete());
 
         assert_eq!(

@@ -74,7 +74,11 @@ impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
         Ok(InternallyTaggedMap { map })
     }
 
-    fn serialize_struct(self, _name: &'static str, length: usize) -> Result<Self::SerializeStruct, Self::Error> {
+    fn serialize_struct(
+        self,
+        _name: &'static str,
+        length: usize,
+    ) -> Result<Self::SerializeStruct, Self::Error> {
         self.serialize_map(Some(length))
     }
 

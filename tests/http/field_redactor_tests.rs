@@ -27,7 +27,10 @@ fn test_field_redactor_uses_application_mask_for_header_rule() {
         .fields(|fields| {
             fields.disable_floor();
             fields.raise("tenant_token", Sensitivity::Secret);
-            fields.mask(Sensitivity::Secret, MaskPolicy::fixed("[application-secret]"));
+            fields.mask(
+                Sensitivity::Secret,
+                MaskPolicy::fixed("[application-secret]"),
+            );
         })
         .expect("the test fields configuration should be valid")
         .build()
@@ -39,7 +42,10 @@ fn test_field_redactor_uses_application_mask_for_header_rule() {
         })
         .expect("the HTTP policy configuration should be valid")
         .fields(|fields| {
-            fields.mask(Sensitivity::Secret, MaskPolicy::fixed("[application-secret]"));
+            fields.mask(
+                Sensitivity::Secret,
+                MaskPolicy::fixed("[application-secret]"),
+            );
         })
         .expect("the test fields configuration should be valid");
     let policy = builder.build().expect("the HTTP policy should be valid");

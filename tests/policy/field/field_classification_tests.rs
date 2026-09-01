@@ -30,7 +30,10 @@ fn test_field_classification_exposes_sensitive_rule_metadata() {
 
     assert_eq!(classification.sensitivity(), Some(Sensitivity::High));
     assert_eq!(classification.matched_field(), Some("apitoken"));
-    assert_eq!(classification.match_kind(), Some(FieldMatchKind::TokenSuffix));
+    assert_eq!(
+        classification.match_kind(),
+        Some(FieldMatchKind::TokenSuffix)
+    );
     assert!(!classification.is_allowed());
     assert!(!classification.is_unknown());
 }

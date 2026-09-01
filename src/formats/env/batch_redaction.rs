@@ -28,7 +28,12 @@ pub(crate) fn redact_pair(session: &mut BatchSession, name: &str, value: &str) -
     {
         return session.stage_accounted_text(String::new());
     }
-    let result = redact_pair_with_policy(session.policy(), name, value, session.remaining_output_bytes());
+    let result = redact_pair_with_policy(
+        session.policy(),
+        name,
+        value,
+        session.remaining_output_bytes(),
+    );
     stage(session, result)
 }
 
@@ -43,7 +48,8 @@ where
     let Some(pairs) = collect_admitted_pairs(session, pairs) else {
         return session.stage_accounted_text(String::new());
     };
-    let result = redact_os_pairs_with_policy(session.policy(), pairs, session.remaining_output_bytes());
+    let result =
+        redact_os_pairs_with_policy(session.policy(), pairs, session.remaining_output_bytes());
     stage(session, result)
 }
 

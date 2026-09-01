@@ -16,7 +16,11 @@ use super::redact_serialize_scope::admit_collection_items;
 use super::redacted_serialize_ref::RedactedSerializeRef;
 
 impl<T: RedactSerialize> RedactSerialize for Option<T> {
-    fn serialize_redacted<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(
+        &self,
+        serializer: S,
+        policy: &crate::RedactionPolicy,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -28,12 +32,21 @@ impl<T: RedactSerialize> RedactSerialize for Option<T> {
 }
 
 impl<T: RedactSerialize> RedactSerialize for Vec<T> {
-    fn serialize_redacted<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(
+        &self,
+        serializer: S,
+        policy: &crate::RedactionPolicy,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         if !admit_collection_items(self.len()) {
-            return serializer.serialize_str(policy.masking().mask_opaque(crate::Sensitivity::Secret).as_ref());
+            return serializer.serialize_str(
+                policy
+                    .masking()
+                    .mask_opaque(crate::Sensitivity::Secret)
+                    .as_ref(),
+            );
         }
         let mut sequence = serializer.serialize_seq(Some(self.len()))?;
         for value in self {
@@ -44,12 +57,21 @@ impl<T: RedactSerialize> RedactSerialize for Vec<T> {
 }
 
 impl<T: RedactSerialize, const N: usize> RedactSerialize for [T; N] {
-    fn serialize_redacted<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(
+        &self,
+        serializer: S,
+        policy: &crate::RedactionPolicy,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         if !admit_collection_items(N) {
-            return serializer.serialize_str(policy.masking().mask_opaque(crate::Sensitivity::Secret).as_ref());
+            return serializer.serialize_str(
+                policy
+                    .masking()
+                    .mask_opaque(crate::Sensitivity::Secret)
+                    .as_ref(),
+            );
         }
         let mut sequence = serializer.serialize_seq(Some(N))?;
         for value in self {

@@ -49,14 +49,19 @@ impl InspectionSession {
     /// Consumes this transaction into a conclusive result or fail-closed error.
     pub(crate) fn finish(self) -> RedactionInspectionResult {
         let (max_sensitivity, summary) = self.runtime.into_parts();
-        if summary.completion() == RedactionCompletion::Complete && summary.reasons() == RedactionReasons::empty() {
+        if summary.completion() == RedactionCompletion::Complete
+            && summary.reasons() == RedactionReasons::empty()
+        {
             return Ok(RedactionInspection::new(
                 summary.is_redaction_disabled(),
                 max_sensitivity,
                 summary.usage(),
             ));
         }
-        Err(RedactionInspectionError::new(summary.reasons(), summary.usage()))
+        Err(RedactionInspectionError::new(
+            summary.reasons(),
+            summary.usage(),
+        ))
     }
 }
 

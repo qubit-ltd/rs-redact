@@ -26,7 +26,10 @@ fn test_default_masking_policy_preserves_existing_semantics() {
 /// Verifies that matching modes and fixed masks have explicit public behavior.
 #[test]
 fn test_field_name_matching_names_are_explicit() {
-    assert_ne!(FieldNameMatching::Exact, FieldNameMatching::ExactOrTokenSuffix,);
+    assert_ne!(
+        FieldNameMatching::Exact,
+        FieldNameMatching::ExactOrTokenSuffix,
+    );
     assert_eq!(MaskPolicy::fixed("x").mask("secret"), "x");
 }
 

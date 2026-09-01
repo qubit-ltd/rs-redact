@@ -11,7 +11,10 @@ use qubit_redact::Redactor;
 #[test]
 fn test_private_support_keeps_core_redaction_available() {
     assert_eq!(
-        Redactor::default().redact_field("password", "raw").text().as_str(),
+        Redactor::default()
+            .redact_field("password", "raw")
+            .text()
+            .as_str(),
         "<redacted>",
     );
 }

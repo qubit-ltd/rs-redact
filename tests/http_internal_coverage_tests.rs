@@ -44,25 +44,43 @@ fn test_http_invalid_url_retains_invalid_uri_provenance() {
     let output = Redactor::standard().redact_http_url("https://[not-a-host");
 
     assert!(output.text().as_str().contains("invalid"));
-    assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::InvalidUri)
+    );
 }
 
 #[test]
 fn test_http_body_invalid_content_type_retains_diagnostic_provenance() {
     let content_type = HeaderValue::from_bytes(b"\xff").expect("opaque header must be accepted");
-    let output = Redactor::standard().redact_http_body(BodyCapture::complete(b"raw-secret"), Some(&content_type));
+    let output = Redactor::standard()
+        .redact_http_body(BodyCapture::complete(b"raw-secret"), Some(&content_type));
 
     assert!(!output.text().as_str().contains("raw-secret"));
-    assert!(output.summary().reasons().contains(RedactionReason::InvalidContentType));
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::InvalidContentType)
+    );
 }
 
 #[test]
 fn test_http_body_invalid_form_and_truncated_ndjson_fail_closed() {
     let redactor = Redactor::standard();
     let form_type = HeaderValue::from_static("application/x-www-form-urlencoded");
-    let form = redactor.redact_http_body(BodyCapture::complete(b"password=%ZZraw-secret"), Some(&form_type));
+    let form = redactor.redact_http_body(
+        BodyCapture::complete(b"password=%ZZraw-secret"),
+        Some(&form_type),
+    );
     assert!(!form.text().as_str().contains("raw-secret"));
-    assert!(form.summary().reasons().contains(RedactionReason::InvalidForm));
+    assert!(
+        form.summary()
+            .reasons()
+            .contains(RedactionReason::InvalidForm)
+    );
 
     let ndjson_type = HeaderValue::from_static("application/x-ndjson");
     let ndjson = redactor.redact_http_body(
@@ -70,7 +88,12 @@ fn test_http_body_invalid_form_and_truncated_ndjson_fail_closed() {
         Some(&ndjson_type),
     );
     assert!(!ndjson.text().as_str().contains("raw-secret"));
-    assert!(ndjson.summary().reasons().contains(RedactionReason::InvalidJson));
+    assert!(
+        ndjson
+            .summary()
+            .reasons()
+            .contains(RedactionReason::InvalidJson)
+    );
 }
 
 #[test]
@@ -83,7 +106,8 @@ fn test_http_body_text_and_binary_dispatches_preserve_policy_boundary() {
             .expect("HTTP policy setup must be valid");
     });
     let text_type = HeaderValue::from_static("text/plain; charset=utf-8");
-    let text = pass_through.redact_http_body(BodyCapture::complete(b"visible context"), Some(&text_type));
+    let text =
+        pass_through.redact_http_body(BodyCapture::complete(b"visible context"), Some(&text_type));
     assert_eq!(text.text().as_str(), "visible context");
 
     let binary = Redactor::standard().redact_http_body(
@@ -97,7 +121,8 @@ fn test_http_body_text_and_binary_dispatches_preserve_policy_boundary() {
 fn test_http_multipart_covers_sensitive_json_text_and_invalid_boundaries() {
     let body = b"--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nraw-password\r\n--boundary\r\nContent-Disposition: form-data; name=\"payload\"\r\nContent-Type: application/json\r\n\r\n{\"token\":\"json-secret\"}\r\n--boundary\r\nContent-Disposition: form-data; name=\"note\"\r\nContent-Type: text/plain\r\n\r\nplain-secret\r\n--boundary--\r\n";
     let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
-    let output = Redactor::standard().redact_http_body(BodyCapture::complete(body), Some(&content_type));
+    let output =
+        Redactor::standard().redact_http_body(BodyCapture::complete(body), Some(&content_type));
     let rendered = output.text().as_str();
 
     assert!(!rendered.contains("raw-password"));
@@ -122,7 +147,8 @@ fn test_http_multipart_covers_sensitive_json_text_and_invalid_boundaries() {
 fn test_http_multipart_redacts_ndjson_parts_and_rejects_invalid_records() {
     let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body = b"--boundary\r\nContent-Disposition: form-data; name=\"events\"\r\nContent-Type: application/x-ndjson\r\n\r\n{\"password\":\"first-secret\"}\n\n{\"token\":\"second-secret\"}\n\r\n--boundary--\r\n";
-    let output = Redactor::standard().redact_http_body(BodyCapture::complete(body), Some(&content_type));
+    let output =
+        Redactor::standard().redact_http_body(BodyCapture::complete(body), Some(&content_type));
     let rendered = output.text().as_str();
 
     assert!(!rendered.contains("first-secret"));
@@ -130,7 +156,8 @@ fn test_http_multipart_redacts_ndjson_parts_and_rejects_invalid_records() {
     assert!(rendered.contains("<multipart>"));
 
     let invalid = b"--boundary\r\nContent-Disposition: form-data; name=\"events\"\r\nContent-Type: application/x-ndjson\r\n\r\n{\"password\":\"first-secret\"}\nnot-json second-secret\r\n--boundary--\r\n";
-    let output = Redactor::standard().redact_http_body(BodyCapture::complete(invalid), Some(&content_type));
+    let output =
+        Redactor::standard().redact_http_body(BodyCapture::complete(invalid), Some(&content_type));
 
     assert!(!output.text().as_str().contains("first-secret"));
     assert!(!output.text().as_str().contains("second-secret"));
@@ -150,7 +177,9 @@ fn test_http_context_rules_are_independent_and_sensitive_headers_override_allowa
                 http.body()
                     .raise("body_only", Sensitivity::Secret)
                     .expect("valid body rule");
-                http.header().allow_exact("x-visible").expect("valid header allow rule");
+                http.header()
+                    .allow_exact("x-visible")
+                    .expect("valid header allow rule");
             })
             .expect("HTTP policy setup must be valid");
     });
@@ -166,7 +195,8 @@ fn test_http_context_rules_are_independent_and_sensitive_headers_override_allowa
     assert!(headers.text().as_str().contains("visible"));
     assert!(!headers.text().as_str().contains("native-secret"));
 
-    let url = redactor.redact_http_url("https://example.test/?query_only=query-secret&header_only=visible-query");
+    let url = redactor
+        .redact_http_url("https://example.test/?query_only=query-secret&header_only=visible-query");
     assert!(!url.text().as_str().contains("query-secret"));
     assert!(url.text().as_str().contains("visible-query"));
 
@@ -195,7 +225,12 @@ fn test_http_tiny_output_budget_marks_truncation_without_exposing_body() {
 
     assert!(!output.text().as_str().contains("raw-secret"));
     assert_ne!(output.summary().completion(), RedactionCompletion::Complete);
-    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::OutputLimitReached)
+    );
 
     let ndjson = redactor.redact_http_body(
         BodyCapture::complete(b"{\"password\":\"first-secret\"}\n{\"token\":\"second-secret\"}\n"),
@@ -205,14 +240,22 @@ fn test_http_tiny_output_budget_marks_truncation_without_exposing_body() {
     assert!(!ndjson.text().as_str().contains("first-secret"));
     assert!(!ndjson.text().as_str().contains("second-secret"));
     assert_ne!(ndjson.summary().completion(), RedactionCompletion::Complete);
-    assert!(ndjson.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert!(
+        ndjson
+            .summary()
+            .reasons()
+            .contains(RedactionReason::OutputLimitReached)
+    );
 
     let separator_limited = redactor.redact_http_body(
         BodyCapture::complete(b"{\"a\":\"bbbb\"}\n{}"),
         Some(&HeaderValue::from_static("application/x-ndjson")),
     );
 
-    assert_ne!(separator_limited.summary().completion(), RedactionCompletion::Complete);
+    assert_ne!(
+        separator_limited.summary().completion(),
+        RedactionCompletion::Complete
+    );
     assert!(
         separator_limited
             .summary()

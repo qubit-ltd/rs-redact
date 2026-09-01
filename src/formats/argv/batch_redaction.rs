@@ -24,7 +24,10 @@ where
 }
 
 /// Redacts arguments with heuristic classification as one batch item.
-pub(crate) fn redact_heuristic_items<'items, I>(session: &mut BatchSession, items: I) -> RedactionHandle
+pub(crate) fn redact_heuristic_items<'items, I>(
+    session: &mut BatchSession,
+    items: I,
+) -> RedactionHandle
 where
     I: IntoIterator<Item = ArgvItem<'items>>,
 {
@@ -55,7 +58,10 @@ where
 }
 
 /// Collects arguments only while shared admission succeeds.
-fn collect_admitted_items<'items, I>(session: &mut BatchSession, items: I) -> Option<Vec<ArgvItem<'items>>>
+fn collect_admitted_items<'items, I>(
+    session: &mut BatchSession,
+    items: I,
+) -> Option<Vec<ArgvItem<'items>>>
 where
     I: IntoIterator<Item = ArgvItem<'items>>,
 {

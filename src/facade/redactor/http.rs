@@ -98,7 +98,11 @@ impl Redactor {
         content_type: Option<&str>,
     ) -> RedactionInspectionResult {
         let mut session = self.inspection_runtime();
-        crate::formats::http::inspection::inspect_body_with_content_type_text(&mut session, capture, content_type);
+        crate::formats::http::inspection::inspect_body_with_content_type_text(
+            &mut session,
+            capture,
+            content_type,
+        );
         session.finish()
     }
 }

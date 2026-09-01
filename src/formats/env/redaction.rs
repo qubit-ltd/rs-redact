@@ -29,7 +29,12 @@ pub(super) fn redact_pair_with_policy(
     value: &str,
     max_output_bytes: usize,
 ) -> RenderedOperation {
-    render_pair_output(policy, OsStr::new(name), OsStr::new(value), max_output_bytes)
+    render_pair_output(
+        policy,
+        OsStr::new(name),
+        OsStr::new(value),
+        max_output_bytes,
+    )
 }
 
 /// Redacts environment pairs with a borrowed policy.
@@ -48,7 +53,8 @@ where
     let mut has_item = false;
     let mut locally_truncated = false;
     for (name, value) in pairs {
-        let (pair, truncated) = redact_os_pair_bounded_with_policy(policy, name, value, max_output_bytes);
+        let (pair, truncated) =
+            redact_os_pair_bounded_with_policy(policy, name, value, max_output_bytes);
         locally_truncated |= truncated;
         let separator_len = usize::from(has_item) * 2;
         let rendered_len = format!("{pair:?}").len();
@@ -92,7 +98,8 @@ fn render_pair_output(
     value: &OsStr,
     max_output_bytes: usize,
 ) -> RenderedOperation {
-    let (rendered, locally_truncated) = redact_os_pair_bounded_with_policy(policy, name, value, max_output_bytes);
+    let (rendered, locally_truncated) =
+        redact_os_pair_bounded_with_policy(policy, name, value, max_output_bytes);
     if locally_truncated || rendered.len() > max_output_bytes {
         const FALLBACK: &str = "<truncated>";
         return if FALLBACK.len() <= max_output_bytes {
@@ -120,10 +127,11 @@ pub(super) fn redact_os_pair_bounded_with_policy(
             };
             let (value, locally_truncated) = match resolved {
                 ResolvedField::Sensitive { sensitivity } => {
-                    let (masked, truncated) =
-                        policy
-                            .masking()
-                            .mask_bounded_with_truncation(sensitivity, value, max_mask_bytes);
+                    let (masked, truncated) = policy.masking().mask_bounded_with_truncation(
+                        sensitivity,
+                        value,
+                        max_mask_bytes,
+                    );
                     (masked.into_owned(), truncated)
                 }
                 ResolvedField::PassThrough => (value.to_owned(), false),
@@ -234,13 +242,21 @@ mod tests {
         let name = OsString::from_vec(vec![b'N', 0xff]);
         let value = OsString::from_vec(vec![b'V', 0xff]);
 
-        let (enabled, enabled_truncated) =
-            redact_os_pair_bounded_with_policy(&RedactionPolicy::standard(), &name, &value, usize::MAX);
+        let (enabled, enabled_truncated) = redact_os_pair_bounded_with_policy(
+            &RedactionPolicy::standard(),
+            &name,
+            &value,
+            usize::MAX,
+        );
         assert!(!enabled_truncated);
         assert!(enabled.contains("redacted"));
 
-        let (disabled, disabled_truncated) =
-            redact_os_pair_bounded_with_policy(&RedactionPolicy::disabled(), &name, &value, usize::MAX);
+        let (disabled, disabled_truncated) = redact_os_pair_bounded_with_policy(
+            &RedactionPolicy::disabled(),
+            &name,
+            &value,
+            usize::MAX,
+        );
         assert!(!disabled_truncated);
         assert!(disabled.contains('N'));
         assert!(disabled.contains('V'));

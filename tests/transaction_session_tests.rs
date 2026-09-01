@@ -60,7 +60,11 @@ fn batch_resolves_items_only_from_its_own_output() {
     let output = batch.finish();
 
     assert_eq!(
-        output.resolve(first).expect("first item resolves").text().as_str(),
+        output
+            .resolve(first)
+            .expect("first item resolves")
+            .text()
+            .as_str(),
         "Ada"
     );
     assert!(
@@ -98,7 +102,10 @@ fn output_limit_is_observable_without_publishing_raw_input() {
         .field("password", "raw-secret")
         .finish();
 
-    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Exhausted
+    );
     assert!(!output.text().as_str().contains("raw-secret"));
 }
 
@@ -163,7 +170,11 @@ fn process_composer_batch_and_one_shot_publish_equivalent_safe_text() {
     let batch = batch.finish();
 
     let one_shot = redactor.redact_process(program, arguments, variables);
-    let batch_text = batch.resolve(handle).expect("batch process resolves").text().as_str();
+    let batch_text = batch
+        .resolve(handle)
+        .expect("batch process resolves")
+        .text()
+        .as_str();
 
     assert_eq!(composer.text().as_str(), batch_text);
     assert_eq!(composer.text().as_str(), one_shot.text().as_str());
@@ -191,7 +202,10 @@ fn process_composer_records_environment_collection_limit_after_argv() {
         .finish();
 
     assert_eq!(output.text().as_str(), "[\"client\"]");
-    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Truncated
+    );
     assert!(
         output
             .summary()

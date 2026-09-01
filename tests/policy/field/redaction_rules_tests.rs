@@ -57,7 +57,10 @@ fn test_redaction_rules_unknown_field_falls_back_to_policy() {
         .build()
         .expect("the fallback policy should be valid");
 
-    assert_eq!(policy.sensitivity_for("unconfigured"), Some(Sensitivity::Low));
+    assert_eq!(
+        policy.sensitivity_for("unconfigured"),
+        Some(Sensitivity::Low)
+    );
 }
 
 /// Verifies the rule snapshot exposes application-only matching and fallback
@@ -75,7 +78,8 @@ fn test_redaction_rules_expose_application_matching_and_unknown_policy() {
         .build()
         .expect("the application rules should be valid");
     let matching: fn(&RedactionRules) -> FieldNameMatching = RedactionRules::matching;
-    let unknown_field_policy: fn(&RedactionRules) -> UnknownFieldPolicy = RedactionRules::unknown_field_policy;
+    let unknown_field_policy: fn(&RedactionRules) -> UnknownFieldPolicy =
+        RedactionRules::unknown_field_policy;
 
     assert_eq!(matching(policy.rules()), FieldNameMatching::Exact);
     assert_eq!(
@@ -102,7 +106,10 @@ fn test_redaction_rules_floor_resolves_overlaps_to_strongest_level() {
         .build()
         .expect("the policy should be valid");
 
-    assert_eq!(policy.sensitivity_for("OPENAI_ACCESS_TOKEN"), Some(Sensitivity::Secret),);
+    assert_eq!(
+        policy.sensitivity_for("OPENAI_ACCESS_TOKEN"),
+        Some(Sensitivity::Secret),
+    );
 }
 
 /// Verifies direct immutable rule edits replace and then remove the floor
@@ -116,7 +123,9 @@ fn test_redaction_rules_with_floor_and_disable_floor_are_immutable() {
         .expect("the test floor should build");
     let policy = RedactionPolicy::builder()
         .fields(|fields| {
-            fields.disable_floor().raise("application_only", Sensitivity::Low);
+            fields
+                .disable_floor()
+                .raise("application_only", Sensitivity::Low);
         })
         .expect("the application configuration should be valid")
         .build()
@@ -125,8 +134,14 @@ fn test_redaction_rules_with_floor_and_disable_floor_are_immutable() {
     let without_floor = with_floor.clone().disable_floor();
 
     assert!(policy.rules().floor().is_none());
-    assert_eq!(with_floor.sensitivity_for("floor_only"), Some(Sensitivity::High));
-    assert_eq!(with_floor.sensitivity_for("application_only"), Some(Sensitivity::Low));
+    assert_eq!(
+        with_floor.sensitivity_for("floor_only"),
+        Some(Sensitivity::High)
+    );
+    assert_eq!(
+        with_floor.sensitivity_for("application_only"),
+        Some(Sensitivity::Low)
+    );
     assert_eq!(without_floor.sensitivity_for("floor_only"), None);
     assert_eq!(
         without_floor.sensitivity_for("application_only"),
@@ -157,5 +172,8 @@ fn test_redaction_rules_allow_rule_suppresses_unknown_field_fallback() {
         }
     ));
     assert_eq!(policy.sensitivity_for("request_diagnostic"), None);
-    assert_eq!(policy.sensitivity_for("other_field"), Some(Sensitivity::Secret));
+    assert_eq!(
+        policy.sensitivity_for("other_field"),
+        Some(Sensitivity::Secret)
+    );
 }

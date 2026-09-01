@@ -47,7 +47,12 @@ impl HttpPolicyExecutor<'_> {
     }
 
     /// Redacts and writes every value for one header name.
-    fn write_header_values(&self, writer: &mut BoundedLogWriter, name: &str, values: &[&HeaderValue]) {
+    fn write_header_values(
+        &self,
+        writer: &mut BoundedLogWriter,
+        name: &str,
+        values: &[&HeaderValue],
+    ) {
         for (value_index, value) in values.iter().enumerate() {
             if writer.is_full() {
                 break;
@@ -60,12 +65,16 @@ impl HttpPolicyExecutor<'_> {
             if self.policy.is_disabled() {
                 let _ = writer.write_str(rendered);
             } else if value.is_sensitive() {
-                let redacted = self
-                    .header_field_redactor()
-                    .mask_bounded(Sensitivity::Secret, rendered, remaining);
+                let redacted = self.header_field_redactor().mask_bounded(
+                    Sensitivity::Secret,
+                    rendered,
+                    remaining,
+                );
                 let _ = writer.write_str(redacted.as_ref());
             } else {
-                let redacted = self.header_field_redactor().redact_bounded(name, rendered, remaining);
+                let redacted = self
+                    .header_field_redactor()
+                    .redact_bounded(name, rendered, remaining);
                 let _ = writer.write_str(redacted.as_str());
             }
         }

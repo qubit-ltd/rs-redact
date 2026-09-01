@@ -24,7 +24,10 @@ use std::collections::BTreeSet;
 ///
 /// One optional value per name, or `None` for malformed or duplicate input.
 #[must_use]
-pub(super) fn parse_parameters<const N: usize>(value: &str, names: [&str; N]) -> Option<[Option<String>; N]> {
+pub(super) fn parse_parameters<const N: usize>(
+    value: &str,
+    names: [&str; N],
+) -> Option<[Option<String>; N]> {
     if value.bytes().any(is_forbidden_header_byte) {
         return None;
     }
@@ -42,7 +45,10 @@ pub(super) fn parse_parameters<const N: usize>(value: &str, names: [&str; N]) ->
             return None;
         }
         let decoded = decode(trim_ows(raw))?;
-        let Some(index) = names.iter().position(|wanted| name.eq_ignore_ascii_case(wanted)) else {
+        let Some(index) = names
+            .iter()
+            .position(|wanted| name.eq_ignore_ascii_case(wanted))
+        else {
             continue;
         };
         result[index] = Some(decoded);
@@ -203,7 +209,20 @@ pub(super) const fn is_token_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric()
         || matches!(
             byte,
-            b'!' | b'#' | b'$' | b'%' | b'&' | b'\'' | b'*' | b'+' | b'-' | b'.' | b'^' | b'_' | b'`' | b'|' | b'~'
+            b'!' | b'#'
+                | b'$'
+                | b'%'
+                | b'&'
+                | b'\''
+                | b'*'
+                | b'+'
+                | b'-'
+                | b'.'
+                | b'^'
+                | b'_'
+                | b'`'
+                | b'|'
+                | b'~'
         )
 }
 

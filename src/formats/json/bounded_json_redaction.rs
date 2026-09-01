@@ -57,9 +57,10 @@ pub(super) fn redacted_json_value_bounded(
     if to_writer(&mut writer, &redacted).is_err() {
         return BoundedJsonRedaction::Truncated("<truncated>".to_owned());
     }
-    BoundedJsonRedaction::Complete(
-        writer
-            .into_string()
-            .unwrap_or_else(|| policy.masking().mask_opaque(crate::Sensitivity::Secret).to_owned()),
-    )
+    BoundedJsonRedaction::Complete(writer.into_string().unwrap_or_else(|| {
+        policy
+            .masking()
+            .mask_opaque(crate::Sensitivity::Secret)
+            .to_owned()
+    }))
 }

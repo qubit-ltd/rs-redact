@@ -97,7 +97,10 @@ impl RedactionPolicyBuilder {
     pub(super) fn from_policy(policy: &RedactionPolicy) -> Self {
         Self {
             disabled: policy.is_disabled(),
-            rules: RedactionRulesBuilder::from_inner(&policy.rules().clone_application(), PolicyLocation::Rules),
+            rules: RedactionRulesBuilder::from_inner(
+                &policy.rules().clone_application(),
+                PolicyLocation::Rules,
+            ),
             masking: policy.masking().clone(),
             floor: policy.rules().floor().cloned(),
             limits: *policy.limits(),
@@ -546,7 +549,11 @@ mod views {
         }
 
         /// Replaces a context field rule without weakening the base policy.
-        pub fn override_level(&mut self, field: &str, level: Sensitivity) -> Result<&mut Self, PolicyError> {
+        pub fn override_level(
+            &mut self,
+            field: &str,
+            level: Sensitivity,
+        ) -> Result<&mut Self, PolicyError> {
             if self.error.is_none()
                 && let Err(error) = self.builder.override_level_mut(self.context, field, level)
             {

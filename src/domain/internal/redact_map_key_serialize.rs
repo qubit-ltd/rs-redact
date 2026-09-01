@@ -53,7 +53,8 @@ macro_rules! map_key_serialize {
                 S: Serializer,
             {
                 if !admit_collection_items(self.len()) {
-                    return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+                    return serializer
+                        .serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
                 }
                 let mut output = serializer.serialize_map(Some(self.len()))?;
                 let mut emitted = HashSet::with_capacity(self.len());
@@ -67,7 +68,10 @@ macro_rules! map_key_serialize {
                         return Err(S::Error::custom("redacted map keys collide"));
                     }
                     if let Some(level) = value_level {
-                        output.serialize_entry(&key, &RedactedLevelSerializeRef::new(value, policy, level))?;
+                        output.serialize_entry(
+                            &key,
+                            &RedactedLevelSerializeRef::new(value, policy, level),
+                        )?;
                     } else {
                         output.serialize_entry(&key, value)?;
                     }

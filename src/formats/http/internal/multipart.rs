@@ -66,9 +66,17 @@ pub(in crate::formats::http) fn redact(
         if index > 0 && output.write_all(b"\n").is_err() {
             return Some((output.into_string()?, passed, true));
         }
-        let parsed = admitted.as_ref().map(|admitted| admitted.parts[index].as_ref());
-        let (line, part_passed, part_truncated) =
-            redact_part(redactor, part, policy, require_form_data, max_output_bytes, parsed)?;
+        let parsed = admitted
+            .as_ref()
+            .map(|admitted| admitted.parts[index].as_ref());
+        let (line, part_passed, part_truncated) = redact_part(
+            redactor,
+            part,
+            policy,
+            require_form_data,
+            max_output_bytes,
+            parsed,
+        )?;
         passed |= part_passed;
         if part_truncated || output.write_all(line.as_bytes()).is_err() {
             return Some((output.into_string()?, passed, true));
@@ -118,7 +126,8 @@ pub(in crate::formats::http) fn admit_structure(
                     admitted.push(None);
                     continue;
                 };
-                let value = crate::formats::json::admit_json_text_value_at_depth(session, text, 3).ok()?;
+                let value =
+                    crate::formats::json::admit_json_text_value_at_depth(session, text, 3).ok()?;
                 Some(AdmittedMultipartBody::Json(value))
             }
             Some(value) if content_type::is_ndjson(value) => {
@@ -129,7 +138,8 @@ pub(in crate::formats::http) fn admit_structure(
                 let mut lines = Vec::new();
                 for line in text.lines().filter(|line| !line.trim().is_empty()) {
                     lines.push(Some(
-                        crate::formats::json::admit_json_text_value_at_depth(session, line, 3).ok()?,
+                        crate::formats::json::admit_json_text_value_at_depth(session, line, 3)
+                            .ok()?,
                     ));
                 }
                 Some(AdmittedMultipartBody::Ndjson {
@@ -162,7 +172,9 @@ pub(in crate::formats::http) fn inspect(
         return;
     };
     for part in parts {
-        if !session.preflight_format_item(2) || !session.admit_format_collection_item() || !session.admit_format_node(2)
+        if !session.preflight_format_item(2)
+            || !session.admit_format_collection_item()
+            || !session.admit_format_node(2)
         {
             return;
         }
@@ -274,7 +286,8 @@ fn redact_part(
         (markers::MULTIPART_PART.to_string(), false, false)
     } else {
         let body_text = std::str::from_utf8(body).ok()?;
-        if let Some(value) = redactor.redact_bounded_if_sensitive(name, body_text, max_output_bytes) {
+        if let Some(value) = redactor.redact_bounded_if_sensitive(name, body_text, max_output_bytes)
+        {
             let value = value.into_owned();
             (value, false, false)
         } else {
@@ -296,7 +309,10 @@ fn redact_part(
 
 /// Parses one part's headers and metadata without inspecting its body.
 #[must_use]
-fn parse_part(segment: &[u8], require_form_data: bool) -> Option<(MultipartPartMetadata<'_>, &[u8])> {
+fn parse_part(
+    segment: &[u8],
+    require_form_data: bool,
+) -> Option<(MultipartPartMetadata<'_>, &[u8])> {
     let (headers, body) = split_headers_body(segment)?;
     let mut disposition = None;
     let mut part_type = None;
@@ -306,7 +322,9 @@ fn parse_part(segment: &[u8], require_form_data: bool) -> Option<(MultipartPartM
             if disposition.replace(value.trim()).is_some() {
                 return None;
             }
-        } else if name.trim().eq_ignore_ascii_case("content-type") && part_type.replace(value.trim()).is_some() {
+        } else if name.trim().eq_ignore_ascii_case("content-type")
+            && part_type.replace(value.trim()).is_some()
+        {
             return None;
         }
     }
@@ -346,7 +364,8 @@ fn redact_non_sensitive_part(
                 _ => return None,
             };
             let passed = json::redact(redactor, &mut value, policy.unkeyed_json_value_policy());
-            json::serialize_bounded(&value, max_output_bytes).map(|(text, truncated)| (text, passed, truncated))
+            json::serialize_bounded(&value, max_output_bytes)
+                .map(|(text, truncated)| (text, passed, truncated))
         }
         Some(value) if content_type::is_ndjson(value) => {
             let AdmittedMultipartBody::Ndjson {
@@ -426,7 +445,10 @@ fn part_segments<'a>(bytes: &'a [u8], boundary: &str) -> Option<Vec<&'a [u8]>> {
             }
         }
         if closing_kind {
-            return bytes[next..].iter().all(u8::is_ascii_whitespace).then_some(result);
+            return bytes[next..]
+                .iter()
+                .all(u8::is_ascii_whitespace)
+                .then_some(result);
         }
         start = Some(next);
         position = next;
@@ -453,7 +475,10 @@ fn part_segments<'a>(bytes: &'a [u8], boundary: &str) -> Option<Vec<&'a [u8]>> {
 fn next_line(bytes: &[u8], position: usize) -> (usize, usize, usize) {
     if let Some(relative) = bytes[position..].iter().position(|byte| *byte == b'\n') {
         let end = position + relative;
-        let trimmed = end.checked_sub(1).filter(|index| bytes[*index] == b'\r').unwrap_or(end);
+        let trimmed = end
+            .checked_sub(1)
+            .filter(|index| bytes[*index] == b'\r')
+            .unwrap_or(end);
         (position, trimmed, end + 1)
     } else {
         (position, bytes.len(), bytes.len())

@@ -33,7 +33,10 @@ fn limits_draft_rejects_unaddressable_output_capacity() {
         limits.max_output_bytes(usize::MAX);
     });
 
-    assert!(matches!(result, Err(PolicyError::OutputLimitTooLarge { .. })));
+    assert!(matches!(
+        result,
+        Err(PolicyError::OutputLimitTooLarge { .. })
+    ));
 }
 /// Verifies that an exact allow rule does not allow a contextual suffix.
 #[test]
@@ -50,7 +53,10 @@ fn test_exact_allow_does_not_allow_contextual_suffix() {
         .expect("the exact allow rule should be valid");
 
     assert_eq!(policy.sensitivity_for("access_token"), None);
-    assert_eq!(policy.sensitivity_for("OPENAI_ACCESS_TOKEN"), Some(Sensitivity::High),);
+    assert_eq!(
+        policy.sensitivity_for("OPENAI_ACCESS_TOKEN"),
+        Some(Sensitivity::High),
+    );
 }
 
 /// Verifies that a suffix allow rule explicitly allows contextual suffixes.
@@ -83,7 +89,10 @@ fn test_overlapping_sensitive_rules_resolve_to_strongest_level() {
         .build()
         .expect("the sensitivity rules should be valid");
 
-    assert_eq!(policy.sensitivity_for("OPENAI_ACCESS_TOKEN"), Some(Sensitivity::Secret),);
+    assert_eq!(
+        policy.sensitivity_for("OPENAI_ACCESS_TOKEN"),
+        Some(Sensitivity::Secret),
+    );
 }
 
 /// Verifies that exact matching does not silently use token-suffix lookup.
@@ -100,7 +109,10 @@ fn test_matching_exact_only_matches_complete_field_name() {
         .build()
         .expect("the exact-matching policy should be valid");
 
-    assert_eq!(policy.sensitivity_for("access_token"), Some(Sensitivity::High),);
+    assert_eq!(
+        policy.sensitivity_for("access_token"),
+        Some(Sensitivity::High),
+    );
     assert_eq!(policy.sensitivity_for("OPENAI_ACCESS_TOKEN"), None);
 }
 
@@ -108,9 +120,18 @@ fn test_matching_exact_only_matches_complete_field_name() {
 #[test]
 fn test_standard_and_default_contain_presets_and_extra_fields() {
     for policy in [RedactionPolicy::standard(), RedactionPolicy::default()] {
-        assert_eq!(policy.sensitivity_for("password"), Some(Sensitivity::Secret),);
-        assert_eq!(policy.sensitivity_for("OPENAI_API_KEY"), Some(Sensitivity::High),);
-        assert_eq!(policy.sensitivity_for("database_url"), Some(Sensitivity::Secret),);
+        assert_eq!(
+            policy.sensitivity_for("password"),
+            Some(Sensitivity::Secret),
+        );
+        assert_eq!(
+            policy.sensitivity_for("OPENAI_API_KEY"),
+            Some(Sensitivity::High),
+        );
+        assert_eq!(
+            policy.sensitivity_for("database_url"),
+            Some(Sensitivity::Secret),
+        );
         assert_eq!(policy.matching(), FieldNameMatching::ExactOrTokenSuffix,);
     }
 }
@@ -124,7 +145,10 @@ fn test_strict_preset_redacts_unknown_fields() {
         policy.unknown_field_policy(),
         UnknownFieldPolicy::Redact(Sensitivity::Secret),
     );
-    assert_eq!(policy.sensitivity_for("custom_field"), Some(Sensitivity::Secret));
+    assert_eq!(
+        policy.sensitivity_for("custom_field"),
+        Some(Sensitivity::Secret)
+    );
 }
 
 /// Verifies that ordinary builders have empty application rules and the
@@ -169,7 +193,10 @@ fn test_builder_is_empty_and_default_based_builder_is_explicit() {
         .build()
         .expect("the copied policy should be valid");
 
-    assert_eq!(builder.sensitivity_for("password"), Some(Sensitivity::Secret));
+    assert_eq!(
+        builder.sensitivity_for("password"),
+        Some(Sensitivity::Secret)
+    );
     assert_eq!(
         builder
             .application_sensitive_rules()
@@ -179,9 +206,18 @@ fn test_builder_is_empty_and_default_based_builder_is_explicit() {
     );
     assert_eq!(constructed, builder);
     assert_eq!(defaulted, builder);
-    assert_eq!(from_default.sensitivity_for("password"), Some(Sensitivity::Secret));
-    assert_eq!(copied.sensitivity_for("session_token"), Some(Sensitivity::High),);
-    assert_eq!(copied.sensitivity_for("password"), Some(Sensitivity::Secret));
+    assert_eq!(
+        from_default.sensitivity_for("password"),
+        Some(Sensitivity::Secret)
+    );
+    assert_eq!(
+        copied.sensitivity_for("session_token"),
+        Some(Sensitivity::High),
+    );
+    assert_eq!(
+        copied.sensitivity_for("password"),
+        Some(Sensitivity::Secret)
+    );
 }
 
 /// Verifies that copying the current snapshot replaces every prior builder
@@ -223,31 +259,32 @@ fn test_builder_from_copies_complete_policy_snapshot() {
     let allowed = copied.application_allow_rules().collect::<Vec<_>>();
 
     assert_eq!(copied.matching(), FieldNameMatching::Exact);
-    assert_eq!(copied.masking().mask(Sensitivity::Secret, "secret"), "[copied]",);
-    assert_eq!(copied.sensitivity_for("tenant_secret"), Some(Sensitivity::Secret),);
+    assert_eq!(
+        copied.masking().mask(Sensitivity::Secret, "secret"),
+        "[copied]",
+    );
+    assert_eq!(
+        copied.sensitivity_for("tenant_secret"),
+        Some(Sensitivity::Secret),
+    );
     assert_eq!(copied.sensitivity_for("OPENAI_TENANT_SECRET"), None);
     assert_eq!(copied.sensitivity_for("public_token"), None);
     assert_eq!(copied.sensitivity_for("diagnostic_token"), None);
     assert!(
-        sensitive
-            .iter()
-            .any(|rule| { rule.field() == "publictoken" && rule.sensitivity() == Sensitivity::High })
-    );
-    assert!(
-        sensitive
-            .iter()
-            .any(|rule| { rule.field() == "diagnostictoken" && rule.sensitivity() == Sensitivity::Medium })
-    );
-    assert!(
-        allowed
-            .iter()
-            .any(|rule| { rule.field() == "publictoken" && rule.matching() == FieldNameMatching::Exact })
-    );
-    assert!(
-        allowed.iter().any(|rule| {
-            rule.field() == "diagnostictoken" && rule.matching() == FieldNameMatching::ExactOrTokenSuffix
+        sensitive.iter().any(|rule| {
+            rule.field() == "publictoken" && rule.sensitivity() == Sensitivity::High
         })
     );
+    assert!(sensitive.iter().any(|rule| {
+        rule.field() == "diagnostictoken" && rule.sensitivity() == Sensitivity::Medium
+    }));
+    assert!(allowed.iter().any(|rule| {
+        rule.field() == "publictoken" && rule.matching() == FieldNameMatching::Exact
+    }));
+    assert!(allowed.iter().any(|rule| {
+        rule.field() == "diagnostictoken"
+            && rule.matching() == FieldNameMatching::ExactOrTokenSuffix
+    }));
 }
 
 /// Verifies that raising never weakens a rule while overriding replaces it.
@@ -266,7 +303,10 @@ fn test_raise_and_override_have_distinct_strength_semantics() {
         .build()
         .expect("the sensitivity rules should be valid");
 
-    assert_eq!(policy.sensitivity_for("credential"), Some(Sensitivity::High),);
+    assert_eq!(
+        policy.sensitivity_for("credential"),
+        Some(Sensitivity::High),
+    );
     assert_eq!(policy.sensitivity_for("override"), Some(Sensitivity::Low),);
 }
 
@@ -281,7 +321,10 @@ fn test_mask_replaces_one_masking_policy() {
         .build()
         .expect("the mask policy should be valid");
 
-    assert_eq!(policy.masking().mask(Sensitivity::Secret, "value"), "[hidden]");
+    assert_eq!(
+        policy.masking().mask(Sensitivity::Secret, "value"),
+        "[hidden]"
+    );
     assert_eq!(policy.masking().mask(Sensitivity::High, "value"), "****");
 }
 
@@ -304,7 +347,10 @@ fn test_setters_reject_empty_canonical_field_names() {
 /// Verifies direct field-name validation matches builder canonicalization.
 #[test]
 fn test_validate_field_name_accepts_canonicalizable_names_and_rejects_empty() {
-    assert_eq!(RedactionPolicyBuilder::validate_field_name("Tenant-Token"), Ok(()),);
+    assert_eq!(
+        RedactionPolicyBuilder::validate_field_name("Tenant-Token"),
+        Ok(()),
+    );
     assert_eq!(
         RedactionPolicyBuilder::validate_field_name(" _-.[ ] "),
         Err(PolicyError::EmptyFieldName {
@@ -431,10 +477,22 @@ fn test_fields_view_applies_and_removes_all_rule_kinds() {
     assert_eq!(policy.sensitivity_for("secret"), Some(Sensitivity::Secret));
     assert_eq!(policy.sensitivity_for("explicit"), Some(Sensitivity::High));
     assert_eq!(policy.sensitivity_for("raised"), Some(Sensitivity::Secret));
-    assert_eq!(policy.sensitivity_for("override"), Some(Sensitivity::Medium));
-    assert_eq!(policy.sensitivity_for("session_id"), Some(Sensitivity::High));
-    assert_eq!(policy.sensitivity_for("exact_allowed"), Some(Sensitivity::Low));
-    assert_eq!(policy.sensitivity_for("prefix_suffix_allowed"), Some(Sensitivity::Low));
+    assert_eq!(
+        policy.sensitivity_for("override"),
+        Some(Sensitivity::Medium)
+    );
+    assert_eq!(
+        policy.sensitivity_for("session_id"),
+        Some(Sensitivity::High)
+    );
+    assert_eq!(
+        policy.sensitivity_for("exact_allowed"),
+        Some(Sensitivity::Low)
+    );
+    assert_eq!(
+        policy.sensitivity_for("prefix_suffix_allowed"),
+        Some(Sensitivity::Low)
+    );
     assert_eq!(policy.masking().mask(Sensitivity::High, "raw"), "[high]");
 }
 
@@ -529,7 +587,10 @@ fn test_http_builder_views_apply_context_specific_rules() {
         .expect("the HTTP policy should build");
 
     assert_eq!(policy.http().url_path_policy(), UrlPathPolicy::Redact);
-    assert_eq!(policy.http().text_body_policy(), TextBodyPolicy::PassThrough);
+    assert_eq!(
+        policy.http().text_body_policy(),
+        TextBodyPolicy::PassThrough
+    );
     assert_eq!(
         policy.header_rules().sensitivity_for("x-header-secret"),
         Some(Sensitivity::Secret)
