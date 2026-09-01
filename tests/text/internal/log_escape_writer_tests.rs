@@ -56,10 +56,7 @@ impl Write for FailingWriter {
 /// Verifies domain display streams escaped log-safe output.
 #[test]
 fn test_log_escape_writer_escapes_streamed_controls() {
-    let output = Redactor::standard()
-        .redact(&UnsafeDiagnostic)
-        .text()
-        .to_string();
+    let output = Redactor::standard().redact(&UnsafeDiagnostic).text().to_string();
 
     assert_eq!(output, "line one\\nline two\\u{202e}");
 }

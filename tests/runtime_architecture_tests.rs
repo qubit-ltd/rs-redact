@@ -30,11 +30,7 @@ fn visit_rust_sources(directory: &Path, inspect: &mut impl FnMut(&Path, &str)) {
 fn format_adapters_cannot_construct_published_output_models() {
     let formats = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/formats");
     visit_rust_sources(&formats, &mut |path, source| {
-        for forbidden in [
-            "RedactionTextOutput::",
-            "RedactionSummary::",
-            "RedactedText::from_",
-        ] {
+        for forbidden in ["RedactionTextOutput::", "RedactionSummary::", "RedactedText::from_"] {
             assert!(
                 !source.contains(forbidden),
                 "{} constructs forbidden runtime output through {forbidden}",
@@ -49,17 +45,12 @@ fn format_adapters_cannot_construct_published_output_models() {
 #[test]
 fn publication_modes_are_owned_by_distinct_session_types() {
     let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/runtime");
-    let module =
-        fs::read_to_string(runtime.join("mod.rs")).expect("the runtime module must be readable");
+    let module = fs::read_to_string(runtime.join("mod.rs")).expect("the runtime module must be readable");
 
     for module_name in ["text_session", "batch_session", "inspection_session"] {
         assert!(module.contains(&format!("mod {module_name};")));
     }
-    for removed in [
-        "publication_buffer",
-        "redaction_session",
-        "transaction_state",
-    ] {
+    for removed in ["publication_buffer", "redaction_session", "transaction_state"] {
         assert!(!module.contains(&format!("mod {removed};")));
         assert!(!runtime.join(format!("{removed}.rs")).exists());
     }
@@ -90,29 +81,14 @@ fn format_adapters_use_the_runtime_operation_sink() {
 
     for (path, sink) in [
         ("src/runtime/bounded_field_writer.rs", "OperationSink"),
-        (
-            "src/formats/uri/internal/bounded_uri_writer.rs",
-            "OperationSink",
-        ),
-        (
-            "src/formats/http/internal/bounded_log_writer.rs",
-            "OperationSink",
-        ),
-        (
-            "src/formats/http/internal/bounded_body_writer.rs",
-            "OperationByteSink",
-        ),
-        (
-            "src/formats/json/bounded_json_redaction.rs",
-            "OperationByteSink",
-        ),
+        ("src/formats/uri/internal/bounded_uri_writer.rs", "OperationSink"),
+        ("src/formats/http/internal/bounded_log_writer.rs", "OperationSink"),
+        ("src/formats/http/internal/bounded_body_writer.rs", "OperationByteSink"),
+        ("src/formats/json/bounded_json_redaction.rs", "OperationByteSink"),
     ] {
         let source = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(path))
             .expect("the bounded writer source must be readable");
-        assert!(
-            source.contains(sink),
-            "{path} must delegate its ceiling to {sink}"
-        );
+        assert!(source.contains(sink), "{path} must delegate its ceiling to {sink}");
     }
 }
 
