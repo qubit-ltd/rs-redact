@@ -112,6 +112,7 @@ derive 未标注字段和通过 `unmarked` 写入的值会有意保持不脱敏�
 ## 延伸阅读
 
 参见[英文用户手册](doc/user_guide.md)、[中文用户手册](doc/user_guide.zh_CN.md)、
+[架构设计](doc/design.zh_CN.md)、
 [API 文档](https://docs.rs/qubit-redact)和
 [derive 文档](https://docs.rs/qubit-redact-derive)。
 

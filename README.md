@@ -128,6 +128,7 @@ snapshot they already own.
 ## Learn More
 
 Read the [English user guide](doc/user_guide.md), [中文用户手册](doc/user_guide.zh_CN.md),
+and [architecture design](doc/design.md),
 [API documentation](https://docs.rs/qubit-redact), and
 [derive documentation](https://docs.rs/qubit-redact-derive).
 
