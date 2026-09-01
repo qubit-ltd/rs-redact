@@ -53,10 +53,7 @@ impl RedactionBatch {
     {
         let handle = self.session.redact_field(field, value);
         let (batch_id, item_index) = handle.parts();
-        RedactionBatchHandle {
-            batch_id,
-            item_index,
-        }
+        RedactionBatchHandle { batch_id, item_index }
     }
     /// Redacts one domain value and returns its opaque batch handle.
     ///
@@ -69,10 +66,7 @@ impl RedactionBatch {
     {
         let handle = self.session.redact_value(value);
         let (batch_id, item_index) = handle.parts();
-        RedactionBatchHandle {
-            batch_id,
-            item_index,
-        }
+        RedactionBatchHandle { batch_id, item_index }
     }
     /// Redacts an explicitly classified argv sequence as one item.
     ///
@@ -213,9 +207,6 @@ impl RedactionBatch {
     /// Converts the runtime-private handle into its public batch counterpart.
     fn wrap(handle: RedactionHandle) -> RedactionBatchHandle {
         let (batch_id, item_index) = handle.parts();
-        RedactionBatchHandle {
-            batch_id,
-            item_index,
-        }
+        RedactionBatchHandle { batch_id, item_index }
     }
 }

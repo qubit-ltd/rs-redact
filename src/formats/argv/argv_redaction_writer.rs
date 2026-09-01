@@ -38,11 +38,7 @@ impl<'session> ArgvRedactionWriter<'session> {
         let Some(items) = self.collect_admitted_items(items) else {
             return self;
         };
-        let result = redact_items_with_policy(
-            self.session.policy(),
-            items,
-            self.session.remaining_output_bytes(),
-        );
+        let result = redact_items_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
         self.session.append_rendered_operation(result);
         self
     }
@@ -58,11 +54,8 @@ impl<'session> ArgvRedactionWriter<'session> {
         let Some(items) = self.collect_admitted_items(items) else {
             return self;
         };
-        let result = redact_heuristically_with_policy(
-            self.session.policy(),
-            items,
-            self.session.remaining_output_bytes(),
-        );
+        let result =
+            redact_heuristically_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
         self.session.append_rendered_operation(result);
         self
     }
@@ -95,10 +88,7 @@ impl<'session> ArgvRedactionWriter<'session> {
             if !self.session.admit_format_collection_item() || !self.session.admit_format_node(2) {
                 return None;
             }
-            if !self
-                .session
-                .admit_input(item.value().as_encoded_bytes().len())
-            {
+            if !self.session.admit_input(item.value().as_encoded_bytes().len()) {
                 return None;
             }
             admitted.push(item);

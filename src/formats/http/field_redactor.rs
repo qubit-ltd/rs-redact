@@ -74,14 +74,16 @@ impl<'a> FieldRedactor<'a> {
         value: &'value str,
         max_bytes: usize,
     ) -> Option<MaskedValue<'value>> {
-        let resolved = stronger(
-            self.base_rules.resolve_field(field),
-            self.context_rules.resolve_field(field),
-        );
+        let resolved = self
+            .base_rules
+            .resolve_field(field)
+            .stronger(self.context_rules.resolve_field(field));
         match resolved {
-            ResolvedField::Sensitive { sensitivity } => Some(MaskedValue::new(
-                self.masking.mask_bounded(sensitivity, value, max_bytes),
-            )),
+            ResolvedField::Sensitive { sensitivity } => Some(MaskedValue::new(self.masking.mask_bounded(
+                sensitivity,
+                value,
+                max_bytes,
+            ))),
             ResolvedField::PassThrough => None,
         }
     }
@@ -90,10 +92,9 @@ impl<'a> FieldRedactor<'a> {
     #[must_use]
     pub(in crate::formats::http) fn is_sensitive(&self, field: &str) -> bool {
         matches!(
-            stronger(
-                self.base_rules.resolve_field(field),
-                self.context_rules.resolve_field(field),
-            ),
+            self.base_rules
+                .resolve_field(field)
+                .stronger(self.context_rules.resolve_field(field)),
             ResolvedField::Sensitive { .. }
         )
     }
@@ -101,10 +102,11 @@ impl<'a> FieldRedactor<'a> {
     /// Returns the final sensitivity selected for one field.
     #[must_use]
     pub(in crate::formats::http) fn sensitivity(&self, field: &str) -> Option<Sensitivity> {
-        match stronger(
-            self.base_rules.resolve_field(field),
-            self.context_rules.resolve_field(field),
-        ) {
+        match self
+            .base_rules
+            .resolve_field(field)
+            .stronger(self.context_rules.resolve_field(field))
+        {
             ResolvedField::Sensitive { sensitivity } => Some(sensitivity),
             ResolvedField::PassThrough => None,
         }
@@ -137,25 +139,5 @@ impl<'a> FieldRedactor<'a> {
     #[inline(always)]
     pub(in crate::formats::http) const fn masking(&self) -> &'a MaskingPolicy {
         self.masking
-    }
-}
-
-/// Combines a base decision with a context enhancement without permitting the
-/// context to lower the base protection level.
-fn stronger(base: ResolvedField, context: ResolvedField) -> ResolvedField {
-    match (base, context) {
-        (
-            ResolvedField::Sensitive { sensitivity: base },
-            ResolvedField::Sensitive {
-                sensitivity: context,
-            },
-        ) => ResolvedField::Sensitive {
-            sensitivity: base.max(context),
-        },
-        (ResolvedField::Sensitive { sensitivity }, ResolvedField::PassThrough)
-        | (ResolvedField::PassThrough, ResolvedField::Sensitive { sensitivity }) => {
-            ResolvedField::Sensitive { sensitivity }
-        }
-        (ResolvedField::PassThrough, ResolvedField::PassThrough) => ResolvedField::PassThrough,
     }
 }

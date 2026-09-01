@@ -34,8 +34,7 @@ impl<'session> HttpRedactionWriter<'session> {
 
     /// Redacts a URL string into the parent session's aggregate output.
     pub fn url(&mut self, value: &str) -> &mut Self {
-        if self.session.skip_aggregate_for_exhausted_output() || !self.session.admit_format_node(1)
-        {
+        if self.session.skip_aggregate_for_exhausted_output() || !self.session.admit_format_node(1) {
             return self;
         }
         let input_was_empty = value.is_empty();
@@ -45,17 +44,12 @@ impl<'session> HttpRedactionWriter<'session> {
         }
         if !admit_url_structure(self.session, value) {
             self.session.append_rendered_operation(
-                OperationSink::truncated(
-                    "<truncated>",
-                    crate::RedactionReason::TraversalLimitReached,
-                )
-                .finish(),
+                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
             );
             return self;
         }
         let result = self.redact_url_str_direct(value);
-        self.session
-            .append_rendered_operation(result.into_operation());
+        self.session.append_rendered_operation(result.into_operation());
         self
     }
 
@@ -65,8 +59,7 @@ impl<'session> HttpRedactionWriter<'session> {
             return self;
         };
         let result = self.redact_headers_direct(&headers);
-        self.session
-            .append_rendered_operation(result.into_operation());
+        self.session.append_rendered_operation(result.into_operation());
         self
     }
 }
@@ -80,11 +73,7 @@ pub(crate) fn admit_url_structure(session: &mut dyn RuntimeSession, text: &str) 
 }
 
 /// Charges recursively nested URL query structure.
-fn admit_url_structure_at_depth(
-    session: &mut dyn RuntimeSession,
-    url: &Url,
-    url_depth: usize,
-) -> bool {
+fn admit_url_structure_at_depth(session: &mut dyn RuntimeSession, url: &Url, url_depth: usize) -> bool {
     let Some(query) = url.query() else {
         return true;
     };
@@ -92,9 +81,7 @@ fn admit_url_structure_at_depth(
         return true;
     }
     for (_, value) in url.query_pairs() {
-        if !session.admit_format_collection_item()
-            || !session.admit_format_node(url_depth.saturating_add(1))
-        {
+        if !session.admit_format_collection_item() || !session.admit_format_node(url_depth.saturating_add(1)) {
             return false;
         }
         match nested_url::detect(value.as_ref()) {
@@ -105,20 +92,14 @@ fn admit_url_structure_at_depth(
                     return false;
                 }
             }
-            NestedUrl::NotUrl
-            | NestedUrl::Parsed(_)
-            | NestedUrl::Invalid
-            | NestedUrl::LimitExceeded => {}
+            NestedUrl::NotUrl | NestedUrl::Parsed(_) | NestedUrl::Invalid | NestedUrl::LimitExceeded => {}
         }
     }
     true
 }
 
 /// Rebuilds only the header prefix admitted by the transaction.
-pub(crate) fn collect_admitted_headers(
-    session: &mut dyn RuntimeSession,
-    headers: &HeaderMap,
-) -> Option<HeaderMap> {
+pub(crate) fn collect_admitted_headers(session: &mut dyn RuntimeSession, headers: &HeaderMap) -> Option<HeaderMap> {
     if session.skip_aggregate_for_exhausted_output() || !session.admit_format_node(1) {
         return None;
     }
@@ -139,11 +120,7 @@ impl<'session> HttpRedactionWriter<'session> {
     /// Parses and redacts one URL string.
     #[must_use]
     fn redact_url_str_direct(&mut self, text: &str) -> super::redaction::HttpRendered {
-        super::redaction::redact_url_str_with_policy(
-            self.session.policy(),
-            text,
-            self.session.remaining_output_bytes(),
-        )
+        super::redaction::redact_url_str_with_policy(self.session.policy(), text, self.session.remaining_output_bytes())
     }
 
     /// Redacts all HTTP headers.
@@ -174,31 +151,16 @@ impl<'session> HttpRedactionWriter<'session> {
     ///
     /// A bounded body result with completion and capture metadata.
     #[must_use]
-    pub fn body(
-        &mut self,
-        capture: BodyCapture<'_>,
-        content_type: Option<&HeaderValue>,
-    ) -> &mut Self {
+    pub fn body(&mut self, capture: BodyCapture<'_>, content_type: Option<&HeaderValue>) -> &mut Self {
         if self.session.skip_aggregate_for_exhausted_output()
-            || !admit_body_input(
-                self.session,
-                capture,
-                content_type.map(|v| v.as_bytes().len()),
-            )
+            || !admit_body_input(self.session, capture, content_type.map(|v| v.as_bytes().len()))
         {
             return self;
         }
-        let Some(admitted) = admit_body_structure(
-            self.session,
-            capture,
-            content_type.map(|value| value.as_bytes()),
-        ) else {
+        let Some(admitted) = admit_body_structure(self.session, capture, content_type.map(|value| value.as_bytes()))
+        else {
             self.session.append_rendered_operation(
-                OperationSink::truncated(
-                    "<truncated>",
-                    crate::RedactionReason::TraversalLimitReached,
-                )
-                .finish(),
+                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
             );
             return self;
         };
@@ -210,8 +172,7 @@ impl<'session> HttpRedactionWriter<'session> {
             admitted,
             remaining,
         );
-        self.session
-            .append_rendered_operation(result.into_operation());
+        self.session.append_rendered_operation(result.into_operation());
         self
     }
 
@@ -233,25 +194,15 @@ impl<'session> HttpRedactionWriter<'session> {
     ///
     /// A bounded body result with completion and capture metadata.
     #[must_use]
-    pub fn body_with_content_type_text(
-        &mut self,
-        capture: BodyCapture<'_>,
-        content_type: Option<&str>,
-    ) -> &mut Self {
+    pub fn body_with_content_type_text(&mut self, capture: BodyCapture<'_>, content_type: Option<&str>) -> &mut Self {
         if self.session.skip_aggregate_for_exhausted_output()
             || !admit_body_input(self.session, capture, content_type.map(str::len))
         {
             return self;
         }
-        let Some(admitted) =
-            admit_body_structure(self.session, capture, content_type.map(str::as_bytes))
-        else {
+        let Some(admitted) = admit_body_structure(self.session, capture, content_type.map(str::as_bytes)) else {
             self.session.append_rendered_operation(
-                OperationSink::truncated(
-                    "<truncated>",
-                    crate::RedactionReason::TraversalLimitReached,
-                )
-                .finish(),
+                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
             );
             return self;
         };
@@ -263,8 +214,7 @@ impl<'session> HttpRedactionWriter<'session> {
             admitted,
             remaining,
         );
-        self.session
-            .append_rendered_operation(result.into_operation());
+        self.session.append_rendered_operation(result.into_operation());
         self
     }
 }
@@ -284,11 +234,7 @@ pub(crate) fn admit_body_structure(
         .and_then(super::internal::content_type::parse);
     let inferred_json = !has_content_type
         && matches!(
-            capture
-                .bytes()
-                .iter()
-                .copied()
-                .find(|byte| !byte.is_ascii_whitespace()),
+            capture.bytes().iter().copied().find(|byte| !byte.is_ascii_whitespace()),
             Some(b'{') | Some(b'[')
         );
     if capture.is_source_truncated()
@@ -303,32 +249,19 @@ pub(crate) fn admit_body_structure(
         // invalid/truncated provenance without attempting a partial parse.
         return session.admit_format_node(1).then_some(AdmittedBody::Other);
     }
-    if matches!(
-        &content_type,
-        Some(super::internal::content_type::ContentType::Json)
-    ) || inferred_json
-    {
+    if matches!(&content_type, Some(super::internal::content_type::ContentType::Json)) || inferred_json {
         let Ok(text) = std::str::from_utf8(capture.bytes()) else {
-            return session
-                .admit_format_node(1)
-                .then_some(AdmittedBody::InvalidJson);
+            return session.admit_format_node(1).then_some(AdmittedBody::InvalidJson);
         };
         return match crate::formats::json::admit_json_text_value(session, text) {
             Ok(value) => Some(AdmittedBody::Json(value)),
-            Err(crate::formats::json::JsonAdmissionError::Invalid) => {
-                Some(AdmittedBody::InvalidJson)
-            }
+            Err(crate::formats::json::JsonAdmissionError::Invalid) => Some(AdmittedBody::InvalidJson),
             Err(crate::formats::json::JsonAdmissionError::Limit) => None,
         };
     }
-    if matches!(
-        &content_type,
-        Some(super::internal::content_type::ContentType::Ndjson)
-    ) {
+    if matches!(&content_type, Some(super::internal::content_type::ContentType::Ndjson)) {
         let Ok(text) = std::str::from_utf8(capture.bytes()) else {
-            return session
-                .admit_format_node(1)
-                .then_some(AdmittedBody::InvalidNdjson);
+            return session.admit_format_node(1).then_some(AdmittedBody::InvalidNdjson);
         };
         let mut lines = Vec::new();
         let mut admitted_any = false;
@@ -365,13 +298,8 @@ pub(crate) fn admit_body_structure(
             boundary: Some(boundary),
             require_form_data,
         }) => {
-            return super::internal::multipart::admit_structure(
-                session,
-                &boundary,
-                require_form_data,
-                capture.bytes(),
-            )
-            .map(AdmittedBody::Multipart);
+            return super::internal::multipart::admit_structure(session, &boundary, require_form_data, capture.bytes())
+                .map(AdmittedBody::Multipart);
         }
         Some(super::internal::content_type::ContentType::Multipart { boundary: None, .. })
         | Some(super::internal::content_type::ContentType::Text)
@@ -443,9 +371,6 @@ mod tests {
             Some(&HeaderValue::from_static("application/x-ndjson")),
         );
 
-        assert_eq!(
-            output.text().as_str(),
-            "{\"name\":\"one\"}\\n\\n{\"name\":\"two\"}\\n",
-        );
+        assert_eq!(output.text().as_str(), "{\"name\":\"one\"}\\n\\n{\"name\":\"two\"}\\n",);
     }
 }

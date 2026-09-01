@@ -35,11 +35,8 @@ pub(crate) fn redact_url(session: &mut BatchSession, value: &str) -> RedactionHa
     if !admit_url_structure(session, value) {
         return session.stage_accounted_text("<truncated>");
     }
-    let result = super::redaction::redact_url_str_with_policy(
-        session.policy(),
-        value,
-        session.remaining_output_bytes(),
-    );
+    let result =
+        super::redaction::redact_url_str_with_policy(session.policy(), value, session.remaining_output_bytes());
     session.stage_rendered_operation(result.into_operation())
 }
 
@@ -52,11 +49,8 @@ pub(crate) fn redact_headers(session: &mut BatchSession, headers: &HeaderMap) ->
             session.stage_accounted_text(String::new())
         };
     };
-    let result = super::redaction::redact_headers_with_policy(
-        session.policy(),
-        &headers,
-        session.remaining_output_bytes(),
-    );
+    let result =
+        super::redaction::redact_headers_with_policy(session.policy(), &headers, session.remaining_output_bytes());
     session.stage_rendered_operation(result.into_operation())
 }
 
@@ -69,16 +63,10 @@ pub(crate) fn redact_body(
     if session.is_output_exhausted() {
         return session.stage_exhausted_handle();
     }
-    if !admit_body_input(
-        session,
-        capture,
-        content_type.map(|value| value.as_bytes().len()),
-    ) {
+    if !admit_body_input(session, capture, content_type.map(|value| value.as_bytes().len())) {
         return session.stage_accounted_text(String::new());
     }
-    let Some(admitted) =
-        admit_body_structure(session, capture, content_type.map(|value| value.as_bytes()))
-    else {
+    let Some(admitted) = admit_body_structure(session, capture, content_type.map(|value| value.as_bytes())) else {
         return session.stage_accounted_text("<truncated>");
     };
     let remaining = session.remaining_output_bytes();
@@ -104,8 +92,7 @@ pub(crate) fn redact_body_with_content_type_text(
     if !admit_body_input(session, capture, content_type.map(str::len)) {
         return session.stage_accounted_text(String::new());
     }
-    let Some(admitted) = admit_body_structure(session, capture, content_type.map(str::as_bytes))
-    else {
+    let Some(admitted) = admit_body_structure(session, capture, content_type.map(str::as_bytes)) else {
         return session.stage_accounted_text("<truncated>");
     };
     let remaining = session.remaining_output_bytes();

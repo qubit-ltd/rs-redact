@@ -97,11 +97,7 @@ where
 ///
 /// Values that exceed the remaining allowance serialize as the stable secret
 /// opaque mask instead of invoking their ordinary serializer.
-fn serialize_disabled_display<S, T>(
-    value: &T,
-    serializer: S,
-    policy: &RedactionPolicy,
-) -> Result<S::Ok, S::Error>
+fn serialize_disabled_display<S, T>(value: &T, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
     T: Display + Serialize + ?Sized,
@@ -134,8 +130,7 @@ where
 }
 
 scalar_level_serialize!(
-    String, str, char, bool, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32,
-    f64
+    String, str, char, bool, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64
 );
 
 #[cfg(feature = "serde")]
@@ -221,8 +216,7 @@ impl<T: RedactLevelSerialize> RedactLevelSerialize for Vec<T> {
         S: Serializer,
     {
         if !admit_collection_items(self.len()) {
-            return serializer
-                .serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+            return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
         }
         let mut sequence = serializer.serialize_seq(Some(self.len()))?;
         for value in self {
@@ -303,8 +297,7 @@ impl<K: Serialize + Eq + Hash, V: RedactLevelSerialize> RedactLevelSerialize for
         S: Serializer,
     {
         if !admit_collection_items(self.len()) {
-            return serializer
-                .serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+            return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
         }
         let mut map = serializer.serialize_map(Some(self.len()))?;
         for (key, value) in self {
@@ -324,8 +317,7 @@ impl<K: Serialize + Ord, V: RedactLevelSerialize> RedactLevelSerialize for BTree
         S: Serializer,
     {
         if !admit_collection_items(self.len()) {
-            return serializer
-                .serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+            return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
         }
         let mut map = serializer.serialize_map(Some(self.len()))?;
         for (key, value) in self {
@@ -346,8 +338,7 @@ impl<T: RedactLevelSerialize, const N: usize> RedactLevelSerialize for [T; N] {
         S: Serializer,
     {
         if !admit_collection_items(N) {
-            return serializer
-                .serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+            return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
         }
         let mut sequence = serializer.serialize_seq(Some(N))?;
         for value in self {
@@ -419,12 +410,8 @@ mod tests {
         ];
         let _scope = RedactSerializeScope::new(&policy);
 
-        let encoded = serde_json::to_value(RedactedLevelSerializeRef::new(
-            &values,
-            &policy,
-            Sensitivity::Low,
-        ))
-        .expect("structured decimal serialization");
+        let encoded = serde_json::to_value(RedactedLevelSerializeRef::new(&values, &policy, Sensitivity::Low))
+            .expect("structured decimal serialization");
 
         assert_eq!(encoded[1], "<redacted>");
     }

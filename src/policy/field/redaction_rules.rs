@@ -97,11 +97,11 @@ impl RedactionRules {
 
     /// Resolves exact-only sensitivity from application and floor rules.
     pub(crate) fn resolve_field_exact(&self, field: &str) -> ResolvedField {
-        let application =
-            sensitivity_inner(&self.application, field, FieldNameMatching::Exact, true);
-        let floor = self.floor.as_ref().and_then(|floor| {
-            sensitivity_inner(&floor.inner, field, FieldNameMatching::Exact, false)
-        });
+        let application = sensitivity_inner(&self.application, field, FieldNameMatching::Exact, true);
+        let floor = self
+            .floor
+            .as_ref()
+            .and_then(|floor| sensitivity_inner(&floor.inner, field, FieldNameMatching::Exact, false));
         match self.floor.as_ref().zip(floor) {
             Some((_floor, floor_level)) => ResolvedField::Sensitive {
                 sensitivity: application.map_or(floor_level, |level| level.max(floor_level)),
@@ -120,11 +120,7 @@ impl RedactionRules {
     }
 
     /// Resolves final sensitivity using `matching` for application rules.
-    fn resolve_field_with_matching(
-        &self,
-        field: &str,
-        matching: FieldNameMatching,
-    ) -> ResolvedField {
+    fn resolve_field_with_matching(&self, field: &str, matching: FieldNameMatching) -> ResolvedField {
         let application = sensitivity_inner(&self.application, field, matching, true);
         let floor = self
             .floor
@@ -236,8 +232,7 @@ fn sensitivity_inner(
     match classify_inner(inner, field, matching, allow) {
         FieldClassification::Allowed { .. } => None,
         FieldClassification::Sensitive { .. } | FieldClassification::Unknown => {
-            strongest_sensitive_match(inner, field, matching)
-                .or_else(|| inner.unknown_field_policy.sensitivity())
+            strongest_sensitive_match(inner, field, matching).or_else(|| inner.unknown_field_policy.sensitivity())
         }
     }
 }

@@ -135,16 +135,11 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         } else {
             let raw_limit = self.writer.remaining_output_bytes();
             let (raw, raw_truncated) = bounded_debug(&access(), raw_limit);
-            let (value, mask_truncated) = self
-                .writer
-                .session
-                .policy()
-                .masking()
-                .mask_bounded_with_truncation(
-                    effective_level,
-                    &raw,
-                    self.writer.remaining_output_bytes(),
-                );
+            let (value, mask_truncated) = self.writer.session.policy().masking().mask_bounded_with_truncation(
+                effective_level,
+                &raw,
+                self.writer.remaining_output_bytes(),
+            );
             self.writer.write_debug(value.as_ref());
             if raw_truncated || mask_truncated {
                 self.writer.truncate_for_output_limit();
@@ -314,9 +309,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             }
             let key = key.as_ref();
             if self.writer.session.is_inspection() {
-                if let ResolvedField::Sensitive { sensitivity } =
-                    self.writer.session.policy().resolve_field(key)
-                {
+                if let ResolvedField::Sensitive { sensitivity } = self.writer.session.policy().resolve_field(key) {
                     self.writer.session.observe_sensitivity(sensitivity);
                 }
                 continue;
@@ -467,8 +460,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     /// Admits one tuple item against the active collection limit.
     #[inline]
     fn admit_item(&mut self) -> bool {
-        !self.writer.session.domain_frame_is_truncated()
-            && self.writer.session.admit_domain_collection_item()
+        !self.writer.session.domain_frame_is_truncated() && self.writer.session.admit_domain_collection_item()
     }
 
     /// Writes the field-name prefix for named structures.

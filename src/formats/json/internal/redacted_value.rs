@@ -30,10 +30,7 @@ pub(in crate::formats::json) struct RedactedValue<'value, 'policy> {
 impl<'value, 'policy> RedactedValue<'value, 'policy> {
     /// Creates a root value with no enclosing field rule.
     #[must_use]
-    pub(in crate::formats::json) const fn root(
-        value: &'value Value,
-        policy: &'policy RedactionPolicy,
-    ) -> Self {
+    pub(in crate::formats::json) const fn root(value: &'value Value, policy: &'policy RedactionPolicy) -> Self {
         Self {
             value,
             policy,
@@ -74,9 +71,7 @@ impl Serialize for RedactedValue<'_, '_> {
                 let mut map = serializer.serialize_map(Some(entries.len()))?;
                 for (key, value) in entries {
                     let context = match self.policy.resolve_field(key) {
-                        crate::policy::ResolvedField::Sensitive { sensitivity } => {
-                            ValueContext::Keyed(sensitivity)
-                        }
+                        crate::policy::ResolvedField::Sensitive { sensitivity } => ValueContext::Keyed(sensitivity),
                         crate::policy::ResolvedField::PassThrough => ValueContext::PassThrough,
                     };
                     map.serialize_entry(
@@ -92,19 +87,11 @@ impl Serialize for RedactedValue<'_, '_> {
             }
             Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_)
                 if matches!(self.context, ValueContext::Unkeyed)
-                    && self.policy.unkeyed_json_value_policy()
-                        == crate::UnkeyedJsonValuePolicy::Redact =>
+                    && self.policy.unkeyed_json_value_policy() == crate::UnkeyedJsonValuePolicy::Redact =>
             {
-                serializer.serialize_str(
-                    self.policy
-                        .masking()
-                        .mask_opaque(Sensitivity::Secret)
-                        .as_ref(),
-                )
+                serializer.serialize_str(self.policy.masking().mask_opaque(Sensitivity::Secret).as_ref())
             }
-            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
-                self.value.serialize(serializer)
-            }
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => self.value.serialize(serializer),
         }
     }
 }

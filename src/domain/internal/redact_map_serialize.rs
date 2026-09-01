@@ -24,11 +24,7 @@ use crate::Sensitivity;
 #[doc(hidden)]
 pub trait RedactMapSerialize {
     /// Serializes a map after classifying each value by its field key.
-    fn serialize_redacted_map<S>(
-        &self,
-        serializer: S,
-        policy: &RedactionPolicy,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted_map<S>(&self, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: Serializer;
 }
@@ -40,27 +36,19 @@ macro_rules! map_redact_serialize {
             K: AsRef<str> + Serialize,
             V: RedactLevelSerialize + Serialize,
         {
-            fn serialize_redacted_map<S>(
-                &self,
-                serializer: S,
-                policy: &RedactionPolicy,
-            ) -> Result<S::Ok, S::Error>
+            fn serialize_redacted_map<S>(&self, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
             {
                 if !admit_collection_items(self.len()) {
-                    return serializer
-                        .serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+                    return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
                 }
                 let mut map = serializer.serialize_map(Some(self.len()))?;
                 for (key, value) in self {
                     let key_name = key.as_ref();
                     if !policy.is_disabled() {
                         if let Some(level) = policy.sensitivity_for(key_name) {
-                            map.serialize_entry(
-                                key,
-                                &RedactedLevelSerializeRef::new(value, policy, level),
-                            )?;
+                            map.serialize_entry(key, &RedactedLevelSerializeRef::new(value, policy, level))?;
                             continue;
                         }
                     }
@@ -75,11 +63,7 @@ macro_rules! map_redact_serialize {
             K: AsRef<str> + Serialize,
             V: RedactLevelSerialize + Serialize,
         {
-            fn serialize_redacted_map<S>(
-                &self,
-                serializer: S,
-                policy: &RedactionPolicy,
-            ) -> Result<S::Ok, S::Error>
+            fn serialize_redacted_map<S>(&self, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
             {

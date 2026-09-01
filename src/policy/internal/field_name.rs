@@ -108,9 +108,7 @@ fn visit_token_suffixes<B>(
             previous = Some(ch);
             continue;
         }
-        if (!in_token || starts_camel_token(previous, ch, chars.peek().copied()))
-            && canonical_offset > 0
-        {
+        if (!in_token || starts_camel_token(previous, ch, chars.peek().copied())) && canonical_offset > 0 {
             let candidate = &canonical[canonical_offset..];
             visitor(false, candidate)?;
         }
@@ -153,9 +151,7 @@ fn starts_camel_token(previous: Option<char>, current: char, next: Option<char>)
     if !current.is_uppercase() {
         return false;
     }
-    let follows_lower_or_number =
-        previous.is_some_and(|previous| previous.is_lowercase() || previous.is_numeric());
-    let starts_word_after_acronym =
-        previous.is_some_and(char::is_uppercase) && next.is_some_and(char::is_lowercase);
+    let follows_lower_or_number = previous.is_some_and(|previous| previous.is_lowercase() || previous.is_numeric());
+    let starts_word_after_acronym = previous.is_some_and(char::is_uppercase) && next.is_some_and(char::is_lowercase);
     follows_lower_or_number || starts_word_after_acronym
 }

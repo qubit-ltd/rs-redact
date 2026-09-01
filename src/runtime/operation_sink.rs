@@ -38,11 +38,7 @@ impl OperationSink {
     /// Creates a complete operation through the runtime-owned result boundary.
     #[must_use]
     pub(crate) fn complete(text: impl Into<String>) -> Self {
-        Self::from_rendered(
-            text.into(),
-            RedactionCompletion::Complete,
-            RedactionReasons::empty(),
-        )
+        Self::from_rendered(text.into(), RedactionCompletion::Complete, RedactionReasons::empty())
     }
 
     /// Creates a complete operation with non-degrading provenance.
@@ -108,8 +104,7 @@ impl OperationSink {
     pub(crate) fn write_log_safe(&mut self, value: &str) -> fmt::Result {
         for character in value.chars() {
             let mut encoded = [0_u8; 12];
-            let atom =
-                crate::output::log_escape::encode_log_safe_character(character, &mut encoded)?;
+            let atom = crate::output::log_escape::encode_log_safe_character(character, &mut encoded)?;
             if !self.write_atom(atom) {
                 break;
             }
@@ -212,11 +207,7 @@ impl OperationSink {
 
     /// Wraps text already bounded by a format algorithm for runtime
     /// finalization.
-    fn from_rendered(
-        text: String,
-        completion: RedactionCompletion,
-        reasons: RedactionReasons,
-    ) -> Self {
+    fn from_rendered(text: String, completion: RedactionCompletion, reasons: RedactionReasons) -> Self {
         let maximum = text.len();
         Self {
             output: text,
@@ -268,9 +259,6 @@ mod tests {
         let diagnostics = crate::Redactor::standard()
             .batch()
             .finish_for_diagnostics("<incomplete>");
-        assert_eq!(
-            diagnostics.summary().completion(),
-            RedactionCompletion::Complete
-        );
+        assert_eq!(diagnostics.summary().completion(), RedactionCompletion::Complete);
     }
 }

@@ -26,9 +26,7 @@ pub struct RedactedKeyedSerializeRef<'value, 'key, 'policy, T: ?Sized, K: ?Sized
     policy: &'policy RedactionPolicy,
 }
 
-impl<'value, 'key, 'policy, T: ?Sized, K: ?Sized>
-    RedactedKeyedSerializeRef<'value, 'key, 'policy, T, K>
-{
+impl<'value, 'key, 'policy, T: ?Sized, K: ?Sized> RedactedKeyedSerializeRef<'value, 'key, 'policy, T, K> {
     /// Creates a policy-carrying borrowed keyed-value adapter.
     #[must_use]
     pub fn new(value: &'value T, key: &'key K, policy: &'policy RedactionPolicy) -> Self {
@@ -50,8 +48,7 @@ where
         }
         match super::resolve_keyed_field(self.policy, self.key.as_ref()) {
             ResolvedField::Sensitive { sensitivity } => {
-                RedactedLevelSerializeRef::new(self.value, self.policy, sensitivity)
-                    .serialize(serializer)
+                RedactedLevelSerializeRef::new(self.value, self.policy, sensitivity).serialize(serializer)
             }
             ResolvedField::PassThrough => self.value.serialize(serializer),
         }
