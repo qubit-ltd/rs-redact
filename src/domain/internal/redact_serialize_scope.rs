@@ -56,14 +56,8 @@ pub(super) fn admit_node() -> bool {
         let Some(state) = state.as_mut() else {
             return true;
         };
-        if state
-            .policy
-            .max_depth()
-            .is_some_and(|maximum| state.depth >= maximum)
-            || state
-                .policy
-                .max_nodes()
-                .is_some_and(|maximum| state.nodes >= maximum)
+        if state.policy.max_depth().is_some_and(|maximum| state.depth >= maximum)
+            || state.policy.max_nodes().is_some_and(|maximum| state.nodes >= maximum)
         {
             return false;
         }
@@ -126,32 +120,20 @@ pub(super) fn remaining_input_bytes() -> usize {
     STRUCTURED_SERDE_BUDGET.with(|slot| {
         let state = slot.borrow();
         state.as_ref().map_or(usize::MAX, |state| {
-            state
-                .policy
-                .max_input_bytes()
-                .saturating_sub(state.input_bytes)
+            state.policy.max_input_bytes().saturating_sub(state.input_bytes)
         })
     })
 }
 
 /// Runs one generated structured serializer under the shared budget.
 #[doc(hidden)]
-pub fn serialize_structured<S, F>(
-    serializer: S,
-    policy: &crate::RedactionPolicy,
-    body: F,
-) -> Result<S::Ok, S::Error>
+pub fn serialize_structured<S, F>(serializer: S, policy: &crate::RedactionPolicy, body: F) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
     F: FnOnce(S) -> Result<S::Ok, S::Error>,
 {
     if !admit_node() {
-        return serializer.serialize_str(
-            policy
-                .masking()
-                .mask_opaque(crate::Sensitivity::Secret)
-                .as_ref(),
-        );
+        return serializer.serialize_str(policy.masking().mask_opaque(crate::Sensitivity::Secret).as_ref());
     }
     let result = body(serializer);
     leave_node();

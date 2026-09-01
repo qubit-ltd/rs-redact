@@ -120,8 +120,7 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
 
     /// Admits one item against the active collection limit.
     fn admit_item(&mut self) -> bool {
-        !self.writer.session.domain_frame_is_truncated()
-            && self.writer.session.admit_domain_collection_item()
+        !self.writer.session.domain_frame_is_truncated() && self.writer.session.admit_domain_collection_item()
     }
 
     /// Publishes the sequence truncation marker once.

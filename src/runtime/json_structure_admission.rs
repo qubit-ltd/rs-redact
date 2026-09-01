@@ -56,15 +56,11 @@ impl<'runtime> JsonStructureAdmission<'runtime> {
                 true
             }
             StructuralEntry::DepthLimitReached => {
-                self.record_summary(RedactionSummary::truncated(
-                    RedactionReason::DepthLimitReached,
-                ));
+                self.record_summary(RedactionSummary::truncated(RedactionReason::DepthLimitReached));
                 false
             }
             StructuralEntry::TraversalLimitReached => {
-                self.record_summary(RedactionSummary::truncated(
-                    RedactionReason::TraversalLimitReached,
-                ));
+                self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
                 false
             }
         }
@@ -77,9 +73,7 @@ impl<'runtime> JsonStructureAdmission<'runtime> {
             self.record_collection_item();
             true
         } else {
-            self.record_summary(RedactionSummary::truncated(
-                RedactionReason::TraversalLimitReached,
-            ));
+            self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
             false
         }
     }

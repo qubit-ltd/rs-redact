@@ -41,20 +41,7 @@ fn write_uri_component(value: &str, rendered: &mut BoundedUriWriter) -> bool {
         if byte.is_ascii_alphanumeric()
             || matches!(
                 byte,
-                b'-' | b'.'
-                    | b'_'
-                    | b'~'
-                    | b'!'
-                    | b'$'
-                    | b'\''
-                    | b'('
-                    | b')'
-                    | b'*'
-                    | b'+'
-                    | b','
-                    | b';'
-                    | b'='
-                    | b':'
+                b'-' | b'.' | b'_' | b'~' | b'!' | b'$' | b'\'' | b'(' | b')' | b'*' | b'+' | b',' | b';' | b'=' | b':'
             )
         {
             let mut buffer = [0_u8; 4];

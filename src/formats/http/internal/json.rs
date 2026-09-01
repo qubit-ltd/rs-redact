@@ -37,9 +37,7 @@ pub(in crate::formats::http) fn redact(
 ) -> bool {
     let unkeyed = match unkeyed {
         UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
-        UnkeyedJsonValuePolicy::Redact => JsonUnkeyedValuePolicy::Redact {
-            marker: UNKEYED_JSON,
-        },
+        UnkeyedJsonValuePolicy::Redact => JsonUnkeyedValuePolicy::Redact { marker: UNKEYED_JSON },
     };
     let outcome = JsonRedactionState::new(
         redactor.base_rules(),
@@ -49,9 +47,7 @@ pub(in crate::formats::http) fn redact(
     )
     .redact(value);
     match outcome {
-        crate::formats::json::internal::JsonRedactionOutcome::Complete { passed_unkeyed } => {
-            passed_unkeyed
-        }
+        crate::formats::json::internal::JsonRedactionOutcome::Complete { passed_unkeyed } => passed_unkeyed,
     }
 }
 
@@ -67,10 +63,7 @@ pub(in crate::formats::http) fn redact(
 /// `Some((text, false))` for complete JSON, `Some((prefix, true))` when
 /// serialization exceeded the output budget, or `None` for UTF-8 errors.
 #[must_use]
-pub(in crate::formats::http) fn serialize_bounded(
-    value: &Value,
-    max_output_bytes: usize,
-) -> Option<(String, bool)> {
+pub(in crate::formats::http) fn serialize_bounded(value: &Value, max_output_bytes: usize) -> Option<(String, bool)> {
     let mut writer = BoundedBodyWriter::new(max_output_bytes);
     if to_writer(&mut writer, value).is_err() {
         return writer.into_string().map(|text| (text, true));

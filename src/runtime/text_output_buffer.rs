@@ -19,9 +19,7 @@ impl TextOutputBuffer {
     /// Creates an empty aggregate text buffer.
     #[must_use]
     pub(super) const fn new() -> Self {
-        Self {
-            storage: String::new(),
-        }
+        Self { storage: String::new() }
     }
 
     /// Appends already-safe text in caller order.

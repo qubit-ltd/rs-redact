@@ -21,18 +21,15 @@ pub(in crate::formats::http) const INVALID_FORM: &str = "<redacted: invalid URL-
 pub(in crate::formats::http) const INVALID_OR_TRUNCATED_FORM: &str =
     "<redacted: invalid or truncated URL-encoded form>";
 /// Replaces a body whose content type cannot be parsed safely.
-pub(in crate::formats::http) const INVALID_CONTENT_TYPE: &str =
-    "<redacted: invalid content type body>";
+pub(in crate::formats::http) const INVALID_CONTENT_TYPE: &str = "<redacted: invalid content type body>";
 /// Replaces malformed JSON input.
 pub(in crate::formats::http) const INVALID_JSON: &str = "<redacted: invalid JSON>";
 /// Replaces malformed or incomplete JSON input.
-pub(in crate::formats::http) const INVALID_OR_TRUNCATED_JSON: &str =
-    "<redacted: invalid or truncated JSON>";
+pub(in crate::formats::http) const INVALID_OR_TRUNCATED_JSON: &str = "<redacted: invalid or truncated JSON>";
 /// Replaces malformed newline-delimited JSON input.
 pub(in crate::formats::http) const INVALID_NDJSON: &str = "<redacted: invalid NDJSON>";
 /// Replaces malformed or incomplete newline-delimited JSON input.
-pub(in crate::formats::http) const INVALID_OR_TRUNCATED_NDJSON: &str =
-    "<redacted: invalid or truncated NDJSON>";
+pub(in crate::formats::http) const INVALID_OR_TRUNCATED_NDJSON: &str = "<redacted: invalid or truncated NDJSON>";
 /// Replaces a JSON value that has no field name for classification.
 pub(in crate::formats::http) const UNKEYED_JSON: &str = "<redacted: unkeyed JSON value>";
 /// Replaces an HTTP body format that the redactor does not support.

@@ -131,12 +131,7 @@ impl MaskingPolicy {
     #[must_use]
     #[inline(always)]
     #[cfg(feature = "http")]
-    pub(crate) fn mask_bounded<'a>(
-        &self,
-        level: Sensitivity,
-        value: &'a str,
-        max_bytes: usize,
-    ) -> Cow<'a, str> {
+    pub(crate) fn mask_bounded<'a>(&self, level: Sensitivity, value: &'a str, max_bytes: usize) -> Cow<'a, str> {
         self.for_level(level).mask_bounded(value, max_bytes)
     }
 
@@ -148,8 +143,7 @@ impl MaskingPolicy {
         value: &'a str,
         max_bytes: usize,
     ) -> (Cow<'a, str>, bool) {
-        self.for_level(level)
-            .mask_bounded_with_truncation(value, max_bytes)
+        self.for_level(level).mask_bounded_with_truncation(value, max_bytes)
     }
 
     /// Returns an opaque replacement constrained to `max_bytes`.
@@ -297,9 +291,6 @@ mod tests {
         let policy = builder.build();
 
         assert_eq!(policy.for_level(Sensitivity::Low).mask("value"), "low");
-        assert_eq!(
-            policy.for_level(Sensitivity::Medium).mask("value"),
-            "medium"
-        );
+        assert_eq!(policy.for_level(Sensitivity::Medium).mask("value"), "medium");
     }
 }

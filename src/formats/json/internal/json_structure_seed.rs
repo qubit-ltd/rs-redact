@@ -36,9 +36,7 @@ impl<'de> DeserializeSeed<'de> for JsonStructureSeed<'_, '_, '_> {
     where
         D: Deserializer<'de>,
     {
-        if (self.collection_item && !self.admission.admit_collection_item())
-            || !self.admission.admit_node(self.depth)
-        {
+        if (self.collection_item && !self.admission.admit_collection_item()) || !self.admission.admit_node(self.depth) {
             *self.rejected = true;
             return Err(D::Error::custom("JSON structural budget rejected a value"));
         }

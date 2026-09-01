@@ -116,11 +116,8 @@ fn finish_uri_rendering(rendered: BoundedUriWriter) -> RenderedOperation {
 #[must_use]
 fn invalid_output(max_output_bytes: usize) -> RenderedOperation {
     if INVALID_URI.len() <= max_output_bytes {
-        return OperationSink::complete_with_reason(
-            safe_text(INVALID_URI.to_owned()),
-            RedactionReason::InvalidUri,
-        )
-        .finish();
+        return OperationSink::complete_with_reason(safe_text(INVALID_URI.to_owned()), RedactionReason::InvalidUri)
+            .finish();
     }
     OperationSink::truncated(String::new(), RedactionReason::OutputLimitReached)
         .with_reason(RedactionReason::InvalidUri)
@@ -128,11 +125,7 @@ fn invalid_output(max_output_bytes: usize) -> RenderedOperation {
 }
 
 /// Redacts userinfo while preserving the authority's raw host and port.
-fn redact_authority(
-    authority: &str,
-    policy: &RedactionPolicy,
-    rendered: &mut BoundedUriWriter,
-) -> Result<(), ()> {
+fn redact_authority(authority: &str, policy: &RedactionPolicy, rendered: &mut BoundedUriWriter) -> Result<(), ()> {
     let Some((userinfo, host)) = authority.rsplit_once('@') else {
         rendered.write_str(authority);
         return Ok(());
@@ -180,11 +173,7 @@ fn redact_userinfo_value(
 }
 
 /// Redacts query values after strict percent decoding.
-fn redact_query(
-    query: &str,
-    policy: &RedactionPolicy,
-    rendered: &mut BoundedUriWriter,
-) -> Result<(), ()> {
+fn redact_query(query: &str, policy: &RedactionPolicy, rendered: &mut BoundedUriWriter) -> Result<(), ()> {
     for (index, pair) in query.split('&').enumerate() {
         if rendered.is_full() {
             return Ok(());
@@ -246,18 +235,11 @@ fn write_sensitive_value(
         return;
     }
     let mut writer = UriComponentWriter::new(rendered);
-    let _ = policy
-        .masking()
-        .for_level(sensitivity)
-        .write_masked(value, &mut writer);
+    let _ = policy.masking().for_level(sensitivity).write_masked(value, &mut writer);
 }
 
 /// Writes an opaque replacement without allocating beyond the output budget.
-fn write_opaque_mask(
-    policy: &RedactionPolicy,
-    sensitivity: Sensitivity,
-    rendered: &mut BoundedUriWriter,
-) {
+fn write_opaque_mask(policy: &RedactionPolicy, sensitivity: Sensitivity, rendered: &mut BoundedUriWriter) {
     if rendered.is_full() {
         return;
     }

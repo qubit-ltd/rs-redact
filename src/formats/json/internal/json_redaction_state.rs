@@ -53,10 +53,7 @@ impl<'policy, 'marker> JsonRedactionState<'policy, 'marker> {
     /// Creates traversal state from one complete policy snapshot.
     #[cfg(test)]
     #[inline(always)]
-    pub(crate) fn from_policy(
-        policy: &'policy RedactionPolicy,
-        unkeyed: JsonUnkeyedValuePolicy<'marker>,
-    ) -> Self {
+    pub(crate) fn from_policy(policy: &'policy RedactionPolicy, unkeyed: JsonUnkeyedValuePolicy<'marker>) -> Self {
         Self::new(policy.rules(), policy.rules(), policy.masking(), unkeyed)
     }
 
@@ -121,10 +118,9 @@ impl<'policy, 'marker> JsonRedactionState<'policy, 'marker> {
 
     /// Resolves one field against base and context rules monotonically.
     fn resolve_field(&self, key: &str) -> ResolvedField {
-        stronger(
-            self.base_rules.resolve_field(key),
-            self.context_rules.resolve_field(key),
-        )
+        self.base_rules
+            .resolve_field(key)
+            .stronger(self.context_rules.resolve_field(key))
     }
 
     /// Replaces one keyed sensitive value with its configured mask.
@@ -135,25 +131,6 @@ impl<'policy, 'marker> JsonRedactionState<'policy, 'marker> {
             self.masking.mask_opaque(level).to_owned()
         };
         *value = Value::String(masked);
-    }
-}
-
-/// Combines the base policy and a context enhancement monotonically.
-fn stronger(base: ResolvedField, context: ResolvedField) -> ResolvedField {
-    match (base, context) {
-        (
-            ResolvedField::Sensitive { sensitivity: base },
-            ResolvedField::Sensitive {
-                sensitivity: context,
-            },
-        ) => ResolvedField::Sensitive {
-            sensitivity: base.max(context),
-        },
-        (ResolvedField::Sensitive { sensitivity }, ResolvedField::PassThrough)
-        | (ResolvedField::PassThrough, ResolvedField::Sensitive { sensitivity }) => {
-            ResolvedField::Sensitive { sensitivity }
-        }
-        (ResolvedField::PassThrough, ResolvedField::PassThrough) => ResolvedField::PassThrough,
     }
 }
 
@@ -177,8 +154,7 @@ mod tests {
             .build()
             .expect("test policy should build");
         let mut value = json!({"password": {"nested": "raw-secret"}});
-        let mut state =
-            JsonRedactionState::from_policy(&policy, JsonUnkeyedValuePolicy::PassThrough);
+        let mut state = JsonRedactionState::from_policy(&policy, JsonUnkeyedValuePolicy::PassThrough);
 
         let outcome = state.redact(&mut value);
 

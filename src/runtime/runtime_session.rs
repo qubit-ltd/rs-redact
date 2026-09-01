@@ -121,9 +121,7 @@ pub(crate) trait RuntimeSession {
 
     /// Splits JSON structure accounting from lexical value accounting.
     #[cfg(feature = "json")]
-    fn split_json_admission(
-        &mut self,
-    ) -> (super::JsonStructureAdmission<'_>, &mut JsonValueBudget) {
+    fn split_json_admission(&mut self) -> (super::JsonStructureAdmission<'_>, &mut JsonValueBudget) {
         self.runtime_mut().split_json_admission()
     }
 
@@ -260,8 +258,7 @@ pub(crate) trait RuntimeSession {
         if self.runtime().domain_frame.ends_with(", ") {
             let length = self.runtime().domain_frame.len();
             self.runtime_mut().domain_frame.truncate(length - 2);
-            self.runtime_mut().domain_frame_output_bytes =
-                self.runtime().domain_frame_output_bytes.saturating_sub(2);
+            self.runtime_mut().domain_frame_output_bytes = self.runtime().domain_frame_output_bytes.saturating_sub(2);
         }
     }
 
@@ -270,8 +267,7 @@ pub(crate) trait RuntimeSession {
     fn finish_domain_frame(&mut self) -> (String, bool, bool) {
         let output = std::mem::take(&mut self.runtime_mut().domain_frame);
         let truncated = std::mem::take(&mut self.runtime_mut().domain_frame_truncated);
-        let output_limit_reached =
-            std::mem::take(&mut self.runtime_mut().domain_frame_output_limit_reached);
+        let output_limit_reached = std::mem::take(&mut self.runtime_mut().domain_frame_output_limit_reached);
         self.runtime_mut().domain_frame_output_bytes = 0;
         (output, truncated, output_limit_reached)
     }

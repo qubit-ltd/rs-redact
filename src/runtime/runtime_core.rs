@@ -111,17 +111,14 @@ impl RuntimeCore {
 
     /// Splits JSON structure accounting from lexical value accounting.
     #[cfg(feature = "json")]
-    pub(crate) fn split_json_admission(
-        &mut self,
-    ) -> (super::JsonStructureAdmission<'_>, &mut JsonValueBudget) {
+    pub(crate) fn split_json_admission(&mut self) -> (super::JsonStructureAdmission<'_>, &mut JsonValueBudget) {
         let Self {
             budget,
             summary,
             active_operation_summary,
             ..
         } = self;
-        let (structural, usage, active_operation_usage, json_budget) =
-            budget.split_json_admission();
+        let (structural, usage, active_operation_usage, json_budget) = budget.split_json_admission();
         (
             super::JsonStructureAdmission::new(
                 structural,
@@ -137,9 +134,7 @@ impl RuntimeCore {
     /// Records rejection by the transaction-wide JSON value budget.
     #[cfg(feature = "json")]
     pub(crate) fn record_json_value_limit_reached(&mut self) {
-        self.record_summary(RedactionSummary::truncated(
-            RedactionReason::TraversalLimitReached,
-        ));
+        self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
     }
 
     /// Admits one structured format node or records its rejection.
@@ -151,15 +146,11 @@ impl RuntimeCore {
                 true
             }
             StructuralEntry::DepthLimitReached => {
-                self.record_summary(RedactionSummary::truncated(
-                    RedactionReason::DepthLimitReached,
-                ));
+                self.record_summary(RedactionSummary::truncated(RedactionReason::DepthLimitReached));
                 false
             }
             StructuralEntry::TraversalLimitReached => {
-                self.record_summary(RedactionSummary::truncated(
-                    RedactionReason::TraversalLimitReached,
-                ));
+                self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
                 false
             }
         }
@@ -172,9 +163,7 @@ impl RuntimeCore {
         let limits = self.policy().limits();
         let usage = self.budget.usage();
         if limits.max_depth().is_some_and(|maximum| depth > maximum) {
-            self.record_summary(RedactionSummary::truncated(
-                RedactionReason::DepthLimitReached,
-            ));
+            self.record_summary(RedactionSummary::truncated(RedactionReason::DepthLimitReached));
             return false;
         }
         if limits
@@ -184,9 +173,7 @@ impl RuntimeCore {
                 .max_nodes()
                 .is_some_and(|maximum| usage.visited_nodes() >= maximum)
         {
-            self.record_summary(RedactionSummary::truncated(
-                RedactionReason::TraversalLimitReached,
-            ));
+            self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
             return false;
         }
         true
@@ -201,9 +188,7 @@ impl RuntimeCore {
             .max_collection_items()
             .is_some_and(|maximum| usage.visited_collection_items() >= maximum)
         {
-            self.record_summary(RedactionSummary::truncated(
-                RedactionReason::TraversalLimitReached,
-            ));
+            self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
             return false;
         }
         true
@@ -219,15 +204,11 @@ impl RuntimeCore {
                 true
             }
             StructuralEntry::DepthLimitReached => {
-                self.record_summary(RedactionSummary::truncated(
-                    RedactionReason::DepthLimitReached,
-                ));
+                self.record_summary(RedactionSummary::truncated(RedactionReason::DepthLimitReached));
                 false
             }
             StructuralEntry::TraversalLimitReached => {
-                self.record_summary(RedactionSummary::truncated(
-                    RedactionReason::TraversalLimitReached,
-                ));
+                self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
                 false
             }
         }
@@ -242,9 +223,7 @@ impl RuntimeCore {
             let depth = self.budget.structural().current_depth();
             self.budget.record_structural_node(depth);
         } else {
-            self.record_summary(RedactionSummary::truncated(
-                RedactionReason::TraversalLimitReached,
-            ));
+            self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
         }
         admission
     }
@@ -257,9 +236,7 @@ impl RuntimeCore {
         if admission {
             self.budget.record_collection_item();
         } else {
-            self.record_summary(RedactionSummary::truncated(
-                RedactionReason::TraversalLimitReached,
-            ));
+            self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
         }
         admission
     }
@@ -277,9 +254,7 @@ impl RuntimeCore {
         if self.budget.admit_json_value(value) {
             true
         } else {
-            self.record_summary(RedactionSummary::truncated(
-                RedactionReason::TraversalLimitReached,
-            ));
+            self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
             false
         }
     }
@@ -308,9 +283,7 @@ impl RuntimeCore {
             return false;
         }
         self.phase = TransactionPhase::OutputExhausted;
-        self.record_summary(RedactionSummary::exhausted(
-            RedactionReason::OutputLimitReached,
-        ));
+        self.record_summary(RedactionSummary::exhausted(RedactionReason::OutputLimitReached));
         true
     }
 
@@ -320,9 +293,7 @@ impl RuntimeCore {
         let limit = self.policy().limits().max_input_bytes();
         if bytes > limit.saturating_sub(inspected) {
             self.budget.record_input(bytes, 0);
-            self.record_summary(RedactionSummary::truncated(
-                RedactionReason::InputLimitReached,
-            ));
+            self.record_summary(RedactionSummary::truncated(RedactionReason::InputLimitReached));
             return false;
         }
         self.budget.record_input(bytes, bytes);
@@ -334,20 +305,14 @@ impl RuntimeCore {
     #[must_use]
     pub(super) fn admit_input_prefix<'text>(&mut self, text: &'text str) -> &'text str {
         let inspected = self.budget.usage().inspected_input_bytes();
-        let remaining = self
-            .policy()
-            .limits()
-            .max_input_bytes()
-            .saturating_sub(inspected);
+        let remaining = self.policy().limits().max_input_bytes().saturating_sub(inspected);
         let mut admitted = text.len().min(remaining);
         while admitted > 0 && !text.is_char_boundary(admitted) {
             admitted -= 1;
         }
         self.budget.record_input(text.len(), admitted);
         if admitted < text.len() {
-            self.record_summary(RedactionSummary::truncated(
-                RedactionReason::InputLimitReached,
-            ));
+            self.record_summary(RedactionSummary::truncated(RedactionReason::InputLimitReached));
         }
         &text[..admitted]
     }
@@ -361,12 +326,9 @@ impl RuntimeCore {
         let inspected = if admitted { inspectable } else { 0 };
         let presented = total.unwrap_or(inspectable);
         let omitted = total.map(|length| length.saturating_sub(inspected));
-        self.budget
-            .record_source_input(presented, inspected, omitted);
+        self.budget.record_source_input(presented, inspected, omitted);
         if !admitted {
-            self.record_summary(RedactionSummary::truncated(
-                RedactionReason::InputLimitReached,
-            ));
+            self.record_summary(RedactionSummary::truncated(RedactionReason::InputLimitReached));
         }
         admitted
     }

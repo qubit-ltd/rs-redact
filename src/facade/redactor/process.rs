@@ -136,8 +136,7 @@ impl Redactor {
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
     {
         let mut session = self.inspection_runtime();
-        let command =
-            std::iter::once(crate::formats::argv::ArgvItem::plain(program)).chain(arguments);
+        let command = std::iter::once(crate::formats::argv::ArgvItem::plain(program)).chain(arguments);
         crate::formats::argv::inspection::inspect_items(&mut session, command, true);
         crate::formats::env::inspection::inspect_os_pairs(&mut session, variables);
         session.finish()

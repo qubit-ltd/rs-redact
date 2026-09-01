@@ -64,8 +64,7 @@ impl BatchSession {
         let item_index = self.output.len();
         if text.len() > self.remaining_output_bytes() {
             self.runtime.core.phase = TransactionPhase::OutputExhausted;
-            let summary =
-                crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached);
+            let summary = crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached);
             self.record_summary(summary);
             let item_summary = self
                 .runtime
@@ -107,22 +106,16 @@ impl BatchSession {
         match completion {
             RedactionCompletion::Complete => OperationSink::complete(redacted).finish(),
             RedactionCompletion::Truncated => {
-                OperationSink::truncated(redacted, crate::RedactionReason::OutputLimitReached)
-                    .finish()
+                OperationSink::truncated(redacted, crate::RedactionReason::OutputLimitReached).finish()
             }
             RedactionCompletion::Exhausted => {
-                OperationSink::exhausted(redacted, crate::RedactionReason::OutputLimitReached)
-                    .finish()
+                OperationSink::exhausted(redacted, crate::RedactionReason::OutputLimitReached).finish()
             }
         }
     }
 
     /// Redacts one display value under the remaining batch output allowance.
-    pub(crate) fn redact_field_display_output<T>(
-        &mut self,
-        field: &str,
-        value: &T,
-    ) -> RenderedOperation
+    pub(crate) fn redact_field_display_output<T>(&mut self, field: &str, value: &T) -> RenderedOperation
     where
         T: std::fmt::Display + ?Sized,
     {
@@ -135,37 +128,29 @@ impl BatchSession {
         match completion {
             RedactionCompletion::Complete => OperationSink::complete(redacted).finish(),
             RedactionCompletion::Truncated => {
-                OperationSink::truncated(redacted, crate::RedactionReason::OutputLimitReached)
-                    .finish()
+                OperationSink::truncated(redacted, crate::RedactionReason::OutputLimitReached).finish()
             }
             RedactionCompletion::Exhausted => {
-                OperationSink::exhausted(redacted, crate::RedactionReason::OutputLimitReached)
-                    .finish()
+                OperationSink::exhausted(redacted, crate::RedactionReason::OutputLimitReached).finish()
             }
         }
     }
 
     /// Stages one unpublished adapter result as an individually resolvable
     /// item.
-    pub(crate) fn stage_rendered_operation(
-        &mut self,
-        operation: RenderedOperation,
-    ) -> RedactionHandle {
+    pub(crate) fn stage_rendered_operation(&mut self, operation: RenderedOperation) -> RedactionHandle {
         let (text, completion, reasons) = operation.into_parts();
         let operation_summary = rendered_summary(completion, reasons);
         let item_index = self.output.len();
         let remaining = self.remaining_output_bytes();
-        let replacement_could_not_fit =
-            text.is_empty() && reasons.contains(crate::RedactionReason::OutputLimitReached);
-        let (retained, item_summary) = if self.runtime.core.phase
-            == TransactionPhase::OutputExhausted
+        let replacement_could_not_fit = text.is_empty() && reasons.contains(crate::RedactionReason::OutputLimitReached);
+        let (retained, item_summary) = if self.runtime.core.phase == TransactionPhase::OutputExhausted
             || completion == RedactionCompletion::Exhausted
             || replacement_could_not_fit
             || text.len() > remaining
         {
             self.runtime.core.phase = TransactionPhase::OutputExhausted;
-            let exhausted =
-                crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached);
+            let exhausted = crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached);
             self.record_summary(operation_summary);
             self.record_summary(exhausted);
             let item_summary = self
@@ -225,8 +210,7 @@ impl BatchSession {
         if let Some(item_index) = self.output.exhausted_item() {
             return RedactionHandle::new(self.id, item_index);
         }
-        let summary =
-            crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached);
+        let summary = crate::RedactionSummary::exhausted(crate::RedactionReason::OutputLimitReached);
         self.record_summary(summary);
         let item_summary = self
             .runtime
@@ -248,18 +232,10 @@ impl BatchSession {
 
     /// Returns bounded field text with the completion caused by its allowance.
     #[allow(dead_code)]
-    fn redact_field_with_completion(
-        &mut self,
-        field: &str,
-        value: &str,
-    ) -> (String, RedactionCompletion) {
+    fn redact_field_with_completion(&mut self, field: &str, value: &str) -> (String, RedactionCompletion) {
         let policy = self.policy();
-        let (redacted, completion) = field_rendering::redact_field_text_for_output(
-            policy,
-            field,
-            value,
-            self.remaining_output_bytes(),
-        );
+        let (redacted, completion) =
+            field_rendering::redact_field_text_for_output(policy, field, value, self.remaining_output_bytes());
         (redacted, completion)
     }
 }
@@ -278,18 +254,11 @@ impl BatchSession {
     /// Consumes the transaction into independently resolvable items.
     #[must_use]
     pub(crate) fn finish(self) -> BatchPublication {
-        BatchPublication::new(
-            self.id,
-            self.output.publish(),
-            self.runtime.core.into_summary(),
-        )
+        BatchPublication::new(self.id, self.output.publish(), self.runtime.core.into_summary())
     }
 
     /// Runs one item operation under panic rollback semantics.
-    fn run_handle(
-        &mut self,
-        operation: impl FnOnce(&mut Self) -> RedactionHandle,
-    ) -> RedactionHandle {
+    fn run_handle(&mut self, operation: impl FnOnce(&mut Self) -> RedactionHandle) -> RedactionHandle {
         let mut guard = TransactionGuard::new(self);
         let owns_item_summary = guard.session().begin_item_summary();
         let handle = operation(guard.session());
@@ -311,10 +280,8 @@ impl BatchSession {
             let mut writer = crate::domain::RedactionWriter::new_root(session);
             value.write_redacted(&mut writer);
             let rendered = writer.finish_with_completion();
-            let escaped = crate::output::log_escape::escape_log_control_characters(
-                std::borrow::Cow::Owned(rendered.0),
-            )
-            .into_owned();
+            let escaped = crate::output::log_escape::escape_log_control_characters(std::borrow::Cow::Owned(rendered.0))
+                .into_owned();
             if rendered.2 && escaped.is_empty() {
                 return session.stage_exhausted_handle();
             }
@@ -332,9 +299,7 @@ impl BatchSession {
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
     {
-        self.run_handle(|session| {
-            crate::formats::argv::batch_redaction::redact_items(session, items)
-        })
+        self.run_handle(|session| crate::formats::argv::batch_redaction::redact_items(session, items))
     }
 
     /// Redacts heuristically classified arguments as one batch item.
@@ -342,16 +307,12 @@ impl BatchSession {
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
     {
-        self.run_handle(|session| {
-            crate::formats::argv::batch_redaction::redact_heuristic_items(session, items)
-        })
+        self.run_handle(|session| crate::formats::argv::batch_redaction::redact_heuristic_items(session, items))
     }
 
     /// Redacts one environment pair as a batch item.
     pub(crate) fn redact_env(&mut self, name: &str, value: &str) -> RedactionHandle {
-        self.run_handle(|session| {
-            crate::formats::env::batch_redaction::redact_pair(session, name, value)
-        })
+        self.run_handle(|session| crate::formats::env::batch_redaction::redact_pair(session, name, value))
     }
 
     /// Redacts environment pairs as one batch item.
@@ -359,9 +320,7 @@ impl BatchSession {
     where
         I: IntoIterator<Item = (&'items std::ffi::OsStr, &'items std::ffi::OsStr)>,
     {
-        self.run_handle(|session| {
-            crate::formats::env::batch_redaction::redact_os_pairs(session, pairs)
-        })
+        self.run_handle(|session| crate::formats::env::batch_redaction::redact_os_pairs(session, pairs))
     }
 
     /// Redacts one process command as a batch item.
@@ -376,9 +335,7 @@ impl BatchSession {
         E: IntoIterator<Item = (&'variables std::ffi::OsStr, &'variables std::ffi::OsStr)>,
     {
         self.run_handle(|session| {
-            crate::formats::process::batch_redaction::redact_command(
-                session, program, arguments, variables,
-            )
+            crate::formats::process::batch_redaction::redact_command(session, program, arguments, variables)
         })
     }
 
@@ -391,9 +348,7 @@ impl BatchSession {
     /// Redacts a parsed JSON value as one batch item.
     #[cfg(feature = "json")]
     pub(crate) fn redact_json_value(&mut self, value: &serde_json::Value) -> RedactionHandle {
-        self.run_handle(|session| {
-            crate::formats::json::batch_redaction::redact_value(session, value)
-        })
+        self.run_handle(|session| crate::formats::json::batch_redaction::redact_value(session, value))
     }
 
     /// Redacts one URI as a batch item.
@@ -411,9 +366,7 @@ impl BatchSession {
     /// Redacts HTTP headers as one batch item.
     #[cfg(feature = "http")]
     pub(crate) fn redact_http_headers(&mut self, headers: &http::HeaderMap) -> RedactionHandle {
-        self.run_handle(|session| {
-            crate::formats::http::batch_redaction::redact_headers(session, headers)
-        })
+        self.run_handle(|session| crate::formats::http::batch_redaction::redact_headers(session, headers))
     }
 
     /// Redacts a captured HTTP body as one batch item.
@@ -423,9 +376,7 @@ impl BatchSession {
         capture: crate::formats::http::BodyCapture<'_>,
         content_type: Option<&http::HeaderValue>,
     ) -> RedactionHandle {
-        self.run_handle(|session| {
-            crate::formats::http::batch_redaction::redact_body(session, capture, content_type)
-        })
+        self.run_handle(|session| crate::formats::http::batch_redaction::redact_body(session, capture, content_type))
     }
 
     /// Redacts a captured HTTP body with textual Content-Type.
@@ -436,11 +387,7 @@ impl BatchSession {
         content_type: Option<&str>,
     ) -> RedactionHandle {
         self.run_handle(|session| {
-            crate::formats::http::batch_redaction::redact_body_with_content_type_text(
-                session,
-                capture,
-                content_type,
-            )
+            crate::formats::http::batch_redaction::redact_body_with_content_type_text(session, capture, content_type)
         })
     }
 }
