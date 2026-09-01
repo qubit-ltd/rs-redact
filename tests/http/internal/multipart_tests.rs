@@ -21,9 +21,7 @@ fn test_multipart_hides_file_content() {
     let rendered = redact_body(
         &Redactor::standard(),
         BodyCapture::complete(body),
-        Some(&HeaderValue::from_static(
-            "multipart/form-data; boundary=boundary",
-        )),
+        Some(&HeaderValue::from_static("multipart/form-data; boundary=boundary")),
     );
 
     assert!(!rendered.contains("file-secret"));
@@ -44,9 +42,7 @@ fn test_multipart_lf_framing_passes_non_sensitive_text_when_policy_allows_it() {
     let rendered = redact_body(
         &Redactor::new(policy),
         BodyCapture::complete(body),
-        Some(&HeaderValue::from_static(
-            "multipart/form-data; boundary=boundary",
-        )),
+        Some(&HeaderValue::from_static("multipart/form-data; boundary=boundary")),
     );
 
     assert!(rendered.contains("<multipart>"));
@@ -62,9 +58,7 @@ fn test_multipart_form_part_redacts_nested_sensitive_values() {
     let rendered = redact_body(
         &Redactor::standard(),
         BodyCapture::complete(body),
-        Some(&HeaderValue::from_static(
-            "multipart/form-data; boundary=boundary",
-        )),
+        Some(&HeaderValue::from_static("multipart/form-data; boundary=boundary")),
     );
 
     assert!(rendered.contains("payload="));

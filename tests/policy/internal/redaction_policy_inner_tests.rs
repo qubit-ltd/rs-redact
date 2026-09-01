@@ -20,8 +20,5 @@ fn test_redaction_policy_inner_normalizes_field_name_for_lookup() {
         .build()
         .expect("the configured rule should be valid");
 
-    assert_eq!(
-        policy.sensitivity_for("tenant-secret"),
-        Some(Sensitivity::Secret),
-    );
+    assert_eq!(policy.sensitivity_for("tenant-secret"), Some(Sensitivity::Secret),);
 }

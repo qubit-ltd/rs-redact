@@ -25,11 +25,7 @@ fn explicit<'a, I>(items: I) -> String
 where
     I: IntoIterator<Item = ArgvItem<'a>>,
 {
-    Redactor::standard()
-        .redact_argv(items)
-        .text()
-        .as_str()
-        .to_owned()
+    Redactor::standard().redact_argv(items).text().as_str().to_owned()
 }
 
 fn heuristic<'a, I>(items: I) -> String
@@ -102,10 +98,7 @@ fn composer_and_batch_argv_results_are_separate() {
         })
         .finish();
     let mut batch = Redactor::standard().batch();
-    let handle = batch.redact_argv([ArgvItem::sensitive(
-        OsStr::new("item-secret"),
-        Sensitivity::Secret,
-    )]);
+    let handle = batch.redact_argv([ArgvItem::sensitive(OsStr::new("item-secret"), Sensitivity::Secret)]);
     let output = batch.finish();
 
     assert!(text.text().as_str().starts_with("argv="));
@@ -134,9 +127,7 @@ fn direct_argv_handle_operations_publish_explicit_and_heuristic_results() {
     ]);
     let output = batch.finish();
 
-    let explicit = output
-        .resolve(explicit_handle)
-        .expect("explicit handle should publish");
+    let explicit = output.resolve(explicit_handle).expect("explicit handle should publish");
     let heuristic = output
         .resolve(heuristic_handle)
         .expect("heuristic handle should publish");
@@ -163,16 +154,8 @@ fn exact_output_budget_fill_skips_later_argv_adapter_work() {
         .finish();
 
     assert_eq!(output.text().as_str(), "safe");
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::OutputLimitReached)
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert_eq!(output.summary().usage().output_bytes(), 4);
 }
 

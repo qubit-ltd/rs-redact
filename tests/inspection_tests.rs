@@ -54,9 +54,7 @@ fn test_inspect_domain_value_reports_highest_sensitivity_without_formatting() {
     };
     let redactor = Redactor::standard();
 
-    let direct = redactor
-        .inspect(&value)
-        .expect("inspection should complete");
+    let direct = redactor.inspect(&value).expect("inspection should complete");
     assert!(direct.contains_sensitive());
     assert_eq!(direct.max_sensitivity(), Some(Sensitivity::Secret));
     assert_eq!(direct.usage().output_bytes(), 0);
@@ -106,10 +104,6 @@ fn test_inspect_domain_value_fails_closed_at_structural_limit() {
         .inspect(&value)
         .expect_err("limited traversal must be inconclusive");
 
-    assert!(
-        error
-            .reasons()
-            .contains(RedactionReason::TraversalLimitReached)
-    );
+    assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
     assert_eq!(error.usage().output_bytes(), 0);
 }

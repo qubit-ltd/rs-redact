@@ -68,10 +68,7 @@ fn test_uri_query_pairs_share_the_transaction_structural_budget() {
     assert!(!output.text().as_str().contains("must-not-be-rendered"));
     assert_eq!(output.summary().usage().visited_nodes(), 3);
     assert_eq!(output.summary().usage().visited_collection_items(), 1);
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
 }
 
 /// Invalid URI input is replaced at the URI adapter boundary, including its
@@ -86,11 +83,7 @@ fn test_uri_handle_replaces_invalid_input_and_preserves_provenance() {
         .expect("finished transaction publishes URI handle");
 
     assert_eq!(item.text().as_str(), "<invalid URI>");
-    assert!(
-        item.summary()
-            .reasons()
-            .contains(RedactionReason::InvalidUri)
-    );
+    assert!(item.summary().reasons().contains(RedactionReason::InvalidUri));
     assert!(!item.text().as_str().contains("secret"));
 }
 
@@ -114,12 +107,7 @@ fn test_empty_uri_reports_invalid_uri_for_one_shot_composer_and_batch() {
 
     for output in [&one_shot, &aggregate, item] {
         assert_eq!(output.text().as_str(), "<invalid URI>");
-        assert!(
-            output
-                .summary()
-                .reasons()
-                .contains(RedactionReason::InvalidUri)
-        );
+        assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
         assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
     }
 }
@@ -149,9 +137,7 @@ fn test_uri_handle_observes_exhausted_parent_output() {
     let mut batch = Redactor::new(policy).batch();
     let handle = batch.redact_uri("https://example.test/?token=secret");
     let output = batch.finish();
-    let item = output
-        .resolve(handle)
-        .expect("exhausted handle belongs to transaction");
+    let item = output.resolve(handle).expect("exhausted handle belongs to transaction");
 
     assert!(item.text().as_str().is_empty());
     assert_eq!(item.summary().completion(), RedactionCompletion::Exhausted);

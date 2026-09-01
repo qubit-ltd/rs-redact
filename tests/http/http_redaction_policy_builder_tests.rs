@@ -21,15 +21,10 @@ fn test_http_policy_builder_updates_behavior_choices() {
             http.text_body(TextBodyPolicy::PassThrough);
         })
         .expect("the HTTP policy configuration must be valid");
-    let policy = builder
-        .build()
-        .expect("the configured policy must be valid");
+    let policy = builder.build().expect("the configured policy must be valid");
 
     assert_eq!(policy.http().url_path_policy(), UrlPathPolicy::Redact);
-    assert_eq!(
-        policy.http().text_body_policy(),
-        TextBodyPolicy::PassThrough,
-    );
+    assert_eq!(policy.http().text_body_policy(), TextBodyPolicy::PassThrough,);
 }
 
 /// Verifies that an ignored context-rule error aborts the complete HTTP draft.
@@ -40,8 +35,5 @@ fn test_http_policy_builder_rejects_an_ignored_context_error() {
         let _ = http.header().raise("", Sensitivity::Secret);
     });
 
-    assert!(
-        result.is_err(),
-        "an invalid HTTP draft must not be committed"
-    );
+    assert!(result.is_err(), "an invalid HTTP draft must not be committed");
 }

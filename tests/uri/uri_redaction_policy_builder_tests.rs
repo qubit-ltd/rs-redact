@@ -16,8 +16,7 @@ fn test_uri_policy_builder_updates_behavior_choices() {
     let policy = RedactionPolicy::default()
         .to_builder()
         .uri(|uri| {
-            uri.path(UriPathPolicy::Redact)
-                .fragment(UriFragmentPolicy::Preserve);
+            uri.path(UriPathPolicy::Redact).fragment(UriFragmentPolicy::Preserve);
         })
         .expect("the URI draft should be valid")
         .build()

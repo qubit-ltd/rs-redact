@@ -39,16 +39,8 @@ fn composer_stops_later_adapter_after_output_exhaustion() {
         .env(|_| later_called.set(true))
         .finish();
 
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::OutputLimitReached)
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert!(!later_called.get());
 }
 
@@ -59,10 +51,7 @@ fn batch_stops_later_item_after_output_exhaustion() {
     let second = batch.redact_env("MODE", "debug");
     let output = batch.finish();
 
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
     assert_eq!(
         output
             .resolve(first)
@@ -113,10 +102,8 @@ fn batch_http_body_text_returns_an_exhausted_handle() {
 
     let mut batch = create_one_byte_redactor().batch();
     let first = batch.redact_field("name", "x");
-    let second = batch.redact_http_body_with_content_type_text(
-        BodyCapture::complete(b"not-valid-json"),
-        Some("application/json"),
-    );
+    let second = batch
+        .redact_http_body_with_content_type_text(BodyCapture::complete(b"not-valid-json"), Some("application/json"));
     let output = batch.finish();
 
     assert!(output.resolve(first).is_ok());
@@ -128,18 +115,8 @@ fn batch_http_body_text_returns_an_exhausted_handle() {
             .completion(),
         RedactionCompletion::Exhausted
     );
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::OutputLimitReached)
-    );
-    assert!(
-        !output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::InvalidJson)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert!(!output.summary().reasons().contains(RedactionReason::InvalidJson));
 }
 
 #[test]
@@ -152,14 +129,7 @@ fn composer_and_batch_own_independent_budget_ledgers() {
 
     assert_eq!(text.text().as_str(), "x");
     assert_eq!(text.summary().completion(), RedactionCompletion::Complete);
-    assert_eq!(
-        output
-            .resolve(item)
-            .expect("batch item resolves")
-            .text()
-            .as_str(),
-        "x"
-    );
+    assert_eq!(output.resolve(item).expect("batch item resolves").text().as_str(), "x");
 }
 
 /// An exact write closes the shared budget. A later operation must expose the
@@ -192,16 +162,8 @@ fn test_composer_reports_exhaustion_after_an_exact_argv_write() {
         })
         .finish();
 
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::OutputLimitReached)
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert!(!later_pulled.get());
 }
 
@@ -236,15 +198,7 @@ fn test_process_command_reports_exhaustion_when_argv_exactly_fills_budget() {
         })
         .finish();
 
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::OutputLimitReached)
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert!(!environment_pulled.get());
 }

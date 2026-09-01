@@ -34,10 +34,7 @@ fn test_floor_overrides_application_exact_allow() {
         .expect("the field configuration should be valid")
         .build()
         .expect("the policy should build");
-    assert_eq!(
-        policy.sensitivity_for("access_token"),
-        Some(Sensitivity::High)
-    );
+    assert_eq!(policy.sensitivity_for("access_token"), Some(Sensitivity::High));
 }
 
 /// Verifies that a suffix allow cannot bypass a matching floor rule.
@@ -56,10 +53,7 @@ fn test_floor_overrides_application_suffix_allow() {
         .build()
         .expect("the policy should build");
 
-    assert_eq!(
-        policy.sensitivity_for("service_access_token"),
-        Some(Sensitivity::High),
-    );
+    assert_eq!(policy.sensitivity_for("service_access_token"), Some(Sensitivity::High),);
 }
 
 #[test]
@@ -79,10 +73,7 @@ fn test_floor_only_raises_sensitivity_when_application_level_is_higher() {
         .expect("the field configuration should be valid")
         .build()
         .expect("the policy should build");
-    assert_eq!(
-        policy.sensitivity_for("credential"),
-        Some(Sensitivity::Secret),
-    );
+    assert_eq!(policy.sensitivity_for("credential"), Some(Sensitivity::Secret),);
     assert_eq!(
         Redactor::new(policy)
             .redact_field("credential", "value")
@@ -105,10 +96,7 @@ fn test_floor_and_application_unknown_fallbacks_combine() {
             fields
                 .floor(floor)
                 .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Secret))
-                .mask(
-                    Sensitivity::Secret,
-                    MaskPolicy::fixed("[application-secret]"),
-                );
+                .mask(Sensitivity::Secret, MaskPolicy::fixed("[application-secret]"));
         })
         .expect("the field configuration should be valid")
         .build()
@@ -166,9 +154,7 @@ fn test_floor_matching_is_independent_from_application_matching() {
         .expect("the floor should build");
     let policy = RedactionPolicy::builder()
         .fields(|fields| {
-            fields
-                .floor(floor)
-                .matching(FieldNameMatching::ExactOrTokenSuffix);
+            fields.floor(floor).matching(FieldNameMatching::ExactOrTokenSuffix);
         })
         .expect("the field configuration should be valid")
         .build()
@@ -210,10 +196,7 @@ fn test_with_floor_after_disable_floor_is_last_call_wins() {
         .build()
         .expect("the policy should build");
 
-    assert_eq!(
-        policy.sensitivity_for("credential"),
-        Some(Sensitivity::High),
-    );
+    assert_eq!(policy.sensitivity_for("credential"), Some(Sensitivity::High),);
 }
 
 /// Verifies disabled floor snapshots are copied and default copying replaces
@@ -222,17 +205,12 @@ fn test_with_floor_after_disable_floor_is_last_call_wins() {
 fn test_builder_copy_and_standard_preserve_or_replace_floor_configuration() {
     let disabled = RedactionPolicy::builder()
         .fields(|fields| {
-            fields
-                .disable_floor()
-                .raise("application_only", Sensitivity::High);
+            fields.disable_floor().raise("application_only", Sensitivity::High);
         })
         .expect("the field configuration should be valid")
         .build()
         .expect("the disabled policy should build");
-    let copied = disabled
-        .to_builder()
-        .build()
-        .expect("the copied policy should build");
+    let copied = disabled.to_builder().build().expect("the copied policy should build");
     let reset = RedactionPolicy::default()
         .to_builder()
         .build()

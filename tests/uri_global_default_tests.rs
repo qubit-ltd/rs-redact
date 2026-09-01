@@ -20,8 +20,7 @@ fn test_uri_policy_defaults_preserve_application_snapshot() {
         RedactionPolicy::standard()
             .to_builder()
             .uri(|uri| {
-                uri.path(UriPathPolicy::Redact)
-                    .fragment(UriFragmentPolicy::Preserve);
+                uri.path(UriPathPolicy::Redact).fragment(UriFragmentPolicy::Preserve);
             })
             .expect("the URI draft should be valid")
             .build()
