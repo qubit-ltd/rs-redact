@@ -31,6 +31,9 @@ impl HttpPolicyExecutor<'_> {
                 false,
             );
         }
+        // Root arrays may contain unkeyed pass-through scalars. When their
+        // complete source representation cannot fit, do not attempt to retain
+        // a partial array whose omitted element boundary would be ambiguous.
         if matches!(value, serde_json::Value::Array(_)) && bounded.len() > output_limit {
             return ParsedBody::new(markers::TRUNCATED.to_string(), BodyRenderStatus::Structured, true);
         }

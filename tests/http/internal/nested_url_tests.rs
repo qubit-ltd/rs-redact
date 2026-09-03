@@ -44,3 +44,30 @@ fn test_deeply_encoded_nested_url_does_not_expose_query_secret() {
 
     assert!(!rendered.contains("raw-secret"));
 }
+
+/// Exercises malformed escapes before and after an established HTTP prefix.
+#[test]
+fn test_nested_url_malformed_escape_variants_fail_closed() {
+    let redactor = Redactor::standard();
+    for nested in [
+        "http://inner.test/%ZZ?token=raw-secret",
+        "http%ZZ://inner.test/?token=raw-secret",
+        "http%3A%2F%2Finner.test%2F%3Ftoken%3Draw-secret%",
+        "http%3A%2F%2Finner.test%2F%3Ftoken%3Draw-secret%G0",
+        "http%3A%2F%2Finner.test%2F%3Ftoken%3Draw-secret%FF",
+    ] {
+        let rendered = redact_url(&redactor, &format!("https://outer.test/?next={nested}"));
+        assert!(!rendered.contains("raw-secret"), "malformed candidate leaked: {nested}");
+    }
+}
+
+/// Non-HTTP schemes and malformed non-URL values remain ordinary query data.
+#[test]
+fn test_nested_url_detector_ignores_non_http_values() {
+    let redactor = Redactor::standard();
+    let non_http = redact_url(&redactor, "https://outer.test/?next=ftp://inner.test/public");
+    let malformed_text = redact_url(&redactor, "https://outer.test/?next=note%25FFpublic");
+
+    assert!(non_http.contains("ftp"));
+    assert!(malformed_text.contains("note"));
+}

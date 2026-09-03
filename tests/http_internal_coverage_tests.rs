@@ -220,3 +220,50 @@ fn test_http_tiny_output_budget_marks_truncation_without_exposing_body() {
             .contains(RedactionReason::OutputLimitReached)
     );
 }
+
+#[test]
+fn test_http_disabled_body_truncation_preserves_utf8_boundaries() {
+    let policy = RedactionPolicy::disabled()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_output_bytes(15);
+        })
+        .expect("limits setup must be valid")
+        .build()
+        .expect("disabled policy must be valid");
+    let output = Redactor::new(policy).redact_http_body(BodyCapture::complete("账户🔐visible".as_bytes()), None);
+
+    assert_eq!(output.text().as_str(), "账<truncated>");
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+
+    let policy = RedactionPolicy::disabled()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_output_bytes(10);
+        })
+        .expect("limits setup must be valid")
+        .build()
+        .expect("disabled policy must be valid");
+    let exhausted = Redactor::new(policy).redact_http_body(BodyCapture::complete(b"visible diagnostic"), None);
+    assert!(exhausted.text().as_str().is_empty());
+    assert_eq!(exhausted.summary().completion(), RedactionCompletion::Exhausted);
+}
+
+#[test]
+fn test_http_json_array_uses_safe_marker_when_source_exceeds_output() {
+    let redactor = configured_redactor(|builder| {
+        *builder = std::mem::take(builder)
+            .limits(|limits| {
+                limits.max_output_bytes(16);
+            })
+            .expect("limits setup must be valid");
+    });
+    let output = redactor.redact_http_body(
+        BodyCapture::complete(br#"["public-value-that-does-not-fit"]"#),
+        Some(&HeaderValue::from_static("application/json")),
+    );
+
+    assert_eq!(output.text().as_str(), "<truncated>");
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+}
