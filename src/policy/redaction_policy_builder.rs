@@ -144,6 +144,11 @@ impl RedactionPolicyBuilder {
     ///
     /// The draft replaces this namespace only after the closure returns, so a
     /// failed build never partially updates the caller's builder.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError`] when the HTTP view records an invalid field
+    /// rule. The original builder remains unchanged.
     #[cfg(feature = "http")]
     pub fn http<F>(self, configure: F) -> Result<Self, PolicyError>
     where
@@ -165,6 +170,11 @@ impl RedactionPolicyBuilder {
     }
 
     /// Configures URI policy through an isolated draft.
+    ///
+    /// # Errors
+    ///
+    /// This operation is currently infallible. The result preserves the
+    /// transactional shape shared by feature-specific builder views.
     #[cfg(feature = "uri")]
     pub fn uri<F>(self, configure: F) -> Result<Self, PolicyError>
     where
@@ -183,6 +193,11 @@ impl RedactionPolicyBuilder {
     ///
     /// The closure mutates only a temporary limits builder. Once it returns,
     /// the completed limits replace this builder's limits as one update.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError`] when the completed limit set violates a
+    /// cross-limit invariant. The original builder remains unchanged.
     pub fn limits<F>(mut self, configure: F) -> Result<Self, PolicyError>
     where
         F: FnOnce(&mut RedactionLimitsBuilder),
@@ -535,6 +550,10 @@ mod views {
         }
 
         /// Raises a context field's minimum sensitivity.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`PolicyError`] when `field` has no canonical name.
         pub fn raise(&mut self, field: &str, level: Sensitivity) -> Result<&mut Self, PolicyError> {
             if self.error.is_none()
                 && let Err(error) = self.builder.raise_mut(self.context, field, level)
@@ -546,6 +565,10 @@ mod views {
         }
 
         /// Replaces a context field rule without weakening the base policy.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`PolicyError`] when `field` has no canonical name.
         pub fn override_level(&mut self, field: &str, level: Sensitivity) -> Result<&mut Self, PolicyError> {
             if self.error.is_none()
                 && let Err(error) = self.builder.override_level_mut(self.context, field, level)
@@ -557,6 +580,10 @@ mod views {
         }
 
         /// Adds a context exact allow rule; the base policy still applies.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`PolicyError`] when `field` has no canonical name.
         pub fn allow_exact(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
             if self.error.is_none()
                 && let Err(error) = self.builder.allow_exact_mut(self.context, field)
@@ -568,6 +595,10 @@ mod views {
         }
 
         /// Adds a context suffix allow rule; the base policy still applies.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`PolicyError`] when `field` has no canonical suffix.
         pub fn allow_suffix(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
             if self.error.is_none()
                 && let Err(error) = self.builder.allow_suffix_mut(self.context, field)
@@ -579,6 +610,10 @@ mod views {
         }
 
         /// Removes a context exact allow rule.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`PolicyError`] when `field` has no canonical name.
         pub fn remove_allow_exact(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
             if self.error.is_none()
                 && let Err(error) = self.builder.remove_allow_exact_mut(self.context, field)
@@ -590,6 +625,10 @@ mod views {
         }
 
         /// Removes a context suffix allow rule.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`PolicyError`] when `field` has no canonical suffix.
         pub fn remove_allow_suffix(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
             if self.error.is_none()
                 && let Err(error) = self.builder.remove_allow_suffix_mut(self.context, field)

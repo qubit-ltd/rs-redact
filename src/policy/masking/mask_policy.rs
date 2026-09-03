@@ -215,13 +215,14 @@ impl MaskPolicy {
     /// # Returns
     ///
     /// Empty input remains borrowed; other results own at most `max_bytes`.
-    #[cfg(any(feature = "json", feature = "http"))]
     #[cfg(feature = "http")]
+    #[must_use]
     pub(crate) fn mask_bounded<'a>(&self, value: &'a str, max_bytes: usize) -> Cow<'a, str> {
         self.mask_bounded_with_truncation(value, max_bytes).0
     }
 
     /// Masks a value and reports whether the byte ceiling cut the mask.
+    #[must_use]
     pub(crate) fn mask_bounded_with_truncation<'a>(&self, value: &'a str, max_bytes: usize) -> (Cow<'a, str>, bool) {
         if value.is_empty() {
             return (Cow::Borrowed(value), false);

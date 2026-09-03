@@ -38,11 +38,15 @@ impl BatchOutputBuffer {
     }
 
     /// Returns the number of buffered items.
+    #[must_use]
+    #[inline(always)]
     pub(super) const fn len(&self) -> usize {
         self.items.len()
     }
 
     /// Returns the first exhausted item index, if recorded.
+    #[must_use]
+    #[inline(always)]
     pub(super) const fn exhausted_item(&self) -> Option<usize> {
         self.exhausted_item
     }

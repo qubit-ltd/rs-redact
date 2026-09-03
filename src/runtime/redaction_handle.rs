@@ -12,9 +12,9 @@ use std::fmt;
 
 /// Private reference to one redacted item produced during a batch transaction.
 ///
-/// A handle intentionally has no text formatting implementation. Call
-/// The public [`crate::RedactionBatchHandle`] is created from this private
-/// token before an operation returns to the caller.
+/// A handle intentionally has no text formatting implementation. The public
+/// [`crate::RedactionBatchHandle`] is created from this private token before
+/// an operation returns to the caller.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RedactionHandle {
     /// Identity of the batch transaction that created this handle.
@@ -34,6 +34,8 @@ impl RedactionHandle {
     }
 
     /// Returns the transaction identity and item position for facade wrapping.
+    #[must_use]
+    #[inline(always)]
     pub(crate) const fn parts(self) -> (u64, usize) {
         (self.transaction_id, self.item_index)
     }

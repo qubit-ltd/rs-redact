@@ -34,6 +34,11 @@ impl Redactor {
     }
 
     /// Inspects one JSON document without rendering it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RedactionInspectionError`] when JSON parsing fails or a
+    /// shared resource limit prevents complete inspection.
     pub fn inspect_json(&self, text: &str) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
         crate::formats::json::inspection::inspect_text(&mut session, text);
@@ -41,6 +46,11 @@ impl Redactor {
     }
 
     /// Inspects a borrowed parsed JSON value without taking ownership of it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RedactionInspectionError`] when a shared structural, value,
+    /// or input limit prevents complete inspection.
     pub fn inspect_json_value(
         &self,
         value: &serde_json::Value,
