@@ -11,6 +11,7 @@ use serde::Serialize;
 use serde::Serializer;
 
 use super::redact_level_serialize::RedactLevelSerialize;
+use super::redact_serialize_scope::RedactSerializeScope;
 use super::redacted_level_serialize_ref::RedactedLevelSerializeRef;
 use crate::RedactionPolicy;
 use crate::policy::ResolvedField;
@@ -43,6 +44,7 @@ where
     where
         S: Serializer,
     {
+        let _scope = RedactSerializeScope::new(self.policy);
         if self.policy.is_disabled() {
             return self.value.serialize(serializer);
         }

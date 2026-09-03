@@ -8,6 +8,7 @@
 //! Borrowed adapter for structured JSON text redaction.
 
 use super::redact_json_serialize::RedactJsonSerialize;
+use super::redact_serialize_scope::RedactSerializeScope;
 
 /// Borrowed serializer adapter for one JSON text field.
 #[doc(hidden)]
@@ -34,6 +35,7 @@ impl<T: ?Sized + RedactJsonSerialize> serde::Serialize for RedactedJsonSerialize
     where
         S: serde::Serializer,
     {
+        let _scope = RedactSerializeScope::new(self.policy);
         self.value.serialize_redacted_json(serializer, self.policy)
     }
 }

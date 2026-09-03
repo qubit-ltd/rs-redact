@@ -347,6 +347,67 @@ fn test_structured_container_serialization_fails_closed_at_collection_limit() {
     assert_eq!(nested_value, "<redacted>");
 }
 
+/// Ensures hidden Serde adapters establish their own bounded scope when they
+/// are invoked directly instead of through generated `Serialize` code.
+#[test]
+fn test_structured_map_adapters_enforce_limits_without_explicit_scope() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_collection_items(0);
+        })
+        .expect("limits")
+        .build()
+        .expect("limited policy");
+    let values = BTreeMap::from([(String::from("token"), String::from("raw-secret"))]);
+
+    let classified = serde_json::to_value(RedactedMapSerializeRef::new(&values, &policy))
+        .expect("direct map adapter should fail closed");
+    let keyed = serde_json::to_value(RedactedMapKeySerializeRef::new(
+        &values,
+        &policy,
+        Sensitivity::Secret,
+        None,
+    ))
+    .expect("direct map-key adapter should fail closed");
+
+    assert_eq!(classified, "<redacted>");
+    assert_eq!(keyed, "<redacted>");
+}
+
+/// Ensures nested generated serialization cannot reset the budget owned by
+/// its outer structured serialization.
+#[test]
+fn test_nested_structured_scope_preserves_the_outer_budget() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_collection_items(1);
+        })
+        .expect("limits")
+        .build()
+        .expect("limited policy");
+    let values = BTreeMap::from([(String::from("token"), String::from("raw-secret"))]);
+    let _outer_scope = RedactSerializeScope::new(&policy);
+
+    let first = serde_json::to_value(RedactedMapKeySerializeRef::new(
+        &values,
+        &policy,
+        Sensitivity::Secret,
+        None,
+    ))
+    .expect("first map should consume the available item");
+    let _nested_scope = RedactSerializeScope::new(&policy);
+    let second = serde_json::to_value(RedactedMapKeySerializeRef::new(
+        &values,
+        &policy,
+        Sensitivity::Secret,
+        None,
+    ))
+    .expect("second map should fail closed");
+
+    assert_ne!(first, "<redacted>");
+    assert_eq!(second, "<redacted>");
+}
+
 /// Domain leaf used to exercise the nested `Redact` container implementations.
 struct DomainLeaf;
 

@@ -8,6 +8,7 @@
 //! Borrowed adapter for generated structured redaction.
 
 use super::redact_serialize::RedactSerialize;
+use super::redact_serialize_scope::RedactSerializeScope;
 
 /// Borrowed serializer adapter that carries one immutable redaction policy.
 #[doc(hidden)]
@@ -31,6 +32,7 @@ impl<T: ?Sized + RedactSerialize> serde::Serialize for RedactedSerializeRef<'_, 
     where
         S: serde::Serializer,
     {
+        let _scope = RedactSerializeScope::new(self.policy);
         self.value.serialize_redacted(serializer, self.policy)
     }
 }
