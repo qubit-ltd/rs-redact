@@ -39,10 +39,8 @@ impl HttpPolicyExecutor<'_> {
                 None,
             );
         }
-        let input_len = capture.bytes().len();
-        let bounded = &capture.bytes()[..input_len];
-        let budget_truncated = input_len < capture.bytes().len();
-        let truncated = capture.is_source_truncated() || budget_truncated;
+        let bounded = capture.bytes();
+        let truncated = capture.is_source_truncated();
         let parsed = if invalid_content_type {
             Self::invalid_content_type_body()
         } else {
@@ -60,7 +58,7 @@ impl HttpPolicyExecutor<'_> {
                 AdmittedBody::Other => self.redact_body_inner(bounded, content_type, truncated, output_limit, None),
             }
         };
-        Self::finish_body_redaction(parsed, capture, input_len, budget_truncated, output_limit)
+        Self::finish_body_redaction(parsed, capture, output_limit)
     }
 
     /// Dispatches a bounded body slice to a supported parser.
@@ -144,20 +142,13 @@ impl HttpPolicyExecutor<'_> {
 
     /// Escapes, bounds, and attaches source metadata to parser output.
     #[must_use]
-    fn finish_body_redaction(
-        parsed: ParsedBody,
-        capture: BodyCapture<'_>,
-        captured_len: usize,
-        budget_truncated: bool,
-        output_limit: usize,
-    ) -> HttpRendered {
+    fn finish_body_redaction(parsed: ParsedBody, capture: BodyCapture<'_>, output_limit: usize) -> HttpRendered {
         let (parsed_text, status, rendered_truncated) = parsed.into_parts();
-        let source_truncated = capture.is_source_truncated() || budget_truncated || rendered_truncated;
+        let source_truncated = capture.is_source_truncated() || rendered_truncated;
         let mut writer = BoundedLogWriter::new(output_limit, source_truncated);
         let _ = writer.write_str(&parsed_text);
         let output_truncated = rendered_truncated || writer.is_output_truncated();
         let (text, _) = writer.finish();
-        let _ = captured_len;
         let provenance = match status {
             BodyRenderStatus::Redacted(BodyRenderReason::InvalidJson)
             | BodyRenderStatus::Redacted(BodyRenderReason::InvalidOrTruncatedJson)
@@ -185,16 +176,11 @@ impl HttpPolicyExecutor<'_> {
             OperationSink::truncated(text, RedactionReason::OutputLimitReached)
         } else if capture.is_source_truncated() {
             OperationSink::truncated(text, RedactionReason::SourceTruncated)
-        } else if budget_truncated {
-            OperationSink::truncated(text, RedactionReason::InputLimitReached)
         } else {
             OperationSink::complete(text)
         };
         if capture.is_source_truncated() {
             operation = operation.with_reason(RedactionReason::SourceTruncated);
-        }
-        if budget_truncated {
-            operation = operation.with_reason(RedactionReason::InputLimitReached);
         }
         if let Some(reason) = provenance {
             operation = operation.with_reason(reason);
