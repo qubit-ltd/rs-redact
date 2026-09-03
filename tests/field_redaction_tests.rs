@@ -61,3 +61,37 @@ fn test_redact_field_debug_describes_final_output() {
     assert!(debug.contains("RedactionTextOutput"));
     assert!(debug.contains("<redacted>"));
 }
+
+/// Exercises display-field masking, disabled pass-through, and bounded raw
+/// formatting through the public scalar API.
+#[test]
+fn test_redact_display_field_covers_masking_and_output_boundaries() {
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.raise("partial", Sensitivity::Low);
+        })
+        .expect("the test field rule should be valid")
+        .build()
+        .expect("the policy should be valid");
+    let masked = Redactor::new(policy).redact_field("partial", &format_args!("account-42"));
+    assert!(!masked.text().as_str().contains("account-42"));
+    assert_eq!(masked.summary().completion(), RedactionCompletion::Complete);
+
+    let visible = Redactor::new(RedactionPolicy::disabled()).redact_field("password", &format_args!("visible"));
+    assert_eq!(visible.text().as_str(), "visible");
+
+    let limited = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.disable_floor();
+        })
+        .expect("the test field policy should be valid")
+        .limits(|limits| {
+            limits.max_output_bytes(2);
+        })
+        .expect("the test limits should be valid")
+        .build()
+        .expect("the policy should be valid");
+    let exhausted = Redactor::new(limited).redact_field("visible", &format_args!("long-value"));
+    assert!(exhausted.text().as_str().is_empty());
+    assert_eq!(exhausted.summary().completion(), RedactionCompletion::Exhausted);
+}

@@ -67,5 +67,10 @@ name = "redaction_bench"
 harness = false
 required-features = ["json"]
 
+[[bench]]
+name = "http_uri_bench"
+harness = false
+required-features = ["http", "uri"]
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
