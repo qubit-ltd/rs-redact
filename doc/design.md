@@ -30,6 +30,9 @@ from Rust types or current values.
    format executors never publish a second result model.
 7. `RedactionPolicy::disabled()` is an explicit debugging escape hatch that
    restores source values; downstream code owns authorization and timing.
+8. Hidden structured-Serde adapters establish a root admission scope when
+   invoked directly and reuse an existing scope when nested. Calling a hidden
+   capability without a scope must fail closed rather than bypass limits.
 
 ## 3. Architecture
 
@@ -135,6 +138,11 @@ during admission into an admitted tree. HTTP JSON, NDJSON, and multipart paths
 also reuse admitted structures, preventing inspection and rendering from
 producing different parse results.
 
+Flat structured formats such as argv and environment lists use one runtime
+admission helper for root nodes, collection entries, child nodes, and source
+bytes. Composer and batch retain different publication models, but cannot
+silently drift in how they advance or charge the same source iterator.
+
 When output space is insufficient, the runtime retains only complete UTF-8
 prefixes and safe markers. `Truncated` means a safe but incomplete
 representation remains; `Exhausted` means the budget could not retain a full
@@ -150,11 +158,15 @@ scope shares the parent budget; depth or collection rejection closes that scope
 without opening another output path.
 
 The `derive` feature exports `#[derive(Redact)]`; generated serialization
-adapters additionally require `serde`. Internal sealed capability traits cover
-scalars, options, references, common containers, tuples, maps, and JSON
-ownership forms without exposing implementation details. The internally tagged
-serializer accepts only map and struct shapes that preserve the intended
-structure; unsupported Serde shapes return explicit errors.
+adapters additionally require `serde`. Hidden support traits and borrowed
+adapters cover scalars, options, references, common containers, tuples, maps,
+and JSON ownership forms. They are public only because generated code expands
+in downstream crates; they are not an alternative user-facing serialization
+API. Each adapter establishes or reuses the thread-local structural budget, so
+direct construction cannot skip collection, depth, node, or input admission.
+The internally tagged serializer accepts only map and struct shapes that
+preserve the intended structure; unsupported Serde shapes return explicit
+errors.
 
 ## 8. Format layer
 
@@ -182,6 +194,10 @@ session policy, owns no session, and produces no public HTTP result. Invalid
 content types, missing multipart boundaries, invalid JSON/NDJSON, and truncated
 input use safe markers with structured reasons.
 
+`BodyCapture` alone owns source-truncation metadata. The parent runtime rejects
+an HTTP body atomically when its captured bytes exceed the remaining input
+allowance; renderers therefore do not model a second partial-input state.
+
 ## 9. Features and compatibility
 
 The default feature set is empty:
@@ -197,6 +213,11 @@ the domain writer. Format executors, admitted trees, runtime sessions, and sinks
 remain crate-private so implementation splitting does not alter the 0.5 public
 API.
 
+The 0.5 compatibility line keeps BigDecimal support under `serde`. Separating
+it into an independent feature would remove implementations from existing
+`serde` builds and therefore belongs to a later breaking release with an
+explicit migration.
+
 ## 10. Verification strategy
 
 Quality gates use no file exemptions. Unit and integration tests cover public
@@ -206,10 +227,12 @@ contracts. Coverage requires at least 95% of functions and strictly more than
 90% of both lines and regions.
 
 Fuzz targets cover direct URI/URL input, command input, mixed transaction
-sequences, JSON text, HTTP bodies, and multipart bodies. Fixed-secret assertions
-check non-disclosure; arbitrary-byte paths check determinism, valid UTF-8 output,
-and panic freedom. CI also runs formatting, style, Clippy, tests, rustdoc, and
-doctests.
+sequences, JSON text, HTTP bodies, multipart bodies, and hidden structured-Serde
+map adapters. Fixed-secret assertions check non-disclosure; arbitrary-byte
+paths check determinism, valid UTF-8 output, bounded direct-adapter behavior,
+and panic freedom. Criterion workloads cover scalar/domain/JSON paths plus the
+downstream-heavy argv, environment, process, HTTP, and URI formats. CI also
+runs formatting, style, Clippy, tests, rustdoc, and doctests.
 
 ## 11. Deliberate non-goals
 

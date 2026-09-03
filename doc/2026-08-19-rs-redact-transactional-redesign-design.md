@@ -1,5 +1,9 @@
 # rs-redact 可复用事务式脱敏架构设计
 
+> **历史文档：** 本文记录 2026-08-19 的阶段性方案，已被当前
+> [`design.zh_CN.md`](design.zh_CN.md) 取代。文中的公开 API、feature 和运行时结构不得作为
+> 当前实现契约。
+
 日期：2026-08-19
 
 ## 1. 状态与适用范围
@@ -498,4 +502,3 @@ argv、env、http、json、uri、process 各自覆盖正常、非法、上游截
 - 所有直接下游完成破坏性迁移并通过测试；
 - rustfmt、Clippy、Rustdoc、style check 和 fuzz 验证通过；
 - README、中文 README、双语 user guide 与最终 API 一致。
-

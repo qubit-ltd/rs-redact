@@ -187,12 +187,113 @@ JSON 文本采用 `qubit-json` 的明确数字契约：负整数必须装入 `i6
 小数/指数必须得到有限 `f64`。越界文本沿用 fail-closed 的无效 JSON 路径；serde_json 旧私有
 Number marker key 是普通 object key。
 
+### 在同一个 batch 中处理完整 HTTP 交换
+
+同一条诊断事件的 URL、header 和捕获 body 应进入同一个事务：
+
+```rust
+use http::{HeaderMap, HeaderValue};
+use qubit_redact::Redactor;
+use qubit_redact::formats::http::BodyCapture;
+
+let mut headers = HeaderMap::new();
+headers.insert("authorization", HeaderValue::from_static("Bearer raw-token"));
+let content_type = HeaderValue::from_static("application/json");
+let body = br#"{"user":"ada","password":"raw-password"}"#;
+
+let mut batch = Redactor::standard().batch();
+let url = batch.redact_http_url("https://example.test/login?token=raw-token");
+let headers_handle = batch.redact_http_headers(&headers);
+let body_handle = batch.redact_http_body(BodyCapture::complete(body), Some(&content_type));
+let output = batch.finish_for_diagnostics("<redaction incomplete>");
+
+for handle in [url, headers_handle, body_handle] {
+    assert!(!output.text(handle).as_str().contains("raw-"));
+}
+```
+
+`BodyCapture::complete` 表示全部源字节均已提供；`BodyCapture::prefix` 记录已知的完整长度，
+`BodyCapture::truncated_unknown` 则表示存在缺失字节，但缺失数量未知。来源截断与输出截断是
+不同状态，前者通过 `RedactionReason::SourceTruncated` 报告。不要把不完整 body 伪装成
+complete capture。
+
+### 接受 URI 前先执行 inspection
+
+需要拒绝 URI，而不只是把它转成安全文本时，可以使用 inspection。发现敏感数据和返回错误都应
+按 fail closed 处理：
+
+```rust
+use qubit_redact::Redactor;
+
+let candidate = "https://example.test/?token=raw-token";
+let acceptable = Redactor::strict()
+    .inspect_uri(candidate)
+    .is_ok_and(|inspection| !inspection.contains_sensitive());
+assert!(!acceptable);
+```
+
+### 处理 argv、环境变量和进程诊断
+
+调用方知道参数契约时，应优先显式标记 argv。启发式 argv 能识别受支持的 option 形式，但不是
+shell parser：
+
+```rust
+use std::ffi::OsStr;
+
+use qubit_redact::{Redactor, Sensitivity};
+use qubit_redact::formats::argv::ArgvItem;
+
+let arguments = [
+    ArgvItem::plain(OsStr::new("--server=example.test")),
+    ArgvItem::sensitive(OsStr::new("raw-token"), Sensitivity::Secret),
+];
+let variables = [(OsStr::new("PASSWORD"), OsStr::new("raw-password"))];
+let output = Redactor::standard().redact_process(OsStr::new("client"), arguments, variables);
+assert!(!output.text().as_str().contains("raw-"));
+```
+
+### Feature 选择
+
+| Feature | 提供的能力 |
+| --- | --- |
+| `derive` | `#[derive(Redact)]` |
+| `serde` | derive/domain 的结构化 Serde adapter 与 BigDecimal 支持 |
+| `json` | JSON 文本及借用的 `serde_json::Value` |
+| `http` | JSON、URL、header、form、multipart 和 body capture |
+| `uri` | 通用 URI 解析与脱敏 |
+
+只使用标量和手写领域实现时可保持默认空 feature 集。为了兼容 0.5 系列，`serde` 继续包含
+BigDecimal 支持；若要拆分这项依赖，应在后续破坏性版本中提供明确的 feature 迁移说明。
+
 ## 进阶用法
 
 ### 检查决策与控制策略
 
 Inspection 会报告规则匹配、敏感度和完成状态，但不会发布原始值。它适合在确定日志或序列化
 边界前解释某字段为何会被掩码。
+
+建议构造一份不可变策略，再共享生成的 `Redactor`。builder closure 具有事务语义：字段规则
+无效时，原 builder 不会受到部分修改。
+
+```rust
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
+
+let policy = RedactionPolicy::builder()
+    .fields(|fields| {
+        fields.raise("session_id", Sensitivity::High);
+    })
+    .expect("valid field rule")
+    .limits(|limits| {
+        limits.max_input_bytes(64 * 1024);
+        limits.max_output_bytes(8 * 1024);
+        limits.max_collection_items(256);
+    })
+    .expect("valid limits")
+    .build()
+    .expect("valid policy");
+let redactor = Redactor::new(policy);
+assert!(!redactor.redact_field("session_id", "raw-session").text().as_str().contains("raw-session"));
+```
 
 `RedactionPolicy::disabled()` 是显式关闭保密脱敏的选项，也是框架有意保留的进程级调试
 逃生口。字段、JSON、URI、HTTP、环境变量、argv、进程、derive 字段模式和生成的 Serde

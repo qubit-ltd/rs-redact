@@ -1,5 +1,9 @@
 # rs-redact 单 trait 与 derive 重构实施计划
 
+> **历史文档：** 本文是已执行的跨仓库实施记录，不是当前待执行计划。当前架构、默认 feature
+> 和公开契约以 [`design.zh_CN.md`](design.zh_CN.md) 与
+> [`user_guide.zh_CN.md`](user_guide.zh_CN.md) 为准。
+
 > **面向智能体执行者：** 必须使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans，逐项实施本计划。各步骤使用复选框（`- [ ]`）语法跟踪进度。
 
 **目标：** 将 `rs-redact` 收敛为借用输出的单 `Redact` trait，重写结构化 derive/Serde/JSON 能力，并把 `rs-model-derive` 与 `rs-platform` 平滑迁移到公开 derive。
