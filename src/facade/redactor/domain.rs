@@ -53,6 +53,11 @@ impl Redactor {
     }
 
     /// Inspects one scalar field without rendering its value.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RedactionInspectionError`] when the shared input or
+    /// structural budget prevents a conclusive classification.
     pub fn inspect_field(&self, field: &str, value: &str) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
         session.inspect_field(field, value);

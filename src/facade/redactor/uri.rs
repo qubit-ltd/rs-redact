@@ -24,6 +24,11 @@ impl Redactor {
     }
 
     /// Inspects one URI without rendering it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RedactionInspectionError`] when URI parsing fails or a
+    /// shared resource limit prevents complete inspection.
     pub fn inspect_uri(&self, input: &str) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
         crate::formats::uri::inspection::inspect_uri(&mut session, input);

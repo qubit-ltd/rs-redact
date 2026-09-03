@@ -25,6 +25,11 @@ impl Redactor {
     }
 
     /// Inspects one HTTP URL without rendering it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RedactionInspectionError`] when the URL is invalid or a
+    /// shared resource limit prevents complete inspection.
     pub fn inspect_http_url(&self, value: &str) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
         crate::formats::http::inspection::inspect_url(&mut session, value);
@@ -42,6 +47,11 @@ impl Redactor {
     }
 
     /// Inspects HTTP headers without rendering their values.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RedactionInspectionError`] when a header cannot be decoded
+    /// safely or a shared resource limit prevents complete inspection.
     pub fn inspect_http_headers(
         &self,
         headers: &http::HeaderMap,
@@ -67,6 +77,12 @@ impl Redactor {
     }
 
     /// Inspects one captured HTTP body without rendering it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RedactionInspectionError`] when capture metadata, content
+    /// type, body syntax, or a shared resource limit makes inspection
+    /// inconclusive.
     pub fn inspect_http_body(
         &self,
         capture: BodyCapture<'_>,
@@ -92,6 +108,12 @@ impl Redactor {
     }
 
     /// Inspects one captured HTTP body using textual Content-Type metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RedactionInspectionError`] when capture metadata, content
+    /// type, body syntax, or a shared resource limit makes inspection
+    /// inconclusive.
     pub fn inspect_http_body_with_content_type_text(
         &self,
         capture: BodyCapture<'_>,

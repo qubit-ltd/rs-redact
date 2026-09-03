@@ -184,6 +184,7 @@ impl<'a> BodyCapture<'a> {
     ///
     /// `Some(total)` for an exact length, or `None` for a truncated capture
     /// whose omitted byte count is unknown.
+    #[must_use]
     #[inline(always)]
     pub const fn total_len(self) -> Option<usize> {
         self.total_len
@@ -195,6 +196,7 @@ impl<'a> BodyCapture<'a> {
     ///
     /// `Some(0)` for complete input, `Some(count)` for a known truncated
     /// total, or `None` when the total length is unknown.
+    #[must_use]
     #[inline(always)]
     pub const fn omitted_len(self) -> Option<usize> {
         match self.total_len {

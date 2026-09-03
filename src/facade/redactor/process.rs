@@ -29,6 +29,11 @@ impl Redactor {
     }
 
     /// Inspects explicitly classified argv items without rendering them.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RedactionInspectionError`] when non-UTF-8 data or a shared
+    /// resource limit prevents complete inspection.
     pub fn inspect_argv<'items, I>(&self, items: I) -> Result<RedactionInspection, RedactionInspectionError>
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
@@ -52,6 +57,11 @@ impl Redactor {
     }
 
     /// Inspects argv items using heuristic option classification.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RedactionInspectionError`] when non-UTF-8 data, incomplete
+    /// option syntax, or a shared resource limit prevents complete inspection.
     pub fn inspect_heuristic_argv<'items, I>(&self, items: I) -> Result<RedactionInspection, RedactionInspectionError>
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
@@ -72,6 +82,11 @@ impl Redactor {
     }
 
     /// Inspects one environment assignment without rendering it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RedactionInspectionError`] when the shared input or
+    /// structural budget prevents complete inspection.
     pub fn inspect_env(&self, name: &str, value: &str) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
         crate::formats::env::inspection::inspect_pair(&mut session, name, value);
@@ -92,6 +107,11 @@ impl Redactor {
     }
 
     /// Inspects environment assignments without rendering them.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RedactionInspectionError`] when non-UTF-8 data or a shared
+    /// resource limit prevents complete inspection.
     pub fn inspect_env_pairs<'items, I>(&self, pairs: I) -> Result<RedactionInspection, RedactionInspectionError>
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
@@ -121,6 +141,11 @@ impl Redactor {
     }
 
     /// Inspects one process command without rendering its components.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RedactionInspectionError`] when argv or environment data is
+    /// invalid, incomplete, or rejected by a shared resource limit.
     pub fn inspect_process<'arguments, 'variables, A, E>(
         &self,
         program: &'arguments OsStr,
