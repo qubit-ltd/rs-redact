@@ -11,7 +11,7 @@ use std::fmt;
 
 /// Error returned when a batch output cannot resolve a handle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RedactionBatchHandleError {
+pub(crate) enum RedactionBatchHandleError {
     /// The handle was created by a different batch.
     DifferentBatch,
     /// The handle index is outside the published batch item range.

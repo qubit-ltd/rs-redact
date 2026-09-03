@@ -11,9 +11,8 @@ use std::ffi::OsStr;
 
 use http::HeaderValue;
 use libfuzzer_sys::fuzz_target;
+use qubit_redact::RedactionBatchDiagnostics;
 use qubit_redact::RedactionBatchHandle;
-use qubit_redact::RedactionBatchOutput;
-use qubit_redact::RedactionCompletion;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::formats::argv::ArgvItem;
@@ -21,31 +20,14 @@ use qubit_redact::formats::http::BodyCapture;
 
 const FUZZ_SECRET: &str = "transaction-secret";
 
-/// Ranks completion states from fully rendered to terminally exhausted.
-#[must_use]
-const fn completion_rank(completion: RedactionCompletion) -> u8 {
-    match completion {
-        RedactionCompletion::Complete => 0,
-        RedactionCompletion::Truncated => 1,
-        RedactionCompletion::Exhausted => 2,
-    }
-}
-
 /// Checks invariants shared by every item published from one completed batch.
-fn check_output(output: &RedactionBatchOutput, handles: &[RedactionBatchHandle], output_limit: usize) {
-    assert!(output.summary().usage().output_bytes() <= output_limit);
-    let mut item_output_bytes = 0;
+fn check_output(diagnostics: &RedactionBatchDiagnostics, handles: &[RedactionBatchHandle], output_limit: usize) {
+    assert!(diagnostics.summary().usage().output_bytes() <= output_limit);
     for handle in handles {
-        let item = output
-            .resolve(*handle)
-            .expect("a handle must resolve from its owning batch");
-        let text = item.text().as_str();
+        let text = diagnostics.text(*handle).as_str();
         assert!(std::str::from_utf8(text.as_bytes()).is_ok());
         assert!(!text.contains(FUZZ_SECRET));
-        item_output_bytes += text.len();
-        assert!(completion_rank(output.summary().completion()) >= completion_rank(item.summary().completion()));
     }
-    assert_eq!(output.summary().usage().output_bytes(), item_output_bytes);
 }
 
 // Exercises multiple heterogeneous operations inside one transaction. Each
@@ -97,6 +79,6 @@ fuzz_target!(|data: &[u8]| {
         handles.push(handle);
     }
 
-    let output = batch.finish();
-    check_output(&output, &handles, output_limit);
+    let diagnostics = batch.finish_for_diagnostics("<redaction incomplete>");
+    check_output(&diagnostics, &handles, output_limit);
 });

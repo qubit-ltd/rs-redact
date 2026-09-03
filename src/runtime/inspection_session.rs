@@ -16,7 +16,6 @@ use crate::Redact;
 use crate::RedactionCompletion;
 use crate::RedactionInspection;
 use crate::RedactionInspectionError;
-use crate::RedactionInspectionResult;
 use crate::RedactionPolicy;
 use crate::RedactionReasons;
 use crate::Sensitivity;
@@ -47,7 +46,7 @@ impl InspectionSession {
     }
 
     /// Consumes this transaction into a conclusive result or fail-closed error.
-    pub(crate) fn finish(self) -> RedactionInspectionResult {
+    pub(crate) fn finish(self) -> Result<RedactionInspection, RedactionInspectionError> {
         let (max_sensitivity, summary) = self.runtime.into_parts();
         if summary.completion() == RedactionCompletion::Complete && summary.reasons() == RedactionReasons::empty() {
             return Ok(RedactionInspection::new(

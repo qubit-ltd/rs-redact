@@ -11,7 +11,6 @@ use std::borrow::Cow;
 use std::ffi::OsStr;
 
 use qubit_redact::Redact;
-use qubit_redact::RedactionBatchHandleError;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
@@ -63,33 +62,31 @@ fn composer_and_batch_publish_separate_models() {
         .finish();
     let mut batch = redactor.batch();
     let name = batch.redact_field("name", "Ada");
-    let output = batch.finish();
-    let name = output
-        .resolve(name)
-        .expect("a handle from this transaction resolves after finish");
-    assert_eq!(name.text().as_str(), "Ada");
-    assert_eq!(name.summary().completion(), RedactionCompletion::Complete);
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    assert_eq!(output.text(name).as_str(), "Ada");
     assert!(text.text().as_str().contains("request failed: "));
     assert!(text.text().as_str().contains("<redacted>"));
     assert!(text.text().as_str().contains("Account"));
     assert!(!text.text().as_str().contains("raw-token"));
     assert!(!text.text().as_str().contains("raw-password"));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
-    assert_eq!(output.summary().usage().output_bytes(), name.text().as_str().len());
+    assert_eq!(
+        output.summary().usage().output_bytes(),
+        output.text(name).as_str().len()
+    );
 }
 
 #[test]
 fn batch_handles_cannot_cross_batches() {
     let mut first_batch = Redactor::standard().batch();
     let first_handle = first_batch.redact_field("name", "Ada");
-    let first = first_batch.finish();
-    assert_eq!(first.resolve(first_handle).unwrap().text().as_str(), "Ada");
+    let first = first_batch.finish_for_diagnostics("<redaction incomplete>");
+    assert_eq!(first.text(first_handle).as_str(), "Ada");
 
-    let second = Redactor::standard().batch().finish();
-    assert!(matches!(
-        second.resolve(first_handle),
-        Err(RedactionBatchHandleError::DifferentBatch),
-    ));
+    let second = Redactor::standard()
+        .batch()
+        .finish_for_diagnostics("<redaction incomplete>");
+    assert_eq!(second.text(first_handle).as_str(), "<redaction incomplete>");
     assert_eq!(second.summary().completion(), RedactionCompletion::Complete);
 }
 
@@ -141,7 +138,7 @@ fn batch_diagnostics_maps_truncated_text_to_the_selected_marker() {
 fn batch_diagnostics_maps_a_foreign_handle_to_the_selected_marker() {
     let mut first_batch = Redactor::standard().batch();
     let first_handle = first_batch.redact_field("name", "Ada");
-    let _ = first_batch.finish();
+    let _ = first_batch.finish_for_diagnostics("<redaction incomplete>");
 
     let second_output = Redactor::standard()
         .batch()
@@ -283,9 +280,8 @@ fn test_redaction_usage_default_matches_empty_usage() {
 fn http_batch_handle_publishes_independent_result() {
     let mut batch = Redactor::standard().batch();
     let url = batch.redact_http_url("https://example.test/?token=raw-token");
-    let output = batch.finish();
-    let url = output.resolve(url).expect("HTTP batch handle resolves");
-    assert!(url.text().as_str().contains("example.test"));
-    assert!(!url.text().as_str().contains("raw-token"));
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    assert!(output.text(url).as_str().contains("example.test"));
+    assert!(!output.text(url).as_str().contains("raw-token"));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
 }

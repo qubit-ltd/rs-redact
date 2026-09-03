@@ -78,20 +78,12 @@ fn test_json_documents_share_the_transaction_json_payload_budget() {
     let mut batch = Redactor::new(policy).batch();
     let first = batch.redact_json(r#"{"a":"1"}"#);
     let second = batch.redact_json(r#"{"b":"22"}"#);
-    let output = batch.finish();
+    let output = batch.finish_for_diagnostics("<truncated>");
 
-    assert_eq!(
-        output
-            .resolve(first)
-            .expect("first JSON item should publish")
-            .text()
-            .as_str(),
-        r#"{"a":"1"}"#
-    );
-    let second = output.resolve(second).expect("second JSON item should publish");
-    assert_eq!(second.text().as_str(), "<truncated>");
+    assert_eq!(output.text(first).as_str(), r#"{"a":"1"}"#);
+    assert_eq!(output.text(second).as_str(), "<truncated>");
     assert!(
-        second
+        output
             .summary()
             .reasons()
             .contains(RedactionReason::TraversalLimitReached)
@@ -112,19 +104,17 @@ fn test_json_budget_rejection_preserves_structural_capacity() {
     let mut batch = Redactor::new(policy).batch();
     let rejected = batch.redact_json(r#"{"oversized":"payload"}"#);
     let admitted = batch.redact_json(r#"{"a":"1"}"#);
-    let output = batch.finish();
+    let output = batch.finish_for_diagnostics("<truncated>");
 
-    let rejected = output.resolve(rejected).expect("rejected item should publish");
-    assert_eq!(rejected.text().as_str(), "<truncated>");
+    assert_eq!(output.text(rejected).as_str(), "<truncated>");
     assert!(
-        rejected
+        output
             .summary()
             .reasons()
             .contains(RedactionReason::TraversalLimitReached)
     );
 
-    let admitted = output.resolve(admitted).expect("admitted item should publish");
-    assert_eq!(admitted.text().as_str(), r#"{"a":"1"}"#);
+    assert_eq!(output.text(admitted).as_str(), r#"{"a":"1"}"#);
     assert_eq!(output.summary().usage().visited_nodes(), 2);
     assert_eq!(output.summary().usage().visited_collection_items(), 1);
 }
@@ -199,10 +189,10 @@ fn test_json_composer_empty_input_reports_safe_invalid_json_result() {
 fn test_json_batch_empty_input_reports_safe_invalid_json_result() {
     let mut batch = Redactor::strict().batch();
     let handle = batch.redact_json("");
-    let output = batch.finish();
-    let item = output.resolve(handle).expect("the completed batch resolves its handle");
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
-    assert!(item.summary().reasons().contains(RedactionReason::InvalidJson));
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
+    assert_eq!(output.text(handle).as_str(), "<redacted>");
 }
 
 /// The JSON handle path must preserve parser provenance and publish the
@@ -211,14 +201,11 @@ fn test_json_batch_empty_input_reports_safe_invalid_json_result() {
 fn test_json_handle_reports_invalid_input_without_exposing_source() {
     let mut batch = Redactor::strict().batch();
     let handle = batch.redact_json(r#"{"password":"raw""#);
-    let output = batch.finish();
-    let item = output
-        .resolve(handle)
-        .expect("finished transaction publishes JSON handle");
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
-    assert!(!item.text().as_str().contains("raw"));
-    assert!(item.summary().reasons().contains(RedactionReason::InvalidJson));
-    assert_eq!(item.summary().completion(), RedactionCompletion::Complete);
+    assert!(!output.text(handle).as_str().contains("raw"));
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
 }
 
 /// JSON parsing must not receive a document once the shared structural
@@ -234,12 +221,11 @@ fn test_json_handle_uses_shared_structural_fallback() {
         .expect("policy should build");
     let mut batch = Redactor::new(policy).batch();
     let handle = batch.redact_json(r#"{"password":"must-not-be-rendered"}"#);
-    let output = batch.finish();
-    let item = output.resolve(handle).expect("truncated JSON handle publishes");
+    let output = batch.finish_for_diagnostics("<truncated>");
 
-    assert_eq!(item.text().as_str(), "<truncated>");
-    assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
-    assert!(!item.text().as_str().contains("must-not-be-rendered"));
+    assert_eq!(output.text(handle).as_str(), "<truncated>");
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert!(!output.text(handle).as_str().contains("must-not-be-rendered"));
 }
 
 /// Verifies that a JSON fallback which cannot fit closes the transaction.

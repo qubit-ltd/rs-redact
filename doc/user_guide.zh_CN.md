@@ -16,12 +16,12 @@
 ```text
 被借用的值 -> 策略判定 + 事务预算
               -> composer：RedactionTextOutput
-              -> batch：handles + RedactionBatchOutput
-              -> inspection：RedactionInspectionResult
+              -> batch：handles + fail-closed diagnostics
+              -> inspection：Result<RedactionInspection, Error>
 ```
 
-单值便利方法和 composer 返回 `RedactionTextOutput`；batch 通过 `RedactionBatchOutput` 发布
-可独立解析的 item，inspection 返回不渲染文本的 `RedactionInspectionResult`。每个已渲染 item
+单值便利方法和 composer 返回 `RedactionTextOutput`；batch 通过 opaque handle 发布可独立寻址的
+诊断文本，inspection 返回不渲染文本的 `Result`。每个已渲染操作
 都携带安全文本和 `RedactionSummary`。启用脱敏时，
 `Complete`、`Truncated`、`Exhausted` 三种状态下发布的文本都满足保密安全要求。后两种
 状态表示诊断信息不完整，不表示源数据已经泄露。因此 `Debug`、`Display` 和普通诊断日志
@@ -51,8 +51,8 @@ assert!(!output.text(password).as_str().contains("raw-password"));
 ```
 
 `finish_for_diagnostics()` 会把不完整 item、无效 item 和其他 batch 的 handle 都映射成同一个
-已转义 marker，不返回 `Result`。确实需要区分这些程序错误的调用方仍使用严格路径：
-`finish()` 加 `RedactionBatchOutput::resolve()`。
+已转义 marker，不返回 `Result`。这有意让诊断展示保持 fail closed，不再暴露一套并行的可失败
+发布模型。
 
 ## 安装与最小配置
 

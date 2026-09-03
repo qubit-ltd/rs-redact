@@ -39,21 +39,6 @@ impl BatchPublication {
         &self.summary
     }
 
-    /// Moves the item selected by `handle` without cloning its final text.
-    ///
-    /// Returns [`RedactionHandleError::DifferentTransaction`] for another
-    /// batch identity and [`RedactionHandleError::MissingItem`] for an invalid
-    /// index in this batch.
-    pub(crate) fn into_resolved(self, handle: RedactionHandle) -> Result<RedactionTextOutput, RedactionHandleError> {
-        if handle.transaction_id != self.transaction_id {
-            return Err(RedactionHandleError::DifferentTransaction);
-        }
-        self.items
-            .into_iter()
-            .nth(handle.item_index)
-            .ok_or(RedactionHandleError::MissingItem)
-    }
-
     /// Borrows the item selected by `handle` without cloning its final text.
     ///
     /// Returns [`RedactionHandleError::DifferentTransaction`] for another

@@ -8,41 +8,43 @@
 //! JSON redaction operations.
 
 use super::Redactor;
-use crate::RedactionInspectionResult;
+use crate::RedactionInspection;
+use crate::RedactionInspectionError;
 use crate::RedactionTextOutput;
 
 impl Redactor {
-    /// Redacts JSON text through one completed batch transaction.
+    /// Redacts JSON text through one completed text transaction.
     #[must_use]
     pub fn redact_json(&self, text: &str) -> RedactionTextOutput {
-        let mut batch = self.batch();
-        let handle = batch.redact_json(text);
-        batch
-            .finish()
-            .into_resolved(handle)
-            .expect("a handle created by the completed transaction must resolve")
+        let mut session = self.text_runtime();
+        session.json(|json| {
+            let _ = json.text(text);
+        });
+        session.finish()
     }
 
     /// Redacts a borrowed parsed JSON value without taking ownership of it.
     #[must_use]
     pub fn redact_json_value(&self, value: &serde_json::Value) -> RedactionTextOutput {
-        let mut batch = self.batch();
-        let handle = batch.redact_json_value(value);
-        batch
-            .finish()
-            .into_resolved(handle)
-            .expect("a handle created by the completed transaction must resolve")
+        let mut session = self.text_runtime();
+        session.json(|json| {
+            let _ = json.value(value);
+        });
+        session.finish()
     }
 
     /// Inspects one JSON document without rendering it.
-    pub fn inspect_json(&self, text: &str) -> RedactionInspectionResult {
+    pub fn inspect_json(&self, text: &str) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
         crate::formats::json::inspection::inspect_text(&mut session, text);
         session.finish()
     }
 
     /// Inspects a borrowed parsed JSON value without taking ownership of it.
-    pub fn inspect_json_value(&self, value: &serde_json::Value) -> RedactionInspectionResult {
+    pub fn inspect_json_value(
+        &self,
+        value: &serde_json::Value,
+    ) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
         crate::formats::json::inspection::inspect_borrowed_value(&mut session, value);
         session.finish()

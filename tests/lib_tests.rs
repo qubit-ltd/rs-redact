@@ -32,5 +32,6 @@ fn test_lib_exports_public_api() {
     assert_eq!(output.text().as_str(), " context");
     let mut batch = redactor.batch();
     let item = batch.redact_field("name", "Ada");
-    assert_eq!(batch.finish().resolve(item).expect("same batch").text().as_str(), "Ada");
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    assert_eq!(output.text(item).as_str(), "Ada");
 }

@@ -13,18 +13,16 @@ use qubit_redact::RedactedTextComposer;
 use qubit_redact::RedactionBatch;
 use qubit_redact::RedactionBatchDiagnostics;
 use qubit_redact::RedactionBatchHandle;
-use qubit_redact::RedactionBatchHandleError;
-use qubit_redact::RedactionBatchOutput;
 use qubit_redact::RedactionCompletion;
-use qubit_redact::RedactionEntries;
-use qubit_redact::RedactionFields;
-use qubit_redact::RedactionItems;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSummary;
 use qubit_redact::RedactionTextOutput;
 use qubit_redact::RedactionUsage;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
+use qubit_redact::domain::RedactionEntries;
+use qubit_redact::domain::RedactionFields;
+use qubit_redact::domain::RedactionItems;
 
 /// Proves the target public types are available through the crate root.
 #[test]
@@ -39,8 +37,6 @@ fn target_transactional_types_are_public() {
     let _: Option<RedactionBatch> = None;
     let _: Option<RedactionBatchDiagnostics> = None;
     let _: Option<RedactionBatchHandle> = None;
-    let _: Option<RedactionBatchHandleError> = None;
-    let _: Option<RedactionBatchOutput> = None;
     let _: Option<RedactionCompletion> = None;
     let _: Option<RedactionTextOutput> = None;
     let _: Option<RedactionPolicy> = None;
@@ -53,12 +49,9 @@ fn target_transactional_types_are_public() {
 fn batch_resolves_independent_items_without_aggregate_text() {
     let mut batch = Redactor::strict().batch();
     let handle = batch.redact_field("password", "raw-secret");
-    let output = batch.finish();
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
-    assert_eq!(
-        output.resolve(handle).expect("batch handle resolves").text().as_str(),
-        "<redacted>"
-    );
+    assert_eq!(output.text(handle).as_str(), "<redacted>");
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
 }
 
@@ -66,12 +59,9 @@ fn batch_resolves_independent_items_without_aggregate_text() {
 fn batch_redacts_one_domain_value() {
     let mut batch = Redactor::strict().batch();
     let handle = batch.redact_value(&PublicApiValue);
-    let output = batch.finish();
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
-    assert_eq!(
-        output.resolve(handle).expect("domain handle resolves").text().as_str(),
-        "PublicApiValue"
-    );
+    assert_eq!(output.text(handle).as_str(), "PublicApiValue");
 }
 
 #[test]

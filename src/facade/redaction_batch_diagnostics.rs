@@ -21,8 +21,8 @@ use crate::output::log_escape::escape_log_control_characters;
 /// item, or a handle created by another batch resolves to one caller-selected
 /// marker. This fail-closed behavior is intended for `Debug`, `Display`, logs,
 /// and other presentation paths that cannot recover from individual handle
-/// failures. Program logic that must distinguish those conditions should use
-/// [`RedactionBatchOutput::resolve`] instead.
+/// failures. The public batch contract deliberately maps every unresolved or
+/// incomplete item to the same safe marker.
 ///
 /// The marker is escaped once when this object is created, so repeated
 /// resolution neither allocates nor permits control characters to forge log

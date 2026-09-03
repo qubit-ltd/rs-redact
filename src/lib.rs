@@ -110,7 +110,7 @@
 //!
 //! let mut batch = Redactor::strict().batch();
 //! let _ = batch.redact_field("password", "raw-secret");
-//! let _ = batch.finish();
+//! let _ = batch.finish_for_diagnostics("<redaction incomplete>");
 //! let _ = batch.redact_field("password", "cannot reuse a finished batch");
 //! ```
 //!
@@ -126,8 +126,8 @@
 //!
 //! let mut batch = Redactor::strict().batch();
 //! let handle = batch.redact_field("password", "raw-secret");
-//! let output = batch.finish();
-//! let _ = output.text();
+//! let output = batch.finish_for_diagnostics("<redaction incomplete>");
+//! let _ = output.text(handle);
 //! let _ = handle.to_string();
 //! ```
 //!
@@ -155,27 +155,14 @@ pub(crate) mod runtime;
 mod serde_feature_gate;
 
 pub use domain::Redact;
-#[doc(hidden)]
-#[cfg(feature = "json")]
-pub use domain::RedactJsonValue;
-#[doc(hidden)]
-pub use domain::RedactLevelValue;
-#[doc(hidden)]
-pub use domain::RedactMapValue;
-pub use domain::RedactionEntries;
-pub use domain::RedactionFields;
-pub use domain::RedactionItems;
 pub use domain::RedactionWriter;
 pub use facade::RedactedText;
 pub use facade::RedactedTextComposer;
 pub use facade::RedactionBatch;
 pub use facade::RedactionBatchDiagnostics;
 pub use facade::RedactionBatchHandle;
-pub use facade::RedactionBatchHandleError;
-pub use facade::RedactionBatchOutput;
 pub use facade::RedactionInspection;
 pub use facade::RedactionInspectionError;
-pub use facade::RedactionInspectionResult;
 pub use facade::RedactionReason;
 pub use facade::RedactionReasons;
 pub use facade::RedactionSummary;

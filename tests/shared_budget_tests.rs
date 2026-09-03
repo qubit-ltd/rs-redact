@@ -49,25 +49,11 @@ fn batch_stops_later_item_after_output_exhaustion() {
     let mut batch = create_one_byte_redactor().batch();
     let first = batch.redact_argv([ArgvItem::plain(OsStr::new("client"))]);
     let second = batch.redact_env("MODE", "debug");
-    let output = batch.finish();
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
     assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
-    assert_eq!(
-        output
-            .resolve(first)
-            .expect("first item resolves")
-            .summary()
-            .completion(),
-        RedactionCompletion::Exhausted
-    );
-    assert_eq!(
-        output
-            .resolve(second)
-            .expect("exhausted item resolves")
-            .summary()
-            .completion(),
-        RedactionCompletion::Exhausted
-    );
+    assert_eq!(output.text(first).as_str(), "<redaction incomplete>");
+    assert_eq!(output.text(second).as_str(), "<redaction incomplete>");
 }
 
 #[test]
@@ -80,17 +66,11 @@ fn batch_heuristic_argv_returns_an_exhausted_handle_without_reading_items() {
             .into_iter()
             .inspect(|_| later_pulled.set(true)),
     );
-    let output = batch.finish();
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
-    assert!(output.resolve(first).is_ok());
-    assert_eq!(
-        output
-            .resolve(second)
-            .expect("exhausted item resolves")
-            .summary()
-            .completion(),
-        RedactionCompletion::Exhausted
-    );
+    assert_eq!(output.text(first).as_str(), "x");
+    assert_eq!(output.text(second).as_str(), "<redaction incomplete>");
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
     assert!(!later_pulled.get());
 }
 
@@ -104,17 +84,11 @@ fn batch_http_body_text_returns_an_exhausted_handle() {
     let first = batch.redact_field("name", "x");
     let second = batch
         .redact_http_body_with_content_type_text(BodyCapture::complete(b"not-valid-json"), Some("application/json"));
-    let output = batch.finish();
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
-    assert!(output.resolve(first).is_ok());
-    assert_eq!(
-        output
-            .resolve(second)
-            .expect("exhausted item resolves")
-            .summary()
-            .completion(),
-        RedactionCompletion::Exhausted
-    );
+    assert_eq!(output.text(first).as_str(), "x");
+    assert_eq!(output.text(second).as_str(), "<redaction incomplete>");
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
     assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert!(!output.summary().reasons().contains(RedactionReason::InvalidJson));
 }
@@ -125,11 +99,11 @@ fn composer_and_batch_own_independent_budget_ledgers() {
     let text = redactor.text_composer().literal("x").finish();
     let mut batch = redactor.batch();
     let item = batch.redact_field("name", "x");
-    let output = batch.finish();
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
     assert_eq!(text.text().as_str(), "x");
     assert_eq!(text.summary().completion(), RedactionCompletion::Complete);
-    assert_eq!(output.resolve(item).expect("batch item resolves").text().as_str(), "x");
+    assert_eq!(output.text(item).as_str(), "x");
 }
 
 /// An exact write closes the shared budget. A later operation must expose the

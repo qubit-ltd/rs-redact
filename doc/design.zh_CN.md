@@ -31,8 +31,9 @@
   ▼
 Redactor + 不可变 RedactionPolicy 快照
   ├── RedactedTextComposer ── TextSession ──► RedactionTextOutput
-  ├── RedactionBatch ──────── BatchSession ─► RedactionBatchOutput + handles
-  └── inspect_* ───────────── InspectionSession ─► RedactionInspectionResult
+  ├── redact_* ────────────── TextSession ──► RedactionTextOutput
+  ├── RedactionBatch ──────── BatchSession ─► diagnostics + handles
+  └── inspect_* ───────────── InspectionSession ─► Result<RedactionInspection, Error>
                                   │
                                   ▼
                   RuntimeCore：预算、摘要、事务阶段
@@ -79,8 +80,8 @@ Redactor + 不可变 RedactionPolicy 快照
 ### 5.2 Batch
 
 `RedactionBatch` 在一个共享预算内创建多个独立 item。每个操作立即返回只在该 batch 内有效的
-handle；`finish(self)` 后，`RedactionBatchOutput::resolve()` 才能取得对应文本和 item 摘要。
-batch 还保留聚合摘要。handle 带事务身份，不能跨 batch 解析。
+handle；`finish_for_diagnostics(self, marker)` 发布诊断视图：完整 item 保留安全文本，不完整、
+缺失或来自其他 batch 的 handle 统一解析为已转义 marker。诊断视图同时保留 batch 聚合摘要。
 
 ### 5.3 Inspection
 

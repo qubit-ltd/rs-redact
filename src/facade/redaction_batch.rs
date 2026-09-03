@@ -17,8 +17,8 @@ use crate::runtime::RedactionHandle;
 /// Accumulates independently resolvable redaction items under one budget.
 ///
 /// Each operation returns an opaque handle. Handles are usable only with the
-/// [`RedactionBatchOutput`] produced by consuming this batch with
-/// [`Self::finish`].
+/// [`RedactionBatchDiagnostics`] produced by consuming this batch with
+/// [`Self::finish_for_diagnostics`].
 ///
 /// # Examples
 ///
@@ -27,9 +27,8 @@ use crate::runtime::RedactionHandle;
 ///
 /// let mut batch = Redactor::strict().batch();
 /// let handle = batch.redact_field("password", "raw-secret");
-/// let output = batch.finish();
-/// let item = output.resolve(handle).expect("the batch owns the handle");
-/// assert!(!item.text().as_str().contains("raw-secret"));
+/// let output = batch.finish_for_diagnostics("<redaction incomplete>");
+/// assert!(!output.text(handle).as_str().contains("raw-secret"));
 /// ```
 pub struct RedactionBatch {
     /// Typed transaction that owns unpublished independently resolvable items.
@@ -45,7 +44,7 @@ impl RedactionBatch {
     /// Redacts one named scalar field and returns its opaque batch handle.
     ///
     /// `field` selects the policy rule applied to `value`. The result remains
-    /// unpublished until [`Self::finish`] consumes this batch.
+    /// unpublished until [`Self::finish_for_diagnostics`] consumes this batch.
     #[must_use]
     pub fn redact_field<T>(&mut self, field: &str, value: &T) -> RedactionBatchHandle
     where
@@ -58,7 +57,8 @@ impl RedactionBatch {
     /// Redacts one domain value and returns its opaque batch handle.
     ///
     /// `value` is rendered only through its [`Redact`] implementation; the
-    /// result remains unpublished until [`Self::finish`] consumes this batch.
+    /// result remains unpublished until
+    /// [`Self::finish_for_diagnostics`] consumes this batch.
     #[must_use]
     pub fn redact_value<T>(&mut self, value: &T) -> RedactionBatchHandle
     where
@@ -188,16 +188,14 @@ impl RedactionBatch {
     }
     /// Consumes the batch and publishes its item results and summary.
     #[must_use]
-    pub fn finish(self) -> RedactionBatchOutput {
+    pub(crate) fn finish(self) -> RedactionBatchOutput {
         RedactionBatchOutput::from_publication(self.session.finish())
     }
 
     /// Consumes the batch and prepares fail-closed diagnostic presentation.
     ///
     /// Complete items retain their redacted text. Incomplete items and invalid
-    /// handles resolve to the escaped `marker` without returning an error. Use
-    /// [`Self::finish`] when program logic must distinguish handle errors or
-    /// inspect individual completion states.
+    /// handles resolve to the escaped `marker` without returning an error.
     #[must_use]
     #[inline]
     pub fn finish_for_diagnostics(self, marker: &str) -> RedactionBatchDiagnostics {
