@@ -12,6 +12,8 @@ use std::ffi::OsStr;
 use super::redaction::redact_os_pairs_with_policy;
 use super::redaction::redact_pair_with_policy;
 use crate::runtime::TextSession;
+use crate::runtime::admit_flat_format_item;
+use crate::runtime::collect_flat_format_items;
 use crate::runtime::runtime_session::RuntimeSession;
 
 /// A borrowed environment façade over one mutable diagnostic session.
@@ -33,11 +35,7 @@ impl<'session> EnvRedactionWriter<'session> {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        if !self.session.admit_format_node(1)
-            || !self.session.admit_format_collection_item()
-            || !self.session.admit_format_node(2)
-            || !self.session.admit_input(name.len().saturating_add(value.len()))
-        {
+        if !admit_flat_format_item(self.session, name.len().saturating_add(value.len())) {
             return self;
         }
         let result = redact_pair_with_policy(
@@ -58,51 +56,15 @@ impl<'session> EnvRedactionWriter<'session> {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        let Some(pairs) = self.collect_admitted_pairs(pairs) else {
+        let Some(pairs) = collect_flat_format_items(self.session, pairs, |(name, value)| {
+            name.as_encoded_bytes()
+                .len()
+                .saturating_add(value.as_encoded_bytes().len())
+        }) else {
             return self;
         };
         let result = redact_os_pairs_with_policy(self.session.policy(), pairs, self.session.remaining_output_bytes());
         self.session.append_rendered_operation(result);
         self
-    }
-
-    /// Collects pairs only while their individual structural and input
-    /// admissions succeed. This deliberately avoids materializing or
-    /// rendering the suffix after a shared transaction limit is reached.
-    fn collect_admitted_pairs<'items, I>(&mut self, pairs: I) -> Option<Vec<(&'items OsStr, &'items OsStr)>>
-    where
-        I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
-    {
-        if !self.session.admit_format_node(1) {
-            return None;
-        }
-        let iterator = pairs.into_iter();
-        // Iterator length is caller-controlled metadata. Allocate only after
-        // an entry has passed the transaction's shared admission checks.
-        let mut admitted = Vec::new();
-        let mut iterator = iterator;
-        loop {
-            if iterator.size_hint().1 == Some(0) {
-                break;
-            }
-            if !self.session.preflight_format_item(2) {
-                return None;
-            }
-            let Some((name, value)) = iterator.next() else {
-                break;
-            };
-            if !self.session.admit_format_collection_item() || !self.session.admit_format_node(2) {
-                return None;
-            }
-            if !self.session.admit_input(
-                name.as_encoded_bytes()
-                    .len()
-                    .saturating_add(value.as_encoded_bytes().len()),
-            ) {
-                return None;
-            }
-            admitted.push((name, value));
-        }
-        Some(admitted)
     }
 }

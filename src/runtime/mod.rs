@@ -12,6 +12,7 @@ mod batch_publication;
 mod batch_session;
 mod bounded_field_writer;
 mod field_rendering;
+mod format_admission;
 mod inspection_accumulator;
 mod inspection_runtime;
 mod inspection_session;
@@ -39,6 +40,8 @@ mod transaction_phase;
 
 pub(crate) use batch_publication::BatchPublication;
 pub(crate) use batch_session::BatchSession;
+pub(crate) use format_admission::admit_flat_format_item;
+pub(crate) use format_admission::collect_flat_format_items;
 pub(crate) use inspection_session::InspectionSession;
 #[cfg(feature = "json")]
 pub(crate) use json_structure_admission::JsonStructureAdmission;
