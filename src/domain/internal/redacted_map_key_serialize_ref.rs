@@ -2,17 +2,24 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Borrowed adapter for maps with explicitly sensitive keys.
 
 use super::RedactMapKeySerialize;
+use super::redact_serialize_scope::RedactSerializeScope;
 
 /// Borrowed serializer adapter carrying policy and key sensitivity.
 #[doc(hidden)]
 pub struct RedactedMapKeySerializeRef<'value, 'policy, T: ?Sized> {
+    /// Borrowed map whose keys are classified explicitly.
     value: &'value T,
+    /// Policy used to mask keys and optional values.
     policy: &'policy crate::RedactionPolicy,
+    /// Sensitivity applied to every serialized key.
     level: crate::Sensitivity,
+    /// Optional sensitivity applied uniformly to serialized values.
     value_level: Option<crate::Sensitivity>,
 }
 
@@ -39,6 +46,7 @@ impl<T: ?Sized + RedactMapKeySerialize> serde::Serialize for RedactedMapKeySeria
     where
         S: serde::Serializer,
     {
+        let _scope = RedactSerializeScope::new(self.policy);
         self.value
             .serialize_redacted_map_keys(serializer, self.policy, self.level, self.value_level)
     }

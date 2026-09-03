@@ -8,6 +8,7 @@
 //! Borrowed adapter for explicitly classified structured scalar values.
 
 use super::redact_level_serialize::RedactLevelSerialize;
+use super::redact_serialize_scope::RedactSerializeScope;
 
 /// Borrowed serializer adapter for one level field.
 #[doc(hidden)]
@@ -33,6 +34,7 @@ impl<T: ?Sized + RedactLevelSerialize> serde::Serialize for RedactedLevelSeriali
     where
         S: serde::Serializer,
     {
+        let _scope = RedactSerializeScope::new(self.policy);
         self.value.serialize_redacted_level(serializer, self.policy, self.level)
     }
 }
