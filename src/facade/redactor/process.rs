@@ -10,26 +10,26 @@
 use std::ffi::OsStr;
 
 use super::Redactor;
-use crate::RedactionInspectionResult;
+use crate::RedactionInspection;
+use crate::RedactionInspectionError;
 use crate::RedactionTextOutput;
 
 impl Redactor {
-    /// Redacts an argument vector through one completed batch operation.
+    /// Redacts an argument vector through one completed text transaction.
     #[must_use]
     pub fn redact_argv<'items, I>(&self, items: I) -> RedactionTextOutput
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
     {
-        let mut batch = self.batch();
-        let handle = batch.redact_argv(items);
-        batch
-            .finish()
-            .into_resolved(handle)
-            .expect("a handle created by the completed transaction must resolve")
+        let mut session = self.text_runtime();
+        session.argv(|argv| {
+            let _ = argv.items(items);
+        });
+        session.finish()
     }
 
     /// Inspects explicitly classified argv items without rendering them.
-    pub fn inspect_argv<'items, I>(&self, items: I) -> RedactionInspectionResult
+    pub fn inspect_argv<'items, I>(&self, items: I) -> Result<RedactionInspection, RedactionInspectionError>
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
     {
@@ -44,16 +44,15 @@ impl Redactor {
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
     {
-        let mut batch = self.batch();
-        let handle = batch.redact_heuristic_argv(items);
-        batch
-            .finish()
-            .into_resolved(handle)
-            .expect("a handle created by the completed transaction must resolve")
+        let mut session = self.text_runtime();
+        session.argv(|argv| {
+            let _ = argv.heuristic_items(items);
+        });
+        session.finish()
     }
 
     /// Inspects argv items using heuristic option classification.
-    pub fn inspect_heuristic_argv<'items, I>(&self, items: I) -> RedactionInspectionResult
+    pub fn inspect_heuristic_argv<'items, I>(&self, items: I) -> Result<RedactionInspection, RedactionInspectionError>
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
     {
@@ -65,16 +64,15 @@ impl Redactor {
     /// Redacts one environment assignment through one completed transaction.
     #[must_use]
     pub fn redact_env(&self, name: &str, value: &str) -> RedactionTextOutput {
-        let mut batch = self.batch();
-        let handle = batch.redact_env(name, value);
-        batch
-            .finish()
-            .into_resolved(handle)
-            .expect("a handle created by the completed transaction must resolve")
+        let mut session = self.text_runtime();
+        session.env(|environment| {
+            let _ = environment.pair(name, value);
+        });
+        session.finish()
     }
 
     /// Inspects one environment assignment without rendering it.
-    pub fn inspect_env(&self, name: &str, value: &str) -> RedactionInspectionResult {
+    pub fn inspect_env(&self, name: &str, value: &str) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
         crate::formats::env::inspection::inspect_pair(&mut session, name, value);
         session.finish()
@@ -86,16 +84,15 @@ impl Redactor {
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
     {
-        let mut batch = self.batch();
-        let handle = batch.redact_env_pairs(pairs);
-        batch
-            .finish()
-            .into_resolved(handle)
-            .expect("a handle created by the completed transaction must resolve")
+        let mut session = self.text_runtime();
+        session.env(|environment| {
+            let _ = environment.os_pairs(pairs);
+        });
+        session.finish()
     }
 
     /// Inspects environment assignments without rendering them.
-    pub fn inspect_env_pairs<'items, I>(&self, pairs: I) -> RedactionInspectionResult
+    pub fn inspect_env_pairs<'items, I>(&self, pairs: I) -> Result<RedactionInspection, RedactionInspectionError>
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
     {
@@ -104,7 +101,7 @@ impl Redactor {
         session.finish()
     }
 
-    /// Redacts one process command through one completed batch transaction.
+    /// Redacts one process command through one completed text transaction.
     #[must_use]
     pub fn redact_process<'arguments, 'variables, A, E>(
         &self,
@@ -116,12 +113,11 @@ impl Redactor {
         A: IntoIterator<Item = crate::formats::argv::ArgvItem<'arguments>>,
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
     {
-        let mut batch = self.batch();
-        let handle = batch.redact_process(program, arguments, variables);
-        batch
-            .finish()
-            .into_resolved(handle)
-            .expect("a handle created by the completed transaction must resolve")
+        let mut session = self.text_runtime();
+        let _ = session.process(|process| {
+            let _ = process.command(program, arguments, variables);
+        });
+        session.finish()
     }
 
     /// Inspects one process command without rendering its components.
@@ -130,7 +126,7 @@ impl Redactor {
         program: &'arguments OsStr,
         arguments: A,
         variables: E,
-    ) -> RedactionInspectionResult
+    ) -> Result<RedactionInspection, RedactionInspectionError>
     where
         A: IntoIterator<Item = crate::formats::argv::ArgvItem<'arguments>>,
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,

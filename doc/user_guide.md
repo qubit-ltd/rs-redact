@@ -18,13 +18,13 @@ bounded rendering transaction and publishes owned text plus a summary:
 ```text
 borrowed value -> policy decision + transaction budget
                   -> composer: RedactionTextOutput
-                  -> batch: handles + RedactionBatchOutput
-                  -> inspection: RedactionInspectionResult
+                  -> batch: handles + fail-closed diagnostics
+                  -> inspection: Result<RedactionInspection, Error>
 ```
 
 Single-value conveniences and composers return `RedactionTextOutput`. Batches
-publish independently resolvable items through `RedactionBatchOutput`; inspection
-returns a non-rendering `RedactionInspectionResult`. Every rendered item carries
+publish independently addressable diagnostic text through opaque handles;
+inspection returns a non-rendering `Result`. Every rendered operation carries
 safe text and a `RedactionSummary`. With redaction enabled, text published as `Complete`,
 `Truncated`, or `Exhausted` remains confidentiality-safe. The latter two states
 mean that diagnostic information is incomplete, not that the text leaked its
@@ -61,8 +61,8 @@ assert!(!output.text(password).as_str().contains("raw-password"));
 
 `finish_for_diagnostics()` maps an incomplete item, an invalid item, and a
 handle from another batch to the same escaped marker without returning
-`Result`. Callers that need to distinguish those programming errors retain the
-strict `finish()` plus `RedactionBatchOutput::resolve()` path.
+`Result`. This deliberately keeps diagnostic presentation fail-closed instead
+of exposing a parallel fallible publication model.
 
 ## Installation and Minimal Configuration
 

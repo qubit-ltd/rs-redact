@@ -9,7 +9,8 @@
 
 use super::Redactor;
 use crate::Redact;
-use crate::RedactionInspectionResult;
+use crate::RedactionInspection;
+use crate::RedactionInspectionError;
 use crate::RedactionTextOutput;
 use crate::runtime::runtime_session::RuntimeSession;
 
@@ -20,12 +21,9 @@ impl Redactor {
     where
         T: Redact + ?Sized,
     {
-        let mut batch = self.batch();
-        let handle = batch.redact_value(value);
-        batch
-            .finish()
-            .into_resolved(handle)
-            .expect("a handle created by the completed transaction must resolve")
+        let mut session = self.text_runtime();
+        let _ = session.value(value);
+        session.finish()
     }
 
     /// Inspects one domain value without rendering any field content.
@@ -34,7 +32,7 @@ impl Redactor {
     ///
     /// Returns an inconclusive result when structural or input admission
     /// prevents the complete domain value from being classified.
-    pub fn inspect<T>(&self, value: &T) -> RedactionInspectionResult
+    pub fn inspect<T>(&self, value: &T) -> Result<RedactionInspection, RedactionInspectionError>
     where
         T: Redact + ?Sized,
     {
@@ -49,16 +47,13 @@ impl Redactor {
     where
         T: std::fmt::Display + ?Sized,
     {
-        let mut batch = self.batch();
-        let handle = batch.redact_field(field, value);
-        batch
-            .finish()
-            .into_resolved(handle)
-            .expect("a handle created by the completed transaction must resolve")
+        let mut session = self.text_runtime();
+        let _ = session.field(field, value);
+        session.finish()
     }
 
     /// Inspects one scalar field without rendering its value.
-    pub fn inspect_field(&self, field: &str, value: &str) -> RedactionInspectionResult {
+    pub fn inspect_field(&self, field: &str, value: &str) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
         session.inspect_field(field, value);
         session.finish()

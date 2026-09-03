@@ -8,6 +8,8 @@
 use std::ffi::OsStr;
 
 use qubit_redact::Redact;
+#[cfg(feature = "json")]
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
@@ -16,6 +18,51 @@ use qubit_redact::Sensitivity;
 struct Example {
     secret: String,
     omitted: String,
+}
+
+/// Domain value that writes one field through the selected disabled-mode path.
+enum SingleDisabledField {
+    Unredacted,
+    Sensitive,
+    #[cfg(feature = "json")]
+    JsonUnredacted,
+    #[cfg(feature = "json")]
+    Json,
+}
+
+impl Redact for SingleDisabledField {
+    /// Writes exactly one record field so its structural charge is observable.
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("SingleDisabledField", |fields| match self {
+            Self::Unredacted => {
+                fields.unredacted("value", || "raw-secret");
+            }
+            Self::Sensitive => {
+                fields.sensitive(Sensitivity::Secret, "value", || "raw-secret");
+            }
+            #[cfg(feature = "json")]
+            Self::JsonUnredacted => {
+                fields.unredacted("value", || r#"{"token":"raw-secret"}"#);
+            }
+            #[cfg(feature = "json")]
+            Self::Json => {
+                fields.json("value", r#"{"token":"raw-secret"}"#);
+            }
+        });
+    }
+}
+
+/// Builds a disabled policy with an exact domain-node limit.
+fn disabled_node_policy(maximum: usize) -> RedactionPolicy {
+    let mut policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(maximum);
+        })
+        .expect("the domain-node limit should be valid")
+        .build()
+        .expect("the disabled regression policy should build");
+    let _ = policy.set_disabled(true);
+    policy
 }
 
 impl Redact for Example {
@@ -51,6 +98,43 @@ fn disabled_policy_outputs_scalar_and_domain_values_without_redaction() {
     assert!(output.text().as_str().contains("raw-secret"));
     assert!(output.text().as_str().contains("restored"));
     assert!(output.summary().is_redaction_disabled());
+}
+
+/// A disabled sensitive field must consume the same structural budget as an
+/// explicitly unredacted field.
+#[test]
+fn test_disabled_domain_field_sensitive_is_admitted_once() {
+    for maximum in [1, 2] {
+        let redactor = Redactor::new(disabled_node_policy(maximum));
+        let baseline = redactor.redact(&SingleDisabledField::Unredacted);
+        let sensitive = redactor.redact(&SingleDisabledField::Sensitive);
+
+        assert_eq!(sensitive.text().as_str(), baseline.text().as_str());
+        assert_eq!(sensitive.summary(), baseline.summary());
+        if maximum == 2 {
+            assert!(sensitive.text().as_str().contains("raw-secret"));
+        }
+    }
+}
+
+/// A disabled JSON field must not spend a second domain node while restoring
+/// its original text.
+#[cfg(feature = "json")]
+#[test]
+fn test_disabled_domain_field_json_is_admitted_once() {
+    for maximum in [1, 2] {
+        let redactor = Redactor::new(disabled_node_policy(maximum));
+        let baseline = redactor.redact(&SingleDisabledField::JsonUnredacted);
+        let output = redactor.redact(&SingleDisabledField::Json);
+
+        assert_eq!(output.text().as_str(), baseline.text().as_str());
+        assert_eq!(output.summary(), baseline.summary());
+        if maximum == 2 {
+            assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+            assert_eq!(output.summary().usage().visited_nodes(), 2);
+            assert!(output.text().as_str().contains(r#"{\"token\":\"raw-secret\"}"#));
+        }
+    }
 }
 
 #[test]
@@ -169,15 +253,9 @@ fn test_disabled_policy_restores_other_invalid_structured_http_bodies() {
         BodyCapture::complete(b"malformed multipart raw-secret"),
         Some(&HeaderValue::from_static("multipart/form-data")),
     );
-    let output = batch.finish();
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
-    assert_eq!(
-        output.resolve(ndjson).expect("NDJSON handle").text().as_str(),
-        "not-json: raw-ndjson-secret",
-    );
-    assert_eq!(
-        output.resolve(multipart).expect("multipart handle").text().as_str(),
-        "malformed multipart raw-secret",
-    );
+    assert_eq!(output.text(ndjson).as_str(), "not-json: raw-ndjson-secret",);
+    assert_eq!(output.text(multipart).as_str(), "malformed multipart raw-secret",);
     assert!(output.summary().is_redaction_disabled());
 }

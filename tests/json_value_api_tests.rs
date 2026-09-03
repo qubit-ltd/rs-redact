@@ -97,13 +97,10 @@ fn test_disabled_borrowed_json_value_respects_node_limit_across_rendering_entry_
 
     let mut batch = redactor.batch();
     let handle = batch.redact_json_value(&value);
-    let batch = batch.finish();
-    let batched = batch
-        .resolve(handle)
-        .expect("the rejected JSON value remains resolvable");
-    assert!(!batched.text().as_str().contains("raw-secret"));
-    assert_eq!(batched.summary().completion(), RedactionCompletion::Truncated);
-    assert!(batched.summary().is_redaction_disabled());
+    let batch = batch.finish_for_diagnostics("");
+    assert!(!batch.text(handle).as_str().contains("raw-secret"));
+    assert_eq!(batch.summary().completion(), RedactionCompletion::Truncated);
+    assert!(batch.summary().is_redaction_disabled());
 
     let composed = redactor
         .text_composer()
@@ -144,12 +141,8 @@ fn all_parsed_json_value_entry_points_borrow_and_redact_the_same_value() {
 
     let mut batch = redactor.batch();
     let handle = batch.redact_json_value(&value);
-    let batch = batch.finish();
-    let batch_text = batch
-        .resolve(handle)
-        .expect("borrowed JSON batch item should resolve")
-        .text()
-        .as_str();
+    let batch = batch.finish_for_diagnostics("<redaction incomplete>");
+    let batch_text = batch.text(handle).as_str();
     assert!(!batch_text.contains("raw-secret"));
 
     let writer_output = redactor

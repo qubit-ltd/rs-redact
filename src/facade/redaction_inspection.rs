@@ -7,19 +7,15 @@
 // =============================================================================
 //! Conclusive sensitivity metadata produced without rendering source values.
 
-use super::RedactionInspectionError;
 use super::RedactionUsage;
 use crate::Sensitivity;
-
-/// Result returned by every complete redaction inspection entry point.
-pub type RedactionInspectionResult = Result<RedactionInspection, RedactionInspectionError>;
 
 /// Highest sensitivity found by one complete, bounded inspection.
 ///
 /// A successful value proves the complete admitted input was classified.
 /// [`None`] from [`Self::max_sensitivity`] therefore means no inspected value
 /// was declared sensitive. Inconclusive traversal is returned as
-/// [`RedactionInspectionError`] instead of this type.
+/// [`crate::RedactionInspectionError`] instead of this type.
 ///
 /// # Examples
 ///

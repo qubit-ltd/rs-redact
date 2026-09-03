@@ -192,8 +192,8 @@ impl Redactor {
     /// Starts one batch of independently resolvable redaction items.
     ///
     /// The returned batch owns a fresh budget ledger initialized from this
-    /// redactor's immutable policy snapshot. Its consuming `finish` method
-    /// publishes a [`crate::RedactionBatchOutput`].
+    /// redactor's immutable policy snapshot. Its consuming diagnostics finish
+    /// method publishes fail-closed item views.
     ///
     /// # Returns
     /// A mutable batch that issues handles resolvable only from its finished

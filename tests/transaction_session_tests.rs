@@ -57,20 +57,10 @@ fn batch_resolves_items_only_from_its_own_output() {
     let mut batch = Redactor::standard().batch();
     let first = batch.redact_field("name", "Ada");
     let second = batch.redact_value(&SafeValue);
-    let output = batch.finish();
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
-    assert_eq!(
-        output.resolve(first).expect("first item resolves").text().as_str(),
-        "Ada"
-    );
-    assert!(
-        output
-            .resolve(second)
-            .expect("value item resolves")
-            .text()
-            .as_str()
-            .contains("SafeValue")
-    );
+    assert_eq!(output.text(first).as_str(), "Ada");
+    assert!(output.text(second).as_str().contains("SafeValue"));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
 }
 
@@ -78,10 +68,12 @@ fn batch_resolves_items_only_from_its_own_output() {
 fn batch_rejects_handle_from_different_batch() {
     let mut first = Redactor::standard().batch();
     let handle = first.redact_field("name", "Ada");
-    let _ = first.finish();
+    let _ = first.finish_for_diagnostics("<redaction incomplete>");
 
-    let second = Redactor::standard().batch().finish();
-    assert!(second.resolve(handle).is_err());
+    let second = Redactor::standard()
+        .batch()
+        .finish_for_diagnostics("<redaction incomplete>");
+    assert_eq!(second.text(handle).as_str(), "<redaction incomplete>");
 }
 
 #[test]
@@ -111,15 +103,8 @@ fn batch_recovers_from_user_redaction_panic_without_publishing_partial_item() {
     assert!(result.is_err());
 
     let handle = batch.redact_field("password", "raw-secret");
-    let output = batch.finish();
-    assert_eq!(
-        output
-            .resolve(handle)
-            .expect("post-panic item resolves")
-            .text()
-            .as_str(),
-        "<redacted>"
-    );
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    assert_eq!(output.text(handle).as_str(), "<redacted>");
 }
 
 #[test]
@@ -132,16 +117,9 @@ fn batch_panic_invalidates_handles_created_before_rollback() {
     assert!(result.is_err());
 
     let current = batch.redact_field("password", "raw-secret");
-    let output = batch.finish();
-    assert!(output.resolve(stale).is_err());
-    assert_eq!(
-        output
-            .resolve(current)
-            .expect("post-panic item resolves")
-            .text()
-            .as_str(),
-        "<redacted>"
-    );
+    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    assert_eq!(output.text(stale).as_str(), "<redaction incomplete>");
+    assert_eq!(output.text(current).as_str(), "<redacted>");
 }
 
 #[test]
@@ -160,10 +138,10 @@ fn process_composer_batch_and_one_shot_publish_equivalent_safe_text() {
 
     let mut batch = redactor.batch();
     let handle = batch.redact_process(program, arguments, variables);
-    let batch = batch.finish();
+    let batch = batch.finish_for_diagnostics("<redaction incomplete>");
 
     let one_shot = redactor.redact_process(program, arguments, variables);
-    let batch_text = batch.resolve(handle).expect("batch process resolves").text().as_str();
+    let batch_text = batch.text(handle).as_str();
 
     assert_eq!(composer.text().as_str(), batch_text);
     assert_eq!(composer.text().as_str(), one_shot.text().as_str());
@@ -216,15 +194,15 @@ fn process_batch_records_environment_collection_limit_after_argv() {
         [],
         [(OsStr::new("PASSWORD"), OsStr::new("must-not-be-rendered"))],
     );
-    let output = batch.finish();
-    let item = output.resolve(handle).expect("process handle publishes");
+    let output = batch.finish_for_diagnostics("");
 
-    assert!(item.text().as_str().is_empty());
-    assert_eq!(item.summary().completion(), RedactionCompletion::Truncated);
+    assert!(output.text(handle).as_str().is_empty());
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
     assert!(
-        item.summary()
+        output
+            .summary()
             .reasons()
             .contains(RedactionReason::TraversalLimitReached)
     );
-    assert!(!item.text().as_str().contains("must-not-be-rendered"));
+    assert!(!output.text(handle).as_str().contains("must-not-be-rendered"));
 }

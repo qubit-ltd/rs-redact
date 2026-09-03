@@ -38,10 +38,9 @@ fn benchmark_redaction(criterion: &mut Criterion) {
         bencher.iter(|| {
             let mut batch = redactor.batch();
             let handle = batch.redact_field("password", black_box("raw-secret"));
-            batch
-                .finish()
-                .into_resolved(handle)
-                .expect("a handle created by the completed transaction must resolve")
+            let output = batch.finish_for_diagnostics("<redaction incomplete>");
+            black_box(output.text(handle));
+            output
         });
     });
     group.bench_function("composer/ordered-fields", |bencher| {
@@ -60,7 +59,7 @@ fn benchmark_redaction(criterion: &mut Criterion) {
             let mut batch = redactor.batch();
             let _account = batch.redact_field("account", black_box("account-42"));
             let _password = batch.redact_field("password", black_box("raw-secret"));
-            batch.finish()
+            batch.finish_for_diagnostics("<redaction incomplete>")
         });
     });
     group.bench_function("json/text", |bencher| {
@@ -70,10 +69,9 @@ fn benchmark_redaction(criterion: &mut Criterion) {
         bencher.iter(|| {
             let mut batch = redactor.batch();
             let handle = batch.redact_json(black_box(json));
-            batch
-                .finish()
-                .into_resolved(handle)
-                .expect("a handle created by the completed transaction must resolve")
+            let output = batch.finish_for_diagnostics("<redaction incomplete>");
+            black_box(output.text(handle));
+            output
         });
     });
     group.bench_function("json/borrowed-value", |bencher| {
@@ -83,10 +81,9 @@ fn benchmark_redaction(criterion: &mut Criterion) {
         bencher.iter(|| {
             let mut batch = redactor.batch();
             let handle = batch.redact_json_value(black_box(&json_value));
-            batch
-                .finish()
-                .into_resolved(handle)
-                .expect("a handle created by the completed transaction must resolve")
+            let output = batch.finish_for_diagnostics("<redaction incomplete>");
+            black_box(output.text(handle));
+            output
         });
     });
     group.bench_function("unicode/scalar", |bencher| {

@@ -13,20 +13,8 @@ use crate::RedactionTextOutput;
 use crate::runtime::BatchPublication;
 use crate::runtime::RedactionHandle;
 
-/// Published independently resolvable results from one
-/// [`crate::RedactionBatch`].
-///
-/// # Examples
-///
-/// ```
-/// use qubit_redact::Redactor;
-///
-/// let mut batch = Redactor::strict().batch();
-/// let handle = batch.redact_field("password", "raw-secret");
-/// let output = batch.finish();
-/// assert!(output.resolve(handle).is_ok());
-/// ```
-pub struct RedactionBatchOutput {
+/// Crate-private publication used to build fail-closed batch diagnostics.
+pub(crate) struct RedactionBatchOutput {
     /// Private publication that owns the batch identity, items, and summary.
     output: BatchPublication,
 }
@@ -41,7 +29,7 @@ impl RedactionBatchOutput {
     /// Returns the aggregate accounting summary for the batch.
     #[must_use]
     #[inline(always)]
-    pub const fn summary(&self) -> &crate::RedactionSummary {
+    pub(crate) const fn summary(&self) -> &crate::RedactionSummary {
         self.output.summary()
     }
 
@@ -49,21 +37,12 @@ impl RedactionBatchOutput {
     ///
     /// Returns [`RedactionBatchHandleError::DifferentBatch`] when `handle`
     /// was created by another batch, or `MissingItem` for an invalid index.
-    pub fn resolve(&self, handle: RedactionBatchHandle) -> Result<&RedactionTextOutput, RedactionBatchHandleError> {
+    pub(crate) fn resolve(
+        &self,
+        handle: RedactionBatchHandle,
+    ) -> Result<&RedactionTextOutput, RedactionBatchHandleError> {
         self.output
             .resolve(RedactionHandle::new(handle.batch_id, handle.item_index))
-            .map_err(|error| match error {
-                crate::RedactionHandleError::DifferentTransaction => RedactionBatchHandleError::DifferentBatch,
-                crate::RedactionHandleError::MissingItem => RedactionBatchHandleError::MissingItem,
-            })
-    }
-
-    /// Consumes the output and moves the text selected by `handle` out of it.
-    ///
-    /// Returns the same errors as [`Self::resolve`].
-    pub fn into_resolved(self, handle: RedactionBatchHandle) -> Result<RedactionTextOutput, RedactionBatchHandleError> {
-        self.output
-            .into_resolved(RedactionHandle::new(handle.batch_id, handle.item_index))
             .map_err(|error| match error {
                 crate::RedactionHandleError::DifferentTransaction => RedactionBatchHandleError::DifferentBatch,
                 crate::RedactionHandleError::MissingItem => RedactionBatchHandleError::MissingItem,

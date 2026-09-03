@@ -44,17 +44,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             self.write_field_truncated();
             return self;
         }
-        if self.writer.session.is_inspection() {
-            return self;
-        }
-        self.write_prefix(name);
-        if !self.writer.can_write() {
-            return self;
-        }
-        let value = access();
-        self.writer.write_debug(&value);
-        self.writer.write_fragment(", ");
-        self
+        self.write_admitted_unredacted(name, access)
     }
 
     /// Writes a field that has no explicit redaction mode.
@@ -108,7 +98,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             return self;
         }
         if self.writer.session.policy().is_disabled() {
-            return self.unredacted(name, access);
+            return self.write_admitted_unredacted(name, access);
         }
         let effective_level = self
             .writer
@@ -188,7 +178,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             return self;
         }
         if self.writer.session.policy().is_disabled() {
-            return self.unredacted(name, || value);
+            return self.write_admitted_unredacted(name, || value);
         }
         self.write_prefix(name);
         if !self.writer.can_write() {
@@ -446,6 +436,26 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         } else {
             self
         }
+    }
+
+    /// Writes an unredacted field after its structural node was admitted by
+    /// the calling field operation.
+    fn write_admitted_unredacted<T, F>(&mut self, name: &str, access: F) -> &mut Self
+    where
+        T: Debug,
+        F: FnOnce() -> T,
+    {
+        if self.writer.session.is_inspection() {
+            return self;
+        }
+        self.write_prefix(name);
+        if !self.writer.can_write() {
+            return self;
+        }
+        let value = access();
+        self.writer.write_debug(&value);
+        self.writer.write_fragment(", ");
+        self
     }
 
     /// Returns whether the next field may be inspected.
