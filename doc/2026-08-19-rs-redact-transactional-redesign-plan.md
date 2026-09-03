@@ -1,5 +1,8 @@
 # rs-redact 可复用事务式脱敏架构实施计划
 
+> **历史文档：** 本文是已经完成并被后续重构取代的实施记录。当前架构、feature 和公开契约以
+> [`design.zh_CN.md`](design.zh_CN.md) 与 [`user_guide.zh_CN.md`](user_guide.zh_CN.md) 为准。
+
 > **执行要求：** 按任务顺序和依赖关系实施；每个行为变更先编写并运行失败测试，再写最小实现，最后执行任务内验证。本文不授权 `git add`、`git commit` 或 `git push`，Git 写操作须另行确认。
 
 **目标：** 将 `rs-redact`、`rs-redact-derive` 及七个直接下游迁移到唯一、可复用、原子发布的 transaction runtime，并用编译失败和回归测试消除旧架构残留。

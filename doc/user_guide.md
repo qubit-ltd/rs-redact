@@ -210,6 +210,90 @@ tokens must produce finite `f64`. Out-of-range text follows the same fail-closed
 invalid-JSON path. A former serde_json private Number-marker key is an ordinary
 object key.
 
+### Redact one HTTP exchange in a batch
+
+Keep the URL, headers, and captured body in one transaction when they belong
+to the same diagnostic event:
+
+```rust
+use http::{HeaderMap, HeaderValue};
+use qubit_redact::Redactor;
+use qubit_redact::formats::http::BodyCapture;
+
+let mut headers = HeaderMap::new();
+headers.insert("authorization", HeaderValue::from_static("Bearer raw-token"));
+let content_type = HeaderValue::from_static("application/json");
+let body = br#"{"user":"ada","password":"raw-password"}"#;
+
+let mut batch = Redactor::standard().batch();
+let url = batch.redact_http_url("https://example.test/login?token=raw-token");
+let headers_handle = batch.redact_http_headers(&headers);
+let body_handle = batch.redact_http_body(BodyCapture::complete(body), Some(&content_type));
+let output = batch.finish_for_diagnostics("<redaction incomplete>");
+
+for handle in [url, headers_handle, body_handle] {
+    assert!(!output.text(handle).as_str().contains("raw-"));
+}
+```
+
+`BodyCapture::complete` asserts that all source bytes are present.
+`BodyCapture::prefix` records a known total length, while
+`BodyCapture::truncated_unknown` records that bytes are missing but their count
+is unknown. Source truncation is distinct from output truncation and is exposed
+as `RedactionReason::SourceTruncated`; never construct a complete capture from
+an incomplete body.
+
+### Inspect a URI before accepting it
+
+Inspection is useful when a URI must be rejected rather than merely redacted.
+Both a sensitive result and an error are fail-closed outcomes:
+
+```rust
+use qubit_redact::Redactor;
+
+let candidate = "https://example.test/?token=raw-token";
+let acceptable = Redactor::strict()
+    .inspect_uri(candidate)
+    .is_ok_and(|inspection| !inspection.contains_sensitive());
+assert!(!acceptable);
+```
+
+### Redact argv, environment, and process diagnostics
+
+Explicitly classified argv is preferable when the caller knows the argument
+contract. Heuristic argv recognizes supported option forms but is not a shell
+parser:
+
+```rust
+use std::ffi::OsStr;
+
+use qubit_redact::{Redactor, Sensitivity};
+use qubit_redact::formats::argv::ArgvItem;
+
+let arguments = [
+    ArgvItem::plain(OsStr::new("--server=example.test")),
+    ArgvItem::sensitive(OsStr::new("raw-token"), Sensitivity::Secret),
+];
+let variables = [(OsStr::new("PASSWORD"), OsStr::new("raw-password"))];
+let output = Redactor::standard().redact_process(OsStr::new("client"), arguments, variables);
+assert!(!output.text().as_str().contains("raw-"));
+```
+
+### Feature selection
+
+| Feature | Adds |
+| --- | --- |
+| `derive` | `#[derive(Redact)]` |
+| `serde` | generated/domain structured Serde adapters and BigDecimal support |
+| `json` | JSON text and borrowed `serde_json::Value` handling |
+| `http` | JSON plus URL, headers, form, multipart, and body capture |
+| `uri` | generic URI parsing and redaction |
+
+Keep the default empty feature set for scalar and manually implemented domain
+redaction. In the 0.5 compatibility line, `serde` continues to include
+BigDecimal support; separating that dependency would require an explicit
+feature migration in a later breaking release.
+
 ## Advanced Usage
 
 ### Inspect decisions and control policies
@@ -217,6 +301,29 @@ object key.
 Inspection reports rule matches, sensitivity, and completion without publishing
 raw values. Use it to explain why a field would be masked before choosing a
 serialization or logging boundary.
+
+Build one immutable policy and share the resulting `Redactor`. Builder closures
+are transactional: an invalid field rule leaves the prior builder unchanged.
+
+```rust
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
+
+let policy = RedactionPolicy::builder()
+    .fields(|fields| {
+        fields.raise("session_id", Sensitivity::High);
+    })
+    .expect("valid field rule")
+    .limits(|limits| {
+        limits.max_input_bytes(64 * 1024);
+        limits.max_output_bytes(8 * 1024);
+        limits.max_collection_items(256);
+    })
+    .expect("valid limits")
+    .build()
+    .expect("valid policy");
+let redactor = Redactor::new(policy);
+assert!(!redactor.redact_field("session_id", "raw-session").text().as_str().contains("raw-session"));
+```
 
 `RedactionPolicy::disabled()` is an explicit confidentiality opt-out and an
 intentional process-wide debugging escape hatch. It restores raw values for

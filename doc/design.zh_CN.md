@@ -22,6 +22,8 @@
 5. 结构深度、节点数、集合项、输入字节、JSON 值和输出字节由同一事务统一计费。
 6. 只有完成事务才能构造公开摘要；内部 parser 和 format executor 不发布第二套结果类型。
 7. `RedactionPolicy::disabled()` 是显式调试逃生口，会恢复原值；授权和使用时机由下游负责。
+8. 隐藏的结构化 Serde adapter 在直接调用时建立根准入 scope，嵌套调用则复用已有 scope；隐藏
+   capability 在没有 scope 时必须 fail closed，不能绕过资源上限。
 
 ## 3. 总体架构
 
@@ -111,6 +113,9 @@ inspection error 表示结论不完整；安全决策应按敏感处理。
 预检发生在推进不可信迭代器之前。JSON 文本在准入时解析一次并建立 admitted tree；HTTP JSON、
 NDJSON 和 multipart 同样复用已准入结构，避免检查路径和渲染路径产生两次解析或不同结论。
 
+argv、环境变量列表等扁平结构格式通过同一个 runtime admission helper 计费根节点、集合项、子节点
+和源字节。composer 与 batch 保留不同发布模型，但同一输入迭代器的推进和计费规则不能各自漂移。
+
 输出不足时只保留完整 UTF-8 前缀和安全标记。`Truncated` 表示仍有安全但不完整的表示，
 `Exhausted` 表示预算无法容纳完整替代。调用方应读取 `RedactionSummary`，不能通过解析标记文本
 推断原因。
@@ -121,10 +126,12 @@ NDJSON 和 multipart 同样复用已准入结构，避免检查路径和渲染�
 map、嵌套对象、按敏感等级写入、按运行时 key 分类、JSON 值和显式 skip。所有 scope 共享父事务
 预算，深度或集合上限失败时关闭对应结构，不创建旁路输出。
 
-`derive` feature 只导出 `#[derive(Redact)]`；生成的序列化适配还需要 `serde` feature。内部 sealed
-capability traits 覆盖标量、可选值、引用、常用容器、tuple、map 和 JSON ownership 形态，避免向
-公开 API 暴露实现细节。internally tagged serializer 只接受能够保持目标结构的 map/struct 形态，
-不支持的 Serde shape 返回明确错误而不是猜测表示。
+`derive` feature 只导出 `#[derive(Redact)]`；生成的序列化适配还需要 `serde` feature。隐藏的支撑
+trait 与借用 adapter 覆盖标量、可选值、引用、常用容器、tuple、map 和 JSON ownership 形态。
+这些符号保持公开只是因为生成代码会在下游 crate 中展开，并不是另一套面向用户的序列化 API。
+每个 adapter 都会建立或复用 thread-local 结构预算，因此直接构造也不能跳过集合、深度、节点和
+输入准入。internally tagged serializer 只接受能够保持目标结构的 map/struct 形态，不支持的
+Serde shape 返回明确错误而不是猜测表示。
 
 ## 8. 格式层
 
@@ -148,6 +155,9 @@ HTTP body 内部实现按职责拆分：
 公开 HTTP result。无效 content type、缺失 multipart boundary、非法 JSON/NDJSON 和截断输入均
 通过安全 marker 与结构化 reason 表达。
 
+来源截断元数据只由 `BodyCapture` 持有。当已捕获 body 超过父 runtime 的剩余输入额度时，父事务
+会原子拒绝整段 body；renderer 不再维护第二套“部分输入”状态。
+
 ## 9. Feature 与兼容性
 
 默认 feature 为空：
@@ -161,15 +171,20 @@ HTTP body 内部实现按职责拆分：
 公开入口位于 `Redactor`、composer、batch、inspection、policy 和 domain writer。format executor、
 admitted tree、runtime session 和 sink 保持 crate-private，以便内部拆分不改变 0.5 公共 API。
 
+0.5 兼容系列继续让 `serde` 包含 BigDecimal 支持。把它拆成独立 feature 会从现有 `serde` 构建中
+移除实现，因此应留到后续破坏性版本，并提供明确迁移说明。
+
 ## 10. 验证策略
 
 质量门禁不使用文件白名单。单元与集成测试覆盖公开策略 builder、限制、领域 writer、sealed
 capability、Serde shape、所有格式的正常与 fail-closed 路径，以及 composer/batch/inspection
 发布约束。覆盖率要求为函数至少 95%、行和 region 均严格大于 90%。
 
-fuzz target 分别覆盖直接 URI/URL、命令输入、混合事务序列、JSON 文本、HTTP body 和 multipart
-body。固定敏感值断言验证“不泄露”，任意字节路径验证确定性、UTF-8 输出和无 panic。CI 还执行
-格式、style、Clippy、测试、rustdoc 与 doctest。
+fuzz target 分别覆盖直接 URI/URL、命令输入、混合事务序列、JSON 文本、HTTP body、multipart
+body 和隐藏的结构化 Serde map adapter。固定敏感值断言验证“不泄露”，任意字节路径验证确定性、
+UTF-8 输出、直接 adapter 的有界行为和无 panic。Criterion workload 除标量、领域对象和 JSON 外，
+还覆盖下游重度使用的 argv、环境变量、进程、HTTP 和 URI。CI 还执行格式、style、Clippy、测试、
+rustdoc 与 doctest。
 
 ## 11. 有意不做的事情
 
