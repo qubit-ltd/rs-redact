@@ -7,13 +7,17 @@
 // =============================================================================
 //! Representative scalar, domain, and format redaction benchmarks.
 
+use std::ffi::OsStr;
 use std::hint::black_box;
 
 use criterion::Criterion;
+use criterion::Throughput;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
+use qubit_redact::formats::argv::ArgvItem;
 
 /// Benchmarks the primary one-shot redaction entry points.
 fn benchmark_redaction(criterion: &mut Criterion) {
@@ -96,6 +100,43 @@ fn benchmark_redaction(criterion: &mut Criterion) {
         bencher.iter(|| disabled_redactor.redact_json(black_box(json)));
     });
     group.finish();
+
+    let arguments = (0..64).map(|index| format!("argument-{index}")).collect::<Vec<_>>();
+    let variables = (0..64)
+        .map(|index| (format!("PUBLIC_{index}"), format!("value-{index}")))
+        .collect::<Vec<_>>();
+    let mut formats = criterion.benchmark_group("process-formats");
+    formats.throughput(Throughput::Elements(64));
+    formats.bench_function("argv/64-items", |bencher| {
+        bencher.iter(|| {
+            let items = arguments.iter().enumerate().map(|(index, value)| {
+                if index == 63 {
+                    ArgvItem::sensitive(OsStr::new(value), Sensitivity::Secret)
+                } else {
+                    ArgvItem::plain(OsStr::new(value))
+                }
+            });
+            redactor.redact_argv(black_box(items))
+        });
+    });
+    formats.bench_function("environment/64-pairs", |bencher| {
+        bencher.iter(|| {
+            let pairs = variables
+                .iter()
+                .map(|(name, value)| (OsStr::new(name), OsStr::new(value)));
+            redactor.redact_env_pairs(black_box(pairs))
+        });
+    });
+    formats.bench_function("process/64-arguments-and-variables", |bencher| {
+        bencher.iter(|| {
+            let items = arguments.iter().map(|value| ArgvItem::plain(OsStr::new(value)));
+            let pairs = variables
+                .iter()
+                .map(|(name, value)| (OsStr::new(name), OsStr::new(value)));
+            redactor.redact_process(OsStr::new("client"), black_box(items), black_box(pairs))
+        });
+    });
+    formats.finish();
 }
 
 criterion_group!(benches, benchmark_redaction);
