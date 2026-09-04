@@ -277,6 +277,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the HTTP header field rules.
+    #[deprecated(note = "use RedactionPolicy::http().header_rules() instead")]
     #[must_use]
     #[cfg(feature = "http")]
     #[inline]
@@ -285,6 +286,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the HTTP query field rules.
+    #[deprecated(note = "use RedactionPolicy::http().query_rules() instead")]
     #[must_use]
     #[cfg(feature = "http")]
     #[inline]
@@ -293,6 +295,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the HTTP body field rules.
+    #[deprecated(note = "use RedactionPolicy::http().body_rules() instead")]
     #[must_use]
     #[cfg(feature = "http")]
     #[inline]
@@ -301,6 +304,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the HTTP URL path policy.
+    #[deprecated(note = "use RedactionPolicy::http().url_path_policy() instead")]
     #[must_use]
     #[cfg(feature = "http")]
     #[inline]
@@ -309,6 +313,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the HTTP text-body policy.
+    #[deprecated(note = "use RedactionPolicy::http().text_body_policy() instead")]
     #[must_use]
     #[cfg(feature = "http")]
     #[inline]
@@ -317,6 +322,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the URI path policy.
+    #[deprecated(note = "use RedactionPolicy::uri().path_policy() instead")]
     #[must_use]
     #[cfg(feature = "uri")]
     #[inline]
@@ -325,6 +331,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the URI fragment policy.
+    #[deprecated(note = "use RedactionPolicy::uri().fragment_policy() instead")]
     #[must_use]
     #[cfg(feature = "uri")]
     #[inline]
@@ -347,6 +354,7 @@ impl RedactionPolicy {
     }
 
     /// Returns the base field policy view.
+    #[deprecated(note = "use RedactionPolicy::rules() instead")]
     #[must_use]
     #[inline]
     pub const fn fields(&self) -> &RedactionRules {

@@ -122,7 +122,7 @@ pub(crate) fn inspect_body_with_content_type_text(
         Some(content_type::ContentType::Ndjson) => inspect_ndjson(session, bytes),
         Some(content_type::ContentType::Form) => inspect_form(session, bytes),
         Some(content_type::ContentType::Text) => {
-            if session.policy().text_body_policy() == TextBodyPolicy::Redact {
+            if session.policy().http().text_body_policy() == TextBodyPolicy::Redact {
                 session.observe_sensitivity(Sensitivity::Secret);
             } else if str::from_utf8(bytes).is_err() {
                 session.fail_inspection(RedactionReason::UnsupportedContentType);
@@ -154,7 +154,7 @@ fn inspect_parsed_url(session: &mut InspectionSession, url: &Url, depth: usize) 
     if url.password().is_some() {
         session.observe_sensitivity(Sensitivity::Secret);
     }
-    if session.policy().url_path_policy() == UrlPathPolicy::Redact && url.path() != "/" {
+    if session.policy().http().url_path_policy() == UrlPathPolicy::Redact && url.path() != "/" {
         session.observe_sensitivity(Sensitivity::High);
     }
     if let Some(query) = url.query() {
@@ -265,7 +265,7 @@ fn body_first_non_whitespace(bytes: &[u8]) -> Option<u8> {
 fn query_fields(session: &InspectionSession) -> FieldRedactor<'_> {
     FieldRedactor::new(
         session.policy().rules(),
-        session.policy().query_rules(),
+        session.policy().http().query_rules(),
         session.policy().masking(),
     )
 }
@@ -274,7 +274,7 @@ fn query_fields(session: &InspectionSession) -> FieldRedactor<'_> {
 fn header_fields(session: &InspectionSession) -> FieldRedactor<'_> {
     FieldRedactor::new(
         session.policy().rules(),
-        session.policy().header_rules(),
+        session.policy().http().header_rules(),
         session.policy().masking(),
     )
 }
@@ -283,7 +283,7 @@ fn header_fields(session: &InspectionSession) -> FieldRedactor<'_> {
 fn body_fields(session: &InspectionSession) -> FieldRedactor<'_> {
     FieldRedactor::new(
         session.policy().rules(),
-        session.policy().body_rules(),
+        session.policy().http().body_rules(),
         session.policy().masking(),
     )
 }

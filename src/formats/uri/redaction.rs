@@ -64,7 +64,7 @@ pub(crate) fn redact_uri_with_limit(
     }
 
     let path = parsed.path().as_str();
-    if policy.path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
+    if policy.uri().path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
         if path.starts_with('/') {
             rendered.write_str("/%3Credacted%3E");
         } else {
@@ -89,7 +89,7 @@ pub(crate) fn redact_uri_with_limit(
 
     if let Some(fragment) = parsed.fragment() {
         rendered.write_str("#");
-        if policy.fragment_policy() == UriFragmentPolicy::Redact && !fragment.as_str().is_empty() {
+        if policy.uri().fragment_policy() == UriFragmentPolicy::Redact && !fragment.as_str().is_empty() {
             write_opaque_mask(policy, Sensitivity::High, &mut rendered);
         } else {
             rendered.write_str(fragment.as_str());

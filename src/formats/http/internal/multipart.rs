@@ -180,7 +180,7 @@ pub(in crate::formats::http) fn inspect(
         }
         let field_redactor = FieldRedactor::new(
             session.policy().rules(),
-            session.policy().body_rules(),
+            session.policy().http().body_rules(),
             session.policy().masking(),
         );
         if let Some(sensitivity) = field_redactor.sensitivity(name) {
@@ -202,7 +202,7 @@ pub(in crate::formats::http) fn inspect(
                     session.fail_inspection(RedactionReason::InvalidMultipart);
                     return;
                 }
-                if session.policy().text_body_policy() == TextBodyPolicy::Redact {
+                if session.policy().http().text_body_policy() == TextBodyPolicy::Redact {
                     session.observe_sensitivity(Sensitivity::Secret);
                 }
             }
@@ -211,7 +211,7 @@ pub(in crate::formats::http) fn inspect(
                     session.fail_inspection(RedactionReason::InvalidMultipart);
                     return;
                 }
-                if session.policy().text_body_policy() == TextBodyPolicy::Redact {
+                if session.policy().http().text_body_policy() == TextBodyPolicy::Redact {
                     session.observe_sensitivity(Sensitivity::Secret);
                 }
             }
@@ -239,7 +239,7 @@ pub(in crate::formats::http) fn admit_form_fields(
 #[must_use]
 fn body_field_is_sensitive(session: &dyn RuntimeSession, field: &str) -> bool {
     let policy = session.policy();
-    FieldRedactor::new(policy.rules(), policy.body_rules(), policy.masking()).is_sensitive(field)
+    FieldRedactor::new(policy.rules(), policy.http().body_rules(), policy.masking()).is_sensitive(field)
 }
 
 /// Redacts one multipart segment.
@@ -369,11 +369,11 @@ fn redact_non_sensitive_part(
             let value = form::redact_bounded(redactor, body, max_output_bytes);
             (value, false, false)
         }),
-        Some(value) if content_type::is_text(value) => match policy.text_body_policy() {
+        Some(value) if content_type::is_text(value) => match policy.http().text_body_policy() {
             TextBodyPolicy::Redact => Some((markers::MULTIPART_TEXT.to_string(), false, false)),
             TextBodyPolicy::PassThrough => Some((text.to_string(), true, false)),
         },
-        None => match policy.text_body_policy() {
+        None => match policy.http().text_body_policy() {
             TextBodyPolicy::Redact => Some((markers::MULTIPART_TEXT.to_string(), false, false)),
             TextBodyPolicy::PassThrough => Some((text.to_string(), true, false)),
         },

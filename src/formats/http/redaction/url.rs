@@ -82,7 +82,7 @@ impl HttpPolicyExecutor<'_> {
             let _ = writer.write_str(":");
             let _ = writer.write_str(&port.to_string());
         }
-        if self.policy.url_path_policy() == UrlPathPolicy::Redact && url.path() != "/" {
+        if self.policy.http().url_path_policy() == UrlPathPolicy::Redact && url.path() != "/" {
             let _ = writer.write_str("/<redacted>");
         } else {
             let _ = writer.write_str(url.path());
