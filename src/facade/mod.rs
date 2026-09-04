@@ -7,6 +7,7 @@
 // =============================================================================
 //! User-facing redaction facades.
 
+mod debug_display;
 mod default_redactor;
 mod redacted_text;
 mod redacted_text_composer;
@@ -21,6 +22,7 @@ mod redaction_summary;
 mod redaction_text_output;
 pub(crate) mod redactor;
 
+pub use debug_display::DebugDisplay;
 pub use redacted_text::RedactedText;
 pub use redacted_text_composer::RedactedTextComposer;
 pub use redaction_batch::RedactionBatch;

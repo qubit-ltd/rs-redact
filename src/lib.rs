@@ -46,8 +46,12 @@
 //! A disabled application-default policy is an intentional process-wide
 //! debugging escape hatch. It restores raw values. The framework executes the
 //! selected policy, while downstream code owns authorization, timing, and any
-//! misuse. Existing redactors, composers, and batches retain their policy
-//! snapshots when the application default is replaced.
+//! misuse. Generated `Debug`, `Display`, and `Serialize` implementations
+//! intentionally obtain [`Redactor::application_default`] at the start of each
+//! formatting or serialization call. Replacing the application default
+//! therefore affects future generated calls, including installation of a
+//! disabled policy. Existing explicit redactors, composers, and batches retain
+//! the policy snapshots they already own.
 //!
 //! Transaction summaries are observations produced exclusively by a completed
 //! transaction; callers cannot fabricate one outside the runtime.
@@ -156,6 +160,7 @@ mod serde_feature_gate;
 
 pub use domain::Redact;
 pub use domain::RedactionWriter;
+pub use facade::DebugDisplay;
 pub use facade::RedactedText;
 pub use facade::RedactedTextComposer;
 pub use facade::RedactionBatch;
