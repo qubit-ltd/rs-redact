@@ -25,7 +25,7 @@ impl HttpPolicyExecutor<'_> {
                 BodyRenderStatus::Binary,
                 false,
             ),
-            Ok(text) if is_text => match self.policy.text_body_policy() {
+            Ok(text) if is_text => match self.policy.http().text_body_policy() {
                 TextBodyPolicy::Redact => ParsedBody::new(
                     markers::TEXT_BODY.to_string(),
                     BodyRenderStatus::Redacted(BodyRenderReason::OpaqueText),

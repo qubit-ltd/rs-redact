@@ -128,10 +128,10 @@ fn test_grouped_policy_builders_apply_all_namespace_settings() {
         .build()
         .expect("policy");
 
-    assert_eq!(policy.url_path_policy(), UrlPathPolicy::Redact);
-    assert_eq!(policy.text_body_policy(), TextBodyPolicy::PassThrough);
-    assert_eq!(policy.path_policy(), UriPathPolicy::Redact);
-    assert_eq!(policy.fragment_policy(), UriFragmentPolicy::Redact);
+    assert_eq!(policy.http().url_path_policy(), UrlPathPolicy::Redact);
+    assert_eq!(policy.http().text_body_policy(), TextBodyPolicy::PassThrough);
+    assert_eq!(policy.uri().path_policy(), UriPathPolicy::Redact);
+    assert_eq!(policy.uri().fragment_policy(), UriFragmentPolicy::Redact);
     assert!(matches!(
         policy.unkeyed_json_value_policy(),
         UnkeyedJsonValuePolicy::Redact
@@ -662,15 +662,15 @@ fn test_http_builder_views_apply_context_specific_rules() {
     assert_eq!(policy.http().url_path_policy(), UrlPathPolicy::Redact);
     assert_eq!(policy.http().text_body_policy(), TextBodyPolicy::PassThrough);
     assert_eq!(
-        policy.header_rules().sensitivity_for("x-header-secret"),
+        policy.http().header_rules().sensitivity_for("x-header-secret"),
         Some(Sensitivity::Secret)
     );
     assert_eq!(
-        policy.query_rules().sensitivity_for("query-secret"),
+        policy.http().query_rules().sensitivity_for("query-secret"),
         Some(Sensitivity::High)
     );
     assert_eq!(
-        policy.body_rules().sensitivity_for("body-secret"),
+        policy.http().body_rules().sensitivity_for("body-secret"),
         Some(Sensitivity::Medium)
     );
 }

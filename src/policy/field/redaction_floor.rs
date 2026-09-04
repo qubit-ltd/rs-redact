@@ -69,6 +69,7 @@ impl RedactionFloor {
     }
 
     /// Creates a floor builder that exactly copies `base`.
+    #[deprecated(note = "use RedactionFloor::to_builder() instead")]
     #[must_use]
     #[inline]
     pub fn builder_from(base: &Self) -> RedactionFloorBuilder {

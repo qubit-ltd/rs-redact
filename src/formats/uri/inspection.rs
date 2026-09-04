@@ -35,7 +35,7 @@ pub(crate) fn inspect_uri(session: &mut InspectionSession, input: &str) {
         return;
     }
     let path = parsed.path().as_str();
-    if session.policy().path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
+    if session.policy().uri().path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
         session.observe_sensitivity(Sensitivity::High);
     }
     if let Some(query) = parsed.query()
@@ -45,7 +45,7 @@ pub(crate) fn inspect_uri(session: &mut InspectionSession, input: &str) {
         return;
     }
     if let Some(fragment) = parsed.fragment()
-        && session.policy().fragment_policy() == UriFragmentPolicy::Redact
+        && session.policy().uri().fragment_policy() == UriFragmentPolicy::Redact
         && !fragment.as_str().is_empty()
     {
         session.observe_sensitivity(Sensitivity::High);

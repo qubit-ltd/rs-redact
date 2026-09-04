@@ -22,9 +22,7 @@ fn test_redaction_floor_builder_from_copies_complete_floor() {
         .build()
         .expect("the source floor should be valid");
 
-    let copied = RedactionFloor::builder_from(&floor)
-        .build()
-        .expect("the copied floor should be valid");
+    let copied = floor.to_builder().build().expect("the copied floor should be valid");
 
     assert_eq!(copied, floor);
 }

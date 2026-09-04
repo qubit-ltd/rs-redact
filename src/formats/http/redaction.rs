@@ -68,18 +68,30 @@ impl HttpRendered {
 impl HttpPolicyExecutor<'_> {
     /// Borrows the header field-rule executor for the current operation.
     pub(super) fn header_field_redactor(&self) -> FieldRedactor<'_> {
-        FieldRedactor::new(self.policy.rules(), self.policy.header_rules(), self.policy.masking())
+        FieldRedactor::new(
+            self.policy.rules(),
+            self.policy.http().header_rules(),
+            self.policy.masking(),
+        )
     }
 
     /// Borrows the query field-rule executor for the current operation.
     pub(super) fn query_field_redactor(&self) -> FieldRedactor<'_> {
-        FieldRedactor::new(self.policy.rules(), self.policy.query_rules(), self.policy.masking())
+        FieldRedactor::new(
+            self.policy.rules(),
+            self.policy.http().query_rules(),
+            self.policy.masking(),
+        )
     }
 
     /// Borrows the structured-body field-rule executor for the current
     /// operation.
     pub(super) fn body_field_redactor(&self) -> FieldRedactor<'_> {
-        FieldRedactor::new(self.policy.rules(), self.policy.body_rules(), self.policy.masking())
+        FieldRedactor::new(
+            self.policy.rules(),
+            self.policy.http().body_rules(),
+            self.policy.masking(),
+        )
     }
 }
 
