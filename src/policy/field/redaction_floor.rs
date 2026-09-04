@@ -68,14 +68,6 @@ impl RedactionFloor {
         RedactionFloorBuilder::from_floor(self)
     }
 
-    /// Creates a floor builder that exactly copies `base`.
-    #[deprecated(note = "use RedactionFloor::to_builder() instead")]
-    #[must_use]
-    #[inline]
-    pub fn builder_from(base: &Self) -> RedactionFloorBuilder {
-        base.to_builder()
-    }
-
     /// Iterates the floor's canonical sensitive rules.
     pub fn sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
         self.inner

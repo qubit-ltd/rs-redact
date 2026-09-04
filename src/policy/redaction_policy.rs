@@ -276,69 +276,6 @@ impl RedactionPolicy {
         self.uri.as_ref()
     }
 
-    /// Returns the HTTP header field rules.
-    #[deprecated(note = "use RedactionPolicy::http().header_rules() instead")]
-    #[must_use]
-    #[cfg(feature = "http")]
-    #[inline]
-    pub fn header_rules(&self) -> &RedactionRules {
-        self.http.header_rules()
-    }
-
-    /// Returns the HTTP query field rules.
-    #[deprecated(note = "use RedactionPolicy::http().query_rules() instead")]
-    #[must_use]
-    #[cfg(feature = "http")]
-    #[inline]
-    pub fn query_rules(&self) -> &RedactionRules {
-        self.http.query_rules()
-    }
-
-    /// Returns the HTTP body field rules.
-    #[deprecated(note = "use RedactionPolicy::http().body_rules() instead")]
-    #[must_use]
-    #[cfg(feature = "http")]
-    #[inline]
-    pub fn body_rules(&self) -> &RedactionRules {
-        self.http.body_rules()
-    }
-
-    /// Returns the HTTP URL path policy.
-    #[deprecated(note = "use RedactionPolicy::http().url_path_policy() instead")]
-    #[must_use]
-    #[cfg(feature = "http")]
-    #[inline]
-    pub fn url_path_policy(&self) -> crate::formats::http::UrlPathPolicy {
-        self.http.url_path_policy()
-    }
-
-    /// Returns the HTTP text-body policy.
-    #[deprecated(note = "use RedactionPolicy::http().text_body_policy() instead")]
-    #[must_use]
-    #[cfg(feature = "http")]
-    #[inline]
-    pub fn text_body_policy(&self) -> crate::formats::http::TextBodyPolicy {
-        self.http.text_body_policy()
-    }
-
-    /// Returns the URI path policy.
-    #[deprecated(note = "use RedactionPolicy::uri().path_policy() instead")]
-    #[must_use]
-    #[cfg(feature = "uri")]
-    #[inline]
-    pub fn path_policy(&self) -> crate::formats::uri::UriPathPolicy {
-        self.uri.path_policy()
-    }
-
-    /// Returns the URI fragment policy.
-    #[deprecated(note = "use RedactionPolicy::uri().fragment_policy() instead")]
-    #[must_use]
-    #[cfg(feature = "uri")]
-    #[inline]
-    pub fn fragment_policy(&self) -> crate::formats::uri::UriFragmentPolicy {
-        self.uri.fragment_policy()
-    }
-
     /// Returns the behavior for root and array JSON scalar values.
     #[must_use]
     #[cfg(feature = "json")]
@@ -350,14 +287,6 @@ impl RedactionPolicy {
     #[must_use]
     #[inline]
     pub const fn rules(&self) -> &RedactionRules {
-        &self.rules
-    }
-
-    /// Returns the base field policy view.
-    #[deprecated(note = "use RedactionPolicy::rules() instead")]
-    #[must_use]
-    #[inline]
-    pub const fn fields(&self) -> &RedactionRules {
         &self.rules
     }
 
