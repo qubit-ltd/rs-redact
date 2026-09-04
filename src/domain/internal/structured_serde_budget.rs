@@ -9,6 +9,11 @@
 
 /// Tracks structural and input counters for one nested Serde scope.
 pub(super) struct StructuredSerdeBudget {
+    /// Address identity of the policy reference that owns this budget.
+    ///
+    /// The address is used only while the scope guard keeps that reference
+    /// borrowed and is never dereferenced.
+    pub(super) policy_identity: usize,
     /// Limits copied from the active redaction policy.
     pub(super) policy: crate::policy::RedactionLimits,
     /// Current structured traversal depth.

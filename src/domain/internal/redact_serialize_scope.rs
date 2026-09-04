@@ -12,27 +12,34 @@ use std::cell::RefCell;
 use super::structured_serde_budget::StructuredSerdeBudget;
 
 thread_local! {
-    static STRUCTURED_SERDE_BUDGET: RefCell<Option<StructuredSerdeBudget>> = const { RefCell::new(None) };
+    static STRUCTURED_SERDE_BUDGETS: RefCell<Vec<StructuredSerdeBudget>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Hidden scope that shares structural Serde admission across nested derives.
 #[doc(hidden)]
-pub struct RedactSerializeScope {
+pub struct RedactSerializeScope<'policy> {
+    /// Policy borrow that keeps the stored address identity valid.
+    _policy: &'policy crate::RedactionPolicy,
     /// Whether this guard installed the active root budget.
     owns_budget: bool,
 }
 
-impl RedactSerializeScope {
+impl<'policy> RedactSerializeScope<'policy> {
     /// Starts one policy-scoped structured serialization budget, or joins the
     /// active budget when generated serialization is already nested.
     #[must_use]
-    pub fn new(policy: &crate::RedactionPolicy) -> Self {
-        let owns_budget = STRUCTURED_SERDE_BUDGET.with(|slot| {
-            let mut state = slot.borrow_mut();
-            if state.is_some() {
+    pub fn new(policy: &'policy crate::RedactionPolicy) -> Self {
+        let policy_identity = std::ptr::from_ref(policy).addr();
+        let owns_budget = STRUCTURED_SERDE_BUDGETS.with(|slot| {
+            let mut budgets = slot.borrow_mut();
+            if budgets
+                .last()
+                .is_some_and(|budget| budget.policy_identity == policy_identity)
+            {
                 return false;
             }
-            *state = Some(StructuredSerdeBudget {
+            budgets.push(StructuredSerdeBudget {
+                policy_identity,
                 policy: *policy.limits(),
                 depth: 0,
                 nodes: 0,
@@ -41,15 +48,18 @@ impl RedactSerializeScope {
             });
             true
         });
-        Self { owns_budget }
+        Self {
+            _policy: policy,
+            owns_budget,
+        }
     }
 }
 
-impl Drop for RedactSerializeScope {
+impl Drop for RedactSerializeScope<'_> {
     fn drop(&mut self) {
         if self.owns_budget {
-            STRUCTURED_SERDE_BUDGET.with(|slot| {
-                slot.take();
+            STRUCTURED_SERDE_BUDGETS.with(|slot| {
+                let _ = slot.borrow_mut().pop();
             });
         }
     }
@@ -58,9 +68,9 @@ impl Drop for RedactSerializeScope {
 /// Admits one structured node and enters its depth scope.
 #[allow(dead_code)]
 pub(super) fn admit_node() -> bool {
-    STRUCTURED_SERDE_BUDGET.with(|slot| {
-        let mut state = slot.borrow_mut();
-        let Some(state) = state.as_mut() else {
+    STRUCTURED_SERDE_BUDGETS.with(|slot| {
+        let mut budgets = slot.borrow_mut();
+        let Some(state) = budgets.last_mut() else {
             return false;
         };
         if state.policy.max_depth().is_some_and(|maximum| state.depth >= maximum)
@@ -77,8 +87,8 @@ pub(super) fn admit_node() -> bool {
 /// Leaves the most recently admitted structured node.
 #[allow(dead_code)]
 pub(super) fn leave_node() {
-    STRUCTURED_SERDE_BUDGET.with(|slot| {
-        if let Some(state) = slot.borrow_mut().as_mut() {
+    STRUCTURED_SERDE_BUDGETS.with(|slot| {
+        if let Some(state) = slot.borrow_mut().last_mut() {
             state.depth = state.depth.saturating_sub(1);
         }
     });
@@ -86,9 +96,9 @@ pub(super) fn leave_node() {
 
 /// Admits `count` additional collection items.
 pub(super) fn admit_collection_items(count: usize) -> bool {
-    STRUCTURED_SERDE_BUDGET.with(|slot| {
-        let mut state = slot.borrow_mut();
-        let Some(state) = state.as_mut() else {
+    STRUCTURED_SERDE_BUDGETS.with(|slot| {
+        let mut budgets = slot.borrow_mut();
+        let Some(state) = budgets.last_mut() else {
             return false;
         };
         let next = state.collection_items.saturating_add(count);
@@ -107,9 +117,9 @@ pub(super) fn admit_collection_items(count: usize) -> bool {
 /// Admits `bytes` additional source bytes.
 #[allow(dead_code)]
 pub(super) fn admit_input(bytes: usize) -> bool {
-    STRUCTURED_SERDE_BUDGET.with(|slot| {
-        let mut state = slot.borrow_mut();
-        let Some(state) = state.as_mut() else {
+    STRUCTURED_SERDE_BUDGETS.with(|slot| {
+        let mut budgets = slot.borrow_mut();
+        let Some(state) = budgets.last_mut() else {
             return false;
         };
         let next = state.input_bytes.saturating_add(bytes);
@@ -124,9 +134,9 @@ pub(super) fn admit_input(bytes: usize) -> bool {
 /// Returns the input bytes still available to the active structured serializer.
 #[must_use]
 pub(super) fn remaining_input_bytes() -> usize {
-    STRUCTURED_SERDE_BUDGET.with(|slot| {
-        let state = slot.borrow();
-        state.as_ref().map_or(0, |state| {
+    STRUCTURED_SERDE_BUDGETS.with(|slot| {
+        let budgets = slot.borrow();
+        budgets.last().map_or(0, |state| {
             state.policy.max_input_bytes().saturating_sub(state.input_bytes)
         })
     })
