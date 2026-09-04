@@ -92,7 +92,17 @@ intentionally unredacted. Field sensitivity is application-domain knowledge:
 the framework cannot infer it reliably and should not force explicit
 "non-sensitive" annotations onto the ordinary majority of fields. Downstream
 types must explicitly mark sensitive fields and review that decision when their
-domain model changes. The runtime does not mutate or erase the source value.
+domain model changes. `unmarked` and `unredacted` are explicit trust-boundary
+bypasses: they never consult runtime field policy, including strict policy.
+Use them only for values independently reviewed as safe to expose, never for
+credentials, user-controlled diagnostics, or values whose classification must
+come from runtime policy. The runtime does not mutate or erase the source value.
+
+Scalar field APIs accept `Display`. To redact a value through its `Debug`
+representation without allocating or formatting it eagerly, wrap the borrow in
+`DebugDisplay::new(&value)`. Opaque high- and secret-sensitivity masks can then
+avoid invoking `Debug` altogether; pass-through, disabled, low-, and
+medium-sensitivity policies format it only when needed.
 
 ## Why This Project Exists
 
@@ -121,9 +131,17 @@ Disabled policies intentionally restore every supported raw value. This is a
 deliberate process-wide debugging escape hatch, not an attempt by the framework
 to authorize its use. Limits and control-character escaping remain active, but
 confidentiality redaction does not. Downstream code owns authorization, timing,
-environment controls, and any misuse. Replacing the application default affects
-future snapshots; existing redactors, composers, and batches retain the policy
-snapshot they already own.
+environment controls, and any misuse. Derived `Debug`, `Display`, and
+`Serialize` implementations intentionally read the current application-default
+snapshot at the start of every call; they do not capture a policy when the value
+is created. Replacing the default therefore affects future generated calls,
+including installing a disabled policy that restores source values. Explicit
+redactors, composers, and batches retain the policy snapshot they already own.
+
+`RedactedText` means that runtime processing has finished and no second
+redaction pass occurs when it is displayed. Its guarantee is relative to the
+selected policy and explicit writer choices; it is not proof that content is
+confidential when a disabled policy or an unredacted writer API was used.
 
 ## Learn More
 
