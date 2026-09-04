@@ -408,6 +408,46 @@ fn test_nested_structured_scope_preserves_the_outer_budget() {
     assert_eq!(second, "<redacted>");
 }
 
+/// Ensures an explicitly different nested policy owns an independent budget
+/// instead of inheriting limits from an unrelated outer serialization.
+#[test]
+fn test_nested_structured_scope_uses_the_explicit_policy_budget() {
+    let outer_policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_input_bytes(8);
+        })
+        .expect("limits")
+        .build()
+        .expect("outer policy");
+    let inner_policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_input_bytes(1);
+        })
+        .expect("limits")
+        .build()
+        .expect("limited policy");
+    let _outer_scope = RedactSerializeScope::new(&outer_policy);
+    let first_outer = serde_json::to_value(RedactedLevelSerializeRef::new(&"abcd", &outer_policy, Sensitivity::Low))
+        .expect("first outer value should consume its input budget");
+
+    let inner = serde_json::to_value(RedactedLevelSerializeRef::new(
+        &"abcdef",
+        &inner_policy,
+        Sensitivity::Low,
+    ))
+    .expect("inner value should fail closed under its own input limit");
+    let second_outer = serde_json::to_value(RedactedLevelSerializeRef::new(
+        &"efghij",
+        &outer_policy,
+        Sensitivity::Low,
+    ))
+    .expect("second outer value should resume the original outer budget");
+
+    assert_ne!(first_outer, "<redacted>");
+    assert_eq!(inner, "<redacted>");
+    assert_eq!(second_outer, "<redacted>");
+}
+
 /// Domain leaf used to exercise the nested `Redact` container implementations.
 struct DomainLeaf;
 
