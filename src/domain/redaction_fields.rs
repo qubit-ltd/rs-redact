@@ -31,9 +31,12 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     ///
     /// # Warning
     ///
-    /// This method does not consult runtime field policy and executes
-    /// `access`. Use it only for fields that are intentionally unredacted.
-    /// Every field requiring redaction must use [`Self::sensitive`] or another
+    /// This method is an explicit trust-boundary bypass: it does not consult
+    /// runtime field policy, even when that policy is strict, and it executes
+    /// `access`. Use it only for values independently reviewed as safe to
+    /// expose. Never pass credentials, user-controlled diagnostic data, or a
+    /// value whose classification depends on runtime policy. Every field
+    /// requiring redaction must use [`Self::sensitive`] or another
     /// redaction-aware writer method instead.
     pub fn unredacted<T, F>(&mut self, name: &str, access: F) -> &mut Self
     where
@@ -48,6 +51,11 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     }
 
     /// Writes a field that has no explicit redaction mode.
+    ///
+    /// # Warning
+    ///
+    /// This is the derive-facing semantic alias for [`Self::unredacted`] and
+    /// carries the same trust-boundary requirements.
     #[inline]
     pub fn unmarked<T, F>(&mut self, name: &str, access: F) -> &mut Self
     where

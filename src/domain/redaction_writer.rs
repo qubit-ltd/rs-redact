@@ -82,9 +82,12 @@ impl<'session> RedactionWriter<'session> {
     ///
     /// # Warning
     ///
-    /// This method never consults field policy. It is only for content that
-    /// the caller has independently established as safe to expose; sensitive
-    /// values must be written through a redaction-aware field method instead.
+    /// This method is an explicit trust-boundary bypass: it never consults
+    /// field policy, even when the active policy is strict. It is only for
+    /// content that the caller has independently established as safe to expose.
+    /// Never pass credentials, user-controlled diagnostic data, or a value
+    /// whose classification depends on runtime policy; use a redaction-aware
+    /// field method instead.
     pub fn unredacted<T>(&mut self, value: &T) -> &mut Self
     where
         T: Debug + ?Sized,
@@ -100,6 +103,11 @@ impl<'session> RedactionWriter<'session> {
     }
 
     /// Writes a field without applying redaction policy.
+    ///
+    /// # Warning
+    ///
+    /// This is the semantic alias used for an intentionally unmarked field and
+    /// has the same trust-boundary requirements as [`Self::unredacted`].
     #[inline]
     pub fn unmarked<T>(&mut self, value: &T) -> &mut Self
     where

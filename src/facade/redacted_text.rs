@@ -10,11 +10,16 @@
 use std::borrow::Cow;
 use std::fmt;
 
-/// Final UTF-8 text produced by a redaction operation.
+/// Final UTF-8 text produced by a redaction operation under its selected
+/// policy.
 ///
-/// The value has crossed the plain-text safety boundary. It is owned and safe
-/// to render with [`std::fmt::Display`]. Any length restriction belongs to the
-/// caller's final logging or presentation sink, not to this type.
+/// The value has crossed the runtime's plain-text presentation boundary. It is
+/// owned and can be rendered with [`std::fmt::Display`] without running another
+/// redaction pass. This guarantee is policy-relative: a disabled policy or an
+/// explicitly unredacted writer operation may deliberately preserve source
+/// content. Callers must not treat this type as proof that the text is
+/// confidential in every policy configuration. Any additional length
+/// restriction belongs to the caller's final logging or presentation sink.
 ///
 /// # Examples
 ///
