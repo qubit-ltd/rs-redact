@@ -7,10 +7,27 @@
 // =============================================================================
 //! Tests for final scalar field-redaction output.
 
+use std::cell::Cell;
+use std::fmt;
+
+use qubit_redact::DebugDisplay;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
+
+/// Test value that records each request for its `Debug` representation.
+struct CountedDebug<'count> {
+    /// Number of formatter invocations.
+    count: &'count Cell<usize>,
+}
+
+impl fmt::Debug for CountedDebug<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.count.set(self.count.get() + 1);
+        formatter.write_str("debug-value")
+    }
+}
 
 /// Verifies a sensitive field produces final masked text and completion data.
 #[test]
@@ -94,4 +111,21 @@ fn test_redact_display_field_covers_masking_and_output_boundaries() {
     let exhausted = Redactor::new(limited).redact_field("visible", &format_args!("long-value"));
     assert!(exhausted.text().as_str().is_empty());
     assert_eq!(exhausted.summary().completion(), RedactionCompletion::Exhausted);
+}
+
+/// Verifies the Debug-to-Display adapter does not format values that an opaque
+/// policy mask can redact without observing.
+#[test]
+fn test_debug_display_formats_only_when_the_policy_observes_the_value() {
+    let count = Cell::new(0);
+    let value = CountedDebug { count: &count };
+    let display = DebugDisplay::new(&value);
+
+    let masked = Redactor::strict().redact_field("unknown", &display);
+    assert_eq!(masked.text().as_str(), "<redacted>");
+    assert_eq!(count.get(), 0);
+
+    let visible = Redactor::new(RedactionPolicy::disabled()).redact_field("unknown", &display);
+    assert_eq!(visible.text().as_str(), "debug-value");
+    assert_eq!(count.get(), 1);
 }
