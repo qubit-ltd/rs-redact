@@ -1,5 +1,5 @@
 error: Redact derive for `Pair` tuple field `1` cannot use `keyed_by`; use it only on named fields with a sibling key
- --> tests/fixtures/fail/keyed_by_tuple.rs:4:21
-  |
-4 | struct Pair(String, #[redact(keyed_by = key)] String);
-  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  --> tests/fixtures/fail/keyed_by_tuple.rs:12:21
+   |
+12 | struct Pair(String, #[redact(keyed_by = key)] String);
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
