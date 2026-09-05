@@ -17,9 +17,42 @@ use crate::domain::RedactionWriter;
 pub struct RedactionEntries<'writer, 'session> {
     /// Domain writer receiving map entries.
     pub(super) writer: &'writer mut RedactionWriter<'session>,
+    /// Admission reserved by the iterator driver for its next entry operation.
+    pub(super) admitted_entry: bool,
 }
 
 impl<'writer, 'session> RedactionEntries<'writer, 'session> {
+    /// Drives `values`, reserving each entry before invoking `write`.
+    ///
+    /// Capacity is checked before advancing the iterator. The first entry
+    /// operation in `write` consumes the reservation; additional operations are
+    /// charged separately. Empty callbacks still consume an entry.
+    /// Unknown-length iterators conservatively truncate when checking their
+    /// end would exceed the budget. Iterator and callback panics propagate
+    /// to the transaction.
+    pub fn for_each<I, F>(&mut self, values: I, mut write: F) -> &mut Self
+    where
+        I: IntoIterator,
+        F: FnMut(&mut Self, I::Item),
+    {
+        let mut values = values.into_iter();
+        while values.size_hint().1 != Some(0) {
+            if !self.writer.can_write() || !self.writer.session.preflight_collection_item() {
+                self.write_truncated();
+                break;
+            }
+            let Some(value) = values.next() else { break };
+            if !self.admit_entry() {
+                self.write_truncated();
+                break;
+            }
+            self.admitted_entry = true;
+            write(self, value);
+            self.admitted_entry = false;
+        }
+        self
+    }
+
     /// Writes one explicitly unredacted map entry.
     ///
     /// # Warning
@@ -40,7 +73,9 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
             return self;
         }
         self.write_prefix(name);
-        self.writer.write_debug(&access());
+        if self.writer.can_write() {
+            self.writer.write_debug(&access());
+        }
         self.writer.write_fragment(", ");
         self
     }
@@ -51,6 +86,9 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
         T: Debug,
         F: FnOnce() -> T,
     {
+        if self.writer.session.policy().is_disabled() {
+            return self.unredacted_entry(name, access);
+        }
         if !self.admit_entry() {
             self.write_truncated();
             return self;
@@ -66,6 +104,9 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
             return self;
         }
         self.write_prefix(name);
+        if !self.writer.can_write() {
+            return self;
+        }
         if matches!(effective_level, Sensitivity::High | Sensitivity::Secret) {
             let value = self
                 .writer
@@ -83,16 +124,20 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
 
     /// Writes a map value with an explicit sensitivity while preserving its
     /// recursive level-capable shape.
-    pub(crate) fn level_value_entry<T>(&mut self, name: &str, value: &T, level: Sensitivity) -> &mut Self
+    pub(crate) fn level_value_entry<K, T>(&mut self, key: &K, value: &T, level: Sensitivity) -> &mut Self
     where
+        K: Debug + ?Sized,
         T: super::RedactLevelValue + ?Sized,
     {
         if !self.admit_entry() {
             self.write_truncated();
             return self;
         }
-        self.write_prefix(name);
-        value.write_redacted_level(self.writer, level);
+        self.writer.write_debug(key);
+        self.writer.write_fragment(": ");
+        if self.writer.can_write() {
+            value.write_redacted_level(self.writer, level);
+        }
         self.writer.write_fragment(", ");
         self
     }
@@ -115,6 +160,9 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
         }
         key.write_redacted_level(self.writer, key_level);
         self.writer.write_fragment(": ");
+        if !self.writer.can_write() {
+            return self;
+        }
         if let Some(level) = value_level {
             value.write_redacted_level(self.writer, level);
         } else {
@@ -141,7 +189,10 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
 
     /// Admits one entry against the active collection limit.
     fn admit_entry(&mut self) -> bool {
-        !self.writer.session.domain_frame_is_truncated() && self.writer.session.admit_domain_collection_item()
+        if !self.writer.can_write() {
+            return false;
+        }
+        std::mem::take(&mut self.admitted_entry) || self.writer.session.admit_domain_collection_item()
     }
 
     /// Writes a map key and separator.

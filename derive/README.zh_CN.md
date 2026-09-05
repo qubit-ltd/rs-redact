@@ -101,7 +101,7 @@ pub trait Redact {
 
 ## 延伸阅读
 
-参见[英文用户手册](doc/user_guide.md)、[中文用户手册](doc/user_guide.zh_CN.md)、
+参见[英文用户手册](../doc/user_guide.md)、[中文用户手册](../doc/user_guide.zh_CN.md)、
 [API 文档](https://docs.rs/qubit-redact-derive)和
 [运行时 crate](https://github.com/qubit-ltd/rs-redact)。
 

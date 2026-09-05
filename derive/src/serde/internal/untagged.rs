@@ -75,6 +75,7 @@ pub(in crate::serde) fn untagged_variant_arm(
                             field_count += 1;
                         }
                     )*
+                    #runtime::domain::internal::admit_serializer_items(&serializer, field_count)?;
                     let mut state = #serde::Serializer::serialize_struct(
                         serializer,
                         #variant_name,
@@ -131,6 +132,7 @@ pub(in crate::serde) fn untagged_variant_arm(
                             field_count += 1;
                         }
                     )*
+                    #runtime::domain::internal::admit_serializer_items(&serializer, field_count)?;
                     let mut state = #serde::Serializer::serialize_tuple(
                         serializer,
                         field_count,

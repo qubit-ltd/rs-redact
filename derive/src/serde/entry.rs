@@ -22,6 +22,25 @@ use crate::model::ContainerData;
 use crate::model::FieldsData;
 use crate::model::VariantData;
 
+/// Generates Serde implementations and adapters for a parsed container.
+///
+/// # Parameters
+///
+/// * `input` - Derive input whose type and generics receive the
+///   implementations.
+/// * `runtime` - Resolved path to the runtime redaction crate.
+/// * `serde` - Resolved path to the Serde crate, when Serde support is enabled.
+/// * `container_attributes` - Validated container-level Serde controls.
+/// * `model` - Parsed fields and variants used to generate the implementation.
+///
+/// # Returns
+///
+/// Generated tokens, or an empty token stream when Serde support is disabled.
+///
+/// # Errors
+///
+/// Returns an error when generated enum or field expansion cannot be completed
+/// because the parsed Serde representation is invalid.
 pub(crate) fn expand(
     input: &DeriveInput,
     runtime: &Path,

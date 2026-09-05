@@ -46,13 +46,15 @@ where
     {
         let _scope = RedactSerializeScope::new(self.policy);
         if self.policy.is_disabled() {
-            return self.value.serialize(serializer);
+            return super::budget_serialize::BudgetSerialize::new(self.value).serialize(serializer);
         }
         match super::resolve_keyed_field(self.policy, self.key.as_ref()) {
             ResolvedField::Sensitive { sensitivity } => {
                 RedactedLevelSerializeRef::new(self.value, self.policy, sensitivity).serialize(serializer)
             }
-            ResolvedField::PassThrough => self.value.serialize(serializer),
+            ResolvedField::PassThrough => {
+                super::budget_serialize::BudgetSerialize::new(self.value).serialize(serializer)
+            }
         }
     }
 }

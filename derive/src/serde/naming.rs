@@ -39,6 +39,7 @@ pub(super) fn serialized_variant_name(
 /// # Parameters
 ///
 /// * `variant_name` - Variant owning the generated proxy.
+/// * `runtime` - Resolved path to the redaction runtime.
 /// * `serde` - Resolved path to Serde.
 /// * `names` - Serialized field names in carrier order.
 /// * `carriers` - Optional serialized carrier identifiers.
@@ -48,6 +49,7 @@ pub(super) fn serialized_variant_name(
 /// The proxy type definition and an expression constructing its value.
 pub(super) fn named_content_proxy(
     variant_name: &Ident,
+    runtime: &Path,
     serde: &Path,
     names: &[String],
     carriers: &[Ident],
@@ -67,12 +69,14 @@ pub(super) fn named_content_proxy(
                 where
                     __Serializer: #serde::Serializer,
                 {
-                    let state = #serde::Serializer::serialize_struct(
-                        serializer,
-                        stringify!(#variant_name),
-                        0,
-                    )?;
-                    #serde::ser::SerializeStruct::end(state)
+                    #runtime::domain::internal::serialize_content(serializer, |serializer| {
+                        let state = #serde::Serializer::serialize_struct(
+                            serializer,
+                            stringify!(#variant_name),
+                            0,
+                        )?;
+                        #serde::ser::SerializeStruct::end(state)
+                    })
                 }
             }
         };
@@ -114,19 +118,22 @@ pub(super) fn named_content_proxy(
             where
                 __Serializer: #serde::Serializer,
             {
-                let mut field_count = 0usize;
-                #(
-                    if self.#count_fields.is_some() {
-                        field_count += 1;
-                    }
-                )*
-                let mut state = #serde::Serializer::serialize_struct(
-                    serializer,
-                    stringify!(#variant_name),
-                    field_count,
-                )?;
-                #(#calls)*
-                #serde::ser::SerializeStruct::end(state)
+                #runtime::domain::internal::serialize_content(serializer, |serializer| {
+                    let mut field_count = 0usize;
+                    #(
+                        if self.#count_fields.is_some() {
+                            field_count += 1;
+                        }
+                    )*
+                    #runtime::domain::internal::admit_serializer_items(&serializer, field_count)?;
+                    let mut state = #serde::Serializer::serialize_struct(
+                        serializer,
+                        stringify!(#variant_name),
+                        field_count,
+                    )?;
+                    #(#calls)*
+                    #serde::ser::SerializeStruct::end(state)
+                })
             }
         }
     };
@@ -143,6 +150,7 @@ pub(super) fn named_content_proxy(
 /// # Parameters
 ///
 /// * `variant_name` - Variant owning the generated proxy.
+/// * `runtime` - Resolved path to the redaction runtime.
 /// * `serde` - Resolved path to Serde.
 /// * `carriers` - Optional serialized carrier identifiers in tuple order.
 ///
@@ -151,6 +159,7 @@ pub(super) fn named_content_proxy(
 /// The proxy type definition and an expression constructing its value.
 pub(super) fn tuple_content_proxy(
     variant_name: &Ident,
+    runtime: &Path,
     serde: &Path,
     carriers: &[Ident],
 ) -> (TokenStream, TokenStream) {
@@ -169,8 +178,10 @@ pub(super) fn tuple_content_proxy(
                 where
                     __Serializer: #serde::Serializer,
                 {
-                    let state = #serde::Serializer::serialize_tuple(serializer, 0)?;
-                    #serde::ser::SerializeTuple::end(state)
+                    #runtime::domain::internal::serialize_content(serializer, |serializer| {
+                        let state = #serde::Serializer::serialize_tuple(serializer, 0)?;
+                        #serde::ser::SerializeTuple::end(state)
+                    })
                 }
             }
         };
@@ -211,18 +222,21 @@ pub(super) fn tuple_content_proxy(
             where
                 __Serializer: #serde::Serializer,
             {
-                let mut field_count = 0usize;
-                #(
-                    if self.#count_fields.is_some() {
-                        field_count += 1;
-                    }
-                )*
-                let mut state = #serde::Serializer::serialize_tuple(
-                    serializer,
-                    field_count,
-                )?;
-                #(#calls)*
-                #serde::ser::SerializeTuple::end(state)
+                #runtime::domain::internal::serialize_content(serializer, |serializer| {
+                    let mut field_count = 0usize;
+                    #(
+                        if self.#count_fields.is_some() {
+                            field_count += 1;
+                        }
+                    )*
+                    #runtime::domain::internal::admit_serializer_items(&serializer, field_count)?;
+                    let mut state = #serde::Serializer::serialize_tuple(
+                        serializer,
+                        field_count,
+                    )?;
+                    #(#calls)*
+                    #serde::ser::SerializeTuple::end(state)
+                })
             }
         }
     };

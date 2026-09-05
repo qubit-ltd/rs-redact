@@ -13,9 +13,14 @@ use serde::ser::Error as SerdeError;
 use serde::ser::Impossible;
 use serde::ser::SerializeMap;
 
+use super::budget_serialize::BudgetSerialize;
 use super::internally_tagged_map::InternallyTaggedMap;
+use super::serde_admission::admit_serialize_items;
 
 /// Serializes a map-like value with one internally tagged enum field.
+///
+/// Requires an active [`super::RedactSerializeScope`], normally installed by
+/// the generated caller, so the injected tag shares the caller's budget.
 ///
 /// Returns the underlying serializer's error when the value cannot be
 /// represented as a map or when the serializer rejects an emitted entry.
@@ -67,10 +72,11 @@ impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
     type SerializeStructVariant = Impossible<S::Ok, S::Error>;
 
     fn serialize_map(self, length: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
+        admit_serialize_items::<S::Error>(1)?;
         let mut map = self
             .serializer
             .serialize_map(length.map(|length| length.saturating_add(1)))?;
-        map.serialize_entry(self.tag, self.tag_value)?;
+        map.serialize_entry(self.tag, &BudgetSerialize::new(self.tag_value))?;
         Ok(InternallyTaggedMap { map })
     }
 
