@@ -22,6 +22,7 @@ use super::redact_serialize_scope::remaining_output_bytes;
 
 /// Streams Serde events through the active shared resource budget.
 pub(super) struct BudgetSerializer<S> {
+    /// Serializer receiving events after the shared budget has admitted them.
     pub(super) inner: S,
 }
 

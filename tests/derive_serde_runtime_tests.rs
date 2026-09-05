@@ -1,3 +1,11 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 #![cfg(all(feature = "derive", feature = "serde"))]
 
 use std::collections::BTreeMap;
@@ -451,3 +459,10 @@ fn serde_json_disabled_mode_keeps_json_text_as_text() {
 
     let _ = Redactor::replace_application_default(previous);
 }
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================

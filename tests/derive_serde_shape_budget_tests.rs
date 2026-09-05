@@ -1,3 +1,11 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 #![cfg(all(feature = "derive", feature = "serde"))]
 
 use qubit_redact::RedactionPolicy;
@@ -145,3 +153,10 @@ fn test_generated_shapes_preserve_wire_at_exact_budget() {
         serde_json::json!({"kind":"Named", "data":{"a":1,"b":2}})
     );
 }
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
