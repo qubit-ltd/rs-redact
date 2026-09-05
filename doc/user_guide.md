@@ -1,10 +1,10 @@
 # qubit-redact User Guide
 
-[README](../README.md) · [中文用户手册](user_guide.zh_CN.md) · [Design](design.md) · [Derive Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.md)
+[README](../README.md) · [中文用户手册](user_guide.zh_CN.md) · [Design](design.md) · [Derive README](../derive/README.md)
 
 ## Purpose and Audience
 
-This guide covers `qubit-redact` 0.5 for application and library authors who
+This guide covers `qubit-redact` 0.6 for application and library authors who
 need bounded diagnostic output without changing the source value. Use it when
 values may reach logs, errors, or support tooling and the application must
 decide which fields are sensitive. It does not protect output that bypasses the
@@ -70,7 +70,7 @@ Add the crate, then opt into only the integrations used by the application:
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5" }
+qubit-redact = { version = "0.6" }
 ```
 
 The default feature set is empty. Enable `derive` for `#[derive(Redact)]` and
@@ -290,7 +290,7 @@ assert!(!output.text().as_str().contains("raw-"));
 | `uri` | generic URI parsing and redaction |
 
 Keep the default empty feature set for scalar and manually implemented domain
-redaction. In the 0.5 compatibility line, `serde` continues to include
+redaction. In the 0.6 release line, `serde` continues to include
 BigDecimal support; separating that dependency would require an explicit
 feature migration in a later breaking release.
 
@@ -391,7 +391,7 @@ result controls a security decision.
 
 Read the [README](../README.md), [中文用户手册](user_guide.zh_CN.md),
 [API documentation](https://docs.rs/qubit-redact), and the
-[derive guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.md).
+[derive README](../derive/README.md).
 
 To validate a local checkout:
 
