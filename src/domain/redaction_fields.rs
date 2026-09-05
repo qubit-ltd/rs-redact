@@ -149,6 +149,10 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
 
     /// Writes a sealed level-capable value while preserving its recursive
     /// container shape and masking every scalar leaf independently.
+    ///
+    /// The explicit `level` is final: field rules, floors, and strict unknown
+    /// handling do not raise or lower it. Disabled policy still restores
+    /// values.
     #[doc(hidden)]
     pub fn sensitive_value<T>(&mut self, level: Sensitivity, name: &str, value: &T) -> &mut Self
     where
@@ -158,21 +162,15 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             self.write_field_truncated();
             return self;
         }
-        let effective_level = self
-            .writer
-            .session
-            .policy()
-            .sensitivity_for(name)
-            .map_or(level, |policy_level| policy_level.max(level));
         if self.writer.session.is_inspection() {
             if !self.writer.session.policy().is_disabled() {
-                self.writer.session.observe_sensitivity(effective_level);
+                self.writer.session.observe_sensitivity(level);
             }
             return self;
         }
         self.write_prefix(name);
         if self.writer.can_write() {
-            value.write_redacted_level(self.writer, effective_level);
+            value.write_redacted_level(self.writer, level);
             self.writer.write_fragment(", ");
         }
         self
@@ -269,13 +267,23 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             }
             self.writer.write_fragment("{");
             let mut entries = entries.into_iter();
-            while let Some((key, value)) = entries.next() {
+            while entries.size_hint().1 != Some(0) {
+                if !self.writer.can_write() || !self.writer.session.preflight_collection_item() {
+                    self.write_field_truncated();
+                    break;
+                }
+                let Some((key, value)) = entries.next() else {
+                    break;
+                };
                 if !self.admit_item() {
                     self.write_field_truncated();
                     break;
                 }
                 self.writer.write_debug(key.as_ref());
                 self.writer.write_fragment(": ");
+                if !self.writer.can_write() {
+                    break;
+                }
                 self.writer.write_debug(&value);
                 if entries.size_hint().1 != Some(0) {
                     self.writer.write_fragment(", ");
@@ -294,7 +302,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             if entries.size_hint().1 == Some(0) {
                 break;
             }
-            if !self.writer.session.preflight_collection_item() {
+            if !self.writer.can_write() || !self.writer.session.preflight_collection_item() {
                 self.write_field_truncated();
                 break;
             }
@@ -352,9 +360,9 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         }
         self.write_prefix(name);
         self.writer.map(|output| {
-            for (key, value) in entries {
+            output.for_each(entries, |output, (key, value)| {
                 output.key_level_entry(key, value, key_level, value_level);
-            }
+            });
         });
         self.writer.write_fragment(", ");
         self
@@ -431,6 +439,67 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         }
         self.writer.write_fragment(", ");
         self
+    }
+
+    /// Writes a lazy debug value classified by a business key.
+    ///
+    /// `name` is only the displayed field label; `key` selects the complete
+    /// runtime policy, including floors and unknown-field handling. High and
+    /// secret rules avoid evaluating `access`. Pass-through and disabled policy
+    /// preserve the value. Inspection never evaluates the accessor.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Field label used in the diagnostic representation.
+    /// * `key` - Business key used for policy classification.
+    /// * `access` - Source accessor, invoked only after admission when needed.
+    ///
+    /// # Returns
+    /// This scope for further field operations.
+    ///
+    /// # Panics
+    /// Propagates accessor or formatter panics when rendering needs the value.
+    pub fn keyed<T, F>(&mut self, name: &str, key: &str, access: F) -> &mut Self
+    where
+        T: Debug,
+        F: FnOnce() -> T,
+    {
+        if !self.admit_field() {
+            self.write_field_truncated();
+            return self;
+        }
+        let policy = self.writer.session.policy();
+        let resolved = if policy.is_disabled() {
+            ResolvedField::PassThrough
+        } else {
+            resolve_keyed_field(policy, key)
+        };
+        match resolved {
+            ResolvedField::PassThrough => self.write_admitted_unredacted(name, access),
+            ResolvedField::Sensitive { sensitivity } => {
+                if self.writer.session.is_inspection() {
+                    self.writer.session.observe_sensitivity(sensitivity);
+                    return self;
+                }
+                self.write_prefix(name);
+                if !self.writer.can_write() {
+                    return self;
+                }
+                if matches!(sensitivity, Sensitivity::High | Sensitivity::Secret) {
+                    let masked = self
+                        .writer
+                        .session
+                        .policy()
+                        .masking()
+                        .mask_opaque_bounded(sensitivity, self.writer.remaining_output_bytes());
+                    self.writer.write_debug(&masked);
+                } else {
+                    self.writer.write_masked_debug(sensitivity, &access());
+                }
+                self.writer.write_fragment(", ");
+                self
+            }
+        }
     }
 
     /// Omits a field while redaction is enabled and restores it when disabled.

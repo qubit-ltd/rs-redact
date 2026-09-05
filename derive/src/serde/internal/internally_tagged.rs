@@ -87,6 +87,7 @@ pub(in crate::serde) fn internal_variant_arm(
                             field_count += 1;
                         }
                     )*
+                    #runtime::domain::internal::admit_serializer_items(&serializer, field_count)?;
                     let mut state = #serde::Serializer::serialize_struct(
                         serializer,
                         #enum_name,
@@ -95,7 +96,7 @@ pub(in crate::serde) fn internal_variant_arm(
                     #serde::ser::SerializeStruct::serialize_field(
                         &mut state,
                         #tag,
-                        #variant_name,
+                        &#runtime::domain::internal::BudgetSerialize::new(#variant_name),
                     )?;
                     #(#calls)*
                     #serde::ser::SerializeStruct::end(state)
@@ -108,6 +109,7 @@ pub(in crate::serde) fn internal_variant_arm(
             if carriers.is_empty() {
                 Ok(quote! {
                     Self::#rust_name #pattern => {
+                        #runtime::domain::internal::admit_serializer_items(&serializer, 1)?;
                         let mut state = #serde::Serializer::serialize_struct(
                             serializer,
                             #enum_name,
@@ -116,7 +118,7 @@ pub(in crate::serde) fn internal_variant_arm(
                         #serde::ser::SerializeStruct::serialize_field(
                             &mut state,
                             #tag,
-                            #variant_name,
+                            &#runtime::domain::internal::BudgetSerialize::new(#variant_name),
                         )?;
                         #serde::ser::SerializeStruct::end(state)
                     }
@@ -136,6 +138,7 @@ pub(in crate::serde) fn internal_variant_arm(
                                 carrier,
                             )
                         } else {
+                            #runtime::domain::internal::admit_serializer_items(&serializer, 1)?;
                             let mut state = #serde::Serializer::serialize_struct(
                                 serializer,
                                 #enum_name,
@@ -144,7 +147,7 @@ pub(in crate::serde) fn internal_variant_arm(
                             #serde::ser::SerializeStruct::serialize_field(
                                 &mut state,
                                 #tag,
-                                #variant_name,
+                                &#runtime::domain::internal::BudgetSerialize::new(#variant_name),
                             )?;
                             #serde::ser::SerializeStruct::end(state)
                         }
@@ -158,6 +161,7 @@ pub(in crate::serde) fn internal_variant_arm(
         )),
         FieldsData::Unit => Ok(quote! {
             Self::#rust_name => {
+                #runtime::domain::internal::admit_serializer_items(&serializer, 1)?;
                 let mut state = #serde::Serializer::serialize_struct(
                     serializer,
                     #enum_name,
@@ -166,7 +170,7 @@ pub(in crate::serde) fn internal_variant_arm(
                 #serde::ser::SerializeStruct::serialize_field(
                     &mut state,
                     #tag,
-                    #variant_name,
+                    &#runtime::domain::internal::BudgetSerialize::new(#variant_name),
                 )?;
                 #serde::ser::SerializeStruct::end(state)
             }

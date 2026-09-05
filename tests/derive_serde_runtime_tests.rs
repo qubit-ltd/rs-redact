@@ -174,7 +174,8 @@ fn serde_structured_modes_share_depth_and_collection_budgets() {
         .expect("field policy")
         .limits(|limits| {
             limits.max_depth(1);
-            limits.max_collection_items(1);
+            // Admit the four visible root fields before rejecting their children.
+            limits.max_collection_items(4);
         })
         .expect("limits")
         .build()
@@ -401,7 +402,8 @@ fn test_serde_map_values_share_the_cumulative_input_budget() {
         })
         .expect("field policy")
         .limits(|limits| {
-            limits.max_input_bytes(2);
+            // The map key and its values share the source-byte budget.
+            limits.max_input_bytes("credential".len() + 2);
         })
         .expect("limits")
         .build()

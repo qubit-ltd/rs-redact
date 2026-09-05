@@ -13,6 +13,7 @@ use serde::ser::SerializeTuple;
 
 use super::redact_serialize::RedactSerialize;
 use super::redact_serialize_scope::admit_collection_items;
+use super::redact_serialize_scope::serialize_structured;
 use super::redacted_serialize_ref::RedactedSerializeRef;
 
 impl<T: RedactSerialize> RedactSerialize for Option<T> {
@@ -32,14 +33,19 @@ impl<T: RedactSerialize> RedactSerialize for Vec<T> {
     where
         S: Serializer,
     {
-        if !admit_collection_items(self.len()) {
-            return serializer.serialize_str(policy.masking().mask_opaque(crate::Sensitivity::Secret).as_ref());
-        }
-        let mut sequence = serializer.serialize_seq(Some(self.len()))?;
-        for value in self {
-            sequence.serialize_element(&RedactedSerializeRef::new(value, policy))?;
-        }
-        sequence.end()
+        serialize_structured(serializer, policy, |serializer| {
+            if !admit_collection_items(self.len()) {
+                return super::redact_serialize_scope::serialize_payload(
+                    serializer,
+                    policy.masking().mask_opaque(crate::Sensitivity::Secret),
+                );
+            }
+            let mut sequence = serializer.serialize_seq(Some(self.len()))?;
+            for value in self {
+                sequence.serialize_element(&RedactedSerializeRef::new(value, policy))?;
+            }
+            sequence.end()
+        })
     }
 }
 
@@ -48,14 +54,19 @@ impl<T: RedactSerialize, const N: usize> RedactSerialize for [T; N] {
     where
         S: Serializer,
     {
-        if !admit_collection_items(N) {
-            return serializer.serialize_str(policy.masking().mask_opaque(crate::Sensitivity::Secret).as_ref());
-        }
-        let mut sequence = serializer.serialize_seq(Some(N))?;
-        for value in self {
-            sequence.serialize_element(&RedactedSerializeRef::new(value, policy))?;
-        }
-        sequence.end()
+        serialize_structured(serializer, policy, |serializer| {
+            if !admit_collection_items(N) {
+                return super::redact_serialize_scope::serialize_payload(
+                    serializer,
+                    policy.masking().mask_opaque(crate::Sensitivity::Secret),
+                );
+            }
+            let mut sequence = serializer.serialize_seq(Some(N))?;
+            for value in self {
+                sequence.serialize_element(&RedactedSerializeRef::new(value, policy))?;
+            }
+            sequence.end()
+        })
     }
 }
 
@@ -66,8 +77,9 @@ macro_rules! tuple_redact_serialize {
             where
                 S: Serializer,
             {
+                serialize_structured(serializer, policy, |serializer| {
                 if !admit_collection_items($count) {
-                    return serializer.serialize_str(
+                    return super::redact_serialize_scope::serialize_payload(serializer,
                         policy
                             .masking()
                             .mask_opaque(crate::Sensitivity::Secret)
@@ -77,6 +89,7 @@ macro_rules! tuple_redact_serialize {
                 let mut tuple = serializer.serialize_tuple($count)?;
                 $(tuple.serialize_element(&RedactedSerializeRef::new(&self.$index, policy))?;)+
                 tuple.end()
+                })
             }
         }
     };

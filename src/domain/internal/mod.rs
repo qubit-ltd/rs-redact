@@ -74,3 +74,29 @@ pub use redacted_map_key_serialize_ref::RedactedMapKeySerializeRef;
 pub use redacted_map_serialize_ref::RedactedMapSerializeRef;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use redacted_serialize_ref::RedactedSerializeRef;
+
+#[cfg(any(feature = "serde", feature = "json"))]
+mod budget_serialize;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use budget_serialize::BudgetSerialize;
+
+#[cfg(any(feature = "serde", feature = "json"))]
+mod budget_compound;
+#[cfg(any(feature = "serde", feature = "json"))]
+mod budget_serializer;
+#[cfg(any(feature = "serde", feature = "json"))]
+mod serde_node_guard;
+
+#[cfg(any(feature = "serde", feature = "json"))]
+mod serde_raw_guard;
+
+#[cfg(any(feature = "serde", feature = "json"))]
+mod serde_admission;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use serde_admission::admit_serialize_items;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use serde_admission::admit_serializer_items;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use serde_admission::serialize_content;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use serde_admission::serialize_unit_variant;

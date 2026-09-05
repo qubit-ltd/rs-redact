@@ -8,7 +8,7 @@
 //! Borrowed adapter for maps with explicitly sensitive keys.
 
 use super::RedactMapKeySerialize;
-use super::redact_serialize_scope::RedactSerializeScope;
+use super::redact_serialize_scope::serialize_structured;
 
 /// Borrowed serializer adapter carrying policy and key sensitivity.
 #[doc(hidden)]
@@ -46,8 +46,9 @@ impl<T: ?Sized + RedactMapKeySerialize> serde::Serialize for RedactedMapKeySeria
     where
         S: serde::Serializer,
     {
-        let _scope = RedactSerializeScope::new(self.policy);
-        self.value
-            .serialize_redacted_map_keys(serializer, self.policy, self.level, self.value_level)
+        serialize_structured(serializer, self.policy, |serializer| {
+            self.value
+                .serialize_redacted_map_keys(serializer, self.policy, self.level, self.value_level)
+        })
     }
 }

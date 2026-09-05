@@ -14,6 +14,7 @@ use serde::Serialize;
 use serde::Serializer;
 use serde::ser::SerializeMap;
 
+use super::budget_serialize::BudgetSerialize;
 use super::redact_level_serialize::RedactLevelSerialize;
 use super::redact_serialize_scope::admit_collection_items;
 use super::redacted_level_serialize_ref::RedactedLevelSerializeRef;
@@ -41,18 +42,22 @@ macro_rules! map_redact_serialize {
                 S: Serializer,
             {
                 if !admit_collection_items(self.len()) {
-                    return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+                    return super::redact_serialize_scope::serialize_payload(
+                        serializer,
+                        policy.masking().mask_opaque(Sensitivity::Secret).as_ref(),
+                    );
                 }
                 let mut map = serializer.serialize_map(Some(self.len()))?;
                 for (key, value) in self {
+                    map.serialize_key(&BudgetSerialize::new(key))?;
                     let key_name = key.as_ref();
                     if !policy.is_disabled() {
                         if let Some(level) = policy.sensitivity_for(key_name) {
-                            map.serialize_entry(key, &RedactedLevelSerializeRef::new(value, policy, level))?;
+                            map.serialize_value(&RedactedLevelSerializeRef::new(value, policy, level))?;
                             continue;
                         }
                     }
-                    map.serialize_entry(key, value)?;
+                    map.serialize_value(&BudgetSerialize::new(value))?;
                 }
                 map.end()
             }
