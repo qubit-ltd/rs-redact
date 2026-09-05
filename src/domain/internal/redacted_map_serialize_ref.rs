@@ -8,7 +8,7 @@
 //! Borrowed adapter for policy-classified structured maps.
 
 use super::redact_map_serialize::RedactMapSerialize;
-use super::redact_serialize_scope::RedactSerializeScope;
+use super::redact_serialize_scope::serialize_structured;
 
 /// Borrowed serializer adapter for one policy-classified map.
 #[doc(hidden)]
@@ -32,7 +32,8 @@ impl<T: ?Sized + RedactMapSerialize> serde::Serialize for RedactedMapSerializeRe
     where
         S: serde::Serializer,
     {
-        let _scope = RedactSerializeScope::new(self.policy);
-        self.value.serialize_redacted_map(serializer, self.policy)
+        serialize_structured(serializer, self.policy, |serializer| {
+            self.value.serialize_redacted_map(serializer, self.policy)
+        })
     }
 }

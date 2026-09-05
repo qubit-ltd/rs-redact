@@ -18,9 +18,43 @@ use crate::domain::RedactionWriter;
 pub struct RedactionItems<'writer, 'session> {
     /// Domain writer receiving sequence items.
     pub(super) writer: &'writer mut RedactionWriter<'session>,
+    /// Admission reserved by the iterator driver for its next item operation.
+    pub(super) admitted_item: bool,
 }
 
 impl<'writer, 'session> RedactionItems<'writer, 'session> {
+    /// Drives `values` while the shared budget admits each next item.
+    ///
+    /// Checks capacity before advancing the iterator and reserves one
+    /// collection item for `write`. The callback's first item operation
+    /// consumes that reservation; any additional operations use additional
+    /// budget. Empty callbacks still consume their reservation. An iterator
+    /// of unknown length conservatively truncates when no capacity remains
+    /// to check its end. Panics from the iterator or callback propagate to
+    /// the owning transaction.
+    pub fn for_each<I, F>(&mut self, values: I, mut write: F) -> &mut Self
+    where
+        I: IntoIterator,
+        F: FnMut(&mut Self, I::Item),
+    {
+        let mut values = values.into_iter();
+        while values.size_hint().1 != Some(0) {
+            if !self.writer.can_write() || !self.writer.session.preflight_collection_item() {
+                self.write_truncated();
+                break;
+            }
+            let Some(value) = values.next() else { break };
+            if !self.admit_item() {
+                self.write_truncated();
+                break;
+            }
+            self.admitted_item = true;
+            write(self, value);
+            self.admitted_item = false;
+        }
+        self
+    }
+
     /// Writes one explicitly unredacted sequence item.
     ///
     /// # Warning
@@ -51,6 +85,9 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
         T: Debug,
         F: FnOnce() -> T,
     {
+        if self.writer.session.policy().is_disabled() {
+            return self.unredacted_item(access);
+        }
         if !self.admit_item() {
             self.write_truncated();
             return self;
@@ -120,7 +157,10 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
 
     /// Admits one item against the active collection limit.
     fn admit_item(&mut self) -> bool {
-        !self.writer.session.domain_frame_is_truncated() && self.writer.session.admit_domain_collection_item()
+        if !self.writer.can_write() {
+            return false;
+        }
+        std::mem::take(&mut self.admitted_item) || self.writer.session.admit_domain_collection_item()
     }
 
     /// Publishes the sequence truncation marker once.

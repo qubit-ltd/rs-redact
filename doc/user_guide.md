@@ -1,10 +1,10 @@
 # qubit-redact User Guide
 
-[README](../README.md) · [中文用户手册](user_guide.zh_CN.md) · [Design](design.md) · [Derive Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.md)
+[README](../README.md) · [中文用户手册](user_guide.zh_CN.md) · [Design](design.md) · [Derive README](../derive/README.md)
 
 ## Purpose and Audience
 
-This guide covers `qubit-redact` 0.5 for application and library authors who
+This guide covers `qubit-redact` 0.6 for application and library authors who
 need bounded diagnostic output without changing the source value. Use it when
 values may reach logs, errors, or support tooling and the application must
 decide which fields are sensitive. It does not protect output that bypasses the
@@ -70,7 +70,7 @@ Add the crate, then opt into only the integrations used by the application:
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5" }
+qubit-redact = { version = "0.6" }
 ```
 
 The default feature set is empty. Enable `derive` for `#[derive(Redact)]` and
@@ -129,6 +129,32 @@ would add noise without adding knowledge. Downstream code must explicitly mark
 fields that can contain sensitive data and repeat that review when its domain
 model changes. Strict policy and inspection deliberately do not override that
 domain decision.
+
+An explicit `#[redact(level = "...")]` is the final field sensitivity for text,
+inspection and Serde. Runtime name rules, sensitivity floors and strict mode
+do not override it. `sensitive_value` follows the same rule; the manual
+`sensitive` API instead specifies a minimum sensitivity. Disabled policy
+bypasses masking but retains resource limits.
+
+Use `keyed_value` or the lazy Debug accessor `keyed(name, key, access)` for
+runtime business names. `NamedValue` and `NamedMultiValues` classify payloads
+by their actual `name`, independently of the display field name.
+
+Use sequence/map builders' `for_each(values, callback)` to stop before pulling
+or formatting a rejected item. A builder cannot stop the caller's manual loop.
+For iterators with an unknown upper bound, exhausting the item budget reports
+truncation conservatively without probing another item.
+
+Serde shares depth, node, collection-item, input-byte and scalar-output-byte
+budgets across nested values, including ordinary fields, map keys, disabled
+output and custom serializers. Rejected ordinary values return serializer
+errors; marked values may emit an opaque fallback if it fits. Custom
+serializers run once and must propagate serializer errors. Output admission
+counts scalar payload bytes, excluding punctuation, field labels and escaping.
+Bound the destination writer separately for a hard limit on final encoded
+bytes. Reentrant ordinary serializers that invoke another redacting serializer
+share the caller's allowance and may conservatively charge intermediate values
+again. Custom formatter/serializer code is trusted and cannot be preempted.
 
 Scalar field APIs accept lazy `Display` values. A `High` or `Secret` decision
 happens before formatting, so rejected content is never formatted. A
@@ -290,7 +316,7 @@ assert!(!output.text().as_str().contains("raw-"));
 | `uri` | generic URI parsing and redaction |
 
 Keep the default empty feature set for scalar and manually implemented domain
-redaction. In the 0.5 compatibility line, `serde` continues to include
+redaction. In the 0.6 release line, `serde` continues to include
 BigDecimal support; separating that dependency would require an explicit
 feature migration in a later breaking release.
 
@@ -391,7 +417,7 @@ result controls a security decision.
 
 Read the [README](../README.md), [中文用户手册](user_guide.zh_CN.md),
 [API documentation](https://docs.rs/qubit-redact), and the
-[derive guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.md).
+[derive README](../derive/README.md).
 
 To validate a local checkout:
 
