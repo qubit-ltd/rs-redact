@@ -195,7 +195,7 @@ impl Redact for JsonTextValues {
 /// raw marker strings.
 #[test]
 fn test_level_value_capabilities_cover_all_supported_container_shapes() {
-    let output = Redactor::standard().redact(&LevelValues);
+    let output = Redactor::standard().redact_text(&LevelValues);
 
     assert!(!output.text().as_str().contains("secret"));
     assert!(output.text().as_str().contains("<redacted>"));
@@ -205,7 +205,7 @@ fn test_level_value_capabilities_cover_all_supported_container_shapes() {
 /// sensitive entries.
 #[test]
 fn test_map_value_capabilities_cover_owned_borrowed_and_optional_maps() {
-    let output = Redactor::standard().redact(&MapValues);
+    let output = Redactor::standard().redact_text(&MapValues);
 
     assert!(!output.text().as_str().contains("secret"));
     assert!(output.text().as_str().contains("MapValues"));
@@ -215,7 +215,7 @@ fn test_map_value_capabilities_cover_owned_borrowed_and_optional_maps() {
 /// structured field representation.
 #[test]
 fn test_json_value_capabilities_cover_owned_borrowed_and_optional_text() {
-    let output = Redactor::standard().redact(&JsonTextValues);
+    let output = Redactor::standard().redact_text(&JsonTextValues);
 
     assert!(!output.text().as_str().contains("secret"));
     assert!(output.text().as_str().contains("JsonTextValues"));

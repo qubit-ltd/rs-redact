@@ -76,7 +76,14 @@ fn expand_with_container_attributes(
         .then(|| resolve_serde_path(input))
         .transpose()?;
     let serde_container_attributes = SerdeContainerAttributes::parse(input, container_attributes.serde_enabled())?;
-    let serde_impl = serde::expand(input, runtime, serde.as_ref(), &serde_container_attributes, &model)?;
+    let serde_impl = serde::expand(
+        input,
+        runtime,
+        serde.as_ref(),
+        &serde_container_attributes,
+        &model,
+        container_attributes.serde_impl_enabled(),
+    )?;
     let mut redaction_generics = input.generics.clone();
     assertions::add_redact_bounds(&mut redaction_generics, &model, runtime);
     let write_body = match &model {
@@ -312,6 +319,10 @@ fn writer_field_call(
     let call = match mode {
         FieldMode::Unmarked => {
             quote! { __fields.unmarked(#field_name, || #value); }
+        }
+        FieldMode::DisplayLevel(level) => {
+            let level = level.runtime_tokens(runtime);
+            quote! { __fields.sensitive_value(#level, #field_name, &#runtime::domain::internal::DisplayValue::new(#value)); }
         }
         FieldMode::Level(level) => {
             let level = level.runtime_tokens(runtime);

@@ -41,16 +41,16 @@ fn main() {
     };
     let tuple = Event::Tuple("raw-tuple".to_owned(), "skipped".to_owned());
     assert_eq!(
-        Redactor::new(policy.clone()).redact(&named).text().as_str(),
+        Redactor::new(policy.clone()).redact_text(&named).text().as_str(),
         r#"Named { secret: "<redacted>" }"#,
     );
     assert_eq!(
-        Redactor::new(policy.clone()).redact(&tuple).text().as_str(),
+        Redactor::new(policy.clone()).redact_text(&tuple).text().as_str(),
         r#"Tuple("<redacted>")"#,
     );
     assert!(
         Redactor::new(policy)
-            .redact(&Event::Ready)
+            .redact_text(&Event::Ready)
             .text()
             .as_str()
             .contains("Ready")

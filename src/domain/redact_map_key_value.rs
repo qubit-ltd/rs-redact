@@ -36,14 +36,14 @@ pub trait RedactMapKeyValue: private::Sealed {
 
 impl<K, V> private::Sealed for HashMap<K, V>
 where
-    K: RedactLevelValue + Eq + Hash,
-    V: RedactLevelValue,
+    K: RedactLevelValue + std::fmt::Debug + Eq + Hash,
+    V: RedactLevelValue + std::fmt::Debug,
 {
 }
 impl<K, V> RedactMapKeyValue for HashMap<K, V>
 where
-    K: RedactLevelValue + Eq + Hash,
-    V: RedactLevelValue,
+    K: RedactLevelValue + std::fmt::Debug + Eq + Hash,
+    V: RedactLevelValue + std::fmt::Debug,
 {
     fn write_redacted_map_levels(
         &self,
@@ -57,14 +57,14 @@ where
 }
 impl<K, V> private::Sealed for BTreeMap<K, V>
 where
-    K: RedactLevelValue + Ord,
-    V: RedactLevelValue,
+    K: RedactLevelValue + std::fmt::Debug + Ord,
+    V: RedactLevelValue + std::fmt::Debug,
 {
 }
 impl<K, V> RedactMapKeyValue for BTreeMap<K, V>
 where
-    K: RedactLevelValue + Ord,
-    V: RedactLevelValue,
+    K: RedactLevelValue + std::fmt::Debug + Ord,
+    V: RedactLevelValue + std::fmt::Debug,
 {
     fn write_redacted_map_levels(
         &self,

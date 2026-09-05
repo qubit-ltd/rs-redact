@@ -66,7 +66,7 @@ fn test_level_map_does_not_format_keys_after_collection_limit() {
             .build()
             .expect("policy");
 
-        let output = Redactor::new(policy).redact(&value);
+        let output = Redactor::new(policy).redact_text(&value);
 
         assert_eq!(calls.get(), 1, "only the admitted key may be formatted");
         assert_eq!(output.summary().usage().visited_collection_items(), 1);
@@ -91,7 +91,7 @@ impl Redact for SensitiveCollections {
 /// Disabled policy restores values in sequence and map writers.
 #[test]
 fn test_disabled_collection_writers_restore_values() {
-    let output = Redactor::new(RedactionPolicy::disabled()).redact(&SensitiveCollections);
+    let output = Redactor::new(RedactionPolicy::disabled()).redact_text(&SensitiveCollections);
     assert_eq!(
         output.text().as_str(),
         "[\"sequence-secret\"]{ password: \"map-secret\" }"
@@ -131,7 +131,7 @@ fn test_explicit_derive_level_is_final_for_text_and_inspection() {
     let value = ExplicitLevel {
         password: "secret".to_owned(),
     };
-    let output = redactor.redact(&value);
+    let output = redactor.redact_text(&value);
     assert_eq!(output.text().as_str(), "ExplicitLevel { password: \"LOW\" }");
     assert_eq!(
         redactor.inspect(&value).expect("inspection").max_sensitivity(),
@@ -172,7 +172,7 @@ fn test_collection_drivers_stop_before_advancing_unadmitted_items() {
         .expect("policy");
     for is_map in [false, true] {
         let pulls = Cell::new(0);
-        let output = Redactor::new(policy.clone()).redact(&Driven(&pulls, is_map));
+        let output = Redactor::new(policy.clone()).redact_text(&Driven(&pulls, is_map));
         assert_eq!(pulls.get(), 1);
         assert_eq!(output.summary().usage().visited_collection_items(), 1);
         assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
@@ -205,7 +205,7 @@ fn test_collection_driver_exact_budget_remains_complete() {
         .expect("limits")
         .build()
         .expect("policy");
-    let output = Redactor::new(policy).redact(&Exact);
+    let output = Redactor::new(policy).redact_text(&Exact);
     assert_eq!(output.text().as_str(), "[7]{ a: 8 }");
     assert_eq!(output.summary().usage().visited_collection_items(), 2);
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
@@ -247,7 +247,7 @@ fn test_level_map_bounds_key_formatting_work() {
         .expect("limits")
         .build()
         .expect("policy");
-    let output = Redactor::new(policy).redact(&value);
+    let output = Redactor::new(policy).redact_text(&value);
     assert!(chunks.get() < 4, "key formatting must stop at the output limit");
     assert!(output.text().as_str().len() <= 32);
     assert_ne!(output.summary().completion(), RedactionCompletion::Complete);
@@ -276,13 +276,13 @@ fn test_keyed_debug_accessor_is_lazy_and_uses_business_key() {
         Some(Sensitivity::Secret)
     );
     assert_eq!(
-        redactor.redact(&pair).text().as_str(),
+        redactor.redact_text(&pair).text().as_str(),
         "Pair { public: \"<redacted>\" }"
     );
     assert_eq!(calls.get(), 0);
     assert!(
         Redactor::new(RedactionPolicy::disabled())
-            .redact(&pair)
+            .redact_text(&pair)
             .text()
             .as_str()
             .contains("secret")

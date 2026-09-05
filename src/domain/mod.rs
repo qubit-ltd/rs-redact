@@ -30,3 +30,8 @@ pub use redaction_entries::RedactionEntries;
 pub use redaction_fields::RedactionFields;
 pub use redaction_items::RedactionItems;
 pub use redaction_writer::RedactionWriter;
+
+mod redact_scalar;
+#[doc(hidden)]
+pub use redact_level_value::private::Sealed as LevelValueSealed;
+pub use redact_scalar::RedactScalar;

@@ -99,7 +99,7 @@ fn main() {
     };
     assert!(
         !Redactor::new(policy)
-            .redact(&guarded)
+            .redact_text(&guarded)
             .text()
             .as_str()
             .contains("PanicDebug")

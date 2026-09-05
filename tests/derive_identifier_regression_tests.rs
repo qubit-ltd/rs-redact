@@ -61,7 +61,7 @@ collision_enum!(Text);
 fn test_named_enum_writer_uses_isolated_bindings() {
     let value = Text::fixture();
     let redactor = Redactor::standard();
-    let output = redactor.redact(&value);
+    let output = redactor.redact_text(&value);
     let text = output.text().as_str();
     for visible in [
         "writer-value",

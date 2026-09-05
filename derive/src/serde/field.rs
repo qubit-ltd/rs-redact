@@ -100,6 +100,13 @@ pub(super) fn serialized_carrier(
                 quote_spanned!(field.span()=> #runtime::domain::internal::BudgetSerialize::new(#raw))
             }
         },
+        FieldMode::DisplayLevel(sensitivity) => {
+            let raw = access.raw;
+            let level = sensitivity.runtime_tokens(runtime);
+            quote_spanned!(field.span()=>
+                #runtime::domain::internal::RedactedDisplaySerializeRef::new(#raw, policy, #level)
+            )
+        }
         FieldMode::Level(sensitivity) => {
             let level = sensitivity.runtime_tokens(runtime);
             let raw = access.raw;

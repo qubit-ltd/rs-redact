@@ -27,7 +27,7 @@ fn main() {
         password: "raw-secret".into(),
         omitted: "restored".into(),
     };
-    let output = Redactor::standard().redact(&value);
+    let output = Redactor::standard().redact_text(&value);
     assert!(output.text().as_str().contains("shown"));
     assert!(!output.text().as_str().contains("raw-secret"));
     assert!(!output.text().as_str().contains("restored"));

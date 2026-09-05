@@ -48,6 +48,7 @@ impl FieldAttributes {
     /// unsupported sensitivity spelling.
     pub(crate) fn parse(field: &Field, type_name: &Ident, field_name: &str) -> Result<Self> {
         let mut selected = None;
+        let mut display = false;
         for attribute in &field.attrs {
             if !attribute.path().is_ident("redact") {
                 continue;
@@ -72,6 +73,14 @@ impl FieldAttributes {
                 ));
             }
             attribute.parse_nested_meta(|meta| {
+                if meta.path.is_ident("display") {
+                    require_bare(&meta, type_name, field_name, "bare `display` without arguments")?;
+                    if display {
+                        return Err(meta.error("duplicate `display` field adapter"));
+                    }
+                    display = true;
+                    return Ok(());
+                }
                 let mode = parse_mode(&meta, type_name, field_name)?;
                 select_mode(&meta, type_name, field_name, &mut selected, mode)
             })?;
@@ -85,6 +94,21 @@ impl FieldAttributes {
             ));
         }
         let mode = selected.unwrap_or(FieldMode::Unmarked);
+        let mode = if display {
+            match mode {
+                FieldMode::Level(level) => FieldMode::DisplayLevel(level),
+                _ => {
+                    return Err(field_error(
+                        field,
+                        type_name,
+                        field_name,
+                        "`display` requires an explicit `level` and cannot be combined with another mode",
+                    ));
+                }
+            }
+        } else {
+            mode
+        };
         Ok(Self { mode })
     }
 

@@ -152,7 +152,7 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
     ) -> &mut Self
     where
         K: super::RedactLevelValue + ?Sized,
-        V: super::RedactLevelValue + ?Sized,
+        V: super::RedactLevelValue + Debug + ?Sized,
     {
         if !self.admit_entry() {
             self.write_truncated();

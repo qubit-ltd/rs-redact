@@ -254,7 +254,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<str> + Debug,
-        V: RedactLevelValue,
+        V: RedactLevelValue + Debug,
     {
         if !self.admit_field() {
             self.write_field_truncated();
@@ -352,7 +352,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     where
         I: IntoIterator<Item = (&'value K, &'value V)>,
         K: super::RedactLevelValue + 'value,
-        V: super::RedactLevelValue + 'value,
+        V: super::RedactLevelValue + Debug + 'value,
     {
         if !self.admit_field() {
             self.write_field_truncated();
@@ -412,7 +412,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     pub fn keyed_value<K, T>(&mut self, name: &str, key: &K, value: &T) -> &mut Self
     where
         K: AsRef<str> + ?Sized,
-        T: RedactLevelValue + ?Sized,
+        T: RedactLevelValue + Debug + ?Sized,
     {
         if !self.admit_field() {
             self.write_field_truncated();

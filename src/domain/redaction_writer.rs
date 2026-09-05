@@ -38,7 +38,7 @@ use crate::runtime::runtime_session::RuntimeSession;
 ///     }
 /// }
 ///
-/// let output = Redactor::standard().redact(&Credential("raw-token"));
+/// let output = Redactor::standard().redact_text(&Credential("raw-token"));
 /// assert!(!output.text().as_str().contains("raw-token"));
 /// ```
 ///
@@ -466,7 +466,7 @@ mod tests {
     /// transaction.
     #[test]
     fn nested_values_use_the_active_writer_transaction() {
-        let output = Redactor::standard().redact(&Container);
+        let output = Redactor::standard().redact_text(&Container);
 
         assert!(output.text().as_str().contains("Nested { id: 7 }"));
         assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());

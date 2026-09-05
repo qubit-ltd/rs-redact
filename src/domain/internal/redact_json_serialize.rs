@@ -145,18 +145,7 @@ impl RedactJsonSerialize for str {
     }
 }
 
-#[cfg(feature = "json")]
-impl RedactJsonSerialize for &str {
-    fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serialize_json_text(serializer, self, policy)
-    }
-}
-
-#[cfg(feature = "json")]
-impl<'a> RedactJsonSerialize for Cow<'a, str> {
+impl RedactJsonSerialize for Cow<'_, str> {
     fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -165,42 +154,33 @@ impl<'a> RedactJsonSerialize for Cow<'a, str> {
     }
 }
 
-#[cfg(feature = "json")]
-impl RedactJsonSerialize for Option<String> {
+impl<T: RedactJsonSerialize + ?Sized> RedactJsonSerialize for &T {
+    fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        (*self).serialize_redacted_json(serializer, policy)
+    }
+}
+
+impl<T: RedactJsonSerialize> RedactJsonSerialize for Option<T> {
     fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         match self {
-            Some(value) => serialize_json_text(serializer, value, policy),
+            Some(value) => value.serialize_redacted_json(serializer, policy),
             None => serializer.serialize_none(),
         }
     }
 }
 
-#[cfg(feature = "json")]
-impl RedactJsonSerialize for Option<&str> {
+impl RedactJsonSerialize for serde_json::Value {
     fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        match self {
-            Some(value) => serialize_json_text(serializer, value, policy),
-            None => serializer.serialize_none(),
-        }
-    }
-}
-
-#[cfg(feature = "json")]
-impl<'a> RedactJsonSerialize for Option<Cow<'a, str>> {
-    fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            Some(value) => serialize_json_text(serializer, value, policy),
-            None => serializer.serialize_none(),
-        }
+        crate::formats::json::serialize_redacted_value(self, serializer, policy)
     }
 }
 

@@ -22,7 +22,7 @@ fn main() {
     let encoded = serde_json::to_value(&value).expect("serialize");
     assert_eq!(encoded["name"], "Ada");
     assert_ne!(encoded["token"], "raw");
-    let _ = Redactor::standard().redact(&value);
+    let _ = Redactor::standard().redact_text(&value);
 }
 // =============================================================================
 //    Copyright (c) 2025 - 2026 Haixing Hu.

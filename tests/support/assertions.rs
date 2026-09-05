@@ -132,7 +132,7 @@ pub fn assert_named_redaction() {
         skipped: String::from("raw-skipped"),
         metadata: BTreeMap::from([(String::from("token"), String::from("raw-map"))]),
     };
-    let output = Redactor::new(policy).redact(&value);
+    let output = Redactor::new(policy).redact_text(&value);
     let text = output.text().as_str();
 
     assert!(text.contains("shown"), "{text}");
@@ -144,7 +144,7 @@ pub fn assert_named_redaction() {
 /// Verifies tuple fields retain their positional shape.
 pub fn assert_tuple_redaction() {
     let value = TupleRecord(String::from("raw-secret"), String::from("raw-skipped"));
-    let text = Redactor::standard().redact(&value);
+    let text = Redactor::standard().redact_text(&value);
 
     assert!(text.text().as_str().starts_with("TupleRecord("));
     assert!(!text.text().as_str().contains("raw-secret"));
@@ -153,11 +153,11 @@ pub fn assert_tuple_redaction() {
 
 /// Verifies named, tuple, and unit enum variants retain their shape.
 pub fn assert_enum_redaction() {
-    let named = Redactor::standard().redact(&Event::Named {
+    let named = Redactor::standard().redact_text(&Event::Named {
         secret: String::from("raw-secret"),
     });
-    let tuple = Redactor::standard().redact(&Event::Tuple(String::from("raw-secret")));
-    let ready = Redactor::standard().redact(&Event::Ready);
+    let tuple = Redactor::standard().redact_text(&Event::Tuple(String::from("raw-secret")));
+    let ready = Redactor::standard().redact_text(&Event::Ready);
 
     assert!(named.text().as_str().starts_with("Named"));
     assert!(!named.text().as_str().contains("raw-secret"));
@@ -173,7 +173,7 @@ pub fn assert_field_admission_precedes_access() {
         visible: "shown",
         blocked: PanicDebug,
     };
-    let output = Redactor::new(policy).redact(&value);
+    let output = Redactor::new(policy).redact_text(&value);
 
     assert!(output.text().as_str().contains("shown"));
 }
@@ -184,7 +184,7 @@ pub fn assert_nested_admission_uses_shared_session() {
     let value = DepthRoot {
         child: DepthLeaf { blocked: PanicDebug },
     };
-    let _ = Redactor::new(policy).redact(&value);
+    let _ = Redactor::new(policy).redact_text(&value);
 }
 
 /// Verifies generated Debug and Display use the application redactor.

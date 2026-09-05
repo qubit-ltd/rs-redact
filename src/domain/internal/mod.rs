@@ -93,6 +93,8 @@ mod serde_raw_guard;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod serde_admission;
 #[cfg(any(feature = "serde", feature = "json"))]
+pub use serde;
+#[cfg(any(feature = "serde", feature = "json"))]
 pub use serde_admission::admit_serialize_items;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use serde_admission::admit_serializer_items;
@@ -100,3 +102,11 @@ pub use serde_admission::admit_serializer_items;
 pub use serde_admission::serialize_content;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use serde_admission::serialize_unit_variant;
+
+mod display_value;
+pub use display_value::DisplayValue;
+
+#[cfg(any(feature = "serde", feature = "json"))]
+mod redacted_display_serialize_ref;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use redacted_display_serialize_ref::RedactedDisplaySerializeRef;

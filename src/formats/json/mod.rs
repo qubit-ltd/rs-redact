@@ -24,3 +24,6 @@ pub(crate) use json_redaction_writer::admit_json_text_value;
 pub(crate) use json_redaction_writer::admit_json_text_value_at_depth;
 pub(crate) use json_redaction_writer::invalid_json_output;
 pub(crate) use json_redaction_writer::redact_json_value_with_limit;
+
+mod serialize_redacted_value;
+pub(crate) use serialize_redacted_value::serialize_redacted_value;

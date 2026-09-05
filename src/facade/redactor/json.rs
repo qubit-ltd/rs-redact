@@ -13,6 +13,21 @@ use crate::RedactionInspectionError;
 use crate::RedactionTextOutput;
 
 impl Redactor {
+    /// Serializes a domain object's redacted view as compact JSON.
+    ///
+    /// This uses domain field declarations, unlike `redact_json`, which parses
+    /// input JSON and classifies its keys. It is equivalent to
+    /// `serde_json::to_string(&self.redact_view(value))`.
+    ///
+    /// # Errors
+    ///
+    /// Propagates JSON serializer errors and errors from the structured
+    /// redaction budget. Successful serialization can contain the structured
+    /// runtime's opaque replacements; it is not a completeness assertion.
+    pub fn to_json<T: crate::RedactSerialize + ?Sized>(&self, value: &T) -> Result<String, serde_json::Error> {
+        serde_json::to_string(&self.redact_view(value))
+    }
+
     /// Redacts JSON text through one completed text transaction.
     #[must_use]
     pub fn redact_json(&self, text: &str) -> RedactionTextOutput {

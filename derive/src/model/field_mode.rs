@@ -17,6 +17,8 @@ pub(crate) enum FieldMode {
     Unmarked,
     /// Masks a supported textual value at an explicit sensitivity level.
     Level(Sensitivity),
+    /// Masks the explicitly selected Display string representation.
+    DisplayLevel(Sensitivity),
     /// Omits the field name and value without imposing formatting bounds.
     Skip,
     /// Recursively formats the field through its `Redact` implementation.

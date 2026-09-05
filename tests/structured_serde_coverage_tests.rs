@@ -465,7 +465,7 @@ fn test_nested_domain_redaction_covers_all_supported_container_shapes() {
     let leaf = || DomainLeaf;
     macro_rules! assert_nested {
         ($value:expr) => {{
-            let output = redactor.redact(&$value);
+            let output = redactor.redact_text(&$value);
             assert!(output.text().as_str().contains("safe") || output.text().as_str() == "None");
         }};
     }
