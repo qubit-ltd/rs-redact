@@ -25,13 +25,16 @@ use std::sync::Arc;
 use bigdecimal::BigDecimal;
 use serde::Serialize;
 use serde::Serializer;
+use serde::ser::Error as SerdeError;
 use serde::ser::SerializeMap;
 use serde::ser::SerializeSeq;
 use serde::ser::SerializeTuple;
 
 use super::bounded_display_writer::BoundedDisplayWriter;
+use super::budget_serialize::BudgetSerialize;
 use super::redact_serialize_scope::admit_collection_items;
 use super::redact_serialize_scope::admit_input;
+use super::redact_serialize_scope::admit_output;
 use super::redact_serialize_scope::remaining_input_bytes;
 use super::redacted_level_serialize_ref::RedactedLevelSerializeRef;
 use crate::RedactionPolicy;
@@ -85,12 +88,23 @@ where
     T: Display + ?Sized,
 {
     if matches!(level, Sensitivity::High | Sensitivity::Secret) {
-        return serializer.serialize_str(policy.masking().mask_opaque(level));
+        return super::redact_serialize_scope::serialize_payload(serializer, policy.masking().mask_opaque(level));
     }
     let Some(raw) = format_admitted_display(value) else {
-        return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret));
+        return super::redact_serialize_scope::serialize_payload(
+            serializer,
+            policy.masking().mask_opaque(Sensitivity::Secret),
+        );
     };
-    serializer.serialize_str(policy.masking().mask(level, &raw).as_ref())
+    let (masked, truncated) = policy.masking().mask_bounded_with_truncation(
+        level,
+        &raw,
+        super::redact_serialize_scope::remaining_output_bytes(),
+    );
+    if truncated {
+        return Err(SerdeError::custom("redaction scalar output budget exceeded"));
+    }
+    super::redact_serialize_scope::serialize_payload(serializer, masked.as_ref())
 }
 
 /// Serializes a raw disabled-mode scalar only after bounded input admission.
@@ -102,8 +116,14 @@ where
     S: Serializer,
     T: Display + Serialize + ?Sized,
 {
-    if format_admitted_display(value).is_none() {
-        return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret));
+    let Some(raw) = format_admitted_display(value) else {
+        return super::redact_serialize_scope::serialize_payload(
+            serializer,
+            policy.masking().mask_opaque(Sensitivity::Secret),
+        );
+    };
+    if !admit_output(raw.len()) {
+        return Err(SerdeError::custom("redaction scalar output budget exceeded"));
     }
     Serialize::serialize(value, serializer)
 }
@@ -216,7 +236,10 @@ impl<T: RedactLevelSerialize> RedactLevelSerialize for Vec<T> {
         S: Serializer,
     {
         if !admit_collection_items(self.len()) {
-            return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+            return super::redact_serialize_scope::serialize_payload(
+                serializer,
+                policy.masking().mask_opaque(Sensitivity::Secret),
+            );
         }
         let mut sequence = serializer.serialize_seq(Some(self.len()))?;
         for value in self {
@@ -232,7 +255,7 @@ macro_rules! sequence_level_serialize {
             fn serialize_redacted_level<S>(&self, serializer: S, policy: &RedactionPolicy, level: Sensitivity) -> Result<S::Ok, S::Error>
             where S: Serializer {
                 if !admit_collection_items(self.len()) {
-                    return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+                    return super::redact_serialize_scope::serialize_payload(serializer, policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
                 }
                 let mut sequence = serializer.serialize_seq(Some(self.len()))?;
                 for value in self {
@@ -297,11 +320,17 @@ impl<K: Serialize + Eq + Hash, V: RedactLevelSerialize> RedactLevelSerialize for
         S: Serializer,
     {
         if !admit_collection_items(self.len()) {
-            return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+            return super::redact_serialize_scope::serialize_payload(
+                serializer,
+                policy.masking().mask_opaque(Sensitivity::Secret),
+            );
         }
         let mut map = serializer.serialize_map(Some(self.len()))?;
         for (key, value) in self {
-            map.serialize_entry(key, &RedactedLevelSerializeRef::new(value, policy, level))?;
+            map.serialize_entry(
+                &BudgetSerialize::new(key),
+                &RedactedLevelSerializeRef::new(value, policy, level),
+            )?;
         }
         map.end()
     }
@@ -317,11 +346,17 @@ impl<K: Serialize + Ord, V: RedactLevelSerialize> RedactLevelSerialize for BTree
         S: Serializer,
     {
         if !admit_collection_items(self.len()) {
-            return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+            return super::redact_serialize_scope::serialize_payload(
+                serializer,
+                policy.masking().mask_opaque(Sensitivity::Secret),
+            );
         }
         let mut map = serializer.serialize_map(Some(self.len()))?;
         for (key, value) in self {
-            map.serialize_entry(key, &RedactedLevelSerializeRef::new(value, policy, level))?;
+            map.serialize_entry(
+                &BudgetSerialize::new(key),
+                &RedactedLevelSerializeRef::new(value, policy, level),
+            )?;
         }
         map.end()
     }
@@ -338,7 +373,10 @@ impl<T: RedactLevelSerialize, const N: usize> RedactLevelSerialize for [T; N] {
         S: Serializer,
     {
         if !admit_collection_items(N) {
-            return serializer.serialize_str(policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+            return super::redact_serialize_scope::serialize_payload(
+                serializer,
+                policy.masking().mask_opaque(Sensitivity::Secret),
+            );
         }
         let mut sequence = serializer.serialize_seq(Some(N))?;
         for value in self {
@@ -356,7 +394,7 @@ macro_rules! tuple_level_serialize {
                 S: Serializer,
             {
                 if !admit_collection_items($count) {
-                    return serializer.serialize_str(
+                    return super::redact_serialize_scope::serialize_payload(serializer,
                         policy
                             .masking()
                             .mask_opaque(Sensitivity::Secret)
