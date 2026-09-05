@@ -2,6 +2,12 @@
   "version": 1,
   "checks": [
     {
+      "name": "derive",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact-derive"],
+      "allFeatures": true
+    },
+    {
       "name": "core",
       "commands": ["check", "test", "doc", "clippy"],
       "packages": ["qubit-redact"],

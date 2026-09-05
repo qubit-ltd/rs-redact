@@ -1,0 +1,5 @@
+error: Redact derive for `Pair` field `value` references missing sibling field `missing` in `keyed_by`
+ --> tests/fixtures/fail/keyed_by_missing.rs:6:25
+  |
+6 |     #[redact(keyed_by = missing)]
+  |                         ^^^^^^^

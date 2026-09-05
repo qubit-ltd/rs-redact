@@ -17,7 +17,7 @@ owned redacted result.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5" }
+qubit-redact = { version = "0.6" }
 ```
 
 The default feature set is empty. Enable integrations explicitly, for example
@@ -49,18 +49,19 @@ For a domain type, implement `Redact` or use
 [`qubit-redact-derive`](https://crates.io/crates/qubit-redact-derive):
 
 ```rust
-use qubit_redact::{Redact, RedactionWriter, Sensitivity};
+use qubit_redact::Redactor;
 
-struct Login { user: String, password: String }
-
-impl Redact for Login {
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
-        writer.record("Login", |fields| {
-            fields.unmarked("user", || self.user.as_str());
-            fields.sensitive(Sensitivity::Secret, "password", || self.password.as_str());
-        });
-    }
+#[derive(qubit_redact::Redact)]
+#[redact(crate = qubit_redact)]
+struct Login {
+    user: String,
+    #[redact(level = "secret")]
+    password: String,
 }
+
+let login = Login { user: "ada".into(), password: "raw-password".into() };
+let output = Redactor::standard().redact(&login);
+assert!(!output.text().as_str().contains("raw-password"));
 ```
 
 Then call `Redactor::standard().redact(&value)` or construct an explicit policy

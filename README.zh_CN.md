@@ -15,7 +15,7 @@
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5" }
+qubit-redact = { version = "0.6" }
 ```
 
 默认 feature 集为空。集成能力必须显式启用，例如使用 `features = ["derive"]`
@@ -47,18 +47,19 @@ assert!(text.as_str().contains("ada"));
 [`qubit-redact-derive`](https://crates.io/crates/qubit-redact-derive)：
 
 ```rust
-use qubit_redact::{Redact, RedactionWriter, Sensitivity};
+use qubit_redact::Redactor;
 
-struct Login { user: String, password: String }
-
-impl Redact for Login {
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
-        writer.record("Login", |fields| {
-            fields.unmarked("user", || self.user.as_str());
-            fields.sensitive(Sensitivity::Secret, "password", || self.password.as_str());
-        });
-    }
+#[derive(qubit_redact::Redact)]
+#[redact(crate = qubit_redact)]
+struct Login {
+    user: String,
+    #[redact(level = "secret")]
+    password: String,
 }
+
+let login = Login { user: "ada".into(), password: "raw-password".into() };
+let output = Redactor::standard().redact(&login);
+assert!(!output.text().as_str().contains("raw-password"));
 ```
 
 调用 `Redactor::standard().redact(&value)`，或用 `Redactor::new(policy)` 构造显式策略。

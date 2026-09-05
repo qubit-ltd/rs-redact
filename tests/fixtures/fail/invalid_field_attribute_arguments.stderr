@@ -1,0 +1,35 @@
+error: Redact derive for `PathAttribute` field `value`: expected `#[redact(level = "...")]`, `#[redact(skip)]`, `#[redact(nested)]`, `#[redact(map)]`, `#[redact(keyed_by = key)]`, or `#[redact(json)]`
+  --> tests/fixtures/fail/invalid_field_attribute_arguments.rs:16:5
+   |
+16 |     #[redact]
+   |     ^^^^^^^^^
+
+error: Redact derive for `MissingLevelValue` field `value` requires `level = "low|medium|high|secret"`
+  --> tests/fixtures/fail/invalid_field_attribute_arguments.rs:24:14
+   |
+24 |     #[redact(level)]
+   |              ^^^^^
+
+error: Redact derive for `AssignedSkip` field `value` requires bare `skip` without arguments
+  --> tests/fixtures/fail/invalid_field_attribute_arguments.rs:32:14
+   |
+32 |     #[redact(skip = true)]
+   |              ^^^^
+
+error: Redact derive for `ParenthesizedNested` field `value` requires bare `nested` without arguments
+  --> tests/fixtures/fail/invalid_field_attribute_arguments.rs:40:14
+   |
+40 |     #[redact(nested())]
+   |              ^^^^^^
+
+error: Redact derive for `AssignedMap` field `value` requires bare `map` without arguments; map values are classified by runtime key and the complete policy
+  --> tests/fixtures/fail/invalid_field_attribute_arguments.rs:48:14
+   |
+48 |     #[redact(map = true)]
+   |              ^^^
+
+error: Redact derive for `InvalidVariantField` field `value`: empty `#[redact()]` is not allowed; choose `level = "..."`, `skip`, `nested`, `map`, `keyed_by = key`, or `json`
+  --> tests/fixtures/fail/invalid_field_attribute_arguments.rs:58:9
+   |
+58 |         #[redact()]
+   |         ^^^^^^^^^^^

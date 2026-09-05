@@ -1,0 +1,5 @@
+error: Redact derive for `Account` field `password` has conflicting or repeated modes; choose exactly one of `level = "..."`, `skip`, `nested`, `map`, `keyed_by = key`, or `json`; map and keyed values are classified by runtime key and the complete policy
+  --> tests/fixtures/fail/conflicting_modes.rs:16:32
+   |
+16 |     #[redact(level = "secret", skip)]
+   |                                ^^^^

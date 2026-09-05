@@ -1,0 +1,5 @@
+error: Redact derive for `RemovedContainerAttribute` has unknown container attribute; use `debug`, `display`, or `serde`
+ --> tests/fixtures/fail/removed_attributes.rs:4:10
+  |
+4 | #[redact(no_mut)]
+  |          ^^^^^^
