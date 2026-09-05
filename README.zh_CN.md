@@ -66,9 +66,9 @@ assert!(!output.text().as_str().contains("raw-password"));
 启用脱敏时，`Complete`、`Truncated`、`Exhausted` 三种状态下的文本都满足保密安全要求；
 后两者只表示诊断信息不完整。`Debug`、`Display` 和普通日志可以直接展示
 `output.text()`。只有审计、重试或业务逻辑依赖完整性时，才需要检查
-`output.summary()`；这类调用方仍可使用 `into_complete_text()` 或 marker helper。
+`output.summary()`；这类调用方仍可使用 `into_complete_text()` 或降级标记辅助方法。
 
-一批互相独立的诊断值可以只选择一次降级标记，再无错误样板地解析所有 handle：
+一批互相独立的诊断值可以只选择一次降级标记，再无需为每个句柄（handle）编写错误处理：
 
 ```rust
 use qubit_redact::Redactor;
@@ -82,7 +82,7 @@ assert_eq!(diagnostics.text(user).as_str(), "ada");
 assert!(!diagnostics.text(password).as_str().contains("raw-password"));
 ```
 
-derive 未标注字段和通过 `unmarked` 写入的值会有意保持不脱敏。字段是否敏感属于下游业务
+未标注的 derive 字段和通过 `unmarked` 写入的值会有意保持不脱敏。字段是否敏感属于下游业务
 领域知识，框架既无法可靠推断，也不应要求占绝大多数的普通字段逐一声明“不敏感”。下游
 类型应显式标记敏感字段，并在领域模型变化时重新审查。`unmarked` 和 `unredacted` 是显式
 跨越信任边界的 API：即使策略为 strict，它们也不会查询运行时字段策略。只能向其传入已经
@@ -103,11 +103,11 @@ derive 未标注字段和通过 `unmarked` 写入的值会有意保持不脱敏�
 
 - 有界文本、JSON、URI、HTTP、环境变量、argv 和进程渲染；
 - 基于 `Sensitivity` 的掩码以及字段、key、路径规则；
-- 只报告匹配规则而不输出原始值的 inspection API；
+- 只报告匹配规则而不输出原始值的检查（inspection）API；
 - 借用 `serde_json::Value` 且保持输入不变的解析 JSON API；
 - JSON 文本遵循 `qubit-json` 数字边界：负整数装入 `i64`，非负整数装入 `u64`，小数为有限
   `f64`；
-- 在一批相关值之间共享预算和摘要的 batch API；
+- 在一批相关值之间共享预算和摘要的批处理（batch）API；
 - 可选的 `serde` 与 derive 集成；默认 feature 集保持最小化。
 
 本 crate 不会推断业务敏感性、不擦除源对象内存，也不会保护未经过本运行时的日志和序列化路径。
@@ -116,15 +116,15 @@ derive 未标注字段和通过 `unmarked` 写入的值会有意保持不脱敏�
 替下游授权。资源限制和控制字符转义仍然生效，但保密脱敏不再生效；授权、调用时机、运行
 环境和误用后果由下游负责。派生生成的 `Debug`、`Display`、`Serialize` 实现会有意在每次
 调用开始时读取当时的应用默认快照，而不是在值创建时固定策略。因此替换默认值会影响之后的
-生成代码调用，包括安装会恢复原值的 disabled 策略。显式创建的 `Redactor`、composer 和
-batch 继续持有创建时的策略快照。
+生成代码调用，包括安装会恢复原值的 disabled 策略。显式创建的 `Redactor`、文本组合器和
+批处理对象继续持有创建时的策略快照。
 
 `RedactedText` 表示运行时处理已经结束，展示它时不会再次执行脱敏。该保证取决于所选策略和
 显式 writer 选择；若使用了 disabled 策略或不脱敏 writer API，它并不能证明内容仍然保密。
 
 ## 延伸阅读
 
-参见[英文用户手册](doc/user_guide.md)、[中文用户手册](doc/user_guide.zh_CN.md)、
+参见 [英文用户手册](doc/user_guide.md)、[中文用户手册](doc/user_guide.zh_CN.md)、
 [架构设计](doc/design.zh_CN.md)、
 [API 文档](https://docs.rs/qubit-redact)和
 [derive 文档](https://docs.rs/qubit-redact-derive)。

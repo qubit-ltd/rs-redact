@@ -1,5 +1,5 @@
 error: Redact derive for `Pair` field `value` cannot use `keyed_by` to reference itself
- --> tests/fixtures/fail/keyed_by_self.rs:5:25
-  |
-5 |     #[redact(keyed_by = value)]
-  |                         ^^^^^
+  --> tests/fixtures/fail/keyed_by_self.rs:13:25
+   |
+13 |     #[redact(keyed_by = value)]
+   |                         ^^^^^

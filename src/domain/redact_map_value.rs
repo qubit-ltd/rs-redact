@@ -20,6 +20,7 @@ mod private {
 /// Marker capability implemented only for supported string-keyed maps.
 #[doc(hidden)]
 pub trait RedactMapValue: private::Sealed {
+    /// Writes this supported map through the named field scope.
     #[doc(hidden)]
     fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str);
 }

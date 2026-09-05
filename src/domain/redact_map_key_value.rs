@@ -23,6 +23,7 @@ mod private {
 #[doc(hidden)]
 pub trait RedactMapKeyValue: private::Sealed {
     /// Writes keys at `level` while retaining ordinary values.
+    /// Writes map keys and optional values through their selected levels.
     #[doc(hidden)]
     fn write_redacted_map_levels(
         &self,

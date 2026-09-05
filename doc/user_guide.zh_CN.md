@@ -1,6 +1,6 @@
 # qubit-redact 用户手册
 
-[README](../README.zh_CN.md) · [English User Guide](user_guide.md) · [设计文档](design.zh_CN.md) · [derive README](../derive/README.zh_CN.md)
+[README](../README.zh_CN.md) · [英文用户手册](user_guide.md) · [设计文档](design.zh_CN.md) · [derive 说明](../derive/README.zh_CN.md)
 
 ## 手册目标与读者
 
@@ -10,18 +10,18 @@
 
 ## 概念模型
 
-`Redactor` 持有不可变策略快照。composer 或 batch 会开启一次有界渲染事务，发布拥有独立内容
-的文本和摘要：
+`Redactor` 持有不可变策略快照。文本组合器（composer）或批处理（batch）会开启一次有界
+渲染事务，发布拥有独立内容的文本和摘要：
 
 ```text
-被借用的值 -> 策略判定 + 事务预算
-              -> composer：RedactionTextOutput
-              -> batch：handles + fail-closed diagnostics
-              -> inspection：Result<RedactionInspection, Error>
+借用的值 -> 策略判定 + 事务预算
+            -> 文本组合器：RedactionTextOutput
+            -> 批处理：句柄 + 安全降级的诊断视图
+            -> 检查：Result<RedactionInspection, Error>
 ```
 
-单值便利方法和 composer 返回 `RedactionTextOutput`；batch 通过 opaque handle 发布可独立寻址的
-诊断文本，inspection 返回不渲染文本的 `Result`。每个已渲染操作
+单值便利方法和文本组合器返回 `RedactionTextOutput`；批处理通过不透明句柄（handle）发布可独立
+寻址的诊断文本，检查（inspection）返回不渲染文本的 `Result`。每个已渲染操作
 都携带安全文本和 `RedactionSummary`。启用脱敏时，
 `Complete`、`Truncated`、`Exhausted` 三种状态下发布的文本都满足保密安全要求。后两种
 状态表示诊断信息不完整，不表示源数据已经泄露。因此 `Debug`、`Display` 和普通诊断日志
@@ -36,7 +36,7 @@ multipart 等解析降级和预算限制。
 ## 实战场景：发布不含密码的登录诊断信息
 
 认证服务需要在一条诊断事件中记录用户名和含密码的请求字段：用户名应保留，密码不能出现在输出中，
-预算不足时还要使用统一的降级标记。batch 会让这组值共享同一份策略和预算：
+预算不足时还要使用统一的降级标记。批处理会让这组值共享同一份策略和预算：
 
 ```rust
 use qubit_redact::Redactor;
@@ -50,9 +50,9 @@ assert_eq!(output.text(user).as_str(), "ada");
 assert!(!output.text(password).as_str().contains("raw-password"));
 ```
 
-`finish_for_diagnostics()` 会把不完整 item、无效 item 和其他 batch 的 handle 都映射成同一个
-已转义 marker，不返回 `Result`。这有意让诊断展示保持 fail closed，不再暴露一套并行的可失败
-发布模型。
+`finish_for_diagnostics()` 会把不完整项目、无效项目和其他批处理创建的句柄都映射成同一个
+已转义标记，不返回 `Result`。这有意让诊断展示在无法解析时安全降级，而不再暴露一套并行的
+可失败发布模型。
 
 ## 安装与最小配置
 
@@ -111,10 +111,10 @@ assert_eq!(login.password, "raw");
 每个操作都参与同一个输出预算和摘要。未标注字段会有意保持原样，因为敏感性属于下游业务
 领域知识，通用框架无法从 Rust 类型、字段名或当前内容中可靠推断。现实中普通字段占绝大
 多数，要求它们逐一声明“不敏感”只会增加噪声，并不会增加有效知识。下游必须显式标记可能
-包含敏感数据的字段，并在领域模型变化时重新审查；strict policy 和 inspection 都不会覆盖
-这个领域决策。
+包含敏感数据的字段，并在领域模型变化时重新审查；严格策略（strict policy）和检查 API 都不会
+覆盖这个领域决策。
 
-显式 `#[redact(level = "...")]` 是字段的最终敏感等级，文本、inspection 和 Serde
+显式 `#[redact(level = "...")]` 是字段的最终敏感等级，文本、检查结果和 Serde
 均以它为准。运行时名称规则、敏感等级下限和 strict 模式都不会覆盖它。`sensitive_value`
 遵循同一规则；手写 `sensitive` API 声明的则是最低敏感等级。disabled 跳过脱敏，仍保留
 资源限制。
@@ -177,11 +177,11 @@ assert_eq!(value["password"], "raw");
 let _ = inspection;
 ```
 
-`RedactionBatch::redact_json_value` 以及其他 batch 方法会共享预算，并发布可解析为最终文本
-和摘要的 handle。
+`RedactionBatch::redact_json_value` 以及其他批处理方法会共享预算，并发布可解析为最终文本
+和摘要的句柄。
 
 JSON 文本只解析一次，解析过程同时完成结构准入并构造 admitted tree。非法 JSON 或遍历
-超限时会整体 fail-closed。借用 `Value` 的路径不会 clone、转成字符串或修改调用方对象；
+超限时会整体安全降级。借用 `Value` 的路径不会复制、转成字符串或修改调用方对象；
 领域实现可用 `fields.json_value("payload", &value)` 写入不带额外字符串引号的 JSON 值。
 序列实现则应逐项调用 `items.json_value_item(&value)`，它会执行同样的递归 JSON 策略。对于
 声明数据类型为 JSON 的下游集合，这一点尤其重要：每一项都必须按 JSON 结构遍历，不能作为
@@ -205,10 +205,10 @@ impl Redact for Documents {
 ```
 
 JSON 文本采用 `qubit-json` 的明确数字契约：负整数必须装入 `i64`，非负整数必须装入 `u64`，
-小数/指数必须得到有限 `f64`。越界文本沿用 fail-closed 的无效 JSON 路径；serde_json 旧私有
-Number marker key 是普通 object key。
+小数/指数必须得到有限 `f64`。越界文本沿用安全降级的无效 JSON 路径；serde_json 旧私有
+Number 标记键是普通对象键。
 
-### 在同一个 batch 中处理完整 HTTP 交换
+### 在同一个批处理中处理完整 HTTP 交换
 
 同一条诊断事件的 URL、header 和捕获 body 应进入同一个事务：
 
@@ -238,10 +238,10 @@ for handle in [url, headers_handle, body_handle] {
 不同状态，前者通过 `RedactionReason::SourceTruncated` 报告。不要把不完整 body 伪装成
 complete capture。
 
-### 接受 URI 前先执行 inspection
+### 接受 URI 前先执行检查
 
-需要拒绝 URI，而不只是把它转成安全文本时，可以使用 inspection。发现敏感数据和返回错误都应
-按 fail closed 处理：
+需要拒绝 URI，而不只是把它转成安全文本时，可以使用检查 API。发现敏感数据和返回错误都应
+按安全降级处理：
 
 ```rust
 use qubit_redact::Redactor;
@@ -278,7 +278,7 @@ assert!(!output.text().as_str().contains("raw-"));
 | Feature | 提供的能力 |
 | --- | --- |
 | `derive` | `#[derive(Redact)]` |
-| `serde` | derive/domain 的结构化 Serde adapter 与 BigDecimal 支持 |
+| `serde` | derive/domain 的结构化 Serde 适配器与 BigDecimal 支持 |
 | `json` | JSON 文本及借用的 `serde_json::Value` |
 | `http` | JSON、URL、header、form、multipart 和 body capture |
 | `uri` | 通用 URI 解析与脱敏 |
@@ -290,7 +290,7 @@ BigDecimal 支持；若要拆分这项依赖，应在后续破坏性版本中提
 
 ### 检查决策与控制策略
 
-Inspection 会报告规则匹配、敏感度和完成状态，但不会发布原始值。它适合在确定日志或序列化
+检查 API 会报告规则匹配、敏感度和完成状态，但不会发布原始值。它适合在确定日志或序列化
 边界前解释某字段为何会被掩码。
 
 建议构造一份不可变策略，再共享生成的 `Redactor`。builder closure 具有事务语义：字段规则
@@ -337,10 +337,10 @@ assert!(!output.text().as_str().contains("raw-secret"));
 策略启用时，`Complete`、`Truncated` 和 `Exhausted` 文本都应保持保密安全。只有调用方
 关心完整性、审计原因或重试决策时才检查 `summary().completion()` 与
 `summary().reasons()`，不要解析 `<truncated>` 等文本标记推断状态。若 inspection 用于
-安全决策，任何 inspection error 都表示分类不完整，应按敏感处理。
+安全决策，任何检查错误都表示分类不完整，应按敏感处理。
 
 `Redactor::replace_application_default()` 影响之后调用 `application_default()` 取得的对象，
-以及每次重新获取快照的生成格式化代码。已经创建的 `Redactor`、composer 和 batch 继续
+以及每次重新获取快照的生成格式化代码。已经创建的 `Redactor`、文本组合器和批处理对象继续
 持有原有不可变快照；替换不会追溯切换正在进行的工作。
 
 ## 错误与诊断
@@ -348,13 +348,13 @@ assert!(!output.text().as_str().contains("raw-secret"));
 当调用方需要区分完整结果与预算或解析降级时，检查 `summary().completion()`、
 `summary().reasons()` 和 `summary().usage()`；不要解析展示文本来推断状态。严格的展示路径可用
 `complete_text()` 和 `into_complete_text()` 拒绝不完整结果；诊断展示可用 `text_or_marker()` 和
-`into_text_or_marker()` 选择明确的降级标记。若 inspection 结果用于安全判断，任何 inspection
-error 都意味着分类不完整，应按敏感结果处理。
+`into_text_or_marker()` 选择明确的降级标记。若检查结果用于安全判断，任何检查错误都意味着
+分类不完整，应按敏感结果处理。
 
 ## 排障
 
-- 发现原值时，先检查 `output.summary().is_redaction_disabled()` 以及创建 composer 或
-  batch 时采用的策略快照。
+- 发现原值时，先检查 `output.summary().is_redaction_disabled()` 以及创建文本组合器或
+  批处理对象时采用的策略快照。
 - 出现非预期截断时，检查 `completion()`、`reasons()` 和 `usage()`；同一事务内的操作
   会有意共享资源上限。
 - 字段未命中时，核对字段名并复查所有未标注字段；运行时不会推断业务敏感度。
@@ -368,9 +368,9 @@ error 都意味着分类不完整，应按敏感结果处理。
 
 ## 延伸阅读
 
-参见 [README](../README.zh_CN.md)、[English User Guide](user_guide.md)、
+参见 [README](../README.zh_CN.md)、[英文用户手册](user_guide.md)、
 [API 文档](https://docs.rs/qubit-redact)和
-[derive README](../derive/README.zh_CN.md)。
+[derive 说明](../derive/README.zh_CN.md)。
 
 验证本地检出内容可运行：
 

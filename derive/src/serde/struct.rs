@@ -67,6 +67,10 @@ pub(super) fn struct_body(
     }
 }
 
+/// Generates transparent serialization for a single named field.
+///
+/// The field is emitted as the struct's direct serialized value unless its
+/// redaction or Serde attributes omit it, in which case a unit struct is used.
 fn transparent_named_struct_body(
     type_name: &Ident,
     parsed: &NamedField<'_>,
