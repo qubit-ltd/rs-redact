@@ -71,8 +71,11 @@ where
 #[cfg(feature = "json")]
 fn admit_structured_json_value(value: &serde_json::Value) -> bool {
     enum Admission<'value> {
+        /// Enters a value and admits its node and children.
         Enter(&'value serde_json::Value),
+        /// Admits one child collection item before entering its value.
         Child(&'value serde_json::Value),
+        /// Leaves a value and releases its active depth slot.
         Leave,
     }
 
