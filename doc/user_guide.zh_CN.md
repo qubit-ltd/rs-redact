@@ -1,10 +1,10 @@
 # qubit-redact 用户手册
 
-[README](../README.zh_CN.md) · [English User Guide](user_guide.md) · [设计文档](design.zh_CN.md) · [Derive Guide](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.zh_CN.md)
+[README](../README.zh_CN.md) · [English User Guide](user_guide.md) · [设计文档](design.zh_CN.md) · [derive README](../derive/README.zh_CN.md)
 
 ## 手册目标与读者
 
-本手册面向使用 `qubit-redact` 0.5 构建日志与诊断边界的应用和库作者。适用于值可能进入
+本手册面向使用 `qubit-redact` 0.6 构建日志与诊断边界的应用和库作者。适用于值可能进入
 日志、错误信息或技术支持工具，且应用必须自行判断字段敏感性的场景。它不保护绕过运行时的输出，
 也不会擦除源对象内存。
 
@@ -60,7 +60,7 @@ assert!(!output.text(password).as_str().contains("raw-password"));
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.5" }
+qubit-redact = { version = "0.6" }
 ```
 
 默认 feature 集为空。使用 `#[derive(Redact)]` 时启用 `derive`；派生字段使用生成的序列化
@@ -262,7 +262,7 @@ assert!(!output.text().as_str().contains("raw-"));
 | `http` | JSON、URL、header、form、multipart 和 body capture |
 | `uri` | 通用 URI 解析与脱敏 |
 
-只使用标量和手写领域实现时可保持默认空 feature 集。为了兼容 0.5 系列，`serde` 继续包含
+只使用标量和手写领域实现时可保持默认空 feature 集。在 0.6 版本系列中，`serde` 继续包含
 BigDecimal 支持；若要拆分这项依赖，应在后续破坏性版本中提供明确的 feature 迁移说明。
 
 ## 进阶用法
@@ -349,7 +349,7 @@ error 都意味着分类不完整，应按敏感结果处理。
 
 参见 [README](../README.zh_CN.md)、[English User Guide](user_guide.md)、
 [API 文档](https://docs.rs/qubit-redact)和
-[derive 手册](https://github.com/qubit-ltd/rs-redact-derive/blob/main/doc/user_guide.zh_CN.md)。
+[derive README](../derive/README.zh_CN.md)。
 
 验证本地检出内容可运行：
 
