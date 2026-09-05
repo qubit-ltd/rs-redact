@@ -1,163 +1,181 @@
 # qubit-redact 用户手册
 
-[README](../README.zh_CN.md) · [英文用户手册](user_guide.md) · [设计文档](design.zh_CN.md) · [derive 说明](../derive/README.zh_CN.md)
+[README](../README.zh_CN.md) · [英文用户手册](user_guide.md) · [derive 说明](../derive/README.zh_CN.md)
 
 ## 手册目标与读者
 
-本手册面向使用 `qubit-redact` 0.6 构建日志与诊断边界的应用和库作者。适用于值可能进入
-日志、错误信息或技术支持工具，且应用必须自行判断字段敏感性的场景。它不保护绕过运行时的输出，
-也不会擦除源对象内存。
+适用于 qubit-redact 0.6 的应用和库作者：先跑通日志和业务序列化共存，再配置领域类型、输入格式和预算。
 
-## 概念模型
+## 安装与实战：登录诊断
 
-`Redactor` 持有不可变策略快照。文本组合器（composer）或批处理（batch）会开启一次有界
-渲染事务，发布拥有独立内容的文本和摘要：
-
-```text
-借用的值 -> 策略判定 + 事务预算
-            -> 文本组合器：RedactionTextOutput
-            -> 批处理：句柄 + 安全降级的诊断视图
-            -> 检查：Result<RedactionInspection, Error>
-```
-
-单值便利方法和文本组合器返回 `RedactionTextOutput`；批处理通过不透明句柄（handle）发布可独立
-寻址的诊断文本，检查（inspection）返回不渲染文本的 `Result`。每个已渲染操作
-都携带安全文本和 `RedactionSummary`。启用脱敏时，
-`Complete`、`Truncated`、`Exhausted` 三种状态下发布的文本都满足保密安全要求。后两种
-状态表示诊断信息不完整，不表示源数据已经泄露。因此 `Debug`、`Display` 和普通诊断日志
-可以直接使用 `output.text()`；强制这些调用方逐一分析原因，也不会产生可执行的恢复动作。
-
-只有审计、重试、业务判断或结构化输出契约依赖完整性时，才检查 `completion()` 和
-`reasons()`。这类调用方可以用 `complete_text()` / `into_complete_text()` 拒绝不完整结果，
-或用 `text_or_marker()` / `into_text_or_marker()` 选择展示降级标记。`Truncated` 保留安全的
-已接纳表示，`Exhausted` 表示共享预算无法容纳完整替代；原因集合可说明 JSON、form、
-multipart 等解析降级和预算限制。
-
-## 实战场景：发布不含密码的登录诊断信息
-
-认证服务需要在一条诊断事件中记录用户名和含密码的请求字段：用户名应保留，密码不能出现在输出中，
-预算不足时还要使用统一的降级标记。批处理会让这组值共享同一份策略和预算：
-
-```rust
-use qubit_redact::Redactor;
-
-let mut batch = Redactor::standard().batch();
-let user = batch.redact_field("user", "ada");
-let password = batch.redact_field("password", "raw-password");
-let output = batch.finish_for_diagnostics("<redaction incomplete>");
-
-assert_eq!(output.text(user).as_str(), "ada");
-assert!(!output.text(password).as_str().contains("raw-password"));
-```
-
-`finish_for_diagnostics()` 会把不完整项目、无效项目和其他批处理创建的句柄都映射成同一个
-已转义标记，不返回 `Result`。这有意让诊断展示在无法解析时安全降级，而不再暴露一套并行的
-可失败发布模型。
-
-## 安装与最小配置
-
-加入依赖后，只启用应用实际使用的集成能力：
+下面的依赖配置支持本节所有示例。
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6" }
+qubit-redact = { version = "0.6", features = ["derive", "serde", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 ```
 
-默认 feature 集为空。使用 `#[derive(Redact)]` 时启用 `derive`；派生字段使用生成的序列化
-适配器时还要启用 `serde`。直接使用脱敏序列化也需要 `serde`；只有处理相应输入格式时才启用
-`json`、`http` 或 `uri`。
+```rust
+use qubit_redact::{Redact, Redactor};
 
-## 核心工作流
+#[derive(Redact, serde::Serialize)]
+#[redact(crate = qubit_redact)]
+#[redact(serialize, debug)]
+struct Login {
+    user: String,
+    #[redact(level = "secret")]
+    password: String,
+}
 
-### 渲染领域值
+let login = Login { user: "ada".into(), password: "raw-secret".into() };
+let redactor = Redactor::standard();
+let view = redactor.redact_view(&login);
+assert!(!format!("{view}").contains("raw-secret"));
+assert!(!format!("{login:?}").contains("raw-secret"));
+let json = redactor.to_json(&login).expect("redacted JSON");
+assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
+assert!(serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+let output = redactor.redact_text(&login);
+assert!(!output.text().as_str().contains("raw-secret"));
+```
 
-实现小型运行时 trait，或在下游 crate 中使用 derive：
+## 选择输出与理解视图
+
+| 入口 | 返回值 | 何时执行 |
+| --- | --- | --- |
+| `redact_view(&value)` | `RedactedView<'a, T>` | 每次格式化或序列化时 |
+| `redact_text(&value)` | `RedactionTextOutput` | 立即执行，包含最终文本和摘要 |
+| `to_json(&value)` | `Result<String, serde_json::Error>` | 立即序列化视图 |
+
+视图借用源对象并拥有策略快照，不是脱敏后的业务对象，也不缓存源内容。
+多次序列化分别从源对象执行，绝不会把上次掩码结果作为下一次输入；每次使用独立预算。
+它支持 Display/Debug；结构化序列化要求 `RedactSerialize`，不会退化成 Debug 字符串。
+源对象具有内部可变状态时，后续使用可能观察到新值；策略仍保持创建时快照。
+
+`redact_text()` 的 `output.text()` 可以直接展示，不再次脱敏。
+`to_json()` 等价于 `serde_json::to_string(&redactor.redact_view(&value))`，传播序列化错误。
+它遵循领域标注；`redact_json(text)` 则解析输入 JSON 并按 JSON key 分类，两者不可混用。
+
+## 领域类型与字段参考
+
+| 字段属性 | 作用与类型要求 |
+| --- | --- |
+| 无属性 | 文本使用普通 `Debug`；结构化输出使用普通 `Serialize`。 |
+| `level = "low"/"medium"/"high"/"secret"` | 对各叶子应用最终等级；支持基本标量、`RedactScalar` 和支持的递归容器。 |
+| `level = "...", display` | 显式按 `Display` 文本处理，不要求该类型实现 `Debug` 或普通 `Serialize`。 |
+| `skip` | 启用时省略；disabled 恢复字段。 |
+| `nested` | 委托 `Redact`；结构化输出还要求 `RedactSerialize`。 |
+| `map` | 支持 key 为 `String`、`&str`、`Cow<str>` 的 `HashMap`/`BTreeMap`，以及外层 `Option`；value 需具备等级能力，放行文本还需 `Debug`。 |
+| `map_key_level = "..."` | 固定每个 key 的等级，value 保持普通输出。 |
+| `map_key_level = "...", map_value_level = "..."` | 分别固定 key、value 等级。 |
+| `keyed_by = key` | 按实现 `AsRef<str>` 的兄弟 key 分类，仅用于具名字段；value 需具备等级能力和 `Debug`。 |
+| `json` | 支持 JSON `String`/`str`/`Cow<str>`、已解析 `serde_json::Value`、引用和 `Option`；需要 `json` feature。 |
+
+容器属性包括 `debug`、`display`、`serialize`、`serde`、`transparent` 和 `crate = path`。
+`serialize` 只生成 `RedactSerialize`；`serde` 还会接管普通 `Serialize`，两者只能选其一。
+两种序列化选项均需 runtime 的 `serde` feature 和直接声明的 Serde 依赖。
+`transparent` 要求恰好一个字段，委托该字段的表示，本身不声明标量能力。
+`debug` 不应与普通 `Debug` 派生同时使用，`serde` 不应与普通 `Serialize` 派生同时使用。
+
+内置等级叶子包括字符串、字符、布尔、整数、浮点数，以及 `serde` 下的 BigDecimal。
+等级容器包括引用、Option、Vec、切片、数组、Box/Rc/Arc、VecDeque、LinkedList、集合、堆、
+标准 Map 和最长 12 项 tuple。Map 的普通 level 处理 value，保留 key；要隐藏 key 使用对应属性。
+文本 Map 放行路径和 keyed_by 需要 Debug；仅使用 level 的 RedactScalar 不要求 Debug。
+
+Serde 支持 rename/rename_all、枚举 tag/content/untagged、transparent、skip、skip_serializing、
+skip_serializing_if。支持普通或 skip 字段上的 with/serialize_with；不能与观察原值的敏感模式组合。
+flatten 不受支持。JSON 文本字段序列化后仍是字符串，已解析 Value 字段保留 JSON 结构。
+
+### 标量 newtype
 
 ```rust
-use qubit_redact::{Redact, RedactionWriter, Redactor, Sensitivity};
+use qubit_redact::{Redact, RedactScalar, Redactor};
 
-struct Login { user: String, password: String }
+#[derive(RedactScalar)]
+#[redact(crate = qubit_redact)]
+struct Id(u64);
 
-impl Redact for Login {
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
-        writer.record("Login", |fields| {
-            fields.unmarked("user", || self.user.as_str());
-            fields.sensitive(Sensitivity::Secret, "password", || self.password.as_str());
-        });
+#[derive(RedactScalar)]
+#[redact(crate = qubit_redact)]
+struct UserId { value: String }
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact)]
+#[redact(serialize)]
+struct Account {
+    #[redact(level = "secret")]
+    id: Id,
+    #[redact(level = "secret")]
+    user_id: UserId,
+}
+
+let account = Account { id: Id(42), user_id: UserId { value: "raw-id".into() } };
+assert_eq!(Redactor::standard().to_json(&account).expect("account JSON"),
+    r#"{"id":"<redacted>","user_id":"<redacted>"}"#);
+```
+
+### 第三方 Display 类型
+
+显式选择文本表示。High/Secret 不触发 Display，Low/Medium 和 disabled 按需格式化，
+资源预算仍生效；disabled 下也保持这里明确选择的字符串表示。
+
+```rust
+use qubit_redact::{Redact, Redactor};
+
+struct ExternalId(u64);
+impl std::fmt::Display for ExternalId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self(value) = self;
+        write!(f, "external-{value}")
     }
 }
 
-let login = Login { user: "ada".into(), password: "raw".into() };
-let output = Redactor::standard().redact(&login);
-assert!(!output.text().as_str().contains("raw"));
-assert_eq!(login.password, "raw");
+#[derive(Redact)]
+#[redact(crate = qubit_redact)]
+#[redact(serialize)]
+struct Event {
+    #[redact(level = "secret", display)]
+    id: ExternalId,
+}
+let event = Event { id: ExternalId(42) };
+assert_eq!(Redactor::standard().to_json(&event).expect("event JSON"),
+    r#"{"id":"<redacted>"}"#);
 ```
 
-子系统需要显式策略时使用 `Redactor::new(policy)`。运行时没有可变脱敏 API，也不提供内存擦除。
+### 等级与策略优先级
 
-### 选择字段写入方式
+| 决策来源 | 运行时策略能否提高等级 |
+| --- | --- |
+| derive 的 level、Display level、map key/value level | 不能：显式等级为最终等级 |
+| 手写 fields.sensitive(level, ...) | 可以：参数是最低等级 |
+| map、keyed_by、redact_field | 按运行时分类规则决定 |
+| 未标注字段、unmarked | 不分类，保持普通输出 |
 
-`RedactionWriter` 提供显式字段决策：
+默认掩码：Low 保留首尾各两个字符，短串全部隐藏；Medium 保留末尾一个字符；
+High 输出 `****`；Secret 输出 `<redacted>`。例如 `abcdef` 的 Low 为 `ab****ef`，
+Medium 为 `*******f`。业务类型负责选择正确等级，strict 不覆盖显式声明。
 
-- `unmarked(name, access)` 输出经过审查的普通值；
-- `sensitive(level, name, access)` 应用敏感等级掩码；
-- `nested(name, value)` 委托给另一个 `Redact` 实现；
-- `map(name, value)` 对支持的 Map 按 key 处理；
-- `keyed_value(name, key, value)` 使用兄弟运行时 key 对单个字段值分类，
-  语义与一条 Map entry 相同；
-- `json(name, value)` 递归处理 JSON；
-- `skipped(name, access)` 省略字段且不渲染其值。
+### 多个值共享预算
 
-每个操作都参与同一个输出预算和摘要。未标注字段会有意保持原样，因为敏感性属于下游业务
-领域知识，通用框架无法从 Rust 类型、字段名或当前内容中可靠推断。现实中普通字段占绝大
-多数，要求它们逐一声明“不敏感”只会增加噪声，并不会增加有效知识。下游必须显式标记可能
-包含敏感数据的字段，并在领域模型变化时重新审查；严格策略（strict policy）和检查 API 都不会
-覆盖这个领域决策。
-
-显式 `#[redact(level = "...")]` 是字段的最终敏感等级，文本、检查结果和 Serde
-均以它为准。运行时名称规则、敏感等级下限和 strict 模式都不会覆盖它。`sensitive_value`
-遵循同一规则；手写 `sensitive` API 声明的则是最低敏感等级。disabled 跳过脱敏，仍保留
-资源限制。
-
-按运行时业务名称分类时，使用 `keyed_value` 或惰性 Debug 访问器
-`keyed(name, key, access)`。`NamedValue` 和 `NamedMultiValues` 按实际 `name`
-分类，与展示字段名无关。
-
-遍历序列或 Map 时使用构建器的 `for_each(values, callback)`，在取出或格式化被拒绝的
-元素前停止。构建器无法中断调用方的手写循环。迭代器上界未知时，元素预算耗尽会保守地
-报告截断，不再取出额外元素探测是否结束。
-
-Serde 在嵌套值之间共享深度、节点、集合元素、输入字节及标量输出字节预算，覆盖普通
-字段、Map key、disabled 输出和自定义 serializer。无法准入的普通值返回序列化错误；
-标记过的值在预算足够时可以输出不透明替代值。自定义 serializer 只执行一次，且必须
-传播 serializer 错误。输出预算计算标量内容字节，不包含格式标点、字段标签及转义开销。
-若需限制最终编码字节数，还应单独限制目标 writer。普通 serializer 重入另一个脱敏
-serializer 时仍共享调用方预算，中间值可能被保守地重复计费。自定义 formatter/serializer
-仍是受信任代码，预算不能抢占其执行。
-
-标量字段 API 接受惰性的 `Display` 值。运行时先判定敏感等级，再决定是否格式化；因此
-`High` 和 `Secret` 字段不会触发格式化。只有 `Debug` 的值可以借助 `format_args!`：
+HTTP 的 URL、headers、body 或进程的 argv、env 往往属于同一条诊断事件。使用 batch，
+这些值共用一次资源预算；分别调用单值方法或多次使用视图则各用一份预算。
+批次按加入顺序消耗额度，后面的项可能因前面的项耗尽预算而降级。
+`finish_for_diagnostics(marker)` 给不完整项及无效/跨批次句柄统一返回已转义 marker。
+`summary()` 是整批摘要，不是逐项审计接口。
 
 ```rust
-use std::fmt;
-
 use qubit_redact::Redactor;
-
-struct Request;
-
-impl fmt::Debug for Request {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("reviewed-debug-view")
-    }
-}
-
-let request = Request;
-let output = Redactor::strict().redact_field(
-    "request",
-    &format_args!("{request:?}"),
-);
-assert!(!output.text().as_str().is_empty());
+let mut batch = Redactor::standard().batch();
+let user = batch.redact_field("user", "ada");
+let password = batch.redact_field("password", "raw-secret");
+let output = batch.finish_for_diagnostics("<incomplete>");
+assert_eq!(output.text(user).as_str(), "ada");
+assert_eq!(output.text(password).as_str(), "<redacted>");
 ```
+
+## 输入格式与集成
 
 ### 渲染其他格式
 
@@ -277,7 +295,8 @@ assert!(!output.text().as_str().contains("raw-"));
 
 | Feature | 提供的能力 |
 | --- | --- |
-| `derive` | `#[derive(Redact)]` |
+| `derive` | `#[derive(Redact)]
+#[redact(crate = qubit_redact)]` |
 | `serde` | derive/domain 的结构化 Serde 适配器与 BigDecimal 支持 |
 | `json` | JSON 文本及借用的 `serde_json::Value` |
 | `http` | JSON、URL、header、form、multipart 和 body capture |
