@@ -1,7 +1,7 @@
 error: Redact serde for `Bad` field `value` cannot use a serialization adapter with a redaction mode that observes raw field state; use it only with `skip`
-  --> tests/fixtures/fail/sensitive_serde_adapter.rs:13:5
+  --> tests/fixtures/fail/sensitive_serde_adapter.rs:21:5
    |
-13 | /     #[redact(level = "secret")]
-14 | |     #[serde(serialize_with = "serialize_value")]
-15 | |     value: String,
+21 | /     #[redact(level = "secret")]
+22 | |     #[serde(serialize_with = "serialize_value")]
+23 | |     value: String,
    | |_________________^
