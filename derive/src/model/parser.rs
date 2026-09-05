@@ -19,6 +19,22 @@ use super::named_fields;
 use super::unnamed_fields;
 use crate::attributes::SerdeVariantAttributes;
 
+/// Parses a derive input into the container model used by code generation.
+///
+/// # Parameters
+///
+/// * `input` - Derive input containing the struct, enum, or union to inspect.
+/// * `derive_name` - Derive macro name used in unsupported-input diagnostics.
+/// * `serde_enabled` - Whether Serde attributes should be parsed.
+///
+/// # Returns
+///
+/// A borrowed container model retaining references into `input`.
+///
+/// # Errors
+///
+/// Returns an error when an attribute is invalid or when `input` is a union,
+/// which this derive does not support.
 pub(crate) fn parse<'a>(input: &'a DeriveInput, derive_name: &str, serde_enabled: bool) -> Result<ContainerData<'a>> {
     match &input.data {
         Data::Struct(data) => Ok(ContainerData::Struct(parse_fields(
@@ -46,6 +62,22 @@ pub(crate) fn parse<'a>(input: &'a DeriveInput, derive_name: &str, serde_enabled
     }
 }
 
+/// Parses one struct or enum field collection into the internal model.
+///
+/// # Parameters
+///
+/// * `fields` - Syntax fields to classify as named, unnamed, or unit fields.
+/// * `type_name` - Enclosing type name used in attribute diagnostics.
+/// * `serde_enabled` - Whether Serde field attributes should be parsed.
+///
+/// # Returns
+///
+/// The corresponding borrowed field model.
+///
+/// # Errors
+///
+/// Returns an error when a field contains an invalid redaction or Serde
+/// attribute.
 fn parse_fields<'a>(fields: &'a Fields, type_name: &Ident, serde_enabled: bool) -> Result<FieldsData<'a>> {
     match fields {
         Fields::Named(fields) => Ok(FieldsData::Named(named_fields::parse(

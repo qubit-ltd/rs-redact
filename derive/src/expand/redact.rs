@@ -333,6 +333,17 @@ fn writer_field_call(
     Some(quote_spanned! {field.span()=> #call })
 }
 
+/// Builds a stable diagnostic context name for one enum variant field.
+///
+/// # Parameters
+///
+/// * `variant_index` - Zero-based index of the enum variant.
+/// * `variant_name` - Rust identifier of the enum variant.
+/// * `field_name` - Display name of the field within the variant.
+///
+/// # Returns
+///
+/// A context string combining the variant name, index, and field name.
 fn variant_field_context(variant_index: u32, variant_name: &Ident, field_name: &str) -> String {
     format!("{variant_name}_{variant_index}_{field_name}")
 }
