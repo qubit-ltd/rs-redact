@@ -33,7 +33,10 @@ mod tests;
 /// Supported field modes are:
 ///
 /// - `#[redact(level = "low" | "medium" | "high" | "secret")]` masks every
-///   supported scalar leaf while preserving recursive container shape;
+///   supported scalar leaf while preserving recursive container shape. The
+///   explicit level is final for text, inspection and Serde: runtime name
+///   rules, sensitivity floors and strict mode cannot override it. Disabled
+///   policy bypasses masking but retains resource limits;
 /// - `#[redact(nested)]` delegates to nested `Redact` values;
 /// - `#[redact(map)]` classifies text-keyed map values by key;
 /// - `#[redact(json)]` recursively redacts supported JSON text values;

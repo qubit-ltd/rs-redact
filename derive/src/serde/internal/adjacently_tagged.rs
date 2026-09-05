@@ -57,12 +57,13 @@ pub(in crate::serde) fn adjacent_variant_arm(
         FieldsData::Named(fields) => {
             let (pattern, setups, _conditions, names, carriers) =
                 enum_named_parts(type_name, rust_name, fields, runtime, container_attributes, variant);
-            let (proxy_definition, proxy_value) = named_content_proxy(rust_name, serde, &names, &carriers);
+            let (proxy_definition, proxy_value) = named_content_proxy(rust_name, runtime, serde, &names, &carriers);
             quote! {
                 Self::#rust_name #pattern => {
                     #(#setups)*
                     #proxy_definition
                     let content_value = #proxy_value;
+                    #runtime::domain::internal::admit_serializer_items(&serializer, 2)?;
                     let mut state = #serde::Serializer::serialize_struct(
                         serializer,
                         #enum_name,
@@ -71,7 +72,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
                     #serde::ser::SerializeStruct::serialize_field(
                         &mut state,
                         #tag,
-                        #variant_name,
+                        &#runtime::domain::internal::BudgetSerialize::new(#variant_name),
                     )?;
                     #serde::ser::SerializeStruct::serialize_field(
                         &mut state,
@@ -88,6 +89,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
             if carriers.is_empty() {
                 quote! {
                     Self::#rust_name #pattern => {
+                        #runtime::domain::internal::admit_serializer_items(&serializer, 1)?;
                         let mut state = #serde::Serializer::serialize_struct(
                             serializer,
                             #enum_name,
@@ -96,7 +98,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
                         #serde::ser::SerializeStruct::serialize_field(
                             &mut state,
                             #tag,
-                            #variant_name,
+                            &#runtime::domain::internal::BudgetSerialize::new(#variant_name),
                         )?;
                         #serde::ser::SerializeStruct::end(state)
                     }
@@ -107,6 +109,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
                     Self::#rust_name #pattern => {
                         #(#setups)*
                         let has_content = #carrier.is_some();
+                        #runtime::domain::internal::admit_serializer_items(&serializer, if has_content { 2 } else { 1 })?;
                         let mut state = #serde::Serializer::serialize_struct(
                             serializer,
                             #enum_name,
@@ -115,7 +118,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
                         #serde::ser::SerializeStruct::serialize_field(
                             &mut state,
                             #tag,
-                            #variant_name,
+                            &#runtime::domain::internal::BudgetSerialize::new(#variant_name),
                         )?;
                         if let ::core::option::Option::Some(carrier) = #carrier.as_ref() {
                             #serde::ser::SerializeStruct::serialize_field(
@@ -132,12 +135,13 @@ pub(in crate::serde) fn adjacent_variant_arm(
         FieldsData::Unnamed(fields) => {
             let (pattern, setups, _conditions, carriers) =
                 enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime);
-            let (proxy_definition, proxy_value) = tuple_content_proxy(rust_name, serde, &carriers);
+            let (proxy_definition, proxy_value) = tuple_content_proxy(rust_name, runtime, serde, &carriers);
             quote! {
                 Self::#rust_name #pattern => {
                     #(#setups)*
                     #proxy_definition
                     let content_value = #proxy_value;
+                    #runtime::domain::internal::admit_serializer_items(&serializer, 2)?;
                     let mut state = #serde::Serializer::serialize_struct(
                         serializer,
                         #enum_name,
@@ -146,7 +150,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
                     #serde::ser::SerializeStruct::serialize_field(
                         &mut state,
                         #tag,
-                        #variant_name,
+                        &#runtime::domain::internal::BudgetSerialize::new(#variant_name),
                     )?;
                     #serde::ser::SerializeStruct::serialize_field(
                         &mut state,
@@ -159,6 +163,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
         }
         FieldsData::Unit => quote! {
             Self::#rust_name => {
+                #runtime::domain::internal::admit_serializer_items(&serializer, 1)?;
                 let mut state = #serde::Serializer::serialize_struct(
                     serializer,
                     #enum_name,
@@ -167,7 +172,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
                 #serde::ser::SerializeStruct::serialize_field(
                     &mut state,
                     #tag,
-                    #variant_name,
+                    &#runtime::domain::internal::BudgetSerialize::new(#variant_name),
                 )?;
                 #serde::ser::SerializeStruct::end(state)
             }
