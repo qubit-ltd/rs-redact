@@ -7,149 +7,82 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
-`qubit-redact` is a policy-aware Rust redaction runtime for application and
-library authors who need useful diagnostics without exposing secrets. It
-renders borrowed domain objects, JSON, HTTP values, URIs, environment
-variables, and process arguments through one bounded session, then returns an
-owned redacted result.
+`qubit-redact` gives application and library authors a consistent redaction boundary for
+logs, errors, and support diagnostics. A login object can retain its normal business
+serialization while a borrowed view produces redacted text or structured JSON for logging.
+The source object is unchanged.
 
 ## Installation
 
+The complete example uses derive, Serde, and JSON. Scalar text operations need no features.
+
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6" }
+qubit-redact = { version = "0.6", features = ["derive", "serde", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 ```
-
-The default feature set is empty. Enable integrations explicitly, for example
-`features = ["derive"]` for `#[derive(Redact)]`, or
-`features = ["serde", "derive"]` for derived redacted serialization.
 
 ## Quick Start
 
-```rust
-use qubit_redact::Redactor;
-
-let output = Redactor::standard()
-    .text_composer()
-    .literal("user=")
-    .field("user", "ada")
-    .literal(" password=")
-    .field("password", "raw-password")
-    .finish();
-
-assert!(output.text().as_str().contains("ada"));
-assert!(!output.text().as_str().contains("raw-password"));
-let text = output
-    .into_complete_text()
-    .expect("the default budget must retain this example");
-assert!(text.as_str().contains("ada"));
-```
-
-For a domain type, implement `Redact` or use
-[`qubit-redact-derive`](https://crates.io/crates/qubit-redact-derive):
+Business JSON retains the password; diagnostic JSON replaces it with `<redacted>`.
+The generated Debug implementation also redacts ordinary diagnostic formatting.
 
 ```rust
-use qubit_redact::Redactor;
+use qubit_redact::{Redact, Redactor};
 
-#[derive(qubit_redact::Redact)]
+#[derive(Redact, serde::Serialize)]
 #[redact(crate = qubit_redact)]
+#[redact(serialize, debug)]
 struct Login {
     user: String,
     #[redact(level = "secret")]
     password: String,
 }
 
-let login = Login { user: "ada".into(), password: "raw-password".into() };
-let output = Redactor::standard().redact(&login);
-assert!(!output.text().as_str().contains("raw-password"));
+let login = Login { user: "ada".into(), password: "raw-secret".into() };
+let redactor = Redactor::standard();
+let view = redactor.redact_view(&login);
+assert!(!format!("{view}").contains("raw-secret"));
+assert!(!format!("{login:?}").contains("raw-secret"));
+let json = redactor.to_json(&login).expect("redacted JSON");
+assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
+assert!(serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+let output = redactor.redact_text(&login);
+assert!(!output.text().as_str().contains("raw-secret"));
 ```
 
-Then call `Redactor::standard().redact(&value)` or construct an explicit policy
-with `Redactor::new(policy)`. When redaction is enabled, the text remains
-confidentiality-safe for `Complete`, `Truncated`, and `Exhausted`; the latter
-two states mean only that diagnostic information is incomplete. `Debug`,
-`Display`, and ordinary logs may render `output.text()` directly. Inspect
-`output.summary()` only when completeness affects auditing, retry, or program
-logic. `into_complete_text()` and the marker helpers remain available for such
-explicit presentation policies.
+## Choose an Entry Point
 
-For several independently formatted diagnostic values, select one fallback
-once and resolve every handle without error-handling boilerplate:
-
-```rust
-use qubit_redact::Redactor;
-
-let mut batch = Redactor::standard().batch();
-let user = batch.redact_field("user", "ada");
-let password = batch.redact_field("password", "raw-password");
-let diagnostics = batch.finish_for_diagnostics("<redaction incomplete>");
-
-assert_eq!(diagnostics.text(user).as_str(), "ada");
-assert!(!diagnostics.text(password).as_str().contains("raw-password"));
-```
-
-Unannotated derive fields and values written through `unmarked` are
-intentionally unredacted. Field sensitivity is application-domain knowledge:
-the framework cannot infer it reliably and should not force explicit
-"non-sensitive" annotations onto the ordinary majority of fields. Downstream
-types must explicitly mark sensitive fields and review that decision when their
-domain model changes. `unmarked` and `unredacted` are explicit trust-boundary
-bypasses: they never consult runtime field policy, including strict policy.
-Use them only for values independently reviewed as safe to expose, never for
-credentials, user-controlled diagnostics, or values whose classification must
-come from runtime policy. The runtime does not mutate or erase the source value.
-
-Scalar field APIs accept `Display`. To redact a value through its `Debug`
-representation without allocating or formatting it eagerly, wrap the borrow in
-`DebugDisplay::new(&value)`. Opaque high- and secret-sensitivity masks can then
-avoid invoking `Debug` altogether; pass-through, disabled, low-, and
-medium-sensitivity policies format it only when needed.
+| Need | Entry point |
+| --- | --- |
+| Lazy formatting or serialization under a fixed policy | `redact_view(&value)` |
+| Final text and completeness summary now | `redact_text(&value)` |
+| Compact redacted JSON string | `to_json(&value)` |
+| Redact input that is already JSON | `redact_json(text)` / `redact_json_value(&value)` |
+| Share one budget across independent values | `batch()` |
+| Compose one diagnostic message | `text_composer()` |
 
 ## Why This Project Exists
 
-Diagnostic values commonly cross logging, error-reporting, and support
-boundaries before their sensitivity has been reviewed. Ad-hoc masking makes
-each call site choose its own format, limits, and fallback behavior. This crate
-keeps those decisions in one immutable policy snapshot, shares one bounded
-budget across related output, and lets callers observe whether the published
-diagnostic is complete without reformatting its source.
+Configure classification, masking, format handling, and resource budgets in one place
+instead of implementing them at every log site. Views retain policy snapshots and execute
+on each use; finalized text can be displayed repeatedly.
 
-## Capabilities
+## What It Provides
 
-- bounded text, JSON, URI, HTTP, environment, argv, and process rendering;
-- `Sensitivity`-based masking with field, key, and path policy rules;
-- inspection APIs that report matched rules without emitting raw values;
-- parsed `serde_json::Value` APIs that borrow and leave the input unchanged;
-- JSON text follows `qubit-json`'s numeric boundary: negative integers fit
-  `i64`, non-negative integers fit `u64`, and fractions are finite `f64`;
-- batch APIs that share one budget and summary across related values;
-- opt-in `serde` and derive integrations; the default feature set is minimal.
-
-It does not infer application-specific sensitivity, erase source memory, or
-protect logging and serialization paths that do not use this runtime.
-
-Disabled policies intentionally restore every supported raw value. This is a
-deliberate process-wide debugging escape hatch, not an attempt by the framework
-to authorize its use. Limits and control-character escaping remain active, but
-confidentiality redaction does not. Downstream code owns authorization, timing,
-environment controls, and any misuse. Derived `Debug`, `Display`, and
-`Serialize` implementations intentionally read the current application-default
-snapshot at the start of every call; they do not capture a policy when the value
-is created. Replacing the default therefore affects future generated calls,
-including installing a disabled policy that restores source values. Explicit
-redactors, composers, and batches retain the policy snapshot they already own.
-
-`RedactedText` means that runtime processing has finished and no second
-redaction pass occurs when it is displayed. Its guarantee is relative to the
-selected policy and explicit writer choices; it is not proof that content is
-confidential when a disabled policy or an unredacted writer API was used.
+Fields, domain objects, JSON, HTTP, URI, environment and process arguments, inspection,
+and shared budgets. `RedactScalar` supports scalar newtypes; third-party values can
+explicitly select Display representation. Unmarked fields remain ordinary output;
+explicit levels belong to the business type and are not overridden by strict policy.
+Disabled policy is a raw-value debugging escape hatch. The library does not erase source
+memory or protect output that bypasses its redaction entry points.
 
 ## Learn More
 
-Read the [English user guide](doc/user_guide.md), [中文用户手册](doc/user_guide.zh_CN.md),
-and [architecture design](doc/design.md),
-[API documentation](https://docs.rs/qubit-redact), and
-[derive documentation](https://docs.rs/qubit-redact-derive).
+See the [English user guide](doc/user_guide.md) and [Chinese user guide](doc/user_guide.zh_CN.md)
+for feature configuration, complete attribute/type tables, policy precedence, HTTP, and
+batch scenarios. See also the [derive guide](derive/README.md) and [API docs](https://docs.rs/qubit-redact).
 
 ## Testing
 

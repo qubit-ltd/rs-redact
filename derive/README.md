@@ -7,120 +7,103 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
-`qubit-redact-derive` provides the `#[derive(Redact)]` procedural macro for
-[`qubit-redact`](https://crates.io/crates/qubit-redact). It turns reviewed
-field annotations into a policy-aware `Redact::write_redacted` implementation.
-The derive never mutates the source value and exposes no mutable redaction API.
+`qubit-redact-derive` generates borrowed domain redaction and `RedactScalar` capabilities.
+Business developers classify fields; complex objects delegate their internal rules through `nested`.
 
 ## Installation
 
+Prefer the runtime re-export; a separate derive dependency is unnecessary:
+
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6", features = ["derive"] }
-qubit-redact-derive = "0.6"
+qubit-redact = { version = "0.6", features = ["derive", "serde", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 ```
 
 ## Quick Start
 
 ```rust
-use qubit_redact::Redactor;
-use qubit_redact_derive::Redact;
+use qubit_redact::{Redact, Redactor};
 
-#[derive(Redact)]
-struct Credentials {
+#[derive(Redact, serde::Serialize)]
+#[redact(crate = qubit_redact)]
+#[redact(serialize, debug)]
+struct Login {
     user: String,
     #[redact(level = "secret")]
     password: String,
-    #[redact(skip)]
-    recovery_code: String,
 }
 
-let value = Credentials {
-    user: "ada".into(),
-    password: "raw-password".into(),
-    recovery_code: "never-render".into(),
-};
-let output = Redactor::standard().redact(&value);
-assert!(output.text().as_str().contains("ada"));
-assert!(!output.text().as_str().contains("raw-password"));
-assert!(!output.text().as_str().contains("never-render"));
+let login = Login { user: "ada".into(), password: "raw-secret".into() };
+let redactor = Redactor::standard();
+let view = redactor.redact_view(&login);
+assert!(!format!("{view}").contains("raw-secret"));
+assert!(!format!("{login:?}").contains("raw-secret"));
+let json = redactor.to_json(&login).expect("redacted JSON");
+assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
+assert!(serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+let output = redactor.redact_text(&login);
+assert!(!output.text().as_str().contains("raw-secret"));
 ```
 
-Unmarked fields intentionally use ordinary `Debug` formatting. Whether a field
-is sensitive is downstream business-domain knowledge that a derive macro cannot
-reliably infer from its name or Rust type. Because ordinary fields are the vast
-majority, requiring an explicit "not sensitive" attribute on every one would
-create annotation noise without improving classification. Downstream types must
-explicitly annotate sensitive fields and review new or changed fields. The
-runtime's strict policy and inspection do not override this derive decision.
+## Field and Container Attributes
 
-## Field modes
-
-| Attribute | Behavior |
+| Field attribute | Meaning / supported values |
 | --- | --- |
-| no attribute | Render ordinary `Debug` output. |
-| `#[redact(level = "low"\|"medium"\|"high"\|"secret")]` | Mask the field at the selected sensitivity. |
-| `#[redact(skip)]` | Omit the field from the redacted output. |
-| `#[redact(nested)]` | Delegate to the nested value's `Redact` implementation. |
-| `#[redact(map)]` | Apply key-aware policy to supported text-keyed maps. |
-| `#[redact(keyed_by = key)]` | Classify this field by a sibling text key, using the same policy semantics as one map entry. |
-| `#[redact(json)]` | Apply recursive JSON-key redaction to supported JSON text values. |
+| None | Ordinary `Debug`; ordinary `Serialize` for structured output. |
+| `level = "low"/"medium"/"high"/"secret"` | Final level for each leaf; primitive scalars, `RedactScalar` and recursive supported containers. |
+| `level = "...", display` | Explicit textual representation of a `Display` value; no `Debug` or ordinary `Serialize` required. |
+| `skip` | Omit while enabled; disabled restores the field. |
+| `nested` | Delegate to `Redact`; structured output also requires `RedactSerialize`. |
+| `map` | `HashMap`/`BTreeMap` with `String`, `&str`, or `Cow<str>` keys, optionally wrapped in `Option`; values require level capability and `Debug` for pass-through text. |
+| `map_key_level = "..."` | Fixed level for each map key; values remain ordinary. |
+| `map_key_level = "...", map_value_level = "..."` | Independently fixed key and value levels. |
+| `keyed_by = key` | Classify by a sibling `AsRef<str>` key on a named field; value requires level capability and `Debug`. |
+| `json` | JSON `String`/`str`/`Cow<str>`, parsed `serde_json::Value`, references and `Option`; requires `json`. |
 
-`#[redact(plain)]`, `#[redact(no_mut)]`, and `#[redact(require_explicit)]` are
-not part of the current contract. The macro supports named, tuple, and unit
-structs and enum variants. `#[redact(debug)]`, `#[redact(display)]`, and
-`#[redact(serde)]` are opt-in container attributes; Serde support requires the
-runtime `serde` feature and a direct `serde` dependency. Their generated
-implementations intentionally obtain the current
-`Redactor::application_default()` snapshot at the start of every formatting or
-serialization call; they do not capture policy when the value is created.
-Replacing the process-wide default therefore affects subsequent calls.
+Container attributes: `debug`, `display`, `serialize`, `serde`, `transparent`, and `crate = path`.
+`serialize` generates only `RedactSerialize`; `serde` additionally implements ordinary `Serialize`.
+Choose one, not both. Both require the runtime `serde` feature and a direct Serde dependency.
+`transparent` requires exactly one field and delegates its representation; it does not declare scalar capability.
+Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` together with `serde`.
 
-`keyed_by` is available only on named fields. The referenced sibling key must
-implement `AsRef<str>`, while the value uses the same recursive leaf capability
-as `level`. Standard policies pass unknown keys through; configure sensitive
-keys explicitly or use a stricter policy when unknown payload keys must be
-masked.
-
-The generated code resolves a direct `qubit-redact` dependency, including a
-Cargo-renamed dependency. The runtime trait is intentionally small:
+## Scalar Value Objects
 
 ```rust
-pub trait Redact {
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_>);
+use qubit_redact::{Redact, RedactScalar, Redactor};
+
+#[derive(RedactScalar)]
+#[redact(crate = qubit_redact)]
+struct Id(u64);
+
+#[derive(RedactScalar)]
+#[redact(crate = qubit_redact)]
+struct UserId { value: String }
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact)]
+#[redact(serialize)]
+struct Account {
+    #[redact(level = "secret")]
+    id: Id,
+    #[redact(level = "secret")]
+    user_id: UserId,
 }
+
+let account = Account { id: Id(42), user_id: UserId { value: "raw-id".into() } };
+assert_eq!(Redactor::standard().to_json(&account).expect("account JSON"),
+    r#"{"id":"<redacted>","user_id":"<redacted>"}"#);
 ```
 
-## Safety boundary
-
-Redaction protects only the boundary that uses `Redactor`, generated formatting,
-or generated serialization. It does not erase the original value and cannot
-protect unrelated logs or serialization paths. `skip` omits output but retains
-the source field in memory. An unmarked field's pass-through behavior is an
-intentional responsibility boundary, not a missing framework check.
-
-Generated `Debug` and `Display` implementations write the confidentiality-safe
-text produced by the enabled runtime policy even when a resource limit makes
-the diagnostic incomplete. They do not force formatting callers to interpret a
-completion reason that they cannot act on. Program logic that needs completeness
-must call the runtime API and inspect its summary explicitly.
-
-Installing a disabled application default is an intentional process-wide
-debugging escape hatch and makes subsequent generated `Debug`, `Display`, and
-`Serialize` calls restore source values. The framework does not authorize that
-choice; callers own its environment controls, timing, and confidentiality
-consequences. Explicit runtime redactors, composers, and batches keep the policy
-snapshot with which they were created.
-
-For parsed JSON that must remain borrowed and unchanged, use the runtime API
-`Redactor::redact_json_value(&serde_json::Value)` or
-`Redactor::inspect_json_value(&serde_json::Value)`.
+`RedactScalar` requires exactly one scalar field and supports named/tuple structs and nested
+scalar wrappers. It generates no ordinary Debug, Display, or Serialize and selects no sensitivity.
+Containers are not scalar inner fields. Third-party types use `#[redact(level = "secret", display)]`.
 
 ## Learn More
 
-See the [English user guide](../doc/user_guide.md), [中文用户手册](../doc/user_guide.zh_CN.md),
-[API documentation](https://docs.rs/qubit-redact-derive), and the
-[runtime crate](https://github.com/qubit-ltd/rs-redact).
+See the [English user guide](../doc/user_guide.md), [Chinese user guide](../doc/user_guide.zh_CN.md),
+and [runtime README](../README.md) for budgets, Serde compatibility, snapshots, and disabled policy.
 
 ## Testing
 

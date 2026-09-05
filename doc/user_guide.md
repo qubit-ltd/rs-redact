@@ -1,185 +1,188 @@
 # qubit-redact User Guide
 
-[README](../README.md) · [中文用户手册](user_guide.zh_CN.md) · [Design](design.md) · [Derive README](../derive/README.md)
+[README](../README.md) · [Chinese guide](user_guide.zh_CN.md) · [derive guide](../derive/README.md)
 
 ## Purpose and Audience
 
-This guide covers `qubit-redact` 0.6 for application and library authors who
-need bounded diagnostic output without changing the source value. Use it when
-values may reach logs, errors, or support tooling and the application must
-decide which fields are sensitive. It does not protect output that bypasses the
-runtime or erase source memory.
+For application and library authors using qubit-redact 0.6. Start with business serialization
+and diagnostic logging, then configure domain types, input formats, and budgets.
 
-## Conceptual Model
+## Installation and Scenario: Login Diagnostics
 
-`Redactor` owns an immutable policy snapshot. A composer or batch starts one
-bounded rendering transaction and publishes owned text plus a summary:
-
-```text
-borrowed value -> policy decision + transaction budget
-                  -> composer: RedactionTextOutput
-                  -> batch: handles + fail-closed diagnostics
-                  -> inspection: Result<RedactionInspection, Error>
-```
-
-Single-value conveniences and composers return `RedactionTextOutput`. Batches
-publish independently addressable diagnostic text through opaque handles;
-inspection returns a non-rendering `Result`. Every rendered operation carries
-safe text and a `RedactionSummary`. With redaction enabled, text published as `Complete`,
-`Truncated`, or `Exhausted` remains confidentiality-safe. The latter two states
-mean that diagnostic information is incomplete, not that the text leaked its
-source. `Debug`, `Display`, and ordinary diagnostic logging can therefore use
-`output.text()` directly; forcing those callers to branch on a reason would not
-give them a meaningful recovery action.
-
-Inspect `completion()` and `reasons()` when completeness itself affects audit,
-retry, program logic, or a structured output contract. Such callers can use
-`complete_text()` / `into_complete_text()` to reject incomplete results, or
-`text_or_marker()` / `into_text_or_marker()` to select a presentation fallback.
-`Truncated` retains a safe admitted representation; `Exhausted` means the
-shared budget could not retain a complete replacement. Reasons identify parser
-and budget degradation, including invalid JSON, form, and multipart data.
-
-## Scenario: publish login diagnostics without a password
-
-An authentication service wants to include a user name and a password-bearing
-request field in one diagnostic event. The user name must remain visible, the
-password must not appear in output, and a budget failure must use one known
-fallback. A batch gives every related value the same policy and budget:
-
-```rust
-use qubit_redact::Redactor;
-
-let mut batch = Redactor::standard().batch();
-let user = batch.redact_field("user", "ada");
-let password = batch.redact_field("password", "raw-password");
-let output = batch.finish_for_diagnostics("<redaction incomplete>");
-
-assert_eq!(output.text(user).as_str(), "ada");
-assert!(!output.text(password).as_str().contains("raw-password"));
-```
-
-`finish_for_diagnostics()` maps an incomplete item, an invalid item, and a
-handle from another batch to the same escaped marker without returning
-`Result`. This deliberately keeps diagnostic presentation fail-closed instead
-of exposing a parallel fallible publication model.
-
-## Installation and Minimal Configuration
-
-Add the crate, then opt into only the integrations used by the application:
+This dependency configuration supports every example in this section.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6" }
+qubit-redact = { version = "0.6", features = ["derive", "serde", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 ```
 
-The default feature set is empty. Enable `derive` for `#[derive(Redact)]` and
-also enable `serde` when derived fields use generated serialization adapters.
-Enable `serde` directly for redacted serialization, and the `json`, `http`, or `uri` feature
-only when the corresponding input format is needed.
+```rust
+use qubit_redact::{Redact, Redactor};
 
-## Core Workflow
+#[derive(Redact, serde::Serialize)]
+#[redact(crate = qubit_redact)]
+#[redact(serialize, debug)]
+struct Login {
+    user: String,
+    #[redact(level = "secret")]
+    password: String,
+}
 
-### Render a domain value
+let login = Login { user: "ada".into(), password: "raw-secret".into() };
+let redactor = Redactor::standard();
+let view = redactor.redact_view(&login);
+assert!(!format!("{view}").contains("raw-secret"));
+assert!(!format!("{login:?}").contains("raw-secret"));
+let json = redactor.to_json(&login).expect("redacted JSON");
+assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
+assert!(serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+let output = redactor.redact_text(&login);
+assert!(!output.text().as_str().contains("raw-secret"));
+```
 
-Implement the small runtime trait, or derive it in a downstream crate:
+## Outputs and View Semantics
+
+| Entry point | Result | Execution |
+| --- | --- | --- |
+| `redact_view(&value)` | `RedactedView<'a, T>` | On each formatting/serialization call |
+| `redact_text(&value)` | `RedactionTextOutput` | Immediately, with final text and summary |
+| `to_json(&value)` | `Result<String, serde_json::Error>` | Immediately serializes the view |
+
+A view borrows the source and owns a policy snapshot; it is not a modified business object
+or cached source content. Each use starts from the source with an independent budget, never
+from the previous mask. It supports Display/Debug; structured serialization requires
+`RedactSerialize` and never falls back to a Debug string. Interior-mutable sources can change
+between uses; the policy remains fixed at view creation.
+
+`redact_text()` produces `output.text()` that can be displayed without another redaction pass.
+`to_json()` is equivalent to `serde_json::to_string(&redactor.redact_view(&value))` and propagates
+serialization errors. It follows domain annotations; `redact_json(text)` parses input JSON and
+classifies JSON keys.
+
+## Domain Types and Field Reference
+
+| Field attribute | Meaning / supported values |
+| --- | --- |
+| None | Ordinary `Debug`; ordinary `Serialize` for structured output. |
+| `level = "low"/"medium"/"high"/"secret"` | Final level for each leaf; primitive scalars, `RedactScalar` and recursive supported containers. |
+| `level = "...", display` | Explicit textual representation of a `Display` value; no `Debug` or ordinary `Serialize` required. |
+| `skip` | Omit while enabled; disabled restores the field. |
+| `nested` | Delegate to `Redact`; structured output also requires `RedactSerialize`. |
+| `map` | `HashMap`/`BTreeMap` with `String`, `&str`, or `Cow<str>` keys, optionally wrapped in `Option`; values require level capability and `Debug` for pass-through text. |
+| `map_key_level = "..."` | Fixed level for each map key; values remain ordinary. |
+| `map_key_level = "...", map_value_level = "..."` | Independently fixed key and value levels. |
+| `keyed_by = key` | Classify by a sibling `AsRef<str>` key on a named field; value requires level capability and `Debug`. |
+| `json` | JSON `String`/`str`/`Cow<str>`, parsed `serde_json::Value`, references and `Option`; requires `json`. |
+
+Container attributes: `debug`, `display`, `serialize`, `serde`, `transparent`, and `crate = path`.
+`serialize` generates only `RedactSerialize`; `serde` additionally implements ordinary `Serialize`.
+Choose one, not both. Both require the runtime `serde` feature and a direct Serde dependency.
+`transparent` requires exactly one field and delegates its representation; it does not declare scalar capability.
+Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` together with `serde`.
+
+Built-in level leaves include strings, characters, booleans, integers, floats, and BigDecimal
+with `serde`. Level containers include references, Option, Vec, slices, arrays, Box/Rc/Arc,
+VecDeque, LinkedList, sets, heaps, standard maps, and tuples up to 12 elements. Ordinary level
+mode masks map values and retains keys; use the key-level attributes when needed. Pass-through
+text maps and keyed_by require Debug; level-only RedactScalar fields do not.
+
+Serde supports rename/rename_all, enum tag/content/untagged, transparent, skip, skip_serializing,
+and skip_serializing_if. with/serialize_with work on ordinary or skipped fields, not on sensitive
+modes observing raw field state. flatten is unsupported. JSON text fields retain their string
+wire type; parsed Value fields retain JSON structure.
+
+### Scalar Newtypes
 
 ```rust
-use qubit_redact::{Redact, RedactionWriter, Redactor, Sensitivity};
+use qubit_redact::{Redact, RedactScalar, Redactor};
 
-struct Login { user: String, password: String }
+#[derive(RedactScalar)]
+#[redact(crate = qubit_redact)]
+struct Id(u64);
 
-impl Redact for Login {
-    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
-        writer.record("Login", |fields| {
-            fields.unmarked("user", || self.user.as_str());
-            fields.sensitive(Sensitivity::Secret, "password", || self.password.as_str());
-        });
+#[derive(RedactScalar)]
+#[redact(crate = qubit_redact)]
+struct UserId { value: String }
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact)]
+#[redact(serialize)]
+struct Account {
+    #[redact(level = "secret")]
+    id: Id,
+    #[redact(level = "secret")]
+    user_id: UserId,
+}
+
+let account = Account { id: Id(42), user_id: UserId { value: "raw-id".into() } };
+assert_eq!(Redactor::standard().to_json(&account).expect("account JSON"),
+    r#"{"id":"<redacted>","user_id":"<redacted>"}"#);
+```
+
+### Third-Party Display Types
+
+Select textual representation explicitly. High/Secret do not invoke Display; Low/Medium and
+disabled policies format only when needed, under the resource budget. Disabled mode retains
+the explicitly selected string representation.
+
+```rust
+use qubit_redact::{Redact, Redactor};
+
+struct ExternalId(u64);
+impl std::fmt::Display for ExternalId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self(value) = self;
+        write!(f, "external-{value}")
     }
 }
 
-let login = Login { user: "ada".into(), password: "raw".into() };
-let output = Redactor::standard().redact(&login);
-assert!(!output.text().as_str().contains("raw"));
-assert_eq!(login.password, "raw");
+#[derive(Redact)]
+#[redact(crate = qubit_redact)]
+#[redact(serialize)]
+struct Event {
+    #[redact(level = "secret", display)]
+    id: ExternalId,
+}
+let event = Event { id: ExternalId(42) };
+assert_eq!(Redactor::standard().to_json(&event).expect("event JSON"),
+    r#"{"id":"<redacted>"}"#);
 ```
 
-Use `Redactor::new(policy)` when a subsystem needs an explicit policy. The
-runtime has no mutable redaction API and does not provide memory zeroization.
+### Levels and Policy Precedence
 
-### Choose field scopes
+| Decision source | Can runtime policy raise the level? |
+| --- | --- |
+| Derived level, Display level, map key/value level | No: the explicit level is final |
+| Manual fields.sensitive(level, ...) | Yes: the argument is a minimum |
+| map, keyed_by, redact_field | Classified by runtime rules |
+| Unmarked fields and unmarked | No classification; ordinary output |
 
-`RedactionWriter` exposes explicit field decisions:
+Default Low retains two leading and two trailing characters, fully hiding short strings;
+Medium retains one trailing character; High emits `****`; Secret emits `<redacted>`.
+For example, `abcdef` becomes `ab****ef` at Low and `*******f` at Medium.
+Business types choose the correct level; strict policy does not override explicit declarations.
 
-- `unmarked(name, access)` renders a reviewed ordinary value;
-- `sensitive(level, name, access)` applies a sensitivity mask;
-- `nested(name, value)` delegates to another `Redact` implementation;
-- `map(name, value)` applies key-aware handling to supported maps;
-- `keyed_value(name, key, value)` classifies one field value by a sibling
-  runtime key, using the same policy semantics as a map entry;
-- `json(name, value)` applies recursive JSON handling;
-- `skipped(name, access)` omits a field without rendering its value.
+### Sharing a Budget Across Values
 
-Each operation participates in the same output budget and summary. Unmarked
-fields are intentionally passed through because sensitivity is a property of
-the downstream business domain, not something a generic framework can infer
-from a Rust type, field name, or current contents. Ordinary fields are the vast
-majority, so requiring an explicit "not sensitive" annotation on all of them
-would add noise without adding knowledge. Downstream code must explicitly mark
-fields that can contain sensitive data and repeat that review when its domain
-model changes. Strict policy and inspection deliberately do not override that
-domain decision.
-
-An explicit `#[redact(level = "...")]` is the final field sensitivity for text,
-inspection and Serde. Runtime name rules, sensitivity floors and strict mode
-do not override it. `sensitive_value` follows the same rule; the manual
-`sensitive` API instead specifies a minimum sensitivity. Disabled policy
-bypasses masking but retains resource limits.
-
-Use `keyed_value` or the lazy Debug accessor `keyed(name, key, access)` for
-runtime business names. `NamedValue` and `NamedMultiValues` classify payloads
-by their actual `name`, independently of the display field name.
-
-Use sequence/map builders' `for_each(values, callback)` to stop before pulling
-or formatting a rejected item. A builder cannot stop the caller's manual loop.
-For iterators with an unknown upper bound, exhausting the item budget reports
-truncation conservatively without probing another item.
-
-Serde shares depth, node, collection-item, input-byte and scalar-output-byte
-budgets across nested values, including ordinary fields, map keys, disabled
-output and custom serializers. Rejected ordinary values return serializer
-errors; marked values may emit an opaque fallback if it fits. Custom
-serializers run once and must propagate serializer errors. Output admission
-counts scalar payload bytes, excluding punctuation, field labels and escaping.
-Bound the destination writer separately for a hard limit on final encoded
-bytes. Reentrant ordinary serializers that invoke another redacting serializer
-share the caller's allowance and may conservatively charge intermediate values
-again. Custom formatter/serializer code is trusted and cannot be preempted.
-
-Scalar field APIs accept lazy `Display` values. A `High` or `Secret` decision
-happens before formatting, so rejected content is never formatted. A
-Debug-only value can be supplied through `format_args!`:
+HTTP URL/headers/body or process argv/env often belong to one diagnostic event. Batch operations
+share one budget; separate one-shot calls and repeated view uses each get their own budget.
+Items consume allowance in insertion order, so earlier items can exhaust resources needed by
+later ones. `finish_for_diagnostics(marker)` returns one escaped marker for incomplete items
+and invalid/foreign handles. `summary()` is aggregate accounting, not per-item auditing.
 
 ```rust
-use std::fmt;
-
 use qubit_redact::Redactor;
-
-struct Request;
-
-impl fmt::Debug for Request {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("reviewed-debug-view")
-    }
-}
-
-let request = Request;
-let output = Redactor::strict().redact_field(
-    "request",
-    &format_args!("{request:?}"),
-);
-assert!(!output.text().as_str().is_empty());
+let mut batch = Redactor::standard().batch();
+let user = batch.redact_field("user", "ada");
+let password = batch.redact_field("password", "raw-secret");
+let output = batch.finish_for_diagnostics("<incomplete>");
+assert_eq!(output.text(user).as_str(), "ada");
+assert_eq!(output.text(password).as_str(), "<redacted>");
 ```
+
+## Input Formats and Integrations
 
 ### Render other formats
 
@@ -309,7 +312,8 @@ assert!(!output.text().as_str().contains("raw-"));
 
 | Feature | Adds |
 | --- | --- |
-| `derive` | `#[derive(Redact)]` |
+| `derive` | `#[derive(Redact)]
+#[redact(crate = qubit_redact)]` |
 | `serde` | generated/domain structured Serde adapters and BigDecimal support |
 | `json` | JSON text and borrowed `serde_json::Value` handling |
 | `http` | JSON plus URL, headers, form, multipart, and body capture |
