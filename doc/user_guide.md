@@ -130,6 +130,32 @@ fields that can contain sensitive data and repeat that review when its domain
 model changes. Strict policy and inspection deliberately do not override that
 domain decision.
 
+An explicit `#[redact(level = "...")]` is the final field sensitivity for text,
+inspection and Serde. Runtime name rules, sensitivity floors and strict mode
+do not override it. `sensitive_value` follows the same rule; the manual
+`sensitive` API instead specifies a minimum sensitivity. Disabled policy
+bypasses masking but retains resource limits.
+
+Use `keyed_value` or the lazy Debug accessor `keyed(name, key, access)` for
+runtime business names. `NamedValue` and `NamedMultiValues` classify payloads
+by their actual `name`, independently of the display field name.
+
+Use sequence/map builders' `for_each(values, callback)` to stop before pulling
+or formatting a rejected item. A builder cannot stop the caller's manual loop.
+For iterators with an unknown upper bound, exhausting the item budget reports
+truncation conservatively without probing another item.
+
+Serde shares depth, node, collection-item, input-byte and scalar-output-byte
+budgets across nested values, including ordinary fields, map keys, disabled
+output and custom serializers. Rejected ordinary values return serializer
+errors; marked values may emit an opaque fallback if it fits. Custom
+serializers run once and must propagate serializer errors. Output admission
+counts scalar payload bytes, excluding punctuation, field labels and escaping.
+Bound the destination writer separately for a hard limit on final encoded
+bytes. Reentrant ordinary serializers that invoke another redacting serializer
+share the caller's allowance and may conservatively charge intermediate values
+again. Custom formatter/serializer code is trusted and cannot be preempted.
+
 Scalar field APIs accept lazy `Display` values. A `High` or `Secret` decision
 happens before formatting, so rejected content is never formatted. A
 Debug-only value can be supplied through `format_args!`:
