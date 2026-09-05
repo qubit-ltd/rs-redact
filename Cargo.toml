@@ -46,7 +46,7 @@ uri = ["dep:fluent-uri"]
 [dependencies]
 qubit-budget = "0.5"
 bigdecimal = { version = "0.4", optional = true, features = ["serde"] }
-qubit-json = { version = "0.8", optional = true }
+qubit-json = { version = "0.9", optional = true }
 form_urlencoded = { version = "1.2", optional = true }
 fluent-uri = { version = "0.4.1", optional = true }
 http = { version = "1.5", optional = true }
