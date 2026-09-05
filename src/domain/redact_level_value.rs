@@ -31,6 +31,7 @@ mod private {
 /// Capability implemented only for values supported by `level`.
 #[doc(hidden)]
 pub trait RedactLevelValue: private::Sealed + Debug {
+    /// Writes this supported value through the supplied sensitivity level.
     #[doc(hidden)]
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity);
 }

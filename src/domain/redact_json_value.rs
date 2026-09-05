@@ -18,6 +18,7 @@ mod private {
 /// Marker capability implemented only for supported JSON text values.
 #[doc(hidden)]
 pub trait RedactJsonValue: private::Sealed {
+    /// Writes this supported JSON text value through the named field scope.
     #[doc(hidden)]
     fn write_redacted_json(&self, fields: &mut RedactionFields<'_, '_>, name: &str);
 }
