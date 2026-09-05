@@ -295,7 +295,10 @@ impl<'session> RedactionWriter<'session> {
         self.write_fragment(name);
         self.write_fragment(opening);
         if self.can_write() {
-            configure(&mut RedactionItems { writer: self });
+            configure(&mut RedactionItems {
+                writer: self,
+                admitted_item: false,
+            });
         }
         if self.can_write() {
             self.trim_trailing_separator();
@@ -321,7 +324,10 @@ impl<'session> RedactionWriter<'session> {
         self.write_fragment(name);
         self.write_fragment(opening);
         if self.can_write() {
-            configure(&mut RedactionEntries { writer: self });
+            configure(&mut RedactionEntries {
+                writer: self,
+                admitted_entry: false,
+            });
         }
         if self.can_write() {
             self.trim_trailing_separator();
