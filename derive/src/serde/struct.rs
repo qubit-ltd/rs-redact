@@ -209,6 +209,7 @@ fn named_struct_body(
                 field_count += 1;
             }
         )*
+        #runtime::domain::internal::admit_serializer_items(&serializer, field_count)?;
         let mut state = #serde::Serializer::serialize_struct(
             serializer,
             #serialized_name,
@@ -351,6 +352,7 @@ fn tuple_struct_body(
                 field_count += 1;
             }
         )*
+        #runtime::domain::internal::admit_serializer_items(&serializer, field_count)?;
         let mut state = #serde::Serializer::serialize_tuple_struct(
             serializer,
             #serialized_name,

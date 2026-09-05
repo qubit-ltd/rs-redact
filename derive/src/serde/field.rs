@@ -93,9 +93,12 @@ pub(super) fn serialized_carrier(
             Some(_) => {
                 let helper = adapter_helper_name(type_name, field, context);
                 let raw = access.raw;
-                quote_spanned!(field.span()=> #helper(#raw))
+                quote_spanned!(field.span()=> #runtime::domain::internal::BudgetSerialize::new(#helper(#raw)))
             }
-            None => access.raw,
+            None => {
+                let raw = access.raw;
+                quote_spanned!(field.span()=> #runtime::domain::internal::BudgetSerialize::new(#raw))
+            }
         },
         FieldMode::Level(sensitivity) => {
             let level = sensitivity.runtime_tokens(runtime);

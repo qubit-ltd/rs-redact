@@ -38,14 +38,14 @@ where
     let masked = || policy.masking().mask_opaque(crate::Sensitivity::Secret);
     if !admit_input(text.len()) {
         let replacement = masked();
-        return serializer.serialize_str(replacement.as_ref());
+        return super::redact_serialize_scope::serialize_payload(serializer, replacement);
     }
     if policy.is_disabled() {
-        return serializer.serialize_str(text);
+        return super::redact_serialize_scope::serialize_payload(serializer, text);
     }
     if text.len() > policy.limits().max_input_bytes() {
         let replacement = masked();
-        return serializer.serialize_str(replacement.as_ref());
+        return super::redact_serialize_scope::serialize_payload(serializer, replacement);
     }
     let limits = JsonDecodeLimits::builder()
         .max_input_bytes(policy.limits().max_input_bytes())
@@ -53,14 +53,18 @@ where
         .build();
     let Ok(value) = JsonDecoder::with_limits(limits).decode_str::<serde_json::Value>(text) else {
         let replacement = masked();
-        return serializer.serialize_str(replacement.as_ref());
+        return super::redact_serialize_scope::serialize_payload(serializer, replacement);
     };
     if !admit_structured_json_value(&value) {
         let replacement = masked();
-        return serializer.serialize_str(replacement.as_ref());
+        return super::redact_serialize_scope::serialize_payload(serializer, replacement);
     }
-    let output = crate::formats::json::redact_json_value_with_limit(policy, &value, usize::MAX);
-    serializer.serialize_str(output.text())
+    let output = crate::formats::json::redact_json_value_with_limit(
+        policy,
+        &value,
+        super::redact_serialize_scope::remaining_output_bytes(),
+    );
+    super::redact_serialize_scope::serialize_payload(serializer, output.text())
 }
 
 /// Admits every node and item in a parsed JSON value.

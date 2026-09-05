@@ -16,6 +16,8 @@ pub(super) struct StructuredSerdeBudget {
     pub(super) policy_identity: usize,
     /// Limits copied from the active redaction policy.
     pub(super) policy: crate::policy::RedactionLimits,
+    /// Active ordinary serializers pinning this budget across nested policies.
+    pub(super) raw_serializers: usize,
     /// Current structured traversal depth.
     pub(super) depth: usize,
     /// Structural nodes admitted so far.
@@ -24,4 +26,6 @@ pub(super) struct StructuredSerdeBudget {
     pub(super) collection_items: usize,
     /// Input bytes admitted so far.
     pub(super) input_bytes: usize,
+    /// Scalar payload bytes passed to the downstream serializer.
+    pub(super) output_bytes: usize,
 }

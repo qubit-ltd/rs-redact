@@ -118,7 +118,7 @@ For parsed JSON that must remain borrowed and unchanged, use the runtime API
 
 ## Learn More
 
-See the [English user guide](doc/user_guide.md), [中文用户手册](doc/user_guide.zh_CN.md),
+See the [English user guide](../doc/user_guide.md), [中文用户手册](../doc/user_guide.zh_CN.md),
 [API documentation](https://docs.rs/qubit-redact-derive), and the
 [runtime crate](https://github.com/qubit-ltd/rs-redact).
 

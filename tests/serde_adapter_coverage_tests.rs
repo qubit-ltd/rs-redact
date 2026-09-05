@@ -114,6 +114,10 @@ fn test_internally_tagged_adapter_rejects_every_non_map_serde_shape() {
 /// forward their entries to the underlying serializer.
 #[test]
 fn test_internally_tagged_adapter_injects_tag_into_maps_and_structs() {
+    use qubit_redact::RedactionPolicy;
+    use qubit_redact::domain::internal::RedactSerializeScope;
+    let policy = RedactionPolicy::standard();
+    let _scope = RedactSerializeScope::new(&policy);
     let map = BTreeMap::from([("value", 7_u8)]);
     let encoded_map = serialize_internally_tagged(
         serde_json::value::Serializer,

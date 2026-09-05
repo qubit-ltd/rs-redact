@@ -165,9 +165,9 @@ impl<K: Debug + Eq + Hash, V: RedactLevelValue> private::Sealed for HashMap<K, V
 impl<K: Debug + Eq + Hash, V: RedactLevelValue> RedactLevelValue for HashMap<K, V> {
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         writer.map(|entries| {
-            for (key, value) in self {
-                entries.level_value_entry(&format!("{key:?}"), value, level);
-            }
+            entries.for_each(self, |entries, (key, value)| {
+                entries.level_value_entry(key, value, level);
+            });
         });
     }
 }
@@ -175,9 +175,9 @@ impl<K: Debug + Ord, V: RedactLevelValue> private::Sealed for BTreeMap<K, V> {}
 impl<K: Debug + Ord, V: RedactLevelValue> RedactLevelValue for BTreeMap<K, V> {
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         writer.map(|entries| {
-            for (key, value) in self {
-                entries.level_value_entry(&format!("{key:?}"), value, level);
-            }
+            entries.for_each(self, |entries, (key, value)| {
+                entries.level_value_entry(key, value, level);
+            });
         });
     }
 }
@@ -198,9 +198,9 @@ where
     T: RedactLevelValue + 'value,
     I: IntoIterator<Item = &'value T>,
 {
-    for value in values {
+    items.for_each(values, |items, value| {
         items.level_value(value, level);
-    }
+    });
 }
 
 macro_rules! tuple {

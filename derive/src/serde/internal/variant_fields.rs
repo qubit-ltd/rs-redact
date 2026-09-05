@@ -49,19 +49,28 @@ pub(super) fn enum_named_parts(
     container_attributes: &SerdeContainerAttributes,
     variant: &VariantData<'_>,
 ) -> (TokenStream, Vec<TokenStream>, Vec<TokenStream>, Vec<String>, Vec<Ident>) {
-    let patterns = fields.iter().map(|parsed| {
+    let bindings = fields
+        .iter()
+        .enumerate()
+        .map(|(position, parsed)| format_ident!("__qubit_redact_field_{position}", span = parsed.field().span()))
+        .collect::<Vec<_>>();
+    let patterns = fields.iter().zip(&bindings).map(|(parsed, binding)| {
         let identifier = parsed.identifier();
-        if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
+        let used_as_key = fields.iter().any(|field| {
+            !field_is_skipped(field.attributes().mode(), field.serde_attributes())
+                && matches!(field.attributes().mode(), FieldMode::KeyedBy(key) if key == identifier)
+        });
+        if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) && !used_as_key {
             quote!(#identifier: _)
         } else {
-            quote!(#identifier)
+            quote!(#identifier: #binding)
         }
     });
     let mut setups = Vec::new();
     let mut conditions = Vec::new();
     let mut names = Vec::new();
     let mut carriers = Vec::new();
-    for (position, parsed) in fields.iter().enumerate() {
+    for (position, (parsed, binding)) in fields.iter().zip(&bindings).enumerate() {
         if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
             continue;
         }
@@ -71,9 +80,16 @@ pub(super) fn enum_named_parts(
         let container_name = container_attributes.rename_variant_field(&raw_name);
         let default_name = variant.serde_attributes().rename_field(&raw_name, container_name);
         let serialized_name = parsed.serde_attributes().rename().map_or(default_name, str::to_owned);
-        let raw = quote_spanned!(field.span()=> #identifier);
+        let raw = quote_spanned!(field.span()=> #binding);
         let key_raw = match parsed.attributes().mode() {
-            FieldMode::KeyedBy(key) => Some(quote_spanned!(field.span()=> #key)),
+            FieldMode::KeyedBy(key) => {
+                let position = fields
+                    .iter()
+                    .position(|candidate| candidate.identifier() == key)
+                    .expect("keyed_by sibling was validated");
+                let key_binding = &bindings[position];
+                Some(quote_spanned!(field.span()=> #key_binding))
+            }
             _ => None,
         };
         let context = field_context(Some(variant_name), Some(variant.index()), &raw_name);

@@ -207,16 +207,30 @@ fn writer_enum_body(variants: &[VariantData<'_>], runtime: &Path) -> TokenStream
         let variant_name = &variant.variant().ident;
         match variant.fields() {
             FieldsData::Named(fields) => {
-                let patterns = fields.iter().map(|field| {
+                let bindings = fields
+                    .iter()
+                    .enumerate()
+                    .map(|(position, field)| {
+                        format_ident!("__qubit_redact_field_{position}", span = field.field().span())
+                    })
+                    .collect::<Vec<_>>();
+                let patterns = fields.iter().zip(&bindings).map(|(field, binding)| {
                     let identifier = field.identifier();
-                    quote!(#identifier)
+                    quote!(#identifier: #binding)
                 });
-                let calls = fields.iter().filter_map(|field| {
+                let calls = fields.iter().zip(&bindings).filter_map(|(field, binding)| {
                     let identifier = field.identifier();
                     let field_name = identifier.to_string();
                     let context = variant_field_context(variant.index(), variant_name, &field_name);
                     let key_access = match field.attributes().mode() {
-                        FieldMode::KeyedBy(key) => Some(quote!(#key)),
+                        FieldMode::KeyedBy(key) => {
+                            let position = fields
+                                .iter()
+                                .position(|candidate| candidate.identifier() == key)
+                                .expect("keyed_by sibling was validated");
+                            let key_binding = &bindings[position];
+                            Some(quote!(#key_binding))
+                        }
                         _ => None,
                     };
                     writer_field_call(
@@ -224,7 +238,7 @@ fn writer_enum_body(variants: &[VariantData<'_>], runtime: &Path) -> TokenStream
                         &field_name,
                         &context,
                         field.attributes().mode(),
-                        quote!(#identifier),
+                        quote!(#binding),
                         key_access,
                         runtime,
                     )
@@ -333,6 +347,17 @@ fn writer_field_call(
     Some(quote_spanned! {field.span()=> #call })
 }
 
+/// Builds a stable diagnostic context name for one enum variant field.
+///
+/// # Parameters
+///
+/// * `variant_index` - Zero-based index of the enum variant.
+/// * `variant_name` - Rust identifier of the enum variant.
+/// * `field_name` - Display name of the field within the variant.
+///
+/// # Returns
+///
+/// A context string combining the variant name, index, and field name.
 fn variant_field_context(variant_index: u32, variant_name: &Ident, field_name: &str) -> String {
     format!("{variant_name}_{variant_index}_{field_name}")
 }
