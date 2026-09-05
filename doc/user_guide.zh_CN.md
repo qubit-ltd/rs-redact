@@ -114,6 +114,27 @@ assert_eq!(login.password, "raw");
 包含敏感数据的字段，并在领域模型变化时重新审查；strict policy 和 inspection 都不会覆盖
 这个领域决策。
 
+显式 `#[redact(level = "...")]` 是字段的最终敏感等级，文本、inspection 和 Serde
+均以它为准。运行时名称规则、敏感等级下限和 strict 模式都不会覆盖它。`sensitive_value`
+遵循同一规则；手写 `sensitive` API 声明的则是最低敏感等级。disabled 跳过脱敏，仍保留
+资源限制。
+
+按运行时业务名称分类时，使用 `keyed_value` 或惰性 Debug 访问器
+`keyed(name, key, access)`。`NamedValue` 和 `NamedMultiValues` 按实际 `name`
+分类，与展示字段名无关。
+
+遍历序列或 Map 时使用构建器的 `for_each(values, callback)`，在取出或格式化被拒绝的
+元素前停止。构建器无法中断调用方的手写循环。迭代器上界未知时，元素预算耗尽会保守地
+报告截断，不再取出额外元素探测是否结束。
+
+Serde 在嵌套值之间共享深度、节点、集合元素、输入字节及标量输出字节预算，覆盖普通
+字段、Map key、disabled 输出和自定义 serializer。无法准入的普通值返回序列化错误；
+标记过的值在预算足够时可以输出不透明替代值。自定义 serializer 只执行一次，且必须
+传播 serializer 错误。输出预算计算标量内容字节，不包含格式标点、字段标签及转义开销。
+若需限制最终编码字节数，还应单独限制目标 writer。普通 serializer 重入另一个脱敏
+serializer 时仍共享调用方预算，中间值可能被保守地重复计费。自定义 formatter/serializer
+仍是受信任代码，预算不能抢占其执行。
+
 标量字段 API 接受惰性的 `Display` 值。运行时先判定敏感等级，再决定是否格式化；因此
 `High` 和 `Secret` 字段不会触发格式化。只有 `Debug` 的值可以借助 `format_args!`：
 
