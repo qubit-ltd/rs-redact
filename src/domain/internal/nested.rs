@@ -29,9 +29,9 @@ impl<T: Redact + ?Sized> Redact for Box<T> {
 impl<T: Redact> Redact for Vec<T> {
     fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
         writer.sequence(|items| {
-            for value in self {
+            items.for_each(self, |items, value| {
                 items.nested_item(value);
-            }
+            });
         });
     }
 }
@@ -39,9 +39,9 @@ impl<T: Redact> Redact for Vec<T> {
 impl<T: Redact, const N: usize> Redact for [T; N] {
     fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
         writer.sequence(|items| {
-            for value in self {
+            items.for_each(self, |items, value| {
                 items.nested_item(value);
-            }
+            });
         });
     }
 }
