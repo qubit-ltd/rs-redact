@@ -1,0 +1,121 @@
+error: Redact serde for `PathAttribute` expects `#[serde(...)]`
+  --> tests/fixtures/fail/invalid_serde_container_attributes.rs:15:1
+   |
+15 | #[serde]
+   | ^^^^^^^^
+
+error: Redact serde for `DuplicateRename` repeats `rename`
+  --> tests/fixtures/fail/invalid_serde_container_attributes.rs:21:27
+   |
+21 | #[serde(rename = "first", rename = "second")]
+   |                           ^^^^^^
+
+error: Redact serde for `DuplicateRenameAll` repeats `rename_all`
+  --> tests/fixtures/fail/invalid_serde_container_attributes.rs:27:35
+   |
+27 | #[serde(rename_all = "camelCase", rename_all = "snake_case")]
+   |                                   ^^^^^^^^^^
+
+error: Redact serde for `StructRenameAllFields` allows `rename_all_fields` only on enums
+  --> tests/fixtures/fail/invalid_serde_container_attributes.rs:36:9
+   |
+36 | #[serde(rename_all_fields = "camelCase")]
+   |         ^^^^^^^^^^^^^^^^^
+
+error: Redact serde for `DuplicateRenameAllFields` repeats `rename_all_fields`
+  --> tests/fixtures/fail/invalid_serde_container_attributes.rs:47:5
+   |
+47 |     rename_all_fields = "snake_case"
+   |     ^^^^^^^^^^^^^^^^^
+
+error: Redact serde for `StructTag` allows `tag` only on enums
+  --> tests/fixtures/fail/invalid_serde_container_attributes.rs:60:9
+   |
+60 | #[serde(tag = "kind")]
+   |         ^^^
+
+error: Redact serde for `StructContent` allows `content` only on enums
+  --> tests/fixtures/fail/invalid_serde_container_attributes.rs:66:9
+   |
+66 | #[serde(content = "payload")]
+   |         ^^^^^^^
+
+error: Redact serde for `StructUntagged` allows `untagged` only on enums
+  --> tests/fixtures/fail/invalid_serde_container_attributes.rs:72:9
+   |
+72 | #[serde(untagged)]
+   |         ^^^^^^^^
+
+error: Redact serde for `AssignedUntagged` requires bare `untagged`
+  --> tests/fixtures/fail/invalid_serde_container_attributes.rs:78:9
+   |
+78 | #[serde(untagged = true)]
+   |         ^^^^^^^^
+
+error: Redact serde for `DuplicateUntagged` repeats `untagged`
+  --> tests/fixtures/fail/invalid_serde_container_attributes.rs:87:19
+   |
+87 | #[serde(untagged, untagged)]
+   |                   ^^^^^^^^
+
+error: Redact serde for `ParenthesizedDefault` requires bare `default` or `default = "..."`
+   --> tests/fixtures/fail/invalid_serde_container_attributes.rs:102:9
+    |
+102 | #[serde(default(factory))]
+    |         ^^^^^^^
+
+error: Redact serde for `AssignedDenyUnknownFields` requires bare `deny_unknown_fields`
+   --> tests/fixtures/fail/invalid_serde_container_attributes.rs:111:9
+    |
+111 | #[serde(deny_unknown_fields = true)]
+    |         ^^^^^^^^^^^^^^^^^^^
+
+error: Redact serde for `DuplicateTag` repeats `tag`
+   --> tests/fixtures/fail/invalid_serde_container_attributes.rs:120:24
+    |
+120 | #[serde(tag = "first", tag = "second")]
+    |                        ^^^
+
+error: Redact serde for `DuplicateContent` repeats `content`
+   --> tests/fixtures/fail/invalid_serde_container_attributes.rs:129:42
+    |
+129 | #[serde(tag = "kind", content = "first", content = "second")]
+    |                                          ^^^^^^^
+
+error: Redact serde for `ContentWithoutTag` requires `tag` when `content` is present
+   --> tests/fixtures/fail/invalid_serde_container_attributes.rs:138:19
+    |
+138 | #[serde(content = "payload")]
+    |                   ^^^^^^^^^
+
+error: Redact serde for `UntaggedWithTag` cannot combine `untagged` with `tag` or `content`
+   --> tests/fixtures/fail/invalid_serde_container_attributes.rs:147:23
+    |
+147 | #[serde(tag = "kind", untagged)]
+    |                       ^^^^^^^^
+
+error: Redact serde for `EqualTagAndContent` requires distinct `tag` and `content` names
+   --> tests/fixtures/fail/invalid_serde_container_attributes.rs:156:33
+    |
+156 | #[serde(tag = "kind", content = "kind")]
+    |                                 ^^^^^^
+
+error: unsupported serde rename_all rule `title-case`; use a standard serde field rename rule
+   --> tests/fixtures/fail/invalid_serde_container_attributes.rs:165:22
+    |
+165 | #[serde(rename_all = "title-case")]
+    |                      ^^^^^^^^^^^^
+
+error: Redact serde for `ConflictingInternalTag` variant `Value` has field `kind` conflicting with the internal tag
+   --> tests/fixtures/fail/invalid_serde_container_attributes.rs:178:9
+    |
+178 | /         /// Conflicts with the internal tag.
+179 | |         kind: String,
+    | |____________________^
+
+error: Redact serde for internally tagged `InternalTagWithTupleVariant` does not allow tuple variants
+   --> tests/fixtures/fail/invalid_serde_container_attributes.rs:188:5
+    |
+188 | /     /// Tuple variants cannot merge the internal tag.
+189 | |     Value(String, String),
+    | |_________________________^

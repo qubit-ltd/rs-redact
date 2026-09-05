@@ -1,0 +1,16 @@
+[package]
+name = "qubit-redact-serde-renamed-fixture"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+qubit-redact = {
+    version = "0.6",
+    path = "../../../../",
+    features = ["serde"],
+}
+qubit-redact-derive = { version = "0.6", path = "../../../../derive" }
+serialization = { package = "serde", version = "1" }

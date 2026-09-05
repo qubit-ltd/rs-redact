@@ -1,0 +1,41 @@
+error: Redact serde for `PathAttribute` variant `Value` expects `#[serde(...)]`
+  --> tests/fixtures/fail/invalid_serde_variant_attributes.rs:17:5
+   |
+17 |     #[serde]
+   |     ^^^^^^^^
+
+error: Redact serde for `DuplicateRename` variant `Value` repeats `rename`
+  --> tests/fixtures/fail/invalid_serde_variant_attributes.rs:26:31
+   |
+26 |     #[serde(rename = "first", rename = "second")]
+   |                               ^^^^^^
+
+error: Redact serde for `DuplicateRenameAll` variant `Value` repeats `rename_all`
+  --> tests/fixtures/fail/invalid_serde_variant_attributes.rs:35:39
+   |
+35 |     #[serde(rename_all = "camelCase", rename_all = "snake_case")]
+   |                                       ^^^^^^^^^^
+
+error: Redact serde for `AssignedSkip` variant `Value` requires a bare skip attribute
+  --> tests/fixtures/fail/invalid_serde_variant_attributes.rs:47:13
+   |
+47 |     #[serde(skip = true)]
+   |             ^^^^
+
+error: Redact serde for `AssignedSkipDeserializing` variant `Value` requires a bare deserialization-only control
+  --> tests/fixtures/fail/invalid_serde_variant_attributes.rs:56:13
+   |
+56 |     #[serde(skip_deserializing = true)]
+   |             ^^^^^^^^^^^^^^^^^^
+
+error: Redact serde for `DuplicateSkip` variant `Value` repeats a skip attribute
+  --> tests/fixtures/fail/invalid_serde_variant_attributes.rs:65:19
+   |
+65 |     #[serde(skip, skip_serializing)]
+   |                   ^^^^^^^^^^^^^^^^
+
+error: Redact serde for `UnsupportedControl` variant `Value` does not support `other` because it can change value paths or bypass redaction; use only `rename`, `rename_all`, `skip`, `skip_serializing`, or deserialization-only controls such as `alias` and `skip_deserializing`
+  --> tests/fixtures/fail/invalid_serde_variant_attributes.rs:74:13
+   |
+74 |     #[serde(other)]
+   |             ^^^^^

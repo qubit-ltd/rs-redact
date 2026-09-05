@@ -1,0 +1,15 @@
+error[E0277]: the trait bound `u32: AsRef<str>` is not satisfied
+ --> tests/fixtures/fail/keyed_by_wrong_key.rs:3:10
+  |
+3 | #[derive(Redact)]
+  |          ^^^^^^ the trait `AsRef<str>` is not implemented for `u32`
+  |
+note: required by a bound in `RedactionFields::<'writer, 'session>::keyed_value`
+ --> src/domain/redaction_fields.rs
+  |
+  |     pub fn keyed_value<K, T>(&mut self, name: &str, key: &K, value: &T) -> &mut Self
+  |            ----------- required by a bound in this associated function
+  |     where
+  |         K: AsRef<str> + ?Sized,
+  |            ^^^^^^^^^^ required by this bound in `RedactionFields::<'writer, 'session>::keyed_value`
+  = note: this error originates in the derive macro `Redact` (in Nightly builds, run with -Z macro-backtrace for more info)

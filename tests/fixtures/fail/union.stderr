@@ -1,0 +1,11 @@
+error: Redact cannot be derived for unions
+  --> tests/fixtures/fail/union.rs:12:1
+   |
+12 | / /// Unsupported union shape.
+13 | | #[derive(Redact)]
+14 | | union Value {
+15 | |     /// Integer representation.
+...  |
+18 | |     float: f64,
+19 | | }
+   | |_^

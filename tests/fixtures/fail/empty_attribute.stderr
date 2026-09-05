@@ -1,0 +1,5 @@
+error: Redact derive for `Record` field `value`: empty `#[redact()]` is not allowed; choose `level = "..."`, `skip`, `nested`, `map`, `keyed_by = key`, or `json`
+  --> tests/fixtures/fail/empty_attribute.rs:16:5
+   |
+16 |     #[redact()]
+   |     ^^^^^^^^^^^

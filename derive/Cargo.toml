@@ -1,0 +1,33 @@
+[package]
+name = "qubit-redact-derive"
+version = "0.6.0"
+edition = "2024"
+rust-version = "1.94"
+authors = ["Haixing Hu <starfish.hu@gmail.com>"]
+license = "Apache-2.0"
+repository = "https://github.com/qubit-ltd/rs-redact"
+homepage = "https://github.com/qubit-ltd/rs-redact"
+documentation = "https://docs.rs/qubit-redact-derive"
+readme = "README.md"
+description = "Derive macros for qubit-redact domain-object formatting"
+keywords = ["redact", "mask", "privacy", "derive", "qubit"]
+categories = ["development-tools::procedural-macro-helpers"]
+include = [
+    "/Cargo.toml",
+    "/LICENSE",
+    "/README.md",
+    "/README.zh_CN.md",
+    "/src/**",
+]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro-crate = "3"
+proc-macro2 = "1"
+quote = "1"
+syn = "2"

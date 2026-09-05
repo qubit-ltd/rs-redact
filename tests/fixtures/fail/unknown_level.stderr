@@ -1,0 +1,5 @@
+error: Redact derive for `Account` field `password` has unknown level `Secret`; use one of `low`, `medium`, `high`, or `secret`
+  --> tests/fixtures/fail/unknown_level.rs:16:22
+   |
+16 |     #[redact(level = "Secret")]
+   |                      ^^^^^^^^
