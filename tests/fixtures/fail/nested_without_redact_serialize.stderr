@@ -1,13 +1,13 @@
 error[E0277]: the trait bound `Child: RedactSerialize` is not satisfied
-  --> tests/fixtures/fail/nested_without_redact_serialize.rs:13:10
+  --> tests/fixtures/fail/nested_without_redact_serialize.rs:21:10
    |
-13 | #[derive(Redact)]
+21 | #[derive(Redact)]
    |          ^^^^^^ unsatisfied trait bound
    |
 help: the trait `RedactSerialize` is not implemented for `Child`
-  --> tests/fixtures/fail/nested_without_redact_serialize.rs:5:1
+  --> tests/fixtures/fail/nested_without_redact_serialize.rs:13:1
    |
- 5 | struct Child;
+13 | struct Child;
    | ^^^^^^^^^^^^
    = help: the following other types implement trait `RedactSerialize`:
              (A, B)

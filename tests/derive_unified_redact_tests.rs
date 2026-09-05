@@ -1,3 +1,11 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
 //! Runtime coverage for the unified borrowing `Redact` derive.
 
 #![cfg(feature = "derive")]
@@ -31,3 +39,10 @@ fn structured_serde_and_adapters_work() {
 fn json_string_mode_preserves_its_wire_type() {
     support::assertions::assert_json_expansion();
 }
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================

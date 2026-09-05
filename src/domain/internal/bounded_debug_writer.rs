@@ -19,6 +19,7 @@ pub(in crate::domain) struct BoundedDebugWriter<'writer, 'session> {
 }
 
 impl fmt::Write for BoundedDebugWriter<'_, '_> {
+    /// Forwards one formatter fragment while enforcing the writer's byte limit.
     fn write_str(&mut self, value: &str) -> fmt::Result {
         if self.writer.write_fragment(value) {
             Ok(())
