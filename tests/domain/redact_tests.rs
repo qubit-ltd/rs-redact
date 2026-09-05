@@ -29,7 +29,7 @@ impl Redact for TestDomainValue {
 /// Verifies that the trait creates final transaction output.
 #[test]
 fn test_redact_redacted_returns_completed_output() {
-    let output = Redactor::standard().redact(&TestDomainValue);
+    let output = Redactor::standard().redact_text(&TestDomainValue);
 
     assert_eq!(output.text().as_str(), "TestDomainValue { secret: <redacted> }");
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
@@ -80,7 +80,7 @@ fn test_redaction_writer_structured_helper_shapes_and_opaque_access() {
     }
 
     let accesses = AtomicUsize::new(0);
-    let output = Redactor::standard().redact(&Structured(&accesses));
+    let output = Redactor::standard().redact_text(&Structured(&accesses));
 
     assert_eq!(accesses.load(Ordering::SeqCst), 0);
     assert_eq!(
@@ -128,8 +128,8 @@ fn test_redaction_writer_sequence_and_map_scopes_enforce_their_contracts() {
     }
 
     let accesses = AtomicUsize::new(0);
-    let sequence = Redactor::standard().redact(&SequenceValue(&accesses));
-    let map = Redactor::standard().redact(&MapValue(&accesses));
+    let sequence = Redactor::standard().redact_text(&SequenceValue(&accesses));
+    let map = Redactor::standard().redact_text(&MapValue(&accesses));
 
     assert_eq!(accesses.load(Ordering::SeqCst), 0);
     assert_eq!(sequence.text().as_str(), r#"["visible", "<redacted>"]"#);
@@ -169,7 +169,7 @@ fn test_redaction_fields_map_classifies_each_dynamic_key() {
         ]),
     };
 
-    let output = Redactor::new(policy).redact(&value);
+    let output = Redactor::new(policy).redact_text(&value);
 
     assert!(!output.text().as_str().contains("raw-secret"));
     assert!(output.text().as_str().contains("<redacted>"));
@@ -202,11 +202,11 @@ fn test_redaction_fields_keyed_value_classifies_by_policy_key() {
         .expect("policy should build");
     let redactor = Redactor::new(policy);
 
-    let sensitive = redactor.redact(&DynamicPairValue {
+    let sensitive = redactor.redact_text(&DynamicPairValue {
         key: "password".to_owned(),
         value: Some("raw-secret".to_owned()),
     });
-    let public = redactor.redact(&DynamicPairValue {
+    let public = redactor.redact_text(&DynamicPairValue {
         key: "region".to_owned(),
         value: Some("eu-west".to_owned()),
     });
@@ -246,14 +246,14 @@ fn test_redaction_fields_keyed_value_uses_complete_policy() {
         key: "region".to_owned(),
         value: Some(vec!["eu-west".to_owned()]),
     };
-    let disabled = Redactor::new(RedactionPolicy::disabled()).redact(&value);
+    let disabled = Redactor::new(RedactionPolicy::disabled()).redact_text(&value);
     assert!(
         disabled.text().as_str().contains(r#"Some(["eu-west"])"#),
         "{}",
         disabled.text().as_str()
     );
 
-    let strict = Redactor::strict().redact(&value);
+    let strict = Redactor::strict().redact_text(&value);
     assert!(!strict.text().as_str().contains("eu-west"));
     assert!(strict.text().as_str().contains("<redacted>"));
 
@@ -270,7 +270,7 @@ fn test_redaction_fields_keyed_value_uses_complete_policy() {
         .build()
         .expect("policy should build");
     let redactor = Redactor::new(policy);
-    let floored = redactor.redact(&value);
+    let floored = redactor.redact_text(&value);
     let inspection = redactor.inspect(&value).expect("inspection should complete");
 
     assert!(!floored.text().as_str().contains("eu-west"));
@@ -323,7 +323,7 @@ fn test_redaction_fields_sensitive_value_masks_recursive_leaves() {
         values: Some(vec![(42, "raw-secret".to_owned())]),
     };
 
-    let enabled = Redactor::standard().redact(&value);
+    let enabled = Redactor::standard().redact_text(&value);
     assert_eq!(
         enabled.text().as_str(),
         "RecursiveLevelValue { values: Some([(\"<redacted>\", \"<redacted>\")]) }"
@@ -331,7 +331,7 @@ fn test_redaction_fields_sensitive_value_masks_recursive_leaves() {
     assert!(!enabled.text().as_str().contains("42"));
     assert!(!enabled.text().as_str().contains("raw-secret"));
 
-    let disabled = Redactor::new(RedactionPolicy::disabled()).redact(&value);
+    let disabled = Redactor::new(RedactionPolicy::disabled()).redact_text(&value);
     assert_eq!(
         disabled.text().as_str(),
         "RecursiveLevelValue { values: Some([(42, \"raw-secret\")]) }"
@@ -354,8 +354,8 @@ fn test_redaction_fields_sensitive_value_supports_big_decimal() {
     }
 
     let value = DecimalValue(bigdecimal::BigDecimal::from(123));
-    let enabled = Redactor::standard().redact(&value);
-    let disabled = Redactor::new(RedactionPolicy::disabled()).redact(&value);
+    let enabled = Redactor::standard().redact_text(&value);
+    let disabled = Redactor::new(RedactionPolicy::disabled()).redact_text(&value);
 
     assert!(!enabled.text().as_str().contains("123"));
     assert!(disabled.text().as_str().contains("123"));
@@ -391,7 +391,7 @@ fn test_redaction_fields_map_value_masks_recursive_leaves_by_key() {
         ]),
     };
 
-    let output = Redactor::new(policy).redact(&value);
+    let output = Redactor::new(policy).redact_text(&value);
     assert!(
         output.text().as_str().contains("\"public_numbers\": Some([1, 2])"),
         "{}",

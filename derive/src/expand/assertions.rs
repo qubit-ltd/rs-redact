@@ -51,15 +51,21 @@ pub(crate) fn add_redact_bounds(generics: &mut Generics, model: &ContainerData<'
         FieldMode::Unmarked => {
             add_trait_bound(generics, field, quote!(::core::fmt::Debug));
         }
-        FieldMode::Level(_) | FieldMode::KeyedBy(_) => {
+        FieldMode::KeyedBy(_) => {
+            add_trait_bound(generics, field, quote!(::core::fmt::Debug));
+            add_trait_bound(generics, field, quote!(#runtime::domain::RedactLevelValue));
+        }
+        FieldMode::DisplayLevel(_) => add_trait_bound(generics, field, quote!(::core::fmt::Display)),
+        FieldMode::Level(_) => {
             add_trait_bound(generics, field, quote!(#runtime::domain::RedactLevelValue));
         }
         FieldMode::Nested => {
             add_trait_bound(generics, field, quote!(#runtime::Redact));
         }
         FieldMode::Map => add_trait_bound(generics, field, quote!(#runtime::domain::RedactMapValue)),
-        FieldMode::MapLevels { .. } => add_trait_bound(generics, field, quote!(#runtime::RedactMapKeyValue)),
-        FieldMode::Skip | FieldMode::Json => {}
+        FieldMode::MapLevels { .. } => add_trait_bound(generics, field, quote!(#runtime::domain::RedactMapKeyValue)),
+        FieldMode::Json => add_trait_bound(generics, field, quote!(#runtime::domain::RedactJsonValue)),
+        FieldMode::Skip => {}
     });
 }
 
@@ -82,6 +88,7 @@ pub(crate) fn add_serialization_bounds(
         FieldMode::Unmarked if serialize_with.is_none() => {
             add_trait_bound(generics, field, quote!(#serde::Serialize));
         }
+        FieldMode::DisplayLevel(_) => add_trait_bound(generics, field, quote!(::core::fmt::Display)),
         FieldMode::Level(_) => {
             add_trait_bound(
                 generics,

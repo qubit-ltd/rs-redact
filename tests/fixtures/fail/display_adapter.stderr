@@ -1,0 +1,24 @@
+error: Redact derive for `Missing` field `value`: `display` requires an explicit `level` and cannot be combined with another mode
+ --> tests/fixtures/fail/display_adapter.rs:3:18
+  |
+3 | struct Missing { #[redact(display)] value: String }
+  |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: Redact derive for `Conflicting` field `value`: `display` requires an explicit `level` and cannot be combined with another mode
+ --> tests/fixtures/fail/display_adapter.rs:5:22
+  |
+5 | struct Conflicting { #[redact(nested, display)] value: String }
+  |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: duplicate `display` field adapter
+ --> tests/fixtures/fail/display_adapter.rs:7:56
+  |
+7 | struct Duplicate { #[redact(level = "secret", display, display)] value: String }
+  |                                                        ^^^^^^^
+
+error: choose either `serde` or `serialize`, not both
+  --> tests/fixtures/fail/display_adapter.rs:9:1
+   |
+ 9 | / #[redact(serde, serialize)]
+10 | | struct Both { value: String }
+   | |_____________________________^

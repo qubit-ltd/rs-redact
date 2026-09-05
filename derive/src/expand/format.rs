@@ -76,7 +76,7 @@ pub(crate) fn expand(
                     &self,
                     formatter: &mut ::core::fmt::Formatter<'_>,
                 ) -> ::core::fmt::Result {
-                    let output = #runtime::Redactor::application_default().redact(self);
+                    let output = #runtime::Redactor::application_default().redact_text(self);
                     #debug_body
                 }
             }
@@ -90,7 +90,7 @@ pub(crate) fn expand(
                     &self,
                     formatter: &mut ::core::fmt::Formatter<'_>,
                 ) -> ::core::fmt::Result {
-                    let output = #runtime::Redactor::application_default().redact(self);
+                    let output = #runtime::Redactor::application_default().redact_text(self);
                     formatter.write_str(output.text().as_str())
                 }
             }

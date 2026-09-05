@@ -1,17 +1,17 @@
-error[E0277]: the trait bound `BTreeMap<u32, String>: RedactMapValue` is not satisfied
+error[E0277]: the trait bound `BTreeMap<u32, std::string::String>: RedactMapValue` is not satisfied
   --> tests/fixtures/fail/map_wrong_key.rs:13:10
    |
 13 | #[derive(Redact)]
-   |          ^^^^^^ the trait `RedactMapValue` is not implemented for `BTreeMap<u32, String>`
+   |          ^^^^^^ the trait `RedactMapValue` is not implemented for `BTreeMap<u32, std::string::String>`
    |
 help: the following other types implement trait `RedactMapValue`
   --> src/domain/redact_map_value.rs
    |
-   |         impl<V: super::RedactLevelValue> RedactMapValue for BTreeMap<$key, V> {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `BTreeMap<String, V>`
+   |         impl<V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue for BTreeMap<$key, V> {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `BTreeMap<std::string::String, V>`
 ...
-   |         impl<'a, V: super::RedactLevelValue> RedactMapValue for BTreeMap<$key, V> {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |         impl<'a, V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue for BTreeMap<$key, V> {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |         |
    |         `BTreeMap<&str, V>`
    |         `BTreeMap<Cow<'_, str>, V>`

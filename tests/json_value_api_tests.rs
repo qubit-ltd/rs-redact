@@ -57,7 +57,7 @@ fn redaction_items_borrow_and_redact_parsed_json_values() {
         json!({"password": 12345, "label": "visible"}),
     ];
     let originals = values.clone();
-    let output = Redactor::standard().redact(&JsonSequence(&values));
+    let output = Redactor::standard().redact_text(&JsonSequence(&values));
     let text = output.text().as_str();
 
     assert!(!text.contains("first-secret"), "{text}");
@@ -112,7 +112,7 @@ fn test_disabled_borrowed_json_value_respects_node_limit_across_rendering_entry_
     assert_eq!(composed.summary().completion(), RedactionCompletion::Truncated);
     assert!(composed.summary().is_redaction_disabled());
 
-    let field = redactor.redact(&Payload(&value));
+    let field = redactor.redact_text(&Payload(&value));
     assert!(!field.text().as_str().contains("raw-secret"));
     assert_eq!(field.summary().completion(), RedactionCompletion::Truncated);
     assert!(field.summary().is_redaction_disabled());
@@ -153,7 +153,7 @@ fn all_parsed_json_value_entry_points_borrow_and_redact_the_same_value() {
         .finish();
     assert!(!writer_output.text().as_str().contains("raw-secret"));
 
-    let field_output = redactor.redact(&Payload(&value));
+    let field_output = redactor.redact_text(&Payload(&value));
     assert!(!field_output.text().as_str().contains("raw-secret"));
     assert!(field_output.text().as_str().contains(r#"payload: {"#));
     assert!(!field_output.text().as_str().contains(r#"payload: \"{"#));

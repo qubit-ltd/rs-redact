@@ -132,11 +132,11 @@ impl Redact for SingleScope {
 #[test]
 fn test_domain_writer_surface_covers_render_inspection_and_disabled_modes() {
     let standard = Redactor::standard();
-    let rendered = standard.redact(&CompleteWriterSurface);
+    let rendered = standard.redact_text(&CompleteWriterSurface);
     let inspected = standard
         .inspect(&CompleteWriterSurface)
         .expect("inspection should complete");
-    let disabled = Redactor::new(RedactionPolicy::disabled()).redact(&CompleteWriterSurface);
+    let disabled = Redactor::new(RedactionPolicy::disabled()).redact_text(&CompleteWriterSurface);
 
     assert!(!rendered.text().as_str().contains("raw-"));
     assert_eq!(inspected.max_sensitivity(), Some(Sensitivity::Secret));
@@ -158,7 +158,7 @@ fn test_domain_writer_scope_types_fail_closed_at_zero_depth() {
     let redactor = Redactor::new(policy);
 
     for value in [SingleScope::Record, SingleScope::Sequence, SingleScope::Map] {
-        let output = redactor.redact(&value);
+        let output = redactor.redact_text(&value);
         assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
         assert!(!output.text().as_str().contains("visible"));
     }
@@ -183,8 +183,8 @@ fn test_domain_writer_stops_accessors_at_collection_and_output_limits() {
         .build()
         .expect("policy");
 
-    let collection_output = Redactor::new(collection_policy).redact(&CompleteWriterSurface);
-    let output_limited = Redactor::new(output_policy).redact(&CompleteWriterSurface);
+    let collection_output = Redactor::new(collection_policy).redact_text(&CompleteWriterSurface);
+    let output_limited = Redactor::new(output_policy).redact_text(&CompleteWriterSurface);
 
     assert_eq!(collection_output.summary().completion(), RedactionCompletion::Truncated);
     assert_eq!(output_limited.summary().completion(), RedactionCompletion::Exhausted);
@@ -217,7 +217,7 @@ fn test_domain_json_fields_fail_closed_for_invalid_and_input_limited_values() {
         .expect("limits")
         .build()
         .expect("policy");
-    let output = Redactor::new(policy).redact(&JsonFields);
+    let output = Redactor::new(policy).redact_text(&JsonFields);
 
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
     assert!(!output.text().as_str().contains("raw-secret"));

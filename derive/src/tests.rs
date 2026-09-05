@@ -92,6 +92,7 @@ fn field_attributes_parse_every_supported_mode() {
             match attributes.mode() {
                 FieldMode::Unmarked => "unmarked",
                 FieldMode::Level(_) => "level",
+                FieldMode::DisplayLevel(_) => "display_level",
                 FieldMode::Nested => "nested",
                 FieldMode::Map => "map",
                 FieldMode::MapLevels { .. } => "map_levels",

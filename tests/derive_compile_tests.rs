@@ -37,6 +37,8 @@ fn test_pass_fixtures() {
 #[test]
 fn test_compile_fail_fixtures() {
     let tests = trybuild::TestCases::new();
+    tests.compile_fail("tests/fixtures/fail/scalar_shape.rs");
+    tests.compile_fail("tests/fixtures/fail/display_adapter.rs");
     tests.compile_fail("tests/fixtures/fail/conflicting_level_map.rs");
     tests.compile_fail("tests/fixtures/fail/conflicting_level_nested.rs");
     tests.compile_fail("tests/fixtures/fail/conflicting_map_skip.rs");

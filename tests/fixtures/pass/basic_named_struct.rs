@@ -31,7 +31,7 @@ fn main() {
         name: "Alice".to_owned(),
     };
     assert_eq!(
-        Redactor::standard().redact(&value).text().as_str(),
+        Redactor::standard().redact_text(&value).text().as_str(),
         r#"GenericRecord { id: 7, name: "Alice" }"#,
     );
 }

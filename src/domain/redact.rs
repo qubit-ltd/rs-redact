@@ -48,7 +48,7 @@ use crate::domain::RedactionWriter;
 /// }
 ///
 /// let login = Login { password: "raw-secret".to_owned() };
-/// let output = Redactor::standard().redact(&login);
+/// let output = Redactor::standard().redact_text(&login);
 /// assert!(!output.text().as_str().contains("raw-secret"));
 /// assert_eq!(login.password, "raw-secret");
 /// ```

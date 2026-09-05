@@ -190,7 +190,7 @@ impl<'a> RedactLevelSerialize for Cow<'a, str> {
     }
 }
 
-impl RedactLevelSerialize for &str {
+impl<T: RedactLevelSerialize + ?Sized> RedactLevelSerialize for &T {
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -200,11 +200,7 @@ impl RedactLevelSerialize for &str {
     where
         S: Serializer,
     {
-        if policy.is_disabled() {
-            serialize_disabled_display(self, serializer, policy)
-        } else {
-            serialize_masked_display(self, serializer, policy, level)
-        }
+        (*self).serialize_redacted_level(serializer, policy, level)
     }
 }
 
@@ -453,4 +449,26 @@ mod tests {
 
         assert_eq!(encoded[1], "<redacted>");
     }
+}
+
+/// Serializes an explicitly textual Display adapter, including disabled output.
+/// Returns serializer errors or an output-budget error from payload admission.
+pub(super) fn serialize_display_text<S, T>(
+    value: &T,
+    serializer: S,
+    policy: &RedactionPolicy,
+    level: Sensitivity,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+    T: Display + ?Sized,
+{
+    if !policy.is_disabled() {
+        return serialize_masked_display(value, serializer, policy, level);
+    }
+    let raw = format_admitted_display(value);
+    let text = raw
+        .as_deref()
+        .unwrap_or_else(|| policy.masking().mask_opaque(Sensitivity::Secret));
+    super::redact_serialize_scope::serialize_payload(serializer, text)
 }

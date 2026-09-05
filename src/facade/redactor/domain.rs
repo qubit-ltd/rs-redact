@@ -17,13 +17,23 @@ use crate::runtime::runtime_session::RuntimeSession;
 impl Redactor {
     /// Redacts one domain value into final text and an execution summary.
     #[must_use]
-    pub fn redact<T>(&self, value: &T) -> RedactionTextOutput
+    pub fn redact_text<T>(&self, value: &T) -> RedactionTextOutput
     where
         T: Redact + ?Sized,
     {
         let mut session = self.text_runtime();
         let _ = session.value(value);
         session.finish()
+    }
+
+    /// Creates a lazy borrowed view with an owned snapshot of this policy.
+    ///
+    /// No source access or budget consumption occurs until the view is used.
+    /// Formatting requires `Redact`; structural serialization requires
+    /// `RedactSerialize`. Each use starts an independent execution.
+    #[must_use]
+    pub fn redact_view<'value, T: ?Sized>(&self, value: &'value T) -> crate::RedactedView<'value, T> {
+        crate::RedactedView::new(value, self.clone())
     }
 
     /// Inspects one domain value without rendering any field content.

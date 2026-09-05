@@ -24,5 +24,5 @@ fn main() {
     let value = Record {
         secret: "raw".to_owned(),
     };
-    let _ = Redactor::new(RedactionPolicy::default()).redact(&value);
+    let _ = Redactor::new(RedactionPolicy::default()).redact_text(&value);
 }

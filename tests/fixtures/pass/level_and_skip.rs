@@ -44,5 +44,5 @@ fn main() {
         cache: NotDebug,
     };
     let _ = &value.cache;
-    let _ = Redactor::standard().redact(&value);
+    let _ = Redactor::standard().redact_text(&value);
 }

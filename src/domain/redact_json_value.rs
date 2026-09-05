@@ -35,36 +35,27 @@ macro_rules! json_text {
 }
 
 json_text!(String, str, Cow<'_, str>);
-impl private::Sealed for &'_ str {}
-impl RedactJsonValue for &'_ str {
+impl<T: RedactJsonValue + ?Sized> private::Sealed for &T {}
+impl<T: RedactJsonValue + ?Sized> RedactJsonValue for &T {
     fn write_redacted_json(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
-        fields.json(name, self);
+        (*self).write_redacted_json(fields, name);
     }
 }
-impl private::Sealed for Option<String> {}
-impl RedactJsonValue for Option<String> {
+impl<T: RedactJsonValue> private::Sealed for Option<T> {}
+impl<T: RedactJsonValue> RedactJsonValue for Option<T> {
     fn write_redacted_json(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
         match self {
-            Some(value) => fields.json(name, value),
-            None => fields.unmarked(name, || self),
-        };
+            Some(value) => value.write_redacted_json(fields, name),
+            None => {
+                fields.unmarked(name, || Option::<()>::None);
+            }
+        }
     }
 }
-impl private::Sealed for Option<&'_ str> {}
-impl RedactJsonValue for Option<&'_ str> {
+
+impl private::Sealed for serde_json::Value {}
+impl RedactJsonValue for serde_json::Value {
     fn write_redacted_json(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
-        match self {
-            Some(value) => fields.json(name, value),
-            None => fields.unmarked(name, || self),
-        };
-    }
-}
-impl private::Sealed for Option<Cow<'_, str>> {}
-impl RedactJsonValue for Option<Cow<'_, str>> {
-    fn write_redacted_json(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
-        match self {
-            Some(value) => fields.json(name, value.as_ref()),
-            None => fields.unmarked(name, || self),
-        };
+        fields.json_value(name, self);
     }
 }

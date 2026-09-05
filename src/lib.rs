@@ -5,143 +5,57 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-#![cfg_attr(all(doctest, feature = "http", feature = "serde"), doc = include_str!("../README.md"))]
-#![cfg_attr(all(doctest, feature = "http", feature = "serde"), doc = include_str!("../README.zh_CN.md"))]
-#![cfg_attr(all(doctest, feature = "http", feature = "serde"), doc = include_str!("../doc/user_guide.md"))]
-#![cfg_attr(all(doctest, feature = "http", feature = "serde"), doc = include_str!("../doc/user_guide.zh_CN.md"))]
+#![cfg_attr(all(doctest, feature = "derive", feature = "http", feature = "serde"), doc = include_str!("../README.md"))]
+#![cfg_attr(all(doctest, feature = "derive", feature = "http", feature = "serde"), doc = include_str!("../README.zh_CN.md"))]
+#![cfg_attr(all(doctest, feature = "derive", feature = "http", feature = "serde"), doc = include_str!("../doc/user_guide.md"))]
+#![cfg_attr(all(doctest, feature = "derive", feature = "http", feature = "serde"), doc = include_str!("../doc/user_guide.zh_CN.md"))]
 //! # Qubit Redact
 //!
-//! Policy-driven, bounded redaction for fields, domain values, and diagnostic
-//! formats. [`RedactedTextComposer`] builds one ordered text result, while
-//! [`RedactionBatch`] builds independently resolvable results. Each object is
-//! single-use and publishes only through its consuming `finish` method.
+//! Borrowed domain redaction for logs, errors, and structured diagnostics.
+//! Choose [`Redactor::redact_view`] for lazy formatting/serialization, or
+//! [`Redactor::redact_text`] for finalized text and a completeness summary.
+//! With `json`, `Redactor::to_json` serializes a domain view directly.
 //!
 //! ```
 //! use qubit_redact::Redactor;
 //!
-//! let output = Redactor::strict()
-//!     .text_composer()
-//!     .literal("password=")
-//!     .field("password", "raw-secret")
-//!     .finish();
-//! assert!(!output.text().as_str().contains("raw-secret"));
+//! let output = Redactor::standard().redact_field("password", "raw-secret");
+//! assert_eq!(output.text().as_str(), "<redacted>");
 //! ```
 //!
-//! # Safety boundary
+//! ## Domain and serialization capabilities
 //!
-//! `literal` accepts only `&'static str` program literals. Dynamic text must
-//! be passed to a redaction operation. Derived fields that lack
-//! `#[redact(...)]` are intentionally unredacted. Field sensitivity belongs to
-//! the downstream domain: the framework cannot infer it reliably, and forcing
-//! explicit "not sensitive" annotations onto the ordinary majority of fields
-//! would add noise rather than knowledge. Downstream types must explicitly mark
-//! sensitive fields and review that classification when their model changes.
-//! Fields that explicitly use `skip` are neither accessed nor emitted.
+//! `#[derive(Redact)]` implements [`Redact`]. `#[redact(debug)]` and
+//! `#[redact(display)]` opt into ordinary diagnostic formatting. With `serde`,
+//! `#[redact(serialize)]` generates the structured capability for views while
+//! leaving the source's ordinary Serialize implementation untouched.
+//! `#[redact(serde)]` additionally generates redacted ordinary Serialize.
 //!
-//! With redaction enabled, `Complete`, `Truncated`, and `Exhausted` output text
-//! remains confidentiality-safe. Diagnostic formatters may publish that safe
-//! text without interpreting an incompleteness reason; callers inspect
-//! summaries only when completeness affects their own program contract.
+//! [`RedactScalar`] supports one-field scalar newtypes without implementing
+//! business Debug, Display, or Serialize. Explicit `level` annotations at the
+//! use site determine sensitivity. Third-party values can select
+//! `#[redact(level = "secret", display)]`.
 //!
-//! A disabled application-default policy is an intentional process-wide
-//! debugging escape hatch. It restores raw values. The framework executes the
-//! selected policy, while downstream code owns authorization, timing, and any
-//! misuse. Generated `Debug`, `Display`, and `Serialize` implementations
-//! intentionally obtain [`Redactor::application_default`] at the start of each
-//! formatting or serialization call. Replacing the application default
-//! therefore affects future generated calls, including installation of a
-//! disabled policy. Existing explicit redactors, composers, and batches retain
-//! the policy snapshots they already own.
+//! ## Policies and execution
 //!
-//! Transaction summaries are observations produced exclusively by a completed
-//! transaction; callers cannot fabricate one outside the runtime.
+//! Views own immutable policy snapshots but borrow live source values. Every
+//! use starts a new execution and budget. [`RedactedText`] is finalized and
+//! does not run redaction again. [`RedactionBatch`] shares a budget across
+//! related values; [`RedactedTextComposer`] builds one ordered message.
 //!
-//! ```compile_fail
-//! use qubit_redact::RedactionSummary;
+//! Unmarked fields remain ordinary output. Explicit derive levels are final;
+//! runtime field rules, floors, and strict mode do not override them. Disabled
+//! policy deliberately restores source values. Generated ordinary formatting
+//! and serialization read the application default at each call; explicit
+//! views and redactors retain their captured policies.
 //!
-//! let _ = RedactionSummary::complete();
-//! ```
+//! Text completion describes diagnostic completeness under the selected
+//! policy. Ordinary logging can use `output.text()` directly; audit callers
+//! can inspect summaries or reject incomplete text. This library does not
+//! erase source memory or protect output that bypasses its entry points.
 //!
-//! The removed pre-0.5 transaction API cannot be imported as a public
-//! compatibility API.
-//!
-//! ```compile_fail
-//! use qubit_redact::RedactionSession;
-//! ```
-//!
-//! ```compile_fail
-//! use qubit_redact::RedactionSessionOutput;
-//! ```
-//!
-//! ```compile_fail
-//! use qubit_redact::RedactionOutput;
-//! ```
-//!
-//! ```compile_fail
-//! use qubit_redact::RedactionHandle;
-//! ```
-//!
-//! ```compile_fail
-//! use qubit_redact::RedactionHandleError;
-//! ```
-//!
-//! ```compile_fail
-//! use qubit_redact::Redactor;
-//!
-//! let _ = Redactor::strict().session();
-//! ```
-//!
-//! Composer and batch APIs deliberately do not overlap, and both publication
-//! methods consume their owner.
-//!
-//! ```compile_fail
-//! use qubit_redact::Redactor;
-//!
-//! let composer = Redactor::strict().text_composer();
-//! let _ = composer.finish();
-//! let _ = composer.literal("cannot reuse a finished composer");
-//! ```
-//!
-//! ```compile_fail
-//! use qubit_redact::Redactor;
-//!
-//! let mut batch = Redactor::strict().batch();
-//! batch.literal("batch has no aggregate text API");
-//! ```
-//!
-//! ```compile_fail
-//! use qubit_redact::Redactor;
-//!
-//! let mut batch = Redactor::strict().batch();
-//! let _ = batch.redact_field("password", "raw-secret");
-//! let _ = batch.finish_for_diagnostics("<redaction incomplete>");
-//! let _ = batch.redact_field("password", "cannot reuse a finished batch");
-//! ```
-//!
-//! ```compile_fail
-//! use qubit_redact::Redactor;
-//!
-//! let composer = Redactor::strict().text_composer();
-//! let _ = composer.redact_field("password", "batch methods are unavailable");
-//! ```
-//!
-//! ```compile_fail
-//! use qubit_redact::Redactor;
-//!
-//! let mut batch = Redactor::strict().batch();
-//! let handle = batch.redact_field("password", "raw-secret");
-//! let output = batch.finish_for_diagnostics("<redaction incomplete>");
-//! let _ = output.text(handle);
-//! let _ = handle.to_string();
-//! ```
-//!
-//! The domain-level rendering traits do not provide an alternate output path.
-//! Domain values must be written through [`Redact`] and a
-//! [`RedactedTextComposer`] or [`RedactionBatch`].
-//!
-//! ```compile_fail
-//! use qubit_redact::policy::RedactionPolicy;
-//! ```
+//! See the [user guide](https://github.com/qubit-ltd/rs-redact/blob/main/doc/user_guide.md)
+//! for complete setup, type/attribute tables, format integrations, and budgets.
 
 extern crate self as qubit_redact;
 
@@ -159,10 +73,14 @@ pub(crate) mod runtime;
 mod serde_feature_gate;
 
 pub use domain::Redact;
+pub use domain::RedactScalar;
 pub use domain::RedactionWriter;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use domain::internal::RedactSerialize;
 pub use facade::DebugDisplay;
 pub use facade::RedactedText;
 pub use facade::RedactedTextComposer;
+pub use facade::RedactedView;
 pub use facade::RedactionBatch;
 pub use facade::RedactionBatchDiagnostics;
 pub use facade::RedactionBatchHandle;
@@ -204,5 +122,7 @@ pub use policy::UnkeyedJsonValuePolicy;
 pub use policy::UnknownFieldPolicy;
 #[cfg(feature = "uri")]
 pub use policy::UriPolicyBuilderView;
+#[cfg(feature = "derive")]
+pub use qubit_redact_derive::RedactScalar;
 pub(crate) use runtime::RedactionHandle;
 pub(crate) use runtime::RedactionHandleError;

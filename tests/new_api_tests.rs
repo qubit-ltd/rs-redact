@@ -157,7 +157,7 @@ fn application_default_replacement_affects_new_trait_entries_only() {
         name: "Ada".to_owned(),
         _password: "raw-password".to_owned(),
     };
-    let output = Redactor::application_default().redact(&value);
+    let output = Redactor::application_default().redact_text(&value);
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
     assert!(!output.text().as_str().contains("raw-password"));
 
@@ -167,7 +167,7 @@ fn application_default_replacement_affects_new_trait_entries_only() {
 
 #[test]
 fn summaries_keep_completion_reason_and_usage_machine_readable() {
-    let output = Redactor::standard().redact(&Account {
+    let output = Redactor::standard().redact_text(&Account {
         name: "Ada".to_owned(),
         _password: "raw-password".to_owned(),
     });

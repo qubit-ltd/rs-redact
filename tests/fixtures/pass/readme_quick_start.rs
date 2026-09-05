@@ -27,7 +27,7 @@ fn main() {
         password: String::from("raw-password"),
     };
     assert_eq!(
-        Redactor::standard().redact(&credentials).text().as_str(),
+        Redactor::standard().redact_text(&credentials).text().as_str(),
         r#"Credentials { user: "ada", password: "<redacted>" }"#,
     );
 }

@@ -24,13 +24,14 @@ use super::RedactionItems;
 use super::RedactionWriter;
 use crate::Sensitivity;
 
-mod private {
+#[doc(hidden)]
+pub mod private {
     pub trait Sealed {}
 }
 
 /// Capability implemented only for values supported by `level`.
 #[doc(hidden)]
-pub trait RedactLevelValue: private::Sealed + Debug {
+pub trait RedactLevelValue: private::Sealed {
     /// Writes this supported value through the supplied sensitivity level.
     #[doc(hidden)]
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity);

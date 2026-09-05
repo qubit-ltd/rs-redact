@@ -94,7 +94,7 @@ fn disabled_policy_outputs_scalar_and_domain_values_without_redaction() {
         secret: "raw-secret".into(),
         omitted: "restored".into(),
     };
-    let output = Redactor::new(RedactionPolicy::disabled()).redact(&value);
+    let output = Redactor::new(RedactionPolicy::disabled()).redact_text(&value);
     assert!(output.text().as_str().contains("raw-secret"));
     assert!(output.text().as_str().contains("restored"));
     assert!(output.summary().is_redaction_disabled());
@@ -106,8 +106,8 @@ fn disabled_policy_outputs_scalar_and_domain_values_without_redaction() {
 fn test_disabled_domain_field_sensitive_is_admitted_once() {
     for maximum in [1, 2] {
         let redactor = Redactor::new(disabled_node_policy(maximum));
-        let baseline = redactor.redact(&SingleDisabledField::Unredacted);
-        let sensitive = redactor.redact(&SingleDisabledField::Sensitive);
+        let baseline = redactor.redact_text(&SingleDisabledField::Unredacted);
+        let sensitive = redactor.redact_text(&SingleDisabledField::Sensitive);
 
         assert_eq!(sensitive.text().as_str(), baseline.text().as_str());
         assert_eq!(sensitive.summary(), baseline.summary());
@@ -124,8 +124,8 @@ fn test_disabled_domain_field_sensitive_is_admitted_once() {
 fn test_disabled_domain_field_json_is_admitted_once() {
     for maximum in [1, 2] {
         let redactor = Redactor::new(disabled_node_policy(maximum));
-        let baseline = redactor.redact(&SingleDisabledField::JsonUnredacted);
-        let output = redactor.redact(&SingleDisabledField::Json);
+        let baseline = redactor.redact_text(&SingleDisabledField::JsonUnredacted);
+        let output = redactor.redact_text(&SingleDisabledField::Json);
 
         assert_eq!(output.text().as_str(), baseline.text().as_str());
         assert_eq!(output.summary(), baseline.summary());

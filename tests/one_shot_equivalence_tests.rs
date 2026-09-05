@@ -44,7 +44,7 @@ fn assert_equivalent(one_shot: &RedactionTextOutput, batch: &RedactionBatchDiagn
 fn test_one_shot_domain_and_field_match_single_batch_items() {
     let redactor = Redactor::strict();
 
-    let domain = redactor.redact(&Credentials);
+    let domain = redactor.redact_text(&Credentials);
     let mut batch = redactor.batch();
     let handle = batch.redact_value(&Credentials);
     let output = batch.finish_for_diagnostics("<redaction incomplete>");

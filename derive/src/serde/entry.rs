@@ -56,6 +56,7 @@ pub(crate) fn expand(
     serde: Option<&Path>,
     container_attributes: &SerdeContainerAttributes,
     model: &ContainerData<'_>,
+    generate_serialize: bool,
 ) -> Result<TokenStream> {
     let Some(serde) = serde else {
         return Ok(TokenStream::new());
@@ -71,6 +72,29 @@ pub(crate) fn expand(
         ContainerData::Struct(fields) => struct_body(name, fields, runtime, serde, container_attributes),
         ContainerData::Enum(variants) => enum_body(name, variants, runtime, serde, container_attributes, &serializer)?,
     };
+
+    let serialize_impl = generate_serialize.then(|| {
+        quote! {
+                impl #impl_generics #serde::Serialize
+                    for #name #type_generics #where_clause
+                {
+                    fn serialize<#serializer>(
+                        &self,
+                        serializer: #serializer,
+                    ) -> ::core::result::Result<#serializer::Ok, #serializer::Error>
+                    where
+                        #serializer: #serde::Serializer,
+                    {
+                        let redactor = #runtime::Redactor::application_default();
+                        let policy = redactor.policy();
+                        let _scope = #runtime::domain::internal::RedactSerializeScope::new(policy);
+                        <Self as #runtime::domain::internal::RedactSerialize>::serialize_redacted(
+                            self, serializer, policy,
+                        )
+                    }
+                }
+        }
+    });
 
     Ok(quote! {
         #runtime::__qubit_redact_serde! {
@@ -96,24 +120,7 @@ pub(crate) fn expand(
                 }
             }
 
-            impl #impl_generics #serde::Serialize
-                for #name #type_generics #where_clause
-            {
-                fn serialize<#serializer>(
-                    &self,
-                    serializer: #serializer,
-                ) -> ::core::result::Result<#serializer::Ok, #serializer::Error>
-                where
-                    #serializer: #serde::Serializer,
-                {
-                    let redactor = #runtime::Redactor::application_default();
-                    let policy = redactor.policy();
-                    let _scope = #runtime::domain::internal::RedactSerializeScope::new(policy);
-                    <Self as #runtime::domain::internal::RedactSerialize>::serialize_redacted(
-                        self, serializer, policy,
-                    )
-                }
-            }
+            #serialize_impl
         }
     })
 }
