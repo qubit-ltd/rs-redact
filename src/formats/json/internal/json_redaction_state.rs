@@ -53,7 +53,10 @@ impl<'policy, 'marker> JsonRedactionState<'policy, 'marker> {
     /// Creates traversal state from one complete policy snapshot.
     #[cfg(test)]
     #[inline(always)]
-    pub(crate) fn from_policy(policy: &'policy RedactionPolicy, unkeyed: JsonUnkeyedValuePolicy<'marker>) -> Self {
+    pub(crate) fn from_policy(
+        policy: &'policy RedactionPolicy,
+        unkeyed: JsonUnkeyedValuePolicy<'marker>,
+    ) -> Self {
         Self::new(policy.rules(), policy.rules(), policy.masking(), unkeyed)
     }
 
@@ -154,7 +157,8 @@ mod tests {
             .build()
             .expect("test policy should build");
         let mut value = json!({"password": {"nested": "raw-secret"}});
-        let mut state = JsonRedactionState::from_policy(&policy, JsonUnkeyedValuePolicy::PassThrough);
+        let mut state =
+            JsonRedactionState::from_policy(&policy, JsonUnkeyedValuePolicy::PassThrough);
 
         let outcome = state.redact(&mut value);
 

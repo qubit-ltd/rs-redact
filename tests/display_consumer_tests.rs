@@ -56,7 +56,13 @@ fn test_display_is_not_called_for_opaque_masks() {
         assert_eq!(calls.get(), 0);
     }
     let disabled = Redactor::new(RedactionPolicy::disabled());
-    assert!(disabled.redact_text(&value).text().as_str().contains("abcdef"));
+    assert!(
+        disabled
+            .redact_text(&value)
+            .text()
+            .as_str()
+            .contains("abcdef")
+    );
     assert_eq!(calls.get(), 1);
     #[cfg(all(feature = "serde", feature = "json"))]
     {

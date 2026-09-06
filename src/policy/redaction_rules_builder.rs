@@ -138,7 +138,11 @@ impl RedactionRulesBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// field name.
-    pub(crate) fn override_level(&mut self, field: &str, level: Sensitivity) -> Result<(), PolicyError> {
+    pub(crate) fn override_level(
+        &mut self,
+        field: &str,
+        level: Sensitivity,
+    ) -> Result<(), PolicyError> {
         let field = self.canonical_field(field)?;
         self.sensitive.insert(field, level);
         Ok(())
@@ -225,7 +229,10 @@ impl RedactionRulesBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// field name.
-    pub(crate) fn validate_field_name(field: &str, location: PolicyLocation) -> Result<(), PolicyError> {
+    pub(crate) fn validate_field_name(
+        field: &str,
+        location: PolicyLocation,
+    ) -> Result<(), PolicyError> {
         Self::checked_canonical_field(field, location).map(|_| ())
     }
 
@@ -269,7 +276,10 @@ impl RedactionRulesBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when canonicalization produces
     /// an empty field name.
-    fn checked_canonical_field(field: &str, location: PolicyLocation) -> Result<String, PolicyError> {
+    fn checked_canonical_field(
+        field: &str,
+        location: PolicyLocation,
+    ) -> Result<String, PolicyError> {
         let canonical = canonicalize_field_name(field);
         if canonical.is_empty() {
             Err(PolicyError::EmptyFieldName { location })

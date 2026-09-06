@@ -33,7 +33,10 @@ impl Redactor {
     /// value's view serializes structurally when its fields support the
     /// required Serde adapters. Each use starts an independent execution.
     #[must_use]
-    pub fn redact_view<'value, T: ?Sized>(&self, value: &'value T) -> crate::RedactedView<'value, T> {
+    pub fn redact_view<'value, T: ?Sized>(
+        &self,
+        value: &'value T,
+    ) -> crate::RedactedView<'value, T> {
         crate::RedactedView::new(value, self.clone())
     }
 
@@ -69,7 +72,11 @@ impl Redactor {
     ///
     /// Returns [`RedactionInspectionError`] when the shared input or
     /// structural budget prevents a conclusive classification.
-    pub fn inspect_field(&self, field: &str, value: &str) -> Result<RedactionInspection, RedactionInspectionError> {
+    pub fn inspect_field(
+        &self,
+        field: &str,
+        value: &str,
+    ) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
         session.inspect_field(field, value);
         session.finish()

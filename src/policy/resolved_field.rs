@@ -31,11 +31,18 @@ impl ResolvedField {
     #[cfg(any(feature = "http", test))]
     pub(crate) fn stronger(self, context: Self) -> Self {
         match (self, context) {
-            (Self::Sensitive { sensitivity: base }, Self::Sensitive { sensitivity: context }) => Self::Sensitive {
+            (
+                Self::Sensitive { sensitivity: base },
+                Self::Sensitive {
+                    sensitivity: context,
+                },
+            ) => Self::Sensitive {
                 sensitivity: base.max(context),
             },
             (Self::Sensitive { sensitivity }, Self::PassThrough)
-            | (Self::PassThrough, Self::Sensitive { sensitivity }) => Self::Sensitive { sensitivity },
+            | (Self::PassThrough, Self::Sensitive { sensitivity }) => {
+                Self::Sensitive { sensitivity }
+            }
             (Self::PassThrough, Self::PassThrough) => Self::PassThrough,
         }
     }

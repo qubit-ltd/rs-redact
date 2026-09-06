@@ -44,7 +44,9 @@ impl RedactionBatchOutput {
         self.output
             .resolve(RedactionHandle::new(handle.batch_id, handle.item_index))
             .map_err(|error| match error {
-                crate::RedactionHandleError::DifferentTransaction => RedactionBatchHandleError::DifferentBatch,
+                crate::RedactionHandleError::DifferentTransaction => {
+                    RedactionBatchHandleError::DifferentBatch
+                }
                 crate::RedactionHandleError::MissingItem => RedactionBatchHandleError::MissingItem,
             })
     }

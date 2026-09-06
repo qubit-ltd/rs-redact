@@ -22,7 +22,10 @@ use syn::parse_quote;
 pub(crate) fn expand(input: &DeriveInput) -> Result<TokenStream> {
     let runtime = crate::runtime_path::resolve(input)?;
     let Data::Struct(data) = &input.data else {
-        return Err(Error::new_spanned(input, "RedactScalar requires a single-field struct"));
+        return Err(Error::new_spanned(
+            input,
+            "RedactScalar requires a single-field struct",
+        ));
     };
     if data.fields.len() != 1 {
         return Err(Error::new_spanned(
@@ -30,7 +33,11 @@ pub(crate) fn expand(input: &DeriveInput) -> Result<TokenStream> {
             "RedactScalar requires exactly one scalar field",
         ));
     }
-    let field = data.fields.iter().next().expect("validated one-field scalar");
+    let field = data
+        .fields
+        .iter()
+        .next()
+        .expect("validated one-field scalar");
     for attribute in &field.attrs {
         if attribute.path().is_ident("redact") {
             return Err(Error::new_spanned(
@@ -56,7 +63,8 @@ pub(crate) fn expand(input: &DeriveInput) -> Result<TokenStream> {
         .map_or_else(|| Member::Unnamed(0.into()), Member::Named);
     let ty = &field.ty;
     let name = &input.ident;
-    let serializer = crate::expand::assertions::fresh_identifier(&input.generics, "__QuibitScalarSerializer");
+    let serializer =
+        crate::expand::assertions::fresh_identifier(&input.generics, "__QuibitScalarSerializer");
     let mut generics = input.generics.clone();
     generics
         .make_where_clause()

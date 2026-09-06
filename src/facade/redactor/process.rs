@@ -34,7 +34,10 @@ impl Redactor {
     ///
     /// Returns [`RedactionInspectionError`] when non-UTF-8 data or a shared
     /// resource limit prevents complete inspection.
-    pub fn inspect_argv<'items, I>(&self, items: I) -> Result<RedactionInspection, RedactionInspectionError>
+    pub fn inspect_argv<'items, I>(
+        &self,
+        items: I,
+    ) -> Result<RedactionInspection, RedactionInspectionError>
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
     {
@@ -62,7 +65,10 @@ impl Redactor {
     ///
     /// Returns [`RedactionInspectionError`] when non-UTF-8 data, incomplete
     /// option syntax, or a shared resource limit prevents complete inspection.
-    pub fn inspect_heuristic_argv<'items, I>(&self, items: I) -> Result<RedactionInspection, RedactionInspectionError>
+    pub fn inspect_heuristic_argv<'items, I>(
+        &self,
+        items: I,
+    ) -> Result<RedactionInspection, RedactionInspectionError>
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
     {
@@ -87,7 +93,11 @@ impl Redactor {
     ///
     /// Returns [`RedactionInspectionError`] when the shared input or
     /// structural budget prevents complete inspection.
-    pub fn inspect_env(&self, name: &str, value: &str) -> Result<RedactionInspection, RedactionInspectionError> {
+    pub fn inspect_env(
+        &self,
+        name: &str,
+        value: &str,
+    ) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
         crate::formats::env::inspection::inspect_pair(&mut session, name, value);
         session.finish()
@@ -112,7 +122,10 @@ impl Redactor {
     ///
     /// Returns [`RedactionInspectionError`] when non-UTF-8 data or a shared
     /// resource limit prevents complete inspection.
-    pub fn inspect_env_pairs<'items, I>(&self, pairs: I) -> Result<RedactionInspection, RedactionInspectionError>
+    pub fn inspect_env_pairs<'items, I>(
+        &self,
+        pairs: I,
+    ) -> Result<RedactionInspection, RedactionInspectionError>
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
     {
@@ -157,7 +170,8 @@ impl Redactor {
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
     {
         let mut session = self.inspection_runtime();
-        let command = std::iter::once(crate::formats::argv::ArgvItem::plain(program)).chain(arguments);
+        let command =
+            std::iter::once(crate::formats::argv::ArgvItem::plain(program)).chain(arguments);
         crate::formats::argv::inspection::inspect_items(&mut session, command, true);
         crate::formats::env::inspection::inspect_os_pairs(&mut session, variables);
         session.finish()

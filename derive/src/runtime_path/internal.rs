@@ -47,6 +47,9 @@ pub(crate) fn resolve(
             let identifier = format_ident!("{}", name.replace('-', "_"), span = Span::call_site());
             Ok(parse_quote!(::#identifier))
         }
-        Err(error) => Err(Error::new_spanned(input, format!("{error_context}: {error}"))),
+        Err(error) => Err(Error::new_spanned(
+            input,
+            format!("{error_context}: {error}"),
+        )),
     }
 }

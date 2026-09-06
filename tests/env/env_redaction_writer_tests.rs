@@ -75,7 +75,10 @@ fn environment_batch_uses_its_own_output_budget() {
     let password = batch.redact_env("PASSWORD", "raw-secret");
     let output = batch.finish_for_diagnostics("");
     assert!(output.text(password).as_str().is_empty());
-    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Exhausted
+    );
     assert!(output.summary().usage().output_bytes() <= 10);
 }
 
@@ -130,8 +133,16 @@ fn session_environment_list_handle_stops_at_collection_limit() {
     let output = batch.finish_for_diagnostics("");
 
     assert!(output.text(handle).as_str().is_empty());
-    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
-    assert!(!output.text(handle).as_str().contains("must-not-be-rendered"));
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Truncated
+    );
+    assert!(
+        !output
+            .text(handle)
+            .as_str()
+            .contains("must-not-be-rendered")
+    );
 }
 
 /// The collection limit must protect the runtime before a collection's
@@ -146,9 +157,14 @@ fn environment_handle_does_not_preallocate_from_unadmitted_iterator_length() {
         .build()
         .expect("policy should build");
     let mut batch = Redactor::new(policy).batch();
-    let handle = batch.redact_env_pairs(HugeEnvironmentIterator { remaining: usize::MAX });
+    let handle = batch.redact_env_pairs(HugeEnvironmentIterator {
+        remaining: usize::MAX,
+    });
     let output = batch.finish_for_diagnostics("");
 
     assert!(output.text(handle).as_str().is_empty());
-    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Truncated
+    );
 }

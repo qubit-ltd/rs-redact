@@ -49,5 +49,8 @@ fn test_redaction_limits_builder_round_trips_every_public_limit() {
 /// Verifies the default snapshot is identical to the default builder output.
 #[test]
 fn test_redaction_limits_default_matches_default_builder() {
-    assert_eq!(RedactionLimits::default(), RedactionLimits::builder().build());
+    assert_eq!(
+        RedactionLimits::default(),
+        RedactionLimits::builder().build()
+    );
 }

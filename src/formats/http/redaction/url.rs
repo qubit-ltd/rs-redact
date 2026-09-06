@@ -46,7 +46,12 @@ impl HttpPolicyExecutor<'_> {
     }
 
     /// Produces a redacted URL under a bounded nested-URL recursion depth.
-    fn redact_url_text_at_depth(&self, url: &Url, depth: usize, output_limit: usize) -> (String, bool) {
+    fn redact_url_text_at_depth(
+        &self,
+        url: &Url,
+        depth: usize,
+        output_limit: usize,
+    ) -> (String, bool) {
         let mut writer = BoundedLogWriter::new(output_limit, false);
         let _ = writer.write_str(url.scheme());
         let _ = writer.write_str(":");
@@ -104,7 +109,9 @@ impl HttpPolicyExecutor<'_> {
         }
         let mut redacted_query = String::new();
         for (key, value) in url.query_pairs() {
-            let remaining = writer.remaining_bytes().saturating_sub(redacted_query.len());
+            let remaining = writer
+                .remaining_bytes()
+                .saturating_sub(redacted_query.len());
             let value = self
                 .query_field_redactor()
                 .redact_bounded(&key, &value, remaining)
@@ -127,9 +134,11 @@ impl HttpPolicyExecutor<'_> {
             return;
         };
         let _ = writer.write_str("#");
-        let masked = self
-            .query_field_redactor()
-            .mask_bounded(Sensitivity::High, fragment, writer.remaining_bytes());
+        let masked = self.query_field_redactor().mask_bounded(
+            Sensitivity::High,
+            fragment,
+            writer.remaining_bytes(),
+        );
         let _ = writer.write_str(masked.as_ref());
     }
 
@@ -147,10 +156,13 @@ impl HttpPolicyExecutor<'_> {
         match nested_url::detect(raw) {
             NestedUrl::NotUrl => (Cow::Borrowed(raw), false),
             NestedUrl::Parsed(url) if depth < url_rules::MAX_NESTED_URL_DEPTH => {
-                let (text, truncated) = self.redact_url_text_at_depth(&url, depth + 1, output_limit);
+                let (text, truncated) =
+                    self.redact_url_text_at_depth(&url, depth + 1, output_limit);
                 (Cow::Owned(text), truncated)
             }
-            NestedUrl::Parsed(_) | NestedUrl::LimitExceeded => (Cow::Borrowed(markers::NESTED_URL_LIMIT), false),
+            NestedUrl::Parsed(_) | NestedUrl::LimitExceeded => {
+                (Cow::Borrowed(markers::NESTED_URL_LIMIT), false)
+            }
             NestedUrl::Invalid => (Cow::Borrowed(markers::INVALID_URL), false),
         }
     }

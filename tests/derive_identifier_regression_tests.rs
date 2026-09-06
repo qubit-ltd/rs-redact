@@ -89,7 +89,11 @@ mod serde {
 
     collision_enum!(External, redact(serde));
     collision_enum!(Internal, redact(serde), serde(tag = "kind"));
-    collision_enum!(Adjacent, redact(serde), serde(tag = "kind", content = "payload"));
+    collision_enum!(
+        Adjacent,
+        redact(serde),
+        serde(tag = "kind", content = "payload")
+    );
     collision_enum!(Untagged, redact(serde), serde(untagged));
 
     #[derive(Redact)]
@@ -111,9 +115,12 @@ mod serde {
             policy: "password".to_owned(),
             value: "secret".to_owned(),
         };
-        let encoded =
-            serde_json::to_value(RedactedSerializeRef::new(&value, &policy)).expect("skipped key serialization");
-        assert_eq!(encoded, serde_json::json!({"Named": {"value": "<redacted>"}}));
+        let encoded = serde_json::to_value(RedactedSerializeRef::new(&value, &policy))
+            .expect("skipped key serialization");
+        assert_eq!(
+            encoded,
+            serde_json::json!({"Named": {"value": "<redacted>"}})
+        );
     }
 
     /// Checks all wire representations retain the right values after aliasing.

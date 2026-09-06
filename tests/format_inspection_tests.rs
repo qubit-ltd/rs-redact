@@ -108,7 +108,11 @@ fn test_inspect_core_formats_report_shared_limit_failures() {
         .build()
         .expect("policy should build");
     let structural = Redactor::new(structural_policy);
-    assert!(structural.inspect_argv([ArgvItem::plain(OsStr::new("value"))]).is_err());
+    assert!(
+        structural
+            .inspect_argv([ArgvItem::plain(OsStr::new("value"))])
+            .is_err()
+    );
     assert!(structural.inspect_env("VISIBLE", "value").is_err());
 
     let input_policy = RedactionPolicy::builder()
@@ -119,7 +123,11 @@ fn test_inspect_core_formats_report_shared_limit_failures() {
         .build()
         .expect("policy should build");
     let input = Redactor::new(input_policy);
-    assert!(input.inspect_argv([ArgvItem::plain(OsStr::new("value"))]).is_err());
+    assert!(
+        input
+            .inspect_argv([ArgvItem::plain(OsStr::new("value"))])
+            .is_err()
+    );
     assert!(input.inspect_env("VISIBLE", "value").is_err());
 }
 
@@ -158,7 +166,10 @@ fn test_inspect_structured_formats_reports_sensitivity_without_rendering() {
     let header_inspection = redactor
         .inspect_http_headers(&headers)
         .expect("HTTP header inspection should complete");
-    assert_eq!(header_inspection.max_sensitivity(), Some(Sensitivity::Secret));
+    assert_eq!(
+        header_inspection.max_sensitivity(),
+        Some(Sensitivity::Secret)
+    );
 
     let body = redactor
         .inspect_http_body(
@@ -219,13 +230,19 @@ fn test_inspect_http_body_content_types_and_url_components() {
         ),
     ] {
         let inspection = redactor
-            .inspect_http_body_with_content_type_text(BodyCapture::complete(body), Some(content_type))
+            .inspect_http_body_with_content_type_text(
+                BodyCapture::complete(body),
+                Some(content_type),
+            )
             .expect("supported body should be completely inspected");
         assert!(inspection.contains_sensitive());
     }
 
     let inferred = redactor
-        .inspect_http_body_with_content_type_text(BodyCapture::complete(b"  {\"password\":\"secret\"}"), None)
+        .inspect_http_body_with_content_type_text(
+            BodyCapture::complete(b"  {\"password\":\"secret\"}"),
+            None,
+        )
         .expect("JSON body should be inferred");
     assert!(inferred.contains_sensitive());
 
@@ -284,11 +301,16 @@ fn test_inspect_http_rejects_incomplete_and_invalid_body_metadata() {
 #[test]
 fn test_inspect_http_native_metadata_and_text_policy_paths() {
     let redactor = Redactor::standard();
-    let invalid_header = HeaderValue::from_bytes(&[0xFF]).expect("opaque header value should construct");
+    let invalid_header =
+        HeaderValue::from_bytes(&[0xFF]).expect("opaque header value should construct");
     let error = redactor
         .inspect_http_body(BodyCapture::complete(b"body"), Some(&invalid_header))
         .expect_err("non-text Content-Type must be inconclusive");
-    assert!(error.reasons().contains(RedactionReason::InvalidContentType));
+    assert!(
+        error
+            .reasons()
+            .contains(RedactionReason::InvalidContentType)
+    );
     assert!(
         !redactor
             .inspect_http_body(BodyCapture::complete(b""), None)
@@ -297,9 +319,16 @@ fn test_inspect_http_native_metadata_and_text_policy_paths() {
     );
 
     let missing_boundary = redactor
-        .inspect_http_body_with_content_type_text(BodyCapture::complete(b"body"), Some("multipart/form-data"))
+        .inspect_http_body_with_content_type_text(
+            BodyCapture::complete(b"body"),
+            Some("multipart/form-data"),
+        )
         .expect_err("multipart without boundary must be inconclusive");
-    assert!(missing_boundary.reasons().contains(RedactionReason::InvalidMultipart));
+    assert!(
+        missing_boundary
+            .reasons()
+            .contains(RedactionReason::InvalidMultipart)
+    );
 
     let pass_through = RedactionPolicy::builder()
         .http(|http| {
@@ -310,12 +339,18 @@ fn test_inspect_http_native_metadata_and_text_policy_paths() {
         .expect("policy should build");
     let pass_through = Redactor::new(pass_through);
     let clear = pass_through
-        .inspect_http_body_with_content_type_text(BodyCapture::complete(b"visible text"), Some("text/plain"))
+        .inspect_http_body_with_content_type_text(
+            BodyCapture::complete(b"visible text"),
+            Some("text/plain"),
+        )
         .expect("UTF-8 text should pass through conclusively");
     assert!(!clear.contains_sensitive());
     assert!(
         pass_through
-            .inspect_http_body_with_content_type_text(BodyCapture::complete(&[0xFF]), Some("text/plain"),)
+            .inspect_http_body_with_content_type_text(
+                BodyCapture::complete(&[0xFF]),
+                Some("text/plain"),
+            )
             .is_err()
     );
 
@@ -325,7 +360,10 @@ fn test_inspect_http_native_metadata_and_text_policy_paths() {
     assert_eq!(strict_url.max_sensitivity(), Some(Sensitivity::High));
 
     let default_text = redactor
-        .inspect_http_body_with_content_type_text(BodyCapture::complete(b"secret-looking text"), Some("text/plain"))
+        .inspect_http_body_with_content_type_text(
+            BodyCapture::complete(b"secret-looking text"),
+            Some("text/plain"),
+        )
         .expect("default text inspection should complete");
     assert_eq!(default_text.max_sensitivity(), Some(Sensitivity::Secret));
 
@@ -344,7 +382,11 @@ fn test_inspect_http_native_metadata_and_text_policy_paths() {
     let nested_error = redactor
         .inspect_http_url(&nested)
         .expect_err("nested URL depth must be bounded");
-    assert!(nested_error.reasons().contains(RedactionReason::DepthLimitReached));
+    assert!(
+        nested_error
+            .reasons()
+            .contains(RedactionReason::DepthLimitReached)
+    );
 
     for (content_type, body) in [
         (Some("not a content type"), b"body".as_slice()),
@@ -417,7 +459,11 @@ fn test_inspect_invalid_structured_input_fails_closed() {
             Some("multipart/form-data; boundary=boundary"),
         )
         .expect_err("invalid multipart must be inconclusive");
-    assert!(multipart.reasons().contains(RedactionReason::InvalidMultipart));
+    assert!(
+        multipart
+            .reasons()
+            .contains(RedactionReason::InvalidMultipart)
+    );
 }
 
 /// Classification is independent of rendered mask bytes and value emptiness.
@@ -460,7 +506,8 @@ fn test_inspect_uri_detects_identity_mask_and_empty_sensitive_value() {
 
     let uri_policy = RedactionPolicy::builder()
         .uri(|uri| {
-            uri.path(UriPathPolicy::Redact).fragment(UriFragmentPolicy::Redact);
+            uri.path(UriPathPolicy::Redact)
+                .fragment(UriFragmentPolicy::Redact);
         })
         .expect("URI policy should be valid")
         .build()

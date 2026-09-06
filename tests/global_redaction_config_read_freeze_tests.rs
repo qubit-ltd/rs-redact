@@ -25,7 +25,9 @@ fn test_concurrent_application_default_reads_observe_complete_snapshots() {
     let reader_barrier = Arc::clone(&barrier);
     let reader = std::thread::spawn(move || {
         reader_barrier.wait();
-        (0..1_000).map(|_| Redactor::application_default()).collect::<Vec<_>>()
+        (0..1_000)
+            .map(|_| Redactor::application_default())
+            .collect::<Vec<_>>()
     });
 
     let initial_previous = Redactor::replace_application_default(standard.clone());

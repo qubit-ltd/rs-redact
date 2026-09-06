@@ -160,7 +160,8 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
         if !self.writer.can_write() {
             return false;
         }
-        std::mem::take(&mut self.admitted_item) || self.writer.session.admit_domain_collection_item()
+        std::mem::take(&mut self.admitted_item)
+            || self.writer.session.admit_domain_collection_item()
     }
 
     /// Publishes the sequence truncation marker once.

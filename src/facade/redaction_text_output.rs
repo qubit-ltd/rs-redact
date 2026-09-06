@@ -85,7 +85,10 @@ impl RedactionTextOutput {
     pub fn text_or_marker(&self, marker: &str) -> Cow<'_, str> {
         self.complete_text().map_or_else(
             |_| {
-                Cow::Owned(crate::output::log_escape::escape_log_control_characters(Cow::Borrowed(marker)).into_owned())
+                Cow::Owned(
+                    crate::output::log_escape::escape_log_control_characters(Cow::Borrowed(marker))
+                        .into_owned(),
+                )
             },
             |text| Cow::Borrowed(text.as_str()),
         )
@@ -115,8 +118,10 @@ impl RedactionTextOutput {
     pub fn into_text_or_marker(self, marker: &str) -> RedactedText {
         self.into_complete_text().unwrap_or_else(|_| {
             RedactedText::from_escaped(
-                crate::output::log_escape::escape_log_control_characters(std::borrow::Cow::Borrowed(marker))
-                    .into_owned(),
+                crate::output::log_escape::escape_log_control_characters(
+                    std::borrow::Cow::Borrowed(marker),
+                )
+                .into_owned(),
             )
         })
     }

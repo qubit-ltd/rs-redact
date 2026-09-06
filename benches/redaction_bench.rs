@@ -101,7 +101,9 @@ fn benchmark_redaction(criterion: &mut Criterion) {
     });
     group.finish();
 
-    let arguments = (0..64).map(|index| format!("argument-{index}")).collect::<Vec<_>>();
+    let arguments = (0..64)
+        .map(|index| format!("argument-{index}"))
+        .collect::<Vec<_>>();
     let variables = (0..64)
         .map(|index| (format!("PUBLIC_{index}"), format!("value-{index}")))
         .collect::<Vec<_>>();
@@ -129,7 +131,9 @@ fn benchmark_redaction(criterion: &mut Criterion) {
     });
     formats.bench_function("process/64-arguments-and-variables", |bencher| {
         bencher.iter(|| {
-            let items = arguments.iter().map(|value| ArgvItem::plain(OsStr::new(value)));
+            let items = arguments
+                .iter()
+                .map(|value| ArgvItem::plain(OsStr::new(value)));
             let pairs = variables
                 .iter()
                 .map(|(name, value)| (OsStr::new(name), OsStr::new(value)));

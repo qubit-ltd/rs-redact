@@ -110,7 +110,10 @@ fn argv_handle_stops_at_shared_collection_limit() {
     let output = batch.finish_for_diagnostics("");
 
     assert!(output.text(handle).as_str().is_empty());
-    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Truncated
+    );
     assert!(!output.text(handle).as_str().contains("later-secret"));
 }
 
@@ -127,11 +130,16 @@ fn argv_handle_does_not_preallocate_from_unadmitted_iterator_length() {
         .build()
         .expect("policy should build");
     let mut batch = Redactor::new(policy).batch();
-    let handle = batch.redact_argv(HugeArgvIterator { remaining: usize::MAX });
+    let handle = batch.redact_argv(HugeArgvIterator {
+        remaining: usize::MAX,
+    });
     let output = batch.finish_for_diagnostics("");
 
     assert!(output.text(handle).as_str().is_empty());
-    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Truncated
+    );
 }
 
 /// Once the shared collection budget is exhausted, an iterator's protected
@@ -161,6 +169,9 @@ fn argv_handle_does_not_consume_suffix_after_collection_limit() {
     let output = batch.finish_for_diagnostics("");
 
     assert_eq!(calls.get(), 1);
-    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated,);
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Truncated,
+    );
     assert!(output.text(handle).as_str().is_empty());
 }

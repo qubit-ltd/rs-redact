@@ -44,7 +44,9 @@ fn test_publication_modes_preserve_their_behavioral_contracts() {
     let mut batch = redactor.batch();
     let handle = batch.redact_value(&value);
     let diagnostics = batch.finish_for_diagnostics("<redaction incomplete>");
-    let inspection = redactor.inspect(&value).expect("inspection should be conclusive");
+    let inspection = redactor
+        .inspect(&value)
+        .expect("inspection should be conclusive");
 
     assert!(!composed.text().as_str().contains("raw-secret"));
     assert!(!diagnostics.text(handle).as_str().contains("raw-secret"));
@@ -71,8 +73,16 @@ fn test_output_budget_is_owned_by_the_parent_text_transaction() {
         .finish();
 
     assert_eq!(output.text().as_str(), "safe");
-    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
-    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Exhausted
+    );
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::OutputLimitReached)
+    );
     assert!(!accessed.get());
 }
 
@@ -84,5 +94,10 @@ fn test_json_contract_preserves_invalid_input_provenance() {
     let output = Redactor::strict().redact_json(r#"{"password":"raw-secret""#);
 
     assert!(!output.text().as_str().contains("raw-secret"));
-    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::InvalidJson)
+    );
 }

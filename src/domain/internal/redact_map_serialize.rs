@@ -25,7 +25,11 @@ use crate::Sensitivity;
 #[doc(hidden)]
 pub trait RedactMapSerialize {
     /// Serializes a map after classifying each value by its field key.
-    fn serialize_redacted_map<S>(&self, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
+    fn serialize_redacted_map<S>(
+        &self,
+        serializer: S,
+        policy: &RedactionPolicy,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer;
 }
@@ -37,7 +41,11 @@ macro_rules! map_redact_serialize {
             K: AsRef<str> + Serialize,
             V: RedactLevelSerialize + Serialize,
         {
-            fn serialize_redacted_map<S>(&self, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
+            fn serialize_redacted_map<S>(
+                &self,
+                serializer: S,
+                policy: &RedactionPolicy,
+            ) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
             {
@@ -54,7 +62,9 @@ macro_rules! map_redact_serialize {
                     map.serialize_key(&BudgetSerialize::new(key))?;
                     if !policy.is_disabled() {
                         if let Some(level) = policy.sensitivity_for(key_name) {
-                            map.serialize_value(&RedactedLevelSerializeRef::new(value, policy, level))?;
+                            map.serialize_value(&RedactedLevelSerializeRef::new(
+                                value, policy, level,
+                            ))?;
                             continue;
                         }
                     }
@@ -69,7 +79,11 @@ macro_rules! map_redact_serialize {
             K: AsRef<str> + Serialize,
             V: RedactLevelSerialize + Serialize,
         {
-            fn serialize_redacted_map<S>(&self, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
+            fn serialize_redacted_map<S>(
+                &self,
+                serializer: S,
+                policy: &RedactionPolicy,
+            ) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
             {

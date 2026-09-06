@@ -51,7 +51,10 @@ impl HttpPolicyBuilder {
     #[must_use]
     pub(crate) fn from_policy(policy: &super::HttpPolicy) -> Self {
         Self {
-            header: ContextRulesBuilder::from_rules(policy.header_rules(), PolicyLocation::HttpHeader),
+            header: ContextRulesBuilder::from_rules(
+                policy.header_rules(),
+                PolicyLocation::HttpHeader,
+            ),
             query: ContextRulesBuilder::from_rules(policy.query_rules(), PolicyLocation::HttpQuery),
             body: ContextRulesBuilder::from_rules(policy.body_rules(), PolicyLocation::HttpBody),
             url_path_policy: policy.url_path_policy(),
@@ -177,7 +180,11 @@ impl HttpPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `name` has no canonical
     /// field name.
-    pub(crate) fn allow_exact_mut(&mut self, context: HttpFieldContext, name: &str) -> Result<(), PolicyError> {
+    pub(crate) fn allow_exact_mut(
+        &mut self,
+        context: HttpFieldContext,
+        name: &str,
+    ) -> Result<(), PolicyError> {
         self.context_mut(context).rules.allow_canonical_exact(name)
     }
 
@@ -192,7 +199,11 @@ impl HttpPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `name` has no canonical
     /// field name.
-    pub(crate) fn allow_suffix_mut(&mut self, context: HttpFieldContext, name: &str) -> Result<(), PolicyError> {
+    pub(crate) fn allow_suffix_mut(
+        &mut self,
+        context: HttpFieldContext,
+        name: &str,
+    ) -> Result<(), PolicyError> {
         self.context_mut(context).rules.allow_suffix(name)
     }
 
@@ -207,8 +218,14 @@ impl HttpPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `name` has no canonical
     /// field name.
-    pub(crate) fn remove_allow_exact_mut(&mut self, context: HttpFieldContext, name: &str) -> Result<(), PolicyError> {
-        self.context_mut(context).rules.remove_allow_canonical_exact(name)
+    pub(crate) fn remove_allow_exact_mut(
+        &mut self,
+        context: HttpFieldContext,
+        name: &str,
+    ) -> Result<(), PolicyError> {
+        self.context_mut(context)
+            .rules
+            .remove_allow_canonical_exact(name)
     }
 
     /// Removes a token-suffix allow rule from one HTTP field context.
@@ -222,7 +239,11 @@ impl HttpPolicyBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `name` has no canonical
     /// field name.
-    pub(crate) fn remove_allow_suffix_mut(&mut self, context: HttpFieldContext, name: &str) -> Result<(), PolicyError> {
+    pub(crate) fn remove_allow_suffix_mut(
+        &mut self,
+        context: HttpFieldContext,
+        name: &str,
+    ) -> Result<(), PolicyError> {
         self.context_mut(context).rules.remove_allow_suffix(name)
     }
 

@@ -43,7 +43,9 @@ static STANDARD_FLOOR: LazyLock<RedactionFloor> = LazyLock::new(|| {
             .raise(field, level)
             .expect("built-in standard floor fields must be valid");
     }
-    builder.build().expect("the built-in redaction floor is valid")
+    builder
+        .build()
+        .expect("the built-in redaction floor is valid")
 });
 
 impl RedactionFloor {

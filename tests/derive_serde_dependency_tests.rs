@@ -27,7 +27,11 @@ fn test_missing_direct_serde_dependency_compiles() {
         .arg(target_dir)
         .output()
         .expect("the isolated cargo check starts");
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 /// Verifies generated code honors a renamed serde dependency.
@@ -45,5 +49,9 @@ fn test_renamed_serde_dependency_compiles() {
         .output()
         .expect("the isolated cargo check starts");
 
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr),);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
 }

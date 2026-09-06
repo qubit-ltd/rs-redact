@@ -84,6 +84,8 @@ impl RedactionFloorBuilder {
     /// field name or fixed mask is invalid.
     pub fn build(self) -> Result<RedactionFloor, PolicyError> {
         let inner = self.rules.build_inner()?;
-        Ok(RedactionFloor { inner: Arc::new(inner) })
+        Ok(RedactionFloor {
+            inner: Arc::new(inner),
+        })
     }
 }

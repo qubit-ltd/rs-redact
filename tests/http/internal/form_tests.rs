@@ -18,7 +18,9 @@ fn test_form_masks_password_value() {
     let rendered = redact_body(
         &Redactor::standard(),
         BodyCapture::complete(b"password=raw&label=visible"),
-        Some(&HeaderValue::from_static("application/x-www-form-urlencoded")),
+        Some(&HeaderValue::from_static(
+            "application/x-www-form-urlencoded",
+        )),
     );
 
     assert!(!rendered.contains("raw"));

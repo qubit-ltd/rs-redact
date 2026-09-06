@@ -33,10 +33,16 @@ fn test_text_composer_composes_policy_classified_fields_and_formats() {
         })
         .finish();
 
-    assert_eq!(first.text().as_str(), "request password=<redacted> argv=[\"client\"]");
+    assert_eq!(
+        first.text().as_str(),
+        "request password=<redacted> argv=[\"client\"]"
+    );
     assert!(!first.text().as_str().contains("super-secret"));
 
-    let second = redactor.text_composer().field("password", "second-secret").finish();
+    let second = redactor
+        .text_composer()
+        .field("password", "second-secret")
+        .finish();
     assert_eq!(second.text().as_str(), "<redacted>");
     assert!(!second.text().as_str().contains("second-secret"));
 }

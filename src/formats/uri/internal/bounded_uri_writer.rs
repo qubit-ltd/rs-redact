@@ -47,9 +47,14 @@ impl BoundedUriWriter {
                 remaining = &remaining[3..];
                 continue;
             }
-            let character = remaining.chars().next().expect("non-empty text has a first character");
+            let character = remaining
+                .chars()
+                .next()
+                .expect("non-empty text has a first character");
             let mut encoded = [0_u8; 12];
-            let Ok(piece) = crate::output::log_escape::encode_log_safe_character(character, &mut encoded) else {
+            let Ok(piece) =
+                crate::output::log_escape::encode_log_safe_character(character, &mut encoded)
+            else {
                 self.sink.mark_truncated();
                 return false;
             };
@@ -77,7 +82,10 @@ impl BoundedUriWriter {
 
     /// Finishes output and reports whether the effective bound was a domain
     /// limit or the shared session limit.
-    pub(crate) fn finish_with_completion(self, _session_limited: bool) -> (String, RedactionCompletion) {
+    pub(crate) fn finish_with_completion(
+        self,
+        _session_limited: bool,
+    ) -> (String, RedactionCompletion) {
         let (text, completion, _) = self
             .sink
             .finish_with_reason(RedactionReason::OutputLimitReached)

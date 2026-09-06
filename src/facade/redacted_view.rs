@@ -49,7 +49,8 @@ impl<T: Redact + ?Sized> fmt::Debug for RedactedView<'_, T> {
 }
 
 #[cfg(any(feature = "serde", feature = "json"))]
-impl<'value, T: crate::domain::internal::RedactSerializeSource + ?Sized> serde::Serialize for RedactedView<'value, T>
+impl<'value, T: crate::domain::internal::RedactSerializeSource + ?Sized> serde::Serialize
+    for RedactedView<'value, T>
 where
     T::RedactedFields<'value>: serde::Serialize,
 {

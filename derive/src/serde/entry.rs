@@ -53,14 +53,24 @@ pub(crate) fn expand(
     let serializer = assertions::fresh_identifier(&input.generics, "__QubitRedactSerializer");
     let adapters = serialization_adapter_helpers(name, &input.generics, model, serde);
     let body = match model {
-        ContainerData::Struct(fields) => struct_body(name, fields, runtime, serde, container_attributes),
-        ContainerData::Enum(variants) => enum_body(name, variants, runtime, serde, container_attributes, &serializer)?,
+        ContainerData::Struct(fields) => {
+            struct_body(name, fields, runtime, serde, container_attributes)
+        }
+        ContainerData::Enum(variants) => enum_body(
+            name,
+            variants,
+            runtime,
+            serde,
+            container_attributes,
+            &serializer,
+        )?,
     };
     let declaration = projection_declaration(&projection, &lifetime, &parameters, model, runtime);
     let constructor = projection_constructor(name, &projection, model);
     let actual_types = fields.iter().map(|field| &field.ty);
     let projection_bounds = projection_bounds(model, &parameters, runtime, serde);
-    let (source_impl_generics, source_type_generics, source_where_clause) = input.generics.split_for_impl();
+    let (source_impl_generics, source_type_generics, source_where_clause) =
+        input.generics.split_for_impl();
 
     let source_serialize = generate_serialize.then(|| {
         let mut generics = input.generics.clone();
@@ -83,7 +93,8 @@ pub(crate) fn expand(
             }
         }
     });
-    let required_serialize = source_serialize.map(|tokens| quote!(#runtime::__qubit_redact_serde! { #tokens }));
+    let required_serialize =
+        source_serialize.map(|tokens| quote!(#runtime::__qubit_redact_serde! { #tokens }));
 
     Ok(quote! {
         #runtime::__qubit_redact_serde_optional! {
@@ -128,7 +139,14 @@ fn projection_bounds(
         }
         ContainerData::Enum(variants) => {
             for variant in variants {
-                projection_group_bounds(variant.fields(), parameters, &mut offset, runtime, serde, &mut result);
+                projection_group_bounds(
+                    variant.fields(),
+                    parameters,
+                    &mut offset,
+                    runtime,
+                    serde,
+                    &mut result,
+                );
             }
         }
     }
@@ -285,7 +303,11 @@ fn projection_declaration(
     }
 }
 
-fn projection_constructor(name: &Ident, projection: &Ident, model: &ContainerData<'_>) -> TokenStream {
+fn projection_constructor(
+    name: &Ident,
+    projection: &Ident,
+    model: &ContainerData<'_>,
+) -> TokenStream {
     match model {
         ContainerData::Struct(fields) => {
             let members = match fields {
@@ -341,10 +363,14 @@ fn serialization_adapter_helpers(
     serde: &Path,
 ) -> Vec<TokenStream> {
     match model {
-        ContainerData::Struct(fields) => helpers_for_group(type_name, generics, fields, None, serde),
+        ContainerData::Struct(fields) => {
+            helpers_for_group(type_name, generics, fields, None, serde)
+        }
         ContainerData::Enum(variants) => variants
             .iter()
-            .flat_map(|variant| helpers_for_group(type_name, generics, variant.fields(), Some(variant), serde))
+            .flat_map(|variant| {
+                helpers_for_group(type_name, generics, variant.fields(), Some(variant), serde)
+            })
             .collect(),
     }
 }
@@ -409,9 +435,10 @@ fn adapter_helper(
     let field_type = &field.ty;
     let lifetime = assertions::fresh_lifetime(generics);
     let mut helper_generics = assertions::generics_for_field(generics, field_type);
-    helper_generics
-        .params
-        .insert(0, GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())));
+    helper_generics.params.insert(
+        0,
+        GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())),
+    );
     let serializer = assertions::fresh_identifier(&helper_generics, "__QubitRedactSerializer");
     let params = &helper_generics.params;
     let (impl_generics, type_generics, where_clause) = helper_generics.split_for_impl();

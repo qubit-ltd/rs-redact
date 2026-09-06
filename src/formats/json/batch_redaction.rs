@@ -32,8 +32,14 @@ pub(crate) fn redact_text(session: &mut BatchSession, text: &str) -> RedactionHa
         passthrough_json_text_with_limit(text, session.remaining_output_bytes())
     } else {
         match admit_json_text_value(session, text) {
-            Ok(value) => redact_json_value_with_limit(session.policy(), &value, session.remaining_output_bytes()),
-            Err(JsonAdmissionError::Invalid) => invalid_json_output(session.policy(), session.remaining_output_bytes()),
+            Ok(value) => redact_json_value_with_limit(
+                session.policy(),
+                &value,
+                session.remaining_output_bytes(),
+            ),
+            Err(JsonAdmissionError::Invalid) => {
+                invalid_json_output(session.policy(), session.remaining_output_bytes())
+            }
             Err(JsonAdmissionError::Limit) => {
                 return session.stage_accounted_text("<truncated>");
             }
@@ -49,7 +55,8 @@ pub(crate) fn redact_value(session: &mut BatchSession, value: &Value) -> Redacti
     } else if !session.admit_json_value(value) {
         session.stage_accounted_text("<truncated>")
     } else {
-        let result = redact_json_value_with_limit(session.policy(), value, session.remaining_output_bytes());
+        let result =
+            redact_json_value_with_limit(session.policy(), value, session.remaining_output_bytes());
         session.stage_rendered_operation(result)
     }
 }

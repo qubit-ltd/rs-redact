@@ -28,7 +28,9 @@ pub(in crate::formats::http) fn is_valid(input: &[u8]) -> bool {
         let (name, value) = pair
             .iter()
             .position(|byte| *byte == b'=')
-            .map_or((pair, &[][..]), |index| (&pair[..index], &pair[index + 1..]));
+            .map_or((pair, &[][..]), |index| {
+                (&pair[..index], &pair[index + 1..])
+            });
         is_valid_component(name) && is_valid_component(value)
     })
 }
@@ -57,7 +59,12 @@ pub(in crate::formats::http) fn redact_bounded(
     for (key, value) in parse(input) {
         let remaining = intermediate_limit.saturating_sub(output.len());
         let value = redactor.redact_bounded(key.as_ref(), value.as_ref(), remaining);
-        if !append_pair_bounded(&mut output, key.as_ref(), value.as_str(), intermediate_limit) {
+        if !append_pair_bounded(
+            &mut output,
+            key.as_ref(),
+            value.as_str(),
+            intermediate_limit,
+        ) {
             break;
         }
     }
@@ -77,7 +84,12 @@ pub(in crate::formats::http) fn redact_bounded(
 ///
 /// `true` when the complete pair fits, otherwise `false` after recording
 /// bounded overflow.
-pub(in crate::formats::http) fn append_pair_bounded(output: &mut String, key: &str, value: &str, limit: usize) -> bool {
+pub(in crate::formats::http) fn append_pair_bounded(
+    output: &mut String,
+    key: &str,
+    value: &str,
+    limit: usize,
+) -> bool {
     if !output.is_empty() && !append_bounded_piece(output, "&", limit) {
         return false;
     }

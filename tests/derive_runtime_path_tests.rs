@@ -62,7 +62,10 @@ fn test_runtime_path_resolves_itself() {
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(!output.status.success(), "{stderr}");
-    assert!(stderr.contains("has unknown container attribute"), "{stderr}",);
+    assert!(
+        stderr.contains("has unknown container attribute"),
+        "{stderr}",
+    );
     assert!(
         !stderr.contains("unable to resolve the qubit-redact runtime crate"),
         "{stderr}",

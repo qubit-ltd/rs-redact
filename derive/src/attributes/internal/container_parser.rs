@@ -76,7 +76,10 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     ///
     /// Panics only if `syn` supplies a nested metadata path without any
     /// segments, which violates the `ParseNestedMeta` path invariant.
-    pub(crate) fn parse(input: &'input DeriveInput, enabled: bool) -> Result<SerdeContainerAttributes> {
+    pub(crate) fn parse(
+        input: &'input DeriveInput,
+        enabled: bool,
+    ) -> Result<SerdeContainerAttributes> {
         let mut parser = Self::new(input);
         parser.parse_attributes(enabled)?;
         parser.finish()
@@ -144,7 +147,10 @@ impl<'input> SerdeContainerAttributeParser<'input> {
         let Meta::List(_) = &attribute.meta else {
             return Err(Error::new_spanned(
                 attribute,
-                format!("Redact serde for `{}` expects `#[serde(...)]`", self.input.ident,),
+                format!(
+                    "Redact serde for `{}` expects `#[serde(...)]`",
+                    self.input.ident,
+                ),
             ));
         };
         attribute.parse_nested_meta(|meta| self.parse_nested_attribute(meta))
@@ -162,7 +168,13 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     /// controls.
     fn parse_nested_attribute(&mut self, meta: ParseNestedMeta<'_>) -> Result<()> {
         if meta.path.is_ident("rename") {
-            parse_name(&meta, &self.input.ident, "rename", &mut self.name_seen, &mut self.name)
+            parse_name(
+                &meta,
+                &self.input.ident,
+                "rename",
+                &mut self.name_seen,
+                &mut self.name,
+            )
         } else if meta.path.is_ident("rename_all") {
             parse_rule(
                 &meta,
@@ -190,7 +202,10 @@ impl<'input> SerdeContainerAttributeParser<'input> {
                 )));
             }
             if self.transparent {
-                return Err(meta.error(format!("Redact serde for `{}` repeats `transparent`", self.input.ident,)));
+                return Err(meta.error(format!(
+                    "Redact serde for `{}` repeats `transparent`",
+                    self.input.ident,
+                )));
             }
             self.transparent = true;
             Ok(())
@@ -273,7 +288,10 @@ impl<'input> SerdeContainerAttributeParser<'input> {
             )));
         }
         if self.untagged.is_some() {
-            return Err(meta.error(format!("Redact serde for `{}` repeats `untagged`", self.input.ident,)));
+            return Err(meta.error(format!(
+                "Redact serde for `{}` repeats `untagged`",
+                self.input.ident,
+            )));
         }
         self.untagged = Some(meta.path);
         Ok(())
@@ -365,9 +383,15 @@ fn parse_deserialize_only_default(meta: &ParseNestedMeta<'_>, type_name: &Ident)
 /// # Errors
 ///
 /// Returns an error when the control has a value or parenthesized arguments.
-fn require_bare_deserialize_only(meta: &ParseNestedMeta<'_>, type_name: &Ident, name: &str) -> Result<()> {
+fn require_bare_deserialize_only(
+    meta: &ParseNestedMeta<'_>,
+    type_name: &Ident,
+    name: &str,
+) -> Result<()> {
     if meta.input.peek(Token![=]) || meta.input.peek(Paren) {
-        return Err(meta.error(format!("Redact serde for `{type_name}` requires bare `{name}`")));
+        return Err(meta.error(format!(
+            "Redact serde for `{type_name}` requires bare `{name}`"
+        )));
     }
     Ok(())
 }
@@ -462,7 +486,12 @@ fn parse_rule(
 /// # Errors
 ///
 /// Returns an error when the control is repeated or its value is not a string.
-fn parse_literal(meta: &ParseNestedMeta<'_>, type_name: &Ident, name: &str, output: &mut Option<LitStr>) -> Result<()> {
+fn parse_literal(
+    meta: &ParseNestedMeta<'_>,
+    type_name: &Ident,
+    name: &str,
+    output: &mut Option<LitStr>,
+) -> Result<()> {
     if output.is_some() {
         return Err(meta.error(format!("Redact serde for `{type_name}` repeats `{name}`",)));
     }

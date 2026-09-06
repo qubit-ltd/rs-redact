@@ -120,7 +120,8 @@ impl ContainerAttributes {
             })?;
         }
         if transparent {
-            let valid = matches!(&input.data, Data::Struct(data) if data.fields.iter().count() == 1);
+            let valid =
+                matches!(&input.data, Data::Struct(data) if data.fields.iter().count() == 1);
             if !valid {
                 return Err(Error::new_spanned(
                     input,

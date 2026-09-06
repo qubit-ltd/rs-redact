@@ -39,8 +39,13 @@ macro_rules! owned_map_key {
                 fields.map_entries(name, self.iter());
             }
         }
-        impl<V: super::RedactLevelValue + std::fmt::Debug> private::Sealed for Option<HashMap<$key, V>> {}
-        impl<V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue for Option<HashMap<$key, V>> {
+        impl<V: super::RedactLevelValue + std::fmt::Debug> private::Sealed
+            for Option<HashMap<$key, V>>
+        {
+        }
+        impl<V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue
+            for Option<HashMap<$key, V>>
+        {
             fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                 match self {
                     Some(value) => value.write_redacted_map(fields, name),
@@ -50,8 +55,13 @@ macro_rules! owned_map_key {
                 };
             }
         }
-        impl<V: super::RedactLevelValue + std::fmt::Debug> private::Sealed for Option<BTreeMap<$key, V>> {}
-        impl<V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue for Option<BTreeMap<$key, V>> {
+        impl<V: super::RedactLevelValue + std::fmt::Debug> private::Sealed
+            for Option<BTreeMap<$key, V>>
+        {
+        }
+        impl<V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue
+            for Option<BTreeMap<$key, V>>
+        {
             fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                 match self {
                     Some(value) => value.write_redacted_map(fields, name),
@@ -66,20 +76,33 @@ macro_rules! owned_map_key {
 
 macro_rules! borrowed_map_key {
     ($key:ty) => {
-        impl<'a, V: super::RedactLevelValue + std::fmt::Debug> private::Sealed for HashMap<$key, V> {}
+        impl<'a, V: super::RedactLevelValue + std::fmt::Debug> private::Sealed
+            for HashMap<$key, V>
+        {
+        }
         impl<'a, V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue for HashMap<$key, V> {
             fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                 fields.map_entries(name, self.iter());
             }
         }
-        impl<'a, V: super::RedactLevelValue + std::fmt::Debug> private::Sealed for BTreeMap<$key, V> {}
-        impl<'a, V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue for BTreeMap<$key, V> {
+        impl<'a, V: super::RedactLevelValue + std::fmt::Debug> private::Sealed
+            for BTreeMap<$key, V>
+        {
+        }
+        impl<'a, V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue
+            for BTreeMap<$key, V>
+        {
             fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                 fields.map_entries(name, self.iter());
             }
         }
-        impl<'a, V: super::RedactLevelValue + std::fmt::Debug> private::Sealed for Option<HashMap<$key, V>> {}
-        impl<'a, V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue for Option<HashMap<$key, V>> {
+        impl<'a, V: super::RedactLevelValue + std::fmt::Debug> private::Sealed
+            for Option<HashMap<$key, V>>
+        {
+        }
+        impl<'a, V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue
+            for Option<HashMap<$key, V>>
+        {
             fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                 match self {
                     Some(value) => value.write_redacted_map(fields, name),
@@ -89,8 +112,13 @@ macro_rules! borrowed_map_key {
                 };
             }
         }
-        impl<'a, V: super::RedactLevelValue + std::fmt::Debug> private::Sealed for Option<BTreeMap<$key, V>> {}
-        impl<'a, V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue for Option<BTreeMap<$key, V>> {
+        impl<'a, V: super::RedactLevelValue + std::fmt::Debug> private::Sealed
+            for Option<BTreeMap<$key, V>>
+        {
+        }
+        impl<'a, V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue
+            for Option<BTreeMap<$key, V>>
+        {
             fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                 match self {
                     Some(value) => value.write_redacted_map(fields, name),

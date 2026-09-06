@@ -134,9 +134,10 @@ fn mask_os_value_bounded(
 ) -> (String, bool) {
     match value.to_str() {
         Some(value) => {
-            let (masked, truncated) = policy
-                .masking()
-                .mask_bounded_with_truncation(level, value, max_output_bytes);
+            let (masked, truncated) =
+                policy
+                    .masking()
+                    .mask_bounded_with_truncation(level, value, max_output_bytes);
             (masked.into_owned(), truncated)
         }
         None => mask_opaque_value_bounded(policy, max_output_bytes),
@@ -209,7 +210,11 @@ fn option_is_sensitive(policy: &RedactionPolicy, field: &str, exact: bool) -> bo
 }
 
 /// Redacts a `NAME=value` assignment when its name is sensitive.
-fn redact_assignment_bounded(policy: &RedactionPolicy, value: &str, max_output_bytes: usize) -> Option<(String, bool)> {
+fn redact_assignment_bounded(
+    policy: &RedactionPolicy,
+    value: &str,
+    max_output_bytes: usize,
+) -> Option<(String, bool)> {
     if value.starts_with('-') {
         return None;
     }
@@ -217,7 +222,8 @@ fn redact_assignment_bounded(policy: &RedactionPolicy, value: &str, max_output_b
     if name.is_empty() {
         return None;
     }
-    let (redacted, truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
+    let (redacted, truncated) =
+        mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
     Some((format!("{name}={redacted}"), truncated))
 }
 
@@ -232,7 +238,8 @@ fn redact_inline_option_bounded(
     }
     let (left, raw_value) = value.split_once('=')?;
     let name = option_name(left)?;
-    let (redacted, truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
+    let (redacted, truncated) =
+        mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
     Some((format!("{left}={redacted}"), truncated))
 }
 
@@ -247,7 +254,8 @@ fn redact_jvm_property_bounded(
     if name.is_empty() {
         return None;
     }
-    let (redacted, truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
+    let (redacted, truncated) =
+        mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
     Some((format!("-D{name}={redacted}"), truncated))
 }
 
@@ -352,7 +360,9 @@ pub(super) fn inspect_heuristic_item(
             .split_once('=')
             .and_then(|(field, _)| (!field.is_empty()).then_some(field))
     } else if value.starts_with("--") {
-        value.split_once('=').and_then(|(left, _)| option_name(left))
+        value
+            .split_once('=')
+            .and_then(|(left, _)| option_name(left))
     } else {
         None
     };
@@ -440,23 +450,43 @@ mod tests {
             Some(Sensitivity::High),
         );
         assert_eq!(
-            inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("password=value")), &mut pending),
+            inspect_heuristic_item(
+                &policy,
+                ArgvItem::plain(OsStr::new("password=value")),
+                &mut pending
+            ),
             Some(Sensitivity::Secret),
         );
         assert_eq!(
-            inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("-Dpassword=value")), &mut pending),
+            inspect_heuristic_item(
+                &policy,
+                ArgvItem::plain(OsStr::new("-Dpassword=value")),
+                &mut pending
+            ),
             Some(Sensitivity::Secret),
         );
         assert_eq!(
-            inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("--password=value")), &mut pending),
+            inspect_heuristic_item(
+                &policy,
+                ArgvItem::plain(OsStr::new("--password=value")),
+                &mut pending
+            ),
             Some(Sensitivity::Secret),
         );
         assert_eq!(
-            inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("--password")), &mut pending),
+            inspect_heuristic_item(
+                &policy,
+                ArgvItem::plain(OsStr::new("--password")),
+                &mut pending
+            ),
             None,
         );
         assert_eq!(
-            inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("--token")), &mut pending),
+            inspect_heuristic_item(
+                &policy,
+                ArgvItem::plain(OsStr::new("--token")),
+                &mut pending
+            ),
             Some(Sensitivity::Secret),
         );
         assert_eq!(

@@ -79,11 +79,9 @@ impl<'a> FieldRedactor<'a> {
             .resolve_field(field)
             .stronger(self.context_rules.resolve_field(field));
         match resolved {
-            ResolvedField::Sensitive { sensitivity } => Some(MaskedValue::new(self.masking.mask_bounded(
-                sensitivity,
-                value,
-                max_bytes,
-            ))),
+            ResolvedField::Sensitive { sensitivity } => Some(MaskedValue::new(
+                self.masking.mask_bounded(sensitivity, value, max_bytes),
+            )),
             ResolvedField::PassThrough => None,
         }
     }

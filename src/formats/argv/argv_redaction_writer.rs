@@ -36,11 +36,16 @@ impl<'session> ArgvRedactionWriter<'session> {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        let Some(items) = collect_flat_format_items(self.session, items, |item| item.value().as_encoded_bytes().len())
-        else {
+        let Some(items) = collect_flat_format_items(self.session, items, |item| {
+            item.value().as_encoded_bytes().len()
+        }) else {
             return self;
         };
-        let result = redact_items_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
+        let result = redact_items_with_policy(
+            self.session.policy(),
+            items,
+            self.session.remaining_output_bytes(),
+        );
         self.session.append_rendered_operation(result);
         self
     }
@@ -53,12 +58,16 @@ impl<'session> ArgvRedactionWriter<'session> {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        let Some(items) = collect_flat_format_items(self.session, items, |item| item.value().as_encoded_bytes().len())
-        else {
+        let Some(items) = collect_flat_format_items(self.session, items, |item| {
+            item.value().as_encoded_bytes().len()
+        }) else {
             return self;
         };
-        let result =
-            redact_heuristically_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
+        let result = redact_heuristically_with_policy(
+            self.session.policy(),
+            items,
+            self.session.remaining_output_bytes(),
+        );
         self.session.append_rendered_operation(result);
         self
     }

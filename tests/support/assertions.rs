@@ -182,7 +182,9 @@ pub fn assert_field_admission_precedes_access() {
 pub fn assert_nested_admission_uses_shared_session() {
     let policy = policy_with_limits(8, 1);
     let value = DepthRoot {
-        child: DepthLeaf { blocked: PanicDebug },
+        child: DepthLeaf {
+            blocked: PanicDebug,
+        },
     };
     let _ = Redactor::new(policy).redact_text(&value);
 }
@@ -208,7 +210,8 @@ pub fn assert_sensitivity_expansion() {
 pub fn assert_serde_expansion() {
     let tuple = serde_json::to_value(SerializableEvent::Tuple(String::from("raw-secret")))
         .expect("the adjacent tuple serializes");
-    let ready = serde_json::to_value(SerializableEvent::Ready).expect("the unit variant serializes");
+    let ready =
+        serde_json::to_value(SerializableEvent::Ready).expect("the unit variant serializes");
 
     assert_eq!(tuple["kind"], "Tuple");
     assert_ne!(tuple["payload"][0], "raw-secret");
@@ -235,7 +238,9 @@ pub fn assert_json_expansion() {
         document: String::from(r#"{"token":"raw-secret","visible":"shown"}"#),
     };
     let encoded = serde_json::to_value(&value).expect("the JSON record serializes");
-    let document = encoded["document"].as_str().expect("the JSON field remains a string");
+    let document = encoded["document"]
+        .as_str()
+        .expect("the JSON field remains a string");
 
     assert!(!document.contains("raw-secret"), "{document}");
     assert!(document.contains("visible"), "{document}");

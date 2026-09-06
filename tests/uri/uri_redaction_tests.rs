@@ -24,7 +24,12 @@ fn test_strict_uri_path_protection_matches_http() {
         let output = redactor.redact_uri(uri);
         assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
         assert!(!output.text().as_str().contains("raw-secret"), "{uri}");
-        assert!(redactor.inspect_uri(uri).expect("valid URI").contains_sensitive());
+        assert!(
+            redactor
+                .inspect_uri(uri)
+                .expect("valid URI")
+                .contains_sensitive()
+        );
         let mut batch = redactor.batch();
         let handle = batch.redact_uri(uri);
         let output = batch.finish_for_diagnostics("incomplete");
@@ -38,7 +43,13 @@ fn test_strict_uri_path_protection_matches_http() {
         assert!(!output.text().as_str().contains("raw-secret"));
         #[cfg(feature = "http")]
         if uri.starts_with("https:") {
-            assert!(!redactor.redact_http_url(uri).text().as_str().contains("raw-secret"));
+            assert!(
+                !redactor
+                    .redact_http_url(uri)
+                    .text()
+                    .as_str()
+                    .contains("raw-secret")
+            );
         }
     }
 }
@@ -51,7 +62,12 @@ fn test_strict_uri_path_roots_and_explicit_overrides() {
     for uri in ["https://example.test", "https://example.test/"] {
         let redactor = Redactor::strict();
         assert_eq!(redactor.redact_uri(uri).text().as_str(), uri);
-        assert!(!redactor.inspect_uri(uri).expect("valid root URI").contains_sensitive());
+        assert!(
+            !redactor
+                .inspect_uri(uri)
+                .expect("valid root URI")
+                .contains_sensitive()
+        );
     }
     let uri = "https://example.test/raw-secret";
     let policy = RedactionPolicy::strict()
@@ -64,7 +80,11 @@ fn test_strict_uri_path_roots_and_explicit_overrides() {
         .expect("valid policy");
     let mut disabled = RedactionPolicy::strict();
     let _ = disabled.set_disabled(true);
-    for redactor in [Redactor::standard(), Redactor::new(policy), Redactor::new(disabled)] {
+    for redactor in [
+        Redactor::standard(),
+        Redactor::new(policy),
+        Redactor::new(disabled),
+    ] {
         assert_eq!(redactor.redact_uri(uri).text().as_str(), uri);
     }
 }
@@ -122,7 +142,10 @@ fn test_uri_query_pairs_share_the_transaction_structural_budget() {
     assert!(!output.text().as_str().contains("must-not-be-rendered"));
     assert_eq!(output.summary().usage().visited_nodes(), 3);
     assert_eq!(output.summary().usage().visited_collection_items(), 1);
-    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Truncated
+    );
 }
 
 /// Invalid URI input is replaced at the URI adapter boundary, including its
@@ -134,7 +157,12 @@ fn test_uri_handle_replaces_invalid_input_and_preserves_provenance() {
     let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
     assert_eq!(output.text(handle).as_str(), "<invalid URI>");
-    assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::InvalidUri)
+    );
     assert!(!output.text(handle).as_str().contains("secret"));
 }
 
@@ -155,12 +183,25 @@ fn test_empty_uri_reports_invalid_uri_for_one_shot_composer_and_batch() {
 
     for output in [&one_shot, &aggregate] {
         assert_eq!(output.text().as_str(), "<invalid URI>");
-        assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(RedactionReason::InvalidUri)
+        );
         assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
     }
     assert_eq!(batch_output.text(handle).as_str(), "<invalid URI>");
-    assert!(batch_output.summary().reasons().contains(RedactionReason::InvalidUri));
-    assert_eq!(batch_output.summary().completion(), RedactionCompletion::Complete);
+    assert!(
+        batch_output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::InvalidUri)
+    );
+    assert_eq!(
+        batch_output.summary().completion(),
+        RedactionCompletion::Complete
+    );
 }
 
 /// Verifies percent-encoded sensitive query values are decoded for policy
@@ -190,5 +231,8 @@ fn test_uri_handle_observes_exhausted_parent_output() {
     let output = batch.finish_for_diagnostics("");
 
     assert!(output.text(handle).as_str().is_empty());
-    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Exhausted
+    );
 }

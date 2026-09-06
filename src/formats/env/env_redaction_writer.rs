@@ -63,7 +63,11 @@ impl<'session> EnvRedactionWriter<'session> {
         }) else {
             return self;
         };
-        let result = redact_os_pairs_with_policy(self.session.policy(), pairs, self.session.remaining_output_bytes());
+        let result = redact_os_pairs_with_policy(
+            self.session.policy(),
+            pairs,
+            self.session.remaining_output_bytes(),
+        );
         self.session.append_rendered_operation(result);
         self
     }

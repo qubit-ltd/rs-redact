@@ -28,7 +28,8 @@ fn test_serde_feature_guard_is_single_and_targeted() {
         .output()
         .expect("the isolated cargo check starts");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let expected_diagnostic = "error: #[redact(serde)] requires the `serde` feature of qubit-redact";
+    let expected_diagnostic =
+        "error: #[redact(serde)] requires the `serde` feature of qubit-redact";
     let primary_errors = stderr
         .lines()
         .filter(|line| {

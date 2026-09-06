@@ -65,7 +65,9 @@ fn inspect_value(session: &mut dyn RuntimeSession, value: &Value, unkeyed: bool)
             }
         }
         Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_)
-            if unkeyed && session.policy().unkeyed_json_value_policy() == UnkeyedJsonValuePolicy::Redact =>
+            if unkeyed
+                && session.policy().unkeyed_json_value_policy()
+                    == UnkeyedJsonValuePolicy::Redact =>
         {
             session.observe_sensitivity(Sensitivity::Secret);
         }

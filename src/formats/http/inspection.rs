@@ -163,7 +163,9 @@ fn inspect_parsed_url(session: &mut InspectionSession, url: &Url, depth: usize) 
             return;
         }
         for (key, value) in url.query_pairs() {
-            if !session.admit_format_collection_item() || !session.admit_format_node(depth.saturating_add(2)) {
+            if !session.admit_format_collection_item()
+                || !session.admit_format_node(depth.saturating_add(2))
+            {
                 return;
             }
             if let Some(sensitivity) = query_fields(session).sensitivity(&key) {
@@ -225,7 +227,9 @@ fn inspect_json_value(session: &mut InspectionSession, value: &Value, unkeyed: b
             }
         }
         Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_)
-            if unkeyed && session.policy().unkeyed_json_value_policy() == UnkeyedJsonValuePolicy::Redact =>
+            if unkeyed
+                && session.policy().unkeyed_json_value_policy()
+                    == UnkeyedJsonValuePolicy::Redact =>
         {
             session.observe_sensitivity(Sensitivity::Secret);
         }
@@ -235,7 +239,10 @@ fn inspect_json_value(session: &mut InspectionSession, value: &Value, unkeyed: b
 
 /// Parses and classifies every non-empty NDJSON line.
 pub(in crate::formats::http) fn inspect_ndjson(session: &mut InspectionSession, bytes: &[u8]) {
-    for line in bytes.split(|byte| *byte == b'\n').filter(|line| !line.is_empty()) {
+    for line in bytes
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+    {
         inspect_json_bytes(session, line);
     }
 }
@@ -258,7 +265,10 @@ pub(in crate::formats::http) fn inspect_form(session: &mut InspectionSession, by
 
 /// Returns the first non-whitespace body byte.
 fn body_first_non_whitespace(bytes: &[u8]) -> Option<u8> {
-    bytes.iter().copied().find(|byte| !byte.is_ascii_whitespace())
+    bytes
+        .iter()
+        .copied()
+        .find(|byte| !byte.is_ascii_whitespace())
 }
 
 /// Borrows HTTP query classification rules.

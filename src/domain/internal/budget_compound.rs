@@ -113,9 +113,14 @@ impl<C: SerializeMap> SerializeMap for BudgetCompound<C> {
 impl<C: SerializeStruct> SerializeStruct for BudgetCompound<C> {
     type Ok = C::Ok;
     type Error = C::Error;
-    fn serialize_field<T: ?Sized + Serialize>(&mut self, key: &'static str, value: &T) -> Result<(), Self::Error> {
+    fn serialize_field<T: ?Sized + Serialize>(
+        &mut self,
+        key: &'static str,
+        value: &T,
+    ) -> Result<(), Self::Error> {
         self.admit_item::<C::Error>()?;
-        self.inner.serialize_field(key, &BudgetSerialize::new(value))
+        self.inner
+            .serialize_field(key, &BudgetSerialize::new(value))
     }
     fn skip_field(&mut self, key: &'static str) -> Result<(), Self::Error> {
         self.inner.skip_field(key)
@@ -127,9 +132,14 @@ impl<C: SerializeStruct> SerializeStruct for BudgetCompound<C> {
 impl<C: SerializeStructVariant> SerializeStructVariant for BudgetCompound<C> {
     type Ok = C::Ok;
     type Error = C::Error;
-    fn serialize_field<T: ?Sized + Serialize>(&mut self, key: &'static str, value: &T) -> Result<(), Self::Error> {
+    fn serialize_field<T: ?Sized + Serialize>(
+        &mut self,
+        key: &'static str,
+        value: &T,
+    ) -> Result<(), Self::Error> {
         self.admit_item::<C::Error>()?;
-        self.inner.serialize_field(key, &BudgetSerialize::new(value))
+        self.inner
+            .serialize_field(key, &BudgetSerialize::new(value))
     }
     fn skip_field(&mut self, key: &'static str) -> Result<(), Self::Error> {
         self.inner.skip_field(key)
