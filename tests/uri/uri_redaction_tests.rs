@@ -12,6 +12,63 @@ use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
 use qubit_redact::Redactor;
 
+/// Strict URI rendering and inspection both protect non-root paths.
+#[test]
+fn test_strict_uri_path_protection_matches_http() {
+    let redactor = Redactor::strict();
+    for uri in [
+        "https://example.test/reset/raw-secret",
+        "file:///private/raw-secret",
+        "custom:raw-secret",
+    ] {
+        let output = redactor.redact_uri(uri);
+        assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+        assert!(!output.text().as_str().contains("raw-secret"), "{uri}");
+        assert!(redactor.inspect_uri(uri).expect("valid URI").contains_sensitive());
+        let mut batch = redactor.batch();
+        let handle = batch.redact_uri(uri);
+        let output = batch.finish_for_diagnostics("incomplete");
+        assert!(!output.text(handle).as_str().contains("raw-secret"));
+        let output = redactor
+            .text_composer()
+            .uri(|writer| {
+                writer.value(uri);
+            })
+            .finish();
+        assert!(!output.text().as_str().contains("raw-secret"));
+        #[cfg(feature = "http")]
+        if uri.starts_with("https:") {
+            assert!(!redactor.redact_http_url(uri).text().as_str().contains("raw-secret"));
+        }
+    }
+}
+
+/// Strict protection permits roots; standard and explicit overrides retain
+/// paths.
+#[test]
+fn test_strict_uri_path_roots_and_explicit_overrides() {
+    use qubit_redact::formats::uri::UriPathPolicy;
+    for uri in ["https://example.test", "https://example.test/"] {
+        let redactor = Redactor::strict();
+        assert_eq!(redactor.redact_uri(uri).text().as_str(), uri);
+        assert!(!redactor.inspect_uri(uri).expect("valid root URI").contains_sensitive());
+    }
+    let uri = "https://example.test/raw-secret";
+    let policy = RedactionPolicy::strict()
+        .to_builder()
+        .uri(|uri| {
+            uri.path(UriPathPolicy::Preserve);
+        })
+        .expect("valid URI policy")
+        .build()
+        .expect("valid policy");
+    let mut disabled = RedactionPolicy::strict();
+    let _ = disabled.set_disabled(true);
+    for redactor in [Redactor::standard(), Redactor::new(policy), Redactor::new(disabled)] {
+        assert_eq!(redactor.redact_uri(uri).text().as_str(), uri);
+    }
+}
+
 /// Verifies the one-shot URI entry point publishes only final safe text.
 #[test]
 fn test_redactor_redact_uri_publishes_safe_completed_output() {
