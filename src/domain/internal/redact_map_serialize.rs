@@ -49,8 +49,9 @@ macro_rules! map_redact_serialize {
                 }
                 let mut map = serializer.serialize_map(Some(self.len()))?;
                 for (key, value) in self {
-                    map.serialize_key(&BudgetSerialize::new(key))?;
                     let key_name = key.as_ref();
+                    super::redact_serialize_scope::check_key_bytes::<S::Error>(key_name)?;
+                    map.serialize_key(&BudgetSerialize::new(key))?;
                     if !policy.is_disabled() {
                         if let Some(level) = policy.sensitivity_for(key_name) {
                             map.serialize_value(&RedactedLevelSerializeRef::new(value, policy, level))?;

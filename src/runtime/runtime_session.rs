@@ -85,6 +85,14 @@ pub(crate) trait RuntimeSession {
         self.runtime_mut().admit_domain_collection_item()
     }
 
+    /// Checks one raw domain key before lookup, rendering, or value access.
+    ///
+    /// Returns whether the key fits the active per-key byte limit.
+    #[must_use]
+    fn admit_domain_key(&mut self, key: &str) -> bool {
+        self.runtime_mut().admit_domain_key(key)
+    }
+
     /// Admits one format node through the shared structural ledger.
     #[must_use]
     fn admit_format_node(&mut self, depth: usize) -> bool {

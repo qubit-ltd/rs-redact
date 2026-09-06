@@ -98,6 +98,21 @@ impl StructuralBudget {
         true
     }
 
+    /// Checks a raw UTF-8 key before classification or value access.
+    ///
+    /// Returns `false` and closes traversal when the per-key limit is exceeded
+    /// or a previous admission already closed the transaction.
+    pub(crate) fn admit_key(&mut self, bytes: usize) -> bool {
+        if self.traversal_closed {
+            return false;
+        }
+        if self.budget.check_key_bytes(bytes).is_err() {
+            self.close_traversal();
+            return false;
+        }
+        true
+    }
+
     /// Leaves one explicitly nested domain value.
     pub(crate) fn leave_value(&mut self) {
         debug_assert!(self.current_depth > 0, "domain scope depth underflow");

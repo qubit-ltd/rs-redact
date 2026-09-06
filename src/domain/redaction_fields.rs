@@ -43,7 +43,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         T: Debug,
         F: FnOnce() -> T,
     {
-        if !self.admit_field() {
+        if !self.admit_field(name) {
             self.write_field_truncated();
             return self;
         }
@@ -101,7 +101,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         T: Debug,
         F: FnOnce() -> T,
     {
-        if !self.admit_field() {
+        if !self.admit_field(name) {
             self.write_field_truncated();
             return self;
         }
@@ -158,7 +158,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     where
         T: RedactLevelValue + ?Sized,
     {
-        if !self.admit_field() {
+        if !self.admit_field(name) {
             self.write_field_truncated();
             return self;
         }
@@ -179,7 +179,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     /// Redacts JSON text for a named field through this shared transaction.
     #[cfg(feature = "json")]
     pub fn json(&mut self, name: &str, value: &str) -> &mut Self {
-        if !self.admit_field() {
+        if !self.admit_field(name) {
             self.write_field_truncated();
             return self;
         }
@@ -198,7 +198,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     /// Writes a borrowed parsed JSON value without cloning or modifying it.
     #[cfg(feature = "json")]
     pub fn json_value(&mut self, name: &str, value: &serde_json::Value) -> &mut Self {
-        if !self.admit_field() {
+        if !self.admit_field(name) {
             self.write_field_truncated();
             return self;
         }
@@ -226,7 +226,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     where
         T: Redact + ?Sized,
     {
-        if !self.admit_field() {
+        if !self.admit_field(name) {
             self.write_field_truncated();
             return self;
         }
@@ -256,7 +256,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         K: AsRef<str> + Debug,
         V: RedactLevelValue + Debug,
     {
-        if !self.admit_field() {
+        if !self.admit_field(name) {
             self.write_field_truncated();
             return self;
         }
@@ -276,6 +276,10 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
                     break;
                 };
                 if !self.admit_item() {
+                    self.write_field_truncated();
+                    break;
+                }
+                if !self.writer.session.admit_domain_key(key.as_ref()) {
                     self.write_field_truncated();
                     break;
                 }
@@ -314,6 +318,10 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
                 break;
             }
             let key = key.as_ref();
+            if !self.writer.session.admit_domain_key(key) {
+                self.write_field_truncated();
+                break;
+            }
             if self.writer.session.is_inspection() {
                 if let ResolvedField::Sensitive { sensitivity } = self.writer.session.policy().resolve_field(key) {
                     self.writer.session.observe_sensitivity(sensitivity);
@@ -354,7 +362,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         K: super::RedactLevelValue + 'value,
         V: super::RedactLevelValue + Debug + 'value,
     {
-        if !self.admit_field() {
+        if !self.admit_field(name) {
             self.write_field_truncated();
             return self;
         }
@@ -414,13 +422,17 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         K: AsRef<str> + ?Sized,
         T: RedactLevelValue + Debug + ?Sized,
     {
-        if !self.admit_field() {
+        if !self.admit_field(name) {
+            self.write_field_truncated();
+            return self;
+        }
+        let key = key.as_ref();
+        if !self.writer.session.admit_domain_key(key) {
             self.write_field_truncated();
             return self;
         }
         let policy = self.writer.session.policy();
-        let disabled = policy.is_disabled();
-        let resolved = (!disabled).then(|| resolve_keyed_field(policy, key.as_ref()));
+        let resolved = (!policy.is_disabled()).then(|| resolve_keyed_field(policy, key));
         if self.writer.session.is_inspection() {
             if let Some(ResolvedField::Sensitive { sensitivity }) = resolved {
                 self.writer.session.observe_sensitivity(sensitivity);
@@ -464,7 +476,11 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         T: Debug,
         F: FnOnce() -> T,
     {
-        if !self.admit_field() {
+        if !self.admit_field(name) {
+            self.write_field_truncated();
+            return self;
+        }
+        if !self.writer.session.admit_domain_key(key) {
             self.write_field_truncated();
             return self;
         }
@@ -502,6 +518,46 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         }
     }
 
+    /// Writes a structured value classified by a sibling business key.
+    ///
+    /// A pass-through outer key does not turn the child into an unclassified
+    /// `Debug` value: the child is written through [`Redact`] and can still
+    /// apply rules to its own fields.  A sensitive outer key masks the whole
+    /// payload, which is the only safe treatment when the business key
+    /// classifies the payload itself.
+    pub fn keyed_nested<T>(&mut self, name: &str, key: &str, value: &T) -> &mut Self
+    where
+        T: Redact + Debug + ?Sized,
+    {
+        if !self.admit_field(name) || !self.writer.session.admit_domain_key(key) {
+            self.write_field_truncated();
+            return self;
+        }
+        let policy = self.writer.session.policy();
+        let resolved = (!policy.is_disabled()).then(|| resolve_keyed_field(policy, key));
+        if self.writer.session.is_inspection() {
+            match resolved {
+                Some(ResolvedField::Sensitive { sensitivity }) => {
+                    self.writer.session.observe_sensitivity(sensitivity);
+                }
+                Some(ResolvedField::PassThrough) | None => value.write_redacted(self.writer),
+            }
+            return self;
+        }
+        self.write_prefix(name);
+        if !self.writer.can_write() {
+            return self;
+        }
+        match resolved {
+            Some(ResolvedField::Sensitive { sensitivity }) => {
+                self.writer.write_masked_debug(sensitivity, value);
+            }
+            Some(ResolvedField::PassThrough) | None => value.write_redacted(self.writer),
+        }
+        self.writer.write_fragment(", ");
+        self
+    }
+
     /// Omits a field while redaction is enabled and restores it when disabled.
     pub fn skipped<T, F>(&mut self, name: &str, access: F) -> &mut Self
     where
@@ -537,11 +593,11 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
 
     /// Returns whether the next field may be inspected.
     #[must_use]
-    fn admit_field(&mut self) -> bool {
+    fn admit_field(&mut self, name: &str) -> bool {
         if self.writer.session.domain_frame_is_truncated() || !self.writer.can_write() {
             return false;
         }
-        self.writer.session.admit_domain_field()
+        self.writer.session.admit_domain_field() && self.writer.session.admit_domain_key(name)
     }
 
     /// Admits one tuple item against the active collection limit.
