@@ -8,20 +8,37 @@
 //! Shared structural admission for generated Serde redaction.
 
 use std::cell::RefCell;
+use std::marker::PhantomData;
+use std::rc::Rc;
+use std::sync::Arc;
 
 use super::serde_node_guard::SerdeNodeGuard;
 use super::structured_serde_budget::StructuredSerdeBudget;
 
 thread_local! {
     static STRUCTURED_SERDE_BUDGETS: RefCell<Vec<StructuredSerdeBudget>> = const { RefCell::new(Vec::new()) };
-    static STRUCTURED_SERDE_POLICIES: RefCell<Vec<*const crate::RedactionPolicy>> = const { RefCell::new(Vec::new()) };
+    static STRUCTURED_SERDE_POLICIES: RefCell<Vec<PolicyFrame>> = const { RefCell::new(Vec::new()) };
 }
 
-/// Hidden scope that shares structural Serde admission across nested derives.
+struct PolicyFrame {
+    source_identity: usize,
+    snapshot: Arc<crate::RedactionPolicy>,
+}
+
+/// Hidden compatibility guard that shares structural Serde admission across
+/// nested derives.
+///
+/// The guard stores an owned policy snapshot in thread-local state. It never
+/// stores a raw pointer, so forgetting or moving a caller's policy cannot make
+/// [`current_policy`] dangle. New generated code should prefer the scoped
+/// serializer entry point; this guard remains for downstream adapters that
+/// need an explicit RAII boundary.
 #[doc(hidden)]
 pub struct RedactSerializeScope<'policy> {
-    /// Policy borrow that keeps the stored address identity valid.
-    _policy: &'policy crate::RedactionPolicy,
+    /// Keeps the compatibility guard tied to the caller's policy lifetime.
+    _policy: PhantomData<&'policy crate::RedactionPolicy>,
+    /// Makes the guard thread-affine because it mutates thread-local state.
+    _not_send: PhantomData<Rc<()>>,
     /// Whether this guard installed the active root budget.
     owns_budget: bool,
 }
@@ -31,12 +48,24 @@ impl<'policy> RedactSerializeScope<'policy> {
     /// active budget when generated serialization is already nested.
     #[must_use]
     pub fn new(policy: &'policy crate::RedactionPolicy) -> Self {
-        let policy_identity = std::ptr::from_ref(policy).addr();
+        let source_identity = std::ptr::from_ref(policy).addr();
+        let snapshot = STRUCTURED_SERDE_POLICIES
+            .with(|slot| {
+                slot.borrow()
+                    .last()
+                    .filter(|frame| {
+                        frame.source_identity == source_identity || std::ptr::eq(frame.snapshot.as_ref(), policy)
+                    })
+                    .map(|frame| Arc::clone(&frame.snapshot))
+            })
+            .unwrap_or_else(|| Arc::new(policy.clone()));
+        let policy_identity = Arc::as_ptr(&snapshot).addr();
         let owns_budget = STRUCTURED_SERDE_BUDGETS.with(|slot| {
             let mut budgets = slot.borrow_mut();
-            if budgets.last().is_some_and(|budget| {
-                budget.policy_identity == policy_identity || budget.raw_serializers > 0
-            }) {
+            if budgets
+                .last()
+                .is_some_and(|budget| budget.policy_identity == policy_identity || budget.raw_serializers > 0)
+            {
                 return false;
             }
             budgets.push(StructuredSerdeBudget {
@@ -51,9 +80,15 @@ impl<'policy> RedactSerializeScope<'policy> {
             });
             true
         });
-        STRUCTURED_SERDE_POLICIES.with(|slot| slot.borrow_mut().push(std::ptr::from_ref(policy)));
+        STRUCTURED_SERDE_POLICIES.with(|slot| {
+            slot.borrow_mut().push(PolicyFrame {
+                source_identity,
+                snapshot,
+            })
+        });
         Self {
-            _policy: policy,
+            _policy: PhantomData,
+            _not_send: PhantomData,
             owns_budget,
         }
     }
@@ -75,13 +110,8 @@ impl Drop for RedactSerializeScope<'_> {
 /// Returns the policy installed by the active structured serialization scope.
 #[doc(hidden)]
 #[must_use]
-pub fn current_policy() -> Option<&'static crate::RedactionPolicy> {
-    STRUCTURED_SERDE_POLICIES.with(|slot| {
-        let pointer = *slot.borrow().last()?;
-        // The matching scope retains the policy borrow until this serialization
-        // call completes, and drops the pointer before releasing that borrow.
-        Some(unsafe { &*pointer })
-    })
+pub fn current_policy() -> Option<Arc<crate::RedactionPolicy>> {
+    STRUCTURED_SERDE_POLICIES.with(|slot| slot.borrow().last().map(|frame| Arc::clone(&frame.snapshot)))
 }
 
 /// Admits one structured node and enters its depth scope.
@@ -92,14 +122,8 @@ pub(super) fn admit_node() -> bool {
         let Some(state) = budgets.last_mut() else {
             return false;
         };
-        if state
-            .policy
-            .max_depth()
-            .is_some_and(|maximum| state.depth >= maximum)
-            || state
-                .policy
-                .max_nodes()
-                .is_some_and(|maximum| state.nodes >= maximum)
+        if state.policy.max_depth().is_some_and(|maximum| state.depth >= maximum)
+            || state.policy.max_nodes().is_some_and(|maximum| state.nodes >= maximum)
         {
             return false;
         }
@@ -125,12 +149,9 @@ pub(super) fn leave_node() {
 /// no redaction scope is active. This check precedes key lookup and output.
 pub(super) fn check_key_bytes<E: serde::ser::Error>(key: &str) -> Result<(), E> {
     let admitted = STRUCTURED_SERDE_BUDGETS.with(|slot| {
-        slot.borrow().last().is_some_and(|state| {
-            state
-                .policy
-                .max_key_bytes()
-                .is_none_or(|maximum| key.len() <= maximum)
-        })
+        slot.borrow()
+            .last()
+            .is_some_and(|state| state.policy.max_key_bytes().is_none_or(|maximum| key.len() <= maximum))
     });
     if admitted {
         Ok(())
@@ -182,10 +203,7 @@ pub(super) fn remaining_input_bytes() -> usize {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
         let budgets = slot.borrow();
         budgets.last().map_or(0, |state| {
-            state
-                .policy
-                .max_input_bytes()
-                .saturating_sub(state.input_bytes)
+            state.policy.max_input_bytes().saturating_sub(state.input_bytes)
         })
     })
 }
@@ -197,21 +215,14 @@ pub(super) fn remaining_input_bytes() -> usize {
 /// Returns the serializer's error when `body` cannot encode the admitted
 /// structure. A rejected root node is serialized as an opaque safe marker.
 #[doc(hidden)]
-pub fn serialize_structured<S, F>(
-    serializer: S,
-    policy: &crate::RedactionPolicy,
-    body: F,
-) -> Result<S::Ok, S::Error>
+pub fn serialize_structured<S, F>(serializer: S, policy: &crate::RedactionPolicy, body: F) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
     F: FnOnce(S) -> Result<S::Ok, S::Error>,
 {
     let _scope = RedactSerializeScope::new(policy);
     if !admit_node() {
-        return serialize_payload(
-            serializer,
-            policy.masking().mask_opaque(crate::Sensitivity::Secret),
-        );
+        return serialize_payload(serializer, policy.masking().mask_opaque(crate::Sensitivity::Secret));
     }
     let _node = SerdeNodeGuard;
     body(serializer)
@@ -239,14 +250,9 @@ pub(super) fn admit_output(bytes: usize) -> bool {
 
 /// Serializes a string payload after cumulative output admission.
 /// Returns a Serde error when the payload exceeds the shared allowance.
-pub(super) fn serialize_payload<S: serde::Serializer>(
-    serializer: S,
-    value: &str,
-) -> Result<S::Ok, S::Error> {
+pub(super) fn serialize_payload<S: serde::Serializer>(serializer: S, value: &str) -> Result<S::Ok, S::Error> {
     if !admit_output(value.len()) {
-        return Err(serde::ser::Error::custom(
-            "redaction scalar output budget exceeded",
-        ));
+        return Err(serde::ser::Error::custom("redaction scalar output budget exceeded"));
     }
     serializer.serialize_str(value)
 }
@@ -256,10 +262,7 @@ pub(super) fn serialize_payload<S: serde::Serializer>(
 pub(super) fn remaining_output_bytes() -> usize {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
         slot.borrow().last().map_or(0, |state| {
-            state
-                .policy
-                .max_output_bytes()
-                .saturating_sub(state.output_bytes)
+            state.policy.max_output_bytes().saturating_sub(state.output_bytes)
         })
     })
 }

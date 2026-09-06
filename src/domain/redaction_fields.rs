@@ -74,6 +74,11 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     /// [`Sensitivity::Secret`], `access` is not evaluated while redaction is
     /// enabled.
     ///
+    /// This deliberate minimum-level composition lets an implementation mark
+    /// a field conservatively while still allowing a deployment policy to
+    /// raise protection for a shared name. The policy is consulted only for
+    /// that final effective level; it does not replace the explicit marker.
+    ///
     /// `access` must nevertheless be a valid lazy accessor for the actual
     /// field value. In particular, callers must not replace it with a panic or
     /// an unrelated sentinel merely because `level` is
@@ -133,16 +138,11 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         } else {
             let raw_limit = self.writer.remaining_output_bytes();
             let (raw, raw_truncated) = bounded_debug(&access(), raw_limit);
-            let (value, mask_truncated) = self
-                .writer
-                .session
-                .policy()
-                .masking()
-                .mask_bounded_with_truncation(
-                    effective_level,
-                    &raw,
-                    self.writer.remaining_output_bytes(),
-                );
+            let (value, mask_truncated) = self.writer.session.policy().masking().mask_bounded_with_truncation(
+                effective_level,
+                &raw,
+                self.writer.remaining_output_bytes(),
+            );
             self.writer.write_debug(value.as_ref());
             if raw_truncated || mask_truncated {
                 self.writer.truncate_for_output_limit();
@@ -157,7 +157,9 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     ///
     /// The explicit `level` is final: field rules, floors, and strict unknown
     /// handling do not raise or lower it. Disabled policy still restores
-    /// values.
+    /// values. This is the sealed-value contract used by derive expansion:
+    /// callers choose the exact level for every scalar leaf, and policy rules
+    /// classify surrounding named fields without changing those leaf levels.
     #[doc(hidden)]
     pub fn sensitive_value<T>(&mut self, level: Sensitivity, name: &str, value: &T) -> &mut Self
     where
@@ -328,9 +330,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
                 break;
             }
             if self.writer.session.is_inspection() {
-                if let ResolvedField::Sensitive { sensitivity } =
-                    self.writer.session.policy().resolve_field(key)
-                {
+                if let ResolvedField::Sensitive { sensitivity } = self.writer.session.policy().resolve_field(key) {
                     self.writer.session.observe_sensitivity(sensitivity);
                 }
                 continue;
@@ -610,8 +610,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     /// Admits one tuple item against the active collection limit.
     #[inline]
     fn admit_item(&mut self) -> bool {
-        !self.writer.session.domain_frame_is_truncated()
-            && self.writer.session.admit_domain_collection_item()
+        !self.writer.session.domain_frame_is_truncated() && self.writer.session.admit_domain_collection_item()
     }
 
     /// Writes the field-name prefix for named structures.

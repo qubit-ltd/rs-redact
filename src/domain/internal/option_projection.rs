@@ -35,8 +35,8 @@ where
     {
         match self.0 {
             Some(value) => {
-                RedactedProjectionRef::new(value, current_policy().expect("active scope"))
-                    .serialize(serializer)
+                let policy_owner = current_policy().expect("active scope");
+                RedactedProjectionRef::new(value, policy_owner.as_ref()).serialize(serializer)
             }
             None => serializer.serialize_none(),
         }

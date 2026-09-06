@@ -41,6 +41,12 @@ impl RedactionBatch {
     pub(crate) const fn from_session(session: BatchSession) -> Self {
         Self { session }
     }
+
+    /// Returns whether the shared output budget has closed this batch.
+    #[must_use]
+    pub fn is_output_exhausted(&self) -> bool {
+        self.session.is_output_exhausted()
+    }
     /// Redacts one named scalar field and returns its opaque batch handle.
     ///
     /// `field` selects the policy rule applied to `value`. The result remains
@@ -52,10 +58,7 @@ impl RedactionBatch {
     {
         let handle = self.session.redact_field(field, value);
         let (batch_id, item_index) = handle.parts();
-        RedactionBatchHandle {
-            batch_id,
-            item_index,
-        }
+        RedactionBatchHandle { batch_id, item_index }
     }
     /// Redacts one domain value and returns its opaque batch handle.
     ///
@@ -69,10 +72,7 @@ impl RedactionBatch {
     {
         let handle = self.session.redact_value(value);
         let (batch_id, item_index) = handle.parts();
-        RedactionBatchHandle {
-            batch_id,
-            item_index,
-        }
+        RedactionBatchHandle { batch_id, item_index }
     }
     /// Redacts an explicitly classified argv sequence as one item.
     ///
@@ -211,9 +211,6 @@ impl RedactionBatch {
     /// Converts the runtime-private handle into its public batch counterpart.
     fn wrap(handle: RedactionHandle) -> RedactionBatchHandle {
         let (batch_id, item_index) = handle.parts();
-        RedactionBatchHandle {
-            batch_id,
-            item_index,
-        }
+        RedactionBatchHandle { batch_id, item_index }
     }
 }

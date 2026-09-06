@@ -37,7 +37,8 @@ where
     where
         S: Serializer,
     {
-        let policy = current_policy().expect("active scope");
+        let policy_owner = current_policy().expect("active scope");
+        let policy = policy_owner.as_ref();
         serialize_structured(serializer, policy, |serializer| {
             if !admit_collection_items(self.0.len()) {
                 return super::redact_serialize_scope::serialize_payload(

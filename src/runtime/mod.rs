@@ -11,6 +11,7 @@ mod batch_output_buffer;
 mod batch_publication;
 mod batch_session;
 mod bounded_field_writer;
+mod field_render;
 mod field_rendering;
 mod format_admission;
 mod inspection_accumulator;

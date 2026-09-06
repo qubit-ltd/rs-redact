@@ -199,28 +199,28 @@ impl TextSession {
     /// Appends a chain fragment if its escaped form fits the output budget.
     fn append_output_fragment(&mut self, fragment: &str) {
         if self.runtime.core.phase == TransactionPhase::OutputExhausted {
-            self.runtime.core.summary = self.runtime.core.summary.merge(
-                RedactionSummary::exhausted(RedactionReason::OutputLimitReached),
-            );
+            self.runtime.core.summary = self
+                .runtime
+                .core
+                .summary
+                .merge(RedactionSummary::exhausted(RedactionReason::OutputLimitReached));
             return;
         }
-        let escaped = crate::output::log_escape::escape_log_control_characters(
-            std::borrow::Cow::Borrowed(fragment),
-        );
+        let escaped = crate::output::log_escape::escape_log_control_characters(std::borrow::Cow::Borrowed(fragment));
         let used = self.runtime.core.budget.usage().output_bytes();
         let remaining = self.runtime.core.budget.output_limit().saturating_sub(used);
         if escaped.len() > remaining {
             self.runtime.core.phase = TransactionPhase::OutputExhausted;
-            self.runtime.core.summary = self.runtime.core.summary.merge(
-                RedactionSummary::exhausted(RedactionReason::OutputLimitReached),
-            );
+            self.runtime.core.summary = self
+                .runtime
+                .core
+                .summary
+                .merge(RedactionSummary::exhausted(RedactionReason::OutputLimitReached));
             return;
         }
         self.output.push(&escaped);
         self.runtime.core.budget.record_output_bytes(escaped.len());
-        if self.runtime.core.budget.usage().output_bytes()
-            == self.runtime.core.budget.output_limit()
-        {
+        if self.runtime.core.budget.usage().output_bytes() == self.runtime.core.budget.output_limit() {
             self.runtime.core.phase = TransactionPhase::OutputExhausted;
         }
     }
@@ -235,9 +235,7 @@ impl TextSession {
     /// Appends output rendered by a structured domain writer.
     fn append_domain_output(&mut self, output: &str, output_limit_reached: bool) {
         if output_limit_reached {
-            let summary = if output.is_empty()
-                || self.runtime.core.phase == TransactionPhase::OutputExhausted
-            {
+            let summary = if output.is_empty() || self.runtime.core.phase == TransactionPhase::OutputExhausted {
                 RedactionSummary::exhausted(RedactionReason::OutputLimitReached)
             } else {
                 RedactionSummary::truncated(RedactionReason::OutputLimitReached)
@@ -251,13 +249,10 @@ impl TextSession {
     pub(crate) fn append_rendered_operation(&mut self, operation: RenderedOperation) {
         let (text, completion, reasons) = operation.into_parts();
         self.record_summary(rendered_summary(completion, reasons));
-        let replacement_could_not_fit =
-            text.is_empty() && reasons.contains(RedactionReason::OutputLimitReached);
+        let replacement_could_not_fit = text.is_empty() && reasons.contains(RedactionReason::OutputLimitReached);
         if completion == RedactionCompletion::Exhausted || replacement_could_not_fit {
             self.runtime.core.phase = TransactionPhase::OutputExhausted;
-            self.record_summary(RedactionSummary::exhausted(
-                RedactionReason::OutputLimitReached,
-            ));
+            self.record_summary(RedactionSummary::exhausted(RedactionReason::OutputLimitReached));
             return;
         }
         self.append_output_fragment(&text);
@@ -268,27 +263,40 @@ impl TextSession {
     where
         T: std::fmt::Display + ?Sized,
     {
-        let (redacted, completion) = redact_field_display_for_output(
+        if !self.admit_format_node(1) || !self.admit_domain_key(field) {
+            return super::operation_sink::OperationSink::exhausted(
+                String::new(),
+                RedactionReason::TraversalLimitReached,
+            )
+            .finish();
+        }
+        let render = redact_field_display_for_output(
             self.policy(),
             field,
             value,
+            self.remaining_input_bytes().saturating_sub(field.len()),
             self.remaining_output_bytes(),
         );
-        match completion {
-            RedactionCompletion::Complete => {
-                super::operation_sink::OperationSink::complete(redacted).finish()
+        self.record_input_usage(
+            field.len().saturating_add(render.presented_value_bytes),
+            field.len().saturating_add(render.inspected_value_bytes),
+        );
+        let mut sink = match render.completion {
+            RedactionCompletion::Complete => super::operation_sink::OperationSink::complete(render.text),
+            RedactionCompletion::Truncated => {
+                super::operation_sink::OperationSink::truncated(render.text, RedactionReason::OutputLimitReached)
             }
-            RedactionCompletion::Truncated => super::operation_sink::OperationSink::truncated(
-                redacted,
-                RedactionReason::OutputLimitReached,
-            )
-            .finish(),
-            RedactionCompletion::Exhausted => super::operation_sink::OperationSink::exhausted(
-                redacted,
-                RedactionReason::OutputLimitReached,
-            )
-            .finish(),
+            RedactionCompletion::Exhausted => {
+                super::operation_sink::OperationSink::exhausted(render.text, RedactionReason::OutputLimitReached)
+            }
+        };
+        if render.reasons.contains(RedactionReason::InputLimitReached) {
+            sink = sink.with_reason(RedactionReason::InputLimitReached);
         }
+        if render.reasons.contains(RedactionReason::FormattingFailed) {
+            sink = sink.with_reason(RedactionReason::FormattingFailed);
+        }
+        sink.finish()
     }
 }
 

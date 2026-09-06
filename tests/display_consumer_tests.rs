@@ -6,6 +6,7 @@ use std::fmt;
 
 use qubit_redact::Redact;
 use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionReason;
 use qubit_redact::Redactor;
 
 struct External<'a> {
@@ -56,13 +57,7 @@ fn test_display_is_not_called_for_opaque_masks() {
         assert_eq!(calls.get(), 0);
     }
     let disabled = Redactor::new(RedactionPolicy::disabled());
-    assert!(
-        disabled
-            .redact_text(&value)
-            .text()
-            .as_str()
-            .contains("abcdef")
-    );
+    assert!(disabled.redact_text(&value).text().as_str().contains("abcdef"));
     assert_eq!(calls.get(), 1);
     #[cfg(all(feature = "serde", feature = "json"))]
     {
@@ -111,4 +106,30 @@ fn test_display_respects_input_budget_without_unbounded_capture() {
         let json = redactor.to_json(&value).expect("bounded replacement");
         assert_eq!(json, r#"{"value":"<redacted>"}"#);
     }
+}
+
+#[test]
+fn test_scalar_field_admits_key_and_input_before_rendering() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_input_bytes(1);
+            limits.max_key_bytes(1);
+        })
+        .expect("limits should be valid")
+        .build()
+        .expect("policy should build");
+    let redactor = Redactor::new(policy);
+    let direct = redactor.redact_field("oversized_key", "visible-value");
+    assert!(!direct.text().as_str().contains("visible-value"));
+    assert!(
+        direct
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+
+    let mut batch = redactor.batch();
+    let handle = batch.redact_field("oversized_key", "visible-value");
+    let diagnostics = batch.finish_for_diagnostics("<redaction incomplete>");
+    assert_eq!(diagnostics.text(handle).as_str(), "<redaction incomplete>");
 }
