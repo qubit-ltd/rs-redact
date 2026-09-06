@@ -120,6 +120,40 @@ VecDeque, LinkedList, sets, heaps, standard maps, and tuples up to 12 elements. 
 mode masks map values and retains keys; use the key-level attributes when needed. Pass-through
 text maps and keyed_by require Debug; level-only RedactScalar fields do not.
 
+### Hand-written keyed nested values
+
+Use `fields.keyed_nested(display_name, business_key, value)` when a hand-written
+`Redact` implementation wraps another `Redact + Debug` value and the business key chooses
+the payload policy. If the business key is public, the method delegates to the child so its
+own field rules, JSON traversal, and inspection still run. If the business key is sensitive,
+the payload is masked as one value; disabled policy renders the original value. This prevents
+a public wrapper from exposing a nested secret through a `Debug` fallback.
+
+```rust
+use qubit_redact::{Redact, RedactionWriter, Sensitivity};
+
+struct NamedPayload { name: String, payload: Payload }
+#[derive(Debug)]
+struct Payload { password: String }
+
+impl Redact for Payload {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("Payload", |fields| {
+            fields.sensitive(Sensitivity::Secret, "password", || &self.password);
+        });
+    }
+}
+
+impl Redact for NamedPayload {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("NamedPayload", |fields| {
+            fields.unredacted("name", || &self.name);
+            fields.keyed_nested("payload", &self.name, &self.payload);
+        });
+    }
+}
+```
+
 Serde supports rename/rename_all, enum tag/content/untagged, transparent, skip, skip_serializing,
 and skip_serializing_if. with/serialize_with work on ordinary or skipped fields, not on sensitive
 modes observing raw field state. flatten is unsupported. JSON text fields retain their string

@@ -75,6 +75,8 @@ Fields, domain objects, JSON, HTTP, URI, environment and process arguments, insp
 and shared budgets. `RedactScalar` supports scalar newtypes; third-party values can
 explicitly select Display representation. Unmarked fields remain ordinary output;
 explicit levels belong to the business type and are not overridden by strict policy.
+For hand-written domain implementations, `fields.keyed_nested(...)` keeps a public
+business-key wrapper structurally redacted, so rules inside its nested payload still apply.
 Disabled policy is a raw-value debugging escape hatch. The library does not erase source
 memory or protect output that bypasses its redaction entry points.
 
