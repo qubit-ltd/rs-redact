@@ -90,9 +90,11 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
             http.build().expect("the built-in HTTP policy must be valid")
         },
         #[cfg(feature = "uri")]
-        crate::formats::uri::UriPolicyBuilder::new()
-            .build()
-            .expect("the built-in URI policy must be valid"),
+        {
+            let mut uri = crate::formats::uri::UriPolicyBuilder::new();
+            uri.path_policy_mut(crate::formats::uri::UriPathPolicy::Redact);
+            uri.build().expect("the built-in URI policy must be valid")
+        },
         #[cfg(feature = "json")]
         UnkeyedJsonValuePolicy::Redact,
         false,
@@ -166,6 +168,7 @@ impl RedactionPolicy {
     ///
     /// This preset is intended for untrusted external boundaries. It is more
     /// protective than [`Self::standard`] but may reduce diagnostic detail.
+    /// Non-root HTTP and URI paths are hidden when their features are enabled.
     #[must_use]
     #[inline]
     pub fn strict() -> Self {
