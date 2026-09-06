@@ -58,14 +58,8 @@ pub(crate) fn parse<'a>(
                     ),
                 ));
             }
-            let serde_attributes =
-                SerdeAttributes::parse(field, type_name, &field_name, serde_enabled)?;
-            serde_attributes.validate_redaction_mode(
-                field,
-                type_name,
-                &field_name,
-                attributes.mode(),
-            )?;
+            let serde_attributes = SerdeAttributes::parse(field, type_name, &field_name, serde_enabled)?;
+            serde_attributes.validate_redaction_mode(field, type_name, &field_name, attributes.mode())?;
             Ok(UnnamedField::new(
                 field,
                 Index::from(position),

@@ -54,10 +54,7 @@ impl fmt::Display for PolicyError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyFieldName { location } => {
-                write!(
-                    formatter,
-                    "field name is empty after canonicalization in {location}",
-                )
+                write!(formatter, "field name is empty after canonicalization in {location}",)
             }
             Self::EmptyFixedReplacement { location, level } => write!(
                 formatter,

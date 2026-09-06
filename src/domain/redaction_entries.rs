@@ -124,12 +124,7 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
 
     /// Writes a map value with an explicit sensitivity while preserving its
     /// recursive level-capable shape.
-    pub(crate) fn level_value_entry<K, T>(
-        &mut self,
-        key: &K,
-        value: &T,
-        level: Sensitivity,
-    ) -> &mut Self
+    pub(crate) fn level_value_entry<K, T>(&mut self, key: &K, value: &T, level: Sensitivity) -> &mut Self
     where
         K: Debug + ?Sized,
         T: super::RedactLevelValue + ?Sized,
@@ -197,8 +192,7 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
         if !self.writer.can_write() {
             return false;
         }
-        std::mem::take(&mut self.admitted_entry)
-            || self.writer.session.admit_domain_collection_item()
+        std::mem::take(&mut self.admitted_entry) || self.writer.session.admit_domain_collection_item()
     }
 
     /// Writes a map key and separator.

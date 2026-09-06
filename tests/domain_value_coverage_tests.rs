@@ -44,11 +44,7 @@ impl Redact for LevelValues {
 
         writer.record("LevelValues", |fields| {
             fields
-                .sensitive_value(
-                    Sensitivity::Secret,
-                    "string",
-                    &String::from("string-secret"),
-                )
+                .sensitive_value(Sensitivity::Secret, "string", &String::from("string-secret"))
                 .sensitive_value(Sensitivity::Secret, "str", "str-secret")
                 .sensitive_value(Sensitivity::Secret, "cow", &cow)
                 .sensitive_value(Sensitivity::Secret, "char", &'x')
@@ -67,59 +63,27 @@ impl Redact for LevelValues {
                 .sensitive_value(Sensitivity::Secret, "usize", &12_usize)
                 .sensitive_value(Sensitivity::Secret, "f32", &1.25_f32)
                 .sensitive_value(Sensitivity::Secret, "f64", &2.5_f64)
-                .sensitive_value(
-                    Sensitivity::Secret,
-                    "some",
-                    &Some(String::from("some-secret")),
-                )
+                .sensitive_value(Sensitivity::Secret, "some", &Some(String::from("some-secret")))
                 .sensitive_value::<Option<String>>(Sensitivity::Secret, "none", &None)
-                .sensitive_value(
-                    Sensitivity::Secret,
-                    "vec",
-                    &vec![String::from("vec-secret")],
-                )
+                .sensitive_value(Sensitivity::Secret, "vec", &vec![String::from("vec-secret")])
                 .sensitive_value(Sensitivity::Secret, "slice", slice)
                 .sensitive_value(Sensitivity::Secret, "deque", &deque)
                 .sensitive_value(Sensitivity::Secret, "list", &list)
                 .sensitive_value(Sensitivity::Secret, "heap", &heap)
                 .sensitive_value(Sensitivity::Secret, "tree_set", &tree_set)
                 .sensitive_value(Sensitivity::Secret, "hash_set", &hash_set)
-                .sensitive_value(
-                    Sensitivity::Secret,
-                    "boxed",
-                    &Box::new(String::from("box-secret")),
-                )
-                .sensitive_value(
-                    Sensitivity::Secret,
-                    "rc",
-                    &Rc::new(String::from("rc-secret")),
-                )
-                .sensitive_value(
-                    Sensitivity::Secret,
-                    "arc",
-                    &Arc::new(String::from("arc-secret")),
-                )
+                .sensitive_value(Sensitivity::Secret, "boxed", &Box::new(String::from("box-secret")))
+                .sensitive_value(Sensitivity::Secret, "rc", &Rc::new(String::from("rc-secret")))
+                .sensitive_value(Sensitivity::Secret, "arc", &Arc::new(String::from("arc-secret")))
                 .sensitive_value(Sensitivity::Secret, "hash_map", &hash_map)
                 .sensitive_value(Sensitivity::Secret, "tree_map", &tree_map)
-                .sensitive_value(
-                    Sensitivity::Secret,
-                    "array",
-                    &[String::from("array-secret")],
-                )
+                .sensitive_value(Sensitivity::Secret, "array", &[String::from("array-secret")])
                 .sensitive_value(Sensitivity::Secret, "tuple1", &(1_u8,))
                 .sensitive_value(Sensitivity::Secret, "tuple2", &(1_u8, 2_u8))
                 .sensitive_value(Sensitivity::Secret, "tuple3", &(1_u8, 2_u8, 3_u8))
                 .sensitive_value(Sensitivity::Secret, "tuple4", &(1_u8, 2_u8, 3_u8, 4_u8))
-                .sensitive_value(
-                    Sensitivity::Secret,
-                    "tuple5",
-                    &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8),
-                )
-                .sensitive_value(
-                    Sensitivity::Secret,
-                    "tuple6",
-                    &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8),
-                )
+                .sensitive_value(Sensitivity::Secret, "tuple5", &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8))
+                .sensitive_value(Sensitivity::Secret, "tuple6", &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8))
                 .sensitive_value(
                     Sensitivity::Secret,
                     "tuple7",
@@ -143,9 +107,7 @@ impl Redact for LevelValues {
                 .sensitive_value(
                     Sensitivity::Secret,
                     "tuple11",
-                    &(
-                        1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8, 10_u8, 11_u8,
-                    ),
+                    &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8, 10_u8, 11_u8),
                 )
                 .sensitive_value(
                     Sensitivity::Secret,
@@ -168,16 +130,10 @@ impl Redact for MapValues {
         let owned_tree = BTreeMap::from([(String::from("password"), String::from("tree-secret"))]);
         let borrowed_hash = HashMap::from([("password", String::from("borrowed-hash-secret"))]);
         let borrowed_tree = BTreeMap::from([("password", String::from("borrowed-tree-secret"))]);
-        let cow_hash =
-            HashMap::from([(Cow::Borrowed("password"), String::from("cow-hash-secret"))]);
-        let cow_tree =
-            BTreeMap::from([(Cow::Borrowed("password"), String::from("cow-tree-secret"))]);
-        let key_level_hash =
-            HashMap::from([(String::from("hash-key-secret"), String::from("visible"))]);
-        let key_level_tree = BTreeMap::from([(
-            String::from("tree-key-secret"),
-            String::from("value-secret"),
-        )]);
+        let cow_hash = HashMap::from([(Cow::Borrowed("password"), String::from("cow-hash-secret"))]);
+        let cow_tree = BTreeMap::from([(Cow::Borrowed("password"), String::from("cow-tree-secret"))]);
+        let key_level_hash = HashMap::from([(String::from("hash-key-secret"), String::from("visible"))]);
+        let key_level_tree = BTreeMap::from([(String::from("tree-key-secret"), String::from("value-secret"))]);
 
         writer.record("MapValues", |fields| {
             fields
@@ -199,12 +155,7 @@ impl Redact for MapValues {
                 .map_value("cow_tree_some", &Some(cow_tree.clone()))
                 .map_value::<Option<HashMap<Cow<'_, str>, String>>>("cow_hash_none", &None)
                 .map_value::<Option<BTreeMap<Cow<'_, str>, String>>>("cow_tree_none", &None)
-                .map_level_values(
-                    "masked_hash_keys",
-                    &key_level_hash,
-                    Sensitivity::Secret,
-                    None,
-                )
+                .map_level_values("masked_hash_keys", &key_level_hash, Sensitivity::Secret, None)
                 .map_level_values(
                     "masked_tree_keys",
                     &key_level_tree,

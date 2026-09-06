@@ -17,12 +17,7 @@ use crate::formats::http::internal::markers;
 impl HttpPolicyExecutor<'_> {
     /// Redacts a bounded URL-encoded body.
     #[must_use]
-    pub(super) fn redact_body_form(
-        &self,
-        bounded: &[u8],
-        truncated: bool,
-        output_limit: usize,
-    ) -> ParsedBody {
+    pub(super) fn redact_body_form(&self, bounded: &[u8], truncated: bool, output_limit: usize) -> ParsedBody {
         if truncated {
             return ParsedBody::new(
                 markers::INVALID_OR_TRUNCATED_FORM.to_string(),

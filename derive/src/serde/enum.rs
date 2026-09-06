@@ -57,23 +57,12 @@ pub(super) fn enum_body(
                 SerdeEnumRepresentation::ExternallyTagged => {
                     external_variant_arm(type_name, variant, runtime, serde, container_attributes)
                 }
-                SerdeEnumRepresentation::InternallyTagged { tag } => internal_variant_arm(
-                    type_name,
-                    variant,
-                    runtime,
-                    serde,
-                    container_attributes,
-                    tag,
-                ),
-                SerdeEnumRepresentation::AdjacentlyTagged { tag, content } => adjacent_variant_arm(
-                    type_name,
-                    variant,
-                    runtime,
-                    serde,
-                    container_attributes,
-                    tag,
-                    content,
-                ),
+                SerdeEnumRepresentation::InternallyTagged { tag } => {
+                    internal_variant_arm(type_name, variant, runtime, serde, container_attributes, tag)
+                }
+                SerdeEnumRepresentation::AdjacentlyTagged { tag, content } => {
+                    adjacent_variant_arm(type_name, variant, runtime, serde, container_attributes, tag, content)
+                }
                 SerdeEnumRepresentation::Untagged => {
                     untagged_variant_arm(type_name, variant, runtime, serde, container_attributes)
                 }

@@ -34,10 +34,7 @@ use syn::token::Paren;
 ///
 /// Returns an error when the value is not a string, the directional form is
 /// empty, a direction is repeated, or an unsupported direction is supplied.
-pub(crate) fn parse_serialize_name(
-    meta: &ParseNestedMeta<'_>,
-    control: &str,
-) -> Result<Option<LitStr>> {
+pub(crate) fn parse_serialize_name(meta: &ParseNestedMeta<'_>, control: &str) -> Result<Option<LitStr>> {
     if meta.input.peek(Token![=]) {
         return Ok(Some(meta.value()?.parse()?));
     }
@@ -54,16 +51,12 @@ pub(crate) fn parse_serialize_name(
         item_seen = true;
         if direction.path.is_ident("serialize") {
             if serialize.is_some() {
-                return Err(
-                    direction.error(format!("Redact serde `{control}` repeats `serialize`",))
-                );
+                return Err(direction.error(format!("Redact serde `{control}` repeats `serialize`",)));
             }
             serialize = Some(direction.value()?.parse()?);
         } else if direction.path.is_ident("deserialize") {
             if deserialize_seen {
-                return Err(
-                    direction.error(format!("Redact serde `{control}` repeats `deserialize`",))
-                );
+                return Err(direction.error(format!("Redact serde `{control}` repeats `deserialize`",)));
             }
             let _: LitStr = direction.value()?.parse()?;
             deserialize_seen = true;

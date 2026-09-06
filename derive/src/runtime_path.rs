@@ -45,8 +45,7 @@ pub(crate) fn resolve(input: &DeriveInput) -> Result<Path> {
         if !matches!(attribute.meta, Meta::List(_)) {
             continue;
         }
-        let Ok(items) = attribute.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
-        else {
+        let Ok(items) = attribute.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) else {
             continue;
         };
         for item in items {

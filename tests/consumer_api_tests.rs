@@ -49,19 +49,13 @@ fn test_view_serializes_with_redacted_structure() {
     let redactor = Redactor::standard();
     let view = redactor.redact_view(&login);
     let json = serde_json::to_value(&view).expect("redacted object");
-    assert_eq!(
-        json,
-        serde_json::json!({"user": "ada", "password": "<redacted>"})
-    );
+    assert_eq!(json, serde_json::json!({"user": "ada", "password": "<redacted>"}));
     assert_eq!(
         redactor.to_json(&login).expect("JSON convenience"),
         serde_json::to_string(&view).expect("view JSON")
     );
     assert_eq!(serde_json::to_value(&view).expect("second execution"), json);
-    assert_eq!(
-        format!("{view}"),
-        redactor.redact_text(&login).text().as_str()
-    );
+    assert_eq!(format!("{view}"), redactor.redact_text(&login).text().as_str());
     assert_eq!(format!("{view:?}"), format!("{view}"));
 }
 
@@ -92,14 +86,10 @@ fn test_view_retains_policy_after_application_default_replacement() {
         password: "raw-secret".into(),
     };
     let view = Redactor::standard().redact_view(&login);
-    let previous =
-        Redactor::replace_application_default(Redactor::new(RedactionPolicy::disabled()));
+    let previous = Redactor::replace_application_default(Redactor::new(RedactionPolicy::disabled()));
     let rendered = serde_json::to_value(&view);
     let _ = Redactor::replace_application_default(previous);
-    assert_eq!(
-        rendered.expect("snapshot serialization")["password"],
-        "<redacted>"
-    );
+    assert_eq!(rendered.expect("snapshot serialization")["password"], "<redacted>");
 }
 
 #[derive(Redact)]
@@ -119,13 +109,7 @@ fn test_derive_parsed_json_keeps_structure_and_source() {
         optional: None,
     };
     let redactor = Redactor::standard();
-    assert!(
-        !redactor
-            .redact_text(&value)
-            .text()
-            .as_str()
-            .contains("raw-secret")
-    );
+    assert!(!redactor.redact_text(&value).text().as_str().contains("raw-secret"));
     let json = serde_json::to_value(redactor.redact_view(&value)).expect("parsed JSON field");
     assert_eq!(json["payload"]["password"], "<redacted>");
     assert_eq!(json["payload"]["public"], serde_json::json!([1, 2]));

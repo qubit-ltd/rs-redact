@@ -49,26 +49,12 @@ pub(crate) fn parse<'a>(
         .named
         .iter()
         .map(|field| {
-            let identifier = field
-                .ident
-                .as_ref()
-                .expect("syn named fields always have identifiers");
+            let identifier = field.ident.as_ref().expect("syn named fields always have identifiers");
             let field_name = identifier.to_string();
             let attributes = FieldAttributes::parse(field, type_name, &field_name)?;
-            let serde_attributes =
-                SerdeAttributes::parse(field, type_name, &field_name, serde_enabled)?;
-            serde_attributes.validate_redaction_mode(
-                field,
-                type_name,
-                &field_name,
-                attributes.mode(),
-            )?;
-            Ok(NamedField::new(
-                field,
-                identifier,
-                attributes,
-                serde_attributes,
-            ))
+            let serde_attributes = SerdeAttributes::parse(field, type_name, &field_name, serde_enabled)?;
+            serde_attributes.validate_redaction_mode(field, type_name, &field_name, attributes.mode())?;
+            Ok(NamedField::new(field, identifier, attributes, serde_attributes))
         })
         .collect::<Result<Vec<_>>>()?;
     validate_keyed_by_fields(&parsed, type_name)?;

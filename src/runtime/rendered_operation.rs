@@ -24,11 +24,7 @@ pub(crate) struct RenderedOperation {
 impl RenderedOperation {
     /// Creates an unpublished operation from the runtime sink's final state.
     #[must_use]
-    pub(super) const fn from_parts(
-        text: String,
-        completion: RedactionCompletion,
-        reasons: RedactionReasons,
-    ) -> Self {
+    pub(super) const fn from_parts(text: String, completion: RedactionCompletion, reasons: RedactionReasons) -> Self {
         Self {
             text,
             completion,
@@ -59,12 +55,8 @@ impl RenderedOperation {
     pub(crate) fn merge(mut self, other: Self) -> Self {
         self.text.push_str(other.text());
         self.completion = match (self.completion, other.completion()) {
-            (RedactionCompletion::Exhausted, _) | (_, RedactionCompletion::Exhausted) => {
-                RedactionCompletion::Exhausted
-            }
-            (RedactionCompletion::Truncated, _) | (_, RedactionCompletion::Truncated) => {
-                RedactionCompletion::Truncated
-            }
+            (RedactionCompletion::Exhausted, _) | (_, RedactionCompletion::Exhausted) => RedactionCompletion::Exhausted,
+            (RedactionCompletion::Truncated, _) | (_, RedactionCompletion::Truncated) => RedactionCompletion::Truncated,
             _ => RedactionCompletion::Complete,
         };
         self.reasons = self.reasons.union(other.reasons());

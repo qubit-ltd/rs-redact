@@ -18,8 +18,5 @@ pub trait RedactSerializeSource {
         Self: 'a;
 
     /// Borrows the fields under `policy` without cloning the source value.
-    fn redacted_fields<'value>(
-        &'value self,
-        policy: &RedactionPolicy,
-    ) -> Self::RedactedFields<'value>;
+    fn redacted_fields<'value>(&'value self, policy: &RedactionPolicy) -> Self::RedactedFields<'value>;
 }

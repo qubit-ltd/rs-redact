@@ -53,14 +53,10 @@ fn test_scalar_newtypes_do_not_require_debug_or_serialize() {
     assert!(text.text().as_str().contains("42"));
     #[cfg(all(feature = "serde", feature = "json"))]
     {
-        let json = serde_json::to_value(disabled.redact_view(&value))
-            .expect("disabled scalar serialization");
-        assert_eq!(
-            json,
-            serde_json::json!({"id":42,"user":"raw-user","ids":[7]})
-        );
-        let masked = serde_json::to_value(Redactor::standard().redact_view(&value))
-            .expect("masked scalar serialization");
+        let json = serde_json::to_value(disabled.redact_view(&value)).expect("disabled scalar serialization");
+        assert_eq!(json, serde_json::json!({"id":42,"user":"raw-user","ids":[7]}));
+        let masked =
+            serde_json::to_value(Redactor::standard().redact_view(&value)).expect("masked scalar serialization");
         assert_eq!(
             masked,
             serde_json::json!({"id":"<redacted>","user":"<redacted>","ids":["<redacted>"]})

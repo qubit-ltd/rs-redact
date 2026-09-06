@@ -24,22 +24,14 @@ use super::redact_serialize_scope::leave_node;
 #[cfg(feature = "json")]
 pub trait RedactJsonSerialize {
     /// Parses and serializes JSON text through structured redaction.
-    fn serialize_redacted_json<S>(
-        &self,
-        serializer: S,
-        policy: &crate::RedactionPolicy,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer;
 }
 
 /// Parses and redacts one JSON text value for Serde publication.
 #[cfg(feature = "json")]
-fn serialize_json_text<S>(
-    serializer: S,
-    text: &str,
-    policy: &crate::RedactionPolicy,
-) -> Result<S::Ok, S::Error>
+fn serialize_json_text<S>(serializer: S, text: &str, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
@@ -135,11 +127,7 @@ fn admit_structured_json_value(value: &serde_json::Value) -> bool {
 
 #[cfg(feature = "json")]
 impl RedactJsonSerialize for String {
-    fn serialize_redacted_json<S>(
-        &self,
-        serializer: S,
-        policy: &crate::RedactionPolicy,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -149,11 +137,7 @@ impl RedactJsonSerialize for String {
 
 #[cfg(feature = "json")]
 impl RedactJsonSerialize for str {
-    fn serialize_redacted_json<S>(
-        &self,
-        serializer: S,
-        policy: &crate::RedactionPolicy,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -162,11 +146,7 @@ impl RedactJsonSerialize for str {
 }
 
 impl RedactJsonSerialize for Cow<'_, str> {
-    fn serialize_redacted_json<S>(
-        &self,
-        serializer: S,
-        policy: &crate::RedactionPolicy,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -175,11 +155,7 @@ impl RedactJsonSerialize for Cow<'_, str> {
 }
 
 impl<T: RedactJsonSerialize + ?Sized> RedactJsonSerialize for &T {
-    fn serialize_redacted_json<S>(
-        &self,
-        serializer: S,
-        policy: &crate::RedactionPolicy,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -188,11 +164,7 @@ impl<T: RedactJsonSerialize + ?Sized> RedactJsonSerialize for &T {
 }
 
 impl<T: RedactJsonSerialize> RedactJsonSerialize for Option<T> {
-    fn serialize_redacted_json<S>(
-        &self,
-        serializer: S,
-        policy: &crate::RedactionPolicy,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -204,11 +176,7 @@ impl<T: RedactJsonSerialize> RedactJsonSerialize for Option<T> {
 }
 
 impl RedactJsonSerialize for serde_json::Value {
-    fn serialize_redacted_json<S>(
-        &self,
-        serializer: S,
-        policy: &crate::RedactionPolicy,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {

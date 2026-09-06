@@ -44,10 +44,7 @@ where
             self.failed = true;
             return None;
         }
-        if !self
-            .session
-            .admit_input(item.value().as_encoded_bytes().len())
-        {
+        if !self.session.admit_input(item.value().as_encoded_bytes().len()) {
             self.failed = true;
             return None;
         }

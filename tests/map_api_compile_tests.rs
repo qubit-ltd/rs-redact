@@ -55,10 +55,7 @@ fn main() {}
         .expect("cargo check for temporary dependent crate");
     let diagnostics = String::from_utf8_lossy(&output.stderr);
 
-    assert!(
-        !output.status.success(),
-        "Vec pairs must not be a supported map field"
-    );
+    assert!(!output.status.success(), "Vec pairs must not be a supported map field");
     assert!(
         diagnostics.contains("map"),
         "compiler diagnostics must identify the rejected map call: {diagnostics}",

@@ -30,11 +30,7 @@ where
 /// This prevents a rejected suffix from triggering caller-controlled iterator
 /// work, allocation, or value access.
 #[must_use]
-pub(crate) fn collect_flat_format_items<S, I, F>(
-    session: &mut S,
-    items: I,
-    mut input_bytes: F,
-) -> Option<Vec<I::Item>>
+pub(crate) fn collect_flat_format_items<S, I, F>(session: &mut S, items: I, mut input_bytes: F) -> Option<Vec<I::Item>>
 where
     S: RuntimeSession,
     I: IntoIterator,

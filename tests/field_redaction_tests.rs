@@ -64,14 +64,8 @@ fn test_redact_field_preserves_explicitly_allowed_and_unknown_values() {
 
     assert_eq!(allowed.text().as_str(), "Alice");
     assert_eq!(unknown.text().as_str(), "visible");
-    assert_eq!(
-        allowed.summary().completion(),
-        RedactionCompletion::Complete
-    );
-    assert_eq!(
-        unknown.summary().completion(),
-        RedactionCompletion::Complete
-    );
+    assert_eq!(allowed.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(unknown.summary().completion(), RedactionCompletion::Complete);
 }
 
 /// Verifies the public result is the final output model, rather than a typed
@@ -100,8 +94,7 @@ fn test_redact_display_field_covers_masking_and_output_boundaries() {
     assert!(!masked.text().as_str().contains("account-42"));
     assert_eq!(masked.summary().completion(), RedactionCompletion::Complete);
 
-    let visible = Redactor::new(RedactionPolicy::disabled())
-        .redact_field("password", &format_args!("visible"));
+    let visible = Redactor::new(RedactionPolicy::disabled()).redact_field("password", &format_args!("visible"));
     assert_eq!(visible.text().as_str(), "visible");
 
     let limited = RedactionPolicy::builder()
@@ -117,10 +110,7 @@ fn test_redact_display_field_covers_masking_and_output_boundaries() {
         .expect("the policy should be valid");
     let exhausted = Redactor::new(limited).redact_field("visible", &format_args!("long-value"));
     assert!(exhausted.text().as_str().is_empty());
-    assert_eq!(
-        exhausted.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
+    assert_eq!(exhausted.summary().completion(), RedactionCompletion::Exhausted);
 }
 
 /// Verifies the Debug-to-Display adapter does not format values that an opaque

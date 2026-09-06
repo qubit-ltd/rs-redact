@@ -60,12 +60,8 @@ fn test_level_collection_obeys_depth_and_nodes() {
     let value = Levels {
         values: vec![vec!["secret".into(); 3]; 3],
     };
-    let actual =
-        serde_json::to_value(RedactedSerializeRef::new(&value, &policy)).expect("safe marker");
-    assert_eq!(
-        actual["values"],
-        policy.masking().mask_opaque(Sensitivity::Secret)
-    );
+    let actual = serde_json::to_value(RedactedSerializeRef::new(&value, &policy)).expect("safe marker");
+    assert_eq!(actual["values"], policy.masking().mask_opaque(Sensitivity::Secret));
 }
 
 #[test]
@@ -150,8 +146,7 @@ fn test_nested_collections_obey_depth_budget() {
     let value = vec![vec![LevelString {
         value: "secret".to_owned(),
     }]];
-    let actual =
-        serde_json::to_value(RedactedSerializeRef::new(&value, &policy)).expect("safe marker");
+    let actual = serde_json::to_value(RedactedSerializeRef::new(&value, &policy)).expect("safe marker");
     assert_eq!(actual, serde_json::json!(["<redacted>"]));
 }
 
@@ -181,13 +176,7 @@ fn test_custom_sequence_cannot_bypass_collection_limit_with_inaccurate_length() 
         .expect("limits")
         .build()
         .expect("policy");
-    assert!(
-        serde_json::to_value(RedactedSerializeRef::new(
-            &Envelope { value: ExtraItems },
-            &policy
-        ))
-        .is_err()
-    );
+    assert!(serde_json::to_value(RedactedSerializeRef::new(&Envelope { value: ExtraItems }, &policy)).is_err());
 }
 
 /// Explicitly masked keys and unmarked values must both use payload admission.
@@ -268,11 +257,8 @@ fn test_ordinary_serde_shapes_preserve_wire_values() {
         },
     };
     let expected = serde_json::to_value(&value.payload).expect("ordinary serialization");
-    let actual = serde_json::to_value(RedactedSerializeRef::new(
-        &value,
-        &RedactionPolicy::standard(),
-    ))
-    .expect("admitted serialization");
+    let actual = serde_json::to_value(RedactedSerializeRef::new(&value, &RedactionPolicy::standard()))
+        .expect("admitted serialization");
     assert_eq!(actual["payload"], expected);
 }
 
@@ -300,9 +286,7 @@ fn test_custom_serializer_runs_once_and_shares_scalar_budget() {
     }
     for (maximum, succeeds) in [(4, true), (3, false)] {
         let calls = Cell::new(0);
-        let value = Envelope {
-            value: Counted(&calls),
-        };
+        let value = Envelope { value: Counted(&calls) };
         let policy = RedactionPolicy::builder()
             .limits(|limits| {
                 limits.max_input_bytes(maximum).max_output_bytes(maximum);
@@ -314,10 +298,7 @@ fn test_custom_serializer_runs_once_and_shares_scalar_budget() {
         assert_eq!(actual.is_ok(), succeeds);
         assert_eq!(calls.get(), 1);
         if succeeds {
-            assert_eq!(
-                actual.expect("admitted"),
-                serde_json::json!({"value": ["ab", "cd"]})
-            );
+            assert_eq!(actual.expect("admitted"), serde_json::json!({"value": ["ab", "cd"]}));
         }
     }
 }
@@ -349,9 +330,7 @@ fn test_custom_collect_str_stops_at_budget() {
         value: Counted<'a>,
     }
     let calls = Cell::new(0);
-    let value = Envelope {
-        value: Counted(&calls),
-    };
+    let value = Envelope { value: Counted(&calls) };
     let actual = serde_json::to_value(RedactedSerializeRef::new(&value, &small_input_policy()));
     assert!(actual.is_err());
     assert_eq!(calls.get(), 2);
@@ -397,15 +376,9 @@ fn test_panicking_serializer_does_not_poison_later_operations() {
     }
     let policy = small_input_policy();
     assert!(
-        catch_unwind(|| serde_json::to_value(RedactedSerializeRef::new(
-            &Envelope { value: Panics },
-            &policy
-        )))
-        .is_err()
+        catch_unwind(|| serde_json::to_value(RedactedSerializeRef::new(&Envelope { value: Panics }, &policy))).is_err()
     );
-    let ordinary = Plain {
-        value: "abcd".into(),
-    };
+    let ordinary = Plain { value: "abcd".into() };
     assert_eq!(
         serde_json::to_value(RedactedSerializeRef::new(&ordinary, &policy)).expect("fresh budget"),
         serde_json::json!({"value": "abcd"})

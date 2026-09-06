@@ -30,10 +30,7 @@ impl Redactor {
     ///
     /// Returns [`RedactionInspectionError`] when the URL is invalid or a
     /// shared resource limit prevents complete inspection.
-    pub fn inspect_http_url(
-        &self,
-        value: &str,
-    ) -> Result<RedactionInspection, RedactionInspectionError> {
+    pub fn inspect_http_url(&self, value: &str) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
         crate::formats::http::inspection::inspect_url(&mut session, value);
         session.finish()
@@ -123,11 +120,7 @@ impl Redactor {
         content_type: Option<&str>,
     ) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
-        crate::formats::http::inspection::inspect_body_with_content_type_text(
-            &mut session,
-            capture,
-            content_type,
-        );
+        crate::formats::http::inspection::inspect_body_with_content_type_text(&mut session, capture, content_type);
         session.finish()
     }
 }

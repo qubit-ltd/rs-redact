@@ -27,9 +27,7 @@ fn test_json_uses_policy_mask_for_floor_matched_key() {
         .expect("the floor should build");
     let policy = RedactionPolicy::builder()
         .fields(|fields| {
-            let _ = fields
-                .floor(floor)
-                .sensitive(Sensitivity::Secret, "credential");
+            let _ = fields.floor(floor).sensitive(Sensitivity::Secret, "credential");
             fields.mask(Sensitivity::Secret, MaskPolicy::fixed("[application]"));
         })
         .expect("the test field draft should build")
@@ -63,10 +61,7 @@ fn test_json_documents_share_the_parent_structural_budget() {
     assert!(!output.text().as_str().contains("must-not-be-traversed"));
     assert_eq!(output.summary().usage().visited_nodes(), 3);
     assert_eq!(output.summary().usage().visited_collection_items(), 2);
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
 }
 
 /// JSON point and payload limits are transaction-owned and therefore carry
@@ -143,12 +138,7 @@ fn test_json_invalid_input_reports_safe_invalid_json_result() {
     let output = Redactor::strict().redact_json(r#"{"password":"raw""#);
 
     assert!(!output.text().as_str().contains("raw"));
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::InvalidJson)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
 }
 
 /// JSON redaction shares qubit-json's signed/unsigned 64-bit number boundary.
@@ -156,12 +146,7 @@ fn test_json_invalid_input_reports_safe_invalid_json_result() {
 fn test_json_rejects_integer_outside_64_bit_range() {
     let output = Redactor::strict().redact_json("18446744073709551616");
 
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::InvalidJson)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
     assert!(!output.text().as_str().contains("18446744073709551616"));
 }
 
@@ -171,19 +156,9 @@ fn test_json_preserves_former_number_marker_object() {
     let input = r#"{"$serde_json::private::Number":"123"}"#;
     let output = Redactor::strict().redact_json(input);
 
-    assert!(
-        output
-            .text()
-            .as_str()
-            .contains("$serde_json::private::Number")
-    );
+    assert!(output.text().as_str().contains("$serde_json::private::Number"));
     assert!(output.text().as_str().starts_with('{'));
-    assert!(
-        !output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::InvalidJson)
-    );
+    assert!(!output.summary().reasons().contains(RedactionReason::InvalidJson));
 }
 
 /// Empty input is invalid JSON, so it must preserve parser provenance rather
@@ -192,12 +167,7 @@ fn test_json_preserves_former_number_marker_object() {
 fn test_json_empty_input_reports_safe_invalid_json_result() {
     let output = Redactor::strict().redact_json("");
 
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::InvalidJson)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
 }
 
 /// The composer path must retain invalid-JSON provenance for an empty
@@ -211,12 +181,7 @@ fn test_json_composer_empty_input_reports_safe_invalid_json_result() {
         })
         .finish();
 
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::InvalidJson)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
 }
 
 /// The batch path must retain invalid-JSON provenance for an empty document.
@@ -226,12 +191,7 @@ fn test_json_batch_empty_input_reports_safe_invalid_json_result() {
     let handle = batch.redact_json("");
     let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::InvalidJson)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
     assert_eq!(output.text(handle).as_str(), "<redacted>");
 }
 
@@ -244,12 +204,7 @@ fn test_json_handle_reports_invalid_input_without_exposing_source() {
     let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
     assert!(!output.text(handle).as_str().contains("raw"));
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::InvalidJson)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
 }
 
@@ -269,16 +224,8 @@ fn test_json_handle_uses_shared_structural_fallback() {
     let output = batch.finish_for_diagnostics("<truncated>");
 
     assert_eq!(output.text(handle).as_str(), "<truncated>");
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
-    assert!(
-        !output
-            .text(handle)
-            .as_str()
-            .contains("must-not-be-rendered")
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert!(!output.text(handle).as_str().contains("must-not-be-rendered"));
 }
 
 /// Verifies that a JSON fallback which cannot fit closes the transaction.
@@ -299,10 +246,7 @@ fn test_json_tiny_output_budget_is_exhausted() {
         .finish();
 
     assert_eq!(aggregate.text().as_str(), "");
-    assert_eq!(
-        aggregate.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
+    assert_eq!(aggregate.summary().completion(), RedactionCompletion::Exhausted);
     assert!(
         aggregate
             .summary()

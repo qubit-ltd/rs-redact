@@ -72,23 +72,17 @@ macro_rules! map_key_serialize {
                     } else {
                         let raw = key.as_ref();
                         if !admit_input(raw.len()) {
-                            return Err(S::Error::custom(
-                                "redaction map key input budget exceeded",
-                            ));
+                            return Err(S::Error::custom("redaction map key input budget exceeded"));
                         }
                         if policy.is_disabled() {
                             Cow::Borrowed(raw)
                         } else {
                             let (masked, truncated) =
-                                policy.masking().mask_bounded_with_truncation(
-                                    key_level,
-                                    raw,
-                                    remaining_output_bytes(),
-                                );
+                                policy
+                                    .masking()
+                                    .mask_bounded_with_truncation(key_level, raw, remaining_output_bytes());
                             if truncated {
-                                return Err(S::Error::custom(
-                                    "redaction map key output budget exceeded",
-                                ));
+                                return Err(S::Error::custom("redaction map key output budget exceeded"));
                             }
                             masked
                         }
@@ -123,9 +117,7 @@ struct KeyPayload<'a>(&'a str);
 impl Serialize for KeyPayload<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if !super::redact_serialize_scope::admit_node() {
-            return Err(S::Error::custom(
-                "redaction map key structural budget exceeded",
-            ));
+            return Err(S::Error::custom("redaction map key structural budget exceeded"));
         }
         let _node = super::serde_node_guard::SerdeNodeGuard;
         super::redact_serialize_scope::serialize_payload(serializer, self.0)
