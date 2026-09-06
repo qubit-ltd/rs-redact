@@ -55,7 +55,7 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | `level = "low"/"medium"/"high"/"secret"` | 对各叶子应用最终等级；支持基本标量、`RedactScalar` 和支持的递归容器。 |
 | `level = "...", display` | 显式按 `Display` 文本处理，不要求该类型实现 `Debug` 或普通 `Serialize`。 |
 | `skip` | 启用时省略；disabled 恢复字段。 |
-| `nested` | 委托 `Redact`；结构化输出还要求 `RedactSerialize`。 |
+| `nested` | 委托 `Redact`；结构化输出使用嵌套值生成的视图投影。 |
 | `map` | 支持 key 为 `String`、`&str`、`Cow<str>` 的 `HashMap`/`BTreeMap`，以及外层 `Option`；value 需具备等级能力，放行文本还需 `Debug`。 |
 | `map_key_level = "..."` | 固定每个 key 的等级，value 保持普通输出。 |
 | `map_key_level = "...", map_value_level = "..."` | 分别固定 key、value 等级。 |

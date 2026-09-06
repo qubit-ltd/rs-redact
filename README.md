@@ -8,9 +8,9 @@
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
 `qubit-redact` gives application and library authors a consistent redaction boundary for
-logs, errors, and support diagnostics. A login object can use `#[redact(serde)]` for redacted
-business and diagnostic serialization, while a borrowed view produces redacted text or JSON.
-The source object is unchanged.
+logs, errors, and support diagnostics. A borrowed view produces redacted text or JSON without
+changing the source object's ordinary serialization. Add `#[redact(serde)]` when the source
+object's own Serde output must also be redacted.
 
 ## Installation
 

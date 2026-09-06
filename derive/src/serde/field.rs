@@ -117,7 +117,7 @@ pub(super) fn serialized_carrier(
         FieldMode::Nested => {
             let raw = access.raw;
             quote_spanned!(field.span()=>
-                #runtime::domain::internal::RedactedSerializeRef::new(#raw, policy)
+                #runtime::domain::internal::RedactedProjectionRef::new(#raw, policy)
             )
         }
         FieldMode::Map => {

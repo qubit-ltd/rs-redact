@@ -65,11 +65,11 @@ classifies JSON keys.
 
 | Field attribute | Meaning / supported values |
 | --- | --- |
-| None | Ordinary `Debug`; structured view serialization requires `#[redact(serde)]`. |
+| None | Ordinary `Debug`; with the runtime `serde` feature, the view serializes through its generated redacted projection when fields support Serde. |
 | `level = "low"/"medium"/"high"/"secret"` | Final level for each leaf; primitive scalars, `RedactScalar` and recursive supported containers. |
 | `level = "...", display` | Explicit textual representation of a `Display` value; no `Debug` or ordinary `Serialize` required. |
 | `skip` | Omit while enabled; disabled restores the field. |
-| `nested` | Delegate to `Redact`; structured output also requires `RedactSerialize`. |
+| `nested` | Delegate to `Redact`; structured output follows the nested value's generated view projection. |
 | `map` | `HashMap`/`BTreeMap` with `String`, `&str`, or `Cow<str>` keys, optionally wrapped in `Option`; values require level capability and `Debug` for pass-through text. |
 | `map_key_level = "..."` | Fixed level for each map key; values remain ordinary. |
 | `map_key_level = "...", map_value_level = "..."` | Independently fixed key and value levels. |
@@ -77,9 +77,10 @@ classifies JSON keys.
 | `json` | JSON `String`/`str`/`Cow<str>`, parsed `serde_json::Value`, references and `Option`; requires `json`. |
 
 Container attributes: `debug`, `display`, `serde`, `transparent`, and `crate = path`.
-`serde` generates structured redaction for `redact_view()` and makes ordinary `Serialize`
-use the redacted representation. It requires the runtime `serde` feature and a direct Serde
-dependency.
+The runtime `serde` feature generates structured redaction for `redact_view()` for every
+derived type. `#[redact(serde)]` additionally makes the source type's ordinary `Serialize`
+use that redacted representation. Without it, a separately derived ordinary `Serialize`
+remains unchanged. It requires the runtime `serde` feature and a direct Serde dependency.
 `transparent` requires exactly one field and delegates its representation; it does not declare scalar capability.
 Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` together with `serde`.
 

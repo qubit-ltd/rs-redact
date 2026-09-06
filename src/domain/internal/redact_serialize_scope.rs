@@ -14,6 +14,7 @@ use super::structured_serde_budget::StructuredSerdeBudget;
 
 thread_local! {
     static STRUCTURED_SERDE_BUDGETS: RefCell<Vec<StructuredSerdeBudget>> = const { RefCell::new(Vec::new()) };
+    static STRUCTURED_SERDE_POLICIES: RefCell<Vec<*const crate::RedactionPolicy>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Hidden scope that shares structural Serde admission across nested derives.
@@ -51,6 +52,7 @@ impl<'policy> RedactSerializeScope<'policy> {
             });
             true
         });
+        STRUCTURED_SERDE_POLICIES.with(|slot| slot.borrow_mut().push(std::ptr::from_ref(policy)));
         Self {
             _policy: policy,
             owns_budget,
@@ -65,7 +67,22 @@ impl Drop for RedactSerializeScope<'_> {
                 let _ = slot.borrow_mut().pop();
             });
         }
+        STRUCTURED_SERDE_POLICIES.with(|slot| {
+            let _ = slot.borrow_mut().pop();
+        });
     }
+}
+
+/// Returns the policy installed by the active structured serialization scope.
+#[doc(hidden)]
+#[must_use]
+pub fn current_policy() -> Option<&'static crate::RedactionPolicy> {
+    STRUCTURED_SERDE_POLICIES.with(|slot| {
+        let pointer = *slot.borrow().last()?;
+        // The matching scope retains the policy borrow until this serialization
+        // call completes, and drops the pointer before releasing that borrow.
+        Some(unsafe { &*pointer })
+    })
 }
 
 /// Admits one structured node and enters its depth scope.

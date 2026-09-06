@@ -17,6 +17,29 @@ struct Login {
     password: String,
 }
 
+#[derive(Redact, serde::Serialize)]
+struct StandardSerdeLogin {
+    user: String,
+    #[redact(level = "secret")]
+    password: String,
+}
+
+#[test]
+fn test_view_redacts_without_replacing_standard_serde() {
+    let login = StandardSerdeLogin {
+        user: "ada".into(),
+        password: "raw-secret".into(),
+    };
+    assert_eq!(
+        serde_json::to_value(&login).expect("standard serialization"),
+        serde_json::json!({"user": "ada", "password": "raw-secret"}),
+    );
+    assert_eq!(
+        serde_json::to_value(Redactor::standard().redact_view(&login)).expect("redacted view"),
+        serde_json::json!({"user": "ada", "password": "<redacted>"}),
+    );
+}
+
 #[test]
 fn test_view_serializes_with_redacted_structure() {
     let login = Login {

@@ -70,11 +70,9 @@ fn expand_with_container_attributes(
     runtime: &Path,
     container_attributes: ContainerAttributes,
 ) -> Result<TokenStream> {
-    let model = model::parse(input, "Redact", container_attributes.serde_enabled())?;
-    let serde = container_attributes
-        .serde_enabled()
-        .then(|| parse_quote!(#runtime::domain::internal::serde));
-    let serde_container_attributes = SerdeContainerAttributes::parse(input, container_attributes.serde_enabled())?;
+    let model = model::parse(input, "Redact", true)?;
+    let serde = Some(parse_quote!(#runtime::domain::internal::serde));
+    let serde_container_attributes = SerdeContainerAttributes::parse(input, true)?;
     let serde_impl = serde::expand(
         input,
         runtime,

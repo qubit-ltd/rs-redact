@@ -168,6 +168,7 @@ impl ContainerAttributes {
     /// `true` when the `serde` container option was present.
     #[must_use]
     #[inline(always)]
+    #[allow(dead_code)]
     pub(crate) const fn serde_enabled(&self) -> bool {
         self.serde
     }

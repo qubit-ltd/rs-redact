@@ -47,7 +47,7 @@ doctest = true
 default = []
 derive = ["dep:qubit-redact-derive"]
 serde = ["dep:serde", "dep:bigdecimal"]
-json = ["dep:serde", "dep:serde_json", "dep:qubit-json", "qubit-budget/json"]
+json = ["serde", "dep:serde_json", "dep:qubit-json", "qubit-budget/json"]
 http = [
     "json",
     "dep:form_urlencoded",

@@ -29,6 +29,7 @@ fn test_pass_fixtures() {
     tests.pass("tests/fixtures/pass/serde_wire_shape.rs");
     tests.pass("tests/fixtures/pass/generic_grouped_bounds.rs");
     tests.pass("tests/fixtures/pass/keyed_by.rs");
+    tests.pass("tests/fixtures/fail/view_without_serde.rs");
     #[cfg(feature = "json")]
     tests.pass("tests/fixtures/pass/json_string_variants.rs");
 }
@@ -39,7 +40,6 @@ fn test_compile_fail_fixtures() {
     let tests = trybuild::TestCases::new();
     tests.compile_fail("tests/fixtures/fail/scalar_shape.rs");
     tests.compile_fail("tests/fixtures/fail/display_adapter.rs");
-    tests.compile_fail("tests/fixtures/fail/view_without_serde.rs");
     tests.compile_fail("tests/fixtures/fail/conflicting_level_map.rs");
     tests.compile_fail("tests/fixtures/fail/conflicting_level_nested.rs");
     tests.compile_fail("tests/fixtures/fail/conflicting_map_skip.rs");
