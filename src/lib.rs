@@ -27,9 +27,8 @@
 //!
 //! `#[derive(Redact)]` implements [`Redact`]. `#[redact(debug)]` and
 //! `#[redact(display)]` opt into ordinary diagnostic formatting. With `serde`,
-//! `#[redact(serialize)]` generates the structured capability for views while
-//! leaving the source's ordinary Serialize implementation untouched.
-//! `#[redact(serde)]` additionally generates redacted ordinary Serialize.
+//! `#[redact(serde)]` generates structured redaction for views and makes the
+//! source's ordinary Serialize implementation redacted.
 //!
 //! [`RedactScalar`] supports one-field scalar newtypes without implementing
 //! business Debug, Display, or Serialize. Explicit `level` annotations at the

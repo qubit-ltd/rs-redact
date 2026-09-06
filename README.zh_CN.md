@@ -8,8 +8,8 @@
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
 
 `qubit-redact` 帮助应用和库作者为日志、错误报告和技术支持输出建立统一的脱敏边界。
-例如登录对象需要正常发送到业务接口，同时不能把密码写进日志：可以保留普通业务序列化，
-用借用视图生成脱敏文本或结构化 JSON。源对象保持不变。
+例如登录对象需要在业务和诊断边界统一脱敏：可以用借用视图生成脱敏文本或结构化 JSON，
+也可以通过 `#[redact(serde)]` 让对象自身的 Serde 输出脱敏。源对象保持不变。
 
 ## 安装
 
@@ -24,14 +24,15 @@ serde_json = "1"
 
 ## 快速开始
 
-业务 JSON 保留密码，诊断 JSON 的密码变成 `<redacted>`；普通 Debug 日志也使用脱敏实现。
+使用 `#[redact(serde)]` 后，业务 JSON 和诊断 JSON 都会把密码变成 `<redacted>`；普通
+Debug 日志也使用脱敏实现。
 
 ```rust
 use qubit_redact::{Redact, Redactor};
 
-#[derive(Redact, serde::Serialize)]
+#[derive(Redact)]
 #[redact(crate = qubit_redact)]
-#[redact(serialize, debug)]
+#[redact(serde, debug)]
 struct Login {
     user: String,
     #[redact(level = "secret")]
@@ -45,7 +46,7 @@ assert!(!format!("{view}").contains("raw-secret"));
 assert!(!format!("{login:?}").contains("raw-secret"));
 let json = redactor.to_json(&login).expect("redacted JSON");
 assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
-assert!(serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+assert!(!serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
 let output = redactor.redact_text(&login);
 assert!(!output.text().as_str().contains("raw-secret"));
 ```

@@ -26,9 +26,9 @@ serde_json = "1"
 ```rust
 use qubit_redact::{Redact, Redactor};
 
-#[derive(Redact, serde::Serialize)]
+#[derive(Redact)]
 #[redact(crate = qubit_redact)]
-#[redact(serialize, debug)]
+#[redact(serde, debug)]
 struct Login {
     user: String,
     #[redact(level = "secret")]
@@ -42,7 +42,7 @@ assert!(!format!("{view}").contains("raw-secret"));
 assert!(!format!("{login:?}").contains("raw-secret"));
 let json = redactor.to_json(&login).expect("redacted JSON");
 assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
-assert!(serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+assert!(!serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
 let output = redactor.redact_text(&login);
 assert!(!output.text().as_str().contains("raw-secret"));
 ```
@@ -51,7 +51,7 @@ assert!(!output.text().as_str().contains("raw-secret"));
 
 | Field attribute | Meaning / supported values |
 | --- | --- |
-| None | Ordinary `Debug`; ordinary `Serialize` for structured output. |
+| None | Ordinary `Debug`; structured view serialization requires `#[redact(serde)]`. |
 | `level = "low"/"medium"/"high"/"secret"` | Final level for each leaf; primitive scalars, `RedactScalar` and recursive supported containers. |
 | `level = "...", display` | Explicit textual representation of a `Display` value; no `Debug` or ordinary `Serialize` required. |
 | `skip` | Omit while enabled; disabled restores the field. |
@@ -62,9 +62,10 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | `keyed_by = key` | Classify by a sibling `AsRef<str>` key on a named field; value requires level capability and `Debug`. |
 | `json` | JSON `String`/`str`/`Cow<str>`, parsed `serde_json::Value`, references and `Option`; requires `json`. |
 
-Container attributes: `debug`, `display`, `serialize`, `serde`, `transparent`, and `crate = path`.
-`serialize` generates only `RedactSerialize`; `serde` additionally implements ordinary `Serialize`.
-Choose one, not both. Both require the runtime `serde` feature and a direct Serde dependency.
+Container attributes: `debug`, `display`, `serde`, `transparent`, and `crate = path`.
+`serde` generates structured redaction for `redact_view()` and makes ordinary `Serialize`
+use the redacted representation. It requires the runtime `serde` feature and a direct Serde
+dependency.
 `transparent` requires exactly one field and delegates its representation; it does not declare scalar capability.
 Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` together with `serde`.
 
@@ -83,7 +84,7 @@ struct UserId { value: String }
 
 #[derive(Redact)]
 #[redact(crate = qubit_redact)]
-#[redact(serialize)]
+#[redact(serde)]
 struct Account {
     #[redact(level = "secret")]
     id: Id,

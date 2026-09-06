@@ -5,7 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Fixture proving redacted serde requires a direct serde dependency.
+//! Fixture proving the runtime serde feature supplies generated serialization
+//! without a direct serde dependency.
 
 use qubit_redact_derive::Redact;
 

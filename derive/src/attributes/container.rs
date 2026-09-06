@@ -26,8 +26,6 @@ pub(crate) struct ContainerAttributes {
     display: bool,
     /// Whether redacted serde integration was requested.
     serde: bool,
-    /// Whether only the explicit view serialization capability is requested.
-    serialize: bool,
     /// Whether one field should be written without a nominal wrapper.
     transparent: bool,
 }
@@ -51,7 +49,6 @@ impl ContainerAttributes {
         let mut debug = false;
         let mut display = false;
         let mut serde = false;
-        let mut serialize = false;
         let mut transparent = false;
         for attribute in &input.attrs {
             if !attribute.path().is_ident("redact") {
@@ -87,8 +84,6 @@ impl ContainerAttributes {
                     &mut display
                 } else if meta.path.is_ident("serde") {
                     &mut serde
-                } else if meta.path.is_ident("serialize") {
-                    &mut serialize
                 } else if meta.path.is_ident("transparent") {
                     &mut transparent
                 } else {
@@ -124,12 +119,6 @@ impl ContainerAttributes {
                 Ok(())
             })?;
         }
-        if serde && serialize {
-            return Err(Error::new_spanned(
-                input,
-                "choose either `serde` or `serialize`, not both",
-            ));
-        }
         if transparent {
             let valid = matches!(&input.data, Data::Struct(data) if data.fields.iter().count() == 1);
             if !valid {
@@ -146,7 +135,6 @@ impl ContainerAttributes {
             debug,
             display,
             serde,
-            serialize,
             transparent,
         })
     }
@@ -181,7 +169,7 @@ impl ContainerAttributes {
     #[must_use]
     #[inline(always)]
     pub(crate) const fn serde_enabled(&self) -> bool {
-        self.serde || self.serialize
+        self.serde
     }
 
     /// Whether the ordinary Serialize implementation is generated as well.

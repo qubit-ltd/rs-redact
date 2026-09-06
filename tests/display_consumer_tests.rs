@@ -20,14 +20,14 @@ impl fmt::Display for External<'_> {
 }
 
 #[derive(Redact)]
-#[cfg_attr(feature = "serde", redact(serialize))]
+#[cfg_attr(feature = "serde", redact(serde))]
 struct Secret<T> {
     #[redact(level = "secret", display)]
     value: T,
 }
 
 #[derive(Redact)]
-#[cfg_attr(feature = "serde", redact(serialize))]
+#[cfg_attr(feature = "serde", redact(serde))]
 struct Low<T> {
     #[redact(display, level = "low")]
     value: T,

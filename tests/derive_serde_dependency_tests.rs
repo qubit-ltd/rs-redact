@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Verifies direct serde dependency resolution for generated implementations.
+//! Verifies serde dependency resolution for generated implementations.
 
 #![cfg(all(feature = "derive", feature = "serde"))]
 
@@ -13,9 +13,9 @@ use std::env;
 use std::path::PathBuf;
 mod support;
 
-/// Verifies redacted serialization requires serde as a direct dependency.
+/// Verifies the runtime serde feature supplies generated serialization support.
 #[test]
-fn test_missing_direct_serde_dependency_is_targeted() {
+fn test_missing_direct_serde_dependency_compiles() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let manifest = manifest_dir.join("tests/fixtures/crates/serde_missing/Cargo.toml");
     let target_dir = manifest_dir.join("target/serde-missing-fixture");
@@ -27,13 +27,7 @@ fn test_missing_direct_serde_dependency_is_targeted() {
         .arg(target_dir)
         .output()
         .expect("the isolated cargo check starts");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert!(!output.status.success(), "{stderr}");
-    assert!(
-        stderr.contains("unable to resolve serde; add `serde` as a direct dependency"),
-        "{stderr}",
-    );
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
 }
 
 /// Verifies generated code honors a renamed serde dependency.
