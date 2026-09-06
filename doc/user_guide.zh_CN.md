@@ -88,7 +88,10 @@ runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的�
 字符串。
 
 ```rust
+use qubit_redact::{Redact, Redactor};
+
 #[derive(Redact, serde::Serialize)]
+#[redact(crate = qubit_redact)]
 struct Login {
     user: String,
     #[redact(level = "secret")]
@@ -96,8 +99,8 @@ struct Login {
 }
 
 let login = Login { user: "ada".into(), password: "raw-secret".into() };
-assert!(serde_json::to_string(&login)?.contains("raw-secret"));
-assert!(!Redactor::standard().to_json(&login)?.contains("raw-secret"));
+assert!(serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+assert!(!Redactor::standard().to_json(&login).expect("redacted JSON").contains("raw-secret"));
 ```
 
 只有需要让源对象被直接序列化时也输出脱敏内容，才添加 `#[redact(serde)]`。类型既没有普通
