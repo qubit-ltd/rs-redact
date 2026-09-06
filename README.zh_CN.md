@@ -72,6 +72,7 @@ assert!(!output.text().as_str().contains("raw-secret"));
 支持字段和领域对象、JSON、HTTP、URI、环境变量与进程参数，以及规则检查和共享预算。
 `RedactScalar` 支持标量 newtype，第三方类型可显式采用 Display 表示。
 未标注字段保持普通输出；显式等级由业务类型负责，strict 不覆盖它。
+手写领域类型时可使用 `fields.keyed_nested(...)`：业务键公开时，包装内的子结构仍会按自身字段规则脱敏。
 disabled 是恢复原值的调试选项；库不擦除源对象，也不保护绕过脱敏入口的输出。
 
 ## 延伸阅读

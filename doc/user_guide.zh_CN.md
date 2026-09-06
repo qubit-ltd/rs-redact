@@ -113,6 +113,38 @@ assert!(!Redactor::standard().to_json(&login).expect("redacted JSON").contains("
 标准 Map 和最长 12 项 tuple。Map 的普通 level 处理 value，保留 key；要隐藏 key 使用对应属性。
 文本 Map 放行路径和 keyed_by 需要 Debug；仅使用 level 的 RedactScalar 不要求 Debug。
 
+### 手写业务键包装的嵌套值
+
+手写 `Redact` 实现时，如果一个 `Redact + Debug` 子值由业务键决定策略，可调用
+`fields.keyed_nested(display_name, business_key, value)`。业务键公开时，该方法会递归调用子值，
+因此子字段规则、JSON 遍历和 inspection 仍然生效；业务键敏感时，整个载荷作为一个值掩码；
+disabled 策略则输出原值。这避免了公开包装通过 `Debug` 回退泄露内部 secret。
+
+```rust
+use qubit_redact::{Redact, RedactionWriter, Sensitivity};
+
+struct NamedPayload { name: String, payload: Payload }
+#[derive(Debug)]
+struct Payload { password: String }
+
+impl Redact for Payload {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("Payload", |fields| {
+            fields.sensitive(Sensitivity::Secret, "password", || &self.password);
+        });
+    }
+}
+
+impl Redact for NamedPayload {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("NamedPayload", |fields| {
+            fields.unredacted("name", || &self.name);
+            fields.keyed_nested("payload", &self.name, &self.payload);
+        });
+    }
+}
+```
+
 Serde 支持 rename/rename_all、枚举 tag/content/untagged、transparent、skip、skip_serializing、
 skip_serializing_if。支持普通或 skip 字段上的 with/serialize_with；不能与观察原值的敏感模式组合。
 flatten 不受支持。JSON 文本字段序列化后仍是字符串，已解析 Value 字段保留 JSON 结构。
