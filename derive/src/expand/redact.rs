@@ -215,7 +215,10 @@ fn writer_enum_body(variants: &[VariantData<'_>], runtime: &Path) -> TokenStream
                     .iter()
                     .enumerate()
                     .map(|(position, field)| {
-                        format_ident!("__qubit_redact_field_{position}", span = field.field().span())
+                        format_ident!(
+                            "__qubit_redact_field_{position}",
+                            span = field.field().span()
+                        )
                     })
                     .collect::<Vec<_>>();
                 let patterns = fields.iter().zip(&bindings).map(|(field, binding)| {
@@ -333,7 +336,10 @@ fn writer_field_call(
             key,
             value: value_level,
         } => {
-            let key = key.as_ref().expect("map key level is required").runtime_tokens(runtime);
+            let key = key
+                .as_ref()
+                .expect("map key level is required")
+                .runtime_tokens(runtime);
             let value_level = value_level
                 .as_ref()
                 .map(|level| {

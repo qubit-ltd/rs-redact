@@ -54,7 +54,15 @@ fn test_level_map_does_not_format_keys_after_collection_limit() {
         let calls = Cell::new(0);
         let value = ClassifiedMap(
             (0..100)
-                .map(|index| (CountedKey { index, calls: &calls }, "secret".to_owned()))
+                .map(|index| {
+                    (
+                        CountedKey {
+                            index,
+                            calls: &calls,
+                        },
+                        "secret".to_owned(),
+                    )
+                })
                 .collect(),
         );
         let policy = base
@@ -70,7 +78,10 @@ fn test_level_map_does_not_format_keys_after_collection_limit() {
 
         assert_eq!(calls.get(), 1, "only the admitted key may be formatted");
         assert_eq!(output.summary().usage().visited_collection_items(), 1);
-        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+        assert_eq!(
+            output.summary().completion(),
+            RedactionCompletion::Truncated
+        );
     }
 }
 
@@ -132,9 +143,15 @@ fn test_explicit_derive_level_is_final_for_text_and_inspection() {
         password: "secret".to_owned(),
     };
     let output = redactor.redact_text(&value);
-    assert_eq!(output.text().as_str(), "ExplicitLevel { password: \"LOW\" }");
     assert_eq!(
-        redactor.inspect(&value).expect("inspection").max_sensitivity(),
+        output.text().as_str(),
+        "ExplicitLevel { password: \"LOW\" }"
+    );
+    assert_eq!(
+        redactor
+            .inspect(&value)
+            .expect("inspection")
+            .max_sensitivity(),
         Some(Sensitivity::Low)
     );
 }
@@ -175,7 +192,10 @@ fn test_collection_drivers_stop_before_advancing_unadmitted_items() {
         let output = Redactor::new(policy.clone()).redact_text(&Driven(&pulls, is_map));
         assert_eq!(pulls.get(), 1);
         assert_eq!(output.summary().usage().visited_collection_items(), 1);
-        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+        assert_eq!(
+            output.summary().completion(),
+            RedactionCompletion::Truncated
+        );
     }
 }
 
@@ -248,7 +268,10 @@ fn test_level_map_bounds_key_formatting_work() {
         .build()
         .expect("policy");
     let output = Redactor::new(policy).redact_text(&value);
-    assert!(chunks.get() < 4, "key formatting must stop at the output limit");
+    assert!(
+        chunks.get() < 4,
+        "key formatting must stop at the output limit"
+    );
     assert!(output.text().as_str().len() <= 32);
     assert_ne!(output.summary().completion(), RedactionCompletion::Complete);
 }
@@ -272,7 +295,10 @@ fn test_keyed_debug_accessor_is_lazy_and_uses_business_key() {
     let pair = Pair(&calls);
     let redactor = Redactor::standard();
     assert_eq!(
-        redactor.inspect(&pair).expect("inspection").max_sensitivity(),
+        redactor
+            .inspect(&pair)
+            .expect("inspection")
+            .max_sensitivity(),
         Some(Sensitivity::Secret)
     );
     assert_eq!(

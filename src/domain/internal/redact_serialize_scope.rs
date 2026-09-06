@@ -34,10 +34,9 @@ impl<'policy> RedactSerializeScope<'policy> {
         let policy_identity = std::ptr::from_ref(policy).addr();
         let owns_budget = STRUCTURED_SERDE_BUDGETS.with(|slot| {
             let mut budgets = slot.borrow_mut();
-            if budgets
-                .last()
-                .is_some_and(|budget| budget.policy_identity == policy_identity || budget.raw_serializers > 0)
-            {
+            if budgets.last().is_some_and(|budget| {
+                budget.policy_identity == policy_identity || budget.raw_serializers > 0
+            }) {
                 return false;
             }
             budgets.push(StructuredSerdeBudget {
@@ -93,8 +92,14 @@ pub(super) fn admit_node() -> bool {
         let Some(state) = budgets.last_mut() else {
             return false;
         };
-        if state.policy.max_depth().is_some_and(|maximum| state.depth >= maximum)
-            || state.policy.max_nodes().is_some_and(|maximum| state.nodes >= maximum)
+        if state
+            .policy
+            .max_depth()
+            .is_some_and(|maximum| state.depth >= maximum)
+            || state
+                .policy
+                .max_nodes()
+                .is_some_and(|maximum| state.nodes >= maximum)
         {
             return false;
         }
@@ -120,9 +125,12 @@ pub(super) fn leave_node() {
 /// no redaction scope is active. This check precedes key lookup and output.
 pub(super) fn check_key_bytes<E: serde::ser::Error>(key: &str) -> Result<(), E> {
     let admitted = STRUCTURED_SERDE_BUDGETS.with(|slot| {
-        slot.borrow()
-            .last()
-            .is_some_and(|state| state.policy.max_key_bytes().is_none_or(|maximum| key.len() <= maximum))
+        slot.borrow().last().is_some_and(|state| {
+            state
+                .policy
+                .max_key_bytes()
+                .is_none_or(|maximum| key.len() <= maximum)
+        })
     });
     if admitted {
         Ok(())
@@ -174,7 +182,10 @@ pub(super) fn remaining_input_bytes() -> usize {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
         let budgets = slot.borrow();
         budgets.last().map_or(0, |state| {
-            state.policy.max_input_bytes().saturating_sub(state.input_bytes)
+            state
+                .policy
+                .max_input_bytes()
+                .saturating_sub(state.input_bytes)
         })
     })
 }
@@ -186,14 +197,21 @@ pub(super) fn remaining_input_bytes() -> usize {
 /// Returns the serializer's error when `body` cannot encode the admitted
 /// structure. A rejected root node is serialized as an opaque safe marker.
 #[doc(hidden)]
-pub fn serialize_structured<S, F>(serializer: S, policy: &crate::RedactionPolicy, body: F) -> Result<S::Ok, S::Error>
+pub fn serialize_structured<S, F>(
+    serializer: S,
+    policy: &crate::RedactionPolicy,
+    body: F,
+) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
     F: FnOnce(S) -> Result<S::Ok, S::Error>,
 {
     let _scope = RedactSerializeScope::new(policy);
     if !admit_node() {
-        return serialize_payload(serializer, policy.masking().mask_opaque(crate::Sensitivity::Secret));
+        return serialize_payload(
+            serializer,
+            policy.masking().mask_opaque(crate::Sensitivity::Secret),
+        );
     }
     let _node = SerdeNodeGuard;
     body(serializer)
@@ -221,9 +239,14 @@ pub(super) fn admit_output(bytes: usize) -> bool {
 
 /// Serializes a string payload after cumulative output admission.
 /// Returns a Serde error when the payload exceeds the shared allowance.
-pub(super) fn serialize_payload<S: serde::Serializer>(serializer: S, value: &str) -> Result<S::Ok, S::Error> {
+pub(super) fn serialize_payload<S: serde::Serializer>(
+    serializer: S,
+    value: &str,
+) -> Result<S::Ok, S::Error> {
     if !admit_output(value.len()) {
-        return Err(serde::ser::Error::custom("redaction scalar output budget exceeded"));
+        return Err(serde::ser::Error::custom(
+            "redaction scalar output budget exceeded",
+        ));
     }
     serializer.serialize_str(value)
 }
@@ -233,7 +256,10 @@ pub(super) fn serialize_payload<S: serde::Serializer>(serializer: S, value: &str
 pub(super) fn remaining_output_bytes() -> usize {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
         slot.borrow().last().map_or(0, |state| {
-            state.policy.max_output_bytes().saturating_sub(state.output_bytes)
+            state
+                .policy
+                .max_output_bytes()
+                .saturating_sub(state.output_bytes)
         })
     })
 }

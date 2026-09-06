@@ -35,7 +35,10 @@ pub(crate) fn inspect_uri(session: &mut InspectionSession, input: &str) {
         return;
     }
     let path = parsed.path().as_str();
-    if session.policy().uri().path_policy() == UriPathPolicy::Redact && !path.is_empty() && path != "/" {
+    if session.policy().uri().path_policy() == UriPathPolicy::Redact
+        && !path.is_empty()
+        && path != "/"
+    {
         session.observe_sensitivity(Sensitivity::High);
     }
     if let Some(query) = parsed.query()
@@ -59,7 +62,9 @@ fn inspect_authority(session: &mut InspectionSession, authority: &str) -> Result
     };
     let (username, password) = userinfo
         .split_once(':')
-        .map_or((userinfo, None), |(username, password)| (username, Some(password)));
+        .map_or((userinfo, None), |(username, password)| {
+            (username, Some(password))
+        });
     inspect_named_component(session, "username", username)?;
     if let Some(password) = password {
         inspect_named_component(session, "password", password)?;
@@ -84,7 +89,11 @@ fn inspect_query(session: &mut InspectionSession, query: &str) -> Result<(), ()>
 }
 
 /// Classifies one decoded userinfo component by its semantic field name.
-fn inspect_named_component(session: &mut InspectionSession, field: &str, raw: &str) -> Result<(), ()> {
+fn inspect_named_component(
+    session: &mut InspectionSession,
+    field: &str,
+    raw: &str,
+) -> Result<(), ()> {
     let _ = decode_uri_component(raw)?;
     if let ResolvedField::Sensitive { sensitivity } = session.policy().resolve_field(field) {
         session.observe_sensitivity(sensitivity);

@@ -24,7 +24,10 @@ where
 }
 
 /// Redacts arguments with heuristic classification as one batch item.
-pub(crate) fn redact_heuristic_items<'items, I>(session: &mut BatchSession, items: I) -> RedactionHandle
+pub(crate) fn redact_heuristic_items<'items, I>(
+    session: &mut BatchSession,
+    items: I,
+) -> RedactionHandle
 where
     I: IntoIterator<Item = ArgvItem<'items>>,
 {
@@ -39,7 +42,9 @@ where
     if session.is_output_exhausted() {
         return session.stage_exhausted_handle();
     }
-    let Some(items) = collect_flat_format_items(session, items, |item| item.value().as_encoded_bytes().len()) else {
+    let Some(items) =
+        collect_flat_format_items(session, items, |item| item.value().as_encoded_bytes().len())
+    else {
         return session.stage_accounted_text(String::new());
     };
     let result = if heuristic {

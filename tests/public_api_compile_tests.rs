@@ -15,8 +15,10 @@ use std::process::Output;
 
 /// Compiles one isolated dependent crate against the current source tree.
 fn check_dependent(case: &str, source: &str) -> Output {
-    let directory = env::temp_dir().join(format!("qubit-redact-public-api-{}-{case}", process::id()));
-    fs::create_dir_all(directory.join("src")).expect("the dependent source directory should be creatable");
+    let directory =
+        env::temp_dir().join(format!("qubit-redact-public-api-{}-{case}", process::id()));
+    fs::create_dir_all(directory.join("src"))
+        .expect("the dependent source directory should be creatable");
     fs::write(
         directory.join("Cargo.toml"),
         format!(
@@ -25,7 +27,8 @@ fn check_dependent(case: &str, source: &str) -> Output {
         ),
     )
     .expect("the dependent manifest should be writable");
-    fs::write(directory.join("src/main.rs"), source).expect("the dependent source should be writable");
+    fs::write(directory.join("src/main.rs"), source)
+        .expect("the dependent source should be writable");
     let output = Command::new(env!("CARGO"))
         .args(["check", "--offline"])
         .current_dir(&directory)
@@ -39,7 +42,10 @@ fn check_dependent(case: &str, source: &str) -> Output {
 fn assert_rejected(case: &str, source: &str, expected_diagnostic: &str) {
     let output = check_dependent(case, source);
     let diagnostics = String::from_utf8_lossy(&output.stderr);
-    assert!(!output.status.success(), "the removed {case} API must not compile",);
+    assert!(
+        !output.status.success(),
+        "the removed {case} API must not compile",
+    );
     assert!(
         diagnostics.contains(expected_diagnostic),
         "the {case} diagnostics must mention {expected_diagnostic}: {diagnostics}",
@@ -65,7 +71,10 @@ fn test_raw_batch_publication_types_are_not_public() {
 fn test_inspection_result_alias_is_not_public() {
     assert_rejected(
         "inspection-alias",
-        concat!("use qubit_", "redact::{RedactionInspectionResult};\nfn main() {}\n"),
+        concat!(
+            "use qubit_",
+            "redact::{RedactionInspectionResult};\nfn main() {}\n"
+        ),
         "RedactionInspectionResult",
     );
 }

@@ -23,7 +23,11 @@ pub struct RedactedDisplaySerializeRef<'value, 'policy, T: ?Sized> {
 impl<'value, 'policy, T: ?Sized> RedactedDisplaySerializeRef<'value, 'policy, T> {
     /// Captures the raw reference and field decision without invoking Display.
     pub fn new(value: &'value T, policy: &'policy RedactionPolicy, level: Sensitivity) -> Self {
-        Self { value, policy, level }
+        Self {
+            value,
+            policy,
+            level,
+        }
     }
 }
 
@@ -33,6 +37,11 @@ impl<T: Display + ?Sized> serde::Serialize for RedactedDisplaySerializeRef<'_, '
     where
         S: serde::Serializer,
     {
-        super::redact_level_serialize::serialize_display_text(self.value, serializer, self.policy, self.level)
+        super::redact_level_serialize::serialize_display_text(
+            self.value,
+            serializer,
+            self.policy,
+            self.level,
+        )
     }
 }

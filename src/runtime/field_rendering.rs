@@ -29,9 +29,10 @@ pub(super) fn redact_field_text_for_output(
         writer.write_str(value)
     } else {
         match policy.resolve_field(field) {
-            ResolvedField::Sensitive { sensitivity } => {
-                policy.masking().for_level(sensitivity).write_masked(value, &mut writer)
-            }
+            ResolvedField::Sensitive { sensitivity } => policy
+                .masking()
+                .for_level(sensitivity)
+                .write_masked(value, &mut writer),
             ResolvedField::PassThrough => writer.write_str(value),
         }
     };
@@ -76,7 +77,10 @@ where
     };
     let raw = raw_writer.finish();
     let mut output = BoundedFieldWriter::new(max_output_bytes);
-    let result = policy.masking().for_level(sensitivity).write_masked(&raw, &mut output);
+    let result = policy
+        .masking()
+        .for_level(sensitivity)
+        .write_masked(&raw, &mut output);
     if result.is_err() || output.overflowed() {
         return (String::new(), RedactionCompletion::Exhausted);
     }

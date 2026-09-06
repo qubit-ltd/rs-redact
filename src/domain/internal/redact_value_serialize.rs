@@ -17,7 +17,11 @@ use super::redact_serialize_scope::serialize_structured;
 use super::redacted_serialize_ref::RedactedSerializeRef;
 
 impl<T: RedactSerialize> RedactSerialize for Option<T> {
-    fn serialize_redacted<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(
+        &self,
+        serializer: S,
+        policy: &crate::RedactionPolicy,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -29,7 +33,11 @@ impl<T: RedactSerialize> RedactSerialize for Option<T> {
 }
 
 impl<T: RedactSerialize> RedactSerialize for Vec<T> {
-    fn serialize_redacted<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(
+        &self,
+        serializer: S,
+        policy: &crate::RedactionPolicy,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -50,7 +58,11 @@ impl<T: RedactSerialize> RedactSerialize for Vec<T> {
 }
 
 impl<T: RedactSerialize, const N: usize> RedactSerialize for [T; N] {
-    fn serialize_redacted<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(
+        &self,
+        serializer: S,
+        policy: &crate::RedactionPolicy,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {

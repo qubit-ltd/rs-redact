@@ -25,7 +25,12 @@ pub(crate) fn redact_pair(session: &mut BatchSession, name: &str, value: &str) -
     if !admit_flat_format_item(session, name.len().saturating_add(value.len())) {
         return session.stage_accounted_text(String::new());
     }
-    let result = redact_pair_with_policy(session.policy(), name, value, session.remaining_output_bytes());
+    let result = redact_pair_with_policy(
+        session.policy(),
+        name,
+        value,
+        session.remaining_output_bytes(),
+    );
     session.stage_rendered_operation(result)
 }
 
@@ -44,6 +49,7 @@ where
     }) else {
         return session.stage_accounted_text(String::new());
     };
-    let result = redact_os_pairs_with_policy(session.policy(), pairs, session.remaining_output_bytes());
+    let result =
+        redact_os_pairs_with_policy(session.policy(), pairs, session.remaining_output_bytes());
     session.stage_rendered_operation(result)
 }

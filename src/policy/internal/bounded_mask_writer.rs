@@ -84,8 +84,12 @@ mod tests {
     fn test_writer_keeps_only_complete_utf8_prefixes_across_writes() {
         let mut writer = BoundedMaskWriter::new(5);
 
-        writer.write_str("甲乙").expect("the bounded writer must never fail");
-        writer.write_str("z").expect("the bounded writer must never fail");
+        writer
+            .write_str("甲乙")
+            .expect("the bounded writer must never fail");
+        writer
+            .write_str("z")
+            .expect("the bounded writer must never fail");
 
         let (output, truncated) = writer.finish();
         assert_eq!(output, "甲z");
@@ -96,7 +100,9 @@ mod tests {
     fn test_writer_marks_empty_budget_as_truncated_for_non_empty_input() {
         let mut writer = BoundedMaskWriter::new(0);
 
-        writer.write_str("mask").expect("the bounded writer must never fail");
+        writer
+            .write_str("mask")
+            .expect("the bounded writer must never fail");
 
         let (output, truncated) = writer.finish();
         assert_eq!(output, "");

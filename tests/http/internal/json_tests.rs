@@ -61,7 +61,9 @@ fn test_ndjson_rejects_integer_above_u64_without_exposing_source_text() {
     let content_type = HeaderValue::from_static("application/x-ndjson");
     let rendered = redact_body(
         &Redactor::standard(),
-        BodyCapture::complete(b"{\"password\":\"safe\"}\n{\"id\":18446744073709551616,\"token\":\"raw-secret\"}\n"),
+        BodyCapture::complete(
+            b"{\"password\":\"safe\"}\n{\"id\":18446744073709551616,\"token\":\"raw-secret\"}\n",
+        ),
         Some(&content_type),
     );
 

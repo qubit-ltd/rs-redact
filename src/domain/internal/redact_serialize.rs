@@ -15,7 +15,11 @@ use crate::RedactionPolicy;
 /// adapters. Derived domain values use the projection capability instead.
 pub trait RedactSerialize {
     /// Serializes this value through a caller-supplied policy.
-    fn serialize_redacted<S>(&self, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(
+        &self,
+        serializer: S,
+        policy: &RedactionPolicy,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer;
 }

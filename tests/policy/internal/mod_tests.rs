@@ -23,5 +23,8 @@ fn test_policy_internal_components_share_canonical_state() {
         .build()
         .expect("the canonicalized rule is valid");
 
-    assert_eq!(policy.sensitivity_for("serviceAccessToken"), Some(Sensitivity::High),);
+    assert_eq!(
+        policy.sensitivity_for("serviceAccessToken"),
+        Some(Sensitivity::High),
+    );
 }

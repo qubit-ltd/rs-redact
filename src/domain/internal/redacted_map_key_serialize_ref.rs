@@ -47,8 +47,12 @@ impl<T: ?Sized + RedactMapKeySerialize> serde::Serialize for RedactedMapKeySeria
         S: serde::Serializer,
     {
         serialize_structured(serializer, self.policy, |serializer| {
-            self.value
-                .serialize_redacted_map_keys(serializer, self.policy, self.level, self.value_level)
+            self.value.serialize_redacted_map_keys(
+                serializer,
+                self.policy,
+                self.level,
+                self.value_level,
+            )
         })
     }
 }

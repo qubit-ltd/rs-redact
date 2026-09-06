@@ -23,7 +23,9 @@ fn test_http_policy_parts_keep_context_rules_independent() {
                 .expect("the query rule must be valid");
         })
         .expect("the HTTP policy configuration must be valid");
-    let policy = builder.build().expect("the configured policy must be valid");
+    let policy = builder
+        .build()
+        .expect("the configured policy must be valid");
 
     assert_eq!(
         policy.http().header_rules().sensitivity_for("x_api_key"),
@@ -33,5 +35,8 @@ fn test_http_policy_parts_keep_context_rules_independent() {
         policy.http().query_rules().sensitivity_for("access_token"),
         Some(Sensitivity::High)
     );
-    assert_eq!(policy.http().body_rules().sensitivity_for("access_token"), None);
+    assert_eq!(
+        policy.http().body_rules().sensitivity_for("access_token"),
+        None
+    );
 }

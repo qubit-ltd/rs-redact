@@ -149,7 +149,8 @@ impl<S: Serializer> Serializer for BudgetSerializer<S> {
         name: &'static str,
         value: &T,
     ) -> Result<Self::Ok, Self::Error> {
-        self.inner.serialize_newtype_struct(name, &BudgetSerialize::new(value))
+        self.inner
+            .serialize_newtype_struct(name, &BudgetSerialize::new(value))
     }
     fn serialize_newtype_variant<T: ?Sized + Serialize>(
         self,
@@ -161,8 +162,12 @@ impl<S: Serializer> Serializer for BudgetSerializer<S> {
         self.inner
             .serialize_newtype_variant(name, index, variant, &BudgetSerialize::new(value))
     }
-    fn collect_str<T: ?Sized + std::fmt::Display>(self, value: &T) -> Result<Self::Ok, Self::Error> {
-        let mut writer = BoundedDisplayWriter::new(remaining_input_bytes().min(remaining_output_bytes()));
+    fn collect_str<T: ?Sized + std::fmt::Display>(
+        self,
+        value: &T,
+    ) -> Result<Self::Ok, Self::Error> {
+        let mut writer =
+            BoundedDisplayWriter::new(remaining_input_bytes().min(remaining_output_bytes()));
         std::fmt::write(&mut writer, format_args!("{value}"))
             .map_err(|_| SerdeError::custom("redaction input budget exceeded"))?;
         self.serialize_str(&writer.finish())
@@ -186,7 +191,11 @@ impl<S: Serializer> Serializer for BudgetSerializer<S> {
             remaining: len,
         })
     }
-    fn serialize_tuple_struct(self, name: &'static str, len: usize) -> Result<Self::SerializeTupleStruct, Self::Error> {
+    fn serialize_tuple_struct(
+        self,
+        name: &'static str,
+        len: usize,
+    ) -> Result<Self::SerializeTupleStruct, Self::Error> {
         items::<S::Error>(len)?;
         Ok(BudgetCompound {
             inner: self.inner.serialize_tuple_struct(name, len)?,
@@ -202,7 +211,9 @@ impl<S: Serializer> Serializer for BudgetSerializer<S> {
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
         items::<S::Error>(len)?;
         Ok(BudgetCompound {
-            inner: self.inner.serialize_tuple_variant(name, index, variant, len)?,
+            inner: self
+                .inner
+                .serialize_tuple_variant(name, index, variant, len)?,
             remaining: len,
         })
     }
@@ -215,7 +226,11 @@ impl<S: Serializer> Serializer for BudgetSerializer<S> {
             remaining: len.unwrap_or(0),
         })
     }
-    fn serialize_struct(self, name: &'static str, len: usize) -> Result<Self::SerializeStruct, Self::Error> {
+    fn serialize_struct(
+        self,
+        name: &'static str,
+        len: usize,
+    ) -> Result<Self::SerializeStruct, Self::Error> {
         items::<S::Error>(len)?;
         Ok(BudgetCompound {
             inner: self.inner.serialize_struct(name, len)?,
@@ -231,7 +246,9 @@ impl<S: Serializer> Serializer for BudgetSerializer<S> {
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
         items::<S::Error>(len)?;
         Ok(BudgetCompound {
-            inner: self.inner.serialize_struct_variant(name, index, variant, len)?,
+            inner: self
+                .inner
+                .serialize_struct_variant(name, index, variant, len)?,
             remaining: len,
         })
     }

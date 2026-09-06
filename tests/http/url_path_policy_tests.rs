@@ -50,5 +50,8 @@ fn test_url_path_policy_preserve_keeps_complete_path() {
         redact_url(&redactor, "https://example.test/public/path"),
         "https://example.test/public/path",
     );
-    assert_eq!(redactor.policy().http().url_path_policy(), UrlPathPolicy::Preserve);
+    assert_eq!(
+        redactor.policy().http().url_path_policy(),
+        UrlPathPolicy::Preserve
+    );
 }

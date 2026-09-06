@@ -15,13 +15,20 @@ use crate::RedactionUsage;
 
 /// Converts unpublished renderer provenance into the runtime summary model.
 #[must_use]
-pub(super) fn rendered_summary(completion: RedactionCompletion, reasons: RedactionReasons) -> RedactionSummary {
+pub(super) fn rendered_summary(
+    completion: RedactionCompletion,
+    reasons: RedactionReasons,
+) -> RedactionSummary {
     if reasons != RedactionReasons::empty() || completion == RedactionCompletion::Complete {
         return RedactionSummary::from_parts(false, completion, reasons, RedactionUsage::empty());
     }
     match completion {
         RedactionCompletion::Complete => RedactionSummary::complete(),
-        RedactionCompletion::Truncated => RedactionSummary::truncated(RedactionReason::TraversalLimitReached),
-        RedactionCompletion::Exhausted => RedactionSummary::exhausted(RedactionReason::OutputLimitReached),
+        RedactionCompletion::Truncated => {
+            RedactionSummary::truncated(RedactionReason::TraversalLimitReached)
+        }
+        RedactionCompletion::Exhausted => {
+            RedactionSummary::exhausted(RedactionReason::OutputLimitReached)
+        }
     }
 }

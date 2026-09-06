@@ -45,17 +45,25 @@ impl HttpPolicyExecutor<'_> {
             Self::invalid_content_type_body()
         } else {
             match &mut admitted {
-                AdmittedBody::Json(value) => self.redact_json_value(bounded, value, truncated, output_limit),
+                AdmittedBody::Json(value) => {
+                    self.redact_json_value(bounded, value, truncated, output_limit)
+                }
                 AdmittedBody::InvalidJson => Self::invalid_json_body(),
                 AdmittedBody::Ndjson {
                     lines,
                     trailing_newline,
                 } => self.redact_ndjson_values(lines, *trailing_newline, truncated, output_limit),
                 AdmittedBody::InvalidNdjson => Self::invalid_ndjson_body(),
-                AdmittedBody::Multipart(parts) => {
-                    self.redact_body_inner(bounded, content_type, truncated, output_limit, Some(parts))
+                AdmittedBody::Multipart(parts) => self.redact_body_inner(
+                    bounded,
+                    content_type,
+                    truncated,
+                    output_limit,
+                    Some(parts),
+                ),
+                AdmittedBody::Other => {
+                    self.redact_body_inner(bounded, content_type, truncated, output_limit, None)
                 }
-                AdmittedBody::Other => self.redact_body_inner(bounded, content_type, truncated, output_limit, None),
             }
         };
         Self::finish_body_redaction(parsed, capture, output_limit)
@@ -142,7 +150,11 @@ impl HttpPolicyExecutor<'_> {
 
     /// Escapes, bounds, and attaches source metadata to parser output.
     #[must_use]
-    fn finish_body_redaction(parsed: ParsedBody, capture: BodyCapture<'_>, output_limit: usize) -> HttpRendered {
+    fn finish_body_redaction(
+        parsed: ParsedBody,
+        capture: BodyCapture<'_>,
+        output_limit: usize,
+    ) -> HttpRendered {
         let (parsed_text, status, rendered_truncated) = parsed.into_parts();
         let source_truncated = capture.is_source_truncated() || rendered_truncated;
         let mut writer = BoundedLogWriter::new(output_limit, source_truncated);

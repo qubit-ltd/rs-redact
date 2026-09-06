@@ -50,14 +50,17 @@ pub(in crate::serde) fn external_variant_arm(
     let variant_index = variant.index();
     let arm = match variant.fields() {
         FieldsData::Named(fields) => {
-            let (pattern, setups, conditions, names, carriers) =
-                enum_named_parts(type_name, rust_name, fields, runtime, container_attributes, variant);
+            let (pattern, setups, conditions, names, carriers) = enum_named_parts(
+                type_name,
+                rust_name,
+                fields,
+                runtime,
+                container_attributes,
+                variant,
+            );
             let count_conditions = &conditions;
-            let calls = conditions
-                .iter()
-                .zip(&names)
-                .zip(&carriers)
-                .map(|((_condition, field_name), carrier)| {
+            let calls = conditions.iter().zip(&names).zip(&carriers).map(
+                |((_condition, field_name), carrier)| {
                     quote! {
                         if let ::core::option::Option::Some(carrier) = #carrier.as_ref() {
                             #serde::ser::SerializeStructVariant::serialize_field(
@@ -67,7 +70,8 @@ pub(in crate::serde) fn external_variant_arm(
                             )?;
                         }
                     }
-                });
+                },
+            );
             quote! {
                 Self::#rust_name #pattern => {
                     #(#setups)*
@@ -131,16 +135,19 @@ pub(in crate::serde) fn external_variant_arm(
             let (pattern, setups, conditions, carriers) =
                 enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime);
             let count_conditions = &conditions;
-            let calls = conditions.iter().zip(&carriers).map(|(_condition, carrier)| {
-                quote! {
-                    if let ::core::option::Option::Some(carrier) = #carrier.as_ref() {
-                        #serde::ser::SerializeTupleVariant::serialize_field(
-                            &mut state,
-                            carrier,
-                        )?;
+            let calls = conditions
+                .iter()
+                .zip(&carriers)
+                .map(|(_condition, carrier)| {
+                    quote! {
+                        if let ::core::option::Option::Some(carrier) = #carrier.as_ref() {
+                            #serde::ser::SerializeTupleVariant::serialize_field(
+                                &mut state,
+                                carrier,
+                            )?;
+                        }
                     }
-                }
-            });
+                });
             quote! {
                 Self::#rust_name #pattern => {
                     #(#setups)*

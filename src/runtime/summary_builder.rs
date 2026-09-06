@@ -49,7 +49,12 @@ impl SummaryBuilder {
     /// Returns a summary paired with runtime-owned resource usage.
     #[must_use]
     pub(super) const fn build(self, usage: RedactionUsage) -> RedactionSummary {
-        RedactionSummary::from_parts(self.redaction_disabled, self.completion, self.reasons, usage)
+        RedactionSummary::from_parts(
+            self.redaction_disabled,
+            self.completion,
+            self.reasons,
+            usage,
+        )
     }
 
     /// Merges an operation's completion and provenance into this state.

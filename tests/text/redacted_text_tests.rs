@@ -21,7 +21,9 @@ fn test_redacted_text_exposes_masked_value() {
 #[test]
 fn test_redacted_text_supports_display_borrow_and_owned_conversion() {
     let text = Redactor::default().redact_field("message", "visible");
-    let final_text = text.into_complete_text().expect("field output must be complete");
+    let final_text = text
+        .into_complete_text()
+        .expect("field output must be complete");
 
     assert_eq!(final_text.as_ref(), "visible");
     assert_eq!(final_text.to_string(), "visible");

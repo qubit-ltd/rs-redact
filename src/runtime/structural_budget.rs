@@ -46,10 +46,17 @@ impl StructuralBudget {
         if self.traversal_closed {
             return StructuralEntry::TraversalLimitReached;
         }
-        if self.max_depth.is_some_and(|max_depth| self.current_depth >= max_depth) {
+        if self
+            .max_depth
+            .is_some_and(|max_depth| self.current_depth >= max_depth)
+        {
             return StructuralEntry::DepthLimitReached;
         }
-        if self.budget.enter_node(self.current_depth.saturating_add(1)).is_err() {
+        if self
+            .budget
+            .enter_node(self.current_depth.saturating_add(1))
+            .is_err()
+        {
             self.close_traversal();
             return StructuralEntry::TraversalLimitReached;
         }

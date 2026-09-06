@@ -61,7 +61,10 @@ impl Redactor {
     ///
     /// Returns [`RedactionInspectionError`] when JSON parsing fails or a
     /// shared resource limit prevents complete inspection.
-    pub fn inspect_json(&self, text: &str) -> Result<RedactionInspection, RedactionInspectionError> {
+    pub fn inspect_json(
+        &self,
+        text: &str,
+    ) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
         crate::formats::json::inspection::inspect_text(&mut session, text);
         session.finish()

@@ -23,7 +23,10 @@ use crate::runtime::TextSession;
 use crate::runtime::runtime_session::RuntimeSession;
 
 /// Parses and admits one complete JSON text value at the root depth.
-pub(crate) fn admit_json_text_value(session: &mut dyn RuntimeSession, text: &str) -> Result<Value, JsonAdmissionError> {
+pub(crate) fn admit_json_text_value(
+    session: &mut dyn RuntimeSession,
+    text: &str,
+) -> Result<Value, JsonAdmissionError> {
     admit_json_text_value_at_depth(session, text, 1)
 }
 
@@ -63,8 +66,14 @@ pub(crate) fn admit_json_text_value_at_depth(
 /// Disabled policies intentionally do not parse or redact their input. This
 /// helper performs only log-control escaping and output-bound enforcement.
 #[must_use]
-pub(crate) fn passthrough_json_text_with_limit(text: &str, max_output_bytes: usize) -> RenderedOperation {
-    json_output_from_bounded(BoundedJsonRedaction::Complete(text.to_owned()), max_output_bytes)
+pub(crate) fn passthrough_json_text_with_limit(
+    text: &str,
+    max_output_bytes: usize,
+) -> RenderedOperation {
+    json_output_from_bounded(
+        BoundedJsonRedaction::Complete(text.to_owned()),
+        max_output_bytes,
+    )
 }
 
 /// Converts bounded JSON rendering into unpublished adapter state.
@@ -90,7 +99,8 @@ pub(crate) fn json_output_from_bounded(
     if raw_truncated {
         OperationSink::truncated(output_text, crate::RedactionReason::OutputLimitReached).finish()
     } else if invalid_json {
-        OperationSink::complete_with_reason(output_text, crate::RedactionReason::InvalidJson).finish()
+        OperationSink::complete_with_reason(output_text, crate::RedactionReason::InvalidJson)
+            .finish()
     } else {
         OperationSink::complete(output_text).finish()
     }
@@ -123,12 +133,15 @@ impl<'session> JsonRedactionWriter<'session> {
         } else {
             match admit_json_text_value(self.session, text) {
                 Ok(value) => self.redact_value_direct(&value),
-                Err(JsonAdmissionError::Invalid) => {
-                    invalid_json_output(self.session.policy(), self.session.remaining_output_bytes())
-                }
-                Err(JsonAdmissionError::Limit) => {
-                    OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish()
-                }
+                Err(JsonAdmissionError::Invalid) => invalid_json_output(
+                    self.session.policy(),
+                    self.session.remaining_output_bytes(),
+                ),
+                Err(JsonAdmissionError::Limit) => OperationSink::truncated(
+                    "<truncated>",
+                    crate::RedactionReason::TraversalLimitReached,
+                )
+                .finish(),
             }
         };
         self.session.append_rendered_operation(result);
@@ -142,7 +155,11 @@ impl<'session> JsonRedactionWriter<'session> {
         }
         if !self.session.admit_json_value(value) {
             self.session.append_rendered_operation(
-                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
+                OperationSink::truncated(
+                    "<truncated>",
+                    crate::RedactionReason::TraversalLimitReached,
+                )
+                .finish(),
             );
             return self;
         }
@@ -178,7 +195,11 @@ impl JsonRedactionWriter<'_> {
     /// Redacts a parsed value under the session's remaining output allowance.
     #[must_use]
     pub(crate) fn redact_value_direct(&mut self, value: &Value) -> RenderedOperation {
-        redact_json_value_with_limit(self.session.policy(), value, self.session.remaining_output_bytes())
+        redact_json_value_with_limit(
+            self.session.policy(),
+            value,
+            self.session.remaining_output_bytes(),
+        )
     }
 }
 
@@ -196,9 +217,17 @@ pub(crate) fn redact_json_value_with_limit(
 }
 
 /// Creates fail-closed output for JSON text that could not be parsed.
-pub(crate) fn invalid_json_output(policy: &crate::RedactionPolicy, max_output_bytes: usize) -> RenderedOperation {
+pub(crate) fn invalid_json_output(
+    policy: &crate::RedactionPolicy,
+    max_output_bytes: usize,
+) -> RenderedOperation {
     json_output_from_bounded(
-        BoundedJsonRedaction::Invalid(policy.masking().mask_opaque(crate::Sensitivity::Secret).to_owned()),
+        BoundedJsonRedaction::Invalid(
+            policy
+                .masking()
+                .mask_opaque(crate::Sensitivity::Secret)
+                .to_owned(),
+        ),
         max_output_bytes,
     )
 }
@@ -249,7 +278,11 @@ mod tests {
         );
 
         assert_eq!(output.completion(), RedactionCompletion::Truncated);
-        assert!(output.reasons().contains(crate::RedactionReason::OutputLimitReached));
+        assert!(
+            output
+                .reasons()
+                .contains(crate::RedactionReason::OutputLimitReached)
+        );
         assert!(output.text().len() <= 16);
     }
 
@@ -268,12 +301,17 @@ mod tests {
             .text_composer()
             .literal("prefix")
             .json(|json| {
-                json.text(r#"{"description":"this value is deliberately longer than the allowance"}"#);
+                json.text(
+                    r#"{"description":"this value is deliberately longer than the allowance"}"#,
+                );
             })
             .finish();
 
         assert_eq!(output.text().as_str(), "prefix<truncated>");
-        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+        assert_eq!(
+            output.summary().completion(),
+            RedactionCompletion::Truncated
+        );
         assert_eq!(output.summary().usage().output_bytes(), 17);
     }
 }

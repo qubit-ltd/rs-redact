@@ -92,7 +92,10 @@ fn test_disabled_borrowed_json_value_respects_node_limit_across_rendering_entry_
 
     let direct = redactor.redact_json_value(&value);
     assert!(!direct.text().as_str().contains("raw-secret"));
-    assert_eq!(direct.summary().completion(), RedactionCompletion::Truncated);
+    assert_eq!(
+        direct.summary().completion(),
+        RedactionCompletion::Truncated
+    );
     assert!(direct.summary().is_redaction_disabled());
 
     let mut batch = redactor.batch();
@@ -109,7 +112,10 @@ fn test_disabled_borrowed_json_value_respects_node_limit_across_rendering_entry_
         })
         .finish();
     assert!(!composed.text().as_str().contains("raw-secret"));
-    assert_eq!(composed.summary().completion(), RedactionCompletion::Truncated);
+    assert_eq!(
+        composed.summary().completion(),
+        RedactionCompletion::Truncated
+    );
     assert!(composed.summary().is_redaction_disabled());
 
     let field = redactor.redact_text(&Payload(&value));

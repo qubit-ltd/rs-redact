@@ -29,5 +29,8 @@ fn test_text_body_policy_builder_accepts_pass_through() {
         .build()
         .expect("HTTP redaction policy should be valid");
 
-    assert_eq!(policy.http().text_body_policy(), TextBodyPolicy::PassThrough);
+    assert_eq!(
+        policy.http().text_body_policy(),
+        TextBodyPolicy::PassThrough
+    );
 }

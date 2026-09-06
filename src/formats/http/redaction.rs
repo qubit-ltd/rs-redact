@@ -97,7 +97,11 @@ impl HttpPolicyExecutor<'_> {
 
 /// Parses and redacts a URL string through a parent session policy snapshot.
 #[must_use]
-pub(crate) fn redact_url_str_with_policy(policy: &RedactionPolicy, input: &str, output_limit: usize) -> HttpRendered {
+pub(crate) fn redact_url_str_with_policy(
+    policy: &RedactionPolicy,
+    input: &str,
+    output_limit: usize,
+) -> HttpRendered {
     HttpPolicyExecutor { policy }.redact_url_str(input, output_limit)
 }
 
