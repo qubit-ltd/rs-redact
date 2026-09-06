@@ -18,6 +18,7 @@ use syn::Lifetime;
 use syn::LifetimeParam;
 use syn::Path;
 use syn::Result;
+use syn::Visibility;
 use syn::spanned::Spanned;
 
 use super::r#enum::enum_body;
@@ -56,7 +57,7 @@ pub(crate) fn expand(
         ContainerData::Struct(fields) => struct_body(name, fields, runtime, serde, container_attributes),
         ContainerData::Enum(variants) => enum_body(name, variants, runtime, serde, container_attributes, &serializer)?,
     };
-    let declaration = projection_declaration(&projection, &lifetime, &parameters, model, runtime);
+    let declaration = projection_declaration(&input.vis, &projection, &lifetime, &parameters, model, runtime);
     let constructor = projection_constructor(name, &projection, model);
     let actual_types = fields.iter().map(|field| &field.ty);
     let projection_bounds = projection_bounds(model, &parameters, runtime, serde);
@@ -209,6 +210,7 @@ fn collect_group<'a>(fields: &'a FieldsData<'a>, result: &mut Vec<&'a Field>) {
 }
 
 fn projection_declaration(
+    visibility: &Visibility,
     projection: &Ident,
     lifetime: &Lifetime,
     parameters: &[Ident],
@@ -250,7 +252,14 @@ fn projection_declaration(
                     .collect::<Vec<_>>(),
                 FieldsData::Unit => Vec::new(),
             };
-            quote! { #[derive(Clone, Copy)] struct #projection<#lifetime, #(#parameters),*> { __qubit_redact_lifetime: ::core::marker::PhantomData<(&#lifetime (), #(&#lifetime #parameters),*)>, #(#members),* } }
+            quote! {
+                #[doc(hidden)]
+                #[derive(Clone, Copy)]
+                #visibility struct #projection<#lifetime, #(#parameters),*> {
+                    __qubit_redact_lifetime: ::core::marker::PhantomData<(&#lifetime (), #(&#lifetime #parameters),*)>,
+                    #(#members),*
+                }
+            }
         }
         ContainerData::Enum(variants) => {
             let mut offset = 0usize;
@@ -280,7 +289,14 @@ fn projection_declaration(
                 };
                 quote!(#name #declaration)
             });
-            quote! { #[derive(Clone, Copy)] enum #projection<#lifetime, #(#parameters),*> { #(#declarations),*, __QubitRedactLifetime(::core::marker::PhantomData<(&#lifetime (), #(&#lifetime #parameters),*)>) } }
+            quote! {
+                #[doc(hidden)]
+                #[derive(Clone, Copy)]
+                #visibility enum #projection<#lifetime, #(#parameters),*> {
+                    #(#declarations),*,
+                    __QubitRedactLifetime(::core::marker::PhantomData<(&#lifetime (), #(&#lifetime #parameters),*)>)
+                }
+            }
         }
     }
 }
