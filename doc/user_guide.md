@@ -93,7 +93,10 @@ mode: an unmarked field normally needs `Serialize`, while `level = "...", displa
 `Display` and emits a redacted string.
 
 ```rust
+use qubit_redact::{Redact, Redactor};
+
 #[derive(Redact, serde::Serialize)]
+#[redact(crate = qubit_redact)]
 struct Login {
     user: String,
     #[redact(level = "secret")]
@@ -101,8 +104,8 @@ struct Login {
 }
 
 let login = Login { user: "ada".into(), password: "raw-secret".into() };
-assert!(serde_json::to_string(&login)?.contains("raw-secret"));
-assert!(!Redactor::standard().to_json(&login)?.contains("raw-secret"));
+assert!(serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+assert!(!Redactor::standard().to_json(&login).expect("redacted JSON").contains("raw-secret"));
 ```
 
 Add `#[redact(serde)]` when direct source serialization must also be redacted. If the type has
