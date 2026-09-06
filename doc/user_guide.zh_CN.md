@@ -80,6 +80,31 @@ runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的�
 `transparent` 要求恰好一个字段，委托该字段的表示，本身不声明标量能力。
 `debug` 不应与普通 `Debug` 派生同时使用，`serde` 不应与普通 `Serialize` 派生同时使用。
 
+### 选择序列化边界
+
+启用 runtime 的 `serde` feature 后，`Redact` 总会生成供 `redact_view()` 和 `to_json()`
+使用的脱敏投影。源类型本身不必实现 `Serialize`，投影即可使用。字段只需满足其脱敏模式的
+要求：未标注字段通常需要 `Serialize`；`level = "...", display` 只需 `Display`，并输出脱敏
+字符串。
+
+```rust
+#[derive(Redact, serde::Serialize)]
+struct Login {
+    user: String,
+    #[redact(level = "secret")]
+    password: String,
+}
+
+let login = Login { user: "ada".into(), password: "raw-secret".into() };
+assert!(serde_json::to_string(&login)?.contains("raw-secret"));
+assert!(!Redactor::standard().to_json(&login)?.contains("raw-secret"));
+```
+
+只有需要让源对象被直接序列化时也输出脱敏内容，才添加 `#[redact(serde)]`。类型既没有普通
+`Serialize`，也没有 `#[redact(serde)]` 时，不能直接序列化源对象；只要生成的投影能够序列化
+字段，view 和 `to_json()` 仍可用。若字段缺少所需能力，view 的文本格式化仍可用；但结构化
+序列化该 view 或调用 `to_json()` 会产生编译期 trait-bound 错误。
+
 内置等级叶子包括字符串、字符、布尔、整数、浮点数，以及 `serde` 下的 BigDecimal。
 等级容器包括引用、Option、Vec、切片、数组、Box/Rc/Arc、VecDeque、LinkedList、集合、堆、
 标准 Map 和最长 12 项 tuple。Map 的普通 level 处理 value，保留 key；要隐藏 key 使用对应属性。

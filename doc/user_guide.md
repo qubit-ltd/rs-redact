@@ -84,6 +84,33 @@ remains unchanged. It requires the runtime `serde` feature and a direct Serde de
 `transparent` requires exactly one field and delegates its representation; it does not declare scalar capability.
 Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` together with `serde`.
 
+### Choosing the serialization boundary
+
+With the runtime `serde` feature, `Redact` always generates the redacted projection used by
+`redact_view()` and `to_json()`. The source type does not need to implement `Serialize` for
+that projection to be usable. Its fields must only satisfy the requirements of their redaction
+mode: an unmarked field normally needs `Serialize`, while `level = "...", display` needs
+`Display` and emits a redacted string.
+
+```rust
+#[derive(Redact, serde::Serialize)]
+struct Login {
+    user: String,
+    #[redact(level = "secret")]
+    password: String,
+}
+
+let login = Login { user: "ada".into(), password: "raw-secret".into() };
+assert!(serde_json::to_string(&login)?.contains("raw-secret"));
+assert!(!Redactor::standard().to_json(&login)?.contains("raw-secret"));
+```
+
+Add `#[redact(serde)]` when direct source serialization must also be redacted. If the type has
+neither ordinary `Serialize` nor `#[redact(serde)]`, direct serialization is unavailable, but
+the view and `to_json()` still work when the generated projection can serialize its fields.
+If a required field capability is missing, formatting the view still works; attempting structural
+serialization of the view or calling `to_json()` produces a compile-time trait-bound error.
+
 Built-in level leaves include strings, characters, booleans, integers, floats, and BigDecimal
 with `serde`. Level containers include references, Option, Vec, slices, arrays, Box/Rc/Arc,
 VecDeque, LinkedList, sets, heaps, standard maps, and tuples up to 12 elements. Ordinary level
