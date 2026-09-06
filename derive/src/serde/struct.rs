@@ -87,9 +87,9 @@ fn transparent_named_struct_body(
     let field = parsed.field();
     let identifier = parsed.identifier();
     let raw_name = raw_identifier(identifier);
-    let raw = quote_spanned!(field.span()=> &self.#identifier);
+    let raw = quote_spanned!(field.span()=> self.#identifier);
     let key_raw = match parsed.attributes().mode() {
-        FieldMode::KeyedBy(key) => Some(quote_spanned!(field.span()=> &self.#key)),
+        FieldMode::KeyedBy(key) => Some(quote_spanned!(field.span()=> self.#key)),
         _ => None,
     };
     let context = field_context(None, None, &raw_name);
@@ -156,9 +156,9 @@ fn named_struct_body(
             .serde_attributes()
             .rename()
             .map_or_else(|| container_attributes.rename_struct_field(&raw_name), str::to_owned);
-        let raw = quote_spanned!(field.span()=> &self.#identifier);
+        let raw = quote_spanned!(field.span()=> self.#identifier);
         let key_raw = match parsed.attributes().mode() {
-            FieldMode::KeyedBy(key) => Some(quote_spanned!(field.span()=> &self.#key)),
+            FieldMode::KeyedBy(key) => Some(quote_spanned!(field.span()=> self.#key)),
             _ => None,
         };
         let context = field_context(None, None, &raw_name);
@@ -252,7 +252,8 @@ fn newtype_struct_body(
     }
     let field = parsed.field();
     let index = parsed.index();
-    let raw = quote_spanned!(field.span()=> &self.#index);
+    let projection_field = format_ident!("__qubit_redact_field_{}", index.index, span = field.span());
+    let raw = quote_spanned!(field.span()=> self.#projection_field);
     let context = field_context(None, None, &index.index.to_string());
     let value = serialized_carrier(
         type_name,
@@ -310,7 +311,8 @@ fn tuple_struct_body(
         }
         let field = parsed.field();
         let index = parsed.index();
-        let raw = quote_spanned!(field.span()=> &self.#index);
+        let projection_field = format_ident!("__qubit_redact_field_{}", index.index, span = field.span());
+        let raw = quote_spanned!(field.span()=> self.#projection_field);
         let context = field_context(None, None, &index.index.to_string());
         let carrier = format_ident!("__qubit_redact_serialized_{position}");
         let value = serialized_carrier(

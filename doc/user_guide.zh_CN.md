@@ -62,11 +62,11 @@ assert!(!output.text().as_str().contains("raw-secret"));
 
 | 字段属性 | 作用与类型要求 |
 | --- | --- |
-| 无属性 | 文本使用普通 `Debug`；结构化视图序列化需要 `#[redact(serde)]`。 |
+| 无属性 | 文本使用普通 `Debug`；启用 runtime 的 `serde` feature 后，只要字段支持 Serde，视图即可按生成的脱敏投影序列化。 |
 | `level = "low"/"medium"/"high"/"secret"` | 对各叶子应用最终等级；支持基本标量、`RedactScalar` 和支持的递归容器。 |
 | `level = "...", display` | 显式按 `Display` 文本处理，不要求该类型实现 `Debug` 或普通 `Serialize`。 |
 | `skip` | 启用时省略；disabled 恢复字段。 |
-| `nested` | 委托 `Redact`；结构化输出还要求 `RedactSerialize`。 |
+| `nested` | 委托 `Redact`；结构化输出使用嵌套值生成的视图投影。 |
 | `map` | 支持 key 为 `String`、`&str`、`Cow<str>` 的 `HashMap`/`BTreeMap`，以及外层 `Option`；value 需具备等级能力，放行文本还需 `Debug`。 |
 | `map_key_level = "..."` | 固定每个 key 的等级，value 保持普通输出。 |
 | `map_key_level = "...", map_value_level = "..."` | 分别固定 key、value 等级。 |
@@ -74,8 +74,9 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | `json` | 支持 JSON `String`/`str`/`Cow<str>`、已解析 `serde_json::Value`、引用和 `Option`；需要 `json` feature。 |
 
 容器属性包括 `debug`、`display`、`serde`、`transparent` 和 `crate = path`。
-`serde` 为 `redact_view()` 生成结构化脱敏能力，并接管普通 `Serialize` 输出。
-它需要 runtime 的 `serde` feature 和直接声明的 Serde 依赖。
+runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的结构化脱敏能力。
+`#[redact(serde)]` 额外让源对象自身的普通 `Serialize` 输出脱敏；未标注时，单独派生的普通
+`Serialize` 保持原有行为。它需要 runtime 的 `serde` feature 和直接声明的 Serde 依赖。
 `transparent` 要求恰好一个字段，委托该字段的表示，本身不声明标量能力。
 `debug` 不应与普通 `Debug` 派生同时使用，`serde` 不应与普通 `Serialize` 派生同时使用。
 

@@ -70,8 +70,9 @@ pub(super) fn enum_body(
         })
         .collect::<Result<Vec<_>>>()?;
     Ok(quote! {
-        match self {
-            #(#arms),*
+        match *self {
+            #(#arms),*,
+            Self::__QubitRedactLifetime(_) => unreachable!("generated projection marker is never constructed"),
         }
     })
 }

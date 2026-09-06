@@ -74,8 +74,6 @@ mod serde_feature_gate;
 pub use domain::Redact;
 pub use domain::RedactScalar;
 pub use domain::RedactionWriter;
-#[cfg(any(feature = "serde", feature = "json"))]
-pub use domain::internal::RedactSerialize;
 pub use facade::DebugDisplay;
 pub use facade::RedactedText;
 pub use facade::RedactedTextComposer;

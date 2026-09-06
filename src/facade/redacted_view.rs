@@ -17,9 +17,9 @@ use crate::Redactor;
 /// This is neither a modified business object nor cached redacted output.
 /// Use [`Redactor::redact_text`] when a finalized text and summary are needed.
 ///
-/// With `serde` or `json`, values implementing `RedactSerialize` can be
-/// serialized structurally through this view. The source's ordinary
-/// `Serialize` implementation is not used as the root redaction entry point.
+/// With the `serde` feature, views of derived values serialize structurally
+/// through their redacted field projections. The source's ordinary `Serialize`
+/// implementation is not used as the root redaction entry point.
 pub struct RedactedView<'value, T: ?Sized> {
     /// Source borrowed until the view is dropped.
     value: &'value T,
@@ -49,14 +49,17 @@ impl<T: Redact + ?Sized> fmt::Debug for RedactedView<'_, T> {
 }
 
 #[cfg(any(feature = "serde", feature = "json"))]
-impl<T: crate::RedactSerialize + ?Sized> serde::Serialize for RedactedView<'_, T> {
+impl<'value, T: crate::domain::internal::RedactSerializeSource + ?Sized> serde::Serialize for RedactedView<'value, T>
+where
+    T::RedactedFields<'value>: serde::Serialize,
+{
     /// Serializes with this view's policy, propagating serializer/budget
     /// errors.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        use crate::domain::internal::RedactedSerializeRef;
-        RedactedSerializeRef::new(self.value, self.redactor.policy()).serialize(serializer)
+        use crate::domain::internal::RedactedProjectionRef;
+        RedactedProjectionRef::new(self.value, self.redactor.policy()).serialize(serializer)
     }
 }

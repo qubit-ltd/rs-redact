@@ -8,8 +8,8 @@
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
 
 `qubit-redact` 帮助应用和库作者为日志、错误报告和技术支持输出建立统一的脱敏边界。
-例如登录对象需要在业务和诊断边界统一脱敏：可以用借用视图生成脱敏文本或结构化 JSON，
-也可以通过 `#[redact(serde)]` 让对象自身的 Serde 输出脱敏。源对象保持不变。
+例如登录对象可以用借用视图生成脱敏文本或结构化 JSON，而不改变对象自身的普通序列化；
+需要让对象自身的 Serde 输出也脱敏时，再标注 `#[redact(serde)]`。
 
 ## 安装
 

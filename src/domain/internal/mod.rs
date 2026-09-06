@@ -17,6 +17,8 @@ mod internally_tagged_map;
 mod internally_tagged_serializer;
 mod keyed_policy;
 mod nested;
+#[cfg(any(feature = "serde", feature = "json"))]
+mod option_projection;
 #[cfg(feature = "json")]
 mod redact_json_serialize;
 #[cfg(any(feature = "serde", feature = "json"))]
@@ -30,6 +32,8 @@ mod redact_serialize;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod redact_serialize_scope;
 #[cfg(any(feature = "serde", feature = "json"))]
+mod redact_serialize_source;
+#[cfg(any(feature = "serde", feature = "json"))]
 mod redact_value_serialize;
 #[cfg(feature = "json")]
 mod redacted_json_serialize_ref;
@@ -42,9 +46,13 @@ mod redacted_map_key_serialize_ref;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod redacted_map_serialize_ref;
 #[cfg(any(feature = "serde", feature = "json"))]
+mod redacted_projection_ref;
+#[cfg(any(feature = "serde", feature = "json"))]
 mod redacted_serialize_ref;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod structured_serde_budget;
+#[cfg(any(feature = "serde", feature = "json"))]
+mod vec_projection;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use internally_tagged_serializer::serialize_internally_tagged;
 pub(crate) use keyed_policy::resolve_keyed_field;
@@ -61,7 +69,12 @@ pub use redact_serialize::RedactSerialize;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use redact_serialize_scope::RedactSerializeScope;
 #[cfg(any(feature = "serde", feature = "json"))]
+pub use redact_serialize_scope::current_policy;
+#[cfg(any(feature = "serde", feature = "json"))]
 pub use redact_serialize_scope::serialize_structured;
+#[cfg(any(feature = "serde", feature = "json"))]
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use redact_serialize_source::RedactSerializeSource;
 #[cfg(feature = "json")]
 pub use redacted_json_serialize_ref::RedactedJsonSerializeRef;
 #[cfg(any(feature = "serde", feature = "json"))]
@@ -72,6 +85,8 @@ pub use redacted_level_serialize_ref::RedactedLevelSerializeRef;
 pub use redacted_map_key_serialize_ref::RedactedMapKeySerializeRef;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use redacted_map_serialize_ref::RedactedMapSerializeRef;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use redacted_projection_ref::RedactedProjectionRef;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use redacted_serialize_ref::RedactedSerializeRef;
 

@@ -17,14 +17,21 @@ impl Redactor {
     ///
     /// This uses domain field declarations, unlike `redact_json`, which parses
     /// input JSON and classifies its keys. It is equivalent to
-    /// `serde_json::to_string(&self.redact_view(value))`.
+    /// `serde_json::to_string(&self.redact_view(value))`. The value's fields
+    /// must support the view's generated redacted serialization.
     ///
     /// # Errors
     ///
     /// Propagates JSON serializer errors and errors from the structured
     /// redaction budget. Successful serialization can contain the structured
     /// runtime's opaque replacements; it is not a completeness assertion.
-    pub fn to_json<T: crate::RedactSerialize + ?Sized>(&self, value: &T) -> Result<String, serde_json::Error> {
+    pub fn to_json<'value, T: crate::domain::internal::RedactSerializeSource + ?Sized>(
+        &self,
+        value: &'value T,
+    ) -> Result<String, serde_json::Error>
+    where
+        T::RedactedFields<'value>: serde::Serialize,
+    {
         serde_json::to_string(&self.redact_view(value))
     }
 

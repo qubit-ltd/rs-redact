@@ -29,8 +29,9 @@ impl Redactor {
     /// Creates a lazy borrowed view with an owned snapshot of this policy.
     ///
     /// No source access or budget consumption occurs until the view is used.
-    /// Formatting requires `Redact`; structural serialization requires
-    /// `RedactSerialize`. Each use starts an independent execution.
+    /// Formatting requires `Redact`. With the `serde` feature, a derived
+    /// value's view serializes structurally when its fields support the
+    /// required Serde adapters. Each use starts an independent execution.
     #[must_use]
     pub fn redact_view<'value, T: ?Sized>(&self, value: &'value T) -> crate::RedactedView<'value, T> {
         crate::RedactedView::new(value, self.clone())
