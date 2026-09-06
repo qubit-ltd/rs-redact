@@ -45,10 +45,12 @@ where
         S: Serializer,
     {
         let _scope = RedactSerializeScope::new(self.policy);
+        let key = self.key.as_ref();
+        super::redact_serialize_scope::check_key_bytes::<S::Error>(key)?;
         if self.policy.is_disabled() {
             return super::budget_serialize::BudgetSerialize::new(self.value).serialize(serializer);
         }
-        match super::resolve_keyed_field(self.policy, self.key.as_ref()) {
+        match super::resolve_keyed_field(self.policy, key) {
             ResolvedField::Sensitive { sensitivity } => {
                 RedactedLevelSerializeRef::new(self.value, self.policy, sensitivity).serialize(serializer)
             }

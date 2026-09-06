@@ -65,7 +65,7 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
         T: Debug,
         F: FnOnce() -> T,
     {
-        if !self.admit_entry() {
+        if !self.admit_entry() || !self.writer.session.admit_domain_key(name) {
             self.write_truncated();
             return self;
         }
@@ -89,7 +89,7 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
         if self.writer.session.policy().is_disabled() {
             return self.unredacted_entry(name, access);
         }
-        if !self.admit_entry() {
+        if !self.admit_entry() || !self.writer.session.admit_domain_key(name) {
             self.write_truncated();
             return self;
         }
@@ -177,7 +177,7 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
     where
         T: Redact + ?Sized,
     {
-        if !self.admit_entry() {
+        if !self.admit_entry() || !self.writer.session.admit_domain_key(name) {
             self.write_truncated();
             return self;
         }

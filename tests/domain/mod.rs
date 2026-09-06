@@ -8,4 +8,5 @@
 //! Mirrored integration tests for domain-object redaction APIs.
 
 mod redact_tests;
+mod redaction_key_limits_tests;
 mod redaction_writer_tests;

@@ -112,7 +112,9 @@ impl RedactionLimits {
         self.domain.max_sequence_items()
     }
 
-    /// Returns the maximum structural key length.
+    /// Returns the maximum raw UTF-8 length of a domain field or classification
+    /// key, checked before normalization and value access. JSON keys also have
+    /// their independent JSON admission limits.
     #[must_use]
     #[inline(always)]
     pub const fn max_key_bytes(&self) -> Option<usize> {

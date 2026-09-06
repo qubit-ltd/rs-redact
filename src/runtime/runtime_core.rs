@@ -241,6 +241,18 @@ impl RuntimeCore {
         admission
     }
 
+    /// Admits a raw domain key without charging a second field or item node.
+    ///
+    /// Returns `false` and records structural truncation before any key
+    /// normalization or value access when its byte length exceeds the limit.
+    pub(super) fn admit_domain_key(&mut self, key: &str) -> bool {
+        let admitted = self.budget.structural().admit_key(key.len());
+        if !admitted {
+            self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
+        }
+        admitted
+    }
+
     /// Releases the current structured domain-value depth.
     #[inline(always)]
     pub(super) fn leave_domain_value(&mut self) {

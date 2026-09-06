@@ -114,6 +114,23 @@ pub(super) fn leave_node() {
     });
 }
 
+/// Checks the raw UTF-8 length of a key against the active Serde budget.
+///
+/// Returns a value-free serializer error when the key exceeds its limit or
+/// no redaction scope is active. This check precedes key lookup and output.
+pub(super) fn check_key_bytes<E: serde::ser::Error>(key: &str) -> Result<(), E> {
+    let admitted = STRUCTURED_SERDE_BUDGETS.with(|slot| {
+        slot.borrow()
+            .last()
+            .is_some_and(|state| state.policy.max_key_bytes().is_none_or(|maximum| key.len() <= maximum))
+    });
+    if admitted {
+        Ok(())
+    } else {
+        Err(E::custom("redaction key byte budget exceeded"))
+    }
+}
+
 /// Admits `count` additional collection items.
 pub(super) fn admit_collection_items(count: usize) -> bool {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
