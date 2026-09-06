@@ -23,10 +23,7 @@ fn benchmark_http_uri(criterion: &mut Criterion) {
     let redactor = Redactor::standard();
     let url = "https://user:password@example.test/api/items?account=42&token=raw-secret#fragment";
     let mut headers = HeaderMap::new();
-    headers.insert(
-        "authorization",
-        HeaderValue::from_static("Bearer raw-secret"),
-    );
+    headers.insert("authorization", HeaderValue::from_static("Bearer raw-secret"));
     headers.insert("content-type", HeaderValue::from_static("application/json"));
     let content_type = HeaderValue::from_static("application/json");
     let body = br#"{"account":"42","token":"raw-secret","items":[1,2,3,4]}"#;
@@ -45,9 +42,7 @@ fn benchmark_http_uri(criterion: &mut Criterion) {
     });
     group.throughput(Throughput::Bytes(body.len() as u64));
     group.bench_function("http/json-body", |bencher| {
-        bencher.iter(|| {
-            redactor.redact_http_body(BodyCapture::complete(black_box(body)), Some(&content_type))
-        });
+        bencher.iter(|| redactor.redact_http_body(BodyCapture::complete(black_box(body)), Some(&content_type)));
     });
     group.finish();
 }

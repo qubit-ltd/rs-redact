@@ -131,35 +131,25 @@ fn test_adjacent_content_shares_collection_budget() {
 fn test_generated_shapes_preserve_wire_at_exact_budget() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
-            limits
-                .max_collection_items(2)
-                .max_input_bytes(2)
-                .max_output_bytes(2);
+            limits.max_collection_items(2).max_input_bytes(2).max_output_bytes(2);
         })
         .expect("limits")
         .build()
         .expect("policy");
     assert_eq!(
-        serde_json::to_value(RedactedSerializeRef::new(&Record { a: 1, b: 2 }, &policy))
-            .expect("exact admission"),
+        serde_json::to_value(RedactedSerializeRef::new(&Record { a: 1, b: 2 }, &policy)).expect("exact admission"),
         serde_json::json!({"a": 1, "b": 2})
     );
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
-            limits
-                .max_collection_items(4)
-                .max_input_bytes(7)
-                .max_output_bytes(7);
+            limits.max_collection_items(4).max_input_bytes(7).max_output_bytes(7);
         })
         .expect("limits")
         .build()
         .expect("policy");
     assert_eq!(
-        serde_json::to_value(RedactedSerializeRef::new(
-            &Adjacent::Named { a: 1, b: 2 },
-            &policy
-        ))
-        .expect("exact admission"),
+        serde_json::to_value(RedactedSerializeRef::new(&Adjacent::Named { a: 1, b: 2 }, &policy))
+            .expect("exact admission"),
         serde_json::json!({"kind":"Named", "data":{"a":1,"b":2}})
     );
 }

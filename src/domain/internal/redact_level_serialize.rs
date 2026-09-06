@@ -88,10 +88,7 @@ where
     T: Display + ?Sized,
 {
     if matches!(level, Sensitivity::High | Sensitivity::Secret) {
-        return super::redact_serialize_scope::serialize_payload(
-            serializer,
-            policy.masking().mask_opaque(level),
-        );
+        return super::redact_serialize_scope::serialize_payload(serializer, policy.masking().mask_opaque(level));
     }
     let Some(raw) = format_admitted_display(value) else {
         return super::redact_serialize_scope::serialize_payload(
@@ -105,9 +102,7 @@ where
         super::redact_serialize_scope::remaining_output_bytes(),
     );
     if truncated {
-        return Err(SerdeError::custom(
-            "redaction scalar output budget exceeded",
-        ));
+        return Err(SerdeError::custom("redaction scalar output budget exceeded"));
     }
     super::redact_serialize_scope::serialize_payload(serializer, masked.as_ref())
 }
@@ -116,11 +111,7 @@ where
 ///
 /// Values that exceed the remaining allowance serialize as the stable secret
 /// opaque mask instead of invoking their ordinary serializer.
-fn serialize_disabled_display<S, T>(
-    value: &T,
-    serializer: S,
-    policy: &RedactionPolicy,
-) -> Result<S::Ok, S::Error>
+fn serialize_disabled_display<S, T>(value: &T, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
     T: Display + Serialize + ?Sized,
@@ -132,9 +123,7 @@ where
         );
     };
     if !admit_output(raw.len()) {
-        return Err(SerdeError::custom(
-            "redaction scalar output budget exceeded",
-        ));
+        return Err(SerdeError::custom("redaction scalar output budget exceeded"));
     }
     Serialize::serialize(value, serializer)
 }
@@ -161,8 +150,7 @@ where
 }
 
 scalar_level_serialize!(
-    String, str, char, bool, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32,
-    f64
+    String, str, char, bool, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64
 );
 
 #[cfg(feature = "serde")]
@@ -456,12 +444,8 @@ mod tests {
         ];
         let _scope = RedactSerializeScope::new(&policy);
 
-        let encoded = serde_json::to_value(RedactedLevelSerializeRef::new(
-            &values,
-            &policy,
-            Sensitivity::Low,
-        ))
-        .expect("structured decimal serialization");
+        let encoded = serde_json::to_value(RedactedLevelSerializeRef::new(&values, &policy, Sensitivity::Low))
+            .expect("structured decimal serialization");
 
         assert_eq!(encoded[1], "<redacted>");
     }

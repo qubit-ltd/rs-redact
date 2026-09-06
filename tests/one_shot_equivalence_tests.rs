@@ -25,22 +25,16 @@ impl Redact for Credentials {
     /// Writes one public and one secret field through the domain API.
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.record("Credentials", |fields| {
-            fields.unredacted("account", || "account-42").sensitive(
-                Sensitivity::Secret,
-                "password",
-                || "raw-secret",
-            );
+            fields
+                .unredacted("account", || "account-42")
+                .sensitive(Sensitivity::Secret, "password", || "raw-secret");
         });
     }
 }
 
 /// Asserts two independently published operations have identical safe output
 /// and accounting metadata.
-fn assert_equivalent(
-    one_shot: &RedactionTextOutput,
-    batch: &RedactionBatchDiagnostics,
-    handle: RedactionBatchHandle,
-) {
+fn assert_equivalent(one_shot: &RedactionTextOutput, batch: &RedactionBatchDiagnostics, handle: RedactionBatchHandle) {
     assert_eq!(one_shot.text(), batch.text(handle));
     assert_eq!(one_shot.summary(), batch.summary());
 }
@@ -145,10 +139,7 @@ fn test_one_shot_http_formats_match_single_batch_items() {
     assert_equivalent(&direct, &output, handle);
 
     let mut headers = HeaderMap::new();
-    headers.insert(
-        "authorization",
-        HeaderValue::from_static("Bearer raw-secret"),
-    );
+    headers.insert("authorization", HeaderValue::from_static("Bearer raw-secret"));
     let direct = redactor.redact_http_headers(&headers);
     let mut batch = redactor.batch();
     let handle = batch.redact_http_headers(&headers);
@@ -163,8 +154,7 @@ fn test_one_shot_http_formats_match_single_batch_items() {
     let output = batch.finish_for_diagnostics("<redaction incomplete>");
     assert_equivalent(&direct, &output, handle);
 
-    let direct =
-        redactor.redact_http_body_with_content_type_text(capture, Some("application/json"));
+    let direct = redactor.redact_http_body_with_content_type_text(capture, Some("application/json"));
     let mut batch = redactor.batch();
     let handle = batch.redact_http_body_with_content_type_text(capture, Some("application/json"));
     let output = batch.finish_for_diagnostics("<redaction incomplete>");

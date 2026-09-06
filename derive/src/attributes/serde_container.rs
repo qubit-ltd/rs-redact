@@ -134,10 +134,9 @@ impl SerdeContainerAttributes {
     ///
     /// The serialized struct field name.
     pub(crate) fn rename_struct_field(&self, field_name: &str) -> String {
-        self.rename_all.as_ref().map_or_else(
-            || field_name.to_owned(),
-            |rule| rule.apply_to_field(field_name),
-        )
+        self.rename_all
+            .as_ref()
+            .map_or_else(|| field_name.to_owned(), |rule| rule.apply_to_field(field_name))
     }
 
     /// Applies the enum variant rename rule.
@@ -150,10 +149,9 @@ impl SerdeContainerAttributes {
     ///
     /// The serialized variant name.
     pub(crate) fn rename_variant(&self, variant_name: &str) -> String {
-        self.rename_all.as_ref().map_or_else(
-            || variant_name.to_owned(),
-            |rule| rule.apply_to_variant(variant_name),
-        )
+        self.rename_all
+            .as_ref()
+            .map_or_else(|| variant_name.to_owned(), |rule| rule.apply_to_variant(variant_name))
     }
 
     /// Applies the container-wide enum field rename rule.
@@ -166,10 +164,9 @@ impl SerdeContainerAttributes {
     ///
     /// The serialized variant field name.
     pub(crate) fn rename_variant_field(&self, field_name: &str) -> String {
-        self.rename_all_fields.as_ref().map_or_else(
-            || field_name.to_owned(),
-            |rule| rule.apply_to_field(field_name),
-        )
+        self.rename_all_fields
+            .as_ref()
+            .map_or_else(|| field_name.to_owned(), |rule| rule.apply_to_field(field_name))
     }
 
     /// Returns the validated enum representation.

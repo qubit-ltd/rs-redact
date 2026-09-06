@@ -58,9 +58,7 @@ where
     F: FnOnce(S) -> Result<S::Ok, S::Error>,
 {
     if !admit_node() {
-        return Err(Error::custom(
-            "redaction content structural budget exceeded",
-        ));
+        return Err(Error::custom("redaction content structural budget exceeded"));
     }
     let _node = SerdeNodeGuard;
     body(serializer)

@@ -21,10 +21,7 @@ impl<M: serde::ser::SerializeMap> serde::ser::SerializeMap for InternallyTaggedM
         self.map.serialize_key(key)
     }
 
-    fn serialize_value<T: ?Sized + serde::Serialize>(
-        &mut self,
-        value: &T,
-    ) -> Result<(), Self::Error> {
+    fn serialize_value<T: ?Sized + serde::Serialize>(&mut self, value: &T) -> Result<(), Self::Error> {
         self.map.serialize_value(value)
     }
 

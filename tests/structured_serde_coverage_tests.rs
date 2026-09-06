@@ -41,11 +41,7 @@ struct StructuredLeaf(&'static str);
 
 impl RedactSerialize for StructuredLeaf {
     /// Serializes the already safe test marker.
-    fn serialize_redacted<S>(
-        &self,
-        serializer: S,
-        _policy: &RedactionPolicy,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_redacted<S>(&self, serializer: S, _policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -55,26 +51,15 @@ impl RedactSerialize for StructuredLeaf {
 
 /// Serializes one explicit-level value through the adapter used by generated
 /// implementations.
-fn serialize_level<T: RedactLevelSerialize + ?Sized>(
-    value: &T,
-    policy: &RedactionPolicy,
-) -> serde_json::Value {
-    serde_json::to_value(RedactedLevelSerializeRef::new(
-        value,
-        policy,
-        Sensitivity::Secret,
-    ))
-    .expect("level value should serialize")
+fn serialize_level<T: RedactLevelSerialize + ?Sized>(value: &T, policy: &RedactionPolicy) -> serde_json::Value {
+    serde_json::to_value(RedactedLevelSerializeRef::new(value, policy, Sensitivity::Secret))
+        .expect("level value should serialize")
 }
 
 /// Serializes one nested value through the adapter used by generated
 /// implementations.
-fn serialize_nested<T: RedactSerialize + ?Sized>(
-    value: &T,
-    policy: &RedactionPolicy,
-) -> serde_json::Value {
-    serde_json::to_value(RedactedSerializeRef::new(value, policy))
-        .expect("nested value should serialize")
+fn serialize_nested<T: RedactSerialize + ?Sized>(value: &T, policy: &RedactionPolicy) -> serde_json::Value {
+    serde_json::to_value(RedactedSerializeRef::new(value, policy)).expect("nested value should serialize")
 }
 
 /// Exercises all recursive explicit-level Serde implementations.
@@ -116,18 +101,10 @@ fn test_structured_level_serialization_covers_all_supported_containers() {
         serialize_level(&(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8), &policy),
         serialize_level(&(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8), &policy),
         serialize_level(&(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8), &policy),
+        serialize_level(&(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8), &policy),
+        serialize_level(&(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8, 10_u8), &policy),
         serialize_level(
-            &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8),
-            &policy,
-        ),
-        serialize_level(
-            &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8, 10_u8),
-            &policy,
-        ),
-        serialize_level(
-            &(
-                1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8, 10_u8, 11_u8,
-            ),
+            &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8, 10_u8, 11_u8),
             &policy,
         ),
         serialize_level(
@@ -138,11 +115,7 @@ fn test_structured_level_serialization_covers_all_supported_containers() {
         ),
     ];
 
-    assert!(
-        values
-            .iter()
-            .all(|value| !value.to_string().contains("value"))
-    );
+    assert!(values.iter().all(|value| !value.to_string().contains("value")));
 }
 
 /// Exercises nested Option, sequence, array, and every tuple arity supported
@@ -164,35 +137,13 @@ fn test_structured_nested_serialization_covers_all_supported_containers() {
         serialize_nested(&(leaf(), leaf(), leaf(), leaf()), &policy),
         serialize_nested(&(leaf(), leaf(), leaf(), leaf(), leaf()), &policy),
         serialize_nested(&(leaf(), leaf(), leaf(), leaf(), leaf(), leaf()), &policy),
+        serialize_nested(&(leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf()), &policy),
         serialize_nested(
-            &(leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf()),
+            &(leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf()),
             &policy,
         ),
         serialize_nested(
-            &(
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-            ),
-            &policy,
-        ),
-        serialize_nested(
-            &(
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-            ),
+            &(leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf()),
             &policy,
         ),
         serialize_nested(
@@ -261,32 +212,22 @@ fn test_structured_json_serialization_covers_all_supported_text_forms() {
     let borrowed = r#"{"password":"borrowed-secret"}"#;
     let cow: Cow<'_, str> = Cow::Borrowed(r#"{"password":"cow-secret"}"#);
     let values = [
-        serde_json::to_value(RedactedJsonSerializeRef::new(&owned, &policy))
-            .expect("owned JSON should serialize"),
-        serde_json::to_value(RedactedJsonSerializeRef::new(borrowed, &policy))
-            .expect("str JSON should serialize"),
+        serde_json::to_value(RedactedJsonSerializeRef::new(&owned, &policy)).expect("owned JSON should serialize"),
+        serde_json::to_value(RedactedJsonSerializeRef::new(borrowed, &policy)).expect("str JSON should serialize"),
         serde_json::to_value(RedactedJsonSerializeRef::new(&borrowed, &policy))
             .expect("borrowed JSON should serialize"),
-        serde_json::to_value(RedactedJsonSerializeRef::new(&cow, &policy))
-            .expect("cow JSON should serialize"),
+        serde_json::to_value(RedactedJsonSerializeRef::new(&cow, &policy)).expect("cow JSON should serialize"),
         serde_json::to_value(RedactedJsonSerializeRef::new(&Some(owned), &policy))
             .expect("optional owned JSON should serialize"),
         serde_json::to_value(RedactedJsonSerializeRef::new(&Some(borrowed), &policy))
             .expect("optional borrowed JSON should serialize"),
         serde_json::to_value(RedactedJsonSerializeRef::new(&Some(cow), &policy))
             .expect("optional cow JSON should serialize"),
-        serde_json::to_value(RedactedJsonSerializeRef::new(
-            &Option::<String>::None,
-            &policy,
-        ))
-        .expect("none JSON should serialize"),
+        serde_json::to_value(RedactedJsonSerializeRef::new(&Option::<String>::None, &policy))
+            .expect("none JSON should serialize"),
     ];
 
-    assert!(
-        values
-            .iter()
-            .all(|value| !value.to_string().contains("secret"))
-    );
+    assert!(values.iter().all(|value| !value.to_string().contains("secret")));
 }
 
 /// Exercises policy-classified maps, explicit key masking, collision errors,
@@ -310,18 +251,16 @@ fn test_structured_map_serialization_covers_map_modes_and_budget_failures() {
     ]);
     let _scope = RedactSerializeScope::new(&policy);
 
-    let hash_value = serde_json::to_value(RedactedMapSerializeRef::new(&hash, &policy))
-        .expect("hash map should serialize");
-    let tree_value = serde_json::to_value(RedactedMapSerializeRef::new(&tree, &policy))
-        .expect("tree map should serialize");
+    let hash_value =
+        serde_json::to_value(RedactedMapSerializeRef::new(&hash, &policy)).expect("hash map should serialize");
+    let tree_value =
+        serde_json::to_value(RedactedMapSerializeRef::new(&tree, &policy)).expect("tree map should serialize");
     let optional_hash = Some(hash.clone());
     let optional_tree = Some(tree.clone());
-    let optional_hash_value =
-        serde_json::to_value(RedactedMapSerializeRef::new(&optional_hash, &policy))
-            .expect("optional hash map should serialize");
-    let optional_tree_value =
-        serde_json::to_value(RedactedMapSerializeRef::new(&optional_tree, &policy))
-            .expect("optional tree map should serialize");
+    let optional_hash_value = serde_json::to_value(RedactedMapSerializeRef::new(&optional_hash, &policy))
+        .expect("optional hash map should serialize");
+    let optional_tree_value = serde_json::to_value(RedactedMapSerializeRef::new(&optional_tree, &policy))
+        .expect("optional tree map should serialize");
     let none_hash: Option<HashMap<String, String>> = None;
     let none_tree: Option<BTreeMap<String, String>> = None;
     let none_hash_value = serde_json::to_value(RedactedMapSerializeRef::new(&none_hash, &policy))
@@ -488,12 +427,8 @@ fn test_nested_structured_scope_uses_the_explicit_policy_budget() {
         .build()
         .expect("limited policy");
     let _outer_scope = RedactSerializeScope::new(&outer_policy);
-    let first_outer = serde_json::to_value(RedactedLevelSerializeRef::new(
-        &"abcd",
-        &outer_policy,
-        Sensitivity::Low,
-    ))
-    .expect("first outer value should consume its input budget");
+    let first_outer = serde_json::to_value(RedactedLevelSerializeRef::new(&"abcd", &outer_policy, Sensitivity::Low))
+        .expect("first outer value should consume its input budget");
 
     let inner = serde_json::to_value(RedactedLevelSerializeRef::new(
         &"abcdef",
@@ -547,27 +482,8 @@ fn test_nested_domain_redaction_covers_all_supported_container_shapes() {
     assert_nested!((leaf(), leaf(), leaf(), leaf(), leaf()));
     assert_nested!((leaf(), leaf(), leaf(), leaf(), leaf(), leaf()));
     assert_nested!((leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf()));
-    assert_nested!((
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-    ));
-    assert_nested!((
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-    ));
+    assert_nested!((leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(),));
+    assert_nested!((leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(),));
     assert_nested!((
         leaf(),
         leaf(),

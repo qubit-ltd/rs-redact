@@ -18,9 +18,7 @@ fn test_http_internal_dispatch_selects_structured_parser() {
     let rendered = redact_body(
         &Redactor::standard(),
         BodyCapture::complete(b"password=raw-secret&mode=visible"),
-        Some(&HeaderValue::from_static(
-            "application/x-www-form-urlencoded",
-        )),
+        Some(&HeaderValue::from_static("application/x-www-form-urlencoded")),
     );
 
     assert!(!rendered.contains("raw-secret"));

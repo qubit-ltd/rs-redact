@@ -146,8 +146,7 @@ fn serde_and_format_keyed_by_classify_value_by_sibling_key() {
 #[test]
 fn serde_disabled_mode_restores_level_map_and_skip_values() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
-    let previous =
-        Redactor::replace_application_default(Redactor::new(RedactionPolicy::disabled()));
+    let previous = Redactor::replace_application_default(Redactor::new(RedactionPolicy::disabled()));
     assert!(Redactor::application_default().policy().is_disabled());
     let mut headers = BTreeMap::new();
     headers.insert("authorization".to_owned(), "raw-header".to_owned());
@@ -241,8 +240,7 @@ fn serde_json_mode_redacts_keyed_values_and_preserves_shape() {
     let payload = encoded["payload"]
         .as_str()
         .expect("JSON mode preserves the string wire type");
-    let payload: serde_json::Value =
-        serde_json::from_str(payload).expect("redacted JSON text remains valid");
+    let payload: serde_json::Value = serde_json::from_str(payload).expect("redacted JSON text remains valid");
     assert_ne!(payload["token"], "raw-token");
     assert_eq!(payload["public"], "visible");
 
@@ -337,10 +335,7 @@ fn serde_map_mode_masks_each_recursive_scalar_leaf() {
     let previous = Redactor::replace_application_default(Redactor::new(policy));
     let value = RecursiveMapEnvelope {
         values: BTreeMap::from([
-            (
-                "credential".to_owned(),
-                Some(vec![(7, "raw-secret".to_owned())]),
-            ),
+            ("credential".to_owned(), Some(vec![(7, "raw-secret".to_owned())])),
             ("public".to_owned(), Some(vec![(9, "shown".to_owned())])),
         ]),
     };
@@ -454,8 +449,7 @@ fn serde_internally_tagged_newtype_merges_redacted_payload_beside_tag() {
 #[test]
 fn serde_json_disabled_mode_keeps_json_text_as_text() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
-    let previous =
-        Redactor::replace_application_default(Redactor::new(RedactionPolicy::disabled()));
+    let previous = Redactor::replace_application_default(Redactor::new(RedactionPolicy::disabled()));
     let value = JsonEnvelope {
         payload: r#"{"token":"raw-token"}"#.to_owned(),
     };

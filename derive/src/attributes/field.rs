@@ -74,12 +74,7 @@ impl FieldAttributes {
             }
             attribute.parse_nested_meta(|meta| {
                 if meta.path.is_ident("display") {
-                    require_bare(
-                        &meta,
-                        type_name,
-                        field_name,
-                        "bare `display` without arguments",
-                    )?;
+                    require_bare(&meta, type_name, field_name, "bare `display` without arguments")?;
                     if display {
                         return Err(meta.error("duplicate `display` field adapter"));
                     }
@@ -144,11 +139,7 @@ impl FieldAttributes {
 ///
 /// Returns an error for unknown modes, missing level values, invalid
 /// sensitivity values, or arguments supplied to a bare mode.
-fn parse_mode(
-    meta: &ParseNestedMeta<'_>,
-    type_name: &Ident,
-    field_name: &str,
-) -> Result<FieldMode> {
+fn parse_mode(meta: &ParseNestedMeta<'_>, type_name: &Ident, field_name: &str) -> Result<FieldMode> {
     if meta.path.is_ident("level") {
         if !meta.input.peek(Token![=]) {
             return Err(meta.error(format!(
@@ -157,19 +148,12 @@ fn parse_mode(
             )));
         }
         let literal: LitStr = meta.value()?.parse()?;
-        Ok(FieldMode::Level(Sensitivity::parse(
-            &literal, type_name, field_name,
-        )?))
+        Ok(FieldMode::Level(Sensitivity::parse(&literal, type_name, field_name)?))
     } else if meta.path.is_ident("skip") {
         require_bare(meta, type_name, field_name, "bare `skip` without arguments")?;
         Ok(FieldMode::Skip)
     } else if meta.path.is_ident("nested") {
-        require_bare(
-            meta,
-            type_name,
-            field_name,
-            "bare `nested` without arguments",
-        )?;
+        require_bare(meta, type_name, field_name, "bare `nested` without arguments")?;
         Ok(FieldMode::Nested)
     } else if meta.path.is_ident("map") {
         require_bare(
@@ -240,12 +224,7 @@ fn parse_mode(
 /// Returns an error when the nested item has a value or parenthesized
 /// arguments.
 #[inline]
-fn require_bare(
-    meta: &ParseNestedMeta<'_>,
-    type_name: &Ident,
-    field_name: &str,
-    requirement: &str,
-) -> Result<()> {
+fn require_bare(meta: &ParseNestedMeta<'_>, type_name: &Ident, field_name: &str, requirement: &str) -> Result<()> {
     if meta.input.peek(Token![=]) || meta.input.peek(Paren) {
         Err(meta.error(format!(
             "Redact derive for `{type_name}` field `{field_name}` requires {requirement}",

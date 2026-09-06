@@ -25,20 +25,8 @@ fn test_lib_exports_public_api() {
     assert_eq!(field.text().as_str(), "Ada");
 
     let argv = [ArgvItem::plain(OsStr::new("client"))];
-    assert!(
-        redactor
-            .redact_argv(argv)
-            .text()
-            .as_str()
-            .contains("client")
-    );
-    assert!(
-        redactor
-            .redact_env("HOME", "/tmp")
-            .text()
-            .as_str()
-            .contains("HOME")
-    );
+    assert!(redactor.redact_argv(argv).text().as_str().contains("client"));
+    assert!(redactor.redact_env("HOME", "/tmp").text().as_str().contains("HOME"));
 
     let output = redactor.text_composer().literal(" context").finish();
     assert_eq!(output.text().as_str(), " context");

@@ -131,11 +131,7 @@ fn test_domain_key_limits_reject_before_value_access_in_every_mode() {
             let error = redactor
                 .inspect(&input)
                 .expect_err("overlong key makes inspection inconclusive");
-            assert!(
-                error
-                    .reasons()
-                    .contains(RedactionReason::TraversalLimitReached)
-            );
+            assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
             assert_eq!(accesses.get(), 0);
             let mut batch = redactor.batch();
             let handle = batch.redact_value(&input);
@@ -148,12 +144,7 @@ fn test_domain_key_limits_reject_before_value_access_in_every_mode() {
 /// UTF-8 bytes are checked before canonicalization, including empty keys.
 #[test]
 fn test_domain_key_limits_measure_raw_utf8_bytes_at_boundary() {
-    for (key, maximum, accepted) in [
-        ("é", 2, true),
-        ("é", 1, false),
-        ("a---b", 2, false),
-        ("", 0, true),
-    ] {
+    for (key, maximum, accepted) in [("é", 2, true), ("é", 1, false), ("a---b", 2, false), ("", 0, true)] {
         let accesses = Cell::new(0);
         let input = KeyedInput {
             key,

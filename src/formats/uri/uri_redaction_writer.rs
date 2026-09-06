@@ -37,11 +37,7 @@ impl<'session> UriRedactionWriter<'session> {
         }
         if !self.admit_uri_structure(value) {
             self.session.append_rendered_operation(
-                OperationSink::truncated(
-                    "<truncated>",
-                    crate::RedactionReason::TraversalLimitReached,
-                )
-                .finish(),
+                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
             );
             return self;
         }
@@ -64,11 +60,7 @@ impl UriRedactionWriter<'_> {
     /// status is represented solely by the transaction's common summary.
     #[must_use]
     pub(crate) fn redact_uri_direct(&mut self, input: &str) -> RenderedOperation {
-        redact_uri_with_limit(
-            self.session.policy(),
-            input,
-            self.session.remaining_output_bytes(),
-        )
+        redact_uri_with_limit(self.session.policy(), input, self.session.remaining_output_bytes())
     }
 
     /// Charges URI root and query-pair structure before the URI renderer
@@ -115,11 +107,7 @@ mod tests {
         );
 
         assert_eq!(output.completion(), RedactionCompletion::Truncated);
-        assert!(
-            output
-                .reasons()
-                .contains(crate::RedactionReason::OutputLimitReached)
-        );
+        assert!(output.reasons().contains(crate::RedactionReason::OutputLimitReached));
         assert!(output.text().len() <= 16);
     }
 
@@ -143,10 +131,7 @@ mod tests {
             .finish();
 
         assert_eq!(output.text().as_str(), "prefixhtt<truncated>");
-        assert_eq!(
-            output.summary().completion(),
-            RedactionCompletion::Truncated
-        );
+        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
         assert_eq!(output.summary().usage().output_bytes(), 20);
     }
 }

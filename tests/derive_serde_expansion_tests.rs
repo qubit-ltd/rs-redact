@@ -51,8 +51,7 @@ fn structured_serde_masks_numeric_leaves_as_strings_and_preserves_shape() {
 #[test]
 fn disabled_structured_serde_restores_redact_fields_but_not_serde_skips() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
-    let previous =
-        Redactor::replace_application_default(Redactor::new(RedactionPolicy::disabled()));
+    let previous = Redactor::replace_application_default(Redactor::new(RedactionPolicy::disabled()));
     let encoded = serde_json::to_value(WireRecord {
         visible: "shown".to_owned(),
         number: 7,

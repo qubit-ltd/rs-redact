@@ -34,23 +34,10 @@ fn test_http_aggregate_operations_share_the_parent_transaction_output() {
         })
         .finish();
 
-    assert!(
-        output
-            .text()
-            .as_str()
-            .starts_with("http=https://example.test")
-    );
-    assert!(
-        output
-            .text()
-            .as_str()
-            .contains("x-request-id: [request-42]")
-    );
+    assert!(output.text().as_str().starts_with("http=https://example.test"));
+    assert!(output.text().as_str().contains("x-request-id: [request-42]"));
     assert!(output.text().as_str().contains("{\"name\":\"Ada\"}"));
-    assert_eq!(
-        output.summary().usage().output_bytes(),
-        output.text().as_str().len()
-    );
+    assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());
 }
 
 /// Verifies URL, header, and body handles are published only by `finish`.
@@ -65,12 +52,7 @@ fn test_http_handle_operations_publish_from_the_parent_transaction() {
     let body = batch.redact_http_body(BodyCapture::complete(br#"{"name":"Ada"}"#), None);
     let output = batch.finish_for_diagnostics("<redaction incomplete>");
     assert!(output.text(url).as_str().contains("example.test"));
-    assert!(
-        output
-            .text(header)
-            .as_str()
-            .contains("x-request-id: [request-42]")
-    );
+    assert!(output.text(header).as_str().contains("x-request-id: [request-42]"));
     assert_eq!(output.text(body).as_str(), "{\"name\":\"Ada\"}");
 }
 
@@ -93,10 +75,7 @@ fn test_http_direct_handle_and_redactor_convenience_operations() {
     assert!(output.text(handle).as_str().contains("example.test"));
 
     let mut headers = HeaderMap::new();
-    headers.insert(
-        "authorization",
-        HeaderValue::from_static("Bearer raw-secret"),
-    );
+    headers.insert("authorization", HeaderValue::from_static("Bearer raw-secret"));
 
     let headers_output = redactor.redact_http_headers(&headers);
     assert!(!headers_output.text().as_str().contains("raw-secret"));
@@ -114,12 +93,7 @@ fn test_http_direct_handle_and_redactor_convenience_operations() {
 fn test_http_empty_url_reports_safe_invalid_uri_result() {
     let output = Redactor::strict().redact_http_url("");
 
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::InvalidUri)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
 }
 
 /// The composer path must retain invalid-URI provenance for an empty URL.
@@ -132,12 +106,7 @@ fn test_http_composer_empty_url_reports_safe_invalid_uri_result() {
         })
         .finish();
 
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::InvalidUri)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
 }
 
 /// The batch path must retain invalid-URI provenance for an empty URL.
@@ -147,12 +116,7 @@ fn test_http_batch_empty_url_reports_safe_invalid_uri_result() {
     let handle = batch.redact_http_url("");
     let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::InvalidUri)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
     assert_eq!(output.text(handle).as_str(), "<redacted: invalid URL>");
 }
 
@@ -168,22 +132,13 @@ fn test_http_url_uses_the_session_remaining_output_budget() {
         .build()
         .expect("policy should build");
     let mut batch = Redactor::new(policy).batch();
-    let handle = batch.redact_http_url(
-        "https://example.test/a-very-long-path?token=raw-secret-token&visible=long-value",
-    );
+    let handle =
+        batch.redact_http_url("https://example.test/a-very-long-path?token=raw-secret-token&visible=long-value");
     let output = batch.finish_for_diagnostics("<truncated>");
 
     assert!(output.text(handle).as_str().len() <= 32);
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::OutputLimitReached)
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert!(output.summary().usage().output_bytes() <= 32);
 }
 
@@ -205,10 +160,7 @@ fn test_http_formats_share_the_transaction_structural_budget() {
         .http(|http| {
             http.url("https://example.test/");
             http.headers(&headers);
-            let _ = http.body(
-                BodyCapture::complete(br#"{"password":"must-not-be-traversed"}"#),
-                None,
-            );
+            let _ = http.body(BodyCapture::complete(br#"{"password":"must-not-be-traversed"}"#), None);
         })
         .finish();
 
@@ -216,10 +168,7 @@ fn test_http_formats_share_the_transaction_structural_budget() {
     assert!(!output.text().as_str().contains("must-not-be-traversed"));
     assert_eq!(output.summary().usage().visited_nodes(), 3);
     assert_eq!(output.summary().usage().visited_collection_items(), 1);
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
 }
 
 /// Verifies URL query-pair and embedded-URL traversal are admitted before the
@@ -255,10 +204,7 @@ fn test_http_url_nested_traversal_uses_shared_structural_budget() {
     let handle = batch.redact_http_url(nested);
     let output = batch.finish_for_diagnostics("<truncated>");
     assert_eq!(output.text(handle).as_str(), "<truncated>");
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
     assert!(!output.text(handle).as_str().contains("raw-secret"));
 }
 
@@ -304,12 +250,7 @@ fn test_http_nested_url_uses_shared_depth_limit() {
         .finish();
 
     assert_eq!(output.text().as_str(), "<truncated>");
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::DepthLimitReached)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::DepthLimitReached));
     assert!(!output.text().as_str().contains("raw-secret"));
 }
 
@@ -347,12 +288,7 @@ fn test_http_invalid_url_handle_is_safe_and_keeps_reason() {
     let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
     assert!(!output.text(handle).as_str().contains("not-an-ipv6"));
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::InvalidUri)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
 }
 
 /// Headers are admitted as one structural collection. Once its shared
@@ -369,31 +305,20 @@ fn test_http_header_handle_stops_before_later_header_at_collection_limit() {
         .expect("policy should build");
     let mut headers = HeaderMap::new();
     headers.insert("x-first", HeaderValue::from_static("visible"));
-    headers.insert(
-        "authorization",
-        HeaderValue::from_static("Bearer must-not-be-rendered"),
-    );
+    headers.insert("authorization", HeaderValue::from_static("Bearer must-not-be-rendered"));
     let mut batch = Redactor::new(policy).batch();
     let handle = batch.redact_http_headers(&headers);
     let output = batch.finish_for_diagnostics("");
 
     assert!(output.text(handle).as_str().is_empty());
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
     assert!(
         output
             .summary()
             .reasons()
             .contains(RedactionReason::TraversalLimitReached)
     );
-    assert!(
-        !output
-            .text(handle)
-            .as_str()
-            .contains("must-not-be-rendered")
-    );
+    assert!(!output.text(handle).as_str().contains("must-not-be-rendered"));
 }
 
 /// JSON-looking bodies without an explicit content type still use the parent
@@ -408,23 +333,12 @@ fn test_http_inferred_json_body_uses_shared_structural_fallback() {
         .build()
         .expect("policy should build");
     let mut batch = Redactor::new(policy).batch();
-    let handle = batch.redact_http_body(
-        BodyCapture::complete(br#"{"password":"must-not-be-rendered"}"#),
-        None,
-    );
+    let handle = batch.redact_http_body(BodyCapture::complete(br#"{"password":"must-not-be-rendered"}"#), None);
     let output = batch.finish_for_diagnostics("<truncated>");
 
     assert_eq!(output.text(handle).as_str(), "<truncated>");
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
-    assert!(
-        !output
-            .text(handle)
-            .as_str()
-            .contains("must-not-be-rendered")
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert!(!output.text(handle).as_str().contains("must-not-be-rendered"));
 }
 
 /// URL-encoded form fields are one transaction-owned collection. A later
@@ -470,17 +384,11 @@ fn test_http_multipart_body_uses_shared_structural_budget() {
     let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body = b"--boundary\r\nContent-Disposition: form-data; name=\"metadata\"\r\nContent-Type: application/json\r\n\r\n{\"password\":\"must-not-be-rendered\"}\r\n--boundary--\r\n";
 
-    let output =
-        Redactor::new(policy).redact_http_body(BodyCapture::complete(body), Some(&content_type));
+    let output = Redactor::new(policy).redact_http_body(BodyCapture::complete(body), Some(&content_type));
 
     assert_eq!(output.text().as_str(), "<truncated>");
     assert_eq!(output.summary().usage().max_depth(), 2);
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::DepthLimitReached)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::DepthLimitReached));
     assert!(!output.text().as_str().contains("must-not-be-rendered"));
 }
 
@@ -498,8 +406,7 @@ fn test_http_multipart_parts_use_shared_collection_budget() {
     let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
     let body = b"--boundary\r\nContent-Disposition: form-data; name=\"first\"\r\n\r\nok\r\n--boundary\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nmust-not-be-rendered\r\n--boundary--\r\n";
 
-    let output =
-        Redactor::new(policy).redact_http_body(BodyCapture::complete(body), Some(&content_type));
+    let output = Redactor::new(policy).redact_http_body(BodyCapture::complete(body), Some(&content_type));
 
     assert_eq!(output.text().as_str(), "<truncated>");
     assert_eq!(output.summary().usage().visited_collection_items(), 1);
@@ -521,22 +428,9 @@ fn test_http_known_source_truncation_has_truthful_summary_and_usage() {
 
     let output = Redactor::standard().redact_http_body(capture, Some(&content_type));
 
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::SourceTruncated)
-    );
-    assert!(
-        !output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::OutputLimitReached)
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert!(output.summary().reasons().contains(RedactionReason::SourceTruncated));
+    assert!(!output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert_eq!(output.summary().usage().presented_input_bytes(), 22);
     assert_eq!(output.summary().usage().inspected_input_bytes(), 17);
     assert_eq!(output.summary().usage().omitted_input_bytes(), Some(5));
@@ -550,22 +444,9 @@ fn test_http_unknown_source_truncation_keeps_omitted_usage_unknown() {
 
     let output = Redactor::standard().redact_http_body(capture, None);
 
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::SourceTruncated)
-    );
-    assert!(
-        !output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::OutputLimitReached)
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert!(output.summary().reasons().contains(RedactionReason::SourceTruncated));
+    assert!(!output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert_eq!(output.summary().usage().presented_input_bytes(), 7);
     assert_eq!(output.summary().usage().inspected_input_bytes(), 7);
     assert_eq!(output.summary().usage().omitted_input_bytes(), None);
@@ -586,22 +467,9 @@ fn test_http_namespace_handle_tracks_its_own_input_rejection() {
     let handle = batch.redact_http_url("https://example.test/");
     let output = batch.finish_for_diagnostics("");
 
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::InputLimitReached)
-    );
-    assert!(
-        !output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::OutputLimitReached)
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert!(output.summary().reasons().contains(RedactionReason::InputLimitReached));
+    assert!(!output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert_eq!(output.summary().usage().presented_input_bytes(), 21);
     assert_eq!(output.summary().usage().inspected_input_bytes(), 1);
     assert!(output.text(handle).as_str().is_empty());

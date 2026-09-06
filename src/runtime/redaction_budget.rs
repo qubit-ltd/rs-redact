@@ -108,16 +108,10 @@ impl RedactionBudget {
 
     /// Records source-aware input accounting.
     #[cfg(feature = "http")]
-    pub(super) fn record_source_input(
-        &mut self,
-        presented: usize,
-        inspected: usize,
-        omitted: Option<usize>,
-    ) {
+    pub(super) fn record_source_input(&mut self, presented: usize, inspected: usize, omitted: Option<usize>) {
         self.usage = self.usage.with_source_input(presented, inspected, omitted);
         if let Some(usage) = self.active_operation_usage {
-            self.active_operation_usage =
-                Some(usage.with_source_input(presented, inspected, omitted));
+            self.active_operation_usage = Some(usage.with_source_input(presented, inspected, omitted));
         }
     }
 

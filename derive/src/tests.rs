@@ -87,8 +87,8 @@ fn field_attributes_parse_every_supported_mode() {
         .iter()
         .map(|field| {
             let name = field.ident.as_ref().expect("named field");
-            let attributes = FieldAttributes::parse(field, &input.ident, &name.to_string())
-                .expect("supported field mode parses");
+            let attributes =
+                FieldAttributes::parse(field, &input.ident, &name.to_string()).expect("supported field mode parses");
             match attributes.mode() {
                 FieldMode::Unmarked => "unmarked",
                 FieldMode::Level(_) => "level",
@@ -105,9 +105,7 @@ fn field_attributes_parse_every_supported_mode() {
 
     assert_eq!(
         modes,
-        [
-            "unmarked", "level", "nested", "map", "keyed_by", "json", "skip"
-        ]
+        ["unmarked", "level", "nested", "map", "keyed_by", "json", "skip"]
     );
 }
 
@@ -183,14 +181,9 @@ fn expansion_generates_only_the_requested_public_contracts() {
         }
     };
 
-    let rendered = expand::expand(&input)
-        .expect("valid input expands")
-        .to_string();
+    let rendered = expand::expand(&input).expect("valid input expands").to_string();
     for expected in ["Redact", "Debug", "Display"] {
-        assert!(
-            rendered.contains(expected),
-            "missing {expected}: {rendered}"
-        );
+        assert!(rendered.contains(expected), "missing {expected}: {rendered}");
     }
     for removed in ["RedactMut", "redacted_with", "expand_with_options"] {
         assert!(

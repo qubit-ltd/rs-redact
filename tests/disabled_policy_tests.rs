@@ -80,13 +80,7 @@ fn disabled_policy_preserves_configuration_through_builder() {
     assert!(!policy.is_disabled());
     assert!(policy.set_disabled(true).is_disabled());
     assert!(RedactionPolicy::disabled().is_disabled());
-    assert!(
-        policy
-            .to_builder()
-            .build()
-            .expect("policy is valid")
-            .is_disabled()
-    );
+    assert!(policy.to_builder().build().expect("policy is valid").is_disabled());
     assert!(!policy.set_disabled(false).is_disabled());
 }
 
@@ -138,12 +132,7 @@ fn test_disabled_domain_field_json_is_admitted_once() {
         if maximum == 2 {
             assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
             assert_eq!(output.summary().usage().visited_nodes(), 2);
-            assert!(
-                output
-                    .text()
-                    .as_str()
-                    .contains(r#"{\"token\":\"raw-secret\"}"#)
-            );
+            assert!(output.text().as_str().contains(r#"{\"token\":\"raw-secret\"}"#));
         }
     }
 }
@@ -185,8 +174,7 @@ fn disabled_policy_restores_argv_env_and_process_values() {
 #[cfg(feature = "json")]
 #[test]
 fn disabled_policy_restores_json_text_without_validation() {
-    let output =
-        Redactor::new(RedactionPolicy::disabled()).redact_json("not valid JSON: raw-secret");
+    let output = Redactor::new(RedactionPolicy::disabled()).redact_json("not valid JSON: raw-secret");
     assert_eq!(output.text().as_str(), "not valid JSON: raw-secret");
 }
 
@@ -210,17 +198,9 @@ fn disabled_policy_restores_http_url_headers_and_body() {
     assert_eq!(redactor.redact_http_url(url).text().as_str(), url);
 
     let mut headers = HeaderMap::new();
-    headers.insert(
-        "authorization",
-        HeaderValue::from_static("Bearer header-secret"),
-    );
+    headers.insert("authorization", HeaderValue::from_static("Bearer header-secret"));
     let header_output = redactor.redact_http_headers(&headers);
-    assert!(
-        header_output
-            .text()
-            .as_str()
-            .contains("Bearer header-secret")
-    );
+    assert!(header_output.text().as_str().contains("Bearer header-secret"));
 
     let body = br#"{"token":"body-secret"}"#;
     let body_output = redactor.redact_http_body(
@@ -276,9 +256,6 @@ fn test_disabled_policy_restores_other_invalid_structured_http_bodies() {
     let output = batch.finish_for_diagnostics("<redaction incomplete>");
 
     assert_eq!(output.text(ndjson).as_str(), "not-json: raw-ndjson-secret",);
-    assert_eq!(
-        output.text(multipart).as_str(),
-        "malformed multipart raw-secret",
-    );
+    assert_eq!(output.text(multipart).as_str(), "malformed multipart raw-secret",);
     assert!(output.summary().is_redaction_disabled());
 }

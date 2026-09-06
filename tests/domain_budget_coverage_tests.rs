@@ -52,10 +52,7 @@ impl Redact for CompleteWriterSurface {
             (String::from("password"), String::from("raw-map-secret")),
             (String::from("public"), String::from("visible")),
         ]);
-        let explicit_map = BTreeMap::from([(
-            String::from("raw-key-secret"),
-            String::from("raw-value-secret"),
-        )]);
+        let explicit_map = BTreeMap::from([(String::from("raw-key-secret"), String::from("raw-value-secret"))]);
         let json = serde_json::json!({"password": "raw-json-secret", "public": "visible"});
 
         writer.unredacted(&"trusted").unmarked(&"trusted-alias");
@@ -162,10 +159,7 @@ fn test_domain_writer_scope_types_fail_closed_at_zero_depth() {
 
     for value in [SingleScope::Record, SingleScope::Sequence, SingleScope::Map] {
         let output = redactor.redact_text(&value);
-        assert_eq!(
-            output.summary().completion(),
-            RedactionCompletion::Truncated
-        );
+        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
         assert!(!output.text().as_str().contains("visible"));
     }
 }
@@ -192,14 +186,8 @@ fn test_domain_writer_stops_accessors_at_collection_and_output_limits() {
     let collection_output = Redactor::new(collection_policy).redact_text(&CompleteWriterSurface);
     let output_limited = Redactor::new(output_policy).redact_text(&CompleteWriterSurface);
 
-    assert_eq!(
-        collection_output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
-    assert_eq!(
-        output_limited.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
+    assert_eq!(collection_output.summary().completion(), RedactionCompletion::Truncated);
+    assert_eq!(output_limited.summary().completion(), RedactionCompletion::Exhausted);
     assert!(output_limited.text().as_str().len() <= 8);
     assert!(!output_limited.text().as_str().contains("raw-secret"));
 }
@@ -231,9 +219,6 @@ fn test_domain_json_fields_fail_closed_for_invalid_and_input_limited_values() {
         .expect("policy");
     let output = Redactor::new(policy).redact_text(&JsonFields);
 
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
     assert!(!output.text().as_str().contains("raw-secret"));
 }

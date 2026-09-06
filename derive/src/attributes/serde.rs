@@ -60,12 +60,7 @@ impl SerdeAttributes {
     ///
     /// Panics only if `syn` supplies a nested metadata path without any
     /// segments, which violates the `ParseNestedMeta` path invariant.
-    pub(crate) fn parse(
-        field: &Field,
-        type_name: &Ident,
-        field_name: &str,
-        enabled: bool,
-    ) -> Result<Self> {
+    pub(crate) fn parse(field: &Field, type_name: &Ident, field_name: &str, enabled: bool) -> Result<Self> {
         let mut parsed = Self {
             rename: None,
             rename_seen: false,
@@ -273,9 +268,7 @@ fn is_deserialize_only_control(meta: &ParseNestedMeta<'_>) -> bool {
 fn parse_deserialize_only_control(meta: &ParseNestedMeta<'_>) -> Result<()> {
     if meta.path.is_ident("skip_deserializing") || meta.path.is_ident("deserialize_in_place") {
         if meta.input.peek(Token![=]) || meta.input.peek(Paren) {
-            return Err(
-                meta.error("Redact serde expects a bare deserialization-only field control")
-            );
+            return Err(meta.error("Redact serde expects a bare deserialization-only field control"));
         }
         return Ok(());
     }
@@ -286,9 +279,7 @@ fn parse_deserialize_only_control(meta: &ParseNestedMeta<'_>) -> Result<()> {
         return Ok(());
     }
     if !meta.input.peek(Token![=]) {
-        return Err(meta.error(
-            "Redact serde expects a string value for this deserialization-only field control",
-        ));
+        return Err(meta.error("Redact serde expects a string value for this deserialization-only field control"));
     }
     let _: LitStr = meta.value()?.parse()?;
     Ok(())

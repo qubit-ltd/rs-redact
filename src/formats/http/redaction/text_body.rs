@@ -18,12 +18,7 @@ use crate::formats::http::internal::markers;
 impl HttpPolicyExecutor<'_> {
     /// Redacts unsupported, opaque-text, or binary bounded input.
     #[must_use]
-    pub(super) fn redact_fallback(
-        &self,
-        bounded: &[u8],
-        is_text: bool,
-        output_limit: usize,
-    ) -> ParsedBody {
+    pub(super) fn redact_fallback(&self, bounded: &[u8], is_text: bool, output_limit: usize) -> ParsedBody {
         match std::str::from_utf8(bounded) {
             Err(_) => ParsedBody::new(
                 format!("<binary {} bytes>", bounded.len()),

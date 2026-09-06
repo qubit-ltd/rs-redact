@@ -52,14 +52,8 @@ pub(in crate::serde) fn internal_variant_arm(
     let enum_name = container_attributes.name();
     match variant.fields() {
         FieldsData::Named(fields) => {
-            let (pattern, setups, conditions, names, carriers) = enum_named_parts(
-                type_name,
-                rust_name,
-                fields,
-                runtime,
-                container_attributes,
-                variant,
-            );
+            let (pattern, setups, conditions, names, carriers) =
+                enum_named_parts(type_name, rust_name, fields, runtime, container_attributes, variant);
             if let Some((field, _)) = fields.iter().zip(&names).find(|(_, name)| *name == tag) {
                 return Err(Error::new_spanned(
                     field.field(),
@@ -69,8 +63,11 @@ pub(in crate::serde) fn internal_variant_arm(
                 ));
             }
             let count_conditions = &conditions;
-            let calls = conditions.iter().zip(&names).zip(&carriers).map(
-                |((_condition, field_name), carrier)| {
+            let calls = conditions
+                .iter()
+                .zip(&names)
+                .zip(&carriers)
+                .map(|((_condition, field_name), carrier)| {
                     quote! {
                         if let ::core::option::Option::Some(carrier) = #carrier.as_ref() {
                             #serde::ser::SerializeStruct::serialize_field(
@@ -80,8 +77,7 @@ pub(in crate::serde) fn internal_variant_arm(
                             )?;
                         }
                     }
-                },
-            );
+                });
             Ok(quote! {
                 Self::#rust_name #pattern => {
                     #(#setups)*
@@ -161,9 +157,7 @@ pub(in crate::serde) fn internal_variant_arm(
         }
         FieldsData::Unnamed(_) => Err(Error::new_spanned(
             variant.variant(),
-            format!(
-                "Redact serde for internally tagged `{type_name}` does not allow tuple variants",
-            ),
+            format!("Redact serde for internally tagged `{type_name}` does not allow tuple variants",),
         )),
         FieldsData::Unit => Ok(quote! {
             Self::#rust_name => {

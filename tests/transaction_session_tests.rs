@@ -90,10 +90,7 @@ fn output_limit_is_observable_without_publishing_raw_input() {
         .field("password", "raw-secret")
         .finish();
 
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Exhausted
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
     assert!(!output.text().as_str().contains("raw-secret"));
 }
 
@@ -172,10 +169,7 @@ fn process_composer_records_environment_collection_limit_after_argv() {
         .finish();
 
     assert_eq!(output.text().as_str(), "[\"client\"]");
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
     assert!(
         output
             .summary()
@@ -203,20 +197,12 @@ fn process_batch_records_environment_collection_limit_after_argv() {
     let output = batch.finish_for_diagnostics("");
 
     assert!(output.text(handle).as_str().is_empty());
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Truncated
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
     assert!(
         output
             .summary()
             .reasons()
             .contains(RedactionReason::TraversalLimitReached)
     );
-    assert!(
-        !output
-            .text(handle)
-            .as_str()
-            .contains("must-not-be-rendered")
-    );
+    assert!(!output.text(handle).as_str().contains("must-not-be-rendered"));
 }

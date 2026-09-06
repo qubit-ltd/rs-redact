@@ -22,8 +22,7 @@ impl<'value, 'policy, T: ?Sized> RedactedProjectionRef<'value, 'policy, T> {
     }
 }
 
-impl<'value, 'policy, T: ?Sized + RedactSerializeSource> serde::Serialize
-    for RedactedProjectionRef<'value, 'policy, T>
+impl<'value, 'policy, T: ?Sized + RedactSerializeSource> serde::Serialize for RedactedProjectionRef<'value, 'policy, T>
 where
     T::RedactedFields<'value>: serde::Serialize,
 {

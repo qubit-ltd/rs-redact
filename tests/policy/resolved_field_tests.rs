@@ -25,10 +25,7 @@ fn test_resolved_field_uses_application_mask_at_floor_level() {
             fields
                 .floor(floor)
                 .raise("tenant_secret", Sensitivity::Secret)
-                .mask(
-                    Sensitivity::Secret,
-                    MaskPolicy::fixed("[application-secret]"),
-                );
+                .mask(Sensitivity::Secret, MaskPolicy::fixed("[application-secret]"));
         })
         .expect("the field configuration should be valid")
         .build()

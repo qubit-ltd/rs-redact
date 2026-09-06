@@ -40,10 +40,7 @@ fn test_deeply_encoded_nested_url_does_not_expose_query_secret() {
     for _ in 0..9 {
         nested = url::form_urlencoded::byte_serialize(nested.as_bytes()).collect();
     }
-    let rendered = redact_url(
-        &Redactor::standard(),
-        &format!("https://outer.test/?next={nested}"),
-    );
+    let rendered = redact_url(&Redactor::standard(), &format!("https://outer.test/?next={nested}"));
 
     assert!(!rendered.contains("raw-secret"));
 }
@@ -60,10 +57,7 @@ fn test_nested_url_malformed_escape_variants_fail_closed() {
         "http%3A%2F%2Finner.test%2F%3Ftoken%3Draw-secret%FF",
     ] {
         let rendered = redact_url(&redactor, &format!("https://outer.test/?next={nested}"));
-        assert!(
-            !rendered.contains("raw-secret"),
-            "malformed candidate leaked: {nested}"
-        );
+        assert!(!rendered.contains("raw-secret"), "malformed candidate leaked: {nested}");
     }
 }
 
@@ -71,10 +65,7 @@ fn test_nested_url_malformed_escape_variants_fail_closed() {
 #[test]
 fn test_nested_url_detector_ignores_non_http_values() {
     let redactor = Redactor::standard();
-    let non_http = redact_url(
-        &redactor,
-        "https://outer.test/?next=ftp://inner.test/public",
-    );
+    let non_http = redact_url(&redactor, "https://outer.test/?next=ftp://inner.test/public");
     let malformed_text = redact_url(&redactor, "https://outer.test/?next=note%25FFpublic");
 
     assert!(non_http.contains("ftp"));

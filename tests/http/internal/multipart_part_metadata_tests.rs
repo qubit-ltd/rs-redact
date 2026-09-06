@@ -19,9 +19,7 @@ fn test_multipart_part_metadata_hides_filename() {
     let rendered = redact_body(
         &Redactor::standard(),
         BodyCapture::complete(body),
-        Some(&HeaderValue::from_static(
-            "multipart/form-data; boundary=boundary",
-        )),
+        Some(&HeaderValue::from_static("multipart/form-data; boundary=boundary")),
     );
 
     assert!(!rendered.contains("secret.txt"));

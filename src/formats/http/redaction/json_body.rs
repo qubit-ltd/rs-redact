@@ -35,11 +35,7 @@ impl HttpPolicyExecutor<'_> {
         // complete source representation cannot fit, do not attempt to retain
         // a partial array whose omitted element boundary would be ambiguous.
         if matches!(value, serde_json::Value::Array(_)) && bounded.len() > output_limit {
-            return ParsedBody::new(
-                markers::TRUNCATED.to_string(),
-                BodyRenderStatus::Structured,
-                true,
-            );
+            return ParsedBody::new(markers::TRUNCATED.to_string(), BodyRenderStatus::Structured, true);
         }
         let passed = json::redact(
             &self.body_field_redactor(),
