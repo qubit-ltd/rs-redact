@@ -26,9 +26,9 @@ serde_json = "1"
 ```rust
 use qubit_redact::{Redact, Redactor};
 
-#[derive(Redact, serde::Serialize)]
+#[derive(Redact)]
 #[redact(crate = qubit_redact)]
-#[redact(serialize, debug)]
+#[redact(serde, debug)]
 struct Login {
     user: String,
     #[redact(level = "secret")]
@@ -42,7 +42,7 @@ assert!(!format!("{view}").contains("raw-secret"));
 assert!(!format!("{login:?}").contains("raw-secret"));
 let json = redactor.to_json(&login).expect("redacted JSON");
 assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
-assert!(serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+assert!(!serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
 let output = redactor.redact_text(&login);
 assert!(!output.text().as_str().contains("raw-secret"));
 ```
@@ -51,7 +51,7 @@ assert!(!output.text().as_str().contains("raw-secret"));
 
 | 字段属性 | 作用与类型要求 |
 | --- | --- |
-| 无属性 | 文本使用普通 `Debug`；结构化输出使用普通 `Serialize`。 |
+| 无属性 | 文本使用普通 `Debug`；结构化视图序列化需要 `#[redact(serde)]`。 |
 | `level = "low"/"medium"/"high"/"secret"` | 对各叶子应用最终等级；支持基本标量、`RedactScalar` 和支持的递归容器。 |
 | `level = "...", display` | 显式按 `Display` 文本处理，不要求该类型实现 `Debug` 或普通 `Serialize`。 |
 | `skip` | 启用时省略；disabled 恢复字段。 |
@@ -62,9 +62,9 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | `keyed_by = key` | 按实现 `AsRef<str>` 的兄弟 key 分类，仅用于具名字段；value 需具备等级能力和 `Debug`。 |
 | `json` | 支持 JSON `String`/`str`/`Cow<str>`、已解析 `serde_json::Value`、引用和 `Option`；需要 `json` feature。 |
 
-容器属性包括 `debug`、`display`、`serialize`、`serde`、`transparent` 和 `crate = path`。
-`serialize` 只生成 `RedactSerialize`；`serde` 还会接管普通 `Serialize`，两者只能选其一。
-两种序列化选项均需 runtime 的 `serde` feature 和直接声明的 Serde 依赖。
+容器属性包括 `debug`、`display`、`serde`、`transparent` 和 `crate = path`。
+`serde` 为 `redact_view()` 生成结构化脱敏能力，并接管普通 `Serialize` 输出。
+它需要 runtime 的 `serde` feature 和直接声明的 Serde 依赖。
 `transparent` 要求恰好一个字段，委托该字段的表示，本身不声明标量能力。
 `debug` 不应与普通 `Debug` 派生同时使用，`serde` 不应与普通 `Serialize` 派生同时使用。
 
@@ -83,7 +83,7 @@ struct UserId { value: String }
 
 #[derive(Redact)]
 #[redact(crate = qubit_redact)]
-#[redact(serialize)]
+#[redact(serde)]
 struct Account {
     #[redact(level = "secret")]
     id: Id,

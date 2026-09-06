@@ -17,8 +17,8 @@ use crate::Redactor;
 /// This is neither a modified business object nor cached redacted output.
 /// Use [`Redactor::redact_text`] when a finalized text and summary are needed.
 ///
-/// With `serde` or `json`, values implementing `RedactSerialize`
-/// can be serialized structurally through this view. The source's ordinary
+/// With `serde` or `json`, values implementing `RedactSerialize` can be
+/// serialized structurally through this view. The source's ordinary
 /// `Serialize` implementation is not used as the root redaction entry point.
 pub struct RedactedView<'value, T: ?Sized> {
     /// Source borrowed until the view is dropped.

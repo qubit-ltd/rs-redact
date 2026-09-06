@@ -8,8 +8,8 @@
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
 `qubit-redact` gives application and library authors a consistent redaction boundary for
-logs, errors, and support diagnostics. A login object can retain its normal business
-serialization while a borrowed view produces redacted text or structured JSON for logging.
+logs, errors, and support diagnostics. A login object can use `#[redact(serde)]` for redacted
+business and diagnostic serialization, while a borrowed view produces redacted text or JSON.
 The source object is unchanged.
 
 ## Installation
@@ -25,15 +25,15 @@ serde_json = "1"
 
 ## Quick Start
 
-Business JSON retains the password; diagnostic JSON replaces it with `<redacted>`.
-The generated Debug implementation also redacts ordinary diagnostic formatting.
+With `#[redact(serde)]`, business JSON and diagnostic JSON both replace the password
+with `<redacted>`. The generated Debug implementation also redacts ordinary diagnostic formatting.
 
 ```rust
 use qubit_redact::{Redact, Redactor};
 
-#[derive(Redact, serde::Serialize)]
+#[derive(Redact)]
 #[redact(crate = qubit_redact)]
-#[redact(serialize, debug)]
+#[redact(serde, debug)]
 struct Login {
     user: String,
     #[redact(level = "secret")]
@@ -47,7 +47,7 @@ assert!(!format!("{view}").contains("raw-secret"));
 assert!(!format!("{login:?}").contains("raw-secret"));
 let json = redactor.to_json(&login).expect("redacted JSON");
 assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
-assert!(serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+assert!(!serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
 let output = redactor.redact_text(&login);
 assert!(!output.text().as_str().contains("raw-secret"));
 ```

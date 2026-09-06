@@ -10,7 +10,6 @@
 mod container;
 mod field;
 mod internal;
-mod path;
 mod rename_rule;
 mod representation;
 mod serde;
@@ -21,7 +20,6 @@ pub(crate) use container::ContainerAttributes;
 pub(crate) use field::FieldAttributes;
 pub(crate) use internal::SerdeContainerAttributeParser;
 pub(crate) use internal::parse_serialize_name;
-pub(crate) use path::resolve as resolve_serde_path;
 pub(crate) use rename_rule::SerdeRenameRule;
 pub(crate) use representation::SerdeEnumRepresentation;
 pub(crate) use serde::SerdeAttributes;

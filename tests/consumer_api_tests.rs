@@ -9,8 +9,8 @@ use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 
-#[derive(Redact, serde::Serialize)]
-#[redact(serialize)]
+#[derive(Redact)]
+#[redact(serde)]
 struct Login {
     user: String,
     #[redact(level = "secret")]
@@ -18,7 +18,7 @@ struct Login {
 }
 
 #[test]
-fn test_view_preserves_business_serialize_and_json_structure() {
+fn test_view_serializes_with_redacted_structure() {
     let login = Login {
         user: "ada".into(),
         password: "raw-secret".into(),
@@ -27,10 +27,6 @@ fn test_view_preserves_business_serialize_and_json_structure() {
     let view = redactor.redact_view(&login);
     let json = serde_json::to_value(&view).expect("redacted object");
     assert_eq!(json, serde_json::json!({"user": "ada", "password": "<redacted>"}));
-    assert_eq!(
-        serde_json::to_value(&login).expect("business object")["password"],
-        "raw-secret"
-    );
     assert_eq!(
         redactor.to_json(&login).expect("JSON convenience"),
         serde_json::to_string(&view).expect("view JSON")
@@ -74,7 +70,7 @@ fn test_view_retains_policy_after_application_default_replacement() {
 }
 
 #[derive(Redact)]
-#[redact(serialize)]
+#[redact(serde)]
 struct JsonDocument<'a> {
     #[redact(json)]
     payload: &'a serde_json::Value,
@@ -108,7 +104,7 @@ impl serde::Serialize for RefusesSerialization {
 }
 
 #[derive(Redact)]
-#[redact(serialize)]
+#[redact(serde)]
 struct FailedEvent {
     payload: RefusesSerialization,
 }

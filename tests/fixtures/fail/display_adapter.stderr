@@ -1,24 +1,25 @@
 error: Redact derive for `Missing` field `value`: `display` requires an explicit `level` and cannot be combined with another mode
- --> tests/fixtures/fail/display_adapter.rs:3:18
+ --> tests/fixtures/fail/display_adapter.rs:4:5
   |
-3 | struct Missing { #[redact(display)] value: String }
-  |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+4 | /     #[redact(display)]
+5 | |     value: String,
+  | |_________________^
 
 error: Redact derive for `Conflicting` field `value`: `display` requires an explicit `level` and cannot be combined with another mode
- --> tests/fixtures/fail/display_adapter.rs:5:22
-  |
-5 | struct Conflicting { #[redact(nested, display)] value: String }
-  |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  --> tests/fixtures/fail/display_adapter.rs:9:5
+   |
+ 9 | /     #[redact(nested, display)]
+10 | |     value: String,
+   | |_________________^
 
 error: duplicate `display` field adapter
- --> tests/fixtures/fail/display_adapter.rs:7:56
-  |
-7 | struct Duplicate { #[redact(level = "secret", display, display)] value: String }
-  |                                                        ^^^^^^^
-
-error: choose either `serde` or `serialize`, not both
-  --> tests/fixtures/fail/display_adapter.rs:9:1
+  --> tests/fixtures/fail/display_adapter.rs:14:41
    |
- 9 | / #[redact(serde, serialize)]
-10 | | struct Both { value: String }
-   | |_____________________________^
+14 |     #[redact(level = "secret", display, display)]
+   |                                         ^^^^^^^
+
+error: Redact derive for `Removed` has unknown container attribute; use `debug`, `display`, or `serde`
+  --> tests/fixtures/fail/display_adapter.rs:18:10
+   |
+18 | #[redact(serialize)]
+   |          ^^^^^^^^^

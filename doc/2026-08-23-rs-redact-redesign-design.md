@@ -385,7 +385,7 @@ struct Request {
 }
 ```
 
-使用 `#[redact(serde)]` 时，调用方还需启用 runtime 的 `serde` feature，并直接依赖 `serde`。
+使用 `#[redact(serde)]` 时，调用方需启用 runtime 的 `serde` feature；生成代码通过 runtime 重导出的 Serde 路径工作。
 
 这不形成普通依赖循环：`qubit-redact-derive` 不以普通依赖方式依赖 runtime；其 runtime 依赖仅用于测试，并保持 `default-features = false`，不重新启用自身 derive。
 

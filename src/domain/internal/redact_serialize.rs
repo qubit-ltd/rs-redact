@@ -13,8 +13,8 @@ use crate::RedactionPolicy;
 
 /// Structured redaction capability used by `Redactor::redact_view`.
 ///
-/// Generate it with `#[redact(serialize)]` to preserve ordinary business
-/// serialization, or `#[redact(serde)]` to also generate redacted Serialize.
+/// Generate it with `#[redact(serde)]` when the type should provide structured
+/// redaction and make its ordinary `Serialize` implementation redacted.
 /// Custom implementations must propagate serializer errors and preserve the
 /// supplied policy throughout nested redaction.
 pub trait RedactSerialize {

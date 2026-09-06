@@ -16,13 +16,13 @@ use syn::Field;
 use syn::Ident;
 use syn::Path;
 use syn::Result;
+use syn::parse_quote;
 use syn::spanned::Spanned;
 
 use super::assertions;
 use super::format;
 use crate::attributes::ContainerAttributes;
 use crate::attributes::SerdeContainerAttributes;
-use crate::attributes::resolve_serde_path;
 use crate::model;
 use crate::model::ContainerData;
 use crate::model::FieldMode;
@@ -73,8 +73,7 @@ fn expand_with_container_attributes(
     let model = model::parse(input, "Redact", container_attributes.serde_enabled())?;
     let serde = container_attributes
         .serde_enabled()
-        .then(|| resolve_serde_path(input))
-        .transpose()?;
+        .then(|| parse_quote!(#runtime::domain::internal::serde));
     let serde_container_attributes = SerdeContainerAttributes::parse(input, container_attributes.serde_enabled())?;
     let serde_impl = serde::expand(
         input,

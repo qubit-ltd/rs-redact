@@ -52,11 +52,9 @@ mod tests;
 ///
 /// Container options `#[redact(debug)]` and `#[redact(display)]` generate
 /// policy-aware formatting implementations. `#[redact(serde)]` generates a
-/// structured `serde::Serialize` implementation. `#[redact(serialize)]` only
-/// generates the capability consumed by redacted views, preserving ordinary
-/// business Serialize. These mutually exclusive choices require direct runtime
-/// and Serde dependencies. Generated formatting writes enabled-policy text
-/// directly for every completion state because it remains confidentiality-safe;
+/// structured `serde::Serialize` implementation. Generated formatting writes
+/// enabled-policy text directly for every completion state because it remains
+/// confidentiality-safe;
 /// callers that require completeness must use the runtime API and inspect its
 /// summary instead.
 ///

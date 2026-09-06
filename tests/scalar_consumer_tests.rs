@@ -24,7 +24,7 @@ struct NamedGeneric<__QuibitScalarSerializer> {
 }
 
 #[derive(Redact)]
-#[cfg_attr(feature = "serde", redact(serialize))]
+#[cfg_attr(feature = "serde", redact(serde))]
 struct Record {
     #[redact(level = "secret")]
     id: Id,
