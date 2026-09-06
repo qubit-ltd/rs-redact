@@ -36,6 +36,8 @@ pub enum RedactionReason {
     InvalidForm,
     /// Source data was not a valid multipart body.
     InvalidMultipart,
+    /// A display formatter failed before producing a complete scalar value.
+    FormattingFailed,
 }
 
 impl RedactionReason {
@@ -53,6 +55,7 @@ impl RedactionReason {
             Self::UnsupportedContentType => 1 << 8,
             Self::InvalidForm => 1 << 9,
             Self::InvalidMultipart => 1 << 10,
+            Self::FormattingFailed => 1 << 11,
         }
     }
 }
@@ -189,11 +192,7 @@ impl RedactionUsage {
     #[must_use]
     pub(crate) const fn with_domain_node(mut self, depth: usize) -> Self {
         self.visited_nodes = self.visited_nodes.saturating_add(1);
-        self.max_depth = if self.max_depth > depth {
-            self.max_depth
-        } else {
-            depth
-        };
+        self.max_depth = if self.max_depth > depth { self.max_depth } else { depth };
         self
     }
 

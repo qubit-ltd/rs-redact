@@ -12,6 +12,38 @@ use crate::RedactionInspection;
 use crate::RedactionInspectionError;
 use crate::RedactionTextOutput;
 
+/// Writer that rejects the first byte beyond the final JSON byte budget.
+struct BoundedJsonWriter {
+    bytes: Vec<u8>,
+    maximum: usize,
+}
+
+impl BoundedJsonWriter {
+    fn new(maximum: usize) -> Self {
+        Self {
+            bytes: Vec::with_capacity(maximum.min(4096)),
+            maximum,
+        }
+    }
+}
+
+impl std::io::Write for BoundedJsonWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if bytes.len() > self.maximum.saturating_sub(self.bytes.len()) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::WriteZero,
+                "redaction JSON output budget exceeded",
+            ));
+        }
+        self.bytes.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 impl Redactor {
     /// Serializes a domain object's redacted view as compact JSON.
     ///
@@ -32,7 +64,10 @@ impl Redactor {
     where
         T::RedactedFields<'value>: serde::Serialize,
     {
-        serde_json::to_string(&self.redact_view(value))
+        let mut writer = BoundedJsonWriter::new(self.policy().limits().max_output_bytes());
+        serde_json::to_writer(&mut writer, &self.redact_view(value))?;
+        String::from_utf8(writer.bytes)
+            .map_err(|error| serde_json::Error::io(std::io::Error::new(std::io::ErrorKind::InvalidData, error)))
     }
 
     /// Redacts JSON text through one completed text transaction.
@@ -61,10 +96,7 @@ impl Redactor {
     ///
     /// Returns [`RedactionInspectionError`] when JSON parsing fails or a
     /// shared resource limit prevents complete inspection.
-    pub fn inspect_json(
-        &self,
-        text: &str,
-    ) -> Result<RedactionInspection, RedactionInspectionError> {
+    pub fn inspect_json(&self, text: &str) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
         crate::formats::json::inspection::inspect_text(&mut session, text);
         session.finish()

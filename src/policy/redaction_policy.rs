@@ -87,8 +87,7 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
             let mut http = crate::formats::http::HttpPolicyBuilder::new();
             http.url_path_mut(crate::formats::http::UrlPathPolicy::Redact);
             http.text_body_mut(crate::formats::http::TextBodyPolicy::Redact);
-            http.build()
-                .expect("the built-in HTTP policy must be valid")
+            http.build().expect("the built-in HTTP policy must be valid")
         },
         #[cfg(feature = "uri")]
         {
@@ -382,6 +381,15 @@ impl RedactionPolicy {
     #[inline]
     pub fn masking(&self) -> &MaskingPolicy {
         self.masking.as_ref()
+    }
+
+    /// Replaces the mask table while preserving all classification and limit
+    /// settings. This is used by format boundaries that own the mask policy.
+    #[doc(hidden)]
+    #[cfg(feature = "uri")]
+    pub(crate) fn with_masking(mut self, masking: MaskingPolicy) -> Self {
+        self.masking = Arc::new(masking);
+        self
     }
 
     /// Iterates sensitive rules configured in the application layer only.
