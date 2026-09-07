@@ -73,8 +73,12 @@ impl DiagnosticRedactionBatchOutput {
         self.output
             .resolve(RedactionHandle::new(handle.batch_id, handle.item_index))
             .map_err(|error| match error {
-                crate::RedactionHandleError::DifferentTransaction => DiagnosticRedactionHandleError::DifferentBatch,
-                crate::RedactionHandleError::MissingItem => DiagnosticRedactionHandleError::MissingItem,
+                crate::RedactionHandleError::DifferentTransaction => {
+                    DiagnosticRedactionHandleError::DifferentBatch
+                }
+                crate::RedactionHandleError::MissingItem => {
+                    DiagnosticRedactionHandleError::MissingItem
+                }
             })
     }
 }
@@ -97,7 +101,7 @@ mod tests {
             batch_id: valid.batch_id,
             item_index: usize::MAX,
         };
-        let output = batch.finish();
+        let output = batch.finish_publication();
 
         assert!(matches!(
             output.resolve(missing),
