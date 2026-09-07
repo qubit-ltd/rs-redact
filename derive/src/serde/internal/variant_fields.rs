@@ -41,6 +41,12 @@ use crate::serde::field_access::FieldAccess;
 ///
 /// The match pattern, carrier setup statements, inclusion conditions,
 /// serialized field names, and carrier identifiers.
+///
+/// # Panics
+///
+/// Panics if validated keyed mode has no sibling field or map-level mode has
+/// no key sensitivity.
+#[must_use]
 pub(super) fn enum_named_parts(
     type_name: &Ident,
     variant_name: &Ident,
@@ -135,6 +141,12 @@ pub(super) fn enum_named_parts(
 ///
 /// The match pattern, carrier setup statements, inclusion conditions, and
 /// carrier identifiers.
+///
+/// # Panics
+///
+/// Panics if validation admitted keyed mode on a tuple field or map-level
+/// mode without a key sensitivity.
+#[must_use]
 pub(super) fn enum_unnamed_parts(
     type_name: &Ident,
     variant_name: &Ident,

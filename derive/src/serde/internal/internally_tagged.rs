@@ -38,7 +38,7 @@ use crate::serde::naming::serialized_variant_name;
 /// # Errors
 ///
 /// Returns an error when a named field conflicts with `tag` or when an
-/// internally tagged variant has more than one unnamed field.
+/// internally tagged tuple variant does not contain exactly one field.
 pub(in crate::serde) fn internal_variant_arm(
     type_name: &Ident,
     variant: &VariantData<'_>,

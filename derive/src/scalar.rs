@@ -1,6 +1,9 @@
 // =============================================================================
 //    Copyright (c) 2026 Haixing Hu.
+//
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Derivation of transparent scalar capabilities without business trait
 //! takeover.
@@ -15,12 +18,27 @@ use syn::Path;
 use syn::Result;
 use syn::parse_quote;
 
+use crate::expand::assertions::fresh_identifier;
+use crate::runtime_path;
+
 /// Generates scalar delegation for exactly one scalar field.
+///
+/// # Parameters
+///
+/// * `input` - Parsed value-object shape and optional runtime crate override.
+///
+/// # Returns
+///
+/// Scalar capability implementations delegating to the sole field, including
+/// feature-gated redacted Serde delegation.
+///
+/// # Errors
 ///
 /// Returns a targeted error for non-struct shapes, multiple fields, or field
 /// redaction attributes: scalar types do not declare a sensitivity themselves.
+/// Also rejects unsupported container controls and unresolved runtime paths.
 pub(crate) fn expand(input: &DeriveInput) -> Result<TokenStream> {
-    let runtime = crate::runtime_path::resolve(input)?;
+    let runtime = runtime_path::resolve(input)?;
     let Data::Struct(data) = &input.data else {
         return Err(Error::new_spanned(input, "RedactScalar requires a single-field struct"));
     };
@@ -56,7 +74,7 @@ pub(crate) fn expand(input: &DeriveInput) -> Result<TokenStream> {
         .map_or_else(|| Member::Unnamed(0.into()), Member::Named);
     let ty = &field.ty;
     let name = &input.ident;
-    let serializer = crate::expand::assertions::fresh_identifier(&input.generics, "__QuibitScalarSerializer");
+    let serializer = fresh_identifier(&input.generics, "__QuibitScalarSerializer");
     let mut generics = input.generics.clone();
     generics
         .make_where_clause()

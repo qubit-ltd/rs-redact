@@ -30,6 +30,8 @@ use crate::model::VariantData;
 /// * `runtime` - Resolved path to the runtime crate.
 /// * `serde` - Resolved path to Serde.
 /// * `container_attributes` - Validated naming and representation controls.
+/// * `serializer` - Generated serializer type parameter used in error paths.
+/// * `marker` - Fresh projection-only lifetime variant to reject.
 ///
 /// # Returns
 ///
@@ -46,6 +48,7 @@ pub(super) fn enum_body(
     serde: &Path,
     container_attributes: &SerdeContainerAttributes,
     serializer: &Ident,
+    marker: &Ident,
 ) -> Result<TokenStream> {
     let arms = variants
         .iter()
@@ -71,8 +74,8 @@ pub(super) fn enum_body(
         .collect::<Result<Vec<_>>>()?;
     Ok(quote! {
         match *self {
-            #(#arms),*,
-            Self::__QubitRedactLifetime(_) => unreachable!("generated projection marker is never constructed"),
+            #(#arms,)*
+            Self::#marker(_) => unreachable!("generated projection marker is never constructed"),
         }
     })
 }
@@ -83,10 +86,13 @@ pub(super) fn enum_body(
 ///
 /// * `variant` - Skipped variant being expanded.
 /// * `serde` - Resolved path to Serde.
+/// * `serializer` - Generated serializer type parameter used in the custom
+///   error.
 ///
 /// # Returns
 ///
 /// A match arm returning Serde's custom skipped-variant error.
+#[must_use]
 #[inline]
 fn skipped_variant_arm(variant: &VariantData<'_>, serde: &Path, serializer: &Ident) -> TokenStream {
     let variant_name = &variant.variant().ident;
@@ -108,6 +114,7 @@ fn skipped_variant_arm(variant: &VariantData<'_>, serde: &Path, serializer: &Ide
 /// # Returns
 ///
 /// A named, unnamed, or empty wildcard suffix.
+#[must_use]
 #[inline]
 fn wildcard_variant_pattern(variant: &VariantData<'_>) -> TokenStream {
     match variant.fields() {

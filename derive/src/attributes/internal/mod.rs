@@ -7,8 +7,8 @@
 // =============================================================================
 //! Private helpers for parsing Serde attributes.
 
-mod container_parser;
 mod directional_name;
+mod serde_container_attribute_parser;
 
-pub(crate) use container_parser::SerdeContainerAttributeParser;
 pub(crate) use directional_name::parse_serialize_name;
+pub(crate) use serde_container_attribute_parser::SerdeContainerAttributeParser;

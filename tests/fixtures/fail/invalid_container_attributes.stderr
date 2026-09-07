@@ -10,7 +10,7 @@ error: Redact derive for `EmptyAttribute` does not allow an empty container attr
 19 | #[redact()]
    | ^^^^^^^^^^^
 
-error: Redact derive for `UnknownOption` has unknown container attribute; use `debug`, `display`, or `serde`
+error: Redact derive for `UnknownOption` has unknown container attribute; use `debug`, `display`, `serde`, `transparent`, or `crate = path`
   --> tests/fixtures/fail/invalid_container_attributes.rs:24:10
    |
 24 | #[redact(format)]

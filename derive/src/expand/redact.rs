@@ -29,7 +29,7 @@ use crate::model::FieldMode;
 use crate::model::FieldsData;
 use crate::model::VariantData;
 use crate::serde;
-/// Expands a struct into its runtime `Redact` implementation.
+/// Expands a struct or enum into its runtime `Redact` implementation.
 ///
 /// # Parameters
 ///
@@ -44,6 +44,7 @@ use crate::serde;
 ///
 /// Returns a targeted syntax error when container or field controls are
 /// invalid or when Serde controls conflict with the input shape.
+#[inline]
 pub(crate) fn expand(input: &DeriveInput, runtime: &Path) -> Result<TokenStream> {
     let container_attributes = ContainerAttributes::parse(input)?;
     expand_with_container_attributes(input, runtime, container_attributes)
@@ -79,7 +80,7 @@ fn expand_with_container_attributes(
         serde.as_ref(),
         &serde_container_attributes,
         &model,
-        container_attributes.serde_impl_enabled(),
+        container_attributes.serde_enabled(),
     )?;
     let mut redaction_generics = input.generics.clone();
     assertions::add_redact_bounds(&mut redaction_generics, &model, runtime);
@@ -109,6 +110,21 @@ fn expand_with_container_attributes(
 }
 
 /// Generates one classified field without a nominal struct wrapper.
+///
+/// # Parameters
+///
+/// * `fields` - Validated single-field struct shape and field controls.
+/// * `runtime` - Resolved runtime crate path.
+///
+/// # Returns
+///
+/// A transparent writer call containing the selected field operation.
+///
+/// # Panics
+///
+/// Panics if the input bypassed transparent single-field validation or carries
+/// invalid map-level or keyed-field controls.
+#[must_use]
 fn writer_transparent_struct_body(fields: &FieldsData<'_>, runtime: &Path) -> TokenStream {
     let call = match fields {
         FieldsData::Named(fields) => {
@@ -122,7 +138,6 @@ fn writer_transparent_struct_body(fields: &FieldsData<'_>, runtime: &Path) -> To
             writer_field_call(
                 field.field(),
                 &name,
-                &name,
                 field.attributes().mode(),
                 quote!(&self.#identifier),
                 key_access,
@@ -135,7 +150,6 @@ fn writer_transparent_struct_body(fields: &FieldsData<'_>, runtime: &Path) -> To
             let name = index.index.to_string();
             writer_field_call(
                 field.field(),
-                &name,
                 &name,
                 field.attributes().mode(),
                 quote!(&self.#index),
@@ -155,10 +169,25 @@ fn writer_transparent_struct_body(fields: &FieldsData<'_>, runtime: &Path) -> To
 }
 
 /// Generates a structured writer body for one struct.
+///
+/// # Parameters
+///
+/// * `type_name` - Rust type identifier used as the nominal label.
+/// * `fields` - Validated named, tuple, or unit fields.
+/// * `runtime` - Resolved runtime crate path.
+///
+/// # Returns
+///
+/// A record or tuple operation that writes each classified field.
+///
+/// # Panics
+///
+/// Panics if field controls bypassed map-level or keyed-field validation.
+#[must_use]
 fn writer_struct_body(type_name: &Ident, fields: &FieldsData<'_>, runtime: &Path) -> TokenStream {
     match fields {
         FieldsData::Named(fields) => {
-            let calls = fields.iter().filter_map(|field| {
+            let calls = fields.iter().map(|field| {
                 let identifier = field.identifier();
                 let key_access = match field.attributes().mode() {
                     FieldMode::KeyedBy(key) => Some(quote!(&self.#key)),
@@ -166,7 +195,6 @@ fn writer_struct_body(type_name: &Ident, fields: &FieldsData<'_>, runtime: &Path
                 };
                 writer_field_call(
                     field.field(),
-                    &field.identifier().to_string(),
                     &field.identifier().to_string(),
                     field.attributes().mode(),
                     quote!(&self.#identifier),
@@ -181,11 +209,10 @@ fn writer_struct_body(type_name: &Ident, fields: &FieldsData<'_>, runtime: &Path
             }
         }
         FieldsData::Unnamed(fields) => {
-            let calls = fields.iter().filter_map(|field| {
+            let calls = fields.iter().map(|field| {
                 let index = field.index();
                 writer_field_call(
                     field.field(),
-                    &index.index.to_string(),
                     &index.index.to_string(),
                     field.attributes().mode(),
                     quote!(&self.#index),
@@ -206,7 +233,25 @@ fn writer_struct_body(type_name: &Ident, fields: &FieldsData<'_>, runtime: &Path
 }
 
 /// Generates a structured writer match for one enum.
+///
+/// # Parameters
+///
+/// * `variants` - Validated variant shapes and their field controls.
+/// * `runtime` - Resolved runtime crate path.
+///
+/// # Returns
+///
+/// A match expression that writes the selected variant and its fields.
+///
+/// # Panics
+///
+/// Panics if a keyed field has no validated sibling or a map-level control
+/// lacks its required key level.
+#[must_use]
 fn writer_enum_body(variants: &[VariantData<'_>], runtime: &Path) -> TokenStream {
+    if variants.is_empty() {
+        return quote!(match *self {});
+    }
     let arms = variants.iter().map(|variant| {
         let variant_name = &variant.variant().ident;
         match variant.fields() {
@@ -222,10 +267,9 @@ fn writer_enum_body(variants: &[VariantData<'_>], runtime: &Path) -> TokenStream
                     let identifier = field.identifier();
                     quote!(#identifier: #binding)
                 });
-                let calls = fields.iter().zip(&bindings).filter_map(|(field, binding)| {
+                let calls = fields.iter().zip(&bindings).map(|(field, binding)| {
                     let identifier = field.identifier();
                     let field_name = identifier.to_string();
-                    let context = variant_field_context(variant.index(), variant_name, &field_name);
                     let key_access = match field.attributes().mode() {
                         FieldMode::KeyedBy(key) => {
                             let position = fields
@@ -240,7 +284,6 @@ fn writer_enum_body(variants: &[VariantData<'_>], runtime: &Path) -> TokenStream
                     writer_field_call(
                         field.field(),
                         &field_name,
-                        &context,
                         field.attributes().mode(),
                         quote!(#binding),
                         key_access,
@@ -266,17 +309,12 @@ fn writer_enum_body(variants: &[VariantData<'_>], runtime: &Path) -> TokenStream
                         )
                     })
                     .collect::<Vec<_>>();
-                let patterns = fields.iter().zip(&bindings).map(|(field, binding)| {
-                    let _ = field;
-                    quote!(#binding)
-                });
-                let calls = fields.iter().zip(&bindings).filter_map(|(field, binding)| {
+                let patterns = bindings.iter().map(|binding| quote!(#binding));
+                let calls = fields.iter().zip(&bindings).map(|(field, binding)| {
                     let field_name = field.index().index.to_string();
-                    let context = variant_field_context(variant.index(), variant_name, &field_name);
                     writer_field_call(
                         field.field(),
                         &field_name,
-                        &context,
                         field.attributes().mode(),
                         quote!(#binding),
                         None,
@@ -304,15 +342,34 @@ fn writer_enum_body(variants: &[VariantData<'_>], runtime: &Path) -> TokenStream
 }
 
 /// Generates one structured writer field call.
+///
+/// # Parameters
+///
+/// * `field` - Source field whose span is retained in generated diagnostics.
+/// * `field_name` - Label presented to the runtime writer.
+/// * `mode` - Validated field redaction mode.
+/// * `value` - Borrowed field access expression.
+/// * `key_access` - Sibling key access for keyed mode, or `None` for other
+///   modes.
+/// * `runtime` - Resolved runtime crate path.
+///
+/// # Returns
+///
+/// Span-preserving tokens for the selected field operation.
+///
+/// # Panics
+///
+/// Panics if map-level mode lacks its required key level or keyed mode lacks
+/// its sibling access expression, both rejected during model validation.
+#[must_use]
 fn writer_field_call(
     field: &Field,
     field_name: &str,
-    _capability_name: &str,
     mode: &FieldMode,
     value: TokenStream,
     key_access: Option<TokenStream>,
     runtime: &Path,
-) -> Option<TokenStream> {
+) -> TokenStream {
     let call = match mode {
         FieldMode::Unmarked => {
             quote! { __fields.unmarked(#field_name, || #value); }
@@ -352,20 +409,5 @@ fn writer_field_call(
         }
         FieldMode::Skip => quote! { __fields.skipped(#field_name, || #value); },
     };
-    Some(quote_spanned! {field.span()=> #call })
-}
-
-/// Builds a stable diagnostic context name for one enum variant field.
-///
-/// # Parameters
-///
-/// * `variant_index` - Zero-based index of the enum variant.
-/// * `variant_name` - Rust identifier of the enum variant.
-/// * `field_name` - Display name of the field within the variant.
-///
-/// # Returns
-///
-/// A context string combining the variant name, index, and field name.
-fn variant_field_context(variant_index: u32, variant_name: &Ident, field_name: &str) -> String {
-    format!("{variant_name}_{variant_index}_{field_name}")
+    quote_spanned! {field.span()=> #call }
 }

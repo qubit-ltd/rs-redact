@@ -7,11 +7,11 @@ error[E0277]: the trait bound `BTreeMap<u32, std::string::String>: RedactMapValu
 help: the following other types implement trait `RedactMapValue`
   --> src/domain/redact_map_value.rs
    |
-   |         impl<V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue for BTreeMap<$key, V> {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `BTreeMap<std::string::String, V>`
+   |         impl<V: super::RedactLevelValue + Debug> RedactMapValue for BTreeMap<$key, V> {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `BTreeMap<std::string::String, V>`
 ...
-   |         impl<'a, V: super::RedactLevelValue + std::fmt::Debug> RedactMapValue for BTreeMap<$key, V> {
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |         impl<'a, V: super::RedactLevelValue + Debug> RedactMapValue for BTreeMap<$key, V> {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |         |
    |         `BTreeMap<&str, V>`
    |         `BTreeMap<Cow<'_, str>, V>`

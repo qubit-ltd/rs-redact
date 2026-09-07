@@ -28,14 +28,14 @@ use syn::punctuated::Punctuated;
 ///
 /// # Returns
 ///
-/// `crate` when deriving inside the runtime crate, or an absolute path
-/// using the dependency's local name when invoked by a downstream crate.
+/// The explicit `redact(crate = ...)` path when supplied, otherwise `crate`
+/// inside the runtime or an absolute path using the downstream dependency name.
 ///
 /// # Errors
 ///
 /// Returns a syntax error attached to `input` when Cargo metadata does not
-/// expose the `qubit-redact` runtime dependency.
-#[inline(always)]
+/// expose the `qubit-redact` runtime dependency, or when an explicit override
+/// cannot be parsed as a Rust path.
 pub(crate) fn resolve(input: &DeriveInput) -> Result<Path> {
     for attribute in input
         .attrs

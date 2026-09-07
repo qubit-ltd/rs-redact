@@ -11,9 +11,10 @@
 mod uri_fragment_policy_tests;
 mod uri_path_policy_tests;
 #[cfg(feature = "uri")]
-mod uri_redaction_policy_builder_tests;
+mod uri_policy_builder_tests;
 #[cfg(feature = "uri")]
-mod uri_redaction_policy_inner_tests;
+mod uri_policy_inner_tests;
 #[cfg(feature = "uri")]
-mod uri_redaction_policy_tests;
+mod uri_policy_tests;
+mod uri_redaction_boundary_tests;
 mod uri_redaction_tests;

@@ -62,6 +62,15 @@ pub(crate) fn parse<'a>(
 }
 
 /// Validates sibling-key references after all named fields are parsed.
+///
+/// # Parameters
+///
+/// * `fields` - Parsed fields belonging to the same struct or variant.
+/// * `type_name` - Owning type used in diagnostics.
+///
+/// # Errors
+///
+/// Rejects a keyed field referring to itself or to a missing sibling.
 fn validate_keyed_by_fields(fields: &[NamedField<'_>], type_name: &Ident) -> Result<()> {
     for field in fields {
         let FieldMode::KeyedBy(key) = field.attributes().mode() else {

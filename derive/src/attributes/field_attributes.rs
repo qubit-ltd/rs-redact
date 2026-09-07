@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Strict field-level `redact` attribute parsing.
-// qubit-style: allow type-file-name
 
 use quote::ToTokens;
 use syn::Error;

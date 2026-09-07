@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Whitelisted Serde variant attributes for redacted serialization.
-// qubit-style: allow type-file-name
 
 use syn::Error;
 use syn::Ident;
@@ -41,7 +40,7 @@ impl SerdeVariantAttributes {
     ///
     /// * `variant` - Enum variant carrying helper attributes.
     /// * `type_name` - Owning enum used in diagnostics.
-    /// * `enabled` - Whether `#[redact(serde)]` requested parsing.
+    /// * `enabled` - Whether Serde projection generation requires parsing.
     ///
     /// # Returns
     ///
@@ -161,6 +160,7 @@ impl SerdeVariantAttributes {
     /// # Returns
     ///
     /// The explicit rename when present, otherwise `default_name`.
+    #[must_use]
     #[inline(always)]
     pub(crate) fn rename_variant(&self, default_name: String) -> String {
         self.rename.clone().unwrap_or(default_name)
@@ -176,6 +176,7 @@ impl SerdeVariantAttributes {
     /// # Returns
     ///
     /// The serialized field name.
+    #[must_use]
     #[inline]
     pub(crate) fn rename_field(&self, field_name: &str, container_name: String) -> String {
         self.rename_all

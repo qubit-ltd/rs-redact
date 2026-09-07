@@ -25,6 +25,7 @@ use crate::model::VariantData;
 /// # Returns
 ///
 /// The explicit variant rename or the container-derived default.
+#[must_use]
 #[inline(always)]
 pub(super) fn serialized_variant_name(
     variant: &VariantData<'_>,
@@ -47,6 +48,7 @@ pub(super) fn serialized_variant_name(
 /// # Returns
 ///
 /// The proxy type definition and an expression constructing its value.
+#[must_use]
 pub(super) fn named_content_proxy(
     variant_name: &Ident,
     runtime: &Path,
@@ -157,6 +159,7 @@ pub(super) fn named_content_proxy(
 /// # Returns
 ///
 /// The proxy type definition and an expression constructing its value.
+#[must_use]
 pub(super) fn tuple_content_proxy(
     variant_name: &Ident,
     runtime: &Path,

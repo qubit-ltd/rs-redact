@@ -1,4 +1,4 @@
-error: Redact derive for `RemovedContainerAttribute` has unknown container attribute; use `debug`, `display`, or `serde`
+error: Redact derive for `RemovedContainerAttribute` has unknown container attribute; use `debug`, `display`, `serde`, `transparent`, or `crate = path`
   --> tests/fixtures/fail/removed_attributes.rs:12:10
    |
 12 | #[redact(no_mut)]

@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Supported Serde enum representations.
-// qubit-style: allow type-file-name
 
 /// Validated representation used by the redacted serialization backend.
 #[must_use]

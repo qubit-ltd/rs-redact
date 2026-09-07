@@ -93,7 +93,7 @@ enum DuplicateUntagged {
 /// Structural container controls are outside the redacted allowlist.
 #[derive(Redact)]
 #[redact(serde)]
-#[serde(default = "make_default", transparent)]
+#[serde(default = "make_default", from = "String")]
 struct UnsupportedControl(String);
 
 /// Container `default` remains bare or string-valued, never parenthesized.

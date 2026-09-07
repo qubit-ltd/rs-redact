@@ -6,14 +6,12 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Parsed state for one enum variant.
-// qubit-style: allow type-file-name
-
-#![allow(clippy::double_must_use)]
 
 use syn::Variant;
 
 use super::FieldsData;
 use crate::attributes::SerdeVariantAttributes;
+
 /// One enum variant with its declaration index and validated fields.
 ///
 /// # Type Parameters
@@ -74,6 +72,7 @@ impl<'a> VariantData<'a> {
     /// # Returns
     ///
     /// The zero-based index used by serializer variant APIs.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn index(&self) -> u32 {
         self.index
@@ -84,7 +83,6 @@ impl<'a> VariantData<'a> {
     /// # Returns
     ///
     /// Named, unnamed, or unit fields in source order.
-    #[must_use]
     #[inline(always)]
     pub(crate) const fn fields(&self) -> &FieldsData<'a> {
         &self.fields
@@ -95,7 +93,6 @@ impl<'a> VariantData<'a> {
     /// # Returns
     ///
     /// Variant naming, field renaming, and skip state.
-    #[must_use]
     #[inline(always)]
     pub(crate) const fn serde_attributes(&self) -> &SerdeVariantAttributes {
         &self.serde_attributes

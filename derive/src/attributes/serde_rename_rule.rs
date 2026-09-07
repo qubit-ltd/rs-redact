@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Supported serde container rename rules.
-// qubit-style: allow type-file-name
 
 use syn::Error;
 use syn::LitStr;
@@ -76,6 +75,7 @@ impl SerdeRenameRule {
     /// # Returns
     ///
     /// The serialized field name.
+    #[must_use]
     pub(crate) fn apply_to_field(&self, name: &str) -> String {
         match self {
             Self::Lowercase | Self::SnakeCase => name.to_owned(),
@@ -103,6 +103,7 @@ impl SerdeRenameRule {
     /// # Returns
     ///
     /// The serialized variant name.
+    #[must_use]
     pub(crate) fn apply_to_variant(&self, name: &str) -> String {
         match self {
             Self::Lowercase => name.to_ascii_lowercase(),
@@ -132,6 +133,7 @@ impl SerdeRenameRule {
 /// # Returns
 ///
 /// A Pascal-case identifier with underscores removed.
+#[must_use]
 fn pascal_case(name: &str) -> String {
     let mut output = String::new();
     let mut capitalize = true;
@@ -157,6 +159,7 @@ fn pascal_case(name: &str) -> String {
 /// # Returns
 ///
 /// A lowercase name with underscores before non-leading uppercase letters.
+#[must_use]
 fn snake_case(name: &str) -> String {
     let mut output = String::new();
     for (index, character) in name.char_indices() {

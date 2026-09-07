@@ -16,7 +16,7 @@
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6", features = ["derive", "serde", "json"] }
+qubit-redact = { version = "0.7", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -66,7 +66,8 @@ assert!(!output.text().as_str().contains("raw-secret"));
 runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的结构化脱敏能力。
 `#[redact(serde)]` 额外让源对象自身的普通 `Serialize` 输出脱敏；未标注时，单独派生的普通
 `Serialize` 保持原有行为。源对象本身不必可序列化，view 与 `to_json()` 只要求其脱敏投影
-能够序列化。它需要 runtime 的 `serde` feature 和直接声明的 Serde 依赖。
+能够序列化。需要启用 runtime 的 `serde` feature；生成代码本身不要求直接依赖 Serde。
+只有自己的代码使用 Serde trait 或派生宏时，才需直接声明 `serde`。
 `transparent` 要求恰好一个字段，委托该字段的表示，本身不声明标量能力。
 `debug` 不应与普通 `Debug` 派生同时使用，`serde` 不应与普通 `Serialize` 派生同时使用。
 
@@ -102,12 +103,18 @@ assert_eq!(Redactor::standard().to_json(&account).expect("account JSON"),
 它不生成普通 Debug、Display 或 Serialize，也不设置敏感等级；容器不能作为其内部标量。
 第三方类型采用 `#[redact(level = "secret", display)]`。
 
+`max_serde_payload_bytes` 限制结构化 Serde 的逻辑标量载荷；`max_output_bytes` 限制库生成的
+最终文本或 `to_json()` JSON。两者默认均为 16 KiB，独立配置。直接序列化 view 或派生源对象时，
+最终编码长度由调用方 serializer/writer 控制。详见用户手册的预算矩阵。
+
 ## 延伸阅读
 
 参见[中文用户手册](../doc/user_guide.zh_CN.md)、[英文用户手册](../doc/user_guide.md)
 与[运行时 README](../README.zh_CN.md)，了解预算、Serde 兼容性、快照和 disabled 行为。
 
 ## 测试
+
+以下命令在仓库根目录（`derive/` 的上一级）运行。
 
 ```bash
 # 使用默认 feature 集运行测试

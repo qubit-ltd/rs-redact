@@ -7,6 +7,8 @@
 // =============================================================================
 //! Mirrored integration tests for domain-object redaction APIs.
 
+#[cfg(feature = "serde")]
+mod internal;
 mod redact_tests;
 mod redaction_key_limits_tests;
 mod redaction_writer_tests;

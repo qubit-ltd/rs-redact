@@ -113,7 +113,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-redact"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "bigdecimal",
  "qubit-budget",
@@ -122,7 +122,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-redact-derive"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",

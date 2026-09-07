@@ -11,6 +11,7 @@ use std::fmt::Write;
 
 use http::HeaderValue;
 use libfuzzer_sys::fuzz_target;
+use qubit_redact::RedactionReason;
 use qubit_redact::RedactionTextOutput;
 use qubit_redact::Redactor;
 use qubit_redact::formats::http::BodyCapture;
@@ -75,13 +76,16 @@ fuzz_target!(|input: &[u8]| {
             HeaderValue::from_static("application/x-www-form-urlencoded"),
         ),
         (
-            format!(r#"{{"noise":"{noise}"}}\n{{"password":"{FUZZ_SECRET}"}}"#),
+            format!("{{\"noise\":\"{noise}\"}}\n{{\"password\":\"{FUZZ_SECRET}\"}}"),
             HeaderValue::from_static("application/x-ndjson"),
         ),
     ];
     for (body, content_type) in cases {
         let output = redactor.redact_http_body(BodyCapture::complete(body.as_bytes()), Some(&content_type));
         assert_output_invariants(&output, max_output_bytes);
+        assert!(!output.summary().reasons().contains(RedactionReason::InvalidJson));
+        assert!(output.text().as_str().contains("noise"));
+        assert!(output.text().as_str().contains(&noise));
         assert!(!output.text().as_str().contains(FUZZ_SECRET));
     }
 });
