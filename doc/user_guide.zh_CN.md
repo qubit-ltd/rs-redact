@@ -4,7 +4,7 @@
 
 ## 手册目标与读者
 
-适用于 qubit-redact 0.7 的应用和库作者：先跑通日志和业务序列化共存，再配置领域类型、输入格式和预算。
+适用于 qubit-redact 0.8 的应用和库作者：先跑通日志和业务序列化共存，再配置领域类型、输入格式和预算。
 
 ## 安装与实战：登录诊断
 
@@ -12,7 +12,7 @@
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.7", features = ["derive", "serde", "json"] }
+qubit-redact = { version = "0.8", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -371,8 +371,8 @@ assert!(!output.text().as_str().contains("raw-"));
 | `http` | JSON、URL、header、form、multipart 和 body capture |
 | `uri` | 通用 URI 解析与脱敏 |
 
-只使用标量和手写领域实现时可保持默认空 feature 集。在 0.7 版本系列中，`serde` 继续包含
-BigDecimal 支持；若要拆分这项依赖，应在后续破坏性版本中提供明确的 feature 迁移说明。
+只使用标量和手写领域实现时可保持默认空 feature 集。在 0.8 版本系列中，`serde` 提供结构化
+序列化，BigDecimal 支持则通过 `bigdecimal` feature 显式启用。
 
 ## 进阶用法
 

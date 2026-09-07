@@ -20,7 +20,7 @@ use std::hash::Hash;
 use std::rc::Rc;
 use std::sync::Arc;
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "bigdecimal")]
 use bigdecimal::BigDecimal;
 
 use super::RedactionItems;
@@ -79,9 +79,9 @@ scalar!(
     f64
 );
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "bigdecimal")]
 impl private::Sealed for BigDecimal {}
-#[cfg(feature = "serde")]
+#[cfg(feature = "bigdecimal")]
 impl RedactLevelValue for BigDecimal {
     /// Writes this scalar through explicit-level masking without key
     /// classification.

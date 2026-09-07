@@ -4,7 +4,7 @@
 
 ## Purpose and Audience
 
-For application and library authors using qubit-redact 0.7. Start with business serialization
+For application and library authors using qubit-redact 0.8. Start with business serialization
 and diagnostic logging, then configure domain types, input formats, and budgets.
 
 ## Installation and Scenario: Login Diagnostics
@@ -13,7 +13,7 @@ This dependency configuration supports every example in this section.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.7", features = ["derive", "serde", "json"] }
+qubit-redact = { version = "0.8", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -394,9 +394,8 @@ assert!(!output.text().as_str().contains("raw-"));
 | `uri` | generic URI parsing and redaction |
 
 Keep the default empty feature set for scalar and manually implemented domain
-redaction. In the 0.7 release line, `serde` continues to include
-BigDecimal support; separating that dependency would require an explicit
-feature migration in a later breaking release.
+redaction. In the 0.8 release line, `serde` provides structured serialization,
+while BigDecimal support is enabled explicitly with the `bigdecimal` feature.
 
 ## Advanced Usage
 

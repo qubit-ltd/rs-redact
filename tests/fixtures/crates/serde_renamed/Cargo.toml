@@ -8,9 +8,9 @@ publish = false
 
 [dependencies]
 qubit-redact = {
-    version = "0.7",
+    version = "0.8",
     path = "../../../../",
     features = ["serde"],
 }
-qubit-redact-derive = { version = "0.7", path = "../../../../derive" }
+qubit-redact-derive = { version = "0.8", path = "../../../../derive" }
 serialization = { package = "serde", version = "1" }

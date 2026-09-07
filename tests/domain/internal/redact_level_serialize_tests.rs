@@ -7,6 +7,7 @@
 // =============================================================================
 //! Public decimal adapters share the structured input budget.
 
+#[cfg(feature = "bigdecimal")]
 use bigdecimal::BigDecimal;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
@@ -15,6 +16,7 @@ use qubit_redact::domain::internal::RedactedLevelSerializeRef;
 
 /// Verifies decimal leaves use the same cumulative bounded formatter as
 /// primitive structured values.
+#[cfg(feature = "bigdecimal")]
 #[test]
 fn test_big_decimal_level_values_share_the_input_budget() {
     let policy = RedactionPolicy::builder()
