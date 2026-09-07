@@ -28,8 +28,8 @@ use std::mem::replace;
 use std::sync::Arc;
 use std::sync::PoisonError;
 
-use crate::RedactedTextComposer;
 use crate::DiagnosticRedactionBatch;
+use crate::RedactedTextComposer;
 use crate::RedactionPolicy;
 use crate::runtime::BatchSession;
 use crate::runtime::InspectionSession;

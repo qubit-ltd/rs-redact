@@ -9,9 +9,9 @@
 
 use std::borrow::Cow;
 
-use super::RedactedText;
-use super::DiagnosticRedactionHandle;
 use super::DiagnosticRedactionBatchOutput;
+use super::DiagnosticRedactionHandle;
+use super::RedactedText;
 use super::RedactionSummary;
 use crate::output::log_escape::escape_log_control_characters;
 

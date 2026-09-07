@@ -5,9 +5,9 @@
 // =============================================================================
 //! Borrowed redaction projections for vectors.
 
-use serde::ser::SerializeSeq;
 use serde::Serialize;
 use serde::Serializer;
+use serde::ser::SerializeSeq;
 
 use super::redact_serialize::RedactSerialize;
 use super::redact_serialize_scope::admit_collection_items;

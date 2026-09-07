@@ -9,9 +9,9 @@
 
 use std::ffi::OsStr;
 
-use qubit_redact::Redact;
-use qubit_redact::DiagnosticRedactionOutput;
 use qubit_redact::DiagnosticRedactionHandle;
+use qubit_redact::DiagnosticRedactionOutput;
+use qubit_redact::Redact;
 use qubit_redact::RedactionTextOutput;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
@@ -34,7 +34,11 @@ impl Redact for Credentials {
 
 /// Asserts two independently published operations have identical safe output
 /// and accounting metadata.
-fn assert_equivalent(one_shot: &RedactionTextOutput, batch: &DiagnosticRedactionOutput, handle: DiagnosticRedactionHandle) {
+fn assert_equivalent(
+    one_shot: &RedactionTextOutput,
+    batch: &DiagnosticRedactionOutput,
+    handle: DiagnosticRedactionHandle,
+) {
     assert_eq!(one_shot.text(), batch.text(handle));
     assert_eq!(one_shot.summary(), batch.summary());
 }

@@ -10,8 +10,8 @@
 /// Private reference to one redacted item produced during a batch transaction.
 ///
 /// Debug output contains only transaction metadata, never item text. The public
-/// [`crate::DiagnosticRedactionHandle`] is created from this private token before
-/// an operation returns to the caller.
+/// [`crate::DiagnosticRedactionHandle`] is created from this private token
+/// before an operation returns to the caller.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RedactionHandle {
     /// Identity of the batch transaction that created this handle.

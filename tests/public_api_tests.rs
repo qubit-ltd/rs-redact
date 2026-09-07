@@ -7,12 +7,12 @@
 // =============================================================================
 //! Public transactional API surface checks.
 
+use qubit_redact::DiagnosticRedactionBatch;
+use qubit_redact::DiagnosticRedactionHandle;
+use qubit_redact::DiagnosticRedactionOutput;
 use qubit_redact::Redact;
 use qubit_redact::RedactedText;
 use qubit_redact::RedactedTextComposer;
-use qubit_redact::DiagnosticRedactionBatch;
-use qubit_redact::DiagnosticRedactionOutput;
-use qubit_redact::DiagnosticRedactionHandle;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSummary;
