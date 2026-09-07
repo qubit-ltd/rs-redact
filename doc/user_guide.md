@@ -7,7 +7,15 @@
 For application and library authors using qubit-redact 0.8. Start with business serialization
 and diagnostic logging, then configure domain types, input formats, and budgets.
 
-## Installation and Scenario: Login Diagnostics
+## Conceptual Model
+
+qubit-redact separates the source value, the policy snapshot, and the rendered
+result. A `RedactedView` borrows the source and applies its snapshot whenever
+it is formatted or serialized; `redact_text()` and `to_json()` execute the
+operation immediately. A batch groups several inputs under one transaction
+budget. None of these results modifies the source value.
+
+## Installation
 
 This dependency configuration supports every example in this section.
 
@@ -17,6 +25,14 @@ qubit-redact = { version = "0.8", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
+
+## Scenario: Login Diagnostics
+
+The following scenario starts with a login object that must remain unchanged
+for business serialization while diagnostics must not expose its password.
+The success criteria are that diagnostic text and JSON contain no raw secret,
+while the ordinary business serialization still follows the type's explicit
+`#[redact(serde)]` boundary.
 
 ```rust
 use qubit_redact::{Redact, Redactor};
@@ -549,8 +565,3 @@ cargo test --all-features
 ./align-ci.sh
 ./ci-check.sh
 ```
-
-
-## License
-
-Apache-2.0. See [LICENSE](../LICENSE).
