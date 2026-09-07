@@ -45,17 +45,17 @@
 | --- | --- |
 | 按顺序组合一段安全文本 | `RedactedTextComposer` |
 | 一次文本组合的最终结果 | `RedactionTextOutput` |
-| 在共享预算下处理多个独立 item | `RedactionBatch` |
-| 一批 item 的最终结果 | `RedactionBatchOutput` |
-| 引用 batch 中一个未发布 item | `RedactionBatchHandle` |
-| 报告 handle 解析错误 | `RedactionBatchHandleError` |
+| 在共享预算下处理多个独立 item | `DiagnosticRedactionBatch` |
+| 一批 item 的最终结果 | `DiagnosticRedactionBatchOutput` |
+| 引用 batch 中一个未发布 item | `DiagnosticRedactionHandle` |
+| 报告 handle 解析错误 | `DiagnosticRedactionHandleError` |
 
 两种入口均由 `Redactor` 创建：
 
 ```rust
 impl Redactor {
     pub fn text_composer(&self) -> RedactedTextComposer;
-    pub fn batch(&self) -> RedactionBatch;
+    pub fn diagnostic_batch(&self) -> DiagnosticRedactionBatch;
 }
 ```
 
@@ -115,11 +115,11 @@ let output = redactor
 闭包中的借用 facade。它们的公开方法只追加文本并返回 `&mut Self`；现有返回 handle 的
 `redact_*` 方法移除或收为 crate-private，避免在 writer 层重新混合两种模型。
 
-## 5. RedactionBatch
+## 5. DiagnosticRedactionBatch
 
 ### 5.1 职责
 
-`RedactionBatch` 在同一 policy 快照和资源预算下处理多个独立输出项。batch 可以是异构的；
+`DiagnosticRedactionBatch` 在同一 policy 快照和资源预算下处理多个独立输出项。batch 可以是异构的；
 一个 domain object、一个 JSON 文档、一组 HTTP headers、一个 URL、一个 HTTP body、一个 URI、
 一组 argv 或环境变量都可以各自构成一个逻辑 item。
 
@@ -131,29 +131,29 @@ header 仍分别计入结构和集合预算。
 batch 方法借用 `&mut self` 并返回 handle：
 
 ```rust
-impl RedactionBatch {
-    pub fn redact_field(&mut self, field: &str, value: &str) -> RedactionBatchHandle;
-    pub fn redact_value<T: Redact + ?Sized>(&mut self, value: &T) -> RedactionBatchHandle;
-    pub fn redact_argv<'a, I>(&mut self, items: I) -> RedactionBatchHandle;
-    pub fn redact_env(&mut self, name: &str, value: &str) -> RedactionBatchHandle;
-    pub fn redact_env_pairs<'a, I>(&mut self, pairs: I) -> RedactionBatchHandle;
+impl DiagnosticRedactionBatch {
+    pub fn redact_field(&mut self, field: &str, value: &str) -> DiagnosticRedactionHandle;
+    pub fn redact_value<T: Redact + ?Sized>(&mut self, value: &T) -> DiagnosticRedactionHandle;
+    pub fn redact_argv<'a, I>(&mut self, items: I) -> DiagnosticRedactionHandle;
+    pub fn redact_env(&mut self, name: &str, value: &str) -> DiagnosticRedactionHandle;
+    pub fn redact_env_pairs<'a, I>(&mut self, pairs: I) -> DiagnosticRedactionHandle;
     pub fn redact_process<'a, 'b, A, E>(
         &mut self,
         program: &'a OsStr,
         arguments: A,
         variables: E,
-    ) -> RedactionBatchHandle;
-    pub fn redact_json(&mut self, text: &str) -> RedactionBatchHandle;
-    pub fn redact_http_url(&mut self, value: &str) -> RedactionBatchHandle;
-    pub fn redact_http_headers(&mut self, headers: &HeaderMap) -> RedactionBatchHandle;
+    ) -> DiagnosticRedactionHandle;
+    pub fn redact_json(&mut self, text: &str) -> DiagnosticRedactionHandle;
+    pub fn redact_http_url(&mut self, value: &str) -> DiagnosticRedactionHandle;
+    pub fn redact_http_headers(&mut self, headers: &HeaderMap) -> DiagnosticRedactionHandle;
     pub fn redact_http_body(
         &mut self,
         capture: BodyCapture<'_>,
         content_type: Option<&HeaderValue>,
-    ) -> RedactionBatchHandle;
-    pub fn redact_uri(&mut self, value: &str) -> RedactionBatchHandle;
+    ) -> DiagnosticRedactionHandle;
+    pub fn redact_uri(&mut self, value: &str) -> DiagnosticRedactionHandle;
 
-    pub fn finish(self) -> RedactionBatchOutput;
+    pub fn finish(self) -> DiagnosticRedactionBatchOutput;
 }
 ```
 
@@ -164,7 +164,7 @@ impl RedactionBatch {
 代表性用法：
 
 ```rust
-let mut batch = redactor.batch();
+let mut batch = redactor.diagnostic_batch();
 
 let user = batch.redact_value(&user);
 let payload = batch.redact_json(json);
@@ -202,26 +202,26 @@ impl RedactionTextOutput {
 ### 6.2 Batch 输出
 
 ```rust
-pub struct RedactionBatchOutput {
+pub struct DiagnosticRedactionBatchOutput {
     batch_id: BatchId,
     items: Vec<RedactionTextOutput>,
     summary: RedactionSummary,
 }
 
-impl RedactionBatchOutput {
+impl DiagnosticRedactionBatchOutput {
     pub fn summary(&self) -> &RedactionSummary;
     pub fn resolve(
         &self,
-        handle: RedactionBatchHandle,
-    ) -> Result<&RedactionTextOutput, RedactionBatchHandleError>;
+        handle: DiagnosticRedactionHandle,
+    ) -> Result<&RedactionTextOutput, DiagnosticRedactionHandleError>;
     pub fn into_resolved(
         self,
-        handle: RedactionBatchHandle,
-    ) -> Result<RedactionTextOutput, RedactionBatchHandleError>;
+        handle: DiagnosticRedactionHandle,
+    ) -> Result<RedactionTextOutput, DiagnosticRedactionHandleError>;
 }
 ```
 
-`RedactionBatchOutput` 不提供 `text()`，因为 batch 没有聚合文本。`resolve()` 不复制文本，也不
+`DiagnosticRedactionBatchOutput` 不提供 `text()`，因为 batch 没有聚合文本。`resolve()` 不复制文本，也不
 重新计费。
 
 空 composer 发布 complete 的空文本；空 batch 发布不含 item、summary 为 complete 的 batch
@@ -229,11 +229,11 @@ output。空操作仍遵循单次使用的 `finish(self)` 生命周期。
 
 ### 6.3 Handle 约束
 
-`RedactionBatchHandle` 保存不可伪造的 batch identity 和 item index。它不实现 `Display`、
+`DiagnosticRedactionHandle` 保存不可伪造的 batch identity 和 item index。它不实现 `Display`、
 `AsRef<str>`、`Deref<Target = str>` 或 `ToString`，不能在 `finish()` 前暴露脱敏中间文本。
 
 ```rust
-pub enum RedactionBatchHandleError {
+pub enum DiagnosticRedactionHandleError {
     DifferentBatch,
     MissingItem,
 }
@@ -325,7 +325,7 @@ batch 仍处于安全的空状态；panic 前产生的 handle 不再属于之后
 - 非法 JSON/URI、上游截断、不支持的 content type 和预算不足均是安全输出状态，不是
   `finish()` 错误；
 - policy 构建继续使用 `PolicyError`；
-- 只有 handle 使用错误返回 `RedactionBatchHandleError`。
+- 只有 handle 使用错误返回 `DiagnosticRedactionHandleError`。
 
 ## 10. 破坏性迁移映射
 
@@ -333,13 +333,13 @@ batch 仍处于安全的空状态；panic 前产生的 handle 不再属于之后
 | --- | --- |
 | `Redactor::session()` | `Redactor::text_composer()` 或 `Redactor::batch()` |
 | `RedactionSession` 聚合方法 | `RedactedTextComposer` 消费式链式方法 |
-| `RedactionSession::redact_*()` | `RedactionBatch::redact_*()` 方法 |
+| `RedactionSession::redact_*()` | `DiagnosticRedactionBatch::redact_*()` 方法 |
 | `RedactionSession::finish()` 聚合结果 | `RedactedTextComposer::finish()` |
-| `RedactionSession::finish()` item 结果 | `RedactionBatch::finish()` |
+| `RedactionSession::finish()` item 结果 | `DiagnosticRedactionBatch::finish()` |
 | `RedactionOutput` | `RedactionTextOutput` |
-| `RedactionSessionOutput` | `RedactionBatchOutput`；聚合场景无对应容器 |
-| `RedactionHandle` | `RedactionBatchHandle` |
-| `RedactionHandleError` | `RedactionBatchHandleError` |
+| `RedactionSessionOutput` | `DiagnosticRedactionBatchOutput`；聚合场景无对应容器 |
+| `RedactionHandle` | `DiagnosticRedactionHandle` |
+| `RedactionHandleError` | `DiagnosticRedactionHandleError` |
 | `DifferentTransaction` | `DifferentBatch` |
 
 以下旧公共符号直接删除，不提供 alias：
@@ -358,7 +358,7 @@ batch 仍处于安全的空状态；panic 前产生的 handle 不再属于之后
 2. 将 `RedactionOutput` 重命名为 `RedactionTextOutput`，更新不依赖 session 的调用点。
 3. 提取不拥有发布模式的 `RedactionRuntime`，保留现有预算和 summary 行为测试。
 4. 实现 `RedactedTextComposer`、消费式链式方法和 `TextOutputBuffer`。
-5. 实现 `RedactionBatch`、batch item staging、identity、handle 和 `RedactionBatchOutput`。
+5. 实现 `DiagnosticRedactionBatch`、batch item staging、identity、handle 和 `DiagnosticRedactionBatchOutput`。
 6. 将所有格式 writer 收窄为 composer-only facade；把单项格式入口移到 batch。
 7. 让 `Redactor::redact_*()` 统一复用 batch 单项路径。
 8. 更新 domain writer、panic guard 和 derive 集成。
@@ -375,7 +375,7 @@ batch 仍处于安全的空状态；panic 前产生的 handle 不再属于之后
 - composer 支持完整链式调用并由 `finish(self)` 消耗；
 - batch 通过 `&mut self` 返回 handle，并由 `finish(self)` 消耗；
 - composer 不公开 batch 方法，batch 不公开组合方法；
-- `RedactionBatchOutput` 没有 `text()`；
+- `DiagnosticRedactionBatchOutput` 没有 `text()`；
 - `RedactionTextOutput` 没有 handle 解析方法；
 - 旧公共符号和兼容 alias 均不可导入；
 - JSON、HTTP、URI API 只在相应 feature 启用时出现。
