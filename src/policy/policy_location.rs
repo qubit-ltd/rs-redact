@@ -10,6 +10,14 @@
 use std::fmt;
 
 /// Policy construction context where a validation error occurred.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::PolicyLocation;
+///
+/// assert_eq!(PolicyLocation::Rules.to_string(), "rules");
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum PolicyLocation {

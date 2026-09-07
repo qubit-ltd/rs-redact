@@ -12,6 +12,16 @@ use super::Sensitivity;
 /// Determines how a policy handles a field with no matching rule.
 ///
 /// The default leaves unknown fields visible.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::{Sensitivity, UnknownFieldPolicy};
+///
+/// assert_eq!(UnknownFieldPolicy::default().sensitivity(), None);
+/// assert_eq!(UnknownFieldPolicy::Redact(Sensitivity::Secret).sensitivity(),
+///            Some(Sensitivity::Secret));
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UnknownFieldPolicy {

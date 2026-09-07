@@ -8,6 +8,16 @@
 //! Completion state shared by redaction operations.
 
 /// Describes whether a redaction operation produced all required safe output.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::{RedactionCompletion, Redactor};
+///
+/// let output = Redactor::standard().redact_field("password", "raw-secret");
+/// assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+/// ```
+#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RedactionCompletion {
     /// All input was processed and its complete safe output fit the budget.

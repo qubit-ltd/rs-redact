@@ -8,6 +8,14 @@
 //! Fragment handling choices for URI redaction.
 
 /// Controls whether URI fragments are retained or masked.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::formats::uri::UriFragmentPolicy;
+///
+/// assert_eq!(UriFragmentPolicy::default(), UriFragmentPolicy::Redact);
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UriFragmentPolicy {

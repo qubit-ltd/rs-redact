@@ -10,6 +10,17 @@
 use super::Sensitivity;
 
 /// Predefined groups of sensitive field names.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::SensitiveFieldPreset;
+///
+/// assert!(SensitiveFieldPreset::Credentials
+///     .fields()
+///     .iter()
+///     .any(|(field, _)| *field == "password"));
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SensitiveFieldPreset {
