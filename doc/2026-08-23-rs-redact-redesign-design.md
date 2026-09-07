@@ -286,7 +286,7 @@ predicate 会接收原始字段引用，即使 sensitivity 是 `High` 或 `Secre
 
 ```rust
 Redactor::redact_field()
-RedactionBatch::redact_field()
+DiagnosticRedactionBatch::redact_field()
 RedactedTextComposer::field()
 ```
 
