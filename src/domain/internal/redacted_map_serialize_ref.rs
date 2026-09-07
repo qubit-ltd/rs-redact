@@ -7,6 +7,9 @@
 // =============================================================================
 //! Borrowed adapter for policy-classified structured maps.
 
+use serde::Serialize;
+use serde::Serializer;
+
 use super::redact_map_serialize::RedactMapSerialize;
 use super::redact_serialize_scope::serialize_structured;
 
@@ -22,15 +25,21 @@ pub struct RedactedMapSerializeRef<'value, 'policy, T: ?Sized> {
 impl<'value, 'policy, T: ?Sized> RedactedMapSerializeRef<'value, 'policy, T> {
     /// Creates a policy-carrying borrowed map adapter.
     #[must_use]
+    #[inline(always)]
     pub fn new(value: &'value T, policy: &'policy crate::RedactionPolicy) -> Self {
         Self { value, policy }
     }
 }
 
-impl<T: ?Sized + RedactMapSerialize> serde::Serialize for RedactedMapSerializeRef<'_, '_, T> {
+impl<T: ?Sized + RedactMapSerialize> Serialize for RedactedMapSerializeRef<'_, '_, T> {
+    /// Runs this borrowed adapter under the shared policy and resource scope.
+    ///
+    /// # Errors
+    ///
+    /// Propagates admission failures and errors from the downstream serializer.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         serialize_structured(serializer, self.policy, |serializer| {
             self.value.serialize_redacted_map(serializer, self.policy)

@@ -8,20 +8,27 @@
 //! Conversion from renderer provenance to transaction summaries.
 
 use crate::RedactionCompletion;
-use crate::RedactionReason;
 use crate::RedactionReasons;
 use crate::RedactionSummary;
 use crate::RedactionUsage;
 
 /// Converts unpublished renderer provenance into the runtime summary model.
+///
+/// # Parameters
+///
+/// - `completion`: Renderer completion state.
+/// - `reasons`: Renderer provenance, including an output-limit reason for
+///   exhaustion.
+///
+/// # Returns
+///
+/// A summary with neutral resource usage for merging into runtime accounting.
+///
+/// # Panics
+///
+/// In debug builds, panics if `Exhausted` lacks an output-limit reason.
 #[must_use]
+#[inline(always)]
 pub(super) fn rendered_summary(completion: RedactionCompletion, reasons: RedactionReasons) -> RedactionSummary {
-    if reasons != RedactionReasons::empty() || completion == RedactionCompletion::Complete {
-        return RedactionSummary::from_parts(false, completion, reasons, RedactionUsage::empty());
-    }
-    match completion {
-        RedactionCompletion::Complete => RedactionSummary::complete(),
-        RedactionCompletion::Truncated => RedactionSummary::truncated(RedactionReason::TraversalLimitReached),
-        RedactionCompletion::Exhausted => RedactionSummary::exhausted(RedactionReason::OutputLimitReached),
-    }
+    RedactionSummary::from_parts(false, completion, reasons, RedactionUsage::empty())
 }

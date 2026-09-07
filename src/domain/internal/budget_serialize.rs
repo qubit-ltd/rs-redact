@@ -27,12 +27,18 @@ impl<T> BudgetSerialize<T> {
     /// Wraps a value; its serializer is invoked exactly once after node
     /// admission.
     #[must_use]
+    #[inline(always)]
     pub fn new(value: T) -> Self {
         Self { value }
     }
 }
 
 impl<T: Serialize> Serialize for BudgetSerialize<T> {
+    /// Admits one node and pins its budget while invoking user Serialize once.
+    ///
+    /// # Errors
+    ///
+    /// Propagates structural, scalar, or downstream serialization failures.
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if !admit_node() {
             return Err(SerdeError::custom("redaction structural budget exceeded"));

@@ -27,7 +27,16 @@ pub(super) struct SummaryBuilder {
 
 impl SummaryBuilder {
     /// Creates an empty complete transaction state.
+    ///
+    /// # Parameters
+    ///
+    /// - `redaction_disabled`: Whether the owning policy disables masking.
+    ///
+    /// # Returns
+    ///
+    /// Neutral complete summary state with empty provenance.
     #[must_use]
+    #[inline(always)]
     pub(super) const fn new(redaction_disabled: bool) -> Self {
         Self {
             redaction_disabled,
@@ -37,7 +46,16 @@ impl SummaryBuilder {
     }
 
     /// Wraps the completion and provenance of an immutable summary.
+    ///
+    /// # Parameters
+    ///
+    /// - `summary`: Existing completion and provenance; usage is not retained.
+    ///
+    /// # Returns
+    ///
+    /// A builder carrying only the supplied completion facts.
     #[must_use]
+    #[inline(always)]
     pub(super) const fn from_summary(summary: RedactionSummary) -> Self {
         Self {
             redaction_disabled: summary.is_redaction_disabled(),
@@ -47,12 +65,30 @@ impl SummaryBuilder {
     }
 
     /// Returns a summary paired with runtime-owned resource usage.
+    ///
+    /// # Parameters
+    ///
+    /// - `usage`: Resource measurements supplied by the transaction ledger.
+    ///
+    /// # Returns
+    ///
+    /// An immutable summary pairing these completion facts with that usage.
     #[must_use]
+    #[inline(always)]
     pub(super) const fn build(self, usage: RedactionUsage) -> RedactionSummary {
         RedactionSummary::from_parts(self.redaction_disabled, self.completion, self.reasons, usage)
     }
 
     /// Merges an operation's completion and provenance into this state.
+    ///
+    /// # Parameters
+    ///
+    /// - `delta`: Additional completion and provenance facts.
+    ///
+    /// # Returns
+    ///
+    /// Combined state with strongest completion and unioned reasons; resource
+    /// usage remains owned by the separate ledger.
     #[must_use]
     pub(super) const fn merge(self, delta: RedactionSummary) -> Self {
         Self {

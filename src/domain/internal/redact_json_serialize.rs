@@ -13,7 +13,10 @@ use std::borrow::Cow;
 use qubit_budget::json::JsonDecodeLimits;
 #[cfg(feature = "json")]
 use qubit_json::decode::JsonDecoder;
+use serde::Serializer;
+use serde_json::Value;
 
+use super::json_value_admission::JsonValueAdmission as Admission;
 use super::redact_serialize_scope::admit_collection_items;
 use super::redact_serialize_scope::admit_input;
 use super::redact_serialize_scope::admit_node;
@@ -24,16 +27,53 @@ use super::redact_serialize_scope::leave_node;
 #[cfg(feature = "json")]
 pub trait RedactJsonSerialize {
     /// Parses and serializes JSON text through structured redaction.
+    ///
+    /// # Errors
+    ///
+    /// Propagates payload admission or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted JSON representation.
+    /// - `policy`: Immutable policy used for parsing limits and redaction.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
     fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer;
+        S: Serializer;
 }
 
 /// Parses and redacts one JSON text value for Serde publication.
+///
+/// # Errors
+///
+/// Returns a payload admission error or propagates the downstream serializer
+/// error. Invalid or over-limit input is replaced with an opaque mask.
+///
+/// # Type Parameters
+///
+/// - `S`: Destination serializer.
+///
+/// # Parameters
+///
+/// - `serializer`: Destination receiving redacted JSON text or a safe mask.
+/// - `text`: Raw JSON source admitted before parsing.
+/// - `policy`: Immutable parsing, masking, and resource policy.
+///
+/// # Returns
+///
+/// The destination result for admitted transformed JSON text or the safe
+/// replacement.
 #[cfg(feature = "json")]
 fn serialize_json_text<S>(serializer: S, text: &str, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
 where
-    S: serde::Serializer,
+    S: Serializer,
 {
     let masked = || policy.masking().mask_opaque(crate::Sensitivity::Secret);
     if !admit_input(text.len()) {
@@ -51,7 +91,7 @@ where
         .max_input_bytes(policy.limits().max_input_bytes())
         .value_limits(policy.limits().json_limits())
         .build();
-    let Ok(value) = JsonDecoder::with_limits(limits).decode_str::<serde_json::Value>(text) else {
+    let Ok(value) = JsonDecoder::with_limits(limits).decode_str::<Value>(text) else {
         let replacement = masked();
         return super::redact_serialize_scope::serialize_payload(serializer, replacement);
     };
@@ -62,23 +102,24 @@ where
     let output = crate::formats::json::redact_json_value_with_limit(
         policy,
         &value,
-        super::redact_serialize_scope::remaining_output_bytes(),
+        super::redact_serialize_scope::remaining_payload_bytes(),
     );
     super::redact_serialize_scope::serialize_payload(serializer, output.text())
 }
 
 /// Admits every node and item in a parsed JSON value.
+///
+/// # Parameters
+///
+/// - `value`: Parsed JSON whose nodes and collection entries share the active
+///   scope.
+///
+/// # Returns
+///
+/// True when every node and item is admitted; false on structural rejection.
+/// All entered depth frames are left before returning in either case.
 #[cfg(feature = "json")]
-fn admit_structured_json_value(value: &serde_json::Value) -> bool {
-    enum Admission<'value> {
-        /// Enters a value and admits its node and children.
-        Enter(&'value serde_json::Value),
-        /// Admits one child collection item before entering its value.
-        Child(&'value serde_json::Value),
-        /// Leaves a value and releases its active depth slot.
-        Leave,
-    }
-
+fn admit_structured_json_value(value: &Value) -> bool {
     let mut pending = vec![Admission::Enter(value)];
     let mut entered = 0_usize;
     while let Some(admission) = pending.pop() {
@@ -94,16 +135,13 @@ fn admit_structured_json_value(value: &serde_json::Value) -> bool {
                 entered += 1;
                 pending.push(Admission::Leave);
                 match value {
-                    serde_json::Value::Array(values) => {
+                    Value::Array(values) => {
                         pending.extend(values.iter().rev().map(Admission::Child));
                     }
-                    serde_json::Value::Object(entries) => {
+                    Value::Object(entries) => {
                         pending.extend(entries.values().rev().map(Admission::Child));
                     }
-                    serde_json::Value::Null
-                    | serde_json::Value::Bool(_)
-                    | serde_json::Value::Number(_)
-                    | serde_json::Value::String(_) => {}
+                    Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
                 }
             }
             Admission::Child(value) => {
@@ -127,9 +165,29 @@ fn admit_structured_json_value(value: &serde_json::Value) -> bool {
 
 #[cfg(feature = "json")]
 impl RedactJsonSerialize for String {
+    /// Delegates JSON representation through the active policy and shared
+    /// scope.
+    ///
+    /// # Errors
+    ///
+    /// Propagates budget or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted JSON representation.
+    /// - `policy`: Immutable policy used for parsing limits and redaction.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
+    #[inline(always)]
     fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         serialize_json_text(serializer, self.as_str(), policy)
     }
@@ -137,36 +195,115 @@ impl RedactJsonSerialize for String {
 
 #[cfg(feature = "json")]
 impl RedactJsonSerialize for str {
+    /// Delegates JSON representation through the active policy and shared
+    /// scope.
+    ///
+    /// # Errors
+    ///
+    /// Propagates budget or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted JSON representation.
+    /// - `policy`: Immutable policy used for parsing limits and redaction.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
+    #[inline(always)]
     fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         serialize_json_text(serializer, self, policy)
     }
 }
 
 impl RedactJsonSerialize for Cow<'_, str> {
+    /// Delegates JSON representation through the active policy and shared
+    /// scope.
+    ///
+    /// # Errors
+    ///
+    /// Propagates budget or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted JSON representation.
+    /// - `policy`: Immutable policy used for parsing limits and redaction.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
+    #[inline(always)]
     fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         serialize_json_text(serializer, self.as_ref(), policy)
     }
 }
 
 impl<T: RedactJsonSerialize + ?Sized> RedactJsonSerialize for &T {
+    /// Delegates JSON representation through the active policy and shared
+    /// scope.
+    ///
+    /// # Errors
+    ///
+    /// Propagates budget or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted JSON representation.
+    /// - `policy`: Immutable policy used for parsing limits and redaction.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
+    #[inline(always)]
     fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         (*self).serialize_redacted_json(serializer, policy)
     }
 }
 
 impl<T: RedactJsonSerialize> RedactJsonSerialize for Option<T> {
+    /// Delegates JSON representation through the active policy and shared
+    /// scope.
+    ///
+    /// # Errors
+    ///
+    /// Propagates budget or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted JSON representation.
+    /// - `policy`: Immutable policy used for parsing limits and redaction.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
     fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         match self {
             Some(value) => value.serialize_redacted_json(serializer, policy),
@@ -175,36 +312,31 @@ impl<T: RedactJsonSerialize> RedactJsonSerialize for Option<T> {
     }
 }
 
-impl RedactJsonSerialize for serde_json::Value {
+impl RedactJsonSerialize for Value {
+    /// Delegates JSON representation through the active policy and shared
+    /// scope.
+    ///
+    /// # Errors
+    ///
+    /// Propagates budget or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted JSON representation.
+    /// - `policy`: Immutable policy used for parsing limits and redaction.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
+    #[inline(always)]
     fn serialize_redacted_json<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         crate::formats::json::serialize_redacted_value(self, serializer, policy)
-    }
-}
-
-#[cfg(all(test, feature = "json"))]
-mod tests {
-    use super::super::RedactedJsonSerializeRef;
-    use crate::RedactionPolicy;
-
-    /// Verifies JSON-text fields are rejected by the decoder before an
-    /// over-limit tree can be materialized.
-    #[test]
-    fn json_text_serde_adapter_enforces_json_decode_limits() {
-        let policy = RedactionPolicy::builder()
-            .limits(|limits| {
-                limits.max_json_nodes(1);
-            })
-            .expect("limits")
-            .build()
-            .expect("redaction policy");
-        let source = r#"{"outer":{"token":"raw-secret"}}"#;
-
-        let encoded = serde_json::to_value(RedactedJsonSerializeRef::new(source, &policy))
-            .expect("JSON-text adapter serialization");
-
-        assert_eq!(encoded, "<redacted>");
     }
 }

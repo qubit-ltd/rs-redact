@@ -20,9 +20,10 @@ use serde::ser::SerializeMap;
 use super::RedactLevelSerialize;
 use super::RedactedLevelSerializeRef;
 use super::budget_serialize::BudgetSerialize;
+use super::key_payload::KeyPayload;
 use super::redact_serialize_scope::admit_collection_items;
 use super::redact_serialize_scope::admit_input;
-use super::redact_serialize_scope::remaining_output_bytes;
+use super::redact_serialize_scope::remaining_payload_bytes;
 use crate::RedactionPolicy;
 use crate::Sensitivity;
 
@@ -30,6 +31,30 @@ use crate::Sensitivity;
 #[doc(hidden)]
 pub trait RedactMapKeySerialize {
     /// Serializes masked keys and rejects collisions introduced by masking.
+    ///
+    /// `Some(value_level)` applies that explicit level to values; `None`
+    /// preserves their ordinary representation under the shared budget.
+    ///
+    /// # Errors
+    ///
+    /// Returns key collision, admission, or downstream serialization errors.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the map with admitted,
+    ///   collision-free keys.
+    /// - `policy`: Immutable policy controlling redaction and resource limits.
+    /// - `key_level`: Explicit sensitivity applied to each map key.
+    /// - `value_level`: Some level applies explicit leaf masking; None uses
+    ///   ordinary budgeted serialization.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
     fn serialize_redacted_map_keys<S>(
         &self,
         serializer: S,
@@ -41,6 +66,8 @@ pub trait RedactMapKeySerialize {
         S: Serializer;
 }
 
+/// Generates sensitive-key serialization with payload admission and collision
+/// checks.
 macro_rules! map_key_serialize {
     ($map:ty) => {
         impl<K, V> RedactMapKeySerialize for $map
@@ -48,6 +75,29 @@ macro_rules! map_key_serialize {
             K: AsRef<str>,
             V: Serialize + RedactLevelSerialize,
         {
+            /// Masks admitted keys, rejects collisions, and serializes values under one
+            /// scope.
+            ///
+            /// # Errors
+            ///
+            /// Returns key collision, admission, or downstream serializer errors.
+            ///
+            /// # Type Parameters
+            ///
+            /// - `S`: Downstream serializer defining the success and error types.
+            ///
+            /// # Parameters
+            ///
+            /// - `serializer`: Destination receiving the map with admitted,
+            ///   collision-free keys.
+            /// - `policy`: Immutable policy controlling redaction and resource limits.
+            /// - `key_level`: Explicit sensitivity applied to each map key.
+            /// - `value_level`: Some level applies explicit leaf masking; None uses
+            ///   ordinary budgeted serialization.
+            ///
+            /// # Returns
+            ///
+            /// The destination result after all emitted data passes shared admission.
             fn serialize_redacted_map_keys<S>(
                 &self,
                 serializer: S,
@@ -77,18 +127,19 @@ macro_rules! map_key_serialize {
                         if policy.is_disabled() {
                             Cow::Borrowed(raw)
                         } else {
-                            let (masked, truncated) =
-                                policy
-                                    .masking()
-                                    .mask_bounded_with_truncation(key_level, raw, remaining_output_bytes());
+                            let (masked, truncated) = policy.masking().mask_bounded_with_truncation(
+                                key_level,
+                                raw,
+                                remaining_payload_bytes(),
+                            );
                             if truncated {
-                                return Err(S::Error::custom("redaction map key output budget exceeded"));
+                                return Err(S::Error::custom("redaction map key payload budget exceeded"));
                             }
                             masked
                         }
                     };
-                    if key.len() > remaining_output_bytes() {
-                        return Err(S::Error::custom("redaction map key output budget exceeded"));
+                    if key.len() > remaining_payload_bytes() {
+                        return Err(S::Error::custom("redaction map key payload budget exceeded"));
                     }
                     if !emitted.insert(key.to_string()) {
                         return Err(S::Error::custom("redacted map keys collide"));
@@ -110,16 +161,3 @@ macro_rules! map_key_serialize {
 
 map_key_serialize!(HashMap<K, V>);
 map_key_serialize!(BTreeMap<K, V>);
-
-/// Already transformed key whose source bytes were admitted before masking.
-struct KeyPayload<'a>(&'a str);
-
-impl Serialize for KeyPayload<'_> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        if !super::redact_serialize_scope::admit_node() {
-            return Err(S::Error::custom("redaction map key structural budget exceeded"));
-        }
-        let _node = super::serde_node_guard::SerdeNodeGuard;
-        super::redact_serialize_scope::serialize_payload(serializer, self.0)
-    }
-}

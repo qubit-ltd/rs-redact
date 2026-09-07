@@ -9,6 +9,7 @@
 
 /// Result of admitting one structural node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[must_use]
 pub(crate) enum StructuralEntry {
     /// The node is admitted.
     Entered,

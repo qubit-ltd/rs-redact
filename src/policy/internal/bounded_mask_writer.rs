@@ -30,6 +30,7 @@ impl BoundedMaskWriter {
     ///
     /// An empty writer that grows only for retained masked bytes.
     #[must_use]
+    #[inline(always)]
     pub(in crate::policy) fn new(max_bytes: usize) -> Self {
         Self {
             output: String::new(),
@@ -42,7 +43,9 @@ impl BoundedMaskWriter {
     ///
     /// # Returns
     ///
-    /// The owned masked UTF-8 prefix within the configured byte budget.
+    /// The owned masked UTF-8 prefix and whether any submitted bytes were
+    /// omitted by the configured byte budget.
+    #[inline(always)]
     pub(in crate::policy) fn finish(self) -> (String, bool) {
         (self.output, self.truncated)
     }

@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Monotonic identities for independently published transactions.
+//! Process-local identities for independently published transactions.
 
 #[cfg(test)]
 use std::cell::Cell;
@@ -22,7 +22,12 @@ thread_local! {
 /// Process-local source for transaction identities.
 static NEXT_TRANSACTION_ID: AtomicU64 = AtomicU64::new(1);
 
-/// Returns a fresh non-zero transaction identity.
+/// Allocates a process-local transaction identity using a wrapping counter.
+///
+/// # Returns
+///
+/// The next process-local identifier. The counter wraps after exhausting
+/// `u64`; identities are not persistent or globally unique identifiers.
 #[inline]
 pub(super) fn next_transaction_id() -> u64 {
     #[cfg(test)]

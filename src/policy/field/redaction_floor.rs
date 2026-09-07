@@ -20,6 +20,19 @@ use crate::policy::internal::RedactionPolicyInner;
 ///
 /// A floor contains sensitive-field rules, matching behavior, and an
 /// unknown-field fallback. It intentionally has no allow rules or mask table.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::RedactionFloor;
+/// use qubit_redact::RedactionPolicy;
+/// use qubit_redact::Sensitivity;
+///
+/// let floor = RedactionFloor::builder().raise("pin", Sensitivity::Secret)?.build()?;
+/// let policy = RedactionPolicy::standard().with_floor(floor);
+/// assert_eq!(policy.sensitivity_for("pin"), Some(Sensitivity::Secret));
+/// # Ok::<(), qubit_redact::PolicyError>(())
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionFloor {
     /// Shared immutable rule state containing only minimum protections.
@@ -49,23 +62,16 @@ static STANDARD_FLOOR: LazyLock<RedactionFloor> = LazyLock::new(|| {
 impl RedactionFloor {
     /// Returns the built-in conservative floor.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn standard() -> Self {
         STANDARD_FLOOR.clone()
     }
 
     /// Creates a deterministic empty floor builder.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn builder() -> RedactionFloorBuilder {
         RedactionFloorBuilder::empty()
-    }
-
-    /// Creates a floor builder by copying `self` exactly.
-    #[must_use]
-    #[inline]
-    pub fn to_builder(&self) -> RedactionFloorBuilder {
-        RedactionFloorBuilder::from_floor(self)
     }
 
     /// Iterates the floor's canonical sensitive rules.
@@ -75,11 +81,18 @@ impl RedactionFloor {
             .iter()
             .map(|(field, level)| SensitiveFieldRule::new(field, *level))
     }
+
+    /// Creates a floor builder by copying `self` exactly.
+    #[must_use]
+    #[inline(always)]
+    pub fn to_builder(&self) -> RedactionFloorBuilder {
+        RedactionFloorBuilder::from_floor(self)
+    }
 }
 
 impl Default for RedactionFloor {
     /// Returns the built-in conservative floor.
-    #[inline]
+    #[inline(always)]
     fn default() -> Self {
         Self::standard()
     }
@@ -87,6 +100,7 @@ impl Default for RedactionFloor {
 
 impl fmt::Display for RedactionFloor {
     /// Writes the type name used by diagnostic formatting.
+    #[inline(always)]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("RedactionFloor")
     }

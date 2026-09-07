@@ -158,7 +158,7 @@ impl RedactionPolicy {
     /// [`RedactionFloor::standard`], so it never observes later process-wide
     /// default installations.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn standard() -> Self {
         STANDARD_POLICY.clone()
     }
@@ -170,7 +170,7 @@ impl RedactionPolicy {
     /// protective than [`Self::standard`] but may reduce diagnostic detail.
     /// Non-root HTTP and URI paths are hidden when their features are enabled.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn strict() -> Self {
         STRICT_POLICY.clone()
     }
@@ -191,44 +191,12 @@ impl RedactionPolicy {
         policy
     }
 
-    /// Returns whether this policy publishes original values while retaining
-    /// limits and control-character escaping.
-    ///
-    /// A `true` result means confidentiality redaction is disabled.
-    #[must_use]
-    pub const fn is_disabled(&self) -> bool {
-        self.disabled
-    }
-
-    /// Changes the global redaction switch and returns this policy for
-    /// chaining.
-    ///
-    /// # Warning
-    ///
-    /// Passing `true` allows every supported redaction entry to publish its
-    /// original value. The caller owns authorization and operational controls;
-    /// the framework does not distinguish debugging use from misuse.
-    #[must_use]
-    pub fn set_disabled(&mut self, disabled: bool) -> &mut Self {
-        self.disabled = disabled;
-        self
-    }
-
     /// Creates a deterministic builder with no application rules and the
     /// standard minimum-protection floor.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn builder() -> RedactionPolicyBuilder {
         RedactionPolicyBuilder::new()
-    }
-
-    /// Creates a builder that exactly copies `self`.
-    ///
-    /// The copy includes application rules, limits, and the attached floor.
-    #[must_use]
-    #[inline]
-    pub fn to_builder(&self) -> RedactionPolicyBuilder {
-        RedactionPolicyBuilder::from_policy(self)
     }
 
     /// Creates a policy from fully resolved field rules and resource limits.
@@ -256,9 +224,19 @@ impl RedactionPolicy {
         }
     }
 
+    /// Returns whether this policy publishes original values while retaining
+    /// limits and control-character escaping.
+    ///
+    /// A `true` result means confidentiality redaction is disabled.
+    #[must_use]
+    #[inline(always)]
+    pub const fn is_disabled(&self) -> bool {
+        self.disabled
+    }
+
     /// Returns all static limits used by this policy.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub const fn limits(&self) -> &RedactionLimits {
         &self.limits
     }
@@ -266,7 +244,7 @@ impl RedactionPolicy {
     /// Returns the unified HTTP context policy.
     #[must_use]
     #[cfg(feature = "http")]
-    #[inline]
+    #[inline(always)]
     pub fn http(&self) -> &crate::formats::http::HttpPolicy {
         self.http.as_ref()
     }
@@ -274,7 +252,7 @@ impl RedactionPolicy {
     /// Returns the unified URI context policy.
     #[must_use]
     #[cfg(feature = "uri")]
-    #[inline]
+    #[inline(always)]
     pub fn uri(&self) -> &crate::formats::uri::UriPolicy {
         self.uri.as_ref()
     }
@@ -282,13 +260,14 @@ impl RedactionPolicy {
     /// Returns the behavior for root and array JSON scalar values.
     #[must_use]
     #[cfg(feature = "json")]
-    #[inline]
+    #[inline(always)]
     pub const fn unkeyed_json_value_policy(&self) -> UnkeyedJsonValuePolicy {
         self.unkeyed_json_value_policy
     }
+
     /// Returns the immutable field rules without diagnostic resource limits.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub const fn rules(&self) -> &RedactionRules {
         &self.rules
     }
@@ -296,24 +275,108 @@ impl RedactionPolicy {
     /// Returns the attached minimum floor, or `None` when it was explicitly
     /// disabled.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn floor(&self) -> Option<&RedactionFloor> {
         self.rules.floor()
     }
 
+    /// Returns the final sensitivity for `field` after applying application
+    /// rules and the enabled floor.
+    ///
+    /// Returns `None` only when neither layer classifies the field as
+    /// sensitive.
+    #[must_use]
+    #[inline(always)]
+    pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
+        self.rules.sensitivity_for(field)
+    }
+
+    /// Returns the application layer's field-name matching mode.
+    ///
+    /// An attached floor may use a different matching mode for its independent
+    /// classification.
+    #[must_use]
+    #[inline(always)]
+    pub fn matching(&self) -> FieldNameMatching {
+        self.rules.matching()
+    }
+
+    /// Returns the application layer's fallback for unclassified fields.
+    ///
+    /// An attached floor applies its own fallback independently.
+    #[must_use]
+    #[inline(always)]
+    pub fn unknown_field_policy(&self) -> UnknownFieldPolicy {
+        self.rules.unknown_field_policy()
+    }
+
+    /// Returns the single mask table used by every sensitivity decision.
+    ///
+    /// Field classification determines the effective sensitivity; this table
+    /// determines how that sensitivity is rendered. Floors never own a second
+    /// mask table.
+    #[must_use]
+    #[inline(always)]
+    pub fn masking(&self) -> &MaskingPolicy {
+        self.masking.as_ref()
+    }
+
+    /// Iterates sensitive rules configured in the application layer only.
+    ///
+    /// Use [`Self::floor`] to inspect the independent minimum-protection
+    /// rules.
+    #[inline(always)]
+    pub fn application_sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
+        self.rules.application_sensitive_rules()
+    }
+
+    /// Iterates allow rules configured in the application layer only.
+    ///
+    /// These rules never bypass an enabled floor.
+    #[inline(always)]
+    pub fn application_allow_rules(&self) -> impl Iterator<Item = AllowRule<'_>> {
+        self.rules.application_allow_rules()
+    }
+
+    /// Changes the global redaction switch and returns this policy for
+    /// chaining.
+    ///
+    /// # Warning
+    ///
+    /// Passing `true` allows every supported redaction entry to publish its
+    /// original value. The caller owns authorization and operational controls;
+    /// the framework does not distinguish debugging use from misuse.
+    #[must_use]
+    #[inline(always)]
+    pub fn set_disabled(&mut self, disabled: bool) -> &mut Self {
+        self.disabled = disabled;
+        self
+    }
+
+    /// Creates a builder that exactly copies `self`.
+    ///
+    /// The copy includes application rules, limits, and the attached floor.
+    #[must_use]
+    #[inline(always)]
+    pub fn to_builder(&self) -> RedactionPolicyBuilder {
+        RedactionPolicyBuilder::from_policy(self)
+    }
+
     /// Replaces the floor for this immutable policy.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn with_floor(mut self, floor: RedactionFloor) -> Self {
         self.rules = self.rules.with_floor(floor);
         self
     }
+
     /// Disables every floor for this immutable policy.
     ///
     /// # Security
     ///
     /// This explicitly removes minimum protection inherited from any source.
     #[must_use]
+    #[inline(always)]
     pub fn disable_floor(mut self) -> Self {
         self.rules = self.rules.disable_floor();
         self
@@ -324,93 +387,37 @@ impl RedactionPolicy {
     ///
     /// This is useful for diagnostics about configured application rules. Use
     /// [`Self::sensitivity_for`] for the final security decision.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub fn classify_field<'a>(&'a self, field: &str) -> FieldClassification<'a> {
         self.rules.classify_field(field)
     }
 
-    /// Returns the final sensitivity for `field` after applying application
-    /// rules and the enabled floor.
-    ///
-    /// Returns `None` only when neither layer classifies the field as
-    /// sensitive.
-    #[must_use]
-    #[inline]
-    pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
-        self.rules.sensitivity_for(field)
-    }
-
     /// Resolves final sensitivity with exact-only field matching.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub(crate) fn sensitivity_for_exact(&self, field: &str) -> Option<Sensitivity> {
         self.rules.sensitivity_for_exact(field)
     }
 
     /// Resolves final sensitivity with exact-only field matching.
-    #[inline]
+    #[inline(always)]
     pub(crate) fn resolve_field_exact(&self, field: &str) -> super::ResolvedField {
         self.rules.resolve_field_exact(field)
-    }
-
-    /// Returns the application layer's field-name matching mode.
-    ///
-    /// An attached floor may use a different matching mode for its independent
-    /// classification.
-    #[must_use]
-    #[inline]
-    pub fn matching(&self) -> FieldNameMatching {
-        self.rules.matching()
-    }
-
-    /// Returns the application layer's fallback for unclassified fields.
-    ///
-    /// An attached floor applies its own fallback independently.
-    #[must_use]
-    #[inline]
-    pub fn unknown_field_policy(&self) -> UnknownFieldPolicy {
-        self.rules.unknown_field_policy()
-    }
-    /// Returns the single mask table used by every sensitivity decision.
-    ///
-    /// Field classification determines the effective sensitivity; this table
-    /// determines how that sensitivity is rendered. Floors never own a second
-    /// mask table.
-    #[must_use]
-    #[inline]
-    pub fn masking(&self) -> &MaskingPolicy {
-        self.masking.as_ref()
     }
 
     /// Replaces the mask table while preserving all classification and limit
     /// settings. This is used by format boundaries that own the mask policy.
     #[doc(hidden)]
     #[cfg(feature = "uri")]
+    #[inline(always)]
     pub(crate) fn with_masking(mut self, masking: MaskingPolicy) -> Self {
         self.masking = Arc::new(masking);
         self
     }
 
-    /// Iterates sensitive rules configured in the application layer only.
-    ///
-    /// Use [`Self::floor`] to inspect the independent minimum-protection
-    /// rules.
-    #[inline]
-    pub fn application_sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
-        self.rules.application_sensitive_rules()
-    }
-
-    /// Iterates allow rules configured in the application layer only.
-    ///
-    /// These rules never bypass an enabled floor.
-    #[inline]
-    pub fn application_allow_rules(&self) -> impl Iterator<Item = AllowRule<'_>> {
-        self.rules.application_allow_rules()
-    }
-
     /// Resolves final sensitivity for `field`.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub(crate) fn resolve_field(&self, field: &str) -> super::ResolvedField {
         self.rules.resolve_field(field)
@@ -419,6 +426,7 @@ impl RedactionPolicy {
 
 impl Default for RedactionPolicy {
     /// Clones the fixed standard policy.
+    #[inline(always)]
     fn default() -> Self {
         STANDARD_POLICY.clone()
     }

@@ -30,6 +30,7 @@ pub struct RedactedKeyedSerializeRef<'value, 'key, 'policy, T: ?Sized, K: ?Sized
 impl<'value, 'key, 'policy, T: ?Sized, K: ?Sized> RedactedKeyedSerializeRef<'value, 'key, 'policy, T, K> {
     /// Creates a policy-carrying borrowed keyed-value adapter.
     #[must_use]
+    #[inline(always)]
     pub fn new(value: &'value T, key: &'key K, policy: &'policy RedactionPolicy) -> Self {
         Self { value, key, policy }
     }
@@ -40,6 +41,11 @@ where
     T: ?Sized + RedactLevelSerialize + Serialize,
     K: ?Sized + AsRef<str>,
 {
+    /// Runs this borrowed adapter under the shared policy and resource scope.
+    ///
+    /// # Errors
+    ///
+    /// Propagates admission failures and errors from the downstream serializer.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

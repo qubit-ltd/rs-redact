@@ -23,6 +23,17 @@ use crate::policy::internal::RedactionPolicyInner;
 use crate::policy::internal::visit_canonical_field_candidates;
 
 /// Immutable, cheap-to-clone field classification snapshot.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::RedactionPolicy;
+/// use qubit_redact::Sensitivity;
+///
+/// let policy = RedactionPolicy::standard();
+/// let rules = policy.rules();
+/// assert_eq!(rules.sensitivity_for("password"), Some(Sensitivity::Secret));
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionRules {
     /// Immutable application-owned classification rules.
@@ -34,6 +45,7 @@ pub struct RedactionRules {
 impl RedactionRules {
     /// Creates immutable rules from application rules and an optional floor.
     #[must_use]
+    #[inline(always)]
     pub(crate) fn new(application: RedactionPolicyInner, floor: Option<RedactionFloor>) -> Self {
         Self {
             application: Arc::new(application),
@@ -43,41 +55,14 @@ impl RedactionRules {
 
     /// Returns the attached minimum floor, if enabled.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn floor(&self) -> Option<&RedactionFloor> {
         self.floor.as_ref()
     }
 
-    /// Replaces the floor for this rules snapshot.
-    #[must_use]
-    #[inline]
-    pub fn with_floor(mut self, floor: RedactionFloor) -> Self {
-        self.floor = Some(floor);
-        self
-    }
-
-    /// Disables all floor protection for this rules snapshot.
-    ///
-    /// # Security
-    ///
-    /// This explicitly removes global and configured minimum protection. Use it
-    /// only when the caller intentionally accepts responsibility for doing so.
-    #[must_use]
-    pub fn disable_floor(mut self) -> Self {
-        self.floor = None;
-        self
-    }
-
-    /// Explains application-rule matching only; it is not the final safety
-    /// decision.
-    #[must_use]
-    pub fn classify_field<'a>(&'a self, field: &str) -> FieldClassification<'a> {
-        classify_inner(&self.application, field, self.application.matching, true)
-    }
-
     /// Resolves final sensitivity from application and floor layers.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
         match self.resolve_field(field) {
             ResolvedField::Sensitive { sensitivity } => Some(sensitivity),
@@ -85,68 +70,16 @@ impl RedactionRules {
         }
     }
 
-    /// Resolves final sensitivity using exact-only matching in both layers.
-    #[must_use]
-    #[inline]
-    pub(crate) fn sensitivity_for_exact(&self, field: &str) -> Option<Sensitivity> {
-        match self.resolve_field_exact(field) {
-            ResolvedField::Sensitive { sensitivity } => Some(sensitivity),
-            ResolvedField::PassThrough => None,
-        }
-    }
-
-    /// Resolves exact-only sensitivity from application and floor rules.
-    pub(crate) fn resolve_field_exact(&self, field: &str) -> ResolvedField {
-        let application = sensitivity_inner(&self.application, field, FieldNameMatching::Exact, true);
-        let floor = self
-            .floor
-            .as_ref()
-            .and_then(|floor| sensitivity_inner(&floor.inner, field, FieldNameMatching::Exact, false));
-        match self.floor.as_ref().zip(floor) {
-            Some((_floor, floor_level)) => ResolvedField::Sensitive {
-                sensitivity: application.map_or(floor_level, |level| level.max(floor_level)),
-            },
-            None => match application {
-                Some(sensitivity) => ResolvedField::Sensitive { sensitivity },
-                None => ResolvedField::PassThrough,
-            },
-        }
-    }
-
-    /// Resolves final sensitivity for `field` exactly once.
-    #[inline]
-    pub(crate) fn resolve_field(&self, field: &str) -> ResolvedField {
-        self.resolve_field_with_matching(field, self.application.matching)
-    }
-
-    /// Resolves final sensitivity using `matching` for application rules.
-    fn resolve_field_with_matching(&self, field: &str, matching: FieldNameMatching) -> ResolvedField {
-        let application = sensitivity_inner(&self.application, field, matching, true);
-        let floor = self
-            .floor
-            .as_ref()
-            .and_then(|floor| sensitivity_inner(&floor.inner, field, floor.inner.matching, false));
-        match floor {
-            Some(floor_level) => ResolvedField::Sensitive {
-                sensitivity: application.map_or(floor_level, |level| level.max(floor_level)),
-            },
-            None => match application {
-                Some(sensitivity) => ResolvedField::Sensitive { sensitivity },
-                None => ResolvedField::PassThrough,
-            },
-        }
-    }
-
     /// Returns the application layer's field-name matching mode.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn matching(&self) -> FieldNameMatching {
         self.application.matching
     }
 
     /// Returns the application fallback for unclassified fields.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn unknown_field_policy(&self) -> UnknownFieldPolicy {
         self.application.unknown_field_policy
     }
@@ -173,9 +106,91 @@ impl RedactionRules {
             )
     }
 
+    /// Replaces the floor for this rules snapshot.
+    #[must_use]
+    #[inline(always)]
+    pub fn with_floor(mut self, floor: RedactionFloor) -> Self {
+        self.floor = Some(floor);
+        self
+    }
+
+    /// Disables all floor protection for this rules snapshot.
+    ///
+    /// # Security
+    ///
+    /// This explicitly removes global and configured minimum protection. Use it
+    /// only when the caller intentionally accepts responsibility for doing so.
+    #[must_use]
+    #[inline(always)]
+    pub fn disable_floor(mut self) -> Self {
+        self.floor = None;
+        self
+    }
+
+    /// Explains application-rule matching only; it is not the final safety
+    /// decision.
+    #[must_use]
+    #[inline(always)]
+    pub fn classify_field<'a>(&'a self, field: &str) -> FieldClassification<'a> {
+        classify_inner(&self.application, field, self.application.matching, true)
+    }
+
+    /// Resolves final sensitivity using exact-only matching in both layers.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn sensitivity_for_exact(&self, field: &str) -> Option<Sensitivity> {
+        match self.resolve_field_exact(field) {
+            ResolvedField::Sensitive { sensitivity } => Some(sensitivity),
+            ResolvedField::PassThrough => None,
+        }
+    }
+
+    /// Resolves exact-only sensitivity from application and floor rules.
+    pub(crate) fn resolve_field_exact(&self, field: &str) -> ResolvedField {
+        let application = sensitivity_inner(&self.application, field, FieldNameMatching::Exact, true);
+        let floor = self
+            .floor
+            .as_ref()
+            .and_then(|floor| sensitivity_inner(&floor.inner, field, FieldNameMatching::Exact, false));
+        match self.floor.as_ref().zip(floor) {
+            Some((_floor, floor_level)) => ResolvedField::Sensitive {
+                sensitivity: application.map_or(floor_level, |level| level.max(floor_level)),
+            },
+            None => match application {
+                Some(sensitivity) => ResolvedField::Sensitive { sensitivity },
+                None => ResolvedField::PassThrough,
+            },
+        }
+    }
+
+    /// Resolves final sensitivity for `field` exactly once.
+    #[inline(always)]
+    pub(crate) fn resolve_field(&self, field: &str) -> ResolvedField {
+        self.resolve_field_with_matching(field, self.application.matching)
+    }
+
     /// Clones only the application-rule layer for builder reconstruction.
+    #[inline(always)]
     pub(crate) fn clone_application(&self) -> RedactionPolicyInner {
         (*self.application).clone()
+    }
+
+    /// Resolves final sensitivity using `matching` for application rules.
+    fn resolve_field_with_matching(&self, field: &str, matching: FieldNameMatching) -> ResolvedField {
+        let application = sensitivity_inner(&self.application, field, matching, true);
+        let floor = self
+            .floor
+            .as_ref()
+            .and_then(|floor| sensitivity_inner(&floor.inner, field, floor.inner.matching, false));
+        match floor {
+            Some(floor_level) => ResolvedField::Sensitive {
+                sensitivity: application.map_or(floor_level, |level| level.max(floor_level)),
+            },
+            None => match application {
+                Some(sensitivity) => ResolvedField::Sensitive { sensitivity },
+                None => ResolvedField::PassThrough,
+            },
+        }
     }
 }
 

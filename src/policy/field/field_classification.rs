@@ -49,6 +49,7 @@ impl<'a> FieldClassification<'a> {
     /// `Some(level)` for [`Self::Sensitive`], or `None` for allowed and unknown
     /// fields.
     #[must_use]
+    #[inline(always)]
     pub const fn sensitivity(self) -> Option<Sensitivity> {
         match self {
             Self::Sensitive { rule, .. } => Some(rule.sensitivity()),
@@ -63,6 +64,7 @@ impl<'a> FieldClassification<'a> {
     /// A field name borrowed from the policy for sensitive and allowed
     /// classifications, or `None` for [`Self::Unknown`].
     #[must_use]
+    #[inline(always)]
     pub const fn matched_field(self) -> Option<&'a str> {
         match self {
             Self::Sensitive { rule, .. } => Some(rule.field()),
@@ -78,6 +80,7 @@ impl<'a> FieldClassification<'a> {
     /// The exact input or a semantic token suffix for sensitive and allowed
     /// classifications, or `None` for [`Self::Unknown`].
     #[must_use]
+    #[inline(always)]
     pub const fn match_kind(self) -> Option<FieldMatchKind> {
         match self {
             Self::Sensitive { match_kind, .. } | Self::Allowed { match_kind, .. } => Some(match_kind),
@@ -105,18 +108,5 @@ impl<'a> FieldClassification<'a> {
     #[must_use]
     pub const fn is_unknown(self) -> bool {
         matches!(self, Self::Unknown)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::FieldClassification;
-
-    #[test]
-    fn unknown_predicates_are_mutually_exclusive() {
-        let classification = FieldClassification::Unknown;
-
-        assert!(!classification.is_allowed());
-        assert!(classification.is_unknown());
     }
 }

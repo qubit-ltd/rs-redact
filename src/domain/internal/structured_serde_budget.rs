@@ -7,12 +7,13 @@
 // =============================================================================
 //! Mutable counters for one structured Serde budget scope.
 
-/// Tracks structural and input counters for one nested Serde scope.
+/// Tracks structural, source, and logical payload counters for one nested Serde
+/// scope.
 pub(super) struct StructuredSerdeBudget {
-    /// Address identity of the policy reference that owns this budget.
+    /// Address identity of the owned policy snapshot that owns this budget.
     ///
-    /// The address is used only while the scope guard keeps that reference
-    /// borrowed and is never dereferenced.
+    /// An active policy frame keeps the snapshot alive; the identity is used
+    /// only for comparison and is never dereferenced.
     pub(super) policy_identity: usize,
     /// Limits copied from the active redaction policy.
     pub(super) policy: crate::policy::RedactionLimits,
@@ -27,5 +28,5 @@ pub(super) struct StructuredSerdeBudget {
     /// Input bytes admitted so far.
     pub(super) input_bytes: usize,
     /// Scalar payload bytes passed to the downstream serializer.
-    pub(super) output_bytes: usize,
+    pub(super) payload_bytes: usize,
 }

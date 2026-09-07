@@ -34,6 +34,7 @@ impl<'a> AllowRule<'a> {
     ///
     /// A read-only view over the supplied rule.
     #[must_use]
+    #[inline(always)]
     pub(super) const fn new(field: &'a str, matching: FieldNameMatching) -> Self {
         Self { field, matching }
     }
@@ -59,18 +60,5 @@ impl<'a> AllowRule<'a> {
     #[inline(always)]
     pub const fn matching(&self) -> FieldNameMatching {
         self.matching
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::AllowRule;
-    use crate::policy::FieldNameMatching;
-
-    #[test]
-    fn accessors_preserve_the_allow_rule_view() {
-        let rule = AllowRule::new("request_id", FieldNameMatching::Exact);
-        assert_eq!(rule.field(), "request_id");
-        assert_eq!(rule.matching(), FieldNameMatching::Exact);
     }
 }

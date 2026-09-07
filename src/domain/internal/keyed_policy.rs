@@ -11,7 +11,17 @@ use crate::RedactionPolicy;
 use crate::policy::ResolvedField;
 
 /// Resolves a runtime key through the active policy.
-#[inline]
+///
+/// # Parameters
+///
+/// - `policy`: Active immutable policy snapshot.
+/// - `key`: Raw runtime key normalized during resolution.
+///
+/// # Returns
+///
+/// The atomic sensitive or pass-through decision for the key.
+#[must_use]
+#[inline(always)]
 pub(crate) fn resolve_keyed_field(policy: &RedactionPolicy, key: &str) -> ResolvedField {
     policy.resolve_field(key)
 }

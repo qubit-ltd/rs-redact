@@ -9,7 +9,8 @@
 
 mod mask_policy;
 mod masking_policy;
+mod masking_policy_builder;
 
 pub use mask_policy::MaskPolicy;
 pub use masking_policy::MaskingPolicy;
-pub use masking_policy::MaskingPolicyBuilder;
+pub use masking_policy_builder::MaskingPolicyBuilder;

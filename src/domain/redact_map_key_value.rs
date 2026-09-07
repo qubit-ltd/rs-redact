@@ -9,6 +9,7 @@
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::hash::Hash;
 
 use super::RedactLevelValue;
@@ -16,13 +17,15 @@ use super::RedactionFields;
 use crate::Sensitivity;
 
 mod private {
-    pub trait Sealed {}
+    /// Restricts this capability to the supported representations.
+    pub trait Sealed {
+        // empty
+    }
 }
 
 /// Capability implemented for supported maps with level-capable keys.
 #[doc(hidden)]
 pub trait RedactMapKeyValue: private::Sealed {
-    /// Writes keys at `level` while retaining ordinary values.
     /// Writes map keys and optional values through their selected levels.
     #[doc(hidden)]
     fn write_redacted_map_levels(
@@ -36,15 +39,17 @@ pub trait RedactMapKeyValue: private::Sealed {
 
 impl<K, V> private::Sealed for HashMap<K, V>
 where
-    K: RedactLevelValue + std::fmt::Debug + Eq + Hash,
-    V: RedactLevelValue + std::fmt::Debug,
+    K: RedactLevelValue + Debug + Eq + Hash,
+    V: RedactLevelValue + Debug,
 {
 }
 impl<K, V> RedactMapKeyValue for HashMap<K, V>
 where
-    K: RedactLevelValue + std::fmt::Debug + Eq + Hash,
-    V: RedactLevelValue + std::fmt::Debug,
+    K: RedactLevelValue + Debug + Eq + Hash,
+    V: RedactLevelValue + Debug,
 {
+    /// Writes map entries using the explicitly selected key and optional value
+    /// levels.
     fn write_redacted_map_levels(
         &self,
         fields: &mut RedactionFields<'_, '_>,
@@ -57,15 +62,17 @@ where
 }
 impl<K, V> private::Sealed for BTreeMap<K, V>
 where
-    K: RedactLevelValue + std::fmt::Debug + Ord,
-    V: RedactLevelValue + std::fmt::Debug,
+    K: RedactLevelValue + Debug + Ord,
+    V: RedactLevelValue + Debug,
 {
 }
 impl<K, V> RedactMapKeyValue for BTreeMap<K, V>
 where
-    K: RedactLevelValue + std::fmt::Debug + Ord,
-    V: RedactLevelValue + std::fmt::Debug,
+    K: RedactLevelValue + Debug + Ord,
+    V: RedactLevelValue + Debug,
 {
+    /// Writes map entries using the explicitly selected key and optional value
+    /// levels.
     fn write_redacted_map_levels(
         &self,
         fields: &mut RedactionFields<'_, '_>,

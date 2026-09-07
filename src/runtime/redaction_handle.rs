@@ -6,13 +6,10 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Opaque references to one item published by a completed transaction.
-// qubit-style: allow multiple-public-types
-
-use std::fmt;
 
 /// Private reference to one redacted item produced during a batch transaction.
 ///
-/// A handle intentionally has no text formatting implementation. The public
+/// Debug output contains only transaction metadata, never item text. The public
 /// [`crate::RedactionBatchHandle`] is created from this private token before
 /// an operation returns to the caller.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -25,7 +22,17 @@ pub struct RedactionHandle {
 
 impl RedactionHandle {
     /// Creates a handle for one transaction-owned item.
+    ///
+    /// # Parameters
+    ///
+    /// - `transaction_id`: Identity of the issuing batch.
+    /// - `item_index`: Insertion index in that batch.
+    ///
+    /// # Returns
+    ///
+    /// An opaque runtime token carrying no item text.
     #[must_use]
+    #[inline(always)]
     pub(crate) const fn new(transaction_id: u64, item_index: usize) -> Self {
         Self {
             transaction_id,
@@ -34,30 +41,13 @@ impl RedactionHandle {
     }
 
     /// Returns the transaction identity and item position for facade wrapping.
+    ///
+    /// # Returns
+    ///
+    /// The transaction identity followed by the item index.
     #[must_use]
     #[inline(always)]
     pub(crate) const fn parts(self) -> (u64, usize) {
         (self.transaction_id, self.item_index)
     }
 }
-
-/// Explains why a private batch publication cannot resolve a handle.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RedactionHandleError {
-    /// The handle was created by a different redaction transaction.
-    DifferentTransaction,
-    /// The handle points outside the transaction's published item range.
-    MissingItem,
-}
-
-impl fmt::Display for RedactionHandleError {
-    /// Writes a stable diagnostic without including item contents.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::DifferentTransaction => formatter.write_str("the handle belongs to a different transaction"),
-            Self::MissingItem => formatter.write_str("the handle does not identify a published item"),
-        }
-    }
-}
-
-impl std::error::Error for RedactionHandleError {}

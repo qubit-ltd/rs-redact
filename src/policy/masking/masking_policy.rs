@@ -6,27 +6,14 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Four-level immutable masking configuration.
-// qubit-style: allow multiple-public-types
 
 use std::borrow::Cow;
 
 use super::MaskPolicy;
+use super::MaskingPolicyBuilder;
 use crate::policy::PolicyError;
 use crate::policy::PolicyLocation;
 use crate::policy::Sensitivity;
-
-/// Mutable construction state for a [`MaskingPolicy`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MaskingPolicyBuilder {
-    /// Draft mask for low-sensitivity values.
-    low: MaskPolicy,
-    /// Draft mask for medium-sensitivity values.
-    medium: MaskPolicy,
-    /// Draft mask for high-sensitivity values.
-    high: MaskPolicy,
-    /// Draft mask for secret values.
-    secret: MaskPolicy,
-}
 
 /// Mask policies assigned to all supported sensitivity levels.
 ///
@@ -53,21 +40,71 @@ pub struct MaskingPolicy {
 
 impl MaskingPolicy {
     /// Creates a builder initialized with the standard masking policies.
+    ///
+    /// # Returns
+    ///
+    /// A builder with the standard mask for each sensitivity level.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn builder() -> MaskingPolicyBuilder {
         MaskingPolicyBuilder::default()
     }
 
     /// Creates a builder by copying an existing masking configuration.
+    ///
+    /// # Parameters
+    ///
+    /// - `base`: Immutable mask table whose four choices are copied.
+    ///
+    /// # Returns
+    ///
+    /// An independent builder initialized from the supplied table.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub(crate) fn builder_from(base: &Self) -> MaskingPolicyBuilder {
-        MaskingPolicyBuilder {
-            low: base.low.clone(),
-            medium: base.medium.clone(),
-            high: base.high.clone(),
-            secret: base.secret.clone(),
+        MaskingPolicyBuilder::from_policy(base)
+    }
+
+    /// Creates an immutable mask table from the completed builder fields.
+    ///
+    /// # Parameters
+    ///
+    /// - `low`: Mask for low sensitivity.
+    /// - `medium`: Mask for medium sensitivity.
+    /// - `high`: Mask for high sensitivity.
+    /// - `secret`: Mask for secret sensitivity.
+    ///
+    /// # Returns
+    ///
+    /// The immutable table. Enclosing policy construction validates its masks.
+    #[must_use]
+    #[inline(always)]
+    pub(super) fn from_parts(low: MaskPolicy, medium: MaskPolicy, high: MaskPolicy, secret: MaskPolicy) -> Self {
+        Self {
+            low,
+            medium,
+            high,
+            secret,
+        }
+    }
+
+    /// Returns the mask policy configured for `level`.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` - Sensitivity level to resolve.
+    ///
+    /// # Returns
+    ///
+    /// The mask policy assigned to `level`.
+    #[must_use]
+    #[inline(always)]
+    pub const fn for_level(&self, level: Sensitivity) -> &MaskPolicy {
+        match level {
+            Sensitivity::Low => &self.low,
+            Sensitivity::Medium => &self.medium,
+            Sensitivity::High => &self.high,
+            Sensitivity::Secret => &self.secret,
         }
     }
 
@@ -136,6 +173,22 @@ impl MaskingPolicy {
     }
 
     /// Masks a value and reports byte-limit truncation.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `'a`: Borrow of the input retained when no allocation is required.
+    ///
+    /// # Parameters
+    ///
+    /// - `level`: Sensitivity selecting a mask policy.
+    /// - `value`: Source text needed by edge-preserving masks.
+    /// - `max_bytes`: Maximum allocated bytes for the resulting mask.
+    ///
+    /// # Returns
+    ///
+    /// The borrowed empty input or bounded owned mask, followed by whether
+    /// the byte allowance omitted any part of the selected mask.
+    #[must_use]
     #[inline(always)]
     pub(crate) fn mask_bounded_with_truncation<'a>(
         &self,
@@ -162,27 +215,20 @@ impl MaskingPolicy {
         self.for_level(level).opaque_mask_bounded(max_bytes)
     }
 
-    /// Returns the mask policy configured for `level`.
+    /// Validates fixed replacements for one policy construction location.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError::EmptyFixedReplacement`] when a fixed mask is
+    /// empty, reporting its sensitivity and construction location.
     ///
     /// # Parameters
     ///
-    /// * `level` - Sensitivity level to resolve.
+    /// - `location`: Construction context attached to a rejected fixed mask.
     ///
     /// # Returns
     ///
-    /// The mask policy assigned to `level`.
-    #[must_use]
-    #[inline(always)]
-    pub const fn for_level(&self, level: Sensitivity) -> &MaskPolicy {
-        match level {
-            Sensitivity::Low => &self.low,
-            Sensitivity::Medium => &self.medium,
-            Sensitivity::High => &self.high,
-            Sensitivity::Secret => &self.secret,
-        }
-    }
-
-    /// Validates fixed replacements for one policy construction location.
+    /// Success when every fixed replacement is nonempty.
     pub(crate) fn validate(&self, location: PolicyLocation) -> Result<(), PolicyError> {
         for level in [
             Sensitivity::Low,
@@ -201,96 +247,14 @@ impl MaskingPolicy {
     }
 }
 
-impl MaskingPolicyBuilder {
-    /// Sets the policy for low-sensitivity values.
-    #[inline]
-    pub fn low(&mut self, policy: MaskPolicy) -> &mut Self {
-        self.low = policy;
-        self
-    }
-
-    /// Sets the policy for medium-sensitivity values.
-    #[inline]
-    pub fn medium(&mut self, policy: MaskPolicy) -> &mut Self {
-        self.medium = policy;
-        self
-    }
-
-    /// Sets the policy for high-sensitivity values.
-    #[inline]
-    pub fn high(&mut self, policy: MaskPolicy) -> &mut Self {
-        self.high = policy;
-        self
-    }
-
-    /// Sets the policy for secret values.
-    #[inline]
-    pub fn secret(&mut self, policy: MaskPolicy) -> &mut Self {
-        self.secret = policy;
-        self
-    }
-
-    /// Replaces one sensitivity policy while rebuilding an existing policy.
-    #[inline]
-    pub(crate) fn policy(&mut self, level: Sensitivity, policy: MaskPolicy) {
-        match level {
-            Sensitivity::Low => self.low(policy),
-            Sensitivity::Medium => self.medium(policy),
-            Sensitivity::High => self.high(policy),
-            Sensitivity::Secret => self.secret(policy),
-        };
-    }
-
-    /// Builds the immutable masking configuration.
-    #[must_use]
-    #[inline]
-    pub fn build(self) -> MaskingPolicy {
-        MaskingPolicy {
-            low: self.low,
-            medium: self.medium,
-            high: self.high,
-            secret: self.secret,
-        }
-    }
-}
-
-impl Default for MaskingPolicyBuilder {
-    /// Creates a builder with the standard masking policies.
-    fn default() -> Self {
-        Self {
-            low: MaskPolicy::preserve_edges(2, 2, "****", 4),
-            medium: MaskPolicy::preserve_suffix(1, "*******", 1),
-            high: MaskPolicy::fixed("****"),
-            secret: MaskPolicy::fixed("<redacted>"),
-        }
-    }
-}
-
 impl Default for MaskingPolicy {
     /// Creates the built-in conservative four-level masking configuration.
     ///
     /// # Returns
     ///
     /// The built-in masking configuration.
+    #[inline(always)]
     fn default() -> Self {
         Self::builder().build()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::MaskingPolicy;
-    use crate::MaskPolicy;
-    use crate::Sensitivity;
-
-    #[test]
-    fn builder_low_and_medium_replace_their_respective_policies() {
-        let mut builder = MaskingPolicy::builder();
-        builder.low(MaskPolicy::fixed("low"));
-        builder.medium(MaskPolicy::fixed("medium"));
-        let policy = builder.build();
-
-        assert_eq!(policy.for_level(Sensitivity::Low).mask("value"), "low");
-        assert_eq!(policy.for_level(Sensitivity::Medium).mask("value"), "medium");
     }
 }

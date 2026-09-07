@@ -13,6 +13,7 @@ pub mod masking;
 mod policy_error;
 mod policy_location;
 mod redaction_limits;
+mod redaction_limits_builder;
 mod redaction_policy;
 mod redaction_policy_builder;
 mod redaction_rules_builder;
@@ -37,7 +38,7 @@ pub use masking::MaskingPolicyBuilder;
 pub use policy_error::PolicyError;
 pub use policy_location::PolicyLocation;
 pub use redaction_limits::RedactionLimits;
-pub use redaction_limits::RedactionLimitsBuilder;
+pub use redaction_limits_builder::RedactionLimitsBuilder;
 pub use redaction_policy::RedactionPolicy;
 pub use redaction_policy_builder::FieldsBuilder;
 #[cfg(feature = "http")]

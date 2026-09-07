@@ -1,6 +1,9 @@
 // =============================================================================
 //    Copyright (c) 2026 Haixing Hu.
+//
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Borrowed projections generated for redacted structured serialization.
 
@@ -13,10 +16,26 @@ use crate::RedactionPolicy;
 /// trait-bound error only when callers request structured serialization.
 pub trait RedactSerializeSource {
     /// A borrowed projection of this value's fields.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `'a`: Actual borrow of the source retained by the projection.
     type RedactedFields<'a>
     where
         Self: 'a;
 
     /// Borrows the fields under `policy` without cloning the source value.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `'value`: Borrow of the source retained by the returned projection.
+    ///
+    /// # Parameters
+    ///
+    /// - `policy`: Snapshot applied by the enclosing serialization scope.
+    ///
+    /// # Returns
+    ///
+    /// A lazy projection borrowing the source without visiting its fields.
     fn redacted_fields<'value>(&'value self, policy: &RedactionPolicy) -> Self::RedactedFields<'value>;
 }

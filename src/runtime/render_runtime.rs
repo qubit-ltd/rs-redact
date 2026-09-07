@@ -22,24 +22,41 @@ pub(super) struct RenderRuntime {
 
 impl RuntimeSession for RenderRuntime {
     /// Borrows the publication-independent rendering core.
+    ///
+    /// # Returns
+    ///
+    /// The accounting core borrowed without changing transaction state.
     #[inline(always)]
     fn runtime(&self) -> &RuntimeCore {
         &self.core
     }
 
     /// Mutably borrows the publication-independent rendering core.
+    ///
+    /// # Returns
+    ///
+    /// An exclusive borrow of the transaction accounting core.
     #[inline(always)]
     fn runtime_mut(&mut self) -> &mut RuntimeCore {
         &mut self.core
     }
 
     /// Identifies this runtime as rendering state.
+    ///
+    /// # Returns
+    ///
+    /// Whether this implementation observes sensitivity without rendering
+    /// output.
     #[inline(always)]
     fn is_inspection(&self) -> bool {
         false
     }
 
     /// Ignores inspection-only observations in rendering mode.
+    ///
+    /// # Parameters
+    ///
+    /// - `_sensitivity`: Classification ignored by this rendering mode.
     #[inline(always)]
     fn observe_sensitivity(&mut self, _sensitivity: Sensitivity) {
         // Rendering resolves sensitivities into output instead of accumulating
@@ -49,7 +66,16 @@ impl RuntimeSession for RenderRuntime {
 
 impl RenderRuntime {
     /// Creates rendering state governed by one immutable policy snapshot.
+    ///
+    /// # Parameters
+    ///
+    /// - `policy`: Immutable snapshot shared by the new transaction.
+    ///
+    /// # Returns
+    ///
+    /// Fresh mode-specific state with empty resource accounting.
     #[must_use]
+    #[inline(always)]
     pub(super) fn new(policy: Arc<RedactionPolicy>) -> Self {
         Self {
             core: RuntimeCore::new(policy),
@@ -67,7 +93,7 @@ mod tests {
     /// Rendering runtime exposes both core access paths and ignores inspection
     /// observations.
     #[test]
-    fn rendering_runtime_implements_its_typed_mode_contract() {
+    fn test_rendering_runtime_implements_its_typed_mode_contract() {
         let mut runtime = RenderRuntime::new(RedactionPolicy::standard().into());
 
         assert!(!RuntimeSession::is_inspection(&runtime));

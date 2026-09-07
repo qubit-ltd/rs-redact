@@ -7,9 +7,10 @@
 // =============================================================================
 //! Ordered-text transaction with compile-time publication ownership.
 
+use std::borrow::Cow;
+use std::fmt::Display;
 use std::sync::Arc;
 
-use super::field_rendering::redact_field_display_for_output;
 use super::render_runtime::RenderRuntime;
 use super::rendered_operation::RenderedOperation;
 use super::rendered_summary::rendered_summary;
@@ -19,7 +20,6 @@ use super::text_output_buffer::TextOutputBuffer;
 use super::transaction_guard::TransactionGuard;
 use super::transaction_phase::TransactionPhase;
 use crate::Redact;
-use crate::RedactionCompletion;
 use crate::RedactionPolicy;
 use crate::RedactionReason;
 use crate::RedactionSummary;
@@ -45,7 +45,16 @@ pub(crate) struct TextSession {
 
 impl TextSession {
     /// Creates a text transaction from one immutable policy snapshot.
+    ///
+    /// # Parameters
+    ///
+    /// - `policy`: Immutable snapshot governing this composition.
+    ///
+    /// # Returns
+    ///
+    /// An empty text transaction sharing the supplied policy snapshot.
     #[must_use]
+    #[inline(always)]
     pub(crate) fn new(policy: Arc<RedactionPolicy>) -> Self {
         Self {
             runtime: RenderRuntime::new(policy),
@@ -54,7 +63,15 @@ impl TextSession {
     }
 
     /// Appends trusted program-authored literal text.
-    #[must_use]
+    ///
+    /// # Parameters
+    ///
+    /// - `text`: Trusted static structure appended under the shared output
+    ///   allowance.
+    ///
+    /// # Returns
+    ///
+    /// This transaction for subsequent writes.
     #[inline(always)]
     pub(crate) fn literal(&mut self, text: &'static str) -> &mut Self {
         self.append_output_fragment(text);
@@ -62,21 +79,47 @@ impl TextSession {
     }
 
     /// Redacts and appends one scalar field in chain order.
-    #[must_use]
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Possibly unsized scalar implementing `Display`.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Raw key admitted before classification.
+    /// - `value`: Borrowed scalar formatted only if its selected policy needs
+    ///   it.
+    ///
+    /// # Returns
+    ///
+    /// This transaction after staging the safe field rendering.
     pub(crate) fn field<T>(&mut self, field: &str, value: &T) -> &mut Self
     where
-        T: std::fmt::Display + ?Sized,
+        T: Display + ?Sized,
     {
         if self.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        let rendered = self.redact_field_display_output(field, value);
+        let mut guard = TransactionGuard::new(self);
+        let rendered = super::scalar_operation::redact_field(guard.session(), field, value);
+        guard.commit();
         self.append_rendered_operation(rendered);
         self
     }
 
     /// Redacts and appends one structured domain value in chain order.
-    #[must_use]
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Possibly unsized domain value implementing `Redact`.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Domain value traversed while output admission remains open.
+    ///
+    /// # Returns
+    ///
+    /// This transaction after staging the domain rendering.
     pub(crate) fn value<T>(&mut self, value: &T) -> &mut Self
     where
         T: Redact + ?Sized,
@@ -97,6 +140,24 @@ impl TextSession {
     }
 
     /// Runs an argv adapter under panic rollback semantics.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `F`: Callback valid for any temporary adapter borrow.
+    ///
+    /// # Parameters
+    ///
+    /// - `configure`: One-shot callback writing through the borrowed argv
+    ///   adapter.
+    ///
+    /// # Returns
+    ///
+    /// This transaction after the callback's successful writes.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a callback panic after resetting the transaction to fresh
+    /// state.
     pub(crate) fn argv<F>(&mut self, configure: F) -> &mut Self
     where
         F: for<'session> FnOnce(&mut ArgvRedactionWriter<'session>),
@@ -112,6 +173,24 @@ impl TextSession {
     }
 
     /// Runs an environment adapter under panic rollback semantics.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `F`: Callback valid for any temporary adapter borrow.
+    ///
+    /// # Parameters
+    ///
+    /// - `configure`: One-shot callback writing through the borrowed env
+    ///   adapter.
+    ///
+    /// # Returns
+    ///
+    /// This transaction after the callback's successful writes.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a callback panic after resetting the transaction to fresh
+    /// state.
     pub(crate) fn env<F>(&mut self, configure: F) -> &mut Self
     where
         F: for<'session> FnOnce(&mut EnvRedactionWriter<'session>),
@@ -127,7 +206,24 @@ impl TextSession {
     }
 
     /// Runs a process adapter under panic rollback semantics.
-    #[must_use]
+    ///
+    /// # Type Parameters
+    ///
+    /// - `F`: Callback valid for any temporary adapter borrow.
+    ///
+    /// # Parameters
+    ///
+    /// - `configure`: One-shot callback writing through the borrowed process
+    ///   adapter.
+    ///
+    /// # Returns
+    ///
+    /// This transaction after the callback's successful writes.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a callback panic after resetting the transaction to fresh
+    /// state.
     pub(crate) fn process<F>(&mut self, configure: F) -> &mut Self
     where
         F: for<'session> FnOnce(&mut ProcessRedactionWriter<'session>),
@@ -143,6 +239,24 @@ impl TextSession {
     }
 
     /// Runs an HTTP adapter under panic rollback semantics.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `F`: Callback valid for any temporary adapter borrow.
+    ///
+    /// # Parameters
+    ///
+    /// - `configure`: One-shot callback writing through the borrowed http
+    ///   adapter.
+    ///
+    /// # Returns
+    ///
+    /// This transaction after the callback's successful writes.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a callback panic after resetting the transaction to fresh
+    /// state.
     #[cfg(feature = "http")]
     pub(crate) fn http<F>(&mut self, configure: F) -> &mut Self
     where
@@ -159,6 +273,24 @@ impl TextSession {
     }
 
     /// Runs a JSON adapter under panic rollback semantics.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `F`: Callback valid for any temporary adapter borrow.
+    ///
+    /// # Parameters
+    ///
+    /// - `configure`: One-shot callback writing through the borrowed json
+    ///   adapter.
+    ///
+    /// # Returns
+    ///
+    /// This transaction after the callback's successful writes.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a callback panic after resetting the transaction to fresh
+    /// state.
     #[cfg(feature = "json")]
     pub(crate) fn json<F>(&mut self, configure: F) -> &mut Self
     where
@@ -175,6 +307,24 @@ impl TextSession {
     }
 
     /// Runs a URI adapter under panic rollback semantics.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `F`: Callback valid for any temporary adapter borrow.
+    ///
+    /// # Parameters
+    ///
+    /// - `configure`: One-shot callback writing through the borrowed uri
+    ///   adapter.
+    ///
+    /// # Returns
+    ///
+    /// This transaction after the callback's successful writes.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a callback panic after resetting the transaction to fresh
+    /// state.
     #[cfg(feature = "uri")]
     pub(crate) fn uri<F>(&mut self, configure: F) -> &mut Self
     where
@@ -191,31 +341,50 @@ impl TextSession {
     }
 
     /// Consumes this transaction into its ordered text and summary.
+    ///
+    /// # Returns
+    ///
+    /// The final safe text and aggregate accounting, consuming this
+    /// transaction.
     #[must_use]
+    #[inline(always)]
     pub(crate) fn finish(self) -> RedactionTextOutput {
         RedactionTextOutput::new(self.output.publish(), self.runtime.core.into_summary())
     }
 
+    /// Commits one renderer result to the ordered publication buffer.
+    ///
+    /// # Parameters
+    ///
+    /// - `operation`: Escaped, bounded renderer output and its completion
+    ///   facts.
+    pub(crate) fn append_rendered_operation(&mut self, operation: RenderedOperation) {
+        let output_closed = operation.output_closed();
+        let (text, completion, reasons) = operation.into_parts();
+        self.record_summary(rendered_summary(completion, reasons));
+        self.append_output_fragment(&text);
+        if output_closed {
+            self.runtime.core.phase = TransactionPhase::OutputExhausted;
+        }
+    }
+
     /// Appends a chain fragment if its escaped form fits the output budget.
+    ///
+    /// # Parameters
+    ///
+    /// - `fragment`: Text escaped and atomically admitted under the remaining
+    ///   output budget.
     fn append_output_fragment(&mut self, fragment: &str) {
         if self.runtime.core.phase == TransactionPhase::OutputExhausted {
-            self.runtime.core.summary = self
-                .runtime
-                .core
-                .summary
-                .merge(RedactionSummary::exhausted(RedactionReason::OutputLimitReached));
+            self.runtime.core.summary = self.runtime.core.summary.merge(RedactionSummary::exhausted());
             return;
         }
-        let escaped = crate::output::log_escape::escape_log_control_characters(std::borrow::Cow::Borrowed(fragment));
+        let escaped = crate::output::log_escape::escape_log_control_characters(Cow::Borrowed(fragment));
         let used = self.runtime.core.budget.usage().output_bytes();
         let remaining = self.runtime.core.budget.output_limit().saturating_sub(used);
         if escaped.len() > remaining {
             self.runtime.core.phase = TransactionPhase::OutputExhausted;
-            self.runtime.core.summary = self
-                .runtime
-                .core
-                .summary
-                .merge(RedactionSummary::exhausted(RedactionReason::OutputLimitReached));
+            self.runtime.core.summary = self.runtime.core.summary.merge(RedactionSummary::exhausted());
             return;
         }
         self.output.push(&escaped);
@@ -226,6 +395,17 @@ impl TextSession {
     }
 
     /// Executes one user adapter under panic rollback semantics.
+    ///
+    /// # Parameters
+    ///
+    /// - `configure`: One-shot callback performing writes in the active
+    ///   transaction.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a callback panic after discarding unpublished transaction
+    /// state.
+    #[inline]
     fn run_adapter(&mut self, configure: impl FnOnce(&mut Self)) {
         let mut guard = TransactionGuard::new(self);
         configure(guard.session());
@@ -233,93 +413,65 @@ impl TextSession {
     }
 
     /// Appends output rendered by a structured domain writer.
+    ///
+    /// # Parameters
+    ///
+    /// - `output`: Domain frame text to escape and publish in order.
+    /// - `output_limit_reached`: Whether the domain sink rejected output,
+    ///   closing later work.
     fn append_domain_output(&mut self, output: &str, output_limit_reached: bool) {
         if output_limit_reached {
             let summary = if output.is_empty() || self.runtime.core.phase == TransactionPhase::OutputExhausted {
-                RedactionSummary::exhausted(RedactionReason::OutputLimitReached)
+                RedactionSummary::exhausted()
             } else {
                 RedactionSummary::truncated(RedactionReason::OutputLimitReached)
             };
             self.record_summary(summary);
         }
         self.append_output_fragment(output);
-    }
-
-    /// Commits one renderer result to the ordered publication buffer.
-    pub(crate) fn append_rendered_operation(&mut self, operation: RenderedOperation) {
-        let (text, completion, reasons) = operation.into_parts();
-        self.record_summary(rendered_summary(completion, reasons));
-        let replacement_could_not_fit = text.is_empty() && reasons.contains(RedactionReason::OutputLimitReached);
-        if completion == RedactionCompletion::Exhausted || replacement_could_not_fit {
+        if output_limit_reached {
             self.runtime.core.phase = TransactionPhase::OutputExhausted;
-            self.record_summary(RedactionSummary::exhausted(RedactionReason::OutputLimitReached));
-            return;
         }
-        self.append_output_fragment(&text);
-    }
-
-    /// Renders one scalar field without publishing it.
-    fn redact_field_display_output<T>(&mut self, field: &str, value: &T) -> RenderedOperation
-    where
-        T: std::fmt::Display + ?Sized,
-    {
-        if !self.admit_format_node(1) || !self.admit_domain_key(field) {
-            return super::operation_sink::OperationSink::exhausted(
-                String::new(),
-                RedactionReason::TraversalLimitReached,
-            )
-            .finish();
-        }
-        let render = redact_field_display_for_output(
-            self.policy(),
-            field,
-            value,
-            self.remaining_input_bytes().saturating_sub(field.len()),
-            self.remaining_output_bytes(),
-        );
-        self.record_input_usage(
-            field.len().saturating_add(render.presented_value_bytes),
-            field.len().saturating_add(render.inspected_value_bytes),
-        );
-        let mut sink = match render.completion {
-            RedactionCompletion::Complete => super::operation_sink::OperationSink::complete(render.text),
-            RedactionCompletion::Truncated => {
-                super::operation_sink::OperationSink::truncated(render.text, RedactionReason::OutputLimitReached)
-            }
-            RedactionCompletion::Exhausted => {
-                super::operation_sink::OperationSink::exhausted(render.text, RedactionReason::OutputLimitReached)
-            }
-        };
-        if render.reasons.contains(RedactionReason::InputLimitReached) {
-            sink = sink.with_reason(RedactionReason::InputLimitReached);
-        }
-        if render.reasons.contains(RedactionReason::FormattingFailed) {
-            sink = sink.with_reason(RedactionReason::FormattingFailed);
-        }
-        sink.finish()
     }
 }
 
 impl RuntimeSession for TextSession {
     /// Borrows the publication-independent text accounting core.
+    ///
+    /// # Returns
+    ///
+    /// The accounting core borrowed without changing transaction state.
     #[inline(always)]
     fn runtime(&self) -> &super::runtime_core::RuntimeCore {
         &self.runtime.core
     }
 
     /// Mutably borrows the publication-independent text accounting core.
+    ///
+    /// # Returns
+    ///
+    /// An exclusive borrow of the transaction accounting core.
     #[inline(always)]
     fn runtime_mut(&mut self) -> &mut super::runtime_core::RuntimeCore {
         &mut self.runtime.core
     }
 
     /// Identifies this session as rendering state.
+    ///
+    /// # Returns
+    ///
+    /// Whether this implementation observes sensitivity without rendering
+    /// output.
     #[inline(always)]
     fn is_inspection(&self) -> bool {
         false
     }
 
     /// Ignores inspection-only observations in text mode.
+    ///
+    /// # Parameters
+    ///
+    /// - `_sensitivity`: Classification ignored by this rendering mode.
     #[inline(always)]
     fn observe_sensitivity(&mut self, _sensitivity: Sensitivity) {
         // Text transactions render policy decisions instead of accumulating
@@ -329,6 +481,7 @@ impl RuntimeSession for TextSession {
 
 impl ResettableSession for TextSession {
     /// Replaces a panicked transaction with a fresh text transaction.
+    #[inline]
     fn reset_transaction(&mut self) {
         let policy = Arc::clone(&self.runtime.core.policy);
         *self = Self::new(policy);
