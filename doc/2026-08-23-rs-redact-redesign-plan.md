@@ -1,5 +1,7 @@
 # rs-redact 单 trait 与 derive 重构实施计划
 
+> Historical record / 历史材料：本文保留当时的设计与验证，不代表 0.7 当前契约。See [current design](design.md) / [当前设计](design.zh_CN.md).
+
 > **历史文档：** 本文是已执行的跨仓库实施记录，不是当前待执行计划。当前架构、默认 feature
 > 和公开契约以 [`design.zh_CN.md`](design.zh_CN.md) 与
 > [`user_guide.zh_CN.md`](user_guide.zh_CN.md) 为准。

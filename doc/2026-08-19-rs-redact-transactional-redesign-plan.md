@@ -1,5 +1,7 @@
 # rs-redact 可复用事务式脱敏架构实施计划
 
+> Historical record / 历史材料：本文保留当时的设计与验证，不代表 0.7 当前契约。See [current design](design.md) / [当前设计](design.zh_CN.md).
+
 > **历史文档：** 本文是已经完成并被后续重构取代的实施记录。当前架构、feature 和公开契约以
 > [`design.zh_CN.md`](design.zh_CN.md) 与 [`user_guide.zh_CN.md`](user_guide.zh_CN.md) 为准。
 

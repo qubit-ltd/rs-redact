@@ -1,5 +1,7 @@
 # rs-redact 与 rs-redact-derive 重构设计
 
+> Historical record / 历史材料：本文保留当时的设计与验证，不代表 0.7 当前契约。See [current design](design.md) / [当前设计](design.zh_CN.md).
+
 > **历史文档：** 本文记录 2026-08-23 的跨仓库重构基线。当前 `rs-redact` 架构与 feature 契约以
 > [`design.zh_CN.md`](design.zh_CN.md) 为准；与当前文档冲突的内容均已失效。
 
