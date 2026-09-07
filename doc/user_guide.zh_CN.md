@@ -6,7 +6,13 @@
 
 适用于 qubit-redact 0.8 的应用和库作者：先跑通日志和业务序列化共存，再配置领域类型、输入格式和预算。
 
-## 安装与实战：登录诊断
+## 概念模型
+
+qubit-redact 将源对象、策略快照和渲染结果分开处理。`RedactedView` 借用源对象，
+在每次格式化或序列化时应用创建时的策略；`redact_text()` 和 `to_json()` 则立即执行。
+批处理把多个输入放进同一份事务预算。上述结果都不会修改源对象。
+
+## 安装
 
 下面的依赖配置支持本节所有示例。
 
@@ -16,6 +22,12 @@ qubit-redact = { version = "0.8", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
+
+## 实战场景：登录诊断
+
+下面的场景从一个登录对象开始：业务序列化仍按类型声明工作，但诊断输出不能暴露密码。
+完成标准是诊断文本和 JSON 中都不出现原始密码，同时 `#[redact(serde)]` 明确的对象自身
+序列化边界保持有效。
 
 ```rust
 use qubit_redact::{Redact, Redactor};
@@ -508,8 +520,3 @@ cargo test --all-features
 ./align-ci.sh
 ./ci-check.sh
 ```
-
-
-## 许可证
-
-Apache-2.0，详见 [LICENSE](../LICENSE)。
