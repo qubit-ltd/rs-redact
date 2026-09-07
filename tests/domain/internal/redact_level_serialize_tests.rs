@@ -9,9 +9,13 @@
 
 #[cfg(feature = "bigdecimal")]
 use bigdecimal::BigDecimal;
+#[cfg(feature = "bigdecimal")]
 use qubit_redact::RedactionPolicy;
+#[cfg(feature = "bigdecimal")]
 use qubit_redact::Sensitivity;
+#[cfg(feature = "bigdecimal")]
 use qubit_redact::domain::internal::RedactSerializeScope;
+#[cfg(feature = "bigdecimal")]
 use qubit_redact::domain::internal::RedactedLevelSerializeRef;
 
 /// Verifies decimal leaves use the same cumulative bounded formatter as
