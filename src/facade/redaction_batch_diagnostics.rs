@@ -27,6 +27,8 @@ use crate::output::log_escape::escape_log_control_characters;
 /// The marker is escaped once when this object is created, so repeated
 /// resolution neither allocates nor permits control characters to forge log
 /// structure.
+/// The escaped marker is selected after publication and is outside the
+/// batch's output budget; a final logging sink may impose its own size limit.
 ///
 /// # Examples
 ///
@@ -50,7 +52,20 @@ impl RedactionBatchDiagnostics {
     ///
     /// `marker` is escaped immediately and reused for every fail-closed
     /// resolution.
+    ///
+    /// # Parameters
+    ///
+    /// - `output`: Completed batch publication retained by this diagnostic
+    ///   view.
+    /// - `marker`: Fallback text escaped once outside the completed batch’s
+    ///   byte budget.
+    ///
+    /// # Returns
+    ///
+    /// A diagnostic view sharing one escaped fallback across all incomplete or
+    /// invalid items.
     #[must_use]
+    #[inline]
     pub(crate) fn new(output: RedactionBatchOutput, marker: &str) -> Self {
         let marker = escape_log_control_characters(Cow::Borrowed(marker));
         Self {
@@ -64,6 +79,15 @@ impl RedactionBatchDiagnostics {
     /// The marker is returned when `handle` belongs to another batch, names a
     /// missing item, or identifies an item whose completion is `Truncated` or
     /// `Exhausted`. No allocation occurs during resolution.
+    ///
+    /// # Parameters
+    ///
+    /// - `handle`: Opaque capability issued by a batch.
+    ///
+    /// # Returns
+    ///
+    /// Borrowed complete item text, or this view’s shared escaped fallback
+    /// marker.
     #[must_use]
     #[inline]
     pub fn text(&self, handle: RedactionBatchHandle) -> &RedactedText {
@@ -75,6 +99,11 @@ impl RedactionBatchDiagnostics {
     }
 
     /// Returns the aggregate accounting summary for the underlying batch.
+    ///
+    /// # Returns
+    ///
+    /// The underlying batch’s aggregate completion, reasons, and resource
+    /// usage.
     #[must_use]
     #[inline(always)]
     pub const fn summary(&self) -> &RedactionSummary {
@@ -82,6 +111,9 @@ impl RedactionBatchDiagnostics {
     }
 }
 
+// These regressions forge an invalid index through facade-private handle
+// fields. Keep them local instead of widening the public or crate-visible
+// handle contract.
 #[cfg(test)]
 mod tests {
     use std::ptr;

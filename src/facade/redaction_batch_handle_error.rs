@@ -7,10 +7,12 @@
 // =============================================================================
 //! Errors raised when resolving a batch capability.
 
+use std::error::Error;
 use std::fmt;
 
 /// Error returned when a batch output cannot resolve a handle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[must_use]
 pub(crate) enum RedactionBatchHandleError {
     /// The handle was created by a different batch.
     DifferentBatch,
@@ -20,6 +22,19 @@ pub(crate) enum RedactionBatchHandleError {
 
 impl fmt::Display for RedactionBatchHandleError {
     /// Renders a stable diagnostic that contains no protected text.
+    ///
+    /// # Parameters
+    ///
+    /// - `formatter`: Destination receiving a value-free failure description.
+    ///
+    /// # Returns
+    ///
+    /// Success after writing the diagnostic.
+    ///
+    /// # Errors
+    ///
+    /// Propagates a destination formatting error.
+    #[inline]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::DifferentBatch => "the handle belongs to a different batch",
@@ -28,4 +43,4 @@ impl fmt::Display for RedactionBatchHandleError {
     }
 }
 
-impl std::error::Error for RedactionBatchHandleError {}
+impl Error for RedactionBatchHandleError {}

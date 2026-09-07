@@ -163,7 +163,7 @@ pub(super) fn redact_os_pair_bounded_with_policy(
     (pair, locally_truncated)
 }
 
-/// Escapes an owned string and labels it safe for text-log display.
+/// Escapes an owned string for text-log display.
 ///
 /// # Parameters
 ///
@@ -171,7 +171,7 @@ pub(super) fn redact_os_pair_bounded_with_policy(
 ///
 /// # Returns
 ///
-/// An owned typed log-safe value.
+/// An owned string with log-control characters escaped.
 #[inline(always)]
 #[must_use]
 fn log_safe_owned(value: String) -> String {
@@ -224,7 +224,7 @@ mod tests {
 
         let empty = redact_os_pairs_with_policy(&policy, pairs, 0);
         assert!(empty.text().is_empty());
-        assert_eq!(empty.completion(), RedactionCompletion::Truncated);
+        assert_eq!(empty.completion(), RedactionCompletion::Exhausted);
     }
 
     /// Covers enabled and disabled handling of non-UTF-8 environment values.

@@ -18,6 +18,11 @@ use std::fmt;
 /// selected policy needs the source representation, such as for pass-through,
 /// disabled, low-, or medium-sensitivity rendering.
 ///
+/// # Type Parameters
+///
+/// - `'value`: Lifetime of the borrowed source.
+/// - `T`: Source type; its Debug implementation is required when formatting.
+///
 /// # Examples
 ///
 /// ```
@@ -35,6 +40,14 @@ pub struct DebugDisplay<'value, T: ?Sized> {
 
 impl<'value, T: ?Sized> DebugDisplay<'value, T> {
     /// Wraps a borrowed value without formatting or allocating.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Source whose Debug formatter is deferred until needed.
+    ///
+    /// # Returns
+    ///
+    /// A borrowed adapter that has not inspected or formatted the source.
     #[must_use]
     #[inline(always)]
     pub const fn new(value: &'value T) -> Self {
@@ -47,7 +60,21 @@ where
     T: fmt::Debug + ?Sized,
 {
     /// Lazily delegates formatting to the wrapped value's `Debug` output.
-    #[inline]
+    ///
+    /// # Parameters
+    ///
+    /// - `formatter`: Destination formatter receiving the source Debug
+    ///   representation.
+    ///
+    /// # Returns
+    ///
+    /// Success after the wrapped Debug formatter completes.
+    ///
+    /// # Errors
+    ///
+    /// Propagates any error returned by the wrapped Debug implementation or
+    /// destination.
+    #[inline(always)]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(self.value, formatter)
     }

@@ -9,6 +9,8 @@
 
 mod bounded_uri_writer;
 mod uri_component_writer;
+mod uri_policy_inner;
 
 pub(super) use bounded_uri_writer::BoundedUriWriter;
 pub(super) use uri_component_writer::UriComponentWriter;
+pub(super) use uri_policy_inner::UriPolicyInner;

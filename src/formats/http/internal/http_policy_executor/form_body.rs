@@ -16,6 +16,17 @@ use crate::formats::http::internal::markers;
 
 impl HttpPolicyExecutor<'_> {
     /// Redacts a bounded URL-encoded body.
+    ///
+    /// # Parameters
+    ///
+    /// - `bounded`: Admitted URL-encoded source bytes.
+    /// - `truncated`: Whether ingress omitted source bytes.
+    /// - `output_limit`: Remaining output-byte ceiling.
+    ///
+    /// # Returns
+    ///
+    /// A redacted form representation, or a marker for invalid/incomplete
+    /// input.
     #[must_use]
     pub(super) fn redact_body_form(&self, bounded: &[u8], truncated: bool, output_limit: usize) -> ParsedBody {
         if truncated {

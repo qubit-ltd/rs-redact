@@ -9,8 +9,8 @@
 
 use std::io::Write;
 
-use super::super::admitted_body::AdmittedMultipart;
-use super::super::admitted_body::AdmittedMultipartBody;
+use super::super::internal::AdmittedMultipart;
+use super::super::internal::AdmittedMultipartBody;
 use super::BoundedBodyWriter;
 use super::MultipartPartMetadata;
 use super::content_type;

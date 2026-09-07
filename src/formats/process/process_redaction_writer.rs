@@ -5,7 +5,6 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-// qubit-style: allow multiple-public-types
 //! Aggregate process-command rendering through one borrowed transaction.
 
 use std::ffi::OsStr;
@@ -22,6 +21,27 @@ use crate::runtime::runtime_session::RuntimeSession;
 /// This type owns no redactor, policy, result, or budget. Each operation
 /// delegates directly to the argv or environment namespace of the parent
 /// session, so process diagnostics participate in the same atomic output.
+///
+/// # Type Parameters
+///
+/// * `'session` - Borrow of the parent composer's unpublished transaction.
+///
+/// # Examples
+///
+/// ```
+/// use std::ffi::OsStr;
+/// use qubit_redact::Redactor;
+/// use qubit_redact::formats::argv::ArgvItem;
+///
+/// let output = Redactor::standard().text_composer().process(|process| {
+///     process.command(
+///         OsStr::new("client"),
+///         [ArgvItem::plain(OsStr::new("--help"))],
+///         [(OsStr::new("PASSWORD"), OsStr::new("raw-password"))],
+///     );
+/// }).finish();
+/// assert!(!output.text().as_str().contains("raw-password"));
+/// ```
 pub struct ProcessRedactionWriter<'session> {
     /// The transaction receiving every rendered process component.
     session: &'session mut TextSession,
@@ -110,6 +130,7 @@ impl<'session> ProcessRedactionWriter<'session> {
     /// # Returns
     ///
     /// This facade for further aggregate process operations.
+    #[inline(always)]
     pub fn arguments<'arguments, A>(&mut self, arguments: A) -> &mut Self
     where
         A: IntoIterator<Item = ArgvItem<'arguments>>,
@@ -136,6 +157,7 @@ impl<'session> ProcessRedactionWriter<'session> {
     /// # Returns
     ///
     /// This facade for further aggregate process operations.
+    #[inline(always)]
     pub fn variables<'variables, E>(&mut self, variables: E) -> &mut Self
     where
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
@@ -143,32 +165,5 @@ impl<'session> ProcessRedactionWriter<'session> {
         let mut env = EnvRedactionWriter::new(self.session);
         env.os_pairs(variables);
         self
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::ffi::OsStr;
-
-    use super::ProcessRedactionWriter;
-    use crate::Redactor;
-    use crate::formats::argv::ArgvItem;
-
-    /// Verifies process components are appended to the one borrowed session.
-    #[test]
-    fn test_command_appends_redacted_argv_and_environment_to_parent_session() {
-        let arguments = [
-            ArgvItem::plain(OsStr::new("--password")),
-            ArgvItem::plain(OsStr::new("argv-secret")),
-        ];
-        let variables = [(OsStr::new("PASSWORD"), OsStr::new("env-secret"))];
-        let mut session = Redactor::strict().text_runtime();
-        let mut process = ProcessRedactionWriter::new(&mut session);
-
-        process.command(OsStr::new("client"), arguments, variables);
-
-        let output = session.finish();
-        assert!(!output.text().as_str().contains("argv-secret"));
-        assert!(!output.text().as_str().contains("env-secret"));
     }
 }

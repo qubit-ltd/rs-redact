@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Unified immutable HTTP redaction façade.
-// qubit-style: allow multiple-public-types
 
 // Owns body admission, parser dispatch, and body publication.
 mod body;
@@ -30,43 +29,35 @@ pub(in crate::formats::http) mod url_rules;
 use http::HeaderMap;
 use http::HeaderValue;
 
-use super::BodyCapture;
-use super::FieldRedactor;
-use super::admitted_body::AdmittedBody;
+use super::AdmittedBody;
+use super::HttpRendered;
 use crate::RedactionPolicy;
-use crate::runtime::RenderedOperation;
+use crate::formats::http::BodyCapture;
+use crate::formats::http::FieldRedactor;
 
 /// Borrows one immutable policy while executing HTTP redaction algorithms.
 ///
 /// This executor is deliberately private to the HTTP implementation. Session
 /// adapters use the crate-private functions below so they never manufacture a
 /// second redactor, session, or resource budget.
+///
+/// # Type Parameters
+///
+/// - `'policy`: Borrow of the parent transaction’s immutable policy snapshot.
 pub(in crate::formats::http) struct HttpPolicyExecutor<'policy> {
     /// The policy snapshot owned by the parent redaction session.
     policy: &'policy RedactionPolicy,
 }
 
-/// One completed HTTP rendering owned by the parent transaction.
-///
-/// This is deliberately an implementation detail rather than an HTTP result
-/// type: HTTP never publishes a second output model. The parent transaction
-/// commits its text and completion into its composer or batch publication.
-pub(in crate::formats::http) struct HttpRendered {
-    /// Bounded text and provenance awaiting parent-session publication.
-    operation: RenderedOperation,
-}
-
-impl HttpRendered {
-    /// Consumes this internal wrapper into the runtime operation
-    /// representation.
-    #[inline]
-    pub(in crate::formats::http) fn into_operation(self) -> RenderedOperation {
-        self.operation
-    }
-}
-
 impl HttpPolicyExecutor<'_> {
     /// Borrows the header field-rule executor for the current operation.
+    ///
+    /// # Returns
+    ///
+    /// A borrowed classifier combining root and header rules with the shared
+    /// mask policy.
+    #[must_use]
+    #[inline(always)]
     pub(super) fn header_field_redactor(&self) -> FieldRedactor<'_> {
         FieldRedactor::new(
             self.policy.rules(),
@@ -76,6 +67,13 @@ impl HttpPolicyExecutor<'_> {
     }
 
     /// Borrows the query field-rule executor for the current operation.
+    ///
+    /// # Returns
+    ///
+    /// A borrowed classifier combining root and query and form rules with the
+    /// shared mask policy.
+    #[must_use]
+    #[inline(always)]
     pub(super) fn query_field_redactor(&self) -> FieldRedactor<'_> {
         FieldRedactor::new(
             self.policy.rules(),
@@ -86,6 +84,13 @@ impl HttpPolicyExecutor<'_> {
 
     /// Borrows the structured-body field-rule executor for the current
     /// operation.
+    ///
+    /// # Returns
+    ///
+    /// A borrowed classifier combining root and structured-body rules with the
+    /// shared mask policy.
+    #[must_use]
+    #[inline(always)]
     pub(super) fn body_field_redactor(&self) -> FieldRedactor<'_> {
         FieldRedactor::new(
             self.policy.rules(),
@@ -96,13 +101,37 @@ impl HttpPolicyExecutor<'_> {
 }
 
 /// Parses and redacts a URL string through a parent session policy snapshot.
+///
+/// # Parameters
+///
+/// - `policy`: Immutable snapshot supplied by the parent transaction.
+/// - `input`: Raw URL to parse and transform.
+/// - `output_limit`: Remaining bytes available for the escaped fragment.
+///
+/// # Returns
+///
+/// A bounded operation with completion and failure provenance for parent
+/// publication.
 #[must_use]
+#[inline(always)]
 pub(crate) fn redact_url_str_with_policy(policy: &RedactionPolicy, input: &str, output_limit: usize) -> HttpRendered {
     HttpPolicyExecutor { policy }.redact_url_str(input, output_limit)
 }
 
 /// Redacts headers through a parent session's immutable policy snapshot.
+///
+/// # Parameters
+///
+/// - `policy`: Immutable snapshot supplied by the parent transaction.
+/// - `headers`: Admitted header collection to render deterministically.
+/// - `output_limit`: Remaining bytes available for the escaped fragment.
+///
+/// # Returns
+///
+/// A bounded operation with completion and failure provenance for parent
+/// publication.
 #[must_use]
+#[inline(always)]
 pub(crate) fn redact_headers_with_policy(
     policy: &RedactionPolicy,
     headers: &HeaderMap,
@@ -112,8 +141,22 @@ pub(crate) fn redact_headers_with_policy(
 }
 
 /// Redacts a captured body while reusing structure built by session admission.
+///
+/// # Parameters
+///
+/// - `policy`: Immutable snapshot supplied by the parent transaction.
+/// - `capture`: Captured body and completeness metadata.
+/// - `content_type`: Optional media-type metadata; None preserves missing-type
+///   handling.
+/// - `admitted`: Parsed structure already checked by the parent transaction.
+/// - `output_limit`: Remaining bytes available for the escaped fragment.
+///
+/// # Returns
+///
+/// A bounded operation with completion and failure provenance for parent
+/// publication.
 #[must_use]
-pub(super) fn redact_admitted_body_with_policy(
+pub(in crate::formats::http) fn redact_admitted_body_with_policy(
     policy: &RedactionPolicy,
     capture: BodyCapture<'_>,
     content_type: Option<&HeaderValue>,
@@ -138,8 +181,23 @@ pub(super) fn redact_admitted_body_with_policy(
 
 /// Redacts a captured body selected by text Content-Type while reusing
 /// structure built by session admission.
+///
+/// # Parameters
+///
+/// - `policy`: Immutable snapshot supplied by the parent transaction.
+/// - `capture`: Captured body and completeness metadata.
+/// - `content_type`: Optional media-type metadata; None preserves missing-type
+///   handling.
+/// - `admitted`: Parsed structure already checked by the parent transaction.
+/// - `output_limit`: Remaining bytes available for the escaped fragment.
+///
+/// # Returns
+///
+/// A bounded operation with completion and failure provenance for parent
+/// publication.
 #[must_use]
-pub(super) fn redact_admitted_body_with_content_type_text_with_policy(
+#[inline(always)]
+pub(in crate::formats::http) fn redact_admitted_body_with_content_type_text_with_policy(
     policy: &RedactionPolicy,
     capture: BodyCapture<'_>,
     content_type: Option<&str>,

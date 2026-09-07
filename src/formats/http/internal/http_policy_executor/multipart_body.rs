@@ -10,7 +10,7 @@
 use super::HttpPolicyExecutor;
 use crate::formats::http::BodyRenderReason;
 use crate::formats::http::BodyRenderStatus;
-use crate::formats::http::admitted_body::AdmittedMultipart;
+use crate::formats::http::internal::AdmittedMultipart;
 use crate::formats::http::internal::ParsedBody;
 use crate::formats::http::internal::markers;
 use crate::formats::http::internal::multipart;
@@ -18,6 +18,21 @@ use crate::formats::http::internal::multipart;
 impl HttpPolicyExecutor<'_> {
     /// Redacts an admitted multipart body or fails closed when framing is
     /// incomplete or invalid.
+    ///
+    /// # Parameters
+    ///
+    /// - `bounded`: Admitted multipart source bytes.
+    /// - `boundary`: Some parsed boundary, or None for invalid framing.
+    /// - `require_form_data`: Whether each part must carry form-data
+    ///   disposition.
+    /// - `truncated`: Whether ingress omitted source bytes.
+    /// - `output_limit`: Remaining output-byte ceiling.
+    /// - `admitted`: Some cached part admission state, or None when
+    ///   unavailable.
+    ///
+    /// # Returns
+    ///
+    /// A bounded multipart representation or an invalid/incomplete marker.
     #[must_use]
     pub(super) fn redact_multipart_body(
         &self,

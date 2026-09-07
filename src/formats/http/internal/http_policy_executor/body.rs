@@ -13,16 +13,45 @@ use crate::RedactionReason;
 use crate::formats::http::BodyCapture;
 use crate::formats::http::BodyRenderReason;
 use crate::formats::http::BodyRenderStatus;
-use crate::formats::http::admitted_body::AdmittedBody;
+use crate::formats::http::internal::AdmittedBody;
 use crate::formats::http::internal::BoundedLogWriter;
 use crate::formats::http::internal::ParsedBody;
 use crate::formats::http::internal::content_type;
 use crate::formats::http::internal::markers;
-use crate::runtime::OperationSink;
 
 impl HttpPolicyExecutor<'_> {
+    /// Creates the fail-closed result for an invalid Content-Type.
+    ///
+    /// # Returns
+    ///
+    /// The invalid-content-type marker with its parser status.
+    #[must_use]
+    #[inline]
+    pub(super) fn invalid_content_type_body() -> ParsedBody {
+        ParsedBody::new(
+            markers::INVALID_CONTENT_TYPE.to_string(),
+            BodyRenderStatus::Redacted(BodyRenderReason::InvalidContentType),
+            false,
+        )
+    }
+
     /// Redacts a checked body while reusing any structured value built during
     /// admission.
+    ///
+    /// # Parameters
+    ///
+    /// - `capture`: Admitted source bytes and ingress-completeness metadata.
+    /// - `content_type`: Some supplied media type, or None for missing-type
+    ///   behavior.
+    /// - `invalid_content_type`: Whether the original header could not be
+    ///   interpreted as text.
+    /// - `admitted`: Parser results reused without a second structural
+    ///   admission pass.
+    /// - `output_limit`: Remaining output-byte ceiling for this body.
+    ///
+    /// # Returns
+    ///
+    /// A bounded escaped operation with source and parser provenance.
     #[must_use]
     pub(super) fn redact_body_with_content_type_and_admission(
         &self,
@@ -62,6 +91,20 @@ impl HttpPolicyExecutor<'_> {
     }
 
     /// Dispatches a bounded body slice to a supported parser.
+    ///
+    /// # Parameters
+    ///
+    /// - `bounded`: Admitted source bytes.
+    /// - `content_type`: Some media type to parse, or None to use sniffing and
+    ///   fallback rules.
+    /// - `truncated`: Whether the captured source was incomplete.
+    /// - `output_limit`: Remaining output-byte ceiling.
+    /// - `admitted`: Some reusable multipart admission state, or None for other
+    ///   formats.
+    ///
+    /// # Returns
+    ///
+    /// A parsed representation or a fail-closed format marker.
     #[must_use]
     fn redact_body_inner(
         &self,
@@ -69,7 +112,7 @@ impl HttpPolicyExecutor<'_> {
         content_type: Option<&str>,
         truncated: bool,
         output_limit: usize,
-        admitted: Option<&mut crate::formats::http::admitted_body::AdmittedMultipart>,
+        admitted: Option<&mut crate::formats::http::internal::AdmittedMultipart>,
     ) -> ParsedBody {
         if bounded.is_empty() {
             return ParsedBody::new(String::new(), BodyRenderStatus::Empty, false);
@@ -130,17 +173,18 @@ impl HttpPolicyExecutor<'_> {
         )
     }
 
-    /// Creates the fail-closed result for an invalid Content-Type.
-    #[must_use]
-    pub(super) fn invalid_content_type_body() -> ParsedBody {
-        ParsedBody::new(
-            markers::INVALID_CONTENT_TYPE.to_string(),
-            BodyRenderStatus::Redacted(BodyRenderReason::InvalidContentType),
-            false,
-        )
-    }
-
     /// Escapes, bounds, and attaches source metadata to parser output.
+    ///
+    /// # Parameters
+    ///
+    /// - `parsed`: Policy-transformed parser output and its status.
+    /// - `capture`: Source completeness metadata.
+    /// - `output_limit`: Final escaped byte ceiling for this body.
+    ///
+    /// # Returns
+    ///
+    /// A bounded operation preserving source truncation, parser errors, and
+    /// output closure.
     #[must_use]
     fn finish_body_redaction(parsed: ParsedBody, capture: BodyCapture<'_>, output_limit: usize) -> HttpRendered {
         let (parsed_text, status, rendered_truncated) = parsed.into_parts();
@@ -148,7 +192,12 @@ impl HttpPolicyExecutor<'_> {
         let mut writer = BoundedLogWriter::new(output_limit, source_truncated);
         let _ = writer.write_str(&parsed_text);
         let output_truncated = rendered_truncated || writer.is_output_truncated();
-        let (text, _) = writer.finish();
+        let reason = if output_truncated {
+            RedactionReason::OutputLimitReached
+        } else {
+            RedactionReason::SourceTruncated
+        };
+        let mut operation = writer.finish_operation(reason);
         let provenance = match status {
             BodyRenderStatus::Redacted(BodyRenderReason::InvalidJson)
             | BodyRenderStatus::Redacted(BodyRenderReason::InvalidOrTruncatedJson)
@@ -172,26 +221,25 @@ impl HttpPolicyExecutor<'_> {
             }
             _ => None,
         };
-        let mut operation = if output_truncated {
-            OperationSink::truncated(text, RedactionReason::OutputLimitReached)
-        } else if capture.is_source_truncated() {
-            OperationSink::truncated(text, RedactionReason::SourceTruncated)
-        } else {
-            OperationSink::complete(text)
-        };
         if capture.is_source_truncated() {
             operation = operation.with_reason(RedactionReason::SourceTruncated);
         }
         if let Some(reason) = provenance {
             operation = operation.with_reason(reason);
         }
-        HttpRendered {
-            operation: operation.finish(),
-        }
+        HttpRendered::new(operation)
     }
 }
 
 /// Trims ASCII whitespace without decoding the input.
+///
+/// # Parameters
+///
+/// - `bytes`: Source slice to trim without allocation or decoding.
+///
+/// # Returns
+///
+/// A subslice excluding leading and trailing ASCII whitespace.
 #[must_use]
 pub(super) fn trim_ascii_whitespace(mut bytes: &[u8]) -> &[u8] {
     while bytes.first().is_some_and(u8::is_ascii_whitespace) {

@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Streaming visitor that admits JSON structure without a value tree.
+//! Streaming visitor that builds a JSON tree from admitted structure.
 
 use std::fmt;
 

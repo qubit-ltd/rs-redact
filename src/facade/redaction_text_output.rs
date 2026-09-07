@@ -13,12 +13,15 @@ use super::RedactedText;
 use super::RedactionSummary;
 use crate::RedactionCompletion;
 
-/// Published safe text and completion metadata from one redaction operation.
+/// Published policy-transformed text and completion metadata from one
+/// operation.
 ///
-/// When redaction is enabled, [`Self::text`] remains confidentiality-safe for
-/// every completion state. `Truncated` and `Exhausted` describe incomplete
-/// diagnostics, not unsafe text. Callers need to reject or replace such text
-/// only when their own contract requires completeness.
+/// Incomplete output retains the selected policy's confidentiality guarantees.
+/// `Truncated` and `Exhausted` describe incomplete diagnostics; they do not
+/// authorize disclosure of fields protected by that policy. As with
+/// [`RedactedText`], disabled policies and explicitly unredacted operations can
+/// deliberately preserve source content. Callers can reject or replace
+/// incomplete text when their own contract requires completeness.
 ///
 /// # Examples
 ///
@@ -38,13 +41,27 @@ pub struct RedactionTextOutput {
 }
 
 impl RedactionTextOutput {
-    /// Creates a complete output.
+    /// Pairs published text with its actual completion and accounting summary.
+    ///
+    /// # Parameters
+    ///
+    /// - `text`: Final policy-transformed and escaped text.
+    /// - `summary`: Accounting and completion from the same operation.
+    ///
+    /// # Returns
+    ///
+    /// An output pairing the text with its actual execution metadata.
     #[must_use]
+    #[inline(always)]
     pub(crate) fn new(text: RedactedText, summary: RedactionSummary) -> Self {
         Self { text, summary }
     }
 
     /// Borrows the final text.
+    ///
+    /// # Returns
+    ///
+    /// Borrowed final text, including safe incomplete representations.
     #[must_use]
     #[inline(always)]
     pub const fn text(&self) -> &RedactedText {
@@ -52,6 +69,10 @@ impl RedactionTextOutput {
     }
 
     /// Borrows the execution summary.
+    ///
+    /// # Returns
+    ///
+    /// Borrowed completion, reasons, and resource use for this output.
     #[must_use]
     #[inline(always)]
     pub const fn summary(&self) -> &RedactionSummary {
@@ -66,6 +87,12 @@ impl RedactionTextOutput {
     /// Returns the execution summary when the safe output was truncated or
     /// exhausted. The error reports completeness; it does not imply that the
     /// published text is unsafe for diagnostics.
+    ///
+    /// # Returns
+    ///
+    /// Borrowed text only for Complete; otherwise the borrowed execution
+    /// summary.
+    #[inline]
     pub fn complete_text(&self) -> Result<&RedactedText, &RedactionSummary> {
         if self.summary.completion() == RedactionCompletion::Complete {
             Ok(&self.text)
@@ -81,7 +108,18 @@ impl RedactionTextOutput {
     /// before publication so control characters cannot forge diagnostic log
     /// structure. The marker is selected after the transaction and therefore
     /// does not consume its resource budget.
+    ///
+    /// # Parameters
+    ///
+    /// - `marker`: Fallback escaped outside the completed operation’s byte
+    ///   budget.
+    ///
+    /// # Returns
+    ///
+    /// Borrowed complete text, or an owned escaped marker for incomplete
+    /// output.
     #[must_use]
+    #[inline]
     pub fn text_or_marker(&self, marker: &str) -> Cow<'_, str> {
         self.complete_text().map_or_else(
             |_| {
@@ -98,6 +136,11 @@ impl RedactionTextOutput {
     /// Returns the execution summary when the safe output was truncated or
     /// exhausted. The error reports completeness; it does not imply that the
     /// published text is unsafe for diagnostics.
+    ///
+    /// # Returns
+    ///
+    /// Owned text only for Complete; otherwise the owned execution summary.
+    #[inline]
     pub fn into_complete_text(self) -> Result<RedactedText, RedactionSummary> {
         if self.summary.completion() == RedactionCompletion::Complete {
             Ok(self.text)
@@ -111,17 +154,31 @@ impl RedactionTextOutput {
     ///
     /// The marker is escaped before becoming [`RedactedText`], so it remains
     /// safe for diagnostic presentation.
+    ///
+    /// # Parameters
+    ///
+    /// - `marker`: Fallback escaped outside the completed operation’s byte
+    ///   budget.
+    ///
+    /// # Returns
+    ///
+    /// Owned complete text, or a wrapper around the escaped fallback marker.
     #[must_use]
+    #[inline]
     pub fn into_text_or_marker(self, marker: &str) -> RedactedText {
         self.into_complete_text().unwrap_or_else(|_| {
             RedactedText::from_escaped(
-                crate::output::log_escape::escape_log_control_characters(std::borrow::Cow::Borrowed(marker))
-                    .into_owned(),
+                crate::output::log_escape::escape_log_control_characters(Cow::Borrowed(marker)).into_owned(),
             )
         })
     }
 
     /// Consumes the output and returns both parts.
+    ///
+    /// # Returns
+    ///
+    /// The owned text and summary, in that order, without checking
+    /// completeness.
     #[must_use]
     #[inline(always)]
     pub fn into_parts(self) -> (RedactedText, RedactionSummary) {

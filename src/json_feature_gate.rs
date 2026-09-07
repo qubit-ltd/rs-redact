@@ -7,6 +7,7 @@
 // =============================================================================
 //! Feature-aware expansion boundary for generated JSON field redaction.
 
+/// Expands required json support when the runtime feature is enabled.
 #[cfg(feature = "json")]
 #[doc(hidden)]
 #[macro_export]
@@ -14,6 +15,8 @@ macro_rules! __qubit_redact_json {
     ($($tokens:tt)*) => { $($tokens)* };
 }
 
+/// Reports an explicit compile error for required json support in a minimal
+/// runtime.
 #[cfg(not(feature = "json"))]
 #[doc(hidden)]
 #[macro_export]

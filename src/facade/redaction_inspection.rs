@@ -12,9 +12,11 @@ use crate::Sensitivity;
 
 /// Highest sensitivity found by one complete, bounded inspection.
 ///
-/// A successful value proves the complete admitted input was classified.
-/// [`None`] from [`Self::max_sensitivity`] therefore means no inspected value
-/// was declared sensitive. Inconclusive traversal is returned as
+/// A successful value is conclusive under the selected policy. [`None`] from
+/// [`Self::max_sensitivity`] means no inspected value was declared sensitive;
+/// a disabled policy deliberately bypasses classification, as reported by
+/// [`Self::is_redaction_disabled`]. It does not prove that source data is
+/// inherently nonsensitive. Inconclusive traversal is returned as
 /// [`crate::RedactionInspectionError`] instead of this type.
 ///
 /// # Examples
@@ -41,7 +43,20 @@ pub struct RedactionInspection {
 
 impl RedactionInspection {
     /// Creates a conclusive inspection from runtime-owned metadata.
+    ///
+    /// # Parameters
+    ///
+    /// - `redaction_disabled`: Whether the complete inspection intentionally
+    ///   bypassed policy classification.
+    /// - `max_sensitivity`: Some strongest observed level, or None when the
+    ///   selected policy declared no value sensitive.
+    /// - `usage`: Resource accounting with zero rendered output bytes.
+    ///
+    /// # Returns
+    ///
+    /// A conclusive inspection retaining the supplied metadata.
     #[must_use]
+    #[inline(always)]
     pub(crate) const fn new(
         redaction_disabled: bool,
         max_sensitivity: Option<Sensitivity>,
@@ -55,13 +70,22 @@ impl RedactionInspection {
     }
 
     /// Reports whether the complete traversal found sensitive data.
+    ///
+    /// # Returns
+    ///
+    /// True when the complete traversal found at least one sensitive value.
     #[must_use]
     #[inline(always)]
     pub const fn contains_sensitive(&self) -> bool {
         self.max_sensitivity.is_some()
     }
 
-    /// Returns whether redaction was globally disabled for this inspection.
+    /// Returns whether the selected policy disabled this inspection.
+    ///
+    /// # Returns
+    ///
+    /// True when policy classification was intentionally disabled for this
+    /// inspection.
     #[must_use]
     #[inline(always)]
     pub const fn is_redaction_disabled(&self) -> bool {
@@ -72,8 +96,8 @@ impl RedactionInspection {
     ///
     /// # Returns
     ///
-    /// `Some(level)` for sensitive data, or `None` when the complete input was
-    /// classified as plain.
+    /// `Some(level)` for declared sensitive data, or `None` when the selected
+    /// policy declared none, including when classification was disabled.
     #[must_use]
     #[inline(always)]
     pub const fn max_sensitivity(&self) -> Option<Sensitivity> {
@@ -83,6 +107,11 @@ impl RedactionInspection {
     /// Returns resources consumed while classifying the input.
     ///
     /// Output bytes are always zero because inspection never renders values.
+    ///
+    /// # Returns
+    ///
+    /// Resources consumed during complete classification, with zero output
+    /// bytes.
     #[must_use]
     #[inline(always)]
     pub const fn usage(&self) -> RedactionUsage {

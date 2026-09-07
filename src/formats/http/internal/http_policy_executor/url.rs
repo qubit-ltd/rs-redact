@@ -25,6 +25,15 @@ use crate::formats::http::internal::nested_url::NestedUrl;
 
 impl HttpPolicyExecutor<'_> {
     /// Parses and redacts a URL, failing closed on invalid input.
+    ///
+    /// # Parameters
+    ///
+    /// - `input`: Admitted URL source text.
+    /// - `output_limit`: Final escaped output-byte ceiling.
+    ///
+    /// # Returns
+    ///
+    /// A bounded redacted URL, or a marker retaining InvalidUri provenance.
     #[must_use]
     pub(super) fn redact_url_str(&self, input: &str, output_limit: usize) -> HttpRendered {
         if self.policy.is_disabled() {
@@ -46,6 +55,16 @@ impl HttpPolicyExecutor<'_> {
     }
 
     /// Produces a redacted URL under a bounded nested-URL recursion depth.
+    ///
+    /// # Parameters
+    ///
+    /// - `url`: Parsed URL to transform.
+    /// - `depth`: Current nested-URL recursion depth.
+    /// - `output_limit`: Final escaped output-byte ceiling.
+    ///
+    /// # Returns
+    ///
+    /// The escaped URL text and whether output was truncated.
     fn redact_url_text_at_depth(&self, url: &Url, depth: usize, output_limit: usize) -> (String, bool) {
         let mut writer = BoundedLogWriter::new(output_limit, false);
         let _ = writer.write_str(url.scheme());
@@ -93,6 +112,12 @@ impl HttpPolicyExecutor<'_> {
     }
 
     /// Writes a redacted query string without exceeding the URL output ceiling.
+    ///
+    /// # Parameters
+    ///
+    /// - `writer`: Bounded escaped destination for the URL.
+    /// - `url`: Parsed URL whose optional query is visited.
+    /// - `depth`: Current nested-URL recursion depth.
     fn write_url_query(&self, writer: &mut BoundedLogWriter, url: &Url, depth: usize) {
         let Some(query) = url.query() else {
             return;
@@ -102,15 +127,17 @@ impl HttpPolicyExecutor<'_> {
             let _ = writer.write_str(markers::INVALID_QUERY);
             return;
         }
+        let query_limit = writer.remaining_bytes();
         let mut redacted_query = String::new();
         for (key, value) in url.query_pairs() {
-            let remaining = writer.remaining_bytes().saturating_sub(redacted_query.len());
+            let remaining = query_limit.saturating_sub(redacted_query.len());
             let value = self
                 .query_field_redactor()
                 .redact_bounded(&key, &value, remaining)
                 .into_inner();
             let (value, nested_truncated) = self.redact_nested_url_value(value, depth, remaining);
-            if !form::append_pair_bounded(&mut redacted_query, &key, value.as_ref(), remaining) {
+            if !form::append_pair_bounded(&mut redacted_query, &key, value.as_ref(), query_limit) {
+                writer.mark_truncated();
                 break;
             }
             if nested_truncated {
@@ -122,18 +149,43 @@ impl HttpPolicyExecutor<'_> {
     }
 
     /// Writes a redacted URL fragment without exceeding the URL output ceiling.
+    ///
+    /// # Parameters
+    ///
+    /// - `writer`: Bounded escaped destination for the URL.
+    /// - `url`: Parsed URL whose optional fragment is masked.
     fn write_url_fragment(&self, writer: &mut BoundedLogWriter, url: &Url) {
         let Some(fragment) = url.fragment() else {
             return;
         };
         let _ = writer.write_str("#");
-        let masked = self
-            .query_field_redactor()
-            .mask_bounded(Sensitivity::High, fragment, writer.remaining_bytes());
+        let (masked, truncated) =
+            self.policy
+                .masking()
+                .mask_bounded_with_truncation(Sensitivity::High, fragment, writer.remaining_bytes());
         let _ = writer.write_str(masked.as_ref());
+        if truncated {
+            writer.mark_truncated();
+        }
     }
 
     /// Redacts a complete HTTP URL embedded in a non-sensitive query value.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `'value`: Borrow of an unchanged plain query value.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Borrowed plain query value, or an owned value already
+    ///   transformed by policy.
+    /// - `depth`: Current nested-URL recursion depth.
+    /// - `output_limit`: Remaining output-byte ceiling for the nested value.
+    ///
+    /// # Returns
+    ///
+    /// The original/transformed query value and whether nested output was
+    /// truncated.
     fn redact_nested_url_value<'value>(
         &self,
         value: Cow<'value, str>,

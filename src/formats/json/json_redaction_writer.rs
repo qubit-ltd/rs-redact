@@ -80,7 +80,7 @@ pub(crate) fn json_output_from_bounded(
         let mut output = if fallback.len() <= max_output_bytes {
             OperationSink::truncated(fallback, crate::RedactionReason::OutputLimitReached)
         } else {
-            OperationSink::exhausted(String::new(), crate::RedactionReason::OutputLimitReached)
+            OperationSink::exhausted(String::new())
         };
         if invalid_json {
             output = output.with_reason(crate::RedactionReason::InvalidJson);
@@ -97,6 +97,22 @@ pub(crate) fn json_output_from_bounded(
 }
 
 /// Feature-gated JSON operations sharing one mutable diagnostic session.
+///
+/// # Type Parameters
+///
+/// * `'session` - Borrow of the parent composer's unpublished transaction.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::Redactor;
+///
+/// let output = Redactor::standard().text_composer().json(|json| {
+///     json.text(r#"{"password":"raw-secret","visible":7}"#);
+/// }).finish();
+/// assert!(!output.text().as_str().contains("raw-secret"));
+/// assert!(output.text().as_str().contains("visible"));
+/// ```
 pub struct JsonRedactionWriter<'session> {
     /// Text transaction that owns structural accounting and aggregate output.
     pub(super) session: &'session mut TextSession,
@@ -104,11 +120,31 @@ pub struct JsonRedactionWriter<'session> {
 
 impl<'session> JsonRedactionWriter<'session> {
     /// Creates a JSON facade borrowing a parent session.
+    ///
+    /// # Parameters
+    ///
+    /// * `session` - Parent transaction receiving admitted JSON output.
+    ///
+    /// # Returns
+    ///
+    /// A writer borrowing the existing policy and resource ledger.
+    #[must_use]
+    #[inline(always)]
     pub(crate) const fn new(session: &'session mut TextSession) -> Self {
         Self { session }
     }
 
     /// Redacts JSON text into the parent session's aggregate output.
+    ///
+    /// # Parameters
+    ///
+    /// * `text` - One complete JSON document. Enabled redaction parses it once
+    ///   under the shared input and traversal limits.
+    ///
+    /// # Returns
+    ///
+    /// This writer for further operations; malformed or rejected input uses
+    /// safe output and records its cause in the parent summary.
     pub fn text(&mut self, text: &str) -> &mut Self {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
@@ -136,6 +172,15 @@ impl<'session> JsonRedactionWriter<'session> {
     }
 
     /// Redacts a borrowed parsed JSON value into the aggregate transaction.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Parsed JSON borrowed without cloning or modifying its tree.
+    ///
+    /// # Returns
+    ///
+    /// This writer after shared admission and rendering, or after recording a
+    /// safe replacement when traversal cannot complete.
     pub fn value(&mut self, value: &Value) -> &mut Self {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
@@ -153,23 +198,11 @@ impl<'session> JsonRedactionWriter<'session> {
 }
 
 impl JsonRedactionWriter<'_> {
-    /// Parses and redacts JSON text into compact, log-safe JSON text.
+    /// Escapes previously admitted JSON text for disabled-mode publication.
     ///
-    /// The text byte length is offered to the shared budget before parsing or
-    /// redaction. Rejected input therefore cannot be parsed: the method emits
-    /// a safe fallback when one fits, or empty exhausted output otherwise.
-    /// Once output exhaustion closes the session, later calls stop before
-    /// invoking the parser. Successful admission commits only the bounded,
-    /// escaped output and reports any budget-caused omission as truncated.
-    ///
-    /// # Parameters
-    ///
-    /// * `text` - JSON source whose byte length is charged on admission.
-    ///
-    /// # Returns
-    ///
-    /// A compact log-safe result carrying `Complete`, `Truncated`, or
-    /// `Exhausted` completion.
+    /// The caller performs input admission and checks output closure before
+    /// entering this helper. This operation only escapes and bounds the text;
+    /// it does not parse or classify JSON.
     #[must_use]
     pub(crate) fn redact_text_direct(&mut self, text: &str) -> RenderedOperation {
         passthrough_json_text_with_limit(text, self.session.remaining_output_bytes())
@@ -205,44 +238,13 @@ pub(crate) fn invalid_json_output(policy: &crate::RedactionPolicy, max_output_by
 
 #[cfg(test)]
 mod tests {
-    use super::super::parse_counter::json_parse_count;
-    use super::super::parse_counter::reset_json_parse_count;
     use super::passthrough_json_text_with_limit;
     use crate::RedactionCompletion;
-    use crate::RedactionPolicy;
-    use crate::Redactor;
-
-    #[test]
-    fn enabled_json_text_is_parsed_exactly_once() {
-        reset_json_parse_count();
-
-        let output = Redactor::standard().redact_json(r#"{"token":"raw-secret"}"#);
-
-        assert_eq!(json_parse_count(), 1);
-        assert!(!output.text().as_str().contains("raw-secret"));
-    }
-
-    #[test]
-    fn admitted_json_tree_covers_every_scalar_parser_representation() {
-        for text in [
-            "null",
-            "true",
-            "-1",
-            "1",
-            "1.5",
-            r#""visible""#,
-            r#"[null,true,-1,1,1.5,"visible"]"#,
-        ] {
-            let output = Redactor::standard().redact_json(text);
-
-            assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
-        }
-    }
 
     /// Verifies the JSON execution helper receives and honors its caller's
     /// final output allowance rather than selecting an independent budget.
     #[test]
-    fn bounded_json_helper_never_exceeds_the_caller_allowance() {
+    fn test_bounded_json_helper_never_exceeds_the_caller_allowance() {
         let output = passthrough_json_text_with_limit(
             r#"{"description":"this value is deliberately longer than the allowance"}"#,
             16,
@@ -251,29 +253,5 @@ mod tests {
         assert_eq!(output.completion(), RedactionCompletion::Truncated);
         assert!(output.reasons().contains(crate::RedactionReason::OutputLimitReached));
         assert!(output.text().len() <= 16);
-    }
-
-    /// Verifies a JSON adapter sees bytes already committed by the enclosing
-    /// transaction when choosing its rendering limit.
-    #[test]
-    fn json_session_uses_the_transaction_remaining_output_allowance() {
-        let policy = RedactionPolicy::builder()
-            .limits(|limits| {
-                let _ = limits.max_output_bytes(20);
-            })
-            .expect("the test limit draft should build")
-            .build()
-            .expect("the test policy should build");
-        let output = Redactor::new(policy)
-            .text_composer()
-            .literal("prefix")
-            .json(|json| {
-                json.text(r#"{"description":"this value is deliberately longer than the allowance"}"#);
-            })
-            .finish();
-
-        assert_eq!(output.text().as_str(), "prefix<truncated>");
-        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
-        assert_eq!(output.summary().usage().output_bytes(), 17);
     }
 }

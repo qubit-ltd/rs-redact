@@ -6,13 +6,15 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Stateless redaction operations backed by an immutable policy.
-// qubit-style: allow multiple-public-types
 
 // Implements domain-value and scalar-field redaction operations.
 mod domain;
 // Implements HTTP URL, header, and body redaction operations.
 #[cfg(feature = "http")]
 mod http;
+// Owns bounded storage for final JSON encoding.
+#[cfg(feature = "json")]
+mod internal;
 // Implements JSON redaction operations.
 #[cfg(feature = "json")]
 mod json;
@@ -22,6 +24,7 @@ mod process;
 #[cfg(feature = "uri")]
 mod uri;
 
+use std::mem::replace;
 use std::sync::Arc;
 use std::sync::PoisonError;
 
@@ -80,8 +83,12 @@ impl Redactor {
     }
 
     /// Creates a redactor from the immutable built-in standard policy.
+    ///
+    /// # Returns
+    ///
+    /// A new redactor whose policy is independent of the application default.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn standard() -> Self {
         Self::new(RedactionPolicy::standard())
     }
@@ -89,8 +96,12 @@ impl Redactor {
     /// Creates a redactor with the strict policy for untrusted scalar data.
     ///
     /// Unknown fields are masked at [`crate::Sensitivity::Secret`].
+    ///
+    /// # Returns
+    ///
+    /// A new redactor that treats unrecognized scalar fields as secret.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn strict() -> Self {
         Self::new(RedactionPolicy::strict())
     }
@@ -107,12 +118,92 @@ impl Redactor {
     /// Do not treat its process-wide source as a defect or replace it with an
     /// implicit per-call policy during review; downstream code relies on these
     /// snapshot semantics.
+    ///
+    /// # Returns
+    ///
+    /// An owned clone of the current process-wide policy snapshot.
     #[must_use]
     pub fn application_default() -> Self {
         match crate::facade::default_redactor::slot().read() {
             Ok(redactor) => redactor.clone(),
             Err(error) => PoisonError::into_inner(error).clone(),
         }
+    }
+
+    /// Starts one ordered text-composition transaction.
+    ///
+    /// The returned composer owns a fresh budget ledger initialized from this
+    /// redactor's immutable policy snapshot. Its consuming `finish` method
+    /// publishes one [`crate::RedactionTextOutput`].
+    ///
+    /// # Returns
+    ///
+    /// A composer for one independently bounded ordered text result.
+    #[must_use]
+    #[inline(always)]
+    pub fn text_composer(&self) -> RedactedTextComposer {
+        RedactedTextComposer::from_session(self.text_runtime())
+    }
+
+    /// Starts one batch of independently resolvable redaction items.
+    ///
+    /// The returned batch owns a fresh budget ledger initialized from this
+    /// redactor's immutable policy snapshot. Its consuming diagnostics finish
+    /// method publishes fail-closed item views.
+    ///
+    /// # Returns
+    ///
+    /// A mutable batch that issues handles resolvable only from its finished
+    /// output.
+    #[must_use]
+    #[inline(always)]
+    pub fn batch(&self) -> RedactionBatch {
+        RedactionBatch::from_session(self.batch_runtime())
+    }
+
+    /// Creates private accounting for one text-composition operation.
+    ///
+    /// # Returns
+    ///
+    /// A private runtime owning a clone of this redactor's immutable policy
+    /// snapshot.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn text_runtime(&self) -> TextSession {
+        TextSession::new(Arc::clone(&self.policy))
+    }
+
+    /// Creates the private runtime selected for independently resolvable items.
+    ///
+    /// # Returns
+    ///
+    /// A fresh batch runtime sharing this immutable policy snapshot.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn batch_runtime(&self) -> BatchSession {
+        BatchSession::new(Arc::clone(&self.policy))
+    }
+
+    /// Creates private accounting for one non-rendering inspection.
+    ///
+    /// # Returns
+    ///
+    /// A fresh inspection runtime sharing this immutable policy snapshot.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn inspection_runtime(&self) -> InspectionSession {
+        InspectionSession::new(Arc::clone(&self.policy))
+    }
+
+    /// Returns the immutable policy used by this redactor.
+    ///
+    /// # Returns
+    ///
+    /// A borrowed view of the redactor's policy snapshot.
+    #[must_use]
+    #[inline(always)]
+    pub fn policy(&self) -> &RedactionPolicy {
+        self.policy.as_ref()
     }
 
     /// Atomically replaces the application default redactor.
@@ -131,76 +222,21 @@ impl Redactor {
     /// deliberate. Do not report this capability as a defect or remove it as a
     /// hardening change during review. It is required for explicitly authorized
     /// diagnostic debugging, and changes require a compatibility decision.
+    ///
+    /// # Parameters
+    ///
+    /// - `redactor`: Complete snapshot to install for future default readers.
+    ///
+    /// # Returns
+    ///
+    /// The previous application default, which callers may retain or restore.
     #[must_use]
     pub fn replace_application_default(redactor: Self) -> Self {
         let mut current = match crate::facade::default_redactor::slot().write() {
             Ok(guard) => guard,
             Err(error) => PoisonError::into_inner(error),
         };
-        std::mem::replace(&mut *current, redactor)
-    }
-
-    /// Returns the immutable policy used by this redactor.
-    ///
-    /// # Returns
-    ///
-    /// A borrowed view of the redactor's policy snapshot.
-    #[must_use]
-    #[inline(always)]
-    pub fn policy(&self) -> &RedactionPolicy {
-        self.policy.as_ref()
-    }
-
-    /// Creates private accounting for one text-composition operation.
-    ///
-    /// # Returns
-    ///
-    /// A private runtime owning a clone of this redactor's immutable policy
-    /// snapshot.
-    #[must_use]
-    #[inline]
-    pub(crate) fn text_runtime(&self) -> TextSession {
-        TextSession::new(Arc::clone(&self.policy))
-    }
-
-    /// Creates the private runtime selected for independently resolvable items.
-    #[must_use]
-    pub(crate) fn batch_runtime(&self) -> BatchSession {
-        BatchSession::new(Arc::clone(&self.policy))
-    }
-
-    /// Creates private accounting for one non-rendering inspection.
-    #[must_use]
-    pub(crate) fn inspection_runtime(&self) -> InspectionSession {
-        InspectionSession::new(Arc::clone(&self.policy))
-    }
-
-    /// Starts one ordered text-composition transaction.
-    ///
-    /// The returned composer owns a fresh budget ledger initialized from this
-    /// redactor's immutable policy snapshot. Its consuming `finish` method
-    /// publishes one [`crate::RedactionTextOutput`].
-    ///
-    /// # Returns
-    ///
-    /// A composer for one independently bounded ordered text result.
-    #[must_use]
-    pub fn text_composer(&self) -> RedactedTextComposer {
-        RedactedTextComposer::from_session(self.text_runtime())
-    }
-
-    /// Starts one batch of independently resolvable redaction items.
-    ///
-    /// The returned batch owns a fresh budget ledger initialized from this
-    /// redactor's immutable policy snapshot. Its consuming diagnostics finish
-    /// method publishes fail-closed item views.
-    ///
-    /// # Returns
-    /// A mutable batch that issues handles resolvable only from its finished
-    /// output.
-    #[must_use]
-    pub fn batch(&self) -> RedactionBatch {
-        RedactionBatch::from_session(self.batch_runtime())
+        replace(&mut *current, redactor)
     }
 }
 
@@ -209,7 +245,8 @@ impl Default for Redactor {
     ///
     /// # Returns
     ///
-    /// This implementation never reads mutable process-wide application state.
+    /// A new standard redactor; no mutable process-wide application state is
+    /// read.
     #[inline(always)]
     fn default() -> Self {
         Self::standard()
