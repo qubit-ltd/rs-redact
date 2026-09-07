@@ -18,7 +18,7 @@ The complete example uses derive, Serde, and JSON. Scalar text operations need n
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.7", features = ["derive", "serde", "json"] }
+qubit-redact = { version = "0.8", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```

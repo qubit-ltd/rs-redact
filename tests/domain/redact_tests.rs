@@ -340,7 +340,7 @@ fn test_redaction_fields_sensitive_value_masks_recursive_leaves() {
 
 /// Verifies the optional decimal scalar capability is consistent between the
 /// domain writer and structured Serde paths used by downstream models.
-#[cfg(feature = "serde")]
+#[cfg(feature = "bigdecimal")]
 #[test]
 fn test_redaction_fields_sensitive_value_supports_big_decimal() {
     struct DecimalValue(bigdecimal::BigDecimal);

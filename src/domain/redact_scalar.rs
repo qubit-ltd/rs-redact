@@ -9,7 +9,7 @@
 
 use std::borrow::Cow;
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "bigdecimal")]
 use bigdecimal::BigDecimal;
 
 use super::RedactLevelValue;
@@ -70,5 +70,5 @@ scalar!(
     Cow<'_, str>
 );
 impl<T: RedactScalar + ?Sized> RedactScalar for &T {}
-#[cfg(feature = "serde")]
+#[cfg(feature = "bigdecimal")]
 impl RedactScalar for BigDecimal {}

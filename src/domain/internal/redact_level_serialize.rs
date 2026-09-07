@@ -21,7 +21,7 @@ use std::hash::Hash;
 use std::rc::Rc;
 use std::sync::Arc;
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "bigdecimal")]
 use bigdecimal::BigDecimal;
 use serde::Serialize;
 use serde::Serializer;
@@ -239,7 +239,7 @@ scalar_level_serialize!(
     String, str, char, bool, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64
 );
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "bigdecimal")]
 impl RedactLevelSerialize for BigDecimal {
     /// Applies the explicit level while sharing input, payload, and structural
     /// admission.

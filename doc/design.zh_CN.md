@@ -2,7 +2,7 @@
 
 [English Design](design.md) · [中文用户手册](user_guide.zh_CN.md) · [README](../README.zh_CN.md)
 
-当前设计：0.7.0；runtime 与 derive 同步版本，Rust 1.94，默认空 feature。
+当前设计：0.8.0；runtime 与 derive 同步版本，Rust 1.94，默认空 feature。
 
 ## 1. 目标与边界
 
