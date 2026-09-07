@@ -1,42 +1,58 @@
-error[E0277]: the trait bound `&Child: RedactBorrowedSerialize` is not satisfied
+error[E0277]: the trait bound `Child: RedactSerialize` is not satisfied
+  --> tests/fixtures/fail/nested_without_redact_serialize.rs:21:10
+   |
+21 | #[derive(Redact)]
+   |          ^^^^^^ unsatisfied trait bound
+   |
+help: the trait `RedactSerialize` is not implemented for `Child`
+  --> tests/fixtures/fail/nested_without_redact_serialize.rs:13:1
+   |
+13 | struct Child;
+   | ^^^^^^^^^^^^
+   = help: the following other types implement trait `RedactSerialize`:
+             (A, B)
+             (A, B, C)
+             (A, B, C, D)
+             (A, B, C, D, E)
+             (A, B, C, D, E, F)
+             (A, B, C, D, E, F, G)
+             (A, B, C, D, E, F, G, H)
+             (A, B, C, D, E, F, G, H, I)
+           and $N others
+   = help: see issue #48214
+   = note: this error originates in the derive macro `Redact` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Child: RedactSerialize` is not satisfied
   --> tests/fixtures/fail/nested_without_redact_serialize.rs:30:34
    |
 30 |     let _ = serde_json::to_value(Bad { child: Child });
-   |             -------------------- ^^^^^^^^^^^^^^^^^^^^ the trait `RedactBorrowedSerialize` is not implemented for `&Child`
+   |             -------------------- ^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |             |
    |             required by a bound introduced by this call
    |
-help: the following other types implement trait `RedactBorrowedSerialize`
-  --> tests/fixtures/fail/nested_without_redact_serialize.rs:21:10
+help: the trait `RedactSerialize` is not implemented for `Child`
+  --> tests/fixtures/fail/nested_without_redact_serialize.rs:13:1
    |
-21 |   #[derive(Redact)]
-   |            ^^^^^^ `&'__qubit_redact_lifetime Bad`
-   |
-  ::: src/domain/internal/vec_projection.rs
-   |
-   | / impl<'value, T> RedactBorrowedSerialize for &'value Vec<T>
-   | | where
-   | |     VecProjection<'value, T>: Serialize,
-   | |________________________________________^ `&'value Vec<T>`
-   |
-  ::: src/domain/internal/option_projection.rs
-   |
-   | / impl<'value, T> RedactBorrowedSerialize for &'value Option<T>
-   | | where
-   | |     OptionProjection<'value, T>: Serialize,
-   | |___________________________________________^ `&'value std::option::Option<T>`
-note: required for `__QubitRedactBadFields<'_, Child>` to implement `Serialize`
+13 | struct Child;
+   | ^^^^^^^^^^^^
+   = help: the following other types implement trait `RedactSerialize`:
+             (A, B)
+             (A, B, C)
+             (A, B, C, D)
+             (A, B, C, D, E)
+             (A, B, C, D, E, F)
+             (A, B, C, D, E, F, G)
+             (A, B, C, D, E, F, G, H)
+             (A, B, C, D, E, F, G, H, I)
+           and $N others
+note: required for `Bad` to implement `Serialize`
   --> tests/fixtures/fail/nested_without_redact_serialize.rs:21:10
    |
 21 | #[derive(Redact)]
    |          ^^^^^^ unsatisfied trait bound introduced in this `derive` macro
-note: required for `&'__qubit_redact_lifetime Bad` to implement `for<'__qubit_redact_lifetime> RedactBorrowedSerialize`
-  --> tests/fixtures/fail/nested_without_redact_serialize.rs:21:10
-   |
-21 | #[derive(Redact)]
-   |          ^^^^^^ unsatisfied trait bound introduced in this `derive` macro
-   = note: 1 redundant requirement hidden
-   = note: required for `Bad` to implement `Serialize`
+22 | #[redact(serde)]
+23 | struct Bad {
+   |        ^^^
 note: required by a bound in `to_value`
   --> $CARGO/serde_json-$VERSION/src/value/mod.rs
    |

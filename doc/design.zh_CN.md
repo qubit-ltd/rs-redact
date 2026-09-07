@@ -70,7 +70,7 @@ flowchart TD
     C --> O[OperationSink 转义及终结]
     O --> T[TextSession / BatchSession 发布]
     V[RedactedView] --> P[借用字段投影]
-    D[派生源 Serialize] --> H[引用上的 RedactBorrowedSerialize]
+    D[派生源 Serialize] --> H[RedactSerialize]
     H --> P
     P --> B[StructuredSerdeBudget]
     B --> X[外部 Serializer]
@@ -80,15 +80,14 @@ flowchart TD
 ```
 
 view 借用源并拥有不可变策略快照；创建不访问源，每次格式化或序列化重新执行。
-文本通过 `Redact`，结构化 Serde 通过 `RedactSerializeSource::RedactedFields`，不要求
+文本通过 `Redact`，结构化 Serde 通过隐藏的 `RedactSerialize` capability，不要求
 源对象自身实现 Serialize。`#[redact(serde)]` 才额外替换源的普通序列化行为。
 显式 level 由领域类型定义，strict 不覆盖；未标注字段保持普通表示。
 
-嵌套投影字段和派生源序列化使用引用上的隐藏能力 `RedactBorrowedSerialize`。
-派生实现将能力约束放在实际借用生命周期的具体投影上，避免高阶 GAT 约束间接
-要求源数据存活至 static。因此泛型父对象可以序列化借用局部数据的子对象，
-包括 Option 和 Vec，而无需子对象自身实现普通 Serialize。GAT 仍作为显式 view
-的投影契约；两条路径执行同一投影，共享同一 scope 预算。缺少能力时在请求
+嵌套投影字段和派生源序列化使用同一个隐藏能力 `RedactSerialize`。
+Option 和 Vec 投影要求元素实现该能力，避免高阶借用 capability 约束间接要求
+源数据存活至 static。泛型父对象可以序列化借用局部数据的子对象，而无需子对象
+自身实现普通 Serialize。缺少能力时在请求
 序列化处报错，纯文本派生仍然有效。
 
 文本 RuntimeCore 与同步 Serde scope 生命周期不同，分别拥有账本。Serde scope 使用

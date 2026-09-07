@@ -20,6 +20,7 @@ use qubit_redact::Redactor;
 use serde_json::to_string;
 
 #[derive(Redact)]
+#[redact(serde)]
 struct Login {
     user: String,
     #[redact(level = "secret")]
@@ -27,6 +28,7 @@ struct Login {
 }
 
 #[derive(Redact)]
+#[redact(serde)]
 struct Event {
     #[redact(nested)]
     logins: Vec<Login>,

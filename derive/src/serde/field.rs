@@ -11,10 +11,10 @@ use proc_macro2::TokenStream;
 use quote::format_ident;
 use quote::quote;
 use quote::quote_spanned;
+use syn::spanned::Spanned;
 use syn::Field;
 use syn::Ident;
 use syn::Path;
-use syn::spanned::Spanned;
 
 use crate::attributes::SerdeAttributes;
 use crate::model::FieldMode;
@@ -128,7 +128,7 @@ pub(super) fn serialized_carrier(
         FieldMode::Nested => {
             let raw = access.raw;
             quote_spanned!(field.span()=>
-                #runtime::domain::internal::RedactedBorrowedRef::new(#raw, policy)
+                #runtime::domain::internal::RedactedSerializeRef::new(#raw, policy)
             )
         }
         FieldMode::Map => {
@@ -138,7 +138,10 @@ pub(super) fn serialized_carrier(
             )
         }
         FieldMode::MapLevels { key, value } => {
-            let key = key.as_ref().expect("map key level is required").runtime_tokens(runtime);
+            let key = key
+                .as_ref()
+                .expect("map key level is required")
+                .runtime_tokens(runtime);
             let value = value
                 .as_ref()
                 .map(|level| {
@@ -153,7 +156,9 @@ pub(super) fn serialized_carrier(
         }
         FieldMode::KeyedBy(_) => {
             let raw = access.raw;
-            let key = access.key_raw.expect("keyed_by is available only for named fields");
+            let key = access
+                .key_raw
+                .expect("keyed_by is available only for named fields");
             quote_spanned!(field.span()=>
                 #runtime::domain::internal::RedactedKeyedSerializeRef::new(#raw, #key, policy)
             )
@@ -230,11 +235,16 @@ pub(super) fn raw_identifier(identifier: &Ident) -> String {
 /// Panics when a variant name is supplied without a declaration index.
 #[must_use]
 #[inline]
-pub(super) fn field_context(variant_name: Option<&Ident>, variant_index: Option<u32>, field_name: &str) -> String {
+pub(super) fn field_context(
+    variant_name: Option<&Ident>,
+    variant_index: Option<u32>,
+    field_name: &str,
+) -> String {
     variant_name.map_or_else(
         || field_name.to_owned(),
         |variant| {
-            let index = variant_index.expect("enum variant field contexts require a declaration index");
+            let index =
+                variant_index.expect("enum variant field contexts require a declaration index");
             format!("{variant}_{index}_{field_name}")
         },
     )

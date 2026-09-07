@@ -83,7 +83,7 @@ flowchart TD
     C --> O[OperationSink escaping and finalization]
     O --> T[TextSession / BatchSession publication]
     V[RedactedView] --> P[Borrowed field projection]
-    D[Derived source Serialize] --> H[RedactBorrowedSerialize on reference]
+    D[Derived source Serialize] --> H[RedactSerialize]
     H --> P
     P --> B[StructuredSerdeBudget]
     B --> X[External Serializer]
@@ -94,19 +94,14 @@ flowchart TD
 
 A view borrows its source and owns an immutable policy snapshot. Creation does not access
 the source; each formatting or serialization executes afresh. Text uses `Redact`, while
-structured Serde uses `RedactSerializeSource::RedactedFields` without requiring the source's
-own Serialize implementation. Only `#[redact(serde)]` additionally replaces ordinary source
+structured Serde uses the hidden `RedactSerialize` capability. Only `#[redact(serde)]` additionally replaces ordinary source
 serialization. Explicit levels belong to the domain type and remain final under strict policy;
 unmarked fields retain ordinary representations.
 
-Nested projection fields and derived source serialization use the hidden
-`RedactBorrowedSerialize` capability on references. Derive implements it with
-bounds on the concrete projection at the actual borrow lifetime. This avoids
-requiring a higher-ranked GAT projection to be valid for static data: generic
-parents can serialize children borrowing local data, including Option and Vec,
-without giving those children an ordinary Serialize implementation. The GAT
-remains the explicit-view projection contract; both paths execute the same
-projection and share the same scoped budget. Unsupported capabilities fail
+Nested projection fields and derived source serialization use the same hidden
+`RedactSerialize` capability. Option and Vec projections require their element
+types to implement that capability, so generic parents can serialize children
+borrowing local data without a higher-ranked borrowed capability. Unsupported capabilities fail
 when serialization is requested, while text-only derives remain valid.
 
 Text RuntimeCore and synchronous Serde scopes have different lifetimes and own separate
