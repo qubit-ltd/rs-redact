@@ -52,11 +52,11 @@ fn test_nested_http_output_rejection_closes_later_batch_items() {
         .summary()
         .usage()
         .inspected_input_bytes();
-    let mut batch = redactor.batch();
+    let mut batch = redactor.diagnostic_batch();
     let first =
         batch.redact_http_body_with_content_type_text(BodyCapture::complete(body.as_bytes()), Some("application/json"));
     let second = batch.redact_field("id", "should-not-appear");
-    let output = batch.finish_for_diagnostics("<incomplete>");
+    let output = batch.finish_with_marker("<incomplete>");
     assert_eq!(output.text(first).as_str(), "<incomplete>");
     assert_eq!(output.text(second).as_str(), "<incomplete>");
     assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
@@ -65,13 +65,13 @@ fn test_nested_http_output_rejection_closes_later_batch_items() {
 
 #[test]
 fn test_source_truncation_keeps_its_reason_without_closing_remaining_output() {
-    let mut batch = Redactor::standard().batch();
+    let mut batch = Redactor::standard().diagnostic_batch();
     let first = batch.redact_http_body_with_content_type_text(
         BodyCapture::truncated(b"prefix", 20).expect("source metadata"),
         Some("text/plain"),
     );
     let second = batch.redact_field("id", "visible");
-    let output = batch.finish_for_diagnostics("<incomplete>");
+    let output = batch.finish_with_marker("<incomplete>");
     assert_eq!(output.text(first).as_str(), "<incomplete>");
     assert_eq!(output.text(second).as_str(), "visible");
     assert!(output.summary().reasons().contains(RedactionReason::SourceTruncated));

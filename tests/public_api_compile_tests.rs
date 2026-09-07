@@ -53,9 +53,9 @@ fn test_raw_batch_publication_types_are_not_public() {
         "raw-batch-types",
         concat!(
             "use qubit_",
-            "redact::{RedactionBatchHandleError, RedactionBatchOutput};\nfn main() {}\n"
+            "redact::{DiagnosticRedactionHandleError, DiagnosticRedactionBatchOutput};\nfn main() {}\n"
         ),
-        "RedactionBatchOutput",
+        "DiagnosticRedactionBatchOutput",
     );
 }
 
@@ -83,14 +83,14 @@ fn test_domain_scope_types_are_not_exported_from_the_crate_root() {
     );
 }
 
-/// Public batches publish only the fail-closed diagnostics view.
+/// The removed marker-taking method is no longer part of the public API.
 #[test]
-fn test_raw_batch_finish_is_not_public() {
+fn test_legacy_batch_finish_method_is_not_public() {
     assert_rejected(
         "raw-batch-finish",
         concat!(
             "use qubit_",
-            "redact::{Redactor};\nfn main() { let batch = Redactor::strict().batch(); let _ = batch.finish(); }\n"
+            "redact::{Redactor};\nfn main() { let batch = Redactor::strict().diagnostic_batch(); let _ = batch.finish_for_diagnostics(\"<incomplete>\"); }\n"
         ),
         "finish",
     );

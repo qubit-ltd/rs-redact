@@ -7,19 +7,19 @@
 // =============================================================================
 //! Published independently resolvable batch results.
 
-use super::RedactionBatchHandle;
-use super::RedactionBatchHandleError;
+use super::DiagnosticRedactionHandle;
+use super::DiagnosticRedactionHandleError;
 use crate::RedactionTextOutput;
 use crate::runtime::BatchPublication;
 use crate::runtime::RedactionHandle;
 
 /// Crate-private publication used to build fail-closed batch diagnostics.
-pub(crate) struct RedactionBatchOutput {
+pub(crate) struct DiagnosticRedactionBatchOutput {
     /// Private publication that owns the batch identity, items, and summary.
     output: BatchPublication,
 }
 
-impl RedactionBatchOutput {
+impl DiagnosticRedactionBatchOutput {
     /// Wraps a completed runtime publication for crate-private batch
     /// resolution.
     ///
@@ -50,7 +50,7 @@ impl RedactionBatchOutput {
 
     /// Resolves `handle` without cloning its text.
     ///
-    /// Returns [`RedactionBatchHandleError::DifferentBatch`] when `handle`
+    /// Returns [`DiagnosticRedactionHandleError::DifferentBatch`] when `handle`
     /// was created by another batch, or `MissingItem` for an invalid index.
     ///
     /// # Parameters
@@ -68,13 +68,13 @@ impl RedactionBatchOutput {
     #[inline]
     pub(crate) fn resolve(
         &self,
-        handle: RedactionBatchHandle,
-    ) -> Result<&RedactionTextOutput, RedactionBatchHandleError> {
+        handle: DiagnosticRedactionHandle,
+    ) -> Result<&RedactionTextOutput, DiagnosticRedactionHandleError> {
         self.output
             .resolve(RedactionHandle::new(handle.batch_id, handle.item_index))
             .map_err(|error| match error {
-                crate::RedactionHandleError::DifferentTransaction => RedactionBatchHandleError::DifferentBatch,
-                crate::RedactionHandleError::MissingItem => RedactionBatchHandleError::MissingItem,
+                crate::RedactionHandleError::DifferentTransaction => DiagnosticRedactionHandleError::DifferentBatch,
+                crate::RedactionHandleError::MissingItem => DiagnosticRedactionHandleError::MissingItem,
             })
     }
 }
@@ -84,16 +84,16 @@ impl RedactionBatchOutput {
 // handle contract.
 #[cfg(test)]
 mod tests {
-    use super::RedactionBatchHandle;
-    use super::RedactionBatchHandleError;
+    use super::DiagnosticRedactionHandle;
+    use super::DiagnosticRedactionHandleError;
     use crate::Redactor;
 
     /// The public facade preserves the same-batch missing-item distinction.
     #[test]
     fn test_resolve_reports_missing_item_for_same_batch_invalid_index() {
-        let mut batch = Redactor::standard().batch();
+        let mut batch = Redactor::standard().diagnostic_batch();
         let valid = batch.redact_field("name", "Ada");
-        let missing = RedactionBatchHandle {
+        let missing = DiagnosticRedactionHandle {
             batch_id: valid.batch_id,
             item_index: usize::MAX,
         };
@@ -101,7 +101,7 @@ mod tests {
 
         assert!(matches!(
             output.resolve(missing),
-            Err(RedactionBatchHandleError::MissingItem),
+            Err(DiagnosticRedactionHandleError::MissingItem),
         ));
     }
 }

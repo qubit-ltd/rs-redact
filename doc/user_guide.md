@@ -239,15 +239,15 @@ Business types choose the correct level; strict policy does not override explici
 HTTP URL/headers/body or process argv/env often belong to one diagnostic event. Batch operations
 share one budget; separate one-shot calls and repeated view uses each get their own budget.
 Items consume allowance in insertion order, so earlier items can exhaust resources needed by
-later ones. `finish_for_diagnostics(marker)` returns one escaped marker for incomplete items
+later ones. `finish_with_marker(marker)` returns one escaped marker for incomplete items
 and invalid/foreign handles. `summary()` is aggregate accounting, not per-item auditing.
 
 ```rust
 use qubit_redact::Redactor;
-let mut batch = Redactor::standard().batch();
+let mut batch = Redactor::standard().diagnostic_batch();
 let user = batch.redact_field("user", "ada");
 let password = batch.redact_field("password", "raw-secret");
-let output = batch.finish_for_diagnostics("<incomplete>");
+let output = batch.finish_with_marker("<incomplete>");
 assert_eq!(output.text(user).as_str(), "ada");
 assert_eq!(output.text(password).as_str(), "<redacted>");
 ```
@@ -274,8 +274,8 @@ assert_eq!(value["password"], "raw");
 let _ = inspection;
 ```
 
-`RedactionBatch::redact_json_value` and the other batch methods share a budget.
-After `finish_for_diagnostics`, handles select complete item text or the escaped
+`DiagnosticRedactionBatch::redact_json_value` and the other batch methods share a budget.
+After `finish_with_marker`, handles select complete item text or the escaped
 fallback marker; `summary()` describes the entire batch.
 
 JSON text is parsed once into an admitted tree. Invalid JSON and traversal
@@ -327,11 +327,11 @@ headers.insert("authorization", HeaderValue::from_static("Bearer raw-token"));
 let content_type = HeaderValue::from_static("application/json");
 let body = br#"{"user":"ada","password":"raw-password"}"#;
 
-let mut batch = Redactor::standard().batch();
+let mut batch = Redactor::standard().diagnostic_batch();
 let url = batch.redact_http_url("https://example.test/login?token=raw-token");
 let headers_handle = batch.redact_http_headers(&headers);
 let body_handle = batch.redact_http_body(BodyCapture::complete(body), Some(&content_type));
-let output = batch.finish_for_diagnostics("<redaction incomplete>");
+let output = batch.finish_with_marker("<redaction incomplete>");
 
 for handle in [url, headers_handle, body_handle] {
     assert!(!output.text(handle).as_str().contains("raw-"));
@@ -500,7 +500,7 @@ The caller must bound additional encoding overhead from an arbitrary external se
 | Output cannot even retain a replacement | Exhausted | OutputLimitReached | No |
 
 An item failure neither resets the batch budget nor unconditionally closes output; the aggregate
-summary remains incomplete. Post-publication helpers such as `finish_for_diagnostics(marker)` and
+summary remains incomplete. Post-publication helpers such as `finish_with_marker(marker)` and
 `text_or_marker` escape the caller's marker, but that marker and caller-added log prefixes/suffixes
 are outside the original transaction's `output_bytes` and `max_output_bytes`.
 Budgets control library admission and writes, not arbitrary computation inside Display/Serialize or

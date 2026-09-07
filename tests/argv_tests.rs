@@ -97,9 +97,9 @@ fn composer_and_batch_argv_results_are_separate() {
             ]);
         })
         .finish();
-    let mut batch = Redactor::standard().batch();
+    let mut batch = Redactor::standard().diagnostic_batch();
     let handle = batch.redact_argv([ArgvItem::sensitive(OsStr::new("item-secret"), Sensitivity::Secret)]);
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert!(text.text().as_str().starts_with("argv="));
     assert!(!text.text().as_str().contains("aggregate-secret"));
@@ -108,7 +108,7 @@ fn composer_and_batch_argv_results_are_separate() {
 
 #[test]
 fn direct_argv_handle_operations_publish_explicit_and_heuristic_results() {
-    let mut batch = Redactor::standard().batch();
+    let mut batch = Redactor::standard().diagnostic_batch();
     let explicit_handle = batch.redact_argv([
         ArgvItem::plain(OsStr::new("tool")),
         ArgvItem::sensitive(OsStr::new("explicit-secret"), Sensitivity::Secret),
@@ -118,7 +118,7 @@ fn direct_argv_handle_operations_publish_explicit_and_heuristic_results() {
         ArgvItem::plain(OsStr::new("--token")),
         ArgvItem::plain(OsStr::new("heuristic-secret")),
     ]);
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert!(!output.text(explicit_handle).as_str().contains("explicit-secret"));
     assert!(!output.text(heuristic_handle).as_str().contains("heuristic-secret"));

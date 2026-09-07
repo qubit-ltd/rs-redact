@@ -10,9 +10,9 @@
 use qubit_redact::Redact;
 use qubit_redact::RedactedText;
 use qubit_redact::RedactedTextComposer;
-use qubit_redact::RedactionBatch;
-use qubit_redact::RedactionBatchDiagnostics;
-use qubit_redact::RedactionBatchHandle;
+use qubit_redact::DiagnosticRedactionBatch;
+use qubit_redact::DiagnosticRedactionOutput;
+use qubit_redact::DiagnosticRedactionHandle;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionSummary;
@@ -34,9 +34,9 @@ fn target_transactional_types_are_public() {
     let _: Option<RedactionEntries<'_, '_>> = None;
     let _: Option<RedactedText> = None;
     let _: Option<RedactedTextComposer> = None;
-    let _: Option<RedactionBatch> = None;
-    let _: Option<RedactionBatchDiagnostics> = None;
-    let _: Option<RedactionBatchHandle> = None;
+    let _: Option<DiagnosticRedactionBatch> = None;
+    let _: Option<DiagnosticRedactionOutput> = None;
+    let _: Option<DiagnosticRedactionHandle> = None;
     let _: Option<RedactionCompletion> = None;
     let _: Option<RedactionTextOutput> = None;
     let _: Option<RedactionPolicy> = None;
@@ -47,9 +47,9 @@ fn target_transactional_types_are_public() {
 
 #[test]
 fn batch_resolves_independent_items_without_aggregate_text() {
-    let mut batch = Redactor::strict().batch();
+    let mut batch = Redactor::strict().diagnostic_batch();
     let handle = batch.redact_field("password", "raw-secret");
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert_eq!(output.text(handle).as_str(), "<redacted>");
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
@@ -57,9 +57,9 @@ fn batch_resolves_independent_items_without_aggregate_text() {
 
 #[test]
 fn batch_redacts_one_domain_value() {
-    let mut batch = Redactor::strict().batch();
+    let mut batch = Redactor::strict().diagnostic_batch();
     let handle = batch.redact_value(&PublicApiValue);
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert_eq!(output.text(handle).as_str(), "PublicApiValue");
 }

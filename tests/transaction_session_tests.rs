@@ -54,10 +54,10 @@ fn composer_publishes_one_ordered_text() {
 
 #[test]
 fn batch_resolves_items_only_from_its_own_output() {
-    let mut batch = Redactor::standard().batch();
+    let mut batch = Redactor::standard().diagnostic_batch();
     let first = batch.redact_field("name", "Ada");
     let second = batch.redact_value(&SafeValue);
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert_eq!(output.text(first).as_str(), "Ada");
     assert!(output.text(second).as_str().contains("SafeValue"));
@@ -66,13 +66,13 @@ fn batch_resolves_items_only_from_its_own_output() {
 
 #[test]
 fn batch_rejects_handle_from_different_batch() {
-    let mut first = Redactor::standard().batch();
+    let mut first = Redactor::standard().diagnostic_batch();
     let handle = first.redact_field("name", "Ada");
-    let _ = first.finish_for_diagnostics("<redaction incomplete>");
+    let _ = first.finish_with_marker("<redaction incomplete>");
 
     let second = Redactor::standard()
-        .batch()
-        .finish_for_diagnostics("<redaction incomplete>");
+        .diagnostic_batch()
+        .finish_with_marker("<redaction incomplete>");
     assert_eq!(second.text(handle).as_str(), "<redaction incomplete>");
 }
 
@@ -96,20 +96,20 @@ fn output_limit_is_observable_without_publishing_raw_input() {
 
 #[test]
 fn batch_recovers_from_user_redaction_panic_without_publishing_partial_item() {
-    let mut batch = Redactor::strict().batch();
+    let mut batch = Redactor::strict().diagnostic_batch();
     let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
         let _ = batch.redact_value(&PanickingValue);
     }));
     assert!(result.is_err());
 
     let handle = batch.redact_field("password", "raw-secret");
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
     assert_eq!(output.text(handle).as_str(), "<redacted>");
 }
 
 #[test]
 fn batch_panic_invalidates_handles_created_before_rollback() {
-    let mut batch = Redactor::strict().batch();
+    let mut batch = Redactor::strict().diagnostic_batch();
     let stale = batch.redact_field("password", "raw-secret");
     let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
         let _ = batch.redact_value(&PanickingValue);
@@ -117,7 +117,7 @@ fn batch_panic_invalidates_handles_created_before_rollback() {
     assert!(result.is_err());
 
     let current = batch.redact_field("password", "raw-secret");
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
     assert_eq!(output.text(stale).as_str(), "<redaction incomplete>");
     assert_eq!(output.text(current).as_str(), "<redacted>");
 }
@@ -136,9 +136,9 @@ fn process_composer_batch_and_one_shot_publish_equivalent_safe_text() {
         })
         .finish();
 
-    let mut batch = redactor.batch();
+    let mut batch = redactor.diagnostic_batch();
     let handle = batch.redact_process(program, arguments, variables);
-    let batch = batch.finish_for_diagnostics("<redaction incomplete>");
+    let batch = batch.finish_with_marker("<redaction incomplete>");
 
     let one_shot = redactor.redact_process(program, arguments, variables);
     let batch_text = batch.text(handle).as_str();
@@ -188,13 +188,13 @@ fn process_batch_records_environment_collection_limit_after_argv() {
         .expect("limits should build")
         .build()
         .expect("policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let handle = batch.redact_process(
         OsStr::new("client"),
         [],
         [(OsStr::new("PASSWORD"), OsStr::new("must-not-be-rendered"))],
     );
-    let output = batch.finish_for_diagnostics("");
+    let output = batch.finish_with_marker("");
 
     assert!(output.text(handle).as_str().is_empty());
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);

@@ -77,9 +77,9 @@ fn test_key_admission_precedes_secret_formatting_in_all_publication_modes() {
     let value = Counted(&calls);
     let direct = redactor.redact_field("password", &value);
     let composed = redactor.text_composer().field("password", &value).finish();
-    let mut batch = redactor.batch();
+    let mut batch = redactor.diagnostic_batch();
     let handle = batch.redact_field("password", &value);
-    let diagnostics = batch.finish_for_diagnostics("<incomplete>");
+    let diagnostics = batch.finish_with_marker("<incomplete>");
     for summary in [direct.summary(), composed.summary(), diagnostics.summary()] {
         assert_failure(summary, RedactionReason::InputLimitReached, 0);
         assert_eq!(summary.usage().presented_input_bytes(), 8);
@@ -127,10 +127,10 @@ fn test_exact_key_allowance_does_not_inspect_an_opaque_secret() {
 
 #[test]
 fn test_input_rejection_does_not_close_a_batch_with_remaining_allowance() {
-    let mut batch = bounded(4, 128).batch();
+    let mut batch = bounded(4, 128).diagnostic_batch();
     let first = batch.redact_field("password", "raw-secret");
     let second = batch.redact_field("id", "ok");
-    let output = batch.finish_for_diagnostics("<incomplete>");
+    let output = batch.finish_with_marker("<incomplete>");
     assert_eq!(output.text(first).as_str(), "<incomplete>");
     assert_eq!(output.text(second).as_str(), "ok");
     assert_failure(output.summary(), RedactionReason::InputLimitReached, 4);
@@ -138,10 +138,10 @@ fn test_input_rejection_does_not_close_a_batch_with_remaining_allowance() {
 
 #[test]
 fn test_batch_keys_share_the_input_allowance() {
-    let mut batch = bounded(8, 128).batch();
+    let mut batch = bounded(8, 128).diagnostic_batch();
     let first = batch.redact_field("password", "first-secret");
     let second = batch.redact_field("password", "second-secret");
-    let output = batch.finish_for_diagnostics("<incomplete>");
+    let output = batch.finish_with_marker("<incomplete>");
     assert_eq!(output.text(first).as_str(), "<redacted>");
     assert_eq!(output.text(second).as_str(), "<incomplete>");
     assert_failure(output.summary(), RedactionReason::InputLimitReached, 8);
@@ -236,10 +236,10 @@ fn test_domain_output_rejection_closes_later_scalar_access() {
         .finish();
     assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert_eq!(calls.get(), 0, "composer must preserve domain output closure");
-    let mut batch = redactor.batch();
+    let mut batch = redactor.diagnostic_batch();
     let _first = batch.redact_value(&WideDomain);
     let _second = batch.redact_field("x", &Counted(&calls));
-    let _output = batch.finish_for_diagnostics("<incomplete>");
+    let _output = batch.finish_with_marker("<incomplete>");
     assert_eq!(calls.get(), 0, "batch must preserve domain output closure");
 }
 
@@ -249,13 +249,13 @@ fn test_process_batch_stops_environment_access_after_argv_output_rejection() {
     let variables = once((OsStr::new("MODE"), OsStr::new("debug"))).inspect(|_| {
         calls.set(calls.get() + 1);
     });
-    let mut batch = bounded(128, 20).batch();
+    let mut batch = bounded(128, 20).diagnostic_batch();
     let handle = batch.redact_process(
         OsStr::new("a-program-name-longer-than-the-output-budget"),
         [],
         variables,
     );
-    let output = batch.finish_for_diagnostics("<incomplete>");
+    let output = batch.finish_with_marker("<incomplete>");
     assert_eq!(
         calls.get(),
         0,

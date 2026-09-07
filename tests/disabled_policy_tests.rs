@@ -244,7 +244,7 @@ fn test_disabled_policy_restores_other_invalid_structured_http_bodies() {
     assert_eq!(composer.text().as_str(), "password=%ZZraw-secret");
     assert!(composer.summary().is_redaction_disabled());
 
-    let mut batch = Redactor::new(RedactionPolicy::disabled()).batch();
+    let mut batch = Redactor::new(RedactionPolicy::disabled()).diagnostic_batch();
     let ndjson = batch.redact_http_body(
         BodyCapture::complete(b"not-json: raw-ndjson-secret"),
         Some(&HeaderValue::from_static("application/x-ndjson")),
@@ -253,7 +253,7 @@ fn test_disabled_policy_restores_other_invalid_structured_http_bodies() {
         BodyCapture::complete(b"malformed multipart raw-secret"),
         Some(&HeaderValue::from_static("multipart/form-data")),
     );
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert_eq!(output.text(ndjson).as_str(), "not-json: raw-ndjson-secret",);
     assert_eq!(output.text(multipart).as_str(), "malformed multipart raw-secret",);

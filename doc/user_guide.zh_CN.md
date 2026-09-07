@@ -227,15 +227,15 @@ Medium 为 `*******f`。业务类型负责选择正确等级，strict 不覆盖�
 HTTP 的 URL、headers、body 或进程的 argv、env 往往属于同一条诊断事件。使用 batch，
 这些值共用一次资源预算；分别调用单值方法或多次使用视图则各用一份预算。
 批次按加入顺序消耗额度，后面的项可能因前面的项耗尽预算而降级。
-`finish_for_diagnostics(marker)` 给不完整项及无效/跨批次句柄统一返回已转义 marker。
+`finish_with_marker(marker)` 给不完整项及无效/跨批次句柄统一返回已转义 marker。
 `summary()` 是整批摘要，不是逐项审计接口。
 
 ```rust
 use qubit_redact::Redactor;
-let mut batch = Redactor::standard().batch();
+let mut batch = Redactor::standard().diagnostic_batch();
 let user = batch.redact_field("user", "ada");
 let password = batch.redact_field("password", "raw-secret");
-let output = batch.finish_for_diagnostics("<incomplete>");
+let output = batch.finish_with_marker("<incomplete>");
 assert_eq!(output.text(user).as_str(), "ada");
 assert_eq!(output.text(password).as_str(), "<redacted>");
 ```
@@ -260,8 +260,8 @@ assert_eq!(value["password"], "raw");
 let _ = inspection;
 ```
 
-`RedactionBatch::redact_json_value` 以及其他批处理方法共享预算。调用
-`finish_for_diagnostics` 后，句柄选择完整项的文本或已转义的降级标记；
+`DiagnosticRedactionBatch::redact_json_value` 以及其他批处理方法共享预算。调用
+`finish_with_marker` 后，句柄选择完整项的文本或已转义的降级标记；
 `summary()` 描述整个批次。
 
 JSON 文本只解析一次，解析过程同时完成结构准入并构造 admitted tree。非法 JSON 或遍历
@@ -308,11 +308,11 @@ headers.insert("authorization", HeaderValue::from_static("Bearer raw-token"));
 let content_type = HeaderValue::from_static("application/json");
 let body = br#"{"user":"ada","password":"raw-password"}"#;
 
-let mut batch = Redactor::standard().batch();
+let mut batch = Redactor::standard().diagnostic_batch();
 let url = batch.redact_http_url("https://example.test/login?token=raw-token");
 let headers_handle = batch.redact_http_headers(&headers);
 let body_handle = batch.redact_http_body(BodyCapture::complete(body), Some(&content_type));
-let output = batch.finish_for_diagnostics("<redaction incomplete>");
+let output = batch.finish_with_marker("<redaction incomplete>");
 
 for handle in [url, headers_handle, body_handle] {
     assert!(!output.text(handle).as_str().contains("raw-"));
@@ -468,7 +468,7 @@ none/unit 为 0，动态 map key 和标量形式的 unit variant 名称计入载
 | 输出连替代也不能容纳 | Exhausted | OutputLimitReached | 否 |
 
 单项失败不会重置批次预算，也不会无条件关闭输出；aggregate summary 保留不完整状态。
-`finish_for_diagnostics(marker)`、`text_or_marker` 等发布后的展示替代会转义 marker，
+`finish_with_marker(marker)`、`text_or_marker` 等发布后的展示替代会转义 marker，
 但 marker 及调用方日志前后缀不计入原事务 `output_bytes` 或 `max_output_bytes`。
 预算约束库可控制的准入和写入，不抢占 Display/Serialize 内部的任意计算或调用前的分配。
 

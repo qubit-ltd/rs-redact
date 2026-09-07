@@ -10,8 +10,8 @@
 use std::borrow::Cow;
 
 use super::RedactedText;
-use super::RedactionBatchHandle;
-use super::RedactionBatchOutput;
+use super::DiagnosticRedactionHandle;
+use super::DiagnosticRedactionBatchOutput;
 use super::RedactionSummary;
 use crate::output::log_escape::escape_log_control_characters;
 
@@ -35,19 +35,19 @@ use crate::output::log_escape::escape_log_control_characters;
 /// ```
 /// use qubit_redact::Redactor;
 ///
-/// let mut batch = Redactor::strict().batch();
+/// let mut batch = Redactor::strict().diagnostic_batch();
 /// let handle = batch.redact_field("password", "raw-secret");
-/// let diagnostics = batch.finish_for_diagnostics("<redaction incomplete>");
+/// let diagnostics = batch.finish_with_marker("<redaction incomplete>");
 /// assert_eq!(diagnostics.text(handle).as_str(), "<redacted>");
 /// ```
-pub struct RedactionBatchDiagnostics {
+pub struct DiagnosticRedactionOutput {
     /// Strict publication that owns the batch identity, items, and summary.
-    output: RedactionBatchOutput,
+    output: DiagnosticRedactionBatchOutput,
     /// Escaped fallback used for incomplete or unresolvable items.
     marker: RedactedText,
 }
 
-impl RedactionBatchDiagnostics {
+impl DiagnosticRedactionOutput {
     /// Creates a diagnostic view over one completed batch publication.
     ///
     /// `marker` is escaped immediately and reused for every fail-closed
@@ -66,7 +66,7 @@ impl RedactionBatchDiagnostics {
     /// invalid items.
     #[must_use]
     #[inline]
-    pub(crate) fn new(output: RedactionBatchOutput, marker: &str) -> Self {
+    pub(crate) fn new(output: DiagnosticRedactionBatchOutput, marker: &str) -> Self {
         let marker = escape_log_control_characters(Cow::Borrowed(marker));
         Self {
             output,
@@ -90,7 +90,7 @@ impl RedactionBatchDiagnostics {
     /// marker.
     #[must_use]
     #[inline]
-    pub fn text(&self, handle: RedactionBatchHandle) -> &RedactedText {
+    pub fn text(&self, handle: DiagnosticRedactionHandle) -> &RedactedText {
         self.output
             .resolve(handle)
             .ok()
@@ -118,19 +118,19 @@ impl RedactionBatchDiagnostics {
 mod tests {
     use std::ptr;
 
-    use super::RedactionBatchHandle;
+    use super::DiagnosticRedactionHandle;
     use crate::Redactor;
 
     /// A missing item from the same batch reuses the escaped diagnostic marker.
     #[test]
     fn test_text_reuses_escaped_marker_for_missing_same_batch_item() {
-        let mut batch = Redactor::standard().batch();
+        let mut batch = Redactor::standard().diagnostic_batch();
         let valid = batch.redact_field("name", "Ada");
-        let missing = RedactionBatchHandle {
+        let missing = DiagnosticRedactionHandle {
             batch_id: valid.batch_id,
             item_index: usize::MAX,
         };
-        let diagnostics = batch.finish_for_diagnostics("<redaction\nincomplete>");
+        let diagnostics = batch.finish_with_marker("<redaction\nincomplete>");
 
         let first = diagnostics.text(missing);
         let second = diagnostics.text(missing);

@@ -60,9 +60,9 @@ fn composer_and_batch_publish_separate_models() {
             _password: "raw-password".to_owned(),
         })
         .finish();
-    let mut batch = redactor.batch();
+    let mut batch = redactor.diagnostic_batch();
     let name = batch.redact_field("name", "Ada");
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
     assert_eq!(output.text(name).as_str(), "Ada");
     assert!(text.text().as_str().contains("request failed: "));
     assert!(text.text().as_str().contains("<redacted>"));
@@ -78,23 +78,23 @@ fn composer_and_batch_publish_separate_models() {
 
 #[test]
 fn batch_handles_cannot_cross_batches() {
-    let mut first_batch = Redactor::standard().batch();
+    let mut first_batch = Redactor::standard().diagnostic_batch();
     let first_handle = first_batch.redact_field("name", "Ada");
-    let first = first_batch.finish_for_diagnostics("<redaction incomplete>");
+    let first = first_batch.finish_with_marker("<redaction incomplete>");
     assert_eq!(first.text(first_handle).as_str(), "Ada");
 
     let second = Redactor::standard()
-        .batch()
-        .finish_for_diagnostics("<redaction incomplete>");
+        .diagnostic_batch()
+        .finish_with_marker("<redaction incomplete>");
     assert_eq!(second.text(first_handle).as_str(), "<redaction incomplete>");
     assert_eq!(second.summary().completion(), RedactionCompletion::Complete);
 }
 
 #[test]
 fn batch_diagnostics_resolves_complete_text_or_the_selected_marker() {
-    let mut complete_batch = Redactor::standard().batch();
+    let mut complete_batch = Redactor::standard().diagnostic_batch();
     let complete_handle = complete_batch.redact_field("name", "Ada");
-    let complete_output = complete_batch.finish_for_diagnostics("<redaction incomplete>");
+    let complete_output = complete_batch.finish_with_marker("<redaction incomplete>");
     assert_eq!(complete_output.text(complete_handle).as_str(), "Ada");
 
     let policy = RedactionPolicy::builder()
@@ -104,9 +104,9 @@ fn batch_diagnostics_resolves_complete_text_or_the_selected_marker() {
         .expect("limit configuration should be valid")
         .build()
         .expect("policy should build");
-    let mut incomplete_batch = Redactor::new(policy).batch();
+    let mut incomplete_batch = Redactor::new(policy).diagnostic_batch();
     let incomplete_handle = incomplete_batch.redact_field("password", "raw-password");
-    let incomplete_output = incomplete_batch.finish_for_diagnostics("<redaction\nincomplete>");
+    let incomplete_output = incomplete_batch.finish_with_marker("<redaction\nincomplete>");
     assert_eq!(
         incomplete_output.text(incomplete_handle).as_str(),
         "<redaction\\nincomplete>",
@@ -123,12 +123,12 @@ fn batch_diagnostics_maps_truncated_text_to_the_selected_marker() {
         .expect("limit configuration should be valid")
         .build()
         .expect("policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let handle = batch.redact_env_pairs([
         (OsStr::new("FIRST"), OsStr::new("visible")),
         (OsStr::new("PASSWORD"), OsStr::new("raw-password")),
     ]);
-    let diagnostics = batch.finish_for_diagnostics("<redaction incomplete>");
+    let diagnostics = batch.finish_with_marker("<redaction incomplete>");
 
     assert_eq!(diagnostics.text(handle).as_str(), "<redaction incomplete>",);
     assert_eq!(diagnostics.summary().completion(), RedactionCompletion::Truncated,);
@@ -136,13 +136,13 @@ fn batch_diagnostics_maps_truncated_text_to_the_selected_marker() {
 
 #[test]
 fn batch_diagnostics_maps_a_foreign_handle_to_the_selected_marker() {
-    let mut first_batch = Redactor::standard().batch();
+    let mut first_batch = Redactor::standard().diagnostic_batch();
     let first_handle = first_batch.redact_field("name", "Ada");
-    let _ = first_batch.finish_for_diagnostics("<redaction incomplete>");
+    let _ = first_batch.finish_with_marker("<redaction incomplete>");
 
     let second_output = Redactor::standard()
-        .batch()
-        .finish_for_diagnostics("<redaction incomplete>");
+        .diagnostic_batch()
+        .finish_with_marker("<redaction incomplete>");
     assert_eq!(second_output.text(first_handle).as_str(), "<redaction incomplete>",);
 }
 
@@ -278,9 +278,9 @@ fn test_redaction_usage_default_matches_empty_usage() {
 #[cfg(feature = "http")]
 #[test]
 fn http_batch_handle_publishes_independent_result() {
-    let mut batch = Redactor::standard().batch();
+    let mut batch = Redactor::standard().diagnostic_batch();
     let url = batch.redact_http_url("https://example.test/?token=raw-token");
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
     assert!(output.text(url).as_str().contains("example.test"));
     assert!(!output.text(url).as_str().contains("raw-token"));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);

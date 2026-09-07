@@ -30,8 +30,8 @@ fn test_lib_exports_public_api() {
 
     let output = redactor.text_composer().literal(" context").finish();
     assert_eq!(output.text().as_str(), " context");
-    let mut batch = redactor.batch();
+    let mut batch = redactor.diagnostic_batch();
     let item = batch.redact_field("name", "Ada");
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
     assert_eq!(output.text(item).as_str(), "Ada");
 }

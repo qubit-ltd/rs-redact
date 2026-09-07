@@ -41,9 +41,9 @@ fn test_publication_modes_preserve_their_behavioral_contracts() {
     let redactor = Redactor::strict();
 
     let composed = redactor.text_composer().value(&value).finish();
-    let mut batch = redactor.batch();
+    let mut batch = redactor.diagnostic_batch();
     let handle = batch.redact_value(&value);
-    let diagnostics = batch.finish_for_diagnostics("<redaction incomplete>");
+    let diagnostics = batch.finish_with_marker("<redaction incomplete>");
     let inspection = redactor.inspect(&value).expect("inspection should be conclusive");
 
     assert!(!composed.text().as_str().contains("raw-secret"));

@@ -13,14 +13,14 @@ use std::fmt;
 /// Error returned when a batch output cannot resolve a handle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[must_use]
-pub(crate) enum RedactionBatchHandleError {
+pub(crate) enum DiagnosticRedactionHandleError {
     /// The handle was created by a different batch.
     DifferentBatch,
     /// The handle index is outside the published batch item range.
     MissingItem,
 }
 
-impl fmt::Display for RedactionBatchHandleError {
+impl fmt::Display for DiagnosticRedactionHandleError {
     /// Renders a stable diagnostic that contains no protected text.
     ///
     /// # Parameters
@@ -43,4 +43,4 @@ impl fmt::Display for RedactionBatchHandleError {
     }
 }
 
-impl Error for RedactionBatchHandleError {}
+impl Error for DiagnosticRedactionHandleError {}

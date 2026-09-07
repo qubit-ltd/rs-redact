@@ -25,9 +25,9 @@ fn test_strict_uri_path_protection_matches_http() {
         assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
         assert!(!output.text().as_str().contains("raw-secret"), "{uri}");
         assert!(redactor.inspect_uri(uri).expect("valid URI").contains_sensitive());
-        let mut batch = redactor.batch();
+        let mut batch = redactor.diagnostic_batch();
         let handle = batch.redact_uri(uri);
-        let output = batch.finish_for_diagnostics("incomplete");
+        let output = batch.finish_with_marker("incomplete");
         assert!(!output.text(handle).as_str().contains("raw-secret"));
         let output = redactor
             .text_composer()
@@ -91,9 +91,9 @@ fn test_uri_composer_and_batch_publish_separate_results() {
         })
         .finish();
 
-    let mut batch = Redactor::standard().batch();
+    let mut batch = Redactor::standard().diagnostic_batch();
     let handle = batch.redact_uri("https://user:secret@example.test/item");
-    let batch_output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let batch_output = batch.finish_with_marker("<redaction incomplete>");
     assert!(!batch_output.text(handle).as_str().contains("secret"));
     assert!(output.text().as_str().starts_with("request=https://"));
     assert!(!output.text().as_str().contains("secret"));
@@ -129,9 +129,9 @@ fn test_uri_query_pairs_share_the_transaction_structural_budget() {
 /// individual handle form; raw source must never become aggregate output.
 #[test]
 fn test_uri_handle_replaces_invalid_input_and_preserves_provenance() {
-    let mut batch = Redactor::standard().batch();
+    let mut batch = Redactor::standard().diagnostic_batch();
     let handle = batch.redact_uri("https://example.test/?token=%zz-secret");
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert_eq!(output.text(handle).as_str(), "<invalid URI>");
     assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
@@ -149,9 +149,9 @@ fn test_empty_uri_reports_invalid_uri_for_one_shot_composer_and_batch() {
             uri.value("");
         })
         .finish();
-    let mut batch = Redactor::strict().batch();
+    let mut batch = Redactor::strict().diagnostic_batch();
     let handle = batch.redact_uri("");
-    let batch_output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let batch_output = batch.finish_with_marker("<redaction incomplete>");
 
     for output in [&one_shot, &aggregate] {
         assert_eq!(output.text().as_str(), "<invalid URI>");
@@ -185,9 +185,9 @@ fn test_uri_handle_observes_exhausted_parent_output() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let handle = batch.redact_uri("https://example.test/?token=secret");
-    let output = batch.finish_for_diagnostics("");
+    let output = batch.finish_with_marker("");
 
     assert!(output.text(handle).as_str().is_empty());
     assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
