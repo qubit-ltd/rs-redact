@@ -25,6 +25,7 @@ fn test_pass_fixtures() {
     tests.pass("tests/fixtures/pass/readme_quick_start.rs");
     tests.pass("tests/fixtures/pass/recursive_level_containers.rs");
     tests.pass("tests/fixtures/pass/nested_container_serde.rs");
+    tests.pass("tests/fixtures/pass/nested_source_serde_chain.rs");
     tests.pass("tests/fixtures/pass/disabled_fields.rs");
     tests.pass("tests/fixtures/pass/serde_wire_shape.rs");
     tests.pass("tests/fixtures/pass/generic_grouped_bounds.rs");
