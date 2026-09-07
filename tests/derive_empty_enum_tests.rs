@@ -33,6 +33,7 @@ fn test_empty_enum_derives_text_capabilities() {
 /// serialization.
 #[cfg(feature = "serde")]
 #[test]
+#[allow(unreachable_code)]
 fn test_empty_enum_derives_serde_capabilities() {
     #[derive(Redact)]
     #[redact(serde)]
