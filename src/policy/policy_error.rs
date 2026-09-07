@@ -14,6 +14,19 @@ use super::PolicyLocation;
 use super::Sensitivity;
 
 /// Error returned when a redaction policy contains an invalid rule.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::{PolicyError, RedactionPolicy, Sensitivity};
+///
+/// let error = RedactionPolicy::builder()
+///     .fields(|fields| {
+///         fields.raise("", Sensitivity::Secret);
+///     })
+///     .expect_err("an empty field name is invalid");
+/// assert!(matches!(error, PolicyError::EmptyFieldName { .. }));
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use]

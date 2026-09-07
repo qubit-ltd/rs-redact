@@ -8,6 +8,14 @@
 //! Path handling choices for URI redaction.
 
 /// Controls whether URI paths are retained or replaced by a safe marker.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::formats::uri::UriPathPolicy;
+///
+/// assert_eq!(UriPathPolicy::default(), UriPathPolicy::Preserve);
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UriPathPolicy {

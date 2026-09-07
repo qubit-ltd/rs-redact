@@ -87,7 +87,7 @@ impl RenderedOperation {
     /// # Returns
     ///
     /// The rendering completion of this operation.
-    #[must_use]
+    #[must_use = "the completion state describes whether the output is complete"]
     #[inline(always)]
     pub(crate) const fn completion(&self) -> RedactionCompletion {
         self.completion
@@ -152,7 +152,7 @@ impl RenderedOperation {
     /// Owned text, completion, and provenance, in that order. The caller must
     /// read `output_closed` before consuming this value when combining
     /// operations.
-    #[must_use]
+    #[must_use = "the rendered parts contain the operation result and provenance"]
     #[inline(always)]
     pub(crate) fn into_parts(self) -> (String, RedactionCompletion, RedactionReasons) {
         (self.text, self.completion, self.reasons)

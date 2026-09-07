@@ -107,7 +107,7 @@ impl RedactionSummary {
     /// # Returns
     ///
     /// The final completion state of the safe representation.
-    #[must_use]
+    #[must_use = "the completion state describes whether the output is complete"]
     #[inline(always)]
     pub const fn completion(self) -> RedactionCompletion {
         self.completion

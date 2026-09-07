@@ -12,6 +12,14 @@
 /// Unkeyed scalars are root scalar values and scalar elements of arrays.
 /// Object property values remain keyed even when their field rule passes
 /// through.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::UnkeyedJsonValuePolicy;
+///
+/// assert_eq!(UnkeyedJsonValuePolicy::default(), UnkeyedJsonValuePolicy::Redact);
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UnkeyedJsonValuePolicy {

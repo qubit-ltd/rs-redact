@@ -13,6 +13,14 @@
 /// sensitive query values. The standard policy preserves paths for diagnostic
 /// usefulness; strict policies should select [`Self::Redact`] when paths may
 /// contain opaque identifiers or credentials.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::formats::http::UrlPathPolicy;
+///
+/// assert_eq!(UrlPathPolicy::default(), UrlPathPolicy::Preserve);
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UrlPathPolicy {

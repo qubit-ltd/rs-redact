@@ -10,6 +10,14 @@
 /// Sensitivity assigned to a field or explicit value.
 ///
 /// The strength order is `Low < Medium < High < Secret`.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::Sensitivity;
+///
+/// assert!(Sensitivity::Secret > Sensitivity::High);
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Sensitivity {

@@ -11,6 +11,14 @@
 ///
 /// [`Self::Redact`] is the safe default. [`Self::PassThrough`] is an explicit
 /// diagnostic opt-in and may expose application secrets.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::formats::http::TextBodyPolicy;
+///
+/// assert_eq!(TextBodyPolicy::default(), TextBodyPolicy::Redact);
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum TextBodyPolicy {

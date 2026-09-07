@@ -13,6 +13,17 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 
 /// Reports inconsistent source-length metadata for a body capture.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::formats::http::BodyCapture;
+/// use qubit_redact::formats::http::BodyCaptureError;
+///
+/// let error = BodyCapture::truncated(b"prefix", 3)
+///     .expect_err("the claimed total must exceed captured bytes");
+/// assert!(matches!(error, BodyCaptureError::InvalidTotalLength { .. }));
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BodyCaptureError {
     /// A truncated capture claimed a total no larger than captured bytes.

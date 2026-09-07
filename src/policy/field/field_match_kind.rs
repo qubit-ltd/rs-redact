@@ -8,6 +8,23 @@
 //! The canonical field-name candidate selected by policy classification.
 
 /// Identifies the candidate that matched a configured field rule.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::{FieldMatchKind, RedactionPolicy};
+///
+/// let policy = RedactionPolicy::builder()
+///     .fields(|fields| {
+///         fields.matching(qubit_redact::FieldNameMatching::ExactOrTokenSuffix);
+///         fields.secret_sensitive("password");
+///     })
+///     .expect("the field rules should be valid")
+///     .build()
+///     .expect("the policy should be valid");
+/// let classification = policy.classify_field("db_password");
+/// assert_eq!(classification.match_kind(), Some(FieldMatchKind::TokenSuffix));
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FieldMatchKind {
