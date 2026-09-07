@@ -11,6 +11,9 @@ use proc_macro2::TokenStream;
 use quote::format_ident;
 use quote::quote;
 use quote::quote_spanned;
+use syn::ext::IdentExt;
+use syn::parse_quote;
+use syn::spanned::Spanned;
 use syn::DeriveInput;
 use syn::Field;
 use syn::GenericParam;
@@ -20,13 +23,10 @@ use syn::Lifetime;
 use syn::LifetimeParam;
 use syn::Path;
 use syn::Result;
-use syn::ext::IdentExt;
-use syn::parse_quote;
-use syn::spanned::Spanned;
 
-use super::r#enum::enum_body;
 use super::field::adapter_helper_name;
 use super::field::field_context;
+use super::r#enum::enum_body;
 use super::r#struct::struct_body;
 use crate::attributes::SerdeAttributes;
 use crate::attributes::SerdeContainerAttributes;
@@ -74,13 +74,17 @@ pub(crate) fn expand(
     let marker = projection_marker(model);
     let fields = collected_fields(model);
     let parameters = (0..fields.len())
-        .map(|index| assertions::fresh_identifier(&input.generics, &format!("__QubitRedactField{index}")))
+        .map(|index| {
+            assertions::fresh_identifier(&input.generics, &format!("__QubitRedactField{index}"))
+        })
         .collect::<Vec<_>>();
     let lifetime = assertions::fresh_lifetime(&input.generics);
     let serializer = assertions::fresh_identifier(&input.generics, "__QubitRedactSerializer");
     let adapters = serialization_adapter_helpers(name, &input.generics, model, serde);
     let body = match model {
-        ContainerData::Struct(fields) => struct_body(name, fields, runtime, serde, container_attributes),
+        ContainerData::Struct(fields) => {
+            struct_body(name, fields, runtime, serde, container_attributes)
+        }
         ContainerData::Enum(variants) => enum_body(
             name,
             variants,
@@ -92,15 +96,17 @@ pub(crate) fn expand(
         )?,
     };
     let mut projection_generics = input.generics.clone();
-    projection_generics
-        .params
-        .insert(0, GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())));
+    projection_generics.params.insert(
+        0,
+        GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())),
+    );
     projection_generics.params.extend(
         parameters
             .iter()
             .map(|parameter| -> GenericParam { parse_quote!(#parameter) }),
     );
-    let (projection_impl_generics, projection_type_generics, _) = projection_generics.split_for_impl();
+    let (projection_impl_generics, projection_type_generics, _) =
+        projection_generics.split_for_impl();
     let declaration = projection_declaration(
         input,
         &projection,
@@ -113,8 +119,13 @@ pub(crate) fn expand(
     let constructor = projection_constructor(name, &projection, model, &marker);
     let actual_types = fields.iter().map(|field| &field.ty).collect::<Vec<_>>();
     let projection_bounds = projection_bounds(model, &parameters, runtime, serde, &lifetime);
-    let (source_impl_generics, source_type_generics, source_where_clause) = input.generics.split_for_impl();
-    let source_predicates = input.generics.where_clause.iter().flat_map(|clause| &clause.predicates);
+    let (source_impl_generics, source_type_generics, source_where_clause) =
+        input.generics.split_for_impl();
+    let source_predicates = input
+        .generics
+        .where_clause
+        .iter()
+        .flat_map(|clause| &clause.predicates);
     let source_arguments = input
         .generics
         .params
@@ -135,36 +146,21 @@ pub(crate) fn expand(
         })
         .collect::<Vec<_>>();
 
-    let mut borrowed_generics = input.generics.clone();
-    borrowed_generics
-        .params
-        .insert(0, GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())));
-    borrowed_generics.make_where_clause().predicates.push(parse_quote!(
-        #projection<#lifetime, #(#source_arguments,)* #(#actual_types),*>: #serde::Serialize
-    ));
-    let (borrowed_impl_generics, _, borrowed_where_clause) = borrowed_generics.split_for_impl();
-
-    let borrowed_body = if matches!(model, ContainerData::Enum(variants) if variants.is_empty()) {
-        quote!(let _ = (serializer, policy); #constructor)
-    } else {
-        quote! {
-            let _scope = #runtime::domain::internal::RedactSerializeScope::new(policy);
-            let projection = #constructor;
-            #serde::Serialize::serialize(&projection, serializer)
-        }
-    };
-
     let source_serialize = generate_serialize.then(|| {
         let mut generics = input.generics.clone();
-        generics.make_where_clause().predicates.push(parse_quote!(
-            for<#lifetime> &#lifetime #name #source_type_generics: #runtime::domain::internal::RedactBorrowedSerialize
-        ));
+        generics
+            .make_where_clause()
+            .predicates
+            .extend(source_bounds(model, runtime, serde).into_iter().map(|bound| {
+                syn::parse2::<syn::WherePredicate>(bound).expect("valid source capability bound")
+            }));
         let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
         quote! {
             impl #impl_generics #runtime::domain::internal::RedactSerialize for #name #type_generics #where_clause {
                 fn serialize_redacted<#serializer>(&self, serializer: #serializer, policy: &#runtime::RedactionPolicy) -> ::core::result::Result<#serializer::Ok, #serializer::Error>
                 where #serializer: #serde::Serializer {
-                    #serde::Serialize::serialize(&#runtime::domain::internal::RedactedBorrowedRef::new(self, policy), serializer)
+                    let projection: #projection<'_, #(#source_arguments,)* #(#actual_types),*> = #constructor;
+                    #serde::Serialize::serialize(&projection, serializer)
                 }
             }
 
@@ -172,12 +168,13 @@ pub(crate) fn expand(
                 fn serialize<#serializer>(&self, serializer: #serializer) -> ::core::result::Result<#serializer::Ok, #serializer::Error>
                 where #serializer: #serde::Serializer {
                     let redactor = #runtime::Redactor::application_default();
-                    #serde::Serialize::serialize(&#runtime::domain::internal::RedactedBorrowedRef::new(self, redactor.policy()), serializer)
+                    #serde::Serialize::serialize(&#runtime::domain::internal::RedactedSerializeRef::new(self, redactor.policy()), serializer)
                 }
             }
         }
     });
-    let required_serialize = source_serialize.map(|tokens| quote!(#runtime::__qubit_redact_serde! { #tokens }));
+    let required_serialize =
+        source_serialize.map(|tokens| quote!(#runtime::__qubit_redact_serde! { #tokens }));
 
     Ok(quote! {
         #runtime::__qubit_redact_serde_optional! {
@@ -192,14 +189,6 @@ pub(crate) fn expand(
                     let policy = policy_owner.as_ref();
                     #(#adapters)*
                     #runtime::domain::internal::serialize_structured(serializer, policy_owner.as_ref(), |serializer| { #body })
-                }
-            }
-
-            impl #borrowed_impl_generics #runtime::domain::internal::RedactBorrowedSerialize
-                for &#lifetime #name #source_type_generics #borrowed_where_clause {
-                fn serialize_borrowed<#serializer>(self, serializer: #serializer, policy: &#runtime::RedactionPolicy) -> ::core::result::Result<#serializer::Ok, #serializer::Error>
-                where #serializer: #serde::Serializer {
-                    #borrowed_body
                 }
             }
 
@@ -246,9 +235,15 @@ fn projection_bounds(
     let mut result = Vec::new();
     let mut offset = 0usize;
     match model {
-        ContainerData::Struct(fields) => {
-            projection_group_bounds(fields, parameters, &mut offset, runtime, serde, lifetime, &mut result)
-        }
+        ContainerData::Struct(fields) => projection_group_bounds(
+            fields,
+            parameters,
+            &mut offset,
+            runtime,
+            serde,
+            lifetime,
+            &mut result,
+        ),
         ContainerData::Enum(variants) => {
             for variant in variants {
                 if variant.serde_attributes().skip() {
@@ -295,7 +290,7 @@ fn projection_group_bounds(
     offset: &mut usize,
     runtime: &Path,
     serde: &Path,
-    lifetime: &Lifetime,
+    _lifetime: &Lifetime,
     result: &mut Vec<TokenStream>,
 ) {
     match fields {
@@ -304,21 +299,29 @@ fn projection_group_bounds(
                 if field.serde_attributes().skip() {
                     continue;
                 }
-                let parameter =
-                    projection_field_type(field.field(), field.serde_attributes(), &parameters[*offset + index]);
+                let parameter = projection_field_type(
+                    field.field(),
+                    field.serde_attributes(),
+                    &parameters[*offset + index],
+                );
                 match field.attributes().mode() {
-                    FieldMode::Unmarked | FieldMode::Skip if field.serde_attributes().serialize_with().is_none() => {
+                    FieldMode::Unmarked | FieldMode::Skip
+                        if field.serde_attributes().serialize_with().is_none() =>
+                    {
                         result.push(quote!(#parameter: #serde::Serialize))
                     }
-                    FieldMode::DisplayLevel(_) => result.push(quote!(#parameter: ::core::fmt::Display)),
-                    FieldMode::Level(_) => {
-                        result.push(quote!(#parameter: #runtime::domain::internal::RedactLevelSerialize))
+                    FieldMode::DisplayLevel(_) => {
+                        result.push(quote!(#parameter: ::core::fmt::Display))
                     }
+                    FieldMode::Level(_) => result
+                        .push(quote!(#parameter: #runtime::domain::internal::RedactLevelSerialize)),
                     FieldMode::KeyedBy(key) => {
                         result.push(
                             quote!(#parameter: #runtime::domain::internal::RedactLevelSerialize + #serde::Serialize),
                         );
-                        if let Some(key_index) = fields.iter().position(|item| item.identifier() == key) {
+                        if let Some(key_index) =
+                            fields.iter().position(|item| item.identifier() == key)
+                        {
                             let key_field = &fields[key_index];
                             let key_parameter = projection_field_type(
                                 key_field.field(),
@@ -329,13 +332,15 @@ fn projection_group_bounds(
                         }
                     }
                     FieldMode::Nested => {
-                        result.push(quote!(&#lifetime #parameter: #runtime::domain::internal::RedactBorrowedSerialize))
+                        result.push(quote!(#parameter: #runtime::domain::internal::RedactSerialize))
                     }
-                    FieldMode::Map => result.push(quote!(#parameter: #runtime::domain::internal::RedactMapSerialize)),
-                    FieldMode::MapLevels { .. } => {
-                        result.push(quote!(#parameter: #runtime::domain::internal::RedactMapKeySerialize))
-                    }
-                    FieldMode::Json => result.push(quote!(#parameter: #runtime::domain::internal::RedactJsonSerialize)),
+                    FieldMode::Map => result
+                        .push(quote!(#parameter: #runtime::domain::internal::RedactMapSerialize)),
+                    FieldMode::MapLevels { .. } => result.push(
+                        quote!(#parameter: #runtime::domain::internal::RedactMapKeySerialize),
+                    ),
+                    FieldMode::Json => result
+                        .push(quote!(#parameter: #runtime::domain::internal::RedactJsonSerialize)),
                     _ => {}
                 }
             }
@@ -346,30 +351,141 @@ fn projection_group_bounds(
                 if field.serde_attributes().skip() {
                     continue;
                 }
-                let parameter =
-                    projection_field_type(field.field(), field.serde_attributes(), &parameters[*offset + index]);
+                let parameter = projection_field_type(
+                    field.field(),
+                    field.serde_attributes(),
+                    &parameters[*offset + index],
+                );
                 match field.attributes().mode() {
-                    FieldMode::Unmarked | FieldMode::Skip if field.serde_attributes().serialize_with().is_none() => {
+                    FieldMode::Unmarked | FieldMode::Skip
+                        if field.serde_attributes().serialize_with().is_none() =>
+                    {
                         result.push(quote!(#parameter: #serde::Serialize))
                     }
-                    FieldMode::DisplayLevel(_) => result.push(quote!(#parameter: ::core::fmt::Display)),
-                    FieldMode::Level(_) => {
-                        result.push(quote!(#parameter: #runtime::domain::internal::RedactLevelSerialize))
+                    FieldMode::DisplayLevel(_) => {
+                        result.push(quote!(#parameter: ::core::fmt::Display))
                     }
+                    FieldMode::Level(_) => result
+                        .push(quote!(#parameter: #runtime::domain::internal::RedactLevelSerialize)),
                     FieldMode::Nested => {
-                        result.push(quote!(&#lifetime #parameter: #runtime::domain::internal::RedactBorrowedSerialize))
+                        result.push(quote!(#parameter: #runtime::domain::internal::RedactSerialize))
                     }
-                    FieldMode::Map => result.push(quote!(#parameter: #runtime::domain::internal::RedactMapSerialize)),
-                    FieldMode::MapLevels { .. } => {
-                        result.push(quote!(#parameter: #runtime::domain::internal::RedactMapKeySerialize))
-                    }
-                    FieldMode::Json => result.push(quote!(#parameter: #runtime::domain::internal::RedactJsonSerialize)),
+                    FieldMode::Map => result
+                        .push(quote!(#parameter: #runtime::domain::internal::RedactMapSerialize)),
+                    FieldMode::MapLevels { .. } => result.push(
+                        quote!(#parameter: #runtime::domain::internal::RedactMapKeySerialize),
+                    ),
+                    FieldMode::Json => result
+                        .push(quote!(#parameter: #runtime::domain::internal::RedactJsonSerialize)),
                     _ => {}
                 }
             }
             *offset += fields.len();
         }
         FieldsData::Unit => {}
+    }
+}
+
+/// Collects the concrete source-field capabilities required by the generated
+/// source implementation. Unlike the borrowed projection path, these bounds
+/// do not quantify over an arbitrary source lifetime.
+fn source_bounds(model: &ContainerData<'_>, runtime: &Path, serde: &Path) -> Vec<TokenStream> {
+    let mut result = Vec::new();
+    let mut groups = Vec::new();
+    match model {
+        ContainerData::Struct(fields) => groups.push(fields),
+        ContainerData::Enum(variants) => groups.extend(
+            variants
+                .iter()
+                .filter(|variant| !variant.serde_attributes().skip())
+                .map(VariantData::fields),
+        ),
+    }
+    for fields in groups {
+        source_group_bounds(fields, runtime, serde, &mut result);
+    }
+    result
+}
+
+/// Appends concrete capability bounds for one source field group.
+fn source_group_bounds(
+    fields: &FieldsData<'_>,
+    runtime: &Path,
+    serde: &Path,
+    result: &mut Vec<TokenStream>,
+) {
+    match fields {
+        FieldsData::Named(fields) => {
+            for field in fields {
+                source_field_bound(
+                    field.field(),
+                    field.attributes().mode(),
+                    field.serde_attributes(),
+                    runtime,
+                    serde,
+                    result,
+                );
+            }
+        }
+        FieldsData::Unnamed(fields) => {
+            for field in fields {
+                source_field_bound(
+                    field.field(),
+                    field.attributes().mode(),
+                    field.serde_attributes(),
+                    runtime,
+                    serde,
+                    result,
+                );
+            }
+        }
+        FieldsData::Unit => {}
+    }
+}
+
+/// Appends capability bounds for one concrete field.
+fn source_field_bound(
+    field: &Field,
+    mode: &FieldMode,
+    serde_attributes: &SerdeAttributes,
+    runtime: &Path,
+    serde: &Path,
+    result: &mut Vec<TokenStream>,
+) {
+    let ty = &field.ty;
+    if serde_attributes.skip() {
+        return;
+    }
+    match mode {
+        FieldMode::Unmarked | FieldMode::Skip if serde_attributes.serialize_with().is_none() => {
+            if !matches!(field.ty, syn::Type::Reference(_)) {
+                result.push(quote!(#ty: #serde::Serialize));
+            }
+        }
+        FieldMode::DisplayLevel(_) => result.push(quote!(#ty: ::core::fmt::Display)),
+        FieldMode::Level(_) => {
+            result.push(quote!(#ty: #runtime::domain::internal::RedactLevelSerialize))
+        }
+        FieldMode::Nested => result.push(quote!(#ty: #runtime::domain::internal::RedactSerialize)),
+        FieldMode::Map => result.push(quote!(#ty: #runtime::domain::internal::RedactMapSerialize)),
+        FieldMode::MapLevels { .. } => {
+            result.push(quote!(#ty: #runtime::domain::internal::RedactMapKeySerialize));
+        }
+        FieldMode::KeyedBy(_) => {
+            result.push(
+                quote!(#ty: #runtime::domain::internal::RedactLevelSerialize + #serde::Serialize),
+            );
+        }
+        FieldMode::Json => {
+            result.push(quote!(#ty: #runtime::domain::internal::RedactJsonSerialize))
+        }
+        FieldMode::Unmarked | FieldMode::Skip => {}
+    }
+    if (matches!(mode, FieldMode::Unmarked | FieldMode::Skip)
+        && serde_attributes.skip_serializing_if().is_some())
+        && !matches!(field.ty, syn::Type::Reference(_))
+    {
+        result.push(quote!(#ty: #serde::Serialize));
     }
 }
 
@@ -462,7 +578,11 @@ fn projection_declaration(
                     .zip(parameters)
                     .map(|(field, parameter)| {
                         let name = field.identifier();
-                        let ty = projection_field_type(field.field(), field.serde_attributes(), parameter);
+                        let ty = projection_field_type(
+                            field.field(),
+                            field.serde_attributes(),
+                            parameter,
+                        );
                         quote!(#name: &#lifetime #ty)
                     })
                     .collect::<Vec<_>>(),
@@ -471,7 +591,11 @@ fn projection_declaration(
                     .zip(parameters)
                     .map(|(field, parameter)| {
                         let name = format_ident!("__qubit_redact_field_{}", field.index().index);
-                        let ty = projection_field_type(field.field(), field.serde_attributes(), parameter);
+                        let ty = projection_field_type(
+                            field.field(),
+                            field.serde_attributes(),
+                            parameter,
+                        );
                         quote!(#name: &#lifetime #ty)
                     })
                     .collect::<Vec<_>>(),
@@ -549,7 +673,11 @@ fn projection_declaration(
 /// The source type for fields with predicates or adapters, otherwise the
 /// generated parameter that keeps serialization bounds conditional.
 #[must_use]
-fn projection_field_type(field: &Field, attributes: &SerdeAttributes, parameter: &Ident) -> TokenStream {
+fn projection_field_type(
+    field: &Field,
+    attributes: &SerdeAttributes,
+    parameter: &Ident,
+) -> TokenStream {
     if attributes.skip_serializing_if().is_some() || attributes.serialize_with().is_some() {
         let ty = &field.ty;
         quote!(#ty)
@@ -572,7 +700,12 @@ fn projection_field_type(field: &Field, attributes: &SerdeAttributes, parameter:
 /// An expression borrowing the struct fields or matching the selected enum
 /// variant.
 #[must_use]
-fn projection_constructor(name: &Ident, projection: &Ident, model: &ContainerData<'_>, marker: &Ident) -> TokenStream {
+fn projection_constructor(
+    name: &Ident,
+    projection: &Ident,
+    model: &ContainerData<'_>,
+    marker: &Ident,
+) -> TokenStream {
     match model {
         ContainerData::Struct(fields) => {
             let members = match fields {
@@ -644,11 +777,15 @@ fn serialization_adapter_helpers(
     serde: &Path,
 ) -> Vec<TokenStream> {
     match model {
-        ContainerData::Struct(fields) => helpers_for_group(type_name, generics, fields, None, serde),
+        ContainerData::Struct(fields) => {
+            helpers_for_group(type_name, generics, fields, None, serde)
+        }
         ContainerData::Enum(variants) => variants
             .iter()
             .filter(|variant| !variant.serde_attributes().skip())
-            .flat_map(|variant| helpers_for_group(type_name, generics, variant.fields(), Some(variant), serde))
+            .flat_map(|variant| {
+                helpers_for_group(type_name, generics, variant.fields(), Some(variant), serde)
+            })
             .collect(),
     }
 }
@@ -744,21 +881,25 @@ fn adapter_helper(
     let field_type = &field.ty;
     let lifetime = assertions::fresh_lifetime(generics);
     let mut helper_generics = assertions::generics_for_field(generics, field_type);
-    helper_generics
-        .params
-        .insert(0, GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())));
+    helper_generics.params.insert(
+        0,
+        GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())),
+    );
     let serializer = assertions::fresh_identifier(&helper_generics, "__QubitRedactSerializer");
-    let marker_types = helper_generics.params.iter().filter_map(|parameter| match parameter {
-        GenericParam::Lifetime(parameter) => {
-            let lifetime = &parameter.lifetime;
-            Some(quote!(&#lifetime ()))
-        }
-        GenericParam::Type(parameter) => {
-            let name = &parameter.ident;
-            Some(quote!(*const #name))
-        }
-        GenericParam::Const(_) => None,
-    });
+    let marker_types = helper_generics
+        .params
+        .iter()
+        .filter_map(|parameter| match parameter {
+            GenericParam::Lifetime(parameter) => {
+                let lifetime = &parameter.lifetime;
+                Some(quote!(&#lifetime ()))
+            }
+            GenericParam::Type(parameter) => {
+                let name = &parameter.ident;
+                Some(quote!(*const #name))
+            }
+            GenericParam::Const(_) => None,
+        });
     let params = &helper_generics.params;
     let (impl_generics, type_generics, where_clause) = helper_generics.split_for_impl();
     Some(quote_spanned! {field.span()=>

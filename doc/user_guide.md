@@ -53,7 +53,7 @@ assert!(!output.text().as_str().contains("raw-secret"));
 A view borrows the source and owns a policy snapshot; it is not a modified business object
 or cached source content. Each use starts from the source with an independent budget, never
 from the previous mask. It supports Display/Debug; structured serialization requires
-the derive-generated `RedactSerializeSource` projection to be serializable; callers need not
+the derive-generated `RedactSerialize` capability; callers need not
 implement hidden traits. It never falls back to a Debug string. Interior-mutable sources can change
 between uses; the policy remains fixed at view creation.
 

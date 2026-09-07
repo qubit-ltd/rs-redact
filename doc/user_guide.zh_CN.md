@@ -51,7 +51,7 @@ assert!(!output.text().as_str().contains("raw-secret"));
 
 视图借用源对象并拥有策略快照，不是脱敏后的业务对象，也不缓存源内容。
 多次序列化分别从源对象执行，绝不会把上次掩码结果作为下一次输入；每次使用独立预算。
-它支持 Display/Debug；结构化序列化要求 derive 生成的 `RedactSerializeSource` 投影可序列化，
+它支持 Display/Debug；结构化序列化要求 derive 生成的 `RedactSerialize` capability，
 不会退化成 Debug 字符串，普通调用方无需手写隐藏 trait。
 源对象具有内部可变状态时，后续使用可能观察到新值；策略仍保持创建时快照。
 

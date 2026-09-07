@@ -32,8 +32,6 @@ mod nested;
 mod option_projection;
 #[cfg(feature = "serde")]
 mod policy_frame;
-#[cfg(any(feature = "serde", feature = "json"))]
-mod redact_borrowed_serialize;
 #[cfg(feature = "json")]
 mod redact_json_serialize;
 #[cfg(any(feature = "serde", feature = "json"))]
@@ -50,8 +48,6 @@ mod redact_serialize_scope;
 mod redact_serialize_source;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod redact_value_serialize;
-#[cfg(any(feature = "serde", feature = "json"))]
-mod redacted_borrowed_ref;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod redacted_display_serialize_ref;
 #[cfg(feature = "json")]
@@ -85,8 +81,6 @@ pub use display_value::DisplayValue;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use internally_tagged_serializer::serialize_internally_tagged;
 pub(crate) use keyed_policy::resolve_keyed_field;
-#[cfg(any(feature = "serde", feature = "json"))]
-pub use redact_borrowed_serialize::RedactBorrowedSerialize;
 #[cfg(feature = "json")]
 pub use redact_json_serialize::RedactJsonSerialize;
 #[cfg(any(feature = "serde", feature = "json"))]
@@ -98,15 +92,13 @@ pub use redact_map_serialize::RedactMapSerialize;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use redact_serialize::RedactSerialize;
 #[cfg(any(feature = "serde", feature = "json"))]
-pub use redact_serialize_scope::RedactSerializeScope;
-#[cfg(any(feature = "serde", feature = "json"))]
 pub use redact_serialize_scope::current_policy;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use redact_serialize_scope::serialize_structured;
 #[cfg(any(feature = "serde", feature = "json"))]
-pub use redact_serialize_source::RedactSerializeSource;
+pub use redact_serialize_scope::RedactSerializeScope;
 #[cfg(any(feature = "serde", feature = "json"))]
-pub use redacted_borrowed_ref::RedactedBorrowedRef;
+pub use redact_serialize_source::RedactSerializeSource;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use redacted_display_serialize_ref::RedactedDisplaySerializeRef;
 #[cfg(feature = "json")]
