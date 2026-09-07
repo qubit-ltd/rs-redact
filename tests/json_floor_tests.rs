@@ -75,10 +75,10 @@ fn test_json_documents_share_the_transaction_json_payload_budget() {
         .expect("test limits should build")
         .build()
         .expect("test policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let first = batch.redact_json(r#"{"a":"1"}"#);
     let second = batch.redact_json(r#"{"b":"22"}"#);
-    let output = batch.finish_for_diagnostics("<truncated>");
+    let output = batch.finish_with_marker("<truncated>");
 
     assert_eq!(output.text(first).as_str(), r#"{"a":"1"}"#);
     assert_eq!(output.text(second).as_str(), "<truncated>");
@@ -101,10 +101,10 @@ fn test_json_budget_rejection_preserves_structural_capacity() {
         .expect("test limits should build")
         .build()
         .expect("test policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let rejected = batch.redact_json(r#"{"oversized":"payload"}"#);
     let admitted = batch.redact_json(r#"{"a":"1"}"#);
-    let output = batch.finish_for_diagnostics("<truncated>");
+    let output = batch.finish_with_marker("<truncated>");
 
     assert_eq!(output.text(rejected).as_str(), "<truncated>");
     assert!(
@@ -187,9 +187,9 @@ fn test_json_composer_empty_input_reports_safe_invalid_json_result() {
 /// The batch path must retain invalid-JSON provenance for an empty document.
 #[test]
 fn test_json_batch_empty_input_reports_safe_invalid_json_result() {
-    let mut batch = Redactor::strict().batch();
+    let mut batch = Redactor::strict().diagnostic_batch();
     let handle = batch.redact_json("");
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
     assert_eq!(output.text(handle).as_str(), "<redacted>");
@@ -199,9 +199,9 @@ fn test_json_batch_empty_input_reports_safe_invalid_json_result() {
 /// replacement only when its enclosing transaction finishes.
 #[test]
 fn test_json_handle_reports_invalid_input_without_exposing_source() {
-    let mut batch = Redactor::strict().batch();
+    let mut batch = Redactor::strict().diagnostic_batch();
     let handle = batch.redact_json(r#"{"password":"raw""#);
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert!(!output.text(handle).as_str().contains("raw"));
     assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
@@ -219,9 +219,9 @@ fn test_json_handle_uses_shared_structural_fallback() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let handle = batch.redact_json(r#"{"password":"must-not-be-rendered"}"#);
-    let output = batch.finish_for_diagnostics("<truncated>");
+    let output = batch.finish_with_marker("<truncated>");
 
     assert_eq!(output.text(handle).as_str(), "<truncated>");
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);

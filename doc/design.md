@@ -46,7 +46,7 @@ caller
 Redactor + immutable RedactionPolicy snapshot
   ├── RedactedTextComposer ── TextSession ──► RedactionTextOutput
   ├── redact_* ────────────── TextSession ──► RedactionTextOutput
-  ├── RedactionBatch ──────── BatchSession ─► diagnostics + handles
+  ├── DiagnosticRedactionBatch ──────── BatchSession ─► diagnostics + handles
   └── inspect_* ───────────── InspectionSession ─► Result<RedactionInspection, Error>
                                   │
                                   ▼
@@ -139,9 +139,9 @@ operation. Consuming `finish(self)` publishes one `RedactionTextOutput`.
 
 ### 5.2 Batch
 
-`RedactionBatch` creates independently resolvable items under one shared
+`DiagnosticRedactionBatch` creates independently resolvable items under one shared
 budget. Each operation returns a handle valid only for that batch.
-`finish_for_diagnostics(self, marker)` publishes a diagnostics view: complete
+`finish_with_marker(self, marker)` publishes a diagnostics view: complete
 items retain their safe text, while incomplete, missing, and cross-batch
 handles resolve to the escaped marker. The view also retains the aggregate
 summary.

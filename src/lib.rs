@@ -40,7 +40,7 @@
 //!
 //! Views own immutable policy snapshots but borrow live source values. Every
 //! use starts a new execution and budget. [`RedactedText`] is finalized and
-//! does not run redaction again. [`RedactionBatch`] shares a budget across
+//! does not run redaction again. [`DiagnosticRedactionBatch`] shares a budget across
 //! related values; [`RedactedTextComposer`] builds one ordered message.
 //!
 //! Unmarked fields remain ordinary output. Explicit derive levels are final;
@@ -81,9 +81,9 @@ pub use facade::DebugDisplay;
 pub use facade::RedactedText;
 pub use facade::RedactedTextComposer;
 pub use facade::RedactedView;
-pub use facade::RedactionBatch;
-pub use facade::RedactionBatchDiagnostics;
-pub use facade::RedactionBatchHandle;
+pub use facade::DiagnosticRedactionBatch;
+pub use facade::DiagnosticRedactionOutput;
+pub use facade::DiagnosticRedactionHandle;
 pub use facade::RedactionInspection;
 pub use facade::RedactionInspectionError;
 pub use facade::RedactionReason;

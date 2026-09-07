@@ -17,37 +17,39 @@ use http::HeaderValue;
 #[cfg(feature = "json")]
 use serde_json::Value;
 
-use super::RedactionBatchDiagnostics;
-use super::RedactionBatchHandle;
-use super::RedactionBatchOutput;
+use super::DiagnosticRedactionOutput;
+use super::DiagnosticRedactionHandle;
+use super::DiagnosticRedactionBatchOutput;
 use crate::domain::Redact;
 #[cfg(feature = "http")]
 use crate::formats::http::BodyCapture;
 use crate::runtime::BatchSession;
 use crate::runtime::RedactionHandle;
 
+const DEFAULT_DIAGNOSTIC_MARKER: &str = "<redaction incomplete>";
+
 /// Accumulates independently resolvable redaction items under one budget.
 ///
 /// Each operation returns an opaque handle. Handles are usable only with the
-/// [`RedactionBatchDiagnostics`] produced by consuming this batch with
-/// [`Self::finish_for_diagnostics`].
+/// [`DiagnosticRedactionOutput`] produced by consuming this batch with
+/// [`Self::finish_with_marker`].
 ///
 /// # Examples
 ///
 /// ```
 /// use qubit_redact::Redactor;
 ///
-/// let mut batch = Redactor::strict().batch();
+/// let mut batch = Redactor::strict().diagnostic_batch();
 /// let handle = batch.redact_field("password", "raw-secret");
-/// let output = batch.finish_for_diagnostics("<redaction incomplete>");
+/// let output = batch.finish_with_marker("<redaction incomplete>");
 /// assert!(!output.text(handle).as_str().contains("raw-secret"));
 /// ```
-pub struct RedactionBatch {
+pub struct DiagnosticRedactionBatch {
     /// Typed transaction that owns unpublished independently resolvable items.
     session: BatchSession,
 }
 
-impl RedactionBatch {
+impl DiagnosticRedactionBatch {
     /// Creates a batch backed by one private runtime transaction.
     ///
     /// # Parameters
@@ -75,9 +77,9 @@ impl RedactionBatch {
     /// The equivalent public opaque handle without changing identity.
     #[must_use]
     #[inline(always)]
-    fn wrap(handle: RedactionHandle) -> RedactionBatchHandle {
+    fn wrap(handle: RedactionHandle) -> DiagnosticRedactionHandle {
         let (batch_id, item_index) = handle.parts();
-        RedactionBatchHandle { batch_id, item_index }
+        DiagnosticRedactionHandle { batch_id, item_index }
     }
 
     /// Returns whether the shared output budget has closed this batch.
@@ -95,7 +97,7 @@ impl RedactionBatch {
     /// Redacts one named scalar field and returns its opaque batch handle.
     ///
     /// `field` selects the policy rule applied to `value`. The result remains
-    /// unpublished until [`Self::finish_for_diagnostics`] consumes this batch.
+    /// unpublished until [`Self::finish_with_marker`] consumes this batch.
     ///
     /// # Type Parameters
     ///
@@ -113,20 +115,20 @@ impl RedactionBatch {
     /// finished.
     #[must_use]
     #[inline(always)]
-    pub fn redact_field<T>(&mut self, field: &str, value: &T) -> RedactionBatchHandle
+    pub fn redact_field<T>(&mut self, field: &str, value: &T) -> DiagnosticRedactionHandle
     where
         T: Display + ?Sized,
     {
         let handle = self.session.redact_field(field, value);
         let (batch_id, item_index) = handle.parts();
-        RedactionBatchHandle { batch_id, item_index }
+        DiagnosticRedactionHandle { batch_id, item_index }
     }
 
     /// Redacts one domain value and returns its opaque batch handle.
     ///
     /// `value` is rendered only through its [`Redact`] implementation; the
     /// result remains unpublished until
-    /// [`Self::finish_for_diagnostics`] consumes this batch.
+    /// [`Self::finish_with_marker`] consumes this batch.
     ///
     /// # Type Parameters
     ///
@@ -142,13 +144,13 @@ impl RedactionBatch {
     /// finished.
     #[must_use]
     #[inline(always)]
-    pub fn redact_value<T>(&mut self, value: &T) -> RedactionBatchHandle
+    pub fn redact_value<T>(&mut self, value: &T) -> DiagnosticRedactionHandle
     where
         T: Redact + ?Sized,
     {
         let handle = self.session.redact_value(value);
         let (batch_id, item_index) = handle.parts();
-        RedactionBatchHandle { batch_id, item_index }
+        DiagnosticRedactionHandle { batch_id, item_index }
     }
 
     /// Redacts an explicitly classified argv sequence as one item.
@@ -171,7 +173,7 @@ impl RedactionBatch {
     /// finished.
     #[must_use]
     #[inline(always)]
-    pub fn redact_argv<'items, I>(&mut self, items: I) -> RedactionBatchHandle
+    pub fn redact_argv<'items, I>(&mut self, items: I) -> DiagnosticRedactionHandle
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
     {
@@ -199,7 +201,7 @@ impl RedactionBatch {
     /// finished.
     #[must_use]
     #[inline(always)]
-    pub fn redact_heuristic_argv<'items, I>(&mut self, items: I) -> RedactionBatchHandle
+    pub fn redact_heuristic_argv<'items, I>(&mut self, items: I) -> DiagnosticRedactionHandle
     where
         I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
     {
@@ -222,7 +224,7 @@ impl RedactionBatch {
     /// finished.
     #[must_use]
     #[inline(always)]
-    pub fn redact_env(&mut self, name: &str, value: &str) -> RedactionBatchHandle {
+    pub fn redact_env(&mut self, name: &str, value: &str) -> DiagnosticRedactionHandle {
         Self::wrap(self.session.redact_env(name, value))
     }
 
@@ -247,7 +249,7 @@ impl RedactionBatch {
     /// finished.
     #[must_use]
     #[inline(always)]
-    pub fn redact_env_pairs<'items, I>(&mut self, pairs: I) -> RedactionBatchHandle
+    pub fn redact_env_pairs<'items, I>(&mut self, pairs: I) -> DiagnosticRedactionHandle
     where
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
     {
@@ -284,7 +286,7 @@ impl RedactionBatch {
         program: &'arguments OsStr,
         arguments: A,
         variables: E,
-    ) -> RedactionBatchHandle
+    ) -> DiagnosticRedactionHandle
     where
         A: IntoIterator<Item = crate::formats::argv::ArgvItem<'arguments>>,
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
@@ -308,7 +310,7 @@ impl RedactionBatch {
     #[cfg(feature = "json")]
     #[must_use]
     #[inline(always)]
-    pub fn redact_json(&mut self, text: &str) -> RedactionBatchHandle {
+    pub fn redact_json(&mut self, text: &str) -> DiagnosticRedactionHandle {
         Self::wrap(self.session.redact_json(text))
     }
 
@@ -325,7 +327,7 @@ impl RedactionBatch {
     #[cfg(feature = "json")]
     #[must_use]
     #[inline(always)]
-    pub fn redact_json_value(&mut self, value: &Value) -> RedactionBatchHandle {
+    pub fn redact_json_value(&mut self, value: &Value) -> DiagnosticRedactionHandle {
         Self::wrap(self.session.redact_json_value(value))
     }
 
@@ -344,7 +346,7 @@ impl RedactionBatch {
     #[cfg(feature = "http")]
     #[must_use]
     #[inline(always)]
-    pub fn redact_http_url(&mut self, value: &str) -> RedactionBatchHandle {
+    pub fn redact_http_url(&mut self, value: &str) -> DiagnosticRedactionHandle {
         Self::wrap(self.session.redact_http_url(value))
     }
 
@@ -361,7 +363,7 @@ impl RedactionBatch {
     #[cfg(feature = "http")]
     #[must_use]
     #[inline(always)]
-    pub fn redact_http_headers(&mut self, headers: &HeaderMap) -> RedactionBatchHandle {
+    pub fn redact_http_headers(&mut self, headers: &HeaderMap) -> DiagnosticRedactionHandle {
         Self::wrap(self.session.redact_http_headers(headers))
     }
 
@@ -385,7 +387,7 @@ impl RedactionBatch {
         &mut self,
         capture: BodyCapture<'_>,
         content_type: Option<&HeaderValue>,
-    ) -> RedactionBatchHandle {
+    ) -> DiagnosticRedactionHandle {
         Self::wrap(self.session.redact_http_body(capture, content_type))
     }
 
@@ -409,7 +411,7 @@ impl RedactionBatch {
         &mut self,
         capture: BodyCapture<'_>,
         content_type: Option<&str>,
-    ) -> RedactionBatchHandle {
+    ) -> DiagnosticRedactionHandle {
         Self::wrap(
             self.session
                 .redact_http_body_with_content_type_text(capture, content_type),
@@ -429,7 +431,7 @@ impl RedactionBatch {
     #[cfg(feature = "uri")]
     #[must_use]
     #[inline(always)]
-    pub fn redact_uri(&mut self, value: &str) -> RedactionBatchHandle {
+    pub fn redact_uri(&mut self, value: &str) -> DiagnosticRedactionHandle {
         Self::wrap(self.session.redact_uri(value))
     }
 
@@ -449,8 +451,16 @@ impl RedactionBatch {
     /// others to the marker.
     #[must_use]
     #[inline(always)]
-    pub fn finish_for_diagnostics(self, marker: &str) -> RedactionBatchDiagnostics {
-        RedactionBatchDiagnostics::new(self.finish(), marker)
+    pub fn finish_with_marker(self, marker: &str) -> DiagnosticRedactionOutput {
+        DiagnosticRedactionOutput::new(self.finish_publication(), marker)
+    }
+
+    /// Consumes the batch and publishes fail-closed diagnostics using the
+    /// standard incomplete-redaction marker.
+    #[must_use]
+    #[inline(always)]
+    pub fn finish(self) -> DiagnosticRedactionOutput {
+        self.finish_with_marker(DEFAULT_DIAGNOSTIC_MARKER)
     }
 
     /// Consumes the batch and publishes its item results and summary.
@@ -461,7 +471,7 @@ impl RedactionBatch {
     /// accounting.
     #[must_use]
     #[inline(always)]
-    pub(crate) fn finish(self) -> RedactionBatchOutput {
-        RedactionBatchOutput::from_publication(self.session.finish())
+    pub(crate) fn finish_publication(self) -> DiagnosticRedactionBatchOutput {
+        DiagnosticRedactionBatchOutput::from_publication(self.session.finish())
     }
 }

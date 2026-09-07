@@ -46,11 +46,11 @@ fn test_http_handle_operations_publish_from_the_parent_transaction() {
     let mut headers = HeaderMap::new();
     headers.insert("x-request-id", HeaderValue::from_static("request-42"));
 
-    let mut batch = Redactor::standard().batch();
+    let mut batch = Redactor::standard().diagnostic_batch();
     let url = batch.redact_http_url("https://example.test/path?token=raw");
     let header = batch.redact_http_headers(&headers);
     let body = batch.redact_http_body(BodyCapture::complete(br#"{"name":"Ada"}"#), None);
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
     assert!(output.text(url).as_str().contains("example.test"));
     assert!(output.text(header).as_str().contains("x-request-id: [request-42]"));
     assert_eq!(output.text(body).as_str(), "{\"name\":\"Ada\"}");
@@ -69,9 +69,9 @@ fn test_http_direct_handle_and_redactor_convenience_operations() {
     let body = redactor.redact_http_body(BodyCapture::complete(br#"{"password":"raw"}"#), None);
     assert!(!body.text().as_str().contains("raw"));
 
-    let mut batch = redactor.batch();
+    let mut batch = redactor.diagnostic_batch();
     let handle = batch.redact_http_url("https://example.test/path?token=raw");
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
     assert!(output.text(handle).as_str().contains("example.test"));
 
     let mut headers = HeaderMap::new();
@@ -80,9 +80,9 @@ fn test_http_direct_handle_and_redactor_convenience_operations() {
     let headers_output = redactor.redact_http_headers(&headers);
     assert!(!headers_output.text().as_str().contains("raw-secret"));
 
-    let mut batch = redactor.batch();
+    let mut batch = redactor.diagnostic_batch();
     let handle = batch.redact_http_headers(&headers);
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
     assert!(!output.text(handle).as_str().contains("raw-secret"));
     assert!(output.text(handle).as_str().contains("authorization"));
 }
@@ -112,9 +112,9 @@ fn test_http_composer_empty_url_reports_safe_invalid_uri_result() {
 /// The batch path must retain invalid-URI provenance for an empty URL.
 #[test]
 fn test_http_batch_empty_url_reports_safe_invalid_uri_result() {
-    let mut batch = Redactor::strict().batch();
+    let mut batch = Redactor::strict().diagnostic_batch();
     let handle = batch.redact_http_url("");
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
     assert_eq!(output.text(handle).as_str(), "<redacted: invalid URL>");
@@ -131,10 +131,10 @@ fn test_http_url_uses_the_session_remaining_output_budget() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let handle =
         batch.redact_http_url("https://example.test/a-very-long-path?token=raw-secret-token&visible=long-value");
-    let output = batch.finish_for_diagnostics("<truncated>");
+    let output = batch.finish_with_marker("<truncated>");
 
     assert!(output.text(handle).as_str().len() <= 32);
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
@@ -200,9 +200,9 @@ fn test_http_url_nested_traversal_uses_shared_structural_budget() {
     );
     assert!(!aggregate.text().as_str().contains("raw-secret"));
 
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let handle = batch.redact_http_url(nested);
-    let output = batch.finish_for_diagnostics("<truncated>");
+    let output = batch.finish_with_marker("<truncated>");
     assert_eq!(output.text(handle).as_str(), "<truncated>");
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
     assert!(!output.text(handle).as_str().contains("raw-secret"));
@@ -267,12 +267,12 @@ fn test_http_text_content_type_body_operations_publish_safe_results() {
             );
         })
         .finish();
-    let mut batch = Redactor::standard().batch();
+    let mut batch = Redactor::standard().diagnostic_batch();
     let handle = batch.redact_http_body_with_content_type_text(
         BodyCapture::complete(br#"{"token":"handle-secret"}"#),
         Some("application/json"),
     );
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert!(!aggregate.text().as_str().contains("aggregate-secret"));
     assert!(!output.text(handle).as_str().contains("handle-secret"));
@@ -283,9 +283,9 @@ fn test_http_text_content_type_body_operations_publish_safe_results() {
 /// while replacing every untrusted source byte with the safe marker.
 #[test]
 fn test_http_invalid_url_handle_is_safe_and_keeps_reason() {
-    let mut batch = Redactor::standard().batch();
+    let mut batch = Redactor::standard().diagnostic_batch();
     let handle = batch.redact_http_url("https://[not-an-ipv6");
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert!(!output.text(handle).as_str().contains("not-an-ipv6"));
     assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
@@ -306,9 +306,9 @@ fn test_http_header_handle_stops_before_later_header_at_collection_limit() {
     let mut headers = HeaderMap::new();
     headers.insert("x-first", HeaderValue::from_static("visible"));
     headers.insert("authorization", HeaderValue::from_static("Bearer must-not-be-rendered"));
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let handle = batch.redact_http_headers(&headers);
-    let output = batch.finish_for_diagnostics("");
+    let output = batch.finish_with_marker("");
 
     assert!(output.text(handle).as_str().is_empty());
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
@@ -332,9 +332,9 @@ fn test_http_inferred_json_body_uses_shared_structural_fallback() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let handle = batch.redact_http_body(BodyCapture::complete(br#"{"password":"must-not-be-rendered"}"#), None);
-    let output = batch.finish_for_diagnostics("<truncated>");
+    let output = batch.finish_with_marker("<truncated>");
 
     assert_eq!(output.text(handle).as_str(), "<truncated>");
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
@@ -463,9 +463,9 @@ fn test_http_namespace_handle_tracks_its_own_input_rejection() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let handle = batch.redact_http_url("https://example.test/");
-    let output = batch.finish_for_diagnostics("");
+    let output = batch.finish_with_marker("");
 
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
     assert!(output.summary().reasons().contains(RedactionReason::InputLimitReached));

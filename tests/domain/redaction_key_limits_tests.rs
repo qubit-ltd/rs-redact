@@ -133,9 +133,9 @@ fn test_domain_key_limits_reject_before_value_access_in_every_mode() {
                 .expect_err("overlong key makes inspection inconclusive");
             assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
             assert_eq!(accesses.get(), 0);
-            let mut batch = redactor.batch();
+            let mut batch = redactor.diagnostic_batch();
             let handle = batch.redact_value(&input);
-            let output = batch.finish_for_diagnostics("incomplete");
+            let output = batch.finish_with_marker("incomplete");
             assert_eq!(output.text(handle).as_str(), "incomplete");
         }
     }

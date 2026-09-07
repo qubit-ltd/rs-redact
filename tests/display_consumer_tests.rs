@@ -128,8 +128,8 @@ fn test_scalar_field_admits_key_and_input_before_rendering() {
             .contains(RedactionReason::TraversalLimitReached)
     );
 
-    let mut batch = redactor.batch();
+    let mut batch = redactor.diagnostic_batch();
     let handle = batch.redact_field("oversized_key", "visible-value");
-    let diagnostics = batch.finish_for_diagnostics("<redaction incomplete>");
+    let diagnostics = batch.finish_with_marker("<redaction incomplete>");
     assert_eq!(diagnostics.text(handle).as_str(), "<redaction incomplete>");
 }

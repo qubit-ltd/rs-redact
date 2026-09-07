@@ -53,9 +53,9 @@ fn composer_and_batch_environment_operations_publish_separately() {
             env.os_pairs([(OsStr::new("REGION"), OsStr::new("ap-east-1"))]);
         })
         .finish();
-    let mut batch = redactor.batch();
+    let mut batch = redactor.diagnostic_batch();
     let password = batch.redact_env("PASSWORD", "raw-secret");
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert_eq!(text.text().as_str(), r#"MODE=debug["REGION=ap-east-1"]"#,);
     assert_eq!(output.text(password).as_str(), "PASSWORD=<redacted>",);
@@ -71,9 +71,9 @@ fn environment_batch_uses_its_own_output_budget() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let password = batch.redact_env("PASSWORD", "raw-secret");
-    let output = batch.finish_for_diagnostics("");
+    let output = batch.finish_with_marker("");
     assert!(output.text(password).as_str().is_empty());
     assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
     assert!(output.summary().usage().output_bytes() <= 10);
@@ -81,12 +81,12 @@ fn environment_batch_uses_its_own_output_budget() {
 
 #[test]
 fn session_environment_os_pair_handle_publishes_after_finish() {
-    let mut batch = Redactor::standard().batch();
+    let mut batch = Redactor::standard().diagnostic_batch();
     let handle = batch.redact_env_pairs([
         (OsStr::new("REGION"), OsStr::new("ap-east-1")),
         (OsStr::new("PASSWORD"), OsStr::new("raw-secret")),
     ]);
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert!(output.text(handle).as_str().contains("REGION=ap-east-1"));
     assert!(!output.text(handle).as_str().contains("raw-secret"));
@@ -102,9 +102,9 @@ fn session_environment_aggregate_and_handle_mask_classified_value() {
             env.pair("PASSWORD", "aggregate-secret");
         })
         .finish();
-    let mut batch = Redactor::strict().batch();
+    let mut batch = Redactor::strict().diagnostic_batch();
     let handle = batch.redact_env("PASSWORD", "handle-secret");
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert!(!text.text().as_str().contains("aggregate-secret"));
     assert!(!output.text(handle).as_str().contains("handle-secret"));
@@ -122,12 +122,12 @@ fn session_environment_list_handle_stops_at_collection_limit() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let handle = batch.redact_env_pairs([
         (OsStr::new("FIRST"), OsStr::new("visible")),
         (OsStr::new("PASSWORD"), OsStr::new("must-not-be-rendered")),
     ]);
-    let output = batch.finish_for_diagnostics("");
+    let output = batch.finish_with_marker("");
 
     assert!(output.text(handle).as_str().is_empty());
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
@@ -145,9 +145,9 @@ fn environment_handle_does_not_preallocate_from_unadmitted_iterator_length() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let handle = batch.redact_env_pairs(HugeEnvironmentIterator { remaining: usize::MAX });
-    let output = batch.finish_for_diagnostics("");
+    let output = batch.finish_with_marker("");
 
     assert!(output.text(handle).as_str().is_empty());
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);

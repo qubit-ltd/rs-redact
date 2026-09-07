@@ -95,9 +95,9 @@ fn test_disabled_borrowed_json_value_respects_node_limit_across_rendering_entry_
     assert_eq!(direct.summary().completion(), RedactionCompletion::Truncated);
     assert!(direct.summary().is_redaction_disabled());
 
-    let mut batch = redactor.batch();
+    let mut batch = redactor.diagnostic_batch();
     let handle = batch.redact_json_value(&value);
-    let batch = batch.finish_for_diagnostics("");
+    let batch = batch.finish_with_marker("");
     assert!(!batch.text(handle).as_str().contains("raw-secret"));
     assert_eq!(batch.summary().completion(), RedactionCompletion::Truncated);
     assert!(batch.summary().is_redaction_disabled());
@@ -139,9 +139,9 @@ fn all_parsed_json_value_entry_points_borrow_and_redact_the_same_value() {
         .expect("borrowed JSON inspection should be conclusive");
     assert!(inspection.contains_sensitive());
 
-    let mut batch = redactor.batch();
+    let mut batch = redactor.diagnostic_batch();
     let handle = batch.redact_json_value(&value);
-    let batch = batch.finish_for_diagnostics("<redaction incomplete>");
+    let batch = batch.finish_with_marker("<redaction incomplete>");
     let batch_text = batch.text(handle).as_str();
     assert!(!batch_text.contains("raw-secret"));
 

@@ -29,7 +29,7 @@ use std::sync::Arc;
 use std::sync::PoisonError;
 
 use crate::RedactedTextComposer;
-use crate::RedactionBatch;
+use crate::DiagnosticRedactionBatch;
 use crate::RedactionPolicy;
 use crate::runtime::BatchSession;
 use crate::runtime::InspectionSession;
@@ -157,8 +157,8 @@ impl Redactor {
     /// output.
     #[must_use]
     #[inline(always)]
-    pub fn batch(&self) -> RedactionBatch {
-        RedactionBatch::from_session(self.batch_runtime())
+    pub fn diagnostic_batch(&self) -> DiagnosticRedactionBatch {
+        DiagnosticRedactionBatch::from_session(self.batch_runtime())
     }
 
     /// Creates private accounting for one text-composition operation.

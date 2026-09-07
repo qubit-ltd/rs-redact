@@ -48,9 +48,9 @@ impl ExactSizeIterator for HugeArgvIterator {
 
 #[test]
 fn batch_publishes_argv_handle_only_after_finish() {
-    let mut batch = Redactor::standard().batch();
+    let mut batch = Redactor::standard().diagnostic_batch();
     let handle = batch.redact_argv([ArgvItem::plain(OsStr::new("client"))]);
-    let output = batch.finish_for_diagnostics("<redaction incomplete>");
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
     assert_eq!(output.text(handle).as_str(), r#"["client"]"#);
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
@@ -102,12 +102,12 @@ fn argv_handle_stops_at_shared_collection_limit() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let handle = batch.redact_argv([
         ArgvItem::plain(OsStr::new("first")),
         ArgvItem::plain(OsStr::new("later-secret")),
     ]);
-    let output = batch.finish_for_diagnostics("");
+    let output = batch.finish_with_marker("");
 
     assert!(output.text(handle).as_str().is_empty());
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
@@ -126,9 +126,9 @@ fn argv_handle_does_not_preallocate_from_unadmitted_iterator_length() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let handle = batch.redact_argv(HugeArgvIterator { remaining: usize::MAX });
-    let output = batch.finish_for_diagnostics("");
+    let output = batch.finish_with_marker("");
 
     assert!(output.text(handle).as_str().is_empty());
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
@@ -156,9 +156,9 @@ fn argv_handle_does_not_consume_suffix_after_collection_limit() {
         .expect("limit draft should build")
         .build()
         .expect("policy should build");
-    let mut batch = Redactor::new(policy).batch();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
     let handle = batch.redact_argv(items);
-    let output = batch.finish_for_diagnostics("");
+    let output = batch.finish_with_marker("");
 
     assert_eq!(calls.get(), 1);
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated,);

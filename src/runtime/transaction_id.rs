@@ -50,7 +50,7 @@ mod tests {
         let _ = redactor.redact_field("password", "raw-secret");
         assert_eq!(CURRENT_THREAD_ISSUED_IDS.get(), before);
 
-        let _batch = redactor.batch();
+        let _batch = redactor.diagnostic_batch();
         assert_eq!(CURRENT_THREAD_ISSUED_IDS.get(), before.saturating_add(1));
     }
 }
