@@ -11,8 +11,8 @@ use std::ffi::OsStr;
 
 use http::HeaderValue;
 use libfuzzer_sys::fuzz_target;
-use qubit_redact::RedactionBatchDiagnostics;
-use qubit_redact::RedactionBatchHandle;
+use qubit_redact::DiagnosticRedactionHandle;
+use qubit_redact::DiagnosticRedactionOutput;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
@@ -25,8 +25,8 @@ const FUZZ_SECRET: &str = "transaction-secret";
 
 /// Checks invariants shared by every item published from one completed batch.
 fn check_output(
-    diagnostics: &RedactionBatchDiagnostics,
-    handles: &[RedactionBatchHandle],
+    diagnostics: &DiagnosticRedactionOutput,
+    handles: &[DiagnosticRedactionHandle],
     input_limit: usize,
     output_limit: usize,
 ) {
@@ -63,7 +63,7 @@ fuzz_target!(|data: &[u8]| {
         .expect("bounded policy");
     let redactor = Redactor::new(policy);
     let output_limit = redactor.policy().limits().max_output_bytes();
-    let mut batch = redactor.batch();
+    let mut batch = redactor.diagnostic_batch();
     let mut handles = Vec::with_capacity(data.len().div_ceil(8).min(128));
 
     for chunk in data.chunks(8).take(128) {
@@ -106,6 +106,6 @@ fuzz_target!(|data: &[u8]| {
         handles.push(handle);
     }
 
-    let diagnostics = batch.finish_for_diagnostics("<redaction incomplete>");
+    let diagnostics = batch.finish_with_marker("<redaction incomplete>");
     check_output(&diagnostics, &handles, input_limit, output_limit);
 });
