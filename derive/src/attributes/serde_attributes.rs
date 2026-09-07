@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Whitelisted serde field attributes for redacted serialization.
-// qubit-style: allow type-file-name
 
 use syn::Error;
 use syn::Field;
@@ -22,6 +21,7 @@ use syn::token::Paren;
 
 use super::parse_serialize_name;
 use crate::model::FieldMode;
+
 /// Serde controls that preserve the generated redacted structure.
 #[must_use]
 pub(crate) struct SerdeAttributes {
@@ -45,7 +45,7 @@ impl SerdeAttributes {
     /// * `field` - Field whose helper attributes are read.
     /// * `type_name` - Derived type used in diagnostics.
     /// * `field_name` - Field identifier used in diagnostics.
-    /// * `enabled` - Whether the container declared `#[redact(serde)]`.
+    /// * `enabled` - Whether Serde projection generation requires parsing.
     ///
     /// # Returns
     ///
@@ -94,7 +94,7 @@ impl SerdeAttributes {
                     parsed.rename = parse_serialize_name(&meta, "rename")?.map(|literal| literal.value());
                     parsed.rename_seen = true;
                 } else if meta.path.is_ident("skip") || meta.path.is_ident("skip_serializing") {
-                    if !meta.input.is_empty() {
+                    if meta.input.peek(Token![=]) || meta.input.peek(Paren) {
                         return Err(meta.error(format!(
                             "Redact serde for `{type_name}` field `{field_name}` requires a bare \
                              skip attribute",
@@ -157,38 +157,6 @@ impl SerdeAttributes {
         Ok(parsed)
     }
 
-    /// Validates serialization adapters against the selected redaction mode.
-    ///
-    /// # Parameters
-    ///
-    /// * `field` - Field carrying the relevant Serde attributes.
-    /// * `type_name` - Derived type used in the diagnostic.
-    /// * `field_name` - Field identifier used in the diagnostic.
-    /// * `mode` - Redaction mode selected for the field.
-    ///
-    /// # Errors
-    ///
-    /// `skip_serializing_if` is valid for every mode and always observes the
-    /// raw field before any carrier is built. Serialization adapters remain
-    /// limited to plain and skipped fields.
-    pub(crate) fn validate_redaction_mode(
-        &self,
-        field: &Field,
-        type_name: &Ident,
-        field_name: &str,
-        mode: &FieldMode,
-    ) -> Result<()> {
-        if self.serialize_with.is_some() && !matches!(mode, FieldMode::Unmarked | FieldMode::Skip) {
-            return Err(Error::new_spanned(
-                field,
-                format!(
-                    "Redact serde for `{type_name}` field `{field_name}` cannot use a serialization adapter with a redaction mode that observes raw field state; use it only with `skip`",
-                ),
-            ));
-        }
-        Ok(())
-    }
-
     /// Returns the explicit serialized name, when present.
     ///
     /// # Returns
@@ -235,6 +203,42 @@ impl SerdeAttributes {
     pub(crate) const fn serialize_with(&self) -> Option<&Path> {
         self.serialize_with.as_ref()
     }
+
+    /// Validates serialization adapters against the selected redaction mode.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Field carrying the relevant Serde attributes.
+    /// * `type_name` - Derived type used in the diagnostic.
+    /// * `field_name` - Field identifier used in the diagnostic.
+    /// * `mode` - Redaction mode selected for the field.
+    ///
+    /// # Errors
+    ///
+    /// Rejects serialization adapters combined with any redaction mode other
+    /// than plain or skipped fields. A raw-value `skip_serializing_if`
+    /// predicate is accepted for every mode.
+    ///
+    /// # Returns
+    ///
+    /// Success when the adapter cannot bypass the selected redaction mode.
+    pub(crate) fn validate_redaction_mode(
+        &self,
+        field: &Field,
+        type_name: &Ident,
+        field_name: &str,
+        mode: &FieldMode,
+    ) -> Result<()> {
+        if self.serialize_with.is_some() && !matches!(mode, FieldMode::Unmarked | FieldMode::Skip) {
+            return Err(Error::new_spanned(
+                field,
+                format!(
+                    "Redact serde for `{type_name}` field `{field_name}` cannot use a serialization adapter with a redaction mode that observes raw field state; use it only on unmarked fields or with `redact(skip)`",
+                ),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// Returns whether one field control affects deserialization only.
@@ -246,6 +250,7 @@ impl SerdeAttributes {
 /// # Returns
 ///
 /// `true` for a supported deserialization-only control.
+#[must_use]
 fn is_deserialize_only_control(meta: &ParseNestedMeta<'_>) -> bool {
     meta.path.is_ident("default")
         || meta.path.is_ident("alias")
@@ -260,6 +265,10 @@ fn is_deserialize_only_control(meta: &ParseNestedMeta<'_>) -> bool {
 /// # Parameters
 ///
 /// * `meta` - Nested Serde metadata item to validate and consume.
+///
+/// # Returns
+///
+/// Success after consuming the supported control.
 ///
 /// # Errors
 ///

@@ -5,6 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+//! Shared Serde payload admission, single-pass serialization, and panic
+//! recovery.
 
 #![cfg(all(feature = "derive", feature = "serde"))]
 
@@ -99,11 +101,11 @@ struct MapValues {
 
 /// Disabled scalar serialization must still respect the payload allowance.
 #[test]
-fn test_disabled_level_obeys_output_budget() {
+fn test_disabled_level_obeys_payload_budget() {
     let policy = RedactionPolicy::disabled()
         .to_builder()
         .limits(|limits| {
-            limits.max_output_bytes(2);
+            limits.max_serde_payload_bytes(2);
         })
         .expect("limits")
         .build()
@@ -181,7 +183,7 @@ fn test_custom_sequence_cannot_bypass_collection_limit_with_inaccurate_length() 
 
 /// Explicitly masked keys and unmarked values must both use payload admission.
 #[test]
-fn test_map_key_adapter_obeys_input_and_output_budgets() {
+fn test_map_key_adapter_obeys_input_and_payload_budgets() {
     use qubit_redact::domain::internal::RedactedMapKeySerializeRef;
     let values = std::collections::BTreeMap::from([("key".to_owned(), "x".repeat(1000))]);
     let input_policy = small_input_policy();
@@ -196,7 +198,7 @@ fn test_map_key_adapter_obeys_input_and_output_budgets() {
     );
     let output_policy = RedactionPolicy::builder()
         .limits(|limits| {
-            limits.max_output_bytes(2);
+            limits.max_serde_payload_bytes(2);
         })
         .expect("limits")
         .build()
@@ -289,7 +291,7 @@ fn test_custom_serializer_runs_once_and_shares_scalar_budget() {
         let value = Envelope { value: Counted(&calls) };
         let policy = RedactionPolicy::builder()
             .limits(|limits| {
-                limits.max_input_bytes(maximum).max_output_bytes(maximum);
+                limits.max_input_bytes(maximum).max_serde_payload_bytes(maximum);
             })
             .expect("limits")
             .build()
@@ -384,10 +386,3 @@ fn test_panicking_serializer_does_not_poison_later_operations() {
         serde_json::json!({"value": "abcd"})
     );
 }
-// =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
-//
-//    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
-// =============================================================================

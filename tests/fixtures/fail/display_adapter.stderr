@@ -18,7 +18,7 @@ error: duplicate `display` field adapter
 14 |     #[redact(level = "secret", display, display)]
    |                                         ^^^^^^^
 
-error: Redact derive for `Removed` has unknown container attribute; use `debug`, `display`, or `serde`
+error: Redact derive for `Removed` has unknown container attribute; use `debug`, `display`, `serde`, `transparent`, or `crate = path`
   --> tests/fixtures/fail/display_adapter.rs:18:10
    |
 18 | #[redact(serialize)]

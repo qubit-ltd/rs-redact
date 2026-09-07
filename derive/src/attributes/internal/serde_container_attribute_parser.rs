@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Parser for the supported Serde container attribute allowlist.
-// qubit-style: allow type-file-name
 
 use syn::Attribute;
 use syn::Data;
@@ -24,6 +23,7 @@ use syn::token::Paren;
 use super::parse_serialize_name;
 use crate::attributes::SerdeContainerAttributes;
 use crate::attributes::SerdeRenameRule;
+
 /// Incremental state for Serde container attribute parsing.
 ///
 /// # Type Parameters
@@ -60,7 +60,7 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     /// # Parameters
     ///
     /// * `input` - Complete derive input carrying container attributes.
-    /// * `enabled` - Whether `#[redact(serde)]` requested parsing.
+    /// * `enabled` - Whether Serde projection generation requires parsing.
     ///
     /// # Returns
     ///
@@ -76,6 +76,7 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     ///
     /// Panics only if `syn` supplies a nested metadata path without any
     /// segments, which violates the `ParseNestedMeta` path invariant.
+    #[inline]
     pub(crate) fn parse(input: &'input DeriveInput, enabled: bool) -> Result<SerdeContainerAttributes> {
         let mut parser = Self::new(input);
         parser.parse_attributes(enabled)?;
@@ -113,11 +114,15 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     ///
     /// # Parameters
     ///
-    /// * `enabled` - Whether `#[redact(serde)]` requested parsing.
+    /// * `enabled` - Whether Serde projection generation requires parsing.
     ///
     /// # Errors
     ///
     /// Returns the first malformed or unsupported Serde attribute error.
+    ///
+    /// # Returns
+    ///
+    /// Success after all enabled attributes have been consumed.
     fn parse_attributes(&mut self, enabled: bool) -> Result<()> {
         if !enabled {
             return Ok(());
@@ -140,6 +145,10 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     ///
     /// Returns an error when the attribute is not list-shaped or contains an
     /// unsupported nested control.
+    ///
+    /// # Returns
+    ///
+    /// Success after the attribute has been validated and consumed.
     fn parse_attribute(&mut self, attribute: &Attribute) -> Result<()> {
         let Meta::List(_) = &attribute.meta else {
             return Err(Error::new_spanned(
@@ -160,6 +169,10 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     ///
     /// Returns a targeted error for duplicate, malformed, or unsupported
     /// controls.
+    ///
+    /// # Returns
+    ///
+    /// Success after the control has been recorded or validated.
     fn parse_nested_attribute(&mut self, meta: ParseNestedMeta<'_>) -> Result<()> {
         if meta.path.is_ident("rename") {
             parse_name(&meta, &self.input.ident, "rename", &mut self.name_seen, &mut self.name)
@@ -213,6 +226,10 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     ///
     /// Returns an error when the input is not an enum or the rule is invalid
     /// or repeated.
+    ///
+    /// # Returns
+    ///
+    /// Success after the enum field rename rule has been recorded.
     fn parse_rename_all_fields(&mut self, meta: ParseNestedMeta<'_>) -> Result<()> {
         require_enum(&meta, self.input, "rename_all_fields")?;
         parse_rule(
@@ -234,6 +251,10 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     ///
     /// Returns an error when the input is not an enum or the tag is invalid or
     /// repeated.
+    ///
+    /// # Returns
+    ///
+    /// Success after the enum tag has been recorded.
     fn parse_tag(&mut self, meta: ParseNestedMeta<'_>) -> Result<()> {
         require_enum(&meta, self.input, "tag")?;
         parse_literal(&meta, &self.input.ident, "tag", &mut self.tag)
@@ -249,6 +270,10 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     ///
     /// Returns an error when the input is not an enum or the content key is
     /// invalid or repeated.
+    ///
+    /// # Returns
+    ///
+    /// Success after the enum content key has been recorded.
     fn parse_content(&mut self, meta: ParseNestedMeta<'_>) -> Result<()> {
         require_enum(&meta, self.input, "content")?;
         parse_literal(&meta, &self.input.ident, "content", &mut self.content)
@@ -264,6 +289,10 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     ///
     /// Returns an error when the input is not an enum, the control has a value,
     /// or the control is repeated.
+    ///
+    /// # Returns
+    ///
+    /// Success after the enum representation flag has been recorded.
     fn parse_untagged(&mut self, meta: ParseNestedMeta<'_>) -> Result<()> {
         require_enum(&meta, self.input, "untagged")?;
         if meta.input.peek(Token![=]) || meta.input.peek(Paren) {
@@ -288,6 +317,7 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     /// # Errors
     ///
     /// Returns the targeted error for an invalid enum representation.
+    #[inline]
     fn finish(self) -> Result<SerdeContainerAttributes> {
         SerdeContainerAttributes::from_parts(
             self.input,
@@ -315,6 +345,7 @@ impl<'input> SerdeContainerAttributeParser<'input> {
     ///
     /// Panics only if `syn` supplies a nested metadata path without any
     /// segments, which violates the `ParseNestedMeta` path invariant.
+    #[must_use]
     fn unsupported_control_error(&self, meta: ParseNestedMeta<'_>) -> Error {
         let key = meta
             .path
@@ -324,7 +355,7 @@ impl<'input> SerdeContainerAttributeParser<'input> {
             .ident
             .to_string();
         meta.error(format!(
-            "Redact serde for `{}` does not support container `{key}` because it can change value paths or bypass redaction; use only `rename`, `rename_all`, `rename_all_fields`, `tag`, `content`, `untagged`, or deserialization-only controls such as `default` and `deny_unknown_fields`",
+            "Redact serde for `{}` does not support container `{key}` because it can change value paths or bypass redaction; use only `rename`, `rename_all`, `rename_all_fields`, `tag`, `content`, `untagged`, `transparent`, `crate`, or deserialization-only controls such as `default` and `deny_unknown_fields`",
             self.input.ident,
         ))
     }
@@ -336,6 +367,10 @@ impl<'input> SerdeContainerAttributeParser<'input> {
 ///
 /// * `meta` - Nested `default` metadata item.
 /// * `type_name` - Derived type used in targeted diagnostics.
+///
+/// # Returns
+///
+/// Success after the default syntax has been validated.
 ///
 /// # Errors
 ///
@@ -362,6 +397,10 @@ fn parse_deserialize_only_default(meta: &ParseNestedMeta<'_>, type_name: &Ident)
 /// * `type_name` - Derived type used in targeted diagnostics.
 /// * `name` - Control name required to be bare.
 ///
+/// # Returns
+///
+/// Success when the control is bare.
+///
 /// # Errors
 ///
 /// Returns an error when the control has a value or parenthesized arguments.
@@ -379,6 +418,10 @@ fn require_bare_deserialize_only(meta: &ParseNestedMeta<'_>, type_name: &Ident, 
 /// * `meta` - Nested attribute item used as the error span.
 /// * `input` - Complete derive input.
 /// * `name` - Enum-only control name.
+///
+/// # Returns
+///
+/// Success when the derive input is an enum.
 ///
 /// # Errors
 ///
@@ -401,7 +444,13 @@ fn require_enum(meta: &ParseNestedMeta<'_>, input: &DeriveInput, name: &str) -> 
 /// * `meta` - Nested attribute item carrying the string literal.
 /// * `type_name` - Derived type used in diagnostics.
 /// * `name` - Supported control name.
+/// * `seen` - Whether this control already appeared, including a
+///   deserialize-only name.
 /// * `output` - Destination for the parsed name.
+///
+/// # Returns
+///
+/// Success after recording the name and occurrence flag.
 ///
 /// # Errors
 ///
@@ -428,7 +477,13 @@ fn parse_name(
 /// * `meta` - Nested attribute item carrying the rule literal.
 /// * `type_name` - Derived type used in diagnostics.
 /// * `name` - Supported control name.
+/// * `seen` - Whether this control already appeared, including a
+///   deserialize-only rule.
 /// * `output` - Destination for the parsed rename rule.
+///
+/// # Returns
+///
+/// Success after recording the parsed rule and occurrence flag.
 ///
 /// # Errors
 ///
@@ -458,6 +513,10 @@ fn parse_rule(
 /// * `type_name` - Derived type used in diagnostics.
 /// * `name` - Supported control name.
 /// * `output` - Destination for the parsed literal.
+///
+/// # Returns
+///
+/// Success after recording the literal.
 ///
 /// # Errors
 ///

@@ -15,6 +15,7 @@ mod attributes;
 mod expand;
 mod model;
 mod runtime_path;
+mod scalar;
 mod serde;
 
 #[cfg(test)]
@@ -67,6 +68,14 @@ mod tests;
 /// escape hatch. Explicit runtime redactors, composers, and batches retain the
 /// policy snapshot with which they were created.
 ///
+/// # Parameters
+///
+/// * `input` - Compiler-provided derive input for a struct or enum.
+///
+/// # Returns
+///
+/// Generated implementations, or compile-error tokens for invalid input.
+///
 /// # Examples
 ///
 /// ```ignore
@@ -96,13 +105,20 @@ pub fn derive_redact(input: TokenStream) -> TokenStream {
         .into()
 }
 
-mod scalar;
-
 /// Derives a scalar leaf capability for a one-field value object.
 ///
 /// The inner field must be a primitive scalar or another `RedactScalar`.
 /// No Debug, Display, or ordinary Serialize implementation is generated.
 /// Select the sensitivity on the field that uses this value object.
+///
+/// # Parameters
+///
+/// * `input` - Compiler-provided single-field value-object declaration.
+///
+/// # Returns
+///
+/// Delegating scalar capability implementations, or compile-error tokens for
+/// invalid shapes, attributes, or runtime paths.
 #[proc_macro_derive(RedactScalar, attributes(redact))]
 pub fn derive_redact_scalar(input: TokenStream) -> TokenStream {
     parse(input)

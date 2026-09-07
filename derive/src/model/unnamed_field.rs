@@ -7,8 +7,6 @@
 // =============================================================================
 //! Parsed state for one unnamed derive field.
 
-#![allow(clippy::double_must_use)]
-
 use syn::Field;
 use syn::Index;
 
@@ -84,7 +82,6 @@ impl<'a> UnnamedField<'a> {
     /// # Returns
     ///
     /// The field's unique redaction mode.
-    #[must_use]
     #[inline(always)]
     pub(crate) const fn attributes(&self) -> &FieldAttributes {
         &self.attributes
@@ -95,7 +92,6 @@ impl<'a> UnnamedField<'a> {
     /// # Returns
     ///
     /// Enabled controls or an empty disabled state.
-    #[must_use]
     #[inline(always)]
     pub(crate) const fn serde_attributes(&self) -> &SerdeAttributes {
         &self.serde_attributes

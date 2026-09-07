@@ -10,9 +10,10 @@
 use proc_macro2::TokenStream;
 
 /// Source expressions used by one serialized field carrier.
+#[must_use]
 pub(super) struct FieldAccess {
     /// Expression accessing the unredacted field value.
     pub(super) raw: TokenStream,
-    /// Expression accessing the sibling key for keyed fields.
+    /// Sibling key access for keyed fields, or `None` for all other modes.
     pub(super) key_raw: Option<TokenStream>,
 }

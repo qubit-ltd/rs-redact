@@ -13,9 +13,10 @@ cargo-fuzz = true
 fluent-uri = "0.4.1"
 http = "1.5"
 libfuzzer-sys = "0.4"
-qubit-redact = { path = "..", default-features = false, features = ["http", "uri"] }
+qubit-redact = { path = "..", default-features = false, features = ["http", "uri", "derive"] }
 url = "2.5"
 serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 
 [[bin]]
 name = "command_inputs"
@@ -62,6 +63,13 @@ bench = false
 [[bin]]
 name = "structured_serde"
 path = "fuzz_targets/structured_serde.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "consumer_views"
+path = "fuzz_targets/consumer_views.rs"
 test = false
 doc = false
 bench = false

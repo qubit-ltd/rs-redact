@@ -6,10 +6,10 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Parsed field shape shared by container and variant data.
-// qubit-style: allow type-file-name
 
 use super::NamedField;
 use super::UnnamedField;
+
 /// Validated named, unnamed, or unit fields in source order.
 ///
 /// # Type Parameters
@@ -18,9 +18,15 @@ use super::UnnamedField;
 #[must_use]
 pub(crate) enum FieldsData<'a> {
     /// Brace-delimited fields carrying identifiers.
-    Named(Vec<NamedField<'a>>),
+    Named(
+        /// Parsed named fields retained in their original declaration order.
+        Vec<NamedField<'a>>,
+    ),
     /// Tuple fields addressed by stable declaration indexes.
-    Unnamed(Vec<UnnamedField<'a>>),
+    Unnamed(
+        /// Parsed tuple fields with their original positional indexes.
+        Vec<UnnamedField<'a>>,
+    ),
     /// A container or variant without fields.
     Unit,
 }

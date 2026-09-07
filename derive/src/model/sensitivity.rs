@@ -72,6 +72,7 @@ impl Sensitivity {
     /// # Returns
     ///
     /// Tokens naming the corresponding runtime `Sensitivity` variant.
+    #[must_use]
     #[inline]
     pub(crate) fn runtime_tokens(&self, runtime: &Path) -> TokenStream {
         let variant = format_ident!("{}", self.runtime_variant);

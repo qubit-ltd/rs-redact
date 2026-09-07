@@ -8,4 +8,5 @@
 //! Tests for public value-masking policy types.
 
 mod mask_policy_tests;
+mod masking_policy_builder_tests;
 mod masking_policy_tests;

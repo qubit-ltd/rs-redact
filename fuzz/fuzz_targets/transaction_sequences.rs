@@ -13,6 +13,9 @@ use http::HeaderValue;
 use libfuzzer_sys::fuzz_target;
 use qubit_redact::RedactionBatchDiagnostics;
 use qubit_redact::RedactionBatchHandle;
+use qubit_redact::RedactionCompletion;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionReason;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::formats::argv::ArgvItem;
@@ -21,8 +24,22 @@ use qubit_redact::formats::http::BodyCapture;
 const FUZZ_SECRET: &str = "transaction-secret";
 
 /// Checks invariants shared by every item published from one completed batch.
-fn check_output(diagnostics: &RedactionBatchDiagnostics, handles: &[RedactionBatchHandle], output_limit: usize) {
+fn check_output(
+    diagnostics: &RedactionBatchDiagnostics,
+    handles: &[RedactionBatchHandle],
+    input_limit: usize,
+    output_limit: usize,
+) {
     assert!(diagnostics.summary().usage().output_bytes() <= output_limit);
+    assert!(diagnostics.summary().usage().inspected_input_bytes() <= input_limit);
+    if diagnostics.summary().completion() == RedactionCompletion::Exhausted {
+        assert!(
+            diagnostics
+                .summary()
+                .reasons()
+                .contains(RedactionReason::OutputLimitReached)
+        );
+    }
     for handle in handles {
         let text = diagnostics.text(*handle).as_str();
         assert!(std::str::from_utf8(text.as_bytes()).is_ok());
@@ -34,7 +51,17 @@ fn check_output(diagnostics: &RedactionBatchDiagnostics, handles: &[RedactionBat
 // handle remains unpublished until the shared batch has consumed every item.
 fuzz_target!(|data: &[u8]| {
     let data = &data[..data.len().min(4096)];
-    let redactor = Redactor::standard();
+    let boundaries = [0, 1, 4, 7, 8, 9, 10, 11, 16, 64, 256, 4096];
+    let input_limit = boundaries[usize::from(data.first().copied().unwrap_or_default()) % boundaries.len()];
+    let output_limit = boundaries[usize::from(data.get(1).copied().unwrap_or_default()) % boundaries.len()];
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_input_bytes(input_limit).max_output_bytes(output_limit);
+        })
+        .expect("bounded draft")
+        .build()
+        .expect("bounded policy");
+    let redactor = Redactor::new(policy);
     let output_limit = redactor.policy().limits().max_output_bytes();
     let mut batch = redactor.batch();
     let mut handles = Vec::with_capacity(data.len().div_ceil(8).min(128));
@@ -80,5 +107,5 @@ fuzz_target!(|data: &[u8]| {
     }
 
     let diagnostics = batch.finish_for_diagnostics("<redaction incomplete>");
-    check_output(&diagnostics, &handles, output_limit);
+    check_output(&diagnostics, &handles, input_limit, output_limit);
 });

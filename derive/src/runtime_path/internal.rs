@@ -19,22 +19,28 @@ use syn::Path;
 use syn::Result;
 use syn::parse_quote;
 
-/// Converts a Cargo crate lookup into an absolute generated-code path.
+/// Converts a Cargo crate lookup into a generated-code path.
 ///
 /// # Parameters
 ///
 /// * `input` - Derive input used as the diagnostic span on lookup failure.
 /// * `result` - Cargo-aware crate lookup result.
-/// * `itself` - Absolute path used when the requested crate is the consumer.
+/// * `itself` - Caller-provided path used when the requested crate is the
+///   consumer.
 /// * `error_context` - Stable diagnostic prefix for lookup failures.
 ///
 /// # Returns
 ///
-/// The absolute path visible from the derive call site.
+/// The supplied self path or an absolute path naming the dependency.
 ///
 /// # Errors
 ///
 /// Returns a syntax error attached to `input` when the Cargo lookup failed.
+///
+/// # Panics
+///
+/// Panics if a successful Cargo lookup supplies a name that cannot become a
+/// Rust identifier after replacing hyphens with underscores.
 pub(crate) fn resolve(
     input: &DeriveInput,
     result: CrateResult<FoundCrate, CrateError>,

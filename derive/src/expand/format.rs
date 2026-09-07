@@ -29,6 +29,12 @@ use crate::attributes::ContainerAttributes;
 ///
 /// Empty tokens when neither implementation was requested, otherwise the
 /// requested implementations delegating to the structured redaction writer.
+///
+/// # Panics
+///
+/// Panics if transparent mode bypassed validation and the input is not a
+/// single-field struct with a valid field identifier.
+#[must_use]
 pub(crate) fn expand(
     input: &DeriveInput,
     runtime: &Path,

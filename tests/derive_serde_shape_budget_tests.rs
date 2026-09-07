@@ -5,6 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+//! Generated Serde container shapes share structural and payload budgets.
 
 #![cfg(all(feature = "derive", feature = "serde"))]
 
@@ -81,11 +82,11 @@ fn test_generated_containers_share_collection_budget() {
 /// Variant names emitted as scalar values consume source and payload bytes.
 #[test]
 fn test_generated_variant_scalar_obeys_byte_budgets() {
-    for output in [false, true] {
+    for payload in [false, true] {
         let policy = RedactionPolicy::builder()
             .limits(|limits| {
-                if output {
-                    limits.max_output_bytes(1);
+                if payload {
+                    limits.max_serde_payload_bytes(1);
                 } else {
                     limits.max_input_bytes(1);
                 }
@@ -131,7 +132,10 @@ fn test_adjacent_content_shares_collection_budget() {
 fn test_generated_shapes_preserve_wire_at_exact_budget() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
-            limits.max_collection_items(2).max_input_bytes(2).max_output_bytes(2);
+            limits
+                .max_collection_items(2)
+                .max_input_bytes(2)
+                .max_serde_payload_bytes(2);
         })
         .expect("limits")
         .build()
@@ -142,7 +146,10 @@ fn test_generated_shapes_preserve_wire_at_exact_budget() {
     );
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
-            limits.max_collection_items(4).max_input_bytes(7).max_output_bytes(7);
+            limits
+                .max_collection_items(4)
+                .max_input_bytes(7)
+                .max_serde_payload_bytes(7);
         })
         .expect("limits")
         .build()
@@ -153,10 +160,3 @@ fn test_generated_shapes_preserve_wire_at_exact_budget() {
         serde_json::json!({"kind":"Named", "data":{"a":1,"b":2}})
     );
 }
-// =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
-//
-//    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
-// =============================================================================

@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Strict parsing boundary for container-level `redact` attributes.
-// qubit-style: allow type-file-name
 
 use syn::Data;
 use syn::DeriveInput;
@@ -24,7 +23,7 @@ pub(crate) struct ContainerAttributes {
     debug: bool,
     /// Whether the original type should receive a redacted `Display` impl.
     display: bool,
-    /// Whether redacted serde integration was requested.
+    /// Whether the source type should receive redacted `Serialize`.
     serde: bool,
     /// Whether one field should be written without a nominal wrapper.
     transparent: bool,
@@ -89,7 +88,7 @@ impl ContainerAttributes {
                 } else {
                     return Err(meta.error(format!(
                         "Redact derive for `{}` has unknown container attribute; use \
-                         `debug`, `display`, or `serde`",
+                         `debug`, `display`, `serde`, `transparent`, or `crate = path`",
                         input.ident,
                     )));
                 };
@@ -161,25 +160,24 @@ impl ContainerAttributes {
         self.display
     }
 
-    /// Returns whether this struct requested redacted serialization.
+    /// Returns whether the source type requested redacted serialization.
     ///
     /// # Returns
     ///
     /// `true` when the `serde` container option was present.
     #[must_use]
     #[inline(always)]
-    #[allow(dead_code)]
     pub(crate) const fn serde_enabled(&self) -> bool {
         self.serde
     }
 
-    /// Whether the ordinary Serialize implementation is generated as well.
-    pub(crate) const fn serde_impl_enabled(&self) -> bool {
-        self.serde
-    }
-
     /// Returns whether redaction uses the sole field representation directly.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the validated container declares `redact(transparent)`.
     #[must_use]
+    #[inline(always)]
     pub(crate) const fn transparent(&self) -> bool {
         self.transparent
     }

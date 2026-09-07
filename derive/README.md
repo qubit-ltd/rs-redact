@@ -16,7 +16,7 @@ Prefer the runtime re-export; a separate derive dependency is unnecessary:
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6", features = ["derive", "serde", "json"] }
+qubit-redact = { version = "0.7", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -66,7 +66,10 @@ Container attributes: `debug`, `display`, `serde`, `transparent`, and `crate = p
 The runtime `serde` feature generates structured redaction for `redact_view()` for every
 derived type. `#[redact(serde)]` additionally makes the source type's ordinary `Serialize`
 use that redacted representation. Without it, a separately derived ordinary `Serialize`
-remains unchanged. It requires the runtime `serde` feature and a direct Serde dependency.
+remains unchanged. Enable the runtime `serde` feature; generated implementations do not
+require a direct Serde dependency. Add `serde` when your own code uses its traits or derives.
+The source need not implement `Serialize`: view serialization and `to_json()` require only
+a serializable redacted projection.
 `transparent` requires exactly one field and delegates its representation; it does not declare scalar capability.
 Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` together with `serde`.
 
@@ -102,12 +105,19 @@ assert_eq!(Redactor::standard().to_json(&account).expect("account JSON"),
 scalar wrappers. It generates no ordinary Debug, Display, or Serialize and selects no sensitivity.
 Containers are not scalar inner fields. Third-party types use `#[redact(level = "secret", display)]`.
 
+`max_serde_payload_bytes` bounds logical scalar payloads in structured Serde;
+`max_output_bytes` bounds final text or `to_json()` JSON retained by the library.
+Both default to 16 KiB and are independent. When serializing a view or derived source directly,
+the caller's serializer/writer controls final encoded length. See the guide's budget matrix.
+
 ## Learn More
 
 See the [English user guide](../doc/user_guide.md), [Chinese user guide](../doc/user_guide.zh_CN.md),
 and [runtime README](../README.md) for budgets, Serde compatibility, snapshots, and disabled policy.
 
 ## Testing
+
+Run these commands from the repository root (the parent of `derive/`).
 
 ```bash
 # Run tests with the default feature set

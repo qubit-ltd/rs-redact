@@ -25,7 +25,10 @@ struct Bad {
     child: Child,
 }
 
-fn main() {}
+fn main() {
+    // Text-only children remain derivable, but requesting Serde must fail.
+    let _ = serde_json::to_value(Bad { child: Child });
+}
 // =============================================================================
 //    Copyright (c) 2025 - 2026 Haixing Hu.
 //

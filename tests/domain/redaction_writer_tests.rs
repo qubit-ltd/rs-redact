@@ -17,6 +17,8 @@ use qubit_redact::MaskPolicy;
 use qubit_redact::Redact;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
+#[cfg(feature = "json")]
+use qubit_redact::RedactionReason;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
@@ -288,4 +290,93 @@ fn test_keyed_debug_accessor_is_lazy_and_uses_business_key() {
             .contains("secret")
     );
     assert_eq!(calls.get(), 1);
+}
+
+struct Nested;
+
+impl Redact for Nested {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("Nested", |fields| {
+            fields.unredacted("id", || 7_u8);
+        });
+    }
+}
+
+struct Container;
+
+impl Redact for Container {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("Container", |fields| {
+            fields.nested("nested", &Nested);
+        });
+    }
+}
+
+/// Nested values render through the borrowed writer and the active
+/// transaction.
+#[test]
+fn test_nested_values_use_the_active_writer_transaction() {
+    let output = Redactor::standard().redact_text(&Container);
+
+    assert!(output.text().as_str().contains("Nested { id: 7 }"));
+    assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());
+}
+
+#[cfg(feature = "json")]
+struct JsonContainer;
+
+#[cfg(feature = "json")]
+impl Redact for JsonContainer {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("JsonContainer", |fields| {
+            fields.json("payload", "{invalid json");
+        });
+    }
+}
+
+/// JSON emitted from a domain writer must use the active session for input
+/// accounting and retain parser provenance in that transaction summary.
+#[cfg(feature = "json")]
+#[test]
+fn test_writer_json_uses_the_active_session_summary() {
+    let output = Redactor::standard().text_composer().value(&JsonContainer).finish();
+
+    assert_eq!(output.summary().usage().presented_input_bytes(), "{invalid json".len());
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
+}
+
+/// A JSON value emitted by a domain writer must spend the same structural
+/// budget as the enclosing domain transaction. The structural reason must
+/// remain visible instead of being relabelled as output exhaustion.
+#[cfg(feature = "json")]
+#[test]
+fn test_writer_json_uses_shared_structure_budget_and_preserves_its_reason() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_depth(1);
+        })
+        .expect("the limit draft should build")
+        .build()
+        .expect("the policy should build");
+    let output = Redactor::new(policy)
+        .text_composer()
+        .value(&JsonContainerWithValidNestedValue)
+        .finish();
+
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert!(output.summary().reasons().contains(RedactionReason::DepthLimitReached));
+    assert!(!output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert!(output.text().as_str().contains("<truncated>"));
+}
+
+#[cfg(feature = "json")]
+struct JsonContainerWithValidNestedValue;
+
+#[cfg(feature = "json")]
+impl Redact for JsonContainerWithValidNestedValue {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("JsonContainer", |fields| {
+            fields.json("payload", r#"{"outer":{"inner":"value"}}"#);
+        });
+    }
 }

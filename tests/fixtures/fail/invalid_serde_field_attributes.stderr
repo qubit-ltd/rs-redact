@@ -40,7 +40,7 @@ error: Redact serde for `InvalidTuple` field `0` expects `#[serde(...)]`
 73 | struct InvalidTuple(#[serde] String);
    |                     ^^^^^^^^
 
-error: Redact serde for `SensitiveAdapter` field `value` cannot use a serialization adapter with a redaction mode that observes raw field state; use it only with `skip`
+error: Redact serde for `SensitiveAdapter` field `value` cannot use a serialization adapter with a redaction mode that observes raw field state; use it only on unmarked fields or with `redact(skip)`
   --> tests/fixtures/fail/invalid_serde_field_attributes.rs:79:5
    |
 79 | /     /// Sensitive field with an intentionally rejected adapter.

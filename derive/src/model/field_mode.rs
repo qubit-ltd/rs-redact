@@ -10,30 +10,44 @@
 use syn::Ident;
 
 use super::Sensitivity;
-/// Formatting behavior generated for one named field.
+/// Formatting behavior generated for one named or tuple field.
 #[must_use]
 pub(crate) enum FieldMode {
     /// Formats the original field with its ordinary `Debug` implementation.
     Unmarked,
-    /// Masks a supported textual value at an explicit sensitivity level.
-    Level(Sensitivity),
+    /// Masks supported scalar leaves at an explicit level, preserving container
+    /// shape.
+    Level(
+        /// Fixed sensitivity applied independently to each supported scalar
+        /// leaf.
+        Sensitivity,
+    ),
     /// Masks the explicitly selected Display string representation.
-    DisplayLevel(Sensitivity),
+    DisplayLevel(
+        /// Fixed sensitivity applied after bounded Display capture.
+        Sensitivity,
+    ),
     /// Omits the field name and value without imposing formatting bounds.
     Skip,
     /// Recursively formats the field through its `Redact` implementation.
     Nested,
-    /// Classifies string map values by their runtime keys and active policy.
+    /// Classifies text-keyed map values by their runtime keys and active
+    /// policy.
     Map,
     /// Masks map keys and, optionally, map values at fixed levels.
     MapLevels {
-        /// Sensitivity applied to every map key.
+        /// Sensitivity applied to every map key; validated modes always contain
+        /// `Some`.
         key: Option<Sensitivity>,
-        /// Sensitivity applied to every map value.
+        /// Fixed value sensitivity, or `None` to preserve ordinary value
+        /// output.
         value: Option<Sensitivity>,
     },
     /// Classifies a field value by a sibling text key and active policy.
-    KeyedBy(Ident),
-    /// Redacts JSON text stored in a string field.
+    KeyedBy(
+        /// Source identifier of the sibling field supplying the runtime key.
+        Ident,
+    ),
+    /// Redacts supported JSON text or a parsed JSON value.
     Json,
 }

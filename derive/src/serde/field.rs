@@ -20,16 +20,17 @@ use crate::attributes::SerdeAttributes;
 use crate::model::FieldMode;
 use crate::serde::field_access::FieldAccess;
 
-/// Returns whether a field is omitted by redaction or Serde controls.
+/// Returns whether Serde unconditionally omits a field.
 ///
 /// # Parameters
 ///
-/// * `mode` - Validated redaction mode.
+/// * `mode` - Redaction mode; policy-dependent omission is handled separately.
 /// * `serde_attributes` - Validated Serde field controls.
 ///
 /// # Returns
 ///
-/// `true` when either control set omits the field.
+/// `true` for Serde `skip` or `skip_serializing`. Redaction `skip` is evaluated
+/// by [`serialization_condition`] against the active policy instead.
 #[must_use]
 #[inline(always)]
 pub(super) fn field_is_skipped(mode: &FieldMode, serde_attributes: &SerdeAttributes) -> bool {
@@ -42,12 +43,15 @@ pub(super) fn field_is_skipped(mode: &FieldMode, serde_attributes: &SerdeAttribu
 /// # Parameters
 ///
 /// * `serde_attributes` - Validated Serde field controls.
+/// * `mode` - Redaction mode whose skip rule applies only under enabled policy.
 /// * `raw` - Expression accessing the unredacted field value.
 ///
 /// # Returns
 ///
-/// A predicate expression honoring `skip_serializing_if`, or unconditional
-/// `true` when no predicate is configured.
+/// A predicate honoring `skip_serializing_if` and excluding redaction-skipped
+/// fields under enabled policy. Without either condition, the expression is
+/// `true`.
+#[must_use]
 #[inline]
 pub(super) fn serialization_condition(
     serde_attributes: &SerdeAttributes,
@@ -78,7 +82,14 @@ pub(super) fn serialization_condition(
 ///
 /// # Returns
 ///
-/// The raw value, a redacted carrier, or an empty stream for an omitted field.
+/// A budgeted raw-value or redacted carrier expression. Omission is handled
+/// by the caller before the carrier is evaluated.
+///
+/// # Panics
+///
+/// Panics if validated map-level mode lacks its key level or keyed mode
+/// lacks the sibling key access expression.
+#[must_use]
 pub(super) fn serialized_carrier(
     type_name: &Ident,
     field: &Field,
@@ -117,7 +128,7 @@ pub(super) fn serialized_carrier(
         FieldMode::Nested => {
             let raw = access.raw;
             quote_spanned!(field.span()=>
-                #runtime::domain::internal::RedactedProjectionRef::new(#raw, policy)
+                #runtime::domain::internal::RedactedBorrowedRef::new(#raw, policy)
             )
         }
         FieldMode::Map => {
@@ -157,6 +168,20 @@ pub(super) fn serialized_carrier(
 }
 
 /// Creates the stable helper identifier for one Serde field adapter.
+///
+/// # Parameters
+///
+/// * `type_name` - Owning Rust type identifier.
+/// * `field` - Source field supplying the generated identifier span.
+/// * `context` - Field context containing identifier-safe characters.
+///
+/// # Returns
+///
+/// An adapter helper identifier with raw-identifier prefixes removed.
+///
+/// # Panics
+///
+/// Panics if `context` contains characters invalid in a Rust identifier.
 #[inline]
 pub(super) fn adapter_helper_name(type_name: &Ident, field: &Field, context: &str) -> Ident {
     let type_fragment = type_name.to_string().replace("r#", "");
@@ -178,6 +203,7 @@ pub(super) fn adapter_helper_name(type_name: &Ident, field: &Field, context: &st
 /// # Returns
 ///
 /// The identifier text without a leading `r#`.
+#[must_use]
 #[inline]
 pub(super) fn raw_identifier(identifier: &Ident) -> String {
     identifier
@@ -191,12 +217,18 @@ pub(super) fn raw_identifier(identifier: &Ident) -> String {
 /// # Parameters
 ///
 /// * `variant_name` - Owning variant, or `None` for a struct field.
-/// * `variant_index` - Zero-based declaration index of the owning variant.
+/// * `variant_index` - Zero-based variant index, required when `variant_name`
+///   is `Some`.
 /// * `field_name` - Field identifier or positional index.
 ///
 /// # Returns
 ///
 /// A field name optionally prefixed by its owning variant.
+///
+/// # Panics
+///
+/// Panics when a variant name is supplied without a declaration index.
+#[must_use]
 #[inline]
 pub(super) fn field_context(variant_name: Option<&Ident>, variant_index: Option<u32>, field_name: &str) -> String {
     variant_name.map_or_else(

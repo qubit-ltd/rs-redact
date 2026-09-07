@@ -58,6 +58,12 @@ error: Redact serde for `DuplicateUntagged` repeats `untagged`
 87 | #[serde(untagged, untagged)]
    |                   ^^^^^^^^
 
+error: Redact serde for `UnsupportedControl` does not support container `from` because it can change value paths or bypass redaction; use only `rename`, `rename_all`, `rename_all_fields`, `tag`, `content`, `untagged`, `transparent`, `crate`, or deserialization-only controls such as `default` and `deny_unknown_fields`
+  --> tests/fixtures/fail/invalid_serde_container_attributes.rs:96:35
+   |
+96 | #[serde(default = "make_default", from = "String")]
+   |                                   ^^^^
+
 error: Redact serde for `ParenthesizedDefault` requires bare `default` or `default = "..."`
    --> tests/fixtures/fail/invalid_serde_container_attributes.rs:102:9
     |

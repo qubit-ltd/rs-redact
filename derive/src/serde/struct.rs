@@ -39,6 +39,12 @@ use crate::model::UnnamedField;
 /// # Returns
 ///
 /// A serializer expression preserving the source struct shape.
+///
+/// # Panics
+///
+/// Panics if transparent mode has no field or field controls bypassed
+/// map-level or keyed-field validation.
+#[must_use]
 pub(super) fn struct_body(
     type_name: &Ident,
     fields: &FieldsData<'_>,
@@ -71,6 +77,23 @@ pub(super) fn struct_body(
 ///
 /// The field is emitted as the struct's direct serialized value unless its
 /// redaction or Serde attributes omit it, in which case a unit struct is used.
+///
+/// # Parameters
+///
+/// * `type_name` - Owning source type used in helper names.
+/// * `parsed` - Validated single named field and its controls.
+/// * `runtime` - Resolved runtime crate path.
+/// * `serde` - Resolved Serde path.
+/// * `container_attributes` - Validated container naming controls.
+///
+/// # Returns
+///
+/// A newtype serializer expression, or a unit-struct expression when omitted.
+///
+/// # Panics
+///
+/// Panics if map-level controls bypassed key-sensitivity validation.
+#[must_use]
 fn transparent_named_struct_body(
     type_name: &Ident,
     parsed: &NamedField<'_>,
@@ -133,6 +156,11 @@ fn transparent_named_struct_body(
 /// # Returns
 ///
 /// A `SerializeStruct` expression containing each selected field.
+///
+/// # Panics
+///
+/// Panics if map-level controls bypassed key-sensitivity validation.
+#[must_use]
 fn named_struct_body(
     type_name: &Ident,
     fields: &[NamedField<'_>],
@@ -237,6 +265,12 @@ fn named_struct_body(
 /// # Returns
 ///
 /// A newtype serializer expression, or a unit-struct expression when omitted.
+///
+/// # Panics
+///
+/// Panics if validation admitted keyed mode on a tuple field or map-level
+/// mode without a key sensitivity.
+#[must_use]
 fn newtype_struct_body(
     type_name: &Ident,
     parsed: &UnnamedField<'_>,
@@ -295,6 +329,12 @@ fn newtype_struct_body(
 /// # Returns
 ///
 /// A `SerializeTupleStruct` expression containing each selected field.
+///
+/// # Panics
+///
+/// Panics if validation admitted keyed mode on a tuple field or map-level
+/// mode without a key sensitivity.
+#[must_use]
 fn tuple_struct_body(
     type_name: &Ident,
     fields: &[UnnamedField<'_>],

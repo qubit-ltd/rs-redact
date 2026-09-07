@@ -7,21 +7,21 @@
 // =============================================================================
 //! Parsing boundaries for derive, field, and Serde attributes.
 
-mod container;
-mod field;
+mod container_attributes;
+mod field_attributes;
 mod internal;
-mod rename_rule;
-mod representation;
-mod serde;
-mod serde_container;
-mod serde_variant;
+mod serde_attributes;
+mod serde_container_attributes;
+mod serde_enum_representation;
+mod serde_rename_rule;
+mod serde_variant_attributes;
 
-pub(crate) use container::ContainerAttributes;
-pub(crate) use field::FieldAttributes;
+pub(crate) use container_attributes::ContainerAttributes;
+pub(crate) use field_attributes::FieldAttributes;
 pub(crate) use internal::SerdeContainerAttributeParser;
 pub(crate) use internal::parse_serialize_name;
-pub(crate) use rename_rule::SerdeRenameRule;
-pub(crate) use representation::SerdeEnumRepresentation;
-pub(crate) use serde::SerdeAttributes;
-pub(crate) use serde_container::SerdeContainerAttributes;
-pub(crate) use serde_variant::SerdeVariantAttributes;
+pub(crate) use serde_attributes::SerdeAttributes;
+pub(crate) use serde_container_attributes::SerdeContainerAttributes;
+pub(crate) use serde_enum_representation::SerdeEnumRepresentation;
+pub(crate) use serde_rename_rule::SerdeRenameRule;
+pub(crate) use serde_variant_attributes::SerdeVariantAttributes;

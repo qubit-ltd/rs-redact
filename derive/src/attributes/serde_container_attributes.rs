@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Whitelisted Serde container attributes for redacted serialization.
-// qubit-style: allow type-file-name
 
 use syn::Data;
 use syn::DeriveInput;
@@ -41,7 +40,7 @@ impl SerdeContainerAttributes {
     /// # Parameters
     ///
     /// * `input` - Complete derive input carrying container attributes.
-    /// * `enabled` - Whether `#[redact(serde)]` requested parsing.
+    /// * `enabled` - Whether Serde projection generation requires parsing.
     ///
     /// # Returns
     ///
@@ -67,6 +66,8 @@ impl SerdeContainerAttributes {
     /// * `tag` - Optional internal or adjacent enum tag.
     /// * `content` - Optional adjacent enum content key.
     /// * `untagged` - Optional bare untagged attribute path.
+    /// * `transparent` - Whether a single-field struct uses its field
+    ///   representation.
     ///
     /// # Returns
     ///
@@ -75,7 +76,8 @@ impl SerdeContainerAttributes {
     /// # Errors
     ///
     /// Returns the targeted representation validation error for incompatible
-    /// tag, content, or untagged controls.
+    /// tag, content, or untagged controls, or for `transparent` on anything
+    /// other than a single-field struct.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn from_parts(
         input: &DeriveInput,
@@ -133,6 +135,8 @@ impl SerdeContainerAttributes {
     /// # Returns
     ///
     /// The serialized struct field name.
+    #[must_use]
+    #[inline]
     pub(crate) fn rename_struct_field(&self, field_name: &str) -> String {
         self.rename_all
             .as_ref()
@@ -148,6 +152,8 @@ impl SerdeContainerAttributes {
     /// # Returns
     ///
     /// The serialized variant name.
+    #[must_use]
+    #[inline]
     pub(crate) fn rename_variant(&self, variant_name: &str) -> String {
         self.rename_all
             .as_ref()
@@ -163,6 +169,8 @@ impl SerdeContainerAttributes {
     /// # Returns
     ///
     /// The serialized variant field name.
+    #[must_use]
+    #[inline]
     pub(crate) fn rename_variant_field(&self, field_name: &str) -> String {
         self.rename_all_fields
             .as_ref()
@@ -174,18 +182,41 @@ impl SerdeContainerAttributes {
     /// # Returns
     ///
     /// Externally tagged, internally tagged, adjacently tagged, or untagged.
+    #[must_use = "the selected representation determines generated serialization"]
     #[inline(always)]
     pub(crate) const fn representation(&self) -> &SerdeEnumRepresentation {
         &self.representation
     }
 
     /// Returns whether a single-field struct uses the field representation.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the validated container declares `serde(transparent)`.
+    #[must_use]
+    #[inline(always)]
     pub(crate) const fn transparent(&self) -> bool {
         self.transparent
     }
 }
 
 /// Validates and selects one enum representation.
+///
+/// # Parameters
+///
+/// * `input` - Owning derive input used in diagnostics.
+/// * `tag` - Optional serialized variant tag key.
+/// * `content` - Optional separately serialized variant content key.
+/// * `untagged` - Optional untagged control used as the diagnostic span.
+///
+/// # Returns
+///
+/// The selected external, internal, adjacent, or untagged representation.
+///
+/// # Errors
+///
+/// Rejects `untagged` combined with a tag or content key, content without a
+/// tag, and identical adjacent tag and content keys.
 fn representation(
     input: &DeriveInput,
     tag: Option<LitStr>,

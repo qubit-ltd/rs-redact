@@ -2,6 +2,8 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Parsing of derive input into the internal container model.
 
@@ -20,6 +22,10 @@ use super::unnamed_fields;
 use crate::attributes::SerdeVariantAttributes;
 
 /// Parses a derive input into the container model used by code generation.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the source syntax retained by the parsed model.
 ///
 /// # Parameters
 ///
@@ -63,6 +69,10 @@ pub(crate) fn parse<'a>(input: &'a DeriveInput, derive_name: &str, serde_enabled
 }
 
 /// Parses one struct or enum field collection into the internal model.
+///
+/// # Type Parameters
+///
+/// * `'a` - Lifetime of the borrowed field syntax retained by the model.
 ///
 /// # Parameters
 ///
