@@ -17,9 +17,9 @@ use http::HeaderValue;
 #[cfg(feature = "json")]
 use serde_json::Value;
 
-use super::DiagnosticRedactionOutput;
-use super::DiagnosticRedactionHandle;
 use super::DiagnosticRedactionBatchOutput;
+use super::DiagnosticRedactionHandle;
+use super::DiagnosticRedactionOutput;
 use crate::domain::Redact;
 #[cfg(feature = "http")]
 use crate::formats::http::BodyCapture;

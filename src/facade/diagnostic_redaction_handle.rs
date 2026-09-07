@@ -7,7 +7,8 @@
 // =============================================================================
 //! Opaque capabilities for unpublished batch items.
 
-/// Opaque reference to one unpublished item in a [`crate::DiagnosticRedactionBatch`].
+/// Opaque reference to one unpublished item in a
+/// [`crate::DiagnosticRedactionBatch`].
 ///
 /// # Examples
 ///

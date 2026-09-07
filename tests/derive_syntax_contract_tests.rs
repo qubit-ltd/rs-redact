@@ -39,12 +39,8 @@ fn test_serde_bare_skip_can_precede_another_field_control() {
         also_hidden: "secret-two".to_owned(),
         visible: 7,
     };
-    for redactor in [
-        Redactor::standard(),
-        Redactor::new(RedactionPolicy::disabled()),
-    ] {
-        let encoded =
-            to_value(redactor.redact_view(&record)).expect("serialize supported combined controls");
+    for redactor in [Redactor::standard(), Redactor::new(RedactionPolicy::disabled())] {
+        let encoded = to_value(redactor.redact_view(&record)).expect("serialize supported combined controls");
         assert_eq!(encoded, json!({"visible": 7}));
     }
 }
@@ -54,12 +50,7 @@ fn test_serde_bare_skip_can_precede_another_field_control() {
 fn test_projection_lifetimes_do_not_shadow_source_lifetimes() {
     #[derive(Redact)]
     #[redact(serde)]
-    struct Borrowed<
-        '__qubit_redact,
-        '__qubit_redact_policy,
-        '__qubit_redact_lifetime,
-        '__qubit_redact_lifetime_0,
-    > {
+    struct Borrowed<'__qubit_redact, '__qubit_redact_policy, '__qubit_redact_lifetime, '__qubit_redact_lifetime_0> {
         first: &'__qubit_redact str,
         second: &'__qubit_redact_policy str,
         third: &'__qubit_redact_lifetime str,
@@ -82,10 +73,7 @@ fn test_projection_lifetimes_do_not_shadow_source_lifetimes() {
         to_value(Redactor::standard().redact_view(&value)).expect("borrowed projection"),
         expected
     );
-    assert_eq!(
-        to_value(&value).expect("derived source serialization"),
-        expected
-    );
+    assert_eq!(to_value(&value).expect("derived source serialization"), expected);
 }
 
 /// Predicates retain concrete generic field shapes without requiring source
@@ -111,9 +99,7 @@ fn test_generic_skip_predicate_preserves_projection_type_parameters() {
     #[derive(Debug)]
     struct TextOnly;
 
-    let text_only = Generic {
-        value: Some(TextOnly),
-    };
+    let text_only = Generic { value: Some(TextOnly) };
     assert!(format!("{}", redactor.redact_view(&text_only)).contains("TextOnly"));
 }
 
@@ -147,10 +133,7 @@ fn test_generic_projection_preserves_borrowed_nested_fields() {
 /// Serialize.
 #[test]
 fn test_generic_custom_adapter_keeps_its_source_bounds() {
-    fn serialize_as_text<T: Display, S: Serializer>(
-        value: &T,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
+    fn serialize_as_text<T: Display, S: Serializer>(value: &T, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.collect_str(value)
     }
 
@@ -181,10 +164,7 @@ fn test_generic_custom_adapter_keeps_its_source_bounds() {
 #[test]
 fn test_generic_predicates_cover_tuple_and_enum_projections() {
     #[derive(Redact)]
-    struct Tuple<T: Debug>(
-        #[serde(skip_serializing_if = "Option::is_none")] Option<T>,
-        u32,
-    );
+    struct Tuple<T: Debug>(#[serde(skip_serializing_if = "Option::is_none")] Option<T>, u32);
 
     #[derive(Redact)]
     enum Event<T: Debug> {
@@ -192,10 +172,7 @@ fn test_generic_predicates_cover_tuple_and_enum_projections() {
             #[serde(skip_serializing_if = "Option::is_none")]
             value: Option<T>,
         },
-        Tuple(
-            #[serde(skip_serializing_if = "Option::is_none")] Option<T>,
-            u32,
-        ),
+        Tuple(#[serde(skip_serializing_if = "Option::is_none")] Option<T>, u32),
     }
 
     let redactor = Redactor::standard();
@@ -236,9 +213,7 @@ fn test_serde_defaults_preserve_nested_option_and_vec_capabilities() {
     }
 
     let encoded = to_value(Redactor::standard().redact_view(&Envelope {
-        child: Some(Child {
-            value: "ok".to_owned(),
-        }),
+        child: Some(Child { value: "ok".to_owned() }),
         children: vec![Child {
             value: "also-ok".to_owned(),
         }],
@@ -344,8 +319,7 @@ fn test_adapter_helper_preserves_where_clause_bounds() {
         value: T,
     }
     assert_eq!(
-        to_value(Redactor::standard().redact_view(&Value { value: 7u32 }))
-            .expect("adapter where clause"),
+        to_value(Redactor::standard().redact_view(&Value { value: 7u32 })).expect("adapter where clause"),
         json!({"value": "7"})
     );
 }
@@ -405,14 +379,8 @@ fn test_serde_skipped_fields_need_no_serialize_capability() {
         to_value(&record).expect("source skips non-serializable fields"),
         json!({"visible": 7})
     );
-    assert_eq!(
-        to_value(&tuple).expect("source skips tuple field"),
-        json!([9])
-    );
-    for redactor in [
-        Redactor::standard(),
-        Redactor::new(RedactionPolicy::disabled()),
-    ] {
+    assert_eq!(to_value(&tuple).expect("source skips tuple field"), json!([9]));
+    for redactor in [Redactor::standard(), Redactor::new(RedactionPolicy::disabled())] {
         assert_eq!(
             to_value(redactor.redact_view(&record)).expect("projection skips fields"),
             json!({"visible": 7})
@@ -443,10 +411,7 @@ fn test_serde_skipped_variants_need_no_serialize_capability() {
         json!({"Visible": 7})
     );
     let hidden = Event::Hidden(TextOnly);
-    for redactor in [
-        Redactor::standard(),
-        Redactor::new(RedactionPolicy::disabled()),
-    ] {
+    for redactor in [Redactor::standard(), Redactor::new(RedactionPolicy::disabled())] {
         assert_eq!(
             to_value(redactor.redact_view(&visible)).expect("visible projection"),
             json!({"Visible": 7})

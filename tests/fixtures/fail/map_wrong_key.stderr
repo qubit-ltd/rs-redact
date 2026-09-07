@@ -7,23 +7,21 @@ error[E0277]: the trait bound `BTreeMap<u32, std::string::String>: RedactMapValu
 help: the following other types implement trait `RedactMapValue`
   --> src/domain/redact_map_value.rs
    |
-   | /         impl<V: super::RedactLevelValue + Debug> RedactMapValue
-   | |             for BTreeMap<$key, V>
-   | |_________________________________^ `BTreeMap<std::string::String, V>`
+   |         impl<V: super::RedactLevelValue + Debug> RedactMapValue for BTreeMap<$key, V> {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `BTreeMap<std::string::String, V>`
 ...
-   | /         impl<'a, V: super::RedactLevelValue + Debug> RedactMapValue
-   | |             for BTreeMap<$key, V>
-   | |                                 ^
-   | |_________________________________|
-   | |_________________________________`BTreeMap<&str, V>`
-   |                                   `BTreeMap<Cow<'_, str>, V>`
+   |         impl<'a, V: super::RedactLevelValue + Debug> RedactMapValue for BTreeMap<$key, V> {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |         |
+   |         `BTreeMap<&str, V>`
+   |         `BTreeMap<Cow<'_, str>, V>`
 ...
-   | | owned_map_key!(String);
-   | | ---------------------- in this macro invocation
-   | | borrowed_map_key!(&'a str);
-   | | -------------------------- in this macro invocation
-   | | borrowed_map_key!(Cow<'a, str>);
-   | | ------------------------------- in this macro invocation
+   | owned_map_key!(String);
+   | ---------------------- in this macro invocation
+   | borrowed_map_key!(&'a str);
+   | -------------------------- in this macro invocation
+   | borrowed_map_key!(Cow<'a, str>);
+   | ------------------------------- in this macro invocation
 note: required by a bound in `RedactionFields::<'writer, 'session>::map_value`
   --> src/domain/redaction_fields.rs
    |
