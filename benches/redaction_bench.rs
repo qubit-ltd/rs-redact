@@ -40,9 +40,9 @@ fn benchmark_redaction(criterion: &mut Criterion) {
     });
     group.bench_function("batch/single-sensitive-field", |bencher| {
         bencher.iter(|| {
-            let mut batch = redactor.batch();
+            let mut batch = redactor.diagnostic_batch();
             let handle = batch.redact_field("password", black_box("raw-secret"));
-            let output = batch.finish_for_diagnostics("<redaction incomplete>");
+            let output = batch.finish_with_marker("<redaction incomplete>");
             black_box(output.text(handle));
             output
         });
@@ -60,10 +60,10 @@ fn benchmark_redaction(criterion: &mut Criterion) {
     });
     group.bench_function("batch/independent-fields", |bencher| {
         bencher.iter(|| {
-            let mut batch = redactor.batch();
+            let mut batch = redactor.diagnostic_batch();
             let _account = batch.redact_field("account", black_box("account-42"));
             let _password = batch.redact_field("password", black_box("raw-secret"));
-            batch.finish_for_diagnostics("<redaction incomplete>")
+            batch.finish_with_marker("<redaction incomplete>")
         });
     });
     group.bench_function("json/text", |bencher| {
@@ -71,9 +71,9 @@ fn benchmark_redaction(criterion: &mut Criterion) {
     });
     group.bench_function("batch/single-json/text", |bencher| {
         bencher.iter(|| {
-            let mut batch = redactor.batch();
+            let mut batch = redactor.diagnostic_batch();
             let handle = batch.redact_json(black_box(json));
-            let output = batch.finish_for_diagnostics("<redaction incomplete>");
+            let output = batch.finish_with_marker("<redaction incomplete>");
             black_box(output.text(handle));
             output
         });
@@ -83,9 +83,9 @@ fn benchmark_redaction(criterion: &mut Criterion) {
     });
     group.bench_function("batch/single-json/borrowed-value", |bencher| {
         bencher.iter(|| {
-            let mut batch = redactor.batch();
+            let mut batch = redactor.diagnostic_batch();
             let handle = batch.redact_json_value(black_box(&json_value));
-            let output = batch.finish_for_diagnostics("<redaction incomplete>");
+            let output = batch.finish_with_marker("<redaction incomplete>");
             black_box(output.text(handle));
             output
         });

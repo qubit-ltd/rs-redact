@@ -24,7 +24,7 @@ fn test_writer_json_handle_preserves_shared_structure_reason() {
         .build()
         .expect("the policy should build");
     let mut batch = Redactor::new(policy).diagnostic_batch();
-    batch.redact_value(&JsonContainerWithValidNestedValue);
+    let _ = batch.redact_value(&JsonContainerWithValidNestedValue);
     let output = batch.finish();
     assert!(
         output
