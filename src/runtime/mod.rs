@@ -10,13 +10,11 @@
 mod batch_output_buffer;
 mod batch_publication;
 mod batch_session;
-mod bounded_field_writer;
-mod field_render;
-mod field_rendering;
 mod format_admission;
 mod inspection_accumulator;
 mod inspection_runtime;
 mod inspection_session;
+mod internal;
 #[cfg(feature = "json")]
 mod json_structure_admission;
 #[cfg(any(feature = "json", feature = "http"))]
@@ -24,12 +22,14 @@ mod operation_byte_sink;
 mod operation_sink;
 mod redaction_budget;
 mod redaction_handle;
+mod redaction_handle_error;
 mod render_runtime;
 mod rendered_operation;
 mod rendered_summary;
 mod resettable_session;
 mod runtime_core;
 pub(crate) mod runtime_session;
+mod scalar_operation;
 mod structural_budget;
 mod structural_entry;
 mod summary_builder;
@@ -50,7 +50,7 @@ pub(crate) use json_structure_admission::JsonStructureAdmission;
 pub(crate) use operation_byte_sink::OperationByteSink;
 pub(crate) use operation_sink::OperationSink;
 pub use redaction_handle::RedactionHandle;
-pub use redaction_handle::RedactionHandleError;
+pub use redaction_handle_error::RedactionHandleError;
 pub(crate) use rendered_operation::RenderedOperation;
 pub(crate) use structural_budget::StructuralBudget;
 pub(crate) use text_session::TextSession;

@@ -42,6 +42,7 @@ impl RedactionRulesBuilder {
     /// # Parameters
     ///
     /// * `location` - Policy location used when reporting validation errors.
+    #[inline(always)]
     pub(crate) fn empty(location: PolicyLocation) -> Self {
         Self {
             sensitive: BTreeMap::new(),
@@ -59,6 +60,7 @@ impl RedactionRulesBuilder {
     ///
     /// * `inner` - Immutable rule state to copy.
     /// * `location` - Policy location used for later validation errors.
+    #[inline(always)]
     pub(crate) fn from_inner(inner: &RedactionPolicyInner, location: PolicyLocation) -> Self {
         Self {
             sensitive: inner.sensitive.clone(),
@@ -225,6 +227,7 @@ impl RedactionRulesBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// field name.
+    #[inline(always)]
     pub(crate) fn validate_field_name(field: &str, location: PolicyLocation) -> Result<(), PolicyError> {
         Self::checked_canonical_field(field, location).map(|_| ())
     }
@@ -234,6 +237,11 @@ impl RedactionRulesBuilder {
     /// # Returns
     ///
     /// The immutable rule state used by policy snapshots.
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible: each field name was checked before insertion.
+    #[inline(always)]
     pub(crate) fn build_inner(self) -> Result<RedactionPolicyInner, PolicyError> {
         Ok(RedactionPolicyInner {
             sensitive: self.sensitive,
@@ -254,6 +262,7 @@ impl RedactionRulesBuilder {
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// field name.
+    #[inline(always)]
     fn canonical_field(&self, field: &str) -> Result<String, PolicyError> {
         Self::checked_canonical_field(field, self.location)
     }

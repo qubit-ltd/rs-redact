@@ -34,7 +34,7 @@ impl<'a> SensitiveFieldRule<'a> {
     ///
     /// A read-only view over the supplied rule.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub(super) const fn new(field: &'a str, sensitivity: Sensitivity) -> Self {
         Self { field, sensitivity }
     }
@@ -45,7 +45,7 @@ impl<'a> SensitiveFieldRule<'a> {
     ///
     /// The canonical field name borrowed from the policy.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub const fn field(&self) -> &'a str {
         self.field
     }
@@ -56,7 +56,7 @@ impl<'a> SensitiveFieldRule<'a> {
     ///
     /// The sensitivity assigned to the field.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub const fn sensitivity(&self) -> Sensitivity {
         self.sensitivity
     }

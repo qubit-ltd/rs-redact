@@ -18,6 +18,13 @@ pub(super) struct SerdeRawGuard {
 
 impl SerdeRawGuard {
     /// Pins the existing scope, if one is present.
+    ///
+    /// # Returns
+    ///
+    /// An active pin when a budget exists, otherwise an inert guard.
+    /// Dropping an active guard releases exactly the pin acquired here.
+    #[must_use]
+    #[inline(always)]
     pub(super) fn new() -> Self {
         Self {
             active: enter_raw_serializer(),
@@ -26,6 +33,7 @@ impl SerdeRawGuard {
 }
 
 impl Drop for SerdeRawGuard {
+    /// Releases only the raw-serializer pin acquired by this guard.
     fn drop(&mut self) {
         if self.active {
             leave_raw_serializer();

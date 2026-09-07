@@ -20,7 +20,16 @@ pub(crate) struct OperationByteSink {
 
 impl OperationByteSink {
     /// Creates an empty byte sink with one operation's output allowance.
+    ///
+    /// # Parameters
+    ///
+    /// - `maximum`: Maximum serializer bytes retained for this operation.
+    ///
+    /// # Returns
+    ///
+    /// An empty in-memory byte sink.
     #[must_use]
+    #[inline(always)]
     pub(crate) const fn new(maximum: usize) -> Self {
         Self {
             output: Vec::new(),
@@ -29,7 +38,13 @@ impl OperationByteSink {
     }
 
     /// Converts accepted serializer bytes into UTF-8 text.
+    ///
+    /// # Returns
+    ///
+    /// `Some(text)` contains valid UTF-8; `None` means retained bytes were
+    /// not a complete UTF-8 string.
     #[must_use]
+    #[inline(always)]
     pub(crate) fn into_string(self) -> Option<String> {
         String::from_utf8(self.output).ok()
     }
@@ -37,6 +52,19 @@ impl OperationByteSink {
 
 impl Write for OperationByteSink {
     /// Atomically appends `buffer` when the complete serializer token fits.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`io::ErrorKind::WriteZero`] if the whole buffer cannot fit.
+    ///
+    /// # Parameters
+    ///
+    /// - `buffer`: One serializer write, accepted or rejected as a whole.
+    ///
+    /// # Returns
+    ///
+    /// The complete buffer length after successful retention.
+    #[inline]
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         if self.output.len().saturating_add(buffer.len()) > self.maximum {
             return Err(io::Error::from(io::ErrorKind::WriteZero));
@@ -45,7 +73,8 @@ impl Write for OperationByteSink {
         Ok(buffer.len())
     }
 
-    /// Flushes the in-memory serializer sink.
+    /// Succeeds without external I/O; retained bytes are already in memory.
+    #[inline(always)]
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }

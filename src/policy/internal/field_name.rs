@@ -58,6 +58,8 @@ pub(crate) fn canonicalize_field_name(name: &str) -> Cow<'_, str> {
 ///
 /// * `name` - Raw field name.
 /// * `matching` - Candidate breadth to generate.
+/// * `visitor` - Callback receiving whether a candidate is exact and its
+///   canonical name; returning `Break` stops generation.
 ///
 /// # Returns
 ///

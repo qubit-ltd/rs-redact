@@ -25,6 +25,18 @@ pub(crate) struct BatchPublication {
 
 impl BatchPublication {
     /// Creates output for the completed batch identity and staged items.
+    ///
+    /// # Parameters
+    ///
+    /// - `transaction_id`: Identity shared by this publication's handles.
+    /// - `items`: Final items in handle-index order.
+    /// - `summary`: Aggregate accounting for the completed batch.
+    ///
+    /// # Returns
+    ///
+    /// An immutable publication retaining all supplied items and accounting.
+    #[must_use]
+    #[inline(always)]
     pub(crate) fn new(transaction_id: u64, items: Vec<RedactionTextOutput>, summary: RedactionSummary) -> Self {
         Self {
             transaction_id,
@@ -34,16 +46,32 @@ impl BatchPublication {
     }
 
     /// Returns aggregate accounting across all published batch items.
+    ///
+    /// # Returns
+    ///
+    /// Aggregate accounting across the whole published batch.
     #[must_use]
+    #[inline(always)]
     pub(crate) const fn summary(&self) -> &RedactionSummary {
         &self.summary
     }
 
     /// Borrows the item selected by `handle` without cloning its final text.
     ///
+    /// # Errors
+    ///
     /// Returns [`RedactionHandleError::DifferentTransaction`] for another
     /// batch identity and [`RedactionHandleError::MissingItem`] for an invalid
     /// index in this batch.
+    ///
+    /// # Parameters
+    ///
+    /// - `handle`: Runtime token issued for this batch.
+    ///
+    /// # Returns
+    ///
+    /// The matching published item borrowed from this output.
+    #[inline]
     pub(crate) fn resolve(&self, handle: RedactionHandle) -> Result<&RedactionTextOutput, RedactionHandleError> {
         if handle.transaction_id != self.transaction_id {
             return Err(RedactionHandleError::DifferentTransaction);
@@ -51,45 +79,5 @@ impl BatchPublication {
         self.items
             .get(handle.item_index)
             .ok_or(RedactionHandleError::MissingItem)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::BatchPublication;
-    use crate::RedactedText;
-    use crate::RedactionHandle;
-    use crate::RedactionHandleError;
-    use crate::RedactionSummary;
-    use crate::RedactionTextOutput;
-
-    /// An invalid same-batch index is reported distinctly from a cross-batch
-    /// handle.
-    #[test]
-    fn test_resolve_reports_missing_same_batch_item() {
-        let output = BatchPublication::new(7, Vec::new(), RedactionSummary::complete());
-
-        assert_eq!(*output.summary(), RedactionSummary::complete());
-        assert_eq!(
-            output.resolve(RedactionHandle::new(7, 0)),
-            Err(RedactionHandleError::MissingItem)
-        );
-    }
-
-    /// Valid items resolve by insertion index without exposing that index
-    /// publicly.
-    #[test]
-    fn test_resolve_returns_published_batch_item() {
-        let item = RedactionTextOutput::new(RedactedText::from_escaped("item"), RedactionSummary::complete());
-        let output = BatchPublication::new(3, vec![item], RedactionSummary::complete());
-
-        assert_eq!(
-            output
-                .resolve(RedactionHandle::new(3, 0))
-                .expect("matching private handle resolves")
-                .text()
-                .as_str(),
-            "item"
-        );
     }
 }

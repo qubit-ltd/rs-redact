@@ -8,9 +8,12 @@
 //! Container implementations for explicit nested redaction.
 
 use crate::domain::Redact;
+use crate::domain::RedactionWriter;
 
 impl<T: Redact> Redact for Option<T> {
-    fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
+    /// Writes the contained domain values while sharing the enclosing
+    /// structural budget.
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         match self {
             None => writer.literal("None"),
             Some(value) => writer.tuple("Some", |fields| {
@@ -21,13 +24,17 @@ impl<T: Redact> Redact for Option<T> {
 }
 
 impl<T: Redact + ?Sized> Redact for Box<T> {
-    fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
+    /// Writes the contained domain values while sharing the enclosing
+    /// structural budget.
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         self.as_ref().write_redacted(writer)
     }
 }
 
 impl<T: Redact> Redact for Vec<T> {
-    fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
+    /// Writes the contained domain values while sharing the enclosing
+    /// structural budget.
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.sequence(|items| {
             items.for_each(self, |items, value| {
                 items.nested_item(value);
@@ -37,7 +44,9 @@ impl<T: Redact> Redact for Vec<T> {
 }
 
 impl<T: Redact, const N: usize> Redact for [T; N] {
-    fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
+    /// Writes the contained domain values while sharing the enclosing
+    /// structural budget.
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.sequence(|items| {
             items.for_each(self, |items, value| {
                 items.nested_item(value);
@@ -46,11 +55,13 @@ impl<T: Redact, const N: usize> Redact for [T; N] {
     }
 }
 
+/// Generates nested tuple traversal for each supported arity.
 macro_rules! tuple_redact {
     ($($name:ident),+ $(,)?) => {
         impl<$($name: Redact),+> Redact for ($($name,)+) {
+            /// Traverses tuple fields through the active nested-value scope.
             #[allow(non_snake_case)]
-            fn write_redacted(&self, writer: &mut crate::domain::RedactionWriter<'_>) {
+            fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
                 let ($($name,)+) = self;
                 writer.tuple("Tuple", |fields| {
                     $(fields.nested("", $name);)+

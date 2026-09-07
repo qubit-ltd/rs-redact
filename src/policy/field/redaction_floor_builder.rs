@@ -19,6 +19,17 @@ use crate::policy::PolicyLocation;
 use crate::policy::RedactionRulesBuilder;
 
 /// Builder for a [`RedactionFloor`].
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::RedactionFloor;
+/// use qubit_redact::Sensitivity;
+///
+/// let floor = RedactionFloor::builder().raise("pin", Sensitivity::Secret)?.build()?;
+/// assert!(floor.sensitive_rules().any(|rule| rule.field() == "pin"));
+/// # Ok::<(), qubit_redact::PolicyError>(())
+/// ```
 #[derive(Debug, Clone)]
 pub struct RedactionFloorBuilder {
     /// Mutable rules validated in the floor policy location.
@@ -28,6 +39,7 @@ pub struct RedactionFloorBuilder {
 impl RedactionFloorBuilder {
     /// Creates an empty builder for the floor construction context.
     #[must_use]
+    #[inline(always)]
     pub(super) fn empty() -> Self {
         Self {
             rules: RedactionRulesBuilder::empty(PolicyLocation::Floor),
@@ -36,28 +48,11 @@ impl RedactionFloorBuilder {
 
     /// Copies every field rule from `floor`.
     #[must_use]
+    #[inline(always)]
     pub(super) fn from_floor(floor: &RedactionFloor) -> Self {
         Self {
             rules: RedactionRulesBuilder::from_inner(&floor.inner, PolicyLocation::Floor),
         }
-    }
-
-    /// Adds every sensitive field in one preset.
-    #[must_use]
-    pub fn include_preset(mut self, preset: SensitiveFieldPreset) -> Self {
-        self.rules.include_preset(preset);
-        self
-    }
-
-    /// Raises `field` to at least `level`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
-    /// floor-rule name.
-    pub fn raise(mut self, field: &str, level: Sensitivity) -> Result<Self, PolicyError> {
-        self.rules.raise(field, level)?;
-        Ok(self)
     }
 
     /// Sets field-name matching behavior.
@@ -76,12 +71,31 @@ impl RedactionFloorBuilder {
         self
     }
 
+    /// Adds every sensitive field in one preset.
+    #[must_use]
+    #[inline(always)]
+    pub fn include_preset(mut self, preset: SensitiveFieldPreset) -> Self {
+        self.rules.include_preset(preset);
+        self
+    }
+
+    /// Raises `field` to at least `level`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
+    /// floor-rule name.
+    pub fn raise(mut self, field: &str, level: Sensitivity) -> Result<Self, PolicyError> {
+        self.rules.raise(field, level)?;
+        Ok(self)
+    }
+
     /// Validates and constructs the immutable floor.
     ///
     /// # Errors
     ///
-    /// Returns a [`PolicyError`] located at [`PolicyLocation::Floor`] when a
-    /// field name or fixed mask is invalid.
+    /// Currently infallible because field names are validated when added.
+    /// The result retains the policy construction error type.
     pub fn build(self) -> Result<RedactionFloor, PolicyError> {
         let inner = self.rules.build_inner()?;
         Ok(RedactionFloor { inner: Arc::new(inner) })

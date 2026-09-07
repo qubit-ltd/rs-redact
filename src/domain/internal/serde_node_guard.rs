@@ -14,6 +14,7 @@ pub(super) struct SerdeNodeGuard;
 
 impl Drop for SerdeNodeGuard {
     /// Restores the active scope's depth.
+    #[inline(always)]
     fn drop(&mut self) {
         leave_node();
     }

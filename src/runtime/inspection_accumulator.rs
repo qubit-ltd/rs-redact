@@ -17,17 +17,29 @@ pub(super) struct InspectionAccumulator {
 }
 
 impl InspectionAccumulator {
+    /// Returns the strongest level observed by the complete traversal.
+    ///
+    /// # Returns
+    ///
+    /// `Some(level)` is the strongest observed level; `None` means no
+    /// sensitive value has been observed.
+    #[must_use]
+    #[inline(always)]
+    pub(super) const fn max_sensitivity(self) -> Option<Sensitivity> {
+        self.max_sensitivity
+    }
+
     /// Records one policy-resolved sensitivity level.
+    ///
+    /// # Parameters
+    ///
+    /// - `sensitivity`: Newly observed level to combine with the current
+    ///   maximum.
+    #[inline]
     pub(super) fn observe(&mut self, sensitivity: Sensitivity) {
         self.max_sensitivity = Some(
             self.max_sensitivity
                 .map_or(sensitivity, |current| current.max(sensitivity)),
         );
-    }
-
-    /// Returns the strongest level observed by the complete traversal.
-    #[must_use]
-    pub(super) const fn max_sensitivity(self) -> Option<Sensitivity> {
-        self.max_sensitivity
     }
 }

@@ -16,6 +16,7 @@ use super::Sensitivity;
 /// Error returned when a redaction policy contains an invalid rule.
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[must_use]
 pub enum PolicyError {
     /// A supplied field name is empty after canonicalization.
     EmptyFieldName {
@@ -33,6 +34,12 @@ pub enum PolicyError {
     /// collection allocators on this platform.
     OutputLimitTooLarge {
         /// Rejected configured output limit.
+        maximum: usize,
+    },
+    /// The logical Serde payload ceiling exceeds addressable capacity.
+    #[cfg(feature = "serde")]
+    SerdePayloadLimitTooLarge {
+        /// Rejected configured scalar payload limit.
         maximum: usize,
     },
 }
@@ -59,6 +66,11 @@ impl fmt::Display for PolicyError {
             Self::EmptyFixedReplacement { location, level } => write!(
                 formatter,
                 "fixed mask replacement for {level:?} sensitivity is empty in {location}",
+            ),
+            #[cfg(feature = "serde")]
+            Self::SerdePayloadLimitTooLarge { maximum } => write!(
+                formatter,
+                "Serde payload limit {maximum} exceeds this platform's addressable collection capacity",
             ),
             Self::OutputLimitTooLarge { maximum } => write!(
                 formatter,

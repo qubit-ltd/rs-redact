@@ -7,6 +7,9 @@
 // =============================================================================
 //! Borrowed adapter for generated structured redaction.
 
+use serde::Serialize;
+use serde::Serializer;
+
 use super::redact_serialize::RedactSerialize;
 use super::redact_serialize_scope::RedactSerializeScope;
 
@@ -22,15 +25,21 @@ pub struct RedactedSerializeRef<'value, 'policy, T: ?Sized> {
 impl<'value, 'policy, T: ?Sized> RedactedSerializeRef<'value, 'policy, T> {
     /// Creates a policy-carrying borrowed serializer adapter.
     #[must_use]
+    #[inline(always)]
     pub fn new(value: &'value T, policy: &'policy crate::RedactionPolicy) -> Self {
         Self { value, policy }
     }
 }
 
-impl<T: ?Sized + RedactSerialize> serde::Serialize for RedactedSerializeRef<'_, '_, T> {
+impl<T: ?Sized + RedactSerialize> Serialize for RedactedSerializeRef<'_, '_, T> {
+    /// Runs this borrowed adapter under the shared policy and resource scope.
+    ///
+    /// # Errors
+    ///
+    /// Propagates admission failures and errors from the downstream serializer.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         let _scope = RedactSerializeScope::new(self.policy);
         self.value.serialize_redacted(serializer, self.policy)

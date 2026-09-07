@@ -7,8 +7,6 @@
 // =============================================================================
 //! Mutable builder for immutable redaction policies.
 
-use super::FieldNameMatching;
-use super::MaskPolicy;
 use super::MaskingPolicy;
 use super::PolicyError;
 use super::PolicyLocation;
@@ -18,11 +16,21 @@ use super::RedactionLimitsBuilder;
 use super::RedactionPolicy;
 use super::RedactionRules;
 use super::RedactionRulesBuilder;
-use super::SensitiveFieldPreset;
 use super::Sensitivity;
 #[cfg(feature = "json")]
 use super::UnkeyedJsonValuePolicy;
-use super::UnknownFieldPolicy;
+
+// Provides the transactional application-field view.
+mod fields_builder;
+// Provides the independently configured HTTP field-context view.
+#[cfg(feature = "http")]
+mod http_context_builder_view;
+// Provides the grouped HTTP policy view.
+#[cfg(feature = "http")]
+mod http_policy_builder_view;
+// Provides the grouped URI policy view.
+#[cfg(feature = "uri")]
+mod uri_policy_builder_view;
 
 /// Mutable construction state for an immutable [`RedactionPolicy`].
 ///
@@ -92,6 +100,7 @@ impl RedactionPolicyBuilder {
             unkeyed_json_value_policy: UnkeyedJsonValuePolicy::PassThrough,
         }
     }
+
     /// Copies the immutable policy into mutable builder state.
     #[must_use]
     pub(super) fn from_policy(policy: &RedactionPolicy) -> Self {
@@ -197,7 +206,8 @@ impl RedactionPolicyBuilder {
     /// # Errors
     ///
     /// Returns [`PolicyError`] when the completed limit set violates a
-    /// cross-limit invariant. The original builder remains unchanged.
+    /// platform collection capacity limit. No invalid limit snapshot is
+    /// installed.
     pub fn limits<F>(mut self, configure: F) -> Result<Self, PolicyError>
     where
         F: FnOnce(&mut RedactionLimitsBuilder),
@@ -210,25 +220,27 @@ impl RedactionPolicyBuilder {
         Ok(self)
     }
 
-    /// Validates that `field` has a non-empty canonical application-rule name.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PolicyError::EmptyFieldName`] at
-    /// [`PolicyLocation::Rules`] when canonicalization leaves no name.
-    pub fn validate_field_name(field: &str) -> Result<(), PolicyError> {
-        RedactionRulesBuilder::validate_field_name(field, PolicyLocation::Rules)
-    }
-
     /// Sets behavior for root and array JSON scalar values.
     ///
     /// This setter remains on the root builder because the JSON feature does
     /// not expose a separate grouped builder.
     #[cfg(feature = "json")]
     #[must_use]
+    #[inline(always)]
     pub const fn unkeyed_json_value_policy(mut self, policy: UnkeyedJsonValuePolicy) -> Self {
         self.unkeyed_json_value_policy = policy;
         self
+    }
+
+    /// Validates that `field` has a non-empty canonical application-rule name.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError::EmptyFieldName`] at
+    /// [`PolicyLocation::Rules`] when canonicalization leaves no name.
+    #[inline(always)]
+    pub fn validate_field_name(field: &str) -> Result<(), PolicyError> {
+        RedactionRulesBuilder::validate_field_name(field, PolicyLocation::Rules)
     }
 
     /// Validates and returns the immutable policy snapshot.
@@ -258,420 +270,17 @@ impl RedactionPolicyBuilder {
     }
 }
 
-mod views {
-    use super::FieldNameMatching;
-    use super::MaskPolicy;
-    use super::MaskingPolicy;
-    use super::PolicyError;
-    use super::PolicyLocation;
-    use super::RedactionFloor;
-    use super::RedactionPolicyBuilder;
-    #[cfg(feature = "http")]
-    use super::RedactionRules;
-    use super::SensitiveFieldPreset;
-    use super::Sensitivity;
-    use super::UnknownFieldPolicy;
-
-    /// Mutable view over the base field policy.
-    pub struct FieldsBuilder<'a> {
-        /// Root builder receiving validated field changes.
-        pub(super) builder: &'a mut RedactionPolicyBuilder,
-        /// First validation error recorded by the transactional view.
-        pub(super) error: Option<PolicyError>,
-    }
-
-    impl FieldsBuilder<'_> {
-        /// Raises one field's minimum sensitivity in a transactional draft.
-        #[inline(always)]
-        fn set_sensitive(&mut self, field: &str, level: Sensitivity) -> &mut Self {
-            if self.error.is_none()
-                && let Err(error) = self.builder.rules.raise(field, level)
-            {
-                self.error = Some(error);
-            }
-            self
-        }
-
-        /// Marks a field as low sensitivity.
-        #[inline(always)]
-        pub fn low_sensitive(&mut self, field: &str) -> &mut Self {
-            self.set_sensitive(field, Sensitivity::Low)
-        }
-
-        /// Marks a field as medium sensitivity.
-        #[inline(always)]
-        pub fn medium_sensitive(&mut self, field: &str) -> &mut Self {
-            self.set_sensitive(field, Sensitivity::Medium)
-        }
-
-        /// Marks a field as high sensitivity.
-        #[inline(always)]
-        pub fn high_sensitive(&mut self, field: &str) -> &mut Self {
-            self.set_sensitive(field, Sensitivity::High)
-        }
-
-        /// Marks a field as secret sensitivity.
-        #[inline(always)]
-        pub fn secret_sensitive(&mut self, field: &str) -> &mut Self {
-            self.set_sensitive(field, Sensitivity::Secret)
-        }
-
-        /// Raises a field's minimum sensitivity to `level`.
-        #[inline(always)]
-        pub fn sensitive(&mut self, level: Sensitivity, field: &str) -> &mut Self {
-            self.set_sensitive(field, level)
-        }
-
-        /// Sets field-name matching for the base policy.
-        #[inline(always)]
-        pub fn matching(&mut self, matching: FieldNameMatching) -> &mut Self {
-            self.builder.rules.matching(matching);
-            self
-        }
-
-        /// Sets the base fallback for unknown fields.
-        pub fn unknown_field_policy(&mut self, policy: UnknownFieldPolicy) -> &mut Self {
-            self.builder.rules.unknown_field_policy(policy);
-            self
-        }
-
-        /// Includes all fields from a built-in sensitive preset.
-        pub fn include_preset(&mut self, preset: SensitiveFieldPreset) -> &mut Self {
-            self.builder.rules.include_preset(preset);
-            self
-        }
-
-        /// Raises a base field's minimum sensitivity.
-        pub fn raise(&mut self, field: &str, level: Sensitivity) -> &mut Self {
-            if self.error.is_none()
-                && let Err(error) = self.builder.rules.raise(field, level)
-            {
-                self.error = Some(error);
-            }
-            self
-        }
-
-        /// Replaces one base field rule without weakening floors.
-        pub fn override_level(&mut self, field: &str, level: Sensitivity) -> &mut Self {
-            if self.error.is_none()
-                && let Err(error) = self.builder.rules.override_level(field, level)
-            {
-                self.error = Some(error);
-            }
-            self
-        }
-
-        /// Adds a base exact allow rule.
-        pub fn allow_exact(&mut self, field: &str) -> &mut Self {
-            if self.error.is_none()
-                && let Err(error) = self.builder.rules.allow_canonical_exact(field)
-            {
-                self.error = Some(error);
-            }
-            self
-        }
-
-        /// Adds a base suffix allow rule.
-        pub fn allow_suffix(&mut self, field: &str) -> &mut Self {
-            if self.error.is_none()
-                && let Err(error) = self.builder.rules.allow_suffix(field)
-            {
-                self.error = Some(error);
-            }
-            self
-        }
-
-        /// Removes a base exact allow rule.
-        pub fn remove_allow_exact(&mut self, field: &str) -> &mut Self {
-            if self.error.is_none()
-                && let Err(error) = self.builder.rules.remove_allow_canonical_exact(field)
-            {
-                self.error = Some(error);
-            }
-            self
-        }
-
-        /// Removes a base suffix allow rule.
-        pub fn remove_allow_suffix(&mut self, field: &str) -> &mut Self {
-            if self.error.is_none()
-                && let Err(error) = self.builder.rules.remove_allow_suffix(field)
-            {
-                self.error = Some(error);
-            }
-            self
-        }
-
-        /// Removes all base allow rules.
-        pub fn clear_allow_rules(&mut self) -> &mut Self {
-            self.builder.rules.clear_allow_rules();
-            self
-        }
-
-        /// Replaces the base minimum-protection floor.
-        #[inline(always)]
-        pub fn floor(&mut self, floor: RedactionFloor) -> &mut Self {
-            self.builder.floor = Some(floor);
-            self
-        }
-
-        /// Disables the base floor explicitly.
-        pub fn disable_floor(&mut self) -> &mut Self {
-            self.builder.floor = None;
-            self
-        }
-
-        /// Replaces one shared masking level.
-        pub fn mask(&mut self, level: Sensitivity, policy: MaskPolicy) -> &mut Self {
-            let mut masking = MaskingPolicy::builder_from(&self.builder.masking);
-            masking.policy(level, policy);
-            let masking = masking.build();
-            if self.error.is_none() {
-                match masking.validate(PolicyLocation::Rules) {
-                    Ok(()) => self.builder.masking = masking,
-                    Err(error) => self.error = Some(error),
-                }
-            }
-            self
-        }
-    }
-
-    /// Mutable view over all HTTP context differences.
-    #[cfg(feature = "http")]
-    pub struct HttpPolicyBuilderView<'a> {
-        /// Root builder receiving HTTP policy changes.
-        pub(super) builder: &'a mut RedactionPolicyBuilder,
-        /// First validation error recorded by the transactional view.
-        pub(super) error: Option<PolicyError>,
-    }
-
-    /// Mutable view over URI-specific behavior.
-    #[cfg(feature = "uri")]
-    pub struct UriPolicyBuilderView<'a> {
-        /// URI builder receiving view changes.
-        pub(super) builder: &'a mut crate::formats::uri::UriPolicyBuilder,
-    }
-
-    #[cfg(feature = "uri")]
-    impl UriPolicyBuilderView<'_> {
-        /// Sets URI path visibility.
-        pub fn path(&mut self, policy: crate::formats::uri::UriPathPolicy) -> &mut Self {
-            self.builder.path_policy_mut(policy);
-            self
-        }
-
-        /// Sets URI fragment visibility.
-        pub fn fragment(&mut self, policy: crate::formats::uri::UriFragmentPolicy) -> &mut Self {
-            self.builder.fragment_policy_mut(policy);
-            self
-        }
-    }
-
-    #[cfg(feature = "http")]
-    impl HttpPolicyBuilderView<'_> {
-        /// Returns the header context view.
-        #[must_use]
-        pub fn header(&mut self) -> HttpContextBuilderView<'_> {
-            HttpContextBuilderView {
-                builder: &mut self.builder.http,
-                error: &mut self.error,
-                context: crate::formats::http::HttpFieldContext::Header,
-            }
-        }
-
-        /// Returns the query/form context view.
-        #[must_use]
-        pub fn query(&mut self) -> HttpContextBuilderView<'_> {
-            HttpContextBuilderView {
-                builder: &mut self.builder.http,
-                error: &mut self.error,
-                context: crate::formats::http::HttpFieldContext::Query,
-            }
-        }
-
-        /// Returns the structured-body context view.
-        #[must_use]
-        pub fn body(&mut self) -> HttpContextBuilderView<'_> {
-            HttpContextBuilderView {
-                builder: &mut self.builder.http,
-                error: &mut self.error,
-                context: crate::formats::http::HttpFieldContext::Body,
-            }
-        }
-
-        /// Sets URL path visibility for HTTP diagnostics.
-        pub fn url_path(&mut self, policy: crate::formats::http::UrlPathPolicy) -> &mut Self {
-            self.builder.http.url_path_mut(policy);
-            self
-        }
-
-        /// Sets opaque text-body visibility for HTTP diagnostics.
-        pub fn text_body(&mut self, policy: crate::formats::http::TextBodyPolicy) -> &mut Self {
-            self.builder.http.text_body_mut(policy);
-            self
-        }
-
-        /// Sets the same floor for every HTTP field context.
-        pub fn floor_all(&mut self, floor: RedactionFloor) -> &mut Self {
-            self.builder.http.floor_all_mut(floor);
-            self
-        }
-
-        /// Disables every HTTP field-context floor explicitly.
-        pub fn disable_all_floors(&mut self) -> &mut Self {
-            self.builder.http.disable_all_floors_mut();
-            self
-        }
-
-        /// Sets the handling of root and array JSON scalar values in HTTP
-        /// bodies.
-        pub fn unkeyed_json(&mut self, policy: crate::UnkeyedJsonValuePolicy) -> &mut Self {
-            self.builder.unkeyed_json_value_policy = policy;
-            self
-        }
-    }
-
-    /// Mutable view over one HTTP field context.
-    #[cfg(feature = "http")]
-    pub struct HttpContextBuilderView<'a> {
-        /// HTTP builder receiving context-specific changes.
-        builder: &'a mut crate::formats::http::HttpPolicyBuilder,
-        /// Shared transaction error slot.
-        error: &'a mut Option<PolicyError>,
-        /// Field context targeted by this view.
-        context: crate::formats::http::HttpFieldContext,
-    }
-
-    #[cfg(feature = "http")]
-    impl HttpContextBuilderView<'_> {
-        /// Replaces all rules for this HTTP field context.
-        pub fn replace_rules(&mut self, rules: RedactionRules) -> &mut Self {
-            self.builder.rules_mut(self.context, rules);
-            self
-        }
-
-        /// Raises a context field's minimum sensitivity.
-        ///
-        /// # Errors
-        ///
-        /// Returns [`PolicyError`] when `field` has no canonical name.
-        pub fn raise(&mut self, field: &str, level: Sensitivity) -> Result<&mut Self, PolicyError> {
-            if self.error.is_none()
-                && let Err(error) = self.builder.raise_mut(self.context, field, level)
-            {
-                *self.error = Some(error.clone());
-                return Err(error);
-            }
-            Ok(self)
-        }
-
-        /// Replaces a context field rule without weakening the base policy.
-        ///
-        /// # Errors
-        ///
-        /// Returns [`PolicyError`] when `field` has no canonical name.
-        pub fn override_level(&mut self, field: &str, level: Sensitivity) -> Result<&mut Self, PolicyError> {
-            if self.error.is_none()
-                && let Err(error) = self.builder.override_level_mut(self.context, field, level)
-            {
-                *self.error = Some(error.clone());
-                return Err(error);
-            }
-            Ok(self)
-        }
-
-        /// Adds a context exact allow rule; the base policy still applies.
-        ///
-        /// # Errors
-        ///
-        /// Returns [`PolicyError`] when `field` has no canonical name.
-        pub fn allow_exact(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
-            if self.error.is_none()
-                && let Err(error) = self.builder.allow_exact_mut(self.context, field)
-            {
-                *self.error = Some(error.clone());
-                return Err(error);
-            }
-            Ok(self)
-        }
-
-        /// Adds a context suffix allow rule; the base policy still applies.
-        ///
-        /// # Errors
-        ///
-        /// Returns [`PolicyError`] when `field` has no canonical suffix.
-        pub fn allow_suffix(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
-            if self.error.is_none()
-                && let Err(error) = self.builder.allow_suffix_mut(self.context, field)
-            {
-                *self.error = Some(error.clone());
-                return Err(error);
-            }
-            Ok(self)
-        }
-
-        /// Removes a context exact allow rule.
-        ///
-        /// # Errors
-        ///
-        /// Returns [`PolicyError`] when `field` has no canonical name.
-        pub fn remove_allow_exact(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
-            if self.error.is_none()
-                && let Err(error) = self.builder.remove_allow_exact_mut(self.context, field)
-            {
-                *self.error = Some(error.clone());
-                return Err(error);
-            }
-            Ok(self)
-        }
-
-        /// Removes a context suffix allow rule.
-        ///
-        /// # Errors
-        ///
-        /// Returns [`PolicyError`] when `field` has no canonical suffix.
-        pub fn remove_allow_suffix(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
-            if self.error.is_none()
-                && let Err(error) = self.builder.remove_allow_suffix_mut(self.context, field)
-            {
-                *self.error = Some(error.clone());
-                return Err(error);
-            }
-            Ok(self)
-        }
-
-        /// Removes all context allow rules.
-        pub fn clear_allow_rules(&mut self) -> &mut Self {
-            self.builder.clear_allow_rules_mut(self.context);
-            self
-        }
-
-        /// Adds a context floor. Base protection remains independently
-        /// effective.
-        #[must_use]
-        #[inline(always)]
-        pub fn floor(&mut self, floor: RedactionFloor) -> &mut Self {
-            self.builder.floor_mut(self.context, floor);
-            self
-        }
-
-        /// Disables this context's explicit floor.
-        pub fn disable_floor(&mut self) -> &mut Self {
-            self.builder.disable_floor_mut(self.context);
-            self
-        }
-    }
-}
-
-pub use views::FieldsBuilder;
+pub use fields_builder::FieldsBuilder;
 #[cfg(feature = "http")]
-pub use views::HttpContextBuilderView;
+pub use http_context_builder_view::HttpContextBuilderView;
 #[cfg(feature = "http")]
-pub use views::HttpPolicyBuilderView;
+pub use http_policy_builder_view::HttpPolicyBuilderView;
 #[cfg(feature = "uri")]
-pub use views::UriPolicyBuilderView;
+pub use uri_policy_builder_view::UriPolicyBuilderView;
 
 impl Default for RedactionPolicyBuilder {
     /// Creates a builder with the standard floor and default limits.
+    #[inline(always)]
     fn default() -> Self {
         Self::new()
     }

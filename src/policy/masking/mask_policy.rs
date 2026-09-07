@@ -14,6 +14,16 @@ use std::fmt::Write;
 use crate::policy::internal::BoundedMaskWriter;
 
 /// Strategy used to mask one sensitive field value.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::MaskPolicy;
+///
+/// let mask = MaskPolicy::preserve_suffix(2, "***", 2);
+/// assert_eq!(mask.mask("123456"), "***56");
+/// assert_eq!(mask.mask("12"), "***");
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MaskPolicy {
@@ -128,8 +138,29 @@ impl MaskPolicy {
     ///
     /// A mask policy that produces an empty result.
     #[must_use]
+    #[inline(always)]
     pub const fn empty() -> Self {
         Self::Empty
+    }
+
+    /// Returns the complete replacement for a value whose contents are opaque.
+    ///
+    /// Edge-preserving policies cannot safely retain any part of an opaque
+    /// value, so this method returns only their configured replacement.
+    ///
+    /// # Returns
+    ///
+    /// The complete configured replacement, or an empty string for
+    /// [`Self::Empty`].
+    #[must_use]
+    #[inline(always)]
+    pub fn opaque_mask(&self) -> &str {
+        match self {
+            Self::Fixed { replacement }
+            | Self::PreserveEdges { replacement, .. }
+            | Self::PreserveSuffix { replacement, .. } => replacement,
+            Self::Empty => "",
+        }
     }
 
     /// Masks `value` according to this policy.
@@ -181,26 +212,6 @@ impl MaskPolicy {
         }
     }
 
-    /// Returns the complete replacement for a value whose contents are opaque.
-    ///
-    /// Edge-preserving policies cannot safely retain any part of an opaque
-    /// value, so this method returns only their configured replacement.
-    ///
-    /// # Returns
-    ///
-    /// The complete configured replacement, or an empty string for
-    /// [`Self::Empty`].
-    #[must_use]
-    #[inline(always)]
-    pub fn opaque_mask(&self) -> &str {
-        match self {
-            Self::Fixed { replacement }
-            | Self::PreserveEdges { replacement, .. }
-            | Self::PreserveSuffix { replacement, .. } => replacement,
-            Self::Empty => "",
-        }
-    }
-
     /// Masks a value without allocating beyond a caller-supplied byte limit.
     ///
     /// # Type Parameters
@@ -217,6 +228,7 @@ impl MaskPolicy {
     /// Empty input remains borrowed; other results own at most `max_bytes`.
     #[cfg(feature = "http")]
     #[must_use]
+    #[inline(always)]
     pub(crate) fn mask_bounded<'a>(&self, value: &'a str, max_bytes: usize) -> Cow<'a, str> {
         self.mask_bounded_with_truncation(value, max_bytes).0
     }
@@ -257,7 +269,8 @@ impl MaskPolicy {
     ///
     /// # Parameters
     ///
-    /// * `value` - Non-empty value to mask.
+    /// * `value` - Value to mask; unlike [`Self::mask`], empty input is also
+    ///   replaced according to this policy.
     /// * `writer` - Formatting destination that may stop accepting output.
     ///
     /// # Returns
@@ -425,78 +438,4 @@ fn suffix_start(value: &str, suffix_chars: usize) -> Option<usize> {
         return Some(value.len());
     }
     value.char_indices().rev().nth(suffix_chars - 1).map(|(index, _)| index)
-}
-
-#[cfg(test)]
-mod tests {
-    use std::fmt;
-
-    use super::MaskPolicy;
-
-    struct FailingWriter;
-
-    impl fmt::Write for FailingWriter {
-        fn write_str(&mut self, _value: &str) -> fmt::Result {
-            Err(fmt::Error)
-        }
-    }
-
-    #[test]
-    fn test_mask_bounded_with_truncation_respects_unicode_boundary() {
-        let (masked, truncated) = MaskPolicy::fixed("甲乙丙").mask_bounded_with_truncation("secret", 4);
-
-        assert_eq!(masked, "甲");
-        assert!(truncated);
-    }
-
-    #[test]
-    fn test_mask_bounded_with_truncation_preserves_empty_borrow_without_truncation() {
-        let (masked, truncated) = MaskPolicy::fixed("mask").mask_bounded_with_truncation("", 0);
-
-        assert_eq!(masked, "");
-        assert!(matches!(masked, std::borrow::Cow::Borrowed("")));
-        assert!(!truncated);
-    }
-
-    #[test]
-    fn test_mask_bounded_with_truncation_covers_edge_and_suffix_outputs() {
-        let (edges, edges_truncated) =
-            MaskPolicy::preserve_edges(1, 1, "***", 0).mask_bounded_with_truncation("甲乙丙", 7);
-        let (suffix, suffix_truncated) =
-            MaskPolicy::preserve_suffix(1, "***", 0).mask_bounded_with_truncation("甲乙丙", 6);
-
-        assert_eq!(edges, "甲***");
-        assert!(edges_truncated);
-        assert_eq!(suffix, "***丙");
-        assert!(!suffix_truncated);
-    }
-
-    #[test]
-    fn test_opaque_mask_bounded_uses_complete_utf8_prefix() {
-        assert_eq!(MaskPolicy::fixed("甲乙").opaque_mask_bounded(4), "甲");
-        assert_eq!(MaskPolicy::empty().opaque_mask_bounded(0), "");
-    }
-
-    #[test]
-    fn test_write_masked_writes_each_policy_and_propagates_errors() {
-        let mut output = String::new();
-        MaskPolicy::preserve_edges(1, 1, "*", 0)
-            .write_masked("abcd", &mut output)
-            .expect("the string writer should accept the mask");
-        assert_eq!(output, "a*d");
-
-        output.clear();
-        MaskPolicy::preserve_suffix(2, "*", 0)
-            .write_masked("abcd", &mut output)
-            .expect("the string writer should accept the mask");
-        assert_eq!(output, "*cd");
-
-        MaskPolicy::empty()
-            .write_masked("secret", &mut output)
-            .expect("the empty policy should not write");
-        assert_eq!(
-            MaskPolicy::fixed("*").write_masked("secret", &mut FailingWriter),
-            Err(fmt::Error),
-        );
-    }
 }

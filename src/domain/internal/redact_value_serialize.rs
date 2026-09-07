@@ -17,6 +17,11 @@ use super::redact_serialize_scope::serialize_structured;
 use super::redacted_serialize_ref::RedactedSerializeRef;
 
 impl<T: RedactSerialize> RedactSerialize for Option<T> {
+    /// Serializes contained redacted values through the active policy scope.
+    ///
+    /// # Errors
+    ///
+    /// Propagates child serialization and shared-budget failures.
     fn serialize_redacted<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -29,6 +34,11 @@ impl<T: RedactSerialize> RedactSerialize for Option<T> {
 }
 
 impl<T: RedactSerialize> RedactSerialize for Vec<T> {
+    /// Serializes contained redacted values through the active policy scope.
+    ///
+    /// # Errors
+    ///
+    /// Propagates child serialization and shared-budget failures.
     fn serialize_redacted<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -50,6 +60,11 @@ impl<T: RedactSerialize> RedactSerialize for Vec<T> {
 }
 
 impl<T: RedactSerialize, const N: usize> RedactSerialize for [T; N] {
+    /// Serializes contained redacted values through the active policy scope.
+    ///
+    /// # Errors
+    ///
+    /// Propagates child serialization and shared-budget failures.
     fn serialize_redacted<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -70,9 +85,16 @@ impl<T: RedactSerialize, const N: usize> RedactSerialize for [T; N] {
     }
 }
 
+/// Generates tuple projections that prepay their arity before visiting
+/// children.
 macro_rules! tuple_redact_serialize {
     ($count:expr; $($name:ident => $index:tt),+) => {
         impl<$($name: RedactSerialize),+> RedactSerialize for ($($name,)+) {
+            /// Serializes contained redacted values through the active policy scope.
+            ///
+            /// # Errors
+            ///
+            /// Propagates child serialization and shared-budget failures.
             fn serialize_redacted<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,

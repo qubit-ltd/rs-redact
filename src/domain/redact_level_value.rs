@@ -20,13 +20,19 @@ use std::hash::Hash;
 use std::rc::Rc;
 use std::sync::Arc;
 
+#[cfg(feature = "serde")]
+use bigdecimal::BigDecimal;
+
 use super::RedactionItems;
 use super::RedactionWriter;
 use crate::Sensitivity;
 
 #[doc(hidden)]
 pub mod private {
-    pub trait Sealed {}
+    /// Prevents downstream implementations outside the supported value set.
+    pub trait Sealed {
+        // empty
+    }
 }
 
 /// Capability implemented only for values supported by `level`.
@@ -37,10 +43,13 @@ pub trait RedactLevelValue: private::Sealed {
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity);
 }
 
+/// Implements fixed-level text rendering for primitive supported leaves.
 macro_rules! scalar {
     ($($type:ty),+ $(,)?) => {
         $(impl private::Sealed for $type {}
           impl RedactLevelValue for $type {
+              /// Writes this scalar through explicit-level masking without key classification.
+              #[inline(always)]
               fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
                   writer.write_level_scalar(level, self);
               }
@@ -71,9 +80,12 @@ scalar!(
 );
 
 #[cfg(feature = "serde")]
-impl private::Sealed for bigdecimal::BigDecimal {}
+impl private::Sealed for BigDecimal {}
 #[cfg(feature = "serde")]
-impl RedactLevelValue for bigdecimal::BigDecimal {
+impl RedactLevelValue for BigDecimal {
+    /// Writes this scalar through explicit-level masking without key
+    /// classification.
+    #[inline(always)]
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         writer.write_level_scalar(level, self);
     }
@@ -81,6 +93,9 @@ impl RedactLevelValue for bigdecimal::BigDecimal {
 
 impl<T: RedactLevelValue + ?Sized> private::Sealed for &T {}
 impl<T: RedactLevelValue + ?Sized> RedactLevelValue for &T {
+    /// Borrows the contained value and forwards its fixed level through the
+    /// same writer.
+    #[inline(always)]
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         (*self).write_redacted_level(writer, level);
     }
@@ -88,6 +103,7 @@ impl<T: RedactLevelValue + ?Sized> RedactLevelValue for &T {
 
 impl<T: RedactLevelValue> private::Sealed for Option<T> {}
 impl<T: RedactLevelValue> RedactLevelValue for Option<T> {
+    /// Preserves optional shape and applies the fixed level to a present value.
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         match self {
             Some(value) => {
@@ -101,21 +117,27 @@ impl<T: RedactLevelValue> RedactLevelValue for Option<T> {
 }
 impl<T: RedactLevelValue> private::Sealed for Vec<T> {}
 impl<T: RedactLevelValue> RedactLevelValue for Vec<T> {
+    /// Traverses sequence entries under the fixed level and shared writer
+    /// budget.
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         writer.sequence(|items| write_items(items, self.iter(), level));
     }
 }
 impl<T: RedactLevelValue> private::Sealed for [T] {}
 impl<T: RedactLevelValue> RedactLevelValue for [T] {
+    /// Traverses sequence entries under the fixed level and shared writer
+    /// budget.
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         writer.sequence(|items| write_items(items, self.iter(), level));
     }
 }
 
+/// Shares bounded sequence traversal across the standard collection types.
 macro_rules! sequence_container {
     ($($type:ident),+ $(,)?) => {
         $(impl<T: RedactLevelValue> private::Sealed for $type<T> {}
           impl<T: RedactLevelValue> RedactLevelValue for $type<T> {
+              /// Traverses sequence entries under the fixed level and shared writer budget.
               fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
                   writer.sequence(|items| write_items(items, self.iter(), level));
               }
@@ -127,18 +149,24 @@ sequence_container!(VecDeque, LinkedList);
 
 impl<T: RedactLevelValue + Ord> private::Sealed for BinaryHeap<T> {}
 impl<T: RedactLevelValue + Ord> RedactLevelValue for BinaryHeap<T> {
+    /// Traverses sequence entries under the fixed level and shared writer
+    /// budget.
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         writer.sequence(|items| write_items(items, self.iter(), level));
     }
 }
 impl<T: RedactLevelValue + Ord> private::Sealed for BTreeSet<T> {}
 impl<T: RedactLevelValue + Ord> RedactLevelValue for BTreeSet<T> {
+    /// Traverses sequence entries under the fixed level and shared writer
+    /// budget.
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         writer.sequence(|items| write_items(items, self.iter(), level));
     }
 }
 impl<T: RedactLevelValue + Eq + Hash> private::Sealed for HashSet<T> {}
 impl<T: RedactLevelValue + Eq + Hash> RedactLevelValue for HashSet<T> {
+    /// Traverses sequence entries under the fixed level and shared writer
+    /// budget.
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         writer.sequence(|items| write_items(items, self.iter(), level));
     }
@@ -146,18 +174,27 @@ impl<T: RedactLevelValue + Eq + Hash> RedactLevelValue for HashSet<T> {
 
 impl<T: RedactLevelValue + ?Sized> private::Sealed for Box<T> {}
 impl<T: RedactLevelValue + ?Sized> RedactLevelValue for Box<T> {
+    /// Borrows the contained value and forwards its fixed level through the
+    /// same writer.
+    #[inline(always)]
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         (**self).write_redacted_level(writer, level);
     }
 }
 impl<T: RedactLevelValue + ?Sized> private::Sealed for Rc<T> {}
 impl<T: RedactLevelValue + ?Sized> RedactLevelValue for Rc<T> {
+    /// Borrows the contained value and forwards its fixed level through the
+    /// same writer.
+    #[inline(always)]
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         (**self).write_redacted_level(writer, level);
     }
 }
 impl<T: RedactLevelValue + ?Sized> private::Sealed for Arc<T> {}
 impl<T: RedactLevelValue + ?Sized> RedactLevelValue for Arc<T> {
+    /// Borrows the contained value and forwards its fixed level through the
+    /// same writer.
+    #[inline(always)]
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         (**self).write_redacted_level(writer, level);
     }
@@ -165,6 +202,8 @@ impl<T: RedactLevelValue + ?Sized> RedactLevelValue for Arc<T> {
 
 impl<K: Debug + Eq + Hash, V: RedactLevelValue> private::Sealed for HashMap<K, V> {}
 impl<K: Debug + Eq + Hash, V: RedactLevelValue> RedactLevelValue for HashMap<K, V> {
+    /// Traverses map values at the fixed level while retaining ordinary key
+    /// formatting.
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         writer.map(|entries| {
             entries.for_each(self, |entries, (key, value)| {
@@ -175,6 +214,8 @@ impl<K: Debug + Eq + Hash, V: RedactLevelValue> RedactLevelValue for HashMap<K, 
 }
 impl<K: Debug + Ord, V: RedactLevelValue> private::Sealed for BTreeMap<K, V> {}
 impl<K: Debug + Ord, V: RedactLevelValue> RedactLevelValue for BTreeMap<K, V> {
+    /// Traverses map values at the fixed level while retaining ordinary key
+    /// formatting.
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         writer.map(|entries| {
             entries.for_each(self, |entries, (key, value)| {
@@ -185,6 +226,8 @@ impl<K: Debug + Ord, V: RedactLevelValue> RedactLevelValue for BTreeMap<K, V> {
 }
 impl<T: RedactLevelValue, const N: usize> private::Sealed for [T; N] {}
 impl<T: RedactLevelValue, const N: usize> RedactLevelValue for [T; N] {
+    /// Traverses sequence entries under the fixed level and shared writer
+    /// budget.
     fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
         writer.sequence(|items| write_items(items, self.iter(), level));
     }
@@ -205,10 +248,12 @@ where
     });
 }
 
+/// Applies fixed-level leaf rendering to supported tuple arities.
 macro_rules! tuple {
     ($($index:tt:$name:ident),+) => {
         impl<$($name: RedactLevelValue),+> private::Sealed for ($($name,)+) {}
         impl<$($name: RedactLevelValue),+> RedactLevelValue for ($($name,)+) {
+            /// Writes tuple leaves under the fixed level and shared structural admission.
             fn write_redacted_level(&self, writer: &mut RedactionWriter<'_>, level: Sensitivity) {
                 writer.level_tuple(|items| {
                     $(items.level_value(&self.$index, level);)+

@@ -28,7 +28,16 @@ pub(crate) struct InspectionSession {
 
 impl InspectionSession {
     /// Creates an inspection transaction from one policy snapshot.
+    ///
+    /// # Parameters
+    ///
+    /// - `policy`: Immutable snapshot shared by the new transaction.
+    ///
+    /// # Returns
+    ///
+    /// Fresh mode-specific state with empty resource accounting.
     #[must_use]
+    #[inline(always)]
     pub(crate) fn new(policy: Arc<RedactionPolicy>) -> Self {
         Self {
             runtime: InspectionRuntime::new(policy),
@@ -36,6 +45,14 @@ impl InspectionSession {
     }
 
     /// Classifies one domain value without rendering field content.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Possibly unsized value implementing structural `Redact`.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Domain value traversed through the inspection writer.
     pub(crate) fn inspect<T>(&mut self, value: &T)
     where
         T: Redact + ?Sized,
@@ -46,6 +63,16 @@ impl InspectionSession {
     }
 
     /// Consumes this transaction into a conclusive result or fail-closed error.
+    ///
+    /// # Errors
+    ///
+    /// Returns the recorded reasons and usage if any omission prevents a
+    /// conclusive sensitivity decision.
+    ///
+    /// # Returns
+    ///
+    /// A conclusive inspection only when no completion or provenance indicates
+    /// omission.
     pub(crate) fn finish(self) -> Result<RedactionInspection, RedactionInspectionError> {
         let (max_sensitivity, summary) = self.runtime.into_parts();
         if summary.completion() == RedactionCompletion::Complete && summary.reasons() == RedactionReasons::empty() {
@@ -61,24 +88,42 @@ impl InspectionSession {
 
 impl RuntimeSession for InspectionSession {
     /// Borrows the publication-independent inspection core.
+    ///
+    /// # Returns
+    ///
+    /// The accounting core borrowed without changing transaction state.
     #[inline(always)]
     fn runtime(&self) -> &RuntimeCore {
         &self.runtime.core
     }
 
     /// Mutably borrows the publication-independent inspection core.
+    ///
+    /// # Returns
+    ///
+    /// An exclusive borrow of the transaction accounting core.
     #[inline(always)]
     fn runtime_mut(&mut self) -> &mut RuntimeCore {
         &mut self.runtime.core
     }
 
     /// Identifies this session as non-rendering inspection state.
+    ///
+    /// # Returns
+    ///
+    /// Whether this implementation observes sensitivity without rendering
+    /// output.
     #[inline(always)]
     fn is_inspection(&self) -> bool {
         true
     }
 
     /// Records the strongest sensitivity in the obligatory accumulator.
+    ///
+    /// # Parameters
+    ///
+    /// - `sensitivity`: New classification combined with the inspection
+    ///   maximum.
     #[inline(always)]
     fn observe_sensitivity(&mut self, sensitivity: Sensitivity) {
         self.runtime.observe_sensitivity(sensitivity);

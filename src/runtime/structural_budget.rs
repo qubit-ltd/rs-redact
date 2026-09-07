@@ -30,7 +30,16 @@ pub(crate) struct StructuralBudget {
 
 impl StructuralBudget {
     /// Creates the structural ledger from immutable transaction limits.
+    ///
+    /// # Parameters
+    ///
+    /// - `limits`: Shared structural ceilings for this transaction.
+    ///
+    /// # Returns
+    ///
+    /// A fresh ledger at depth zero with traversal open.
     #[must_use]
+    #[inline(always)]
     pub(crate) fn new(limits: StructureLimits) -> Self {
         Self {
             budget: limits.budget(),
@@ -41,7 +50,23 @@ impl StructuralBudget {
         }
     }
 
+    /// Returns the active domain nesting depth.
+    ///
+    /// # Returns
+    ///
+    /// The number of currently entered domain-value scopes.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) const fn current_depth(&self) -> usize {
+        self.current_depth
+    }
+
     /// Enters an explicitly nested domain value.
+    ///
+    /// # Returns
+    ///
+    /// `Entered` after charging and increasing depth, or the specific depth or
+    /// traversal rejection without entering a scope.
     pub(crate) fn enter_value(&mut self) -> StructuralEntry {
         if self.traversal_closed {
             return StructuralEntry::TraversalLimitReached;
@@ -58,6 +83,11 @@ impl StructuralBudget {
     }
 
     /// Charges one field node without changing the nesting depth.
+    ///
+    /// # Returns
+    ///
+    /// Whether one field node was charged; a node-limit rejection closes
+    /// traversal.
     pub(crate) fn admit_field(&mut self) -> bool {
         if self.traversal_closed {
             return false;
@@ -70,6 +100,15 @@ impl StructuralBudget {
     }
 
     /// Charges a format node without changing domain nesting depth.
+    ///
+    /// # Parameters
+    ///
+    /// - `depth`: Root-inclusive format depth, without changing domain nesting.
+    ///
+    /// # Returns
+    ///
+    /// `Entered` after charging a node, or the specific depth or traversal
+    /// rejection.
     pub(crate) fn admit_format_node(&mut self, depth: usize) -> StructuralEntry {
         if self.traversal_closed {
             return StructuralEntry::TraversalLimitReached;
@@ -85,6 +124,10 @@ impl StructuralBudget {
     }
 
     /// Charges one collection item.
+    ///
+    /// # Returns
+    ///
+    /// Whether one cumulative collection item was charged before access.
     pub(crate) fn admit_collection_item(&mut self) -> bool {
         if self.traversal_closed {
             return false;
@@ -102,6 +145,15 @@ impl StructuralBudget {
     ///
     /// Returns `false` and closes traversal when the per-key limit is exceeded
     /// or a previous admission already closed the transaction.
+    ///
+    /// # Parameters
+    ///
+    /// - `bytes`: Raw UTF-8 key length before classification or normalization.
+    ///
+    /// # Returns
+    ///
+    /// Whether the key fits and traversal remains open; rejection closes
+    /// traversal.
     pub(crate) fn admit_key(&mut self, bytes: usize) -> bool {
         if self.traversal_closed {
             return false;
@@ -114,18 +166,19 @@ impl StructuralBudget {
     }
 
     /// Leaves one explicitly nested domain value.
+    ///
+    /// # Panics
+    ///
+    /// In debug builds, panics if no successful `enter_value` has a matching
+    /// open scope. Callers must balance only successfully entered scopes.
+    #[inline]
     pub(crate) fn leave_value(&mut self) {
         debug_assert!(self.current_depth > 0, "domain scope depth underflow");
         self.current_depth -= 1;
     }
 
-    /// Returns the active domain nesting depth.
-    #[must_use]
-    pub(crate) const fn current_depth(&self) -> usize {
-        self.current_depth
-    }
-
     /// Closes traversal after a resource limit rejects it.
+    #[inline(always)]
     fn close_traversal(&mut self) {
         self.traversal_closed = true;
     }

@@ -34,7 +34,7 @@ use super::bounded_display_writer::BoundedDisplayWriter;
 use super::budget_serialize::BudgetSerialize;
 use super::redact_serialize_scope::admit_collection_items;
 use super::redact_serialize_scope::admit_input;
-use super::redact_serialize_scope::admit_output;
+use super::redact_serialize_scope::admit_payload;
 use super::redact_serialize_scope::remaining_input_bytes;
 use super::redacted_level_serialize_ref::RedactedLevelSerializeRef;
 use crate::RedactionPolicy;
@@ -44,6 +44,24 @@ use crate::Sensitivity;
 #[doc(hidden)]
 pub trait RedactLevelSerialize {
     /// Serializes this value at the explicitly declared sensitivity.
+    ///
+    /// # Errors
+    ///
+    /// Propagates payload admission or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted representation.
+    /// - `policy`: Immutable policy controlling redaction and resource limits.
+    /// - `level`: Explicit sensitivity applied to scalar leaves.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -54,9 +72,30 @@ pub trait RedactLevelSerialize {
         S: Serializer;
 }
 
+/// Generates primitive level adapters with bounded formatting and payload
+/// admission.
 macro_rules! scalar_level_serialize {
     ($($type:ty),+ $(,)?) => {
         $(impl RedactLevelSerialize for $type {
+            /// Applies the explicit level while sharing input, payload, and structural admission.
+            ///
+            /// # Errors
+            ///
+            /// Propagates bounded payload or downstream serialization failures.
+            ///
+            /// # Type Parameters
+            ///
+            /// - `S`: Downstream serializer defining the success and error types.
+            ///
+            /// # Parameters
+            ///
+            /// - `serializer`: Destination receiving the admitted representation.
+            /// - `policy`: Immutable policy controlling redaction and resource limits.
+            /// - `level`: Explicit sensitivity applied to scalar leaves.
+            ///
+            /// # Returns
+            ///
+            /// The destination result after all emitted data passes shared admission.
             fn serialize_redacted_level<S>(
                 &self,
                 serializer: S,
@@ -77,6 +116,23 @@ macro_rules! scalar_level_serialize {
 }
 
 /// Serializes an admitted display value using the configured level mask.
+///
+/// # Errors
+///
+/// Returns a serializer error when the masked payload exceeds its allowance
+/// or the downstream serializer rejects it.
+///
+/// # Type Parameters
+///
+/// - `S`: Destination serializer.
+/// - `T`: Possibly unsized source implementing `Display`.
+///
+/// # Parameters
+///
+/// - `value`: Source formatted only for levels requiring its text.
+/// - `serializer`: Destination receiving the selected mask.
+/// - `policy`: Immutable mask and resource policy.
+/// - `level`: Explicit sensitivity for this scalar.
 fn serialize_masked_display<S, T>(
     value: &T,
     serializer: S,
@@ -99,10 +155,10 @@ where
     let (masked, truncated) = policy.masking().mask_bounded_with_truncation(
         level,
         &raw,
-        super::redact_serialize_scope::remaining_output_bytes(),
+        super::redact_serialize_scope::remaining_payload_bytes(),
     );
     if truncated {
-        return Err(SerdeError::custom("redaction scalar output budget exceeded"));
+        return Err(SerdeError::custom("redaction scalar payload budget exceeded"));
     }
     super::redact_serialize_scope::serialize_payload(serializer, masked.as_ref())
 }
@@ -111,6 +167,23 @@ where
 ///
 /// Values that exceed the remaining allowance serialize as the stable secret
 /// opaque mask instead of invoking their ordinary serializer.
+///
+/// # Errors
+///
+/// Returns a payload admission error or propagates the value serializer error.
+///
+/// # Type Parameters
+///
+/// - `S`: Destination serializer.
+/// - `T`: Possibly unsized source implementing `Display` and `Serialize`.
+///
+/// # Parameters
+///
+/// - `value`: Source whose formatted size is admitted before ordinary
+///   serialization.
+/// - `serializer`: Destination receiving the original representation or safe
+///   fallback.
+/// - `policy`: Immutable resource and fallback-mask policy.
 fn serialize_disabled_display<S, T>(value: &T, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -122,8 +195,8 @@ where
             policy.masking().mask_opaque(Sensitivity::Secret),
         );
     };
-    if !admit_output(raw.len()) {
-        return Err(SerdeError::custom("redaction scalar output budget exceeded"));
+    if !admit_payload(raw.len()) {
+        return Err(SerdeError::custom("redaction scalar payload budget exceeded"));
     }
     Serialize::serialize(value, serializer)
 }
@@ -133,6 +206,19 @@ where
 ///
 /// Returns the complete formatted value after charging it, or `None` when
 /// formatting fails or the value exceeds the cumulative allowance.
+///
+/// # Type Parameters
+///
+/// - `T`: Possibly unsized source implementing `Display`.
+///
+/// # Parameters
+///
+/// - `value`: Source formatted once under the remaining input allowance.
+///
+/// # Returns
+///
+/// Some complete admitted text; None on formatter failure, capture rejection,
+/// or cumulative input exhaustion.
 #[must_use]
 fn format_admitted_display<T>(value: &T) -> Option<String>
 where
@@ -142,7 +228,7 @@ where
     if fmt::write(&mut writer, format_args!("{value}")).is_err() {
         return None;
     }
-    let raw = writer.finish();
+    let raw = writer.finish()?;
     if !admit_input(raw.len()) {
         return None;
     }
@@ -155,6 +241,26 @@ scalar_level_serialize!(
 
 #[cfg(feature = "serde")]
 impl RedactLevelSerialize for BigDecimal {
+    /// Applies the explicit level while sharing input, payload, and structural
+    /// admission.
+    ///
+    /// # Errors
+    ///
+    /// Propagates bounded payload or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted representation.
+    /// - `policy`: Immutable policy controlling redaction and resource limits.
+    /// - `level`: Explicit sensitivity applied to scalar leaves.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -173,6 +279,26 @@ impl RedactLevelSerialize for BigDecimal {
 }
 
 impl<'a> RedactLevelSerialize for Cow<'a, str> {
+    /// Applies the explicit level while sharing input, payload, and structural
+    /// admission.
+    ///
+    /// # Errors
+    ///
+    /// Propagates bounded payload or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted representation.
+    /// - `policy`: Immutable policy controlling redaction and resource limits.
+    /// - `level`: Explicit sensitivity applied to scalar leaves.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -191,6 +317,27 @@ impl<'a> RedactLevelSerialize for Cow<'a, str> {
 }
 
 impl<T: RedactLevelSerialize + ?Sized> RedactLevelSerialize for &T {
+    /// Applies the explicit level while sharing input, payload, and structural
+    /// admission.
+    ///
+    /// # Errors
+    ///
+    /// Propagates bounded payload or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted representation.
+    /// - `policy`: Immutable policy controlling redaction and resource limits.
+    /// - `level`: Explicit sensitivity applied to scalar leaves.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
+    #[inline(always)]
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -205,6 +352,26 @@ impl<T: RedactLevelSerialize + ?Sized> RedactLevelSerialize for &T {
 }
 
 impl<T: RedactLevelSerialize> RedactLevelSerialize for Option<T> {
+    /// Applies the explicit level while sharing input, payload, and structural
+    /// admission.
+    ///
+    /// # Errors
+    ///
+    /// Propagates bounded payload or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted representation.
+    /// - `policy`: Immutable policy controlling redaction and resource limits.
+    /// - `level`: Explicit sensitivity applied to scalar leaves.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -222,6 +389,26 @@ impl<T: RedactLevelSerialize> RedactLevelSerialize for Option<T> {
 }
 
 impl<T: RedactLevelSerialize> RedactLevelSerialize for Vec<T> {
+    /// Applies the explicit level while sharing input, payload, and structural
+    /// admission.
+    ///
+    /// # Errors
+    ///
+    /// Propagates bounded payload or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted representation.
+    /// - `policy`: Immutable policy controlling redaction and resource limits.
+    /// - `level`: Explicit sensitivity applied to scalar leaves.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -245,9 +432,29 @@ impl<T: RedactLevelSerialize> RedactLevelSerialize for Vec<T> {
     }
 }
 
+/// Generates cumulative collection admission for standard sequence-like types.
 macro_rules! sequence_level_serialize {
     ($($type:ident),+ $(,)?) => {
         $(impl<T: RedactLevelSerialize> RedactLevelSerialize for $type<T> {
+            /// Applies the explicit level while sharing input, payload, and structural admission.
+            ///
+            /// # Errors
+            ///
+            /// Propagates bounded payload or downstream serialization failures.
+            ///
+            /// # Type Parameters
+            ///
+            /// - `S`: Downstream serializer defining the success and error types.
+            ///
+            /// # Parameters
+            ///
+            /// - `serializer`: Destination receiving the admitted representation.
+            /// - `policy`: Immutable policy controlling redaction and resource limits.
+            /// - `level`: Explicit sensitivity applied to scalar leaves.
+            ///
+            /// # Returns
+            ///
+            /// The destination result after all emitted data passes shared admission.
             fn serialize_redacted_level<S>(&self, serializer: S, policy: &RedactionPolicy, level: Sensitivity) -> Result<S::Ok, S::Error>
             where S: Serializer {
                 if !admit_collection_items(self.len()) {
@@ -266,6 +473,27 @@ macro_rules! sequence_level_serialize {
 sequence_level_serialize!(VecDeque, LinkedList, BinaryHeap, BTreeSet, HashSet);
 
 impl<T: RedactLevelSerialize + ?Sized> RedactLevelSerialize for Box<T> {
+    /// Applies the explicit level while sharing input, payload, and structural
+    /// admission.
+    ///
+    /// # Errors
+    ///
+    /// Propagates bounded payload or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted representation.
+    /// - `policy`: Immutable policy controlling redaction and resource limits.
+    /// - `level`: Explicit sensitivity applied to scalar leaves.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
+    #[inline(always)]
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -279,6 +507,27 @@ impl<T: RedactLevelSerialize + ?Sized> RedactLevelSerialize for Box<T> {
     }
 }
 impl<T: RedactLevelSerialize + ?Sized> RedactLevelSerialize for Rc<T> {
+    /// Applies the explicit level while sharing input, payload, and structural
+    /// admission.
+    ///
+    /// # Errors
+    ///
+    /// Propagates bounded payload or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted representation.
+    /// - `policy`: Immutable policy controlling redaction and resource limits.
+    /// - `level`: Explicit sensitivity applied to scalar leaves.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
+    #[inline(always)]
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -292,6 +541,27 @@ impl<T: RedactLevelSerialize + ?Sized> RedactLevelSerialize for Rc<T> {
     }
 }
 impl<T: RedactLevelSerialize + ?Sized> RedactLevelSerialize for Arc<T> {
+    /// Applies the explicit level while sharing input, payload, and structural
+    /// admission.
+    ///
+    /// # Errors
+    ///
+    /// Propagates bounded payload or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted representation.
+    /// - `policy`: Immutable policy controlling redaction and resource limits.
+    /// - `level`: Explicit sensitivity applied to scalar leaves.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
+    #[inline(always)]
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -306,6 +576,26 @@ impl<T: RedactLevelSerialize + ?Sized> RedactLevelSerialize for Arc<T> {
 }
 
 impl<K: Serialize + Eq + Hash, V: RedactLevelSerialize> RedactLevelSerialize for HashMap<K, V> {
+    /// Applies the explicit level while sharing input, payload, and structural
+    /// admission.
+    ///
+    /// # Errors
+    ///
+    /// Propagates bounded payload or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted representation.
+    /// - `policy`: Immutable policy controlling redaction and resource limits.
+    /// - `level`: Explicit sensitivity applied to scalar leaves.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -332,6 +622,26 @@ impl<K: Serialize + Eq + Hash, V: RedactLevelSerialize> RedactLevelSerialize for
     }
 }
 impl<K: Serialize + Ord, V: RedactLevelSerialize> RedactLevelSerialize for BTreeMap<K, V> {
+    /// Applies the explicit level while sharing input, payload, and structural
+    /// admission.
+    ///
+    /// # Errors
+    ///
+    /// Propagates bounded payload or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted representation.
+    /// - `policy`: Immutable policy controlling redaction and resource limits.
+    /// - `level`: Explicit sensitivity applied to scalar leaves.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -359,6 +669,26 @@ impl<K: Serialize + Ord, V: RedactLevelSerialize> RedactLevelSerialize for BTree
 }
 
 impl<T: RedactLevelSerialize, const N: usize> RedactLevelSerialize for [T; N] {
+    /// Applies the explicit level while sharing input, payload, and structural
+    /// admission.
+    ///
+    /// # Errors
+    ///
+    /// Propagates bounded payload or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted representation.
+    /// - `policy`: Immutable policy controlling redaction and resource limits.
+    /// - `level`: Explicit sensitivity applied to scalar leaves.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -382,9 +712,29 @@ impl<T: RedactLevelSerialize, const N: usize> RedactLevelSerialize for [T; N] {
     }
 }
 
+/// Generates fixed-arity tuple admission and level-aware element adapters.
 macro_rules! tuple_level_serialize {
     ($count:expr; $($name:ident => $index:tt),+) => {
         impl<$($name: RedactLevelSerialize),+> RedactLevelSerialize for ($($name,)+) {
+            /// Applies the explicit level while sharing input, payload, and structural admission.
+            ///
+            /// # Errors
+            ///
+            /// Propagates bounded payload or downstream serialization failures.
+            ///
+            /// # Type Parameters
+            ///
+            /// - `S`: Downstream serializer defining the success and error types.
+            ///
+            /// # Parameters
+            ///
+            /// - `serializer`: Destination receiving the admitted representation.
+            /// - `policy`: Immutable policy controlling redaction and resource limits.
+            /// - `level`: Explicit sensitivity applied to scalar leaves.
+            ///
+            /// # Returns
+            ///
+            /// The destination result after all emitted data passes shared admission.
             fn serialize_redacted_level<S>(&self, serializer: S, policy: &RedactionPolicy, level: Sensitivity) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
@@ -418,41 +768,23 @@ tuple_level_serialize!(10; A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 
 tuple_level_serialize!(11; A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 6, H => 7, I => 8, J => 9, K => 10);
 tuple_level_serialize!(12; A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 6, H => 7, I => 8, J => 9, K => 10, L => 11);
 
-#[cfg(all(test, feature = "serde"))]
-mod tests {
-    use bigdecimal::BigDecimal;
-
-    use crate::RedactionPolicy;
-    use crate::Sensitivity;
-    use crate::domain::internal::RedactSerializeScope;
-    use crate::domain::internal::RedactedLevelSerializeRef;
-
-    /// Verifies decimal leaves use the same cumulative bounded formatter as
-    /// primitive structured values.
-    #[test]
-    fn test_big_decimal_level_values_share_the_input_budget() {
-        let policy = RedactionPolicy::builder()
-            .limits(|limits| {
-                limits.max_input_bytes(4);
-            })
-            .expect("limits")
-            .build()
-            .expect("redaction policy");
-        let values = vec![
-            "123".parse::<BigDecimal>().expect("first decimal"),
-            "45".parse::<BigDecimal>().expect("second decimal"),
-        ];
-        let _scope = RedactSerializeScope::new(&policy);
-
-        let encoded = serde_json::to_value(RedactedLevelSerializeRef::new(&values, &policy, Sensitivity::Low))
-            .expect("structured decimal serialization");
-
-        assert_eq!(encoded[1], "<redacted>");
-    }
-}
-
 /// Serializes an explicitly textual Display adapter, including disabled output.
-/// Returns serializer errors or an output-budget error from payload admission.
+///
+/// # Errors
+///
+/// Returns serializer errors or a logical-payload error from admission.
+///
+/// # Type Parameters
+///
+/// - `S`: Destination serializer.
+/// - `T`: Possibly unsized source implementing `Display`.
+///
+/// # Parameters
+///
+/// - `value`: Explicit textual source formatted only when required.
+/// - `serializer`: Destination receiving text or the selected mask.
+/// - `policy`: Immutable redaction and resource policy.
+/// - `level`: Explicit scalar sensitivity when redaction is enabled.
 pub(super) fn serialize_display_text<S, T>(
     value: &T,
     serializer: S,

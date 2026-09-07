@@ -25,11 +25,30 @@ use crate::Sensitivity;
 #[doc(hidden)]
 pub trait RedactMapSerialize {
     /// Serializes a map after classifying each value by its field key.
+    ///
+    /// # Errors
+    ///
+    /// Propagates admission or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the map or absent optional value.
+    /// - `policy`: Immutable policy classifying values by runtime key.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after all emitted data passes shared admission.
     fn serialize_redacted_map<S>(&self, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: Serializer;
 }
 
+/// Generates classified serialization for each supported map and its optional
+/// form.
 macro_rules! map_redact_serialize {
     ($map:ty) => {
         impl<K, V> RedactMapSerialize for $map
@@ -37,6 +56,25 @@ macro_rules! map_redact_serialize {
             K: AsRef<str> + Serialize,
             V: RedactLevelSerialize + Serialize,
         {
+            /// Serializes an available map with key classification and cumulative child
+            /// admission.
+            ///
+            /// # Errors
+            ///
+            /// Propagates budget or downstream serialization failures.
+            ///
+            /// # Type Parameters
+            ///
+            /// - `S`: Downstream serializer defining the success and error types.
+            ///
+            /// # Parameters
+            ///
+            /// - `serializer`: Destination receiving the map or absent optional value.
+            /// - `policy`: Immutable policy classifying values by runtime key.
+            ///
+            /// # Returns
+            ///
+            /// The destination result after all emitted data passes shared admission.
             fn serialize_redacted_map<S>(&self, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
@@ -69,6 +107,25 @@ macro_rules! map_redact_serialize {
             K: AsRef<str> + Serialize,
             V: RedactLevelSerialize + Serialize,
         {
+            /// Serializes an available map with key classification and cumulative child
+            /// admission.
+            ///
+            /// # Errors
+            ///
+            /// Propagates budget or downstream serialization failures.
+            ///
+            /// # Type Parameters
+            ///
+            /// - `S`: Downstream serializer defining the success and error types.
+            ///
+            /// # Parameters
+            ///
+            /// - `serializer`: Destination receiving the map or absent optional value.
+            /// - `policy`: Immutable policy classifying values by runtime key.
+            ///
+            /// # Returns
+            ///
+            /// The destination result after all emitted data passes shared admission.
             fn serialize_redacted_map<S>(&self, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
