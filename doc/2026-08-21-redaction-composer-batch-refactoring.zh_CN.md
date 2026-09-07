@@ -1,5 +1,7 @@
 # rs-redact 文本组合器与批量脱敏 API 重构方案
 
+> Historical record / 历史材料：本文保留当时的设计与验证，不代表 0.7 当前契约。See [current design](design.md) / [当前设计](design.zh_CN.md).
+
 > **历史文档：** 本文记录 2026-08-21 的过渡设计，已被当前
 > [`design.zh_CN.md`](design.zh_CN.md) 取代。保留本文只为解释演进过程，不代表当前公开 API。
 

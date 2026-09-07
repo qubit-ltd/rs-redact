@@ -17,7 +17,7 @@
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6", features = ["derive", "serde", "json"] }
+qubit-redact = { version = "0.7", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -74,6 +74,10 @@ assert!(!output.text().as_str().contains("raw-secret"));
 未标注字段保持普通输出；显式等级由业务类型负责，strict 不覆盖它。
 手写领域类型时可使用 `fields.keyed_nested(...)`：业务键公开时，包装内的子结构仍会按自身字段规则脱敏。
 disabled 是恢复原值的调试选项；库不擦除源对象，也不保护绕过脱敏入口的输出。
+
+`max_serde_payload_bytes` 限制结构化 Serde 的逻辑标量载荷；`max_output_bytes` 限制库生成的
+最终文本或 `to_json()` JSON。两者默认均为 16 KiB，独立配置。直接序列化 view 或派生源对象时，
+最终编码长度由调用方 serializer/writer 控制。详见用户手册的预算矩阵。
 
 ## 延伸阅读
 

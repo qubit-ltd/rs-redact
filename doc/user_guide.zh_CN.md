@@ -4,7 +4,7 @@
 
 ## 手册目标与读者
 
-适用于 qubit-redact 0.6 的应用和库作者：先跑通日志和业务序列化共存，再配置领域类型、输入格式和预算。
+适用于 qubit-redact 0.7 的应用和库作者：先跑通日志和业务序列化共存，再配置领域类型、输入格式和预算。
 
 ## 安装与实战：登录诊断
 
@@ -12,7 +12,7 @@
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6", features = ["derive", "serde", "json"] }
+qubit-redact = { version = "0.7", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -51,11 +51,14 @@ assert!(!output.text().as_str().contains("raw-secret"));
 
 视图借用源对象并拥有策略快照，不是脱敏后的业务对象，也不缓存源内容。
 多次序列化分别从源对象执行，绝不会把上次掩码结果作为下一次输入；每次使用独立预算。
-它支持 Display/Debug；结构化序列化要求 `RedactSerialize`，不会退化成 Debug 字符串。
+它支持 Display/Debug；结构化序列化要求 derive 生成的 `RedactSerializeSource` 投影可序列化，
+不会退化成 Debug 字符串，普通调用方无需手写隐藏 trait。
 源对象具有内部可变状态时，后续使用可能观察到新值；策略仍保持创建时快照。
 
 `redact_text()` 的 `output.text()` 可以直接展示，不再次脱敏。
-`to_json()` 等价于 `serde_json::to_string(&redactor.redact_view(&value))`，传播序列化错误。
+`to_json()` 与直接序列化 view 共用字段投影和策略，但额外限制最终 JSON 字节数。
+源状态相同且两者均成功时输出一致。它只遍历一次，传播序列化或预算错误，不返回半截 JSON。
+成功可能包含结构降级后的安全替代，因此不是完整性保证。
 它遵循领域标注；`redact_json(text)` 则解析输入 JSON 并按 JSON key 分类，两者不可混用。
 
 ## 领域类型与字段参考
@@ -76,7 +79,8 @@ assert!(!output.text().as_str().contains("raw-secret"));
 容器属性包括 `debug`、`display`、`serde`、`transparent` 和 `crate = path`。
 runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的结构化脱敏能力。
 `#[redact(serde)]` 额外让源对象自身的普通 `Serialize` 输出脱敏；未标注时，单独派生的普通
-`Serialize` 保持原有行为。它需要 runtime 的 `serde` feature 和直接声明的 Serde 依赖。
+`Serialize` 保持原有行为。需要启用 runtime 的 `serde` feature；生成代码本身不要求直接依赖 Serde。
+只有自己的代码使用 Serde trait 或派生宏时，才需直接声明 `serde`。
 `transparent` 要求恰好一个字段，委托该字段的表示，本身不声明标量能力。
 `debug` 不应与普通 `Debug` 派生同时使用，`serde` 不应与普通 `Serialize` 派生同时使用。
 
@@ -256,8 +260,9 @@ assert_eq!(value["password"], "raw");
 let _ = inspection;
 ```
 
-`RedactionBatch::redact_json_value` 以及其他批处理方法会共享预算，并发布可解析为最终文本
-和摘要的句柄。
+`RedactionBatch::redact_json_value` 以及其他批处理方法共享预算。调用
+`finish_for_diagnostics` 后，句柄选择完整项的文本或已转义的降级标记；
+`summary()` 描述整个批次。
 
 JSON 文本只解析一次，解析过程同时完成结构准入并构造 admitted tree。非法 JSON 或遍历
 超限时会整体安全降级。借用 `Value` 的路径不会复制、转成字符串或修改调用方对象；
@@ -275,9 +280,9 @@ struct Documents(Vec<serde_json::Value>);
 impl Redact for Documents {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.sequence(|items| {
-            for value in &self.0 {
+            items.for_each(&self.0, |items, value| {
                 items.json_value_item(value);
-            }
+            });
         });
     }
 }
@@ -288,6 +293,8 @@ JSON 文本采用 `qubit-json` 的明确数字契约：负整数必须装入 `i6
 Number 标记键是普通对象键。
 
 ### 在同一个批处理中处理完整 HTTP 交换
+
+本示例需要启用 runtime 的 `http` feature，并在依赖中添加 `http = "1"`。
 
 同一条诊断事件的 URL、header 和捕获 body 应进入同一个事务：
 
@@ -318,6 +325,8 @@ for handle in [url, headers_handle, body_handle] {
 complete capture。
 
 ### 接受 URI 前先执行检查
+
+本示例需要启用 runtime 的 `uri` feature。
 
 需要拒绝 URI，而不只是把它转成安全文本时，可以使用检查 API。发现敏感数据和返回错误都应
 按安全降级处理：
@@ -356,14 +365,13 @@ assert!(!output.text().as_str().contains("raw-"));
 
 | Feature | 提供的能力 |
 | --- | --- |
-| `derive` | `#[derive(Redact)]
-#[redact(crate = qubit_redact)]` |
+| `derive` | `#[derive(Redact)]`, `#[derive(RedactScalar)]` |
 | `serde` | derive/domain 的结构化 Serde 适配器与 BigDecimal 支持 |
 | `json` | JSON 文本及借用的 `serde_json::Value` |
 | `http` | JSON、URL、header、form、multipart 和 body capture |
 | `uri` | 通用 URI 解析与脱敏 |
 
-只使用标量和手写领域实现时可保持默认空 feature 集。在 0.6 版本系列中，`serde` 继续包含
+只使用标量和手写领域实现时可保持默认空 feature 集。在 0.7 版本系列中，`serde` 继续包含
 BigDecimal 支持；若要拆分这项依赖，应在后续破坏性版本中提供明确的 feature 迁移说明。
 
 ## 进阶用法
@@ -422,6 +430,47 @@ assert!(!output.text().as_str().contains("raw-secret"));
 `Redactor::replace_application_default()` 影响之后调用 `application_default()` 取得的对象，
 以及每次重新获取快照的生成格式化代码。已经创建的 `Redactor`、文本组合器和批处理对象继续
 持有原有不可变快照；替换不会追溯切换正在进行的工作。
+
+## 预算计量与 0.7 迁移
+
+| 入口 | 结构与输入限制 | Serde 逻辑载荷 | 最终编码字节 |
+| --- | --- | --- | --- |
+| 字段、领域文本、composer、batch | 各入口共享事务准入 | 不适用 | `max_output_bytes` |
+| view 或派生源对象的 `Serialize` | 共享 Serde scope | `max_serde_payload_bytes` | 调用方 writer 控制 |
+| `to_json` | 共享 Serde scope | `max_serde_payload_bytes` | `max_output_bytes` |
+| `redact_json` / `redact_json_value` | 文本事务与 JSON 专有限制 | 不适用 | `max_output_bytes` |
+
+`max_input_bytes` 默认 64 KiB；两个输出相关限制各默认 16 KiB。它们均允许 0。
+Serde 载荷与最终输出限制超过 `isize::MAX` 时策略构造报错。
+0.6 中用于限制直接 Serde 载荷的 `max_output_bytes` 配置须迁移到
+`max_serde_payload_bytes`；需要同时限制 `to_json` 时设置两个值，二者不会自动联动。
+
+字段入口先检查根节点、key 长度，再准入字段名 UTF-8 字节，随后才分类和格式化值。
+脱敏启用时，High/Secret 只计字段名字节，不调用值的 Display。capture 按完整写入片段准入：拒绝片段
+计入 presented，不计入 inspected；已接受片段仍计费，失败时其原文全部丢弃。
+因此 `inspected_input_bytes <= max_input_bytes`，但 presented 可以更大。
+领域字段的静态标签、结构节点以及 Serde 事件有各自准入单位，不能把它们的 usage 当作原对象大小。
+
+Serde 逻辑载荷按 str/char 的 UTF-8 字节、bytes 切片长度及数字/bool 的标量表示计量；
+none/unit 为 0，动态 map key 和标量形式的 unit variant 名称计入载荷。
+静态字段名、标点、转义和编码 framing 不计入此额度。
+嵌套事件共享账本，普通 Serialize 仅执行一次。`to_json` 的最终额度则包含所有 JSON 标签、
+引号、转义、标点和掩码。比如 `{"value":"abcd"}` 的逻辑载荷是 4 字节，最终 JSON 是 16 字节。
+任意第三方 serializer 的额外编码开销必须由调用方限制。
+
+| 标量结果 | completion | reasons | 允许后项继续 |
+| --- | --- | --- | --- |
+| 正常文本或固定掩码完整容纳 | Complete | 无降级原因 | 是，除非额度恰好用尽 |
+| 输入拒绝，替代可容纳 | Truncated | InputLimitReached | 是，仍需逐项准入 |
+| formatter 自身返回 Err，替代可容纳 | Truncated | FormattingFailed | 是 |
+| 上述替代不能容纳 | Exhausted | 原因 + OutputLimitReached | 否 |
+| 输出真实截断，替代可容纳 | Truncated | OutputLimitReached | 否 |
+| 输出连替代也不能容纳 | Exhausted | OutputLimitReached | 否 |
+
+单项失败不会重置批次预算，也不会无条件关闭输出；aggregate summary 保留不完整状态。
+`finish_for_diagnostics(marker)`、`text_or_marker` 等发布后的展示替代会转义 marker，
+但 marker 及调用方日志前后缀不计入原事务 `output_bytes` 或 `max_output_bytes`。
+预算约束库可控制的准入和写入，不抢占 Display/Serialize 内部的任意计算或调用前的分配。
 
 ## 错误与诊断
 

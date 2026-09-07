@@ -1,5 +1,7 @@
 # rs-redact 事务化重构验收记录
 
+> Historical record / 历史材料：本文保留当时的设计与验证，不代表 0.7 当前契约。See [current design](design.md) / [当前设计](design.zh_CN.md).
+
 日期：2026-08-21
 
 > **历史记录：** 本文描述 2026-08-21 当时的实现，部分 arena/item-range 与范围结论已经过时。

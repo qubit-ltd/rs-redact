@@ -18,7 +18,7 @@ The complete example uses derive, Serde, and JSON. Scalar text operations need n
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6", features = ["derive", "serde", "json"] }
+qubit-redact = { version = "0.7", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -79,6 +79,11 @@ For hand-written domain implementations, `fields.keyed_nested(...)` keeps a publ
 business-key wrapper structurally redacted, so rules inside its nested payload still apply.
 Disabled policy is a raw-value debugging escape hatch. The library does not erase source
 memory or protect output that bypasses its redaction entry points.
+
+`max_serde_payload_bytes` bounds logical scalar payloads in structured Serde;
+`max_output_bytes` bounds final text or `to_json()` JSON retained by the library.
+Both default to 16 KiB and are independent. When serializing a view or derived source directly,
+the caller's serializer/writer controls final encoded length. See the guide's budget matrix.
 
 ## Learn More
 

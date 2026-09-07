@@ -4,7 +4,7 @@
 
 ## Purpose and Audience
 
-For application and library authors using qubit-redact 0.6. Start with business serialization
+For application and library authors using qubit-redact 0.7. Start with business serialization
 and diagnostic logging, then configure domain types, input formats, and budgets.
 
 ## Installation and Scenario: Login Diagnostics
@@ -13,7 +13,7 @@ This dependency configuration supports every example in this section.
 
 ```toml
 [dependencies]
-qubit-redact = { version = "0.6", features = ["derive", "serde", "json"] }
+qubit-redact = { version = "0.7", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -53,13 +53,16 @@ assert!(!output.text().as_str().contains("raw-secret"));
 A view borrows the source and owns a policy snapshot; it is not a modified business object
 or cached source content. Each use starts from the source with an independent budget, never
 from the previous mask. It supports Display/Debug; structured serialization requires
-`RedactSerialize` and never falls back to a Debug string. Interior-mutable sources can change
+the derive-generated `RedactSerializeSource` projection to be serializable; callers need not
+implement hidden traits. It never falls back to a Debug string. Interior-mutable sources can change
 between uses; the policy remains fixed at view creation.
 
 `redact_text()` produces `output.text()` that can be displayed without another redaction pass.
-`to_json()` is equivalent to `serde_json::to_string(&redactor.redact_view(&value))` and propagates
-serialization errors. It follows domain annotations; `redact_json(text)` parses input JSON and
-classifies JSON keys.
+`to_json()` shares the view's projection and policy and additionally bounds final JSON bytes.
+With identical source state, outputs match when both succeed. It traverses once, propagates
+serializer and budget errors, and never returns partial JSON. Success may include safe structural
+replacements and is not a completeness assertion. It follows domain annotations;
+`redact_json(text)` parses input JSON and classifies JSON keys.
 
 ## Domain Types and Field Reference
 
@@ -80,7 +83,8 @@ Container attributes: `debug`, `display`, `serde`, `transparent`, and `crate = p
 The runtime `serde` feature generates structured redaction for `redact_view()` for every
 derived type. `#[redact(serde)]` additionally makes the source type's ordinary `Serialize`
 use that redacted representation. Without it, a separately derived ordinary `Serialize`
-remains unchanged. It requires the runtime `serde` feature and a direct Serde dependency.
+remains unchanged. Enable the runtime `serde` feature; generated implementations do not
+require a direct Serde dependency. Add `serde` when your own code uses its traits or derives.
 `transparent` requires exactly one field and delegates its representation; it does not declare scalar capability.
 Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` together with `serde`.
 
@@ -270,8 +274,9 @@ assert_eq!(value["password"], "raw");
 let _ = inspection;
 ```
 
-`RedactionBatch::redact_json_value` and the other batch methods share a budget
-and publish handles that resolve to final text and summaries.
+`RedactionBatch::redact_json_value` and the other batch methods share a budget.
+After `finish_for_diagnostics`, handles select complete item text or the escaped
+fallback marker; `summary()` describes the entire batch.
 
 JSON text is parsed once into an admitted tree. Invalid JSON and traversal
 limit failures fail closed as an opaque or truncated safe result. The borrowed
@@ -291,9 +296,9 @@ struct Documents(Vec<serde_json::Value>);
 impl Redact for Documents {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.sequence(|items| {
-            for value in &self.0 {
+            items.for_each(&self.0, |items, value| {
                 items.json_value_item(value);
-            }
+            });
         });
     }
 }
@@ -306,6 +311,8 @@ invalid-JSON path. A former serde_json private Number-marker key is an ordinary
 object key.
 
 ### Redact one HTTP exchange in a batch
+
+Enable the runtime `http` feature and add `http = "1"` to your dependencies for this example.
 
 Keep the URL, headers, and captured body in one transaction when they belong
 to the same diagnostic event:
@@ -339,6 +346,8 @@ as `RedactionReason::SourceTruncated`; never construct a complete capture from
 an incomplete body.
 
 ### Inspect a URI before accepting it
+
+Enable the runtime `uri` feature for this example.
 
 Inspection is useful when a URI must be rejected rather than merely redacted.
 Both a sensitive result and an error are fail-closed outcomes:
@@ -378,15 +387,14 @@ assert!(!output.text().as_str().contains("raw-"));
 
 | Feature | Adds |
 | --- | --- |
-| `derive` | `#[derive(Redact)]
-#[redact(crate = qubit_redact)]` |
+| `derive` | `#[derive(Redact)]`, `#[derive(RedactScalar)]` |
 | `serde` | generated/domain structured Serde adapters and BigDecimal support |
 | `json` | JSON text and borrowed `serde_json::Value` handling |
 | `http` | JSON plus URL, headers, form, multipart, and body capture |
 | `uri` | generic URI parsing and redaction |
 
 Keep the default empty feature set for scalar and manually implemented domain
-redaction. In the 0.6 release line, `serde` continues to include
+redaction. In the 0.7 release line, `serde` continues to include
 BigDecimal support; separating that dependency would require an explicit
 feature migration in a later breaking release.
 
@@ -452,6 +460,52 @@ an inspection error as sensitive because classification was inconclusive.
 `application_default()` and generated formatting that obtains a new snapshot.
 Existing redactors, composers, and batches keep the immutable snapshot they
 already own; replacement does not retroactively toggle in-flight work.
+
+## Budget Units and Migration to 0.7
+
+| Entry point | Structure and input limits | Logical Serde payload | Final encoded bytes |
+| --- | --- | --- | --- |
+| Fields, domain text, composer, batch | Shared transaction admission per entry point | Not applicable | `max_output_bytes` |
+| View or derived source `Serialize` | Shared Serde scope | `max_serde_payload_bytes` | Caller-owned writer |
+| `to_json` | Shared Serde scope | `max_serde_payload_bytes` | `max_output_bytes` |
+| `redact_json` / `redact_json_value` | Text transaction and JSON-specific limits | Not applicable | `max_output_bytes` |
+
+`max_input_bytes` defaults to 64 KiB; each output-related limit defaults to 16 KiB.
+All accept zero. Policy construction rejects Serde payload or final output ceilings above `isize::MAX`.
+Migrate 0.6 configurations that limited direct Serde payloads with `max_output_bytes` to
+`max_serde_payload_bytes`. Set both when `to_json` must obey both ceilings; they are never implicitly linked.
+
+Scalar entry points admit the root node, key length, and key UTF-8 bytes before classification
+or value formatting. With redaction enabled, High/Secret charges only key bytes and does not invoke value Display.
+Capture admits complete write chunks atomically: rejected chunks count as presented but not inspected;
+accepted prefixes remain charged even when failure discards all their raw text.
+Thus `inspected_input_bytes <= max_input_bytes`, while presented bytes may be larger.
+Domain labels, structural nodes, and Serde events have their own admission units; usage is not the
+memory size of the original object.
+
+Logical Serde payload counts UTF-8 str/char bytes, byte slices, and numeric/bool scalar representations.
+None/unit counts zero; dynamic map keys and scalar unit-variant names count as payload.
+Static field names, punctuation, escaping,
+and encoder framing do not count. Nested events share the ledger, and ordinary Serialize runs once.
+Final `to_json` bytes include all JSON labels, quotes, escapes, punctuation, and masks.
+For example, `{"value":"abcd"}` has four logical payload bytes and 16 final JSON bytes.
+The caller must bound additional encoding overhead from an arbitrary external serializer.
+
+| Scalar outcome | Completion | Reasons | Later work allowed |
+| --- | --- | --- | --- |
+| Normal text or fixed mask fits completely | Complete | No degrading reason | Yes, unless exactly full |
+| Input rejected; replacement fits | Truncated | InputLimitReached | Yes, subject to admission |
+| Formatter itself returns Err; replacement fits | Truncated | FormattingFailed | Yes |
+| Either failure's replacement cannot fit | Exhausted | Original cause + OutputLimitReached | No |
+| Actual output truncation; replacement fits | Truncated | OutputLimitReached | No |
+| Output cannot even retain a replacement | Exhausted | OutputLimitReached | No |
+
+An item failure neither resets the batch budget nor unconditionally closes output; the aggregate
+summary remains incomplete. Post-publication helpers such as `finish_for_diagnostics(marker)` and
+`text_or_marker` escape the caller's marker, but that marker and caller-added log prefixes/suffixes
+are outside the original transaction's `output_bytes` and `max_output_bytes`.
+Budgets control library admission and writes, not arbitrary computation inside Display/Serialize or
+allocations made before calling the library.
 
 ## Errors and Diagnostics
 
