@@ -37,13 +37,25 @@ pub struct RedactedText(
 
 impl RedactedText {
     /// Creates final text from an already escaped representation.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Already escaped text whose policy transformation is complete.
+    ///
+    /// # Returns
+    ///
+    /// An owned final-text wrapper without another escaping or redaction pass.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub(crate) fn from_escaped(value: impl Into<Cow<'static, str>>) -> Self {
         Self(value.into().into_owned())
     }
 
     /// Borrows the final redacted text.
+    ///
+    /// # Returns
+    ///
+    /// The finalized UTF-8 text borrowed from this wrapper.
     #[must_use]
     #[inline(always)]
     pub fn as_str(&self) -> &str {
@@ -51,8 +63,12 @@ impl RedactedText {
     }
 
     /// Consumes the wrapper and returns its owned text.
+    ///
+    /// # Returns
+    ///
+    /// The owned finalized text without cloning.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn into_string(self) -> String {
         self.0
     }
@@ -60,6 +76,11 @@ impl RedactedText {
 
 impl AsRef<str> for RedactedText {
     /// Borrows the safe text through the standard string-reference contract.
+    ///
+    /// # Returns
+    ///
+    /// The finalized text borrowed under the standard string-reference
+    /// contract.
     #[inline(always)]
     fn as_ref(&self) -> &str {
         self.as_str()
@@ -68,6 +89,18 @@ impl AsRef<str> for RedactedText {
 
 impl fmt::Display for RedactedText {
     /// Writes only the finalized safe text to the destination formatter.
+    ///
+    /// # Parameters
+    ///
+    /// - `formatter`: Destination receiving the already finalized text.
+    ///
+    /// # Returns
+    ///
+    /// Success after writing the text.
+    ///
+    /// # Errors
+    ///
+    /// Propagates a destination formatting error.
     #[inline(always)]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())

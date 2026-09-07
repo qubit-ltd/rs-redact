@@ -16,6 +16,18 @@ use super::BodyCaptureError;
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of the borrowed body bytes.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::{Redactor, RedactionReason};
+/// use qubit_redact::formats::http::BodyCapture;
+///
+/// let capture = BodyCapture::truncated(b"prefix", 12).expect("valid source length");
+/// assert_eq!(capture.omitted_len(), Some(6));
+/// let output = Redactor::standard().redact_http_body(capture, None);
+/// assert!(output.summary().reasons().contains(RedactionReason::SourceTruncated));
+/// ```
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct BodyCapture<'a> {
     /// Source bytes available to the redactor before its hard input budget.
@@ -63,6 +75,7 @@ impl<'a> BodyCapture<'a> {
     ///
     /// A capture whose total length equals the borrowed slice length.
     #[must_use]
+    #[inline(always)]
     pub const fn complete(bytes: &'a [u8]) -> Self {
         Self {
             bytes,
@@ -109,6 +122,7 @@ impl<'a> BodyCapture<'a> {
     /// An infallible truncated capture whose complete source length is
     /// unknown.
     #[must_use]
+    #[inline(always)]
     pub const fn truncated_unknown(bytes: &'a [u8]) -> Self {
         Self {
             bytes,

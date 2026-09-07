@@ -277,7 +277,8 @@ fn is_text_media_type(value: &str) -> bool {
 ///
 /// # Returns
 ///
-/// The boundary when it satisfies conservative multipart framing rules.
+/// `Some(boundary)` when it satisfies conservative multipart framing rules;
+/// `None` when absent, empty, too long, or containing disallowed bytes.
 #[must_use]
 fn validate_boundary(boundary: Option<String>) -> Option<String> {
     let boundary = boundary?;

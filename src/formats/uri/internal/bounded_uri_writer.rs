@@ -7,9 +7,9 @@
 // =============================================================================
 //! Byte-bounded URI rendering.
 
-use crate::RedactionCompletion;
 use crate::RedactionReason;
 use crate::runtime::OperationSink;
+use crate::runtime::RenderedOperation;
 
 /// Marker appended when a URI cannot fit within the output bound.
 const TRUNCATED: &str = "<truncated>";
@@ -75,14 +75,9 @@ impl BoundedUriWriter {
         self.sink.is_full()
     }
 
-    /// Finishes output and reports whether the effective bound was a domain
-    /// limit or the shared session limit.
-    pub(crate) fn finish_with_completion(self, _session_limited: bool) -> (String, RedactionCompletion) {
-        let (text, completion, _) = self
-            .sink
-            .finish_with_reason(RedactionReason::OutputLimitReached)
-            .into_parts();
-        (text, completion)
+    /// Finalizes URI atoms without discarding output exhaustion provenance.
+    pub(crate) fn finish(self) -> RenderedOperation {
+        self.sink.finish_with_reason(RedactionReason::OutputLimitReached)
     }
 }
 

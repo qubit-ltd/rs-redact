@@ -11,7 +11,6 @@ use std::ffi::OsStr;
 
 use super::admitted_command_items::AdmittedCommandItems;
 use super::admitted_environment_pairs::AdmittedEnvironmentPairs;
-use crate::RedactionReason;
 use crate::formats::argv::ArgvItem;
 use crate::formats::argv::redaction::redact_heuristically_with_policy;
 use crate::formats::env::redaction::redact_os_pairs_with_policy;
@@ -49,14 +48,18 @@ where
         let output = redact_heuristically_with_policy(&policy, &mut command, remaining);
         (output, command.failed)
     };
-    if command_failed || !session.admit_format_node(1) {
+    if command_failed {
         return session.stage_accounted_text(String::new());
+    }
+    if argv.output_closed() {
+        return session.stage_rendered_operation(argv);
     }
     let remaining = remaining.saturating_sub(argv.text().len());
     if remaining == 0 {
-        return session.stage_rendered_operation(
-            argv.merge(OperationSink::exhausted("", RedactionReason::OutputLimitReached).finish()),
-        );
+        return session.stage_rendered_operation(argv.merge(OperationSink::exhausted("").finish()));
+    }
+    if !session.admit_format_node(1) {
+        return session.stage_accounted_text(String::new());
     }
     let (environment, environment_failed) = {
         let mut pairs = AdmittedEnvironmentPairs {

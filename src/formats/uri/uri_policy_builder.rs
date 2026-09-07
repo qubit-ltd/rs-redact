@@ -6,7 +6,6 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Mutable builder for URI redaction policies.
-// qubit-style: allow type-file-name
 
 use super::UriFragmentPolicy;
 use super::UriPathPolicy;
@@ -24,6 +23,10 @@ pub struct UriPolicyBuilder {
 
 impl UriPolicyBuilder {
     /// Creates a builder for URI-specific behavior.
+    ///
+    /// # Returns
+    ///
+    /// A builder initialized with the standard URI path and fragment policies.
     #[must_use]
     #[inline]
     pub fn new() -> Self {
@@ -34,7 +37,16 @@ impl UriPolicyBuilder {
     }
 
     /// Creates a builder that copies an existing URI context snapshot.
+    ///
+    /// # Parameters
+    ///
+    /// - `policy`: Immutable URI snapshot whose component choices are copied.
+    ///
+    /// # Returns
+    ///
+    /// An independent builder retaining the supplied policy choices.
     #[must_use]
+    #[inline(always)]
     pub(crate) fn from_policy(policy: &UriPolicy) -> Self {
         Self {
             path_policy: policy.path_policy(),
@@ -43,19 +55,36 @@ impl UriPolicyBuilder {
     }
 
     /// Replaces the path handling policy in place.
+    ///
+    /// # Parameters
+    ///
+    /// - `policy`: Replacement visibility policy for URI path components.
+    #[inline(always)]
     pub(crate) fn path_policy_mut(&mut self, policy: UriPathPolicy) {
         self.path_policy = policy;
     }
 
     /// Replaces the fragment handling policy in place.
+    ///
+    /// # Parameters
+    ///
+    /// - `policy`: Replacement classification and visibility policy for URI
+    ///   fragments.
+    #[inline(always)]
     pub(crate) fn fragment_policy_mut(&mut self, policy: UriFragmentPolicy) {
         self.fragment_policy = policy;
     }
 
-    /// Validates and creates the immutable URI policy.
+    /// Creates the immutable URI policy from typed component choices.
     ///
-    /// The core policy is already validated when supplied, so this builder
-    /// currently has no additional error cases.
+    /// # Errors
+    ///
+    /// Currently infallible: both choices are typed enum values, and this
+    /// builder does not validate the enclosing field rules.
+    ///
+    /// # Returns
+    ///
+    /// An immutable snapshot of the selected path and fragment policies.
     #[inline]
     pub(crate) fn build(self) -> Result<UriPolicy, PolicyError> {
         Ok(UriPolicy::new(self.path_policy, self.fragment_policy))
@@ -64,7 +93,11 @@ impl UriPolicyBuilder {
 
 impl Default for UriPolicyBuilder {
     /// Creates a builder with standard URI handling defaults.
-    #[inline]
+    ///
+    /// # Returns
+    ///
+    /// A builder with standard path and fragment behavior.
+    #[inline(always)]
     fn default() -> Self {
         Self::new()
     }

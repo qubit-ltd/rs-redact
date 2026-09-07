@@ -20,13 +20,28 @@ pub(crate) struct RedactionBatchOutput {
 }
 
 impl RedactionBatchOutput {
-    /// Creates public batch output from one completed private publication.
+    /// Wraps a completed runtime publication for crate-private batch
+    /// resolution.
+    ///
+    /// # Parameters
+    ///
+    /// - `output`: Runtime publication owning item identities, output, and
+    ///   accounting.
+    ///
+    /// # Returns
+    ///
+    /// A crate-private facade preserving the complete publication.
     #[must_use]
+    #[inline(always)]
     pub(crate) const fn from_publication(output: BatchPublication) -> Self {
         Self { output }
     }
 
     /// Returns the aggregate accounting summary for the batch.
+    ///
+    /// # Returns
+    ///
+    /// The immutable aggregate summary of this batch publication.
     #[must_use]
     #[inline(always)]
     pub(crate) const fn summary(&self) -> &crate::RedactionSummary {
@@ -37,6 +52,20 @@ impl RedactionBatchOutput {
     ///
     /// Returns [`RedactionBatchHandleError::DifferentBatch`] when `handle`
     /// was created by another batch, or `MissingItem` for an invalid index.
+    ///
+    /// # Parameters
+    ///
+    /// - `handle`: Opaque capability to resolve against this publication.
+    ///
+    /// # Returns
+    ///
+    /// The borrowed item output, including its own completion and accounting.
+    ///
+    /// # Errors
+    ///
+    /// Returns DifferentBatch for a foreign identity or MissingItem for an
+    /// invalid index.
+    #[inline]
     pub(crate) fn resolve(
         &self,
         handle: RedactionBatchHandle,
@@ -50,6 +79,9 @@ impl RedactionBatchOutput {
     }
 }
 
+// These regressions forge an invalid index through facade-private handle
+// fields. Keep them local instead of widening the public or crate-visible
+// handle contract.
 #[cfg(test)]
 mod tests {
     use super::RedactionBatchHandle;

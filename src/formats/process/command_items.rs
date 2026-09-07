@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Exact-size process command item iteration.
+//! Process command iteration preserving the argument size hint.
 
 use crate::formats::argv::ArgvItem;
 

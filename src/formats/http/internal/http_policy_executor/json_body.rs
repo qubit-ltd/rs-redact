@@ -7,6 +7,8 @@
 // =============================================================================
 //! Admitted JSON and NDJSON body rendering.
 
+use serde_json::Value;
+
 use super::HttpPolicyExecutor;
 use crate::formats::http::BodyRenderReason;
 use crate::formats::http::BodyRenderStatus;
@@ -15,12 +17,54 @@ use crate::formats::http::internal::json;
 use crate::formats::http::internal::markers;
 
 impl HttpPolicyExecutor<'_> {
+    /// Creates the fail-closed result for syntactically invalid JSON.
+    ///
+    /// # Returns
+    ///
+    /// The invalid-JSON marker and its parser status.
+    #[must_use]
+    #[inline]
+    pub(super) fn invalid_json_body() -> ParsedBody {
+        ParsedBody::new(
+            markers::INVALID_JSON.to_string(),
+            BodyRenderStatus::Redacted(BodyRenderReason::InvalidJson),
+            false,
+        )
+    }
+
+    /// Creates the fail-closed result for syntactically invalid NDJSON.
+    ///
+    /// # Returns
+    ///
+    /// The invalid-NDJSON marker and its parser status.
+    #[must_use]
+    #[inline]
+    pub(super) fn invalid_ndjson_body() -> ParsedBody {
+        ParsedBody::new(
+            markers::INVALID_NDJSON.to_string(),
+            BodyRenderStatus::Redacted(BodyRenderReason::InvalidNdjson),
+            false,
+        )
+    }
+
     /// Redacts one admitted JSON tree without parsing its source again.
+    ///
+    /// # Parameters
+    ///
+    /// - `bounded`: Original admitted JSON source used for the root-array size
+    ///   check.
+    /// - `value`: Parsed tree transformed in place under the body policy.
+    /// - `truncated`: Whether ingress omitted source bytes.
+    /// - `output_limit`: Remaining output-byte ceiling.
+    ///
+    /// # Returns
+    ///
+    /// A serialized redacted tree, or a safe invalid/truncated representation.
     #[must_use]
     pub(super) fn redact_json_value(
         &self,
         bounded: &[u8],
-        value: &mut serde_json::Value,
+        value: &mut Value,
         truncated: bool,
         output_limit: usize,
     ) -> ParsedBody {
@@ -34,7 +78,7 @@ impl HttpPolicyExecutor<'_> {
         // Root arrays may contain unkeyed pass-through scalars. When their
         // complete source representation cannot fit, do not attempt to retain
         // a partial array whose omitted element boundary would be ambiguous.
-        if matches!(value, serde_json::Value::Array(_)) && bounded.len() > output_limit {
+        if matches!(value, Value::Array(_)) && bounded.len() > output_limit {
             return ParsedBody::new(markers::TRUNCATED.to_string(), BodyRenderStatus::Structured, true);
         }
         let passed = json::redact(
@@ -56,21 +100,22 @@ impl HttpPolicyExecutor<'_> {
         }
     }
 
-    /// Creates the fail-closed result for syntactically invalid JSON.
-    #[must_use]
-    pub(super) fn invalid_json_body() -> ParsedBody {
-        ParsedBody::new(
-            markers::INVALID_JSON.to_string(),
-            BodyRenderStatus::Redacted(BodyRenderReason::InvalidJson),
-            false,
-        )
-    }
-
     /// Redacts admitted NDJSON values without parsing their source lines again.
+    ///
+    /// # Parameters
+    ///
+    /// - `lines`: Admitted parsed lines; None preserves a blank line.
+    /// - `trailing_newline`: Whether the source ended with a line separator.
+    /// - `truncated`: Whether ingress omitted source bytes.
+    /// - `output_limit`: Remaining output-byte ceiling.
+    ///
+    /// # Returns
+    ///
+    /// A bounded NDJSON representation or a fail-closed marker.
     #[must_use]
     pub(super) fn redact_ndjson_values(
         &self,
-        lines: &mut [Option<serde_json::Value>],
+        lines: &mut [Option<Value>],
         trailing_newline: bool,
         truncated: bool,
         output_limit: usize,
@@ -100,15 +145,5 @@ impl HttpPolicyExecutor<'_> {
             ),
             None => Self::invalid_ndjson_body(),
         }
-    }
-
-    /// Creates the fail-closed result for syntactically invalid NDJSON.
-    #[must_use]
-    pub(super) fn invalid_ndjson_body() -> ParsedBody {
-        ParsedBody::new(
-            markers::INVALID_NDJSON.to_string(),
-            BodyRenderStatus::Redacted(BodyRenderReason::InvalidNdjson),
-            false,
-        )
     }
 }

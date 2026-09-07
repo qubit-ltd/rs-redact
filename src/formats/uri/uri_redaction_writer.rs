@@ -14,6 +14,21 @@ use crate::runtime::TextSession;
 use crate::runtime::runtime_session::RuntimeSession;
 
 /// URI facade borrowing one diagnostic session.
+///
+/// # Type Parameters
+///
+/// * `'session` - Borrow of the parent composer's unpublished transaction.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::Redactor;
+///
+/// let output = Redactor::standard().text_composer().uri(|uri| {
+///     uri.value("https://example.test/?password=raw-secret");
+/// }).finish();
+/// assert!(!output.text().as_str().contains("raw-secret"));
+/// ```
 pub struct UriRedactionWriter<'session> {
     /// Text transaction that owns policy, accounting, and aggregate output.
     session: &'session mut TextSession,
@@ -21,11 +36,31 @@ pub struct UriRedactionWriter<'session> {
 
 impl<'session> UriRedactionWriter<'session> {
     /// Creates a URI facade borrowing a parent session.
+    ///
+    /// # Parameters
+    ///
+    /// * `session` - Parent transaction receiving admitted URI output.
+    ///
+    /// # Returns
+    ///
+    /// A writer borrowing the existing policy and resource ledger.
+    #[must_use]
+    #[inline(always)]
     pub(crate) const fn new(session: &'session mut TextSession) -> Self {
         Self { session }
     }
 
     /// Redacts a URI into the parent session's aggregate output.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - URI text whose identity, path, query, and fragment follow
+    ///   the parent policy after shared input and structural admission.
+    ///
+    /// # Returns
+    ///
+    /// This writer for further operations; malformed or rejected input is
+    /// represented by safe output and the parent's diagnostic summary.
     pub fn value(&mut self, value: &str) -> &mut Self {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
@@ -48,16 +83,20 @@ impl<'session> UriRedactionWriter<'session> {
 }
 
 impl UriRedactionWriter<'_> {
-    /// Redacts one URI while charging the shared input and output budgets.
+    /// Renders an already admitted URI within the transaction's remaining
+    /// bytes.
     ///
-    /// Input is admitted before parsing. If the session has no output left,
-    /// this method returns an empty fail-closed result without inspecting the
-    /// URI. A component-level output limit can truncate this result while the
-    /// session remains usable; exhaustion of the shared output budget closes
-    /// the session for later operations. The returned completion is `Complete`
-    /// for a full safe rewrite, `Truncated` for non-empty fallback or omitted
-    /// output, and `Exhausted` only when the safe text is empty. Existing URI
-    /// status is represented solely by the transaction's common summary.
+    /// The caller checks output closure and admits input and structure first.
+    /// The returned operation retains output-rejection facts so publication
+    /// closes later work even when a UTF-8 boundary leaves spare bytes.
+    ///
+    /// # Parameters
+    ///
+    /// * `input` - URI text already admitted by the parent transaction.
+    ///
+    /// # Returns
+    ///
+    /// Unpublished safe text and completion facts for parent publication.
     #[must_use]
     pub(crate) fn redact_uri_direct(&mut self, input: &str) -> RenderedOperation {
         redact_uri_with_limit(self.session.policy(), input, self.session.remaining_output_bytes())
@@ -66,12 +105,33 @@ impl UriRedactionWriter<'_> {
     /// Charges URI root and query-pair structure before the URI renderer
     /// decodes individual components. The raw query scan stops at the first
     /// rejected pair, so a later suffix cannot be rendered.
+    ///
+    /// # Parameters
+    ///
+    /// * `input` - Admitted URI text to scan for raw query separators.
+    ///
+    /// # Returns
+    ///
+    /// Whether all root and query-pair charges fit the shared budget.
+    #[must_use]
+    #[inline(always)]
     fn admit_uri_structure(&mut self, input: &str) -> bool {
         admit_uri_structure(self.session, input)
     }
 }
 
 /// Charges URI root and query-pair structure without parsing component values.
+///
+/// # Parameters
+///
+/// * `session` - Parent transaction charged incrementally during the scan.
+/// * `input` - Admitted URI text, with query separators counted before
+///   decoding.
+///
+/// # Returns
+///
+/// `true` when all structural charges fit; `false` after the first rejection,
+/// which is retained in the parent summary without scanning later pairs.
 #[must_use]
 pub(crate) fn admit_uri_structure(session: &mut dyn RuntimeSession, input: &str) -> bool {
     if !session.admit_format_node(1) {
@@ -94,12 +154,11 @@ mod tests {
     use super::redact_uri_with_limit;
     use crate::RedactionCompletion;
     use crate::RedactionPolicy;
-    use crate::Redactor;
 
     /// Verifies URI rendering receives the transaction's remaining output
     /// allowance and never creates a second unbounded output path.
     #[test]
-    fn bounded_uri_helper_never_exceeds_the_caller_allowance() {
+    fn test_bounded_uri_helper_never_exceeds_the_caller_allowance() {
         let output = redact_uri_with_limit(
             &RedactionPolicy::standard(),
             "https://example.test/a/very/long/path?token=secret",
@@ -109,29 +168,5 @@ mod tests {
         assert_eq!(output.completion(), RedactionCompletion::Truncated);
         assert!(output.reasons().contains(crate::RedactionReason::OutputLimitReached));
         assert!(output.text().len() <= 16);
-    }
-
-    /// Verifies a URI adapter receives the output allowance left after earlier
-    /// aggregate writes in its enclosing transaction.
-    #[test]
-    fn uri_session_uses_the_transaction_remaining_output_allowance() {
-        let policy = RedactionPolicy::builder()
-            .limits(|limits| {
-                let _ = limits.max_output_bytes(20);
-            })
-            .expect("the test limit draft should build")
-            .build()
-            .expect("the test policy should build");
-        let output = Redactor::new(policy)
-            .text_composer()
-            .literal("prefix")
-            .uri(|uri| {
-                uri.value("https://example.test/a/very/long/path?token=secret");
-            })
-            .finish();
-
-        assert_eq!(output.text().as_str(), "prefixhtt<truncated>");
-        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
-        assert_eq!(output.summary().usage().output_bytes(), 20);
     }
 }

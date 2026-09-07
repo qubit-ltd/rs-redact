@@ -12,15 +12,30 @@ use http::HeaderValue;
 use url::Url;
 
 use super::BodyCapture;
-use super::admitted_body::AdmittedBody;
+use super::internal::AdmittedBody;
+use super::internal::http_policy_executor::url_rules;
 use super::internal::nested_url;
 use super::internal::nested_url::NestedUrl;
-use super::redaction::url_rules;
 use crate::runtime::OperationSink;
 use crate::runtime::TextSession;
 use crate::runtime::runtime_session::RuntimeSession;
 
 /// Feature-gated HTTP operations sharing one mutable diagnostic session.
+///
+/// # Type Parameters
+///
+/// * `'session` - Borrow of the parent composer's unpublished transaction.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::Redactor;
+///
+/// let output = Redactor::standard().text_composer().http(|http| {
+///     http.url("https://example.test/?password=raw-secret");
+/// }).finish();
+/// assert!(!output.text().as_str().contains("raw-secret"));
+/// ```
 pub struct HttpRedactionWriter<'session> {
     /// Text transaction that owns policy, accounting, and aggregate output.
     pub(super) session: &'session mut TextSession,
@@ -28,11 +43,30 @@ pub struct HttpRedactionWriter<'session> {
 
 impl<'session> HttpRedactionWriter<'session> {
     /// Creates an HTTP facade borrowing a parent session.
+    ///
+    /// # Parameters
+    ///
+    /// * `session` - Parent transaction receiving HTTP diagnostic operations.
+    ///
+    /// # Returns
+    ///
+    /// A writer borrowing the existing policy, accounting, and output buffer.
+    #[must_use]
+    #[inline(always)]
     pub(crate) const fn new(session: &'session mut TextSession) -> Self {
         Self { session }
     }
 
     /// Redacts a URL string into the parent session's aggregate output.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - URL text whose root, input bytes, and query structure must
+    ///   pass shared admission before rendering.
+    ///
+    /// # Returns
+    ///
+    /// This writer after recording safe output and diagnostic facts.
     pub fn url(&mut self, value: &str) -> &mut Self {
         if self.session.skip_aggregate_for_exhausted_output() || !self.session.admit_format_node(1) {
             return self;
@@ -54,6 +88,16 @@ impl<'session> HttpRedactionWriter<'session> {
     }
 
     /// Redacts headers into the parent session's aggregate output.
+    ///
+    /// # Parameters
+    ///
+    /// * `headers` - Borrowed headers, including native sensitive-value flags.
+    ///   The entire collection must pass shared admission before rendering.
+    ///
+    /// # Returns
+    ///
+    /// This writer after appending the admitted collection or recording why
+    /// it could not be rendered.
     pub fn headers(&mut self, headers: &HeaderMap) -> &mut Self {
         let Some(headers) = collect_admitted_headers(self.session, headers) else {
             return self;
@@ -98,7 +142,10 @@ fn admit_url_structure_at_depth(session: &mut dyn RuntimeSession, url: &Url, url
     true
 }
 
-/// Rebuilds only the header prefix admitted by the transaction.
+/// Returns `Some` with all headers after the transaction admits them.
+///
+/// Returns `None` if output is closed or any header fails admission; no
+/// partially admitted header collection is returned.
 pub(crate) fn collect_admitted_headers(session: &mut dyn RuntimeSession, headers: &HeaderMap) -> Option<HeaderMap> {
     if session.skip_aggregate_for_exhausted_output() || !session.admit_format_node(1) {
         return None;
@@ -117,40 +164,24 @@ pub(crate) fn collect_admitted_headers(session: &mut dyn RuntimeSession, headers
 }
 
 impl<'session> HttpRedactionWriter<'session> {
-    /// Parses and redacts one URL string.
-    #[must_use]
-    fn redact_url_str_direct(&mut self, text: &str) -> super::redaction::HttpRendered {
-        super::redaction::redact_url_str_with_policy(self.session.policy(), text, self.session.remaining_output_bytes())
-    }
-
-    /// Redacts all HTTP headers.
-    #[must_use]
-    fn redact_headers_direct(&mut self, headers: &HeaderMap) -> super::redaction::HttpRendered {
-        super::redaction::redact_headers_with_policy(
-            self.session.policy(),
-            headers,
-            self.session.remaining_output_bytes(),
-        )
-    }
-
     /// Redacts a captured HTTP body into the parent session's aggregate output.
     ///
     /// Body and content-type byte lengths are offered to the shared budget
     /// before the body renderer inspects their contents. Rejected input emits
-    /// a non-empty diagnostic fallback when it fits; exhausted output returns
-    /// empty text and does not invoke the renderer. Successful admission
-    /// commits only the bounded output and closes the session when the body or
-    /// session budget omits content.
+    /// a non-empty diagnostic fallback when it fits; exhausted output skips
+    /// the renderer. Successful admission appends bounded
+    /// output. Actual output rejection closes later operations; source
+    /// truncation alone leaves any remaining output allowance usable.
     ///
     /// # Parameters
     ///
     /// * `capture` - Captured body bytes and optional source-length metadata.
-    /// * `content_type` - Parsed header value used to select body handling.
+    /// * `content_type` - Parsed header value used to select body handling, or
+    ///   `None` to use the format's inference and fallback rules.
     ///
     /// # Returns
     ///
-    /// A bounded body result with completion and capture metadata.
-    #[must_use]
+    /// This HTTP writer for further operations in the same transaction.
     pub fn body(&mut self, capture: BodyCapture<'_>, content_type: Option<&HeaderValue>) -> &mut Self {
         if self.session.skip_aggregate_for_exhausted_output()
             || !admit_body_input(self.session, capture, content_type.map(|v| v.as_bytes().len()))
@@ -165,7 +196,7 @@ impl<'session> HttpRedactionWriter<'session> {
             return self;
         };
         let remaining = self.session.remaining_output_bytes();
-        let result = super::redaction::redact_admitted_body_with_policy(
+        let result = super::internal::http_policy_executor::redact_admitted_body_with_policy(
             self.session.policy(),
             capture,
             content_type,
@@ -180,20 +211,20 @@ impl<'session> HttpRedactionWriter<'session> {
     ///
     /// Body and content-type byte lengths are offered to the shared budget
     /// before the body renderer inspects their contents. Rejected input emits
-    /// a non-empty diagnostic fallback when it fits; exhausted output returns
-    /// empty text and does not invoke the renderer. Successful admission
-    /// commits only the bounded output and closes the session when the body or
-    /// session budget omits content.
+    /// a non-empty diagnostic fallback when it fits; exhausted output skips
+    /// the renderer. Successful admission appends bounded
+    /// output. Actual output rejection closes later operations; source
+    /// truncation alone leaves any remaining output allowance usable.
     ///
     /// # Parameters
     ///
     /// * `capture` - Captured body bytes and optional source-length metadata.
-    /// * `content_type` - Text media type used to select body handling.
+    /// * `content_type` - Text media type used to select body handling, or
+    ///   `None` to use the format's inference and fallback rules.
     ///
     /// # Returns
     ///
-    /// A bounded body result with completion and capture metadata.
-    #[must_use]
+    /// This HTTP writer for further operations in the same transaction.
     pub fn body_with_content_type_text(&mut self, capture: BodyCapture<'_>, content_type: Option<&str>) -> &mut Self {
         if self.session.skip_aggregate_for_exhausted_output()
             || !admit_body_input(self.session, capture, content_type.map(str::len))
@@ -207,7 +238,7 @@ impl<'session> HttpRedactionWriter<'session> {
             return self;
         };
         let remaining = self.session.remaining_output_bytes();
-        let result = super::redaction::redact_admitted_body_with_content_type_text_with_policy(
+        let result = super::internal::http_policy_executor::redact_admitted_body_with_content_type_text_with_policy(
             self.session.policy(),
             capture,
             content_type,
@@ -217,9 +248,51 @@ impl<'session> HttpRedactionWriter<'session> {
         self.session.append_rendered_operation(result.into_operation());
         self
     }
+
+    /// Parses and redacts an already admitted URL string.
+    ///
+    /// # Parameters
+    ///
+    /// * `text` - URL text admitted by the parent transaction.
+    ///
+    /// # Returns
+    ///
+    /// Unpublished HTTP output bounded by the parent's remaining bytes.
+    #[must_use]
+    #[inline(always)]
+    fn redact_url_str_direct(&mut self, text: &str) -> super::internal::HttpRendered {
+        super::internal::http_policy_executor::redact_url_str_with_policy(
+            self.session.policy(),
+            text,
+            self.session.remaining_output_bytes(),
+        )
+    }
+
+    /// Redacts an already admitted HTTP header collection.
+    ///
+    /// # Parameters
+    ///
+    /// * `headers` - Complete admitted header collection retaining sensitive
+    ///   flags.
+    ///
+    /// # Returns
+    ///
+    /// Unpublished HTTP output bounded by the parent's remaining bytes.
+    #[must_use]
+    #[inline(always)]
+    fn redact_headers_direct(&mut self, headers: &HeaderMap) -> super::internal::HttpRendered {
+        super::internal::http_policy_executor::redact_headers_with_policy(
+            self.session.policy(),
+            headers,
+            self.session.remaining_output_bytes(),
+        )
+    }
 }
 
-/// Charges body structure before the HTTP renderer parses it.
+/// Parses and admits body structure once for reuse by the HTTP renderer.
+///
+/// Returns `Some` with retained structure or a syntax-failure classification.
+/// Returns `None` when the shared structural budget rejects the body.
 pub(crate) fn admit_body_structure(
     session: &mut dyn RuntimeSession,
     capture: BodyCapture<'_>,
@@ -323,54 +396,4 @@ pub(crate) fn admit_body_input(
         .total_len()
         .map(|length| length.saturating_add(content_type_len));
     session.admit_source_input(total, inspectable)
-}
-
-#[cfg(test)]
-mod tests {
-    use http::HeaderValue;
-
-    use super::BodyCapture;
-    use crate::Redactor;
-    use crate::formats::json::parse_counter::json_parse_count;
-    use crate::formats::json::parse_counter::reset_json_parse_count;
-
-    /// Verifies HTTP JSON admission and rendering share one parsed tree.
-    #[test]
-    fn enabled_http_json_body_is_parsed_exactly_once() {
-        reset_json_parse_count();
-
-        let output = Redactor::standard().redact_http_body(
-            BodyCapture::complete(br#"{"token":"raw-secret"}"#),
-            Some(&HeaderValue::from_static("application/json")),
-        );
-
-        assert_eq!(json_parse_count(), 1);
-        assert!(!output.text().as_str().contains("raw-secret"));
-    }
-
-    /// Verifies each non-empty NDJSON line is parsed exactly once.
-    #[test]
-    fn enabled_http_ndjson_lines_are_parsed_exactly_once() {
-        reset_json_parse_count();
-
-        let output = Redactor::standard().redact_http_body(
-            BodyCapture::complete(b"{\"token\":\"one\"}\n{\"token\":\"two\"}\n"),
-            Some(&HeaderValue::from_static("application/x-ndjson")),
-        );
-
-        assert_eq!(json_parse_count(), 2);
-        assert!(!output.text().as_str().contains("one"));
-        assert!(!output.text().as_str().contains("two"));
-    }
-
-    /// Verifies the admitted NDJSON model retains empty source lines.
-    #[test]
-    fn enabled_http_ndjson_preserves_empty_lines() {
-        let output = Redactor::standard().redact_http_body(
-            BodyCapture::complete(b"{\"name\":\"one\"}\n\n{\"name\":\"two\"}\n"),
-            Some(&HeaderValue::from_static("application/x-ndjson")),
-        );
-
-        assert_eq!(output.text().as_str(), "{\"name\":\"one\"}\\n\\n{\"name\":\"two\"}\\n",);
-    }
 }

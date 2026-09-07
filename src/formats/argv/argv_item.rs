@@ -15,12 +15,25 @@ use crate::Sensitivity;
 /// A borrowed argument with optional authoritative sensitivity metadata.
 ///
 /// Plain items may be inspected by
-/// [`super::ArgvRedactionWriter::heuristic_items`]. Sensitive items are always
-/// masked at their explicit level and never interpreted as command-line syntax.
+/// [`super::ArgvRedactionWriter::heuristic_items`]. With redaction enabled,
+/// sensitive items use their explicit level and are never interpreted as
+/// command-line syntax. Disabled policy restores their original values.
 ///
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of the borrowed operating-system argument.
+///
+/// # Examples
+///
+/// ```
+/// use std::ffi::OsStr;
+/// use qubit_redact::{Redactor, Sensitivity};
+/// use qubit_redact::formats::argv::ArgvItem;
+///
+/// let item = ArgvItem::sensitive(OsStr::new("raw-token"), Sensitivity::Secret);
+/// let output = Redactor::standard().redact_argv([item]);
+/// assert!(!output.text().as_str().contains("raw-token"));
+/// ```
 #[derive(Clone, Copy)]
 pub struct ArgvItem<'a> {
     /// Original operating-system argument value.
@@ -96,6 +109,7 @@ impl<'a> ArgvItem<'a> {
     /// # Returns
     ///
     /// The borrowed argument value.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn value(&self) -> &'a OsStr {
         self.value

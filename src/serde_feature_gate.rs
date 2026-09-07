@@ -7,6 +7,7 @@
 // =============================================================================
 //! Feature-aware expansion boundary for generated serde implementations.
 
+/// Expands required serde support when the runtime feature is enabled.
 #[cfg(feature = "serde")]
 #[doc(hidden)]
 #[macro_export]
@@ -30,6 +31,8 @@ macro_rules! __qubit_redact_serde_optional {
     ($($tokens:tt)*) => {};
 }
 
+/// Reports an explicit compile error for required serde support in a minimal
+/// runtime.
 #[cfg(not(feature = "serde"))]
 #[doc(hidden)]
 #[macro_export]

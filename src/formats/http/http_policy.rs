@@ -6,54 +6,54 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Immutable policy snapshot for every HTTP redaction context.
-// qubit-style: allow type-file-name
-// qubit-style: allow multiple-public-types
 
 use std::sync::Arc;
 
 use super::TextBodyPolicy;
 use super::UrlPathPolicy;
-use super::http_redaction_policy_parts::HttpPolicyParts;
+use super::internal::HttpPolicyParts;
 use crate::RedactionRules;
 
-/// Combines HTTP field rules, behavior choices, and resource limits.
+/// Combines HTTP field rules and rendering choices.
+///
+/// Resource limits belong to the enclosing [`crate::RedactionPolicy`].
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::RedactionPolicy;
+/// use qubit_redact::formats::http::UrlPathPolicy;
+///
+/// let policy = RedactionPolicy::standard();
+/// assert_eq!(policy.http().url_path_policy(), UrlPathPolicy::Preserve);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HttpPolicy {
     /// Shared immutable context policies behind cheap policy clones.
-    inner: Arc<HttpPolicyInner>,
-}
-
-/// Shared immutable HTTP behavior state.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct HttpPolicyInner {
-    /// Header-name classification snapshot.
-    header_rules: RedactionRules,
-    /// URL-query and form-field classification snapshot.
-    query_rules: RedactionRules,
-    /// Structured-body field classification snapshot.
-    body_rules: RedactionRules,
-    /// Visibility rule for URL path components.
-    url_path_policy: UrlPathPolicy,
-    /// Visibility rule for opaque UTF-8 bodies.
-    text_body_policy: TextBodyPolicy,
+    inner: Arc<HttpPolicyParts>,
 }
 
 impl HttpPolicy {
     /// Creates an HTTP policy from its validated component policies.
+    ///
+    /// # Parameters
+    ///
+    /// * `parts` - Validated context rules and rendering choices to own.
+    ///
+    /// # Returns
+    ///
+    /// An immutable snapshot whose clones share the same Arc payload.
     #[must_use]
+    #[inline(always)]
     pub(super) fn from_parts(parts: HttpPolicyParts) -> Self {
-        Self {
-            inner: std::sync::Arc::new(HttpPolicyInner {
-                header_rules: parts.header_rules,
-                query_rules: parts.query_rules,
-                body_rules: parts.body_rules,
-                url_path_policy: parts.url_path_policy,
-                text_body_policy: parts.text_body_policy,
-            }),
-        }
+        Self { inner: Arc::new(parts) }
     }
 
     /// Returns the header field-rule snapshot.
+    ///
+    /// # Returns
+    ///
+    /// Borrowed classification rules for HTTP header names.
     #[must_use]
     #[inline(always)]
     pub fn header_rules(&self) -> &RedactionRules {
@@ -61,6 +61,10 @@ impl HttpPolicy {
     }
 
     /// Returns the query and form field-rule snapshot.
+    ///
+    /// # Returns
+    ///
+    /// Borrowed classification rules shared by query and form fields.
     #[must_use]
     #[inline(always)]
     pub fn query_rules(&self) -> &RedactionRules {
@@ -68,6 +72,10 @@ impl HttpPolicy {
     }
 
     /// Returns the structured-body field-rule snapshot.
+    ///
+    /// # Returns
+    ///
+    /// Borrowed classification rules for structured body fields.
     #[must_use]
     #[inline(always)]
     pub fn body_rules(&self) -> &RedactionRules {
@@ -75,6 +83,10 @@ impl HttpPolicy {
     }
 
     /// Returns the URL path visibility choice.
+    ///
+    /// # Returns
+    ///
+    /// The immutable URL-path visibility policy.
     #[must_use]
     #[inline(always)]
     pub fn url_path_policy(&self) -> UrlPathPolicy {
@@ -82,6 +94,10 @@ impl HttpPolicy {
     }
 
     /// Returns the opaque text-body visibility choice.
+    ///
+    /// # Returns
+    ///
+    /// The immutable visibility policy for opaque text bodies.
     #[must_use]
     #[inline(always)]
     pub fn text_body_policy(&self) -> TextBodyPolicy {

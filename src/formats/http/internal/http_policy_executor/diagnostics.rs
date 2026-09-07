@@ -15,6 +15,17 @@ use crate::runtime::OperationSink;
 
 impl HttpPolicyExecutor<'_> {
     /// Escapes and bounds one diagnostic with an explicit output ceiling.
+    ///
+    /// # Parameters
+    ///
+    /// - `text`: Policy-selected diagnostic text to escape.
+    /// - `max_bytes`: Final escaped output-byte ceiling.
+    /// - `provenance`: Some additional parser reason, or None when no parser
+    ///   reason applies.
+    ///
+    /// # Returns
+    ///
+    /// A bounded operation retaining any output-limit and parser reasons.
     #[must_use]
     pub(super) fn finish_diagnostic_with_limit(
         &self,
@@ -24,39 +35,52 @@ impl HttpPolicyExecutor<'_> {
     ) -> super::HttpRendered {
         let mut writer = BoundedLogWriter::new(max_bytes, false);
         let _ = writer.write_str(&text);
-        let (text, truncated) = writer.finish();
-        let mut operation = if truncated {
-            OperationSink::truncated(text, RedactionReason::OutputLimitReached)
-        } else {
-            OperationSink::complete(text)
-        };
+        let mut operation = writer.finish_operation(RedactionReason::OutputLimitReached);
         if let Some(reason) = provenance {
             operation = operation.with_reason(reason);
         }
-        super::HttpRendered {
-            operation: operation.finish(),
-        }
+        super::HttpRendered::new(operation)
     }
 
     /// Publishes an already escaped bounded URL rendering with its exact
     /// truncation state.
+    ///
+    /// # Parameters
+    ///
+    /// - `text`: Already escaped URL representation.
+    /// - `truncated`: Whether URL rendering rejected output bytes.
+    ///
+    /// # Returns
+    ///
+    /// A finalized operation with the supplied output-completion state.
     #[must_use]
+    #[inline]
     pub(super) fn finish_rendered_url(&self, text: String, truncated: bool) -> super::HttpRendered {
         let operation = if truncated {
             OperationSink::truncated(text, RedactionReason::OutputLimitReached)
         } else {
             OperationSink::complete(text)
         };
-        super::HttpRendered {
-            operation: operation.finish(),
-        }
+        super::HttpRendered::new(operation.finish())
     }
 }
 
 /// Bounds an already escaped safe fragment without escaping it a second time.
 ///
 /// Returns empty truncated text when the effective ceiling cannot contain the
-/// complete marker; the session result maps that state to `Exhausted`.
+/// complete marker; the runtime sink finalizes that state as `Exhausted`.
+///
+/// # Parameters
+///
+/// - `text`: Fragment whose log-control escaping is already complete.
+/// - `max_bytes`: Effective output-byte ceiling including any truncation
+///   marker.
+///
+/// # Returns
+///
+/// The bounded fragment and whether it was truncated; an unfit marker yields
+/// empty truncated text.
+#[must_use]
 pub(in crate::formats::http) fn bound_safe_text(text: &str, max_bytes: usize) -> (String, bool) {
     if text.len() <= max_bytes {
         return (text.to_owned(), false);

@@ -509,6 +509,6 @@ mod tests {
 
         let empty = redact_heuristically_with_policy(&policy, [item], 0);
         assert!(empty.text().is_empty());
-        assert_eq!(empty.completion(), RedactionCompletion::Truncated);
+        assert_eq!(empty.completion(), RedactionCompletion::Exhausted);
     }
 }

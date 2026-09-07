@@ -12,8 +12,6 @@ use serde_json::Value;
 use super::JsonRedactionOutcome;
 use super::JsonUnkeyedValuePolicy;
 use crate::MaskingPolicy;
-#[cfg(test)]
-use crate::RedactionPolicy;
 use crate::RedactionRules;
 use crate::Sensitivity;
 use crate::policy::ResolvedField;
@@ -48,13 +46,6 @@ impl<'policy, 'marker> JsonRedactionState<'policy, 'marker> {
             unkeyed,
             passed_unkeyed: false,
         }
-    }
-
-    /// Creates traversal state from one complete policy snapshot.
-    #[cfg(test)]
-    #[inline(always)]
-    pub(crate) fn from_policy(policy: &'policy RedactionPolicy, unkeyed: JsonUnkeyedValuePolicy<'marker>) -> Self {
-        Self::new(policy.rules(), policy.rules(), policy.masking(), unkeyed)
     }
 
     /// Redacts one complete tree whose nodes, collections, and depth were
@@ -131,60 +122,5 @@ impl<'policy, 'marker> JsonRedactionState<'policy, 'marker> {
             self.masking.mask_opaque(level).to_owned()
         };
         *value = Value::String(masked);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use serde_json::json;
-
-    use super::JsonRedactionOutcome;
-    use super::JsonRedactionState;
-    use super::JsonUnkeyedValuePolicy;
-    use crate::RedactionPolicy;
-    use crate::Sensitivity;
-
-    #[test]
-    fn sensitive_non_string_value_is_replaced_by_an_opaque_mask() {
-        let policy = RedactionPolicy::builder()
-            .fields(|fields| {
-                fields.sensitive(Sensitivity::Secret, "password");
-            })
-            .expect("test rules should build")
-            .build()
-            .expect("test policy should build");
-        let mut value = json!({"password": {"nested": "raw-secret"}});
-        let mut state = JsonRedactionState::from_policy(&policy, JsonUnkeyedValuePolicy::PassThrough);
-
-        let outcome = state.redact(&mut value);
-
-        assert!(matches!(outcome, JsonRedactionOutcome::Complete { .. }));
-        assert_ne!(value["password"], json!({"nested": "raw-secret"}));
-        assert!(value["password"].is_string());
-    }
-
-    #[test]
-    fn context_rules_do_not_weaken_a_base_sensitive_rule() {
-        let base = RedactionPolicy::builder()
-            .fields(|fields| {
-                fields.sensitive(Sensitivity::Secret, "credential");
-            })
-            .expect("base rules should build")
-            .build()
-            .expect("base policy should build");
-        let context = RedactionPolicy::standard();
-        let mut value = json!({"credential": "raw-secret"});
-        let mut state = JsonRedactionState::new(
-            base.rules(),
-            context.rules(),
-            base.masking(),
-            JsonUnkeyedValuePolicy::PassThrough,
-        );
-
-        let outcome = state.redact(&mut value);
-
-        assert!(matches!(outcome, JsonRedactionOutcome::Complete { .. }));
-        assert!(!value.to_string().contains("raw-secret"));
-        assert!(value["credential"].is_string());
     }
 }

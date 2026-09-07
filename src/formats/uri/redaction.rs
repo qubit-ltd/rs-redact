@@ -16,7 +16,6 @@ use super::UriFragmentPolicy;
 use super::UriPathPolicy;
 use super::internal::BoundedUriWriter;
 use super::internal::UriComponentWriter;
-use crate::RedactionCompletion;
 use crate::RedactionPolicy;
 use crate::RedactionReason;
 use crate::Sensitivity;
@@ -102,14 +101,7 @@ pub(crate) fn redact_uri_with_limit(
 /// Converts bounded URI bytes to the runtime's single output carrier.
 #[must_use]
 fn finish_uri_rendering(rendered: BoundedUriWriter) -> RenderedOperation {
-    let (rendered, completion) = rendered.finish_with_completion(true);
-    let text = safe_text(rendered);
-    match completion {
-        RedactionCompletion::Complete => OperationSink::complete(text).finish(),
-        RedactionCompletion::Truncated | RedactionCompletion::Exhausted => {
-            OperationSink::truncated(text, RedactionReason::OutputLimitReached).finish()
-        }
-    }
+    rendered.finish()
 }
 
 /// Emits a bounded marker for invalid URI input without retaining input bytes.
@@ -257,7 +249,7 @@ const fn hex_value(byte: u8) -> Option<u8> {
     }
 }
 
-/// Converts owned output into the library's log-safe text wrapper.
+/// Escapes log-control characters in an owned output string.
 #[must_use]
 fn safe_text(value: String) -> String {
     escape_log_control_characters(Cow::Owned(value)).into_owned()

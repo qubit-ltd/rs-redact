@@ -9,6 +9,17 @@
 
 /// Opaque reference to one unpublished item in a [`crate::RedactionBatch`].
 ///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::Redactor;
+///
+/// let mut batch = Redactor::standard().batch();
+/// let handle = batch.redact_field("id", "42");
+/// let diagnostics = batch.finish_for_diagnostics("<incomplete>");
+/// assert_eq!(diagnostics.text(handle).as_str(), "42");
+/// ```
+///
 /// ```compile_fail
 /// use qubit_redact::Redactor;
 ///
