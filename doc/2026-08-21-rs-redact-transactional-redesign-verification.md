@@ -1,6 +1,6 @@
 # rs-redact 事务化重构验收记录
 
-> Historical record / 历史材料：本文保留当时的设计与验证，不代表 0.7 当前契约。See [current design](design.md) / [当前设计](design.zh_CN.md).
+> Historical record / 历史材料：本文保留当时的设计与验证，不代表当前版本契约。See [current design](design.md) / [当前设计](design.zh_CN.md).
 
 日期：2026-08-21
 

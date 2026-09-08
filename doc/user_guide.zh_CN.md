@@ -25,9 +25,9 @@ serde_json = "1"
 
 ## 实战场景：登录诊断
 
-下面的场景从一个登录对象开始：业务序列化仍按类型声明工作，但诊断输出不能暴露密码。
-完成标准是诊断文本和 JSON 中都不出现原始密码，同时 `#[redact(serde)]` 明确的对象自身
-序列化边界保持有效。
+下面的登录对象保留内存中的原始密码，但诊断格式化和直接业务序列化都必须隐藏密码。
+`#[redact(serde)]` 显式选择这一序列化边界。后续示例还会说明：业务序列化确实需要原值时，
+如何将它与脱敏诊断分开。
 
 ```rust
 use qubit_redact::{Redact, Redactor};
@@ -124,7 +124,7 @@ assert!(!Redactor::standard().to_json(&login).expect("redacted JSON").contains("
 字段，view 和 `to_json()` 仍可用。若字段缺少所需能力，view 的文本格式化仍可用；但结构化
 序列化该 view 或调用 `to_json()` 会产生编译期 trait-bound 错误。
 
-内置等级叶子包括字符串、字符、布尔、整数、浮点数，以及 `serde` 下的 BigDecimal。
+内置等级叶子包括字符串、字符、布尔、整数、浮点数，以及 `bigdecimal` 下的 BigDecimal。
 等级容器包括引用、Option、Vec、切片、数组、Box/Rc/Arc、VecDeque、LinkedList、集合、堆、
 标准 Map 和最长 12 项 tuple。Map 的普通 level 处理 value，保留 key；要隐藏 key 使用对应属性。
 文本 Map 放行路径和 keyed_by 需要 Debug；仅使用 level 的 RedactScalar 不要求 Debug。
@@ -240,7 +240,7 @@ HTTP 的 URL、headers、body 或进程的 argv、env 往往属于同一条诊�
 这些值共用一次资源预算；分别调用单值方法或多次使用视图则各用一份预算。
 批次按加入顺序消耗额度，后面的项可能因前面的项耗尽预算而降级。
 `finish_with_marker(marker)` 给不完整项及无效/跨批次句柄统一返回已转义 marker。
-`summary()` 是整批摘要，不是逐项审计接口。
+`finish()` 使用默认标记 `<redaction incomplete>`。`summary()` 是整批摘要，不是逐项审计接口。
 
 ```rust
 use qubit_redact::Redactor;
@@ -291,8 +291,9 @@ struct Documents(Vec<serde_json::Value>);
 
 impl Redact for Documents {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        let Self(documents) = self;
         writer.sequence(|items| {
-            items.for_each(&self.0, |items, value| {
+            items.for_each(documents, |items, value| {
                 items.json_value_item(value);
             });
         });
@@ -344,6 +345,8 @@ complete capture。
 按安全降级处理：
 
 ```rust
+# #[cfg(feature = "uri")]
+# {
 use qubit_redact::Redactor;
 
 let candidate = "https://example.test/?token=raw-token";
@@ -351,6 +354,7 @@ let acceptable = Redactor::strict()
     .inspect_uri(candidate)
     .is_ok_and(|inspection| !inspection.contains_sensitive());
 assert!(!acceptable);
+# }
 ```
 
 ### 处理 argv、环境变量和进程诊断
@@ -378,7 +382,8 @@ assert!(!output.text().as_str().contains("raw-"));
 | Feature | 提供的能力 |
 | --- | --- |
 | `derive` | `#[derive(Redact)]`, `#[derive(RedactScalar)]` |
-| `serde` | derive/domain 的结构化 Serde 适配器与 BigDecimal 支持 |
+| `serde` | derive/domain 的结构化 Serde 适配器 |
+| `bigdecimal` | BigDecimal 标量与等级支持，同时启用 `serde` |
 | `json` | JSON 文本及借用的 `serde_json::Value` |
 | `http` | JSON、URL、header、form、multipart 和 body capture |
 | `uri` | 通用 URI 解析与脱敏 |
@@ -443,7 +448,7 @@ assert!(!output.text().as_str().contains("raw-secret"));
 以及每次重新获取快照的生成格式化代码。已经创建的 `Redactor`、文本组合器和批处理对象继续
 持有原有不可变快照；替换不会追溯切换正在进行的工作。
 
-## 预算计量与 0.7 迁移
+## 预算计量与 0.8 迁移
 
 | 入口 | 结构与输入限制 | Serde 逻辑载荷 | 最终编码字节 |
 | --- | --- | --- | --- |
@@ -454,6 +459,10 @@ assert!(!output.text().as_str().contains("raw-secret"));
 
 `max_input_bytes` 默认 64 KiB；两个输出相关限制各默认 16 KiB。它们均允许 0。
 Serde 载荷与最终输出限制超过 `isize::MAX` 时策略构造报错。
+升级到 0.8 时，将旧的 `batch()` 调用改为 `diagnostic_batch()`。默认诊断标记使用
+`finish()`，自定义标记使用 `finish_with_marker(marker)`。使用 BigDecimal 时需显式启用
+`bigdecimal`，仅启用 `serde` 已不再提供该能力。
+
 0.6 中用于限制直接 Serde 载荷的 `max_output_bytes` 配置须迁移到
 `max_serde_payload_bytes`；需要同时限制 `to_json` 时设置两个值，二者不会自动联动。
 
@@ -516,7 +525,12 @@ none/unit 为 0，动态 map key 和标量形式的 unit variant 名称计入载
 验证本地检出内容可运行：
 
 ```bash
-cargo test --all-features
 ./align-ci.sh
 ./ci-check.sh
 ```
+
+`ci-check.sh` 读取仓库内的 `.rs-ci-cargo-matrix.json`，执行 `check`、`test`（含 doctest）、
+`doc` 和 Clippy。矩阵覆盖最小格式 feature、derive 与 Serde/JSON/HTTP/URI 的消费组合、
+显式 BigDecimal 支持，以及全部 feature：展开隐式依赖后覆盖全部 28 种 runtime feature 集，
+另检查 derive crate。README 与指南示例按实际依赖验证；未启用 `uri`
+时，只跳过需要它的 URI 示例。

@@ -60,7 +60,7 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | Final text and completeness summary now | `redact_text(&value)` |
 | Compact redacted JSON string | `to_json(&value)` |
 | Redact input that is already JSON | `redact_json(text)` / `redact_json_value(&value)` |
-| Share one budget across independent values | `batch()` |
+| Share one budget across independent values | `diagnostic_batch()` |
 | Compose one diagnostic message | `text_composer()` |
 
 ## Why This Project Exists
@@ -100,7 +100,8 @@ cargo test
 # Run tests with all declared features
 cargo test --all-features
 
-# Project CI checks
+# Format and run the complete project CI checks, including the feature matrix
+./align-ci.sh
 ./ci-check.sh
 
 # Check code coverage

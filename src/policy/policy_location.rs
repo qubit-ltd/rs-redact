@@ -36,7 +36,8 @@ pub enum PolicyLocation {
 }
 
 impl fmt::Display for PolicyLocation {
-    /// Writes the stable lowercase policy-location label.
+    /// Writes the stable lowercase label, propagating any destination formatter
+    /// error.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Rules => formatter.write_str("rules"),

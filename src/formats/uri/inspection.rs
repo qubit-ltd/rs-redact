@@ -52,7 +52,11 @@ pub(crate) fn inspect_uri(session: &mut InspectionSession, input: &str) {
     }
 }
 
-/// Classifies username and password components after strict percent decoding.
+/// Classifies `authority` userinfo and records sensitivity in `session`.
+///
+/// Returns success when no userinfo exists or all components decode. Returns
+/// value-free `Err(())` for malformed percent escapes or decoded non-UTF-8
+/// bytes.
 fn inspect_authority(session: &mut InspectionSession, authority: &str) -> Result<(), ()> {
     let Some((userinfo, _)) = authority.rsplit_once('@') else {
         return Ok(());
@@ -67,7 +71,12 @@ fn inspect_authority(session: &mut InspectionSession, authority: &str) -> Result
     Ok(())
 }
 
-/// Classifies URI query values after strict percent decoding.
+/// Decodes `query` keys and values and records classified sensitivity in
+/// `session`.
+///
+/// Returns success after traversal, or value-free `Err(())` for malformed
+/// percent escapes or decoded non-UTF-8 bytes. Earlier sensitivity observations
+/// remain.
 fn inspect_query(session: &mut InspectionSession, query: &str) -> Result<(), ()> {
     for pair in query.split('&') {
         let Some((raw_key, raw_value)) = pair.split_once('=') else {
@@ -83,7 +92,10 @@ fn inspect_query(session: &mut InspectionSession, query: &str) -> Result<(), ()>
     Ok(())
 }
 
-/// Classifies one decoded userinfo component by its semantic field name.
+/// Validates `raw` and records the policy decision for `field` in `session`.
+///
+/// Returns success after observation, or value-free `Err(())` for malformed
+/// percent escapes or decoded non-UTF-8 bytes before observing the field.
 fn inspect_named_component(session: &mut InspectionSession, field: &str, raw: &str) -> Result<(), ()> {
     let _ = decode_uri_component(raw)?;
     if let ResolvedField::Sensitive { sensitivity } = session.policy().resolve_field(field) {

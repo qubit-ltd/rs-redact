@@ -200,6 +200,21 @@ impl RedactionPolicy {
     }
 
     /// Creates a policy from fully resolved field rules and resource limits.
+    ///
+    /// # Parameters
+    ///
+    /// - `rules`: Validated application classification and minimum floors.
+    /// - `masking`: One mask table shared by all sensitivity decisions.
+    /// - `limits`: Validated ceilings copied into each new transaction.
+    /// - `http`: HTTP context policy, when the `http` feature is enabled.
+    /// - `uri`: URI component policy, when the `uri` feature is enabled.
+    /// - `unkeyed_json_value_policy`: Root/array scalar handling with `json`.
+    /// - `disabled`: Whether to restore source values while retaining limits.
+    ///
+    /// # Returns
+    ///
+    /// An owned policy sharing the immutable masking and format configuration.
+    /// This internal constructor assumes its inputs were already validated.
     #[must_use]
     pub(crate) fn from_rules(
         rules: RedactionRules,
@@ -338,7 +353,7 @@ impl RedactionPolicy {
         self.rules.application_allow_rules()
     }
 
-    /// Changes the global redaction switch and returns this policy for
+    /// Changes this policy’s redaction switch and returns this policy for
     /// chaining.
     ///
     /// # Warning

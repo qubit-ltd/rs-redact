@@ -26,6 +26,7 @@ use crate::formats::http::BodyCapture;
 use crate::runtime::BatchSession;
 use crate::runtime::RedactionHandle;
 
+/// Escaped at publication when callers choose the default diagnostic finish.
 const DEFAULT_DIAGNOSTIC_MARKER: &str = "<redaction incomplete>";
 
 /// Accumulates independently resolvable redaction items under one budget.
