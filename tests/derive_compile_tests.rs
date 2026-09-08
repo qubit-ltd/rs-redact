@@ -30,7 +30,7 @@ fn test_pass_fixtures() {
     tests.pass("tests/fixtures/pass/serde_wire_shape.rs");
     tests.pass("tests/fixtures/pass/generic_grouped_bounds.rs");
     tests.pass("tests/fixtures/pass/keyed_by.rs");
-    tests.pass("tests/fixtures/fail/view_without_serde.rs");
+    tests.pass("tests/fixtures/pass/view_without_serde.rs");
     #[cfg(feature = "json")]
     tests.pass("tests/fixtures/pass/json_string_variants.rs");
 }

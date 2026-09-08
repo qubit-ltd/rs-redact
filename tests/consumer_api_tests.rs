@@ -1,3 +1,10 @@
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 //! Consumer-facing view, text, and structured serialization contracts.
 
 #![cfg(all(feature = "derive", feature = "serde", feature = "json"))]
@@ -9,14 +16,18 @@ use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 
+/// A source using redacted serialization.
 #[derive(Redact)]
 #[redact(serde)]
 struct Login {
+    /// The unmarked user name.
     user: String,
+    /// The secret credential.
     #[redact(level = "secret")]
     password: String,
 }
 
+/// A source retaining its ordinary business serialization.
 #[derive(Redact, serde::Serialize)]
 struct StandardSerdeLogin {
     user: String,
@@ -24,6 +35,8 @@ struct StandardSerdeLogin {
     password: String,
 }
 
+/// A view redacts independently of the source’s ordinary Serialize
+/// implementation.
 #[test]
 fn test_view_redacts_without_replacing_standard_serde() {
     let login = StandardSerdeLogin {
@@ -40,6 +53,7 @@ fn test_view_redacts_without_replacing_standard_serde() {
     );
 }
 
+/// Text and structured consumers share the same redacted view contract.
 #[test]
 fn test_view_serializes_with_redacted_structure() {
     let login = Login {
@@ -59,26 +73,35 @@ fn test_view_serializes_with_redacted_structure() {
     assert_eq!(format!("{view:?}"), format!("{view}"));
 }
 
-struct Observed(Cell<usize>);
+/// Counts source traversal to expose eager or cached rendering.
+struct Observed(
+    /// The number of completed source traversals.
+    Cell<usize>,
+);
 
 impl Redact for Observed {
+    /// Records one traversal and writes its observed count.
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
-        self.0.set(self.0.get() + 1);
+        let Self(calls) = self;
+        calls.set(calls.get() + 1);
         writer.record("Observed", |fields| {
-            fields.unmarked("calls", || self.0.get());
+            fields.unmarked("calls", || calls.get());
         });
     }
 }
 
+/// Each rendering traverses the source once, with no eager or cached traversal.
 #[test]
 fn test_view_is_lazy_and_each_render_starts_from_the_source() {
     let value = Observed(Cell::new(0));
     let view = Redactor::standard().redact_view(&value);
-    assert_eq!(value.0.get(), 0);
+    let Observed(calls) = &value;
+    assert_eq!(calls.get(), 0);
     assert!(format!("{view}").contains('1'));
     assert!(format!("{view}").contains('2'));
 }
 
+/// A captured view keeps its policy when the application default changes.
 #[test]
 fn test_view_retains_policy_after_application_default_replacement() {
     let login = Login {
@@ -92,6 +115,7 @@ fn test_view_retains_policy_after_application_default_replacement() {
     assert_eq!(rendered.expect("snapshot serialization")["password"], "<redacted>");
 }
 
+/// A source borrowing parsed JSON without replacing the original value.
 #[derive(Redact)]
 #[redact(serde)]
 struct JsonDocument<'a> {
@@ -101,6 +125,7 @@ struct JsonDocument<'a> {
     optional: Option<serde_json::Value>,
 }
 
+/// Parsed JSON traversal preserves public structure and the original source.
 #[test]
 fn test_derive_parsed_json_keeps_structure_and_source() {
     let source = serde_json::json!({"password":"raw-secret","public":[1,2]});
@@ -117,21 +142,26 @@ fn test_derive_parsed_json_keeps_structure_and_source() {
     assert_eq!(source["password"], "raw-secret");
 }
 
+/// A source serializer that deliberately returns an error.
 #[derive(Debug)]
 struct RefusesSerialization;
 
 impl serde::Serialize for RefusesSerialization {
+    /// Returns the deliberate source error for every destination.
     fn serialize<S: serde::Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
         Err(serde::ser::Error::custom("consumer serializer refused"))
     }
 }
 
+/// An event propagating an error from an unmarked field.
 #[derive(Redact)]
 #[redact(serde)]
 struct FailedEvent {
     payload: RefusesSerialization,
 }
 
+/// Source and budget errors propagate without leaving an active thread-local
+/// scope.
 #[test]
 fn test_json_convenience_propagates_source_and_budget_errors() {
     let error = Redactor::standard()

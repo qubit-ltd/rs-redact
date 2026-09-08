@@ -1,3 +1,10 @@
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 //! Explicit third-party Display adaptation is lazy and policy-aware.
 #![cfg(feature = "derive")]
 
@@ -14,6 +21,7 @@ struct External<'a> {
 }
 
 impl fmt::Display for External<'_> {
+    /// Records a call and writes a fixed payload; propagates formatter errors.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.calls.set(self.calls.get() + 1);
         f.write_str("abcdef")
@@ -34,6 +42,8 @@ struct Low<T> {
     value: T,
 }
 
+/// Opaque masks avoid Display, while disabled output calls it once per
+/// execution.
 #[test]
 fn test_display_is_not_called_for_opaque_masks() {
     let calls = Cell::new(0);
@@ -48,7 +58,7 @@ fn test_display_is_not_called_for_opaque_masks() {
             .contains("<redacted>")
     );
     assert_eq!(calls.get(), 0);
-    #[cfg(all(feature = "serde", feature = "json"))]
+    #[cfg(feature = "json")]
     {
         assert_eq!(
             Redactor::standard().to_json(&value).expect("opaque JSON"),
@@ -59,7 +69,7 @@ fn test_display_is_not_called_for_opaque_masks() {
     let disabled = Redactor::new(RedactionPolicy::disabled());
     assert!(disabled.redact_text(&value).text().as_str().contains("abcdef"));
     assert_eq!(calls.get(), 1);
-    #[cfg(all(feature = "serde", feature = "json"))]
+    #[cfg(feature = "json")]
     {
         assert_eq!(
             disabled.to_json(&value).expect("Display string JSON"),
@@ -69,6 +79,7 @@ fn test_display_is_not_called_for_opaque_masks() {
     }
 }
 
+/// An explicit Low level remains final under the strict runtime policy.
 #[test]
 fn test_display_low_level_is_final_even_under_strict_policy() {
     let calls = Cell::new(0);
@@ -85,6 +96,8 @@ fn test_display_low_level_is_final_even_under_strict_policy() {
     assert_eq!(calls.get(), 1);
 }
 
+/// Rejected Display input produces a safe replacement within the configured
+/// budget.
 #[test]
 fn test_display_respects_input_budget_without_unbounded_capture() {
     let calls = Cell::new(0);
@@ -101,13 +114,14 @@ fn test_display_respects_input_budget_without_unbounded_capture() {
     let redactor = Redactor::new(policy);
     let output = redactor.redact_text(&value);
     assert!(!output.text().as_str().contains("abcdef"));
-    #[cfg(all(feature = "serde", feature = "json"))]
+    #[cfg(feature = "json")]
     {
         let json = redactor.to_json(&value).expect("bounded replacement");
         assert_eq!(json, r#"{"value":"<redacted>"}"#);
     }
 }
 
+/// One-shot and batch paths reject oversized keys before accessing the value.
 #[test]
 fn test_scalar_field_admits_key_and_input_before_rendering() {
     let policy = RedactionPolicy::builder()

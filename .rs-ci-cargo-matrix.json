@@ -44,10 +44,157 @@
     },
     {
       "name": "http-uri",
-      "commands": ["check", "test", "doc"],
+      "commands": ["check", "test", "doc", "clippy"],
       "packages": ["qubit-redact"],
       "defaultFeatures": false,
       "features": ["http", "uri"]
+    },
+    {
+      "name": "derive-core",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["derive"]
+    },
+    {
+      "name": "derive-serde",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["derive", "serde"]
+    },
+    {
+      "name": "derive-json",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["derive", "json"]
+    },
+    {
+      "name": "derive-http",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["derive", "http"]
+    },
+    {
+      "name": "derive-uri",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["derive", "uri"]
+    },
+    {
+      "name": "bigdecimal",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["bigdecimal"]
+    },
+    {
+      "name": "derive-bigdecimal",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["derive", "bigdecimal"]
+    },
+    {
+      "name": "bigdecimal-uri",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["bigdecimal", "uri"]
+    },
+    {
+      "name": "derive-bigdecimal-uri",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["derive", "bigdecimal", "uri"]
+    },
+    {
+      "name": "serde-uri",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["serde", "uri"]
+    },
+    {
+      "name": "serde-derive-uri",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["serde", "derive", "uri"]
+    },
+    {
+      "name": "json-uri",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["json", "uri"]
+    },
+    {
+      "name": "json-bigdecimal",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["json", "bigdecimal"]
+    },
+    {
+      "name": "json-bigdecimal-uri",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["json", "bigdecimal", "uri"]
+    },
+    {
+      "name": "json-derive-uri",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["json", "derive", "uri"]
+    },
+    {
+      "name": "json-derive-bigdecimal",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["json", "derive", "bigdecimal"]
+    },
+    {
+      "name": "json-derive-bigdecimal-uri",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["json", "derive", "bigdecimal", "uri"]
+    },
+    {
+      "name": "http-bigdecimal",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["http", "bigdecimal"]
+    },
+    {
+      "name": "http-bigdecimal-uri",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["http", "bigdecimal", "uri"]
+    },
+    {
+      "name": "http-derive-uri",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["http", "derive", "uri"]
+    },
+    {
+      "name": "http-derive-bigdecimal",
+      "commands": ["check", "test", "doc", "clippy"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["http", "derive", "bigdecimal"]
     },
     {
       "name": "all-root",

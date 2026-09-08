@@ -7,10 +7,14 @@
 // =============================================================================
 //! Compile-time regression tests for the sealed map field boundary.
 
+mod support;
+
 use std::env;
 use std::fs;
 use std::process;
 use std::process::Command;
+
+use support::compile_diagnostics::source_error_matches;
 
 /// Verifies arbitrary pair iterators cannot bypass `RedactMapValue`.
 #[test]
@@ -49,15 +53,19 @@ fn main() {}
     .expect("temporary source");
 
     let output = Command::new(env!("CARGO"))
-        .args(["check", "--offline"])
+        .args(["check", "--offline", "--message-format=json"])
         .current_dir(&directory)
         .output()
         .expect("cargo check for temporary dependent crate");
-    let diagnostics = String::from_utf8_lossy(&output.stderr);
+    let diagnostics = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stderr),
+        String::from_utf8_lossy(&output.stdout)
+    );
 
     assert!(!output.status.success(), "Vec pairs must not be a supported map field");
     assert!(
-        diagnostics.contains("map"),
+        source_error_matches(&output.stdout, "RedactMapValue", Some("E0277")),
         "compiler diagnostics must identify the rejected map call: {diagnostics}",
     );
     fs::remove_dir_all(directory).expect("temporary dependent crate cleanup");
