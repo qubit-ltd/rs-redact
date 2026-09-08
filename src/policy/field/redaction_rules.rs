@@ -114,6 +114,17 @@ impl RedactionRules {
         self
     }
 
+    /// Adds a floor without weakening an existing floor.
+    #[must_use]
+    #[inline(always)]
+    pub fn add_floor(mut self, floor: RedactionFloor) -> Self {
+        self.floor = Some(match self.floor.take() {
+            Some(existing) => existing.combine(&floor),
+            None => floor,
+        });
+        self
+    }
+
     /// Disables all floor protection for this rules snapshot.
     ///
     /// # Security

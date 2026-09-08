@@ -370,6 +370,14 @@ impl RedactionPolicy {
         self
     }
 
+    /// Adds mandatory minimum protection while retaining existing floor rules.
+    #[must_use]
+    #[inline(always)]
+    pub fn add_floor(mut self, floor: RedactionFloor) -> Self {
+        self.rules = self.rules.add_floor(floor);
+        self
+    }
+
     /// Disables every floor for this immutable policy.
     ///
     /// # Security

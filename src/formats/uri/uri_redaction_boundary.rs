@@ -38,7 +38,7 @@ impl UriRedactionBoundary {
     pub fn new(application: &RedactionPolicy) -> Self {
         let mut policy = application.clone();
         let _ = policy.set_disabled(false);
-        policy = policy.with_floor(crate::policy::RedactionFloor::standard());
+        policy = policy.add_floor(crate::policy::RedactionFloor::standard());
         policy = policy.with_masking(RedactionPolicy::standard().masking().clone());
         Self { policy }
     }

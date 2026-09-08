@@ -11,9 +11,11 @@ use std::fmt;
 use std::sync::Arc;
 use std::sync::LazyLock;
 
+use super::FieldNameMatching;
 use super::RedactionFloorBuilder;
 use super::SensitiveFieldPreset;
 use super::SensitiveFieldRule;
+use super::UnknownFieldPolicy;
 use crate::policy::internal::RedactionPolicyInner;
 
 /// Immutable minimum field-protection rules.
@@ -87,6 +89,44 @@ impl RedactionFloor {
     #[inline(always)]
     pub fn to_builder(&self) -> RedactionFloorBuilder {
         RedactionFloorBuilder::from_floor(self)
+    }
+
+    /// Combines two floors by retaining the strongest classification for every
+    /// canonical field. This is used when a format boundary adds mandatory
+    /// protection to an application policy.
+    #[must_use]
+    pub(crate) fn combine(&self, other: &Self) -> Self {
+        let mut sensitive = self.inner.sensitive.clone();
+        for (field, level) in &other.inner.sensitive {
+            sensitive
+                .entry(field.clone())
+                .and_modify(|current| *current = (*current).max(*level))
+                .or_insert(*level);
+        }
+        let unknown = match (
+            self.inner.unknown_field_policy.sensitivity(),
+            other.inner.unknown_field_policy.sensitivity(),
+        ) {
+            (Some(left), Some(right)) => Some(left.max(right)),
+            (Some(level), None) | (None, Some(level)) => Some(level),
+            (None, None) => None,
+        };
+        let unknown_field_policy = unknown.map_or(UnknownFieldPolicy::PassThrough, UnknownFieldPolicy::Redact);
+        Self {
+            inner: std::sync::Arc::new(RedactionPolicyInner {
+                sensitive,
+                allow_exact: Default::default(),
+                allow_suffix: Default::default(),
+                matching: if self.inner.matching == FieldNameMatching::ExactOrTokenSuffix
+                    || other.inner.matching == FieldNameMatching::ExactOrTokenSuffix
+                {
+                    FieldNameMatching::ExactOrTokenSuffix
+                } else {
+                    FieldNameMatching::Exact
+                },
+                unknown_field_policy,
+            }),
+        }
     }
 }
 
