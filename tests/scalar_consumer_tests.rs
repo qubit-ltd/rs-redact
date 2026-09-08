@@ -1,3 +1,10 @@
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 //! Scalar newtypes preserve their underlying representation without trait
 //! takeover.
 #![cfg(feature = "derive")]
@@ -34,6 +41,8 @@ struct Record {
     ids: Option<Vec<Id>>,
 }
 
+/// Scalar wrappers retain native disabled values and mask without ordinary
+/// trait derives.
 #[test]
 fn test_scalar_newtypes_do_not_require_debug_or_serialize() {
     let _generic = NamedGeneric { inner: Id(8) };
@@ -51,7 +60,7 @@ fn test_scalar_newtypes_do_not_require_debug_or_serialize() {
     let text = disabled.redact_text(&value);
     assert!(text.text().as_str().contains("raw-user"));
     assert!(text.text().as_str().contains("42"));
-    #[cfg(all(feature = "serde", feature = "json"))]
+    #[cfg(feature = "serde")]
     {
         let json = serde_json::to_value(disabled.redact_view(&value)).expect("disabled scalar serialization");
         assert_eq!(json, serde_json::json!({"id":42,"user":"raw-user","ids":[7]}));

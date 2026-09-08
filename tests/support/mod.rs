@@ -8,4 +8,6 @@
 //! Shared support for black-box derive tests.
 
 pub mod assertions;
+#[allow(dead_code)]
+pub mod compile_diagnostics;
 pub mod isolated_cargo;

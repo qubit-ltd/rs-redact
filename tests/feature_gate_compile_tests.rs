@@ -7,10 +7,14 @@
 // =============================================================================
 //! Compile-time regression tests for optional format APIs.
 
+mod support;
+
 use std::env;
 use std::fs;
 use std::process;
 use std::process::Command;
+
+use support::compile_diagnostics::source_error_matches;
 
 /// Verifies that a separately compiled no-feature dependent crate cannot use
 /// a format entry point that is unavailable without its feature.
@@ -32,15 +36,19 @@ fn assert_format_api_is_feature_gated(method: &str) {
     .expect("the temporary source should be writable");
 
     let output = Command::new(env!("CARGO"))
-        .args(["check", "--offline"])
+        .args(["check", "--offline", "--message-format=json"])
         .current_dir(&directory)
         .output()
         .expect("cargo check for the temporary dependent crate should run");
-    let diagnostics = String::from_utf8_lossy(&output.stderr);
+    let diagnostics = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stderr),
+        String::from_utf8_lossy(&output.stdout)
+    );
 
     assert!(!output.status.success(), "{method} must require its feature");
     assert!(
-        diagnostics.contains(method),
+        source_error_matches(&output.stdout, method, Some("E0599")),
         "the compiler diagnostics must name {method}: {diagnostics}"
     );
     fs::remove_dir_all(directory).expect("the temporary dependent crate directory should be removable");
@@ -69,7 +77,7 @@ fn check_derive_dependency(case: &str, dependency_options: &str) -> std::process
     .expect("the temporary source should be writable");
 
     let output = Command::new(env!("CARGO"))
-        .args(["check", "--offline"])
+        .args(["check", "--offline", "--message-format=json"])
         .current_dir(&directory)
         .output()
         .expect("cargo check for the temporary dependent crate should run");
@@ -79,21 +87,21 @@ fn check_derive_dependency(case: &str, dependency_options: &str) -> std::process
 
 /// JSON methods must not leak from the default feature surface.
 #[test]
-fn json_api_is_unavailable_without_the_json_feature() {
+fn test_json_api_is_unavailable_without_the_json_feature() {
     assert_format_api_is_feature_gated("redact_json");
     assert_format_api_is_feature_gated("inspect_json");
 }
 
 /// HTTP methods must not leak from the default feature surface.
 #[test]
-fn http_api_is_unavailable_without_the_http_feature() {
+fn test_http_api_is_unavailable_without_the_http_feature() {
     assert_format_api_is_feature_gated("redact_http_url");
     assert_format_api_is_feature_gated("inspect_http_url");
 }
 
 /// URI methods must not leak from the default feature surface.
 #[test]
-fn uri_api_is_unavailable_without_the_uri_feature() {
+fn test_uri_api_is_unavailable_without_the_uri_feature() {
     assert_format_api_is_feature_gated("redact_uri");
     assert_format_api_is_feature_gated("inspect_uri");
 }
@@ -106,21 +114,32 @@ fn test_default_features_hide_the_redact_derive() {
         !output.status.success(),
         "default dependency must not export the derive macro",
     );
-    let diagnostics = String::from_utf8_lossy(&output.stderr);
-    assert!(diagnostics.contains("derive macro") && diagnostics.contains("Redact"));
+    let diagnostics = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stderr),
+        String::from_utf8_lossy(&output.stdout)
+    );
+    assert!(
+        source_error_matches(&output.stdout, "cannot find derive macro `Redact`", None),
+        "{diagnostics}"
+    );
 }
 
 /// Disabling defaults removes the derive macro from the dependency surface.
 #[test]
 fn test_no_default_features_hide_the_redact_derive() {
     let output = check_derive_dependency("no-default", ", default-features = false");
-    let diagnostics = String::from_utf8_lossy(&output.stderr);
+    let diagnostics = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stderr),
+        String::from_utf8_lossy(&output.stdout)
+    );
     assert!(
         !output.status.success(),
         "no-default dependency must not export the derive macro"
     );
     assert!(
-        diagnostics.contains("derive macro") && diagnostics.contains("Redact"),
+        source_error_matches(&output.stdout, "cannot find derive macro `Redact`", None),
         "compiler diagnostics must identify the missing Redact derive: {diagnostics}",
     );
 }

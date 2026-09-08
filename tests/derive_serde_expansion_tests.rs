@@ -2,6 +2,8 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Executable wire-shape coverage for generated structured Serde support.
 
@@ -27,8 +29,9 @@ struct WireRecord {
     serde_hidden: String,
 }
 
+/// Explicit numeric sensitivity preserves structure and omits both skip modes.
 #[test]
-fn structured_serde_masks_numeric_leaves_as_strings_and_preserves_shape() {
+fn test_structured_serde_masks_numeric_leaves_as_strings_and_preserves_shape() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
     let previous = Redactor::replace_application_default(Redactor::standard());
     let encoded = serde_json::to_value(WireRecord {
@@ -48,8 +51,9 @@ fn structured_serde_masks_numeric_leaves_as_strings_and_preserves_shape() {
     let _ = Redactor::replace_application_default(previous);
 }
 
+/// Disabling redaction restores its skipped fields while retaining Serde skips.
 #[test]
-fn disabled_structured_serde_restores_redact_fields_but_not_serde_skips() {
+fn test_disabled_structured_serde_restores_redact_fields_but_not_serde_skips() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
     let previous = Redactor::replace_application_default(Redactor::new(RedactionPolicy::disabled()));
     let encoded = serde_json::to_value(WireRecord {

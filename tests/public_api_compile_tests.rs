@@ -7,27 +7,37 @@
 // =============================================================================
 //! Compile-time checks for the intentionally narrow public API surface.
 
+mod support;
+
 use std::env;
 use std::fs;
 use std::process;
 use std::process::Command;
 use std::process::Output;
 
+use support::compile_diagnostics::source_error_matches;
+
 /// Compiles one isolated dependent crate against the current source tree.
-fn check_dependent(case: &str, source: &str) -> Output {
+///
+/// Writes the supplied `source` into an isolated crate for `case`, enables
+/// `features` on its runtime dependency, and returns Cargo's JSON output.
+/// Blocks on Cargo and removes the temporary crate before returning. Panics if
+/// filesystem operations or spawning Cargo fail.
+fn check_dependent(case: &str, source: &str, features: &[&str]) -> Output {
     let directory = env::temp_dir().join(format!("qubit-redact-public-api-{}-{case}", process::id()));
     fs::create_dir_all(directory.join("src")).expect("the dependent source directory should be creatable");
     fs::write(
         directory.join("Cargo.toml"),
         format!(
-            "[package]\nname = \"qubit-redact-public-api-{case}\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\nqubit-redact = {{ path = \"{}\", features = [\"json\"] }}\n",
+            "[package]\nname = \"qubit-redact-public-api-{case}\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\nqubit-redact = {{ path = \"{}\", features = {} }}\n",
             env!("CARGO_MANIFEST_DIR"),
+            serde_json::to_string(features).expect("feature list serialization"),
         ),
     )
     .expect("the dependent manifest should be writable");
     fs::write(directory.join("src/main.rs"), source).expect("the dependent source should be writable");
     let output = Command::new(env!("CARGO"))
-        .args(["check", "--offline"])
+        .args(["check", "--offline", "--message-format=json"])
         .current_dir(&directory)
         .output()
         .expect("cargo check for the dependent crate should run");
@@ -37,11 +47,15 @@ fn check_dependent(case: &str, source: &str) -> Output {
 
 /// Asserts an intentionally removed API cannot be named by a dependent crate.
 fn assert_rejected(case: &str, source: &str, expected_diagnostic: &str) {
-    let output = check_dependent(case, source);
-    let diagnostics = String::from_utf8_lossy(&output.stderr);
+    let output = check_dependent(case, source, &["json"]);
+    let diagnostics = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stderr),
+        String::from_utf8_lossy(&output.stdout)
+    );
     assert!(!output.status.success(), "the removed {case} API must not compile",);
     assert!(
-        diagnostics.contains(expected_diagnostic),
+        source_error_matches(&output.stdout, expected_diagnostic, None),
         "the {case} diagnostics must mention {expected_diagnostic}: {diagnostics}",
     );
 }
@@ -92,7 +106,7 @@ fn test_legacy_batch_finish_method_is_not_public() {
             "use qubit_",
             "redact::{Redactor};\nfn main() { let batch = Redactor::strict().diagnostic_batch(); let _ = batch.finish_for_diagnostics(\"<incomplete>\"); }\n"
         ),
-        "finish",
+        "finish_for_diagnostics",
     );
 }
 
@@ -221,4 +235,39 @@ fn main() {}
 "#,
         "unredacted",
     );
+}
+
+/// Scalar derives reject containers regardless of the optional BigDecimal leaf.
+#[test]
+fn test_scalar_derive_rejects_collection_fields() {
+    for features in [&["derive"][..], &["derive", "bigdecimal"][..]] {
+        let accepted = check_dependent(
+            "scalar-positive",
+            concat!(
+                "use qubit_",
+                "redact::RedactScalar;\n#[derive(RedactScalar)] struct Scalar(u64); fn main() {}"
+            ),
+            features,
+        );
+        assert!(
+            accepted.status.success(),
+            "scalar positive control: {}",
+            String::from_utf8_lossy(&accepted.stderr)
+        );
+        let rejected = check_dependent(
+            "scalar-collection",
+            concat!(
+                "use qubit_",
+                "redact::RedactScalar;\n#[derive(RedactScalar)] struct Collection(Vec<u64>); fn main() {}"
+            ),
+            features,
+        );
+        assert!(!rejected.status.success(), "collections are not scalar leaves");
+        assert!(
+            source_error_matches(&rejected.stdout, "Vec<u64>: RedactScalar", Some("E0277")),
+            "expected scalar capability rejection: {}\n{}",
+            String::from_utf8_lossy(&rejected.stderr),
+            String::from_utf8_lossy(&rejected.stdout),
+        );
+    }
 }

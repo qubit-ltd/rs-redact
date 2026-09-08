@@ -1,25 +1,25 @@
 error: Redact derive for `Missing` field `value`: `display` requires an explicit `level` and cannot be combined with another mode
- --> tests/fixtures/fail/display_adapter.rs:4:5
-  |
-4 | /     #[redact(display)]
-5 | |     value: String,
-  | |_________________^
+  --> tests/fixtures/fail/display_adapter.rs:11:5
+   |
+11 | /     #[redact(display)]
+12 | |     value: String,
+   | |_________________^
 
 error: Redact derive for `Conflicting` field `value`: `display` requires an explicit `level` and cannot be combined with another mode
-  --> tests/fixtures/fail/display_adapter.rs:9:5
+  --> tests/fixtures/fail/display_adapter.rs:16:5
    |
- 9 | /     #[redact(nested, display)]
-10 | |     value: String,
+16 | /     #[redact(nested, display)]
+17 | |     value: String,
    | |_________________^
 
 error: duplicate `display` field adapter
-  --> tests/fixtures/fail/display_adapter.rs:14:41
+  --> tests/fixtures/fail/display_adapter.rs:21:41
    |
-14 |     #[redact(level = "secret", display, display)]
+21 |     #[redact(level = "secret", display, display)]
    |                                         ^^^^^^^
 
 error: Redact derive for `Removed` has unknown container attribute; use `debug`, `display`, `serde`, `transparent`, or `crate = path`
-  --> tests/fixtures/fail/display_adapter.rs:18:10
+  --> tests/fixtures/fail/display_adapter.rs:25:10
    |
-18 | #[redact(serialize)]
+25 | #[redact(serialize)]
    |          ^^^^^^^^^

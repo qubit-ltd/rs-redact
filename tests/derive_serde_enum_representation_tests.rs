@@ -2,6 +2,8 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Runtime wire-shape coverage for every supported Serde enum representation.
 
@@ -57,8 +59,9 @@ enum Untagged {
     },
 }
 
+/// Checks all four Serde enum representations under the application policy.
 #[test]
-fn all_enum_representations_preserve_their_serde_wire_shape() {
+fn test_all_enum_representations_preserve_their_serde_wire_shape() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
     let previous = Redactor::replace_application_default(Redactor::standard());
 
