@@ -12,6 +12,24 @@ use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
 use qubit_redact::Redactor;
 
+/// Input rejection must never let a URI prefix change password syntax into a
+/// port and publish it as ordinary text.
+#[test]
+fn test_uri_input_limit_never_reinterprets_userinfo_password_as_port() {
+    let policy = RedactionPolicy::standard()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_input_bytes("https://alice:1234".len());
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let uri = "https://alice:1234@example.test/";
+    let output = Redactor::new(policy).redact_uri(uri);
+    assert!(!output.text().as_str().contains("1234"));
+    assert!(output.summary().reasons().contains(RedactionReason::InputLimitReached));
+}
+
 /// Strict URI rendering and inspection both protect non-root paths.
 #[test]
 fn test_strict_uri_path_protection_matches_http() {

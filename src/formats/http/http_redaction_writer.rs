@@ -68,12 +68,19 @@ impl<'session> HttpRedactionWriter<'session> {
     ///
     /// This writer after recording safe output and diagnostic facts.
     pub fn url(&mut self, value: &str) -> &mut Self {
-        if self.session.skip_aggregate_for_exhausted_output() || !self.session.admit_format_node(1) {
+        if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        let input_was_empty = value.is_empty();
-        let value = self.session.admit_input_prefix(value);
-        if value.is_empty() && !input_was_empty {
+        if !self.session.admit_input(value.len()) {
+            self.session.append_rendered_operation(
+                OperationSink::truncated("<truncated>", crate::RedactionReason::InputLimitReached).finish(),
+            );
+            return self;
+        }
+        if !self.session.admit_format_node(1) {
+            self.session.append_rendered_operation(
+                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
+            );
             return self;
         }
         if !admit_url_structure(self.session, value) {

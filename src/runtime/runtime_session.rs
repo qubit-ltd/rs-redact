@@ -557,26 +557,6 @@ pub(crate) trait RuntimeSession {
         self.runtime_mut().record_input_usage(presented, inspected);
     }
 
-    /// Admits the UTF-8 prefix that fits the shared input budget.
-    ///
-    /// # Parameters
-    ///
-    /// - `text`: Raw UTF-8 text whose complete length is presented.
-    ///
-    /// # Returns
-    ///
-    /// The longest valid UTF-8 prefix within the remaining input allowance.
-    ///
-    /// # Type Parameters
-    ///
-    /// - `'text`: Borrow of the input retained by the returned prefix.
-    #[cfg(any(feature = "json", feature = "http", feature = "uri"))]
-    #[must_use]
-    #[inline(always)]
-    fn admit_input_prefix<'text>(&mut self, text: &'text str) -> &'text str {
-        self.runtime_mut().admit_input_prefix(text)
-    }
-
     /// Admits a captured source whose complete length may be unknown.
     ///
     /// # Parameters

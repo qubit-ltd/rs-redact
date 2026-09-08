@@ -7,9 +7,28 @@
 // =============================================================================
 //! Tests for nested URL redaction limits.
 
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionReason;
 use qubit_redact::Redactor;
 
 use crate::http::support::redaction::redact_url;
+
+/// Input rejection must happen before URL parsing, otherwise a truncated
+/// userinfo password can be reinterpreted as a port.
+#[test]
+fn test_url_input_limit_never_reinterprets_userinfo_password_as_port() {
+    let policy = RedactionPolicy::standard()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_input_bytes("https://alice:1234".len());
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let output = Redactor::new(policy).redact_http_url("https://alice:1234@example.test/");
+    assert!(!output.text().as_str().contains("1234"));
+    assert!(output.summary().reasons().contains(RedactionReason::InputLimitReached));
+}
 /// Verifies excessive nested URL recursion fails closed without exposing
 /// secrets.
 #[test]
