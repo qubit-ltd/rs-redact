@@ -7,6 +7,7 @@
 // =============================================================================
 //! Tests for nested URL redaction limits.
 
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
 use qubit_redact::Redactor;
@@ -55,4 +56,24 @@ fn test_url_rules_limit_nested_url_recursion() {
         "unexpected redaction: {}",
         rendered,
     );
+}
+
+/// Strict HTTP redaction applies the path policy to opaque URLs as well.
+#[test]
+fn test_strict_url_path_policy_redacts_opaque_url_paths() {
+    let redactor = Redactor::strict();
+
+    for url in ["mailto:private@example.com", "data:text/plain,raw-secret"] {
+        let output = redactor.redact_http_url(url);
+
+        assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+        assert!(!output.text().as_str().contains("private@example.com"), "{url}");
+        assert!(!output.text().as_str().contains("raw-secret"), "{url}");
+        assert!(
+            redactor
+                .inspect_http_url(url)
+                .expect("valid opaque URL")
+                .contains_sensitive()
+        );
+    }
 }
