@@ -168,8 +168,7 @@ cargo test
 # Run tests with all declared features
 cargo test --all-features
 
-# Format and run the complete project CI checks, including the feature matrix
-./align-ci.sh
+# Project CI checks
 ./ci-check.sh
 
 # Check code coverage

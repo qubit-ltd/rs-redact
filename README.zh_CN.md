@@ -147,8 +147,8 @@ disabled 是恢复原值的调试选项；库不擦除源对象，也不保护�
 ## 延伸阅读
 
 完整的 feature 配置、属性和类型支持表、策略优先级、HTTP 与 batch 场景见
-[中文用户手册](doc/user_guide.zh_CN.md)和[英文用户手册](doc/user_guide.md)。
-另见 [derive 说明](derive/README.zh_CN.md)与 [API 文档](https://docs.rs/qubit-redact)。
+[中文用户手册](doc/user_guide.zh_CN.md) 和 [英文用户手册](doc/user_guide.md)。
+另见 [derive 说明](derive/README.zh_CN.md) 与 [API 文档](https://docs.rs/qubit-redact)。
 
 ## 测试
 
@@ -159,8 +159,7 @@ cargo test
 # 使用项目声明的全部 feature 运行测试
 cargo test --all-features
 
-# 格式化并运行完整项目 CI 检查（含 feature 矩阵）
-./align-ci.sh
+# 运行项目 CI 检查
 ./ci-check.sh
 
 # 检查代码覆盖率

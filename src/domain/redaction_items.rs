@@ -15,6 +15,27 @@ use crate::domain::RedactLevelValue;
 use crate::domain::RedactionWriter;
 
 /// Provides bounded redaction operations for sequence-like domain values.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::{Redact, RedactionWriter, Redactor, Sensitivity};
+///
+/// struct Tokens;
+///
+/// impl Redact for Tokens {
+///     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+///         writer.sequence(|items| {
+///             items.for_each(["raw-secret"], |items, value| {
+///                 items.sensitive_item(Sensitivity::Secret, || value);
+///             });
+///         });
+///     }
+/// }
+///
+/// let output = Redactor::standard().redact_text(&Tokens);
+/// assert!(!output.text().as_str().contains("raw-secret"));
+/// ```
 pub struct RedactionItems<'writer, 'session> {
     /// Domain writer receiving sequence items.
     pub(super) writer: &'writer mut RedactionWriter<'session>,
