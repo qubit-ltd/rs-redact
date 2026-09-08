@@ -70,7 +70,11 @@ impl HttpPolicyExecutor<'_> {
         let _ = writer.write_str(url.scheme());
         let _ = writer.write_str(":");
         if url.cannot_be_a_base() {
-            let _ = writer.write_str(url.path());
+            if self.policy.http().url_path_policy() == UrlPathPolicy::Redact && !url.path().is_empty() {
+                let _ = writer.write_str("<redacted>");
+            } else {
+                let _ = writer.write_str(url.path());
+            }
             self.write_url_query(&mut writer, url, depth);
             self.write_url_fragment(&mut writer, url);
             return writer.finish();
