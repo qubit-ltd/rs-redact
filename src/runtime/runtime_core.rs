@@ -477,35 +477,6 @@ impl RuntimeCore {
         }
     }
 
-    /// Admits the UTF-8 prefix that fits in the remaining input allowance.
-    ///
-    /// # Parameters
-    ///
-    /// - `text`: Raw UTF-8 text whose complete length is presented.
-    ///
-    /// # Returns
-    ///
-    /// The longest valid UTF-8 prefix within the remaining input allowance.
-    ///
-    /// # Type Parameters
-    ///
-    /// - `'text`: Borrow of the input retained by the returned prefix.
-    #[cfg(any(feature = "json", feature = "http", feature = "uri"))]
-    #[must_use]
-    pub(super) fn admit_input_prefix<'text>(&mut self, text: &'text str) -> &'text str {
-        let inspected = self.budget.usage().inspected_input_bytes();
-        let remaining = self.policy().limits().max_input_bytes().saturating_sub(inspected);
-        let mut admitted = text.len().min(remaining);
-        while admitted > 0 && !text.is_char_boundary(admitted) {
-            admitted -= 1;
-        }
-        self.budget.record_input(text.len(), admitted);
-        if admitted < text.len() {
-            self.record_summary(RedactionSummary::truncated(RedactionReason::InputLimitReached));
-        }
-        &text[..admitted]
-    }
-
     /// Charges HTTP source input while preserving capture truncation metadata.
     ///
     /// # Parameters

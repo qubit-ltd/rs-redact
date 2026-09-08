@@ -16,6 +16,7 @@ use super::http_redaction_writer::admit_body_structure;
 use super::http_redaction_writer::admit_url_structure;
 use super::http_redaction_writer::collect_admitted_headers;
 use crate::runtime::BatchSession;
+use crate::runtime::OperationSink;
 use crate::runtime::RedactionHandle;
 use crate::runtime::runtime_session::RuntimeSession;
 
@@ -24,13 +25,15 @@ pub(crate) fn redact_url(session: &mut BatchSession, value: &str) -> RedactionHa
     if session.is_output_exhausted() {
         return session.stage_exhausted_handle();
     }
-    if !session.admit_format_node(1) {
-        return session.stage_accounted_text(String::new());
+    if !session.admit_input(value.len()) {
+        return session.stage_rendered_operation(
+            OperationSink::truncated("<truncated>", crate::RedactionReason::InputLimitReached).finish(),
+        );
     }
-    let input_was_empty = value.is_empty();
-    let value = session.admit_input_prefix(value);
-    if value.is_empty() && !input_was_empty {
-        return session.stage_accounted_text(String::new());
+    if !session.admit_format_node(1) {
+        return session.stage_rendered_operation(
+            OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
+        );
     }
     if !admit_url_structure(session, value) {
         return session.stage_accounted_text("<truncated>");

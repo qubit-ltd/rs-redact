@@ -149,9 +149,11 @@ impl<'session> JsonRedactionWriter<'session> {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        let input_was_empty = text.is_empty();
-        let text = self.session.admit_input_prefix(text);
-        if text.is_empty() && !input_was_empty {
+        if !self.session.admit_input(text.len()) {
+            self.session.append_rendered_operation(
+                crate::runtime::OperationSink::truncated("<truncated>", crate::RedactionReason::InputLimitReached)
+                    .finish(),
+            );
             return self;
         }
         let result = if self.session.policy().is_disabled() {

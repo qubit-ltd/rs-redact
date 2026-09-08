@@ -65,9 +65,10 @@ impl<'session> UriRedactionWriter<'session> {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        let input_was_empty = value.is_empty();
-        let value = self.session.admit_input_prefix(value);
-        if value.is_empty() && !input_was_empty {
+        if !self.session.admit_input(value.len()) {
+            self.session.append_rendered_operation(
+                OperationSink::truncated("<truncated>", crate::RedactionReason::InputLimitReached).finish(),
+            );
             return self;
         }
         if !self.admit_uri_structure(value) {

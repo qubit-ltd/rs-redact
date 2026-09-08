@@ -23,10 +23,10 @@ pub(crate) fn redact_text(session: &mut BatchSession, text: &str) -> RedactionHa
     if session.is_output_exhausted() {
         return session.stage_exhausted_handle();
     }
-    let input_was_empty = text.is_empty();
-    let text = session.admit_input_prefix(text);
-    if text.is_empty() && !input_was_empty {
-        return session.stage_accounted_text(String::new());
+    if !session.admit_input(text.len()) {
+        return session.stage_rendered_operation(
+            crate::runtime::OperationSink::truncated("<truncated>", crate::RedactionReason::InputLimitReached).finish(),
+        );
     }
     let result = if session.policy().is_disabled() {
         passthrough_json_text_with_limit(text, session.remaining_output_bytes())
