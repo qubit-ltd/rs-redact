@@ -76,6 +76,8 @@ mod tests;
 
 pub use domain::Redact;
 pub use domain::RedactScalar;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use domain::RedactSerialize;
 pub use domain::RedactionWriter;
 pub use facade::DebugDisplay;
 pub use facade::DiagnosticRedactionBatch;

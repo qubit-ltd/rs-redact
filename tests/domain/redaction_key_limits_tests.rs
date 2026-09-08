@@ -49,7 +49,7 @@ impl Redact for KeyedInput<'_> {
                 entries.unredacted_entry(self.key, access);
             }),
             KeyPath::SensitiveEntry => writer.map(|entries| {
-                entries.sensitive_entry(Sensitivity::Low, self.key, access);
+                entries.sensitive_entry_at_least(Sensitivity::Low, self.key, access);
             }),
             KeyPath::NestedEntry => writer.map(|entries| {
                 entries.nested_entry(self.key, &Observed(self.accesses));

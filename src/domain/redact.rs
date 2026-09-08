@@ -42,7 +42,7 @@ use crate::domain::RedactionWriter;
 /// impl Redact for Login {
 ///     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
 ///         writer.record("Login", |fields| {
-///             fields.sensitive(Sensitivity::Secret, "password", || &self.password);
+///             fields.sensitive_at_least(Sensitivity::Secret, "password", || &self.password);
 ///         });
 ///     }
 /// }

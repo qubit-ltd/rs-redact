@@ -38,7 +38,7 @@ struct Child;
 impl RedactTrait for Child {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.record("Child", |fields| {
-            fields.sensitive(Sensitivity::Secret, "token", || "raw");
+            fields.sensitive_at_least(Sensitivity::Secret, "token", || "raw");
         });
     }
 }

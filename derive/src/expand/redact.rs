@@ -376,11 +376,11 @@ fn writer_field_call(
         }
         FieldMode::DisplayLevel(level) => {
             let level = level.runtime_tokens(runtime);
-            quote! { __fields.sensitive_value(#level, #field_name, &#runtime::domain::internal::DisplayValue::new(#value)); }
+            quote! { __fields.sensitive_value_exact(#level, #field_name, &#runtime::domain::internal::DisplayValue::new(#value)); }
         }
         FieldMode::Level(level) => {
             let level = level.runtime_tokens(runtime);
-            quote! { __fields.sensitive_value(#level, #field_name, #value); }
+            quote! { __fields.sensitive_value_exact(#level, #field_name, #value); }
         }
         FieldMode::Nested => quote! { __fields.nested(#field_name, #value); },
         FieldMode::Map => {

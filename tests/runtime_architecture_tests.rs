@@ -24,7 +24,7 @@ impl Redact for LazySecret<'_> {
     /// Writes one secret field through the field-specific capability.
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.record("LazySecret", |fields| {
-            fields.sensitive(Sensitivity::Secret, "password", || {
+            fields.sensitive_at_least(Sensitivity::Secret, "password", || {
                 self.0.set(true);
                 "raw-secret"
             });

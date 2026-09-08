@@ -20,6 +20,8 @@ mod redaction_fields;
 mod redaction_items;
 mod redaction_writer;
 
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use internal::RedactSerialize;
 pub use redact::Redact;
 #[cfg(feature = "json")]
 pub use redact_json_value::RedactJsonValue;

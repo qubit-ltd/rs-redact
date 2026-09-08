@@ -59,7 +59,7 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
     ///
     /// This method emits the accessed value without consulting field policy.
     /// Use it only for data independently established as safe to expose;
-    /// sensitive values must use [`Self::sensitive_entry`].
+    /// sensitive values must use [`Self::sensitive_entry_at_least`].
     pub fn unredacted_entry<T, F>(&mut self, name: &str, access: F) -> &mut Self
     where
         T: Debug,
@@ -81,7 +81,7 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
     }
 
     /// Writes one explicitly sensitive map entry.
-    pub fn sensitive_entry<T, F>(&mut self, level: Sensitivity, name: &str, access: F) -> &mut Self
+    pub fn sensitive_entry_at_least<T, F>(&mut self, level: Sensitivity, name: &str, access: F) -> &mut Self
     where
         T: Debug,
         F: FnOnce() -> T,

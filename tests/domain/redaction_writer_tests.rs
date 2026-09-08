@@ -44,7 +44,7 @@ impl Redact for ClassifiedMap<'_> {
     /// Exercises the level capability used by derive on map fields.
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.record("ClassifiedMap", |fields| {
-            fields.sensitive_value(Sensitivity::Secret, "values", &self.0);
+            fields.sensitive_value_exact(Sensitivity::Secret, "values", &self.0);
         });
     }
 }
@@ -85,7 +85,7 @@ impl Redact for SensitiveCollections {
             items.sensitive_item(Sensitivity::Secret, || "sequence-secret");
         });
         writer.map(|entries| {
-            entries.sensitive_entry(Sensitivity::Secret, "password", || "map-secret");
+            entries.sensitive_entry_at_least(Sensitivity::Secret, "password", || "map-secret");
         });
     }
 }
@@ -236,7 +236,7 @@ fn test_level_map_bounds_key_formatting_work() {
         /// derive.
         fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
             writer.record("M", |fields| {
-                fields.sensitive_value(Sensitivity::Secret, "v", &self.0);
+                fields.sensitive_value_exact(Sensitivity::Secret, "v", &self.0);
             });
         }
     }

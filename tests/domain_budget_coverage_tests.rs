@@ -59,9 +59,9 @@ impl Redact for CompleteWriterSurface {
         writer.record("Surface", |fields| {
             fields
                 .unredacted("public", || "visible")
-                .sensitive(Sensitivity::Low, "low", || FragmentedDebug)
-                .sensitive(Sensitivity::Secret, "secret", || "must-not-run")
-                .sensitive_value(Sensitivity::Medium, "medium", &String::from("raw-medium"))
+                .sensitive_at_least(Sensitivity::Low, "low", || FragmentedDebug)
+                .sensitive_at_least(Sensitivity::Secret, "secret", || "must-not-run")
+                .sensitive_value_exact(Sensitivity::Medium, "medium", &String::from("raw-medium"))
                 .json("json_text", r#"{"password":"raw-json-text-secret"}"#)
                 .json_value("json_value", &json)
                 .nested("nested", &NestedValue)
@@ -92,8 +92,8 @@ impl Redact for CompleteWriterSurface {
         writer.map(|entries| {
             entries
                 .unredacted_entry("public", || "visible")
-                .sensitive_entry(Sensitivity::Low, "low", || FragmentedDebug)
-                .sensitive_entry(Sensitivity::Secret, "secret", || "must-not-run")
+                .sensitive_entry_at_least(Sensitivity::Low, "low", || FragmentedDebug)
+                .sensitive_entry_at_least(Sensitivity::Secret, "secret", || "must-not-run")
                 .nested_entry("nested", &NestedValue);
         });
         writer.variant("Example", "Variant", |fields| {
