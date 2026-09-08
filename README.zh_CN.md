@@ -8,12 +8,31 @@
 [![English Document](https://img.shields.io/badge/Document-English-blue.svg)](README.md)
 
 `qubit-redact` 帮助应用和库作者为日志、错误报告和技术支持输出建立统一的脱敏边界。
-例如登录对象可以用借用视图生成脱敏文本或结构化 JSON，而不改变对象自身的普通序列化；
-需要让对象自身的 Serde 输出也脱敏时，再标注 `#[redact(serde)]`。
+单个字段或 JSON 载荷可直接用内置策略脱敏；需要时可自定义 `RedactionPolicy`；
+领域类型也可通过 `#[derive(Redact)]` 生成脱敏的 Debug、Display 与 Serde 输出。
+借用视图和 `redact_text()` 不会改变源对象；只有希望对象自身的 Serde 输出也脱敏时，
+才需要标注 `#[redact(serde)]`。
 
 ## 安装
 
-下面的完整示例需要 derive、Serde 和 JSON。仅处理标量文本时可使用默认空 feature 集。
+需要 **Rust 1.94+**。Cargo 包名为 `qubit-redact`，Rust 中以 `qubit_redact` 引入。
+标量字段、自定义策略和手写 `Redact` 实现均无需启用可选 feature。
+
+```toml
+[dependencies]
+qubit-redact = "0.8"
+```
+
+| Feature | 作用 |
+| --- | --- |
+| `derive` | `#[derive(Redact)]`、`#[derive(RedactScalar)]` |
+| `serde` | 领域视图的结构化 Serde 适配 |
+| `bigdecimal` | BigDecimal 标量支持（包含 `serde`） |
+| `json` | JSON 文本与借用的 `serde_json::Value` |
+| `http` | URL、请求头、表单、multipart 与 body |
+| `uri` | 通用 URI 解析与脱敏 |
+
+下面结构化领域类型的示例需要 derive、Serde 和 JSON：
 
 ```toml
 [dependencies]
@@ -24,14 +43,44 @@ serde_json = "1"
 
 ## 快速开始
 
-使用 `#[redact(serde)]` 后，业务 JSON 和诊断 JSON 都会把密码变成 `<redacted>`；普通
-Debug 日志也使用脱敏实现。
+认证失败写入日志时，标准策略已把 `password` 等常见字段名识别为 secret，
+无需额外配置规则，也无需启用可选 feature。
+
+```rust
+use qubit_redact::Redactor;
+
+let output = Redactor::standard().redact_field("password", "raw-secret");
+assert_eq!(output.text().as_str(), "<redacted>");
+```
+
+### 脱敏 JSON 载荷
+
+输入本身已是 JSON 时，启用 `json` feature。源 `Value` 不会被修改，只有渲染出的诊断文本会脱敏。
+
+```toml
+[dependencies]
+qubit-redact = { version = "0.8", features = ["json"] }
+serde_json = "1"
+```
+
+```rust
+use qubit_redact::Redactor;
+
+let value = serde_json::json!({"user": "ada", "password": "raw-secret"});
+let output = Redactor::standard().redact_json_value(&value);
+assert!(!output.text().as_str().contains("raw-secret"));
+assert_eq!(value["password"], "raw-secret");
+```
+
+### 结构化领域类型
+
+使用 `#[redact(serde)]` 后，业务 JSON 与诊断 JSON 都会把密码变成 `<redacted>`；
+生成的 Debug 实现也会脱敏普通诊断输出。
 
 ```rust
 use qubit_redact::{Redact, Redactor};
 
 #[derive(Redact)]
-#[redact(crate = qubit_redact)]
 #[redact(serde, debug)]
 struct Login {
     user: String,
@@ -51,10 +100,14 @@ let output = redactor.redact_text(&login);
 assert!(!output.text().as_str().contains("raw-secret"));
 ```
 
+属性与类型支持表见 [derive 说明](derive/README.zh_CN.md)；自定义字段规则、HTTP、URI、
+argv/env、batch 与预算等详见用户手册。
+
 ## 选择入口
 
 | 需求 | 入口 |
 | --- | --- |
+| 脱敏单个命名字段 | `redact_field(field, value)` |
 | 延迟格式化或序列化，固定策略 | `redact_view(&value)` |
 | 立即获取最终文本和完整性摘要 | `redact_text(&value)` |
 | 获取紧凑的脱敏 JSON 字符串 | `to_json(&value)` |

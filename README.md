@@ -8,13 +8,33 @@
 [![中文文档](https://img.shields.io/badge/文档-中文版-blue.svg)](README.zh_CN.md)
 
 `qubit-redact` gives application and library authors a consistent redaction boundary for
-logs, errors, and support diagnostics. A borrowed view produces redacted text or JSON without
-changing the source object's ordinary serialization. Add `#[redact(serde)]` when the source
+logs, errors, and support diagnostics. Redact individual fields or JSON payloads with the
+built-in policy, customize rules with `RedactionPolicy`, or attach `#[derive(Redact)]` so
+domain types produce redacted Debug, Display, and Serde output. Borrowed views and
+`redact_text()` never change the source value; add `#[redact(serde)]` only when the source
 object's own Serde output must also be redacted.
 
 ## Installation
 
-The complete example uses derive, Serde, and JSON. Scalar text operations need no features.
+Requires **Rust 1.94+**. The Cargo package is `qubit-redact`; import it as `qubit_redact`
+in Rust. Scalar fields, custom policies, and hand-written `Redact` implementations need no
+optional features.
+
+```toml
+[dependencies]
+qubit-redact = "0.8"
+```
+
+| Feature | Adds |
+| --- | --- |
+| `derive` | `#[derive(Redact)]`, `#[derive(RedactScalar)]` |
+| `serde` | Structured Serde adapters for domain views |
+| `bigdecimal` | BigDecimal scalar support (includes `serde`) |
+| `json` | JSON text and borrowed `serde_json::Value` handling |
+| `http` | URL, headers, form, multipart, and body capture |
+| `uri` | Generic URI parsing and redaction |
+
+Structured domain examples below use derive, Serde, and JSON:
 
 ```toml
 [dependencies]
@@ -25,14 +45,46 @@ serde_json = "1"
 
 ## Quick Start
 
-With `#[redact(serde)]`, business JSON and diagnostic JSON both replace the password
-with `<redacted>`. The generated Debug implementation also redacts ordinary diagnostic formatting.
+An authentication failure is logged. The standard policy already treats common field names
+such as `password` as secret, so you can redact one scalar without configuring rules or
+enabling optional features.
+
+```rust
+use qubit_redact::Redactor;
+
+let output = Redactor::standard().redact_field("password", "raw-secret");
+assert_eq!(output.text().as_str(), "<redacted>");
+```
+
+### Redact JSON payloads
+
+Enable the `json` feature when the input is already JSON. The borrowed value stays
+unchanged; only the rendered diagnostic text is redacted.
+
+```toml
+[dependencies]
+qubit-redact = { version = "0.8", features = ["json"] }
+serde_json = "1"
+```
+
+```rust
+use qubit_redact::Redactor;
+
+let value = serde_json::json!({"user": "ada", "password": "raw-secret"});
+let output = Redactor::standard().redact_json_value(&value);
+assert!(!output.text().as_str().contains("raw-secret"));
+assert_eq!(value["password"], "raw-secret");
+```
+
+### Structured domain types
+
+With `#[redact(serde)]`, business JSON and diagnostic JSON both replace the password with
+`<redacted>`. The generated Debug implementation also redacts ordinary diagnostic formatting.
 
 ```rust
 use qubit_redact::{Redact, Redactor};
 
 #[derive(Redact)]
-#[redact(crate = qubit_redact)]
 #[redact(serde, debug)]
 struct Login {
     user: String,
@@ -52,10 +104,14 @@ let output = redactor.redact_text(&login);
 assert!(!output.text().as_str().contains("raw-secret"));
 ```
 
+See the [derive guide](derive/README.md) for attribute and type tables. Custom field rules,
+HTTP, URI, argv/env, batches, and budgets are covered in the user guide.
+
 ## Choose an Entry Point
 
 | Need | Entry point |
 | --- | --- |
+| Redact one named scalar field | `redact_field(field, value)` |
 | Lazy formatting or serialization under a fixed policy | `redact_view(&value)` |
 | Final text and completeness summary now | `redact_text(&value)` |
 | Compact redacted JSON string | `to_json(&value)` |

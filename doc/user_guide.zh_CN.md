@@ -33,7 +33,6 @@ serde_json = "1"
 use qubit_redact::{Redact, Redactor};
 
 #[derive(Redact)]
-#[redact(crate = qubit_redact)]
 #[redact(serde, debug)]
 struct Login {
     user: String,
@@ -107,7 +106,6 @@ runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的�
 use qubit_redact::{Redact, Redactor};
 
 #[derive(Redact, serde::Serialize)]
-#[redact(crate = qubit_redact)]
 struct Login {
     user: String,
     #[redact(level = "secret")]
@@ -171,15 +169,12 @@ flatten 不受支持。JSON 文本字段序列化后仍是字符串，已解析 
 use qubit_redact::{Redact, RedactScalar, Redactor};
 
 #[derive(RedactScalar)]
-#[redact(crate = qubit_redact)]
 struct Id(u64);
 
 #[derive(RedactScalar)]
-#[redact(crate = qubit_redact)]
 struct UserId { value: String }
 
 #[derive(Redact)]
-#[redact(crate = qubit_redact)]
 #[redact(serde)]
 struct Account {
     #[redact(level = "secret")]
@@ -210,7 +205,6 @@ impl std::fmt::Display for ExternalId {
 }
 
 #[derive(Redact)]
-#[redact(crate = qubit_redact)]
 #[redact(serde)]
 struct Event {
     #[redact(level = "secret", display)]

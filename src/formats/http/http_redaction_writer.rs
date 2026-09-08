@@ -356,7 +356,9 @@ pub(crate) fn admit_body_structure(
                 Err(crate::formats::json::JsonAdmissionError::Invalid) => {
                     return Some(AdmittedBody::InvalidNdjson);
                 }
-                Err(crate::formats::json::JsonAdmissionError::Limit) => return None,
+                Err(crate::formats::json::JsonAdmissionError::Limit) => {
+                    return None;
+                }
             }
         }
         if !admitted_any && !session.admit_format_node(1) {

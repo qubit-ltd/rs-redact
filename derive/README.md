@@ -27,7 +27,6 @@ serde_json = "1"
 use qubit_redact::{Redact, Redactor};
 
 #[derive(Redact)]
-#[redact(crate = qubit_redact)]
 #[redact(serde, debug)]
 struct Login {
     user: String,
@@ -63,6 +62,10 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | `json` | JSON `String`/`str`/`Cow<str>`, parsed `serde_json::Value`, references and `Option`; requires `json`. |
 
 Container attributes: `debug`, `display`, `serde`, `transparent`, and `crate = path`.
+When using the macro through `qubit-redact`'s `derive` feature, the runtime path is resolved
+automatically and `crate = path` is usually unnecessary. Specify it only when depending on
+`qubit-redact-derive` directly, renaming the runtime dependency, or re-exporting the macro from
+a wrapper crate.
 The runtime `serde` feature generates structured redaction for `redact_view()` for every
 derived type. `#[redact(serde)]` additionally makes the source type's ordinary `Serialize`
 use that redacted representation. Without it, a separately derived ordinary `Serialize`
@@ -79,15 +82,12 @@ Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` to
 use qubit_redact::{Redact, RedactScalar, Redactor};
 
 #[derive(RedactScalar)]
-#[redact(crate = qubit_redact)]
 struct Id(u64);
 
 #[derive(RedactScalar)]
-#[redact(crate = qubit_redact)]
 struct UserId { value: String }
 
 #[derive(Redact)]
-#[redact(crate = qubit_redact)]
 #[redact(serde)]
 struct Account {
     #[redact(level = "secret")]

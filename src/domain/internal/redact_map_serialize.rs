@@ -56,8 +56,8 @@ macro_rules! map_redact_serialize {
             K: AsRef<str> + Serialize,
             V: RedactLevelSerialize + Serialize,
         {
-            /// Serializes an available map with key classification and cumulative child
-            /// admission.
+            /// Serializes an available map with key classification and
+            /// cumulative child admission.
             ///
             /// # Errors
             ///
@@ -74,7 +74,8 @@ macro_rules! map_redact_serialize {
             ///
             /// # Returns
             ///
-            /// The destination result after all emitted data passes shared admission.
+            /// The destination result after all emitted data passes shared
+            /// admission.
             fn serialize_redacted_map<S>(&self, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
@@ -107,8 +108,8 @@ macro_rules! map_redact_serialize {
             K: AsRef<str> + Serialize,
             V: RedactLevelSerialize + Serialize,
         {
-            /// Serializes an available map with key classification and cumulative child
-            /// admission.
+            /// Serializes an available map with key classification and
+            /// cumulative child admission.
             ///
             /// # Errors
             ///
@@ -125,7 +126,8 @@ macro_rules! map_redact_serialize {
             ///
             /// # Returns
             ///
-            /// The destination result after all emitted data passes shared admission.
+            /// The destination result after all emitted data passes shared
+            /// admission.
             fn serialize_redacted_map<S>(&self, serializer: S, policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,

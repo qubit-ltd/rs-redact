@@ -138,7 +138,8 @@ pub struct RedactionPolicy {
     rules: RedactionRules,
     /// Shared masks selected after sensitivity resolution.
     masking: Arc<MaskingPolicy>,
-    /// Resource ceilings applied to every transaction created from this policy.
+    /// Resource ceilings applied to every transaction created from this
+    /// policy.
     limits: RedactionLimits,
     /// HTTP-specific immutable policy snapshot.
     #[cfg(feature = "http")]

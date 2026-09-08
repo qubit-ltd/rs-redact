@@ -27,10 +27,10 @@ use super::RedactLevelValue;
 /// # #[cfg(feature = "derive")] {
 /// use qubit_redact::{Redact, RedactScalar, Redactor};
 /// #[derive(RedactScalar)]
-/// #[redact(crate = qubit_redact)]
+/// # #[redact(crate = qubit_redact)]
 /// struct Id(u64);
 /// #[derive(Redact)]
-/// #[redact(crate = qubit_redact)]
+/// # #[redact(crate = qubit_redact)]
 /// struct Event {
 ///     #[redact(level = "secret")]
 ///     id: Id,
