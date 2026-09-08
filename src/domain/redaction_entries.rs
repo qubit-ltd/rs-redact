@@ -14,6 +14,27 @@ use crate::domain::Redact;
 use crate::domain::RedactionWriter;
 
 /// Provides bounded redaction operations for map-like domain values.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::{Redact, RedactionWriter, Redactor, Sensitivity};
+///
+/// struct Credentials;
+///
+/// impl Redact for Credentials {
+///     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+///         writer.map(|entries| {
+///             entries.for_each([("token", "raw-secret")], |entries, (name, value)| {
+///                 entries.sensitive_entry_at_least(Sensitivity::Secret, name, || value);
+///             });
+///         });
+///     }
+/// }
+///
+/// let output = Redactor::standard().redact_text(&Credentials);
+/// assert!(!output.text().as_str().contains("raw-secret"));
+/// ```
 pub struct RedactionEntries<'writer, 'session> {
     /// Domain writer receiving map entries.
     pub(super) writer: &'writer mut RedactionWriter<'session>,

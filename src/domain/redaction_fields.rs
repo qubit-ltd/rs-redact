@@ -18,6 +18,25 @@ use crate::domain::internal::resolve_keyed_field;
 use crate::policy::ResolvedField;
 
 /// Provides bounded redaction operations for named domain fields.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::{Redact, RedactionWriter, Redactor, Sensitivity};
+///
+/// struct Credentials;
+///
+/// impl Redact for Credentials {
+///     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+///         writer.record("Credentials", |fields| {
+///             fields.sensitive_at_least(Sensitivity::Secret, "token", || "raw-secret");
+///         });
+///     }
+/// }
+///
+/// let output = Redactor::standard().redact_text(&Credentials);
+/// assert!(!output.text().as_str().contains("raw-secret"));
+/// ```
 pub struct RedactionFields<'writer, 'session> {
     /// Domain writer receiving field output.
     pub(super) writer: &'writer mut RedactionWriter<'session>,
