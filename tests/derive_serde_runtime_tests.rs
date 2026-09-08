@@ -182,7 +182,8 @@ fn serde_structured_modes_share_depth_and_collection_budgets() {
         .expect("field policy")
         .limits(|limits| {
             limits.max_depth(1);
-            // Admit the four visible root fields before rejecting their children.
+            // Admit the four visible root fields before rejecting their
+            // children.
             limits.max_collection_items(4);
         })
         .expect("limits")

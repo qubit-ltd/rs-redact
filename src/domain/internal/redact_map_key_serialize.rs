@@ -75,12 +75,13 @@ macro_rules! map_key_serialize {
             K: AsRef<str>,
             V: Serialize + RedactLevelSerialize,
         {
-            /// Masks admitted keys, rejects collisions, and serializes values under one
-            /// scope.
+            /// Masks admitted keys, rejects collisions, and serializes values
+            /// under one scope.
             ///
             /// # Errors
             ///
-            /// Returns key collision, admission, or downstream serializer errors.
+            /// Returns key collision, admission, or downstream serializer
+            /// errors.
             ///
             /// # Type Parameters
             ///
@@ -97,7 +98,8 @@ macro_rules! map_key_serialize {
             ///
             /// # Returns
             ///
-            /// The destination result after all emitted data passes shared admission.
+            /// The destination result after all emitted data passes shared
+            /// admission.
             fn serialize_redacted_map_keys<S>(
                 &self,
                 serializer: S,

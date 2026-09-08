@@ -23,7 +23,8 @@ pub(crate) struct JsonStructureSeed<'admission, 'runtime, 'rejected> {
     pub(crate) depth: usize,
     /// Whether this value consumes one collection-item allowance.
     pub(crate) collection_item: bool,
-    /// Shared rejection flag distinguishing budget failures from syntax errors.
+    /// Shared rejection flag distinguishing budget failures from syntax
+    /// errors.
     pub(crate) rejected: &'rejected mut bool,
 }
 

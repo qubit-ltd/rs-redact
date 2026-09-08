@@ -27,7 +27,6 @@ serde_json = "1"
 use qubit_redact::{Redact, Redactor};
 
 #[derive(Redact)]
-#[redact(crate = qubit_redact)]
 #[redact(serde, debug)]
 struct Login {
     user: String,
@@ -63,6 +62,9 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | `json` | 支持 JSON `String`/`str`/`Cow<str>`、已解析 `serde_json::Value`、引用和 `Option`；需要 `json` feature。 |
 
 容器属性包括 `debug`、`display`、`serde`、`transparent` 和 `crate = path`。
+通过 `qubit-redact` 的 `derive` feature 使用时，runtime 路径会自动解析，通常无需显式指定
+`crate = path`；仅在直接依赖 `qubit-redact-derive`、重命名 runtime 依赖或在 wrapper crate
+中 re-export 宏时才需要。
 runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的结构化脱敏能力。
 `#[redact(serde)]` 额外让源对象自身的普通 `Serialize` 输出脱敏；未标注时，单独派生的普通
 `Serialize` 保持原有行为。源对象本身不必可序列化，view 与 `to_json()` 只要求其脱敏投影
@@ -77,15 +79,12 @@ runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的�
 use qubit_redact::{Redact, RedactScalar, Redactor};
 
 #[derive(RedactScalar)]
-#[redact(crate = qubit_redact)]
 struct Id(u64);
 
 #[derive(RedactScalar)]
-#[redact(crate = qubit_redact)]
 struct UserId { value: String }
 
 #[derive(Redact)]
-#[redact(crate = qubit_redact)]
 #[redact(serde)]
 struct Account {
     #[redact(level = "secret")]

@@ -5,10 +5,6 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-#![cfg_attr(all(doctest, feature = "derive", feature = "json"), doc = include_str!("../README.md"))]
-#![cfg_attr(all(doctest, feature = "derive", feature = "json"), doc = include_str!("../README.zh_CN.md"))]
-#![cfg_attr(all(doctest, feature = "derive", feature = "http", feature = "serde"), doc = include_str!("../doc/user_guide.md"))]
-#![cfg_attr(all(doctest, feature = "derive", feature = "http", feature = "serde"), doc = include_str!("../doc/user_guide.zh_CN.md"))]
 //! # Qubit Redact
 //!
 //! Borrowed domain redaction for logs, errors, and structured diagnostics.

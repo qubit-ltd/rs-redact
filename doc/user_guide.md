@@ -37,7 +37,6 @@ show how to keep ordinary business serialization separate when it needs the raw 
 use qubit_redact::{Redact, Redactor};
 
 #[derive(Redact)]
-#[redact(crate = qubit_redact)]
 #[redact(serde, debug)]
 struct Login {
     user: String,
@@ -115,7 +114,6 @@ mode: an unmarked field normally needs `Serialize`, while `level = "...", displa
 use qubit_redact::{Redact, Redactor};
 
 #[derive(Redact, serde::Serialize)]
-#[redact(crate = qubit_redact)]
 struct Login {
     user: String,
     #[redact(level = "secret")]
@@ -184,15 +182,12 @@ wire type; parsed Value fields retain JSON structure.
 use qubit_redact::{Redact, RedactScalar, Redactor};
 
 #[derive(RedactScalar)]
-#[redact(crate = qubit_redact)]
 struct Id(u64);
 
 #[derive(RedactScalar)]
-#[redact(crate = qubit_redact)]
 struct UserId { value: String }
 
 #[derive(Redact)]
-#[redact(crate = qubit_redact)]
 #[redact(serde)]
 struct Account {
     #[redact(level = "secret")]
@@ -224,7 +219,6 @@ impl std::fmt::Display for ExternalId {
 }
 
 #[derive(Redact)]
-#[redact(crate = qubit_redact)]
 #[redact(serde)]
 struct Event {
     #[redact(level = "secret", display)]

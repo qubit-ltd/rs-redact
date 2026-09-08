@@ -36,8 +36,8 @@ pub(crate) enum FieldMode {
     Map,
     /// Masks map keys and, optionally, map values at fixed levels.
     MapLevels {
-        /// Sensitivity applied to every map key; validated modes always contain
-        /// `Some`.
+        /// Sensitivity applied to every map key; validated modes always
+        /// contain `Some`.
         key: Option<Sensitivity>,
         /// Fixed value sensitivity, or `None` to preserve ordinary value
         /// output.

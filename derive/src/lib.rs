@@ -83,7 +83,6 @@ mod tests;
 /// use qubit_redact_derive::Redact;
 ///
 /// #[derive(Redact)]
-/// #[redact(crate = qubit_redact)]
 /// struct Login {
 ///     user: String,
 ///     #[redact(level = "secret")]
@@ -129,11 +128,9 @@ pub fn derive_redact(input: TokenStream) -> TokenStream {
 /// use qubit_redact_derive::RedactScalar;
 ///
 /// #[derive(RedactScalar)]
-/// #[redact(crate = qubit_redact)]
 /// struct AccountId(u64);
 ///
 /// #[derive(Redact)]
-/// #[redact(crate = qubit_redact)]
 /// struct Event {
 ///     #[redact(level = "secret")]
 ///     account: AccountId,
