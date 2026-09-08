@@ -10,6 +10,9 @@ SPEC.loader.exec_module(MODULE)
 
 
 class ExampleContractTests(unittest.TestCase):
+    def test_documentation_runs_may_fetch_uncached_dependencies(self):
+        self.assertNotIn("--offline", MODULE.cargo_run_command())
+
     def parse(self, text):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "guide.zh_CN.md"

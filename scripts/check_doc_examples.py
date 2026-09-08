@@ -133,7 +133,7 @@ def run_examples(root):
                 env = os.environ.copy()
                 env["CARGO_TARGET_DIR"] = str(workspace / "target")
                 completed = subprocess.run(
-                    ["cargo", "run", "--offline", "--quiet"], cwd=consumer, env=env,
+                    cargo_run_command(), cwd=consumer, env=env,
                     text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120,
                 )
                 if completed.returncode:
@@ -142,6 +142,11 @@ def run_examples(root):
                 raise ValueError(f"{location}: documentation example failed\n{error}") from error
             print(f"PASS {location} ({example['kind']}, features={example['features']})", flush=True)
     print(f"Verified {len(examples)} documentation examples in both languages.")
+
+
+def cargo_run_command():
+    """Build examples with the registry available when dependencies are uncached."""
+    return ["cargo", "run", "--quiet"]
 
 
 def main():
