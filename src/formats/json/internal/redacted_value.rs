@@ -41,6 +41,10 @@ impl<'value, 'policy> RedactedValue<'value, 'policy> {
 
 impl Serialize for RedactedValue<'_, '_> {
     /// Serializes the value after applying the inherited JSON redaction rule.
+    ///
+    /// `S` is the destination serializer; returns its output or propagates its
+    /// serialization error. The caller must admit the tree and supply any
+    /// output bound before invoking this borrowed rendering adapter.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

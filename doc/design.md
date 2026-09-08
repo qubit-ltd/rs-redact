@@ -246,8 +246,10 @@ adapters additionally require `serde`. Hidden support traits and borrowed
 adapters cover scalars, options, references, common containers, tuples, maps,
 and JSON ownership forms. They are public only because generated code expands
 in downstream crates; they are not an alternative user-facing serialization
-API. Each adapter establishes or reuses the thread-local structural budget, so
-direct construction cannot skip collection, depth, node, or input admission.
+API. Root adapters establish or reuse the thread-local structural budget. Borrowed
+field projections, including Option and Vec, require an existing scope and return
+a value-free serializer error when it is absent, even for empty containers. Direct
+construction therefore cannot skip collection, depth, node, or input admission.
 The internally tagged serializer accepts only map and struct shapes that
 preserve the intended structure; unsupported Serde shapes return explicit
 errors.
@@ -287,7 +289,8 @@ allowance; renderers therefore do not model a second partial-input state.
 The default feature set is empty:
 
 - `derive`: derive macro;
-- `serde`: domain serialization adapters and bigdecimal support;
+- `serde`: domain serialization adapters;
+- `bigdecimal`: BigDecimal scalar/level support, enabling `serde`;
 - `json`: Serde JSON and `qubit-json`;
 - `http`: includes `json` and adds HTTP, URL, form, and multipart support;
 - `uri`: URI support through `fluent-uri`.
@@ -296,12 +299,33 @@ Public entry points live in `Redactor`, composer, batch, inspection, policy, and
 the domain writer. Format executors, admitted trees, runtime sessions, and sinks
 remain crate-private.
 
-Version 0.7 intentionally changes budget semantics: direct Serde payload limits move from
-`max_output_bytes` to `max_serde_payload_bytes`, without old-reason mappings, legacy budget
-switches, or compatibility shims. Text failure markers and reasons follow actual admission
-and output rejection. BigDecimal remains under `serde`; this release does not split that feature.
+The 0.8 public batch entry point is `diagnostic_batch()`. Its `finish()` selects the
+default diagnostic marker; `finish_with_marker(marker)` selects a custom marker.
+BigDecimal support is now explicitly gated by `bigdecimal`, independently of consumers
+that only need `serde`. Direct Serde retains the separate `max_serde_payload_bytes`
+budget introduced after 0.6; `max_output_bytes` limits final text and `to_json()` encoding.
+Text failure markers and reasons follow actual admission and output rejection.
+
+The derive crate uses a path-only development dependency on the workspace runtime
+for executable rustdoc examples. Cargo omits that local dependency from the published
+manifest, preserving the publication order (derive, then runtime) without a registry
+dependency cycle. `cargo publish --workspace --dry-run --all-features` verifies both
+normalized packages without uploading them.
 
 ## 10. Verification strategy
+
+`.rs-ci-cargo-matrix.json` defines the compatibility checks executed by `ci-check.sh`.
+Besides core and individual format features, it includes derive-only, derive with
+Serde/JSON/HTTP/URI, BigDecimal with and without derive, and all-feature consumers.
+After accounting for implied features, all 28 distinct runtime feature sets are covered.
+Each combination runs compilation, tests including doctests, rustdoc, and Clippy.
+Documentation gates follow the feature dependencies of their examples.
+
+Negative dependent-crate tests inspect Cargo JSON compiler messages. A passing rejection
+requires a rustc error with a primary span in the fixture source and the expected API
+or trait; coded errors also match the expected code where specified. Cargo resolution
+and toolchain failures never count as API rejection. Positive consumer fixtures verify
+that the same supported API environment compiles.
 
 The runtime coverage gate uses no file exemptions. Unit and integration tests cover public
 policy builders, limits, domain writers, sealed capabilities, Serde shapes,

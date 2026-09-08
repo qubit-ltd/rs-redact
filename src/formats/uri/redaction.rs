@@ -116,7 +116,12 @@ fn invalid_output(max_output_bytes: usize) -> RenderedOperation {
         .finish()
 }
 
-/// Redacts userinfo while preserving the authority's raw host and port.
+/// Writes `authority` under `policy`, preserving its raw host and port.
+///
+/// `rendered` retains bounded output and truncation state. Returns success
+/// after writing or reaching its limit; malformed percent escapes or decoded
+/// non-UTF-8 userinfo return value-free `Err(())`, so the caller must discard
+/// partial output.
 fn redact_authority(authority: &str, policy: &RedactionPolicy, rendered: &mut BoundedUriWriter) -> Result<(), ()> {
     let Some((userinfo, host)) = authority.rsplit_once('@') else {
         rendered.write_str(authority);
@@ -145,7 +150,11 @@ fn redact_authority(authority: &str, policy: &RedactionPolicy, rendered: &mut Bo
     Ok(())
 }
 
-/// Applies the core field policy to one raw userinfo component.
+/// Applies `policy` for `field` to `raw` and writes its bounded representation.
+///
+/// `rendered` retains output and truncation state. Returns success after
+/// writing, or value-free `Err(())` for malformed percent escapes or decoded
+/// non-UTF-8 bytes.
 fn redact_userinfo_value(
     raw: &str,
     field: &str,
@@ -164,7 +173,12 @@ fn redact_userinfo_value(
     Ok(())
 }
 
-/// Redacts query values after strict percent decoding.
+/// Writes `query` under `policy` after strictly decoding its keys and values.
+///
+/// `rendered` retains bounded output and truncation state. Returns success
+/// after traversal or output closure. Malformed percent escapes or decoded
+/// non-UTF-8 bytes return value-free `Err(())`; the caller must discard partial
+/// output.
 fn redact_query(query: &str, policy: &RedactionPolicy, rendered: &mut BoundedUriWriter) -> Result<(), ()> {
     for (index, pair) in query.split('&').enumerate() {
         if rendered.is_full() {
@@ -194,7 +208,10 @@ fn redact_query(query: &str, policy: &RedactionPolicy, rendered: &mut BoundedUri
     Ok(())
 }
 
-/// Decodes percent escapes without applying form-urlencoded `+` semantics.
+/// Returns the UTF-8 decoding of `raw`, preserving literal `+` characters.
+///
+/// Allocates at most the input byte length. Returns value-free `Err(())` for an
+/// incomplete or non-hexadecimal percent escape, or decoded non-UTF-8 bytes.
 pub(super) fn decode_uri_component(raw: &str) -> Result<String, ()> {
     let bytes = raw.as_bytes();
     let mut decoded = Vec::with_capacity(bytes.len());
@@ -239,7 +256,7 @@ fn write_opaque_mask(policy: &RedactionPolicy, sensitivity: Sensitivity, rendere
     let _ = writer.write_str(policy.masking().for_level(sensitivity).opaque_mask());
 }
 
-/// Converts one hexadecimal ASCII byte to its numeric value.
+/// Returns `Some(0..=15)` for a hexadecimal ASCII `byte`, or `None` otherwise.
 const fn hex_value(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),

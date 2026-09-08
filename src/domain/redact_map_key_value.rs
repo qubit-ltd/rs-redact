@@ -16,6 +16,7 @@ use super::RedactLevelValue;
 use super::RedactionFields;
 use crate::Sensitivity;
 
+/// Seals the supported capability set against downstream implementations.
 mod private {
     /// Restricts this capability to the supported representations.
     pub trait Sealed {

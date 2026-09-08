@@ -123,7 +123,8 @@ cargo test
 # 使用项目声明的全部 feature 运行测试
 cargo test --all-features
 
-# 运行项目 CI 检查
+# 格式化并运行完整项目 CI 检查（含 feature 矩阵）
+./align-ci.sh
 ./ci-check.sh
 
 # 检查代码覆盖率

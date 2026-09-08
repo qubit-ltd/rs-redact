@@ -27,6 +27,7 @@ use super::RedactionItems;
 use super::RedactionWriter;
 use crate::Sensitivity;
 
+/// Seals the supported capability set against downstream implementations.
 #[doc(hidden)]
 pub mod private {
     /// Prevents downstream implementations outside the supported value set.

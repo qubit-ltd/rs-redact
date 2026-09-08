@@ -87,7 +87,7 @@ impl Write for BoundedJsonWriter {
         Ok(bytes.len())
     }
 
-    /// In-memory storage has no external buffer to flush.
+    /// Returns success without external I/O; in-memory flushing cannot fail.
     #[inline(always)]
     fn flush(&mut self) -> io::Result<()> {
         Ok(())

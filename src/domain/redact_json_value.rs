@@ -13,6 +13,7 @@ use serde_json::Value;
 
 use super::RedactionFields;
 
+/// Seals the supported capability set against downstream implementations.
 mod private {
     /// Restricts this capability to the supported representations.
     pub trait Sealed {

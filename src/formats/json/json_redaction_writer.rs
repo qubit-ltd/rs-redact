@@ -22,12 +22,35 @@ use crate::runtime::RenderedOperation;
 use crate::runtime::TextSession;
 use crate::runtime::runtime_session::RuntimeSession;
 
-/// Parses and admits one complete JSON text value at the root depth.
+/// Parses `text` at root depth, charging the shared `session` ledger.
+///
+/// Returns the admitted JSON tree. Returns `JsonAdmissionError::Limit` for a
+/// rejected structural or JSON allowance, or `JsonAdmissionError::Invalid` for
+/// invalid syntax or unsupported numeric values. The caller admits input bytes.
 pub(crate) fn admit_json_text_value(session: &mut dyn RuntimeSession, text: &str) -> Result<Value, JsonAdmissionError> {
     admit_json_text_value_at_depth(session, text, 1)
 }
 
-/// Parses and admits JSON text whose root appears at the supplied depth.
+/// Parses `text` with its root at `root_depth`, charging the shared `session`.
+///
+/// # Parameters
+///
+/// * `session`: Transaction owning the structural and JSON-value budgets.
+/// * `text`: Complete JSON text whose input bytes the caller has already
+///   admitted.
+/// * `root_depth`: Root-inclusive depth used when admitting this nested
+///   document.
+///
+/// # Returns
+///
+/// The JSON tree constructed in one admitted decoding pass.
+///
+/// # Errors
+///
+/// Returns `JsonAdmissionError::Limit` after structural or JSON-budget
+/// rejection, recording JSON-value exhaustion in the session where applicable.
+/// Returns `JsonAdmissionError::Invalid` for malformed input or unsupported
+/// numbers; error values do not retain source text.
 pub(crate) fn admit_json_text_value_at_depth(
     session: &mut dyn RuntimeSession,
     text: &str,

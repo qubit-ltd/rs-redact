@@ -73,7 +73,7 @@ impl Write for OperationByteSink {
         Ok(buffer.len())
     }
 
-    /// Succeeds without external I/O; retained bytes are already in memory.
+    /// Returns success without external I/O; in-memory flushing cannot fail.
     #[inline(always)]
     fn flush(&mut self) -> io::Result<()> {
         Ok(())

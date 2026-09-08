@@ -14,6 +14,7 @@ use std::fmt::Debug;
 
 use super::redaction_fields::RedactionFields;
 
+/// Seals the supported capability set against downstream implementations.
 mod private {
     /// Restricts map mode to supported string-keyed representations.
     pub trait Sealed {

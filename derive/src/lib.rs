@@ -78,11 +78,12 @@ mod tests;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use qubit_redact::Redactor;
 /// use qubit_redact_derive::Redact;
 ///
 /// #[derive(Redact)]
+/// #[redact(crate = qubit_redact)]
 /// struct Login {
 ///     user: String,
 ///     #[redact(level = "secret")]
@@ -119,6 +120,29 @@ pub fn derive_redact(input: TokenStream) -> TokenStream {
 ///
 /// Delegating scalar capability implementations, or compile-error tokens for
 /// invalid shapes, attributes, or runtime paths.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::Redactor;
+/// use qubit_redact_derive::Redact;
+/// use qubit_redact_derive::RedactScalar;
+///
+/// #[derive(RedactScalar)]
+/// #[redact(crate = qubit_redact)]
+/// struct AccountId(u64);
+///
+/// #[derive(Redact)]
+/// #[redact(crate = qubit_redact)]
+/// struct Event {
+///     #[redact(level = "secret")]
+///     account: AccountId,
+/// }
+///
+/// let event = Event { account: AccountId(42) };
+/// let output = Redactor::standard().redact_text(&event);
+/// assert_eq!(output.text().as_str(), r#"Event { account: "<redacted>" }"#);
+/// ```
 #[proc_macro_derive(RedactScalar, attributes(redact))]
 pub fn derive_redact_scalar(input: TokenStream) -> TokenStream {
     parse(input)

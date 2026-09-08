@@ -28,11 +28,10 @@ serde_json = "1"
 
 ## Scenario: Login Diagnostics
 
-The following scenario starts with a login object that must remain unchanged
-for business serialization while diagnostics must not expose its password.
-The success criteria are that diagnostic text and JSON contain no raw secret,
-while the ordinary business serialization still follows the type's explicit
-`#[redact(serde)]` boundary.
+The following login object keeps its source password unchanged while both diagnostic
+formatting and direct business serialization must hide it. The explicit
+`#[redact(serde)]` annotation selects that serialization boundary. Later examples
+show how to keep ordinary business serialization separate when it needs the raw value.
 
 ```rust
 use qubit_redact::{Redact, Redactor};
@@ -135,7 +134,7 @@ If a required field capability is missing, formatting the view still works; atte
 serialization of the view or calling `to_json()` produces a compile-time trait-bound error.
 
 Built-in level leaves include strings, characters, booleans, integers, floats, and BigDecimal
-with `serde`. Level containers include references, Option, Vec, slices, arrays, Box/Rc/Arc,
+with `bigdecimal`. Level containers include references, Option, Vec, slices, arrays, Box/Rc/Arc,
 VecDeque, LinkedList, sets, heaps, standard maps, and tuples up to 12 elements. Ordinary level
 mode masks map values and retains keys; use the key-level attributes when needed. Pass-through
 text maps and keyed_by require Debug; level-only RedactScalar fields do not.
@@ -243,7 +242,7 @@ assert_eq!(Redactor::standard().to_json(&event).expect("event JSON"),
 | Derived level, Display level, map key/value level | No: the explicit level is final |
 | Manual fields.sensitive_at_least(level, ...) | Yes: the argument is a minimum |
 | map, keyed_by, redact_field | Classified by runtime rules |
-| Unmarked fields and unmarked | No classification; ordinary output |
+| Unmarked fields and `unmarked` | No classification; ordinary output |
 
 Default Low retains two leading and two trailing characters, fully hiding short strings;
 Medium retains one trailing character; High emits `****`; Secret emits `<redacted>`.
@@ -256,7 +255,7 @@ HTTP URL/headers/body or process argv/env often belong to one diagnostic event. 
 share one budget; separate one-shot calls and repeated view uses each get their own budget.
 Items consume allowance in insertion order, so earlier items can exhaust resources needed by
 later ones. `finish_with_marker(marker)` returns one escaped marker for incomplete items
-and invalid/foreign handles. `summary()` is aggregate accounting, not per-item auditing.
+and invalid/foreign handles. `finish()` uses `<redaction incomplete>`. `summary()` is aggregate accounting, not per-item auditing.
 
 ```rust
 use qubit_redact::Redactor;
@@ -311,8 +310,9 @@ struct Documents(Vec<serde_json::Value>);
 
 impl Redact for Documents {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        let Self(documents) = self;
         writer.sequence(|items| {
-            items.for_each(&self.0, |items, value| {
+            items.for_each(documents, |items, value| {
                 items.json_value_item(value);
             });
         });
@@ -369,6 +369,8 @@ Inspection is useful when a URI must be rejected rather than merely redacted.
 Both a sensitive result and an error are fail-closed outcomes:
 
 ```rust
+# #[cfg(feature = "uri")]
+# {
 use qubit_redact::Redactor;
 
 let candidate = "https://example.test/?token=raw-token";
@@ -376,6 +378,7 @@ let acceptable = Redactor::strict()
     .inspect_uri(candidate)
     .is_ok_and(|inspection| !inspection.contains_sensitive());
 assert!(!acceptable);
+# }
 ```
 
 ### Redact argv, environment, and process diagnostics
@@ -404,7 +407,8 @@ assert!(!output.text().as_str().contains("raw-"));
 | Feature | Adds |
 | --- | --- |
 | `derive` | `#[derive(Redact)]`, `#[derive(RedactScalar)]` |
-| `serde` | generated/domain structured Serde adapters and BigDecimal support |
+| `serde` | generated/domain structured Serde adapters |
+| `bigdecimal` | BigDecimal scalar and level support; includes `serde` |
 | `json` | JSON text and borrowed `serde_json::Value` handling |
 | `http` | JSON plus URL, headers, form, multipart, and body capture |
 | `uri` | generic URI parsing and redaction |
@@ -476,7 +480,7 @@ an inspection error as sensitive because classification was inconclusive.
 Existing redactors, composers, and batches keep the immutable snapshot they
 already own; replacement does not retroactively toggle in-flight work.
 
-## Budget Units and Migration to 0.7
+## Budget Units and Migration to 0.8
 
 | Entry point | Structure and input limits | Logical Serde payload | Final encoded bytes |
 | --- | --- | --- | --- |
@@ -487,6 +491,10 @@ already own; replacement does not retroactively toggle in-flight work.
 
 `max_input_bytes` defaults to 64 KiB; each output-related limit defaults to 16 KiB.
 All accept zero. Policy construction rejects Serde payload or final output ceilings above `isize::MAX`.
+In 0.8, replace former `batch()` calls with `diagnostic_batch()`. Use `finish()`
+for the default diagnostic marker or `finish_with_marker(marker)` for a custom one.
+Enable `bigdecimal` explicitly when using BigDecimal; enabling `serde` alone no longer suffices.
+
 Migrate 0.6 configurations that limited direct Serde payloads with `max_output_bytes` to
 `max_serde_payload_bytes`. Set both when `to_json` must obey both ceilings; they are never implicitly linked.
 
@@ -561,7 +569,13 @@ Read the [README](../README.md), [中文用户手册](user_guide.zh_CN.md),
 To validate a local checkout:
 
 ```bash
-cargo test --all-features
 ./align-ci.sh
 ./ci-check.sh
 ```
+
+The checked-in `.rs-ci-cargo-matrix.json` is consumed by `ci-check.sh` for
+`check`, `test` (including doctests), `doc`, and Clippy. It covers minimal format
+features, derive consumers with and without Serde/JSON/HTTP/URI, explicit
+BigDecimal support, and all features: 28 distinct runtime feature sets after implied
+features are expanded, plus the derive crate. README and guide examples use the features
+required by each example; URI-only snippets are skipped when `uri` is disabled.

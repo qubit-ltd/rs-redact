@@ -642,6 +642,7 @@ version = "0.8.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
+ "qubit-redact",
  "quote",
  "syn 2.0.119",
 ]

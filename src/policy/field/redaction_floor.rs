@@ -139,7 +139,8 @@ impl Default for RedactionFloor {
 }
 
 impl fmt::Display for RedactionFloor {
-    /// Writes the type name used by diagnostic formatting.
+    /// Writes the diagnostic type name, propagating any destination formatter
+    /// error.
     #[inline(always)]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("RedactionFloor")

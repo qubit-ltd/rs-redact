@@ -25,7 +25,10 @@ impl UriComponentWriter<'_> {
 }
 
 impl fmt::Write for UriComponentWriter<'_> {
-    /// Encodes one mask fragment and reports truncation to the mask writer.
+    /// URI-encodes `value` into the bounded destination.
+    ///
+    /// Returns success after writing the fragment, or `fmt::Error` when the
+    /// destination truncates it. The destination retains the truncation state.
     fn write_str(&mut self, value: &str) -> fmt::Result {
         if write_uri_component(value, self.rendered) {
             Ok(())

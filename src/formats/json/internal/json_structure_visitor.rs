@@ -34,12 +34,13 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
     /// Parsed JSON tree assembled from admitted events.
     type Value = Value;
 
-    /// Describes the complete JSON value expected from the deserializer.
+    /// Writes the expected JSON description, propagating formatter errors.
     fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("a JSON value")
     }
 
-    /// Converts an admitted Boolean event into its JSON representation.
+    /// Returns the admitted Boolean as JSON; never returns the deserializer
+    /// error `E`.
     fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E>
     where
         E: Error,
@@ -47,7 +48,8 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
         Ok(Value::Bool(value))
     }
 
-    /// Converts an admitted signed integer into its JSON representation.
+    /// Returns the admitted signed integer as JSON; never returns the
+    /// deserializer error `E`.
     fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
     where
         E: Error,
@@ -55,7 +57,8 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
         Ok(Value::Number(Number::from(value)))
     }
 
-    /// Converts an admitted unsigned integer into its JSON representation.
+    /// Returns the admitted unsigned integer as JSON; never returns the
+    /// deserializer error `E`.
     fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
     where
         E: Error,
@@ -63,7 +66,8 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
         Ok(Value::Number(Number::from(value)))
     }
 
-    /// Converts a finite admitted float into its JSON number representation.
+    /// Returns the admitted float as JSON, or a custom deserializer error `E`
+    /// for NaN or infinity.
     fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
     where
         E: Error,
@@ -73,7 +77,8 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
             .ok_or_else(|| E::custom("non-finite JSON number"))
     }
 
-    /// Copies a borrowed admitted string into the retained JSON tree.
+    /// Copies the admitted string into JSON; never returns the deserializer
+    /// error `E`.
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
     where
         E: Error,
@@ -81,7 +86,8 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
         Ok(Value::String(value.to_owned()))
     }
 
-    /// Retains an owned admitted string without another allocation.
+    /// Retains the admitted string without copying; never returns the
+    /// deserializer error `E`.
     fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
     where
         E: Error,
@@ -89,7 +95,7 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
         Ok(Value::String(value))
     }
 
-    /// Maps an absent optional representation to JSON null.
+    /// Returns JSON null for absence; never returns the deserializer error `E`.
     fn visit_none<E>(self) -> Result<Self::Value, E>
     where
         E: Error,
@@ -97,7 +103,7 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
         Ok(Value::Null)
     }
 
-    /// Maps the unit representation to JSON null.
+    /// Returns JSON null for unit; never returns the deserializer error `E`.
     fn visit_unit<E>(self) -> Result<Self::Value, E>
     where
         E: Error,
@@ -105,7 +111,11 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
         Ok(Value::Null)
     }
 
-    /// Decodes admitted sequence elements in source order.
+    /// Decodes `sequence` into a JSON array in source order.
+    ///
+    /// `A` supplies nested events. Propagates its decoding or structural
+    /// admission error; children charge the shared ledger and may set the
+    /// rejection flag.
     fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
     where
         A: SeqAccess<'de>,
@@ -123,7 +133,11 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
         Ok(Value::Array(values))
     }
 
-    /// Decodes admitted object entries while retaining their parsed keys.
+    /// Decodes `map` into a JSON object while retaining its parsed keys.
+    ///
+    /// `A` supplies keys and values. Propagates its decoding or structural
+    /// admission error; children charge the shared ledger and may set the
+    /// rejection flag.
     fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
     where
         A: MapAccess<'de>,
@@ -158,8 +172,10 @@ mod tests {
     use crate::runtime::TextSession;
     use crate::runtime::runtime_session::RuntimeSession;
 
+    /// Direct visitor events retain owned strings and represent absent values
+    /// as null.
     #[test]
-    fn visitor_accepts_owned_strings_and_deserializer_empty_values() {
+    fn test_visitor_accepts_owned_strings_and_deserializer_empty_values() {
         let policy = Arc::new(RedactionPolicy::standard());
         let mut session = TextSession::new(policy);
         let mut rejected = false;

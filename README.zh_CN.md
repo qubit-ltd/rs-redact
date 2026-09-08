@@ -59,7 +59,7 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | 立即获取最终文本和完整性摘要 | `redact_text(&value)` |
 | 获取紧凑的脱敏 JSON 字符串 | `to_json(&value)` |
 | 处理本身就是 JSON 的输入 | `redact_json(text)` / `redact_json_value(&value)` |
-| 多个独立值共享一份预算 | `batch()` |
+| 多个独立值共享一份预算 | `diagnostic_batch()` |
 | 拼接一条诊断文本 | `text_composer()` |
 
 ## 为什么需要这个项目
@@ -94,7 +94,8 @@ cargo test
 # 使用项目声明的全部 feature 运行测试
 cargo test --all-features
 
-# 运行项目 CI 检查
+# 格式化并运行完整项目 CI 检查（含 feature 矩阵）
+./align-ci.sh
 ./ci-check.sh
 
 # 检查代码覆盖率

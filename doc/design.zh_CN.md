@@ -200,8 +200,9 @@ map、嵌套对象、按敏感等级写入、按运行时 key 分类、JSON 值�
 `derive` feature 导出 `#[derive(Redact)]` 和 `#[derive(RedactScalar)]`；生成的序列化适配还需要 `serde` feature。隐藏的支撑
 trait 与借用 adapter 覆盖标量、可选值、引用、常用容器、tuple、map 和 JSON ownership 形态。
 这些符号保持公开只是因为生成代码会在下游 crate 中展开，并不是另一套面向用户的序列化 API。
-每个 adapter 都会建立或复用 thread-local 结构预算，因此直接构造也不能跳过集合、深度、节点和
-输入准入。internally tagged serializer 只接受能够保持目标结构的 map/struct 形态，不支持的
+根 adapter 建立或复用 thread-local 结构预算。借用字段投影（包括 Option 和 Vec）要求已有
+scope；缺少 scope 时，即使容器为空，也返回不含原值的 serializer 错误。因此直接构造
+不能跳过集合、深度、节点和输入准入。internally tagged serializer 只接受能够保持目标结构的 map/struct 形态，不支持的
 Serde shape 返回明确错误而不是猜测表示。
 
 ## 8. 格式层
@@ -234,7 +235,8 @@ HTTP body 内部实现按职责拆分：
 默认 feature 为空：
 
 - `derive`：派生宏；
-- `serde`：领域序列化适配和 bigdecimal 支持；
+- `serde`：领域序列化适配；
+- `bigdecimal`：BigDecimal 标量和等级能力，同时启用 `serde`；
 - `json`：Serde JSON 与 `qubit-json`；
 - `http`：包含 `json`，并增加 HTTP、URL、form/multipart 支持；
 - `uri`：`fluent-uri` URI 支持。
@@ -242,11 +244,27 @@ HTTP body 内部实现按职责拆分：
 公开入口位于 `Redactor`、composer、batch、inspection、policy 和 domain writer。format executor、
 admitted tree、runtime session 和 sink 保持 crate-private。
 
-0.7 允许破坏性预算语义变更：直接 Serde 的载荷额度从 `max_output_bytes` 迁移到
-`max_serde_payload_bytes`，不保留旧原因映射、旧预算开关或兼容 shim。文本失败标记与原因
-按真实准入及输出拒绝生成。`serde` 仍包含 BigDecimal 支持，本次不拆分 feature。
+0.8 的公开批处理入口为 `diagnostic_batch()`；`finish()` 使用默认诊断标记，
+`finish_with_marker(marker)` 使用自定义标记。BigDecimal 能力通过独立的 `bigdecimal`
+feature 启用，不再随仅需结构化序列化的 `serde` 消费者一同引入。直接 Serde 沿用 0.6 之后
+引入的独立 `max_serde_payload_bytes` 预算；`max_output_bytes` 限制最终文本和 `to_json()`
+编码。文本失败标记与原因按真实准入及输出拒绝生成。
+
+derive crate 通过仅含 path 的开发依赖引用 workspace runtime，以执行 rustdoc 示例。
+Cargo 从发布清单移除这条本地依赖，保持先 derive、后 runtime 的发布顺序，不产生 registry
+依赖环。`cargo publish --workspace --dry-run --all-features` 验证两个规范化发布包，但不会上传。
 
 ## 10. 验证策略
+
+`ci-check.sh` 读取 `.rs-ci-cargo-matrix.json` 执行兼容性检查。除 core 和各格式 feature 外，
+矩阵覆盖 derive-only、derive 与 Serde/JSON/HTTP/URI 的组合、BigDecimal 单独启用及与
+derive 组合，以及全部 feature；展开隐式依赖后覆盖全部 28 种 runtime feature 集。每组执行编译、测试（含 doctest）、rustdoc 和 Clippy；
+文档示例按真实依赖设置 feature gate。
+
+下游负向编译测试读取 Cargo JSON compiler message。只有在 fixture 源码具有 primary span、
+且匹配预期 API 或 trait 的 rustc error 才算预期拒绝；指定错误码时还必须精确匹配。
+Cargo 依赖解析失败和工具链失败均不能作为 API 拒绝证据。正向消费 fixture 同时验证
+受支持 API 在相同环境下能够编译。
 
 runtime 覆盖率门禁不使用文件白名单。单元与集成测试覆盖公开策略 builder、限制、领域 writer、sealed
 capability、Serde shape、所有格式的正常与 fail-closed 路径，以及 composer/batch/inspection

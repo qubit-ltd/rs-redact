@@ -31,3 +31,8 @@ proc-macro-crate = "3"
 proc-macro2 = "1"
 quote = "1"
 syn = "2"
+
+[dev-dependencies]
+# Local doctests use the workspace runtime. Omitting a version keeps this
+# development-only edge out of published manifests and avoids a publish cycle.
+qubit-redact = { path = "..", default-features = false }

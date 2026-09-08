@@ -31,7 +31,13 @@ impl<'de> DeserializeSeed<'de> for JsonStructureSeed<'_, '_, '_> {
     /// Parsed JSON tree produced while structural admission is charged.
     type Value = Value;
 
-    /// Admits the pending node before delegating its contents to the visitor.
+    /// Admits the pending node, then decodes a JSON value from `deserializer`.
+    ///
+    /// `D` supplies the borrowed input events. Returns its decoded value or
+    /// propagates its decoding error. A rejected collection item or node sets
+    /// the shared rejection flag and returns a custom `D::Error` before
+    /// decoding. Admitted nodes consume the shared transaction's structural
+    /// allowance.
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: Deserializer<'de>,
