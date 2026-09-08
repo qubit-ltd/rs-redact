@@ -8,9 +8,37 @@
 //! Mandatory URI boundary protection under application policy overrides.
 
 use qubit_redact::RedactionCompletion;
+use qubit_redact::RedactionFloor;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
+use qubit_redact::Sensitivity;
 use qubit_redact::formats::uri::UriRedactionBoundary;
+
+/// Adding the mandatory boundary floor retains an application floor.
+#[test]
+fn test_boundary_adds_standard_floor_without_replacing_application_floor() {
+    let provider_floor = RedactionFloor::builder()
+        .raise("provider_ticket", Sensitivity::Secret)
+        .expect("valid floor field")
+        .build()
+        .expect("valid floor");
+    let application = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.disable_floor();
+            fields.floor(provider_floor);
+        })
+        .expect("valid fields")
+        .build()
+        .expect("valid policy");
+    let boundary = UriRedactionBoundary::new(&application);
+    assert!(boundary.policy().sensitivity_for("provider_ticket").is_some());
+    assert!(
+        boundary
+            .inspect_uri("https://example.test/?provider_ticket=raw")
+            .expect("valid URI")
+            .contains_sensitive()
+    );
+}
 
 /// A disabled application snapshot cannot disable the boundary's standard
 /// floor.
