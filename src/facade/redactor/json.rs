@@ -10,7 +10,6 @@
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 
-use serde::Serialize;
 use serde_json::Error as JsonError;
 use serde_json::Value;
 use serde_json::to_writer;
@@ -59,7 +58,7 @@ impl Redactor {
         value: &'value T,
     ) -> Result<String, JsonError>
     where
-        T::RedactedFields<'value>: Serialize,
+        T::RedactedFields<'value>: serde::Serialize,
     {
         let mut writer = BoundedJsonWriter::new(self.policy().limits().max_output_bytes());
         to_writer(&mut writer, &self.redact_view(value))?;

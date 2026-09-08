@@ -146,7 +146,7 @@ struct Payload { password: String }
 impl Redact for Payload {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.record("Payload", |fields| {
-            fields.sensitive(Sensitivity::Secret, "password", || &self.password);
+            fields.sensitive_at_least(Sensitivity::Secret, "password", || &self.password);
         });
     }
 }
@@ -226,7 +226,7 @@ assert_eq!(Redactor::standard().to_json(&event).expect("event JSON"),
 | 决策来源 | 运行时策略能否提高等级 |
 | --- | --- |
 | derive 的 level、Display level、map key/value level | 不能：显式等级为最终等级 |
-| 手写 fields.sensitive(level, ...) | 可以：参数是最低等级 |
+| 手写 fields.sensitive_at_least(level, ...) | 可以：参数是最低等级 |
 | map、keyed_by、redact_field | 按运行时分类规则决定 |
 | 未标注字段、unmarked | 不分类，保持普通输出 |
 

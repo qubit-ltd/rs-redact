@@ -38,8 +38,8 @@ impl Redact for InspectedDomainValue {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.record("InspectedDomainValue", |fields| {
             let _ = fields.unredacted("plain", || &self.plain);
-            let _ = fields.sensitive(Sensitivity::Low, "low", || &self.low);
-            let _ = fields.sensitive(Sensitivity::Secret, "secret", || &self.secret);
+            let _ = fields.sensitive_at_least(Sensitivity::Low, "low", || &self.low);
+            let _ = fields.sensitive_at_least(Sensitivity::Secret, "secret", || &self.secret);
         });
     }
 }

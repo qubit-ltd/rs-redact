@@ -38,7 +38,7 @@ impl Redact for SingleDisabledField {
                 fields.unredacted("value", || "raw-secret");
             }
             Self::Sensitive => {
-                fields.sensitive(Sensitivity::Secret, "value", || "raw-secret");
+                fields.sensitive_at_least(Sensitivity::Secret, "value", || "raw-secret");
             }
             #[cfg(feature = "json")]
             Self::JsonUnredacted => {
@@ -68,7 +68,7 @@ fn disabled_node_policy(maximum: usize) -> RedactionPolicy {
 impl Redact for Example {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.record("Example", |fields| {
-            fields.sensitive(Sensitivity::Secret, "secret", || &self.secret);
+            fields.sensitive_at_least(Sensitivity::Secret, "secret", || &self.secret);
             fields.skipped("omitted", || &self.omitted);
         });
     }

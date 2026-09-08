@@ -159,7 +159,7 @@ struct Payload { password: String }
 impl Redact for Payload {
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.record("Payload", |fields| {
-            fields.sensitive(Sensitivity::Secret, "password", || &self.password);
+            fields.sensitive_at_least(Sensitivity::Secret, "password", || &self.password);
         });
     }
 }
@@ -241,7 +241,7 @@ assert_eq!(Redactor::standard().to_json(&event).expect("event JSON"),
 | Decision source | Can runtime policy raise the level? |
 | --- | --- |
 | Derived level, Display level, map key/value level | No: the explicit level is final |
-| Manual fields.sensitive(level, ...) | Yes: the argument is a minimum |
+| Manual fields.sensitive_at_least(level, ...) | Yes: the argument is a minimum |
 | map, keyed_by, redact_field | Classified by runtime rules |
 | Unmarked fields and unmarked | No classification; ordinary output |
 

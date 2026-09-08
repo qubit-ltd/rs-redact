@@ -36,7 +36,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     /// `access`. Use it only for values independently reviewed as safe to
     /// expose. Never pass credentials, user-controlled diagnostic data, or a
     /// value whose classification depends on runtime policy. Every field
-    /// requiring redaction must use [`Self::sensitive`] or another
+    /// requiring redaction must use [`Self::sensitive_at_least`] or another
     /// redaction-aware writer method instead.
     pub fn unredacted<T, F>(&mut self, name: &str, access: F) -> &mut Self
     where
@@ -101,7 +101,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     ///
     /// Propagates a panic from `access` when the selected policy evaluates the
     /// closure, including when redaction is disabled.
-    pub fn sensitive<T, F>(&mut self, level: Sensitivity, name: &str, access: F) -> &mut Self
+    pub fn sensitive_at_least<T, F>(&mut self, level: Sensitivity, name: &str, access: F) -> &mut Self
     where
         T: Debug,
         F: FnOnce() -> T,
@@ -161,7 +161,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     /// callers choose the exact level for every scalar leaf, and policy rules
     /// classify surrounding named fields without changing those leaf levels.
     #[doc(hidden)]
-    pub fn sensitive_value<T>(&mut self, level: Sensitivity, name: &str, value: &T) -> &mut Self
+    pub fn sensitive_value_exact<T>(&mut self, level: Sensitivity, name: &str, value: &T) -> &mut Self
     where
         T: RedactLevelValue + ?Sized,
     {

@@ -44,72 +44,72 @@ impl Redact for LevelValues {
 
         writer.record("LevelValues", |fields| {
             fields
-                .sensitive_value(Sensitivity::Secret, "string", &String::from("string-secret"))
-                .sensitive_value(Sensitivity::Secret, "str", "str-secret")
-                .sensitive_value(Sensitivity::Secret, "cow", &cow)
-                .sensitive_value(Sensitivity::Secret, "char", &'x')
-                .sensitive_value(Sensitivity::Secret, "bool", &true)
-                .sensitive_value(Sensitivity::Secret, "i8", &1_i8)
-                .sensitive_value(Sensitivity::Secret, "i16", &2_i16)
-                .sensitive_value(Sensitivity::Secret, "i32", &3_i32)
-                .sensitive_value(Sensitivity::Secret, "i64", &4_i64)
-                .sensitive_value(Sensitivity::Secret, "i128", &5_i128)
-                .sensitive_value(Sensitivity::Secret, "isize", &6_isize)
-                .sensitive_value(Sensitivity::Secret, "u8", &7_u8)
-                .sensitive_value(Sensitivity::Secret, "u16", &8_u16)
-                .sensitive_value(Sensitivity::Secret, "u32", &9_u32)
-                .sensitive_value(Sensitivity::Secret, "u64", &10_u64)
-                .sensitive_value(Sensitivity::Secret, "u128", &11_u128)
-                .sensitive_value(Sensitivity::Secret, "usize", &12_usize)
-                .sensitive_value(Sensitivity::Secret, "f32", &1.25_f32)
-                .sensitive_value(Sensitivity::Secret, "f64", &2.5_f64)
-                .sensitive_value(Sensitivity::Secret, "some", &Some(String::from("some-secret")))
-                .sensitive_value::<Option<String>>(Sensitivity::Secret, "none", &None)
-                .sensitive_value(Sensitivity::Secret, "vec", &vec![String::from("vec-secret")])
-                .sensitive_value(Sensitivity::Secret, "slice", slice)
-                .sensitive_value(Sensitivity::Secret, "deque", &deque)
-                .sensitive_value(Sensitivity::Secret, "list", &list)
-                .sensitive_value(Sensitivity::Secret, "heap", &heap)
-                .sensitive_value(Sensitivity::Secret, "tree_set", &tree_set)
-                .sensitive_value(Sensitivity::Secret, "hash_set", &hash_set)
-                .sensitive_value(Sensitivity::Secret, "boxed", &Box::new(String::from("box-secret")))
-                .sensitive_value(Sensitivity::Secret, "rc", &Rc::new(String::from("rc-secret")))
-                .sensitive_value(Sensitivity::Secret, "arc", &Arc::new(String::from("arc-secret")))
-                .sensitive_value(Sensitivity::Secret, "hash_map", &hash_map)
-                .sensitive_value(Sensitivity::Secret, "tree_map", &tree_map)
-                .sensitive_value(Sensitivity::Secret, "array", &[String::from("array-secret")])
-                .sensitive_value(Sensitivity::Secret, "tuple1", &(1_u8,))
-                .sensitive_value(Sensitivity::Secret, "tuple2", &(1_u8, 2_u8))
-                .sensitive_value(Sensitivity::Secret, "tuple3", &(1_u8, 2_u8, 3_u8))
-                .sensitive_value(Sensitivity::Secret, "tuple4", &(1_u8, 2_u8, 3_u8, 4_u8))
-                .sensitive_value(Sensitivity::Secret, "tuple5", &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8))
-                .sensitive_value(Sensitivity::Secret, "tuple6", &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8))
-                .sensitive_value(
+                .sensitive_value_exact(Sensitivity::Secret, "string", &String::from("string-secret"))
+                .sensitive_value_exact(Sensitivity::Secret, "str", "str-secret")
+                .sensitive_value_exact(Sensitivity::Secret, "cow", &cow)
+                .sensitive_value_exact(Sensitivity::Secret, "char", &'x')
+                .sensitive_value_exact(Sensitivity::Secret, "bool", &true)
+                .sensitive_value_exact(Sensitivity::Secret, "i8", &1_i8)
+                .sensitive_value_exact(Sensitivity::Secret, "i16", &2_i16)
+                .sensitive_value_exact(Sensitivity::Secret, "i32", &3_i32)
+                .sensitive_value_exact(Sensitivity::Secret, "i64", &4_i64)
+                .sensitive_value_exact(Sensitivity::Secret, "i128", &5_i128)
+                .sensitive_value_exact(Sensitivity::Secret, "isize", &6_isize)
+                .sensitive_value_exact(Sensitivity::Secret, "u8", &7_u8)
+                .sensitive_value_exact(Sensitivity::Secret, "u16", &8_u16)
+                .sensitive_value_exact(Sensitivity::Secret, "u32", &9_u32)
+                .sensitive_value_exact(Sensitivity::Secret, "u64", &10_u64)
+                .sensitive_value_exact(Sensitivity::Secret, "u128", &11_u128)
+                .sensitive_value_exact(Sensitivity::Secret, "usize", &12_usize)
+                .sensitive_value_exact(Sensitivity::Secret, "f32", &1.25_f32)
+                .sensitive_value_exact(Sensitivity::Secret, "f64", &2.5_f64)
+                .sensitive_value_exact(Sensitivity::Secret, "some", &Some(String::from("some-secret")))
+                .sensitive_value_exact::<Option<String>>(Sensitivity::Secret, "none", &None)
+                .sensitive_value_exact(Sensitivity::Secret, "vec", &vec![String::from("vec-secret")])
+                .sensitive_value_exact(Sensitivity::Secret, "slice", slice)
+                .sensitive_value_exact(Sensitivity::Secret, "deque", &deque)
+                .sensitive_value_exact(Sensitivity::Secret, "list", &list)
+                .sensitive_value_exact(Sensitivity::Secret, "heap", &heap)
+                .sensitive_value_exact(Sensitivity::Secret, "tree_set", &tree_set)
+                .sensitive_value_exact(Sensitivity::Secret, "hash_set", &hash_set)
+                .sensitive_value_exact(Sensitivity::Secret, "boxed", &Box::new(String::from("box-secret")))
+                .sensitive_value_exact(Sensitivity::Secret, "rc", &Rc::new(String::from("rc-secret")))
+                .sensitive_value_exact(Sensitivity::Secret, "arc", &Arc::new(String::from("arc-secret")))
+                .sensitive_value_exact(Sensitivity::Secret, "hash_map", &hash_map)
+                .sensitive_value_exact(Sensitivity::Secret, "tree_map", &tree_map)
+                .sensitive_value_exact(Sensitivity::Secret, "array", &[String::from("array-secret")])
+                .sensitive_value_exact(Sensitivity::Secret, "tuple1", &(1_u8,))
+                .sensitive_value_exact(Sensitivity::Secret, "tuple2", &(1_u8, 2_u8))
+                .sensitive_value_exact(Sensitivity::Secret, "tuple3", &(1_u8, 2_u8, 3_u8))
+                .sensitive_value_exact(Sensitivity::Secret, "tuple4", &(1_u8, 2_u8, 3_u8, 4_u8))
+                .sensitive_value_exact(Sensitivity::Secret, "tuple5", &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8))
+                .sensitive_value_exact(Sensitivity::Secret, "tuple6", &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8))
+                .sensitive_value_exact(
                     Sensitivity::Secret,
                     "tuple7",
                     &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8),
                 )
-                .sensitive_value(
+                .sensitive_value_exact(
                     Sensitivity::Secret,
                     "tuple8",
                     &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8),
                 )
-                .sensitive_value(
+                .sensitive_value_exact(
                     Sensitivity::Secret,
                     "tuple9",
                     &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8),
                 )
-                .sensitive_value(
+                .sensitive_value_exact(
                     Sensitivity::Secret,
                     "tuple10",
                     &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8, 10_u8),
                 )
-                .sensitive_value(
+                .sensitive_value_exact(
                     Sensitivity::Secret,
                     "tuple11",
                     &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8, 10_u8, 11_u8),
                 )
-                .sensitive_value(
+                .sensitive_value_exact(
                     Sensitivity::Secret,
                     "tuple12",
                     &(

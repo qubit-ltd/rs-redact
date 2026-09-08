@@ -25,9 +25,11 @@ impl Redact for Credentials {
     /// Writes one public and one secret field through the domain API.
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
         writer.record("Credentials", |fields| {
-            fields
-                .unredacted("account", || "account-42")
-                .sensitive(Sensitivity::Secret, "password", || "raw-secret");
+            fields.unredacted("account", || "account-42").sensitive_at_least(
+                Sensitivity::Secret,
+                "password",
+                || "raw-secret",
+            );
         });
     }
 }

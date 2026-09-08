@@ -37,7 +37,7 @@ use crate::runtime::runtime_session::RuntimeSession;
 /// impl Redact for Credential {
 ///     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
 ///         writer.record("Credential", |fields| {
-///             fields.sensitive(Sensitivity::Secret, "token", || self.0);
+///             fields.sensitive_at_least(Sensitivity::Secret, "token", || self.0);
 ///         });
 ///     }
 /// }

@@ -58,7 +58,7 @@ fn test_redaction_writer_structured_helper_shapes_and_opaque_access() {
         fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
             writer.record("Structured", |fields| {
                 fields.unredacted("unit", || "Unit");
-                fields.sensitive(Sensitivity::High, "secret", || {
+                fields.sensitive_at_least(Sensitivity::High, "secret", || {
                     self.0.fetch_add(1, Ordering::SeqCst);
                     "must not be read"
                 });
@@ -118,7 +118,7 @@ fn test_redaction_writer_sequence_and_map_scopes_enforce_their_contracts() {
             writer.map(|entries| {
                 entries
                     .unredacted_entry("public", || "visible")
-                    .sensitive_entry(Sensitivity::Secret, "secret", || {
+                    .sensitive_entry_at_least(Sensitivity::Secret, "secret", || {
                         self.0.fetch_add(1, Ordering::SeqCst);
                         "must not be read"
                     })
@@ -314,7 +314,7 @@ fn test_redaction_fields_sensitive_value_masks_recursive_leaves() {
     impl Redact for RecursiveLevelValue {
         fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
             writer.record("RecursiveLevelValue", |fields| {
-                fields.sensitive_value(Sensitivity::Secret, "values", &self.values);
+                fields.sensitive_value_exact(Sensitivity::Secret, "values", &self.values);
             });
         }
     }
@@ -348,7 +348,7 @@ fn test_redaction_fields_sensitive_value_supports_big_decimal() {
     impl Redact for DecimalValue {
         fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
             writer.record("DecimalValue", |fields| {
-                fields.sensitive_value(Sensitivity::Medium, "coordinate", &self.0);
+                fields.sensitive_value_exact(Sensitivity::Medium, "coordinate", &self.0);
             });
         }
     }

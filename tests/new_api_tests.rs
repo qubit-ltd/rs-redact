@@ -30,7 +30,7 @@ impl Redact for Account {
         writer.record("Account", |fields| {
             fields
                 .unredacted("name", || self.name.clone())
-                .sensitive(Sensitivity::Secret, "password", || {
+                .sensitive_at_least(Sensitivity::Secret, "password", || {
                     panic!("a secret accessor must not run")
                 });
         });
