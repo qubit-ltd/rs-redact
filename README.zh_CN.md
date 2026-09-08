@@ -18,6 +18,7 @@
 需要 **Rust 1.94+**。Cargo 包名为 `qubit-redact`，Rust 中以 `qubit_redact` 引入。
 标量字段、自定义策略和手写 `Redact` 实现均无需启用可选 feature。
 
+<!-- redact-example: kind=cargo features=none -->
 ```toml
 [dependencies]
 qubit-redact = "0.8"
@@ -34,6 +35,7 @@ qubit-redact = "0.8"
 
 下面结构化领域类型的示例需要 derive、Serde 和 JSON：
 
+<!-- redact-example: kind=cargo features=derive,serde,json -->
 ```toml
 [dependencies]
 qubit-redact = { version = "0.8", features = ["derive", "serde", "json"] }
@@ -46,30 +48,37 @@ serde_json = "1"
 认证失败写入日志时，标准策略已把 `password` 等常见字段名识别为 secret，
 无需额外配置规则，也无需启用可选 feature。
 
+<!-- redact-example: kind=run features=none -->
 ```rust
 use qubit_redact::Redactor;
 
-let output = Redactor::standard().redact_field("password", "raw-secret");
-assert_eq!(output.text().as_str(), "<redacted>");
+fn main() {
+    let output = Redactor::standard().redact_field("password", "raw-secret");
+    assert_eq!(output.text().as_str(), "<redacted>");
+}
 ```
 
 ### 脱敏 JSON 载荷
 
 输入本身已是 JSON 时，启用 `json` feature。源 `Value` 不会被修改，只有渲染出的诊断文本会脱敏。
 
+<!-- redact-example: kind=cargo features=json -->
 ```toml
 [dependencies]
 qubit-redact = { version = "0.8", features = ["json"] }
 serde_json = "1"
 ```
 
+<!-- redact-example: kind=run features=json -->
 ```rust
 use qubit_redact::Redactor;
 
-let value = serde_json::json!({"user": "ada", "password": "raw-secret"});
-let output = Redactor::standard().redact_json_value(&value);
-assert!(!output.text().as_str().contains("raw-secret"));
-assert_eq!(value["password"], "raw-secret");
+fn main() {
+    let value = serde_json::json!({"user": "ada", "password": "raw-secret"});
+    let output = Redactor::standard().redact_json_value(&value);
+    assert!(!output.text().as_str().contains("raw-secret"));
+    assert_eq!(value["password"], "raw-secret");
+}
 ```
 
 ### 结构化领域类型
@@ -77,6 +86,7 @@ assert_eq!(value["password"], "raw-secret");
 使用 `#[redact(serde)]` 后，业务 JSON 与诊断 JSON 都会把密码变成 `<redacted>`；
 生成的 Debug 实现也会脱敏普通诊断输出。
 
+<!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
 use qubit_redact::{Redact, Redactor};
 
@@ -88,16 +98,18 @@ struct Login {
     password: String,
 }
 
-let login = Login { user: "ada".into(), password: "raw-secret".into() };
-let redactor = Redactor::standard();
-let view = redactor.redact_view(&login);
-assert!(!format!("{view}").contains("raw-secret"));
-assert!(!format!("{login:?}").contains("raw-secret"));
-let json = redactor.to_json(&login).expect("redacted JSON");
-assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
-assert!(!serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
-let output = redactor.redact_text(&login);
-assert!(!output.text().as_str().contains("raw-secret"));
+fn main() {
+    let login = Login { user: "ada".into(), password: "raw-secret".into() };
+    let redactor = Redactor::standard();
+    let view = redactor.redact_view(&login);
+    assert!(!format!("{view}").contains("raw-secret"));
+    assert!(!format!("{login:?}").contains("raw-secret"));
+    let json = redactor.to_json(&login).expect("redacted JSON");
+    assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
+    assert!(!serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+    let output = redactor.redact_text(&login);
+    assert!(!output.text().as_str().contains("raw-secret"));
+}
 ```
 
 属性与类型支持表见 [derive 说明](derive/README.zh_CN.md)；自定义字段规则、HTTP、URI、

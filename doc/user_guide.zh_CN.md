@@ -1,6 +1,33 @@
 # qubit-redact 用户手册
 
-[README](../README.zh_CN.md) · [英文用户手册](user_guide.md) · [derive 说明](../derive/README.zh_CN.md)
+[README](../README.zh_CN.md) · [英文用户手册](user_guide.md) · [derive 说明](../derive/README.zh_CN.md) · [API 文档](https://docs.rs/qubit-redact/0.8.0/qubit_redact/)
+
+本手册适用于 **qubit-redact 0.8.0**，需要 **Rust 1.94 或更新版本**，
+面向应用和库作者：先跑通日志与业务序列化共存，再配置领域类型、输入格式和预算。
+手册中的每个 Rust 代码块都是完整程序，可单独替换测试应用的 `src/main.rs` 运行。
+
+## 目录
+
+- [概念模型](#概念模型)
+- [安装](#安装)
+- [快速上手：脱敏单个字段](#快速上手脱敏单个字段)
+- [实战场景：登录诊断](#实战场景登录诊断)
+- [选择输出与理解视图](#选择输出与理解视图)
+- [选择入口与使用时机](#选择入口与使用时机)
+- [组合一条诊断消息](#组合一条诊断消息)
+- [Composer 与 batch 的分工](#composer-与-batch-的分工)
+- [领域类型与字段参考](#领域类型与字段参考)
+- [输入格式与集成](#输入格式与集成)
+- [进阶用法](#进阶用法)
+- [标准策略与 strict 策略](#标准策略与-strict-策略)
+- [字段规则、floor 与 allow](#字段规则floor-与-allow)
+- [预算计量与 0.8 迁移](#预算计量与-08-迁移)
+- [错误与诊断](#错误与诊断)
+- [处理不完整结果](#处理不完整结果)
+- [排障](#排障)
+- [并发与运行时约束](#并发与运行时约束)
+- [限制与最佳实践](#限制与最佳实践)
+- [延伸阅读](#延伸阅读)
 
 ## 手册目标与读者
 
@@ -16,6 +43,7 @@ qubit-redact 将源对象、策略快照和渲染结果分开处理。`RedactedV
 
 下面的依赖配置支持本节所有示例。
 
+<!-- redact-example: kind=cargo features=derive,serde,json -->
 ```toml
 [dependencies]
 qubit-redact = { version = "0.8", features = ["derive", "serde", "json"] }
@@ -23,12 +51,39 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
 
+## 快速上手：脱敏单个字段
+
+在配置领域类型之前，先确认标量路径是否满足需求。内置 standard 策略已把 `password` 等常见
+字段名识别为 secret，无需启用可选 feature，也无需自定义规则。将下面程序保存为 `src/main.rs`
+后执行 `cargo run` 即可验证。
+
+<!-- redact-example: kind=cargo features=none -->
+```toml
+[dependencies]
+qubit-redact = "0.8"
+```
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::Redactor;
+
+fn main() {
+    let output = Redactor::standard().redact_field("password", "raw-secret");
+    assert_eq!(output.text().as_str(), "<redacted>");
+    assert_eq!(output.summary().completion(), qubit_redact::RedactionCompletion::Complete);
+}
+```
+
+内存中的源字符串不会被修改；只有渲染出的诊断文本会脱敏。日志字段、错误上下文键或快速试验
+都可以先走这条路径，再决定是否投入 derive 标注。
+
 ## 实战场景：登录诊断
 
 下面的登录对象保留内存中的原始密码，但诊断格式化和直接业务序列化都必须隐藏密码。
 `#[redact(serde)]` 显式选择这一序列化边界。后续示例还会说明：业务序列化确实需要原值时，
 如何将它与脱敏诊断分开。
 
+<!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
 use qubit_redact::{Redact, Redactor};
 
@@ -40,16 +95,18 @@ struct Login {
     password: String,
 }
 
-let login = Login { user: "ada".into(), password: "raw-secret".into() };
-let redactor = Redactor::standard();
-let view = redactor.redact_view(&login);
-assert!(!format!("{view}").contains("raw-secret"));
-assert!(!format!("{login:?}").contains("raw-secret"));
-let json = redactor.to_json(&login).expect("redacted JSON");
-assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
-assert!(!serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
-let output = redactor.redact_text(&login);
-assert!(!output.text().as_str().contains("raw-secret"));
+fn main() {
+    let login = Login { user: "ada".into(), password: "raw-secret".into() };
+    let redactor = Redactor::standard();
+    let view = redactor.redact_view(&login);
+    assert!(!format!("{view}").contains("raw-secret"));
+    assert!(!format!("{login:?}").contains("raw-secret"));
+    let json = redactor.to_json(&login).expect("redacted JSON");
+    assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
+    assert!(!serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+    let output = redactor.redact_text(&login);
+    assert!(!output.text().as_str().contains("raw-secret"));
+}
 ```
 
 ## 选择输出与理解视图
@@ -71,6 +128,97 @@ assert!(!output.text().as_str().contains("raw-secret"));
 源状态相同且两者均成功时输出一致。它只遍历一次，传播序列化或预算错误，不返回半截 JSON。
 成功可能包含结构降级后的安全替代，因此不是完整性保证。
 它遵循领域标注；`redact_json(text)` 则解析输入 JSON 并按 JSON key 分类，两者不可混用。
+
+## 选择入口与使用时机
+
+| 需求 | 入口 | 典型场景 |
+| --- | --- | --- |
+| 脱敏单个命名字段 | `redact_field(field, value)` | 日志行、错误键、快速诊断 |
+| 固定策略下的延迟格式化 | `redact_view(&value)` | 传入 `format!`、tracing 字段或自定义 serializer |
+| 立即获取最终文本 | `redact_text(&value)` | 写入日志或 HTTP body 前拼好字符串 |
+| 紧凑脱敏 JSON | `to_json(&value)` | 不依赖外部 serializer 的结构化诊断 |
+| 借用 JSON 输入 | `redact_json(text)` / `redact_json_value(&value)` | 载荷本身已是 JSON |
+| 多值共享预算 | `diagnostic_batch()` | HTTP 各组成部分、argv/env、多字段事件 |
+| 一条有序消息 | `text_composer()` | 前缀 + 字段 + 领域对象拼成一行 |
+| 只分类不渲染 | `inspect_*` | 网关准入、校验器、预检 |
+
+优先选最窄的入口。view 推迟到格式化时才执行；composer 与 batch 共享事务预算，但发布的结果
+形态不同。inspection 不会格式化字段内容；成功时 `usage().output_bytes()` 为 0。
+
+## 组合一条诊断消息
+
+`text_composer()` 在同一份预算下构造一条有序诊断字符串。可链式拼接字面量、按策略分类的
+字段、领域对象、argv 片段和环境变量赋值；调用一次 `finish()` 得到 `RedactionTextOutput`。
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use std::ffi::OsStr;
+
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Redactor;
+use qubit_redact::formats::argv::ArgvItem;
+
+fn main() {
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.secret_sensitive("password");
+        })
+        .expect("valid field rule")
+        .build()
+        .expect("valid policy");
+    let redactor = Redactor::new(policy);
+    let output = redactor
+        .text_composer()
+        .literal("request password=")
+        .field("password", "super-secret")
+        .literal(" argv=")
+        .argv(|argv| {
+            argv.items([ArgvItem::plain(OsStr::new("client"))]);
+        })
+        .finish();
+    assert_eq!(output.text().as_str(), "request password=<redacted> argv=[\"client\"]");
+    assert!(!output.text().as_str().contains("super-secret"));
+}
+```
+
+每次 `finish()` 都会从新的预算账本开始。可以复用同一个 `Redactor`，但不要复用已 finalize
+的 `RedactionTextOutput`——库不会回头修改它。
+
+## Composer 与 batch 的分工
+
+两者共享同一份策略快照和同一份事务预算，但解决的问题不同。
+
+| 模型 | 发布结果 | 适用场景 |
+| --- | --- | --- |
+| `text_composer()` | 一条拼接好的 `RedactionTextOutput` | 单行日志或错误消息 |
+| `diagnostic_batch()` | 通过 `finish_with_marker` 解析的逐项句柄 | 需要分别查看 URL、header、body 等部分 |
+
+batch 句柄只对创建它的 batch 有效。在后续 batch 的 `finish_with_marker` 中解析旧句柄，
+会得到已转义的降级 marker，而不是原文。composer 不提供句柄；整条消息作为一个整体成功或降级。
+
+环境变量同样如此：行内展示用 `.env(...)`，需要逐项检查时用 batch 的 `redact_env(name, value)`。
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::Redactor;
+use std::ffi::OsStr;
+
+fn main() {
+    let redactor = Redactor::standard();
+    let composed = redactor
+        .text_composer()
+        .env(|env| {
+            env.pair("MODE", "debug");
+            env.os_pairs([(OsStr::new("REGION"), OsStr::new("ap-east-1"))]);
+        })
+        .finish();
+    let mut batch = redactor.diagnostic_batch();
+    let password = batch.redact_env("PASSWORD", "raw-secret");
+    let output = batch.finish_with_marker("<incomplete>");
+    assert_eq!(composed.text().as_str(), r#"MODE=debug["REGION=ap-east-1"]"#);
+    assert_eq!(output.text(password).as_str(), "PASSWORD=<redacted>");
+}
+```
 
 ## 领域类型与字段参考
 
@@ -102,6 +250,7 @@ runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的�
 要求：未标注字段通常需要 `Serialize`；`level = "...", display` 只需 `Display`，并输出脱敏
 字符串。
 
+<!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
 use qubit_redact::{Redact, Redactor};
 
@@ -112,9 +261,11 @@ struct Login {
     password: String,
 }
 
-let login = Login { user: "ada".into(), password: "raw-secret".into() };
-assert!(serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
-assert!(!Redactor::standard().to_json(&login).expect("redacted JSON").contains("raw-secret"));
+fn main() {
+    let login = Login { user: "ada".into(), password: "raw-secret".into() };
+    assert!(serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+    assert!(!Redactor::standard().to_json(&login).expect("redacted JSON").contains("raw-secret"));
+}
 ```
 
 只有需要让源对象被直接序列化时也输出脱敏内容，才添加 `#[redact(serde)]`。类型既没有普通
@@ -134,6 +285,7 @@ assert!(!Redactor::standard().to_json(&login).expect("redacted JSON").contains("
 因此子字段规则、JSON 遍历和 inspection 仍然生效；业务键敏感时，整个载荷作为一个值掩码；
 disabled 策略则输出原值。这避免了公开包装通过 `Debug` 回退泄露内部 secret。
 
+<!-- redact-example: kind=run features=none -->
 ```rust
 use qubit_redact::{Redact, RedactionWriter, Sensitivity};
 
@@ -157,6 +309,15 @@ impl Redact for NamedPayload {
         });
     }
 }
+
+fn main() {
+    let payload = NamedPayload {
+        name: "public".into(),
+        payload: Payload { password: "raw-secret".into() },
+    };
+    let output = qubit_redact::Redactor::standard().redact_text(&payload);
+    assert!(!output.text().as_str().contains("raw-secret"));
+}
 ```
 
 Serde 支持 rename/rename_all、枚举 tag/content/untagged、transparent、skip、skip_serializing、
@@ -165,6 +326,7 @@ flatten 不受支持。JSON 文本字段序列化后仍是字符串，已解析 
 
 ### 标量 newtype
 
+<!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
 use qubit_redact::{Redact, RedactScalar, Redactor};
 
@@ -183,9 +345,11 @@ struct Account {
     user_id: UserId,
 }
 
-let account = Account { id: Id(42), user_id: UserId { value: "raw-id".into() } };
-assert_eq!(Redactor::standard().to_json(&account).expect("account JSON"),
-    r#"{"id":"<redacted>","user_id":"<redacted>"}"#);
+fn main() {
+    let account = Account { id: Id(42), user_id: UserId { value: "raw-id".into() } };
+    assert_eq!(Redactor::standard().to_json(&account).expect("account JSON"),
+        r#"{"id":"<redacted>","user_id":"<redacted>"}"#);
+}
 ```
 
 ### 第三方 Display 类型
@@ -193,6 +357,7 @@ assert_eq!(Redactor::standard().to_json(&account).expect("account JSON"),
 显式选择文本表示。High/Secret 不触发 Display，Low/Medium 和 disabled 按需格式化，
 资源预算仍生效；disabled 下也保持这里明确选择的字符串表示。
 
+<!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
 use qubit_redact::{Redact, Redactor};
 
@@ -210,9 +375,12 @@ struct Event {
     #[redact(level = "secret", display)]
     id: ExternalId,
 }
-let event = Event { id: ExternalId(42) };
-assert_eq!(Redactor::standard().to_json(&event).expect("event JSON"),
-    r#"{"id":"<redacted>"}"#);
+
+fn main() {
+    let event = Event { id: ExternalId(42) };
+    assert_eq!(Redactor::standard().to_json(&event).expect("event JSON"),
+        r#"{"id":"<redacted>"}"#);
+}
 ```
 
 ### 等级与策略优先级
@@ -228,6 +396,14 @@ assert_eq!(Redactor::standard().to_json(&event).expect("event JSON"),
 High 输出 `****`；Secret 输出 `<redacted>`。例如 `abcdef` 的 Low 为 `ab****ef`，
 Medium 为 `*******f`。业务类型负责选择正确等级，strict 不覆盖显式声明。
 
+| 等级 | 示例值 | 掩码结果 |
+| --- | --- | --- |
+| Low | `abcdef` | `ab****ef` |
+| Low | `ab` | `<redacted>`（短串全部隐藏） |
+| Medium | `abcdef` | `*******f` |
+| High | 任意 | `****` |
+| Secret | 任意 | `<redacted>` |
+
 ### 多个值共享预算
 
 HTTP 的 URL、headers、body 或进程的 argv、env 往往属于同一条诊断事件。使用 batch，
@@ -236,14 +412,18 @@ HTTP 的 URL、headers、body 或进程的 argv、env 往往属于同一条诊�
 `finish_with_marker(marker)` 给不完整项及无效/跨批次句柄统一返回已转义 marker。
 `finish()` 使用默认标记 `<redaction incomplete>`。`summary()` 是整批摘要，不是逐项审计接口。
 
+<!-- redact-example: kind=run features=none -->
 ```rust
 use qubit_redact::Redactor;
-let mut batch = Redactor::standard().diagnostic_batch();
-let user = batch.redact_field("user", "ada");
-let password = batch.redact_field("password", "raw-secret");
-let output = batch.finish_with_marker("<incomplete>");
-assert_eq!(output.text(user).as_str(), "ada");
-assert_eq!(output.text(password).as_str(), "<redacted>");
+
+fn main() {
+    let mut batch = Redactor::standard().diagnostic_batch();
+    let user = batch.redact_field("user", "ada");
+    let password = batch.redact_field("password", "raw-secret");
+    let output = batch.finish_with_marker("<incomplete>");
+    assert_eq!(output.text(user).as_str(), "ada");
+    assert_eq!(output.text(password).as_str(), "<redacted>");
+}
 ```
 
 ## 输入格式与集成
@@ -255,15 +435,18 @@ assert_eq!(output.text(password).as_str(), "<redacted>");
 
 解析 JSON 时输入只被借用且保持不变：
 
+<!-- redact-example: kind=run features=json -->
 ```rust
 use qubit_redact::Redactor;
 
-let value = serde_json::json!({"password": "raw", "visible": "shown"});
-let output = Redactor::standard().redact_json_value(&value);
-let inspection = Redactor::standard().inspect_json_value(&value);
-assert!(!output.text().as_str().contains("raw"));
-assert_eq!(value["password"], "raw");
-let _ = inspection;
+fn main() {
+    let value = serde_json::json!({"password": "raw", "visible": "shown"});
+    let output = Redactor::standard().redact_json_value(&value);
+    let inspection = Redactor::standard().inspect_json_value(&value);
+    assert!(!output.text().as_str().contains("raw"));
+    assert_eq!(value["password"], "raw");
+    let _ = inspection;
+}
 ```
 
 `DiagnosticRedactionBatch::redact_json_value` 以及其他批处理方法共享预算。调用
@@ -277,6 +460,7 @@ JSON 文本只解析一次，解析过程同时完成结构准入并构造 admit
 声明数据类型为 JSON 的下游集合，这一点尤其重要：每一项都必须按 JSON 结构遍历，不能作为
 不透明标量格式化。
 
+<!-- redact-example: kind=run features=json -->
 ```rust
 use qubit_redact::Redact;
 use qubit_redact::RedactionWriter;
@@ -293,6 +477,12 @@ impl Redact for Documents {
         });
     }
 }
+
+fn main() {
+    let documents = Documents(vec![serde_json::json!({"password": "raw"})]);
+    let output = qubit_redact::Redactor::standard().redact_text(&documents);
+    assert!(!output.text().as_str().contains("raw"));
+}
 ```
 
 JSON 文本采用 `qubit-json` 的明确数字契约：负整数必须装入 `i64`，非负整数必须装入 `u64`，
@@ -305,24 +495,27 @@ Number 标记键是普通对象键。
 
 同一条诊断事件的 URL、header 和捕获 body 应进入同一个事务：
 
+<!-- redact-example: kind=run features=http -->
 ```rust
 use http::{HeaderMap, HeaderValue};
 use qubit_redact::Redactor;
 use qubit_redact::formats::http::BodyCapture;
 
-let mut headers = HeaderMap::new();
-headers.insert("authorization", HeaderValue::from_static("Bearer raw-token"));
-let content_type = HeaderValue::from_static("application/json");
-let body = br#"{"user":"ada","password":"raw-password"}"#;
+fn main() {
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", HeaderValue::from_static("Bearer raw-token"));
+    let content_type = HeaderValue::from_static("application/json");
+    let body = br#"{"user":"ada","password":"raw-password"}"#;
 
-let mut batch = Redactor::standard().diagnostic_batch();
-let url = batch.redact_http_url("https://example.test/login?token=raw-token");
-let headers_handle = batch.redact_http_headers(&headers);
-let body_handle = batch.redact_http_body(BodyCapture::complete(body), Some(&content_type));
-let output = batch.finish_with_marker("<redaction incomplete>");
+    let mut batch = Redactor::standard().diagnostic_batch();
+    let url = batch.redact_http_url("https://example.test/login?token=raw-token");
+    let headers_handle = batch.redact_http_headers(&headers);
+    let body_handle = batch.redact_http_body(BodyCapture::complete(body), Some(&content_type));
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
-for handle in [url, headers_handle, body_handle] {
-    assert!(!output.text(handle).as_str().contains("raw-"));
+    for handle in [url, headers_handle, body_handle] {
+        assert!(!output.text(handle).as_str().contains("raw-"));
+    }
 }
 ```
 
@@ -338,17 +531,17 @@ complete capture。
 需要拒绝 URI，而不只是把它转成安全文本时，可以使用检查 API。发现敏感数据和返回错误都应
 按安全降级处理：
 
+<!-- redact-example: kind=run features=uri -->
 ```rust
-# #[cfg(feature = "uri")]
-# {
 use qubit_redact::Redactor;
 
-let candidate = "https://example.test/?token=raw-token";
-let acceptable = Redactor::strict()
-    .inspect_uri(candidate)
-    .is_ok_and(|inspection| !inspection.contains_sensitive());
-assert!(!acceptable);
-# }
+fn main() {
+    let candidate = "https://example.test/?token=raw-token";
+    let acceptable = Redactor::strict()
+        .inspect_uri(candidate)
+        .is_ok_and(|inspection| !inspection.contains_sensitive());
+    assert!(!acceptable);
+}
 ```
 
 ### 处理 argv、环境变量和进程诊断
@@ -356,19 +549,22 @@ assert!(!acceptable);
 调用方知道参数契约时，应优先显式标记 argv。启发式 argv 能识别受支持的 option 形式，但不是
 shell parser：
 
+<!-- redact-example: kind=run features=none -->
 ```rust
 use std::ffi::OsStr;
 
 use qubit_redact::{Redactor, Sensitivity};
 use qubit_redact::formats::argv::ArgvItem;
 
-let arguments = [
-    ArgvItem::plain(OsStr::new("--server=example.test")),
-    ArgvItem::sensitive(OsStr::new("raw-token"), Sensitivity::Secret),
-];
-let variables = [(OsStr::new("PASSWORD"), OsStr::new("raw-password"))];
-let output = Redactor::standard().redact_process(OsStr::new("client"), arguments, variables);
-assert!(!output.text().as_str().contains("raw-"));
+fn main() {
+    let arguments = [
+        ArgvItem::plain(OsStr::new("--server=example.test")),
+        ArgvItem::sensitive(OsStr::new("raw-token"), Sensitivity::Secret),
+    ];
+    let variables = [(OsStr::new("PASSWORD"), OsStr::new("raw-password"))];
+    let output = Redactor::standard().redact_process(OsStr::new("client"), arguments, variables);
+    assert!(!output.text().as_str().contains("raw-"));
+}
 ```
 
 ### Feature 选择
@@ -385,6 +581,38 @@ assert!(!output.text().as_str().contains("raw-"));
 只使用标量和手写领域实现时可保持默认空 feature 集。在 0.8 版本系列中，`serde` 提供结构化
 序列化，BigDecimal 支持则通过 `bigdecimal` feature 显式启用。
 
+## 标准策略与 strict 策略
+
+`Redactor::standard()` 使用内置字段表；未识别的标量字段名保持可见。适合领域类型已声明
+敏感度、或未知键本身就需要出现在诊断里的场景。
+
+`Redactor::strict()` 把未识别的标量字段当作 secret。适合不可信的键值映射、用户提供的
+查询参数，或字段名不受你控制的第三方 JSON。
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::Redactor;
+
+fn main() {
+    let field = "custom_metric";
+    let value = "visible-value";
+    assert!(
+        !Redactor::standard()
+            .redact_field(field, value)
+            .text()
+            .as_str()
+            .contains("<redacted>")
+    );
+    assert_eq!(
+        Redactor::strict().redact_field(field, value).text().as_str(),
+        "<redacted>"
+    );
+}
+```
+
+strict 不会降低 derive 显式等级或手写 `sensitive_at_least` 的域类型声明；它作用于
+`redact_field`、JSON key、HTTP query 等运行时分类路径。
+
 ## 进阶用法
 
 ### 检查决策与控制策略
@@ -392,27 +620,87 @@ assert!(!output.text().as_str().contains("raw-"));
 检查 API 会报告规则匹配、敏感度和完成状态，但不会发布原始值。它适合在确定日志或序列化
 边界前解释某字段为何会被掩码。
 
+inspection 不会调用字段的 `Debug`、`Display` 或 `Serialize`。即使格式化路径配置错误会在
+渲染时 panic，inspection 仍可完成，因此适合不能泄露任何字节的安全门禁。
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
+
+fn main() {
+    let inspection = Redactor::standard()
+        .inspect_field("password", "raw-secret")
+        .expect("field inspection should complete");
+    assert!(inspection.contains_sensitive());
+    assert_eq!(inspection.max_sensitivity(), Some(Sensitivity::Secret));
+    assert_eq!(inspection.usage().output_bytes(), 0);
+}
+```
+
+领域对象、JSON 文本与值、HTTP 各部分、URI、argv、环境变量对以及完整进程描述都有对应的
+`inspect_*` 入口。若 inspection 结果用于准入决策，任何错误都应视为分类不完整。
+
 建议构造一份不可变策略，再共享生成的 `Redactor`。builder closure 具有事务语义：字段规则
 无效时，原 builder 不会受到部分修改。
 
+<!-- redact-example: kind=run features=none -->
 ```rust
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
-let policy = RedactionPolicy::builder()
-    .fields(|fields| {
-        fields.raise("session_id", Sensitivity::High);
-    })
-    .expect("valid field rule")
-    .limits(|limits| {
-        limits.max_input_bytes(64 * 1024);
-        limits.max_output_bytes(8 * 1024);
-        limits.max_collection_items(256);
-    })
-    .expect("valid limits")
-    .build()
-    .expect("valid policy");
-let redactor = Redactor::new(policy);
-assert!(!redactor.redact_field("session_id", "raw-session").text().as_str().contains("raw-session"));
+fn main() {
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.raise("session_id", Sensitivity::High);
+        })
+        .expect("valid field rule")
+        .limits(|limits| {
+            limits.max_input_bytes(64 * 1024);
+            limits.max_output_bytes(8 * 1024);
+            limits.max_collection_items(256);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let redactor = Redactor::new(policy);
+    assert!(!redactor.redact_field("session_id", "raw-session").text().as_str().contains("raw-session"));
+}
+```
+
+### 字段规则、floor 与 allow
+
+运行时字段规则补充 derive 标注，不会把显式 derive 等级降低。常见 builder 调用包括：
+
+| Builder 调用 | 作用 |
+| --- | --- |
+| `secret_sensitive(name)` | 将精确字段名分类为 secret |
+| `raise(name, level)` | 把运行时分类至少提升到给定等级 |
+| `allow_exact` / `allow_suffix` | 允许列出的名称保持未分类 |
+| `floor(floor)` | 为匹配名称安装最低脱敏 floor |
+
+当 floor 与 allow 规则同时匹配同名字段时，floor 可以把敏感度提高到 allow 之上。floor 适合
+供应商 token 等绝不能原样出现的字段，即使 allow 列表本来会放行该名称。
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::{RedactionFloor, RedactionPolicy, Redactor, Sensitivity};
+
+fn main() {
+    let floor = RedactionFloor::builder()
+        .raise("access_token", Sensitivity::High)
+        .expect("valid floor rule")
+        .build()
+        .expect("valid floor");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.floor(floor).allow_exact("access_token");
+        })
+        .expect("valid field rule")
+        .build()
+        .expect("valid policy");
+    let output = Redactor::new(policy).redact_field("access_token", "raw-token");
+    assert_eq!(output.text().as_str(), "****");
+}
 ```
 
 `RedactionPolicy::disabled()` 是显式关闭保密脱敏的选项，也是框架有意保留的进程级调试
@@ -422,15 +710,18 @@ assert!(!redactor.redact_field("session_id", "raw-session").text().as_str().cont
 后果都由下游负责。让不可信请求控制该开关通常是不安全的，但阻止下游故意或错误调用 API
 不属于框架保证。
 
+<!-- redact-example: kind=run features=none -->
 ```rust
 use qubit_redact::{RedactionPolicy, Redactor};
 
-let mut policy = RedactionPolicy::disabled();
-assert!(policy.is_disabled());
-policy.set_disabled(false);
-let output = Redactor::new(policy).redact_field("password", "raw-secret");
-assert!(!output.summary().is_redaction_disabled());
-assert!(!output.text().as_str().contains("raw-secret"));
+fn main() {
+    let mut policy = RedactionPolicy::disabled();
+    assert!(policy.is_disabled());
+    policy.set_disabled(false);
+    let output = Redactor::new(policy).redact_field("password", "raw-secret");
+    assert!(!output.summary().is_redaction_disabled());
+    assert!(!output.text().as_str().contains("raw-secret"));
+}
 ```
 
 策略启用时，`Complete`、`Truncated` 和 `Exhausted` 文本都应保持保密安全。只有调用方
@@ -495,13 +786,63 @@ none/unit 为 0，动态 map key 和标量形式的 unit variant 名称计入载
 `into_text_or_marker()` 选择明确的降级标记。若检查结果用于安全判断，任何检查错误都意味着
 分类不完整，应按敏感结果处理。
 
+## 处理不完整结果
+
+`RedactionCompletion` 区分完整渲染与预算或解析降级。诊断场景通常直接记录 `text()` 或
+`text_or_marker(fallback)`，事后再看 `summary().reasons()`。审计或存储路径若要求完整性，
+应调用 `complete_text()` / `into_complete_text()` 并显式处理错误。
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::{RedactionCompletion, RedactionPolicy, Redactor};
+
+fn main() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_output_bytes(1);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let output = Redactor::new(policy).redact_field("password", "raw-secret");
+    assert_ne!(output.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(output.text_or_marker("<truncated>"), "<truncated>");
+    assert!(output.complete_text().is_err());
+}
+```
+
+即使 `completion()` 不是 `Complete`，已发布文本仍保持保密安全：库输出掩码或调用方指定的
+marker，而不是半截 secret。传给 `text_or_marker` 或 `finish_with_marker` 的 marker 会被转义，
+且不计入原事务的 `output_bytes`。
+
 ## 排障
 
-- 发现原值时，先检查 `output.summary().is_redaction_disabled()` 以及创建文本组合器或
-  批处理对象时采用的策略快照。
-- 出现非预期截断时，检查 `completion()`、`reasons()` 和 `usage()`；同一事务内的操作
-  会有意共享资源上限。
-- 字段未命中时，核对字段名并复查所有未标注字段；运行时不会推断业务敏感度。
+| 现象 | 优先检查 | 说明 |
+| --- | --- | --- |
+| 输出出现原值 | `summary().is_redaction_disabled()` 与 `Redactor` 快照 | disabled 策略会按设计恢复原值 |
+| standard 下未知字段仍可见 | 改用 `Redactor::strict()` 或添加字段规则 | standard 有意保留未列出名称 |
+| strict 下未知字段被过度掩码 | 添加 `allow_exact` / `allow_suffix` 或改用 standard | strict 默认把未知标量当 secret |
+| batch 某项被截断或为空 | `completion()`、`reasons()`、`usage()` | 较早的 batch 项会消耗共享额度 |
+| 句柄显示降级 marker | 句柄是否属于当前 batch | 句柄不能跨 batch 使用 |
+| `complete_text()` 失败 | 输出被截断或耗尽 | 审计路径的预期行为；日志可用 `text_or_marker` |
+| 领域字段未命中 | derive 等级、keyed_by 兄弟字段、手写 `Redact` | 运行时不会从 Rust 类型推断业务语义 |
+| JSON key 仍可见 | 使用的是 `redact_json_value` 还是领域 `Redact` | JSON 文本路径按 key 分类；领域路径看标注 |
+| 测试里 inspection 不 panic 但日志泄露 | 生产日志是否绕开脱敏入口 | inspection 本身不渲染值 |
+| URI 该拒绝却被接受 | 是否只用了 `redact_uri` 而非 `inspect_uri` | 脱敏产出安全文本；准入应走 inspection |
+| HTTP body 显示来源截断 | `RedactionReason::SourceTruncated` 与输出限制 | 不完整 body 应使用对应的 `BodyCapture` 构造方式 |
+
+## 并发与运行时约束
+
+每个 `Redactor` 持有不可变的 `Arc<RedactionPolicy>` 快照。克隆 redactor 开销低且线程安全。
+composer、batch 和 inspection 会话默认不应跨线程共享；每个诊断事件各建一份会话。
+
+`Redactor::replace_application_default()` 只影响之后通过 `application_default()` 取得的快照，
+以及会重新读取全局默认值的生成格式化代码。已创建的 redactor、composer 和 batch 仍保留
+创建时的策略。
+
+库不擦除源内存，不拦截任意 `println!` 或 tracing 宏，也不限制 redaction 开始前用户在
+`Display` / `Serialize` 内部执行的计算。若最终编码大小需要与 Serde 逻辑载荷分开限制，
+请在外部 serializer 侧额外设限。
 
 ## 限制与最佳实践
 
@@ -512,11 +853,16 @@ none/unit 为 0，动态 map key 和标量形式的 unit variant 名称计入载
 
 ## 延伸阅读
 
-参见 [README](../README.zh_CN.md)、[英文用户手册](user_guide.md)、
-[API 文档](https://docs.rs/qubit-redact)和
-[derive 说明](../derive/README.zh_CN.md)。
+- [中文 README](../README.zh_CN.md) · [English README](../README.md)
+- [0.8.0 API 文档](https://docs.rs/qubit-redact/0.8.0/qubit_redact/)
+- [derive 说明](../derive/README.zh_CN.md) · [英文用户手册](user_guide.md)
+- [设计文档](design.zh_CN.md) · [English design](design.md)
 
-验证本地检出内容可运行：
+在仓库根目录运行 `python3 -B scripts/check_doc_examples.py`，可以编译并执行两种语言的 README
+与用户手册中所有带注解的 Rust/Cargo 代码块。校验脚本以本仓库为 path 依赖，在临时 consumer
+crate 中离线运行；依赖需已缓存。
+
+验证本地检出与完整 CI 矩阵：
 
 ```bash
 ./align-ci.sh

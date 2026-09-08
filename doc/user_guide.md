@@ -1,6 +1,34 @@
 # qubit-redact User Guide
 
-[README](../README.md) · [Chinese guide](user_guide.zh_CN.md) · [derive guide](../derive/README.md)
+[README](../README.md) · [Chinese guide](user_guide.zh_CN.md) · [derive guide](../derive/README.md) · [API reference](https://docs.rs/qubit-redact/0.8.0/qubit_redact/)
+
+This guide covers **qubit-redact 0.8.0** and requires **Rust 1.94+**. It is for
+application and library authors: start with business serialization and diagnostic logging,
+then configure domain types, input formats, and budgets. Every Rust block is a complete
+program you can place in `src/main.rs` of a test app.
+
+## Contents
+
+- [Conceptual Model](#conceptual-model)
+- [Installation](#installation)
+- [Quick Start: Redact One Field](#quick-start-redact-one-field)
+- [Scenario: Login Diagnostics](#scenario-login-diagnostics)
+- [Outputs and View Semantics](#outputs-and-view-semantics)
+- [Choose an Entry Point](#choose-an-entry-point)
+- [Compose One Diagnostic Message](#compose-one-diagnostic-message)
+- [Composer vs Batch](#composer-vs-batch)
+- [Domain Types and Field Reference](#domain-types-and-field-reference)
+- [Input Formats and Integrations](#input-formats-and-integrations)
+- [Advanced Usage](#advanced-usage)
+- [Standard vs Strict Policy](#standard-vs-strict-policy)
+- [Field Rules, Floors, and Allow Lists](#field-rules-floors-and-allow-lists)
+- [Budget Units and Migration to 0.8](#budget-units-and-migration-to-08)
+- [Errors and Diagnostics](#errors-and-diagnostics)
+- [Handle Incomplete Results](#handle-incomplete-results)
+- [Troubleshooting](#troubleshooting)
+- [Concurrency and Runtime Constraints](#concurrency-and-runtime-constraints)
+- [Limitations and Best Practices](#limitations-and-best-practices)
+- [Further Reading](#further-reading)
 
 ## Purpose and Audience
 
@@ -19,12 +47,40 @@ budget. None of these results modifies the source value.
 
 This dependency configuration supports every example in this section.
 
+<!-- redact-example: kind=cargo features=derive,serde,json -->
 ```toml
 [dependencies]
 qubit-redact = { version = "0.8", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
+
+## Quick Start: Redact One Field
+
+Before configuring domain types, confirm the scalar path. The built-in standard policy already
+classifies common names such as `password` as secret, so no optional features or custom rules are
+required. Save the program below as `src/main.rs` and run `cargo run`.
+
+<!-- redact-example: kind=cargo features=none -->
+```toml
+[dependencies]
+qubit-redact = "0.8"
+```
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::Redactor;
+
+fn main() {
+    let output = Redactor::standard().redact_field("password", "raw-secret");
+    assert_eq!(output.text().as_str(), "<redacted>");
+    assert_eq!(output.summary().completion(), qubit_redact::RedactionCompletion::Complete);
+}
+```
+
+The source string in memory stays unchanged; only the rendered diagnostic text is redacted.
+Use this path for one-off log fields, error context keys, or quick experiments before investing
+in derive annotations.
 
 ## Scenario: Login Diagnostics
 
@@ -33,6 +89,7 @@ formatting and direct business serialization must hide it. The explicit
 `#[redact(serde)]` annotation selects that serialization boundary. Later examples
 show how to keep ordinary business serialization separate when it needs the raw value.
 
+<!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
 use qubit_redact::{Redact, Redactor};
 
@@ -44,16 +101,18 @@ struct Login {
     password: String,
 }
 
-let login = Login { user: "ada".into(), password: "raw-secret".into() };
-let redactor = Redactor::standard();
-let view = redactor.redact_view(&login);
-assert!(!format!("{view}").contains("raw-secret"));
-assert!(!format!("{login:?}").contains("raw-secret"));
-let json = redactor.to_json(&login).expect("redacted JSON");
-assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
-assert!(!serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
-let output = redactor.redact_text(&login);
-assert!(!output.text().as_str().contains("raw-secret"));
+fn main() {
+    let login = Login { user: "ada".into(), password: "raw-secret".into() };
+    let redactor = Redactor::standard();
+    let view = redactor.redact_view(&login);
+    assert!(!format!("{view}").contains("raw-secret"));
+    assert!(!format!("{login:?}").contains("raw-secret"));
+    let json = redactor.to_json(&login).expect("redacted JSON");
+    assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
+    assert!(!serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+    let output = redactor.redact_text(&login);
+    assert!(!output.text().as_str().contains("raw-secret"));
+}
 ```
 
 ## Outputs and View Semantics
@@ -77,6 +136,101 @@ With identical source state, outputs match when both succeed. It traverses once,
 serializer and budget errors, and never returns partial JSON. Success may include safe structural
 replacements and is not a completeness assertion. It follows domain annotations;
 `redact_json(text)` parses input JSON and classifies JSON keys.
+
+## Choose an Entry Point
+
+| Need | Entry point | Typical use |
+| --- | --- | --- |
+| Redact one named scalar | `redact_field(field, value)` | Log lines, error keys, quick diagnostics |
+| Lazy formatting under a fixed policy | `redact_view(&value)` | Pass into `format!`, tracing fields, or custom serializers |
+| Final text and summary now | `redact_text(&value)` | Build one string before writing to logs or HTTP bodies |
+| Compact redacted JSON | `to_json(&value)` | Structured diagnostics without an external serializer |
+| Borrowed JSON input | `redact_json(text)` / `redact_json_value(&value)` | Payloads that are already JSON |
+| Several values, one budget | `diagnostic_batch()` | HTTP exchange parts, argv/env tuples, multi-field events |
+| One ordered message | `text_composer()` | Prefix + field + domain value in a single line |
+| Classify without rendering | `inspect_*` | Gateways, validators, pre-flight checks |
+
+Pick the narrowest entry point. Views defer work until formatting; composers and batches share one
+transaction budget but publish different result shapes. Inspection never formats field contents and
+reports `usage().output_bytes() == 0` on success.
+
+## Compose One Diagnostic Message
+
+`text_composer()` builds one ordered diagnostic string under a single budget. Chain literals,
+policy-classified fields, domain values, argv fragments, and environment assignments; call
+`finish()` once to obtain `RedactionTextOutput`.
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use std::ffi::OsStr;
+
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Redactor;
+use qubit_redact::formats::argv::ArgvItem;
+
+fn main() {
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.secret_sensitive("password");
+        })
+        .expect("valid field rule")
+        .build()
+        .expect("valid policy");
+    let redactor = Redactor::new(policy);
+    let output = redactor
+        .text_composer()
+        .literal("request password=")
+        .field("password", "super-secret")
+        .literal(" argv=")
+        .argv(|argv| {
+            argv.items([ArgvItem::plain(OsStr::new("client"))]);
+        })
+        .finish();
+    assert_eq!(output.text().as_str(), "request password=<redacted> argv=[\"client\"]");
+    assert!(!output.text().as_str().contains("super-secret"));
+}
+```
+
+Each `finish()` starts from a fresh budget. Reusing the same `Redactor` is fine; reusing an old
+output buffer is not—the library never mutates a finalized `RedactionTextOutput`.
+
+## Composer vs Batch
+
+Both share one policy snapshot and one transaction budget, but they answer different questions.
+
+| Model | Publishes | Best for |
+| --- | --- | --- |
+| `text_composer()` | One concatenated `RedactionTextOutput` | Single log line or error message |
+| `diagnostic_batch()` | Per-item handles resolved through `finish_with_marker` | Inspecting parts independently, HTTP URL vs headers vs body |
+
+Batch handles are valid only for the batch that created them. Resolving a handle from an earlier
+batch through a later `finish_with_marker` returns the escaped fallback marker, not the original
+text. Composers do not expose handles; the entire message succeeds or degrades as one unit.
+
+Environment variables follow the same split: compose inline assignments with `.env(...)`, or add
+`redact_env(name, value)` items to a batch when each name may need separate inspection later.
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::Redactor;
+use std::ffi::OsStr;
+
+fn main() {
+    let redactor = Redactor::standard();
+    let composed = redactor
+        .text_composer()
+        .env(|env| {
+            env.pair("MODE", "debug");
+            env.os_pairs([(OsStr::new("REGION"), OsStr::new("ap-east-1"))]);
+        })
+        .finish();
+    let mut batch = redactor.diagnostic_batch();
+    let password = batch.redact_env("PASSWORD", "raw-secret");
+    let output = batch.finish_with_marker("<incomplete>");
+    assert_eq!(composed.text().as_str(), r#"MODE=debug["REGION=ap-east-1"]"#);
+    assert_eq!(output.text(password).as_str(), "PASSWORD=<redacted>");
+}
+```
 
 ## Domain Types and Field Reference
 
@@ -110,6 +264,7 @@ that projection to be usable. Its fields must only satisfy the requirements of t
 mode: an unmarked field normally needs `Serialize`, while `level = "...", display` needs
 `Display` and emits a redacted string.
 
+<!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
 use qubit_redact::{Redact, Redactor};
 
@@ -120,9 +275,11 @@ struct Login {
     password: String,
 }
 
-let login = Login { user: "ada".into(), password: "raw-secret".into() };
-assert!(serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
-assert!(!Redactor::standard().to_json(&login).expect("redacted JSON").contains("raw-secret"));
+fn main() {
+    let login = Login { user: "ada".into(), password: "raw-secret".into() };
+    assert!(serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+    assert!(!Redactor::standard().to_json(&login).expect("redacted JSON").contains("raw-secret"));
+}
 ```
 
 Add `#[redact(serde)]` when direct source serialization must also be redacted. If the type has
@@ -146,6 +303,7 @@ own field rules, JSON traversal, and inspection still run. If the business key i
 the payload is masked as one value; disabled policy renders the original value. This prevents
 a public wrapper from exposing a nested secret through a `Debug` fallback.
 
+<!-- redact-example: kind=run features=none -->
 ```rust
 use qubit_redact::{Redact, RedactionWriter, Sensitivity};
 
@@ -169,6 +327,15 @@ impl Redact for NamedPayload {
         });
     }
 }
+
+fn main() {
+    let payload = NamedPayload {
+        name: "public".into(),
+        payload: Payload { password: "raw-secret".into() },
+    };
+    let output = qubit_redact::Redactor::standard().redact_text(&payload);
+    assert!(!output.text().as_str().contains("raw-secret"));
+}
 ```
 
 Serde supports rename/rename_all, enum tag/content/untagged, transparent, skip, skip_serializing,
@@ -178,6 +345,7 @@ wire type; parsed Value fields retain JSON structure.
 
 ### Scalar Newtypes
 
+<!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
 use qubit_redact::{Redact, RedactScalar, Redactor};
 
@@ -196,9 +364,11 @@ struct Account {
     user_id: UserId,
 }
 
-let account = Account { id: Id(42), user_id: UserId { value: "raw-id".into() } };
-assert_eq!(Redactor::standard().to_json(&account).expect("account JSON"),
-    r#"{"id":"<redacted>","user_id":"<redacted>"}"#);
+fn main() {
+    let account = Account { id: Id(42), user_id: UserId { value: "raw-id".into() } };
+    assert_eq!(Redactor::standard().to_json(&account).expect("account JSON"),
+        r#"{"id":"<redacted>","user_id":"<redacted>"}"#);
+}
 ```
 
 ### Third-Party Display Types
@@ -207,6 +377,7 @@ Select textual representation explicitly. High/Secret do not invoke Display; Low
 disabled policies format only when needed, under the resource budget. Disabled mode retains
 the explicitly selected string representation.
 
+<!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
 use qubit_redact::{Redact, Redactor};
 
@@ -224,9 +395,12 @@ struct Event {
     #[redact(level = "secret", display)]
     id: ExternalId,
 }
-let event = Event { id: ExternalId(42) };
-assert_eq!(Redactor::standard().to_json(&event).expect("event JSON"),
-    r#"{"id":"<redacted>"}"#);
+
+fn main() {
+    let event = Event { id: ExternalId(42) };
+    assert_eq!(Redactor::standard().to_json(&event).expect("event JSON"),
+        r#"{"id":"<redacted>"}"#);
+}
 ```
 
 ### Levels and Policy Precedence
@@ -243,6 +417,14 @@ Medium retains one trailing character; High emits `****`; Secret emits `<redacte
 For example, `abcdef` becomes `ab****ef` at Low and `*******f` at Medium.
 Business types choose the correct level; strict policy does not override explicit declarations.
 
+| Level | Example value | Masked output |
+| --- | --- | --- |
+| Low | `abcdef` | `ab****ef` |
+| Low | `ab` | `<redacted>` (short strings fully hidden) |
+| Medium | `abcdef` | `*******f` |
+| High | any | `****` |
+| Secret | any | `<redacted>` |
+
 ### Sharing a Budget Across Values
 
 HTTP URL/headers/body or process argv/env often belong to one diagnostic event. Batch operations
@@ -251,14 +433,18 @@ Items consume allowance in insertion order, so earlier items can exhaust resourc
 later ones. `finish_with_marker(marker)` returns one escaped marker for incomplete items
 and invalid/foreign handles. `finish()` uses `<redaction incomplete>`. `summary()` is aggregate accounting, not per-item auditing.
 
+<!-- redact-example: kind=run features=none -->
 ```rust
 use qubit_redact::Redactor;
-let mut batch = Redactor::standard().diagnostic_batch();
-let user = batch.redact_field("user", "ada");
-let password = batch.redact_field("password", "raw-secret");
-let output = batch.finish_with_marker("<incomplete>");
-assert_eq!(output.text(user).as_str(), "ada");
-assert_eq!(output.text(password).as_str(), "<redacted>");
+
+fn main() {
+    let mut batch = Redactor::standard().diagnostic_batch();
+    let user = batch.redact_field("user", "ada");
+    let password = batch.redact_field("password", "raw-secret");
+    let output = batch.finish_with_marker("<incomplete>");
+    assert_eq!(output.text(user).as_str(), "ada");
+    assert_eq!(output.text(password).as_str(), "<redacted>");
+}
 ```
 
 ## Input Formats and Integrations
@@ -272,15 +458,18 @@ and the transaction budget.
 
 For parsed JSON, the input is borrowed and remains unchanged:
 
+<!-- redact-example: kind=run features=json -->
 ```rust
 use qubit_redact::Redactor;
 
-let value = serde_json::json!({"password": "raw", "visible": "shown"});
-let output = Redactor::standard().redact_json_value(&value);
-let inspection = Redactor::standard().inspect_json_value(&value);
-assert!(!output.text().as_str().contains("raw"));
-assert_eq!(value["password"], "raw");
-let _ = inspection;
+fn main() {
+    let value = serde_json::json!({"password": "raw", "visible": "shown"});
+    let output = Redactor::standard().redact_json_value(&value);
+    let inspection = Redactor::standard().inspect_json_value(&value);
+    assert!(!output.text().as_str().contains("raw"));
+    assert_eq!(value["password"], "raw");
+    let _ = inspection;
+}
 ```
 
 `DiagnosticRedactionBatch::redact_json_value` and the other batch methods share a budget.
@@ -296,6 +485,7 @@ value as JSON rather than as a quoted JSON string. Sequence implementations use
 for downstream collections whose declared data type is JSON, because each item
 must be traversed as JSON instead of formatted as an opaque scalar.
 
+<!-- redact-example: kind=run features=json -->
 ```rust
 use qubit_redact::Redact;
 use qubit_redact::RedactionWriter;
@@ -312,6 +502,12 @@ impl Redact for Documents {
         });
     }
 }
+
+fn main() {
+    let documents = Documents(vec![serde_json::json!({"password": "raw"})]);
+    let output = qubit_redact::Redactor::standard().redact_text(&documents);
+    assert!(!output.text().as_str().contains("raw"));
+}
 ```
 
 JSON text uses `qubit-json`'s explicit number contract: negative integers must
@@ -327,24 +523,27 @@ Enable the runtime `http` feature and add `http = "1"` to your dependencies for 
 Keep the URL, headers, and captured body in one transaction when they belong
 to the same diagnostic event:
 
+<!-- redact-example: kind=run features=http -->
 ```rust
 use http::{HeaderMap, HeaderValue};
 use qubit_redact::Redactor;
 use qubit_redact::formats::http::BodyCapture;
 
-let mut headers = HeaderMap::new();
-headers.insert("authorization", HeaderValue::from_static("Bearer raw-token"));
-let content_type = HeaderValue::from_static("application/json");
-let body = br#"{"user":"ada","password":"raw-password"}"#;
+fn main() {
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", HeaderValue::from_static("Bearer raw-token"));
+    let content_type = HeaderValue::from_static("application/json");
+    let body = br#"{"user":"ada","password":"raw-password"}"#;
 
-let mut batch = Redactor::standard().diagnostic_batch();
-let url = batch.redact_http_url("https://example.test/login?token=raw-token");
-let headers_handle = batch.redact_http_headers(&headers);
-let body_handle = batch.redact_http_body(BodyCapture::complete(body), Some(&content_type));
-let output = batch.finish_with_marker("<redaction incomplete>");
+    let mut batch = Redactor::standard().diagnostic_batch();
+    let url = batch.redact_http_url("https://example.test/login?token=raw-token");
+    let headers_handle = batch.redact_http_headers(&headers);
+    let body_handle = batch.redact_http_body(BodyCapture::complete(body), Some(&content_type));
+    let output = batch.finish_with_marker("<redaction incomplete>");
 
-for handle in [url, headers_handle, body_handle] {
-    assert!(!output.text(handle).as_str().contains("raw-"));
+    for handle in [url, headers_handle, body_handle] {
+        assert!(!output.text(handle).as_str().contains("raw-"));
+    }
 }
 ```
 
@@ -362,17 +561,17 @@ Enable the runtime `uri` feature for this example.
 Inspection is useful when a URI must be rejected rather than merely redacted.
 Both a sensitive result and an error are fail-closed outcomes:
 
+<!-- redact-example: kind=run features=uri -->
 ```rust
-# #[cfg(feature = "uri")]
-# {
 use qubit_redact::Redactor;
 
-let candidate = "https://example.test/?token=raw-token";
-let acceptable = Redactor::strict()
-    .inspect_uri(candidate)
-    .is_ok_and(|inspection| !inspection.contains_sensitive());
-assert!(!acceptable);
-# }
+fn main() {
+    let candidate = "https://example.test/?token=raw-token";
+    let acceptable = Redactor::strict()
+        .inspect_uri(candidate)
+        .is_ok_and(|inspection| !inspection.contains_sensitive());
+    assert!(!acceptable);
+}
 ```
 
 ### Redact argv, environment, and process diagnostics
@@ -381,19 +580,22 @@ Explicitly classified argv is preferable when the caller knows the argument
 contract. Heuristic argv recognizes supported option forms but is not a shell
 parser:
 
+<!-- redact-example: kind=run features=none -->
 ```rust
 use std::ffi::OsStr;
 
 use qubit_redact::{Redactor, Sensitivity};
 use qubit_redact::formats::argv::ArgvItem;
 
-let arguments = [
-    ArgvItem::plain(OsStr::new("--server=example.test")),
-    ArgvItem::sensitive(OsStr::new("raw-token"), Sensitivity::Secret),
-];
-let variables = [(OsStr::new("PASSWORD"), OsStr::new("raw-password"))];
-let output = Redactor::standard().redact_process(OsStr::new("client"), arguments, variables);
-assert!(!output.text().as_str().contains("raw-"));
+fn main() {
+    let arguments = [
+        ArgvItem::plain(OsStr::new("--server=example.test")),
+        ArgvItem::sensitive(OsStr::new("raw-token"), Sensitivity::Secret),
+    ];
+    let variables = [(OsStr::new("PASSWORD"), OsStr::new("raw-password"))];
+    let output = Redactor::standard().redact_process(OsStr::new("client"), arguments, variables);
+    assert!(!output.text().as_str().contains("raw-"));
+}
 ```
 
 ### Feature selection
@@ -411,6 +613,39 @@ Keep the default empty feature set for scalar and manually implemented domain
 redaction. In the 0.8 release line, `serde` provides structured serialization,
 while BigDecimal support is enabled explicitly with the `bigdecimal` feature.
 
+## Standard vs Strict Policy
+
+`Redactor::standard()` uses the built-in field catalog and leaves unrecognized scalar names visible.
+Use it when domain types already declare sensitivity or when unknown keys are intentionally diagnostic.
+
+`Redactor::strict()` treats unrecognized scalar fields as secret. Use it for untrusted key/value maps,
+user-supplied query parameters, or third-party JSON where field names are not under your control.
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::Redactor;
+
+fn main() {
+    let field = "custom_metric";
+    let value = "visible-value";
+    assert!(
+        !Redactor::standard()
+            .redact_field(field, value)
+            .text()
+            .as_str()
+            .contains("<redacted>")
+    );
+    assert_eq!(
+        Redactor::strict().redact_field(field, value).text().as_str(),
+        "<redacted>"
+    );
+}
+```
+
+Strict mode does not override explicit derive levels or hand-written `sensitive_at_least` floors on
+domain types; it applies to runtime field classification paths such as `redact_field`, JSON keys,
+and HTTP query parameters.
+
 ## Advanced Usage
 
 ### Inspect decisions and control policies
@@ -419,27 +654,91 @@ Inspection reports rule matches, sensitivity, and completion without publishing
 raw values. Use it to explain why a field would be masked before choosing a
 serialization or logging boundary.
 
+Inspection never invokes `Debug`, `Display`, or `Serialize` on classified values. A formatter that
+panics during rendering would still allow inspection to complete, which makes inspection suitable
+for security gates that must not leak data even when logging is misconfigured.
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
+
+fn main() {
+    let inspection = Redactor::standard()
+        .inspect_field("password", "raw-secret")
+        .expect("field inspection should complete");
+    assert!(inspection.contains_sensitive());
+    assert_eq!(inspection.max_sensitivity(), Some(Sensitivity::Secret));
+    assert_eq!(inspection.usage().output_bytes(), 0);
+}
+```
+
+Parallel `inspect_*` entry points exist for domain values, JSON text and values, HTTP parts, URI,
+argv, environment pairs, and full process descriptions. Treat any inspection error as inconclusive
+when the result controls admission.
+
 Build one immutable policy and share the resulting `Redactor`. Builder closures
 are transactional: an invalid field rule leaves the prior builder unchanged.
 
+<!-- redact-example: kind=run features=none -->
 ```rust
 use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
 
-let policy = RedactionPolicy::builder()
-    .fields(|fields| {
-        fields.raise("session_id", Sensitivity::High);
-    })
-    .expect("valid field rule")
-    .limits(|limits| {
-        limits.max_input_bytes(64 * 1024);
-        limits.max_output_bytes(8 * 1024);
-        limits.max_collection_items(256);
-    })
-    .expect("valid limits")
-    .build()
-    .expect("valid policy");
-let redactor = Redactor::new(policy);
-assert!(!redactor.redact_field("session_id", "raw-session").text().as_str().contains("raw-session"));
+fn main() {
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.raise("session_id", Sensitivity::High);
+        })
+        .expect("valid field rule")
+        .limits(|limits| {
+            limits.max_input_bytes(64 * 1024);
+            limits.max_output_bytes(8 * 1024);
+            limits.max_collection_items(256);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let redactor = Redactor::new(policy);
+    assert!(!redactor.redact_field("session_id", "raw-session").text().as_str().contains("raw-session"));
+}
+```
+
+### Field Rules, Floors, and Allow Lists
+
+Runtime field rules complement derive annotations; they never lower an explicit derive level.
+Common builder actions include:
+
+| Builder call | Effect |
+| --- | --- |
+| `secret_sensitive(name)` | Classify an exact field name as secret |
+| `raise(name, level)` | Raise runtime classification to at least the given level |
+| `allow_exact` / `allow_suffix` | Permit listed names to stay unclassified |
+| `floor(floor)` | Install a minimum redaction floor for matching names |
+
+A floor can raise sensitivity above an allow rule when both match the same name. Floors are useful
+for provider-specific tokens that must never appear verbatim even if an allow list would otherwise
+permit the field.
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::{RedactionFloor, RedactionPolicy, Redactor, Sensitivity};
+
+fn main() {
+    let floor = RedactionFloor::builder()
+        .raise("access_token", Sensitivity::High)
+        .expect("valid floor rule")
+        .build()
+        .expect("valid floor");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.floor(floor).allow_exact("access_token");
+        })
+        .expect("valid field rule")
+        .build()
+        .expect("valid policy");
+    let output = Redactor::new(policy).redact_field("access_token", "raw-token");
+    assert_eq!(output.text().as_str(), "****");
+}
 ```
 
 `RedactionPolicy::disabled()` is an explicit confidentiality opt-out and an
@@ -452,15 +751,18 @@ authorization, environment, timing, and consequences of disabling it. A
 request-controlled switch is usually unsafe, but preventing deliberate or
 accidental API misuse is not a framework guarantee.
 
+<!-- redact-example: kind=run features=none -->
 ```rust
 use qubit_redact::{RedactionPolicy, Redactor};
 
-let mut policy = RedactionPolicy::disabled();
-assert!(policy.is_disabled());
-policy.set_disabled(false);
-let output = Redactor::new(policy).redact_field("password", "raw-secret");
-assert!(!output.summary().is_redaction_disabled());
-assert!(!output.text().as_str().contains("raw-secret"));
+fn main() {
+    let mut policy = RedactionPolicy::disabled();
+    assert!(policy.is_disabled());
+    policy.set_disabled(false);
+    let output = Redactor::new(policy).redact_field("password", "raw-secret");
+    assert!(!output.summary().is_redaction_disabled());
+    assert!(!output.text().as_str().contains("raw-secret"));
+}
 ```
 
 Enabled `Complete`, `Truncated`, and `Exhausted` text remains confidentiality
@@ -535,14 +837,67 @@ result; for diagnostic presentation, `text_or_marker()` and
 classification was inconclusive and should be treated as sensitive when the
 result controls a security decision.
 
+## Handle Incomplete Results
+
+`RedactionCompletion` distinguishes complete rendering from budget or parser degradation.
+Diagnostic callers usually log `text()` or `text_or_marker(fallback)` and inspect
+`summary().reasons()` afterward. Audit or storage paths that require completeness should call
+`complete_text()` or `into_complete_text()` and handle the error explicitly.
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::{RedactionCompletion, RedactionPolicy, Redactor};
+
+fn main() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_output_bytes(1);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let output = Redactor::new(policy).redact_field("password", "raw-secret");
+    assert_ne!(output.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(output.text_or_marker("<truncated>"), "<truncated>");
+    assert!(output.complete_text().is_err());
+}
+```
+
+Even when `completion()` is not `Complete`, published text remains confidentiality-safe: the
+library emits masks or caller-selected markers instead of partial secrets. Markers passed to
+`text_or_marker` or `finish_with_marker` are escaped and are not counted toward the original
+transaction `output_bytes`.
+
 ## Troubleshooting
 
-- Unexpected raw output: first check `output.summary().is_redaction_disabled()`
-  and the policy snapshot used to create the composer or batch.
-- Unexpected truncation: inspect `completion()`, `reasons()`, and `usage()`;
-  related operations intentionally share limits.
-- Missing masking: verify the field name and review every unmarked field. The
-  runtime does not infer application-specific sensitivity.
+| Symptom | Check first | Notes |
+| --- | --- | --- |
+| Raw secret in output | `summary().is_redaction_disabled()` and the `Redactor` snapshot | Disabled policy restores values by design |
+| Unknown field stays visible under standard policy | Switch to `Redactor::strict()` or add field rules | Standard mode intentionally leaves unlisted names plain |
+| Unknown field over-masked under strict policy | Add `allow_exact` / `allow_suffix` or use standard policy | Strict mode defaults unknown scalars to secret |
+| Truncated or empty batch item | `completion()`, `reasons()`, `usage()` | Earlier batch items consume shared limits |
+| Handle shows fallback marker | Handle belongs to a different batch | Handles do not cross batches |
+| `complete_text()` fails | Output was truncated or exhausted | Expected for audit paths; use `text_or_marker` for logs |
+| Domain field not masked | Derive level, sibling keyed_by field, or manual `Redact` rules | Runtime does not infer business semantics from Rust types |
+| JSON key visible | Input used `redact_json_value` vs domain `Redact` | JSON text path classifies keys; domain path uses annotations |
+| Inspection panics in tests but not production | Inspection must not format values | Ensure production logging does not bypass redaction entry points |
+| URI accepted when it should be rejected | Use `inspect_uri`, not only `redact_uri` | Redaction produces safe text; inspection drives admission |
+| HTTP body shows source truncation | `RedactionReason::SourceTruncated` vs output limits | Use the correct `BodyCapture` constructor for partial bodies |
+
+## Concurrency and Runtime Constraints
+
+Each `Redactor` owns an immutable `Arc<RedactionPolicy>` snapshot. Cloning a redactor is cheap and
+thread-safe. Composers, batches, and inspection sessions are not shared across threads unless you
+externally synchronize them; create one session per diagnostic event.
+
+`Redactor::replace_application_default()` affects only future snapshots from
+`application_default()` and generated formatting that re-reads the global default. Existing
+redactors, composers, and batches keep the policy they were created with.
+
+The library does not erase source memory, does not intercept arbitrary `println!` or tracing
+macros, and does not bound work performed inside user-defined `Display` or `Serialize`
+implementations before redaction starts. Wrap external serializers when final encoded size must
+be capped separately from logical Serde payload limits.
 
 ## Limitations and Best Practices
 
@@ -556,11 +911,17 @@ result controls a security decision.
 
 ## Further Reading
 
-Read the [README](../README.md), [中文用户手册](user_guide.zh_CN.md),
-[API documentation](https://docs.rs/qubit-redact), and the
-[derive README](../derive/README.md).
+- [English README](../README.md) · [中文 README](../README.zh_CN.md)
+- [API reference for 0.8.0](https://docs.rs/qubit-redact/0.8.0/qubit_redact/)
+- [derive guide](../derive/README.md) · [中文用户手册](user_guide.zh_CN.md)
+- [Design](design.md) · [中文设计文档](design.zh_CN.md)
 
-To validate a local checkout:
+From the repository root, run `python3 -B scripts/check_doc_examples.py` to compile
+and execute every annotated Rust/Cargo block in both README and guide languages.
+The checker uses this checkout as a path dependency, temporary consumer crates,
+and offline Cargo resolution; dependencies must already be cached.
+
+To validate a local checkout with the full CI matrix:
 
 ```bash
 ./align-ci.sh

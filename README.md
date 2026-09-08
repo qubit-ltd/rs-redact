@@ -20,6 +20,7 @@ Requires **Rust 1.94+**. The Cargo package is `qubit-redact`; import it as `qubi
 in Rust. Scalar fields, custom policies, and hand-written `Redact` implementations need no
 optional features.
 
+<!-- redact-example: kind=cargo features=none -->
 ```toml
 [dependencies]
 qubit-redact = "0.8"
@@ -36,6 +37,7 @@ qubit-redact = "0.8"
 
 Structured domain examples below use derive, Serde, and JSON:
 
+<!-- redact-example: kind=cargo features=derive,serde,json -->
 ```toml
 [dependencies]
 qubit-redact = { version = "0.8", features = ["derive", "serde", "json"] }
@@ -49,11 +51,14 @@ An authentication failure is logged. The standard policy already treats common f
 such as `password` as secret, so you can redact one scalar without configuring rules or
 enabling optional features.
 
+<!-- redact-example: kind=run features=none -->
 ```rust
 use qubit_redact::Redactor;
 
-let output = Redactor::standard().redact_field("password", "raw-secret");
-assert_eq!(output.text().as_str(), "<redacted>");
+fn main() {
+    let output = Redactor::standard().redact_field("password", "raw-secret");
+    assert_eq!(output.text().as_str(), "<redacted>");
+}
 ```
 
 ### Redact JSON payloads
@@ -61,19 +66,23 @@ assert_eq!(output.text().as_str(), "<redacted>");
 Enable the `json` feature when the input is already JSON. The borrowed value stays
 unchanged; only the rendered diagnostic text is redacted.
 
+<!-- redact-example: kind=cargo features=json -->
 ```toml
 [dependencies]
 qubit-redact = { version = "0.8", features = ["json"] }
 serde_json = "1"
 ```
 
+<!-- redact-example: kind=run features=json -->
 ```rust
 use qubit_redact::Redactor;
 
-let value = serde_json::json!({"user": "ada", "password": "raw-secret"});
-let output = Redactor::standard().redact_json_value(&value);
-assert!(!output.text().as_str().contains("raw-secret"));
-assert_eq!(value["password"], "raw-secret");
+fn main() {
+    let value = serde_json::json!({"user": "ada", "password": "raw-secret"});
+    let output = Redactor::standard().redact_json_value(&value);
+    assert!(!output.text().as_str().contains("raw-secret"));
+    assert_eq!(value["password"], "raw-secret");
+}
 ```
 
 ### Structured domain types
@@ -81,6 +90,7 @@ assert_eq!(value["password"], "raw-secret");
 With `#[redact(serde)]`, business JSON and diagnostic JSON both replace the password with
 `<redacted>`. The generated Debug implementation also redacts ordinary diagnostic formatting.
 
+<!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
 use qubit_redact::{Redact, Redactor};
 
@@ -92,16 +102,18 @@ struct Login {
     password: String,
 }
 
-let login = Login { user: "ada".into(), password: "raw-secret".into() };
-let redactor = Redactor::standard();
-let view = redactor.redact_view(&login);
-assert!(!format!("{view}").contains("raw-secret"));
-assert!(!format!("{login:?}").contains("raw-secret"));
-let json = redactor.to_json(&login).expect("redacted JSON");
-assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
-assert!(!serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
-let output = redactor.redact_text(&login);
-assert!(!output.text().as_str().contains("raw-secret"));
+fn main() {
+    let login = Login { user: "ada".into(), password: "raw-secret".into() };
+    let redactor = Redactor::standard();
+    let view = redactor.redact_view(&login);
+    assert!(!format!("{view}").contains("raw-secret"));
+    assert!(!format!("{login:?}").contains("raw-secret"));
+    let json = redactor.to_json(&login).expect("redacted JSON");
+    assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
+    assert!(!serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
+    let output = redactor.redact_text(&login);
+    assert!(!output.text().as_str().contains("raw-secret"));
+}
 ```
 
 See the [derive guide](derive/README.md) for attribute and type tables. Custom field rules,
