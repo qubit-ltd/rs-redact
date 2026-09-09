@@ -7,6 +7,9 @@
 // =============================================================================
 //! Generated structured serialization capability and containers.
 
+use std::rc::Rc;
+use std::sync::Arc;
+
 use serde::Serializer;
 use serde::ser::SerializeSeq;
 use serde::ser::SerializeTuple;
@@ -129,3 +132,24 @@ tuple_redact_serialize!(9; A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 
 tuple_redact_serialize!(10; A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 6, H => 7, I => 8, J => 9);
 tuple_redact_serialize!(11; A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 6, H => 7, I => 8, J => 9, K => 10);
 tuple_redact_serialize!(12; A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 6, H => 7, I => 8, J => 9, K => 10, L => 11);
+
+/// Forwards a borrowed smart-pointer pointee without introducing a serializer
+/// wrapper type at each recursive model edge.
+macro_rules! pointer_redact_serialize {
+    ($pointer:ident) => {
+        impl<T: RedactSerialize + ?Sized> RedactSerialize for $pointer<T> {
+            /// Preserves the active policy and destination serializer.
+            fn serialize_redacted<S: Serializer>(
+                &self,
+                serializer: S,
+                policy: &crate::RedactionPolicy,
+            ) -> Result<S::Ok, S::Error> {
+                (**self).serialize_redacted(serializer, policy)
+            }
+        }
+    };
+}
+
+pointer_redact_serialize!(Box);
+pointer_redact_serialize!(Rc);
+pointer_redact_serialize!(Arc);

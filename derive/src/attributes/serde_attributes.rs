@@ -252,7 +252,8 @@ impl SerdeAttributes {
 /// `true` for a supported deserialization-only control.
 #[must_use]
 fn is_deserialize_only_control(meta: &ParseNestedMeta<'_>) -> bool {
-    meta.path.is_ident("default")
+    meta.path.is_ident("bound")
+        || meta.path.is_ident("default")
         || meta.path.is_ident("alias")
         || meta.path.is_ident("skip_deserializing")
         || meta.path.is_ident("deserialize_with")
@@ -275,6 +276,21 @@ fn is_deserialize_only_control(meta: &ParseNestedMeta<'_>) -> bool {
 /// Returns an error when the control uses the wrong shape or a non-string
 /// value.
 fn parse_deserialize_only_control(meta: &ParseNestedMeta<'_>) -> Result<()> {
+    if meta.path.is_ident("bound") {
+        let mut seen = false;
+        meta.parse_nested_meta(|direction| {
+            if !direction.path.is_ident("deserialize") || seen {
+                return Err(direction.error("Redact serde supports only one deserialize-only bound"));
+            }
+            seen = true;
+            let _: LitStr = direction.value()?.parse()?;
+            Ok(())
+        })?;
+        if !seen {
+            return Err(meta.error("Redact serde bound requires deserialize"));
+        }
+        return Ok(());
+    }
     if meta.path.is_ident("skip_deserializing") || meta.path.is_ident("deserialize_in_place") {
         if meta.input.peek(Token![=]) || meta.input.peek(Paren) {
             return Err(meta.error("Redact serde expects a bare deserialization-only field control"));

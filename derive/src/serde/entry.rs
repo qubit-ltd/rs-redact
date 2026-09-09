@@ -143,8 +143,8 @@ pub(crate) fn expand(
         generics
             .make_where_clause()
             .predicates
-            .extend(source_bounds(model, runtime, serde).into_iter().map(|bound| {
-                parse2::<WherePredicate>(bound).expect("valid source capability bound")
+            .extend(source_bounds(model, runtime, serde).into_iter().flat_map(|bound| {
+                crate::expand::assertions::non_recursive_predicates(input, parse2::<WherePredicate>(bound).expect("valid source capability bound"))
             }));
         let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
         quote! {

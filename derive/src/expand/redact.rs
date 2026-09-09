@@ -71,6 +71,9 @@ fn expand_with_container_attributes(
     runtime: &Path,
     container_attributes: ContainerAttributes,
 ) -> Result<TokenStream> {
+    let mut normalized = input.clone();
+    assertions::normalize_recursive_fields(&mut normalized);
+    let input = &normalized;
     let model = model::parse(input, "Redact", true)?;
     let serde = Some(parse_quote!(#runtime::domain::internal::serde));
     let serde_container_attributes = SerdeContainerAttributes::parse(input, true)?;
@@ -84,6 +87,27 @@ fn expand_with_container_attributes(
     )?;
     let mut redaction_generics = input.generics.clone();
     assertions::add_redact_bounds(&mut redaction_generics, &model, runtime);
+    let original_count = input
+        .generics
+        .where_clause
+        .as_ref()
+        .map_or(0, |clause| clause.predicates.len());
+    if let Some(clause) = &mut redaction_generics.where_clause {
+        clause.predicates = clause
+            .predicates
+            .iter()
+            .cloned()
+            .enumerate()
+            .flat_map(|(index, predicate)| {
+                if index < original_count {
+                    vec![predicate]
+                } else {
+                    assertions::non_recursive_predicates(input, predicate)
+                }
+            })
+            .collect();
+    }
+
     let write_body = match &model {
         ContainerData::Struct(fields) if container_attributes.transparent() => {
             writer_transparent_struct_body(fields, runtime)

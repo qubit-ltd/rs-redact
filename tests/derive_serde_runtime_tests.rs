@@ -467,3 +467,50 @@ fn serde_json_disabled_mode_keeps_json_text_as_text() {
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+
+#[derive(Redact, serde::Deserialize)]
+#[redact(serde)]
+struct DeserializeBound<const N: usize> {
+    #[serde(bound(deserialize = "[u8; N]: serde::Deserialize<'de>"))]
+    bytes: [u8; N],
+}
+
+/// Deserialize-only bounds do not participate in the redacted output view.
+#[test]
+fn deserialize_only_bounds_preserve_redacted_serialization() {
+    let value: DeserializeBound<2> = serde_json::from_str(r#"{"bytes":[1,2]}"#).unwrap();
+    assert_eq!(
+        serde_json::to_value(&value).unwrap()["bytes"],
+        serde_json::json!([1, 2])
+    );
+}
+
+#[derive(Redact)]
+#[redact(serde, debug)]
+struct RecursiveOutput<T> {
+    value: T,
+    #[redact(level = "secret")]
+    token: String,
+    #[redact(nested)]
+    next: Option<Box<RecursiveOutput<T>>>,
+}
+
+/// Recursive generic fields do not create cyclic Serialize or Redact bounds.
+#[test]
+fn recursive_generic_output_uses_nonrecursive_bounds() {
+    let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
+    let value = RecursiveOutput {
+        value: 7u32,
+        token: "outer-secret".to_owned(),
+        next: Some(Box::new(RecursiveOutput {
+            value: 8,
+            token: "inner-secret".to_owned(),
+            next: None,
+        })),
+    };
+    let json = serde_json::to_value(&value).expect("recursive serialization");
+    assert_eq!(json["next"]["value"], 8);
+    assert!(!json.to_string().contains("inner-secret"));
+    assert!(!json.to_string().contains("outer-secret"));
+    assert!(format!("{value:?}").contains('7'));
+}

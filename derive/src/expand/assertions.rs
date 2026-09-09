@@ -15,12 +15,18 @@ use proc_macro2::TokenTree;
 use quote::ToTokens;
 use quote::format_ident;
 use quote::quote;
+use syn::Data;
+use syn::DeriveInput;
 use syn::Field;
+use syn::GenericArgument;
 use syn::GenericParam;
 use syn::Generics;
 use syn::Ident;
 use syn::Lifetime;
+use syn::Meta;
 use syn::Path;
+use syn::PathArguments;
+use syn::Token;
 use syn::Type;
 use syn::WhereClause;
 use syn::WherePredicate;
@@ -385,4 +391,125 @@ fn token_stream_uses_parameter(tokens: TokenStream, parameters: &[String]) -> bo
         TokenTree::Group(group) => token_stream_uses_parameter(group.stream(), parameters),
         TokenTree::Punct(_) | TokenTree::Literal(_) => false,
     })
+}
+
+/// Replaces generated self-recursive field bounds with the independent stored
+/// type bounds, preserving the original declaration's explicit predicates.
+pub(crate) fn non_recursive_predicates(input: &DeriveInput, predicate: WherePredicate) -> Vec<WherePredicate> {
+    let WherePredicate::Type(bound) = &predicate else {
+        return vec![predicate];
+    };
+    let name = &input.ident;
+    let (_, arguments, _) = input.generics.split_for_impl();
+    let target = quote!(#name #arguments).to_string();
+    let Some(types) = recursive_types(&bound.bounded_ty, &target) else {
+        return vec![predicate];
+    };
+    types
+        .into_iter()
+        .map(|ty| {
+            let mut replacement = bound.clone();
+            replacement.bounded_ty = ty.clone();
+            WherePredicate::Type(replacement)
+        })
+        .collect()
+}
+
+/// Recognizes recursion only through ordinary standard storage wrappers.
+fn recursive_types<'a>(ty: &'a Type, target: &str) -> Option<Vec<&'a Type>> {
+    let rendered = ty.to_token_stream().to_string();
+    if rendered == target || rendered == "Self" {
+        return Some(Vec::new());
+    }
+    let children: Vec<&Type> = match ty {
+        Type::Path(path) if path.qself.is_none() => {
+            let segment = path.path.segments.last()?;
+            let root = &path.path.segments.first()?.ident;
+            if path.path.segments.len() > 1 && root != "std" && root != "alloc" && root != "core" {
+                return None;
+            }
+            if !matches!(
+                segment.ident.to_string().as_str(),
+                "Option"
+                    | "Box"
+                    | "Rc"
+                    | "Arc"
+                    | "Vec"
+                    | "VecDeque"
+                    | "LinkedList"
+                    | "BTreeMap"
+                    | "BTreeSet"
+                    | "HashMap"
+                    | "HashSet"
+            ) {
+                return None;
+            }
+            let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+                return None;
+            };
+            arguments
+                .args
+                .iter()
+                .filter_map(|argument| match argument {
+                    GenericArgument::Type(ty) => Some(ty),
+                    _ => None,
+                })
+                .collect()
+        }
+        Type::Tuple(tuple) => tuple.elems.iter().collect(),
+        Type::Array(array) => vec![&array.elem],
+        Type::Paren(paren) => vec![&paren.elem],
+        _ => return None,
+    };
+    let mut found = false;
+    let bounds = children
+        .into_iter()
+        .flat_map(|child| {
+            if let Some(bounds) = recursive_types(child, target) {
+                found = true;
+                bounds
+            } else {
+                vec![child]
+            }
+        })
+        .collect();
+    found.then_some(bounds)
+}
+
+/// Keeps recursive derived values on the structured policy path so nested
+/// serializers do not acquire an ever-growing BudgetSerializer type.
+pub(crate) fn normalize_recursive_fields(input: &mut DeriveInput) {
+    let name = &input.ident;
+    let (_, arguments, _) = input.generics.split_for_impl();
+    let target = quote!(#name #arguments).to_string();
+    let fields: Vec<_> = match &mut input.data {
+        Data::Struct(data) => data.fields.iter_mut().collect(),
+        Data::Enum(data) => data
+            .variants
+            .iter_mut()
+            .flat_map(|variant| variant.fields.iter_mut())
+            .collect(),
+        Data::Union(_) => return,
+    };
+    for field in fields {
+        let custom_serializer = field
+            .attrs
+            .iter()
+            .filter(|attribute| attribute.path().is_ident("serde"))
+            .any(|attribute| {
+                attribute
+                    .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
+                    .is_ok_and(|items| {
+                        items
+                            .iter()
+                            .any(|item| item.path().is_ident("with") || item.path().is_ident("serialize_with"))
+                    })
+            });
+        if !custom_serializer
+            && !field.attrs.iter().any(|attribute| attribute.path().is_ident("redact"))
+            && recursive_types(&field.ty, &target).is_some()
+        {
+            field.attrs.push(parse_quote!(#[redact(nested)]));
+        }
+    }
 }
