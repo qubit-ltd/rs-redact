@@ -322,7 +322,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-redact"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "fluent-uri",
  "form_urlencoded",
@@ -337,7 +337,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-redact-derive"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -444,9 +444,9 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "smallvec"
-version = "1.16.0"
+version = "1.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9be42f50aa861c555654aa3a37f52f4b1074bacf4e48fe0ef7fa584e80f1f0f"
+checksum = "ba467056f1b547ed52077911161fc86985becbc60e8e1857c8a144dab0def891"
 
 [[package]]
 name = "stable_deref_trait"
@@ -528,9 +528,9 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.25.13+spec-1.1.0"
+version = "0.25.15+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6975367e4d2ef766d86af01ffad14b622fecc8d4357a998fbc4deb6e9bacaf9b"
+checksum = "1340ea94a5856333492c9064b02c778b191dd2c853778d9609debdcdfea3a614"
 dependencies = [
  "indexmap",
  "toml_datetime",
