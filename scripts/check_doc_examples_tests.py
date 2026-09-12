@@ -46,12 +46,12 @@ class ExampleContractTests(unittest.TestCase):
     def test_cargo_annotation_cannot_hide_feature_mismatch(self):
         example = self.parse('<!-- redact-example: kind=cargo features=none -->\n```toml\n[dependencies]\nqubit-redact = { version = "0.8", features = ["json"] }\n```\n')[0]
         with self.assertRaisesRegex(ValueError, "features disagree"):
-            MODULE.cargo_dependency(example, "0.8.0")
+            MODULE.cargo_dependency(example, "0.8.1")
 
     def test_cargo_example_version_must_match_current_release(self):
         example = self.parse('<!-- redact-example: kind=cargo features=none -->\n```toml\n[dependencies]\nqubit-redact = "0.7"\n```\n')[0]
         with self.assertRaisesRegex(ValueError, "version"):
-            MODULE.cargo_dependency(example, "0.8.0")
+            MODULE.cargo_dependency(example, "0.8.1")
 
     def test_cargo_example_allows_documented_serde_json(self):
         example = self.parse(
@@ -60,7 +60,7 @@ class ExampleContractTests(unittest.TestCase):
             'qubit-redact = { version = "0.8", features = ["json"] }\n'
             'serde_json = "1"\n```\n'
         )[0]
-        MODULE.cargo_dependency(example, "0.8.0")
+        MODULE.cargo_dependency(example, "0.8.1")
 
 
 if __name__ == "__main__":

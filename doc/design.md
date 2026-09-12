@@ -2,7 +2,7 @@
 
 [中文设计文档](design.zh_CN.md) · [User Guide](user_guide.md) · [README](../README.md)
 
-Current design: 0.8.0; runtime and derive share a version, Rust 1.94, empty default features.
+Current design: 0.8; runtime and derive share a version, Rust 1.94, empty default features.
 
 ## 1. Goals and boundaries
 

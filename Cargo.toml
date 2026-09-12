@@ -4,16 +4,16 @@ exclude = ["fuzz"]
 resolver = "3"
 
 [workspace.package]
-version = "0.8.0"
+version = "0.8.1"
 edition = "2024"
 rust-version = "1.94"
 
 [workspace.dependencies]
-qubit-redact-derive = { version = "=0.8.0", path = "derive" }
+qubit-redact-derive = { version = "=0.8.1", path = "derive" }
 
 [package]
 name = "qubit-redact"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
