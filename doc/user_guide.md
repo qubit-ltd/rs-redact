@@ -1,8 +1,8 @@
 # qubit-redact User Guide
 
-[README](../README.md) · [Chinese guide](user_guide.zh_CN.md) · [derive guide](../derive/README.md) · [API reference](https://docs.rs/qubit-redact/0.8.0/qubit_redact/)
+[README](../README.md) · [Chinese guide](user_guide.zh_CN.md) · [derive guide](../derive/README.md) · [API reference](https://docs.rs/qubit-redact/0.8/qubit_redact/)
 
-This guide covers **qubit-redact 0.8.0** and requires **Rust 1.94+**. It is for
+This guide covers **qubit-redact 0.8** and requires **Rust 1.94+**. It is for
 application and library authors: start with business serialization and diagnostic logging,
 then configure domain types, input formats, and budgets. Every Rust block is a complete
 program you can place in `src/main.rs` of a test app.
@@ -912,7 +912,7 @@ be capped separately from logical Serde payload limits.
 ## Further Reading
 
 - [English README](../README.md) · [中文 README](../README.zh_CN.md)
-- [API reference for 0.8.0](https://docs.rs/qubit-redact/0.8.0/qubit_redact/)
+- [API reference for 0.8](https://docs.rs/qubit-redact/0.8/qubit_redact/)
 - [derive guide](../derive/README.md) · [中文用户手册](user_guide.zh_CN.md)
 - [Design](design.md) · [中文设计文档](design.zh_CN.md)
 
