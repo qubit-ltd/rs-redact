@@ -23,7 +23,7 @@ optional features.
 <!-- redact-example: kind=cargo features=none -->
 ```toml
 [dependencies]
-qubit-redact = "0.8"
+qubit-redact = "0.9"
 ```
 
 | Feature | Adds |
@@ -40,7 +40,7 @@ Structured domain examples below use derive, Serde, and JSON:
 <!-- redact-example: kind=cargo features=derive,serde,json -->
 ```toml
 [dependencies]
-qubit-redact = { version = "0.8", features = ["derive", "serde", "json"] }
+qubit-redact = { version = "0.9", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -69,7 +69,7 @@ unchanged; only the rendered diagnostic text is redacted.
 <!-- redact-example: kind=cargo features=json -->
 ```toml
 [dependencies]
-qubit-redact = { version = "0.8", features = ["json"] }
+qubit-redact = { version = "0.9", features = ["json"] }
 serde_json = "1"
 ```
 

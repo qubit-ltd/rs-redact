@@ -46,7 +46,7 @@ qubit-redact 将源对象、策略快照和渲染结果分开处理。`RedactedV
 <!-- redact-example: kind=cargo features=derive,serde,json -->
 ```toml
 [dependencies]
-qubit-redact = { version = "0.8", features = ["derive", "serde", "json"] }
+qubit-redact = { version = "0.9", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -60,7 +60,7 @@ serde_json = "1"
 <!-- redact-example: kind=cargo features=none -->
 ```toml
 [dependencies]
-qubit-redact = "0.8"
+qubit-redact = "0.9"
 ```
 
 <!-- redact-example: kind=run features=none -->

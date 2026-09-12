@@ -10,7 +10,7 @@ publish = false
 qubit-redact-derive = { version = "0.8", path = "../../../../derive" }
 redaction-runtime = {
     package = "qubit-redact",
-    version = "0.8",
+    version = "0.9",
     path = "../../../../",
     default-features = false,
 }

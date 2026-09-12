@@ -9,11 +9,11 @@ edition = "2024"
 rust-version = "1.94"
 
 [workspace.dependencies]
-qubit-redact-derive = { version = "=0.8.1", path = "derive" }
+qubit-redact-derive = { version = "0.8" }
 
 [package]
 name = "qubit-redact"
-version = "0.8.1"
+version = "0.9.0"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
@@ -58,9 +58,9 @@ http = [
 uri = ["dep:fluent-uri"]
 
 [dependencies]
-qubit-budget = "0.5"
+qubit-budget = "0.7"
 bigdecimal = { version = "0.4", optional = true, features = ["serde"] }
-qubit-json = { version = "0.9", optional = true }
+qubit-json = { version = "0.10", optional = true }
 form_urlencoded = { version = "1.2", optional = true }
 fluent-uri = { version = "0.4", optional = true }
 http = { version = "1.5", optional = true }
