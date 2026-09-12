@@ -597,18 +597,18 @@ dependencies = [
 
 [[package]]
 name = "qubit-budget"
-version = "0.5.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f93253bc135140ca58d3d4f7dffcc330394cf94fec873c5f86ec3bb41dbfa18e"
+checksum = "353cf62af65868c70d5af6468b101a8099bd6de980d84678eeb99f99eb679161"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "qubit-json"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c34de3f5710b2cfd4d89099ffb53359b66e8bf69514590a3ef49f9378e47455"
+checksum = "62a0c7c8246abeab02e1d984c6c4e6c2ffe324c86852810daed104d445c35bd7"
 dependencies = [
  "qubit-budget",
  "serde",
@@ -618,7 +618,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-redact"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "bigdecimal",
  "criterion",
@@ -629,7 +629,7 @@ dependencies = [
  "proptest",
  "qubit-budget",
  "qubit-json",
- "qubit-redact-derive",
+ "qubit-redact-derive 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "serde_json",
  "trybuild",
@@ -643,6 +643,18 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "qubit-redact",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "qubit-redact-derive"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad0b3d69382b35b199b87d8af501e5a502c5a65c7a6a2b2fa3412f4bcb70c26c"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
  "quote",
  "syn 2.0.119",
 ]

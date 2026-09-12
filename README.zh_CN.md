@@ -21,7 +21,7 @@
 <!-- redact-example: kind=cargo features=none -->
 ```toml
 [dependencies]
-qubit-redact = "0.8"
+qubit-redact = "0.9"
 ```
 
 | Feature | 作用 |
@@ -38,7 +38,7 @@ qubit-redact = "0.8"
 <!-- redact-example: kind=cargo features=derive,serde,json -->
 ```toml
 [dependencies]
-qubit-redact = { version = "0.8", features = ["derive", "serde", "json"] }
+qubit-redact = { version = "0.9", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -65,7 +65,7 @@ fn main() {
 <!-- redact-example: kind=cargo features=json -->
 ```toml
 [dependencies]
-qubit-redact = { version = "0.8", features = ["json"] }
+qubit-redact = { version = "0.9", features = ["json"] }
 serde_json = "1"
 ```
 

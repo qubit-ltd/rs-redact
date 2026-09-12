@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 serde_impl = { package = "serde", version = "1" }
 qubit-redact = {
-    version = "0.8",
+    version = "0.9",
     path = "../../../../",
     features = ["serde"],
 }
