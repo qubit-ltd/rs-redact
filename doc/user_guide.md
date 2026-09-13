@@ -928,7 +928,7 @@ To validate a local checkout with the full CI matrix:
 ./ci-check.sh
 ```
 
-The checked-in `.rs-ci-cargo-matrix.json` is consumed by `ci-check.sh` for
+The checked-in `.infra/ci/cargo-matrix.json` is consumed by `ci-check.sh` for
 `check`, `test` (including doctests), `doc`, and Clippy. It covers minimal format
 features, derive consumers with and without Serde/JSON/HTTP/URI, explicit
 BigDecimal support, and all features: 28 distinct runtime feature sets after implied

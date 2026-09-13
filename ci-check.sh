@@ -12,4 +12,4 @@ fi
 exec env \
     MIN_REGION_COVERAGE="${MIN_REGION_COVERAGE:-90}" \
     RS_CI_PROJECT_ROOT="$PROJECT_ROOT" \
-    "$PROJECT_ROOT/.rs-ci/ci-check.sh" "$@"
+    "$PROJECT_ROOT/.infra/tools/rs-ci/ci-check.sh" "$@"

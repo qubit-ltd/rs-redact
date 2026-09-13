@@ -314,7 +314,7 @@ normalized packages without uploading them.
 
 ## 10. Verification strategy
 
-`.rs-ci-cargo-matrix.json` defines the compatibility checks executed by `ci-check.sh`.
+`.infra/ci/cargo-matrix.json` defines the compatibility checks executed by `ci-check.sh`.
 Besides core and individual format features, it includes derive-only, derive with
 Serde/JSON/HTTP/URI, BigDecimal with and without derive, and all-feature consumers.
 After accounting for implied features, all 28 distinct runtime feature sets are covered.
