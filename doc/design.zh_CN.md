@@ -256,7 +256,7 @@ Cargo 从发布清单移除这条本地依赖，保持先 derive、后 runtime �
 
 ## 10. 验证策略
 
-`ci-check.sh` 读取 `.rs-ci-cargo-matrix.json` 执行兼容性检查。除 core 和各格式 feature 外，
+`ci-check.sh` 读取 `.infra/ci/cargo-matrix.json` 执行兼容性检查。除 core 和各格式 feature 外，
 矩阵覆盖 derive-only、derive 与 Serde/JSON/HTTP/URI 的组合、BigDecimal 单独启用及与
 derive 组合，以及全部 feature；展开隐式依赖后覆盖全部 28 种 runtime feature 集。每组执行编译、测试（含 doctest）、rustdoc 和 Clippy；
 文档示例按真实依赖设置 feature gate。

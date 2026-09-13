@@ -869,7 +869,7 @@ crate 中离线运行；依赖需已缓存。
 ./ci-check.sh
 ```
 
-`ci-check.sh` 读取仓库内的 `.rs-ci-cargo-matrix.json`，执行 `check`、`test`（含 doctest）、
+`ci-check.sh` 读取仓库内的 `.infra/ci/cargo-matrix.json`，执行 `check`、`test`（含 doctest）、
 `doc` 和 Clippy。矩阵覆盖最小格式 feature、derive 与 Serde/JSON/HTTP/URI 的消费组合、
 显式 BigDecimal 支持，以及全部 feature：展开隐式依赖后覆盖全部 28 种 runtime feature 集，
 另检查 derive crate。README 与指南示例按实际依赖验证；未启用 `uri`
