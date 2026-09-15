@@ -1,4 +1,9 @@
 {
+  "thresholds": {
+    "functions": 95,
+    "lines": 90,
+    "regions": 90
+  },
   "threshold_exempt_files": {
     "qubit-redact": []
   }

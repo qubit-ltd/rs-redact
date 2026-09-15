@@ -1,0 +1,174 @@
+:root {
+  color-scheme: light;
+  --accent: #1d4ed8;
+  --background: #f7f9fc;
+  --border: #d8e0ec;
+  --surface: #fff;
+  --text: #172033;
+  --muted: #5d6b82;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text);
+  font: 16px/1.65 system-ui, sans-serif;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+header {
+  position: sticky;
+  top: 0;
+  border-bottom: 1px solid var(--border);
+  background: rgb(247 249 252 / 94%);
+}
+
+nav,
+main,
+footer {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+nav {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 28px;
+}
+
+.brand {
+  color: var(--text);
+  font-weight: 750;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.links [aria-current="page"] {
+  font-weight: 750;
+}
+
+main {
+  padding: 48px 28px 72px;
+}
+
+.hero,
+article {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 18px 50px rgb(23 32 51 / 8%);
+}
+
+.hero {
+  padding: 36px 48px;
+  background: linear-gradient(135deg, #e8efff, #fff 70%);
+}
+
+.hero h1 {
+  margin: 0 0 18px;
+  font-size: 48px;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.badges img {
+  display: block;
+  height: 20px;
+}
+
+article {
+  margin-top: 32px;
+  padding: 40px 48px;
+}
+
+article h2 {
+  margin-top: 40px;
+  border-bottom: 1px solid var(--border);
+}
+
+article img {
+  max-width: 100%;
+}
+
+table {
+  width: 100%;
+  margin: 18px 0;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+th {
+  background: #f0f5ff;
+}
+
+code {
+  border-radius: 4px;
+  background: #edf2f7;
+  padding: 2px 5px;
+}
+
+pre {
+  overflow: auto;
+  border-radius: 8px;
+  background: #101828;
+  color: #e6edf6;
+  padding: 18px;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+}
+
+footer {
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  padding: 28px;
+}
+
+@media (max-width: 760px) {
+  nav {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  main {
+    padding: 28px 18px 48px;
+  }
+
+  .hero,
+  article {
+    padding: 28px 22px;
+  }
+
+  .hero h1 {
+    font-size: 36px;
+  }
+}
