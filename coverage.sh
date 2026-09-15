@@ -1,7 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+export CARGO_INCREMENTAL=1
 # Rust 1.94 can emit conflicting unused inline coverage mappings across test
 # binaries. Retain those bodies so llvm-cov merges their executed counters.
 if [[ ${CARGO_ENCODED_RUSTFLAGS+x} ]]; then
@@ -9,7 +10,6 @@ if [[ ${CARGO_ENCODED_RUSTFLAGS+x} ]]; then
 else
     export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Clink-dead-code"
 fi
-exec env \
-    MIN_REGION_COVERAGE="${MIN_REGION_COVERAGE:-90}" \
-    RS_CI_PROJECT_ROOT="$PROJECT_ROOT" \
-    "$PROJECT_ROOT/.infra/tools/rs-ci/coverage.sh" "$@"
+"$project_root/.infra/tools/prepare-local-path-dependencies.sh"
+"$project_root/.infra/tools/infra-tool.sh" rs-infra-coverage --project "$project_root" collect "$@"
+"$project_root/.infra/tools/coverage-report.sh"
