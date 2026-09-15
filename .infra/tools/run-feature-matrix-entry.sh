@@ -16,6 +16,11 @@ fi
 
 cd "$project_root"
 
+# Some compile-contract tests invoke nested Cargo processes with --offline.
+# Fetch the complete locked workspace graph before narrowing the active feature
+# set so those processes do not depend on a warm runner cache.
+cargo +1.94.0 fetch --locked
+
 entry=$(
     jq -ce --arg name "$entry_name" '
         .checks
