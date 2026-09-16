@@ -53,8 +53,6 @@
 //! See the [user guide](https://github.com/qubit-ltd/rs-redact/blob/main/doc/user_guide.md)
 //! for complete setup, type/attribute tables, format integrations, and budgets.
 
-extern crate self as qubit_redact;
-
 #[cfg(feature = "derive")]
 pub use qubit_redact_derive::Redact;
 
