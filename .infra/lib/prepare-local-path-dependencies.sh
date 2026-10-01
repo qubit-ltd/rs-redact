@@ -2,26 +2,23 @@
 set -euo pipefail
 
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
-project_parent=$(dirname "$project_root")
+source "$project_root/.infra/lib/cleanup-build-artifacts.sh"
+source "$project_root/.infra/lib/network-retry.sh"
 config="$project_root/.infra/ci/local-path-dependencies.tsv"
 [ -f "$config" ] || exit 0
 while IFS=$'\t' read -r relative_path repository_url branch; do
     [[ -z "$relative_path" || "$relative_path" == \#* ]] && continue
     branch=${branch%$'\r'}
-    sibling_name=${relative_path#../}
-    [[ "$relative_path" == ../* && "$sibling_name" =~ ^[[:alnum:]_.-]+$ && "$sibling_name" != "." && "$sibling_name" != ".." ]] || {
+    [[ "$relative_path" == ../* && "$relative_path" != *$'\t'* ]] || {
         echo "error: invalid local dependency path '$relative_path'" >&2; exit 1;
     }
     [[ -n "$repository_url" && -n "$branch" ]] || {
         echo "error: incomplete local dependency entry '$relative_path'" >&2; exit 1;
     }
-    target="$project_parent/$sibling_name"
-    [ ! -L "$target" ] || {
-        echo "error: local dependency target must not be a symbolic link: '$target'" >&2; exit 1;
-    }
+    target="$project_root/$relative_path"
     [ -e "$target/.git" ] && continue
-    [ ! -e "$target" ] || {
-        echo "error: local dependency target already exists without a Git checkout: '$target'" >&2; exit 1;
-    }
-    git clone --depth 1 --branch "$branch" -- "$repository_url" "$target"
+    mkdir -p "$(dirname "$target")"
+    infra_run_with_retry "clone $repository_url" \
+        git -c http.connectTimeout="${RS_INFRA_GIT_CONNECT_TIMEOUT_SECONDS:-30}" \
+        clone --depth 1 --branch "$branch" "$repository_url" "$target"
 done < "$config"

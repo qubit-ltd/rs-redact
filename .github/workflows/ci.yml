@@ -20,12 +20,12 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - name: Prepare local path dependencies
-        run: ./.infra/tools/prepare-local-path-dependencies.sh
+        run: ./.infra/lib/prepare-local-path-dependencies.sh
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
           toolchain: 1.94
       - name: Check dependency baseline
-        run: ./dependency-update.sh --check
+        run: ./.infra/bin/dependency-update.sh --check
 
   verify:
     runs-on: ${{ matrix.os }}
@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - name: Prepare local path dependencies
-        run: ./.infra/tools/prepare-local-path-dependencies.sh
+        run: ./.infra/lib/prepare-local-path-dependencies.sh
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
           toolchain: 1.94
@@ -47,22 +47,22 @@ jobs:
         if: runner.os == 'Linux'
         run: rustup toolchain install nightly-2026-06-05 --profile minimal --component rustfmt --component clippy
       - name: Run infrastructure CI orchestration
-        run: ./ci-check.sh --only=verify
+        run: ./.infra/bin/ci-check.sh --only=verify
       - name: Run style, hook, and coverage Clippy
         if: runner.os == 'Linux'
-        run: ./ci-check.sh --only=style,clippy,coverage-cfg-clippy,project-hook
+        run: ./.infra/bin/ci-check.sh --only=style,clippy,coverage-cfg-clippy,project-hook
       - name: Install Clippy toolchain on additional platforms
         if: runner.os != 'Linux'
         run: rustup toolchain install nightly-2026-06-05 --profile minimal --component clippy
       - name: Run Clippy on additional platforms
         if: runner.os != 'Linux'
-        run: ./ci-check.sh --only=clippy
+        run: ./.infra/bin/ci-check.sh --only=clippy
       - name: Install legacy CI build toolchain
         run: rustup toolchain install 1.94.0 --profile minimal
       - name: Run documentation tests
         run: cargo +1.94.0 test --doc --verbose
       - name: Run README dependency-version check
-        run: ./.infra/tools/infra-tool.sh rs-infra-verify --project "$GITHUB_WORKSPACE" run --suite readme
+        run: ./.infra/bin/infra-tool.sh rs-infra-verify --project "$GITHUB_WORKSPACE" run --suite readme
       - name: Install documentation toolchain
         run: rustup toolchain install 1.94.0 --profile minimal
       - name: Generate strict all-features documentation
@@ -76,35 +76,12 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-  feature-matrix-plan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-      - name: Prepare local path dependencies
-        run: ./.infra/tools/prepare-local-path-dependencies.sh
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
-        with:
-          toolchain: 1.94
-      - name: Validate and prepare feature matrix
-        id: matrix
-        run: |
-          ./ci-check.sh --only=feature-matrix plan > /dev/null
-          echo "checks=$(jq -c '[.checks[].name]' .infra/ci/cargo-matrix.json)" >> "$GITHUB_OUTPUT"
-    outputs:
-      checks: ${{ steps.matrix.outputs.checks }}
-
   feature-matrix:
-    name: Feature matrix (${{ matrix.check }})
-    needs: [feature-matrix-plan]
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        check: ${{ fromJSON(needs.feature-matrix-plan.outputs.checks) }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - name: Prepare local path dependencies
-        run: ./.infra/tools/prepare-local-path-dependencies.sh
+        run: ./.infra/lib/prepare-local-path-dependencies.sh
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
           toolchain: 1.94
@@ -116,8 +93,9 @@ jobs:
               .infra/ci/cargo-matrix.json >/dev/null; then
             rustup toolchain install nightly-2026-06-05 --profile minimal --component clippy
           fi
-      - name: Run feature matrix entry
-        run: ./.infra/tools/run-feature-matrix-entry.sh "${{ matrix.check }}"
+      - name: Run configured feature and dependency matrix
+        run: |
+          ./.infra/bin/ci-check.sh --only=feature-matrix
 
   coverage:
     needs: [verify]
@@ -128,7 +106,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - name: Prepare local path dependencies
-        run: ./.infra/tools/prepare-local-path-dependencies.sh
+        run: ./.infra/lib/prepare-local-path-dependencies.sh
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
           toolchain: 1.94
@@ -138,7 +116,7 @@ jobs:
         env:
           # Rust 1.94 non-incremental coverage can lose counters for inline functions.
           CARGO_INCREMENTAL: "1"
-        run: ./coverage.sh
+        run: ./.infra/bin/coverage.sh
       - name: Build project (release)
         if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) }}
         run: |
@@ -146,7 +124,7 @@ jobs:
           cargo +1.94.0 build --release --verbose
       - name: Comment coverage on pull request
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        uses: actions/github-script@v7
         continue-on-error: true
         with:
           script: |
@@ -179,24 +157,20 @@ jobs:
           if-no-files-found: error
 
   pages:
-    if: ${{ always() && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.verify.result == 'success' && needs.coverage.result == 'success' && needs.feature-matrix.result == 'success' }}
+    if: ${{ always() && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.verify.result == 'success' && needs.coverage.result == 'success' && (needs.feature-matrix.result == 'success' || needs.feature-matrix.result == 'skipped') }}
     needs: [verify, feature-matrix, coverage]
-    permissions:
-      contents: read
-      pages: read
     outputs:
       deploy: ${{ steps.pages-config.outputs.deploy }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d
       - name: Validate Pages configuration
         id: pages-config
         run: |
-          jq -e '.deploy | type == "boolean"' .infra/ci/pages.json >/dev/null
-          echo "deploy=$(jq -r .deploy .infra/ci/pages.json)" >> "$GITHUB_OUTPUT"
+          jq -e '.deploy | type == "boolean"' .infra/pages/pages.json >/dev/null
+          echo "deploy=$(jq -r .deploy .infra/pages/pages.json)" >> "$GITHUB_OUTPUT"
       - name: Prepare local path dependencies
-        run: ./.infra/tools/prepare-local-path-dependencies.sh
+        run: ./.infra/lib/prepare-local-path-dependencies.sh
       - uses: actions/download-artifact@v8
         with:
           name: coverage-reports
@@ -205,10 +179,10 @@ jobs:
         with:
           toolchain: 1.94
       - name: Build Pages site
-        run: node .infra/pages/build-pages.mjs --output public
+        run: ./.infra/bin/infra-tool.sh rs-infra-pages --project "$GITHUB_WORKSPACE" build
       - name: Prepare Pages artifact
-        run: ./.infra/tools/infra-tool.sh rs-infra-pages --project "$GITHUB_WORKSPACE" artifact
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
+        run: ./.infra/bin/infra-tool.sh rs-infra-pages --project "$GITHUB_WORKSPACE" artifact
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: public
 
@@ -221,11 +195,8 @@ jobs:
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy Pages
-        id: deployment
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346
+      - uses: actions/deploy-pages@v4
 
   advanced-verification:
     name: Infrastructure suite (${{ matrix.suite }} on ${{ matrix.os }})
@@ -252,7 +223,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - name: Prepare local path dependencies
-        run: ./.infra/tools/prepare-local-path-dependencies.sh
+        run: ./.infra/lib/prepare-local-path-dependencies.sh
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
           toolchain: 1.94
@@ -310,7 +281,7 @@ jobs:
           if [ "${{ matrix.suite }}" = "loom" ]; then
             export RUSTFLAGS="--cfg loom"
           fi
-          ./.infra/tools/infra-tool.sh rs-infra-verify --project "$GITHUB_WORKSPACE" run --suite "${{ matrix.suite }}"
+          ./.infra/bin/infra-tool.sh rs-infra-verify --project "$GITHUB_WORKSPACE" run --suite "${{ matrix.suite }}"
       - name: Skip unconfigured infrastructure suite
         if: ${{ steps.suite-config.outputs.enabled != 'true' }}
         run: echo "${{ matrix.suite }} is not configured; skipping."
@@ -322,3 +293,20 @@ jobs:
           path: fuzz/artifacts
           if-no-files-found: ignore
           retention-days: 14
+  feature-matrix-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - name: Prepare local path dependencies
+        run: ./.infra/tools/prepare-local-path-dependencies.sh
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+        with:
+          toolchain: 1.94
+      - name: Validate and prepare feature matrix
+        id: matrix
+        run: |
+          ./.infra/bin/ci-check.sh --only=feature-matrix plan > /dev/null
+          echo "checks=$(jq -c '[.checks[].name]' .infra/ci/cargo-matrix.json)" >> "$GITHUB_OUTPUT"
+    outputs:
+      checks: ${{ steps.matrix.outputs.checks }}
+
