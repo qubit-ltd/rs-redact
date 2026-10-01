@@ -8,7 +8,9 @@
 //! Fixture exercising Serde self-resolution in a crate named `serde`.
 
 use qubit_redact_derive::Redact;
-pub use serde_impl::*;
+pub use serde_impl::Serialize;
+pub use serde_impl::Serializer;
+pub use serde_impl::ser;
 
 /// Serde traits re-exported at the crate root remain reachable by generated code.
 #[derive(Redact)]
