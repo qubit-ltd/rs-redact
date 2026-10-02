@@ -93,6 +93,8 @@ jobs:
               .infra/ci/cargo-matrix.json >/dev/null; then
             rustup toolchain install nightly-2026-06-05 --profile minimal --component clippy
           fi
+      - name: Fetch locked dependencies for offline compile-contract tests
+        run: cargo +1.94.0 fetch --locked
       - name: Run configured feature and dependency matrix
         run: |
           ./.infra/bin/ci-check.sh --only=feature-matrix
@@ -298,7 +300,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - name: Prepare local path dependencies
-        run: ./.infra/tools/prepare-local-path-dependencies.sh
+        run: ./.infra/lib/prepare-local-path-dependencies.sh
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
           toolchain: 1.94
