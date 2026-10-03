@@ -64,7 +64,25 @@ else
     fi
 fi
 
-export CARGO_TARGET_DIR="$project_root/target/infra-feature-matrix/$entry_name"
+# Keep each feature combination isolated and remove its transient artifacts as
+# soon as that entry finishes. The matrix covers many incompatible feature
+# sets, so sharing one target directory makes old test and documentation
+# artifacts accumulate until the disk fills.
+entry_target_dir="$project_root/target/infra-feature-matrix/$entry_name"
+export CARGO_TARGET_DIR="$entry_target_dir"
+cleanup_entry_target() {
+    local status=$?
+    trap - EXIT
+    if [ -d "$entry_target_dir" ]; then
+        command rm -rf -- "$entry_target_dir" || {
+            echo "error: unable to clean feature-matrix artifacts: $entry_target_dir" >&2
+            [ "$status" -ne 0 ] || status=1
+        }
+    fi
+    exit "$status"
+}
+trap cleanup_entry_target EXIT
+
 mapfile -t commands < <(jq -r '.[]' <<< "$commands_json")
 for command in "${commands[@]}"; do
     case "$command" in
