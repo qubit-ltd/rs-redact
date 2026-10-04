@@ -21,23 +21,6 @@ jobs:
       pull-requests: write
       pages: write
       id-token: write
-    uses: qubit-ltd/rs-infra-ci/.github/workflows/github-ci.yml@5a51d1833cb6a2646b4e004c3b51d8c71c9f4401
+    uses: qubit-ltd/rs-infra-ci/.github/workflows/github-ci.yml@4a79b9abc80c5528a4f42318038bab756a1edca2
     with:
       feature-matrix-prefetch: true
-
-  feature-matrix-plan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-      - name: Prepare local path dependencies
-        run: ./.infra/bin/prepare-local-path-dependencies.sh
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
-        with:
-          toolchain: 1.94
-      - name: Validate and prepare feature matrix
-        id: matrix
-        run: |
-          ./.infra/bin/ci-check.sh --only=feature-matrix plan > /dev/null
-          echo "checks=$(jq -c '[.checks[].name]' .infra/ci/cargo-matrix.json)" >> "$GITHUB_OUTPUT"
-    outputs:
-      checks: ${{ steps.matrix.outputs.checks }}
