@@ -123,11 +123,11 @@ cargo test
 cargo test --all-features
 
 # 格式化并运行完整项目 CI 检查（含 feature 矩阵）
-./align-ci.sh
-./ci-check.sh
+./.infra/bin/align-ci.sh
+./.infra/bin/ci-check.sh
 
 # 检查代码覆盖率
-./coverage.sh
+./.infra/bin/coverage.sh
 ```
 
 ## 许可证
@@ -140,7 +140,7 @@ Copyright (c) 2025 - 2026. Haixing Hu. All rights reserved.
 ## 贡献
 
 欢迎贡献。请遵循 Rust API 指南，及时更新公共 API 文档与测试，并在提交
-Pull Request 前运行 `./align-ci.sh`格式化代码，运行`./ci-check.sh`对齐CI要求。
+Pull Request 前运行 `./.infra/bin/align-ci.sh`格式化代码，运行`./.infra/bin/ci-check.sh`对齐CI要求。
 
 ## 作者
 
