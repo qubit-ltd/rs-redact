@@ -114,3 +114,31 @@ impl InspectionRuntime {
         (sensitivity, summary)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::InspectionRuntime;
+    use crate::RedactionCompletion;
+    use crate::RedactionPolicy;
+    use crate::Sensitivity;
+    use crate::runtime::runtime_session::RuntimeSession;
+
+    /// Inspection records the strongest observed sensitivity while exposing
+    /// the shared runtime core through its session contract.
+    #[test]
+    fn test_inspection_runtime_accumulates_sensitivity() {
+        let mut runtime = InspectionRuntime::new(RedactionPolicy::standard().into());
+
+        assert!(RuntimeSession::is_inspection(&runtime));
+        let _ = RuntimeSession::runtime(&runtime);
+        let _ = RuntimeSession::runtime_mut(&mut runtime);
+        runtime.observe_sensitivity(Sensitivity::Low);
+        RuntimeSession::observe_sensitivity(&mut runtime, Sensitivity::Low);
+        RuntimeSession::observe_sensitivity(&mut runtime, Sensitivity::Secret);
+        RuntimeSession::observe_sensitivity(&mut runtime, Sensitivity::Medium);
+
+        let (sensitivity, summary) = runtime.into_parts();
+        assert_eq!(sensitivity, Some(Sensitivity::Secret));
+        assert_eq!(summary.completion(), RedactionCompletion::Complete);
+    }
+}

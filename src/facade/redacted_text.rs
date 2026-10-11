@@ -106,3 +106,19 @@ impl fmt::Display for RedactedText {
         formatter.write_str(self.as_str())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::RedactedText;
+
+    /// Final text keeps its exact value through borrowed and owned interfaces.
+    #[test]
+    fn test_redacted_text_conversions_preserve_final_text() {
+        let text = RedactedText::from_escaped("safe <text>".to_owned());
+
+        assert_eq!(text.as_str(), "safe <text>");
+        assert_eq!(AsRef::<str>::as_ref(&text), "safe <text>");
+        assert_eq!(text.to_string(), "safe <text>");
+        assert_eq!(text.into_string(), "safe <text>");
+    }
+}

@@ -25,3 +25,26 @@ use crate::policy::ResolvedField;
 pub(crate) fn resolve_keyed_field(policy: &RedactionPolicy, key: &str) -> ResolvedField {
     policy.resolve_field(key)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_keyed_field;
+    use crate::RedactionPolicy;
+    use crate::Sensitivity;
+    use crate::policy::ResolvedField;
+
+    #[test]
+    fn keyed_lookup_uses_policy_classification_for_runtime_keys() {
+        let policy = RedactionPolicy::standard();
+        assert!(matches!(
+            resolve_keyed_field(&policy, "password"),
+            ResolvedField::Sensitive {
+                sensitivity: Sensitivity::Secret
+            }
+        ));
+        assert!(matches!(
+            resolve_keyed_field(&policy, "display_name"),
+            ResolvedField::PassThrough
+        ));
+    }
+}

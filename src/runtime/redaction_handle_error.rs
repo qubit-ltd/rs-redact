@@ -32,10 +32,32 @@ impl fmt::Display for RedactionHandleError {
     #[inline]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::DifferentTransaction => formatter.write_str("the handle belongs to a different transaction"),
-            Self::MissingItem => formatter.write_str("the handle does not identify a published item"),
+            Self::DifferentTransaction => {
+                formatter.write_str("the handle belongs to a different transaction")
+            }
+            Self::MissingItem => {
+                formatter.write_str("the handle does not identify a published item")
+            }
         }
     }
 }
 
 impl std::error::Error for RedactionHandleError {}
+
+#[cfg(test)]
+mod tests {
+    use super::RedactionHandleError;
+
+    /// Handle errors render stable diagnostics without incorporating handle data.
+    #[test]
+    fn test_handle_error_display_messages() {
+        assert_eq!(
+            RedactionHandleError::DifferentTransaction.to_string(),
+            "the handle belongs to a different transaction"
+        );
+        assert_eq!(
+            RedactionHandleError::MissingItem.to_string(),
+            "the handle does not identify a published item"
+        );
+    }
+}

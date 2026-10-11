@@ -87,7 +87,8 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
             let mut http = crate::formats::http::HttpPolicyBuilder::new();
             http.url_path_mut(crate::formats::http::UrlPathPolicy::Redact);
             http.text_body_mut(crate::formats::http::TextBodyPolicy::Redact);
-            http.build().expect("the built-in HTTP policy must be valid")
+            http.build()
+                .expect("the built-in HTTP policy must be valid")
         },
         #[cfg(feature = "uri")]
         {
@@ -453,5 +454,92 @@ impl Default for RedactionPolicy {
     #[inline(always)]
     fn default() -> Self {
         STANDARD_POLICY.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::RedactionFloor;
+    use super::super::ResolvedField;
+    use super::RedactionPolicy;
+    use super::Sensitivity;
+    use super::UnknownFieldPolicy;
+
+    /// Policy inspection and snapshot methods preserve application and floor
+    /// behavior while exposing rule provenance.
+    #[test]
+    fn test_policy_accessors_classification_and_floor_snapshot() {
+        let base = RedactionPolicy::builder()
+            .fields(|fields| {
+                fields
+                    .secret_sensitive("api_token")
+                    .allow_exact("request_id");
+            })
+            .expect("application rules should be valid")
+            .build()
+            .expect("policy should be valid");
+        let floor = RedactionFloor::builder()
+            .raise("mandatory_field", Sensitivity::High)
+            .expect("floor rule should be valid")
+            .build()
+            .expect("floor should be valid");
+        let policy = base.with_floor(floor.clone());
+
+        assert!(policy.floor().is_some());
+        assert_eq!(
+            policy.unknown_field_policy(),
+            UnknownFieldPolicy::PassThrough
+        );
+        assert_eq!(
+            policy
+                .application_sensitive_rules()
+                .map(|rule| (rule.field(), rule.sensitivity()))
+                .collect::<Vec<_>>(),
+            [("apitoken", Sensitivity::Secret)]
+        );
+        assert_eq!(
+            policy
+                .application_allow_rules()
+                .map(|rule| rule.field())
+                .collect::<Vec<_>>(),
+            ["requestid"]
+        );
+        let classification = policy.classify_field("api_token");
+        assert_eq!(classification.sensitivity(), Some(Sensitivity::Secret));
+        assert_eq!(classification.matched_field(), Some("apitoken"));
+        assert!(matches!(
+            policy.resolve_field_exact("api_token"),
+            ResolvedField::Sensitive {
+                sensitivity: Sensitivity::Secret
+            }
+        ));
+        assert!(matches!(
+            policy.resolve_field_exact("mandatory_field"),
+            ResolvedField::Sensitive {
+                sensitivity: Sensitivity::High
+            }
+        ));
+
+        let copied = policy
+            .to_builder()
+            .build()
+            .expect("snapshot should remain valid");
+        assert_eq!(
+            copied.floor().map(|floor| floor.sensitive_rules().count()),
+            Some(1)
+        );
+        assert_eq!(
+            copied.sensitivity_for("api_token"),
+            Some(Sensitivity::Secret)
+        );
+        assert!(policy.clone().disable_floor().floor().is_none());
+        assert_eq!(
+            RedactionPolicy::default().sensitivity_for("password"),
+            Some(Sensitivity::Secret)
+        );
+
+        let mut mutable = copied;
+        assert!(mutable.set_disabled(true).is_disabled());
+        assert!(!mutable.set_disabled(false).is_disabled());
     }
 }
