@@ -597,20 +597,26 @@ dependencies = [
 
 [[package]]
 name = "qubit-budget"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "353cf62af65868c70d5af6468b101a8099bd6de980d84678eeb99f99eb679161"
+version = "0.8.0"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
-name = "qubit-json"
-version = "0.10.0"
+name = "qubit-io"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62a0c7c8246abeab02e1d984c6c4e6c2ffe324c86852810daed104d445c35bd7"
+checksum = "72ec26e44df006b11bdb6bdb0b4423565fdc4cb9f2ffa37e3fb0a2ccc6efda30"
+dependencies = [
+ "qubit-utils",
+]
+
+[[package]]
+name = "qubit-json"
+version = "0.11.0"
 dependencies = [
  "qubit-budget",
+ "qubit-io",
  "serde",
  "serde_json",
  "thiserror",
@@ -658,6 +664,12 @@ dependencies = [
  "quote",
  "syn 2.0.119",
 ]
+
+[[package]]
+name = "qubit-utils"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff9da2a76c1f983bc036d4135036db57f9d066c6fd6e8cdfbfacee72de4e2309"
 
 [[package]]
 name = "quick-error"

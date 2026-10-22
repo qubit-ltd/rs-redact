@@ -27,10 +27,10 @@ all-features = true
 proc-macro = true
 
 [dependencies]
-proc-macro-crate = "3"
-proc-macro2 = "1"
-quote = "1"
-syn = "2"
+proc-macro-crate = "^3.5"
+proc-macro2 = "^1.0"
+quote = "^1.0"
+syn = "^3.0"
 
 [dev-dependencies]
 # Local doctests use the workspace runtime. Omitting a version keeps this

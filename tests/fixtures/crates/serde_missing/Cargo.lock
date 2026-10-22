@@ -50,9 +50,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-budget"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "353cf62af65868c70d5af6468b101a8099bd6de980d84678eeb99f99eb679161"
+version = "0.8.0"
 dependencies = [
  "thiserror",
 ]
@@ -207,3 +205,7 @@ checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 dependencies = [
  "memchr",
 ]
+
+[[patch.unused]]
+name = "qubit-json"
+version = "0.11.0"
