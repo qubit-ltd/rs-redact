@@ -1,8 +1,8 @@
 # qubit-redact 用户手册
 
-[README](../README.zh_CN.md) · [英文用户手册](user_guide.md) · [derive 说明](../derive/README.zh_CN.md) · [API 文档](https://docs.rs/qubit-redact/0.8/qubit_redact/)
+[README](../README.zh_CN.md) · [英文用户手册](user_guide.md) · [derive 说明](../derive/README.zh_CN.md) · [API 文档](https://docs.rs/qubit-redact/0.10/qubit_redact/)
 
-本手册适用于 **qubit-redact 0.8**，需要 **Rust 1.94 或更新版本**，
+本手册适用于 **qubit-redact 0.10**，需要 **Rust 1.94 或更新版本**，
 面向应用和库作者：先跑通日志与业务序列化共存，再配置领域类型、输入格式和预算。
 手册中的每个 Rust 代码块都是完整程序，可单独替换测试应用的 `src/main.rs` 运行。
 
@@ -31,7 +31,7 @@
 
 ## 手册目标与读者
 
-适用于 qubit-redact 0.8 的应用和库作者：先跑通日志和业务序列化共存，再配置领域类型、输入格式和预算。
+适用于 qubit-redact 0.10 的应用和库作者：先跑通日志和业务序列化共存，再配置领域类型、输入格式和预算。
 
 ## 概念模型
 
@@ -46,7 +46,7 @@ qubit-redact 将源对象、策略快照和渲染结果分开处理。`RedactedV
 <!-- redact-example: kind=cargo features=derive,serde,json -->
 ```toml
 [dependencies]
-qubit-redact = { version = "0.9", features = ["derive", "serde", "json"] }
+qubit-redact = { version = "0.10", features = ["derive", "serde", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -60,7 +60,7 @@ serde_json = "1"
 <!-- redact-example: kind=cargo features=none -->
 ```toml
 [dependencies]
-qubit-redact = "0.9"
+qubit-redact = "0.10"
 ```
 
 <!-- redact-example: kind=run features=none -->
@@ -854,7 +854,7 @@ composer、batch 和 inspection 会话默认不应跨线程共享；每个诊断
 ## 延伸阅读
 
 - [中文 README](../README.zh_CN.md) · [English README](../README.md)
-- [0.8 API 文档](https://docs.rs/qubit-redact/0.8/qubit_redact/)
+- [0.10 API 文档](https://docs.rs/qubit-redact/0.10/qubit_redact/)
 - [derive 说明](../derive/README.zh_CN.md) · [英文用户手册](user_guide.md)
 - [设计文档](design.zh_CN.md) · [English design](design.md)
 
