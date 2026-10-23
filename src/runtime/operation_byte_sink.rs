@@ -43,7 +43,6 @@ impl OperationByteSink {
     ///
     /// `Some(text)` contains valid UTF-8; `None` means retained bytes were
     /// not a complete UTF-8 string.
-    #[must_use]
     #[inline(always)]
     pub(crate) fn into_string(self) -> Option<String> {
         String::from_utf8(self.output).ok()

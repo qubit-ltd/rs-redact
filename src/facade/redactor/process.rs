@@ -14,6 +14,10 @@ use super::Redactor;
 use crate::RedactionInspection;
 use crate::RedactionInspectionError;
 use crate::RedactionTextOutput;
+use crate::formats::argv::ArgvItem;
+use crate::formats::argv::inspection::inspect_items;
+use crate::formats::env::inspection::inspect_os_pairs;
+use crate::formats::env::inspection::inspect_pair;
 
 impl Redactor {
     /// Redacts an argument vector through one completed text transaction.
@@ -35,7 +39,7 @@ impl Redactor {
     #[inline]
     pub fn redact_argv<'items, I>(&self, items: I) -> RedactionTextOutput
     where
-        I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
+        I: IntoIterator<Item = ArgvItem<'items>>,
     {
         let mut session = self.text_runtime();
         session.argv(|argv| {
@@ -67,10 +71,10 @@ impl Redactor {
     #[inline]
     pub fn inspect_argv<'items, I>(&self, items: I) -> Result<RedactionInspection, RedactionInspectionError>
     where
-        I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
+        I: IntoIterator<Item = ArgvItem<'items>>,
     {
         let mut session = self.inspection_runtime();
-        crate::formats::argv::inspection::inspect_items(&mut session, items, false);
+        inspect_items(&mut session, items, false);
         session.finish()
     }
 
@@ -93,7 +97,7 @@ impl Redactor {
     #[inline]
     pub fn redact_heuristic_argv<'items, I>(&self, items: I) -> RedactionTextOutput
     where
-        I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
+        I: IntoIterator<Item = ArgvItem<'items>>,
     {
         let mut session = self.text_runtime();
         session.argv(|argv| {
@@ -116,7 +120,7 @@ impl Redactor {
     ///
     /// # Parameters
     ///
-    /// - `items`: Arguments with caller-supplied classification hints.
+    /// - `items`: Arguments classified using heuristic option syntax.
     ///
     /// # Returns
     ///
@@ -125,10 +129,10 @@ impl Redactor {
     #[inline]
     pub fn inspect_heuristic_argv<'items, I>(&self, items: I) -> Result<RedactionInspection, RedactionInspectionError>
     where
-        I: IntoIterator<Item = crate::formats::argv::ArgvItem<'items>>,
+        I: IntoIterator<Item = ArgvItem<'items>>,
     {
         let mut session = self.inspection_runtime();
-        crate::formats::argv::inspection::inspect_items(&mut session, items, true);
+        inspect_items(&mut session, items, true);
         session.finish()
     }
 
@@ -172,7 +176,7 @@ impl Redactor {
     #[inline]
     pub fn inspect_env(&self, name: &str, value: &str) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
-        crate::formats::env::inspection::inspect_pair(&mut session, name, value);
+        inspect_pair(&mut session, name, value);
         session.finish()
     }
 
@@ -230,7 +234,7 @@ impl Redactor {
         I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
     {
         let mut session = self.inspection_runtime();
-        crate::formats::env::inspection::inspect_os_pairs(&mut session, pairs);
+        inspect_os_pairs(&mut session, pairs);
         session.finish()
     }
 
@@ -263,7 +267,7 @@ impl Redactor {
         variables: E,
     ) -> RedactionTextOutput
     where
-        A: IntoIterator<Item = crate::formats::argv::ArgvItem<'arguments>>,
+        A: IntoIterator<Item = ArgvItem<'arguments>>,
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
     {
         let mut session = self.text_runtime();
@@ -306,13 +310,13 @@ impl Redactor {
         variables: E,
     ) -> Result<RedactionInspection, RedactionInspectionError>
     where
-        A: IntoIterator<Item = crate::formats::argv::ArgvItem<'arguments>>,
+        A: IntoIterator<Item = ArgvItem<'arguments>>,
         E: IntoIterator<Item = (&'variables OsStr, &'variables OsStr)>,
     {
         let mut session = self.inspection_runtime();
-        let command = once(crate::formats::argv::ArgvItem::plain(program)).chain(arguments);
-        crate::formats::argv::inspection::inspect_items(&mut session, command, true);
-        crate::formats::env::inspection::inspect_os_pairs(&mut session, variables);
+        let command = once(ArgvItem::plain(program)).chain(arguments);
+        inspect_items(&mut session, command, true);
+        inspect_os_pairs(&mut session, variables);
         session.finish()
     }
 }

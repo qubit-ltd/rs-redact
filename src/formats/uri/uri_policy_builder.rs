@@ -54,24 +54,24 @@ impl UriPolicyBuilder {
         }
     }
 
-    /// Replaces the path handling policy in place.
+    /// Sets the path handling policy.
     ///
     /// # Parameters
     ///
     /// - `policy`: Replacement visibility policy for URI path components.
     #[inline(always)]
-    pub(crate) fn path_policy_mut(&mut self, policy: UriPathPolicy) {
+    pub(crate) fn path_policy(&mut self, policy: UriPathPolicy) {
         self.path_policy = policy;
     }
 
-    /// Replaces the fragment handling policy in place.
+    /// Sets the fragment handling policy.
     ///
     /// # Parameters
     ///
     /// - `policy`: Replacement classification and visibility policy for URI
     ///   fragments.
     #[inline(always)]
-    pub(crate) fn fragment_policy_mut(&mut self, policy: UriFragmentPolicy) {
+    pub(crate) fn fragment_policy(&mut self, policy: UriFragmentPolicy) {
         self.fragment_policy = policy;
     }
 

@@ -19,5 +19,5 @@ fn test_enabled_http_ndjson_preserves_empty_lines() {
         Some(&HeaderValue::from_static("application/x-ndjson")),
     );
 
-    assert_eq!(output.text().as_str(), "{\"name\":\"one\"}\\n\\n{\"name\":\"two\"}\\n",);
+    assert_eq!(output.text().as_str(), "{\"name\":\"one\"}\\n\\n{\"name\":\"two\"}\\n");
 }

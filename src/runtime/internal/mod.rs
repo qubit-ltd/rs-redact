@@ -5,7 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Private scalar formatting state.
+//! Private runtime implementation state.
 
 pub(super) mod input_capture;
 pub(super) mod scalar_failure;
+pub(super) mod text_output_buffer;

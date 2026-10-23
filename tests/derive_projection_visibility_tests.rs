@@ -8,10 +8,12 @@
 
 #![cfg(all(feature = "derive", feature = "serde"))]
 
+use std::any::type_name;
+
 use qubit_redact::domain::internal::RedactSerializeSource;
 
 fn accepts_projection<T: RedactSerializeSource>() {
-    let _ = std::any::type_name::<T>();
+    let _ = type_name::<T>();
 }
 
 mod api {

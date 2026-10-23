@@ -98,7 +98,6 @@ impl RedactionInspection {
     ///
     /// `Some(level)` for declared sensitive data, or `None` when the selected
     /// policy declared none, including when classification was disabled.
-    #[must_use]
     #[inline(always)]
     pub const fn max_sensitivity(&self) -> Option<Sensitivity> {
         self.max_sensitivity
@@ -116,26 +115,5 @@ impl RedactionInspection {
     #[inline(always)]
     pub const fn usage(&self) -> RedactionUsage {
         self.usage
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::RedactionInspection;
-    use crate::RedactionUsage;
-    use crate::Sensitivity;
-
-    #[test]
-    fn inspection_queries_report_sensitive_and_disabled_states() {
-        let sensitive =
-            RedactionInspection::new(false, Some(Sensitivity::High), RedactionUsage::empty());
-        assert!(sensitive.contains_sensitive());
-        assert!(!sensitive.is_redaction_disabled());
-        assert_eq!(sensitive.max_sensitivity(), Some(Sensitivity::High));
-
-        let disabled = RedactionInspection::new(true, None, RedactionUsage::empty());
-        assert!(!disabled.contains_sensitive());
-        assert!(disabled.is_redaction_disabled());
-        assert_eq!(disabled.max_sensitivity(), None);
     }
 }

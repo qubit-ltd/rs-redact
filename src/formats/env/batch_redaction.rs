@@ -17,7 +17,24 @@ use crate::runtime::admit_flat_format_item;
 use crate::runtime::collect_flat_format_items;
 use crate::runtime::runtime_session::RuntimeSession;
 
-/// Redacts one environment pair as a batch item.
+/// Redacts one UTF-8 environment pair as an individually resolvable batch item.
+///
+/// The name is used for policy classification, and both strings are admitted
+/// against the session's input and output budgets before the rendered result is
+/// staged.
+///
+/// # Parameters
+///
+/// - `session`: Batch transaction that supplies the policy and accounts for the
+///   staged item.
+/// - `name`: Environment variable name used for classification.
+/// - `value`: Borrowed UTF-8 environment value.
+///
+/// # Returns
+///
+/// A handle identifying the staged item. The caller must retain it to resolve
+/// the item's published text after the batch finishes.
+#[must_use]
 pub(crate) fn redact_pair(session: &mut BatchSession, name: &str, value: &str) -> RedactionHandle {
     if session.is_output_exhausted() {
         return session.stage_exhausted_handle();
@@ -29,7 +46,28 @@ pub(crate) fn redact_pair(session: &mut BatchSession, name: &str, value: &str) -
     session.stage_rendered_operation(result)
 }
 
-/// Redacts environment pairs as a batch item.
+/// Redacts borrowed OS-string environment pairs as one batch item.
+///
+/// Pairs are consumed in iterator order and admitted under the session's
+/// shared budgets. Non-UTF-8 values are handled by the environment renderer
+/// according to the active policy.
+///
+/// # Type Parameters
+///
+/// - `'items`: Borrow lifetime shared by each environment name and value.
+/// - `I`: Iterator source yielding borrowed OS-string pairs.
+///
+/// # Parameters
+///
+/// - `session`: Batch transaction that supplies the policy and accounts for the
+///   staged item.
+/// - `pairs`: Finite sequence of borrowed environment names and values.
+///
+/// # Returns
+///
+/// A handle identifying the staged combined item. The caller must retain it
+/// to resolve the item's published text after the batch finishes.
+#[must_use]
 pub(crate) fn redact_os_pairs<'items, I>(session: &mut BatchSession, pairs: I) -> RedactionHandle
 where
     I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,

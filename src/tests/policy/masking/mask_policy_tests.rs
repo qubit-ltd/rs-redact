@@ -7,6 +7,7 @@
 // =============================================================================
 //! Internal bounded masking and formatter error propagation.
 
+use std::borrow::Cow;
 use std::fmt;
 
 use crate::MaskPolicy;
@@ -32,7 +33,7 @@ fn test_mask_bounded_with_truncation_preserves_empty_borrow_without_truncation()
     let (masked, truncated) = MaskPolicy::fixed("mask").mask_bounded_with_truncation("", 0);
 
     assert_eq!(masked, "");
-    assert!(matches!(masked, std::borrow::Cow::Borrowed("")));
+    assert!(matches!(masked, Cow::Borrowed("")));
     assert!(!truncated);
 }
 

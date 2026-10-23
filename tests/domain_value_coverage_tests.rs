@@ -197,8 +197,14 @@ impl Redact for JsonTextValues {
 fn test_level_value_capabilities_cover_all_supported_container_shapes() {
     let output = Redactor::standard().redact_text(&LevelValues);
 
-    assert!(!output.text().as_str().contains("secret"));
-    assert!(output.text().as_str().contains("<redacted>"));
+    assert!(
+        !output.text().as_str().contains("secret"),
+        "level-capable values must not expose their raw marker strings",
+    );
+    assert!(
+        output.text().as_str().contains("<redacted>"),
+        "level-capable values must render the redaction marker",
+    );
 }
 
 /// Verifies that all supported map key forms preserve map shape while masking
@@ -207,8 +213,14 @@ fn test_level_value_capabilities_cover_all_supported_container_shapes() {
 fn test_map_value_capabilities_cover_owned_borrowed_and_optional_maps() {
     let output = Redactor::standard().redact_text(&MapValues);
 
-    assert!(!output.text().as_str().contains("secret"));
-    assert!(output.text().as_str().contains("MapValues"));
+    assert!(
+        !output.text().as_str().contains("secret"),
+        "map values and keys must not expose their raw marker strings",
+    );
+    assert!(
+        output.text().as_str().contains("MapValues"),
+        "the redacted map record must retain its outer structure",
+    );
 }
 
 /// Verifies that JSON text wrappers redact each ownership form and preserve a
@@ -217,6 +229,12 @@ fn test_map_value_capabilities_cover_owned_borrowed_and_optional_maps() {
 fn test_json_value_capabilities_cover_owned_borrowed_and_optional_text() {
     let output = Redactor::standard().redact_text(&JsonTextValues);
 
-    assert!(!output.text().as_str().contains("secret"));
-    assert!(output.text().as_str().contains("JsonTextValues"));
+    assert!(
+        !output.text().as_str().contains("secret"),
+        "JSON text values must not expose their raw marker strings",
+    );
+    assert!(
+        output.text().as_str().contains("JsonTextValues"),
+        "the redacted JSON record must retain its outer structure",
+    );
 }

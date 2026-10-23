@@ -97,7 +97,6 @@ where
 /// # Returns
 ///
 /// A safe marker, or an empty exhausted operation if that marker cannot fit.
-#[must_use]
 #[inline(always)]
 fn replacement(maximum: usize, reason: RedactionReason) -> RenderedOperation {
     OperationSink::new(maximum, "<truncated>", true).finish_with_reason(reason)

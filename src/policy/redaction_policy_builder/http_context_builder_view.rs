@@ -39,6 +39,14 @@ pub struct HttpContextBuilderView<'a> {
 #[cfg(feature = "http")]
 impl HttpContextBuilderView<'_> {
     /// Replaces all rules for this HTTP field context.
+    ///
+    /// # Parameters
+    ///
+    /// * `rules` — the complete rule set to apply to this context.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view for further configuration.
     #[inline(always)]
     pub fn replace_rules(&mut self, rules: RedactionRules) -> &mut Self {
         self.builder.rules_mut(self.context, rules);
@@ -50,6 +58,15 @@ impl HttpContextBuilderView<'_> {
     /// # Errors
     ///
     /// Returns [`PolicyError`] when `field` has no canonical name.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — the field name to classify.
+    /// * `level` — the minimum sensitivity to apply.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view when the rule is accepted.
     pub fn raise(&mut self, field: &str, level: Sensitivity) -> Result<&mut Self, PolicyError> {
         if self.error.is_none()
             && let Err(error) = self.builder.raise_mut(self.context, field, level)
@@ -65,6 +82,16 @@ impl HttpContextBuilderView<'_> {
     /// # Errors
     ///
     /// Returns [`PolicyError`] when `field` has no canonical name.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — the field name whose context rule is replaced.
+    /// * `level` — the replacement sensitivity, which cannot weaken the base
+    ///   policy.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view when the rule is accepted.
     pub fn override_level(&mut self, field: &str, level: Sensitivity) -> Result<&mut Self, PolicyError> {
         if self.error.is_none()
             && let Err(error) = self.builder.override_level_mut(self.context, field, level)
@@ -80,6 +107,14 @@ impl HttpContextBuilderView<'_> {
     /// # Errors
     ///
     /// Returns [`PolicyError`] when `field` has no canonical name.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — the exact field name to allow in this context.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view when the rule is accepted.
     pub fn allow_exact(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
         if self.error.is_none()
             && let Err(error) = self.builder.allow_exact_mut(self.context, field)
@@ -95,6 +130,14 @@ impl HttpContextBuilderView<'_> {
     /// # Errors
     ///
     /// Returns [`PolicyError`] when `field` has no canonical suffix.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — the token suffix to allow in this context.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view when the rule is accepted.
     pub fn allow_suffix(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
         if self.error.is_none()
             && let Err(error) = self.builder.allow_suffix_mut(self.context, field)
@@ -110,6 +153,14 @@ impl HttpContextBuilderView<'_> {
     /// # Errors
     ///
     /// Returns [`PolicyError`] when `field` has no canonical name.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — the exact allow rule to remove from this context.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view when the rule is accepted.
     pub fn remove_allow_exact(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
         if self.error.is_none()
             && let Err(error) = self.builder.remove_allow_exact_mut(self.context, field)
@@ -125,6 +176,14 @@ impl HttpContextBuilderView<'_> {
     /// # Errors
     ///
     /// Returns [`PolicyError`] when `field` has no canonical suffix.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — the suffix allow rule to remove from this context.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view when the rule is accepted.
     pub fn remove_allow_suffix(&mut self, field: &str) -> Result<&mut Self, PolicyError> {
         if self.error.is_none()
             && let Err(error) = self.builder.remove_allow_suffix_mut(self.context, field)
@@ -136,6 +195,10 @@ impl HttpContextBuilderView<'_> {
     }
 
     /// Removes all context allow rules.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view for further configuration.
     #[inline(always)]
     pub fn clear_allow_rules(&mut self) -> &mut Self {
         self.builder.clear_allow_rules_mut(self.context);
@@ -144,7 +207,14 @@ impl HttpContextBuilderView<'_> {
 
     /// Adds a context floor. Base protection remains independently
     /// effective.
-    #[must_use]
+    ///
+    /// # Parameters
+    ///
+    /// * `floor` — the minimum protections to add to this context.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view for further configuration.
     #[inline(always)]
     pub fn floor(&mut self, floor: RedactionFloor) -> &mut Self {
         self.builder.floor_mut(self.context, floor);
@@ -152,6 +222,10 @@ impl HttpContextBuilderView<'_> {
     }
 
     /// Disables this context's explicit floor.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view for further configuration.
     #[inline(always)]
     pub fn disable_floor(&mut self) -> &mut Self {
         self.builder.disable_floor_mut(self.context);

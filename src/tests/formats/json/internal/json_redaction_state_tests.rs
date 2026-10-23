@@ -34,9 +34,20 @@ fn test_sensitive_non_string_value_is_replaced_by_an_opaque_mask() {
 
     let outcome = state.redact(&mut value);
 
-    assert!(matches!(outcome, JsonRedactionOutcome::Complete { .. }));
-    assert_ne!(value["password"], json!({"nested": "raw-secret"}));
-    assert!(value["password"].is_string());
+    assert_eq!(
+        outcome,
+        JsonRedactionOutcome::Complete { passed_unkeyed: false },
+        "keyed redaction should complete without passing through unkeyed values",
+    );
+    assert_ne!(
+        value["password"],
+        json!({"nested": "raw-secret"}),
+        "a sensitive non-string value should not remain unchanged",
+    );
+    assert!(
+        value["password"].is_string(),
+        "a sensitive non-string value should be replaced by a string mask",
+    );
 }
 
 #[test]
@@ -59,7 +70,17 @@ fn test_context_rules_do_not_weaken_a_base_sensitive_rule() {
 
     let outcome = state.redact(&mut value);
 
-    assert!(matches!(outcome, JsonRedactionOutcome::Complete { .. }));
-    assert!(!value.to_string().contains("raw-secret"));
-    assert!(value["credential"].is_string());
+    assert_eq!(
+        outcome,
+        JsonRedactionOutcome::Complete { passed_unkeyed: false },
+        "keyed redaction should complete without passing through unkeyed values",
+    );
+    assert!(
+        !value.to_string().contains("raw-secret"),
+        "context rules should not expose a value protected by base rules",
+    );
+    assert!(
+        value["credential"].is_string(),
+        "the base sensitive rule should replace the credential with a string mask",
+    );
 }

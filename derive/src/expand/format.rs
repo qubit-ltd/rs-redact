@@ -32,8 +32,8 @@ use crate::attributes::ContainerAttributes;
 ///
 /// # Panics
 ///
-/// Panics if transparent mode bypassed validation and the input is not a
-/// single-field struct with a valid field identifier.
+/// Panics if transparent mode bypasses validation and the input is not a
+/// single-field struct, or if its named field has no identifier.
 #[must_use]
 pub(crate) fn expand(
     input: &DeriveInput,

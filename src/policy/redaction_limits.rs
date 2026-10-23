@@ -158,7 +158,6 @@ impl RedactionLimits {
     /// # Returns
     ///
     /// `Some(maximum)` is the configured ceiling; `None` disables this limit.
-    #[must_use]
     #[inline(always)]
     pub const fn max_depth(&self) -> Option<usize> {
         self.domain.max_depth()
@@ -169,7 +168,6 @@ impl RedactionLimits {
     /// # Returns
     ///
     /// `Some(maximum)` is the configured ceiling; `None` disables this limit.
-    #[must_use]
     #[inline(always)]
     pub const fn max_nodes(&self) -> Option<usize> {
         self.domain.max_nodes()
@@ -180,7 +178,6 @@ impl RedactionLimits {
     /// # Returns
     ///
     /// `Some(maximum)` is the configured ceiling; `None` disables this limit.
-    #[must_use]
     #[inline(always)]
     pub const fn max_collection_items(&self) -> Option<usize> {
         self.domain.max_sequence_items()
@@ -193,7 +190,6 @@ impl RedactionLimits {
     /// # Returns
     ///
     /// `Some(maximum)` bounds raw key bytes; `None` disables this limit.
-    #[must_use]
     #[inline(always)]
     pub const fn max_key_bytes(&self) -> Option<usize> {
         self.domain.max_key_bytes()
@@ -205,7 +201,6 @@ impl RedactionLimits {
     ///
     /// `Some(maximum)` is the configured ceiling; `None` disables this limit.
     #[cfg(feature = "json")]
-    #[must_use]
     #[inline(always)]
     pub const fn max_json_depth(&self) -> Option<usize> {
         self.json.max_depth()
@@ -217,7 +212,6 @@ impl RedactionLimits {
     ///
     /// `Some(maximum)` is the configured ceiling; `None` disables this limit.
     #[cfg(feature = "json")]
-    #[must_use]
     #[inline(always)]
     pub const fn max_json_nodes(&self) -> Option<usize> {
         self.json.max_nodes()
@@ -229,7 +223,6 @@ impl RedactionLimits {
     ///
     /// `Some(maximum)` is the configured ceiling; `None` disables this limit.
     #[cfg(feature = "json")]
-    #[must_use]
     #[inline(always)]
     pub const fn max_json_collection_items(&self) -> Option<usize> {
         self.json.max_sequence_items()
@@ -241,7 +234,6 @@ impl RedactionLimits {
     ///
     /// `Some(maximum)` is the configured ceiling; `None` disables this limit.
     #[cfg(feature = "json")]
-    #[must_use]
     #[inline(always)]
     pub const fn max_json_key_bytes(&self) -> Option<usize> {
         self.json.max_key_bytes()
@@ -253,7 +245,6 @@ impl RedactionLimits {
     ///
     /// `Some(maximum)` is the configured ceiling; `None` disables this limit.
     #[cfg(feature = "json")]
-    #[must_use]
     #[inline(always)]
     pub const fn max_json_string_bytes(&self) -> Option<usize> {
         self.json.max_string_bytes()
@@ -265,7 +256,6 @@ impl RedactionLimits {
     ///
     /// `Some(maximum)` is the configured ceiling; `None` disables this limit.
     #[cfg(feature = "json")]
-    #[must_use]
     #[inline(always)]
     pub const fn max_json_number_bytes(&self) -> Option<usize> {
         self.json.max_number_bytes()
@@ -277,7 +267,6 @@ impl RedactionLimits {
     ///
     /// `Some(maximum)` is the configured ceiling; `None` disables this limit.
     #[cfg(feature = "json")]
-    #[must_use]
     #[inline(always)]
     pub const fn max_json_payload_bytes(&self) -> Option<usize> {
         self.json.max_payload_bytes()

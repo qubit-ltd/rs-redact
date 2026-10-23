@@ -8,6 +8,7 @@
 //! Tests for redaction policy primitives.
 
 mod field;
+mod fields_builder_tests;
 mod internal;
 mod masking;
 mod mod_tests;

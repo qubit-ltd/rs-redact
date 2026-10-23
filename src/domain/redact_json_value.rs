@@ -13,17 +13,11 @@ use serde_json::Value;
 
 use super::RedactionFields;
 
-/// Seals the supported capability set against downstream implementations.
-mod private {
-    /// Restricts this capability to the supported representations.
-    pub trait Sealed {
-        // empty
-    }
-}
+mod internal;
 
 /// Marker capability implemented only for supported JSON text values.
 #[doc(hidden)]
-pub trait RedactJsonValue: private::Sealed {
+pub trait RedactJsonValue: internal::Sealed {
     /// Writes this supported JSON text value through the named field scope.
     #[doc(hidden)]
     fn write_redacted_json(&self, fields: &mut RedactionFields<'_, '_>, name: &str);
@@ -32,9 +26,10 @@ pub trait RedactJsonValue: private::Sealed {
 /// Implements the named JSON field operation for borrowed and owned text.
 macro_rules! json_text {
     ($($type:ty),+ $(,)?) => {
-        $(impl private::Sealed for $type {}
+        $(impl internal::Sealed for $type {}
           impl RedactJsonValue for $type {
               /// Delegates the supported JSON representation to the named-field writer.
+              #[inline]
               fn write_redacted_json(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                   fields.json(name, self.as_ref());
               }
@@ -43,16 +38,18 @@ macro_rules! json_text {
 }
 
 json_text!(String, str, Cow<'_, str>);
-impl<T: RedactJsonValue + ?Sized> private::Sealed for &T {}
+impl<T: RedactJsonValue + ?Sized> internal::Sealed for &T {}
 impl<T: RedactJsonValue + ?Sized> RedactJsonValue for &T {
     /// Delegates the supported JSON representation to the named-field writer.
+    #[inline]
     fn write_redacted_json(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
         (*self).write_redacted_json(fields, name);
     }
 }
-impl<T: RedactJsonValue> private::Sealed for Option<T> {}
+impl<T: RedactJsonValue> internal::Sealed for Option<T> {}
 impl<T: RedactJsonValue> RedactJsonValue for Option<T> {
     /// Delegates the supported JSON representation to the named-field writer.
+    #[inline]
     fn write_redacted_json(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
         match self {
             Some(value) => value.write_redacted_json(fields, name),
@@ -63,9 +60,10 @@ impl<T: RedactJsonValue> RedactJsonValue for Option<T> {
     }
 }
 
-impl private::Sealed for Value {}
+impl internal::Sealed for Value {}
 impl RedactJsonValue for Value {
     /// Delegates the supported JSON representation to the named-field writer.
+    #[inline]
     fn write_redacted_json(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
         fields.json_value(name, self);
     }

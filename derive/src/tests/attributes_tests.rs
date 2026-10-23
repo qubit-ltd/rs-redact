@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Unit tests for the derive parser, model, and expansion pipeline.
+//! Tests for parsing derive attributes.
 
 use syn::Data;
 use syn::DeriveInput;
@@ -14,14 +14,10 @@ use syn::parse_quote;
 
 use crate::attributes::ContainerAttributes;
 use crate::attributes::FieldAttributes;
-use crate::expand;
-use crate::model;
-use crate::model::ContainerData;
 use crate::model::FieldMode;
-use crate::model::FieldsData;
 
 #[test]
-fn container_attributes_parse_supported_options() {
+fn test_container_attributes_parse_supported_options() {
     let input: DeriveInput = parse_quote! {
         #[redact(debug, display, serde)]
         struct Record { value: String }
@@ -34,7 +30,7 @@ fn container_attributes_parse_supported_options() {
 }
 
 #[test]
-fn container_attributes_reject_removed_options() {
+fn test_container_attributes_reject_removed_options() {
     let input: DeriveInput = parse_quote! {
         #[redact(no_mut)]
         struct Record { value: String }
@@ -58,7 +54,7 @@ fn container_attributes_reject_removed_options() {
 }
 
 #[test]
-fn field_attributes_parse_every_supported_mode() {
+fn test_field_attributes_parse_every_supported_mode() {
     let input: DeriveInput = parse_quote! {
         struct Record {
             plain: String,
@@ -110,7 +106,7 @@ fn field_attributes_parse_every_supported_mode() {
 }
 
 #[test]
-fn field_attributes_reject_removed_plain_mode() {
+fn test_field_attributes_reject_removed_plain_mode() {
     let input: DeriveInput = parse_quote! {
         struct Record {
             #[redact(plain)]
@@ -130,65 +126,4 @@ fn field_attributes_reject_removed_plain_mode() {
     };
 
     assert!(error.to_string().contains("unknown attribute `plain`"));
-}
-
-#[test]
-fn input_model_preserves_struct_tuple_unit_and_enum_shapes() {
-    let named: DeriveInput = parse_quote!(
-        struct Named {
-            value: String,
-        }
-    );
-    let tuple: DeriveInput = parse_quote!(
-        struct Tuple(String);
-    );
-    let unit: DeriveInput = parse_quote!(
-        struct Unit;
-    );
-    let enumeration: DeriveInput = parse_quote!(
-        enum Event {
-            Named { value: String },
-            Tuple(String),
-            Unit,
-        }
-    );
-
-    assert!(matches!(
-        model::parse(&named, "Redact", false).expect("named model"),
-        ContainerData::Struct(FieldsData::Named(_))
-    ));
-    assert!(matches!(
-        model::parse(&tuple, "Redact", false).expect("tuple model"),
-        ContainerData::Struct(FieldsData::Unnamed(_))
-    ));
-    assert!(matches!(
-        model::parse(&unit, "Redact", false).expect("unit model"),
-        ContainerData::Struct(FieldsData::Unit)
-    ));
-    assert!(matches!(
-        model::parse(&enumeration, "Redact", false).expect("enum model"),
-        ContainerData::Enum(variants) if variants.len() == 3
-    ));
-}
-
-#[test]
-fn expansion_generates_only_the_requested_public_contracts() {
-    let input: DeriveInput = parse_quote! {
-        #[redact(crate = crate, debug, display)]
-        struct Record {
-            #[redact(level = "secret")]
-            value: String,
-        }
-    };
-
-    let rendered = expand::expand(&input).expect("valid input expands").to_string();
-    for expected in ["Redact", "Debug", "Display"] {
-        assert!(rendered.contains(expected), "missing {expected}: {rendered}");
-    }
-    for removed in ["RedactMut", "redacted_with", "expand_with_options"] {
-        assert!(
-            !rendered.contains(removed),
-            "retained removed contract {removed}: {rendered}"
-        );
-    }
 }

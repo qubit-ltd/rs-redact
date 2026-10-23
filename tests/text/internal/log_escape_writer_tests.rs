@@ -13,6 +13,7 @@ use std::fmt::Write;
 use qubit_redact::Redact;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
+
 /// Redacted value that emits log-unsafe controls.
 struct UnsafeDiagnostic;
 

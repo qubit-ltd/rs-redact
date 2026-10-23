@@ -9,6 +9,7 @@
 
 use qubit_redact::SensitiveFieldPreset;
 use qubit_redact::Sensitivity;
+
 /// Verifies the complete credentials preset table and its strongest entries.
 #[test]
 fn test_sensitive_field_preset_credentials_fields() {
@@ -36,7 +37,7 @@ fn test_sensitive_field_preset_credential_container_fields() {
 
     assert_eq!(fields.len(), 11);
     assert_eq!(fields[0], ("dsn", Sensitivity::Secret));
-    assert_eq!(fields[10], ("docker_auth_config", Sensitivity::Secret),);
+    assert_eq!(fields[10], ("docker_auth_config", Sensitivity::Secret));
 }
 
 /// Verifies the complete authentication-token preset boundaries.

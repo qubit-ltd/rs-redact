@@ -106,7 +106,7 @@ impl InspectionRuntime {
     /// sensitive value was observed; `None` means none was observed. The
     /// summary must still be checked before treating that absence as
     /// conclusive.
-    #[must_use]
+    #[must_use = "inspection sensitivity and completion summary must be checked"]
     #[inline]
     pub(super) fn into_parts(self) -> (Option<Sensitivity>, RedactionSummary) {
         let sensitivity = self.accumulator.max_sensitivity();

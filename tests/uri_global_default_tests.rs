@@ -34,8 +34,20 @@ fn test_uri_policy_defaults_preserve_application_snapshot() {
     let prior_output = before_replacement.redact_uri("https://example.test/visible#fragment");
     let _ = Redactor::replace_application_default(previous);
 
-    assert!(installed_output.text().as_str().contains("%3Credacted%3E"));
-    assert!(installed_output.text().as_str().ends_with("#fragment"));
-    assert!(prior_output.text().as_str().contains("/visible"));
-    assert!(!prior_output.text().as_str().contains("fragment"));
+    assert!(
+        installed_output.text().as_str().contains("%3Credacted%3E"),
+        "the installed application default should redact the URI path"
+    );
+    assert!(
+        installed_output.text().as_str().ends_with("#fragment"),
+        "the installed application default should preserve the URI fragment"
+    );
+    assert!(
+        prior_output.text().as_str().contains("/visible"),
+        "the previously captured application default should retain its path"
+    );
+    assert!(
+        !prior_output.text().as_str().contains("fragment"),
+        "the previously captured application default should redact its fragment"
+    );
 }

@@ -42,7 +42,6 @@ impl UnknownFieldPolicy {
     ///
     /// Some(level) when unknown fields must be redacted, or None when they
     /// must remain visible.
-    #[must_use]
     #[inline(always)]
     pub const fn sensitivity(self) -> Option<Sensitivity> {
         match self {

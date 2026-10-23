@@ -30,6 +30,7 @@ pub(in crate::formats::json) struct RedactedValue<'value, 'policy> {
 impl<'value, 'policy> RedactedValue<'value, 'policy> {
     /// Creates a root value with no enclosing field rule.
     #[must_use]
+    #[inline]
     pub(in crate::formats::json) const fn root(value: &'value Value, policy: &'policy RedactionPolicy) -> Self {
         Self {
             value,

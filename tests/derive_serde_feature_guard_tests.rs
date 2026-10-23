@@ -11,6 +11,7 @@
 
 use std::env;
 use std::path::PathBuf;
+
 mod support;
 
 /// Verifies feature-disabled expansion emits one targeted primary diagnostic.

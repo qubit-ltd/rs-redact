@@ -105,6 +105,7 @@ impl BatchSession {
     ///
     /// A stable handle for the staged item, retaining operation-local
     /// accounting.
+    #[must_use]
     pub(crate) fn stage_rendered_operation(&mut self, operation: RenderedOperation) -> RedactionHandle {
         let output_closed = operation.output_closed();
         let (text, completion, reasons) = operation.into_parts();
@@ -171,6 +172,7 @@ impl BatchSession {
     /// # Returns
     ///
     /// A handle to the item staged from the accounted text.
+    #[must_use]
     #[inline(always)]
     pub(crate) fn stage_accounted_text(&mut self, text: impl Into<String>) -> RedactionHandle {
         self.stage_rendered_operation(OperationSink::complete(text).finish())
@@ -220,6 +222,7 @@ impl BatchSession {
     /// # Returns
     ///
     /// A handle to this item without charging domain traversal a second time.
+    #[must_use]
     fn stage_domain_item(&mut self, text: String) -> RedactionHandle {
         let item_index = self.output.len();
         if text.len() > self.remaining_output_bytes() {
@@ -347,6 +350,7 @@ impl BatchSession {
     /// # Returns
     ///
     /// A handle to the combined argument item.
+    #[must_use]
     #[inline(always)]
     pub(crate) fn redact_argv<'items, I>(&mut self, items: I) -> RedactionHandle
     where
@@ -369,6 +373,7 @@ impl BatchSession {
     /// # Returns
     ///
     /// A handle to the combined argument item.
+    #[must_use]
     #[inline(always)]
     pub(crate) fn redact_heuristic_argv<'items, I>(&mut self, items: I) -> RedactionHandle
     where
@@ -387,6 +392,7 @@ impl BatchSession {
     /// # Returns
     ///
     /// A handle to the redacted name/value item.
+    #[must_use]
     #[inline(always)]
     pub(crate) fn redact_env(&mut self, name: &str, value: &str) -> RedactionHandle {
         self.run_handle(|session| crate::formats::env::batch_redaction::redact_pair(session, name, value))
@@ -406,6 +412,7 @@ impl BatchSession {
     /// # Returns
     ///
     /// A handle to the combined environment item.
+    #[must_use]
     #[inline(always)]
     pub(crate) fn redact_env_pairs<'items, I>(&mut self, pairs: I) -> RedactionHandle
     where
@@ -433,6 +440,7 @@ impl BatchSession {
     /// # Returns
     ///
     /// A handle to the combined process rendering.
+    #[must_use]
     #[inline(always)]
     pub(crate) fn redact_process<'arguments, 'variables, A, E>(
         &mut self,
@@ -458,6 +466,7 @@ impl BatchSession {
     /// # Returns
     ///
     /// A handle to the staged format item and its operation-local summary.
+    #[must_use]
     #[cfg(feature = "json")]
     #[inline(always)]
     pub(crate) fn redact_json(&mut self, text: &str) -> RedactionHandle {
@@ -474,6 +483,7 @@ impl BatchSession {
     /// # Returns
     ///
     /// A handle to the staged format item and its operation-local summary.
+    #[must_use]
     #[cfg(feature = "json")]
     #[inline(always)]
     pub(crate) fn redact_json_value(&mut self, value: &Value) -> RedactionHandle {
@@ -489,6 +499,7 @@ impl BatchSession {
     /// # Returns
     ///
     /// A handle to the staged format item and its operation-local summary.
+    #[must_use]
     #[cfg(feature = "uri")]
     #[inline(always)]
     pub(crate) fn redact_uri(&mut self, value: &str) -> RedactionHandle {
@@ -504,6 +515,7 @@ impl BatchSession {
     /// # Returns
     ///
     /// A handle to the staged format item and its operation-local summary.
+    #[must_use]
     #[cfg(feature = "http")]
     #[inline(always)]
     pub(crate) fn redact_http_url(&mut self, value: &str) -> RedactionHandle {
@@ -519,6 +531,7 @@ impl BatchSession {
     /// # Returns
     ///
     /// A handle to the staged format item and its operation-local summary.
+    #[must_use]
     #[cfg(feature = "http")]
     #[inline(always)]
     pub(crate) fn redact_http_headers(&mut self, headers: &HeaderMap) -> RedactionHandle {
@@ -537,6 +550,7 @@ impl BatchSession {
     /// # Returns
     ///
     /// A handle to the staged body item and its source-aware accounting.
+    #[must_use]
     #[cfg(feature = "http")]
     #[inline(always)]
     pub(crate) fn redact_http_body(
@@ -559,6 +573,7 @@ impl BatchSession {
     /// # Returns
     ///
     /// A handle to the staged body item and its source-aware accounting.
+    #[must_use]
     #[cfg(feature = "http")]
     #[inline(always)]
     pub(crate) fn redact_http_body_with_content_type_text(
@@ -586,6 +601,7 @@ impl BatchSession {
     ///
     /// Propagates a panic from the operation after the guard resets the batch
     /// and invalidates its previous unpublished handles.
+    #[must_use]
     #[inline]
     fn run_handle(&mut self, operation: impl FnOnce(&mut Self) -> RedactionHandle) -> RedactionHandle {
         let mut guard = TransactionGuard::new(self);

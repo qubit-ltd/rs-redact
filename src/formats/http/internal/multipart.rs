@@ -22,6 +22,10 @@ use crate::RedactionReason;
 use crate::Sensitivity;
 use crate::formats::http::FieldRedactor;
 use crate::formats::http::TextBodyPolicy;
+use crate::formats::http::inspection::inspect_form;
+use crate::formats::http::inspection::inspect_json_bytes;
+use crate::formats::http::inspection::inspect_ndjson;
+use crate::formats::json::admit_json_text_value_at_depth;
 use crate::runtime::InspectionSession;
 use crate::runtime::runtime_session::RuntimeSession;
 
@@ -39,7 +43,6 @@ use crate::runtime::runtime_session::RuntimeSession;
 ///
 /// A summary, pass-through flag, and rendering-truncation flag, or `None` for
 /// malformed input.
-#[must_use]
 pub(in crate::formats::http) fn redact(
     redactor: &FieldRedactor<'_>,
     boundary: &str,
@@ -86,7 +89,10 @@ pub(in crate::formats::http) fn redact(
 }
 
 /// Charges multipart parts and nested structured values to one transaction.
-#[must_use]
+///
+/// # Returns
+///
+/// The admitted part data, or `None` when the transaction budget is exhausted.
 pub(in crate::formats::http) fn admit_structure(
     session: &mut dyn RuntimeSession,
     boundary: &str,
@@ -118,7 +124,7 @@ pub(in crate::formats::http) fn admit_structure(
                     admitted.push(None);
                     continue;
                 };
-                let value = crate::formats::json::admit_json_text_value_at_depth(session, text, 3).ok()?;
+                let value = admit_json_text_value_at_depth(session, text, 3).ok()?;
                 Some(AdmittedMultipartBody::Json(value))
             }
             Some(value) if content_type::is_ndjson(value) => {
@@ -128,9 +134,7 @@ pub(in crate::formats::http) fn admit_structure(
                 };
                 let mut lines = Vec::new();
                 for line in text.lines().filter(|line| !line.trim().is_empty()) {
-                    lines.push(Some(
-                        crate::formats::json::admit_json_text_value_at_depth(session, line, 3).ok()?,
-                    ));
+                    lines.push(Some(admit_json_text_value_at_depth(session, line, 3).ok()?));
                 }
                 Some(AdmittedMultipartBody::Ndjson {
                     lines,
@@ -189,13 +193,13 @@ pub(in crate::formats::http) fn inspect(
         }
         match metadata.content_type() {
             Some(value) if content_type::is_json(value) => {
-                crate::formats::http::inspection::inspect_json_bytes(session, body);
+                inspect_json_bytes(session, body);
             }
             Some(value) if content_type::is_ndjson(value) => {
-                crate::formats::http::inspection::inspect_ndjson(session, body);
+                inspect_ndjson(session, body);
             }
             Some(value) if content_type::is_form(value) => {
-                crate::formats::http::inspection::inspect_form(session, body);
+                inspect_form(session, body);
             }
             Some(value) if content_type::is_text(value) => {
                 if std::str::from_utf8(body).is_err() {
@@ -221,6 +225,11 @@ pub(in crate::formats::http) fn inspect(
 }
 
 /// Charges each non-empty URL-encoded form field at `field_depth`.
+///
+/// # Returns
+///
+/// `true` when every field is admitted, or `false` when the transaction budget
+/// is exhausted.
 #[must_use]
 pub(in crate::formats::http) fn admit_form_fields(
     session: &mut dyn RuntimeSession,
@@ -236,6 +245,10 @@ pub(in crate::formats::http) fn admit_form_fields(
 }
 
 /// Resolves body rules without retaining an immutable session borrow.
+///
+/// # Returns
+///
+/// Whether `field` matches a configured sensitive-body rule.
 #[must_use]
 fn body_field_is_sensitive(session: &dyn RuntimeSession, field: &str) -> bool {
     let policy = session.policy();
@@ -257,7 +270,6 @@ fn body_field_is_sensitive(session: &dyn RuntimeSession, field: &str) -> bool {
 ///
 /// A summary line, pass-through flag, and rendering-truncation flag, or `None`
 /// for malformed input.
-#[must_use]
 fn redact_part(
     redactor: &FieldRedactor<'_>,
     segment: &[u8],
@@ -295,7 +307,11 @@ fn redact_part(
 }
 
 /// Parses one part's headers and metadata without inspecting its body.
-#[must_use]
+///
+/// # Returns
+///
+/// The parsed metadata and borrowed body, or `None` when required headers are
+/// missing, duplicated, or malformed.
 fn parse_part(segment: &[u8], require_form_data: bool) -> Option<(MultipartPartMetadata<'_>, &[u8])> {
     let (headers, body) = split_headers_body(segment)?;
     let mut disposition = None;
@@ -329,7 +345,6 @@ fn parse_part(segment: &[u8], require_form_data: bool) -> Option<(MultipartPartM
 ///
 /// Safe part text, pass-through flag, and rendering-truncation flag, or `None`
 /// for invalid UTF-8, JSON, or serialization.
-#[must_use]
 fn redact_non_sensitive_part(
     redactor: &FieldRedactor<'_>,
     body: &[u8],
@@ -395,7 +410,6 @@ fn redact_non_sensitive_part(
 /// # Returns
 ///
 /// Part segments, or `None` for malformed delimiters or epilogue.
-#[must_use]
 fn part_segments<'a>(bytes: &'a [u8], boundary: &str) -> Option<Vec<&'a [u8]>> {
     let delimiter = format!("--{boundary}");
     let closing = format!("{delimiter}--");

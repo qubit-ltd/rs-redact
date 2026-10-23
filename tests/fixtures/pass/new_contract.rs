@@ -5,6 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+//! Passing fixture for the new redaction contract.
 
 use qubit_redact::Redact as RedactTrait;
 use qubit_redact::RedactionWriter;

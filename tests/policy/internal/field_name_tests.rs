@@ -9,6 +9,7 @@
 
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
+
 /// Verifies that every supported separator produces the same canonical name.
 #[test]
 fn test_canonicalize_field_name_normalizes_supported_separators() {

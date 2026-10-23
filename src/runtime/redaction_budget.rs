@@ -151,6 +151,7 @@ impl RedactionBudget {
     ///
     /// `true` when a new item scope was created; `false` when an outer item
     /// already owns the scope and must retain ownership.
+    #[must_use]
     #[inline]
     pub(super) fn begin_operation_usage(&mut self) -> bool {
         if self.active_operation_usage.is_some() {
@@ -249,6 +250,7 @@ impl RedactionBudget {
     /// Whether complete tree accounting and its budget transaction both
     /// succeeded.
     #[cfg(feature = "json")]
+    #[must_use]
     #[inline]
     pub(super) fn admit_json_value(&mut self, root: &Value) -> bool {
         let mut transaction = self.json_budget.transaction();

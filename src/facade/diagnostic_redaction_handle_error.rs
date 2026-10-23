@@ -44,21 +44,3 @@ impl fmt::Display for DiagnosticRedactionHandleError {
 }
 
 impl Error for DiagnosticRedactionHandleError {}
-
-#[cfg(test)]
-mod tests {
-    use super::DiagnosticRedactionHandleError;
-
-    /// Both lookup failures expose stable, value-free diagnostics.
-    #[test]
-    fn test_diagnostic_handle_error_display() {
-        assert_eq!(
-            DiagnosticRedactionHandleError::DifferentBatch.to_string(),
-            "the handle belongs to a different batch"
-        );
-        assert_eq!(
-            DiagnosticRedactionHandleError::MissingItem.to_string(),
-            "the handle does not identify a published item"
-        );
-    }
-}

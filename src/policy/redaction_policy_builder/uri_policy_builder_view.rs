@@ -29,17 +29,37 @@ pub struct UriPolicyBuilderView<'a> {
 
 #[cfg(feature = "uri")]
 impl UriPolicyBuilderView<'_> {
-    /// Sets URI path visibility.
+    /// Selects whether URI paths remain visible or are replaced by a marker.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` — the path visibility behavior applied when the policy is
+    ///   used to redact a URI.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view, allowing additional URI settings to
+    /// be configured in the same closure.
     #[inline(always)]
     pub fn path(&mut self, policy: crate::formats::uri::UriPathPolicy) -> &mut Self {
-        self.builder.path_policy_mut(policy);
+        self.builder.path_policy(policy);
         self
     }
 
-    /// Sets URI fragment visibility.
+    /// Selects whether URI fragments remain visible or are masked.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` — the fragment visibility behavior applied when the policy is
+    ///   used to redact a URI.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view, allowing additional URI settings to
+    /// be configured in the same closure.
     #[inline(always)]
     pub fn fragment(&mut self, policy: crate::formats::uri::UriFragmentPolicy) -> &mut Self {
-        self.builder.fragment_policy_mut(policy);
+        self.builder.fragment_policy(policy);
         self
     }
 }

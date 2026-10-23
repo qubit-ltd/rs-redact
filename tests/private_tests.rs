@@ -5,7 +5,9 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+
 use qubit_redact::Redactor;
+
 /// Verifies that the private serde support boundary does not affect core
 /// redaction.
 #[test]

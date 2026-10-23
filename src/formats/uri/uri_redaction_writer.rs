@@ -98,7 +98,6 @@ impl UriRedactionWriter<'_> {
     /// # Returns
     ///
     /// Unpublished safe text and completion facts for parent publication.
-    #[must_use]
     pub(crate) fn redact_uri_direct(&mut self, input: &str) -> RenderedOperation {
         redact_uri_with_limit(self.session.policy(), input, self.session.remaining_output_bytes())
     }

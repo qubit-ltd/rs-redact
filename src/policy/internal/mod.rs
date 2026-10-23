@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Internal field-name canonicalization and candidate generation.
+//! Internal state and helpers shared by field classification and masking.
 
 mod bounded_mask_writer;
 mod field_name;

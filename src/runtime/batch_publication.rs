@@ -58,12 +58,6 @@ impl BatchPublication {
 
     /// Borrows the item selected by `handle` without cloning its final text.
     ///
-    /// # Errors
-    ///
-    /// Returns [`RedactionHandleError::DifferentTransaction`] for another
-    /// batch identity and [`RedactionHandleError::MissingItem`] for an invalid
-    /// index in this batch.
-    ///
     /// # Parameters
     ///
     /// - `handle`: Runtime token issued for this batch.
@@ -71,6 +65,12 @@ impl BatchPublication {
     /// # Returns
     ///
     /// The matching published item borrowed from this output.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RedactionHandleError::DifferentTransaction`] for another
+    /// batch identity and [`RedactionHandleError::MissingItem`] for an invalid
+    /// index in this batch.
     #[inline]
     pub(crate) fn resolve(&self, handle: RedactionHandle) -> Result<&RedactionTextOutput, RedactionHandleError> {
         if handle.transaction_id != self.transaction_id {

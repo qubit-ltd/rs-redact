@@ -7,5 +7,6 @@
 // =============================================================================
 //! Crate-internal domain publication contracts.
 
-#[cfg(feature = "json")]
-mod redaction_writer_tests;
+mod internal;
+#[cfg(feature = "serde")]
+mod redacted_keyed_serialize_ref_tests;

@@ -20,7 +20,11 @@ use crate::runtime::OperationSink;
 use crate::runtime::RedactionHandle;
 use crate::runtime::runtime_session::RuntimeSession;
 
-/// Redacts one URL as a batch item.
+/// Redacts one URL as a batch item staged in the session.
+///
+/// The returned handle identifies the staged result and must be retained when
+/// the caller needs to resolve that item after the batch completes.
+#[must_use]
 pub(crate) fn redact_url(session: &mut BatchSession, value: &str) -> RedactionHandle {
     if session.is_output_exhausted() {
         return session.stage_exhausted_handle();
@@ -46,7 +50,11 @@ pub(crate) fn redact_url(session: &mut BatchSession, value: &str) -> RedactionHa
     session.stage_rendered_operation(result.into_operation())
 }
 
-/// Redacts headers as a batch item.
+/// Redacts headers as a batch item staged in the session.
+///
+/// The returned handle identifies the staged result and must be retained when
+/// the caller needs to resolve that item after the batch completes.
+#[must_use]
 pub(crate) fn redact_headers(session: &mut BatchSession, headers: &HeaderMap) -> RedactionHandle {
     let Some(headers) = collect_admitted_headers(session, headers) else {
         return if session.is_output_exhausted() {
@@ -63,7 +71,11 @@ pub(crate) fn redact_headers(session: &mut BatchSession, headers: &HeaderMap) ->
     session.stage_rendered_operation(result.into_operation())
 }
 
-/// Redacts a captured body with a parsed Content-Type as a batch item.
+/// Redacts a captured body with a parsed Content-Type as a staged batch item.
+///
+/// The returned handle identifies the staged result and must be retained when
+/// the caller needs to resolve that item after the batch completes.
+#[must_use]
 pub(crate) fn redact_body(
     session: &mut BatchSession,
     capture: BodyCapture<'_>,
@@ -89,7 +101,11 @@ pub(crate) fn redact_body(
     session.stage_rendered_operation(result.into_operation())
 }
 
-/// Redacts a captured body with textual Content-Type as a batch item.
+/// Redacts a captured body with textual Content-Type as a staged batch item.
+///
+/// The returned handle identifies the staged result and must be retained when
+/// the caller needs to resolve that item after the batch completes.
+#[must_use]
 pub(crate) fn redact_body_with_content_type_text(
     session: &mut BatchSession,
     capture: BodyCapture<'_>,

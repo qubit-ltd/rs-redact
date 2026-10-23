@@ -41,7 +41,6 @@ impl BoundedBodyWriter {
     /// # Returns
     ///
     /// `Some` when all accepted bytes form valid UTF-8, or `None` otherwise.
-    #[must_use]
     #[inline]
     pub(in crate::formats::http) fn into_string(self) -> Option<String> {
         self.sink.into_string()

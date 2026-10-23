@@ -14,12 +14,42 @@ use crate::policy::ResolvedField;
 use crate::runtime::InspectionSession;
 use crate::runtime::runtime_session::RuntimeSession;
 
-/// Inspects one UTF-8 environment assignment.
+/// Classifies one UTF-8 assignment and records its sensitivity in the
+/// inspection transaction.
+///
+/// The assignment is subject to the same depth, collection, and input-byte
+/// budgets as other inspected format items. If admission fails, inspection
+/// stops and the transaction later reports an inconclusive result.
+///
+/// # Parameters
+///
+/// - `session`: Transaction that supplies the policy, accounts for inspected
+///   input, and accumulates the strongest observed sensitivity.
+/// - `name`: UTF-8 environment variable name used for policy classification.
+/// - `value`: UTF-8 environment value whose bytes count toward the input
+///   budget.
 pub(crate) fn inspect_pair(session: &mut InspectionSession, name: &str, value: &str) {
     inspect_os_pairs(session, [(OsStr::new(name), OsStr::new(value))]);
 }
 
-/// Inspects borrowed operating-system environment assignments.
+/// Classifies borrowed operating-system assignments without rendering their
+/// values.
+///
+/// Pairs are consumed in iterator order. Each admitted pair counts against the
+/// transaction's collection, depth, and input-byte budgets. An unrepresentable
+/// name is conservatively classified as secret, and inspection stops when a
+/// required budget admission fails.
+///
+/// # Type Parameters
+///
+/// - `'items`: Borrow lifetime shared by each environment name and value.
+/// - `I`: Iterator that yields borrowed operating-system string pairs.
+///
+/// # Parameters
+///
+/// - `session`: Transaction that supplies the policy, accounts for inspected
+///   input, and accumulates the strongest observed sensitivity.
+/// - `pairs`: Environment name and value pairs consumed in iterator order.
 pub(crate) fn inspect_os_pairs<'items, I>(session: &mut InspectionSession, pairs: I)
 where
     I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,

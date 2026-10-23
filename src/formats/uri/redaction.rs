@@ -32,7 +32,6 @@ const INVALID_URI: &str = "<invalid URI>";
 /// This function owns neither a policy snapshot nor a budget. It returns the
 /// unpublished renderer carrier, so URI rendering cannot publish a second
 /// result model or make an independent completion decision.
-#[must_use]
 pub(crate) fn redact_uri_with_limit(
     policy: &RedactionPolicy,
     input: &str,
@@ -99,13 +98,11 @@ pub(crate) fn redact_uri_with_limit(
 }
 
 /// Converts bounded URI bytes to the runtime's single output carrier.
-#[must_use]
 fn finish_uri_rendering(rendered: BoundedUriWriter) -> RenderedOperation {
     rendered.finish()
 }
 
 /// Emits a bounded marker for invalid URI input without retaining input bytes.
-#[must_use]
 fn invalid_output(max_output_bytes: usize) -> RenderedOperation {
     if INVALID_URI.len() <= max_output_bytes {
         return OperationSink::complete_with_reason(safe_text(INVALID_URI.to_owned()), RedactionReason::InvalidUri)

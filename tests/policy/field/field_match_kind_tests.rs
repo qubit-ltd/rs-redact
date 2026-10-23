@@ -8,10 +8,11 @@
 //! Tests for [`FieldMatchKind`](qubit_redact::FieldMatchKind).
 
 use qubit_redact::FieldMatchKind;
+
 /// Verifies exact and token-suffix matches remain distinct public outcomes.
 #[test]
 fn test_field_match_kind_distinguishes_exact_and_token_suffix() {
     assert_ne!(FieldMatchKind::Exact, FieldMatchKind::TokenSuffix);
     assert_eq!(format!("{:?}", FieldMatchKind::Exact), "Exact");
-    assert_eq!(format!("{:?}", FieldMatchKind::TokenSuffix), "TokenSuffix",);
+    assert_eq!(format!("{:?}", FieldMatchKind::TokenSuffix), "TokenSuffix");
 }

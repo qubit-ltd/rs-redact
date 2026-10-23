@@ -12,14 +12,17 @@ use qubit_redact::Redactor;
 use qubit_redact::formats::http::BodyCapture;
 
 use crate::http::support::redaction::redact_body;
-/// Verifies malformed multipart parameters fail closed.
+/// Verifies malformed multipart part headers fail closed.
 #[test]
-fn test_header_parameter_malformed_multipart_hides_body() {
+fn test_multipart_malformed_part_headers_hide_body() {
     let rendered = redact_body(
         &Redactor::standard(),
         BodyCapture::complete(b"--x\r\ncontent\r\n--x--\r\n"),
         Some(&HeaderValue::from_static("multipart/form-data; boundary=x")),
     );
 
-    assert!(!rendered.contains("content"));
+    assert!(
+        !rendered.contains("content"),
+        "malformed multipart part headers must not expose the body",
+    );
 }

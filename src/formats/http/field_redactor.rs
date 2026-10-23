@@ -117,7 +117,6 @@ impl<'a> FieldRedactor<'a> {
     ///
     /// `Some(level)` for the strongest sensitive classification; `None` when
     /// the combined rules permit pass-through.
-    #[must_use]
     #[inline]
     pub(in crate::formats::http) fn sensitivity(&self, field: &str) -> Option<Sensitivity> {
         match self
@@ -167,7 +166,6 @@ impl<'a> FieldRedactor<'a> {
     ///
     /// `Some` containing the final-mask result when the field is sensitive, or
     /// `None` when callers should continue their non-sensitive handling.
-    #[must_use]
     #[inline]
     pub(in crate::formats::http) fn redact_bounded_if_sensitive<'value>(
         &self,

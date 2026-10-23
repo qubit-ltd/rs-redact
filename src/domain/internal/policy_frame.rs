@@ -9,6 +9,8 @@
 
 use std::sync::Arc;
 
+use crate::RedactionPolicy;
+
 /// Keeps identity lookup independent of the original policy's storage lifetime.
 pub(super) struct PolicyFrame {
     /// Original policy address used only as a snapshot-reuse hint.
@@ -16,5 +18,5 @@ pub(super) struct PolicyFrame {
     /// policy contents because a forgotten guard can outlive that source.
     pub(super) source_identity: usize,
     /// Owned immutable policy used throughout the active serialization scope.
-    pub(super) snapshot: Arc<crate::RedactionPolicy>,
+    pub(super) snapshot: Arc<RedactionPolicy>,
 }

@@ -12,6 +12,7 @@ use qubit_redact::Redactor;
 use qubit_redact::formats::http::BodyCapture;
 
 use crate::http::support::redaction::redact_body;
+
 /// Verifies form values are classified from their field names.
 #[test]
 fn test_form_masks_password_value() {

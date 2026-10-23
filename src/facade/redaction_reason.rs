@@ -57,6 +57,7 @@ impl RedactionReason {
     ///
     /// Exactly one bit identifying this reason in the internal reason set.
     #[must_use]
+    #[inline]
     pub(super) const fn bit(self) -> u64 {
         match self {
             Self::InputLimitReached => 1 << 0,

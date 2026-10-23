@@ -10,6 +10,7 @@
 use syn::Ident;
 
 use super::Sensitivity;
+
 /// Formatting behavior generated for one named or tuple field.
 #[must_use]
 pub(crate) enum FieldMode {

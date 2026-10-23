@@ -28,7 +28,7 @@ fn disabled_policy_with_one_json_node() -> RedactionPolicy {
 }
 
 #[test]
-fn parsed_json_value_api_does_not_mutate_borrowed_value() {
+fn test_parsed_json_value_api_does_not_mutate_borrowed_value() {
     let value = json!({"password": "raw-secret", "visible": "shown"});
     let original = value.clone();
     let output = Redactor::strict().redact_json_value(&value);
@@ -39,7 +39,7 @@ fn parsed_json_value_api_does_not_mutate_borrowed_value() {
 }
 
 #[test]
-fn redaction_items_borrow_and_redact_parsed_json_values() {
+fn test_redaction_items_borrow_and_redact_parsed_json_values() {
     struct JsonSequence<'value>(&'value [Value]);
 
     impl Redact for JsonSequence<'_> {
@@ -67,7 +67,7 @@ fn redaction_items_borrow_and_redact_parsed_json_values() {
 }
 
 #[test]
-fn disabled_policy_preserves_parsed_json_wire_text() {
+fn test_disabled_policy_preserves_parsed_json_wire_text() {
     let value = json!({"password": "raw-secret"});
     let policy = RedactionPolicy::disabled();
     let output = Redactor::new(policy).redact_json_value(&value);

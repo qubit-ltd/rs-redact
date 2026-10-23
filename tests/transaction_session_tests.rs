@@ -37,7 +37,7 @@ impl Redact for PanickingValue {
 }
 
 #[test]
-fn composer_publishes_one_ordered_text() {
+fn test_composer_publishes_one_ordered_text() {
     let output = Redactor::strict()
         .text_composer()
         .literal("password=")
@@ -53,7 +53,7 @@ fn composer_publishes_one_ordered_text() {
 }
 
 #[test]
-fn batch_resolves_items_only_from_its_own_output() {
+fn test_batch_resolves_items_only_from_its_own_output() {
     let mut batch = Redactor::standard().diagnostic_batch();
     let first = batch.redact_field("name", "Ada");
     let second = batch.redact_value(&SafeValue);
@@ -65,7 +65,7 @@ fn batch_resolves_items_only_from_its_own_output() {
 }
 
 #[test]
-fn batch_rejects_handle_from_different_batch() {
+fn test_batch_rejects_handle_from_different_batch() {
     let mut first = Redactor::standard().diagnostic_batch();
     let handle = first.redact_field("name", "Ada");
     let _ = first.finish_with_marker("<redaction incomplete>");
@@ -77,7 +77,7 @@ fn batch_rejects_handle_from_different_batch() {
 }
 
 #[test]
-fn output_limit_is_observable_without_publishing_raw_input() {
+fn test_output_limit_is_observable_without_publishing_raw_input() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
             limits.max_output_bytes(1);
@@ -95,7 +95,7 @@ fn output_limit_is_observable_without_publishing_raw_input() {
 }
 
 #[test]
-fn batch_recovers_from_user_redaction_panic_without_publishing_partial_item() {
+fn test_batch_recovers_from_user_redaction_panic_without_publishing_partial_item() {
     let mut batch = Redactor::strict().diagnostic_batch();
     let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
         let _ = batch.redact_value(&PanickingValue);
@@ -108,7 +108,7 @@ fn batch_recovers_from_user_redaction_panic_without_publishing_partial_item() {
 }
 
 #[test]
-fn batch_panic_invalidates_handles_created_before_rollback() {
+fn test_batch_panic_invalidates_handles_created_before_rollback() {
     let mut batch = Redactor::strict().diagnostic_batch();
     let stale = batch.redact_field("password", "raw-secret");
     let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
@@ -123,7 +123,7 @@ fn batch_panic_invalidates_handles_created_before_rollback() {
 }
 
 #[test]
-fn process_composer_batch_and_one_shot_publish_equivalent_safe_text() {
+fn test_process_composer_batch_and_one_shot_publish_equivalent_safe_text() {
     let redactor = Redactor::standard();
     let program = OsStr::new("client");
     let arguments = [ArgvItem::plain(OsStr::new("--password=raw-secret"))];
@@ -149,7 +149,7 @@ fn process_composer_batch_and_one_shot_publish_equivalent_safe_text() {
 }
 
 #[test]
-fn process_composer_records_environment_collection_limit_after_argv() {
+fn test_process_composer_records_environment_collection_limit_after_argv() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
             limits.max_collection_items(1);
@@ -180,7 +180,7 @@ fn process_composer_records_environment_collection_limit_after_argv() {
 }
 
 #[test]
-fn process_batch_records_environment_collection_limit_after_argv() {
+fn test_process_batch_records_environment_collection_limit_after_argv() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
             limits.max_collection_items(1);

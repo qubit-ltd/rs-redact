@@ -42,10 +42,7 @@ struct StructRenameAllFields {
 /// Enum variant-field rules may be specified once.
 #[derive(Redact)]
 #[redact(serde)]
-#[serde(
-    rename_all_fields = "camelCase",
-    rename_all_fields = "snake_case"
-)]
+#[serde(rename_all_fields = "camelCase", rename_all_fields = "snake_case")]
 enum DuplicateRenameAllFields {
     /// Named variant.
     Value {

@@ -11,7 +11,7 @@ use qubit_redact::Redactor;
 use qubit_redact::formats::argv::ArgvItem;
 
 #[test]
-fn argv_module_exports_transaction_adapter_types() {
+fn test_argv_module_exports_transaction_adapter_types() {
     let output = Redactor::standard()
         .text_composer()
         .argv(|argv| {

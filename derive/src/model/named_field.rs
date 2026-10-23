@@ -62,6 +62,7 @@ impl<'a> NamedField<'a> {
     /// # Returns
     ///
     /// The field used for span-aware generated tokens.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn field(&self) -> &'a Field {
         self.field
@@ -72,6 +73,7 @@ impl<'a> NamedField<'a> {
     /// # Returns
     ///
     /// The identifier used in generated member access.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn identifier(&self) -> &'a Ident {
         self.identifier

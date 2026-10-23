@@ -13,7 +13,6 @@ use qubit_redact::FieldNameMatching;
 use qubit_redact::MaskPolicy;
 use qubit_redact::PolicyError;
 use qubit_redact::PolicyLocation;
-#[cfg(feature = "http")]
 use qubit_redact::RedactionFloor;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionPolicyBuilder;
@@ -31,10 +30,95 @@ use qubit_redact::formats::uri::UriFragmentPolicy;
 #[cfg(all(feature = "http", feature = "uri", feature = "json"))]
 use qubit_redact::formats::uri::UriPathPolicy;
 
+/// Verifies grouped field settings and allow-rule removal through the public
+/// policy builder API.
+#[test]
+fn test_field_builder_applies_matching_fallback_sensitivity_and_allow_removal() {
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .disable_floor()
+                .matching(FieldNameMatching::ExactOrTokenSuffix)
+                .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low))
+                .medium_sensitive("session")
+                .high_sensitive("credential")
+                .allow_exact("session")
+                .clear_allow_rules();
+        })
+        .expect("field rules should remain valid")
+        .build()
+        .expect("the policy should build");
+
+    assert_eq!(policy.matching(), FieldNameMatching::ExactOrTokenSuffix);
+    assert_eq!(
+        policy.unknown_field_policy(),
+        UnknownFieldPolicy::Redact(Sensitivity::Low)
+    );
+    assert_eq!(policy.sensitivity_for("session"), Some(Sensitivity::Medium));
+    assert_eq!(policy.sensitivity_for("request_session"), Some(Sensitivity::Medium));
+    assert_eq!(policy.sensitivity_for("credential"), Some(Sensitivity::High));
+    assert_eq!(policy.sensitivity_for("unclassified"), Some(Sensitivity::Low));
+    assert!(policy.application_allow_rules().next().is_none());
+}
+
+/// Policy inspection and snapshot methods preserve application and floor
+/// behavior while exposing rule provenance.
+#[test]
+fn test_policy_accessors_classification_and_floor_snapshot() {
+    let base = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.secret_sensitive("api_token").allow_exact("request_id");
+        })
+        .expect("application rules should be valid")
+        .build()
+        .expect("policy should be valid");
+    let floor = RedactionFloor::builder()
+        .raise("mandatory_field", Sensitivity::High)
+        .expect("floor rule should be valid")
+        .build()
+        .expect("floor should be valid");
+    let policy = base.with_floor(floor.clone());
+
+    assert!(policy.floor().is_some());
+    assert_eq!(policy.unknown_field_policy(), UnknownFieldPolicy::PassThrough);
+    assert_eq!(
+        policy
+            .application_sensitive_rules()
+            .map(|rule| (rule.field(), rule.sensitivity()))
+            .collect::<Vec<_>>(),
+        [("apitoken", Sensitivity::Secret)]
+    );
+    assert_eq!(
+        policy
+            .application_allow_rules()
+            .map(|rule| rule.field())
+            .collect::<Vec<_>>(),
+        ["requestid"]
+    );
+    let classification = policy.classify_field("api_token");
+    assert_eq!(classification.sensitivity(), Some(Sensitivity::Secret));
+    assert_eq!(classification.matched_field(), Some("apitoken"));
+    assert_eq!(policy.sensitivity_for("api_token"), Some(Sensitivity::Secret));
+    assert_eq!(policy.sensitivity_for("mandatory_field"), Some(Sensitivity::High));
+
+    let copied = policy.to_builder().build().expect("snapshot should remain valid");
+    assert_eq!(copied.floor().map(|floor| floor.sensitive_rules().count()), Some(1));
+    assert_eq!(copied.sensitivity_for("api_token"), Some(Sensitivity::Secret));
+    assert!(policy.clone().disable_floor().floor().is_none());
+    assert_eq!(
+        RedactionPolicy::default().sensitivity_for("password"),
+        Some(Sensitivity::Secret)
+    );
+
+    let mut mutable = copied;
+    assert!(mutable.set_disabled(true).is_disabled());
+    assert!(!mutable.set_disabled(false).is_disabled());
+}
+
 /// A policy must reject output limits that cannot be represented by Rust's
 /// collection allocators instead of deferring failure to a renderer.
 #[test]
-fn limits_draft_rejects_unaddressable_output_capacity() {
+fn test_limits_draft_rejects_unaddressable_output_capacity() {
     let result = RedactionPolicy::builder().limits(|limits| {
         limits.max_output_bytes(usize::MAX);
     });
@@ -166,6 +250,7 @@ fn test_http_context_builder_rejects_invalid_names_for_every_rule_operation() {
 
     assert!(results.into_iter().all(|result| result.is_err()));
 }
+
 /// Verifies that an exact allow rule does not allow a contextual suffix.
 #[test]
 fn test_exact_allow_does_not_allow_contextual_suffix() {

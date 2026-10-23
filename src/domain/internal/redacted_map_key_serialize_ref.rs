@@ -12,6 +12,8 @@ use serde::Serializer;
 
 use super::RedactMapKeySerialize;
 use super::redact_serialize_scope::serialize_structured;
+use crate::RedactionPolicy;
+use crate::Sensitivity;
 
 /// Borrowed serializer adapter carrying policy and key sensitivity.
 #[doc(hidden)]
@@ -19,12 +21,12 @@ pub struct RedactedMapKeySerializeRef<'value, 'policy, T: ?Sized> {
     /// Borrowed map whose keys are classified explicitly.
     value: &'value T,
     /// Policy used to mask keys and optional values.
-    policy: &'policy crate::RedactionPolicy,
+    policy: &'policy RedactionPolicy,
     /// Sensitivity applied to every serialized key.
-    level: crate::Sensitivity,
+    level: Sensitivity,
     /// `Some` applies one explicit sensitivity to every value; `None` uses
     /// each value's ordinary serializer under the shared budget.
-    value_level: Option<crate::Sensitivity>,
+    value_level: Option<Sensitivity>,
 }
 
 impl<'value, 'policy, T: ?Sized> RedactedMapKeySerializeRef<'value, 'policy, T> {
@@ -48,9 +50,9 @@ impl<'value, 'policy, T: ?Sized> RedactedMapKeySerializeRef<'value, 'policy, T> 
     #[inline(always)]
     pub fn new(
         value: &'value T,
-        policy: &'policy crate::RedactionPolicy,
-        level: crate::Sensitivity,
-        value_level: Option<crate::Sensitivity>,
+        policy: &'policy RedactionPolicy,
+        level: Sensitivity,
+        value_level: Option<Sensitivity>,
     ) -> Self {
         Self {
             value,

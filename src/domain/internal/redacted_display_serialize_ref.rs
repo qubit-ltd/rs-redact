@@ -9,6 +9,9 @@
 
 use std::fmt::Display;
 
+use serde::Serialize;
+use serde::Serializer;
+
 use crate::RedactionPolicy;
 use crate::Sensitivity;
 
@@ -42,12 +45,8 @@ impl<'value, 'policy, T: ?Sized> RedactedDisplaySerializeRef<'value, 'policy, T>
     }
 }
 
-impl<T: Display + ?Sized> serde::Serialize for RedactedDisplaySerializeRef<'_, '_, T> {
+impl<T: Display + ?Sized> Serialize for RedactedDisplaySerializeRef<'_, '_, T> {
     /// Executes one bounded textual scalar serialization.
-    ///
-    /// # Errors
-    ///
-    /// Propagates payload admission or downstream serialization failures.
     ///
     /// # Type Parameters
     ///
@@ -60,10 +59,14 @@ impl<T: Display + ?Sized> serde::Serialize for RedactedDisplaySerializeRef<'_, '
     /// # Returns
     ///
     /// The downstream result after the admitted representation is serialized.
+    ///
+    /// # Errors
+    ///
+    /// Propagates payload admission or downstream serialization failures.
     #[inline(always)]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         super::redact_level_serialize::serialize_display_text(self.value, serializer, self.policy, self.level)
     }

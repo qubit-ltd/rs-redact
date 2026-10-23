@@ -10,3 +10,5 @@
 mod batch_publication_tests;
 #[cfg(feature = "http")]
 mod operation_sink_tests;
+mod redaction_handle_error_tests;
+mod render_runtime_tests;

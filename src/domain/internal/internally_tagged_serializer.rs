@@ -90,26 +90,22 @@ impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
     type Ok = S::Ok;
     /// Underlying serializer error including shape rejection.
     type Error = S::Error;
-    /// Map adapter for supported shapes; Impossible rejects other compound
-    /// forms.
+    /// Rejects sequence payloads because only maps and structs are supported.
     type SerializeSeq = Impossible<S::Ok, S::Error>;
-    /// Map adapter for supported shapes; Impossible rejects other compound
-    /// forms.
+    /// Rejects tuple payloads because only maps and structs are supported.
     type SerializeTuple = Impossible<S::Ok, S::Error>;
-    /// Map adapter for supported shapes; Impossible rejects other compound
-    /// forms.
+    /// Rejects tuple-struct payloads because only maps and structs are
+    /// supported.
     type SerializeTupleStruct = Impossible<S::Ok, S::Error>;
-    /// Map adapter for supported shapes; Impossible rejects other compound
-    /// forms.
+    /// Rejects tuple-variant payloads because only maps and structs are
+    /// supported.
     type SerializeTupleVariant = Impossible<S::Ok, S::Error>;
-    /// Map adapter for supported shapes; Impossible rejects other compound
-    /// forms.
+    /// Map adapter that emits the injected tag and forwards map entries.
     type SerializeMap = InternallyTaggedMap<S::SerializeMap>;
-    /// Map adapter for supported shapes; Impossible rejects other compound
-    /// forms.
+    /// Map adapter that emits the injected tag and forwards struct fields.
     type SerializeStruct = InternallyTaggedMap<S::SerializeMap>;
-    /// Map adapter for supported shapes; Impossible rejects other compound
-    /// forms.
+    /// Rejects struct-variant payloads because only maps and structs are
+    /// supported.
     type SerializeStructVariant = Impossible<S::Ok, S::Error>;
 
     /// Admits and injects the tag before returning a map adapter.

@@ -126,6 +126,14 @@ impl RedactionPolicyBuilder {
     /// every field is valid. The configuration methods inside the closure are
     /// therefore infallible and can be chained without a trailing `Ok(())`.
     ///
+    /// # Type Parameters
+    ///
+    /// * `F` — the closure that configures the temporary field draft.
+    ///
+    /// # Parameters
+    ///
+    /// * `configure` — the closure that adds rules to the temporary draft.
+    ///
     /// # Errors
     ///
     /// Returns [`PolicyError`] when a field name is empty after
@@ -154,6 +162,14 @@ impl RedactionPolicyBuilder {
     /// The draft replaces this namespace only after the closure returns, so a
     /// failed build never partially updates the caller's builder.
     ///
+    /// # Type Parameters
+    ///
+    /// * `F` — the closure that configures the temporary HTTP draft.
+    ///
+    /// # Parameters
+    ///
+    /// * `configure` — the closure that configures the HTTP policy view.
+    ///
     /// # Errors
     ///
     /// Returns [`PolicyError`] when the HTTP view records an invalid field
@@ -180,6 +196,14 @@ impl RedactionPolicyBuilder {
 
     /// Configures URI policy through an isolated draft.
     ///
+    /// # Type Parameters
+    ///
+    /// * `F` — the closure that configures the temporary URI draft.
+    ///
+    /// # Parameters
+    ///
+    /// * `configure` — the closure that configures the URI policy view.
+    ///
     /// # Errors
     ///
     /// This operation is currently infallible. The result preserves the
@@ -202,6 +226,14 @@ impl RedactionPolicyBuilder {
     ///
     /// The closure mutates only a temporary limits builder. Once it returns,
     /// the completed limits replace this builder's limits as one update.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `F` — the closure that configures the temporary limits builder.
+    ///
+    /// # Parameters
+    ///
+    /// * `configure` — the closure that sets values on the temporary builder.
     ///
     /// # Errors
     ///

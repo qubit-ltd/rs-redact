@@ -61,3 +61,26 @@ fn test_composer_keeps_application_default_snapshot() {
     let _ = composer.finish();
     let _ = Redactor::replace_application_default(previous);
 }
+
+/// Verifies replacement returns the previous application-default snapshot.
+#[test]
+fn test_application_default_replacement_returns_previous_snapshot() {
+    let _guard = APPLICATION_DEFAULT_LOCK
+        .lock()
+        .expect("application-default test lock must not be poisoned");
+    let replacement_policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            let _ = fields.secret_sensitive("replacement_only_secret");
+        })
+        .expect("the replacement builder input must be valid")
+        .build()
+        .expect("the replacement policy must be valid");
+    let original = Redactor::application_default();
+    let replacement = Redactor::new(replacement_policy);
+    let previous = Redactor::replace_application_default(replacement.clone());
+
+    assert_eq!(previous.policy(), original.policy());
+    assert_eq!(Redactor::application_default(), replacement);
+
+    let _ = Redactor::replace_application_default(original);
+}

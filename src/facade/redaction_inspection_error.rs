@@ -103,23 +103,3 @@ impl fmt::Display for RedactionInspectionError {
 }
 
 impl Error for RedactionInspectionError {}
-
-#[cfg(test)]
-mod tests {
-    use super::RedactionInspectionError;
-    use crate::RedactionReason;
-    use crate::RedactionReasons;
-    use crate::RedactionUsage;
-
-    #[test]
-    fn inspection_error_keeps_diagnostics_value_free() {
-        let error = RedactionInspectionError::new(
-            RedactionReasons::empty().with(RedactionReason::InputLimitReached),
-            RedactionUsage::empty(),
-        );
-
-        assert_eq!(error.to_string(), "redaction inspection was inconclusive");
-        assert!(error.reasons().contains(RedactionReason::InputLimitReached));
-        assert_eq!(error.usage(), RedactionUsage::empty());
-    }
-}

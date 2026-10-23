@@ -63,10 +63,10 @@ pub(super) fn enum_named_parts(
     let patterns = fields.iter().zip(&bindings).map(|(parsed, binding)| {
         let identifier = parsed.identifier();
         let used_as_key = fields.iter().any(|field| {
-            !field_is_skipped(field.attributes().mode(), field.serde_attributes())
+            !field_is_skipped(field.serde_attributes())
                 && matches!(field.attributes().mode(), FieldMode::KeyedBy(key) if key == identifier)
         });
-        if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) && !used_as_key {
+        if field_is_skipped(parsed.serde_attributes()) && !used_as_key {
             quote!(#identifier: _)
         } else {
             quote!(#identifier: #binding)
@@ -77,7 +77,7 @@ pub(super) fn enum_named_parts(
     let mut names = Vec::new();
     let mut carriers = Vec::new();
     for (position, (parsed, binding)) in fields.iter().zip(&bindings).enumerate() {
-        if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
+        if field_is_skipped(parsed.serde_attributes()) {
             continue;
         }
         let field = parsed.field();
@@ -165,7 +165,7 @@ pub(super) fn enum_unnamed_parts(
         })
         .collect::<Vec<_>>();
     let patterns = fields.iter().zip(&bindings).map(|(parsed, binding)| {
-        if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
+        if field_is_skipped(parsed.serde_attributes()) {
             quote!(_)
         } else {
             quote!(#binding)
@@ -175,7 +175,7 @@ pub(super) fn enum_unnamed_parts(
     let mut conditions = Vec::new();
     let mut carriers = Vec::new();
     for (position, (parsed, binding)) in fields.iter().zip(&bindings).enumerate() {
-        if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
+        if field_is_skipped(parsed.serde_attributes()) {
             continue;
         }
         let field = parsed.field();

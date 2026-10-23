@@ -48,7 +48,7 @@ fn secret_policy(field: &str) -> RedactionPolicy {
 }
 
 #[test]
-fn composer_and_batch_publish_separate_models() {
+fn test_composer_and_batch_publish_separate_models() {
     let redactor = Redactor::new(secret_policy("request_token"));
     let text = redactor
         .text_composer()
@@ -77,7 +77,7 @@ fn composer_and_batch_publish_separate_models() {
 }
 
 #[test]
-fn batch_handles_cannot_cross_batches() {
+fn test_batch_handles_cannot_cross_batches() {
     let mut first_batch = Redactor::standard().diagnostic_batch();
     let first_handle = first_batch.redact_field("name", "Ada");
     let first = first_batch.finish_with_marker("<redaction incomplete>");
@@ -91,7 +91,7 @@ fn batch_handles_cannot_cross_batches() {
 }
 
 #[test]
-fn batch_diagnostics_resolves_complete_text_or_the_selected_marker() {
+fn test_batch_diagnostics_resolves_complete_text_or_the_selected_marker() {
     let mut complete_batch = Redactor::standard().diagnostic_batch();
     let complete_handle = complete_batch.redact_field("name", "Ada");
     let complete_output = complete_batch.finish_with_marker("<redaction incomplete>");
@@ -115,7 +115,7 @@ fn batch_diagnostics_resolves_complete_text_or_the_selected_marker() {
 }
 
 #[test]
-fn batch_diagnostics_maps_truncated_text_to_the_selected_marker() {
+fn test_batch_diagnostics_maps_truncated_text_to_the_selected_marker() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
             limits.max_collection_items(1);
@@ -135,7 +135,7 @@ fn batch_diagnostics_maps_truncated_text_to_the_selected_marker() {
 }
 
 #[test]
-fn batch_diagnostics_maps_a_foreign_handle_to_the_selected_marker() {
+fn test_batch_diagnostics_maps_a_foreign_handle_to_the_selected_marker() {
     let mut first_batch = Redactor::standard().diagnostic_batch();
     let first_handle = first_batch.redact_field("name", "Ada");
     let _ = first_batch.finish_with_marker("<redaction incomplete>");
@@ -147,7 +147,7 @@ fn batch_diagnostics_maps_a_foreign_handle_to_the_selected_marker() {
 }
 
 #[test]
-fn application_default_replacement_affects_new_trait_entries_only() {
+fn test_application_default_replacement_affects_new_trait_entries_only() {
     let original = Redactor::application_default();
     let replacement = Redactor::new(secret_policy("token"));
     let previous = Redactor::replace_application_default(replacement.clone());
@@ -166,7 +166,7 @@ fn application_default_replacement_affects_new_trait_entries_only() {
 }
 
 #[test]
-fn summaries_keep_completion_reason_and_usage_machine_readable() {
+fn test_summaries_keep_completion_reason_and_usage_machine_readable() {
     let output = Redactor::standard().redact_text(&Account {
         name: "Ada".to_owned(),
         _password: "raw-password".to_owned(),
@@ -180,7 +180,7 @@ fn summaries_keep_completion_reason_and_usage_machine_readable() {
 /// Verifies the one-item facade exposes the same final text and summary
 /// through borrowing and consuming output accessors.
 #[test]
-fn redaction_output_preserves_parts_across_all_public_accessors() {
+fn test_redaction_output_preserves_parts_across_all_public_accessors() {
     let output = Redactor::standard().redact_field("password", "raw-password");
 
     assert_eq!(output.text().as_str(), "<redacted>");
@@ -200,7 +200,7 @@ fn redaction_output_preserves_parts_across_all_public_accessors() {
 
 /// Verifies incomplete output requires an explicit fallback presentation.
 #[test]
-fn redaction_output_rejects_incomplete_text_and_uses_the_selected_marker() {
+fn test_redaction_output_rejects_incomplete_text_and_uses_the_selected_marker() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
             limits.max_output_bytes(1);
@@ -224,7 +224,7 @@ fn redaction_output_rejects_incomplete_text_and_uses_the_selected_marker() {
 
 /// Verifies the owned-text alias consumes the same safe final representation.
 #[test]
-fn redacted_text_into_string_returns_the_final_safe_text() {
+fn test_redacted_text_into_string_returns_the_final_safe_text() {
     let text = Redactor::standard()
         .redact_field("password", "raw-password")
         .into_complete_text()
@@ -236,7 +236,7 @@ fn redacted_text_into_string_returns_the_final_safe_text() {
 /// Verifies reason sets remain directly inspectable without requiring callers
 /// to parse rendered diagnostic text.
 #[test]
-fn summary_completion_reason_and_empty_usage_values_are_publicly_observable() {
+fn test_summary_completion_reason_and_empty_usage_values_are_publicly_observable() {
     let reasons = RedactionReasons::empty()
         .with(RedactionReason::DepthLimitReached)
         .union(RedactionReasons::empty().with(RedactionReason::InvalidJson));
@@ -247,7 +247,7 @@ fn summary_completion_reason_and_empty_usage_values_are_publicly_observable() {
 
 /// Verifies every currently published reason has an independent set bit.
 #[test]
-fn every_redaction_reason_round_trips_through_the_reason_set() {
+fn test_every_redaction_reason_round_trips_through_the_reason_set() {
     let reasons = [
         RedactionReason::InputLimitReached,
         RedactionReason::OutputLimitReached,
@@ -277,7 +277,7 @@ fn test_redaction_usage_default_matches_empty_usage() {
 
 #[cfg(feature = "http")]
 #[test]
-fn http_batch_handle_publishes_independent_result() {
+fn test_http_batch_handle_publishes_independent_result() {
     let mut batch = Redactor::standard().diagnostic_batch();
     let url = batch.redact_http_url("https://example.test/?token=raw-token");
     let output = batch.finish_with_marker("<redaction incomplete>");

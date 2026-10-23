@@ -9,6 +9,7 @@
 //! instrumentation.
 
 mod domain;
+mod facade;
 mod formats;
 mod policy;
 mod runtime;

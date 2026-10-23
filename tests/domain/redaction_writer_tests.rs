@@ -380,3 +380,28 @@ impl Redact for JsonContainerWithValidNestedValue {
         });
     }
 }
+
+/// A JSON value in a diagnostic batch retains its structural limit reason.
+#[cfg(feature = "json")]
+#[test]
+fn test_writer_json_diagnostic_batch_preserves_shared_structure_reason() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_depth(1);
+        })
+        .expect("the limit draft should build")
+        .build()
+        .expect("the policy should build");
+    let mut batch = Redactor::new(policy).diagnostic_batch();
+    let _ = batch.redact_value(&JsonContainerWithValidNestedValue);
+    let output = batch.finish();
+
+    assert!(
+        output.summary().reasons().contains(RedactionReason::DepthLimitReached),
+        "nested JSON beyond the configured depth must retain its depth reason"
+    );
+    assert!(
+        !output.summary().reasons().contains(RedactionReason::OutputLimitReached),
+        "a depth limit must not be reported as an output limit"
+    );
+}

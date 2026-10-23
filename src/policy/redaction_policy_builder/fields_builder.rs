@@ -20,6 +20,11 @@ use crate::policy::UnknownFieldPolicy;
 
 /// Mutable view over the base field policy.
 ///
+/// This view edits a temporary policy draft supplied to
+/// [`RedactionPolicyBuilder::fields`]. Invalid field rules are recorded and
+/// returned by that outer call after its closure finishes, so configuration
+/// methods can be chained without returning individual `Result` values.
+///
 /// # Examples
 ///
 /// ```
@@ -40,58 +45,61 @@ pub struct FieldsBuilder<'a> {
 }
 
 impl FieldsBuilder<'_> {
-    /// Marks a field as low sensitivity.
+    /// Marks `field` as low sensitivity in the draft.
     #[inline(always)]
     pub fn low_sensitive(&mut self, field: &str) -> &mut Self {
         self.set_sensitive(field, Sensitivity::Low)
     }
 
-    /// Marks a field as medium sensitivity.
+    /// Marks `field` as medium sensitivity in the draft.
     #[inline(always)]
     pub fn medium_sensitive(&mut self, field: &str) -> &mut Self {
         self.set_sensitive(field, Sensitivity::Medium)
     }
 
-    /// Marks a field as high sensitivity.
+    /// Marks `field` as high sensitivity in the draft.
     #[inline(always)]
     pub fn high_sensitive(&mut self, field: &str) -> &mut Self {
         self.set_sensitive(field, Sensitivity::High)
     }
 
-    /// Marks a field as secret sensitivity.
+    /// Marks `field` as secret sensitivity in the draft.
     #[inline(always)]
     pub fn secret_sensitive(&mut self, field: &str) -> &mut Self {
         self.set_sensitive(field, Sensitivity::Secret)
     }
 
-    /// Raises a field's minimum sensitivity to `level`.
+    /// Raises `field`'s minimum sensitivity to `level` in the draft.
     #[inline(always)]
     pub fn sensitive(&mut self, level: Sensitivity, field: &str) -> &mut Self {
         self.set_sensitive(field, level)
     }
 
-    /// Sets field-name matching for the base policy.
+    /// Sets how field names are matched by the base policy.
     #[inline(always)]
     pub fn matching(&mut self, matching: FieldNameMatching) -> &mut Self {
         self.builder.rules.matching(matching);
         self
     }
 
-    /// Sets the base fallback for unknown fields.
+    /// Sets the base policy applied to fields without an explicit rule.
     #[inline(always)]
     pub fn unknown_field_policy(&mut self, policy: UnknownFieldPolicy) -> &mut Self {
         self.builder.rules.unknown_field_policy(policy);
         self
     }
 
-    /// Includes all fields from a built-in sensitive preset.
+    /// Adds every field in `preset` to the base sensitivity rules.
     #[inline(always)]
     pub fn include_preset(&mut self, preset: SensitiveFieldPreset) -> &mut Self {
         self.builder.rules.include_preset(preset);
         self
     }
 
-    /// Raises a base field's minimum sensitivity.
+    /// Raises the base minimum sensitivity for `field`.
+    ///
+    /// An invalid field name is recorded and returned by the enclosing
+    /// [`RedactionPolicyBuilder::fields`] call after configuration completes.
     pub fn raise(&mut self, field: &str, level: Sensitivity) -> &mut Self {
         if self.error.is_none()
             && let Err(error) = self.builder.rules.raise(field, level)
@@ -101,7 +109,10 @@ impl FieldsBuilder<'_> {
         self
     }
 
-    /// Replaces one base field rule without weakening floors.
+    /// Replaces the base sensitivity rule for `field` without weakening floors.
+    ///
+    /// An invalid field name is recorded and returned by the enclosing
+    /// [`RedactionPolicyBuilder::fields`] call after configuration completes.
     pub fn override_level(&mut self, field: &str, level: Sensitivity) -> &mut Self {
         if self.error.is_none()
             && let Err(error) = self.builder.rules.override_level(field, level)
@@ -111,7 +122,10 @@ impl FieldsBuilder<'_> {
         self
     }
 
-    /// Adds a base exact allow rule.
+    /// Adds an exact-name exception to the base redaction rules.
+    ///
+    /// An invalid field name is recorded and returned by the enclosing
+    /// [`RedactionPolicyBuilder::fields`] call after configuration completes.
     pub fn allow_exact(&mut self, field: &str) -> &mut Self {
         if self.error.is_none()
             && let Err(error) = self.builder.rules.allow_canonical_exact(field)
@@ -121,7 +135,10 @@ impl FieldsBuilder<'_> {
         self
     }
 
-    /// Adds a base suffix allow rule.
+    /// Adds a suffix exception to the base redaction rules.
+    ///
+    /// An invalid field name is recorded and returned by the enclosing
+    /// [`RedactionPolicyBuilder::fields`] call after configuration completes.
     pub fn allow_suffix(&mut self, field: &str) -> &mut Self {
         if self.error.is_none()
             && let Err(error) = self.builder.rules.allow_suffix(field)
@@ -131,7 +148,10 @@ impl FieldsBuilder<'_> {
         self
     }
 
-    /// Removes a base exact allow rule.
+    /// Removes the exact-name exception for `field` from the base rules.
+    ///
+    /// An invalid field name is recorded and returned by the enclosing
+    /// [`RedactionPolicyBuilder::fields`] call after configuration completes.
     pub fn remove_allow_exact(&mut self, field: &str) -> &mut Self {
         if self.error.is_none()
             && let Err(error) = self.builder.rules.remove_allow_canonical_exact(field)
@@ -141,7 +161,10 @@ impl FieldsBuilder<'_> {
         self
     }
 
-    /// Removes a base suffix allow rule.
+    /// Removes the suffix exception for `field` from the base rules.
+    ///
+    /// An invalid field name is recorded and returned by the enclosing
+    /// [`RedactionPolicyBuilder::fields`] call after configuration completes.
     pub fn remove_allow_suffix(&mut self, field: &str) -> &mut Self {
         if self.error.is_none()
             && let Err(error) = self.builder.rules.remove_allow_suffix(field)
@@ -151,28 +174,32 @@ impl FieldsBuilder<'_> {
         self
     }
 
-    /// Removes all base allow rules.
+    /// Removes every exact-name and suffix exception from the base rules.
     #[inline(always)]
     pub fn clear_allow_rules(&mut self) -> &mut Self {
         self.builder.rules.clear_allow_rules();
         self
     }
 
-    /// Replaces the base minimum-protection floor.
+    /// Sets the minimum-protection floor applied to the base field rules.
     #[inline(always)]
     pub fn floor(&mut self, floor: RedactionFloor) -> &mut Self {
         self.builder.floor = Some(floor);
         self
     }
 
-    /// Disables the base floor explicitly.
+    /// Removes the minimum-protection floor from the base field rules.
     #[inline(always)]
     pub fn disable_floor(&mut self) -> &mut Self {
         self.builder.floor = None;
         self
     }
 
-    /// Replaces one shared masking level.
+    /// Replaces the masking policy for `level` across all policy fields.
+    ///
+    /// If the resulting masking configuration is invalid, the error is
+    /// recorded and returned by the enclosing
+    /// [`RedactionPolicyBuilder::fields`] call after configuration completes.
     pub fn mask(&mut self, level: Sensitivity, policy: MaskPolicy) -> &mut Self {
         let mut masking = MaskingPolicy::builder_from(&self.builder.masking);
         masking.policy(level, policy);
@@ -186,7 +213,8 @@ impl FieldsBuilder<'_> {
         self
     }
 
-    /// Raises one field's minimum sensitivity in a transactional draft.
+    /// Raises `field`'s minimum sensitivity in the draft, recording any
+    /// validation error for the enclosing `fields` call.
     #[inline(always)]
     fn set_sensitive(&mut self, field: &str, level: Sensitivity) -> &mut Self {
         if self.error.is_none()
@@ -195,51 +223,5 @@ impl FieldsBuilder<'_> {
             self.error = Some(error);
         }
         self
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::FieldNameMatching;
-    use crate::RedactionPolicy;
-    use crate::Sensitivity;
-    use crate::UnknownFieldPolicy;
-
-    #[test]
-    fn field_builder_applies_matching_fallback_sensitivity_and_allow_removal() {
-        let policy = RedactionPolicy::builder()
-            .fields(|fields| {
-                fields
-                    .disable_floor()
-                    .matching(FieldNameMatching::ExactOrTokenSuffix)
-                    .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low))
-                    .medium_sensitive("session")
-                    .high_sensitive("credential")
-                    .allow_exact("session")
-                    .clear_allow_rules();
-            })
-            .expect("field rules should remain valid")
-            .build()
-            .expect("the policy should build");
-
-        assert_eq!(policy.matching(), FieldNameMatching::ExactOrTokenSuffix);
-        assert_eq!(
-            policy.unknown_field_policy(),
-            UnknownFieldPolicy::Redact(Sensitivity::Low)
-        );
-        assert_eq!(policy.sensitivity_for("session"), Some(Sensitivity::Medium));
-        assert_eq!(
-            policy.sensitivity_for("request_session"),
-            Some(Sensitivity::Medium)
-        );
-        assert_eq!(
-            policy.sensitivity_for("credential"),
-            Some(Sensitivity::High)
-        );
-        assert_eq!(
-            policy.sensitivity_for("unclassified"),
-            Some(Sensitivity::Low)
-        );
-        assert!(policy.application_allow_rules().next().is_none());
     }
 }

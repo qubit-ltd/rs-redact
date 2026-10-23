@@ -13,6 +13,7 @@ use std::env;
 use std::fs;
 use std::process;
 use std::process::Command;
+use std::process::Output;
 
 use support::compile_diagnostics::source_error_matches;
 
@@ -56,7 +57,7 @@ fn assert_format_api_is_feature_gated(method: &str) {
 
 /// Compiles a temporary dependent crate using the supplied dependency feature
 /// declaration and returns its Cargo output.
-fn check_derive_dependency(case: &str, dependency_options: &str) -> std::process::Output {
+fn check_derive_dependency(case: &str, dependency_options: &str) -> Output {
     let directory = env::temp_dir().join(format!("qubit-redact-derive-feature-{}-{case}", process::id()));
     fs::create_dir_all(directory.join("src")).expect("the temporary dependent crate directory should be creatable");
     fs::write(

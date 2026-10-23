@@ -23,7 +23,6 @@ impl InspectionAccumulator {
     ///
     /// `Some(level)` is the strongest observed level; `None` means no
     /// sensitive value has been observed.
-    #[must_use]
     #[inline(always)]
     pub(super) const fn max_sensitivity(self) -> Option<Sensitivity> {
         self.max_sensitivity

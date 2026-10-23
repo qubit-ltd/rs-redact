@@ -33,8 +33,7 @@ use crate::serde::field_access::FieldAccess;
 /// by [`serialization_condition`] against the active policy instead.
 #[must_use]
 #[inline(always)]
-pub(super) fn field_is_skipped(mode: &FieldMode, serde_attributes: &SerdeAttributes) -> bool {
-    let _ = mode;
+pub(super) fn field_is_skipped(serde_attributes: &SerdeAttributes) -> bool {
     serde_attributes.skip()
 }
 

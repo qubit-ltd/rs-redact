@@ -161,46 +161,12 @@ impl Redactor {
         DiagnosticRedactionBatch::from_session(self.batch_runtime())
     }
 
-    /// Creates private accounting for one text-composition operation.
-    ///
-    /// # Returns
-    ///
-    /// A private runtime owning a clone of this redactor's immutable policy
-    /// snapshot.
-    #[must_use]
-    #[inline(always)]
-    pub(crate) fn text_runtime(&self) -> TextSession {
-        TextSession::new(Arc::clone(&self.policy))
-    }
-
-    /// Creates the private runtime selected for independently resolvable items.
-    ///
-    /// # Returns
-    ///
-    /// A fresh batch runtime sharing this immutable policy snapshot.
-    #[must_use]
-    #[inline(always)]
-    pub(crate) fn batch_runtime(&self) -> BatchSession {
-        BatchSession::new(Arc::clone(&self.policy))
-    }
-
-    /// Creates private accounting for one non-rendering inspection.
-    ///
-    /// # Returns
-    ///
-    /// A fresh inspection runtime sharing this immutable policy snapshot.
-    #[must_use]
-    #[inline(always)]
-    pub(crate) fn inspection_runtime(&self) -> InspectionSession {
-        InspectionSession::new(Arc::clone(&self.policy))
-    }
-
     /// Returns the immutable policy used by this redactor.
     ///
     /// # Returns
     ///
     /// A borrowed view of the redactor's policy snapshot.
-    #[must_use]
+    #[must_use = "inspect or retain the redaction policy snapshot"]
     #[inline(always)]
     pub fn policy(&self) -> &RedactionPolicy {
         self.policy.as_ref()
@@ -237,6 +203,40 @@ impl Redactor {
             Err(error) => PoisonError::into_inner(error),
         };
         replace(&mut *current, redactor)
+    }
+
+    /// Creates private accounting for one text-composition operation.
+    ///
+    /// # Returns
+    ///
+    /// A private runtime owning a clone of this redactor's immutable policy
+    /// snapshot.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn text_runtime(&self) -> TextSession {
+        TextSession::new(Arc::clone(&self.policy))
+    }
+
+    /// Creates the private runtime selected for independently resolvable items.
+    ///
+    /// # Returns
+    ///
+    /// A fresh batch runtime sharing this immutable policy snapshot.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn batch_runtime(&self) -> BatchSession {
+        BatchSession::new(Arc::clone(&self.policy))
+    }
+
+    /// Creates private accounting for one non-rendering inspection.
+    ///
+    /// # Returns
+    ///
+    /// A fresh inspection runtime sharing this immutable policy snapshot.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn inspection_runtime(&self) -> InspectionSession {
+        InspectionSession::new(Arc::clone(&self.policy))
     }
 }
 

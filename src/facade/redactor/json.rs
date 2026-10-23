@@ -10,6 +10,7 @@
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 
+use serde::Serialize;
 use serde_json::Error as JsonError;
 use serde_json::Value;
 use serde_json::to_writer;
@@ -19,6 +20,9 @@ use super::internal::bounded_json_writer::BoundedJsonWriter;
 use crate::RedactionInspection;
 use crate::RedactionInspectionError;
 use crate::RedactionTextOutput;
+use crate::domain::internal::RedactSerializeSource;
+use crate::formats::json::inspection::inspect_borrowed_value;
+use crate::formats::json::inspection::inspect_text;
 
 impl Redactor {
     /// Serializes a domain object's redacted view as compact JSON.
@@ -53,12 +57,9 @@ impl Redactor {
     ///
     /// A complete compact JSON string within the final encoded output limit.
     #[inline]
-    pub fn to_json<'value, T: crate::domain::internal::RedactSerializeSource + ?Sized>(
-        &self,
-        value: &'value T,
-    ) -> Result<String, JsonError>
+    pub fn to_json<'value, T: RedactSerializeSource + ?Sized>(&self, value: &'value T) -> Result<String, JsonError>
     where
-        T::RedactedFields<'value>: serde::Serialize,
+        T::RedactedFields<'value>: Serialize,
     {
         let mut writer = BoundedJsonWriter::new(self.policy().limits().max_output_bytes());
         to_writer(&mut writer, &self.redact_view(value))?;
@@ -124,7 +125,7 @@ impl Redactor {
     #[inline]
     pub fn inspect_json(&self, text: &str) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
-        crate::formats::json::inspection::inspect_text(&mut session, text);
+        inspect_text(&mut session, text);
         session.finish()
     }
 
@@ -146,7 +147,7 @@ impl Redactor {
     #[inline]
     pub fn inspect_json_value(&self, value: &Value) -> Result<RedactionInspection, RedactionInspectionError> {
         let mut session = self.inspection_runtime();
-        crate::formats::json::inspection::inspect_borrowed_value(&mut session, value);
+        inspect_borrowed_value(&mut session, value);
         session.finish()
     }
 }

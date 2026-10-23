@@ -163,7 +163,6 @@ impl SerdeAttributes {
     ///
     /// `Some(name)` for an explicit field rename, or `None` to use the
     /// applicable container or variant rename rule.
-    #[must_use]
     #[inline(always)]
     pub(crate) fn rename(&self) -> Option<&str> {
         self.rename.as_deref()
@@ -186,7 +185,6 @@ impl SerdeAttributes {
     ///
     /// `Some(path)` for `skip_serializing_if`, or `None` when serialization is
     /// unconditional.
-    #[must_use]
     #[inline(always)]
     pub(crate) const fn skip_serializing_if(&self) -> Option<&Path> {
         self.skip_serializing_if.as_ref()
@@ -198,7 +196,6 @@ impl SerdeAttributes {
     ///
     /// `Some(path)` for `with` or `serialize_with`, or `None` when the field
     /// uses ordinary Serde serialization.
-    #[must_use]
     #[inline(always)]
     pub(crate) const fn serialize_with(&self) -> Option<&Path> {
         self.serialize_with.as_ref()

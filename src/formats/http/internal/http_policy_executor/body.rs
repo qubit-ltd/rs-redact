@@ -241,6 +241,7 @@ impl HttpPolicyExecutor<'_> {
 ///
 /// A subslice excluding leading and trailing ASCII whitespace.
 #[must_use]
+#[inline]
 pub(super) fn trim_ascii_whitespace(mut bytes: &[u8]) -> &[u8] {
     while bytes.first().is_some_and(u8::is_ascii_whitespace) {
         bytes = &bytes[1..];

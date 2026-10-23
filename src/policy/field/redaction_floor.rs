@@ -113,7 +113,7 @@ impl RedactionFloor {
         };
         let unknown_field_policy = unknown.map_or(UnknownFieldPolicy::PassThrough, UnknownFieldPolicy::Redact);
         Self {
-            inner: std::sync::Arc::new(RedactionPolicyInner {
+            inner: Arc::new(RedactionPolicyInner {
                 sensitive,
                 allow_exact: Default::default(),
                 allow_suffix: Default::default(),

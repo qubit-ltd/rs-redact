@@ -24,6 +24,15 @@ pub struct RedactedMapSerializeRef<'value, 'policy, T: ?Sized> {
 
 impl<'value, 'policy, T: ?Sized> RedactedMapSerializeRef<'value, 'policy, T> {
     /// Creates a policy-carrying borrowed map adapter.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Borrowed map value serialized through the adapter.
+    /// - `policy`: Policy used to classify the map's keys.
+    ///
+    /// # Returns
+    ///
+    /// An adapter retaining the map and policy references for serialization.
     #[must_use]
     #[inline(always)]
     pub fn new(value: &'value T, policy: &'policy crate::RedactionPolicy) -> Self {

@@ -51,7 +51,7 @@ struct KeyedPair {
 }
 
 #[test]
-fn serde_nested_and_map_modes_redact_structured_values() {
+fn test_serde_nested_and_map_modes_redact_structured_values() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
     let policy = RedactionPolicy::builder()
         .fields(|fields| {
@@ -91,7 +91,7 @@ fn serde_nested_and_map_modes_redact_structured_values() {
 }
 
 #[test]
-fn serde_and_format_keyed_by_classify_value_by_sibling_key() {
+fn test_serde_and_format_keyed_by_classify_value_by_sibling_key() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
     let policy = RedactionPolicy::builder()
         .fields(|fields| {
@@ -144,7 +144,7 @@ fn serde_and_format_keyed_by_classify_value_by_sibling_key() {
 }
 
 #[test]
-fn serde_disabled_mode_restores_level_map_and_skip_values() {
+fn test_serde_disabled_mode_restores_level_map_and_skip_values() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
     let previous = Redactor::replace_application_default(Redactor::new(RedactionPolicy::disabled()));
     assert!(Redactor::application_default().policy().is_disabled());
@@ -173,7 +173,7 @@ fn serde_disabled_mode_restores_level_map_and_skip_values() {
 }
 
 #[test]
-fn serde_structured_modes_share_depth_and_collection_budgets() {
+fn test_serde_structured_modes_share_depth_and_collection_budgets() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
     let policy = RedactionPolicy::builder()
         .fields(|fields| {
@@ -223,7 +223,7 @@ struct JsonEnvelope {
 
 #[cfg(feature = "json")]
 #[test]
-fn serde_json_mode_redacts_keyed_values_and_preserves_shape() {
+fn test_serde_json_mode_redacts_keyed_values_and_preserves_shape() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
     let policy = RedactionPolicy::builder()
         .fields(|fields| {
@@ -300,7 +300,7 @@ enum InternallyTaggedEnvelope {
 }
 
 #[test]
-fn serde_skip_predicates_observe_raw_values_for_every_redaction_mode() {
+fn test_serde_skip_predicates_observe_raw_values_for_every_redaction_mode() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
     let previous = Redactor::replace_application_default(Redactor::standard());
     let enabled = serde_json::to_value(PredicateEnvelope {
@@ -324,7 +324,7 @@ fn serde_skip_predicates_observe_raw_values_for_every_redaction_mode() {
 }
 
 #[test]
-fn serde_map_mode_masks_each_recursive_scalar_leaf() {
+fn test_serde_map_mode_masks_each_recursive_scalar_leaf() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
     let policy = RedactionPolicy::builder()
         .fields(|fields| {
@@ -429,7 +429,7 @@ fn test_serde_map_values_share_the_cumulative_input_budget() {
 }
 
 #[test]
-fn serde_internally_tagged_newtype_merges_redacted_payload_beside_tag() {
+fn test_serde_internally_tagged_newtype_merges_redacted_payload_beside_tag() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
     let previous = Redactor::replace_application_default(Redactor::standard());
     let value = InternallyTaggedEnvelope::Nested(InternalPayload {
@@ -448,7 +448,7 @@ fn serde_internally_tagged_newtype_merges_redacted_payload_beside_tag() {
 
 #[cfg(feature = "json")]
 #[test]
-fn serde_json_disabled_mode_keeps_json_text_as_text() {
+fn test_serde_json_disabled_mode_keeps_json_text_as_text() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
     let previous = Redactor::replace_application_default(Redactor::new(RedactionPolicy::disabled()));
     let value = JsonEnvelope {
@@ -460,14 +460,6 @@ fn serde_json_disabled_mode_keeps_json_text_as_text() {
 
     let _ = Redactor::replace_application_default(previous);
 }
-// =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
-//
-//    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
-// =============================================================================
-
 #[derive(Redact, serde::Deserialize)]
 #[redact(serde)]
 struct DeserializeBound<const N: usize> {
@@ -477,10 +469,10 @@ struct DeserializeBound<const N: usize> {
 
 /// Deserialize-only bounds do not participate in the redacted output view.
 #[test]
-fn deserialize_only_bounds_preserve_redacted_serialization() {
-    let value: DeserializeBound<2> = serde_json::from_str(r#"{"bytes":[1,2]}"#).unwrap();
+fn test_deserialize_only_bounds_preserve_redacted_serialization() {
+    let value: DeserializeBound<2> = serde_json::from_str(r#"{"bytes":[1,2]}"#).expect("deserialize-only bound input");
     assert_eq!(
-        serde_json::to_value(&value).unwrap()["bytes"],
+        serde_json::to_value(&value).expect("serialize redacted value")["bytes"],
         serde_json::json!([1, 2])
     );
 }
@@ -497,7 +489,7 @@ struct RecursiveOutput<T> {
 
 /// Recursive generic fields do not create cyclic Serialize or Redact bounds.
 #[test]
-fn recursive_generic_output_uses_nonrecursive_bounds() {
+fn test_recursive_generic_output_uses_nonrecursive_bounds() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
     let value = RecursiveOutput {
         value: 7u32,

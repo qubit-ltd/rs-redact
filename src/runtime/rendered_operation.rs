@@ -12,6 +12,7 @@ use crate::RedactionReasons;
 
 /// Carries rendered text and degradation provenance without constructing a
 /// publishable output or transaction summary inside a format adapter.
+#[must_use = "the rendered operation carries unpublished text and provenance"]
 pub(crate) struct RenderedOperation {
     /// Log-safe unpublished text produced by one adapter.
     text: String,
@@ -41,7 +42,6 @@ impl RenderedOperation {
     /// # Panics
     ///
     /// In debug builds, panics if `Exhausted` lacks `OutputLimitReached`.
-    #[must_use]
     pub(super) const fn from_parts(
         text: String,
         completion: RedactionCompletion,
@@ -114,7 +114,6 @@ impl RenderedOperation {
     ///
     /// This operation with the reason unioned into its existing set.
     #[cfg(feature = "http")]
-    #[must_use]
     #[inline(always)]
     pub(crate) fn with_reason(mut self, reason: crate::RedactionReason) -> Self {
         self.reasons = self.reasons.with(reason);
@@ -132,7 +131,6 @@ impl RenderedOperation {
     ///
     /// The concatenated parts with strongest completion, unioned reasons, and
     /// output closure if either part rejected output.
-    #[must_use]
     pub(crate) fn merge(mut self, other: Self) -> Self {
         self.text.push_str(other.text());
         self.completion = match (self.completion, other.completion()) {

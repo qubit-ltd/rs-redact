@@ -18,16 +18,12 @@ struct Response {
 }
 
 fn main() {
-    let value = Response { name: "Ada".into(), token: "raw".into() };
+    let value = Response {
+        name: "Ada".into(),
+        token: "raw".into(),
+    };
     let encoded = serde_json::to_value(&value).expect("serialize");
     assert_eq!(encoded["name"], "Ada");
     assert_ne!(encoded["token"], "raw");
     let _ = Redactor::standard().redact_text(&value);
 }
-// =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
-//
-//    SPDX-License-Identifier: Apache-2.0
-//
-//    Licensed under the Apache License, Version 2.0.
-// =============================================================================

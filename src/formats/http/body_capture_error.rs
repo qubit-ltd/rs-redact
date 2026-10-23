@@ -24,6 +24,7 @@ use std::fmt::Formatter;
 ///     .expect_err("the claimed total must exceed captured bytes");
 /// assert!(matches!(error, BodyCaptureError::InvalidTotalLength { .. }));
 /// ```
+#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BodyCaptureError {
     /// A truncated capture claimed a total no larger than captured bytes.

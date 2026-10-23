@@ -44,7 +44,6 @@ impl UriRedactionBoundary {
     }
 
     /// Returns the effective boundary policy.
-    #[must_use]
     #[inline(always)]
     pub fn policy(&self) -> &RedactionPolicy {
         &self.policy

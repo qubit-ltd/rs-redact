@@ -8,19 +8,22 @@
 //! Crate-internal batch publication contracts.
 
 use crate::RedactedText;
+use crate::RedactionCompletion;
 use crate::RedactionHandle;
 use crate::RedactionHandleError;
+use crate::RedactionReasons;
 use crate::RedactionSummary;
 use crate::RedactionTextOutput;
+use crate::RedactionUsage;
 use crate::runtime::BatchPublication;
 
 /// Constructs neutral accounting for publication storage tests.
 fn complete_summary() -> RedactionSummary {
     RedactionSummary::from_parts(
         false,
-        crate::RedactionCompletion::Complete,
-        crate::RedactionReasons::empty(),
-        crate::RedactionUsage::empty(),
+        RedactionCompletion::Complete,
+        RedactionReasons::empty(),
+        RedactionUsage::empty(),
     )
 }
 

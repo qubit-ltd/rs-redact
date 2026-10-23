@@ -7,6 +7,7 @@
 // =============================================================================
 
 use qubit_redact_derive::Redact;
+use serde_json::Value;
 
 #[derive(Redact)]
 #[redact(debug, display, serde)]
@@ -30,7 +31,7 @@ struct Person<'a> {
     guardians: Option<Vec<PersonInfo<'a>>>,
 }
 
-fn encode_local<'a>(number: &'a str) -> serde_json::Value {
+fn encode_local<'a>(number: &'a str) -> Value {
     let person = Person {
         credential: Some(Credential { number }),
         guardians: Some(vec![PersonInfo {

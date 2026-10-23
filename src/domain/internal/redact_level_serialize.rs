@@ -122,6 +122,10 @@ macro_rules! scalar_level_serialize {
 /// Returns a serializer error when the masked payload exceeds its allowance
 /// or the downstream serializer rejects it.
 ///
+/// # Returns
+///
+/// The destination result containing the masked representation.
+///
 /// # Type Parameters
 ///
 /// - `S`: Destination serializer.
@@ -171,6 +175,11 @@ where
 /// # Errors
 ///
 /// Returns a payload admission error or propagates the value serializer error.
+///
+/// # Returns
+///
+/// The destination result containing the original representation or safe
+/// fallback.
 ///
 /// # Type Parameters
 ///
@@ -773,6 +782,10 @@ tuple_level_serialize!(12; A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 
 /// # Errors
 ///
 /// Returns serializer errors or a logical-payload error from admission.
+///
+/// # Returns
+///
+/// The destination result containing text or the selected mask.
 ///
 /// # Type Parameters
 ///

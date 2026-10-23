@@ -42,6 +42,7 @@ impl RedactionRulesBuilder {
     /// # Parameters
     ///
     /// * `location` - Policy location used when reporting validation errors.
+    #[must_use]
     #[inline(always)]
     pub(crate) fn empty(location: PolicyLocation) -> Self {
         Self {
@@ -60,6 +61,7 @@ impl RedactionRulesBuilder {
     ///
     /// * `inner` - Immutable rule state to copy.
     /// * `location` - Policy location used for later validation errors.
+    #[must_use]
     #[inline(always)]
     pub(crate) fn from_inner(inner: &RedactionPolicyInner, location: PolicyLocation) -> Self {
         Self {

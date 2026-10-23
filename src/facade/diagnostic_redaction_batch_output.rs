@@ -9,6 +9,8 @@
 
 use super::DiagnosticRedactionHandle;
 use super::DiagnosticRedactionHandleError;
+use crate::RedactionHandleError;
+use crate::RedactionSummary;
 use crate::RedactionTextOutput;
 use crate::runtime::BatchPublication;
 use crate::runtime::RedactionHandle;
@@ -44,7 +46,7 @@ impl DiagnosticRedactionBatchOutput {
     /// The immutable aggregate summary of this batch publication.
     #[must_use]
     #[inline(always)]
-    pub(crate) const fn summary(&self) -> &crate::RedactionSummary {
+    pub(crate) const fn summary(&self) -> &RedactionSummary {
         self.output.summary()
     }
 
@@ -73,8 +75,8 @@ impl DiagnosticRedactionBatchOutput {
         self.output
             .resolve(RedactionHandle::new(handle.batch_id, handle.item_index))
             .map_err(|error| match error {
-                crate::RedactionHandleError::DifferentTransaction => DiagnosticRedactionHandleError::DifferentBatch,
-                crate::RedactionHandleError::MissingItem => DiagnosticRedactionHandleError::MissingItem,
+                RedactionHandleError::DifferentTransaction => DiagnosticRedactionHandleError::DifferentBatch,
+                RedactionHandleError::MissingItem => DiagnosticRedactionHandleError::MissingItem,
             })
     }
 }

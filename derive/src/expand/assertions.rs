@@ -395,6 +395,17 @@ fn token_stream_uses_parameter(tokens: TokenStream, parameters: &[String]) -> bo
 
 /// Replaces generated self-recursive field bounds with the independent stored
 /// type bounds, preserving the original declaration's explicit predicates.
+///
+/// # Parameters
+///
+/// * `input` - Derive input whose declared type identifies recursive bounds.
+/// * `predicate` - Generated type predicate to retain or expand into field
+///   predicates.
+///
+/// # Returns
+///
+/// The original predicate when it is not recursive, or one predicate for
+/// each stored field type that participates in the recursive bound.
 pub(crate) fn non_recursive_predicates(input: &DeriveInput, predicate: WherePredicate) -> Vec<WherePredicate> {
     let WherePredicate::Type(bound) = &predicate else {
         return vec![predicate];
@@ -416,6 +427,16 @@ pub(crate) fn non_recursive_predicates(input: &DeriveInput, predicate: WherePred
 }
 
 /// Recognizes recursion only through ordinary standard storage wrappers.
+///
+/// # Parameters
+///
+/// * `ty` - Type syntax to inspect.
+/// * `target` - Token-rendered type whose recursive occurrences are replaced.
+///
+/// # Returns
+///
+/// `Some` with the non-recursive stored types when recursion is found, or
+/// `None` when the type does not contain a supported recursive occurrence.
 fn recursive_types<'a>(ty: &'a Type, target: &str) -> Option<Vec<&'a Type>> {
     let rendered = ty.to_token_stream().to_string();
     if rendered == target || rendered == "Self" {
@@ -478,6 +499,13 @@ fn recursive_types<'a>(ty: &'a Type, target: &str) -> Option<Vec<&'a Type>> {
 
 /// Keeps recursive derived values on the structured policy path so nested
 /// serializers do not acquire an ever-growing BudgetSerializer type.
+///
+/// # Parameters
+///
+/// * `input` - Derive input whose recursive fields may need a `nested` marker.
+///
+/// Existing field-level `redact` attributes and custom serde serializers are
+/// preserved.
 pub(crate) fn normalize_recursive_fields(input: &mut DeriveInput) {
     let name = &input.ident;
     let (_, arguments, _) = input.generics.split_for_impl();

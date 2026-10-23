@@ -25,6 +25,19 @@ impl<T: RedactSerialize> RedactSerialize for Option<T> {
     /// # Errors
     ///
     /// Propagates child serialization and shared-budget failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Serializer that receives the contained value.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the serialized representation.
+    /// - `policy`: Policy applied while serializing the contained value.
+    ///
+    /// # Returns
+    ///
+    /// The destination serializer's result for the contained value or `None`.
     fn serialize_redacted<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -42,6 +55,19 @@ impl<T: RedactSerialize> RedactSerialize for Vec<T> {
     /// # Errors
     ///
     /// Propagates child serialization and shared-budget failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Serializer that receives the vector projection.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the serialized representation.
+    /// - `policy`: Policy applied to each admitted vector element.
+    ///
+    /// # Returns
+    ///
+    /// The destination serializer's result for the bounded vector projection.
     fn serialize_redacted<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -68,6 +94,19 @@ impl<T: RedactSerialize, const N: usize> RedactSerialize for [T; N] {
     /// # Errors
     ///
     /// Propagates child serialization and shared-budget failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Serializer that receives the array projection.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the serialized representation.
+    /// - `policy`: Policy applied to each admitted array element.
+    ///
+    /// # Returns
+    ///
+    /// The destination serializer's result for the bounded array projection.
     fn serialize_redacted<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -98,22 +137,40 @@ macro_rules! tuple_redact_serialize {
             /// # Errors
             ///
             /// Propagates child serialization and shared-budget failures.
-            fn serialize_redacted<S>(&self, serializer: S, policy: &crate::RedactionPolicy) -> Result<S::Ok, S::Error>
+            ///
+            /// # Type Parameters
+            ///
+            /// - `S`: Serializer that receives the tuple projection.
+            ///
+            /// # Parameters
+            ///
+            /// - `serializer`: Destination receiving the serialized representation.
+            /// - `policy`: Policy applied to each admitted tuple element.
+            ///
+            /// # Returns
+            ///
+            /// The destination serializer's result for the bounded tuple projection.
+            fn serialize_redacted<S>(
+                &self,
+                serializer: S,
+                policy: &crate::RedactionPolicy,
+            ) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
             {
                 serialize_structured(serializer, policy, |serializer| {
-                if !admit_collection_items($count) {
-                    return super::redact_serialize_scope::serialize_payload(serializer,
-                        policy
-                            .masking()
-                            .mask_opaque(crate::Sensitivity::Secret)
-                            .as_ref(),
-                    );
-                }
-                let mut tuple = serializer.serialize_tuple($count)?;
-                $(tuple.serialize_element(&RedactedSerializeRef::new(&self.$index, policy))?;)+
-                tuple.end()
+                    if !admit_collection_items($count) {
+                        return super::redact_serialize_scope::serialize_payload(
+                            serializer,
+                            policy
+                                .masking()
+                                .mask_opaque(crate::Sensitivity::Secret)
+                                .as_ref(),
+                        );
+                    }
+                    let mut tuple = serializer.serialize_tuple($count)?;
+                    $(tuple.serialize_element(&RedactedSerializeRef::new(&self.$index, policy))?;)+
+                    tuple.end()
                 })
             }
         }
@@ -139,6 +196,23 @@ macro_rules! pointer_redact_serialize {
     ($pointer:ident) => {
         impl<T: RedactSerialize + ?Sized> RedactSerialize for $pointer<T> {
             /// Preserves the active policy and destination serializer.
+            ///
+            /// # Type Parameters
+            ///
+            /// - `S`: Serializer that receives the pointee's representation.
+            ///
+            /// # Parameters
+            ///
+            /// - `serializer`: Destination receiving the serialized representation.
+            /// - `policy`: Policy applied while serializing the pointee.
+            ///
+            /// # Returns
+            ///
+            /// The destination serializer's result for the pointee.
+            ///
+            /// # Errors
+            ///
+            /// Propagates failures from serializing the pointee.
             fn serialize_redacted<S: Serializer>(
                 &self,
                 serializer: S,

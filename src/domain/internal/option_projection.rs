@@ -46,7 +46,10 @@ impl<'value, T> Serialize for OptionProjection<'value, T>
 where
     T: RedactSerialize,
 {
-    /// Serializes the container within the current redaction scope.
+    /// Serializes the optional value within the active redaction scope.
+    ///
+    /// A present value is serialized through the redaction adapter; an absent
+    /// value is serialized as `None` without visiting a nested value.
     ///
     /// # Type Parameters
     ///

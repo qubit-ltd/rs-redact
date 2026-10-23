@@ -22,9 +22,24 @@ use crate::domain::internal::BudgetSerialize;
 /// it. Sensitive subtrees become opaque values through the same JSON policy as
 /// text rendering.
 ///
+/// # Type Parameters
+///
+/// - `S`: Destination serializer that receives the redacted JSON value.
+///
+/// # Parameters
+///
+/// - `value`: Parsed JSON value borrowed for serialization.
+/// - `serializer`: Destination that receives the budgeted representation.
+/// - `policy`: Immutable redaction policy applied to sensitive values.
+///
+/// # Returns
+///
+/// The destination serializer's result after serializing the redacted value.
+///
 /// # Errors
 ///
-/// Returns serializer or shared resource-budget errors.
+/// Returns errors from the destination serializer or when the shared
+/// structural resource budget cannot admit the value.
 pub(crate) fn serialize_redacted_value<S: Serializer>(
     value: &Value,
     serializer: S,

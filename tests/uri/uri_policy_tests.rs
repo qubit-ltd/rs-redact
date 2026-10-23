@@ -10,6 +10,7 @@
 use qubit_redact::RedactionPolicy;
 use qubit_redact::formats::uri::UriFragmentPolicy;
 use qubit_redact::formats::uri::UriPathPolicy;
+
 /// Verifies the URI snapshot exposes its default path and fragment choices.
 #[test]
 fn test_uri_policy_exposes_default_behavior() {

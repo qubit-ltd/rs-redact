@@ -14,6 +14,23 @@ use super::FieldNameMatching;
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of the borrowed canonical field name.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::{AllowRule, FieldNameMatching, RedactionPolicy};
+///
+/// let policy = RedactionPolicy::builder()
+///     .fields(|fields| {
+///         fields.allow_exact("email");
+///     })
+///     .expect("the field rules should be valid")
+///     .build()
+///     .expect("the policy should be valid");
+/// let rule = policy.application_allow_rules().next().expect("one allow rule");
+/// assert_eq!(rule.field(), "email");
+/// assert_eq!(rule.matching(), FieldNameMatching::Exact);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AllowRule<'a> {
     /// Canonical field name.

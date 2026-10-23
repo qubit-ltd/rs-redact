@@ -29,7 +29,7 @@ fn create_one_byte_redactor() -> Redactor {
 }
 
 #[test]
-fn composer_stops_later_adapter_after_output_exhaustion() {
+fn test_composer_stops_later_adapter_after_output_exhaustion() {
     let later_called = Cell::new(false);
     let output = create_one_byte_redactor()
         .text_composer()
@@ -45,7 +45,7 @@ fn composer_stops_later_adapter_after_output_exhaustion() {
 }
 
 #[test]
-fn batch_stops_later_item_after_output_exhaustion() {
+fn test_batch_stops_later_item_after_output_exhaustion() {
     let mut batch = create_one_byte_redactor().diagnostic_batch();
     let first = batch.redact_argv([ArgvItem::plain(OsStr::new("client"))]);
     let second = batch.redact_env("MODE", "debug");
@@ -57,7 +57,7 @@ fn batch_stops_later_item_after_output_exhaustion() {
 }
 
 #[test]
-fn batch_heuristic_argv_returns_an_exhausted_handle_without_reading_items() {
+fn test_batch_heuristic_argv_returns_an_exhausted_handle_without_reading_items() {
     let later_pulled = Cell::new(false);
     let mut batch = create_one_byte_redactor().diagnostic_batch();
     let first = batch.redact_field("name", "x");
@@ -76,8 +76,7 @@ fn batch_heuristic_argv_returns_an_exhausted_handle_without_reading_items() {
 
 #[cfg(feature = "http")]
 #[test]
-fn batch_http_body_text_returns_an_exhausted_handle() {
-    use qubit_redact::RedactionReason;
+fn test_batch_http_body_text_returns_an_exhausted_handle() {
     use qubit_redact::formats::http::BodyCapture;
 
     let mut batch = create_one_byte_redactor().diagnostic_batch();
@@ -94,7 +93,7 @@ fn batch_http_body_text_returns_an_exhausted_handle() {
 }
 
 #[test]
-fn composer_and_batch_own_independent_budget_ledgers() {
+fn test_composer_and_batch_own_independent_budget_ledgers() {
     let redactor = create_one_byte_redactor();
     let text = redactor.text_composer().literal("x").finish();
     let mut batch = redactor.diagnostic_batch();

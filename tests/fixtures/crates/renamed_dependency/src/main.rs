@@ -20,6 +20,8 @@ struct Record {
 }
 
 /// Exercises generated absolute paths through the alias.
+///
+/// Builds a record and sends it through the aliased runtime dependency.
 fn main() {
     let value = Record {
         secret: "raw".to_owned(),

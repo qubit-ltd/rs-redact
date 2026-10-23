@@ -14,7 +14,23 @@ use crate::runtime::OperationSink;
 use crate::runtime::RedactionHandle;
 use crate::runtime::runtime_session::RuntimeSession;
 
-/// Redacts one URI as a batch item.
+/// Redacts one URI under the batch session's policy and resource limits.
+///
+/// The input is admitted before URI structure is charged and rendered output
+/// is staged in the session. Rejected input or structure is represented by a
+/// safe truncated item.
+///
+/// # Parameters
+///
+/// - `session`: Batch transaction supplying the policy, resource budgets, and
+///   storage for the staged result.
+/// - `value`: URI text to redact.
+///
+/// # Returns
+///
+/// A handle identifying the staged item. Retain it to resolve the item's
+/// published text after the batch completes.
+#[must_use]
 pub(crate) fn redact_uri(session: &mut BatchSession, value: &str) -> RedactionHandle {
     if session.is_output_exhausted() {
         return session.stage_exhausted_handle();

@@ -10,7 +10,7 @@
 use crate::RedactedText;
 
 /// Accumulates unpublished aggregate text for one transaction.
-pub(super) struct TextOutputBuffer {
+pub(in crate::runtime) struct TextOutputBuffer {
     /// Escaped redacted text retained until transaction publication.
     storage: String,
 }
@@ -23,7 +23,7 @@ impl TextOutputBuffer {
     /// An empty unpublished ordered output buffer.
     #[must_use]
     #[inline(always)]
-    pub(super) const fn new() -> Self {
+    pub(in crate::runtime) const fn new() -> Self {
         Self { storage: String::new() }
     }
 
@@ -33,7 +33,7 @@ impl TextOutputBuffer {
     ///
     /// - `text`: Already escaped and admitted text to append in caller order.
     #[inline(always)]
-    pub(super) fn push(&mut self, text: &str) {
+    pub(in crate::runtime) fn push(&mut self, text: &str) {
         self.storage.push_str(text);
     }
 
@@ -44,7 +44,7 @@ impl TextOutputBuffer {
     /// The opaque safe text obtained by consuming the unpublished buffer.
     #[must_use]
     #[inline(always)]
-    pub(super) fn publish(self) -> RedactedText {
+    pub(in crate::runtime) fn publish(self) -> RedactedText {
         RedactedText::from_escaped(self.storage)
     }
 }

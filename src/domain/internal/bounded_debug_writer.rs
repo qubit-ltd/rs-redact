@@ -24,6 +24,20 @@ impl fmt::Write for BoundedDebugWriter<'_, '_> {
     /// Returns `fmt::Error` when the escaped-output ceiling rejects the
     /// fragment; the underlying domain writer records the resulting
     /// incomplete output.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Complete formatter fragment offered to the domain writer.
+    ///
+    /// # Returns
+    ///
+    /// Success when the domain writer accepts the complete fragment.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when the escaped-output ceiling rejects the
+    /// fragment.
+    #[inline]
     fn write_str(&mut self, value: &str) -> fmt::Result {
         if self.writer.write_fragment(value) {
             Ok(())

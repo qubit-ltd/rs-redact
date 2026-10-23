@@ -11,6 +11,7 @@
 
 use std::env;
 use std::path::PathBuf;
+
 mod support;
 
 /// Verifies the runtime serde feature supplies generated serialization support.

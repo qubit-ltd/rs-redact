@@ -102,7 +102,7 @@ fn transparent_named_struct_body(
     container_attributes: &SerdeContainerAttributes,
 ) -> TokenStream {
     let serialized_name = container_attributes.name();
-    if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
+    if field_is_skipped(parsed.serde_attributes()) {
         return quote! {
             #serde::Serializer::serialize_unit_struct(serializer, #serialized_name)
         };
@@ -174,7 +174,7 @@ fn named_struct_body(
     let mut carriers = Vec::new();
 
     for (position, parsed) in fields.iter().enumerate() {
-        if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
+        if field_is_skipped(parsed.serde_attributes()) {
             continue;
         }
         let field = parsed.field();
@@ -279,7 +279,7 @@ fn newtype_struct_body(
     container_attributes: &SerdeContainerAttributes,
 ) -> TokenStream {
     let serialized_name = container_attributes.name();
-    if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
+    if field_is_skipped(parsed.serde_attributes()) {
         return quote! {
             #serde::Serializer::serialize_unit_struct(serializer, #serialized_name)
         };
@@ -346,7 +346,7 @@ fn tuple_struct_body(
     let mut conditions = Vec::new();
     let mut carriers = Vec::new();
     for (position, parsed) in fields.iter().enumerate() {
-        if field_is_skipped(parsed.attributes().mode(), parsed.serde_attributes()) {
+        if field_is_skipped(parsed.serde_attributes()) {
             continue;
         }
         let field = parsed.field();

@@ -11,6 +11,8 @@
 
 use std::collections::BTreeMap;
 
+use qubit_redact::RedactionPolicy;
+use qubit_redact::domain::internal::RedactSerializeScope;
 use qubit_redact::domain::internal::serialize_internally_tagged;
 use serde::Serialize;
 use serde::Serializer;
@@ -114,8 +116,6 @@ fn test_internally_tagged_adapter_rejects_every_non_map_serde_shape() {
 /// forward their entries to the underlying serializer.
 #[test]
 fn test_internally_tagged_adapter_injects_tag_into_maps_and_structs() {
-    use qubit_redact::RedactionPolicy;
-    use qubit_redact::domain::internal::RedactSerializeScope;
     let policy = RedactionPolicy::standard();
     let _scope = RedactSerializeScope::new(&policy);
     let map = BTreeMap::from([("value", 7_u8)]);

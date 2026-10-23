@@ -33,7 +33,6 @@ mod scalar_operation;
 mod structural_budget;
 mod structural_entry;
 mod summary_builder;
-mod text_output_buffer;
 mod text_session;
 mod transaction_guard;
 mod transaction_id;

@@ -7,6 +7,8 @@
 // =============================================================================
 //! Unpublished independently resolvable text owned by the batch path.
 
+use crate::RedactedText;
+use crate::RedactionSummary;
 use crate::RedactionTextOutput;
 
 /// Accumulates unpublished text outputs for one batch transaction.
@@ -49,7 +51,6 @@ impl BatchOutputBuffer {
     ///
     /// `Some(index)` identifies the first stored exhausted sentinel; `None`
     /// means no such sentinel has been recorded.
-    #[must_use]
     #[inline(always)]
     pub(super) const fn exhausted_item(&self) -> Option<usize> {
         self.exhausted_item
@@ -66,12 +67,10 @@ impl BatchOutputBuffer {
     ///
     /// The stable insertion index of the new item.
     #[inline]
-    pub(super) fn push(&mut self, text: String, summary: crate::RedactionSummary) -> usize {
+    pub(super) fn push(&mut self, text: String, summary: RedactionSummary) -> usize {
         let index = self.items.len();
-        self.items.push(RedactionTextOutput::new(
-            crate::RedactedText::from_escaped(text),
-            summary,
-        ));
+        self.items
+            .push(RedactionTextOutput::new(RedactedText::from_escaped(text), summary));
         index
     }
 

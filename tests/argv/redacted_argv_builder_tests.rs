@@ -12,7 +12,7 @@ use qubit_redact::Redactor;
 use qubit_redact::formats::argv::ArgvItem;
 
 #[test]
-fn argv_rendering_is_bounded_by_the_transaction_policy() {
+fn test_argv_rendering_is_bounded_by_the_transaction_policy() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
             limits.max_output_bytes(2);
@@ -27,5 +27,8 @@ fn argv_rendering_is_bounded_by_the_transaction_policy() {
         })
         .finish();
 
-    assert!(output.text().as_str().len() <= 2);
+    assert!(
+        output.text().as_str().len() <= 2,
+        "rendered output exceeded the configured byte limit"
+    );
 }

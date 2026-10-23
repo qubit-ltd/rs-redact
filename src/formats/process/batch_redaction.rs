@@ -19,7 +19,33 @@ use crate::runtime::OperationSink;
 use crate::runtime::RedactionHandle;
 use crate::runtime::runtime_session::RuntimeSession;
 
-/// Redacts one process command as a batch item.
+/// Redacts a process command and its environment as one batch item.
+///
+/// Arguments and environment pairs are consumed lazily in order, with each
+/// item admitted against the batch session's shared input, structure, and
+/// output budgets before the renderer observes it. The environment is skipped
+/// when command rendering closes the output or exhausts its remaining budget.
+///
+/// # Type Parameters
+///
+/// - `'arguments`: Borrow lifetime of the executable and command arguments.
+/// - `'variables`: Borrow lifetime of environment names and values.
+/// - `A`: Source converted into an iterator of classified command arguments.
+/// - `E`: Source converted into an iterator of borrowed environment pairs.
+///
+/// # Parameters
+///
+/// - `session`: Batch transaction supplying policy and shared resource budgets.
+/// - `program`: Borrowed executable name, emitted before `arguments`.
+/// - `arguments`: Classified command arguments consumed after the executable.
+/// - `variables`: Borrowed environment names and values consumed after the
+///   command has been rendered.
+///
+/// # Returns
+///
+/// A handle identifying the staged command and environment rendering. Retain
+/// it to resolve the item's published text after the batch finishes.
+#[must_use]
 pub(crate) fn redact_command<'arguments, 'variables, A, E>(
     session: &mut BatchSession,
     program: &'arguments OsStr,

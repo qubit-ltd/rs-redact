@@ -60,11 +60,6 @@ impl InputCapture {
     /// Prioritizes the capture's rejection over the propagated formatting
     /// error.
     ///
-    /// # Errors
-    ///
-    /// Returns `InputLimit` after any rejected chunk, including when the
-    /// formatter ignores its error; otherwise propagates a formatter failure.
-    ///
     /// # Parameters
     ///
     /// - `result`: Outcome returned by the value's formatter.
@@ -72,6 +67,11 @@ impl InputCapture {
     /// # Returns
     ///
     /// The complete accepted text when neither capture nor formatter failed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InputLimit` after any rejected chunk, including when the
+    /// formatter ignores its error; otherwise propagates a formatter failure.
     pub(in crate::runtime) fn finish(self, result: fmt::Result) -> Result<String, ScalarFailure> {
         if self.overflowed {
             Err(ScalarFailure::InputLimit)
@@ -86,14 +86,14 @@ impl InputCapture {
 impl fmt::Write for InputCapture {
     /// Rejects an entire chunk atomically and never reopens after rejection.
     ///
+    /// # Parameters
+    ///
+    /// - `value`: One atomic UTF-8 chunk submitted by the formatter.
+    ///
     /// # Errors
     ///
     /// Returns [`fmt::Error`] if this chunk exceeds the allowance or a previous
     /// chunk already closed the capture.
-    ///
-    /// # Parameters
-    ///
-    /// - `value`: One atomic UTF-8 chunk submitted by the formatter.
     fn write_str(&mut self, value: &str) -> fmt::Result {
         self.presented = self.presented.saturating_add(value.len());
         if self.overflowed || value.len() > self.maximum.saturating_sub(self.text.len()) {

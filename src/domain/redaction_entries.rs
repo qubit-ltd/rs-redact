@@ -51,6 +51,20 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
     /// Unknown-length iterators conservatively truncate when checking their
     /// end would exceed the budget. Iterator and callback panics propagate
     /// to the transaction.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `I`: Iterator source whose entries are processed in order.
+    /// - `F`: Callback that writes one admitted entry.
+    ///
+    /// # Parameters
+    ///
+    /// - `values`: Source of map entries.
+    /// - `write`: Callback invoked for each admitted entry.
+    ///
+    /// # Returns
+    ///
+    /// This scope for subsequent map-entry operations.
     pub fn for_each<I, F>(&mut self, values: I, mut write: F) -> &mut Self
     where
         I: IntoIterator,
@@ -81,6 +95,22 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
     /// This method emits the accessed value without consulting field policy.
     /// Use it only for data independently established as safe to expose;
     /// sensitive values must use [`Self::sensitive_entry_at_least`].
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Value type returned by the lazy accessor and formatted with
+    ///   `Debug`.
+    /// - `F`: One-shot accessor for the value.
+    ///
+    /// # Parameters
+    ///
+    /// - `name`: Map key written as trusted structural text.
+    /// - `access`: Lazy accessor, not invoked during inspection or after
+    ///   admission fails.
+    ///
+    /// # Returns
+    ///
+    /// This scope for subsequent map-entry operations.
     pub fn unredacted_entry<T, F>(&mut self, name: &str, access: F) -> &mut Self
     where
         T: Debug,
@@ -102,6 +132,26 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
     }
 
     /// Writes one explicitly sensitive map entry.
+    ///
+    /// The active field policy may raise `level`. High and secret values are
+    /// replaced with a bounded opaque mask without invoking `access`.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Value type returned by the lazy accessor and formatted with
+    ///   `Debug`.
+    /// - `F`: One-shot accessor for the value.
+    ///
+    /// # Parameters
+    ///
+    /// - `level`: Minimum sensitivity used to redact the entry.
+    /// - `name`: Map key used for output and policy lookup.
+    /// - `access`: Lazy accessor, skipped during inspection, failed admission,
+    ///   and high or secret masking.
+    ///
+    /// # Returns
+    ///
+    /// This scope for subsequent map-entry operations.
     pub fn sensitive_entry_at_least<T, F>(&mut self, level: Sensitivity, name: &str, access: F) -> &mut Self
     where
         T: Debug,
@@ -139,6 +189,36 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
         } else {
             self.writer.write_masked_debug(effective_level, &access());
         }
+        self.writer.write_fragment(", ");
+        self
+    }
+
+    /// Writes one nested map entry through the parent transaction.
+    ///
+    /// The nested value shares this writer's output and collection budgets.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Nested value implementing the domain redaction contract.
+    ///
+    /// # Parameters
+    ///
+    /// - `name`: Map key written as trusted structural text.
+    /// - `value`: Nested value redacted through the parent writer.
+    ///
+    /// # Returns
+    ///
+    /// This scope for subsequent map-entry operations.
+    pub fn nested_entry<T>(&mut self, name: &str, value: &T) -> &mut Self
+    where
+        T: Redact + ?Sized,
+    {
+        if !self.admit_entry() || !self.writer.session.admit_domain_key(name) {
+            self.write_truncated();
+            return self;
+        }
+        self.write_prefix(name);
+        value.write_redacted(self.writer);
         self.writer.write_fragment(", ");
         self
     }
@@ -189,21 +269,6 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
         } else {
             self.writer.write_debug(value);
         }
-        self.writer.write_fragment(", ");
-        self
-    }
-
-    /// Writes one nested map entry through the parent transaction.
-    pub fn nested_entry<T>(&mut self, name: &str, value: &T) -> &mut Self
-    where
-        T: Redact + ?Sized,
-    {
-        if !self.admit_entry() || !self.writer.session.admit_domain_key(name) {
-            self.write_truncated();
-            return self;
-        }
-        self.write_prefix(name);
-        value.write_redacted(self.writer);
         self.writer.write_fragment(", ");
         self
     }

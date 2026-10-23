@@ -138,7 +138,6 @@ impl Drop for RedactSerializeScope<'_> {
 /// Some owned snapshot for the innermost active scope; None outside scoped
 /// structured serialization. The snapshot remains valid after the guard drops.
 #[doc(hidden)]
-#[must_use]
 #[inline(always)]
 pub fn current_policy() -> Option<Arc<crate::RedactionPolicy>> {
     STRUCTURED_SERDE_POLICIES.with(|slot| slot.borrow().last().map(|frame| Arc::clone(&frame.snapshot)))
@@ -150,6 +149,7 @@ pub fn current_policy() -> Option<Arc<crate::RedactionPolicy>> {
 ///
 /// True after charging one node and entering its depth; false if no scope
 /// is active or a structural limit rejects entry. Only success needs a leave.
+#[must_use]
 #[allow(dead_code)]
 pub(super) fn admit_node() -> bool {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
@@ -220,6 +220,7 @@ pub(super) fn check_key_bytes<E: Error>(key: &str) -> Result<(), E> {
 ///
 /// True if the cumulative count was admitted; false without changing the
 /// counter when no scope is active or its item limit rejects the count.
+#[must_use]
 pub(super) fn admit_collection_items(count: usize) -> bool {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
         let mut budgets = slot.borrow_mut();
@@ -249,6 +250,7 @@ pub(super) fn admit_collection_items(count: usize) -> bool {
 ///
 /// True after charging the bytes; false without changing the counter when
 /// no scope is active or the cumulative input limit rejects the bytes.
+#[must_use]
 #[allow(dead_code)]
 pub(super) fn admit_input(bytes: usize) -> bool {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
@@ -328,6 +330,7 @@ where
 ///
 /// True after charging payload; false without changing the counter if no
 /// scope is active, addition overflows, or the payload limit would be exceeded.
+#[must_use]
 pub(super) fn admit_payload(bytes: usize) -> bool {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
         let mut budgets = slot.borrow_mut();

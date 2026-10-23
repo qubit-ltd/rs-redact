@@ -12,6 +12,7 @@ use std::sync::Barrier;
 
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
+
 /// Verifies concurrent reads observe complete snapshots while replacements
 /// leave an earlier read unchanged.
 #[test]

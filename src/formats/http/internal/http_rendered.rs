@@ -41,7 +41,6 @@ impl HttpRendered {
     /// # Returns
     ///
     /// The original bounded operation ready for the parent transaction.
-    #[must_use]
     #[inline(always)]
     pub(in crate::formats::http) fn into_operation(self) -> RenderedOperation {
         self.operation

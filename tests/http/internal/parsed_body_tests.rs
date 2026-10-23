@@ -22,5 +22,12 @@ fn test_parsed_body_preserves_structured_status() {
         Some(&HeaderValue::from_static("application/json")),
     );
 
-    assert!(!rendered.contains("raw-secret"));
+    assert!(
+        !rendered.contains("raw-secret"),
+        "structured body redaction must not expose the original secret",
+    );
+    assert!(
+        rendered.contains("visible"),
+        "structured body redaction must preserve non-sensitive fields",
+    );
 }

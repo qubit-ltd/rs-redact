@@ -29,7 +29,18 @@ impl BoundedUriWriter {
         }
     }
 
-    /// Writes text after escaping log-unsafe characters.
+    /// Writes text after escaping log-unsafe characters while preserving
+    /// existing valid percent-encoded bytes as indivisible atoms.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: URI text to escape and append.
+    ///
+    /// # Returns
+    ///
+    /// `true` if all text was written; `false` if the output bound rejects an
+    /// atom or a character cannot be encoded. Either failure stops writing,
+    /// and an encoding failure marks the sink as truncated.
     pub(crate) fn write_str(&mut self, value: &str) -> bool {
         if self.sink.is_full() {
             return false;
@@ -62,6 +73,15 @@ impl BoundedUriWriter {
     }
 
     /// Writes one complete percent-encoded byte atomically.
+    ///
+    /// # Parameters
+    ///
+    /// - `byte`: Byte to represent using uppercase hexadecimal digits.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the complete three-byte escape was retained; `false` if the
+    /// output bound rejected it and closed further output.
     pub(crate) fn write_percent_encoded(&mut self, byte: u8) -> bool {
         let encoded = [b'%', hex_digit(byte >> 4), hex_digit(byte & 0x0f)];
         let piece = std::str::from_utf8(&encoded).expect("percent encoding is always valid ASCII");

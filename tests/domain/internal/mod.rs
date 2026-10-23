@@ -7,6 +7,8 @@
 // =============================================================================
 //! Public derive-support adapter contracts.
 
+mod budget_serialize_tests;
+mod internally_tagged_serializer_tests;
 #[cfg(feature = "json")]
 mod redact_json_serialize_tests;
 mod redact_level_serialize_tests;

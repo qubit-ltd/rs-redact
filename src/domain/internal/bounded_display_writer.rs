@@ -53,7 +53,6 @@ impl BoundedDisplayWriter {
     /// `Some(text)` if every submitted fragment fit; `None` after any
     /// rejection. The caller must also check the formatter result before
     /// using the text.
-    #[must_use]
     #[inline(always)]
     pub(super) fn finish(self) -> Option<String> {
         (!self.rejected).then_some(self.output)
@@ -64,11 +63,6 @@ impl fmt::Write for BoundedDisplayWriter {
     /// Appends a complete fragment or stops formatting before exceeding the
     /// configured input allowance.
     ///
-    /// # Errors
-    ///
-    /// Returns [`fmt::Error`] when this or an earlier fragment does not fit. No
-    /// partial fragment is retained in that case.
-    ///
     /// # Parameters
     ///
     /// - `value`: Atomic UTF-8 fragment offered by the formatter.
@@ -77,6 +71,11 @@ impl fmt::Write for BoundedDisplayWriter {
     ///
     /// Success after accepting the complete fragment within the remaining byte
     /// allowance.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] when this or an earlier fragment does not fit. No
+    /// partial fragment is retained in that case.
     #[inline]
     fn write_str(&mut self, value: &str) -> fmt::Result {
         if self.rejected || value.len() > self.remaining {

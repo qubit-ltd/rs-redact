@@ -20,6 +20,23 @@ use super::Sensitivity;
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of canonical field names borrowed from the policy.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::{FieldClassification, RedactionPolicy, Sensitivity};
+///
+/// let policy = RedactionPolicy::builder()
+///     .fields(|fields| {
+///         fields.secret_sensitive("password");
+///     })
+///     .expect("the field rules should be valid")
+///     .build()
+///     .expect("the policy should be valid");
+/// let classification = policy.classify_field("password");
+/// assert!(matches!(classification, FieldClassification::Sensitive { .. }));
+/// assert_eq!(classification.sensitivity(), Some(Sensitivity::Secret));
+/// ```
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FieldClassification<'a> {
@@ -48,7 +65,6 @@ impl<'a> FieldClassification<'a> {
     ///
     /// `Some(level)` for [`Self::Sensitive`], or `None` for allowed and unknown
     /// fields.
-    #[must_use]
     #[inline(always)]
     pub const fn sensitivity(self) -> Option<Sensitivity> {
         match self {
@@ -63,7 +79,6 @@ impl<'a> FieldClassification<'a> {
     ///
     /// A field name borrowed from the policy for sensitive and allowed
     /// classifications, or `None` for [`Self::Unknown`].
-    #[must_use]
     #[inline(always)]
     pub const fn matched_field(self) -> Option<&'a str> {
         match self {
@@ -79,7 +94,6 @@ impl<'a> FieldClassification<'a> {
     ///
     /// The exact input or a semantic token suffix for sensitive and allowed
     /// classifications, or `None` for [`Self::Unknown`].
-    #[must_use]
     #[inline(always)]
     pub const fn match_kind(self) -> Option<FieldMatchKind> {
         match self {

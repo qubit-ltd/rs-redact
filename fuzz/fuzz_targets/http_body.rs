@@ -19,7 +19,6 @@ use qubit_redact::formats::http::BodyCapture;
 const FUZZ_SECRET: &str = "http-body-fuzz-secret-427b93e1";
 
 /// Encodes arbitrary bytes for use in valid structured bodies.
-#[must_use]
 fn encoded_noise(input: &[u8]) -> String {
     let mut encoded = String::with_capacity(input.len().saturating_mul(2));
     for byte in input.iter().take(2_048) {

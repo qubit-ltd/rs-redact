@@ -65,7 +65,6 @@ pub(crate) trait RuntimeSession {
     /// # Returns
     ///
     /// The immutable policy snapshot retained by this transaction.
-    #[must_use]
     #[inline(always)]
     fn policy(&self) -> &RedactionPolicy {
         self.runtime().policy()
@@ -247,7 +246,7 @@ pub(crate) trait RuntimeSession {
     /// Disjoint structural-accounting capability and lexical JSON value budget.
     #[cfg(feature = "json")]
     #[inline(always)]
-    #[must_use]
+    #[must_use = "use both capabilities to account for JSON structure and lexical values"]
     fn split_json_admission(&mut self) -> (super::JsonStructureAdmission<'_>, &mut JsonValueBudget) {
         self.runtime_mut().split_json_admission()
     }
@@ -360,6 +359,7 @@ pub(crate) trait RuntimeSession {
     ///
     /// Whether the full fragment was appended; rejection closes the frame and
     /// retains a safe fallback according to its remaining output capacity.
+    #[must_use]
     fn write_domain_fragment(&mut self, text: &str) -> bool {
         if self.runtime().domain_frame_truncated {
             return false;
@@ -540,6 +540,7 @@ pub(crate) trait RuntimeSession {
     ///
     /// Whether the whole unit was admitted. Rejected units count as presented
     /// but contribute no inspected bytes.
+    #[must_use]
     #[inline(always)]
     fn admit_input(&mut self, bytes: usize) -> bool {
         self.runtime_mut().admit_input(bytes)
@@ -570,6 +571,7 @@ pub(crate) trait RuntimeSession {
     /// Whether the complete captured unit was admitted; omitted source
     /// accounting retains the distinction between a known count and unknown
     /// length.
+    #[must_use]
     #[cfg(feature = "http")]
     #[inline(always)]
     fn admit_source_input(&mut self, total: Option<usize>, inspectable: usize) -> bool {

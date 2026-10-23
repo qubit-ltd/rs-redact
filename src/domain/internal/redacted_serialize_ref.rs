@@ -24,6 +24,16 @@ pub struct RedactedSerializeRef<'value, 'policy, T: ?Sized> {
 
 impl<'value, 'policy, T: ?Sized> RedactedSerializeRef<'value, 'policy, T> {
     /// Creates a policy-carrying borrowed serializer adapter.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Source value borrowed until the adapter is serialized.
+    /// - `policy`: Immutable redaction policy shared with generated
+    ///   serialization.
+    ///
+    /// # Returns
+    ///
+    /// An adapter borrowing the source and policy without taking ownership.
     #[must_use]
     #[inline(always)]
     pub fn new(value: &'value T, policy: &'policy crate::RedactionPolicy) -> Self {
@@ -33,6 +43,19 @@ impl<'value, 'policy, T: ?Sized> RedactedSerializeRef<'value, 'policy, T> {
 
 impl<T: ?Sized + RedactSerialize> Serialize for RedactedSerializeRef<'_, '_, T> {
     /// Runs this borrowed adapter under the shared policy and resource scope.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Destination serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the redacted representation.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after the value is serialized under the shared
+    /// scope.
     ///
     /// # Errors
     ///

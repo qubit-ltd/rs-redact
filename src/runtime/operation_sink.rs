@@ -229,6 +229,7 @@ impl OperationSink {
     ///
     /// `true` if the complete atom was retained; `false` records output closure
     /// and discards any suffix needed to reserve the marker.
+    #[must_use]
     pub(crate) fn write_atom(&mut self, atom: &str) -> bool {
         if self.is_full() || self.output.len().saturating_add(atom.len()) > self.payload_limit() {
             self.truncate_for_output();
@@ -294,7 +295,6 @@ impl OperationSink {
     ///
     /// The pre-rendered operation; use `finish_with_reason` for an active
     /// bounded sink.
-    #[must_use]
     #[inline(always)]
     pub(crate) fn finish(self) -> RenderedOperation {
         RenderedOperation::from_parts(self.output, self.completion, self.reasons, self.output_truncated)
@@ -310,7 +310,6 @@ impl OperationSink {
     ///
     /// The bounded operation, preserving the original cause and adding an
     /// output-limit reason and closure when the sink or marker cannot fit.
-    #[must_use]
     pub(crate) fn finish_with_reason(mut self, reason: RedactionReason) -> RenderedOperation {
         if self.truncated {
             self.reasons = self.reasons.with(reason);

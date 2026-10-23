@@ -28,7 +28,6 @@ use crate::formats::http::internal::BoundedLogWriter;
 ///
 /// Borrowed values grouped by sorted names while preserving each name’s value
 /// order.
-#[must_use]
 pub(super) fn group_values(headers: &HeaderMap) -> BTreeMap<&str, Vec<&HeaderValue>> {
     let mut values = BTreeMap::<&str, Vec<&HeaderValue>>::new();
     for (name, value) in headers {

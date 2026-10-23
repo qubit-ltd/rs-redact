@@ -11,12 +11,12 @@ use std::borrow::Cow;
 use std::fmt::Display;
 use std::sync::Arc;
 
+use super::internal::text_output_buffer::TextOutputBuffer;
 use super::render_runtime::RenderRuntime;
 use super::rendered_operation::RenderedOperation;
 use super::rendered_summary::rendered_summary;
 use super::resettable_session::ResettableSession;
 use super::runtime_session::RuntimeSession;
-use super::text_output_buffer::TextOutputBuffer;
 use super::transaction_guard::TransactionGuard;
 use super::transaction_phase::TransactionPhase;
 use crate::Redact;

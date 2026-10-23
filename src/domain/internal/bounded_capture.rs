@@ -31,6 +31,7 @@ use std::fmt::Write as _;
 ///
 /// Accepted complete fragments and whether any fragment was rejected.
 /// An error returned by `Debug` independently of capacity is ignored.
+#[must_use]
 pub(in crate::domain) fn bounded_debug<T>(value: &T, maximum: usize) -> (String, bool)
 where
     T: Debug + ?Sized,

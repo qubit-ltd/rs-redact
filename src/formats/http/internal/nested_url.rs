@@ -15,6 +15,7 @@ use url::Url;
 const MAX_PERCENT_DECODING_DEPTH: usize = 8;
 
 /// Result of inspecting a complete field value for an embedded HTTP URL.
+#[must_use]
 pub(in crate::formats::http) enum NestedUrl {
     /// The complete value is not an HTTP URL.
     NotUrl,
@@ -93,6 +94,8 @@ pub(in crate::formats::http) fn detect(value: &str) -> NestedUrl {
 /// # Returns
 ///
 /// `true` when at least the leading `http` name is present.
+#[must_use]
+#[inline]
 fn starts_with_http_name(value: &str) -> bool {
     value
         .as_bytes()
@@ -109,6 +112,8 @@ fn starts_with_http_name(value: &str) -> bool {
 /// # Returns
 ///
 /// `true` for an `http://` or `https://` prefix.
+#[must_use]
+#[inline]
 fn starts_with_http_scheme(value: &str) -> bool {
     [b"http://".as_slice(), b"https://".as_slice()]
         .into_iter()
@@ -175,6 +180,7 @@ fn percent_decode_once(value: &str) -> Result<Option<String>, String> {
 /// # Returns
 ///
 /// The complete string when valid, otherwise its valid UTF-8 prefix.
+#[must_use]
 fn valid_utf8_prefix(decoded: Vec<u8>) -> String {
     match String::from_utf8(decoded) {
         Ok(text) => text,
@@ -194,6 +200,7 @@ fn valid_utf8_prefix(decoded: Vec<u8>) -> String {
 /// # Returns
 ///
 /// Its numeric value, or `None` for another byte.
+#[inline]
 const fn hex(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),

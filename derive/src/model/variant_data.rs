@@ -63,6 +63,7 @@ impl<'a> VariantData<'a> {
     ///
     /// The variant carrying its identifier and source span.
     #[inline(always)]
+    #[must_use]
     pub(crate) const fn variant(&self) -> &'a Variant {
         self.variant
     }
@@ -84,6 +85,7 @@ impl<'a> VariantData<'a> {
     ///
     /// Named, unnamed, or unit fields in source order.
     #[inline(always)]
+    #[must_use = "the parsed variant fields must be inspected"]
     pub(crate) const fn fields(&self) -> &FieldsData<'a> {
         &self.fields
     }
@@ -94,6 +96,7 @@ impl<'a> VariantData<'a> {
     ///
     /// Variant naming, field renaming, and skip state.
     #[inline(always)]
+    #[must_use = "the validated variant controls must be applied"]
     pub(crate) const fn serde_attributes(&self) -> &SerdeVariantAttributes {
         &self.serde_attributes
     }

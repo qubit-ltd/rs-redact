@@ -82,23 +82,3 @@ impl RenderRuntime {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::RenderRuntime;
-    use crate::RedactionPolicy;
-    use crate::Sensitivity;
-    use crate::runtime::runtime_session::RuntimeSession;
-
-    /// Rendering runtime exposes both core access paths and ignores inspection
-    /// observations.
-    #[test]
-    fn test_rendering_runtime_implements_its_typed_mode_contract() {
-        let mut runtime = RenderRuntime::new(RedactionPolicy::standard().into());
-
-        assert!(!RuntimeSession::is_inspection(&runtime));
-        RuntimeSession::observe_sensitivity(&mut runtime, Sensitivity::Secret);
-        let _ = RuntimeSession::runtime(&runtime);
-        let _ = RuntimeSession::runtime_mut(&mut runtime);
-    }
-}

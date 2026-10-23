@@ -14,18 +14,37 @@ use super::json_redaction_writer::admit_json_text_value;
 use super::json_redaction_writer::invalid_json_output;
 use super::json_redaction_writer::passthrough_json_text_with_limit;
 use super::json_redaction_writer::redact_json_value_with_limit;
+use crate::RedactionReason;
 use crate::runtime::BatchSession;
+use crate::runtime::OperationSink;
 use crate::runtime::RedactionHandle;
 use crate::runtime::runtime_session::RuntimeSession;
 
-/// Redacts JSON text as a batch item.
+/// Parses and redacts JSON text while applying the batch session's input and
+/// output limits.
+///
+/// Invalid JSON is rendered according to the active policy. If parsing exceeds
+/// an admission limit, the session stages a truncated item instead. The result
+/// is staged in the transaction so it can be resolved after the batch ends.
+///
+/// # Parameters
+///
+/// - `session`: Batch transaction that supplies the redaction policy and
+///   accounts for the staged item.
+/// - `text`: JSON document to parse and redact.
+///
+/// # Returns
+///
+/// A handle identifying the staged item. Retain it to resolve the item's
+/// published text after the batch completes.
+#[must_use]
 pub(crate) fn redact_text(session: &mut BatchSession, text: &str) -> RedactionHandle {
     if session.is_output_exhausted() {
         return session.stage_exhausted_handle();
     }
     if !session.admit_input(text.len()) {
         return session.stage_rendered_operation(
-            crate::runtime::OperationSink::truncated("<truncated>", crate::RedactionReason::InputLimitReached).finish(),
+            OperationSink::truncated("<truncated>", RedactionReason::InputLimitReached).finish(),
         );
     }
     let result = if session.policy().is_disabled() {
@@ -42,7 +61,24 @@ pub(crate) fn redact_text(session: &mut BatchSession, text: &str) -> RedactionHa
     session.stage_rendered_operation(result)
 }
 
-/// Redacts a parsed JSON value as a batch item.
+/// Redacts an already parsed JSON value under the batch session's policy and
+/// output limit.
+///
+/// The value is admitted against the session's input and traversal budgets
+/// before rendering. The rendered item is staged in the transaction so it can
+/// be resolved after the batch ends.
+///
+/// # Parameters
+///
+/// - `session`: Batch transaction that supplies the redaction policy and
+///   accounts for the staged item.
+/// - `value`: Parsed JSON value to redact.
+///
+/// # Returns
+///
+/// A handle identifying the staged item. Retain it to resolve the item's
+/// published text after the batch completes.
+#[must_use]
 pub(crate) fn redact_value(session: &mut BatchSession, value: &Value) -> RedactionHandle {
     if session.is_output_exhausted() {
         session.stage_exhausted_handle()

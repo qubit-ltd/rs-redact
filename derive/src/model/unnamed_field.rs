@@ -62,6 +62,7 @@ impl<'a> UnnamedField<'a> {
     /// # Returns
     ///
     /// The field used for span-aware generated tokens.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn field(&self) -> &'a Field {
         self.field
@@ -72,6 +73,7 @@ impl<'a> UnnamedField<'a> {
     /// # Returns
     ///
     /// The index used in generated member access and diagnostics.
+    #[must_use]
     #[inline(always)]
     pub(crate) const fn index(&self) -> &Index {
         &self.index
@@ -82,6 +84,7 @@ impl<'a> UnnamedField<'a> {
     /// # Returns
     ///
     /// The field's unique redaction mode.
+    #[must_use = "the field's redaction controls must be applied"]
     #[inline(always)]
     pub(crate) const fn attributes(&self) -> &FieldAttributes {
         &self.attributes
@@ -92,6 +95,7 @@ impl<'a> UnnamedField<'a> {
     /// # Returns
     ///
     /// Enabled controls or an empty disabled state.
+    #[must_use = "the field's serde controls must be applied"]
     #[inline(always)]
     pub(crate) const fn serde_attributes(&self) -> &SerdeAttributes {
         &self.serde_attributes

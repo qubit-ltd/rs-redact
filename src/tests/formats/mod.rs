@@ -7,6 +7,7 @@
 // =============================================================================
 //! Internal format instrumentation contracts.
 
+mod env;
 #[cfg(feature = "http")]
 mod http;
 #[cfg(feature = "json")]

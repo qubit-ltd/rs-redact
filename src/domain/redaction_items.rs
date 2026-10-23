@@ -53,6 +53,20 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
     /// of unknown length conservatively truncates when no capacity remains
     /// to check its end. Panics from the iterator or callback propagate to
     /// the owning transaction.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `I`: Source of sequence items.
+    /// - `F`: Callback that writes one admitted item.
+    ///
+    /// # Parameters
+    ///
+    /// - `values`: Items processed in iteration order.
+    /// - `write`: Callback invoked for each admitted item.
+    ///
+    /// # Returns
+    ///
+    /// This scope for subsequent sequence-item operations.
     pub fn for_each<I, F>(&mut self, values: I, mut write: F) -> &mut Self
     where
         I: IntoIterator,
@@ -83,6 +97,20 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
     /// This method emits the accessed value without consulting field policy.
     /// Use it only for data independently established as safe to expose;
     /// sensitive values must use [`Self::sensitive_item`].
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Value returned by the lazy accessor and formatted with `Debug`.
+    /// - `F`: One-shot accessor for the item value.
+    ///
+    /// # Parameters
+    ///
+    /// - `access`: Lazy accessor, not invoked during inspection or after
+    ///   admission fails.
+    ///
+    /// # Returns
+    ///
+    /// This scope for subsequent sequence-item operations.
     pub fn unredacted_item<T, F>(&mut self, access: F) -> &mut Self
     where
         T: Debug,
@@ -101,6 +129,24 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
     }
 
     /// Writes one explicitly sensitive sequence item.
+    ///
+    /// High and secret items are replaced with a bounded opaque mask without
+    /// invoking `access`; lower sensitivity levels use the configured masking
+    /// policy and evaluate the accessor when needed.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Value returned by the lazy accessor and formatted with `Debug`.
+    /// - `F`: One-shot accessor for the item value.
+    ///
+    /// # Parameters
+    ///
+    /// - `level`: Minimum sensitivity applied to the item.
+    /// - `access`: Lazy accessor for the item value.
+    ///
+    /// # Returns
+    ///
+    /// This scope for subsequent sequence-item operations.
     pub fn sensitive_item<T, F>(&mut self, level: Sensitivity, access: F) -> &mut Self
     where
         T: Debug,
@@ -137,6 +183,14 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
     /// The value is traversed through the active JSON policy and shared
     /// structural, input, and output budgets without cloning or first
     /// serializing it into an intermediate string.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Borrowed JSON value traversed under the active policy.
+    ///
+    /// # Returns
+    ///
+    /// This scope for subsequent sequence-item operations.
     #[cfg(feature = "json")]
     pub fn json_value_item(&mut self, value: &serde_json::Value) -> &mut Self {
         if !self.admit_item() {
@@ -149,6 +203,19 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
     }
 
     /// Writes one item with an explicitly supplied sensitivity.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Value implementing recursive level-aware redaction.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Item redacted with the explicit sensitivity.
+    /// - `level`: Sensitivity applied to the item's scalar leaves.
+    ///
+    /// # Returns
+    ///
+    /// This scope for subsequent sequence-item operations.
     pub(crate) fn level_value<T>(&mut self, value: &T, level: Sensitivity) -> &mut Self
     where
         T: RedactLevelValue + ?Sized,
@@ -163,6 +230,18 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
     }
 
     /// Writes one nested domain value as a sequence item.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Nested value implementing the domain redaction contract.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Nested value redacted through the parent writer.
+    ///
+    /// # Returns
+    ///
+    /// This scope for subsequent sequence-item operations.
     pub fn nested_item<T>(&mut self, value: &T) -> &mut Self
     where
         T: Redact + ?Sized,

@@ -9,6 +9,7 @@
 
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
+
 /// Verifies replacement changes only future application-default snapshots.
 #[test]
 fn test_application_default_replacement_keeps_explicit_snapshots() {

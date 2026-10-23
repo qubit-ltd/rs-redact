@@ -26,7 +26,7 @@ use qubit_redact::domain::RedactionItems;
 
 /// Proves the target public types are available through the crate root.
 #[test]
-fn target_transactional_types_are_public() {
+fn test_target_transactional_types_are_public() {
     fn assert_redact<T: Redact + ?Sized>() {}
     let _ = assert_redact::<PublicApiValue>;
     let _: Option<RedactionFields<'_, '_>> = None;

@@ -54,14 +54,12 @@ impl RedactionRules {
     }
 
     /// Returns the attached minimum floor, if enabled.
-    #[must_use]
     #[inline(always)]
     pub fn floor(&self) -> Option<&RedactionFloor> {
         self.floor.as_ref()
     }
 
     /// Resolves final sensitivity from application and floor layers.
-    #[must_use]
     #[inline(always)]
     pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
         match self.resolve_field(field) {
@@ -147,7 +145,6 @@ impl RedactionRules {
     }
 
     /// Resolves final sensitivity using exact-only matching in both layers.
-    #[must_use]
     #[inline(always)]
     pub(crate) fn sensitivity_for_exact(&self, field: &str) -> Option<Sensitivity> {
         match self.resolve_field_exact(field) {
@@ -248,7 +245,6 @@ fn classify_inner<'a>(
 }
 
 /// Resolves the strongest sensitivity applicable to one field name.
-#[must_use]
 fn sensitivity_inner(
     inner: &RedactionPolicyInner,
     field: &str,
@@ -264,7 +260,6 @@ fn sensitivity_inner(
 }
 
 /// Returns the strongest sensitivity among every matching field candidate.
-#[must_use]
 fn strongest_sensitive_match(
     inner: &RedactionPolicyInner,
     field: &str,

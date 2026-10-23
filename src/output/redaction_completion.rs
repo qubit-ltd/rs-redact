@@ -12,7 +12,8 @@
 /// # Examples
 ///
 /// ```
-/// use qubit_redact::{RedactionCompletion, Redactor};
+/// use qubit_redact::RedactionCompletion;
+/// use qubit_redact::Redactor;
 ///
 /// let output = Redactor::standard().redact_field("password", "raw-secret");
 /// assert_eq!(output.summary().completion(), RedactionCompletion::Complete);

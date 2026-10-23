@@ -10,6 +10,15 @@
 use std::fmt;
 
 /// Explains why a private batch publication cannot resolve a handle.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::RedactionHandleError;
+///
+/// let error = RedactionHandleError::MissingItem;
+/// assert_eq!(error.to_string(), "the handle does not identify a published item");
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[must_use]
 pub enum RedactionHandleError {
@@ -25,6 +34,10 @@ impl fmt::Display for RedactionHandleError {
     /// # Parameters
     ///
     /// - `formatter`: Destination for a diagnostic containing no item data.
+    ///
+    /// # Returns
+    ///
+    /// The result of writing the diagnostic to `formatter`.
     ///
     /// # Errors
     ///
@@ -43,21 +56,3 @@ impl fmt::Display for RedactionHandleError {
 }
 
 impl std::error::Error for RedactionHandleError {}
-
-#[cfg(test)]
-mod tests {
-    use super::RedactionHandleError;
-
-    /// Handle errors render stable diagnostics without incorporating handle data.
-    #[test]
-    fn test_handle_error_display_messages() {
-        assert_eq!(
-            RedactionHandleError::DifferentTransaction.to_string(),
-            "the handle belongs to a different transaction"
-        );
-        assert_eq!(
-            RedactionHandleError::MissingItem.to_string(),
-            "the handle does not identify a published item"
-        );
-    }
-}

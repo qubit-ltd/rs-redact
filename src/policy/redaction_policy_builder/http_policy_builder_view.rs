@@ -11,6 +11,10 @@ use super::HttpContextBuilderView;
 use super::PolicyError;
 use super::RedactionFloor;
 use super::RedactionPolicyBuilder;
+use crate::UnkeyedJsonValuePolicy;
+use crate::formats::http::HttpFieldContext;
+use crate::formats::http::TextBodyPolicy;
+use crate::formats::http::UrlPathPolicy;
 
 /// Mutable view over all HTTP context differences.
 ///
@@ -43,7 +47,7 @@ impl HttpPolicyBuilderView<'_> {
         HttpContextBuilderView {
             builder: &mut self.builder.http,
             error: &mut self.error,
-            context: crate::formats::http::HttpFieldContext::Header,
+            context: HttpFieldContext::Header,
         }
     }
 
@@ -54,7 +58,7 @@ impl HttpPolicyBuilderView<'_> {
         HttpContextBuilderView {
             builder: &mut self.builder.http,
             error: &mut self.error,
-            context: crate::formats::http::HttpFieldContext::Query,
+            context: HttpFieldContext::Query,
         }
     }
 
@@ -65,42 +69,81 @@ impl HttpPolicyBuilderView<'_> {
         HttpContextBuilderView {
             builder: &mut self.builder.http,
             error: &mut self.error,
-            context: crate::formats::http::HttpFieldContext::Body,
+            context: HttpFieldContext::Body,
         }
     }
 
-    /// Sets URL path visibility for HTTP diagnostics.
+    /// Sets whether URL paths are preserved or redacted in HTTP diagnostics.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` — the visibility policy applied to every HTTP URL path.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view for further configuration.
     #[inline(always)]
-    pub fn url_path(&mut self, policy: crate::formats::http::UrlPathPolicy) -> &mut Self {
+    pub fn url_path(&mut self, policy: UrlPathPolicy) -> &mut Self {
         self.builder.http.url_path_mut(policy);
         self
     }
 
-    /// Sets opaque text-body visibility for HTTP diagnostics.
+    /// Sets whether opaque text bodies are preserved or redacted in HTTP
+    /// diagnostics.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` — the visibility policy applied to opaque text bodies.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view for further configuration.
     #[inline(always)]
-    pub fn text_body(&mut self, policy: crate::formats::http::TextBodyPolicy) -> &mut Self {
+    pub fn text_body(&mut self, policy: TextBodyPolicy) -> &mut Self {
         self.builder.http.text_body_mut(policy);
         self
     }
 
-    /// Sets the same floor for every HTTP field context.
+    /// Sets the same minimum-protection floor for headers, query/form fields,
+    /// and structured-body fields.
+    ///
+    /// # Parameters
+    ///
+    /// * `floor` — the floor applied to all HTTP field contexts.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view for further configuration.
     #[inline(always)]
     pub fn floor_all(&mut self, floor: RedactionFloor) -> &mut Self {
         self.builder.http.floor_all_mut(floor);
         self
     }
 
-    /// Disables every HTTP field-context floor explicitly.
+    /// Removes explicit floors from the header, query/form, and structured-body
+    /// contexts.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view for further configuration.
     #[inline(always)]
     pub fn disable_all_floors(&mut self) -> &mut Self {
         self.builder.http.disable_all_floors_mut();
         self
     }
 
-    /// Sets the handling of root and array JSON scalar values in HTTP
-    /// bodies.
+    /// Sets how root and array JSON scalar values in HTTP bodies are handled.
+    /// This setting does not change handling of keyed object fields.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` — the handling policy for JSON values without a field key.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to this view for further configuration.
     #[inline(always)]
-    pub fn unkeyed_json(&mut self, policy: crate::UnkeyedJsonValuePolicy) -> &mut Self {
+    pub fn unkeyed_json(&mut self, policy: UnkeyedJsonValuePolicy) -> &mut Self {
         self.builder.unkeyed_json_value_policy = policy;
         self
     }

@@ -11,7 +11,7 @@ use qubit_redact::Redactor;
 use qubit_redact::formats::argv::ArgvItem;
 
 #[test]
-fn argv_transaction_output_is_log_safe() {
+fn test_argv_transaction_output_is_log_safe() {
     let output = Redactor::standard().redact_argv([ArgvItem::plain(OsStr::new("safe\nvalue"))]);
 
     assert!(!output.text().as_str().contains('\n'));

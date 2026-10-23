@@ -39,6 +39,10 @@ impl fmt::Write for UriComponentWriter<'_> {
 }
 
 /// Writes a replacement while retaining URI-safe delimiters.
+///
+/// Returns `true` when the entire replacement is written, or `false` when the
+/// bounded destination rejects a byte and stops writing.
+#[must_use]
 fn write_uri_component(value: &str, rendered: &mut BoundedUriWriter) -> bool {
     for byte in value.bytes() {
         if byte.is_ascii_alphanumeric()

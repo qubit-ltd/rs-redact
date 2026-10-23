@@ -21,5 +21,8 @@ fn test_content_type_json_selects_structured_redaction() {
         Some(&HeaderValue::from_static("application/json")),
     );
 
-    assert!(!rendered.contains("raw"));
+    assert!(
+        !rendered.contains("raw"),
+        "JSON body redaction must not expose the original password",
+    );
 }

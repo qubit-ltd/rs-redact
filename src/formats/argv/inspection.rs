@@ -13,7 +13,20 @@ use super::redaction::inspect_heuristic_item;
 use crate::runtime::InspectionSession;
 use crate::runtime::runtime_session::RuntimeSession;
 
-/// Inspects an argv source under the transaction's shared structural budget.
+/// Classifies argv items and records their strongest sensitivity without
+/// rendering them.
+///
+/// Each admitted item consumes the transaction's shared collection, depth, and
+/// input-byte budgets before its explicit or heuristic classification is
+/// observed. Inspection stops as soon as any required budget admission fails.
+///
+/// # Parameters
+///
+/// - `session`: Transaction state that supplies policy, shared budgets, and the
+///   sensitivity accumulator.
+/// - `items`: Argument items to inspect in iterator order.
+/// - `heuristic`: Whether unclassified items are inspected using the policy's
+///   heuristic rules.
 pub(crate) fn inspect_items<'items, I>(session: &mut InspectionSession, items: I, heuristic: bool)
 where
     I: IntoIterator<Item = ArgvItem<'items>>,

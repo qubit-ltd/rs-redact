@@ -23,10 +23,6 @@ use crate::RedactionUsage;
 /// # Returns
 ///
 /// A summary with neutral resource usage for merging into runtime accounting.
-///
-/// # Panics
-///
-/// In debug builds, panics if `Exhausted` lacks an output-limit reason.
 #[must_use]
 #[inline(always)]
 pub(super) fn rendered_summary(completion: RedactionCompletion, reasons: RedactionReasons) -> RedactionSummary {

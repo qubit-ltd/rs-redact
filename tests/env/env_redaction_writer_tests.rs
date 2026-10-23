@@ -44,7 +44,7 @@ impl ExactSizeIterator for HugeEnvironmentIterator {
 }
 
 #[test]
-fn composer_and_batch_environment_operations_publish_separately() {
+fn test_composer_and_batch_environment_operations_publish_separately() {
     let redactor = Redactor::standard();
     let text = redactor
         .text_composer()
@@ -63,7 +63,7 @@ fn composer_and_batch_environment_operations_publish_separately() {
 }
 
 #[test]
-fn environment_batch_uses_its_own_output_budget() {
+fn test_environment_batch_uses_its_own_output_budget() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
             limits.max_output_bytes(10);
@@ -80,7 +80,7 @@ fn environment_batch_uses_its_own_output_budget() {
 }
 
 #[test]
-fn session_environment_os_pair_handle_publishes_after_finish() {
+fn test_session_environment_os_pair_handle_publishes_after_finish() {
     let mut batch = Redactor::standard().diagnostic_batch();
     let handle = batch.redact_env_pairs([
         (OsStr::new("REGION"), OsStr::new("ap-east-1")),
@@ -95,7 +95,7 @@ fn session_environment_os_pair_handle_publishes_after_finish() {
 /// An explicit environment pair must use runtime classification in both the
 /// aggregate and staged-handle paths, without exposing the sensitive value.
 #[test]
-fn session_environment_aggregate_and_handle_mask_classified_value() {
+fn test_session_environment_aggregate_and_handle_mask_classified_value() {
     let text = Redactor::strict()
         .text_composer()
         .env(|env| {
@@ -114,7 +114,7 @@ fn session_environment_aggregate_and_handle_mask_classified_value() {
 /// Environment list traversal must fail closed at the common collection
 /// ledger, rather than partially rendering an admitted prefix independently.
 #[test]
-fn session_environment_list_handle_stops_at_collection_limit() {
+fn test_session_environment_list_handle_stops_at_collection_limit() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
             limits.max_collection_items(1);
@@ -137,7 +137,7 @@ fn session_environment_list_handle_stops_at_collection_limit() {
 /// The collection limit must protect the runtime before a collection's
 /// advertised exact length influences allocation.
 #[test]
-fn environment_handle_does_not_preallocate_from_unadmitted_iterator_length() {
+fn test_environment_handle_does_not_preallocate_from_unadmitted_iterator_length() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
             limits.max_collection_items(1);

@@ -24,9 +24,23 @@ use crate::runtime::runtime_session::RuntimeSession;
 
 /// Parses `text` at root depth, charging the shared `session` ledger.
 ///
-/// Returns the admitted JSON tree. Returns `JsonAdmissionError::Limit` for a
-/// rejected structural or JSON allowance, or `JsonAdmissionError::Invalid` for
-/// invalid syntax or unsupported numeric values. The caller admits input bytes.
+/// The caller admits input bytes before calling this helper.
+///
+/// # Parameters
+///
+/// * `session`: Transaction that owns the structural and JSON-value budgets.
+/// * `text`: Complete JSON document whose input bytes have already been
+///   admitted.
+///
+/// # Returns
+///
+/// The admitted JSON tree.
+///
+/// # Errors
+///
+/// Returns `JsonAdmissionError::Limit` when structural or JSON-value admission
+/// is rejected, or `JsonAdmissionError::Invalid` for malformed syntax or
+/// unsupported numbers. Error values do not retain source text.
 pub(crate) fn admit_json_text_value(session: &mut dyn RuntimeSession, text: &str) -> Result<Value, JsonAdmissionError> {
     admit_json_text_value_at_depth(session, text, 1)
 }
@@ -85,13 +99,29 @@ pub(crate) fn admit_json_text_value_at_depth(
 ///
 /// Disabled policies intentionally do not parse or redact their input. This
 /// helper performs only log-control escaping and output-bound enforcement.
-#[must_use]
+///
+/// # Parameters
+///
+/// * `text`: Trusted JSON text to pass through after escaping log controls.
+/// * `max_output_bytes`: Maximum number of bytes allowed in the rendered text.
+///
+/// # Returns
+///
+/// A bounded, unpublished rendering with truncation provenance when needed.
 pub(crate) fn passthrough_json_text_with_limit(text: &str, max_output_bytes: usize) -> RenderedOperation {
     json_output_from_bounded(BoundedJsonRedaction::Complete(text.to_owned()), max_output_bytes)
 }
 
 /// Converts bounded JSON rendering into unpublished adapter state.
-#[must_use]
+///
+/// # Parameters
+///
+/// * `bounded`: Escaped or redacted rendering and its completion metadata.
+/// * `max_output_bytes`: Maximum number of bytes allowed in the final text.
+///
+/// # Returns
+///
+/// An unpublished operation that retains completion and degradation reasons.
 pub(crate) fn json_output_from_bounded(
     bounded: super::bounded_json_redaction::BoundedJsonRedaction,
     max_output_bytes: usize,
@@ -228,20 +258,44 @@ impl JsonRedactionWriter<'_> {
     /// The caller performs input admission and checks output closure before
     /// entering this helper. This operation only escapes and bounds the text;
     /// it does not parse or classify JSON.
-    #[must_use]
+    ///
+    /// # Parameters
+    ///
+    /// * `text`: Previously admitted JSON text to publish in disabled mode.
+    ///
+    /// # Returns
+    ///
+    /// An unpublished, escaped operation bounded by the session's remaining
+    /// output allowance.
     pub(crate) fn redact_text_direct(&mut self, text: &str) -> RenderedOperation {
         passthrough_json_text_with_limit(text, self.session.remaining_output_bytes())
     }
 
     /// Redacts a parsed value under the session's remaining output allowance.
-    #[must_use]
+    ///
+    /// # Parameters
+    ///
+    /// * `value`: Parsed JSON value to redact without modifying its tree.
+    ///
+    /// # Returns
+    ///
+    /// An unpublished operation containing the bounded redacted rendering.
     pub(crate) fn redact_value_direct(&mut self, value: &Value) -> RenderedOperation {
         redact_json_value_with_limit(self.session.policy(), value, self.session.remaining_output_bytes())
     }
 }
 
 /// Redacts a parsed JSON value under a caller-supplied output allowance.
-#[must_use]
+///
+/// # Parameters
+///
+/// * `policy`: Redaction policy applied to sensitive JSON values.
+/// * `value`: Parsed JSON value to render without modifying its tree.
+/// * `max_output_bytes`: Maximum number of bytes allowed in the final text.
+///
+/// # Returns
+///
+/// An unpublished operation containing bounded redacted JSON.
 pub(crate) fn redact_json_value_with_limit(
     policy: &crate::RedactionPolicy,
     value: &Value,
@@ -254,6 +308,16 @@ pub(crate) fn redact_json_value_with_limit(
 }
 
 /// Creates fail-closed output for JSON text that could not be parsed.
+///
+/// # Parameters
+///
+/// * `policy`: Policy supplying the opaque secret mask.
+/// * `max_output_bytes`: Maximum number of bytes allowed in the final text.
+///
+/// # Returns
+///
+/// An unpublished operation containing the bounded opaque mask and invalid-JSON
+/// provenance.
 pub(crate) fn invalid_json_output(policy: &crate::RedactionPolicy, max_output_bytes: usize) -> RenderedOperation {
     json_output_from_bounded(
         BoundedJsonRedaction::Invalid(policy.masking().mask_opaque(crate::Sensitivity::Secret).to_owned()),

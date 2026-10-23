@@ -9,7 +9,7 @@
 
 use qubit_redact_derive::Redact;
 
-/// Record with generated redacted serialization.
+/// Record used to compile the generated redacted-serialization implementation.
 #[derive(Redact)]
 #[redact(serde)]
 struct Record {
@@ -17,5 +17,5 @@ struct Record {
     value: String,
 }
 
-/// Keeps the derived type reachable.
+/// Compiles the derived record as part of this dependency-alias fixture.
 fn main() {}

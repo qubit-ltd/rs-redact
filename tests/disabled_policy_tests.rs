@@ -75,7 +75,7 @@ impl Redact for Example {
 }
 
 #[test]
-fn disabled_policy_preserves_configuration_through_builder() {
+fn test_disabled_policy_preserves_configuration_through_builder() {
     let mut policy = RedactionPolicy::standard();
     assert!(!policy.is_disabled());
     assert!(policy.set_disabled(true).is_disabled());
@@ -85,7 +85,7 @@ fn disabled_policy_preserves_configuration_through_builder() {
 }
 
 #[test]
-fn disabled_policy_outputs_scalar_and_domain_values_without_redaction() {
+fn test_disabled_policy_outputs_scalar_and_domain_values_without_redaction() {
     let output = Redactor::new(RedactionPolicy::disabled()).redact_field("password", "raw-secret");
     assert!(output.text().as_str().contains("raw-secret"));
     assert!(output.summary().is_redaction_disabled());
@@ -138,7 +138,7 @@ fn test_disabled_domain_field_json_is_admitted_once() {
 }
 
 #[test]
-fn disabled_inspection_is_explicit() {
+fn test_disabled_inspection_is_explicit() {
     let inspection = Redactor::new(RedactionPolicy::disabled())
         .inspect_field("password", "raw-secret")
         .expect("disabled inspection remains conclusive");
@@ -146,7 +146,7 @@ fn disabled_inspection_is_explicit() {
 }
 
 #[test]
-fn disabled_policy_restores_argv_env_and_process_values() {
+fn test_disabled_policy_restores_argv_env_and_process_values() {
     use qubit_redact::formats::argv::ArgvItem;
 
     let redactor = Redactor::new(RedactionPolicy::disabled());
@@ -173,14 +173,14 @@ fn disabled_policy_restores_argv_env_and_process_values() {
 
 #[cfg(feature = "json")]
 #[test]
-fn disabled_policy_restores_json_text_without_validation() {
+fn test_disabled_policy_restores_json_text_without_validation() {
     let output = Redactor::new(RedactionPolicy::disabled()).redact_json("not valid JSON: raw-secret");
     assert_eq!(output.text().as_str(), "not valid JSON: raw-secret");
 }
 
 #[cfg(feature = "uri")]
 #[test]
-fn disabled_policy_restores_uri_components() {
+fn test_disabled_policy_restores_uri_components() {
     let input = "https://user:password@example.test/private/path?token=uri-secret#fragment-secret";
     let output = Redactor::new(RedactionPolicy::disabled()).redact_uri(input);
     assert_eq!(output.text().as_str(), input);
@@ -188,7 +188,7 @@ fn disabled_policy_restores_uri_components() {
 
 #[cfg(feature = "http")]
 #[test]
-fn disabled_policy_restores_http_url_headers_and_body() {
+fn test_disabled_policy_restores_http_url_headers_and_body() {
     use http::HeaderMap;
     use http::HeaderValue;
     use qubit_redact::formats::http::BodyCapture;

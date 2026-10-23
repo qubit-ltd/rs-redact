@@ -62,7 +62,6 @@ pub(in crate::formats::http) fn redact(
 ///
 /// `Some((text, false))` for complete JSON, `Some((prefix, true))` when
 /// serialization exceeded the output budget, or `None` for UTF-8 errors.
-#[must_use]
 pub(in crate::formats::http) fn serialize_bounded(value: &Value, max_output_bytes: usize) -> Option<(String, bool)> {
     let mut writer = BoundedBodyWriter::new(max_output_bytes);
     if to_writer(&mut writer, value).is_err() {
@@ -86,7 +85,6 @@ pub(in crate::formats::http) fn serialize_bounded(value: &Value, max_output_byte
 ///
 /// Redacted NDJSON, a pass-through flag, and a rendering-truncation flag, or
 /// `None` if the bounded writer cannot produce UTF-8 text.
-#[must_use]
 pub(in crate::formats::http) fn redact_ndjson_values(
     redactor: &FieldRedactor<'_>,
     lines: &mut [Option<Value>],

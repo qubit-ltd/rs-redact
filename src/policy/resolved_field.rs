@@ -27,8 +27,18 @@ pub(crate) enum ResolvedField {
 impl ResolvedField {
     /// Combines this decision with a context enhancement without allowing the
     /// context to lower the existing protection level.
+    ///
+    /// # Parameters
+    ///
+    /// - `context`: Additional decision supplied by the current format context.
+    ///
+    /// # Returns
+    ///
+    /// The decision containing the higher sensitivity, or pass-through when
+    /// neither decision requires redaction.
     #[must_use]
     #[cfg(feature = "http")]
+    #[inline]
     pub(crate) fn stronger(self, context: Self) -> Self {
         match (self, context) {
             (Self::Sensitive { sensitivity: base }, Self::Sensitive { sensitivity: context }) => Self::Sensitive {

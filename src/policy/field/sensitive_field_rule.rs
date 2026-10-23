@@ -14,6 +14,20 @@ use super::Sensitivity;
 /// # Type Parameters
 ///
 /// * `'a` - Lifetime of the borrowed canonical field name.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::RedactionPolicy;
+/// use qubit_redact::SensitiveFieldRule;
+///
+/// let policy = RedactionPolicy::standard();
+/// if let Some(rule) = policy.application_sensitive_rules().next() {
+///     let rule: SensitiveFieldRule<'_> = rule;
+///     assert!(!rule.field().is_empty());
+///     let _sensitivity = rule.sensitivity();
+/// }
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SensitiveFieldRule<'a> {
     /// Canonical field name.

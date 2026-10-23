@@ -70,13 +70,51 @@ impl RuntimeCore {
         }
     }
 
+    /// Borrows the transaction-wide JSON budget for lexical decoder admission.
+    ///
+    /// # Returns
+    ///
+    /// An exclusive borrow of the shared lexical JSON value budget.
+    #[cfg(feature = "http")]
+    #[inline(always)]
+    #[must_use]
+    pub(crate) fn json_value_budget_mut(&mut self) -> &mut JsonValueBudget {
+        self.budget.json_value_budget_mut()
+    }
+
+    /// Splits JSON structure accounting from lexical value accounting.
+    ///
+    /// # Returns
+    ///
+    /// Disjoint structural-accounting capability and lexical JSON value budget.
+    #[cfg(feature = "json")]
+    #[must_use]
+    pub(crate) fn split_json_admission(&mut self) -> (super::JsonStructureAdmission<'_>, &mut JsonValueBudget) {
+        let Self {
+            budget,
+            summary,
+            active_operation_summary,
+            ..
+        } = self;
+        let (structural, usage, active_operation_usage, json_budget) = budget.split_json_admission();
+        (
+            super::JsonStructureAdmission::new(
+                structural,
+                usage,
+                active_operation_usage,
+                summary,
+                active_operation_summary,
+            ),
+            json_budget,
+        )
+    }
+
     /// Returns the immutable policy snapshot.
     ///
     /// # Returns
     ///
     /// The immutable policy snapshot retained by this transaction.
     #[inline(always)]
-    #[must_use]
     pub(super) fn policy(&self) -> &RedactionPolicy {
         self.policy.as_ref()
     }
@@ -119,45 +157,6 @@ impl RuntimeCore {
         self.phase == TransactionPhase::OutputExhausted || self.remaining_output_bytes() == 0
     }
 
-    /// Borrows the transaction-wide JSON budget for lexical decoder admission.
-    ///
-    /// # Returns
-    ///
-    /// An exclusive borrow of the shared lexical JSON value budget.
-    #[cfg(feature = "http")]
-    #[inline(always)]
-    #[must_use]
-    pub(crate) fn json_value_budget_mut(&mut self) -> &mut JsonValueBudget {
-        self.budget.json_value_budget_mut()
-    }
-
-    /// Splits JSON structure accounting from lexical value accounting.
-    ///
-    /// # Returns
-    ///
-    /// Disjoint structural-accounting capability and lexical JSON value budget.
-    #[cfg(feature = "json")]
-    #[must_use]
-    pub(crate) fn split_json_admission(&mut self) -> (super::JsonStructureAdmission<'_>, &mut JsonValueBudget) {
-        let Self {
-            budget,
-            summary,
-            active_operation_summary,
-            ..
-        } = self;
-        let (structural, usage, active_operation_usage, json_budget) = budget.split_json_admission();
-        (
-            super::JsonStructureAdmission::new(
-                structural,
-                usage,
-                active_operation_usage,
-                summary,
-                active_operation_summary,
-            ),
-            json_budget,
-        )
-    }
-
     /// Consumes runtime state into its aggregate summary.
     ///
     /// # Returns
@@ -180,6 +179,7 @@ impl RuntimeCore {
     ///
     /// In debug builds, panics if a new summary scope encounters an already
     /// active usage scope, which indicates an internal ownership mismatch.
+    #[must_use]
     pub(super) fn begin_item_summary(&mut self) -> bool {
         if self.active_operation_summary.is_some() {
             return false;

@@ -20,5 +20,8 @@ fn test_body_dispatch_detects_whitespace_surrounded_json() {
         None,
     );
 
-    assert!(!rendered.contains("raw-secret"));
+    assert!(
+        !rendered.contains("raw-secret"),
+        "body dispatch must redact secrets from whitespace-surrounded JSON"
+    );
 }

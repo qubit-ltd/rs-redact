@@ -47,7 +47,7 @@ impl ExactSizeIterator for HugeArgvIterator {
 }
 
 #[test]
-fn batch_publishes_argv_handle_only_after_finish() {
+fn test_batch_publishes_argv_handle_only_after_finish() {
     let mut batch = Redactor::standard().diagnostic_batch();
     let handle = batch.redact_argv([ArgvItem::plain(OsStr::new("client"))]);
     let output = batch.finish_with_marker("<redaction incomplete>");
@@ -57,7 +57,7 @@ fn batch_publishes_argv_handle_only_after_finish() {
 }
 
 #[test]
-fn aggregate_argv_adapters_append_to_the_same_output() {
+fn test_aggregate_argv_adapters_append_to_the_same_output() {
     let output = Redactor::standard()
         .text_composer()
         .argv(|argv| {
@@ -75,7 +75,7 @@ fn aggregate_argv_adapters_append_to_the_same_output() {
 /// Heuristic argv rendering must keep the option-value contract while using
 /// the same transaction-owned output allowance as surrounding adapters.
 #[test]
-fn heuristic_argv_masks_pending_secret_value_in_aggregate_transaction() {
+fn test_heuristic_argv_masks_pending_secret_value_in_aggregate_transaction() {
     let output = Redactor::strict()
         .text_composer()
         .argv(|argv| {
@@ -94,7 +94,7 @@ fn heuristic_argv_masks_pending_secret_value_in_aggregate_transaction() {
 /// Collection admission must stop argv traversal before a later secret item
 /// can reach the renderer, and the handle must retain the transaction result.
 #[test]
-fn argv_handle_stops_at_shared_collection_limit() {
+fn test_argv_handle_stops_at_shared_collection_limit() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
             limits.max_collection_items(1);
@@ -118,7 +118,7 @@ fn argv_handle_stops_at_shared_collection_limit() {
 /// capacity, otherwise an attacker-controlled exact-size iterator can panic
 /// before the configured collection limit closes traversal.
 #[test]
-fn argv_handle_does_not_preallocate_from_unadmitted_iterator_length() {
+fn test_argv_handle_does_not_preallocate_from_unadmitted_iterator_length() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
             limits.max_collection_items(1);
@@ -137,7 +137,7 @@ fn argv_handle_does_not_preallocate_from_unadmitted_iterator_length() {
 /// Once the shared collection budget is exhausted, an iterator's protected
 /// suffix must not be advanced merely to discover whether another item exists.
 #[test]
-fn argv_handle_does_not_consume_suffix_after_collection_limit() {
+fn test_argv_handle_does_not_consume_suffix_after_collection_limit() {
     let calls = Rc::new(Cell::new(0));
     let observed = Rc::clone(&calls);
     let items = std::iter::from_fn(move || {

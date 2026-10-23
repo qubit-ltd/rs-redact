@@ -16,19 +16,38 @@ use super::redacted_level_serialize_ref::RedactedLevelSerializeRef;
 use crate::RedactionPolicy;
 use crate::policy::ResolvedField;
 
-/// Borrowed serializer adapter for one keyed value.
+/// Defers serialization of one borrowed value until its sibling key is
+/// classified.
+///
+/// The adapter retains the value, key, and policy by reference. Serialization
+/// applies the key's resolved sensitivity while using the shared resource
+/// scope; disabled policies and pass-through keys serialize the value directly.
 #[doc(hidden)]
 pub struct RedactedKeyedSerializeRef<'value, 'key, 'policy, T: ?Sized, K: ?Sized> {
-    /// Borrowed source value.
+    /// Source value serialized under the sensitivity resolved from `key`.
     value: &'value T,
-    /// Runtime key used to classify the source value.
+    /// Runtime sibling key converted to a string when serialization begins.
     key: &'key K,
-    /// Policy used to classify the key and mask the value.
+    /// Policy supplying key classification, masking, and resource limits.
     policy: &'policy RedactionPolicy,
 }
 
 impl<'value, 'key, 'policy, T: ?Sized, K: ?Sized> RedactedKeyedSerializeRef<'value, 'key, 'policy, T, K> {
-    /// Creates a policy-carrying borrowed keyed-value adapter.
+    /// Retains a value, sibling key, and policy for later serialization.
+    ///
+    /// This constructor does not inspect or serialize the value. The key must
+    /// be convertible to a string when the adapter is serialized.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Source value borrowed for the adapter's lifetime.
+    /// - `key`: Runtime sibling key used to resolve the value's sensitivity.
+    /// - `policy`: Immutable policy used for classification and resource
+    ///   limits.
+    ///
+    /// # Returns
+    ///
+    /// An adapter borrowing all three inputs without performing serialization.
     #[must_use]
     #[inline(always)]
     pub fn new(value: &'value T, key: &'key K, policy: &'policy RedactionPolicy) -> Self {
@@ -42,6 +61,18 @@ where
     K: ?Sized + AsRef<str>,
 {
     /// Runs this borrowed adapter under the shared policy and resource scope.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Destination serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted representation.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after key classification and value serialization.
     ///
     /// # Errors
     ///

@@ -22,6 +22,7 @@ pub(crate) enum HttpFieldContext {
 
 impl HttpFieldContext {
     /// Returns the validation location corresponding to this context.
+    #[must_use]
     pub(crate) const fn location(self) -> PolicyLocation {
         match self {
             Self::Header => PolicyLocation::HttpHeader,
