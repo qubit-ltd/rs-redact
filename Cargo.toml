@@ -65,7 +65,7 @@ http = { version = "^1.5", optional = true }
 serde = { version = "^1.0", optional = true }
 serde_json = { version = "^1.0", optional = true }
 url = { version = "^2.5", optional = true }
-qubit-budget = { path = "../rs-budget", version = "0.9.1" }
+qubit-budget = { version = "0.9" }
 
 qubit-json = { path = "../rs-json", version = "0.12", optional = true }
 
