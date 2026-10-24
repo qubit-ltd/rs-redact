@@ -154,11 +154,16 @@ impl HttpPolicyExecutor<'_> {
         let mut redacted_query = String::new();
         for (key, value) in url.query_pairs() {
             let remaining = query_limit.saturating_sub(redacted_query.len());
-            let value = self
+            let (value, mask_truncated) = self
                 .query_field_redactor()
-                .redact_bounded(&key, &value, remaining)
-                .into_inner();
-            let (value, nested_truncated) = self.redact_nested_url_value(value, depth, remaining, reasons);
+                .redact_bounded_with_truncation(&key, &value, remaining);
+            if mask_truncated {
+                writer.mark_truncated();
+                break;
+            }
+            let value = value.into_inner();
+            let (value, nested_truncated) =
+                self.redact_nested_url_value(value, depth, remaining, reasons);
             if !form::append_pair_bounded(&mut redacted_query, &key, value.as_ref(), query_limit) {
                 writer.mark_truncated();
                 break;

@@ -149,8 +149,44 @@ impl<'a> FieldRedactor<'a> {
         value: &'value str,
         max_bytes: usize,
     ) -> MaskedValue<'value> {
-        self.redact_bounded_if_sensitive(field, value, max_bytes)
-            .unwrap_or_else(|| MaskedValue::new(Cow::Borrowed(value)))
+        self.redact_bounded_with_truncation(field, value, max_bytes)
+            .0
+    }
+
+    /// Masks a field and reports whether the generated mask was cut short.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Raw field name resolved against both rule sets.
+    /// - `value`: Source text borrowed when the rules permit pass-through.
+    /// - `max_bytes`: Maximum allocation for generated masking text.
+    ///
+    /// # Returns
+    ///
+    /// The bounded mask (or unchanged borrowed value) and whether masking
+    /// omitted part of the selected mask. Pass-through values are not bounded
+    /// here; callers remain responsible for their output limit.
+    #[must_use]
+    #[inline]
+    pub(in crate::formats::http) fn redact_bounded_with_truncation<'value>(
+        &self,
+        field: &str,
+        value: &'value str,
+        max_bytes: usize,
+    ) -> (MaskedValue<'value>, bool) {
+        let resolved = self
+            .base_rules
+            .resolve_field(field)
+            .stronger(self.context_rules.resolve_field(field));
+        match resolved {
+            ResolvedField::Sensitive { sensitivity } => {
+                let (masked, truncated) =
+                    self.masking
+                        .mask_bounded_with_truncation(sensitivity, value, max_bytes);
+                (MaskedValue::new(masked), truncated)
+            }
+            ResolvedField::PassThrough => (MaskedValue::new(Cow::Borrowed(value)), false),
+        }
     }
 
     /// Redacts a field only when its atomic rule resolution is sensitive.

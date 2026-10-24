@@ -52,16 +52,50 @@ pub(in crate::formats::http) fn redact_bounded(
     input: &[u8],
     max_output_bytes: usize,
 ) -> String {
+    redact_bounded_with_truncation(redactor, input, max_output_bytes).0
+}
+
+/// Redacts a validated form and reports whether bounded rendering omitted data.
+///
+/// # Parameters
+///
+/// * `redactor` - Field policy executor.
+/// * `input` - Previously validated URL-encoded bytes.
+/// * `max_output_bytes` - Maximum final output bytes before the caller adds a
+///   truncation marker.
+///
+/// # Returns
+///
+/// The bounded URL-encoded form and whether a mask or encoded pair was
+/// truncated or rejected by the intermediate output limit.
+#[must_use]
+pub(in crate::formats::http) fn redact_bounded_with_truncation(
+    redactor: &FieldRedactor<'_>,
+    input: &[u8],
+    max_output_bytes: usize,
+) -> (String, bool) {
     let intermediate_limit = max_output_bytes.saturating_add(1);
     let mut output = String::new();
+    let mut truncated = false;
     for (key, value) in parse(input) {
         let remaining = intermediate_limit.saturating_sub(output.len());
-        let value = redactor.redact_bounded(key.as_ref(), value.as_ref(), remaining);
-        if !append_pair_bounded(&mut output, key.as_ref(), value.as_str(), intermediate_limit) {
+        let (value, mask_truncated) =
+            redactor.redact_bounded_with_truncation(key.as_ref(), value.as_ref(), remaining);
+        truncated |= mask_truncated;
+        if !append_pair_bounded(
+            &mut output,
+            key.as_ref(),
+            value.as_str(),
+            intermediate_limit,
+        ) {
+            truncated = true;
+            break;
+        }
+        if truncated {
             break;
         }
     }
-    output
+    (output, truncated)
 }
 
 /// Appends one URL-encoded pair under an aggregate byte limit.

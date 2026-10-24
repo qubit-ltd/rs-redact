@@ -62,11 +62,12 @@ impl HttpPolicyExecutor<'_> {
         output_limit: usize,
     ) -> HttpRendered {
         if self.policy.is_disabled() {
-            return self.finish_diagnostic_with_limit(
+            let parsed = ParsedBody::new(
                 String::from_utf8_lossy(capture.bytes()).into_owned(),
-                output_limit,
-                None,
+                BodyRenderStatus::Structured,
+                false,
             );
+            return Self::finish_body_redaction(parsed, capture, output_limit);
         }
         let bounded = capture.bytes();
         let truncated = capture.is_source_truncated();
