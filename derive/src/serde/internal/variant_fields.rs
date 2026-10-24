@@ -54,6 +54,7 @@ pub(super) fn enum_named_parts(
     runtime: &Path,
     container_attributes: &SerdeContainerAttributes,
     variant: &VariantData<'_>,
+    legacy_nested: bool,
 ) -> (TokenStream, Vec<TokenStream>, Vec<TokenStream>, Vec<String>, Vec<Ident>) {
     let bindings = fields
         .iter()
@@ -111,6 +112,7 @@ pub(super) fn enum_named_parts(
                 raw: raw.clone(),
                 key_raw,
             },
+            legacy_nested,
         );
         let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw);
         setups.push(quote_spanned! {field.span()=>
@@ -153,6 +155,7 @@ pub(super) fn enum_unnamed_parts(
     variant_index: u32,
     fields: &[UnnamedField<'_>],
     runtime: &Path,
+    legacy_nested: bool,
 ) -> (TokenStream, Vec<TokenStream>, Vec<TokenStream>, Vec<Ident>) {
     let bindings = fields
         .iter()
@@ -194,6 +197,7 @@ pub(super) fn enum_unnamed_parts(
                 raw: raw.clone(),
                 key_raw: None,
             },
+            legacy_nested,
         );
         let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw);
         setups.push(quote_spanned! {field.span()=>

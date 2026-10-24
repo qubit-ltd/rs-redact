@@ -49,6 +49,7 @@ pub(super) fn enum_body(
     container_attributes: &SerdeContainerAttributes,
     serializer: &Ident,
     marker: &Ident,
+    legacy_nested: bool,
 ) -> Result<TokenStream> {
     let arms = variants
         .iter()
@@ -58,24 +59,28 @@ pub(super) fn enum_body(
             }
             match container_attributes.representation() {
                 SerdeEnumRepresentation::ExternallyTagged => {
-                    external_variant_arm(type_name, variant, runtime, serde, container_attributes)
+                    external_variant_arm(type_name, variant, runtime, serde, container_attributes, legacy_nested)
                 }
                 SerdeEnumRepresentation::InternallyTagged { tag } => {
-                    internal_variant_arm(type_name, variant, runtime, serde, container_attributes, tag)
+                    internal_variant_arm(type_name, variant, runtime, serde, container_attributes, tag, legacy_nested)
                 }
                 SerdeEnumRepresentation::AdjacentlyTagged { tag, content } => {
-                    adjacent_variant_arm(type_name, variant, runtime, serde, container_attributes, tag, content)
+                    adjacent_variant_arm(type_name, variant, runtime, serde, container_attributes, tag, content, legacy_nested)
                 }
                 SerdeEnumRepresentation::Untagged => {
-                    untagged_variant_arm(type_name, variant, runtime, serde, container_attributes)
+                    untagged_variant_arm(type_name, variant, runtime, serde, container_attributes, legacy_nested)
                 }
             }
         })
         .collect::<Result<Vec<_>>>()?;
+    let marker_arm = (!legacy_nested).then(|| {
+        quote!(Self::#marker(_) => unreachable!("generated projection marker is never constructed"),)
+    });
+    let source = if legacy_nested { quote!(self) } else { quote!(*self) };
     Ok(quote! {
-        match *self {
+        match #source {
             #(#arms,)*
-            Self::#marker(_) => unreachable!("generated projection marker is never constructed"),
+            #marker_arm
         }
     })
 }

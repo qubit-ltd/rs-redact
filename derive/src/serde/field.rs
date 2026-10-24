@@ -97,6 +97,7 @@ pub(super) fn serialized_carrier(
     runtime: &Path,
     serialize_with: Option<&Path>,
     access: FieldAccess,
+    legacy_nested: bool,
 ) -> TokenStream {
     match mode {
         FieldMode::Unmarked | FieldMode::Skip => match serialize_with {
@@ -126,9 +127,15 @@ pub(super) fn serialized_carrier(
         }
         FieldMode::Nested => {
             let raw = access.raw;
-            quote_spanned!(field.span()=>
-                #runtime::domain::internal::RedactedSerializeRef::new(#raw, policy)
-            )
+            if legacy_nested {
+                quote_spanned!(field.span()=>
+                    #runtime::domain::internal::RedactedSerializeRef::new(#raw, policy)
+                )
+            } else {
+                quote_spanned!(field.span()=>
+                    #runtime::domain::internal::RedactedProjectionRef::new(#raw, policy)
+                )
+            }
         }
         FieldMode::Map => {
             let raw = access.raw;

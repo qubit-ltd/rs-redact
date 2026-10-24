@@ -51,16 +51,17 @@ pub(super) fn struct_body(
     runtime: &Path,
     serde: &Path,
     container_attributes: &SerdeContainerAttributes,
+    legacy_nested: bool,
 ) -> TokenStream {
     match fields {
         FieldsData::Named(fields) if container_attributes.transparent() => {
-            transparent_named_struct_body(type_name, &fields[0], runtime, serde, container_attributes)
+            transparent_named_struct_body(type_name, &fields[0], runtime, serde, container_attributes, legacy_nested)
         }
-        FieldsData::Named(fields) => named_struct_body(type_name, fields, runtime, serde, container_attributes),
+        FieldsData::Named(fields) => named_struct_body(type_name, fields, runtime, serde, container_attributes, legacy_nested),
         FieldsData::Unnamed(fields) if fields.len() == 1 => {
-            newtype_struct_body(type_name, &fields[0], runtime, serde, container_attributes)
+            newtype_struct_body(type_name, &fields[0], runtime, serde, container_attributes, legacy_nested)
         }
-        FieldsData::Unnamed(fields) => tuple_struct_body(type_name, fields, runtime, serde, container_attributes),
+        FieldsData::Unnamed(fields) => tuple_struct_body(type_name, fields, runtime, serde, container_attributes, legacy_nested),
         FieldsData::Unit => {
             let serialized_name = container_attributes.name();
             quote! {
@@ -100,6 +101,7 @@ fn transparent_named_struct_body(
     runtime: &Path,
     serde: &Path,
     container_attributes: &SerdeContainerAttributes,
+    legacy_nested: bool,
 ) -> TokenStream {
     let serialized_name = container_attributes.name();
     if field_is_skipped(parsed.serde_attributes()) {
@@ -110,8 +112,13 @@ fn transparent_named_struct_body(
     let field = parsed.field();
     let identifier = parsed.identifier();
     let raw_name = raw_identifier(identifier);
-    let raw = quote_spanned!(field.span()=> self.#identifier);
+    let raw = if legacy_nested {
+        quote_spanned!(field.span()=> &self.#identifier)
+    } else {
+        quote_spanned!(field.span()=> self.#identifier)
+    };
     let key_raw = match parsed.attributes().mode() {
+        FieldMode::KeyedBy(key) if legacy_nested => Some(quote_spanned!(field.span()=> &self.#key)),
         FieldMode::KeyedBy(key) => Some(quote_spanned!(field.span()=> self.#key)),
         _ => None,
     };
@@ -127,6 +134,7 @@ fn transparent_named_struct_body(
             raw: raw.clone(),
             key_raw,
         },
+        legacy_nested,
     );
     let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw);
     quote! {
@@ -167,6 +175,7 @@ fn named_struct_body(
     runtime: &Path,
     serde: &Path,
     container_attributes: &SerdeContainerAttributes,
+    legacy_nested: bool,
 ) -> TokenStream {
     let mut setups = Vec::new();
     let mut conditions = Vec::new();
@@ -184,8 +193,13 @@ fn named_struct_body(
             .serde_attributes()
             .rename()
             .map_or_else(|| container_attributes.rename_struct_field(&raw_name), str::to_owned);
-        let raw = quote_spanned!(field.span()=> self.#identifier);
+        let raw = if legacy_nested {
+            quote_spanned!(field.span()=> &self.#identifier)
+        } else {
+            quote_spanned!(field.span()=> self.#identifier)
+        };
         let key_raw = match parsed.attributes().mode() {
+            FieldMode::KeyedBy(key) if legacy_nested => Some(quote_spanned!(field.span()=> &self.#key)),
             FieldMode::KeyedBy(key) => Some(quote_spanned!(field.span()=> self.#key)),
             _ => None,
         };
@@ -202,6 +216,7 @@ fn named_struct_body(
                 raw: raw.clone(),
                 key_raw,
             },
+            legacy_nested,
         );
         let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw);
         setups.push(quote_spanned! {field.span()=>
@@ -277,6 +292,7 @@ fn newtype_struct_body(
     runtime: &Path,
     serde: &Path,
     container_attributes: &SerdeContainerAttributes,
+    legacy_nested: bool,
 ) -> TokenStream {
     let serialized_name = container_attributes.name();
     if field_is_skipped(parsed.serde_attributes()) {
@@ -287,7 +303,11 @@ fn newtype_struct_body(
     let field = parsed.field();
     let index = parsed.index();
     let projection_field = format_ident!("__qubit_redact_field_{}", index.index, span = field.span());
-    let raw = quote_spanned!(field.span()=> self.#projection_field);
+    let raw = if legacy_nested {
+        quote_spanned!(field.span()=> &self.#index)
+    } else {
+        quote_spanned!(field.span()=> self.#projection_field)
+    };
     let context = field_context(None, None, &index.index.to_string());
     let value = serialized_carrier(
         type_name,
@@ -300,6 +320,7 @@ fn newtype_struct_body(
             raw: raw.clone(),
             key_raw: None,
         },
+        legacy_nested,
     );
     let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw);
     quote! {
@@ -341,6 +362,7 @@ fn tuple_struct_body(
     runtime: &Path,
     serde: &Path,
     container_attributes: &SerdeContainerAttributes,
+    legacy_nested: bool,
 ) -> TokenStream {
     let mut setups = Vec::new();
     let mut conditions = Vec::new();
@@ -352,7 +374,11 @@ fn tuple_struct_body(
         let field = parsed.field();
         let index = parsed.index();
         let projection_field = format_ident!("__qubit_redact_field_{}", index.index, span = field.span());
-        let raw = quote_spanned!(field.span()=> self.#projection_field);
+        let raw = if legacy_nested {
+            quote_spanned!(field.span()=> &self.#index)
+        } else {
+            quote_spanned!(field.span()=> self.#projection_field)
+        };
         let context = field_context(None, None, &index.index.to_string());
         let carrier = format_ident!("__qubit_redact_serialized_{position}");
         let value = serialized_carrier(
@@ -366,6 +392,7 @@ fn tuple_struct_body(
                 raw: raw.clone(),
                 key_raw: None,
             },
+            legacy_nested,
         );
         let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw);
         setups.push(quote_spanned! {field.span()=>

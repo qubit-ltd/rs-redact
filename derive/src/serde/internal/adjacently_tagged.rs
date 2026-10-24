@@ -49,6 +49,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
     container_attributes: &SerdeContainerAttributes,
     tag: &str,
     content: &str,
+    legacy_nested: bool,
 ) -> Result<TokenStream> {
     let rust_name = &variant.variant().ident;
     let variant_name = serialized_variant_name(variant, container_attributes);
@@ -56,7 +57,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
     let arm = match variant.fields() {
         FieldsData::Named(fields) => {
             let (pattern, setups, _conditions, names, carriers) =
-                enum_named_parts(type_name, rust_name, fields, runtime, container_attributes, variant);
+                enum_named_parts(type_name, rust_name, fields, runtime, container_attributes, variant, legacy_nested);
             let (proxy_definition, proxy_value) = named_content_proxy(rust_name, runtime, serde, &names, &carriers);
             quote! {
                 Self::#rust_name #pattern => {
@@ -85,7 +86,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
         }
         FieldsData::Unnamed(fields) if fields.len() == 1 => {
             let (pattern, setups, _conditions, carriers) =
-                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime);
+                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime, legacy_nested);
             if carriers.is_empty() {
                 quote! {
                     Self::#rust_name #pattern => {
@@ -134,7 +135,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
         }
         FieldsData::Unnamed(fields) => {
             let (pattern, setups, _conditions, carriers) =
-                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime);
+                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime, legacy_nested);
             let (proxy_definition, proxy_value) = tuple_content_proxy(rust_name, runtime, serde, &carriers);
             quote! {
                 Self::#rust_name #pattern => {

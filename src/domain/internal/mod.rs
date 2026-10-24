@@ -12,6 +12,8 @@ pub(super) mod bounded_debug_writer;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod bounded_display_writer;
 #[cfg(any(feature = "serde", feature = "json"))]
+mod array_projection;
+#[cfg(any(feature = "serde", feature = "json"))]
 mod budget_compound;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod budget_serialize;
@@ -30,6 +32,8 @@ mod keyed_policy;
 mod nested;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod option_projection;
+#[cfg(any(feature = "serde", feature = "json"))]
+mod projection_forwarding;
 #[cfg(feature = "serde")]
 mod policy_frame;
 #[cfg(feature = "json")]
@@ -73,10 +77,14 @@ mod serde_raw_guard;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod structured_serde_budget;
 #[cfg(any(feature = "serde", feature = "json"))]
+mod tuple_projection;
+#[cfg(any(feature = "serde", feature = "json"))]
 mod vec_projection;
 
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use budget_serialize::BudgetSerialize;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use array_projection::ArrayProjection;
 pub use display_value::DisplayValue;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use internally_tagged_serializer::serialize_internally_tagged;
@@ -115,6 +123,8 @@ pub use redacted_map_serialize_ref::RedactedMapSerializeRef;
 pub use redacted_projection_ref::RedactedProjectionRef;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use redacted_serialize_ref::RedactedSerializeRef;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use tuple_projection::TupleProjection;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use serde;
 #[cfg(any(feature = "serde", feature = "json"))]

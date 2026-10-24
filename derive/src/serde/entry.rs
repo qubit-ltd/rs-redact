@@ -81,9 +81,8 @@ pub(crate) fn expand(
         .collect::<Vec<_>>();
     let lifetime = assertions::fresh_lifetime(&input.generics);
     let serializer = assertions::fresh_identifier(&input.generics, "__QubitRedactSerializer");
-    let adapters = serialization_adapter_helpers(name, &input.generics, model, serde);
     let body = match model {
-        ContainerData::Struct(fields) => struct_body(name, fields, runtime, serde, container_attributes),
+        ContainerData::Struct(fields) => struct_body(name, fields, runtime, serde, container_attributes, false),
         ContainerData::Enum(variants) => enum_body(
             name,
             variants,
@@ -92,7 +91,27 @@ pub(crate) fn expand(
             container_attributes,
             &serializer,
             &marker,
+            false,
         )?,
+    };
+    let legacy_body = if generate_serialize {
+        Some(match model {
+            ContainerData::Struct(fields) => {
+                struct_body(name, fields, runtime, serde, container_attributes, true)
+            }
+            ContainerData::Enum(variants) => enum_body(
+                name,
+                variants,
+                runtime,
+                serde,
+                container_attributes,
+                &serializer,
+                &marker,
+                true,
+            )?,
+        })
+    } else {
+        None
     };
     let mut projection_generics = input.generics.clone();
     projection_generics
@@ -103,6 +122,7 @@ pub(crate) fn expand(
             .iter()
             .map(|parameter| -> GenericParam { parse_quote!(#parameter) }),
     );
+    let adapters = serialization_adapter_helpers(name, &projection_generics, model, serde);
     let (projection_impl_generics, projection_type_generics, _) = projection_generics.split_for_impl();
     let declaration = projection_declaration(
         input,
@@ -139,6 +159,7 @@ pub(crate) fn expand(
         .collect::<Vec<_>>();
 
     let source_serialize = generate_serialize.then(|| {
+        let legacy_body = legacy_body.as_ref().expect("legacy body generated for source Serialize");
         let mut generics = input.generics.clone();
         generics
             .make_where_clause()
@@ -151,8 +172,13 @@ pub(crate) fn expand(
             impl #impl_generics #runtime::domain::internal::RedactSerialize for #name #type_generics #where_clause {
                 fn serialize_redacted<#serializer>(&self, serializer: #serializer, policy: &#runtime::RedactionPolicy) -> ::core::result::Result<#serializer::Ok, #serializer::Error>
                 where #serializer: #serde::Serializer {
-                    let projection: #projection<'_, #(#source_arguments,)* #(#actual_types),*> = #constructor;
-                    #serde::Serialize::serialize(&projection, serializer)
+                    let policy_owner = #runtime::domain::internal::current_policy()
+                        .expect("legacy source serialization requires an active redaction scope");
+                    let policy = policy_owner.as_ref();
+                    #(#adapters)*
+                    #runtime::domain::internal::serialize_structured(serializer, policy, |serializer| {
+                        #legacy_body
+                    })
                 }
             }
 
@@ -275,7 +301,7 @@ fn projection_group_bounds(
     offset: &mut usize,
     runtime: &Path,
     serde: &Path,
-    _lifetime: &Lifetime,
+    lifetime: &Lifetime,
     result: &mut Vec<TokenStream>,
 ) {
     match fields {
@@ -308,7 +334,11 @@ fn projection_group_bounds(
                             result.push(quote!(#key_parameter: ::core::convert::AsRef<str>));
                         }
                     }
-                    FieldMode::Nested => result.push(quote!(#parameter: #runtime::domain::internal::RedactSerialize)),
+                    FieldMode::Nested => {
+                        let source = quote!(#runtime::domain::internal::RedactSerializeSource);
+                        result.push(quote!(#parameter: #source));
+                        result.push(quote!(<#parameter as #runtime::domain::internal::RedactSerializeSource>::RedactedFields<#lifetime>: #serde::Serialize));
+                    }
                     FieldMode::Map => result.push(quote!(#parameter: #runtime::domain::internal::RedactMapSerialize)),
                     FieldMode::MapLevels { .. } => {
                         result.push(quote!(#parameter: #runtime::domain::internal::RedactMapKeySerialize))
@@ -334,7 +364,11 @@ fn projection_group_bounds(
                     FieldMode::Level(_) => {
                         result.push(quote!(#parameter: #runtime::domain::internal::RedactLevelSerialize))
                     }
-                    FieldMode::Nested => result.push(quote!(#parameter: #runtime::domain::internal::RedactSerialize)),
+                    FieldMode::Nested => {
+                        let source = quote!(#runtime::domain::internal::RedactSerializeSource);
+                        result.push(quote!(#parameter: #source));
+                        result.push(quote!(<#parameter as #runtime::domain::internal::RedactSerializeSource>::RedactedFields<#lifetime>: #serde::Serialize));
+                    }
                     FieldMode::Map => result.push(quote!(#parameter: #runtime::domain::internal::RedactMapSerialize)),
                     FieldMode::MapLevels { .. } => {
                         result.push(quote!(#parameter: #runtime::domain::internal::RedactMapKeySerialize))
@@ -840,10 +874,25 @@ fn adapter_helper(
     });
     let params = &helper_generics.params;
     let (impl_generics, type_generics, where_clause) = helper_generics.split_for_impl();
+    let carrier_arguments = helper_generics.params.iter().map(|parameter| match parameter {
+        GenericParam::Lifetime(parameter) if parameter.lifetime == lifetime => quote!(#lifetime),
+        GenericParam::Lifetime(parameter) => {
+            let name = &parameter.lifetime;
+            quote!(#name)
+        }
+        GenericParam::Type(parameter) => {
+            let name = &parameter.ident;
+            quote!(#name)
+        }
+        GenericParam::Const(parameter) => {
+            let name = &parameter.ident;
+            quote!(#name)
+        }
+    });
     Some(quote_spanned! {field.span()=>
         #[allow(non_camel_case_types)] struct #wrapper<#params>(&#lifetime #field_type, ::core::marker::PhantomData<(#(#marker_types,)*)>) #where_clause;
         impl #impl_generics #serde::Serialize for #wrapper #type_generics #where_clause { fn serialize<#serializer>(&self, serializer: #serializer) -> ::core::result::Result<#serializer::Ok, #serializer::Error> where #serializer: #serde::Serializer { #adapter(self.0, serializer) } }
-        #[allow(non_snake_case)] let #helper = |value: &#lifetime #field_type| -> #wrapper #type_generics { #wrapper(value, ::core::marker::PhantomData) };
+        #[allow(non_snake_case)] let #helper: for<#lifetime> fn(&#lifetime #field_type) -> #wrapper<#(#carrier_arguments),*> = |value| #wrapper(value, ::core::marker::PhantomData);
     })
 }
 

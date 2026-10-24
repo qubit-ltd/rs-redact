@@ -12,13 +12,12 @@ use serde::Serializer;
 use serde::ser::Error as SerdeError;
 use serde::ser::SerializeSeq;
 
-use super::redact_serialize::RedactSerialize;
 use super::redact_serialize_scope::admit_collection_items;
 use super::redact_serialize_scope::current_policy;
 use super::redact_serialize_scope::serialize_payload;
 use super::redact_serialize_scope::serialize_structured;
 use super::redact_serialize_source::RedactSerializeSource;
-use super::redacted_serialize_ref::RedactedSerializeRef;
+use super::redacted_projection_ref::RedactedProjectionRef;
 use crate::RedactionPolicy;
 use crate::Sensitivity;
 
@@ -49,7 +48,8 @@ impl<T> RedactSerializeSource for Vec<T> {
 
 impl<'value, T> Serialize for VecProjection<'value, T>
 where
-    T: RedactSerialize,
+    T: RedactSerializeSource + 'value,
+    T::RedactedFields<'value>: Serialize,
 {
     /// Serializes the container within the current redaction scope.
     ///
@@ -83,7 +83,7 @@ where
             }
             let mut sequence = serializer.serialize_seq(Some(values.len()))?;
             for value in *values {
-                sequence.serialize_element(&RedactedSerializeRef::new(value, policy))?;
+                sequence.serialize_element(&RedactedProjectionRef::new(value, policy))?;
             }
             sequence.end()
         })

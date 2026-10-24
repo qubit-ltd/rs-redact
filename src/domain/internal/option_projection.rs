@@ -11,10 +11,9 @@ use serde::Serialize;
 use serde::Serializer;
 use serde::ser::Error as SerdeError;
 
-use super::redact_serialize::RedactSerialize;
 use super::redact_serialize_scope::current_policy;
 use super::redact_serialize_source::RedactSerializeSource;
-use super::redacted_serialize_ref::RedactedSerializeRef;
+use super::redacted_projection_ref::RedactedProjectionRef;
 use crate::RedactionPolicy;
 
 /// Borrows an optional container for structured redacted field traversal.
@@ -44,7 +43,8 @@ impl<T> RedactSerializeSource for Option<T> {
 
 impl<'value, T> Serialize for OptionProjection<'value, T>
 where
-    T: RedactSerialize,
+    T: RedactSerializeSource + 'value,
+    T::RedactedFields<'value>: Serialize,
 {
     /// Serializes the optional value within the active redaction scope.
     ///
@@ -74,8 +74,8 @@ where
         let policy_owner =
             current_policy().ok_or_else(|| S::Error::custom("serialization requires an active redaction scope"))?;
         let Self(value) = self;
-        match *value {
-            Some(value) => serializer.serialize_some(&RedactedSerializeRef::new(value, policy_owner.as_ref())),
+        match (*value).as_ref() {
+            Some(value) => serializer.serialize_some(&RedactedProjectionRef::new(value, policy_owner.as_ref())),
             None => serializer.serialize_none(),
         }
     }

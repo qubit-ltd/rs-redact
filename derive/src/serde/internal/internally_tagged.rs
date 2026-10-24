@@ -46,6 +46,7 @@ pub(in crate::serde) fn internal_variant_arm(
     serde: &Path,
     container_attributes: &SerdeContainerAttributes,
     tag: &str,
+    legacy_nested: bool,
 ) -> Result<TokenStream> {
     let rust_name = &variant.variant().ident;
     let variant_name = serialized_variant_name(variant, container_attributes);
@@ -53,7 +54,7 @@ pub(in crate::serde) fn internal_variant_arm(
     match variant.fields() {
         FieldsData::Named(fields) => {
             let (pattern, setups, conditions, names, carriers) =
-                enum_named_parts(type_name, rust_name, fields, runtime, container_attributes, variant);
+                enum_named_parts(type_name, rust_name, fields, runtime, container_attributes, variant, legacy_nested);
             if let Some((field, _)) = fields.iter().zip(&names).find(|(_, name)| *name == tag) {
                 return Err(Error::new_spanned(
                     field.field(),
@@ -105,7 +106,7 @@ pub(in crate::serde) fn internal_variant_arm(
         }
         FieldsData::Unnamed(fields) if fields.len() == 1 => {
             let (pattern, setups, _conditions, carriers) =
-                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime);
+                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime, legacy_nested);
             if carriers.is_empty() {
                 Ok(quote! {
                     Self::#rust_name #pattern => {

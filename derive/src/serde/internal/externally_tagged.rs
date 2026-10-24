@@ -43,6 +43,7 @@ pub(in crate::serde) fn external_variant_arm(
     runtime: &Path,
     serde: &Path,
     container_attributes: &SerdeContainerAttributes,
+    legacy_nested: bool,
 ) -> Result<TokenStream> {
     let rust_name = &variant.variant().ident;
     let variant_name = serialized_variant_name(variant, container_attributes);
@@ -51,7 +52,7 @@ pub(in crate::serde) fn external_variant_arm(
     let arm = match variant.fields() {
         FieldsData::Named(fields) => {
             let (pattern, setups, conditions, names, carriers) =
-                enum_named_parts(type_name, rust_name, fields, runtime, container_attributes, variant);
+                enum_named_parts(type_name, rust_name, fields, runtime, container_attributes, variant, legacy_nested);
             let count_conditions = &conditions;
             let calls = conditions
                 .iter()
@@ -92,7 +93,7 @@ pub(in crate::serde) fn external_variant_arm(
         }
         FieldsData::Unnamed(fields) if fields.len() == 1 => {
             let (pattern, setups, _conditions, carriers) =
-                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime);
+                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime, legacy_nested);
             if carriers.is_empty() {
                 quote! {
                     Self::#rust_name #pattern => #runtime::domain::internal::serialize_unit_variant(
@@ -129,7 +130,7 @@ pub(in crate::serde) fn external_variant_arm(
         }
         FieldsData::Unnamed(fields) => {
             let (pattern, setups, conditions, carriers) =
-                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime);
+                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime, legacy_nested);
             let count_conditions = &conditions;
             let calls = conditions.iter().zip(&carriers).map(|(_condition, carrier)| {
                 quote! {
