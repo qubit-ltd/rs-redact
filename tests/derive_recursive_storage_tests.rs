@@ -11,12 +11,12 @@
 
 use qubit_redact::Redact;
 
-#[derive(Debug)]
+#[derive(Debug, Redact)]
 struct RecursiveDebugChild {
     leaf: String,
 }
 
-#[derive(Debug, Redact)]
+#[derive(Redact)]
 struct RecursiveDebugStorage {
     root: String,
     leaf: std::collections::BTreeMap<String, String>,
@@ -25,7 +25,7 @@ struct RecursiveDebugStorage {
 }
 
 #[test]
-fn test_recursive_debug_storage_uses_plain_debug_path() {
+fn test_recursive_redaction_storage_preserves_field_structure_and_values() {
     let value = RecursiveDebugStorage {
         root: "root".to_owned(),
         leaf: [("leaf".to_owned(), "value".to_owned())].into(),
@@ -35,7 +35,8 @@ fn test_recursive_debug_storage_uses_plain_debug_path() {
         }),
     };
     assert_eq!(value.boxed.leaf, "boxed");
-    let rendered = format!("{value:?}");
+    let rendered = qubit_redact::Redactor::standard().redact_text(&value);
+    let rendered = rendered.text().as_str();
     assert!(
         rendered.contains("root"),
         "root field should remain visible: {rendered}"

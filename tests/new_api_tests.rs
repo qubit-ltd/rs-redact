@@ -9,6 +9,7 @@
 
 use std::borrow::Cow;
 use std::ffi::OsStr;
+use std::sync::Mutex;
 
 use qubit_redact::Redact;
 use qubit_redact::RedactionCompletion;
@@ -19,6 +20,8 @@ use qubit_redact::RedactionUsage;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
+
+static APPLICATION_DEFAULT_LOCK: Mutex<()> = Mutex::new(());
 
 struct Account {
     name: String,
@@ -150,6 +153,9 @@ fn test_batch_diagnostics_maps_a_foreign_handle_to_the_selected_marker() {
 
 #[test]
 fn test_application_default_replacement_affects_new_trait_entries_only() {
+    let _guard = APPLICATION_DEFAULT_LOCK
+        .lock()
+        .expect("application-default test lock");
     let original = Redactor::application_default();
     let replacement = Redactor::new(secret_policy("token"));
     let previous = Redactor::replace_application_default(replacement.clone());
@@ -262,11 +268,31 @@ fn test_every_redaction_reason_round_trips_through_the_reason_set() {
         RedactionReason::UnsupportedContentType,
         RedactionReason::InvalidForm,
         RedactionReason::InvalidMultipart,
+        RedactionReason::FormattingFailed,
     ];
 
+    for inserted in reasons {
+        for candidate in reasons {
+            assert_eq!(
+                RedactionReasons::empty().with(inserted).contains(candidate),
+                inserted == candidate,
+                "inserting {inserted:?} should only contain {inserted:?}, not {candidate:?}",
+            );
+        }
+    }
+
+    let union = RedactionReasons::empty()
+        .with(RedactionReason::InputLimitReached)
+        .union(RedactionReasons::empty().with(RedactionReason::FormattingFailed));
     for reason in reasons {
-        let set = RedactionReasons::empty().with(reason);
-        assert!(set.contains(reason), "{reason:?} should round-trip");
+        assert_eq!(
+            union.contains(reason),
+            matches!(
+                reason,
+                RedactionReason::InputLimitReached | RedactionReason::FormattingFailed
+            ),
+            "union should contain exactly its inserted reasons",
+        );
     }
 }
 

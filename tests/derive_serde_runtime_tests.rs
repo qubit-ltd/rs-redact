@@ -470,6 +470,7 @@ struct DeserializeBound<const N: usize> {
 /// Deserialize-only bounds do not participate in the redacted output view.
 #[test]
 fn test_deserialize_only_bounds_preserve_redacted_serialization() {
+    let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
     let value: DeserializeBound<2> = serde_json::from_str(r#"{"bytes":[1,2]}"#).expect("deserialize-only bound input");
     assert_eq!(
         serde_json::to_value(&value).expect("serialize redacted value")["bytes"],

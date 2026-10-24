@@ -62,6 +62,47 @@ fn test_composer_keeps_application_default_snapshot() {
     let _ = Redactor::replace_application_default(previous);
 }
 
+/// Existing composers keep their captured policy while later composers use a replacement.
+#[test]
+fn test_composer_uses_the_application_default_snapshot_at_creation() {
+    let _guard = APPLICATION_DEFAULT_LOCK
+        .lock()
+        .expect("application-default test lock must not be poisoned");
+    let before = Redactor::application_default();
+    let original_policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            let _ = fields.secret_sensitive("custom_probe");
+        })
+        .expect("initial policy should be valid")
+        .build()
+        .expect("initial policy should build");
+    let previous = Redactor::replace_application_default(Redactor::new(original_policy));
+    let old_composer = Redactor::application_default()
+        .text_composer()
+        .field("custom_probe", "visible");
+
+    let replacement = Redactor::new(RedactionPolicy::standard());
+    let _ = Redactor::replace_application_default(replacement);
+    let new_composer = Redactor::application_default()
+        .text_composer()
+        .field("custom_probe", "visible");
+    let old_output = old_composer.finish();
+    let new_output = new_composer.finish();
+
+    assert_eq!(
+        old_output.summary().completion(),
+        qubit_redact::RedactionCompletion::Complete
+    );
+    assert_eq!(
+        new_output.summary().completion(),
+        qubit_redact::RedactionCompletion::Complete
+    );
+    assert!(old_output.text().as_str().contains("<redacted>"));
+    assert!(new_output.text().as_str().contains("visible"));
+    let _ = Redactor::replace_application_default(previous);
+    assert_eq!(Redactor::application_default(), before);
+}
+
 /// Verifies replacement returns the previous application-default snapshot.
 #[test]
 fn test_application_default_replacement_returns_previous_snapshot() {

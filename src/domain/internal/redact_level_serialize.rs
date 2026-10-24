@@ -441,6 +441,36 @@ impl<T: RedactLevelSerialize> RedactLevelSerialize for Vec<T> {
     }
 }
 
+impl<T: RedactLevelSerialize> RedactLevelSerialize for [T] {
+    /// Applies the explicit level to each borrowed slice element under the
+    /// current shared collection and serialization scope.
+    ///
+    /// # Errors
+    ///
+    /// Propagates collection admission or downstream serialization failures.
+    fn serialize_redacted_level<S>(
+        &self,
+        serializer: S,
+        policy: &RedactionPolicy,
+        level: Sensitivity,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if !admit_collection_items(self.len()) {
+            return super::redact_serialize_scope::serialize_payload(
+                serializer,
+                policy.masking().mask_opaque(Sensitivity::Secret),
+            );
+        }
+        let mut sequence = serializer.serialize_seq(Some(self.len()))?;
+        for value in self {
+            sequence.serialize_element(&RedactedLevelSerializeRef::new(value, policy, level))?;
+        }
+        sequence.end()
+    }
+}
+
 /// Generates cumulative collection admission for standard sequence-like types.
 macro_rules! sequence_level_serialize {
     ($($type:ident),+ $(,)?) => {
