@@ -7,6 +7,7 @@
 // =============================================================================
 //! Public contracts for non-rendering redaction inspection.
 
+use std::ffi::OsStr;
 use std::fmt;
 
 use qubit_redact::Redact;
@@ -15,6 +16,7 @@ use qubit_redact::RedactionReason;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
+use qubit_redact::formats::argv::ArgvItem;
 
 /// A value whose formatter proves inspection never renders field contents.
 struct PanicOnDebug;
@@ -171,4 +173,21 @@ fn test_inspection_queries_report_sensitive_and_disabled_states_with_standard_po
     assert!(!disabled.contains_sensitive());
     assert!(disabled.is_redaction_disabled());
     assert_eq!(disabled.max_sensitivity(), None);
+}
+
+/// Disabled inspection bypasses classification while completing argv admission.
+#[test]
+fn test_inspect_argv_reports_disabled_without_observed_sensitivity() {
+    let disabled = Redactor::new(RedactionPolicy::disabled())
+        .inspect_argv([ArgvItem::sensitive(OsStr::new("raw-secret"), Sensitivity::Secret)])
+        .expect("disabled argv inspection should complete");
+
+    assert!(disabled.is_redaction_disabled());
+    assert_eq!(disabled.max_sensitivity(), None);
+    assert_eq!(disabled.usage().output_bytes(), 0);
+
+    let enabled = Redactor::standard()
+        .inspect_argv([ArgvItem::sensitive(OsStr::new("raw-secret"), Sensitivity::Secret)])
+        .expect("enabled argv inspection should complete");
+    assert_eq!(enabled.max_sensitivity(), Some(Sensitivity::Secret));
 }

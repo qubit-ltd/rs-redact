@@ -64,7 +64,7 @@ impl RuntimeSession for InspectionRuntime {
     ///   maximum.
     #[inline(always)]
     fn observe_sensitivity(&mut self, sensitivity: Sensitivity) {
-        self.accumulator.observe(sensitivity);
+        InspectionRuntime::observe_sensitivity(self, sensitivity);
     }
 }
 
@@ -95,7 +95,9 @@ impl InspectionRuntime {
     ///   maximum.
     #[inline(always)]
     pub(super) fn observe_sensitivity(&mut self, sensitivity: Sensitivity) {
-        self.accumulator.observe(sensitivity);
+        if !self.core.policy().is_disabled() {
+            self.accumulator.observe(sensitivity);
+        }
     }
 
     /// Consumes the runtime into its highest sensitivity and final summary.
@@ -140,5 +142,18 @@ mod tests {
         let (sensitivity, summary) = runtime.into_parts();
         assert_eq!(sensitivity, Some(Sensitivity::Secret));
         assert_eq!(summary.completion(), RedactionCompletion::Complete);
+    }
+
+    /// Disabled policy observations stay empty and still complete normally.
+    #[test]
+    fn test_disabled_inspection_runtime_skips_sensitivity_accumulation() {
+        let mut runtime = InspectionRuntime::new(RedactionPolicy::disabled().into());
+        runtime.observe_sensitivity(Sensitivity::Secret);
+        RuntimeSession::observe_sensitivity(&mut runtime, Sensitivity::High);
+
+        let (sensitivity, summary) = runtime.into_parts();
+        assert_eq!(sensitivity, None);
+        assert_eq!(summary.completion(), RedactionCompletion::Complete);
+        assert_eq!(summary.usage().output_bytes(), 0);
     }
 }

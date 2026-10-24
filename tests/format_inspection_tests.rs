@@ -175,6 +175,64 @@ fn test_inspect_structured_formats_reports_sensitivity_without_rendering() {
     assert_eq!(uri.usage().output_bytes(), 0);
 }
 
+/// Disabled inspection suppresses classification across format adapters.
+#[cfg(all(feature = "http", feature = "uri"))]
+#[test]
+fn test_disabled_inspection_suppresses_format_sensitivity() {
+    let redactor = Redactor::new(RedactionPolicy::disabled());
+
+    let heuristic = redactor
+        .inspect_heuristic_argv([ArgvItem::plain(OsStr::new("--password=raw-secret"))])
+        .expect("disabled heuristic argv inspection should complete");
+    assert!(heuristic.is_redaction_disabled());
+    assert_eq!(heuristic.max_sensitivity(), None);
+    assert_eq!(heuristic.usage().output_bytes(), 0);
+
+    let mut headers = HeaderMap::new();
+    let mut native_sensitive = HeaderValue::from_static("raw-secret");
+    native_sensitive.set_sensitive(true);
+    let _ = headers.insert("x-diagnostic", native_sensitive);
+    let header = redactor
+        .inspect_http_headers(&headers)
+        .expect("disabled header inspection should complete");
+    assert!(header.is_redaction_disabled());
+    assert_eq!(header.max_sensitivity(), None);
+    assert_eq!(header.usage().output_bytes(), 0);
+
+    let url = redactor
+        .inspect_http_url("https://user:password@example.test/private/path")
+        .expect("disabled HTTP URL inspection should complete");
+    assert!(url.is_redaction_disabled());
+    assert_eq!(url.max_sensitivity(), None);
+    assert_eq!(url.usage().output_bytes(), 0);
+
+    let uri = redactor
+        .inspect_uri("s3://user@bucket/private/path")
+        .expect("disabled URI inspection should complete");
+    assert!(uri.is_redaction_disabled());
+    assert_eq!(uri.max_sensitivity(), None);
+    assert_eq!(uri.usage().output_bytes(), 0);
+}
+
+/// Disabled inspection still enforces the shared input-byte admission limit.
+#[test]
+fn test_disabled_inspection_keeps_input_admission_limits() {
+    let mut policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_input_bytes(1);
+        })
+        .expect("limits should be valid")
+        .build()
+        .expect("policy should build");
+    let _ = policy.set_disabled(true);
+
+    let error = Redactor::new(policy)
+        .inspect_argv([ArgvItem::plain(OsStr::new("too-long"))])
+        .expect_err("disabled inspection must retain input admission limits");
+    assert!(error.usage().presented_input_bytes() > 1);
+    assert_eq!(error.usage().output_bytes(), 0);
+}
+
 #[cfg(feature = "http")]
 #[test]
 fn test_inspect_multipart_classifies_nested_and_file_parts() {
