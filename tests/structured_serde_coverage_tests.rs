@@ -62,6 +62,10 @@ fn serialize_nested<T: RedactSerialize + ?Sized>(value: &T, policy: &RedactionPo
     serde_json::to_value(RedactedSerializeRef::new(value, policy)).expect("nested value should serialize")
 }
 
+fn repeated_json(value: &str, len: usize) -> serde_json::Value {
+    serde_json::Value::Array((0..len).map(|_| serde_json::Value::String(value.to_owned())).collect())
+}
+
 /// Exercises all recursive explicit-level Serde implementations.
 #[test]
 fn test_structured_level_serialization_covers_all_supported_containers() {
@@ -76,46 +80,93 @@ fn test_structured_level_serialization_covers_all_supported_containers() {
     let tree_map = BTreeMap::from([(String::from("key"), String::from("value"))]);
     let cow: Cow<'_, str> = Cow::Borrowed("cow");
 
-    let values = [
-        serialize_level(&Some(String::from("some")), &policy),
+    let redacted = serde_json::json!("<redacted>");
+    assert_eq!(serialize_level(&Some(String::from("some")), &policy), redacted);
+    assert_eq!(
         serialize_level::<Option<String>>(&None, &policy),
+        serde_json::Value::Null
+    );
+    assert_eq!(
         serialize_level(&vec![String::from("vec")], &policy),
-        serialize_level(&deque, &policy),
-        serialize_level(&list, &policy),
-        serialize_level(&heap, &policy),
-        serialize_level(&tree_set, &policy),
-        serialize_level(&hash_set, &policy),
-        serialize_level(&Box::new(String::from("box")), &policy),
-        serialize_level(&Rc::new(String::from("rc")), &policy),
-        serialize_level(&Arc::new(String::from("arc")), &policy),
+        serde_json::json!(["<redacted>"])
+    );
+    assert_eq!(serialize_level(&deque, &policy), serde_json::json!(["<redacted>"]));
+    assert_eq!(serialize_level(&list, &policy), serde_json::json!(["<redacted>"]));
+    assert_eq!(serialize_level(&heap, &policy), serde_json::json!(["<redacted>"]));
+    assert_eq!(serialize_level(&tree_set, &policy), serde_json::json!(["<redacted>"]));
+    let hash_set_value = serialize_level(&hash_set, &policy);
+    assert_eq!(hash_set_value.as_array().expect("hash set is a sequence").len(), 1);
+    assert_eq!(hash_set_value[0], redacted);
+    assert_eq!(serialize_level(&Box::new(String::from("box")), &policy), redacted);
+    assert_eq!(serialize_level(&Rc::new(String::from("rc")), &policy), redacted);
+    assert_eq!(serialize_level(&Arc::new(String::from("arc")), &policy), redacted);
+    assert_eq!(
         serialize_level(&hash_map, &policy),
+        serde_json::json!({"key": "<redacted>"})
+    );
+    assert_eq!(
         serialize_level(&tree_map, &policy),
+        serde_json::json!({"key": "<redacted>"})
+    );
+    assert_eq!(
         serialize_level(&[String::from("array")], &policy),
-        serialize_level(&cow, &policy),
-        serialize_level(&"borrowed", &policy),
-        serialize_level(&(1_u8,), &policy),
+        serde_json::json!(["<redacted>"])
+    );
+    assert_eq!(serialize_level(&cow, &policy), redacted);
+    assert_eq!(serialize_level(&"borrowed", &policy), redacted);
+    assert_eq!(serialize_level(&(1_u8,), &policy), serde_json::json!(["<redacted>"]));
+    assert_eq!(
         serialize_level(&(1_u8, 2_u8), &policy),
+        serde_json::json!(["<redacted>", "<redacted>"])
+    );
+    assert_eq!(
         serialize_level(&(1_u8, 2_u8, 3_u8), &policy),
+        repeated_json("<redacted>", 3)
+    );
+    assert_eq!(
         serialize_level(&(1_u8, 2_u8, 3_u8, 4_u8), &policy),
+        repeated_json("<redacted>", 4)
+    );
+    assert_eq!(
         serialize_level(&(1_u8, 2_u8, 3_u8, 4_u8, 5_u8), &policy),
+        repeated_json("<redacted>", 5)
+    );
+    assert_eq!(
         serialize_level(&(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8), &policy),
+        repeated_json("<redacted>", 6)
+    );
+    assert_eq!(
         serialize_level(&(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8), &policy),
+        repeated_json("<redacted>", 7)
+    );
+    assert_eq!(
         serialize_level(&(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8), &policy),
+        repeated_json("<redacted>", 8)
+    );
+    assert_eq!(
         serialize_level(&(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8), &policy),
+        repeated_json("<redacted>", 9)
+    );
+    assert_eq!(
         serialize_level(&(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8, 10_u8), &policy),
+        repeated_json("<redacted>", 10)
+    );
+    assert_eq!(
         serialize_level(
             &(1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8, 10_u8, 11_u8),
-            &policy,
+            &policy
         ),
+        repeated_json("<redacted>", 11)
+    );
+    assert_eq!(
         serialize_level(
             &(
-                1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8, 10_u8, 11_u8, 12_u8,
+                1_u8, 2_u8, 3_u8, 4_u8, 5_u8, 6_u8, 7_u8, 8_u8, 9_u8, 10_u8, 11_u8, 12_u8
             ),
-            &policy,
+            &policy
         ),
-    ];
-
-    assert!(values.iter().all(|value| !value.to_string().contains("value")));
+        repeated_json("<redacted>", 12)
+    );
 }
 
 /// Exercises nested Option, sequence, array, and every tuple arity supported
@@ -126,26 +177,68 @@ fn test_structured_nested_serialization_covers_all_supported_containers() {
     let _scope = RedactSerializeScope::new(&policy);
     let leaf = || StructuredLeaf("safe");
 
-    let values = [
-        serialize_nested(&Some(leaf()), &policy),
+    assert_eq!(serialize_nested(&Some(leaf()), &policy), serde_json::json!("safe"));
+    assert_eq!(
         serialize_nested::<Option<StructuredLeaf>>(&None, &policy),
-        serialize_nested(&vec![leaf()], &policy),
-        serialize_nested(&[leaf()], &policy),
-        serialize_nested(&(leaf(),), &policy),
-        serialize_nested(&(leaf(), leaf()), &policy),
+        serde_json::Value::Null
+    );
+    assert_eq!(serialize_nested(&vec![leaf()], &policy), serde_json::json!(["safe"]));
+    assert_eq!(serialize_nested(&[leaf()], &policy), serde_json::json!(["safe"]));
+    assert_eq!(serialize_nested(&(leaf(),), &policy), serde_json::json!(["safe"]));
+    assert_eq!(serialize_nested(&(leaf(), leaf()), &policy), repeated_json("safe", 2));
+    assert_eq!(
         serialize_nested(&(leaf(), leaf(), leaf()), &policy),
+        repeated_json("safe", 3)
+    );
+    assert_eq!(
         serialize_nested(&(leaf(), leaf(), leaf(), leaf()), &policy),
+        repeated_json("safe", 4)
+    );
+    assert_eq!(
         serialize_nested(&(leaf(), leaf(), leaf(), leaf(), leaf()), &policy),
+        repeated_json("safe", 5)
+    );
+    assert_eq!(
         serialize_nested(&(leaf(), leaf(), leaf(), leaf(), leaf(), leaf()), &policy),
+        repeated_json("safe", 6)
+    );
+    assert_eq!(
         serialize_nested(&(leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf()), &policy),
+        repeated_json("safe", 7)
+    );
+    assert_eq!(
         serialize_nested(
             &(leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf()),
-            &policy,
+            &policy
         ),
+        repeated_json("safe", 8)
+    );
+    assert_eq!(
         serialize_nested(
             &(leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf()),
-            &policy,
+            &policy
         ),
+        repeated_json("safe", 9)
+    );
+    assert_eq!(
+        serialize_nested(
+            &(
+                leaf(),
+                leaf(),
+                leaf(),
+                leaf(),
+                leaf(),
+                leaf(),
+                leaf(),
+                leaf(),
+                leaf(),
+                leaf()
+            ),
+            &policy
+        ),
+        repeated_json("safe", 10)
+    );
+    assert_eq!(
         serialize_nested(
             &(
                 leaf(),
@@ -158,9 +251,13 @@ fn test_structured_nested_serialization_covers_all_supported_containers() {
                 leaf(),
                 leaf(),
                 leaf(),
+                leaf()
             ),
-            &policy,
+            &policy
         ),
+        repeated_json("safe", 11)
+    );
+    assert_eq!(
         serialize_nested(
             &(
                 leaf(),
@@ -174,32 +271,11 @@ fn test_structured_nested_serialization_covers_all_supported_containers() {
                 leaf(),
                 leaf(),
                 leaf(),
+                leaf()
             ),
-            &policy,
+            &policy
         ),
-        serialize_nested(
-            &(
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-                leaf(),
-            ),
-            &policy,
-        ),
-    ];
-
-    assert!(
-        values
-            .iter()
-            .all(|value| value.is_null() || value.to_string().contains("safe"))
+        repeated_json("safe", 12)
     );
 }
 
@@ -464,63 +540,86 @@ fn test_nested_domain_redaction_covers_all_supported_container_shapes() {
     let redactor = Redactor::standard();
     let leaf = || DomainLeaf;
     macro_rules! assert_nested {
-        ($value:expr) => {{
+        ($value:expr, $count:expr) => {{
             let output = redactor.redact_text(&$value);
-            assert!(output.text().as_str().contains("safe") || output.text().as_str() == "None");
+            assert_eq!(
+                output.summary().completion(),
+                qubit_redact::RedactionCompletion::Complete
+            );
+            assert_eq!(
+                output.text().as_str().matches("safe").count(),
+                $count,
+                "wrong container contents: {}",
+                output.text()
+            );
         }};
     }
 
-    assert_nested!(Some(leaf()));
-    assert_nested!(Option::<DomainLeaf>::None);
-    assert_nested!(Box::new(leaf()));
-    assert_nested!(vec![leaf()]);
-    assert_nested!([leaf()]);
-    assert_nested!((leaf(),));
-    assert_nested!((leaf(), leaf()));
-    assert_nested!((leaf(), leaf(), leaf()));
-    assert_nested!((leaf(), leaf(), leaf(), leaf()));
-    assert_nested!((leaf(), leaf(), leaf(), leaf(), leaf()));
-    assert_nested!((leaf(), leaf(), leaf(), leaf(), leaf(), leaf()));
-    assert_nested!((leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf()));
-    assert_nested!((leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(),));
-    assert_nested!((leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(),));
-    assert_nested!((
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-    ));
-    assert_nested!((
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-    ));
-    assert_nested!((
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-        leaf(),
-    ));
+    assert_nested!(Some(leaf()), 1);
+    let none = redactor.redact_text(&Option::<DomainLeaf>::None);
+    assert_eq!(none.text().as_str(), "None");
+    assert_eq!(none.summary().completion(), qubit_redact::RedactionCompletion::Complete);
+    assert_nested!(Box::new(leaf()), 1);
+    assert_nested!(vec![leaf()], 1);
+    assert_nested!([leaf()], 1);
+    assert_nested!((leaf(),), 1);
+    assert_nested!((leaf(), leaf()), 2);
+    assert_nested!((leaf(), leaf(), leaf()), 3);
+    assert_nested!((leaf(), leaf(), leaf(), leaf()), 4);
+    assert_nested!((leaf(), leaf(), leaf(), leaf(), leaf()), 5);
+    assert_nested!((leaf(), leaf(), leaf(), leaf(), leaf(), leaf()), 6);
+    assert_nested!((leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf()), 7);
+    assert_nested!((leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(),), 8);
+    assert_nested!(
+        (leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(), leaf(),),
+        9
+    );
+    assert_nested!(
+        (
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+        ),
+        10
+    );
+    assert_nested!(
+        (
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+        ),
+        11
+    );
+    assert_nested!(
+        (
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+            leaf(),
+        ),
+        12
+    );
 }

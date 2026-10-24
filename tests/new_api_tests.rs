@@ -83,10 +83,12 @@ fn test_batch_handles_cannot_cross_batches() {
     let first = first_batch.finish_with_marker("<redaction incomplete>");
     assert_eq!(first.text(first_handle).as_str(), "Ada");
 
-    let second = Redactor::standard()
-        .diagnostic_batch()
-        .finish_with_marker("<redaction incomplete>");
+    let mut second_batch = Redactor::standard().diagnostic_batch();
+    let second_handle = second_batch.redact_field("name", "Grace");
+    let second = second_batch.finish_with_marker("<redaction incomplete>");
+    assert_eq!(second.text(second_handle).as_str(), "Grace");
     assert_eq!(second.text(first_handle).as_str(), "<redaction incomplete>");
+    assert_eq!(first.text(second_handle).as_str(), "<redaction incomplete>");
     assert_eq!(second.summary().completion(), RedactionCompletion::Complete);
 }
 

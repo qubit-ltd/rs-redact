@@ -68,12 +68,15 @@ fn test_batch_resolves_items_only_from_its_own_output() {
 fn test_batch_rejects_handle_from_different_batch() {
     let mut first = Redactor::standard().diagnostic_batch();
     let handle = first.redact_field("name", "Ada");
-    let _ = first.finish_with_marker("<redaction incomplete>");
+    let first_output = first.finish_with_marker("<foreign>");
+    assert_eq!(first_output.text(handle).as_str(), "Ada");
 
-    let second = Redactor::standard()
-        .diagnostic_batch()
-        .finish_with_marker("<redaction incomplete>");
-    assert_eq!(second.text(handle).as_str(), "<redaction incomplete>");
+    let mut second = Redactor::standard().diagnostic_batch();
+    let second_handle = second.redact_field("name", "Grace");
+    let second_output = second.finish_with_marker("<foreign>");
+    assert_eq!(second_output.text(second_handle).as_str(), "Grace");
+    assert_eq!(first_output.text(second_handle).as_str(), "<foreign>");
+    assert_eq!(second_output.text(handle).as_str(), "<foreign>");
 }
 
 #[test]

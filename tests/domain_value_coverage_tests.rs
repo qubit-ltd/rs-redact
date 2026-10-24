@@ -21,6 +21,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use qubit_redact::Redact;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
@@ -196,15 +197,49 @@ impl Redact for JsonTextValues {
 #[test]
 fn test_level_value_capabilities_cover_all_supported_container_shapes() {
     let output = Redactor::standard().redact_text(&LevelValues);
+    let text = output.text().as_str();
 
     assert!(
-        !output.text().as_str().contains("secret"),
+        !text.contains("secret"),
         "level-capable values must not expose their raw marker strings",
     );
     assert!(
-        output.text().as_str().contains("<redacted>"),
+        text.contains("<redacted>"),
         "level-capable values must render the redaction marker",
     );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    for field in [
+        "string", "str", "cow", "char", "bool", "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64",
+        "u128", "usize", "f32", "f64", "some", "none", "vec", "slice", "deque", "list", "heap", "tree_set", "hash_set",
+        "boxed", "rc", "arc", "hash_map", "tree_map", "array", "tuple1", "tuple2", "tuple3", "tuple4", "tuple5",
+        "tuple6", "tuple7", "tuple8", "tuple9", "tuple10", "tuple11", "tuple12",
+    ] {
+        assert!(text.contains(&format!("{field}:")), "missing field {field}: {text}");
+    }
+    for arity in 1..=12 {
+        let items = std::iter::repeat_n("\"<redacted>\"", arity)
+            .collect::<Vec<_>>()
+            .join(", ");
+        assert!(
+            text.contains(&format!("tuple{arity}: ({items})")),
+            "wrong tuple{arity} shape: {text}"
+        );
+    }
+    for (field, expected) in [
+        ("some", "Some(\"<redacted>\")"),
+        ("none", "None"),
+        ("vec", "[\"<redacted>\"]"),
+        ("slice", "[\"<redacted>\"]"),
+        ("deque", "[\"<redacted>\"]"),
+        ("list", "[\"<redacted>\"]"),
+        ("heap", "[\"<redacted>\"]"),
+        ("array", "[\"<redacted>\"]"),
+    ] {
+        assert!(
+            text.contains(&format!("{field}: {expected}")),
+            "unexpected {field} value: {text}"
+        );
+    }
 }
 
 /// Verifies that all supported map key forms preserve map shape while masking
@@ -212,15 +247,54 @@ fn test_level_value_capabilities_cover_all_supported_container_shapes() {
 #[test]
 fn test_map_value_capabilities_cover_owned_borrowed_and_optional_maps() {
     let output = Redactor::standard().redact_text(&MapValues);
+    let text = output.text().as_str();
 
     assert!(
-        !output.text().as_str().contains("secret"),
+        !text.contains("secret"),
         "map values and keys must not expose their raw marker strings",
     );
     assert!(
-        output.text().as_str().contains("MapValues"),
+        text.contains("MapValues"),
         "the redacted map record must retain its outer structure",
     );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    for field in [
+        "owned_hash",
+        "owned_tree",
+        "owned_hash_some",
+        "owned_tree_some",
+        "owned_hash_none",
+        "owned_tree_none",
+        "borrowed_hash",
+        "borrowed_tree",
+        "borrowed_hash_some",
+        "borrowed_tree_some",
+        "borrowed_hash_none",
+        "borrowed_tree_none",
+        "cow_hash",
+        "cow_tree",
+        "cow_hash_some",
+        "cow_tree_some",
+        "cow_hash_none",
+        "cow_tree_none",
+        "masked_hash_keys",
+        "masked_tree_keys",
+    ] {
+        assert!(text.contains(&format!("{field}:")), "missing map field {field}: {text}");
+    }
+    for field in [
+        "owned_hash_none",
+        "owned_tree_none",
+        "borrowed_hash_none",
+        "borrowed_tree_none",
+        "cow_hash_none",
+        "cow_tree_none",
+    ] {
+        assert!(
+            text.contains(&format!("{field}: None")),
+            "missing None state for {field}: {text}"
+        );
+    }
 }
 
 /// Verifies that JSON text wrappers redact each ownership form and preserve a
@@ -228,13 +302,44 @@ fn test_map_value_capabilities_cover_owned_borrowed_and_optional_maps() {
 #[test]
 fn test_json_value_capabilities_cover_owned_borrowed_and_optional_text() {
     let output = Redactor::standard().redact_text(&JsonTextValues);
+    let text = output.text().as_str();
 
     assert!(
-        !output.text().as_str().contains("secret"),
+        !text.contains("secret"),
         "JSON text values must not expose their raw marker strings",
     );
     assert!(
-        output.text().as_str().contains("JsonTextValues"),
+        text.contains("JsonTextValues"),
         "the redacted JSON record must retain its outer structure",
     );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    for field in [
+        "owned",
+        "str",
+        "borrowed_ref",
+        "cow",
+        "some_owned",
+        "some_borrowed",
+        "some_cow",
+        "none_owned",
+        "none_borrowed",
+        "none_cow",
+    ] {
+        assert!(
+            text.contains(&format!("{field}:")),
+            "missing JSON field {field}: {text}"
+        );
+    }
+    for field in ["some_owned", "some_borrowed", "some_cow"] {
+        assert!(
+            text.contains(&format!("{field}: \"{{\\\"password\\\":\\\"<redacted>\\\"}}\"")),
+            "redacted JSON text was lost for {field}: {text}"
+        );
+    }
+    for field in ["none_owned", "none_borrowed", "none_cow"] {
+        assert!(
+            text.contains(&format!("{field}: None")),
+            "None state was lost for {field}: {text}"
+        );
+    }
 }
