@@ -199,6 +199,180 @@ fn test_inspect_multipart_classifies_nested_and_file_parts() {
     assert_eq!(result.usage().output_bytes(), 0);
 }
 
+#[cfg(feature = "http")]
+#[test]
+fn test_http_json_inspection_honors_each_shared_structure_limit() {
+    let body = br#"{"visible":{"child":1}}"#;
+    for case in 0..3 {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| match case {
+                0 => {
+                    limits.max_nodes(1);
+                }
+                1 => {
+                    limits.max_collection_items(0);
+                }
+                _ => {
+                    limits.max_depth(1);
+                }
+            })
+            .expect("valid limits")
+            .build()
+            .expect("valid policy");
+        let redactor = Redactor::new(policy);
+        let error = redactor
+            .inspect_http_body_with_content_type_text(BodyCapture::complete(body), Some("application/json"))
+            .expect_err("shared structure limit must reject JSON body");
+        let expected = if case == 2 {
+            RedactionReason::DepthLimitReached
+        } else {
+            RedactionReason::TraversalLimitReached
+        };
+        assert!(error.reasons().contains(expected));
+        assert_eq!(error.usage().output_bytes(), 0);
+    }
+}
+
+#[cfg(feature = "http")]
+#[test]
+fn test_http_json_inspection_does_not_charge_an_extra_root() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(2).max_collection_items(1).max_depth(2);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let redactor = Redactor::new(policy);
+    let body = br#"{"visible":1}"#;
+    let http = redactor
+        .inspect_http_body_with_content_type_text(BodyCapture::complete(body), Some("application/json"))
+        .expect("exact shared budget should fit");
+    let json = redactor
+        .inspect_json(std::str::from_utf8(body).expect("UTF-8"))
+        .expect("same JSON structure should fit");
+    assert_eq!(http.usage().visited_nodes(), 2);
+    assert_eq!(http.usage().visited_collection_items(), 1);
+    assert_eq!(http.usage().max_depth(), 2);
+    assert_eq!(http.usage().visited_nodes(), json.usage().visited_nodes());
+}
+
+#[cfg(feature = "http")]
+#[test]
+fn test_http_ndjson_inspection_shares_record_and_empty_stream_budgets() {
+    let body = b"{}\n \n{}\n";
+    let one_node_policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(1);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let rejected = Redactor::new(one_node_policy)
+        .inspect_http_body_with_content_type_text(BodyCapture::complete(body), Some("application/x-ndjson"))
+        .expect_err("both records must share the node budget");
+    assert!(rejected.reasons().contains(RedactionReason::TraversalLimitReached));
+
+    let two_node_policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(2);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let accepted = Redactor::new(two_node_policy)
+        .inspect_http_body_with_content_type_text(BodyCapture::complete(body), Some("application/x-ndjson"))
+        .expect("exact record budget should fit");
+    assert_eq!(accepted.usage().visited_nodes(), 2);
+
+    let zero_node_policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(0);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let rejected_empty = Redactor::new(zero_node_policy)
+        .inspect_http_body_with_content_type_text(BodyCapture::complete(b" \n\t\n"), Some("application/x-ndjson"))
+        .expect_err("empty top-level stream still charges one root");
+    assert!(
+        rejected_empty
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+
+    let one_node_policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(1);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let accepted_empty = Redactor::new(one_node_policy)
+        .inspect_http_body_with_content_type_text(BodyCapture::complete(b" \n\t\n"), Some("application/x-ndjson"))
+        .expect("one root should admit an empty top-level stream");
+    assert_eq!(accepted_empty.usage().visited_nodes(), 1);
+}
+
+#[cfg(feature = "http")]
+#[test]
+fn test_http_multipart_json_inspection_preserves_nested_depth() {
+    let body = concat!(
+        "--boundary\r\n",
+        "Content-Disposition: form-data; name=\"payload\"\r\n",
+        "Content-Type: application/json\r\n\r\n",
+        "{\"visible\":1}\r\n",
+        "--boundary--\r\n",
+    );
+    let shallow_policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_depth(3);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let error = Redactor::new(shallow_policy)
+        .inspect_http_body_with_content_type_text(
+            BodyCapture::complete(body.as_bytes()),
+            Some("multipart/form-data; boundary=boundary"),
+        )
+        .expect_err("JSON leaf is at depth four inside multipart");
+    assert!(error.reasons().contains(RedactionReason::DepthLimitReached));
+
+    let exact_policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(4).max_collection_items(2).max_depth(4);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let accepted = Redactor::new(exact_policy)
+        .inspect_http_body_with_content_type_text(
+            BodyCapture::complete(body.as_bytes()),
+            Some("multipart/form-data; boundary=boundary"),
+        )
+        .expect("exact multipart JSON budget should fit");
+    assert_eq!(accepted.usage().visited_nodes(), 4);
+    assert_eq!(accepted.usage().visited_collection_items(), 2);
+    assert_eq!(accepted.usage().max_depth(), 4);
+}
+
+#[cfg(feature = "http")]
+#[test]
+fn test_http_json_inspection_keeps_json_specific_budget() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_json_nodes(1);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let error = Redactor::new(policy)
+        .inspect_http_body_with_content_type_text(BodyCapture::complete(br#"{"visible":1}"#), Some("application/json"))
+        .expect_err("JSON-specific node budget still applies");
+    assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
+}
+
 /// Exercises each supported HTTP body classifier without publishing output.
 #[cfg(feature = "http")]
 #[test]

@@ -114,18 +114,6 @@ impl RedactionBudget {
         &mut self.structural
     }
 
-    /// Borrows the transaction-wide JSON value budget for decoder admission.
-    ///
-    /// # Returns
-    ///
-    /// An exclusive borrow of the lexical JSON value budget.
-    #[cfg(feature = "http")]
-    #[inline(always)]
-    #[must_use]
-    pub(super) fn json_value_budget_mut(&mut self) -> &mut JsonValueBudget {
-        &mut self.json_budget
-    }
-
     /// Splits structural accounting from lexical JSON value accounting.
     ///
     /// # Returns

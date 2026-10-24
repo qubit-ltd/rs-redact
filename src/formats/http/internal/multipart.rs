@@ -133,7 +133,7 @@ pub(in crate::formats::http) fn admit_structure(
                     continue;
                 };
                 let mut lines = Vec::new();
-                for line in text.lines().filter(|line| !line.trim().is_empty()) {
+                for line in text.lines().filter(|line| !json::is_blank_ndjson_line(line)) {
                     lines.push(Some(admit_json_text_value_at_depth(session, line, 3).ok()?));
                 }
                 Some(AdmittedMultipartBody::Ndjson {
@@ -193,10 +193,14 @@ pub(in crate::formats::http) fn inspect(
         }
         match metadata.content_type() {
             Some(value) if content_type::is_json(value) => {
-                inspect_json_bytes(session, body);
+                if !inspect_json_bytes(session, body, 3) {
+                    return;
+                }
             }
             Some(value) if content_type::is_ndjson(value) => {
-                inspect_ndjson(session, body);
+                if !inspect_ndjson(session, body, 3) {
+                    return;
+                }
             }
             Some(value) if content_type::is_form(value) => {
                 inspect_form(session, body);

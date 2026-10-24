@@ -346,7 +346,7 @@ pub(crate) fn admit_body_structure(
         let mut lines = Vec::new();
         let mut admitted_any = false;
         for line in text.lines() {
-            if line.trim().is_empty() {
+            if super::internal::json::is_blank_ndjson_line(line) {
                 lines.push(None);
                 continue;
             }

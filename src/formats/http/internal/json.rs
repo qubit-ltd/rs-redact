@@ -19,6 +19,15 @@ use crate::formats::http::FieldRedactor;
 use crate::formats::json::internal::JsonRedactionState;
 use crate::formats::json::internal::JsonUnkeyedValuePolicy;
 
+/// Reports whether an NDJSON line contains only Unicode whitespace.
+///
+/// Blank lines are separators and must not be parsed as JSON records.
+#[must_use]
+#[inline]
+pub(in crate::formats::http) fn is_blank_ndjson_line(line: &str) -> bool {
+    line.trim().is_empty()
+}
+
 /// Redacts a JSON tree and reports whether an unkeyed scalar passed through.
 ///
 /// # Parameters

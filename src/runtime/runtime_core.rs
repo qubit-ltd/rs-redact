@@ -70,18 +70,6 @@ impl RuntimeCore {
         }
     }
 
-    /// Borrows the transaction-wide JSON budget for lexical decoder admission.
-    ///
-    /// # Returns
-    ///
-    /// An exclusive borrow of the shared lexical JSON value budget.
-    #[cfg(feature = "http")]
-    #[inline(always)]
-    #[must_use]
-    pub(crate) fn json_value_budget_mut(&mut self) -> &mut JsonValueBudget {
-        self.budget.json_value_budget_mut()
-    }
-
     /// Splits JSON structure accounting from lexical value accounting.
     ///
     /// # Returns
