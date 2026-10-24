@@ -918,8 +918,7 @@ be capped separately from logical Serde payload limits.
 
 From the repository root, run `python3 -B scripts/check_doc_examples.py` to compile
 and execute every annotated Rust/Cargo block in both README and guide languages.
-The checker uses this checkout as a path dependency, temporary consumer crates,
-and offline Cargo resolution; dependencies must already be cached.
+The checker uses this checkout as a path dependency and builds temporary consumer crates. It runs `cargo run --quiet`; Cargo may access the registry to resolve or download uncached dependencies. Provide registry access when needed; the checker does not force offline resolution.
 
 To validate a local checkout with the full CI matrix:
 

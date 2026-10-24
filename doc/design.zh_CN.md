@@ -2,7 +2,7 @@
 
 [English Design](design.md) · [中文用户手册](user_guide.zh_CN.md) · [README](../README.zh_CN.md)
 
-当前设计：0.8；runtime 与 derive 同步版本，Rust 1.94，默认空 feature。
+当前 runtime：qubit-redact 0.10.0；仓库 derive：qubit-redact-derive 0.8.1。runtime 声明 derive 0.8 依赖范围；两个包的版本号独立。Rust 1.94，默认空 feature。
 
 ## 1. 目标与边界
 

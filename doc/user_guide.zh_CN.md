@@ -860,7 +860,7 @@ composer、batch 和 inspection 会话默认不应跨线程共享；每个诊断
 
 在仓库根目录运行 `python3 -B scripts/check_doc_examples.py`，可以编译并执行两种语言的 README
 与用户手册中所有带注解的 Rust/Cargo 代码块。校验脚本以本仓库为 path 依赖，在临时 consumer
-crate 中离线运行；依赖需已缓存。
+crate 中执行 `cargo run --quiet`。Cargo 可能访问 registry 解析或下载未缓存依赖，需要时应提供相应网络条件；校验脚本不强制离线解析。
 
 验证本地检出与完整 CI 矩阵：
 
