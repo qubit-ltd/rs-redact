@@ -119,8 +119,10 @@ fn main() {
 
 视图借用源对象并拥有策略快照，不是脱敏后的业务对象，也不缓存源内容。
 多次序列化分别从源对象执行，绝不会把上次掩码结果作为下一次输入；每次使用独立预算。
-它支持 Display/Debug；结构化序列化要求 derive 生成的 `RedactSerialize` capability，
-不会退化成 Debug 字符串，普通调用方无需手写隐藏 trait。
+它支持 Display/Debug。view 的结构化序列化使用 derive 生成的 `RedactSerializeSource` 投影能力，
+在当前调用中借用数据，普通调用方无需手写隐藏 trait，也不会退化成 Debug 字符串。
+`#[redact(serde)]` 则通过旧的 `RedactSerialize` 桥单独脱敏源对象的普通 `Serialize` 路径；
+其能力边界与 view 投影不同。
 源对象具有内部可变状态时，后续使用可能观察到新值；策略仍保持创建时快照。
 
 `redact_text()` 的 `output.text()` 可以直接展示，不再次脱敏。
@@ -228,7 +230,7 @@ fn main() {
 | `level = "low"/"medium"/"high"/"secret"` | 对各叶子应用最终等级；支持基本标量、`RedactScalar` 和支持的递归容器。 |
 | `level = "...", display` | 显式按 `Display` 文本处理，不要求该类型实现 `Debug` 或普通 `Serialize`。 |
 | `skip` | 启用时省略；disabled 恢复字段。 |
-| `nested` | 委托 `Redact`；结构化输出使用嵌套值生成的视图投影。 |
+| `nested` | 委托 `Redact`；结构化输出使用嵌套值生成的视图投影，并通过投影能力在当前调用中支持局部借用。 |
 | `map` | 支持 key 为 `String`、`&str`、`Cow<str>` 的 `HashMap`/`BTreeMap`，以及外层 `Option`；value 需具备等级能力，放行文本还需 `Debug`。 |
 | `map_key_level = "..."` | 固定每个 key 的等级，value 保持普通输出。 |
 | `map_key_level = "...", map_value_level = "..."` | 分别固定 key、value 等级。 |
@@ -246,7 +248,8 @@ runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的�
 ### 选择序列化边界
 
 启用 runtime 的 `serde` feature 后，`Redact` 总会生成供 `redact_view()` 和 `to_json()`
-使用的脱敏投影。源类型本身不必实现 `Serialize`，投影即可使用。字段只需满足其脱敏模式的
+使用的脱敏投影。嵌套投影及 Option、Vec、slice adapter 通过 `RedactSerializeSource` 在当前
+调用中借用数据；slice 序列化为 sequence，固定数组则为 tuple。源类型本身不必实现 `Serialize`，投影即可使用。字段只需满足其脱敏模式的
 要求：未标注字段通常需要 `Serialize`；`level = "...", display` 只需 `Display`，并输出脱敏
 字符串。
 
@@ -320,7 +323,7 @@ fn main() {
 }
 ```
 
-Serde 支持 rename/rename_all、枚举 tag/content/untagged、transparent、skip、skip_serializing、
+Serde 名称遵循其生效后的字段和 variant 名称，包括 `rename`/`rename_all`；匹配前会规范化 Rust raw identifier，显式 Serde rename 可保持指定 wire 名。枚举 tag/content/untagged、transparent、skip、skip_serializing、
 skip_serializing_if。支持普通或 skip 字段上的 with/serialize_with；不能与观察原值的敏感模式组合。
 flatten 不受支持。JSON 文本字段序列化后仍是字符串，已解析 Value 字段保留 JSON 结构。
 
@@ -521,8 +524,9 @@ fn main() {
 
 `BodyCapture::complete` 表示全部源字节均已提供；`BodyCapture::prefix` 记录已知的完整长度，
 `BodyCapture::truncated_unknown` 则表示存在缺失字节，但缺失数量未知。来源截断与输出截断是
-不同状态，前者通过 `RedactionReason::SourceTruncated` 报告。不要把不完整 body 伪装成
-complete capture。
+不同状态：来源截断通过 `RedactionReason::SourceTruncated` 报告，输出截断单独报告
+`OutputLimitReached`。已解析的截断 body 会保留来源原因；若输出也超出预算，可同时报告两者。
+URL 和 form 输出截断不会标为 `Complete`。不要把不完整 body 伪装成 complete capture。
 
 ### 分别配置 URL query 和 form 字段
 
@@ -747,7 +751,7 @@ fn main() {
 | `floor(floor)` | 为匹配名称安装最低脱敏 floor |
 
 当 floor 与 allow 规则同时匹配同名字段时，floor 可以把敏感度提高到 allow 之上。floor 适合
-供应商 token 等绝不能原样出现的字段，即使 allow 列表本来会放行该名称。
+供应商 token 等绝不能原样出现的字段，即使 allow 列表本来会放行该名称。 `classify_field()` 解释首个匹配的应用规则，不应用 floor，也不合并所有匹配等级。需要最终有效等级时使用 `sensitivity_for()`，它会取应用规则与 floor 中匹配等级的最大值。
 
 <!-- redact-example: kind=run features=none -->
 ```rust

@@ -80,19 +80,20 @@ flowchart TD
 ```
 
 view 借用源并拥有不可变策略快照；创建不访问源，每次格式化或序列化重新执行。
-文本通过 `Redact`，结构化 Serde 通过隐藏的 `RedactSerialize` capability，不要求
-源对象自身实现 Serialize。`#[redact(serde)]` 才额外替换源的普通序列化行为。
+文本通过 `Redact`，view 的结构化 Serde 使用隐藏的 `RedactSerializeSource` 投影能力，
+可在当前序列化调用中借用字段。只有字段的普通放行模式才要求源对象实现 `Serialize`。
+`#[redact(serde)]` 还会通过旧的 `RedactSerialize` 桥替换源对象的普通序列化行为。
 derive 显式 level 由领域类型定义，在 strict 下保持固定。手写
 `sensitive_at_least` 表示最低等级，与运行时分类取更强者，因此 strict 可以提高该下限；
 未标注字段保持普通表示。
 
-嵌套投影字段和派生源序列化使用同一个隐藏能力 `RedactSerialize`。
-Option 和 Vec 投影要求元素实现该能力，避免高阶借用 capability 约束间接要求
-源数据存活至 static。泛型父对象可以序列化借用局部数据的子对象，而无需子对象
-自身实现普通 Serialize。缺少能力时在请求
-序列化处报错，纯文本派生仍然有效。
+嵌套 view 投影使用 `RedactSerializeSource`，其泛型关联 view 允许 Option、Vec 等支持的
+容器在当前调用中借用数据。除字段普通放行模式所需能力外，源类型不必实现普通
+`Serialize`。另外，`#[redact(serde)]` 通过旧的 `RedactSerialize` 桥保留源类型普通序列化；
+该路径有自己的能力边界，不等同于 view 投影。缺少 view 所需能力时在请求序列化处报错，
+纯文本派生仍然有效。
 
-脱敏序列化保留源 Serde 事件形状：`Option::Some` 使用 `serialize_some`，固定数组仍为
+脱敏序列化保留源 Serde 事件形状：`Option::Some` 使用 `serialize_some`，slice 使用 sequence，固定数组仍为
 tuple，包装器透传目标 serializer 的 human-readable 选择。JSON 输出形状保持不变，非 JSON
 serializer 则收到预期的 Option、tuple 和表示方式事件。
 
@@ -210,7 +211,7 @@ map、嵌套对象、按敏感等级写入、按运行时 key 分类、JSON 值�
 `derive` feature 导出 `#[derive(Redact)]` 和 `#[derive(RedactScalar)]`；生成的序列化适配还需要 `serde` feature。隐藏的支撑
 trait 与借用 adapter 覆盖标量、可选值、引用、常用容器、tuple、map 和 JSON ownership 形态。
 这些符号保持公开只是因为生成代码会在下游 crate 中展开，并不是另一套面向用户的序列化 API。
-根 adapter 建立或复用 thread-local 结构预算。借用字段投影（包括 Option 和 Vec）要求已有
+根 adapter 建立或复用 thread-local 结构预算。借用字段投影（包括 Option、Vec 和 slice）要求已有
 scope；缺少 scope 时，即使容器为空，也返回不含原值的 serializer 错误。因此直接构造
 不能跳过集合、深度、节点和输入准入。internally tagged serializer 只接受能够保持目标结构的 map/struct 形态，不支持的
 Serde shape 返回明确错误而不是猜测表示。
@@ -242,7 +243,9 @@ Multipart 内嵌 JSON/NDJSON 的解析失败保留 `InvalidJson`，资源准入�
 嵌套 URL 渲染则把子操作的 `InvalidUri` 和 `DepthLimitReached` 原因合并到父结果。
 
 来源截断元数据只由 `BodyCapture` 持有。当已捕获 body 超过父 runtime 的剩余输入额度时，父事务
-会原子拒绝整段 body；renderer 不再维护第二套“部分输入”状态。
+会原子拒绝整段 body；renderer 不再维护第二套“部分输入”状态。已解析的来源截断 body 会保留
+`SourceTruncated`；若输出也无法容纳，则同时报告 `OutputLimitReached`。URL 和 form
+渲染发生输出截断时报告 `OutputLimitReached`，不会标为 `Complete`。
 
 ## 9. Feature 与兼容性
 

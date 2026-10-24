@@ -125,9 +125,11 @@ fn main() {
 
 A view borrows the source and owns a policy snapshot; it is not a modified business object
 or cached source content. Each use starts from the source with an independent budget, never
-from the previous mask. It supports Display/Debug; structured serialization requires
-the derive-generated `RedactSerialize` capability; callers need not
-implement hidden traits. It never falls back to a Debug string. Interior-mutable sources can change
+from the previous mask. It supports Display/Debug. Structured view serialization uses the derive-generated
+`RedactSerializeSource` projection capability, which borrows data for the current call; callers
+need not implement hidden traits. `#[redact(serde)]` separately keeps the source type’s ordinary
+`Serialize` path redacted through the legacy `RedactSerialize` bridge, whose bounds are not the
+same as the view projection. It never falls back to a Debug string. Interior-mutable sources can change
 between uses; the policy remains fixed at view creation.
 
 `redact_text()` produces `output.text()` that can be displayed without another redaction pass.
@@ -240,7 +242,7 @@ fn main() {
 | `level = "low"/"medium"/"high"/"secret"` | Final level for each leaf; primitive scalars, `RedactScalar` and recursive supported containers. |
 | `level = "...", display` | Explicit textual representation of a `Display` value; no `Debug` or ordinary `Serialize` required. |
 | `skip` | Omit while enabled; disabled restores the field. |
-| `nested` | Delegate to `Redact`; structured output follows the nested value's generated view projection. |
+| `nested` | Delegate to `Redact`; structured output follows the nested value’s generated view projection, which supports local borrows through its projection capability. |
 | `map` | `HashMap`/`BTreeMap` with `String`, `&str`, or `Cow<str>` keys, optionally wrapped in `Option`; values require level capability and `Debug` for pass-through text. |
 | `map_key_level = "..."` | Fixed level for each map key; values remain ordinary. |
 | `map_key_level = "...", map_value_level = "..."` | Independently fixed key and value levels. |
@@ -259,7 +261,8 @@ Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` to
 ### Choosing the serialization boundary
 
 With the runtime `serde` feature, `Redact` always generates the redacted projection used by
-`redact_view()` and `to_json()`. The source type does not need to implement `Serialize` for
+`redact_view()` and `to_json()`. Nested projections and Option/Vec/slice adapters borrow through
+`RedactSerializeSource` for the active call; slices serialize as sequences and fixed arrays as tuples. The source type does not need to implement `Serialize` for
 that projection to be usable. Its fields must only satisfy the requirements of their redaction
 mode: an unmarked field normally needs `Serialize`, while `level = "...", display` needs
 `Display` and emits a redacted string.
@@ -338,8 +341,7 @@ fn main() {
 }
 ```
 
-Serde supports rename/rename_all, enum tag/content/untagged, transparent, skip, skip_serializing,
-and skip_serializing_if. with/serialize_with work on ordinary or skipped fields, not on sensitive
+Serde names use their effective field and variant names, including `rename`/`rename_all`; raw Rust identifiers are normalized before matching, while an explicit Serde rename preserves its chosen wire name. Enum tag/content/untagged, transparent, skip, skip_serializing, and skip_serializing_if are supported. with/serialize_with work on ordinary or skipped fields, not on sensitive
 modes observing raw field state. flatten is unsupported. JSON text fields retain their string
 wire type; parsed Value fields retain JSON structure.
 
@@ -550,9 +552,10 @@ fn main() {
 `BodyCapture::complete` asserts that all source bytes are present.
 `BodyCapture::prefix` records a known total length, while
 `BodyCapture::truncated_unknown` records that bytes are missing but their count
-is unknown. Source truncation is distinct from output truncation and is exposed
-as `RedactionReason::SourceTruncated`; never construct a complete capture from
-an incomplete body.
+is unknown. Source truncation is exposed as `RedactionReason::SourceTruncated`; output truncation
+is separately reported as `OutputLimitReached`. A parsed truncated body retains the source reason,
+and can report both reasons if output also exceeds its budget. URL and form output truncation is
+never reported as `Complete`. Never construct a complete capture from an incomplete body.
 
 ### Configure URL query and form fields separately
 
@@ -788,7 +791,9 @@ Common builder actions include:
 
 A floor can raise sensitivity above an allow rule when both match the same name. Floors are useful
 for provider-specific tokens that must never appear verbatim even if an allow list would otherwise
-permit the field.
+permit the field. `classify_field()` explains the first matching application rule; it does not apply
+floors or combine all matching sensitivities. Use `sensitivity_for()` for the final effective level,
+which takes the strongest matching application and floor sensitivity.
 
 <!-- redact-example: kind=run features=none -->
 ```rust

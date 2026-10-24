@@ -409,6 +409,35 @@ impl RedactionPolicy {
     ///
     /// This is useful for diagnostics about configured application rules. Use
     /// [`Self::sensitivity_for`] for the final security decision.
+    ///
+    /// A suffix rule can explain a weaker match even when another matching
+    /// rule determines the stronger final sensitivity:
+    ///
+    /// ```
+    /// use qubit_redact::{FieldClassification, FieldNameMatching, RedactionPolicy, Sensitivity};
+    ///
+    /// let policy = RedactionPolicy::builder()
+    ///     .fields(|fields| {
+    ///         fields
+    ///             .disable_floor()
+    ///             .override_level("token", Sensitivity::Secret)
+    ///             .override_level("access_token", Sensitivity::Medium)
+    ///             .matching(FieldNameMatching::ExactOrTokenSuffix);
+    ///     })
+    ///     .expect("valid field configuration")
+    ///     .build()
+    ///     .expect("valid sensitivity rules");
+    ///
+    /// let classification = policy.classify_field("OPENAI_ACCESS_TOKEN");
+    /// assert!(matches!(
+    ///     classification,
+    ///     FieldClassification::Sensitive { rule, .. } if rule.sensitivity() == Sensitivity::Medium
+    /// ));
+    /// assert_eq!(
+    ///     policy.sensitivity_for("OPENAI_ACCESS_TOKEN"),
+    ///     Some(Sensitivity::Secret),
+    /// );
+    /// ```
     #[inline(always)]
     #[must_use]
     pub fn classify_field<'a>(&'a self, field: &str) -> FieldClassification<'a> {

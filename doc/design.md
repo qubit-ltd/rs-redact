@@ -94,16 +94,18 @@ flowchart TD
 
 A view borrows its source and owns an immutable policy snapshot. Creation does not access
 the source; each formatting or serialization executes afresh. Text uses `Redact`, while
-structured Serde uses the hidden `RedactSerialize` capability. Only `#[redact(serde)]` additionally replaces ordinary source
-serialization. Explicit derive levels belong to the domain type and remain final under strict
+structured view Serde uses the hidden `RedactSerializeSource` projection capability. It borrows field data for the local serialization call. Only `#[redact(serde)]` additionally replaces ordinary source
+serialization through the legacy `RedactSerialize` bridge. Explicit derive levels belong to the domain type and remain final under strict
 policy. A hand-written `sensitive_at_least` is a minimum and combines with runtime classification
 by taking the stronger level, so strict can raise it. Unmarked fields retain ordinary representations.
 
-Nested projection fields and derived source serialization use the same hidden
-`RedactSerialize` capability. Option and Vec projections require their element
-types to implement that capability, so generic parents can serialize children
-borrowing local data without a higher-ranked borrowed capability. Unsupported capabilities fail
-when serialization is requested, while text-only derives remain valid.
+Nested view projections use `RedactSerializeSource`, whose generic associated view
+allows Option, Vec, and other supported containers to borrow data for the current
+call. The source type does not need ordinary `Serialize` unless a field’s pass-through
+mode requires it. Separately, `#[redact(serde)]` preserves the source type’s existing
+ordinary-serialization bridge through `RedactSerialize`; this legacy path has its own
+capability bounds and is not equivalent to the view projection. Unsupported view
+capabilities fail when serialization is requested, while text-only derives remain valid.
 
 Text RuntimeCore and synchronous Serde scopes have different lifetimes and own separate
 ledgers. Serde scopes use PolicyFrame Arc snapshots and thread-local guards; nested and
@@ -254,15 +256,15 @@ adapters cover scalars, options, references, common containers, tuples, maps,
 and JSON ownership forms. They are public only because generated code expands
 in downstream crates; they are not an alternative user-facing serialization
 API. Root adapters establish or reuse the thread-local structural budget. Borrowed
-field projections, including Option and Vec, require an existing scope and return
-a value-free serializer error when it is absent, even for empty containers. Direct
+field projections, including Option, Vec, and slices, use `RedactSerializeSource`, require
+an existing scope, and return a value-free serializer error when it is absent, even for empty containers. Direct
 construction therefore cannot skip collection, depth, node, or input admission.
 The internally tagged serializer accepts only map and struct shapes that
 preserve the intended structure; unsupported Serde shapes return explicit
 errors.
 
 Redacted serialization preserves the source Serde event shape: `Option::Some`
-uses `serialize_some`, fixed arrays remain tuples, and wrappers forward the
+uses `serialize_some`, slices serialize as sequences, fixed arrays remain tuples, and wrappers forward the
 destination serializer's human-readable preference. JSON output retains its
 existing shape while non-JSON serializers receive the intended option, tuple,
 and representation events.
