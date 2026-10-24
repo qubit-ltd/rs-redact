@@ -7,6 +7,8 @@
 // =============================================================================
 //! Public-boundary tests for resource-admitted Serde serialization.
 
+#![cfg(feature = "serde")]
+
 use qubit_redact::RedactionPolicy;
 use qubit_redact::domain::internal::BudgetSerialize;
 use qubit_redact::domain::internal::RedactSerializeScope;
