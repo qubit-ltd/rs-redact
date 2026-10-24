@@ -10,6 +10,7 @@
 use syn::Data;
 use syn::DeriveInput;
 use syn::Error;
+use syn::ext::IdentExt;
 use syn::Fields;
 use syn::LitStr;
 use syn::Path;
@@ -107,7 +108,7 @@ impl SerdeContainerAttributes {
         }
         let representation = representation(input, tag, content, untagged)?;
         Ok(Self {
-            name: name.unwrap_or_else(|| input.ident.to_string()),
+            name: name.unwrap_or_else(|| input.ident.unraw().to_string()),
             rename_all,
             rename_all_fields,
             representation,

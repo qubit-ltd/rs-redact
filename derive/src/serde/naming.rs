@@ -10,7 +10,9 @@
 use proc_macro2::TokenStream;
 use quote::format_ident;
 use quote::quote;
+use syn::ext::IdentExt;
 use syn::Ident;
+use syn::LitStr;
 use syn::Path;
 
 use crate::attributes::SerdeContainerAttributes;
@@ -31,7 +33,8 @@ pub(super) fn serialized_variant_name(
     variant: &VariantData<'_>,
     container_attributes: &SerdeContainerAttributes,
 ) -> String {
-    let default_name = container_attributes.rename_variant(&variant.variant().ident.to_string());
+    let default_name =
+        container_attributes.rename_variant(&variant.variant().ident.unraw().to_string());
     variant.serde_attributes().rename_variant(default_name)
 }
 
@@ -56,7 +59,12 @@ pub(super) fn named_content_proxy(
     names: &[String],
     carriers: &[Ident],
 ) -> (TokenStream, TokenStream) {
-    let proxy = format_ident!("__QubitRedactAdjacent{variant_name}Content");
+    let unraw_variant_name = variant_name.unraw();
+    let proxy = format_ident!("__QubitRedactAdjacent{unraw_variant_name}Content");
+    let serialized_variant_name = LitStr::new(
+        &unraw_variant_name.to_string(),
+        unraw_variant_name.span(),
+    );
     if carriers.is_empty() {
         let definition = quote! {
             struct #proxy;
@@ -74,7 +82,7 @@ pub(super) fn named_content_proxy(
                     #runtime::domain::internal::serialize_content(serializer, |serializer| {
                         let state = #serde::Serializer::serialize_struct(
                             serializer,
-                            stringify!(#variant_name),
+                            #serialized_variant_name,
                             0,
                         )?;
                         #serde::ser::SerializeStruct::end(state)
@@ -130,7 +138,7 @@ pub(super) fn named_content_proxy(
                     #runtime::domain::internal::admit_serializer_items(&serializer, field_count)?;
                     let mut state = #serde::Serializer::serialize_struct(
                         serializer,
-                        stringify!(#variant_name),
+                        #serialized_variant_name,
                         field_count,
                     )?;
                     #(#calls)*
@@ -166,7 +174,8 @@ pub(super) fn tuple_content_proxy(
     serde: &Path,
     carriers: &[Ident],
 ) -> (TokenStream, TokenStream) {
-    let proxy = format_ident!("__QubitRedactAdjacent{variant_name}Content");
+    let unraw_variant_name = variant_name.unraw();
+    let proxy = format_ident!("__QubitRedactAdjacent{unraw_variant_name}Content");
     if carriers.is_empty() {
         let definition = quote! {
             struct #proxy;

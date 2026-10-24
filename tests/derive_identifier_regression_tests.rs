@@ -82,12 +82,189 @@ fn test_named_enum_writer_uses_isolated_bindings() {
 
 #[cfg(feature = "serde")]
 mod serde {
+    #![allow(non_camel_case_types)]
+
     use qubit_redact::Redact;
     #[cfg(feature = "serde")]
     use qubit_redact::RedactionPolicy;
     use qubit_redact::Redactor;
     #[cfg(feature = "serde")]
     use qubit_redact::domain::internal::RedactedSerializeRef;
+    use serde_test::Token;
+
+    #[derive(Redact)]
+    #[redact(serde)]
+    enum RawVariant {
+        r#type,
+    }
+
+    #[derive(Redact)]
+    #[redact(serde)]
+    #[serde(rename_all = "UPPERCASE")]
+    enum RawUpperVariant {
+        r#type,
+    }
+
+    #[derive(Redact)]
+    #[redact(serde)]
+    #[serde(tag = "kind")]
+    enum RawInternalVariant {
+        r#type { value: String },
+    }
+
+    #[derive(Redact)]
+    #[redact(serde)]
+    #[serde(tag = "kind", content = "payload")]
+    enum RawAdjacentVariant {
+        r#type(String),
+    }
+
+    #[derive(Redact)]
+    #[redact(serde)]
+    #[serde(tag = "kind", content = "payload")]
+    enum RawAdjacentNamedVariant {
+        r#type { value: String },
+    }
+
+    #[derive(Redact)]
+    #[redact(serde)]
+    enum RawExplicitVariant {
+        #[serde(rename = "r#type")]
+        r#type,
+    }
+
+    #[derive(Redact)]
+    #[redact(serde)]
+    struct r#type {
+        value: u8,
+    }
+
+    mod native {
+        #[derive(serde::Serialize)]
+        pub(super) enum RawVariant {
+            r#type,
+        }
+
+        #[allow(non_camel_case_types)]
+        #[derive(serde::Serialize)]
+        pub(super) struct r#type {
+            pub(super) value: u8,
+        }
+    }
+
+    #[test]
+    fn test_raw_variant_defaults_are_unraw_before_renaming() {
+        let policy = RedactionPolicy::standard();
+        let raw = RawVariant::r#type;
+        let native = native::RawVariant::r#type;
+        let native_tokens = [Token::UnitVariant {
+            name: "RawVariant",
+            variant: "type",
+        }];
+        serde_test::assert_ser_tokens(&native, &native_tokens);
+        serde_test::assert_ser_tokens(
+            &RedactedSerializeRef::new(&raw, &policy),
+            &native_tokens,
+        );
+
+        let upper = RawUpperVariant::r#type;
+        serde_test::assert_ser_tokens(
+            &RedactedSerializeRef::new(&upper, &policy),
+            &[Token::UnitVariant {
+                name: "RawUpperVariant",
+                variant: "TYPE",
+            }],
+        );
+
+        let internal = RawInternalVariant::r#type {
+            value: "visible".to_owned(),
+        };
+        let internal_tokens = [
+            Token::Struct {
+                name: "RawInternalVariant",
+                len: 2,
+            },
+            Token::Str("kind"),
+            Token::Str("type"),
+            Token::Str("value"),
+            Token::Str("visible"),
+            Token::StructEnd,
+        ];
+        serde_test::assert_ser_tokens(
+            &RedactedSerializeRef::new(&internal, &policy),
+            &internal_tokens,
+        );
+
+        let adjacent = RawAdjacentVariant::r#type("visible".to_owned());
+        let adjacent_tokens = [
+            Token::Struct {
+                name: "RawAdjacentVariant",
+                len: 2,
+            },
+            Token::Str("kind"),
+            Token::Str("type"),
+            Token::Str("payload"),
+            Token::Str("visible"),
+            Token::StructEnd,
+        ];
+        serde_test::assert_ser_tokens(
+            &RedactedSerializeRef::new(&adjacent, &policy),
+            &adjacent_tokens,
+        );
+
+        let adjacent_named = RawAdjacentNamedVariant::r#type {
+            value: "visible".to_owned(),
+        };
+        serde_test::assert_ser_tokens(
+            &RedactedSerializeRef::new(&adjacent_named, &policy),
+            &[
+                Token::Struct {
+                    name: "RawAdjacentNamedVariant",
+                    len: 2,
+                },
+                Token::Str("kind"),
+                Token::Str("type"),
+                Token::Str("payload"),
+                Token::Struct {
+                    name: "type",
+                    len: 1,
+                },
+                Token::Str("value"),
+                Token::Str("visible"),
+                Token::StructEnd,
+                Token::StructEnd,
+            ],
+        );
+
+        let explicit = RawExplicitVariant::r#type;
+        serde_test::assert_ser_tokens(
+            &RedactedSerializeRef::new(&explicit, &policy),
+            &[Token::UnitVariant {
+                name: "RawExplicitVariant",
+                variant: "r#type",
+            }],
+        );
+    }
+
+    #[test]
+    fn test_raw_container_default_name_is_unraw_and_native_serde_agrees() {
+        let value = r#type { value: 7 };
+        let native = native::r#type { value: 7 };
+        let tokens = [
+            Token::Struct {
+                name: "type",
+                len: 1,
+            },
+            Token::Str("value"),
+            Token::U8(7),
+            Token::StructEnd,
+        ];
+        serde_test::assert_ser_tokens(&native, &tokens);
+        serde_test::assert_ser_tokens(
+            &RedactedSerializeRef::new(&value, &RedactionPolicy::standard()),
+            &tokens,
+        );
+    }
 
     collision_enum!(External, redact(serde));
     collision_enum!(Internal, redact(serde), serde(tag = "kind"));
