@@ -77,3 +77,67 @@ fn test_strict_url_path_policy_redacts_opaque_url_paths() {
         );
     }
 }
+
+/// Invalid query escapes retain their structured reason through public APIs.
+#[test]
+fn test_invalid_query_reason_survives_http_publication() {
+    let redactor = Redactor::standard();
+    for query in ["value=%ZZ", "value=%", "value=%FF"] {
+        let url = format!("https://example.test/?{query}");
+        let direct = redactor.redact_http_url(&url);
+        assert!(direct.summary().reasons().contains(RedactionReason::InvalidUri));
+        assert_eq!(direct.summary().completion(), RedactionCompletion::Complete);
+        let composed = redactor
+            .text_composer()
+            .http(|http| {
+                http.url(&url);
+            })
+            .finish();
+        assert!(composed.summary().reasons().contains(RedactionReason::InvalidUri));
+        let mut batch = redactor.diagnostic_batch();
+        let handle = batch.redact_http_url(&url);
+        let published = batch.finish();
+        assert!(published.summary().reasons().contains(RedactionReason::InvalidUri));
+        assert_eq!(published.text(handle).as_str(), direct.text().as_str());
+    }
+}
+
+/// Valid percent escapes do not report an invalid URI.
+#[test]
+fn test_valid_percent_encoded_query_has_no_invalid_uri_reason() {
+    let output = Redactor::standard().redact_http_url("https://example.test/?value=%41");
+
+    assert!(!output.summary().reasons().contains(RedactionReason::InvalidUri));
+}
+
+/// Invalid query provenance is retained when it occurs in a nested URL.
+#[test]
+fn test_nested_invalid_query_retains_invalid_uri_reason() {
+    let nested = "https://inner.test/?value=%ZZ";
+    let encoded = url::form_urlencoded::byte_serialize(nested.as_bytes()).collect::<String>();
+    let output = Redactor::standard().redact_http_url(&format!("https://outer.test/?next={encoded}"));
+
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
+}
+
+/// Invalid-query provenance is retained alongside output truncation.
+#[test]
+fn test_invalid_query_reason_survives_output_limit() {
+    let policy = RedactionPolicy::standard()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_output_bytes(32);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let output = Redactor::new(policy).redact_http_url("https://example.test/?value=abcdefghijklmnopqrstuvwxyz%ZZ");
+
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert!(output.text().as_str().len() <= 32);
+    assert!(matches!(
+        output.summary().completion(),
+        RedactionCompletion::Truncated | RedactionCompletion::Exhausted,
+    ));
+}
