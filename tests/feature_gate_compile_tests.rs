@@ -10,9 +10,9 @@
 mod support;
 
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::process;
-use std::process::Command;
 use std::process::Output;
 
 use support::compile_diagnostics::source_error_matches;
@@ -36,9 +36,12 @@ fn assert_format_api_is_feature_gated(method: &str) {
     )
     .expect("the temporary source should be writable");
 
-    let output = Command::new(env!("CARGO"))
+    let mut command = support::isolated_cargo::command(OsStr::new(env!("CARGO")));
+    command
         .args(["check", "--offline", "--message-format=json"])
-        .current_dir(&directory)
+        .env("CARGO_NET_OFFLINE", "true")
+        .current_dir(&directory);
+    let output = command
         .output()
         .expect("cargo check for the temporary dependent crate should run");
     let diagnostics = format!(
@@ -77,9 +80,12 @@ fn check_derive_dependency(case: &str, dependency_options: &str) -> Output {
     )
     .expect("the temporary source should be writable");
 
-    let output = Command::new(env!("CARGO"))
+    let mut command = support::isolated_cargo::command(OsStr::new(env!("CARGO")));
+    command
         .args(["check", "--offline", "--message-format=json"])
-        .current_dir(&directory)
+        .env("CARGO_NET_OFFLINE", "true")
+        .current_dir(&directory);
+    let output = command
         .output()
         .expect("cargo check for the temporary dependent crate should run");
     fs::remove_dir_all(directory).expect("the temporary dependent crate directory should be removable");

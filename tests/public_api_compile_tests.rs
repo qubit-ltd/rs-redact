@@ -10,9 +10,9 @@
 mod support;
 
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::process;
-use std::process::Command;
 use std::process::Output;
 
 use support::compile_diagnostics::source_error_matches;
@@ -36,9 +36,12 @@ fn check_dependent(case: &str, source: &str, features: &[&str]) -> Output {
     )
     .expect("the dependent manifest should be writable");
     fs::write(directory.join("src/main.rs"), source).expect("the dependent source should be writable");
-    let output = Command::new(env!("CARGO"))
+    let mut command = support::isolated_cargo::command(OsStr::new(env!("CARGO")));
+    command
         .args(["check", "--offline", "--message-format=json"])
-        .current_dir(&directory)
+        .env("CARGO_NET_OFFLINE", "true")
+        .current_dir(&directory);
+    let output = command
         .output()
         .expect("cargo check for the dependent crate should run");
     fs::remove_dir_all(directory).expect("the dependent crate should be removable");

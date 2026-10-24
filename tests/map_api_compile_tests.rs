@@ -10,9 +10,9 @@
 mod support;
 
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::process;
-use std::process::Command;
 
 use support::compile_diagnostics::source_error_matches;
 
@@ -52,9 +52,12 @@ fn main() {}
     )
     .expect("temporary source");
 
-    let output = Command::new(env!("CARGO"))
+    let mut command = support::isolated_cargo::command(OsStr::new(env!("CARGO")));
+    command
         .args(["check", "--offline", "--message-format=json"])
-        .current_dir(&directory)
+        .env("CARGO_NET_OFFLINE", "true")
+        .current_dir(&directory);
+    let output = command
         .output()
         .expect("cargo check for temporary dependent crate");
     let diagnostics = format!(
