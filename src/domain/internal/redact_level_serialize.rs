@@ -391,7 +391,7 @@ impl<T: RedactLevelSerialize> RedactLevelSerialize for Option<T> {
         S: Serializer,
     {
         match self {
-            Some(value) => value.serialize_redacted_level(serializer, policy, level),
+            Some(value) => serializer.serialize_some(&RedactedLevelSerializeRef::new(value, policy, level)),
             None => serializer.serialize_none(),
         }
     }
@@ -713,11 +713,11 @@ impl<T: RedactLevelSerialize, const N: usize> RedactLevelSerialize for [T; N] {
                 policy.masking().mask_opaque(Sensitivity::Secret),
             );
         }
-        let mut sequence = serializer.serialize_seq(Some(N))?;
+        let mut tuple = serializer.serialize_tuple(N)?;
         for value in self {
-            sequence.serialize_element(&RedactedLevelSerializeRef::new(value, policy, level))?;
+            tuple.serialize_element(&RedactedLevelSerializeRef::new(value, policy, level))?;
         }
-        sequence.end()
+        tuple.end()
     }
 }
 

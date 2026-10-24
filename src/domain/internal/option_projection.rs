@@ -75,7 +75,7 @@ where
             current_policy().ok_or_else(|| S::Error::custom("serialization requires an active redaction scope"))?;
         let Self(value) = self;
         match *value {
-            Some(value) => RedactedSerializeRef::new(value, policy_owner.as_ref()).serialize(serializer),
+            Some(value) => serializer.serialize_some(&RedactedSerializeRef::new(value, policy_owner.as_ref())),
             None => serializer.serialize_none(),
         }
     }

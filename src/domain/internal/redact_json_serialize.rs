@@ -21,6 +21,8 @@ use super::redact_serialize_scope::admit_collection_items;
 use super::redact_serialize_scope::admit_input;
 use super::redact_serialize_scope::admit_node;
 use super::redact_serialize_scope::leave_node;
+#[cfg(feature = "json")]
+use super::redacted_json_serialize_ref::RedactedJsonSerializeRef;
 
 /// Internal structured serialization capability for JSON text fields.
 #[doc(hidden)]
@@ -306,7 +308,7 @@ impl<T: RedactJsonSerialize> RedactJsonSerialize for Option<T> {
         S: Serializer,
     {
         match self {
-            Some(value) => value.serialize_redacted_json(serializer, policy),
+            Some(value) => serializer.serialize_some(&RedactedJsonSerializeRef::new(value, policy)),
             None => serializer.serialize_none(),
         }
     }

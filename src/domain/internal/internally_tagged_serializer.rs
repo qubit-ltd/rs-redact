@@ -108,6 +108,12 @@ impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
     /// supported.
     type SerializeStructVariant = Impossible<S::Ok, S::Error>;
 
+    /// Preserves the destination serializer's human-readable representation.
+    #[inline(always)]
+    fn is_human_readable(&self) -> bool {
+        self.serializer.is_human_readable()
+    }
+
     /// Admits and injects the tag before returning a map adapter.
     ///
     /// # Errors
