@@ -375,6 +375,15 @@ fn source_group_bounds(fields: &FieldsData<'_>, runtime: &Path, serde: &Path, re
     match fields {
         FieldsData::Named(fields) => {
             for field in fields {
+                let FieldMode::KeyedBy(key) = field.attributes().mode() else {
+                    continue;
+                };
+                if let Some(key_field) = fields.iter().find(|candidate| candidate.identifier() == key) {
+                    let key_type = &key_field.field().ty;
+                    result.push(quote!(#key_type: ::core::convert::AsRef<str>));
+                }
+            }
+            for field in fields {
                 source_field_bound(
                     field.field(),
                     field.attributes().mode(),
@@ -416,9 +425,17 @@ fn source_field_bound(
     }
     match mode {
         FieldMode::Unmarked | FieldMode::Skip if serde_attributes.serialize_with().is_none() => {
-            if !matches!(field.ty, Type::Reference(_)) {
-                result.push(quote!(#ty: #serde::Serialize));
-            }
+            let serialize_type = match ty {
+                Type::Reference(reference) => {
+                    let mut target = reference.elem.as_ref();
+                    while let Type::Reference(reference) = target {
+                        target = reference.elem.as_ref();
+                    }
+                    target
+                }
+                _ => ty,
+            };
+            result.push(quote!(#serialize_type: #serde::Serialize));
         }
         FieldMode::DisplayLevel(_) => result.push(quote!(#ty: ::core::fmt::Display)),
         FieldMode::Level(_) => result.push(quote!(#ty: #runtime::domain::internal::RedactLevelSerialize)),
@@ -432,11 +449,6 @@ fn source_field_bound(
         }
         FieldMode::Json => result.push(quote!(#ty: #runtime::domain::internal::RedactJsonSerialize)),
         FieldMode::Unmarked | FieldMode::Skip => {}
-    }
-    if (matches!(mode, FieldMode::Unmarked | FieldMode::Skip) && serde_attributes.skip_serializing_if().is_some())
-        && !matches!(field.ty, Type::Reference(_))
-    {
-        result.push(quote!(#ty: #serde::Serialize));
     }
 }
 

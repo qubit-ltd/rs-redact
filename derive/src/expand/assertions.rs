@@ -70,6 +70,37 @@ pub(crate) fn add_redact_bounds(generics: &mut Generics, model: &ContainerData<'
         FieldMode::Json => add_trait_bound(generics, field, quote!(#runtime::domain::RedactJsonValue)),
         FieldMode::Skip => {}
     });
+    add_keyed_by_key_bounds(generics, model);
+}
+
+/// Adds string-like bounds for sibling fields used as keyed redaction keys.
+///
+/// # Parameters
+///
+/// * `generics` - Implementation generics to extend with key capabilities.
+/// * `model` - Parsed fields whose keyed modes refer to sibling keys.
+fn add_keyed_by_key_bounds(generics: &mut Generics, model: &ContainerData<'_>) {
+    let mut add_group = |fields: &FieldsData<'_>| {
+        let FieldsData::Named(fields) = fields else {
+            return;
+        };
+        for field in fields {
+            let FieldMode::KeyedBy(key) = field.attributes().mode() else {
+                continue;
+            };
+            if let Some(key_field) = fields.iter().find(|candidate| candidate.identifier() == key) {
+                add_trait_bound(generics, key_field.field(), quote!(::core::convert::AsRef<str>));
+            }
+        }
+    };
+    match model {
+        ContainerData::Struct(fields) => add_group(fields),
+        ContainerData::Enum(variants) => {
+            for variant in variants {
+                add_group(variant.fields());
+            }
+        }
+    }
 }
 
 /// Visits every parsed field without exposing the container representation to
@@ -497,6 +528,76 @@ fn recursive_types<'a>(ty: &'a Type, target: &str) -> Option<Vec<&'a Type>> {
     found.then_some(bounds)
 }
 
+/// Reports whether recursion occurs only through runtime-supported nested
+/// storage.
+///
+/// # Parameters
+///
+/// * `ty` - Field type syntax to inspect.
+/// * `target` - Token-rendered type of the derived item.
+///
+/// # Returns
+///
+/// `Some(true)` for supported recursive storage, `Some(false)` for unsupported
+/// recursive storage, or `None` when the type is not recursive.
+fn nested_recursion_supported(ty: &Type, target: &str) -> Option<bool> {
+    if matches_recursive_target(ty, target) {
+        return Some(true);
+    }
+    let (children, supported_wrapper): (Vec<&Type>, bool) = match ty {
+        Type::Path(path) if path.qself.is_none() => {
+            let segment = path.path.segments.last()?;
+            let root = &path.path.segments.first()?.ident;
+            if path.path.segments.len() > 1 && root != "std" && root != "alloc" && root != "core" {
+                return None;
+            }
+            let supported = matches!(segment.ident.to_string().as_str(), "Option" | "Box" | "Vec");
+            let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+                return None;
+            };
+            (
+                arguments
+                    .args
+                    .iter()
+                    .filter_map(|argument| match argument {
+                        GenericArgument::Type(ty) => Some(ty),
+                        _ => None,
+                    })
+                    .collect(),
+                supported,
+            )
+        }
+        Type::Tuple(tuple) => (tuple.elems.iter().collect(), true),
+        Type::Array(array) => (vec![&*array.elem], true),
+        Type::Paren(paren) => (vec![&*paren.elem], true),
+        _ => return None,
+    };
+    let nested_results: Vec<bool> = children
+        .into_iter()
+        .filter_map(|child| nested_recursion_supported(child, target))
+        .collect();
+    if nested_results.is_empty() {
+        None
+    } else {
+        Some(supported_wrapper && nested_results.into_iter().all(std::convert::identity))
+    }
+}
+
+/// Checks whether a type syntax node names the derived type or `Self`.
+///
+/// # Parameters
+///
+/// * `ty` - Type syntax node to compare.
+/// * `target` - Token-rendered type of the derived item.
+///
+/// # Returns
+///
+/// `true` when the syntax node names the recursive target.
+fn matches_recursive_target(ty: &Type, target: &str) -> bool {
+    let rendered = ty.to_token_stream().to_string();
+    rendered == target || rendered == "Self"
+}
+
 /// Keeps recursive derived values on the structured policy path so nested
 /// serializers do not acquire an ever-growing BudgetSerializer type.
 ///
@@ -536,6 +637,7 @@ pub(crate) fn normalize_recursive_fields(input: &mut DeriveInput) {
         if !custom_serializer
             && !field.attrs.iter().any(|attribute| attribute.path().is_ident("redact"))
             && recursive_types(&field.ty, &target).is_some()
+            && nested_recursion_supported(&field.ty, &target) == Some(true)
         {
             field.attrs.push(parse_quote!(#[redact(nested)]));
         }

@@ -1,23 +1,25 @@
 error: RedactScalar requires exactly one scalar field
-  --> tests/fixtures/fail/scalar_shape.rs:10:1
+  --> tests/fixtures/fail/scalar_shape.rs:11:1
    |
-10 | struct Empty;
+11 | struct Empty;
    | ^^^^^^^^^^^^^
 
 error: RedactScalar requires exactly one scalar field
-  --> tests/fixtures/fail/scalar_shape.rs:12:1
+  --> tests/fixtures/fail/scalar_shape.rs:14:1
    |
-12 | struct Pair(u64, u64);
+14 | struct Pair(u64, u64);
    | ^^^^^^^^^^^^^^^^^^^^^^
 
 error: RedactScalar requires a single-field struct
-  --> tests/fixtures/fail/scalar_shape.rs:14:1
+  --> tests/fixtures/fail/scalar_shape.rs:17:1
    |
-14 | enum Choice { Item(u64) }
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^
+17 | / enum Choice {
+18 | |     Item(u64),
+19 | | }
+   | |_^
 
 error: RedactScalar does not declare field sensitivity; annotate the consuming field
-  --> tests/fixtures/fail/scalar_shape.rs:16:19
+  --> tests/fixtures/fail/scalar_shape.rs:22:19
    |
-16 | struct Classified(#[redact(level = "secret")] String);
+22 | struct Classified(#[redact(level = "secret")] String);
    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
