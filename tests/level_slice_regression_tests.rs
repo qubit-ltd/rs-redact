@@ -2,6 +2,8 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Borrowed level slices preserve safe sequence serialization.
 
@@ -71,15 +73,9 @@ fn test_borrowed_slice_redacts_leaf_values_without_copying() {
     let text = redactor.redact_text(&value);
     assert!(!text.text().as_str().contains("first-secret"));
     assert!(!text.text().as_str().contains("second-secret"));
-    let view = serde_json::to_value(RedactedSerializeRef::new(
-        &value,
-        &RedactionPolicy::standard(),
-    ))
-    .expect("borrowed slice view should serialize");
-    assert_eq!(
-        view["values"],
-        serde_json::json!(["<redacted>", "<redacted>"])
-    );
+    let view = serde_json::to_value(RedactedSerializeRef::new(&value, &RedactionPolicy::standard()))
+        .expect("borrowed slice view should serialize");
+    assert_eq!(view["values"], serde_json::json!(["<redacted>", "<redacted>"]));
     serde_test::assert_ser_tokens(
         &RedactedSerializeRef::new(&value, &RedactionPolicy::standard()),
         &[
@@ -95,9 +91,7 @@ fn test_borrowed_slice_redacts_leaf_values_without_copying() {
             serde_test::Token::StructEnd,
         ],
     );
-    let json = redactor
-        .to_json(&value)
-        .expect("borrowed slice JSON should serialize");
+    let json = redactor.to_json(&value).expect("borrowed slice JSON should serialize");
     assert!(!json.contains("first-secret"));
 
     let vector = vec!["vec-secret".to_owned()];
@@ -111,11 +105,8 @@ fn test_borrowed_slice_redacts_leaf_values_without_copying() {
 
     let empty: [String; 0] = [];
     let empty_value = BorrowedValues { values: &empty };
-    let view = serde_json::to_value(RedactedSerializeRef::new(
-        &empty_value,
-        &RedactionPolicy::standard(),
-    ))
-    .expect("empty borrowed slice should serialize");
+    let view = serde_json::to_value(RedactedSerializeRef::new(&empty_value, &RedactionPolicy::standard()))
+        .expect("empty borrowed slice should serialize");
     assert_eq!(view["values"], serde_json::json!([]));
 }
 
@@ -126,19 +117,13 @@ fn test_borrowed_str_slice_and_fixed_array_keep_their_serde_shapes() {
     let policy = RedactionPolicy::standard();
     let view = serde_json::to_value(RedactedSerializeRef::new(&borrowed_words, &policy))
         .expect("borrowed str slice should serialize");
-    assert_eq!(
-        view["values"],
-        serde_json::json!(["<redacted>", "<redacted>"])
-    );
+    assert_eq!(view["values"], serde_json::json!(["<redacted>", "<redacted>"]));
 
     let array = ["one".to_owned(), "two".to_owned()];
     let value = BorrowedArray { values: &array };
-    let view = serde_json::to_value(RedactedSerializeRef::new(&value, &policy))
-        .expect("fixed array view should serialize");
-    assert_eq!(
-        view["values"],
-        serde_json::json!(["<redacted>", "<redacted>"])
-    );
+    let view =
+        serde_json::to_value(RedactedSerializeRef::new(&value, &policy)).expect("fixed array view should serialize");
+    assert_eq!(view["values"], serde_json::json!(["<redacted>", "<redacted>"]));
     serde_test::assert_ser_tokens(
         &RedactedSerializeRef::new(&value, &policy),
         &[
@@ -165,18 +150,12 @@ fn test_slice_levels_and_disabled_mode_keep_their_existing_representations() {
         high: &values,
         secret: &values,
     };
-    let enabled = serde_json::to_value(RedactedSerializeRef::new(
-        &value,
-        &RedactionPolicy::standard(),
-    ))
-    .expect("all level slices should serialize");
+    let enabled = serde_json::to_value(RedactedSerializeRef::new(&value, &RedactionPolicy::standard()))
+        .expect("all level slices should serialize");
     assert!(!enabled.to_string().contains("raw-secret"));
 
-    let disabled = serde_json::to_value(RedactedSerializeRef::new(
-        &value,
-        &RedactionPolicy::disabled(),
-    ))
-    .expect("disabled level slices should serialize");
+    let disabled = serde_json::to_value(RedactedSerializeRef::new(&value, &RedactionPolicy::disabled()))
+        .expect("disabled level slices should serialize");
     for field in ["low", "medium", "high", "secret"] {
         assert_eq!(disabled[field], serde_json::json!(["raw-secret"]));
     }
@@ -204,9 +183,7 @@ fn test_slice_collection_limit_uses_the_shared_safe_fallback() {
 #[test]
 fn test_slice_input_depth_and_payload_limits_share_the_active_scope() {
     let input_values = ["raw-input".to_owned()];
-    let input_value = BorrowedLowValues {
-        values: &input_values,
-    };
+    let input_value = BorrowedLowValues { values: &input_values };
     let input_policy = RedactionPolicy::builder()
         .limits(|limits| {
             limits.max_input_bytes(0);
@@ -221,9 +198,7 @@ fn test_slice_input_depth_and_payload_limits_share_the_active_scope() {
 
     let nested_values = ["raw-depth".to_owned()];
     let nested_value = NestedBorrowedValues {
-        inner: BorrowedValues {
-            values: &nested_values,
-        },
+        inner: BorrowedValues { values: &nested_values },
     };
     let depth_policy = RedactionPolicy::builder()
         .limits(|limits| {
@@ -251,9 +226,7 @@ fn test_slice_input_depth_and_payload_limits_share_the_active_scope() {
         .expect("payload limit should be valid")
         .build()
         .expect("payload limit should build");
-    assert!(
-        serde_json::to_value(RedactedSerializeRef::new(&payload_value, &payload_policy)).is_err()
-    );
+    assert!(serde_json::to_value(RedactedSerializeRef::new(&payload_value, &payload_policy)).is_err());
 }
 
 #[test]

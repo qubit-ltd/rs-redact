@@ -79,15 +79,9 @@ pub(in crate::formats::http) fn redact_bounded_with_truncation(
     let mut truncated = false;
     for (key, value) in parse(input) {
         let remaining = intermediate_limit.saturating_sub(output.len());
-        let (value, mask_truncated) =
-            redactor.redact_bounded_with_truncation(key.as_ref(), value.as_ref(), remaining);
+        let (value, mask_truncated) = redactor.redact_bounded_with_truncation(key.as_ref(), value.as_ref(), remaining);
         truncated |= mask_truncated;
-        if !append_pair_bounded(
-            &mut output,
-            key.as_ref(),
-            value.as_str(),
-            intermediate_limit,
-        ) {
+        if !append_pair_bounded(&mut output, key.as_ref(), value.as_str(), intermediate_limit) {
             truncated = true;
             break;
         }

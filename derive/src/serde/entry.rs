@@ -96,9 +96,7 @@ pub(crate) fn expand(
     };
     let legacy_body = if generate_serialize {
         Some(match model {
-            ContainerData::Struct(fields) => {
-                struct_body(name, fields, runtime, serde, container_attributes, true)
-            }
+            ContainerData::Struct(fields) => struct_body(name, fields, runtime, serde, container_attributes, true),
             ContainerData::Enum(variants) => enum_body(
                 name,
                 variants,

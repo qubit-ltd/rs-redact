@@ -2,6 +2,8 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Borrowed projection capability regressions for derived sources.
 
@@ -39,32 +41,17 @@ fn test_local_borrowed_child_projects_through_direct_vec_option_and_nested_paths
 
     let direct = serde_json::to_value(redactor.redact_view(&child)).expect("direct view");
     assert_eq!(direct["password"], "<redacted>");
-    assert!(
-        !redactor
-            .to_json(&child)
-            .expect("direct JSON")
-            .contains("raw-password")
-    );
+    assert!(!redactor.to_json(&child).expect("direct JSON").contains("raw-password"));
 
     let values = vec![Child { password: &local }];
     let encoded = serde_json::to_value(redactor.redact_view(&values)).expect("vector view");
     assert_eq!(encoded[0]["password"], "<redacted>");
-    assert!(
-        !redactor
-            .to_json(&values)
-            .expect("vector JSON")
-            .contains("raw-password")
-    );
+    assert!(!redactor.to_json(&values).expect("vector JSON").contains("raw-password"));
 
     let some = Some(Child { password: &local });
     let encoded = serde_json::to_value(redactor.redact_view(&some)).expect("some view");
     assert_eq!(encoded["password"], "<redacted>");
-    assert!(
-        !redactor
-            .to_json(&some)
-            .expect("some JSON")
-            .contains("raw-password")
-    );
+    assert!(!redactor.to_json(&some).expect("some JSON").contains("raw-password"));
 
     let none: Option<Child<'_>> = None;
     assert!(
@@ -100,24 +87,14 @@ fn test_local_borrowed_child_projects_through_direct_vec_option_and_nested_paths
     );
 
     let tuple = (Child { password: &local }, Child { password: &local });
-    assert!(
-        !redactor
-            .to_json(&tuple)
-            .expect("tuple JSON")
-            .contains("raw-password")
-    );
+    assert!(!redactor.to_json(&tuple).expect("tuple JSON").contains("raw-password"));
 
     let parent = Parent {
         child: Child { password: &local },
     };
     let encoded = serde_json::to_value(redactor.redact_view(&parent)).expect("parent view");
     assert_eq!(encoded["child"]["password"], "<redacted>");
-    assert!(
-        !redactor
-            .to_json(&parent)
-            .expect("parent JSON")
-            .contains("raw-password")
-    );
+    assert!(!redactor.to_json(&parent).expect("parent JSON").contains("raw-password"));
 }
 
 #[test]
@@ -128,8 +105,7 @@ fn test_ordinary_source_serialize_remains_unredacted_and_opt_in_view_is_redacted
     let encoded = serde_json::to_value(&source).expect("ordinary source Serialize");
     assert_eq!(encoded["password"], "raw-password");
 
-    let view =
-        serde_json::to_value(Redactor::standard().redact_view(&source)).expect("redacted view");
+    let view = serde_json::to_value(Redactor::standard().redact_view(&source)).expect("redacted view");
     assert_eq!(view["password"], "<redacted>");
 }
 
@@ -142,17 +118,11 @@ fn test_array_and_tuple_projection_keep_their_serde_event_shapes() {
         &redactor.redact_view(&array),
         &[
             serde_test::Token::Seq { len: Some(2) },
-            serde_test::Token::Struct {
-                name: "Child",
-                len: 1,
-            },
+            serde_test::Token::Struct { name: "Child", len: 1 },
             serde_test::Token::Str("password"),
             serde_test::Token::Str("<redacted>"),
             serde_test::Token::StructEnd,
-            serde_test::Token::Struct {
-                name: "Child",
-                len: 1,
-            },
+            serde_test::Token::Struct { name: "Child", len: 1 },
             serde_test::Token::Str("password"),
             serde_test::Token::Str("<redacted>"),
             serde_test::Token::StructEnd,
@@ -165,17 +135,11 @@ fn test_array_and_tuple_projection_keep_their_serde_event_shapes() {
         &redactor.redact_view(&tuple),
         &[
             serde_test::Token::Tuple { len: 2 },
-            serde_test::Token::Struct {
-                name: "Child",
-                len: 1,
-            },
+            serde_test::Token::Struct { name: "Child", len: 1 },
             serde_test::Token::Str("password"),
             serde_test::Token::Str("<redacted>"),
             serde_test::Token::StructEnd,
-            serde_test::Token::Struct {
-                name: "Child",
-                len: 1,
-            },
+            serde_test::Token::Struct { name: "Child", len: 1 },
             serde_test::Token::Str("password"),
             serde_test::Token::Str("<redacted>"),
             serde_test::Token::StructEnd,

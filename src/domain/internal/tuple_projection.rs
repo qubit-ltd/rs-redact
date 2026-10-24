@@ -2,6 +2,8 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Borrowed redaction projections for tuples.
 
@@ -10,17 +12,17 @@ use serde::Serializer;
 use serde::ser::Error as SerdeError;
 use serde::ser::SerializeTuple;
 
-use crate::RedactionPolicy;
-use crate::Sensitivity;
-
 use super::redact_serialize_scope::admit_collection_items;
 use super::redact_serialize_scope::current_policy;
 use super::redact_serialize_scope::serialize_payload;
 use super::redact_serialize_scope::serialize_structured;
 use super::redact_serialize_source::RedactSerializeSource;
 use super::redacted_projection_ref::RedactedProjectionRef;
+use crate::RedactionPolicy;
+use crate::Sensitivity;
 
-/// Lazily serializes each borrowed tuple element through its redaction projection.
+/// Lazily serializes each borrowed tuple element through its redaction
+/// projection.
 pub struct TupleProjection<'value, T: ?Sized>(&'value T);
 
 macro_rules! tuple_projection {

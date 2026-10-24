@@ -153,9 +153,7 @@ fn test_batch_diagnostics_maps_a_foreign_handle_to_the_selected_marker() {
 
 #[test]
 fn test_application_default_replacement_affects_new_trait_entries_only() {
-    let _guard = APPLICATION_DEFAULT_LOCK
-        .lock()
-        .expect("application-default test lock");
+    let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("application-default test lock");
     let original = Redactor::application_default();
     let replacement = Redactor::new(secret_policy("token"));
     let previous = Redactor::replace_application_default(replacement.clone());

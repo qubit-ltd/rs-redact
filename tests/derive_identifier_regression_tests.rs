@@ -162,10 +162,7 @@ mod serde {
             variant: "type",
         }];
         serde_test::assert_ser_tokens(&native, &native_tokens);
-        serde_test::assert_ser_tokens(
-            &RedactedSerializeRef::new(&raw, &policy),
-            &native_tokens,
-        );
+        serde_test::assert_ser_tokens(&RedactedSerializeRef::new(&raw, &policy), &native_tokens);
 
         let upper = RawUpperVariant::r#type;
         serde_test::assert_ser_tokens(
@@ -190,10 +187,7 @@ mod serde {
             Token::Str("visible"),
             Token::StructEnd,
         ];
-        serde_test::assert_ser_tokens(
-            &RedactedSerializeRef::new(&internal, &policy),
-            &internal_tokens,
-        );
+        serde_test::assert_ser_tokens(&RedactedSerializeRef::new(&internal, &policy), &internal_tokens);
 
         let adjacent = RawAdjacentVariant::r#type("visible".to_owned());
         let adjacent_tokens = [
@@ -207,10 +201,7 @@ mod serde {
             Token::Str("visible"),
             Token::StructEnd,
         ];
-        serde_test::assert_ser_tokens(
-            &RedactedSerializeRef::new(&adjacent, &policy),
-            &adjacent_tokens,
-        );
+        serde_test::assert_ser_tokens(&RedactedSerializeRef::new(&adjacent, &policy), &adjacent_tokens);
 
         let adjacent_named = RawAdjacentNamedVariant::r#type {
             value: "visible".to_owned(),
@@ -225,10 +216,7 @@ mod serde {
                 Token::Str("kind"),
                 Token::Str("type"),
                 Token::Str("payload"),
-                Token::Struct {
-                    name: "type",
-                    len: 1,
-                },
+                Token::Struct { name: "type", len: 1 },
                 Token::Str("value"),
                 Token::Str("visible"),
                 Token::StructEnd,
@@ -251,10 +239,7 @@ mod serde {
         let value = r#type { value: 7 };
         let native = native::r#type { value: 7 };
         let tokens = [
-            Token::Struct {
-                name: "type",
-                len: 1,
-            },
+            Token::Struct { name: "type", len: 1 },
             Token::Str("value"),
             Token::U8(7),
             Token::StructEnd,

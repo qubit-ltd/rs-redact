@@ -89,6 +89,7 @@ pub(super) fn serialization_condition(
 /// Panics if validated map-level mode lacks its key level or keyed mode
 /// lacks the sibling key access expression.
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 pub(super) fn serialized_carrier(
     type_name: &Ident,
     field: &Field,

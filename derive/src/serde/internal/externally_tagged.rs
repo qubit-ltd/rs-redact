@@ -51,8 +51,15 @@ pub(in crate::serde) fn external_variant_arm(
     let variant_index = variant.index();
     let arm = match variant.fields() {
         FieldsData::Named(fields) => {
-            let (pattern, setups, conditions, names, carriers) =
-                enum_named_parts(type_name, rust_name, fields, runtime, container_attributes, variant, legacy_nested);
+            let (pattern, setups, conditions, names, carriers) = enum_named_parts(
+                type_name,
+                rust_name,
+                fields,
+                runtime,
+                container_attributes,
+                variant,
+                legacy_nested,
+            );
             let count_conditions = &conditions;
             let calls = conditions
                 .iter()

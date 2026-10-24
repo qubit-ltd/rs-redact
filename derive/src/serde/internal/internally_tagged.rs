@@ -53,8 +53,15 @@ pub(in crate::serde) fn internal_variant_arm(
     let enum_name = container_attributes.name();
     match variant.fields() {
         FieldsData::Named(fields) => {
-            let (pattern, setups, conditions, names, carriers) =
-                enum_named_parts(type_name, rust_name, fields, runtime, container_attributes, variant, legacy_nested);
+            let (pattern, setups, conditions, names, carriers) = enum_named_parts(
+                type_name,
+                rust_name,
+                fields,
+                runtime,
+                container_attributes,
+                variant,
+                legacy_nested,
+            );
             if let Some((field, _)) = fields.iter().zip(&names).find(|(_, name)| *name == tag) {
                 return Err(Error::new_spanned(
                     field.field(),

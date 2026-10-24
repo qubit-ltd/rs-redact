@@ -54,14 +54,28 @@ pub(super) fn struct_body(
     legacy_nested: bool,
 ) -> TokenStream {
     match fields {
-        FieldsData::Named(fields) if container_attributes.transparent() => {
-            transparent_named_struct_body(type_name, &fields[0], runtime, serde, container_attributes, legacy_nested)
+        FieldsData::Named(fields) if container_attributes.transparent() => transparent_named_struct_body(
+            type_name,
+            &fields[0],
+            runtime,
+            serde,
+            container_attributes,
+            legacy_nested,
+        ),
+        FieldsData::Named(fields) => {
+            named_struct_body(type_name, fields, runtime, serde, container_attributes, legacy_nested)
         }
-        FieldsData::Named(fields) => named_struct_body(type_name, fields, runtime, serde, container_attributes, legacy_nested),
-        FieldsData::Unnamed(fields) if fields.len() == 1 => {
-            newtype_struct_body(type_name, &fields[0], runtime, serde, container_attributes, legacy_nested)
+        FieldsData::Unnamed(fields) if fields.len() == 1 => newtype_struct_body(
+            type_name,
+            &fields[0],
+            runtime,
+            serde,
+            container_attributes,
+            legacy_nested,
+        ),
+        FieldsData::Unnamed(fields) => {
+            tuple_struct_body(type_name, fields, runtime, serde, container_attributes, legacy_nested)
         }
-        FieldsData::Unnamed(fields) => tuple_struct_body(type_name, fields, runtime, serde, container_attributes, legacy_nested),
         FieldsData::Unit => {
             let serialized_name = container_attributes.name();
             quote! {

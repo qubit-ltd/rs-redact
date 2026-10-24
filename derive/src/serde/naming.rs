@@ -10,10 +10,10 @@
 use proc_macro2::TokenStream;
 use quote::format_ident;
 use quote::quote;
-use syn::ext::IdentExt;
 use syn::Ident;
 use syn::LitStr;
 use syn::Path;
+use syn::ext::IdentExt;
 
 use crate::attributes::SerdeContainerAttributes;
 use crate::model::VariantData;
@@ -33,8 +33,7 @@ pub(super) fn serialized_variant_name(
     variant: &VariantData<'_>,
     container_attributes: &SerdeContainerAttributes,
 ) -> String {
-    let default_name =
-        container_attributes.rename_variant(&variant.variant().ident.unraw().to_string());
+    let default_name = container_attributes.rename_variant(&variant.variant().ident.unraw().to_string());
     variant.serde_attributes().rename_variant(default_name)
 }
 
@@ -61,10 +60,7 @@ pub(super) fn named_content_proxy(
 ) -> (TokenStream, TokenStream) {
     let unraw_variant_name = variant_name.unraw();
     let proxy = format_ident!("__QubitRedactAdjacent{unraw_variant_name}Content");
-    let serialized_variant_name = LitStr::new(
-        &unraw_variant_name.to_string(),
-        unraw_variant_name.span(),
-    );
+    let serialized_variant_name = LitStr::new(&unraw_variant_name.to_string(), unraw_variant_name.span());
     if carriers.is_empty() {
         let definition = quote! {
             struct #proxy;

@@ -152,8 +152,7 @@ impl<'a> FieldRedactor<'a> {
         value: &'value str,
         max_bytes: usize,
     ) -> MaskedValue<'value> {
-        self.redact_bounded_with_truncation(field, value, max_bytes)
-            .0
+        self.redact_bounded_with_truncation(field, value, max_bytes).0
     }
 
     /// Masks a field and reports whether the generated mask was cut short.
@@ -183,9 +182,7 @@ impl<'a> FieldRedactor<'a> {
             .stronger(self.context_rules.resolve_field(field));
         match resolved {
             ResolvedField::Sensitive { sensitivity } => {
-                let (masked, truncated) =
-                    self.masking
-                        .mask_bounded_with_truncation(sensitivity, value, max_bytes);
+                let (masked, truncated) = self.masking.mask_bounded_with_truncation(sensitivity, value, max_bytes);
                 (MaskedValue::new(masked), truncated)
             }
             ResolvedField::PassThrough => (MaskedValue::new(Cow::Borrowed(value)), false),

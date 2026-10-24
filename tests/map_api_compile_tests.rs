@@ -57,9 +57,7 @@ fn main() {}
         .args(["check", "--offline", "--message-format=json"])
         .env("CARGO_NET_OFFLINE", "true")
         .current_dir(&directory);
-    let output = command
-        .output()
-        .expect("cargo check for temporary dependent crate");
+    let output = command.output().expect("cargo check for temporary dependent crate");
     let diagnostics = format!(
         "{}\n{}",
         String::from_utf8_lossy(&output.stderr),

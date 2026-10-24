@@ -162,8 +162,7 @@ impl HttpPolicyExecutor<'_> {
                 break;
             }
             let value = value.into_inner();
-            let (value, nested_truncated) =
-                self.redact_nested_url_value(value, depth, remaining, reasons);
+            let (value, nested_truncated) = self.redact_nested_url_value(value, depth, remaining, reasons);
             if !form::append_pair_bounded(&mut redacted_query, &key, value.as_ref(), query_limit) {
                 writer.mark_truncated();
                 break;

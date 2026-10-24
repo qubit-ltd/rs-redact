@@ -10,11 +10,11 @@
 use syn::Data;
 use syn::DeriveInput;
 use syn::Error;
-use syn::ext::IdentExt;
 use syn::Fields;
 use syn::LitStr;
 use syn::Path;
 use syn::Result;
+use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 
 use super::SerdeContainerAttributeParser;

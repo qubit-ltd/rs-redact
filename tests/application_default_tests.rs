@@ -62,7 +62,8 @@ fn test_composer_keeps_application_default_snapshot() {
     let _ = Redactor::replace_application_default(previous);
 }
 
-/// Existing composers keep their captured policy while later composers use a replacement.
+/// Existing composers keep their captured policy while later composers use a
+/// replacement.
 #[test]
 fn test_composer_uses_the_application_default_snapshot_at_creation() {
     let _guard = APPLICATION_DEFAULT_LOCK

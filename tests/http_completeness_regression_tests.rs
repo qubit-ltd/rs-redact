@@ -35,12 +35,7 @@ fn bounded_policy(field: &str, mask: &str, max_output_bytes: usize) -> Redactor 
 
 fn assert_incomplete_redaction(output: &qubit_redact::RedactionTextOutput, secret: &str) {
     assert_ne!(output.summary().completion(), RedactionCompletion::Complete);
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::OutputLimitReached)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert!(output.complete_text().is_err());
     assert!(!output.text().as_str().contains(secret));
 }
@@ -57,10 +52,7 @@ fn test_query_mask_truncation_is_reported_for_one_shot_and_batch() {
     let handle = batch.redact_http_url(url);
     let diagnostics = batch.finish_with_marker("<incomplete>");
     assert_eq!(diagnostics.text(handle).as_str(), "<incomplete>");
-    assert_ne!(
-        diagnostics.summary().completion(),
-        RedactionCompletion::Complete
-    );
+    assert_ne!(diagnostics.summary().completion(), RedactionCompletion::Complete);
     assert!(
         diagnostics
             .summary()
@@ -74,23 +66,14 @@ fn test_form_mask_truncation_is_reported_for_one_shot_and_batch() {
     let redactor = bounded_policy("a", "😀", 2);
     let capture = || BodyCapture::complete(b"a=secret");
 
-    let direct = redactor.redact_http_body_with_content_type_text(
-        capture(),
-        Some("application/x-www-form-urlencoded"),
-    );
+    let direct = redactor.redact_http_body_with_content_type_text(capture(), Some("application/x-www-form-urlencoded"));
     assert_incomplete_redaction(&direct, "secret");
 
     let mut batch = redactor.diagnostic_batch();
-    let handle = batch.redact_http_body_with_content_type_text(
-        capture(),
-        Some("application/x-www-form-urlencoded"),
-    );
+    let handle = batch.redact_http_body_with_content_type_text(capture(), Some("application/x-www-form-urlencoded"));
     let diagnostics = batch.finish_with_marker("<incomplete>");
     assert_eq!(diagnostics.text(handle).as_str(), "<incomplete>");
-    assert_ne!(
-        diagnostics.summary().completion(),
-        RedactionCompletion::Complete
-    );
+    assert_ne!(diagnostics.summary().completion(), RedactionCompletion::Complete);
     assert!(
         diagnostics
             .summary()
@@ -103,12 +86,8 @@ fn test_form_mask_truncation_is_reported_for_one_shot_and_batch() {
 fn test_disabled_body_preserves_source_and_output_truncation_facts() {
     let sufficient = Redactor::new(RedactionPolicy::disabled());
     let capture = || BodyCapture::truncated(b"prefix", 20).expect("source metadata");
-    let source_truncated =
-        sufficient.redact_http_body_with_content_type_text(capture(), Some("text/plain"));
-    assert_ne!(
-        source_truncated.summary().completion(),
-        RedactionCompletion::Complete
-    );
+    let source_truncated = sufficient.redact_http_body_with_content_type_text(capture(), Some("text/plain"));
+    assert_ne!(source_truncated.summary().completion(), RedactionCompletion::Complete);
     assert!(
         source_truncated
             .summary()
@@ -116,10 +95,7 @@ fn test_disabled_body_preserves_source_and_output_truncation_facts() {
             .contains(RedactionReason::SourceTruncated)
     );
     assert!(source_truncated.summary().is_redaction_disabled());
-    assert_eq!(
-        source_truncated.summary().usage().inspected_input_bytes(),
-        16
-    );
+    assert_eq!(source_truncated.summary().usage().inspected_input_bytes(), 16);
 
     let tight_policy = RedactionPolicy::disabled()
         .to_builder()
@@ -129,30 +105,16 @@ fn test_disabled_body_preserves_source_and_output_truncation_facts() {
         .expect("output limit")
         .build()
         .expect("policy");
-    let both = Redactor::new(tight_policy)
-        .redact_http_body_with_content_type_text(capture(), Some("text/plain"));
+    let both = Redactor::new(tight_policy).redact_http_body_with_content_type_text(capture(), Some("text/plain"));
     assert_ne!(both.summary().completion(), RedactionCompletion::Complete);
-    assert!(
-        both.summary()
-            .reasons()
-            .contains(RedactionReason::SourceTruncated)
-    );
-    assert!(
-        both.summary()
-            .reasons()
-            .contains(RedactionReason::OutputLimitReached)
-    );
+    assert!(both.summary().reasons().contains(RedactionReason::SourceTruncated));
+    assert!(both.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert!(both.summary().is_redaction_disabled());
     assert_eq!(both.summary().usage().inspected_input_bytes(), 16);
 
-    let complete = sufficient.redact_http_body_with_content_type_text(
-        BodyCapture::complete(b"prefix"),
-        Some("text/plain"),
-    );
-    assert_eq!(
-        complete.summary().completion(),
-        RedactionCompletion::Complete
-    );
+    let complete =
+        sufficient.redact_http_body_with_content_type_text(BodyCapture::complete(b"prefix"), Some("text/plain"));
+    assert_eq!(complete.summary().completion(), RedactionCompletion::Complete);
     assert!(complete.summary().is_redaction_disabled());
     assert_eq!(complete.text().as_str(), "prefix");
 }

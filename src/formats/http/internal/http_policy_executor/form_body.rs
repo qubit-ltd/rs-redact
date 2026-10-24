@@ -43,11 +43,8 @@ impl HttpPolicyExecutor<'_> {
                 false,
             );
         }
-        let (text, truncated) = form::redact_bounded_with_truncation(
-            &self.body_field_redactor(),
-            bounded,
-            output_limit,
-        );
+        let (text, truncated) =
+            form::redact_bounded_with_truncation(&self.body_field_redactor(), bounded, output_limit);
         ParsedBody::new(text, BodyRenderStatus::Structured, truncated)
     }
 }

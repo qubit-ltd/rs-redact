@@ -7,12 +7,12 @@
 // =============================================================================
 //! Private support for domain-object redaction.
 
+#[cfg(any(feature = "serde", feature = "json"))]
+mod array_projection;
 pub(super) mod bounded_capture;
 pub(super) mod bounded_debug_writer;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod bounded_display_writer;
-#[cfg(any(feature = "serde", feature = "json"))]
-mod array_projection;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod budget_compound;
 #[cfg(any(feature = "serde", feature = "json"))]
@@ -32,10 +32,10 @@ mod keyed_policy;
 mod nested;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod option_projection;
-#[cfg(any(feature = "serde", feature = "json"))]
-mod projection_forwarding;
 #[cfg(feature = "serde")]
 mod policy_frame;
+#[cfg(any(feature = "serde", feature = "json"))]
+mod projection_forwarding;
 #[cfg(feature = "json")]
 mod redact_json_serialize;
 #[cfg(any(feature = "serde", feature = "json"))]
@@ -82,9 +82,9 @@ mod tuple_projection;
 mod vec_projection;
 
 #[cfg(any(feature = "serde", feature = "json"))]
-pub use budget_serialize::BudgetSerialize;
-#[cfg(any(feature = "serde", feature = "json"))]
 pub use array_projection::ArrayProjection;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use budget_serialize::BudgetSerialize;
 pub use display_value::DisplayValue;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use internally_tagged_serializer::serialize_internally_tagged;
@@ -124,8 +124,6 @@ pub use redacted_projection_ref::RedactedProjectionRef;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use redacted_serialize_ref::RedactedSerializeRef;
 #[cfg(any(feature = "serde", feature = "json"))]
-pub use tuple_projection::TupleProjection;
-#[cfg(any(feature = "serde", feature = "json"))]
 pub use serde;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use serde_admission::admit_serialize_items;
@@ -135,3 +133,5 @@ pub use serde_admission::admit_serializer_items;
 pub use serde_admission::serialize_content;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use serde_admission::serialize_unit_variant;
+#[cfg(any(feature = "serde", feature = "json"))]
+pub use tuple_projection::TupleProjection;

@@ -49,8 +49,15 @@ pub(in crate::serde) fn untagged_variant_arm(
     let variant_name = serialized_variant_name(variant, container_attributes);
     let arm = match variant.fields() {
         FieldsData::Named(fields) => {
-            let (pattern, setups, conditions, names, carriers) =
-                enum_named_parts(type_name, rust_name, fields, runtime, container_attributes, variant, legacy_nested);
+            let (pattern, setups, conditions, names, carriers) = enum_named_parts(
+                type_name,
+                rust_name,
+                fields,
+                runtime,
+                container_attributes,
+                variant,
+                legacy_nested,
+            );
             let count_conditions = &conditions;
             let calls = conditions
                 .iter()

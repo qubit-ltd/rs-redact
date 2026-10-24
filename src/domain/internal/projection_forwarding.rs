@@ -2,15 +2,16 @@
 //    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Forwards borrowed projection capability through existing pointer wrappers.
 
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::RedactionPolicy;
-
 use super::redact_serialize_source::RedactSerializeSource;
+use crate::RedactionPolicy;
 
 impl<T: RedactSerializeSource + ?Sized> RedactSerializeSource for &T {
     type RedactedFields<'a>
