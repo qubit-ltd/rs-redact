@@ -51,13 +51,14 @@ fn noise_tokens(data: &[u8]) -> Vec<String> {
 fn assert_sensitive_argv_is_redacted(selector: u8, data: &[u8]) {
     let mut argv = vec!["client".to_string()];
     argv.extend(noise_tokens(data));
-    match selector % 6 {
+    match selector % 7 {
         0 => argv.extend(["--password".to_string(), FUZZ_SECRET.to_string()]),
         1 => argv.push(format!("--password={FUZZ_SECRET}")),
         2 => argv.push(format!("PASSWORD={FUZZ_SECRET}")),
         3 => argv.extend(["--token".to_string(), "--password".to_string(), FUZZ_SECRET.to_string()]),
         4 => argv.extend(["-".to_string(), "--password".to_string(), FUZZ_SECRET.to_string()]),
-        _ => argv.extend(["---".to_string(), "--password".to_string(), FUZZ_SECRET.to_string()]),
+        5 => argv.extend(["---".to_string(), "--password".to_string(), FUZZ_SECRET.to_string()]),
+        _ => argv.extend(["--access-key-id".to_string(), format!("--password={FUZZ_SECRET}")]),
     }
     let items = argv.iter().map(|value| ArgvItem::plain(value.as_ref()));
     let first = redact_argv_heuristically(items);
@@ -65,6 +66,9 @@ fn assert_sensitive_argv_is_redacted(selector: u8, data: &[u8]) {
     let second = redact_argv_heuristically(items);
     assert_eq!(first, second);
     assert!(!first.contains(FUZZ_SECRET));
+    if selector % 7 == 6 {
+        assert!(first.ends_with(r#""<redacted>"]"#));
+    }
 }
 
 /// Verifies environment redaction removes the fixed secret.

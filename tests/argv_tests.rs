@@ -72,6 +72,33 @@ fn heuristic_mode_masks_sensitive_options_and_assignments() {
 }
 
 #[test]
+fn test_pending_medium_does_not_weaken_secret_inline_items() {
+    let redactor = Redactor::standard();
+    for inline in ["--password=raw-secret", "PASSWORD=raw-secret", "-Dpassword=raw-secret"] {
+        let items = [
+            ArgvItem::plain(OsStr::new("--access-key-id")),
+            ArgvItem::plain(OsStr::new(inline)),
+        ];
+        let output = redactor.redact_heuristic_argv(items);
+        assert_eq!(output.text().as_str(), r#"["--access-key-id", "<redacted>"]"#);
+        let inspection = redactor.inspect_heuristic_argv(items).expect("complete inspection");
+        assert_eq!(inspection.max_sensitivity(), Some(Sensitivity::Secret));
+        assert_eq!(inspection.usage().output_bytes(), 0);
+        let mut batch = redactor.diagnostic_batch();
+        let handle = batch.redact_heuristic_argv(items);
+        let published = batch.finish();
+        assert_eq!(published.text(handle).as_str(), output.text().as_str());
+        let composed = redactor
+            .text_composer()
+            .argv(|argv| {
+                argv.heuristic_items(items);
+            })
+            .finish();
+        assert_eq!(composed.text().as_str(), output.text().as_str());
+    }
+}
+
+#[test]
 fn heuristic_does_not_parse_shell_payloads_or_unsupported_compact_forms() {
     let rendered = heuristic([
         ArgvItem::plain(OsStr::new("sh")),

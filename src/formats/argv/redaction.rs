@@ -258,21 +258,59 @@ fn mask_pending_value_bounded(
     value: &str,
     max_output_bytes: usize,
 ) -> (String, bool) {
-    let resolved = if pending.exact {
-        policy.resolve_field_exact(&pending.field)
-    } else {
-        policy.resolve_field(&pending.field)
-    };
-    match resolved {
-        ResolvedField::Sensitive { sensitivity } => {
+    match pending_item_sensitivity(policy, pending, value) {
+        Some(sensitivity) => {
             let (masked, truncated) =
                 policy
                     .masking()
                     .mask_bounded_with_truncation(sensitivity, value, max_output_bytes);
             (masked.into_owned(), truncated)
         }
-        ResolvedField::PassThrough => (value.to_owned(), false),
+        None => (value.to_owned(), false),
     }
+}
+
+/// Returns the sensitivity of an inline field assignment.
+///
+/// `policy` classifies the field name parsed from `value`. `Some` contains
+/// the matched sensitivity; `None` means the item has no sensitive inline
+/// field or its field is classified for pass-through.
+fn inline_item_sensitivity(policy: &RedactionPolicy, value: &str) -> Option<Sensitivity> {
+    let field = if !value.starts_with('-') {
+        value
+            .split_once('=')
+            .and_then(|(field, _)| (!field.is_empty()).then_some(field))
+    } else if let Some(property) = value.strip_prefix("-D") {
+        property
+            .split_once('=')
+            .and_then(|(field, _)| (!field.is_empty()).then_some(field))
+    } else if value.starts_with("--") {
+        value.split_once('=').and_then(|(left, _)| option_name(left))
+    } else {
+        None
+    };
+    field.and_then(|field| policy.sensitivity_for(field))
+}
+
+/// Returns the stronger sensitivity required by a pending option or inline
+/// field.
+///
+/// `pending` supplies the preceding option classification, while `value`
+/// supplies the current argv item. `Some` is the stronger applicable level;
+/// `None` means neither classification requires masking.
+fn pending_item_sensitivity(policy: &RedactionPolicy, pending: &PendingField, value: &str) -> Option<Sensitivity> {
+    if pending.field.is_empty() {
+        return Some(Sensitivity::Secret);
+    }
+    let previous = if pending.exact {
+        match policy.resolve_field_exact(&pending.field) {
+            ResolvedField::Sensitive { sensitivity } => Some(sensitivity),
+            ResolvedField::PassThrough => None,
+        }
+    } else {
+        policy.sensitivity_for(&pending.field)
+    };
+    previous.max(inline_item_sensitivity(policy, value))
 }
 
 /// Masks one classified field, returning `None` for pass-through fields.
@@ -334,31 +372,9 @@ pub(super) fn inspect_heuristic_item(
         if pending.field.is_empty() {
             return Some(Sensitivity::Secret);
         }
-        return match if pending.exact {
-            policy.resolve_field_exact(&pending.field)
-        } else {
-            policy.resolve_field(&pending.field)
-        } {
-            ResolvedField::Sensitive { sensitivity } => Some(sensitivity),
-            ResolvedField::PassThrough => None,
-        };
+        return pending_item_sensitivity(policy, &pending, value);
     }
-    let field = if !value.starts_with('-') {
-        value
-            .split_once('=')
-            .and_then(|(field, _)| (!field.is_empty()).then_some(field))
-    } else if let Some(property) = value.strip_prefix("-D") {
-        property
-            .split_once('=')
-            .and_then(|(field, _)| (!field.is_empty()).then_some(field))
-    } else if value.starts_with("--") {
-        value.split_once('=').and_then(|(left, _)| option_name(left))
-    } else {
-        None
-    };
-    if let Some(field) = field
-        && let ResolvedField::Sensitive { sensitivity } = policy.resolve_field(field)
-    {
+    if let Some(sensitivity) = inline_item_sensitivity(policy, value) {
         return Some(sensitivity);
     }
     if let Some((field, exact)) = option
@@ -462,6 +478,18 @@ mod tests {
         assert_eq!(
             inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("value")), &mut pending),
             Some(Sensitivity::High),
+        );
+        pending = Some(PendingField {
+            field: String::from("password"),
+            exact: false,
+        });
+        assert_eq!(
+            inspect_heuristic_item(
+                &policy,
+                ArgvItem::plain(OsStr::new("--access-key-id=weaker-inline")),
+                &mut pending,
+            ),
+            Some(Sensitivity::Secret),
         );
         pending = Some(PendingField {
             field: String::from("visible"),
