@@ -82,13 +82,19 @@ flowchart TD
 view 借用源并拥有不可变策略快照；创建不访问源，每次格式化或序列化重新执行。
 文本通过 `Redact`，结构化 Serde 通过隐藏的 `RedactSerialize` capability，不要求
 源对象自身实现 Serialize。`#[redact(serde)]` 才额外替换源的普通序列化行为。
-显式 level 由领域类型定义，strict 不覆盖；未标注字段保持普通表示。
+derive 显式 level 由领域类型定义，在 strict 下保持固定。手写
+`sensitive_at_least` 表示最低等级，与运行时分类取更强者，因此 strict 可以提高该下限；
+未标注字段保持普通表示。
 
 嵌套投影字段和派生源序列化使用同一个隐藏能力 `RedactSerialize`。
 Option 和 Vec 投影要求元素实现该能力，避免高阶借用 capability 约束间接要求
 源数据存活至 static。泛型父对象可以序列化借用局部数据的子对象，而无需子对象
 自身实现普通 Serialize。缺少能力时在请求
 序列化处报错，纯文本派生仍然有效。
+
+脱敏序列化保留源 Serde 事件形状：`Option::Some` 使用 `serialize_some`，固定数组仍为
+tuple，包装器透传目标 serializer 的 human-readable 选择。JSON 输出形状保持不变，非 JSON
+serializer 则收到预期的 Option、tuple 和表示方式事件。
 
 文本 RuntimeCore 与同步 Serde scope 生命周期不同，分别拥有账本。Serde scope 使用
 PolicyFrame 的 Arc 快照和线程局部 guard；嵌套及普通 serializer 复用活动预算，错误或
@@ -104,6 +110,10 @@ panic 展开会释放 scope。原始策略地址仅作为快照复用的提示�
 字段解析先应用基础规则，再应用 HTTP header/query/body 等上下文规则。上下文只能增强敏感度，
 不能削弱已经判定为更敏感的基础结果；统一的 `ResolvedField::stronger` 实现承担该合并语义，避免
 不同格式各自复制安全逻辑。
+
+`RedactionFloor` 组合时保留相互独立的规则层，并按匹配保护中的最高敏感度解析。通过
+builder 编辑组合 floor 时只修改可编辑层，其他层及其 matching/fallback 行为均保留；重新
+构建后仍保持原组合语义。
 
 `Redactor::application_default()` 从进程级槽读取快照，
 `replace_application_default()` 线性化替换该槽并返回旧值。替换不会追溯改变已有 redactor、composer
@@ -207,10 +217,11 @@ Serde shape 返回明确错误而不是猜测表示。
 
 ## 8. 格式层
 
-- argv/env/process：显式分类和受限启发式，非 UTF-8 输入 fail closed；
+- argv/env/process：显式分类和受限启发式；未分类的非 UTF-8 参数项及非 UTF-8 环境变量名保守分类为 Secret；
 - JSON：一次解析、递归字段分类、显式数字范围和共享结构预算；
 - URI：使用 `fluent-uri` 解析，并分别处理 identity、path、query、fragment；
-- HTTP：处理 URL、header 和 body，所有结果回到父事务。
+- HTTP：处理 URL、header 和 body，所有结果回到父事务。URL query 参数使用 query 规则；
+  `application/x-www-form-urlencoded` body 中的 form 字段使用 body 规则。
 
 HTTP body 内部实现按职责拆分：
 
@@ -226,6 +237,9 @@ HTTP body 内部实现按职责拆分：
 这些模块共享私有 `HttpPolicyExecutor`，它只借用父 session 的 policy，不拥有 session，也不产生
 公开 HTTP result。无效 content type、缺失 multipart boundary、非法 JSON/NDJSON 和截断输入均
 通过安全 marker 与结构化 reason 表达。
+
+Multipart 内嵌 JSON/NDJSON 的解析失败保留 `InvalidJson`，资源准入失败保留对应 limit reason。
+嵌套 URL 渲染则把子操作的 `InvalidUri` 和 `DepthLimitReached` 原因合并到父结果。
 
 来源截断元数据只由 `BodyCapture` 持有。当已捕获 body 超过父 runtime 的剩余输入额度时，父事务
 会原子拒绝整段 body；renderer 不再维护第二套“部分输入”状态。

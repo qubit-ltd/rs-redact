@@ -554,6 +554,47 @@ is unknown. Source truncation is distinct from output truncation and is exposed
 as `RedactionReason::SourceTruncated`; never construct a complete capture from
 an incomplete body.
 
+### Configure URL query and form fields separately
+
+URL query parameters use `http.query()` rules. Form fields in a captured
+`application/x-www-form-urlencoded` body use `http.body()` rules:
+
+<!-- redact-example: kind=run features=http -->
+```rust
+use http::HeaderValue;
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
+use qubit_redact::formats::http::BodyCapture;
+
+fn main() -> Result<(), qubit_redact::PolicyError> {
+    let policy = RedactionPolicy::builder().http(|http| {
+        http.query()
+            .raise("custom_query_probe", Sensitivity::Secret)
+            .expect("valid query rule");
+        http.body()
+            .raise("custom_form_payload", Sensitivity::Secret)
+            .expect("valid body rule");
+    })?.build()?;
+    let redactor = Redactor::new(policy);
+
+    let url = redactor.redact_http_url(
+        "https://example.test/?custom_query_probe=query-secret&custom_form_probe=query-visible",
+    );
+    assert!(!url.text().as_str().contains("query-secret"));
+    assert!(url.text().as_str().contains("query-visible"));
+
+    let content_type = HeaderValue::from_static("application/x-www-form-urlencoded");
+    let body = redactor.redact_http_body(
+        BodyCapture::complete(
+            b"custom_query_probe=form-visible&custom_form_payload=form-secret",
+        ),
+        Some(&content_type),
+    );
+    assert!(body.text().as_str().contains("form-visible"));
+    assert!(!body.text().as_str().contains("form-secret"));
+    Ok(())
+}
+```
+
 ### Inspect a URI before accepting it
 
 Enable the runtime `uri` feature for this example.
@@ -578,7 +619,12 @@ fn main() {
 
 Explicitly classified argv is preferable when the caller knows the argument
 contract. Heuristic argv recognizes supported option forms but is not a shell
-parser:
+parser and does not validate complete command-line syntax. Unclassified
+non-UTF-8 argv items and non-UTF-8 environment names are conservatively treated
+as Secret and do not by themselves make inspection fail. A trailing sensitive
+option with no following value remains pending; it is not reported as a syntax
+error. Inspection errors report incomplete admission, such as a shared resource
+limit.
 
 <!-- redact-example: kind=run features=none -->
 ```rust
@@ -642,9 +688,34 @@ fn main() {
 }
 ```
 
-Strict mode does not override explicit derive levels or hand-written `sensitive_at_least` floors on
-domain types; it applies to runtime field classification paths such as `redact_field`, JSON keys,
-and HTTP query parameters.
+An explicit derive level remains fixed under strict mode. A hand-written
+`fields.sensitive_at_least(level, ...)` is a minimum: the final level is the
+stronger of that minimum and the runtime classification, so strict can raise it.
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::{Redact, RedactionWriter, Redactor, Sensitivity};
+
+struct Metric { value: String }
+
+impl Redact for Metric {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("Metric", |fields| {
+            fields.sensitive_at_least(Sensitivity::Low, "custom_metric", || &self.value);
+        });
+    }
+}
+
+fn main() {
+    let output = Redactor::strict().redact_text(&Metric { value: "raw-value".into() });
+    assert!(!output.text().as_str().contains("raw-value"));
+    assert!(output.text().as_str().contains("<redacted>"));
+}
+```
+
+Strict mode can classify runtime fields such as `redact_field`, JSON keys, and
+HTTP URL query parameters. Form fields in `application/x-www-form-urlencoded`
+bodies use the HTTP body rules instead.
 
 ## Advanced Usage
 

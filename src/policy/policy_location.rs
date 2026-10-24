@@ -27,7 +27,7 @@ pub enum PolicyLocation {
     Floor,
     /// HTTP header field rules in an HTTP policy builder.
     HttpHeader,
-    /// HTTP query and form field rules in an HTTP policy builder.
+    /// URL query field rules in an HTTP policy builder.
     HttpQuery,
     /// HTTP body field rules in an HTTP policy builder.
     HttpBody,

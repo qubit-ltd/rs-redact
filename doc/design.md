@@ -95,8 +95,9 @@ flowchart TD
 A view borrows its source and owns an immutable policy snapshot. Creation does not access
 the source; each formatting or serialization executes afresh. Text uses `Redact`, while
 structured Serde uses the hidden `RedactSerialize` capability. Only `#[redact(serde)]` additionally replaces ordinary source
-serialization. Explicit levels belong to the domain type and remain final under strict policy;
-unmarked fields retain ordinary representations.
+serialization. Explicit derive levels belong to the domain type and remain final under strict
+policy. A hand-written `sensitive_at_least` is a minimum and combines with runtime classification
+by taking the stronger level, so strict can raise it. Unmarked fields retain ordinary representations.
 
 Nested projection fields and derived source serialization use the same hidden
 `RedactSerialize` capability. Option and Vec projections require their element
@@ -123,6 +124,12 @@ Field resolution applies base rules before HTTP header/query/body context
 rules. Context may strengthen sensitivity but cannot weaken an already stronger
 base decision. The shared `ResolvedField::stronger` implementation owns this
 security rule so formats do not duplicate it.
+
+`RedactionFloor` composition retains independent rule layers and resolves
+matching protections by maximum sensitivity. Editing a composed floor through
+its builder changes the editable layer while retaining the other layers and
+their matching and fallback behavior; rebuilding therefore preserves the
+composed floor semantics.
 
 `Redactor::application_default()` reads a snapshot from the process-wide slot.
 `replace_application_default()` replaces that slot linearly and returns the
@@ -254,15 +261,24 @@ The internally tagged serializer accepts only map and struct shapes that
 preserve the intended structure; unsupported Serde shapes return explicit
 errors.
 
+Redacted serialization preserves the source Serde event shape: `Option::Some`
+uses `serialize_some`, fixed arrays remain tuples, and wrappers forward the
+destination serializer's human-readable preference. JSON output retains its
+existing shape while non-JSON serializers receive the intended option, tuple,
+and representation events.
+
 ## 8. Format layer
 
-- argv/env/process: explicit classification and bounded heuristics, with
-  fail-closed non-UTF-8 handling;
+- argv/env/process: explicit classification and bounded heuristics; unclassified
+  non-UTF-8 argument items and non-UTF-8 environment names are conservatively
+  classified as Secret;
 - JSON: one parse, recursive field classification, explicit number ranges, and
   shared structural limits;
 - URI: `fluent-uri` parsing with separate identity, path, query, and fragment
   handling;
 - HTTP: URL, headers, and bodies, always returning to the parent transaction.
+  URL query parameters use query rules; form fields in
+  `application/x-www-form-urlencoded` bodies use body rules.
 
 HTTP body implementation is split by responsibility:
 
@@ -279,6 +295,11 @@ These modules share a private `HttpPolicyExecutor`. It borrows the parent
 session policy, owns no session, and produces no public HTTP result. Invalid
 content types, missing multipart boundaries, invalid JSON/NDJSON, and truncated
 input use safe markers with structured reasons.
+
+Nested multipart JSON/NDJSON parsing failures retain `InvalidJson`, while
+resource admission failures retain their limit reason. Nested URL rendering
+accumulates `InvalidUri` and `DepthLimitReached` reasons from child operations
+into the parent result.
 
 `BodyCapture` alone owns source-truncation metadata. The parent runtime rejects
 an HTTP body atomically when its captured bytes exceed the remaining input

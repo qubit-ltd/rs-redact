@@ -51,7 +51,10 @@ impl HttpPolicyBuilderView<'_> {
         }
     }
 
-    /// Returns the query/form context view.
+    /// Returns the URL query context view.
+    ///
+    /// Form fields in `application/x-www-form-urlencoded` bodies use
+    /// [`Self::body`] instead.
     #[must_use]
     #[inline(always)]
     pub fn query(&mut self) -> HttpContextBuilderView<'_> {
@@ -104,7 +107,7 @@ impl HttpPolicyBuilderView<'_> {
         self
     }
 
-    /// Sets the same minimum-protection floor for headers, query/form fields,
+    /// Sets the same minimum-protection floor for headers, URL query fields,
     /// and structured-body fields.
     ///
     /// # Parameters
@@ -120,7 +123,7 @@ impl HttpPolicyBuilderView<'_> {
         self
     }
 
-    /// Removes explicit floors from the header, query/form, and structured-body
+    /// Removes explicit floors from the header, URL query, and structured-body
     /// contexts.
     ///
     /// # Returns

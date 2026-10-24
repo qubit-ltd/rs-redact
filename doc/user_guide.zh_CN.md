@@ -524,6 +524,47 @@ fn main() {
 不同状态，前者通过 `RedactionReason::SourceTruncated` 报告。不要把不完整 body 伪装成
 complete capture。
 
+### 分别配置 URL query 和 form 字段
+
+URL query 参数使用 `http.query()` 规则；捕获的
+`application/x-www-form-urlencoded` body 中的 form 字段使用 `http.body()` 规则：
+
+<!-- redact-example: kind=run features=http -->
+```rust
+use http::HeaderValue;
+use qubit_redact::{RedactionPolicy, Redactor, Sensitivity};
+use qubit_redact::formats::http::BodyCapture;
+
+fn main() -> Result<(), qubit_redact::PolicyError> {
+    let policy = RedactionPolicy::builder().http(|http| {
+        http.query()
+            .raise("custom_query_probe", Sensitivity::Secret)
+            .expect("valid query rule");
+        http.body()
+            .raise("custom_form_payload", Sensitivity::Secret)
+            .expect("valid body rule");
+    })?.build()?;
+    let redactor = Redactor::new(policy);
+
+    let url = redactor.redact_http_url(
+        "https://example.test/?custom_query_probe=query-secret&custom_form_probe=query-visible",
+    );
+    assert!(!url.text().as_str().contains("query-secret"));
+    assert!(url.text().as_str().contains("query-visible"));
+
+    let content_type = HeaderValue::from_static("application/x-www-form-urlencoded");
+    let body = redactor.redact_http_body(
+        BodyCapture::complete(
+            b"custom_query_probe=form-visible&custom_form_payload=form-secret",
+        ),
+        Some(&content_type),
+    );
+    assert!(body.text().as_str().contains("form-visible"));
+    assert!(!body.text().as_str().contains("form-secret"));
+    Ok(())
+}
+```
+
 ### 接受 URI 前先执行检查
 
 本示例需要启用 runtime 的 `uri` feature。
@@ -547,7 +588,9 @@ fn main() {
 ### 处理 argv、环境变量和进程诊断
 
 调用方知道参数契约时，应优先显式标记 argv。启发式 argv 能识别受支持的 option 形式，但不是
-shell parser：
+shell parser，也不校验完整命令行语法。未分类的非 UTF-8 argv 参数项和非 UTF-8 环境变量名会
+保守地按 Secret 处理，不会仅因此导致 inspection 失败。末尾没有后续值的敏感 option 会保持待定
+状态，不会按语法错误报告。Inspection 错误用于报告共享资源限制等准入不完整情况。
 
 <!-- redact-example: kind=run features=none -->
 ```rust
@@ -610,8 +653,33 @@ fn main() {
 }
 ```
 
-strict 不会降低 derive 显式等级或手写 `sensitive_at_least` 的域类型声明；它作用于
-`redact_field`、JSON key、HTTP query 等运行时分类路径。
+derive 显式等级在 strict 下保持固定。手写的
+`fields.sensitive_at_least(level, ...)` 表示最低等级，最终等级取该下限与运行时分类中更强者，
+因此 strict 可以提高它。
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::{Redact, RedactionWriter, Redactor, Sensitivity};
+
+struct Metric { value: String }
+
+impl Redact for Metric {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("Metric", |fields| {
+            fields.sensitive_at_least(Sensitivity::Low, "custom_metric", || &self.value);
+        });
+    }
+}
+
+fn main() {
+    let output = Redactor::strict().redact_text(&Metric { value: "raw-value".into() });
+    assert!(!output.text().as_str().contains("raw-value"));
+    assert!(output.text().as_str().contains("<redacted>"));
+}
+```
+
+strict 可以分类 `redact_field`、JSON key 和 HTTP URL query 参数等运行时字段。
+`application/x-www-form-urlencoded` body 中的 form 字段则使用 HTTP body 规则。
 
 ## 进阶用法
 

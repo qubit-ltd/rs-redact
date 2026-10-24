@@ -52,8 +52,8 @@ impl Redactor {
     ///
     /// # Errors
     ///
-    /// Returns [`RedactionInspectionError`] when non-UTF-8 data or a shared
-    /// resource limit prevents complete inspection.
+    /// Returns [`RedactionInspectionError`] when a shared resource limit
+    /// prevents complete inspection.
     ///
     /// # Type Parameters
     ///
@@ -110,8 +110,12 @@ impl Redactor {
     ///
     /// # Errors
     ///
-    /// Returns [`RedactionInspectionError`] when non-UTF-8 data, incomplete
-    /// option syntax, or a shared resource limit prevents complete inspection.
+    /// Unclassified non-UTF-8 argument items are conservatively classified as
+    /// secret. Returns [`RedactionInspectionError`] when a shared resource
+    /// limit prevents complete inspection. Heuristic classification recognizes
+    /// supported option forms but does not validate complete command-line
+    /// syntax; a trailing sensitive option without a following value remains
+    /// pending and does not by itself make inspection fail.
     ///
     /// # Type Parameters
     ///
@@ -212,8 +216,9 @@ impl Redactor {
     ///
     /// # Errors
     ///
-    /// Returns [`RedactionInspectionError`] when non-UTF-8 data or a shared
-    /// resource limit prevents complete inspection.
+    /// Non-UTF-8 environment names are conservatively classified as secret.
+    /// Returns [`RedactionInspectionError`] when a shared resource limit
+    /// prevents complete inspection.
     ///
     /// # Type Parameters
     ///
@@ -281,8 +286,10 @@ impl Redactor {
     ///
     /// # Errors
     ///
-    /// Returns [`RedactionInspectionError`] when argv or environment data is
-    /// invalid, incomplete, or rejected by a shared resource limit.
+    /// Unclassified non-UTF-8 argv items and non-UTF-8 environment names are
+    /// conservatively classified as secret. Returns
+    /// [`RedactionInspectionError`] when a shared resource limit prevents
+    /// complete inspection.
     ///
     /// # Type Parameters
     ///

@@ -60,11 +60,12 @@ impl HttpPolicy {
         &self.inner.header_rules
     }
 
-    /// Returns the query and form field-rule snapshot.
+    /// Returns the URL query field-rule snapshot.
     ///
     /// # Returns
     ///
-    /// Borrowed classification rules shared by query and form fields.
+    /// Borrowed classification rules for URL query parameters. Form fields in
+    /// `application/x-www-form-urlencoded` bodies use [`Self::body_rules`].
     #[must_use]
     #[inline(always)]
     pub fn query_rules(&self) -> &RedactionRules {

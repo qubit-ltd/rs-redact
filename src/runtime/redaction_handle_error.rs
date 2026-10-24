@@ -11,14 +11,8 @@ use std::fmt;
 
 /// Explains why a private batch publication cannot resolve a handle.
 ///
-/// # Examples
-///
-/// ```
-/// use qubit_redact::RedactionHandleError;
-///
-/// let error = RedactionHandleError::MissingItem;
-/// assert_eq!(error.to_string(), "the handle does not identify a published item");
-/// ```
+/// This crate-private error is used while resolving transaction-local handles;
+/// public APIs expose a value-free marker when a handle cannot be resolved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[must_use]
 pub enum RedactionHandleError {
