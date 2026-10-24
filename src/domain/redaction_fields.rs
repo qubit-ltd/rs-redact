@@ -320,6 +320,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
                 }
             }
             self.writer.write_fragment("}");
+            self.writer.write_fragment(", ");
             return self;
         }
         self.write_prefix(name);
@@ -356,6 +357,9 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             }
             self.writer.write_debug(key);
             self.writer.write_fragment(": ");
+            if !self.writer.can_write() {
+                break;
+            }
             match self.writer.session.policy().resolve_field(key) {
                 ResolvedField::Sensitive { sensitivity } => {
                     value.write_redacted_level(self.writer, sensitivity);

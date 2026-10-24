@@ -218,6 +218,9 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
             return self;
         }
         self.write_prefix(name);
+        if !self.writer.can_write() {
+            return self;
+        }
         value.write_redacted(self.writer);
         self.writer.write_fragment(", ");
         self

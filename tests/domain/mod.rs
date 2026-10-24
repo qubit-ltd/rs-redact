@@ -11,4 +11,5 @@
 mod internal;
 mod redact_tests;
 mod redaction_key_limits_tests;
+mod redaction_output_boundary_tests;
 mod redaction_writer_tests;
