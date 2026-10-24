@@ -141,6 +141,9 @@ impl<'a> FieldRedactor<'a> {
     ///
     /// The bounded mask for sensitive fields, or the unchanged borrowed value.
     /// The caller must apply its output limit to pass-through text.
+    // Retain the value-only internal entry point for callers that do not need
+    // truncation provenance; bounded HTTP renderers use the tuple-returning API.
+    #[allow(dead_code)]
     #[must_use]
     #[inline]
     pub(in crate::formats::http) fn redact_bounded<'value>(
