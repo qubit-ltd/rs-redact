@@ -41,6 +41,7 @@ use crate::model::VariantData;
 ///
 /// Returns an error when the selected representation is incompatible with a
 /// variant shape or serialized field name.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn enum_body(
     type_name: &Ident,
     variants: &[VariantData<'_>],
@@ -61,22 +62,38 @@ pub(super) fn enum_body(
                 SerdeEnumRepresentation::ExternallyTagged => {
                     external_variant_arm(type_name, variant, runtime, serde, container_attributes, legacy_nested)
                 }
-                SerdeEnumRepresentation::InternallyTagged { tag } => {
-                    internal_variant_arm(type_name, variant, runtime, serde, container_attributes, tag, legacy_nested)
-                }
-                SerdeEnumRepresentation::AdjacentlyTagged { tag, content } => {
-                    adjacent_variant_arm(type_name, variant, runtime, serde, container_attributes, tag, content, legacy_nested)
-                }
+                SerdeEnumRepresentation::InternallyTagged { tag } => internal_variant_arm(
+                    type_name,
+                    variant,
+                    runtime,
+                    serde,
+                    container_attributes,
+                    tag,
+                    legacy_nested,
+                ),
+                SerdeEnumRepresentation::AdjacentlyTagged { tag, content } => adjacent_variant_arm(
+                    type_name,
+                    variant,
+                    runtime,
+                    serde,
+                    container_attributes,
+                    tag,
+                    content,
+                    legacy_nested,
+                ),
                 SerdeEnumRepresentation::Untagged => {
                     untagged_variant_arm(type_name, variant, runtime, serde, container_attributes, legacy_nested)
                 }
             }
         })
         .collect::<Result<Vec<_>>>()?;
-    let marker_arm = (!legacy_nested).then(|| {
-        quote!(Self::#marker(_) => unreachable!("generated projection marker is never constructed"),)
-    });
-    let source = if legacy_nested { quote!(self) } else { quote!(*self) };
+    let marker_arm = (!legacy_nested)
+        .then(|| quote!(Self::#marker(_) => unreachable!("generated projection marker is never constructed"),));
+    let source = if legacy_nested && !variants.is_empty() {
+        quote!(self)
+    } else {
+        quote!(*self)
+    };
     Ok(quote! {
         match #source {
             #(#arms,)*

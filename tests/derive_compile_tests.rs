@@ -67,6 +67,7 @@ fn test_compile_fail_fixtures() {
     tests.compile_fail("tests/fixtures/fail/keyed_by_tuple.rs");
     tests.compile_fail("tests/fixtures/fail/keyed_by_wrong_key.rs");
     tests.compile_fail("tests/fixtures/fail/nested_without_redact_serialize.rs");
+    #[cfg(feature = "json")]
     tests.compile_fail("tests/fixtures/fail/projection_without_serialize.rs");
     tests.compile_fail("tests/fixtures/fail/union.rs");
     tests.compile_fail("tests/fixtures/fail/unknown_attribute.rs");

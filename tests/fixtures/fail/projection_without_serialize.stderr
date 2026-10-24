@@ -1,15 +1,15 @@
 error[E0277]: the trait bound `NotSerializable: serde::Serialize` is not satisfied
-  --> tests/fixtures/fail/projection_without_serialize.rs:26:42
+  --> tests/fixtures/fail/projection_without_serialize.rs:28:42
    |
-26 |     let _ = Redactor::standard().to_json(&parent);
+28 |     let _ = Redactor::standard().to_json(&parent);
    |                                  ------- ^^^^^^^ unsatisfied trait bound
    |                                  |
    |                                  required by a bound introduced by this call
    |
 help: the trait `Serialize` is not implemented for `NotSerializable`
-  --> tests/fixtures/fail/projection_without_serialize.rs:22:1
+  --> tests/fixtures/fail/projection_without_serialize.rs:24:1
    |
-22 | struct NotSerializable;
+24 | struct NotSerializable;
    | ^^^^^^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `NotSerializable` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
@@ -24,9 +24,9 @@ help: the trait `Serialize` is not implemented for `NotSerializable`
              (T0, T1, T2, T3, T4)
            and $N others
 note: required for `__QubitRedactChildFields<'_, NotSerializable>` to implement `Serialize`
-  --> tests/fixtures/fail/projection_without_serialize.rs:10:17
+  --> tests/fixtures/fail/projection_without_serialize.rs:12:17
    |
-10 | #[derive(Debug, Redact)]
+12 | #[derive(Debug, Redact)]
    |                 ^^^^^^ unsatisfied trait bound introduced in this `derive` macro
    = note: 1 redundant requirement hidden
    = note: required for `__QubitRedactParentFields<'_, Child>` to implement `Serialize`
