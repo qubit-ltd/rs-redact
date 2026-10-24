@@ -27,3 +27,36 @@ fn test_redaction_floor_builder_from_copies_complete_floor() {
 
     assert_eq!(copied, floor);
 }
+
+#[test]
+fn test_redaction_floor_builder_edits_first_composed_layer_and_retains_others() {
+    let first = RedactionFloor::builder()
+        .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::High))
+        .build()
+        .expect("valid first floor");
+    let second = RedactionFloor::builder()
+        .matching(FieldNameMatching::Exact)
+        .raise("credential", Sensitivity::Secret)
+        .expect("valid rule")
+        .build()
+        .expect("valid second floor");
+    let policy = qubit_redact::RedactionPolicy::disabled()
+        .with_floor(first)
+        .add_floor(second);
+    let composed = policy.rules().floor().expect("floor present");
+
+    let edited = composed
+        .to_builder()
+        .matching(FieldNameMatching::Exact)
+        .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low))
+        .raise("pin", Sensitivity::Medium)
+        .expect("valid edit")
+        .build()
+        .expect("edited floor should build");
+    let rebuilt = qubit_redact::RedactionPolicy::disabled().with_floor(edited);
+
+    assert_eq!(rebuilt.sensitivity_for("unconfigured"), Some(Sensitivity::Low));
+    assert_eq!(rebuilt.sensitivity_for("pin"), Some(Sensitivity::Medium));
+    assert_eq!(rebuilt.sensitivity_for("credential"), Some(Sensitivity::Secret));
+    assert_eq!(rebuilt.sensitivity_for("service_credential"), Some(Sensitivity::Low));
+}

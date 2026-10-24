@@ -34,6 +34,8 @@ use crate::policy::RedactionRulesBuilder;
 pub struct RedactionFloorBuilder {
     /// Mutable rules validated in the floor policy location.
     rules: RedactionRulesBuilder,
+    /// Immutable layers retained when editing a composed floor.
+    retained_layers: Vec<Arc<crate::policy::internal::RedactionPolicyInner>>,
 }
 
 impl RedactionFloorBuilder {
@@ -43,6 +45,7 @@ impl RedactionFloorBuilder {
     pub(super) fn empty() -> Self {
         Self {
             rules: RedactionRulesBuilder::empty(PolicyLocation::Floor),
+            retained_layers: Vec::new(),
         }
     }
 
@@ -50,12 +53,18 @@ impl RedactionFloorBuilder {
     #[must_use]
     #[inline(always)]
     pub(super) fn from_floor(floor: &RedactionFloor) -> Self {
+        let mut layers = floor.layers.iter();
+        let first = layers.next().expect("a built floor always has one layer");
         Self {
-            rules: RedactionRulesBuilder::from_inner(&floor.inner, PolicyLocation::Floor),
+            rules: RedactionRulesBuilder::from_inner(first, PolicyLocation::Floor),
+            retained_layers: layers.cloned().collect(),
         }
     }
 
-    /// Sets field-name matching behavior.
+    /// Sets field-name matching behavior for the editable first layer.
+    ///
+    /// When this builder came from a composed floor, retained layers keep
+    /// their original matching behavior.
     #[must_use]
     #[inline(always)]
     pub fn matching(mut self, matching: FieldNameMatching) -> Self {
@@ -63,7 +72,8 @@ impl RedactionFloorBuilder {
         self
     }
 
-    /// Sets the fallback for fields without an explicit floor rule.
+    /// Sets the fallback for fields without an explicit rule in the editable
+    /// first layer. Retained layers keep their own fallback behavior.
     #[must_use]
     #[inline(always)]
     pub fn unknown_field_policy(mut self, policy: UnknownFieldPolicy) -> Self {
@@ -97,7 +107,9 @@ impl RedactionFloorBuilder {
     /// Currently infallible because field names are validated when added.
     /// The result retains the policy construction error type.
     pub fn build(self) -> Result<RedactionFloor, PolicyError> {
-        let inner = self.rules.build_inner()?;
-        Ok(RedactionFloor { inner: Arc::new(inner) })
+        let mut layers = Vec::with_capacity(1 + self.retained_layers.len());
+        layers.push(Arc::new(self.rules.build_inner()?));
+        layers.extend(self.retained_layers);
+        Ok(RedactionFloor::from_layers(layers))
     }
 }

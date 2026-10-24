@@ -156,19 +156,14 @@ impl RedactionRules {
     /// Resolves exact-only sensitivity from application and floor rules.
     pub(crate) fn resolve_field_exact(&self, field: &str) -> ResolvedField {
         let application = sensitivity_inner(&self.application, field, FieldNameMatching::Exact, true);
-        let floor = self
-            .floor
-            .as_ref()
-            .and_then(|floor| sensitivity_inner(&floor.inner, field, FieldNameMatching::Exact, false));
-        match self.floor.as_ref().zip(floor) {
-            Some((_floor, floor_level)) => ResolvedField::Sensitive {
-                sensitivity: application.map_or(floor_level, |level| level.max(floor_level)),
-            },
-            None => match application {
-                Some(sensitivity) => ResolvedField::Sensitive { sensitivity },
-                None => ResolvedField::PassThrough,
-            },
-        }
+        let floor = self.floor.as_ref().and_then(|floor| {
+            floor
+                .layers
+                .iter()
+                .filter_map(|layer| sensitivity_inner(layer, field, FieldNameMatching::Exact, false))
+                .max()
+        });
+        resolved_max(application, floor)
     }
 
     /// Resolves final sensitivity for `field` exactly once.
@@ -186,19 +181,21 @@ impl RedactionRules {
     /// Resolves final sensitivity using `matching` for application rules.
     fn resolve_field_with_matching(&self, field: &str, matching: FieldNameMatching) -> ResolvedField {
         let application = sensitivity_inner(&self.application, field, matching, true);
-        let floor = self
-            .floor
-            .as_ref()
-            .and_then(|floor| sensitivity_inner(&floor.inner, field, floor.inner.matching, false));
-        match floor {
-            Some(floor_level) => ResolvedField::Sensitive {
-                sensitivity: application.map_or(floor_level, |level| level.max(floor_level)),
-            },
-            None => match application {
-                Some(sensitivity) => ResolvedField::Sensitive { sensitivity },
-                None => ResolvedField::PassThrough,
-            },
-        }
+        let floor = self.floor.as_ref().and_then(|floor| {
+            floor
+                .layers
+                .iter()
+                .filter_map(|layer| sensitivity_inner(layer, field, layer.matching, false))
+                .max()
+        });
+        resolved_max(application, floor)
+    }
+}
+
+fn resolved_max(application: Option<Sensitivity>, floor: Option<Sensitivity>) -> ResolvedField {
+    match application.into_iter().chain(floor).max() {
+        Some(sensitivity) => ResolvedField::Sensitive { sensitivity },
+        None => ResolvedField::PassThrough,
     }
 }
 

@@ -7,15 +7,15 @@
 // =============================================================================
 //! Minimum field-protection floors.
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::LazyLock;
 
-use super::FieldNameMatching;
 use super::RedactionFloorBuilder;
 use super::SensitiveFieldPreset;
 use super::SensitiveFieldRule;
-use super::UnknownFieldPolicy;
+use super::Sensitivity;
 use crate::policy::internal::RedactionPolicyInner;
 
 /// Immutable minimum field-protection rules.
@@ -37,8 +37,11 @@ use crate::policy::internal::RedactionPolicyInner;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RedactionFloor {
-    /// Shared immutable rule state containing only minimum protections.
-    pub(crate) inner: Arc<RedactionPolicyInner>,
+    /// Independent immutable layers whose resolved sensitivities are combined
+    /// by taking their maximum.
+    pub(crate) layers: Arc<[Arc<RedactionPolicyInner>]>,
+    /// Canonical strongest explicit rules, used only for public enumeration.
+    pub(crate) sensitive_index: Arc<BTreeMap<String, Sensitivity>>,
 }
 
 /// Lazily initialized conservative floor shared by standard policies.
@@ -78,8 +81,7 @@ impl RedactionFloor {
 
     /// Iterates the floor's canonical sensitive rules.
     pub fn sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
-        self.inner
-            .sensitive
+        self.sensitive_index
             .iter()
             .map(|(field, level)| SensitiveFieldRule::new(field, *level))
     }
@@ -96,36 +98,28 @@ impl RedactionFloor {
     /// protection to an application policy.
     #[must_use]
     pub(crate) fn combine(&self, other: &Self) -> Self {
-        let mut sensitive = self.inner.sensitive.clone();
-        for (field, level) in &other.inner.sensitive {
-            sensitive
-                .entry(field.clone())
-                .and_modify(|current| *current = (*current).max(*level))
-                .or_insert(*level);
+        let mut layers = self.layers.to_vec();
+        for layer in other.layers.iter() {
+            if !layers.iter().any(|existing| Arc::ptr_eq(existing, layer)) {
+                layers.push(Arc::clone(layer));
+            }
         }
-        let unknown = match (
-            self.inner.unknown_field_policy.sensitivity(),
-            other.inner.unknown_field_policy.sensitivity(),
-        ) {
-            (Some(left), Some(right)) => Some(left.max(right)),
-            (Some(level), None) | (None, Some(level)) => Some(level),
-            (None, None) => None,
-        };
-        let unknown_field_policy = unknown.map_or(UnknownFieldPolicy::PassThrough, UnknownFieldPolicy::Redact);
+        Self::from_layers(layers)
+    }
+
+    pub(crate) fn from_layers(layers: Vec<Arc<RedactionPolicyInner>>) -> Self {
+        let mut sensitive_index = BTreeMap::new();
+        for layer in &layers {
+            for (field, level) in &layer.sensitive {
+                sensitive_index
+                    .entry(field.clone())
+                    .and_modify(|current: &mut Sensitivity| *current = (*current).max(*level))
+                    .or_insert(*level);
+            }
+        }
         Self {
-            inner: Arc::new(RedactionPolicyInner {
-                sensitive,
-                allow_exact: Default::default(),
-                allow_suffix: Default::default(),
-                matching: if self.inner.matching == FieldNameMatching::ExactOrTokenSuffix
-                    || other.inner.matching == FieldNameMatching::ExactOrTokenSuffix
-                {
-                    FieldNameMatching::ExactOrTokenSuffix
-                } else {
-                    FieldNameMatching::Exact
-                },
-                unknown_field_policy,
-            }),
+            layers: layers.into(),
+            sensitive_index: Arc::new(sensitive_index),
         }
     }
 }

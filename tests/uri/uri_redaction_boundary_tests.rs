@@ -12,6 +12,7 @@ use qubit_redact::RedactionFloor;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
 use qubit_redact::Sensitivity;
+use qubit_redact::UnknownFieldPolicy;
 use qubit_redact::formats::uri::UriRedactionBoundary;
 
 /// Adding the mandatory boundary floor retains an application floor.
@@ -87,4 +88,34 @@ fn test_boundary_retains_input_limits_and_inconclusive_inspection() {
     assert!(boundary.inspect_uri(uri).is_err());
     let boundary = UriRedactionBoundary::new(&RedactionPolicy::disabled());
     assert!(boundary.inspect_uri("https://example.test/?password=%zz").is_err());
+}
+
+#[test]
+fn test_boundary_adds_standard_floor_without_weakening_custom_fallback() {
+    let custom_floor = RedactionFloor::builder()
+        .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Secret))
+        .build()
+        .expect("valid custom floor");
+    let application = RedactionPolicy::disabled()
+        .to_builder()
+        .fields(|fields| {
+            fields.floor(custom_floor);
+        })
+        .expect("valid fields")
+        .build()
+        .expect("valid policy");
+    let boundary = UriRedactionBoundary::new(&application);
+    let uri = "https://example.test/?license_key=full-license-secret";
+    let output = boundary.redact_uri(uri);
+
+    assert_eq!(
+        boundary.policy().sensitivity_for("license_key"),
+        Some(Sensitivity::Secret)
+    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(
+        output.text().as_str(),
+        "https://example.test/?license_key=%3Credacted%3E"
+    );
+    assert!(!output.text().as_str().contains("full-license-secret"));
 }

@@ -21,6 +21,121 @@ use qubit_redact::Sensitivity;
 use qubit_redact::UnknownFieldPolicy;
 
 #[test]
+fn test_added_floor_preserves_unknown_secret() {
+    let first = RedactionFloor::builder()
+        .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Secret))
+        .build()
+        .expect("valid first floor");
+    let second = RedactionFloor::builder()
+        .raise("pin", Sensitivity::Low)
+        .expect("valid rule")
+        .build()
+        .expect("valid second floor");
+    let policy = RedactionPolicy::standard().with_floor(first).add_floor(second);
+    assert_eq!(policy.sensitivity_for("pin"), Some(Sensitivity::Secret));
+}
+
+#[test]
+fn test_added_floor_preserves_each_layer_fallback_and_matching() {
+    let same_layer = RedactionFloor::builder()
+        .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Secret))
+        .raise("pin", Sensitivity::Low)
+        .expect("valid rule")
+        .build()
+        .expect("valid same-layer floor");
+    let policy = RedactionPolicy::standard().with_floor(same_layer);
+    assert_eq!(policy.sensitivity_for("pin"), Some(Sensitivity::Low));
+
+    let exact = RedactionFloor::builder()
+        .matching(FieldNameMatching::Exact)
+        .raise("token", Sensitivity::Secret)
+        .expect("valid exact rule")
+        .build()
+        .expect("valid exact floor");
+    let suffix = RedactionFloor::builder()
+        .raise("pin", Sensitivity::Low)
+        .expect("valid suffix rule")
+        .build()
+        .expect("valid suffix floor");
+    let policy = RedactionPolicy::disabled()
+        .with_floor(exact.clone())
+        .add_floor(suffix.clone());
+    assert_eq!(policy.sensitivity_for("token"), Some(Sensitivity::Secret));
+    assert_eq!(policy.sensitivity_for("service_token"), None);
+    // The exact layer does not create or alter a suffix rule.
+    assert_eq!(policy.sensitivity_for("pin"), Some(Sensitivity::Low));
+    assert_eq!(policy.sensitivity_for("service_pin"), Some(Sensitivity::Low));
+
+    let reversed = RedactionPolicy::disabled().with_floor(suffix).add_floor(exact);
+    for field in ["token", "service_token", "pin", "service_pin"] {
+        assert_eq!(policy.sensitivity_for(field), reversed.sensitivity_for(field));
+    }
+}
+
+#[test]
+fn test_added_floor_is_associative_idempotent_and_builder_round_trips() {
+    let first = RedactionFloor::builder()
+        .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::High))
+        .build()
+        .expect("valid first floor");
+    let second = RedactionFloor::builder()
+        .raise("pin", Sensitivity::Low)
+        .expect("valid second rule")
+        .build()
+        .expect("valid second floor");
+    let third = RedactionFloor::builder()
+        .matching(FieldNameMatching::Exact)
+        .raise("credential", Sensitivity::Secret)
+        .expect("valid third rule")
+        .build()
+        .expect("valid third floor");
+    let left = RedactionPolicy::disabled()
+        .with_floor(first.clone())
+        .add_floor(second.clone())
+        .add_floor(third.clone());
+    let right = RedactionPolicy::disabled()
+        .with_floor(third)
+        .add_floor(second)
+        .add_floor(first);
+    for field in ["pin", "credential", "service_credential", "unconfigured"] {
+        let expected = left.sensitivity_for(field);
+        assert_eq!(right.sensitivity_for(field), expected);
+    }
+    let standard = RedactionPolicy::standard();
+    let standard_plus_once = standard.clone().add_floor(RedactionFloor::standard());
+    let standard_plus_twice = standard_plus_once.clone().add_floor(RedactionFloor::standard());
+    for field in ["password", "token", "unconfigured"] {
+        assert_eq!(
+            standard_plus_once.sensitivity_for(field),
+            standard.sensitivity_for(field)
+        );
+        assert_eq!(
+            standard_plus_twice.sensitivity_for(field),
+            standard.sensitivity_for(field)
+        );
+    }
+    let copied = left
+        .rules()
+        .floor()
+        .expect("floor present")
+        .to_builder()
+        .build()
+        .expect("composed floor round trip");
+    let round_trip = RedactionPolicy::disabled().with_floor(copied);
+    for field in ["pin", "credential", "service_credential", "unconfigured"] {
+        assert_eq!(round_trip.sensitivity_for(field), left.sensitivity_for(field));
+    }
+    let replacement = RedactionFloor::builder()
+        .raise("replacement", Sensitivity::Medium)
+        .expect("valid replacement")
+        .build()
+        .expect("valid replacement floor");
+    let replaced = left.rules().clone().disable_floor().with_floor(replacement);
+    assert_eq!(replaced.sensitivity_for("pin"), None);
+    assert_eq!(replaced.sensitivity_for("replacement"), Some(Sensitivity::Medium));
+}
+
+#[test]
 fn test_floor_overrides_application_exact_allow() {
     let floor = RedactionFloor::builder()
         .raise("access_token", Sensitivity::High)

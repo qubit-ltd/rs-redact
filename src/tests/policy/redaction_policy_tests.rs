@@ -7,6 +7,7 @@
 // =============================================================================
 //! Internal redaction-policy contracts unavailable through the public API.
 
+use crate::policy::FieldNameMatching;
 use crate::policy::RedactionFloor;
 use crate::policy::RedactionPolicy;
 use crate::policy::ResolvedField;
@@ -41,4 +42,27 @@ fn test_resolve_field_exact_includes_application_and_floor_rules() {
             sensitivity: Sensitivity::High
         }
     ));
+}
+
+/// Exact resolution applies exact matching independently within each floor
+/// layer.
+#[test]
+fn test_resolve_field_exact_keeps_floor_matching_independent() {
+    let exact = RedactionFloor::builder()
+        .matching(FieldNameMatching::Exact)
+        .raise("token", Sensitivity::Secret)
+        .expect("exact floor rule should be valid")
+        .build()
+        .expect("exact floor should be valid");
+    let suffix = RedactionFloor::builder()
+        .raise("pin", Sensitivity::Low)
+        .expect("suffix floor rule should be valid")
+        .build()
+        .expect("suffix floor should be valid");
+    let policy = RedactionPolicy::disabled().with_floor(exact).add_floor(suffix);
+
+    assert_eq!(policy.sensitivity_for_exact("token"), Some(Sensitivity::Secret));
+    assert_eq!(policy.sensitivity_for_exact("service_token"), None);
+    assert_eq!(policy.sensitivity_for_exact("service_pin"), None);
+    assert_eq!(policy.sensitivity_for("service_pin"), Some(Sensitivity::Low));
 }
