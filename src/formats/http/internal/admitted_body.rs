@@ -22,6 +22,8 @@ pub(in crate::formats::http) enum AdmittedBody {
     ),
     /// A body selected as JSON failed syntactic validation.
     InvalidJson,
+    /// A multipart JSON or NDJSON part failed syntactic validation.
+    InvalidMultipartJson,
     /// Non-empty NDJSON lines admitted under the shared budgets.
     Ndjson {
         /// Parsed values and empty records in source-line order.

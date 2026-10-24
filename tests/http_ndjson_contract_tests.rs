@@ -117,7 +117,8 @@ fn test_multipart_ndjson_blank_records_agree_between_inspection_and_rendering() 
     assert!(error.reasons().contains(RedactionReason::InvalidJson));
 
     let invalid_utf8_body = [
-        b"--boundary\r\nContent-Disposition: form-data; name=\"events\"\r\nContent-Type: application/x-ndjson\r\n\r\n".as_slice(),
+        b"--boundary\r\nContent-Disposition: form-data; name=\"events\"\r\nContent-Type: application/x-ndjson\r\n\r\n"
+            .as_slice(),
         b"{}\r\n\xff\r\n",
         b"--boundary--\r\n",
     ]

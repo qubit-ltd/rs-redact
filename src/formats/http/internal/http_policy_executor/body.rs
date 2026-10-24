@@ -76,6 +76,7 @@ impl HttpPolicyExecutor<'_> {
             match &mut admitted {
                 AdmittedBody::Json(value) => self.redact_json_value(bounded, value, truncated, output_limit),
                 AdmittedBody::InvalidJson => Self::invalid_json_body(),
+                AdmittedBody::InvalidMultipartJson => Self::invalid_json_body(),
                 AdmittedBody::Ndjson {
                     lines,
                     trailing_newline,

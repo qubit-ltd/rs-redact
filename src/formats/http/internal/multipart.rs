@@ -25,6 +25,7 @@ use crate::formats::http::TextBodyPolicy;
 use crate::formats::http::inspection::inspect_form;
 use crate::formats::http::inspection::inspect_json_bytes;
 use crate::formats::http::inspection::inspect_ndjson;
+use crate::formats::json::JsonAdmissionError;
 use crate::formats::json::admit_json_text_value_at_depth;
 use crate::runtime::InspectionSession;
 use crate::runtime::runtime_session::RuntimeSession;
@@ -92,23 +93,24 @@ pub(in crate::formats::http) fn redact(
 ///
 /// # Returns
 ///
-/// The admitted part data, or `None` when the transaction budget is exhausted.
+/// The admitted part data, or the parser/limit failure from a nested structured
+/// part.
 pub(in crate::formats::http) fn admit_structure(
     session: &mut dyn RuntimeSession,
     boundary: &str,
     require_form_data: bool,
     bytes: &[u8],
-) -> Option<AdmittedMultipart> {
+) -> Result<AdmittedMultipart, JsonAdmissionError> {
     let Some(parts) = part_segments(bytes, boundary) else {
-        return Some(AdmittedMultipart { parts: Vec::new() });
+        return Ok(AdmittedMultipart { parts: Vec::new() });
     };
     let mut admitted = Vec::with_capacity(parts.len());
     for part in parts {
         if !session.admit_format_collection_item() || !session.admit_format_node(2) {
-            return None;
+            return Err(JsonAdmissionError::Limit);
         }
         let Some((metadata, body)) = parse_part(part, require_form_data) else {
-            return Some(AdmittedMultipart { parts: Vec::new() });
+            return Ok(AdmittedMultipart { parts: Vec::new() });
         };
         let Some(name) = metadata.name() else {
             admitted.push(None);
@@ -120,21 +122,15 @@ pub(in crate::formats::http) fn admit_structure(
         }
         let value = match metadata.content_type() {
             Some(value) if content_type::is_json(value) => {
-                let Ok(text) = std::str::from_utf8(body) else {
-                    admitted.push(None);
-                    continue;
-                };
-                let value = admit_json_text_value_at_depth(session, text, 3).ok()?;
+                let text = std::str::from_utf8(body).map_err(|_| JsonAdmissionError::Invalid)?;
+                let value = admit_json_text_value_at_depth(session, text, 3)?;
                 Some(AdmittedMultipartBody::Json(value))
             }
             Some(value) if content_type::is_ndjson(value) => {
-                let Ok(text) = std::str::from_utf8(body) else {
-                    admitted.push(None);
-                    continue;
-                };
+                let text = std::str::from_utf8(body).map_err(|_| JsonAdmissionError::Invalid)?;
                 let mut lines = Vec::new();
                 for line in text.lines().filter(|line| !json::is_blank_ndjson_line(line)) {
-                    lines.push(Some(admit_json_text_value_at_depth(session, line, 3).ok()?));
+                    lines.push(Some(admit_json_text_value_at_depth(session, line, 3)?));
                 }
                 Some(AdmittedMultipartBody::Ndjson {
                     lines,
@@ -143,7 +139,7 @@ pub(in crate::formats::http) fn admit_structure(
             }
             Some(value) if content_type::is_form(value) => {
                 if !admit_form_fields(session, body, 3) {
-                    return None;
+                    return Err(JsonAdmissionError::Limit);
                 }
                 None
             }
@@ -151,7 +147,7 @@ pub(in crate::formats::http) fn admit_structure(
         };
         admitted.push(value);
     }
-    Some(AdmittedMultipart { parts: admitted })
+    Ok(AdmittedMultipart { parts: admitted })
 }
 
 /// Classifies every multipart part without rendering or retaining body data.

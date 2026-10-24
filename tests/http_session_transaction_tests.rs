@@ -419,6 +419,276 @@ fn test_http_multipart_parts_use_shared_collection_budget() {
     assert!(!output.text().as_str().contains("must-not-be-rendered"));
 }
 
+/// Invalid nested JSON retains parser provenance; only resource rejection is a
+/// traversal limit.
+#[test]
+fn test_http_multipart_nested_json_preserves_invalid_and_limit_reasons() {
+    let content_type = HeaderValue::from_static("multipart/form-data; boundary=boundary");
+    let invalid_bodies: [&[u8]; 2] = [
+        b"--boundary\r\nContent-Disposition: form-data; name=\"metadata\"\r\nContent-Type: application/json\r\n\r\nnot-json-secret\r\n--boundary--\r\n",
+        b"--boundary\r\nContent-Disposition: form-data; name=\"metadata\"\r\nContent-Type: application/x-ndjson\r\n\r\n{}\nnot-json-secret\r\n--boundary--\r\n",
+    ];
+    for body in invalid_bodies {
+        let output = Redactor::standard().redact_http_body(BodyCapture::complete(body), Some(&content_type));
+
+        assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
+        assert!(
+            !output
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+        assert!(!output.text().as_str().contains("not-json-secret"));
+    }
+
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(2).max_collection_items(4);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let valid_json = b"--boundary\r\nContent-Disposition: form-data; name=\"metadata\"\r\nContent-Type: application/json\r\n\r\n{\"safe\":\"ok\"}\r\n--boundary--\r\n";
+    let limited = Redactor::new(policy).redact_http_body(BodyCapture::complete(valid_json), Some(&content_type));
+
+    assert!(
+        limited
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+    assert!(!limited.summary().reasons().contains(RedactionReason::InvalidJson));
+    assert!(!limited.text().as_str().contains("ok"));
+}
+
+/// Builds a URL chain with an exact number of nested layers and query pairs at
+/// its leaf.
+fn nested_url_with_query_count(layers: usize, query_count: usize) -> String {
+    let mut url = url::Url::parse("https://leaf.test/").expect("leaf URL should parse");
+    {
+        let mut query = url.query_pairs_mut();
+        for _ in 0..query_count {
+            query.append_pair("password", "raw-secret");
+        }
+    }
+    for _ in 0..layers {
+        let mut parent = url::Url::parse("https://redirect.test/").expect("parent URL should parse");
+        parent.query_pairs_mut().append_pair("next", url.as_str());
+        url = parent;
+    }
+    url.into()
+}
+
+/// Nested URL boundaries retain the same depth cause across HTTP entry points.
+#[test]
+fn test_http_nested_url_depth_boundaries_match_render_and_inspection() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits
+                .max_depth(32)
+                .max_nodes(256)
+                .max_collection_items(256)
+                .max_output_bytes(65_536);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("policy should build");
+    let redactor = Redactor::new(policy);
+    for (layers, query_count) in [(7, 1), (8, 3), (9, 1), (9, 3)] {
+        let input = nested_url_with_query_count(layers, query_count);
+        let expected_depth = layers >= 9;
+
+        let direct = redactor.redact_http_url(&input);
+        assert_eq!(
+            direct.summary().reasons().contains(RedactionReason::DepthLimitReached),
+            expected_depth,
+            "direct URL: layers={layers}, leaf_queries={query_count}, usage={:?}, reasons={:?}",
+            direct.summary().usage(),
+            direct.summary().reasons(),
+        );
+        assert!(direct.summary().usage().max_depth() <= 32);
+        assert!(direct.summary().usage().output_bytes() <= 65_536);
+
+        let aggregate = redactor
+            .text_composer()
+            .http(|http| {
+                http.url(&input);
+            })
+            .finish();
+        assert_eq!(
+            aggregate
+                .summary()
+                .reasons()
+                .contains(RedactionReason::DepthLimitReached),
+            expected_depth,
+            "composer URL: layers={layers}, leaf_queries={query_count}, usage={:?}, reasons={:?}",
+            aggregate.summary().usage(),
+            aggregate.summary().reasons(),
+        );
+        assert!(aggregate.summary().usage().output_bytes() <= 65_536);
+
+        let mut batch = redactor.diagnostic_batch();
+        let handle = batch.redact_http_url(&input);
+        let output = batch.finish_with_marker("<truncated>");
+        assert_eq!(
+            output.summary().reasons().contains(RedactionReason::DepthLimitReached),
+            expected_depth,
+            "batch URL: layers={layers}, leaf_queries={query_count}, usage={:?}, reasons={:?}",
+            output.summary().usage(),
+            output.summary().reasons(),
+        );
+        assert!(output.summary().usage().output_bytes() <= 65_536);
+        assert!(!output.text(handle).as_str().contains("raw-secret"));
+
+        let inspected = redactor.inspect_http_url(&input);
+        assert_eq!(
+            inspected
+                .as_ref()
+                .err()
+                .is_some_and(|error| error.reasons().contains(RedactionReason::DepthLimitReached)),
+            expected_depth,
+            "inspection URL: layers={layers}, leaf_queries={query_count}, usage={:?}, reasons={:?}",
+            inspected.as_ref().err().map(|error| error.usage()),
+            inspected.as_ref().err().map(|error| error.reasons()),
+        );
+        assert!(
+            inspected.as_ref().map_or_else(
+                |error| error.usage().output_bytes(),
+                |value| value.usage().output_bytes()
+            ) <= 65_536
+        );
+    }
+}
+
+/// A malformed embedded URL keeps InvalidUri provenance across render and
+/// inspection paths.
+#[test]
+fn test_http_nested_invalid_url_reason_matches_all_entry_points() {
+    let mut url = url::Url::parse("https://outer.test/").expect("outer URL should parse");
+    url.query_pairs_mut().append_pair("next", "https://[bad");
+    let input = url.as_str();
+    let redactor = Redactor::standard();
+
+    let direct = redactor.redact_http_url(input);
+    assert!(direct.summary().reasons().contains(RedactionReason::InvalidUri));
+    assert!(!direct.text().as_str().contains("https://[bad"));
+
+    let composer = redactor
+        .text_composer()
+        .http(|http| {
+            http.url(input);
+        })
+        .finish();
+    assert!(composer.summary().reasons().contains(RedactionReason::InvalidUri));
+
+    let mut batch = redactor.diagnostic_batch();
+    let handle = batch.redact_http_url(input);
+    let output = batch.finish_with_marker("<truncated>");
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
+    assert!(!output.text(handle).as_str().contains("https://[bad"));
+
+    let inspection = redactor
+        .inspect_http_url(input)
+        .expect_err("nested invalid URL must fail inspection");
+    assert!(inspection.reasons().contains(RedactionReason::InvalidUri));
+    assert!(inspection.usage().inspected_input_bytes() > 0);
+}
+
+/// Query and form rules classify the same key through their own HTTP contexts.
+#[test]
+fn test_http_custom_form_payload_uses_query_and_body_contexts() {
+    let query_only = RedactionPolicy::builder()
+        .http(|http| {
+            http.query()
+                .raise("custom_form_payload", qubit_redact::Sensitivity::Secret)
+                .expect("query rule should be valid");
+        })
+        .expect("HTTP rules should build")
+        .build()
+        .expect("policy should build");
+    let query_redactor = Redactor::new(query_only);
+    let url = "https://example.test/?custom_form_payload=raw-secret";
+    let query_output = query_redactor.redact_http_url(url);
+    let body_type = HeaderValue::from_static("application/x-www-form-urlencoded");
+    let form_output = query_redactor.redact_http_body(
+        BodyCapture::complete(b"custom_form_payload=raw-secret"),
+        Some(&body_type),
+    );
+    assert!(!query_output.text().as_str().contains("raw-secret"));
+    assert!(form_output.text().as_str().contains("raw-secret"));
+    assert_eq!(
+        query_redactor
+            .inspect_http_url(url)
+            .expect("URL inspection should complete")
+            .max_sensitivity(),
+        Some(qubit_redact::Sensitivity::Secret)
+    );
+    assert_eq!(
+        query_redactor
+            .inspect_http_body(
+                BodyCapture::complete(b"custom_form_payload=raw-secret"),
+                Some(&body_type)
+            )
+            .expect("form inspection should complete")
+            .max_sensitivity(),
+        None
+    );
+
+    let body_only = RedactionPolicy::builder()
+        .http(|http| {
+            http.body()
+                .raise("custom_form_payload", qubit_redact::Sensitivity::Secret)
+                .expect("body rule should be valid");
+        })
+        .expect("HTTP rules should build")
+        .build()
+        .expect("policy should build");
+    let body_redactor = Redactor::new(body_only);
+    let body_output = body_redactor.redact_http_body(
+        BodyCapture::complete(b"custom_form_payload=raw-secret"),
+        Some(&body_type),
+    );
+    let query_output = body_redactor.redact_http_url(url);
+    assert!(!body_output.text().as_str().contains("raw-secret"));
+    assert!(query_output.text().as_str().contains("raw-secret"));
+    assert_eq!(
+        body_redactor
+            .inspect_http_url(url)
+            .expect("URL inspection should complete")
+            .max_sensitivity(),
+        None
+    );
+    assert_eq!(
+        body_redactor
+            .inspect_http_body(
+                BodyCapture::complete(b"custom_form_payload=raw-secret"),
+                Some(&body_type)
+            )
+            .expect("form inspection should complete")
+            .max_sensitivity(),
+        Some(qubit_redact::Sensitivity::Secret)
+    );
+
+    let global_floor = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.raise("custom_form_payload", qubit_redact::Sensitivity::Secret);
+        })
+        .expect("global rules should build")
+        .http(|http| {
+            http.body()
+                .raise("custom_form_payload", qubit_redact::Sensitivity::Low)
+                .expect("context rule should be valid");
+        })
+        .expect("HTTP rules should build")
+        .build()
+        .expect("policy should build");
+    let global_output = Redactor::new(global_floor).redact_http_body(
+        BodyCapture::complete(b"custom_form_payload=raw-secret"),
+        Some(&body_type),
+    );
+    assert!(!global_output.text().as_str().contains("raw-secret"));
+}
+
 /// A source-truncated capture reports source provenance and known omitted
 /// bytes without claiming that the transaction output limit was reached.
 #[test]

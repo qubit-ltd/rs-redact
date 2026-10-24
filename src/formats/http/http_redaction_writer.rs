@@ -380,8 +380,16 @@ pub(crate) fn admit_body_structure(
             boundary: Some(boundary),
             require_form_data,
         }) => {
-            return super::internal::multipart::admit_structure(session, &boundary, require_form_data, capture.bytes())
-                .map(AdmittedBody::Multipart);
+            return match super::internal::multipart::admit_structure(
+                session,
+                &boundary,
+                require_form_data,
+                capture.bytes(),
+            ) {
+                Ok(parts) => Some(AdmittedBody::Multipart(parts)),
+                Err(crate::formats::json::JsonAdmissionError::Invalid) => Some(AdmittedBody::InvalidMultipartJson),
+                Err(crate::formats::json::JsonAdmissionError::Limit) => None,
+            };
         }
         Some(super::internal::content_type::ContentType::Multipart { boundary: None, .. })
         | Some(super::internal::content_type::ContentType::Text)

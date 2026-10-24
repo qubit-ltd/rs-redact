@@ -15,6 +15,7 @@ use super::HttpPolicyExecutor;
 use super::HttpRendered;
 use super::url_rules;
 use crate::RedactionReason;
+use crate::RedactionReasons;
 use crate::Sensitivity;
 use crate::formats::http::UrlPathPolicy;
 use crate::formats::http::internal::BoundedLogWriter;
@@ -48,14 +49,16 @@ impl HttpPolicyExecutor<'_> {
                 )
             },
             |url| {
-                let mut invalid_query = false;
-                let (text, truncated) = self.redact_url_text_at_depth(&url, 0, output_limit, &mut invalid_query);
+                let mut reasons = RedactionReasons::empty();
+                let (text, truncated) = self.redact_url_text_at_depth(&url, 0, output_limit, &mut reasons);
                 let rendered = self.finish_rendered_url(text, truncated);
-                if invalid_query {
-                    HttpRendered::new(rendered.into_operation().with_reason(RedactionReason::InvalidUri))
-                } else {
-                    rendered
+                let mut operation = rendered.into_operation();
+                for reason in [RedactionReason::InvalidUri, RedactionReason::DepthLimitReached] {
+                    if reasons.contains(reason) {
+                        operation = operation.with_reason(reason);
+                    }
                 }
+                HttpRendered::new(operation)
             },
         )
     }
@@ -67,8 +70,8 @@ impl HttpPolicyExecutor<'_> {
     /// - `url`: Parsed URL to transform.
     /// - `depth`: Current nested-URL recursion depth.
     /// - `output_limit`: Final escaped output-byte ceiling.
-    /// - `invalid_query`: Set when this URL tree contains malformed query
-    ///   escapes.
+    /// - `reasons`: Accumulates parser and nested-depth failures in this URL
+    ///   tree.
     ///
     /// # Returns
     ///
@@ -78,7 +81,7 @@ impl HttpPolicyExecutor<'_> {
         url: &Url,
         depth: usize,
         output_limit: usize,
-        invalid_query: &mut bool,
+        reasons: &mut RedactionReasons,
     ) -> (String, bool) {
         let mut writer = BoundedLogWriter::new(output_limit, false);
         let _ = writer.write_str(url.scheme());
@@ -89,7 +92,7 @@ impl HttpPolicyExecutor<'_> {
             } else {
                 let _ = writer.write_str(url.path());
             }
-            self.write_url_query(&mut writer, url, depth, invalid_query);
+            self.write_url_query(&mut writer, url, depth, reasons);
             self.write_url_fragment(&mut writer, url);
             return writer.finish();
         }
@@ -124,7 +127,7 @@ impl HttpPolicyExecutor<'_> {
         } else {
             let _ = writer.write_str(url.path());
         }
-        self.write_url_query(&mut writer, url, depth, invalid_query);
+        self.write_url_query(&mut writer, url, depth, reasons);
         self.write_url_fragment(&mut writer, url);
         writer.finish()
     }
@@ -136,15 +139,14 @@ impl HttpPolicyExecutor<'_> {
     /// - `writer`: Bounded escaped destination for the URL.
     /// - `url`: Parsed URL whose optional query is visited.
     /// - `depth`: Current nested-URL recursion depth.
-    /// - `invalid_query`: Set when the query contains malformed percent
-    ///   escapes.
-    fn write_url_query(&self, writer: &mut BoundedLogWriter, url: &Url, depth: usize, invalid_query: &mut bool) {
+    /// - `reasons`: Accumulates parser and nested-depth failures in the query.
+    fn write_url_query(&self, writer: &mut BoundedLogWriter, url: &Url, depth: usize, reasons: &mut RedactionReasons) {
         let Some(query) = url.query() else {
             return;
         };
         let _ = writer.write_str("?");
         if !form::is_valid(query.as_bytes()) {
-            *invalid_query = true;
+            *reasons = reasons.with(RedactionReason::InvalidUri);
             let _ = writer.write_str(markers::INVALID_QUERY);
             return;
         }
@@ -156,7 +158,7 @@ impl HttpPolicyExecutor<'_> {
                 .query_field_redactor()
                 .redact_bounded(&key, &value, remaining)
                 .into_inner();
-            let (value, nested_truncated) = self.redact_nested_url_value(value, depth, remaining, invalid_query);
+            let (value, nested_truncated) = self.redact_nested_url_value(value, depth, remaining, reasons);
             if !form::append_pair_bounded(&mut redacted_query, &key, value.as_ref(), query_limit) {
                 writer.mark_truncated();
                 break;
@@ -202,8 +204,8 @@ impl HttpPolicyExecutor<'_> {
     ///   transformed by policy.
     /// - `depth`: Current nested-URL recursion depth.
     /// - `output_limit`: Remaining output-byte ceiling for the nested value.
-    /// - `invalid_query`: Set when the nested URL tree contains malformed query
-    ///   escapes.
+    /// - `reasons`: Accumulates parser and nested-depth failures in the URL
+    ///   tree.
     ///
     /// # Returns
     ///
@@ -214,7 +216,7 @@ impl HttpPolicyExecutor<'_> {
         value: Cow<'value, str>,
         depth: usize,
         output_limit: usize,
-        invalid_query: &mut bool,
+        reasons: &mut RedactionReasons,
     ) -> (Cow<'value, str>, bool) {
         let raw = match value {
             Cow::Borrowed(raw) => raw,
@@ -223,11 +225,17 @@ impl HttpPolicyExecutor<'_> {
         match nested_url::detect(raw) {
             NestedUrl::NotUrl => (Cow::Borrowed(raw), false),
             NestedUrl::Parsed(url) if depth < url_rules::MAX_NESTED_URL_DEPTH => {
-                let (text, truncated) = self.redact_url_text_at_depth(&url, depth + 1, output_limit, invalid_query);
+                let (text, truncated) = self.redact_url_text_at_depth(&url, depth + 1, output_limit, reasons);
                 (Cow::Owned(text), truncated)
             }
-            NestedUrl::Parsed(_) | NestedUrl::LimitExceeded => (Cow::Borrowed(markers::NESTED_URL_LIMIT), false),
-            NestedUrl::Invalid => (Cow::Borrowed(markers::INVALID_URL), false),
+            NestedUrl::Parsed(_) | NestedUrl::LimitExceeded => {
+                *reasons = reasons.with(RedactionReason::DepthLimitReached);
+                (Cow::Borrowed(markers::NESTED_URL_LIMIT), false)
+            }
+            NestedUrl::Invalid => {
+                *reasons = reasons.with(RedactionReason::InvalidUri);
+                (Cow::Borrowed(markers::INVALID_URL), false)
+            }
         }
     }
 }
