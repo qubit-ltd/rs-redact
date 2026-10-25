@@ -135,8 +135,15 @@ impl HttpPolicyBuilderView<'_> {
         self
     }
 
-    /// Sets how root and array JSON scalar values in HTTP bodies are handled.
-    /// This setting does not change handling of keyed object fields.
+    /// Sets how unkeyed JSON scalar values are handled across JSON and HTTP
+    /// bodies.
+    ///
+    /// This root-level setting applies to scalar JSON roots and scalar array
+    /// elements in both ordinary JSON APIs and HTTP JSON, NDJSON, and multipart
+    /// JSON parts. Object properties continue to use their field rules.
+    ///
+    /// The same setting can be configured directly with
+    /// [`RedactionPolicyBuilder::unkeyed_json_value_policy`].
     ///
     /// # Parameters
     ///
