@@ -132,6 +132,56 @@ fn test_inspect_non_utf8_environment_name_is_secret() {
         .inspect_env_pairs([(name, OsStr::new("value"))])
         .expect("non-UTF-8 name should be conclusively classified");
     assert_eq!(result.max_sensitivity(), Some(Sensitivity::Secret));
+    assert_eq!(result.usage().inspected_input_bytes(), 6);
+    assert_eq!(result.usage().output_bytes(), 0);
+
+    let disabled = Redactor::new(RedactionPolicy::disabled())
+        .inspect_env_pairs([(name, OsStr::new("value"))])
+        .expect("disabled inspection still admits non-UTF-8 names");
+    assert!(disabled.is_redaction_disabled());
+    assert_eq!(disabled.max_sensitivity(), None);
+    assert_eq!(disabled.usage().inspected_input_bytes(), 6);
+    assert_eq!(disabled.usage().visited_nodes(), 2);
+    assert_eq!(disabled.usage().output_bytes(), 0);
+}
+
+/// Environment inspection classifies names, while rendering fails closed for
+/// non-UTF-8 values; disabled inspection still accounts for admitted bytes.
+#[cfg(unix)]
+#[test]
+fn test_inspect_non_utf8_environment_values_follow_name_policy() {
+    let value = OsStr::from_bytes(&[0xFF]);
+    let redactor = Redactor::standard();
+
+    let visible = redactor
+        .inspect_env_pairs([(OsStr::new("VISIBLE"), value)])
+        .expect("non-UTF-8 values are admitted and classified by name");
+    assert_eq!(visible.max_sensitivity(), None);
+    assert_eq!(visible.usage().inspected_input_bytes(), 8);
+    assert_eq!(visible.usage().visited_nodes(), 2);
+    assert_eq!(visible.usage().output_bytes(), 0);
+
+    let token = redactor
+        .inspect_env_pairs([(OsStr::new("TOKEN"), value)])
+        .expect("sensitive UTF-8 names retain their configured level");
+    assert_eq!(token.max_sensitivity(), Some(Sensitivity::High));
+    assert_eq!(token.usage().inspected_input_bytes(), 6);
+    assert_eq!(token.usage().output_bytes(), 0);
+
+    let secret = redactor
+        .inspect_env_pairs([(OsStr::new("PASSWORD"), value)])
+        .expect("secret UTF-8 names remain secret");
+    assert_eq!(secret.max_sensitivity(), Some(Sensitivity::Secret));
+    assert_eq!(secret.usage().output_bytes(), 0);
+
+    let disabled = Redactor::new(RedactionPolicy::disabled())
+        .inspect_env_pairs([(OsStr::new("TOKEN"), value)])
+        .expect("disabled inspection still admits environment input");
+    assert!(disabled.is_redaction_disabled());
+    assert_eq!(disabled.max_sensitivity(), None);
+    assert_eq!(disabled.usage().inspected_input_bytes(), 6);
+    assert_eq!(disabled.usage().visited_nodes(), 2);
+    assert_eq!(disabled.usage().output_bytes(), 0);
 }
 
 /// Verifies structured format inspection returns sensitivity without output.

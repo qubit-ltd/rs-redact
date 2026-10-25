@@ -28,7 +28,8 @@ use crate::runtime::runtime_session::RuntimeSession;
 ///   input, and accumulates the strongest observed sensitivity.
 /// - `name`: UTF-8 environment variable name used for policy classification.
 /// - `value`: UTF-8 environment value whose bytes count toward the input
-///   budget.
+///   budget. Environment sensitivity is determined from the name; rendering a
+///   non-UTF-8 value uses a separate opaque-value fallback.
 pub(crate) fn inspect_pair(session: &mut InspectionSession, name: &str, value: &str) {
     inspect_os_pairs(session, [(OsStr::new(name), OsStr::new(value))]);
 }
@@ -38,8 +39,10 @@ pub(crate) fn inspect_pair(session: &mut InspectionSession, name: &str, value: &
 ///
 /// Pairs are consumed in iterator order. Each admitted pair counts against the
 /// transaction's collection, depth, and input-byte budgets. An unrepresentable
-/// name is conservatively classified as secret, and inspection stops when a
-/// required budget admission fails.
+/// name is conservatively classified as secret. A non-UTF-8 value is counted
+/// for admission but does not change name-based classification; rendering has
+/// a separate opaque-value fallback. Inspection stops when a required budget
+/// admission fails.
 ///
 /// # Type Parameters
 ///

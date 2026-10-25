@@ -168,6 +168,11 @@ impl Redactor {
     /// Returns [`RedactionInspectionError`] when the shared input or
     /// structural budget prevents complete inspection.
     ///
+    /// Sensitivity is determined from the environment name under the selected
+    /// policy. A non-UTF-8 value is counted for admission but does not change
+    /// the inspection result; rendering such a value may use an opaque secret
+    /// mask.
+    ///
     /// # Parameters
     ///
     /// - `name`: Environment variable name used for classification.
@@ -219,6 +224,11 @@ impl Redactor {
     /// Non-UTF-8 environment names are conservatively classified as secret.
     /// Returns [`RedactionInspectionError`] when a shared resource limit
     /// prevents complete inspection.
+    ///
+    /// Sensitivity is otherwise determined from each environment name under
+    /// the selected policy. A non-UTF-8 value is counted for admission but
+    /// does not change inspection classification; rendering such a value may
+    /// use an opaque secret mask.
     ///
     /// # Type Parameters
     ///
