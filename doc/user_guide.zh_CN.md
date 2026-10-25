@@ -535,11 +535,54 @@ fn main() {
 }
 ```
 
-`BodyCapture::complete` 表示全部源字节均已提供；`BodyCapture::prefix` 记录已知的完整长度，
-`BodyCapture::truncated_unknown` 则表示存在缺失字节，但缺失数量未知。来源截断与输出截断是
-不同状态：来源截断通过 `RedactionReason::SourceTruncated` 报告，输出截断单独报告
+根据调用方实际捕获到的内容选择 `BodyCapture` 构造方法：
+
+| 构造方法 | 可提供的源字节 | 源总长度 | 适用情况 |
+| --- | --- | --- | --- |
+| `complete(bytes)` | 全部字节 | 已知：`bytes.len()` | 完整 body 都已取得。 |
+| `prefix(bytes, max_bytes)` | 所提供完整 body 的至多 `max_bytes` 前缀 | 已知 | 调用方持有完整 body，并希望在脱敏前限制前缀长度。 |
+| `truncated(bytes, total_len)` | 前缀 | 已知，且必须大于 `bytes.len()` | 源捕获已丢失后续字节，准确总长度已知。 |
+| `truncated_unknown(bytes)` | 前缀 | 未知 | 源捕获已丢失后续字节，且无法取得原始总长度。 |
+
+来源截断通过 `RedactionReason::SourceTruncated` 报告；输出截断单独报告为
 `OutputLimitReached`。已解析的截断 body 会保留来源原因；若输出也超出预算，可同时报告两者。
 URL 和 form 输出截断不会标为 `Complete`。不要把不完整 body 伪装成 complete capture。
+
+### 在 JSON 与 HTTP 之间共享未键控 JSON 标量策略
+
+根 builder 的 `unkeyed_json_value_policy` 同时应用于普通 JSON 脱敏，以及 HTTP JSON body、
+NDJSON 记录和 multipart 中的 JSON part。它只控制 JSON 根标量与数组中的标量；对象属性仍按
+各自字段规则处理。HTTP 视图的 `unkeyed_json` 方法也会修改同一个根级共享配置。standard
+策略保留未键控标量；strict 策略会脱敏这些标量，除非显式配置为其他行为。
+
+<!-- redact-example: kind=run features=http -->
+```rust
+use qubit_redact::formats::http::BodyCapture;
+use qubit_redact::{RedactionPolicy, Redactor, UnkeyedJsonValuePolicy};
+
+fn main() -> Result<(), qubit_redact::PolicyError> {
+    let policy = RedactionPolicy::strict()
+        .to_builder()
+        .http(|http| {
+            http.unkeyed_json(UnkeyedJsonValuePolicy::PassThrough);
+        })?
+        .build()?;
+    let redactor = Redactor::new(policy);
+    let json = redactor.redact_json(r#"["visible",23]"#);
+    assert!(json.text().as_str().contains("visible"));
+    assert!(!redactor
+        .inspect_json(r#"["visible",23]"#)
+        .expect("inspection should be conclusive")
+        .contains_sensitive());
+
+    let body = redactor.redact_http_body_with_content_type_text(
+        BodyCapture::complete(br#"["visible",23]"#),
+        Some("application/json"),
+    );
+    assert!(body.text().as_str().contains("visible"));
+    Ok(())
+}
+```
 
 ### 分别配置 URL query 和 form 字段
 
@@ -606,7 +649,9 @@ fn main() {
 
 调用方知道参数契约时，应优先显式标记 argv。启发式 argv 能识别受支持的 option 形式，但不是
 shell parser，也不校验完整命令行语法。未分类的非 UTF-8 argv 参数项和非 UTF-8 环境变量名会
-保守地按 Secret 处理，不会仅因此导致 inspection 失败。末尾没有后续值的敏感 option 会保持待定
+保守地按 Secret 处理，不会仅因此导致 inspection 失败。环境变量 inspection 按所选策略根据变量名
+分类；非 UTF-8 值仍计入准入预算，但 inspection 不预测 renderer 对该值采用的 opaque Secret mask。
+disabled inspection 会跳过变量名分类。末尾没有后续值的敏感 option 会保持待定
 状态，不会按语法错误报告。Inspection 错误用于报告共享资源限制等准入不完整情况。
 
 <!-- redact-example: kind=run features=none -->

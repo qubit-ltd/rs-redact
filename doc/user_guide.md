@@ -563,13 +563,59 @@ fn main() {
 }
 ```
 
-`BodyCapture::complete` asserts that all source bytes are present.
-`BodyCapture::prefix` records a known total length, while
-`BodyCapture::truncated_unknown` records that bytes are missing but their count
-is unknown. Source truncation is exposed as `RedactionReason::SourceTruncated`; output truncation
-is separately reported as `OutputLimitReached`. A parsed truncated body retains the source reason,
-and can report both reasons if output also exceeds its budget. URL and form output truncation is
-never reported as `Complete`. Never construct a complete capture from an incomplete body.
+Choose the `BodyCapture` constructor that matches what the caller actually
+captured:
+
+| Constructor | Source bytes available | Total source length | Use when |
+| --- | --- | --- | --- |
+| `complete(bytes)` | All bytes | Known: `bytes.len()` | The full body is present. |
+| `prefix(bytes, max_bytes)` | Up to `max_bytes` from the supplied complete body | Known | The caller has the complete body and wants to cap the prefix before redaction. |
+| `truncated(bytes, total_len)` | A prefix | Known; must exceed `bytes.len()` | The source capture already omitted bytes and the exact total is known. |
+| `truncated_unknown(bytes)` | A prefix | Unknown | The source capture omitted bytes and the original total is unavailable. |
+
+Source truncation is exposed as `RedactionReason::SourceTruncated`; output
+truncation is separately reported as `OutputLimitReached`. A parsed truncated
+body retains the source reason and can report both reasons if output also
+exceeds its budget. URL and form output truncation is never reported as
+`Complete`. Never construct a complete capture from an incomplete body.
+
+### Configure unkeyed JSON scalars across JSON and HTTP
+
+The root builder setting `unkeyed_json_value_policy` is shared by ordinary JSON
+redaction and HTTP JSON bodies, NDJSON records, and JSON parts inside multipart
+bodies. It controls only scalar JSON roots and scalar array elements; object
+properties continue to use their field rules. The HTTP view's `unkeyed_json`
+method changes this same root-level setting. Standard policy preserves unkeyed
+scalars; strict policy redacts them unless explicitly configured otherwise.
+
+<!-- redact-example: kind=run features=http -->
+```rust
+use qubit_redact::formats::http::BodyCapture;
+use qubit_redact::{RedactionPolicy, Redactor, UnkeyedJsonValuePolicy};
+
+fn main() -> Result<(), qubit_redact::PolicyError> {
+    let policy = RedactionPolicy::strict()
+        .to_builder()
+        .http(|http| {
+            http.unkeyed_json(UnkeyedJsonValuePolicy::PassThrough);
+        })?
+        .build()?;
+    let redactor = Redactor::new(policy);
+    let json = redactor.redact_json(r#"["visible",23]"#);
+    assert!(json.text().as_str().contains("visible"));
+    assert!(!redactor
+        .inspect_json(r#"["visible",23]"#)
+        .expect("inspection should be conclusive")
+        .contains_sensitive());
+
+    let body = redactor.redact_http_body_with_content_type_text(
+        BodyCapture::complete(br#"["visible",23]"#),
+        Some("application/json"),
+    );
+    assert!(body.text().as_str().contains("visible"));
+    Ok(())
+}
+```
 
 ### Configure URL query and form fields separately
 
@@ -638,10 +684,13 @@ Explicitly classified argv is preferable when the caller knows the argument
 contract. Heuristic argv recognizes supported option forms but is not a shell
 parser and does not validate complete command-line syntax. Unclassified
 non-UTF-8 argv items and non-UTF-8 environment names are conservatively treated
-as Secret and do not by themselves make inspection fail. A trailing sensitive
-option with no following value remains pending; it is not reported as a syntax
-error. Inspection errors report incomplete admission, such as a shared resource
-limit.
+as Secret and do not by themselves make inspection fail. Environment
+inspection classifies sensitivity from the name under the selected policy. It
+counts a non-UTF-8 value for admission without predicting the renderer's opaque
+Secret mask for that value; disabled inspection bypasses name classification.
+A trailing sensitive option with no following value remains pending; it is not
+reported as a syntax error. Inspection errors report incomplete admission, such
+as a shared resource limit.
 
 <!-- redact-example: kind=run features=none -->
 ```rust
