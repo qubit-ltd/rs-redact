@@ -137,13 +137,23 @@ pub(crate) fn admit_uri_structure(session: &mut dyn RuntimeSession, input: &str)
     if !session.admit_format_node(1) {
         return false;
     }
-    let without_fragment = input.split_once('#').map_or(input, |(prefix, _)| prefix);
-    let Some((_, query)) = without_fragment.split_once('?') else {
+    let Ok(parsed) = fluent_uri::Uri::<&str>::parse(input) else {
         return true;
     };
-    for _ in query.split('&') {
+    let Some(query) = parsed.query() else {
+        return true;
+    };
+    for pair in query.as_str().split('&') {
         if !session.admit_format_collection_item() || !session.admit_format_node(2) {
             return false;
+        }
+        if let Some((raw_key, _)) = pair.split_once('=') {
+            let Ok(key) = super::redaction::decode_uri_component(raw_key) else {
+                continue;
+            };
+            if !session.admit_domain_key(&key) {
+                return false;
+            }
         }
     }
     true

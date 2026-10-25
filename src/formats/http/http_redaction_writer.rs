@@ -131,8 +131,11 @@ fn admit_url_structure_at_depth(session: &mut dyn RuntimeSession, url: &Url, url
     if !super::internal::form::is_valid(query.as_bytes()) {
         return true;
     }
-    for (_, value) in url.query_pairs() {
+    for (key, value) in url.query_pairs() {
         if !session.admit_format_collection_item() || !session.admit_format_node(url_depth.saturating_add(1)) {
+            return false;
+        }
+        if !session.admit_domain_key(&key) {
             return false;
         }
         match nested_url::detect(value.as_ref()) {
@@ -161,6 +164,7 @@ pub(crate) fn collect_admitted_headers(session: &mut dyn RuntimeSession, headers
     for (name, value) in headers {
         if !session.admit_format_collection_item()
             || !session.admit_format_node(2)
+            || !session.admit_domain_key(name.as_str())
             || !session.admit_input(name.as_str().len().saturating_add(value.as_bytes().len()))
         {
             return None;

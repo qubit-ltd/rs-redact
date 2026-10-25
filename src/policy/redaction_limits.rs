@@ -183,13 +183,16 @@ impl RedactionLimits {
         self.domain.max_sequence_items()
     }
 
-    /// Returns the maximum raw UTF-8 length of a domain field or classification
-    /// key, checked before normalization and value access. JSON keys also have
-    /// their independent JSON admission limits.
+    /// Returns the maximum UTF-8 byte length of a domain field or supported
+    /// format classification key, checked after format-required decoding but
+    /// before policy normalization and value access. JSON keys retain their
+    /// independent JSON admission limits; argv heuristics are not covered by
+    /// this format-key check.
     ///
     /// # Returns
     ///
-    /// `Some(maximum)` bounds raw key bytes; `None` disables this limit.
+    /// `Some(maximum)` bounds admitted classification-key bytes;
+    /// `None` disables this limit.
     #[inline(always)]
     pub const fn max_key_bytes(&self) -> Option<usize> {
         self.domain.max_key_bytes()

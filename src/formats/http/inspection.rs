@@ -51,6 +51,7 @@ pub(crate) fn inspect_headers(session: &mut InspectionSession, headers: &HeaderM
     for (name, value) in headers {
         if !session.admit_format_collection_item()
             || !session.admit_format_node(2)
+            || !session.admit_domain_key(name.as_str())
             || !session.admit_input(name.as_str().len().saturating_add(value.as_bytes().len()))
         {
             return;
@@ -194,6 +195,9 @@ fn inspect_parsed_url(session: &mut InspectionSession, url: &Url, depth: usize) 
             if !session.admit_format_collection_item() || !session.admit_format_node(depth.saturating_add(2)) {
                 return;
             }
+            if !session.admit_domain_key(&key) {
+                return;
+            }
             if let Some(sensitivity) = query_fields(session).sensitivity(&key) {
                 session.observe_sensitivity(sensitivity);
                 continue;
@@ -308,7 +312,10 @@ pub(in crate::formats::http) fn inspect_form(session: &mut InspectionSession, by
         return;
     }
     for (key, _) in form_urlencoded::parse(bytes) {
-        if !session.admit_format_collection_item() || !session.admit_format_node(2) {
+        if !session.admit_format_collection_item()
+            || !session.admit_format_node(2)
+            || !session.admit_domain_key(&key)
+        {
             return;
         }
         if let Some(sensitivity) = body_fields(session).sensitivity(&key) {

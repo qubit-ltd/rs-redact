@@ -116,6 +116,9 @@ pub(in crate::formats::http) fn admit_structure(
             admitted.push(None);
             continue;
         };
+        if !session.admit_domain_key(name) {
+            return Err(JsonAdmissionError::Limit);
+        }
         if metadata.filename().is_some() || body_field_is_sensitive(session, name) {
             admitted.push(None);
             continue;
@@ -174,6 +177,9 @@ pub(in crate::formats::http) fn inspect(
             session.observe_sensitivity(Sensitivity::Secret);
             continue;
         };
+        if !session.admit_domain_key(name) {
+            return;
+        }
         if metadata.filename().is_some() {
             session.observe_sensitivity(Sensitivity::Secret);
             continue;
@@ -239,9 +245,20 @@ pub(in crate::formats::http) fn admit_form_fields(
     if bytes.is_empty() {
         return true;
     }
-    bytes
-        .split(|byte| *byte == b'&')
-        .all(|_| session.admit_format_collection_item() && session.admit_format_node(field_depth))
+    if !form::is_valid(bytes) {
+        return true;
+    }
+    for field in bytes.split(|byte| *byte == b'&') {
+        if !session.admit_format_collection_item() || !session.admit_format_node(field_depth) {
+            return false;
+        }
+        if let Some((key, _)) = form_urlencoded::parse(field).next()
+            && !session.admit_domain_key(&key)
+        {
+            return false;
+        }
+    }
+    true
 }
 
 /// Resolves body rules without retaining an immutable session borrow.

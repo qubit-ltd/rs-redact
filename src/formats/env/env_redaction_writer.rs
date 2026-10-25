@@ -9,11 +9,10 @@
 
 use std::ffi::OsStr;
 
+use super::admission::{admit_environment_name, collect_environment_pairs};
 use super::redaction::redact_os_pairs_with_policy;
 use super::redaction::redact_pair_with_policy;
 use crate::runtime::TextSession;
-use crate::runtime::admit_flat_format_item;
-use crate::runtime::collect_flat_format_items;
 use crate::runtime::runtime_session::RuntimeSession;
 
 /// A borrowed environment façade over one mutable diagnostic session.
@@ -70,7 +69,14 @@ impl<'session> EnvRedactionWriter<'session> {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        if !admit_flat_format_item(self.session, name.len().saturating_add(value.len())) {
+        if !self.session.admit_format_node(1)
+            || !self.session.admit_format_collection_item()
+            || !self.session.admit_format_node(2)
+            || !admit_environment_name(self.session, OsStr::new(name))
+            || !self
+                .session
+                .admit_input(name.len().saturating_add(value.len()))
+        {
             return self;
         }
         let result = redact_pair_with_policy(
@@ -107,14 +113,14 @@ impl<'session> EnvRedactionWriter<'session> {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        let Some(pairs) = collect_flat_format_items(self.session, pairs, |(name, value)| {
-            name.as_encoded_bytes()
-                .len()
-                .saturating_add(value.as_encoded_bytes().len())
-        }) else {
+        let Some(pairs) = collect_environment_pairs(self.session, pairs) else {
             return self;
         };
-        let result = redact_os_pairs_with_policy(self.session.policy(), pairs, self.session.remaining_output_bytes());
+        let result = redact_os_pairs_with_policy(
+            self.session.policy(),
+            pairs,
+            self.session.remaining_output_bytes(),
+        );
         self.session.append_rendered_operation(result);
         self
     }

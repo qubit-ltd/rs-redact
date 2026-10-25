@@ -7,6 +7,7 @@
 // =============================================================================
 //! Redaction adapters for environment-variable diagnostics.
 
+pub(in crate::formats) mod admission;
 pub(crate) mod batch_redaction;
 mod env_redaction_writer;
 pub(crate) mod inspection;

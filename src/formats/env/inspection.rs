@@ -9,6 +9,7 @@
 
 use std::ffi::OsStr;
 
+use super::admission::admit_environment_name;
 use crate::Sensitivity;
 use crate::policy::ResolvedField;
 use crate::runtime::InspectionSession;
@@ -68,7 +69,10 @@ where
         let Some((name, value)) = pairs.next() else {
             break;
         };
-        if !session.admit_format_collection_item() || !session.admit_format_node(2) {
+        if !session.admit_format_collection_item()
+            || !session.admit_format_node(2)
+            || !admit_environment_name(session, name)
+        {
             return;
         }
         if !session.admit_input(

@@ -9,6 +9,7 @@
 
 use std::ffi::OsStr;
 
+use crate::formats::env::admission::admit_environment_name;
 use crate::runtime::BatchSession;
 use crate::runtime::runtime_session::RuntimeSession;
 
@@ -41,7 +42,10 @@ where
             return None;
         }
         let (name, value) = self.variables.next()?;
-        if !self.session.admit_format_collection_item() || !self.session.admit_format_node(2) {
+        if !self.session.admit_format_collection_item()
+            || !self.session.admit_format_node(2)
+            || !admit_environment_name(self.session, name)
+        {
             self.failed = true;
             return None;
         }
