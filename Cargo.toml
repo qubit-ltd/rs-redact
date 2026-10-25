@@ -34,7 +34,7 @@ edition = "2024"
 rust-version = "1.94"
 
 [workspace.dependencies]
-qubit-redact-derive = { path = "derive", version = "0.8" }
+qubit-redact-derive = { version = "0.8.1" }
 
 [package.metadata.docs.rs]
 all-features = true

@@ -7,4 +7,4 @@ publish = false
 [workspace]
 
 [dependencies]
-qubit-redact-derive = { version = "0.8", path = "../../../../derive" }
+qubit-redact-derive = "0.8.1"
