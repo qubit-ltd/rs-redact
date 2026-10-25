@@ -245,14 +245,13 @@ pub(in crate::formats::http) fn admit_form_fields(
     if bytes.is_empty() {
         return true;
     }
-    if !form::is_valid(bytes) {
-        return true;
-    }
+    let valid = form::is_valid(bytes);
     for field in bytes.split(|byte| *byte == b'&') {
         if !session.admit_format_collection_item() || !session.admit_format_node(field_depth) {
             return false;
         }
-        if let Some((key, _)) = form_urlencoded::parse(field).next()
+        if valid
+            && let Some((key, _)) = form_urlencoded::parse(field).next()
             && !session.admit_domain_key(&key)
         {
             return false;
