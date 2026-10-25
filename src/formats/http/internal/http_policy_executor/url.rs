@@ -98,19 +98,29 @@ impl HttpPolicyExecutor<'_> {
         }
         let _ = writer.write_str("//");
         if !url.username().is_empty() {
-            let masked = self
-                .query_field_redactor()
-                .mask_bounded(Sensitivity::High, url.username(), writer.remaining_bytes())
-                .into_owned();
-            let _ = writer.write_str(&masked);
+            let (masked, truncated) = self.policy.masking().mask_bounded_with_truncation(
+                Sensitivity::High,
+                url.username(),
+                writer.remaining_bytes(),
+            );
+            let _ = writer.write_str(masked.as_ref());
+            if truncated {
+                writer.mark_truncated();
+                return writer.finish();
+            }
         }
         if let Some(password) = url.password() {
             let _ = writer.write_str(":");
-            let masked = self
-                .query_field_redactor()
-                .mask_bounded(Sensitivity::Secret, password, writer.remaining_bytes())
-                .into_owned();
-            let _ = writer.write_str(&masked);
+            let (masked, truncated) = self.policy.masking().mask_bounded_with_truncation(
+                Sensitivity::Secret,
+                password,
+                writer.remaining_bytes(),
+            );
+            let _ = writer.write_str(masked.as_ref());
+            if truncated {
+                writer.mark_truncated();
+                return writer.finish();
+            }
         }
         if !url.username().is_empty() || url.password().is_some() {
             let _ = writer.write_str("@");

@@ -222,28 +222,4 @@ impl<'a> FieldRedactor<'a> {
             ResolvedField::PassThrough => None,
         }
     }
-
-    /// Masks an explicitly sensitive native value with the shared mask table.
-    ///
-    /// # Parameters
-    ///
-    /// - `level`: Explicit sensitivity supplied by the native HTTP
-    ///   representation.
-    /// - `value`: Source text used only by masks that preserve part of the
-    ///   value.
-    /// - `max_bytes`: Maximum allocation for generated masking text.
-    ///
-    /// # Returns
-    ///
-    /// The mask selected by the shared table, possibly borrowing its input.
-    #[must_use]
-    #[inline(always)]
-    pub(in crate::formats::http) fn mask_bounded<'value>(
-        &self,
-        level: Sensitivity,
-        value: &'value str,
-        max_bytes: usize,
-    ) -> Cow<'value, str> {
-        self.masking.mask_bounded(level, value, max_bytes)
-    }
 }
