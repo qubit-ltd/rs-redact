@@ -450,8 +450,18 @@ impl<'session> RedactionWriter<'session> {
         if self.session.is_inspection() {
             return;
         }
-        let mut formatter = BoundedDebugWriter { writer: self };
-        let _ = write!(&mut formatter, "{value:?}");
+        let checkpoint = self.session.domain_frame_checkpoint();
+        let mut formatter = BoundedDebugWriter {
+            writer: self,
+            rejected: false,
+        };
+        let result = write!(&mut formatter, "{value:?}");
+        if result.is_err() && !formatter.rejected {
+            formatter
+                .writer
+                .session
+                .fail_domain_formatting(checkpoint.0, checkpoint.1);
+        }
     }
 
     /// Writes an already-accessed dynamic value using the selected policy
@@ -483,7 +493,14 @@ impl<'session> RedactionWriter<'session> {
             return;
         }
         let raw_limit = self.remaining_output_bytes();
-        let (raw, raw_truncated) = bounded_debug(value, raw_limit);
+        let checkpoint = self.session.domain_frame_checkpoint();
+        let (raw, raw_truncated) = match bounded_debug(value, raw_limit) {
+            Ok(captured) => captured,
+            Err(_) => {
+                self.session.fail_domain_formatting(checkpoint.0, checkpoint.1);
+                return;
+            }
+        };
         let (masked, mask_truncated) =
             self.session
                 .policy()

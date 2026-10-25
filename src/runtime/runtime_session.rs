@@ -21,7 +21,6 @@ use super::rendered_summary::rendered_summary;
 use super::runtime_core::RuntimeCore;
 use super::transaction_phase::TransactionPhase;
 use crate::RedactionPolicy;
-#[cfg(any(feature = "json", feature = "http", feature = "uri"))]
 use crate::RedactionReason;
 use crate::RedactionSummary;
 use crate::Sensitivity;
@@ -278,6 +277,36 @@ pub(crate) trait RuntimeSession {
     #[inline(always)]
     fn domain_frame_is_truncated(&self) -> bool {
         self.runtime().domain_frame_truncated
+    }
+
+    /// Returns the current frame rollback point for one untrusted formatter.
+    #[inline(always)]
+    fn domain_frame_checkpoint(&self) -> (usize, usize) {
+        (
+            self.runtime().domain_frame.len(),
+            self.runtime().domain_frame_output_bytes,
+        )
+    }
+
+    /// Rolls back one incomplete debug value, records its cause, and closes
+    /// the frame with a safe marker.
+    ///
+    /// # Parameters
+    ///
+    /// - `frame_len`: Raw frame length captured before formatting.
+    /// - `encoded_len`: Encoded frame byte count captured before formatting.
+    fn fail_domain_formatting(&mut self, frame_len: usize, encoded_len: usize) {
+        self.runtime_mut().domain_frame.truncate(frame_len);
+        self.runtime_mut().domain_frame_output_bytes = encoded_len;
+        self.record_summary(RedactionSummary::truncated(RedactionReason::FormattingFailed));
+        const MARKER: &str = "<formatting-failed>";
+        if MARKER.len() > self.remaining_output_bytes().saturating_sub(encoded_len) {
+            self.mark_domain_frame_output_limit_reached();
+            self.truncate_domain_frame_without_output_limit();
+            return;
+        }
+        self.append_domain_frame_fragment(MARKER);
+        self.mark_domain_frame_truncated();
     }
 
     /// Marks an inspection inconclusive for one machine-readable cause.

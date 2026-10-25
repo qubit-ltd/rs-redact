@@ -16,6 +16,8 @@ use crate::domain::RedactionWriter;
 pub(in crate::domain) struct BoundedDebugWriter<'writer, 'session> {
     /// Domain writer receiving complete formatter fragments.
     pub(in crate::domain) writer: &'writer mut RedactionWriter<'session>,
+    /// Whether the underlying bounded writer rejected a fragment.
+    pub(in crate::domain) rejected: bool,
 }
 
 impl fmt::Write for BoundedDebugWriter<'_, '_> {
@@ -42,6 +44,7 @@ impl fmt::Write for BoundedDebugWriter<'_, '_> {
         if self.writer.write_fragment(value) {
             Ok(())
         } else {
+            self.rejected = true;
             Err(fmt::Error)
         }
     }

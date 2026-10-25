@@ -15,7 +15,8 @@ use std::fmt::Write as _;
 /// `maximum` bytes.
 ///
 /// Returns the retained text and whether formatting produced content beyond
-/// the limit. The value is formatted once and no partial UTF-8 character is
+/// the limit. Formatter errors are preserved independently from capacity
+/// rejection. The value is formatted once and no partial UTF-8 character is
 /// retained.
 ///
 /// # Type Parameters
@@ -30,15 +31,24 @@ use std::fmt::Write as _;
 /// # Returns
 ///
 /// Accepted complete fragments and whether any fragment was rejected.
-/// An error returned by `Debug` independently of capacity is ignored.
-#[must_use]
-pub(in crate::domain) fn bounded_debug<T>(value: &T, maximum: usize) -> (String, bool)
+///
+/// # Errors
+///
+/// Returns [`fmt::Error`] when the formatter fails without a capacity
+/// rejection. Capacity rejection takes precedence and is reported by the
+/// truncation flag.
+pub(in crate::domain) fn bounded_debug<T>(value: &T, maximum: usize) -> Result<(String, bool), fmt::Error>
 where
     T: Debug + ?Sized,
 {
     let mut writer = BoundedCapture::new(maximum);
-    let _ = write!(&mut writer, "{value:?}");
-    writer.finish()
+    let result = write!(&mut writer, "{value:?}");
+    let (output, truncated) = writer.finish();
+    if truncated {
+        Ok((output, true))
+    } else {
+        result.map(|()| (output, false))
+    }
 }
 
 /// Collects complete debug-output fragments up to a byte limit.

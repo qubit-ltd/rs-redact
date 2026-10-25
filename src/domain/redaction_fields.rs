@@ -156,7 +156,14 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             self.writer.write_debug(&value);
         } else {
             let raw_limit = self.writer.remaining_output_bytes();
-            let (raw, raw_truncated) = bounded_debug(&access(), raw_limit);
+            let checkpoint = self.writer.session.domain_frame_checkpoint();
+            let (raw, raw_truncated) = match bounded_debug(&access(), raw_limit) {
+                Ok(captured) => captured,
+                Err(_) => {
+                    self.writer.session.fail_domain_formatting(checkpoint.0, checkpoint.1);
+                    return self;
+                }
+            };
             let (value, mask_truncated) = self.writer.session.policy().masking().mask_bounded_with_truncation(
                 effective_level,
                 &raw,
