@@ -146,12 +146,8 @@ pub(in crate::formats::http) fn admit_parsed_url_structure(
         let masked_by_policy = {
             let policy = session.policy();
             !policy.is_disabled()
-                && super::FieldRedactor::new(
-                    policy.rules(),
-                    policy.http().query_rules(),
-                    policy.masking(),
-                )
-                .is_sensitive(&key)
+                && super::FieldRedactor::new(policy.rules(), policy.http().query_rules(), policy.masking())
+                    .is_sensitive(&key)
         };
         if masked_by_policy {
             continue;

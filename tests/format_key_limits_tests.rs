@@ -1,8 +1,17 @@
+// =============================================================================
+//    Copyright (c) 2025 - 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
+
+use std::cell::Cell;
+use std::ffi::OsStr;
+
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
 use qubit_redact::Redactor;
-use std::cell::Cell;
-use std::ffi::OsStr;
 
 fn policy_with_key_limit(maximum: usize) -> RedactionPolicy {
     RedactionPolicy::builder()
@@ -15,15 +24,10 @@ fn policy_with_key_limit(maximum: usize) -> RedactionPolicy {
 }
 
 #[cfg(feature = "http")]
-fn policy_with_key_and_collection_limits(
-    key_bytes: usize,
-    collection_items: usize,
-) -> RedactionPolicy {
+fn policy_with_key_and_collection_limits(key_bytes: usize, collection_items: usize) -> RedactionPolicy {
     RedactionPolicy::builder()
         .limits(|limits| {
-            limits
-                .max_key_bytes(key_bytes)
-                .max_collection_items(collection_items);
+            limits.max_key_bytes(key_bytes).max_collection_items(collection_items);
         })
         .expect("valid limits")
         .build()
@@ -45,11 +49,7 @@ fn test_env_key_limit_rejects_before_publication() {
     let error = redactor
         .inspect_env("MODE", "rejected-value-427")
         .expect_err("oversized classification key must make inspection inconclusive");
-    assert!(
-        error
-            .reasons()
-            .contains(RedactionReason::TraversalLimitReached)
-    );
+    assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
 }
 
 #[test]
@@ -124,8 +124,7 @@ fn test_non_utf8_environment_name_uses_secret_fallback_without_key_rejection() {
 
     let name = OsString::from_vec(vec![b'N', 0xff]);
     let redactor = Redactor::new(policy_with_key_limit(0));
-    let output =
-        redactor.redact_env_pairs([(name.as_os_str(), OsStr::new("non-utf8-secret-value"))]);
+    let output = redactor.redact_env_pairs([(name.as_os_str(), OsStr::new("non-utf8-secret-value"))]);
     assert!(output.complete_text().is_ok());
     assert!(!output.text().as_str().contains("non-utf8-secret-value"));
     assert!(
@@ -137,10 +136,7 @@ fn test_non_utf8_environment_name_uses_secret_fallback_without_key_rejection() {
     let inspected = redactor
         .inspect_env_pairs([(name.as_os_str(), OsStr::new("non-utf8-secret-value"))])
         .expect("non-UTF-8 name remains conclusively classified as secret");
-    assert_eq!(
-        inspected.max_sensitivity(),
-        Some(qubit_redact::Sensitivity::Secret)
-    );
+    assert_eq!(inspected.max_sensitivity(), Some(qubit_redact::Sensitivity::Secret));
 }
 
 #[test]
@@ -206,9 +202,10 @@ fn test_process_batch_environment_key_limit_stops_before_reading_the_tail() {
 
 #[cfg(feature = "uri")]
 mod uri {
-    use super::policy_with_key_limit;
     use qubit_redact::RedactionReason;
     use qubit_redact::Redactor;
+
+    use super::policy_with_key_limit;
 
     #[test]
     fn test_uri_query_key_limit_rejects_before_publication() {
@@ -226,11 +223,7 @@ mod uri {
         let error = redactor
             .inspect_uri(input)
             .expect_err("oversized key must make inspection inconclusive");
-        assert!(
-            error
-                .reasons()
-                .contains(RedactionReason::TraversalLimitReached)
-        );
+        assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
     }
 
     #[test]
@@ -288,11 +281,7 @@ mod uri {
         let error = redactor
             .inspect_uri(input)
             .expect_err("limits apply when redaction is disabled");
-        assert!(
-            error
-                .reasons()
-                .contains(RedactionReason::TraversalLimitReached)
-        );
+        assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
     }
 
     #[test]
@@ -329,13 +318,14 @@ mod uri {
 
 #[cfg(feature = "http")]
 mod http {
-    use super::policy_with_key_and_collection_limits;
-    use super::policy_with_key_limit;
     use http::HeaderMap;
     use http::HeaderValue;
     use qubit_redact::RedactionReason;
     use qubit_redact::Redactor;
     use qubit_redact::formats::http::BodyCapture;
+
+    use super::policy_with_key_and_collection_limits;
+    use super::policy_with_key_limit;
 
     fn assert_rejected(output: qubit_redact::RedactionTextOutput) {
         assert!(!output.text().as_str().contains("rejected-value-427"));
@@ -355,11 +345,7 @@ mod http {
         let error = redactor
             .inspect_http_url("https://example.test/?abcd=rejected-value-427")
             .expect_err("oversized key must make inspection inconclusive");
-        assert!(
-            error
-                .reasons()
-                .contains(RedactionReason::TraversalLimitReached)
-        );
+        assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
     }
 
     #[test]
@@ -384,11 +370,7 @@ mod http {
         let error = three_bytes
             .inspect_http_url("https://example.test/?a%62cd=rejected-value-427")
             .expect_err("decoded four-byte key exceeds the limit");
-        assert!(
-            error
-                .reasons()
-                .contains(RedactionReason::TraversalLimitReached)
-        );
+        assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
     }
 
     #[test]
@@ -407,11 +389,7 @@ mod http {
         let error = redactor
             .inspect_http_url("https://example.test/?abcd=rejected-value-427")
             .expect_err("HTTP URL limits apply when redaction is disabled");
-        assert!(
-            error
-                .reasons()
-                .contains(RedactionReason::TraversalLimitReached)
-        );
+        assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
 
         let mut headers = HeaderMap::new();
         headers.insert("abcd", HeaderValue::from_static("rejected-value-427"));
@@ -426,11 +404,7 @@ mod http {
         let error = redactor
             .inspect_http_headers(&headers)
             .expect_err("HTTP header limits apply when redaction is disabled");
-        assert!(
-            error
-                .reasons()
-                .contains(RedactionReason::TraversalLimitReached)
-        );
+        assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
     }
 
     #[test]
@@ -473,42 +447,28 @@ mod http {
         let error = redactor
             .inspect_http_headers(&headers)
             .expect_err("oversized header name must make inspection inconclusive");
-        assert!(
-            error
-                .reasons()
-                .contains(RedactionReason::TraversalLimitReached)
-        );
+        assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
     }
 
     #[test]
     fn test_http_form_key_limit_rejects_before_publication() {
         let redactor = Redactor::new(policy_with_key_limit(1));
         let capture = BodyCapture::complete(b"abcd=rejected-value-427");
-        assert_rejected(redactor.redact_http_body_with_content_type_text(
-            capture,
-            Some("application/x-www-form-urlencoded"),
-        ));
-        let error = redactor
-            .inspect_http_body_with_content_type_text(
-                capture,
-                Some("application/x-www-form-urlencoded"),
-            )
-            .expect_err("oversized form key must make inspection inconclusive");
-        assert!(
-            error
-                .reasons()
-                .contains(RedactionReason::TraversalLimitReached)
+        assert_rejected(
+            redactor.redact_http_body_with_content_type_text(capture, Some("application/x-www-form-urlencoded")),
         );
+        let error = redactor
+            .inspect_http_body_with_content_type_text(capture, Some("application/x-www-form-urlencoded"))
+            .expect_err("oversized form key must make inspection inconclusive");
+        assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
     }
 
     #[test]
     fn test_http_form_plus_decoding_defines_key_length() {
         let redactor = Redactor::new(policy_with_key_limit(2));
         let capture = BodyCapture::complete(b"a+b=rejected-value-427");
-        let output = redactor.redact_http_body_with_content_type_text(
-            capture,
-            Some("application/x-www-form-urlencoded"),
-        );
+        let output =
+            redactor.redact_http_body_with_content_type_text(capture, Some("application/x-www-form-urlencoded"));
         assert!(!output.text().as_str().contains("rejected-value-427"));
         assert!(
             output
@@ -522,16 +482,11 @@ mod http {
     fn test_http_form_plus_decoding_fits_three_bytes() {
         let redactor = Redactor::new(policy_with_key_limit(3));
         let capture = BodyCapture::complete(b"a+b=value");
-        let output = redactor.redact_http_body_with_content_type_text(
-            capture,
-            Some("application/x-www-form-urlencoded"),
-        );
+        let output =
+            redactor.redact_http_body_with_content_type_text(capture, Some("application/x-www-form-urlencoded"));
         assert!(output.complete_text().is_ok());
         redactor
-            .inspect_http_body_with_content_type_text(
-                capture,
-                Some("application/x-www-form-urlencoded"),
-            )
+            .inspect_http_body_with_content_type_text(capture, Some("application/x-www-form-urlencoded"))
             .expect("decoded key `a b` occupies three UTF-8 bytes");
     }
 
@@ -539,16 +494,9 @@ mod http {
     fn test_invalid_form_preserves_segment_structure_accounting() {
         let redactor = Redactor::new(policy_with_key_and_collection_limits(16, 8));
         let capture = BodyCapture::complete(b"%GG=value");
-        let output = redactor.redact_http_body_with_content_type_text(
-            capture,
-            Some("application/x-www-form-urlencoded"),
-        );
-        assert!(
-            output
-                .summary()
-                .reasons()
-                .contains(RedactionReason::InvalidForm)
-        );
+        let output =
+            redactor.redact_http_body_with_content_type_text(capture, Some("application/x-www-form-urlencoded"));
+        assert!(output.summary().reasons().contains(RedactionReason::InvalidForm));
         assert!(
             !output
                 .summary()
@@ -562,22 +510,15 @@ mod http {
     fn test_invalid_form_limit_failure_keeps_traversal_reason() {
         let redactor = Redactor::new(policy_with_key_and_collection_limits(16, 1));
         let capture = BodyCapture::complete(b"first=value&%GG=invalid");
-        let output = redactor.redact_http_body_with_content_type_text(
-            capture,
-            Some("application/x-www-form-urlencoded"),
-        );
+        let output =
+            redactor.redact_http_body_with_content_type_text(capture, Some("application/x-www-form-urlencoded"));
         assert!(
             output
                 .summary()
                 .reasons()
                 .contains(RedactionReason::TraversalLimitReached)
         );
-        assert!(
-            !output
-                .summary()
-                .reasons()
-                .contains(RedactionReason::InvalidForm)
-        );
+        assert!(!output.summary().reasons().contains(RedactionReason::InvalidForm));
         assert_eq!(output.summary().usage().visited_collection_items(), 1);
     }
 
@@ -597,11 +538,7 @@ mod http {
         let error = redactor
             .inspect_http_body_with_content_type_text(capture, content_type)
             .expect_err("oversized multipart name must make inspection inconclusive");
-        assert!(
-            error
-                .reasons()
-                .contains(RedactionReason::TraversalLimitReached)
-        );
+        assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
     }
 
     #[test]
@@ -621,10 +558,6 @@ mod http {
         let error = limited
             .inspect_http_body_with_content_type_text(capture, content_type)
             .expect_err("multipart name admission applies before the filename branch");
-        assert!(
-            error
-                .reasons()
-                .contains(RedactionReason::TraversalLimitReached)
-        );
+        assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
     }
 }

@@ -9,7 +9,8 @@
 
 use std::ffi::OsStr;
 
-use super::admission::{admit_environment_name, collect_environment_pairs};
+use super::admission::admit_environment_name;
+use super::admission::collect_environment_pairs;
 use super::redaction::redact_os_pairs_with_policy;
 use super::redaction::redact_pair_with_policy;
 use crate::runtime::BatchSession;
@@ -46,12 +47,7 @@ pub(crate) fn redact_pair(session: &mut BatchSession, name: &str, value: &str) -
     {
         return session.stage_accounted_text(String::new());
     }
-    let result = redact_pair_with_policy(
-        session.policy(),
-        name,
-        value,
-        session.remaining_output_bytes(),
-    );
+    let result = redact_pair_with_policy(session.policy(), name, value, session.remaining_output_bytes());
     session.stage_rendered_operation(result)
 }
 
@@ -87,7 +83,6 @@ where
     let Some(pairs) = collect_environment_pairs(session, pairs) else {
         return session.stage_accounted_text(String::new());
     };
-    let result =
-        redact_os_pairs_with_policy(session.policy(), pairs, session.remaining_output_bytes());
+    let result = redact_os_pairs_with_policy(session.policy(), pairs, session.remaining_output_bytes());
     session.stage_rendered_operation(result)
 }

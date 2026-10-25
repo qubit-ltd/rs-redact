@@ -494,7 +494,12 @@ fn test_nested_url_node_budget_matches_inspection() {
         let output = redactor.redact_http_url(input);
         let inspected = redactor.inspect_http_url(input);
         if maximum == 3 {
-            assert!(output.summary().reasons().contains(RedactionReason::TraversalLimitReached));
+            assert!(
+                output
+                    .summary()
+                    .reasons()
+                    .contains(RedactionReason::TraversalLimitReached)
+            );
             let error = inspected.expect_err("nested URL root must consume a node");
             assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
         } else {
@@ -594,10 +599,17 @@ fn test_http_nested_url_depth_boundaries_match_render_and_inspection() {
         let batch_usage = output.summary().usage();
         for usage in [aggregate_usage, batch_usage, inspected_usage] {
             assert_eq!(direct_usage.visited_nodes(), usage.visited_nodes());
-            assert_eq!(direct_usage.visited_collection_items(), usage.visited_collection_items());
+            assert_eq!(
+                direct_usage.visited_collection_items(),
+                usage.visited_collection_items()
+            );
             assert_eq!(direct_usage.max_depth(), usage.max_depth());
         }
-        let expected_nodes = if expected_depth { 18 } else { 1 + layers * 2 + query_count };
+        let expected_nodes = if expected_depth {
+            18
+        } else {
+            1 + layers * 2 + query_count
+        };
         let expected_collection_items = if expected_depth { 9 } else { layers + query_count };
         let expected_max_depth = if expected_depth { 10 } else { layers + 2 };
         assert_eq!(direct_usage.visited_nodes(), expected_nodes);
@@ -612,7 +624,10 @@ fn test_http_nested_url_structure_budget_boundaries_and_sensitive_values() {
     for (maximum_nodes, maximum_items, expected_complete) in [(4, 2, true), (3, 2, false), (4, 1, false)] {
         let policy = RedactionPolicy::builder()
             .limits(|limits| {
-                limits.max_nodes(maximum_nodes).max_collection_items(maximum_items).max_depth(32);
+                limits
+                    .max_nodes(maximum_nodes)
+                    .max_collection_items(maximum_items)
+                    .max_depth(32);
             })
             .expect("valid limits")
             .build()
@@ -632,8 +647,18 @@ fn test_http_nested_url_structure_budget_boundaries_and_sensitive_values() {
             assert_eq!(usage.visited_collection_items(), inspected.visited_collection_items());
             assert_eq!(usage.max_depth(), inspected.max_depth());
         } else {
-            assert!(output.summary().reasons().contains(RedactionReason::TraversalLimitReached));
-            assert!(inspection.unwrap_err().reasons().contains(RedactionReason::TraversalLimitReached));
+            assert!(
+                output
+                    .summary()
+                    .reasons()
+                    .contains(RedactionReason::TraversalLimitReached)
+            );
+            assert!(
+                inspection
+                    .unwrap_err()
+                    .reasons()
+                    .contains(RedactionReason::TraversalLimitReached)
+            );
         }
     }
 
@@ -644,8 +669,14 @@ fn test_http_nested_url_structure_budget_boundaries_and_sensitive_values() {
         .expect("nested URL without query should be inspectable");
     assert_eq!(output.summary().usage().visited_nodes(), 3);
     assert_eq!(output.summary().usage().visited_collection_items(), 1);
-    assert_eq!(output.summary().usage().visited_nodes(), inspection.usage().visited_nodes());
-    assert_eq!(output.summary().usage().visited_collection_items(), inspection.usage().visited_collection_items());
+    assert_eq!(
+        output.summary().usage().visited_nodes(),
+        inspection.usage().visited_nodes()
+    );
+    assert_eq!(
+        output.summary().usage().visited_collection_items(),
+        inspection.usage().visited_collection_items()
+    );
 
     let sensitive = "https://outer.test/?password=https%3A%2F%2Finner.test%2F%3Fx%3Draw-secret";
     let policy = RedactionPolicy::builder()
@@ -657,11 +688,16 @@ fn test_http_nested_url_structure_budget_boundaries_and_sensitive_values() {
         .expect("valid policy");
     let redactor = Redactor::new(policy);
     let output = redactor.redact_http_url(sensitive);
-    let inspection = redactor.inspect_http_url(sensitive).expect("masked nested value is not traversed");
+    let inspection = redactor
+        .inspect_http_url(sensitive)
+        .expect("masked nested value is not traversed");
     assert!(output.complete_text().is_ok());
     assert!(!output.text().as_str().contains("raw-secret"));
     assert_eq!(output.summary().usage().visited_nodes(), 2);
-    assert_eq!(output.summary().usage().visited_nodes(), inspection.usage().visited_nodes());
+    assert_eq!(
+        output.summary().usage().visited_nodes(),
+        inspection.usage().visited_nodes()
+    );
 }
 
 #[test]
@@ -677,7 +713,9 @@ fn test_http_nested_url_structural_depth_boundaries() {
             .expect("policy should build");
         let redactor = Redactor::new(policy);
         let output = redactor.redact_http_url(input);
-        let inspection = redactor.inspect_http_url(input).expect_err("query structure exceeds depth");
+        let inspection = redactor
+            .inspect_http_url(input)
+            .expect_err("query structure exceeds depth");
         assert!(
             output.summary().reasons().contains(RedactionReason::DepthLimitReached),
             "depth={maximum_depth}, reasons={:?}, usage={:?}",

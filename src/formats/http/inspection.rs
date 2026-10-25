@@ -18,12 +18,12 @@ use super::BodyCapture;
 use super::FieldRedactor;
 use super::TextBodyPolicy;
 use super::UrlPathPolicy;
+use super::http_redaction_writer::admit_parsed_url_structure;
 use super::internal::content_type;
 use super::internal::form;
 use super::internal::http_policy_executor::url_rules;
 use super::internal::nested_url;
 use super::internal::nested_url::NestedUrl;
-use super::http_redaction_writer::admit_parsed_url_structure;
 use crate::RedactionReason;
 use crate::Sensitivity;
 use crate::UnkeyedJsonValuePolicy;
@@ -310,10 +310,7 @@ pub(in crate::formats::http) fn inspect_form(session: &mut InspectionSession, by
         return;
     }
     for (key, _) in form_urlencoded::parse(bytes) {
-        if !session.admit_format_collection_item()
-            || !session.admit_format_node(2)
-            || !session.admit_domain_key(&key)
-        {
+        if !session.admit_format_collection_item() || !session.admit_format_node(2) || !session.admit_domain_key(&key) {
             return;
         }
         if let Some(sensitivity) = body_fields(session).sensitivity(&key) {

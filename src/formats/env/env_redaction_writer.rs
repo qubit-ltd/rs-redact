@@ -9,7 +9,8 @@
 
 use std::ffi::OsStr;
 
-use super::admission::{admit_environment_name, collect_environment_pairs};
+use super::admission::admit_environment_name;
+use super::admission::collect_environment_pairs;
 use super::redaction::redact_os_pairs_with_policy;
 use super::redaction::redact_pair_with_policy;
 use crate::runtime::TextSession;
@@ -73,9 +74,7 @@ impl<'session> EnvRedactionWriter<'session> {
             || !self.session.admit_format_collection_item()
             || !self.session.admit_format_node(2)
             || !admit_environment_name(self.session, OsStr::new(name))
-            || !self
-                .session
-                .admit_input(name.len().saturating_add(value.len()))
+            || !self.session.admit_input(name.len().saturating_add(value.len()))
         {
             return self;
         }
@@ -116,11 +115,7 @@ impl<'session> EnvRedactionWriter<'session> {
         let Some(pairs) = collect_environment_pairs(self.session, pairs) else {
             return self;
         };
-        let result = redact_os_pairs_with_policy(
-            self.session.policy(),
-            pairs,
-            self.session.remaining_output_bytes(),
-        );
+        let result = redact_os_pairs_with_policy(self.session.policy(), pairs, self.session.remaining_output_bytes());
         self.session.append_rendered_operation(result);
         self
     }

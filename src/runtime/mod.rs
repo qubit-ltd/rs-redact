@@ -40,7 +40,6 @@ mod transaction_phase;
 
 pub(crate) use batch_publication::BatchPublication;
 pub(crate) use batch_session::BatchSession;
-pub(crate) use format_admission::admit_flat_format_item;
 pub(crate) use format_admission::collect_flat_format_items;
 pub(crate) use inspection_session::InspectionSession;
 #[cfg(feature = "json")]
