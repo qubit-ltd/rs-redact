@@ -586,20 +586,23 @@ fn test_http_nested_url_depth_boundaries_match_render_and_inspection() {
                 |value| value.usage().output_bytes()
             ) <= 65_536
         );
-        if !expected_depth {
-            let inspected_usage = inspected.expect("within-depth URL inspection should complete").usage();
-            let direct_usage = direct.summary().usage();
-            let aggregate_usage = aggregate.summary().usage();
-            let batch_usage = output.summary().usage();
-            for usage in [aggregate_usage, batch_usage, inspected_usage] {
-                assert_eq!(direct_usage.visited_nodes(), usage.visited_nodes());
-                assert_eq!(direct_usage.visited_collection_items(), usage.visited_collection_items());
-                assert_eq!(direct_usage.max_depth(), usage.max_depth());
-            }
-            assert_eq!(direct_usage.visited_nodes(), 1 + layers * 2 + query_count);
-            assert_eq!(direct_usage.visited_collection_items(), layers + query_count);
-            assert_eq!(direct_usage.max_depth(), layers + 2);
+        let inspected_usage = inspected
+            .as_ref()
+            .map_or_else(|error| error.usage(), |value| value.usage());
+        let direct_usage = direct.summary().usage();
+        let aggregate_usage = aggregate.summary().usage();
+        let batch_usage = output.summary().usage();
+        for usage in [aggregate_usage, batch_usage, inspected_usage] {
+            assert_eq!(direct_usage.visited_nodes(), usage.visited_nodes());
+            assert_eq!(direct_usage.visited_collection_items(), usage.visited_collection_items());
+            assert_eq!(direct_usage.max_depth(), usage.max_depth());
         }
+        let expected_nodes = if expected_depth { 18 } else { 1 + layers * 2 + query_count };
+        let expected_collection_items = if expected_depth { 9 } else { layers + query_count };
+        let expected_max_depth = if expected_depth { 10 } else { layers + 2 };
+        assert_eq!(direct_usage.visited_nodes(), expected_nodes);
+        assert_eq!(direct_usage.visited_collection_items(), expected_collection_items);
+        assert_eq!(direct_usage.max_depth(), expected_max_depth);
     }
 }
 
