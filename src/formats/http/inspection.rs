@@ -23,6 +23,7 @@ use super::internal::form;
 use super::internal::http_policy_executor::url_rules;
 use super::internal::nested_url;
 use super::internal::nested_url::NestedUrl;
+use super::http_redaction_writer::admit_parsed_url_structure;
 use crate::RedactionReason;
 use crate::Sensitivity;
 use crate::UnkeyedJsonValuePolicy;
@@ -40,6 +41,9 @@ pub(crate) fn inspect_url(session: &mut InspectionSession, input: &str) {
         session.fail_inspection(RedactionReason::InvalidUri);
         return;
     };
+    if !admit_parsed_url_structure(session, &url, 0) {
+        return;
+    }
     inspect_parsed_url(session, &url, 0);
 }
 
@@ -192,12 +196,6 @@ fn inspect_parsed_url(session: &mut InspectionSession, url: &Url, depth: usize) 
             return;
         }
         for (key, value) in url.query_pairs() {
-            if !session.admit_format_collection_item() || !session.admit_format_node(depth.saturating_add(2)) {
-                return;
-            }
-            if !session.admit_domain_key(&key) {
-                return;
-            }
             if let Some(sensitivity) = query_fields(session).sensitivity(&key) {
                 session.observe_sensitivity(sensitivity);
                 continue;

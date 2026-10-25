@@ -120,11 +120,15 @@ pub(crate) fn admit_url_structure(session: &mut dyn RuntimeSession, text: &str) 
     let Ok(url) = Url::parse(text) else {
         return true;
     };
-    admit_url_structure_at_depth(session, &url, 1)
+    admit_parsed_url_structure(session, &url, 0)
 }
 
-/// Charges recursively nested URL query structure.
-fn admit_url_structure_at_depth(session: &mut dyn RuntimeSession, url: &Url, url_depth: usize) -> bool {
+/// Charges recursively nested URL query structure for one parsed root.
+pub(in crate::formats::http) fn admit_parsed_url_structure(
+    session: &mut dyn RuntimeSession,
+    url: &Url,
+    nested_depth: usize,
+) -> bool {
     let Some(query) = url.query() else {
         return true;
     };
@@ -132,16 +136,30 @@ fn admit_url_structure_at_depth(session: &mut dyn RuntimeSession, url: &Url, url
         return true;
     }
     for (key, value) in url.query_pairs() {
-        if !session.admit_format_collection_item() || !session.admit_format_node(url_depth.saturating_add(1)) {
+        let query_depth = nested_depth.saturating_add(2);
+        if !session.admit_format_collection_item() || !session.admit_format_node(query_depth) {
             return false;
         }
         if !session.admit_domain_key(&key) {
             return false;
         }
+        let masked_by_policy = {
+            let policy = session.policy();
+            !policy.is_disabled()
+                && super::FieldRedactor::new(
+                    policy.rules(),
+                    policy.http().query_rules(),
+                    policy.masking(),
+                )
+                .is_sensitive(&key)
+        };
+        if masked_by_policy {
+            continue;
+        }
         match nested_url::detect(value.as_ref()) {
-            NestedUrl::Parsed(nested) if url_depth < url_rules::MAX_NESTED_URL_DEPTH => {
-                if !session.admit_format_node(url_depth.saturating_add(1))
-                    || !admit_url_structure_at_depth(session, &nested, url_depth.saturating_add(1))
+            NestedUrl::Parsed(nested) if nested_depth < url_rules::MAX_NESTED_URL_DEPTH => {
+                if !session.admit_format_node(query_depth)
+                    || !admit_parsed_url_structure(session, &nested, nested_depth.saturating_add(1))
                 {
                     return false;
                 }

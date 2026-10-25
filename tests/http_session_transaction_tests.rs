@@ -479,6 +479,35 @@ fn nested_url_with_query_count(layers: usize, query_count: usize) -> String {
     url.into()
 }
 
+#[test]
+fn test_nested_url_node_budget_matches_inspection() {
+    let input = "https://outer.test/?next=https%3A%2F%2Finner.test%2F%3Fx%3D1";
+    for maximum in [3, 4] {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_nodes(maximum).max_depth(32).max_output_bytes(4096);
+            })
+            .expect("valid limits")
+            .build()
+            .expect("valid policy");
+        let redactor = Redactor::new(policy);
+        let output = redactor.redact_http_url(input);
+        let inspected = redactor.inspect_http_url(input);
+        if maximum == 3 {
+            assert!(output.summary().reasons().contains(RedactionReason::TraversalLimitReached));
+            let error = inspected.expect_err("nested URL root must consume a node");
+            assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
+        } else {
+            assert!(output.complete_text().is_ok());
+            let inspected = inspected.expect("four nodes fit");
+            assert_eq!(output.summary().usage().visited_nodes(), 4);
+            assert_eq!(inspected.usage().visited_nodes(), 4);
+            assert_eq!(inspected.usage().visited_collection_items(), 2);
+            assert_eq!(inspected.usage().max_depth(), 3);
+        }
+    }
+}
+
 /// Nested URL boundaries retain the same depth cause across HTTP entry points.
 #[test]
 fn test_http_nested_url_depth_boundaries_match_render_and_inspection() {
@@ -556,6 +585,107 @@ fn test_http_nested_url_depth_boundaries_match_render_and_inspection() {
                 |error| error.usage().output_bytes(),
                 |value| value.usage().output_bytes()
             ) <= 65_536
+        );
+        if !expected_depth {
+            let inspected_usage = inspected.expect("within-depth URL inspection should complete").usage();
+            let direct_usage = direct.summary().usage();
+            let aggregate_usage = aggregate.summary().usage();
+            let batch_usage = output.summary().usage();
+            for usage in [aggregate_usage, batch_usage, inspected_usage] {
+                assert_eq!(direct_usage.visited_nodes(), usage.visited_nodes());
+                assert_eq!(direct_usage.visited_collection_items(), usage.visited_collection_items());
+                assert_eq!(direct_usage.max_depth(), usage.max_depth());
+            }
+            assert_eq!(direct_usage.visited_nodes(), 1 + layers * 2 + query_count);
+            assert_eq!(direct_usage.visited_collection_items(), layers + query_count);
+            assert_eq!(direct_usage.max_depth(), layers + 2);
+        }
+    }
+}
+
+#[test]
+fn test_http_nested_url_structure_budget_boundaries_and_sensitive_values() {
+    let input = "https://outer.test/?next=https%3A%2F%2Finner.test%2F%3Fx%3D1";
+    for (maximum_nodes, maximum_items, expected_complete) in [(4, 2, true), (3, 2, false), (4, 1, false)] {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_nodes(maximum_nodes).max_collection_items(maximum_items).max_depth(32);
+            })
+            .expect("valid limits")
+            .build()
+            .expect("valid policy");
+        let redactor = Redactor::new(policy);
+        let output = redactor.redact_http_url(input);
+        let inspection = redactor.inspect_http_url(input);
+        assert_eq!(output.complete_text().is_ok(), expected_complete);
+        assert_eq!(inspection.is_ok(), expected_complete);
+        if expected_complete {
+            let usage = output.summary().usage();
+            let inspected = inspection.expect("exact structural budget should fit").usage();
+            assert_eq!(usage.visited_nodes(), 4);
+            assert_eq!(usage.visited_collection_items(), 2);
+            assert_eq!(usage.max_depth(), 3);
+            assert_eq!(usage.visited_nodes(), inspected.visited_nodes());
+            assert_eq!(usage.visited_collection_items(), inspected.visited_collection_items());
+            assert_eq!(usage.max_depth(), inspected.max_depth());
+        } else {
+            assert!(output.summary().reasons().contains(RedactionReason::TraversalLimitReached));
+            assert!(inspection.unwrap_err().reasons().contains(RedactionReason::TraversalLimitReached));
+        }
+    }
+
+    let no_query = "https://outer.test/?next=https%3A%2F%2Finner.test%2F";
+    let output = Redactor::standard().redact_http_url(no_query);
+    let inspection = Redactor::standard()
+        .inspect_http_url(no_query)
+        .expect("nested URL without query should be inspectable");
+    assert_eq!(output.summary().usage().visited_nodes(), 3);
+    assert_eq!(output.summary().usage().visited_collection_items(), 1);
+    assert_eq!(output.summary().usage().visited_nodes(), inspection.usage().visited_nodes());
+    assert_eq!(output.summary().usage().visited_collection_items(), inspection.usage().visited_collection_items());
+
+    let sensitive = "https://outer.test/?password=https%3A%2F%2Finner.test%2F%3Fx%3Draw-secret";
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(2).max_collection_items(1).max_depth(32);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let redactor = Redactor::new(policy);
+    let output = redactor.redact_http_url(sensitive);
+    let inspection = redactor.inspect_http_url(sensitive).expect("masked nested value is not traversed");
+    assert!(output.complete_text().is_ok());
+    assert!(!output.text().as_str().contains("raw-secret"));
+    assert_eq!(output.summary().usage().visited_nodes(), 2);
+    assert_eq!(output.summary().usage().visited_nodes(), inspection.usage().visited_nodes());
+}
+
+#[test]
+fn test_http_nested_url_structural_depth_boundaries() {
+    let input = "https://outer.test/?next=https%3A%2F%2Finner.test%2F%3Fx%3D1";
+    for maximum_depth in [0, 1, 2] {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_nodes(16).max_collection_items(16).max_depth(maximum_depth);
+            })
+            .expect("valid limits")
+            .build()
+            .expect("policy should build");
+        let redactor = Redactor::new(policy);
+        let output = redactor.redact_http_url(input);
+        let inspection = redactor.inspect_http_url(input).expect_err("query structure exceeds depth");
+        assert!(
+            output.summary().reasons().contains(RedactionReason::DepthLimitReached),
+            "depth={maximum_depth}, reasons={:?}, usage={:?}",
+            output.summary().reasons(),
+            output.summary().usage(),
+        );
+        assert!(
+            inspection.reasons().contains(RedactionReason::DepthLimitReached),
+            "depth={maximum_depth}, reasons={:?}, usage={:?}",
+            inspection.reasons(),
+            inspection.usage(),
         );
     }
 }
