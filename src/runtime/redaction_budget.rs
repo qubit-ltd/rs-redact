@@ -10,11 +10,19 @@
 #[cfg(feature = "json")]
 use qubit_budget::json::JsonValueBudget;
 #[cfg(feature = "json")]
+use qubit_json::value::traverse::JsonTreeContext;
+#[cfg(feature = "json")]
+use qubit_json::value::traverse::JsonTreeLocation;
+#[cfg(feature = "json")]
 use qubit_json::value::traverse::JsonTreeReader;
+#[cfg(feature = "json")]
+use qubit_json::value::traverse::JsonTreeVisitor;
 #[cfg(feature = "json")]
 use serde_json::Value;
 
 use super::StructuralBudget;
+#[cfg(feature = "json")]
+use super::structural_entry::StructuralEntry;
 use crate::RedactionLimits;
 use crate::RedactionUsage;
 
@@ -241,9 +249,58 @@ impl RedactionBudget {
     #[must_use]
     #[inline]
     pub(super) fn admit_json_value(&mut self, root: &Value) -> bool {
-        let mut transaction = self.json_budget.transaction();
-        let admitted = JsonTreeReader::new(&mut transaction).account(root).is_ok();
+        let Self {
+            structural,
+            usage,
+            active_operation_usage,
+            json_budget,
+            ..
+        } = self;
+        let mut visitor = JsonUsageVisitor {
+            structural,
+            usage,
+            active_operation_usage,
+        };
+        let mut transaction = json_budget.transaction();
+        let admitted = JsonTreeReader::new(&mut transaction)
+            .process(root, &mut visitor)
+            .is_ok();
         let committed = transaction.commit().is_ok();
         admitted && committed
+    }
+}
+
+#[cfg(feature = "json")]
+struct JsonUsageVisitor<'a> {
+    structural: &'a mut StructuralBudget,
+    usage: &'a mut RedactionUsage,
+    active_operation_usage: &'a mut Option<RedactionUsage>,
+}
+
+#[cfg(feature = "json")]
+impl JsonTreeVisitor for JsonUsageVisitor<'_> {
+    type Error = ();
+
+    fn enter(&mut self, _value: &Value, context: JsonTreeContext<'_>) -> Result<(), Self::Error> {
+        if !matches!(context.location, JsonTreeLocation::Root) {
+            if !self.structural.admit_collection_item() {
+                return Err(());
+            }
+            *self.usage = self.usage.with_collection_item();
+            if let Some(usage) = self.active_operation_usage.as_mut() {
+                *usage = usage.with_collection_item();
+            }
+        }
+        if !matches!(
+            self.structural.admit_format_node(context.depth),
+            StructuralEntry::Entered
+        ) {
+            return Err(());
+        }
+        *self.usage = self.usage.with_domain_node(context.depth);
+        if let Some(usage) = self.active_operation_usage.as_mut() {
+            *usage = usage.with_domain_node(context.depth);
+        }
+        Ok(())
     }
 }

@@ -38,10 +38,7 @@ pub(crate) fn inspect_text(session: &mut dyn RuntimeSession, text: &str) {
 
 /// Classifies one already-parsed JSON value without rendering it.
 pub(crate) fn inspect_borrowed_value(session: &mut dyn RuntimeSession, value: &Value) {
-    if session.policy().is_disabled() {
-        return;
-    }
-    if session.admit_json_value(value) {
+    if session.admit_json_value(value) && !session.policy().is_disabled() {
         inspect_value(session, value, true);
     }
 }

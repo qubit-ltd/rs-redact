@@ -10,6 +10,7 @@
 use qubit_redact::Redact;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionReason;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use serde_json::Value;
@@ -157,5 +158,50 @@ fn all_parsed_json_value_entry_points_borrow_and_redact_the_same_value() {
     assert!(!field_output.text().as_str().contains("raw-secret"));
     assert!(field_output.text().as_str().contains(r#"payload: {"#));
     assert!(!field_output.text().as_str().contains(r#"payload: \"{"#));
+    assert_eq!(value, original);
+}
+
+#[test]
+fn test_disabled_borrowed_json_value_obeys_tree_admission() {
+    fn disabled_with_limits(max_nodes: usize, max_depth: usize, max_string_bytes: usize) -> Redactor {
+        let builder = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_json_nodes(max_nodes);
+                limits.max_json_depth(max_depth);
+                limits.max_json_string_bytes(max_string_bytes);
+            })
+            .expect("limits are valid");
+        let mut policy = builder.build().expect("policy is valid");
+        let _ = policy.set_disabled(true);
+        Redactor::new(policy)
+    }
+
+    let value = json!({"outer": {"inner": "value"}});
+    let original = value.clone();
+    for (redactor, reason) in [
+        (disabled_with_limits(100, 10, 0), RedactionReason::TraversalLimitReached),
+        (disabled_with_limits(1, 10, 100), RedactionReason::TraversalLimitReached),
+        (
+            disabled_with_limits(100, 1, 100),
+            RedactionReason::TraversalLimitReached,
+        ),
+    ] {
+        let error = redactor
+            .inspect_json_value(&value)
+            .expect_err("disabled inspection still admits input");
+        assert!(error.reasons().contains(reason));
+        assert_eq!(error.usage().output_bytes(), 0);
+        let rendered = redactor.redact_json_value(&value);
+        assert_eq!(error.reasons(), rendered.summary().reasons());
+    }
+
+    let inspection = disabled_with_limits(100, 10, 100)
+        .inspect_json_value(&value)
+        .expect("the complete tree fits the limits");
+    assert!(inspection.is_redaction_disabled());
+    assert!(!inspection.contains_sensitive());
+    assert!(inspection.usage().visited_nodes() > 0);
+    assert_eq!(inspection.usage().max_depth(), 3);
+    assert_eq!(inspection.usage().output_bytes(), 0);
     assert_eq!(value, original);
 }

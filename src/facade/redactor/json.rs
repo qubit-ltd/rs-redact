@@ -134,7 +134,9 @@ impl Redactor {
     /// # Errors
     ///
     /// Returns [`RedactionInspectionError`] when a shared structural, value,
-    /// or input limit prevents complete inspection.
+    /// or input limit prevents complete inspection. Because `value` is
+    /// already parsed, the raw [`crate::RedactionLimits::max_input_bytes`]
+    /// ceiling cannot be applied; JSON tree and payload limits still apply.
     ///
     /// # Parameters
     ///

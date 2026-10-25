@@ -110,10 +110,6 @@ pub(crate) fn inspect_body_with_content_type_text(
         return;
     }
     let bytes = capture.bytes();
-    if bytes.is_empty() {
-        let _ = session.admit_format_node(1);
-        return;
-    }
     let parsed_content_type = match content_type {
         Some(value) => match content_type::parse(value) {
             Some(value) => Some(value),
@@ -127,6 +123,10 @@ pub(crate) fn inspect_body_with_content_type_text(
         },
         None => None,
     };
+    if bytes.is_empty() && !matches!(&parsed_content_type, Some(content_type::ContentType::Json)) {
+        let _ = session.admit_format_node(1);
+        return;
+    }
     match parsed_content_type {
         Some(content_type::ContentType::Json) => {
             let _ = inspect_json_bytes(session, bytes, 1);
