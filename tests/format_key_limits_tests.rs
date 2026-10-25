@@ -86,6 +86,21 @@ fn test_env_key_limit_byte_boundaries_and_disabled_policy() {
 }
 
 #[test]
+fn test_env_zero_key_limit_admits_only_the_empty_name() {
+    let redactor = Redactor::new(policy_with_key_limit(0));
+    assert!(redactor.redact_env("", "value").complete_text().is_ok());
+    let output = redactor.redact_env("A", "rejected-value-427");
+    assert!(!output.text().as_str().contains("rejected-value-427"));
+    assert!(output.complete_text().is_err());
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+}
+
+#[test]
 fn test_env_batch_key_limit_stops_before_reading_the_tail() {
     let redactor = Redactor::new(policy_with_key_limit(1));
     let pairs = [
@@ -192,6 +207,81 @@ mod uri {
                 .contains(RedactionReason::TraversalLimitReached)
         );
     }
+
+    #[test]
+    fn test_uri_unicode_key_limit_counts_pre_normalization_utf8_bytes() {
+        let redactor = Redactor::new(policy_with_key_limit(2));
+        let output = redactor.redact_uri("https://example.test/?%C4%B0=value");
+        assert!(output.complete_text().is_ok());
+        redactor
+            .inspect_uri("https://example.test/?%C4%B0=value")
+            .expect("two decoded UTF-8 bytes fit before key normalization");
+    }
+
+    #[test]
+    fn test_uri_query_marker_in_fragment_does_not_trigger_key_admission() {
+        let redactor = Redactor::new(policy_with_key_limit(1));
+        let input = "https://example.test/#?abcd=value";
+        assert!(redactor.redact_uri(input).complete_text().is_ok());
+        redactor
+            .inspect_uri(input)
+            .expect("a question mark in the fragment does not start a query");
+    }
+
+    #[test]
+    fn test_uri_disabled_policy_still_enforces_key_limit() {
+        let mut policy = policy_with_key_limit(1);
+        let _ = policy.set_disabled(true);
+        let redactor = Redactor::new(policy);
+        let input = "https://example.test/?abcd=rejected-value-427";
+        let output = redactor.redact_uri(input);
+        assert!(!output.text().as_str().contains("rejected-value-427"));
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+        let error = redactor
+            .inspect_uri(input)
+            .expect_err("limits apply when redaction is disabled");
+        assert!(
+            error
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+    }
+
+    #[test]
+    fn test_uri_key_limit_applies_to_composer_and_batch() {
+        let redactor = Redactor::new(policy_with_key_limit(1));
+        let input = "https://example.test/?abcd=rejected-value-427";
+        let composed = redactor
+            .text_composer()
+            .uri(|uri| {
+                uri.value(input);
+            })
+            .finish();
+        assert!(!composed.text().as_str().contains("rejected-value-427"));
+        assert!(composed.complete_text().is_err());
+        assert!(
+            composed
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+
+        let mut batch = redactor.diagnostic_batch();
+        let handle = batch.redact_uri(input);
+        let output = batch.finish_with_marker("<redaction incomplete>");
+        assert_eq!(output.text(handle).as_str(), "<redaction incomplete>");
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+    }
 }
 
 #[cfg(feature = "http")]
@@ -223,6 +313,79 @@ mod http {
             .expect_err("oversized key must make inspection inconclusive");
         assert!(
             error
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+    }
+
+    #[test]
+    fn test_http_url_and_headers_disabled_policy_still_enforce_key_limit() {
+        let mut policy = policy_with_key_limit(1);
+        let _ = policy.set_disabled(true);
+        let redactor = Redactor::new(policy);
+        let output = redactor.redact_http_url("https://example.test/?abcd=rejected-value-427");
+        assert!(!output.text().as_str().contains("rejected-value-427"));
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+        let error = redactor
+            .inspect_http_url("https://example.test/?abcd=rejected-value-427")
+            .expect_err("HTTP URL limits apply when redaction is disabled");
+        assert!(
+            error
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+
+        let mut headers = HeaderMap::new();
+        headers.insert("abcd", HeaderValue::from_static("rejected-value-427"));
+        let output = redactor.redact_http_headers(&headers);
+        assert!(!output.text().as_str().contains("rejected-value-427"));
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+        let error = redactor
+            .inspect_http_headers(&headers)
+            .expect_err("HTTP header limits apply when redaction is disabled");
+        assert!(
+            error
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+    }
+
+    #[test]
+    fn test_http_url_key_limit_applies_to_composer_and_batch() {
+        let redactor = Redactor::new(policy_with_key_limit(1));
+        let input = "https://example.test/?abcd=rejected-value-427";
+        let composed = redactor
+            .text_composer()
+            .http(|http| {
+                http.url(input);
+            })
+            .finish();
+        assert!(!composed.text().as_str().contains("rejected-value-427"));
+        assert!(composed.complete_text().is_err());
+        assert!(
+            composed
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+
+        let mut batch = redactor.diagnostic_batch();
+        let handle = batch.redact_http_url(input);
+        let output = batch.finish_with_marker("<redaction incomplete>");
+        assert_eq!(output.text(handle).as_str(), "<redaction incomplete>");
+        assert!(
+            output
+                .summary()
                 .reasons()
                 .contains(RedactionReason::TraversalLimitReached)
         );
@@ -298,6 +461,30 @@ mod http {
         let error = redactor
             .inspect_http_body_with_content_type_text(capture, content_type)
             .expect_err("oversized multipart name must make inspection inconclusive");
+        assert!(
+            error
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+    }
+
+    #[test]
+    fn test_http_multipart_name_limit_precedes_filename_handling() {
+        let body = b"--boundary\r\nContent-Disposition: form-data; name=\"TOO_LONG\"; filename=\"upload.bin\"\r\nContent-Type: application/octet-stream\r\n\r\nfile-bytes\r\n--boundary--\r\n";
+        let capture = BodyCapture::complete(body);
+        let content_type = Some("multipart/form-data; boundary=boundary");
+        let valid = Redactor::new(policy_with_key_limit(32));
+        assert!(
+            valid
+                .inspect_http_body_with_content_type_text(capture, content_type)
+                .is_ok()
+        );
+
+        let limited = Redactor::new(policy_with_key_limit(1));
+        assert_rejected(limited.redact_http_body_with_content_type_text(capture, content_type));
+        let error = limited
+            .inspect_http_body_with_content_type_text(capture, content_type)
+            .expect_err("multipart name admission applies before the filename branch");
         assert!(
             error
                 .reasons()
