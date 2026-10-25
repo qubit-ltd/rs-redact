@@ -22,6 +22,8 @@ use crate::model::UnnamedField;
 use crate::model::VariantData;
 use crate::serde::field::field_context;
 use crate::serde::field::field_is_skipped;
+use crate::serde::field::projected_predicate;
+use crate::serde::field::projected_raw;
 use crate::serde::field::raw_identifier;
 use crate::serde::field::serialization_condition;
 use crate::serde::field::serialized_carrier;
@@ -87,7 +89,9 @@ pub(super) fn enum_named_parts(
         let container_name = container_attributes.rename_variant_field(&raw_name);
         let default_name = variant.serde_attributes().rename_field(&raw_name, container_name);
         let serialized_name = parsed.serde_attributes().rename().map_or(default_name, str::to_owned);
-        let raw = quote_spanned!(field.span()=> #binding);
+        let raw_member = quote_spanned!(field.span()=> #binding);
+        let predicate = projected_predicate(raw_member.clone(), parsed.serde_attributes(), legacy_nested);
+        let raw = projected_raw(raw_member, parsed.serde_attributes(), legacy_nested);
         let key_raw = match parsed.attributes().mode() {
             FieldMode::KeyedBy(key) => {
                 let position = fields
@@ -99,6 +103,16 @@ pub(super) fn enum_named_parts(
             }
             _ => None,
         };
+        let key_raw = key_raw.map(|raw| {
+            let FieldMode::KeyedBy(key) = parsed.attributes().mode() else {
+                unreachable!()
+            };
+            let key_field = fields
+                .iter()
+                .find(|candidate| candidate.identifier() == key)
+                .expect("keyed_by sibling was validated");
+            projected_raw(raw, key_field.serde_attributes(), legacy_nested)
+        });
         let context = field_context(Some(variant_name), Some(variant.index()), &raw_name);
         let carrier = format_ident!("__qubit_redact_serialized_{position}");
         let value = serialized_carrier(
@@ -114,7 +128,7 @@ pub(super) fn enum_named_parts(
             },
             legacy_nested,
         );
-        let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw);
+        let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw, predicate);
         setups.push(quote_spanned! {field.span()=>
             let #carrier = if #condition {
                 ::core::option::Option::Some(#value)
@@ -185,7 +199,9 @@ pub(super) fn enum_unnamed_parts(
         let field_name = parsed.index().index.to_string();
         let context = field_context(Some(variant_name), Some(variant_index), &field_name);
         let carrier = format_ident!("__qubit_redact_serialized_{position}");
-        let raw = quote_spanned!(field.span()=> #binding);
+        let raw_member = quote_spanned!(field.span()=> #binding);
+        let predicate = projected_predicate(raw_member.clone(), parsed.serde_attributes(), legacy_nested);
+        let raw = projected_raw(raw_member, parsed.serde_attributes(), legacy_nested);
         let value = serialized_carrier(
             type_name,
             field,
@@ -199,7 +215,7 @@ pub(super) fn enum_unnamed_parts(
             },
             legacy_nested,
         );
-        let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw);
+        let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw, predicate);
         setups.push(quote_spanned! {field.span()=>
             let #carrier = if #condition {
                 ::core::option::Option::Some(#value)

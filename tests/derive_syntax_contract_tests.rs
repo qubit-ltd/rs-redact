@@ -103,6 +103,55 @@ fn test_generic_skip_predicate_preserves_projection_type_parameters() {
     assert!(format!("{}", redactor.redact_view(&text_only)).contains("TextOnly"));
 }
 
+/// A concrete predicate field does not make text-only formatting require
+/// `Serialize` for the source field type.
+#[test]
+fn test_concrete_text_only_skip_predicate_supports_text_redaction() {
+    #[derive(Debug)]
+    struct TextOnly;
+
+    #[derive(Debug, Redact)]
+    struct Concrete {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        value: Option<TextOnly>,
+    }
+
+    let value = Concrete { value: Some(TextOnly) };
+    let redactor = Redactor::standard();
+    assert!(format!("{}", redactor.redact_view(&value)).contains("TextOnly"));
+    assert!(redactor.redact_text(&value).complete_text().is_ok());
+}
+
+/// Saved predicates run once per real serialization and preserve JSON shape.
+#[test]
+fn test_concrete_skip_predicate_runs_only_when_serializing_projection() {
+    static PREDICATE_CALLS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+    fn is_none(value: &Option<u32>) -> bool {
+        PREDICATE_CALLS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        value.is_none()
+    }
+
+    #[derive(Debug, Redact)]
+    struct Concrete {
+        #[serde(skip_serializing_if = "is_none")]
+        value: Option<u32>,
+    }
+
+    let redactor = Redactor::standard();
+    let some = Concrete { value: Some(7) };
+    let view = redactor.redact_view(&some);
+    assert_eq!(PREDICATE_CALLS.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert_eq!(to_value(view).expect("Some projection"), json!({"value": 7}));
+    assert_eq!(PREDICATE_CALLS.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+    let none = Concrete { value: None };
+    let view = redactor.redact_view(&none);
+    assert_eq!(PREDICATE_CALLS.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert_eq!(to_value(view).expect("None projection"), json!({}));
+    assert_eq!(PREDICATE_CALLS.load(std::sync::atomic::Ordering::SeqCst), 2);
+}
+
 /// Borrowed nested projections keep source lifetimes separate from capability
 /// bounds.
 #[test]

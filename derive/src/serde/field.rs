@@ -56,15 +56,46 @@ pub(super) fn serialization_condition(
     serde_attributes: &SerdeAttributes,
     mode: &FieldMode,
     raw: TokenStream,
+    saved_predicate: Option<TokenStream>,
 ) -> TokenStream {
-    let predicate = serde_attributes
-        .skip_serializing_if()
-        .map_or_else(|| quote!(true), |predicate| quote!(!(#predicate)(#raw)));
+    let predicate = serde_attributes.skip_serializing_if().map_or_else(
+        || quote!(true),
+        |predicate| {
+            let predicate = saved_predicate.unwrap_or_else(|| quote!(#predicate));
+            quote!(!(#predicate)(#raw))
+        },
+    );
     if matches!(mode, FieldMode::Skip) {
         quote!(policy.is_disabled() && #predicate)
     } else {
         predicate
     }
+}
+
+/// Selects the borrowed value from a predicate-bearing projection member.
+pub(super) fn projected_raw(raw: TokenStream, serde_attributes: &SerdeAttributes, legacy_nested: bool) -> TokenStream {
+    if !legacy_nested
+        && !serde_attributes.skip()
+        && serde_attributes.skip_serializing_if().is_some()
+        && serde_attributes.serialize_with().is_none()
+    {
+        quote!(#raw.0)
+    } else {
+        raw
+    }
+}
+
+/// Selects the saved predicate function from a predicate-bearing projection.
+pub(super) fn projected_predicate(
+    raw: TokenStream,
+    serde_attributes: &SerdeAttributes,
+    legacy_nested: bool,
+) -> Option<TokenStream> {
+    (!legacy_nested
+        && !serde_attributes.skip()
+        && serde_attributes.skip_serializing_if().is_some()
+        && serde_attributes.serialize_with().is_none())
+    .then(|| quote!(#raw.1))
 }
 
 /// Generates one serializable raw or redacted carrier expression.

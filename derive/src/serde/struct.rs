@@ -17,6 +17,8 @@ use syn::spanned::Spanned;
 
 use super::field::field_context;
 use super::field::field_is_skipped;
+use super::field::projected_predicate;
+use super::field::projected_raw;
 use super::field::raw_identifier;
 use super::field::serialization_condition;
 use super::field::serialized_carrier;
@@ -126,11 +128,13 @@ fn transparent_named_struct_body(
     let field = parsed.field();
     let identifier = parsed.identifier();
     let raw_name = raw_identifier(identifier);
-    let raw = if legacy_nested {
+    let raw_member = if legacy_nested {
         quote_spanned!(field.span()=> &self.#identifier)
     } else {
         quote_spanned!(field.span()=> self.#identifier)
     };
+    let predicate = projected_predicate(raw_member.clone(), parsed.serde_attributes(), legacy_nested);
+    let raw = projected_raw(raw_member, parsed.serde_attributes(), legacy_nested);
     let key_raw = match parsed.attributes().mode() {
         FieldMode::KeyedBy(key) if legacy_nested => Some(quote_spanned!(field.span()=> &self.#key)),
         FieldMode::KeyedBy(key) => Some(quote_spanned!(field.span()=> self.#key)),
@@ -150,7 +154,7 @@ fn transparent_named_struct_body(
         },
         legacy_nested,
     );
-    let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw);
+    let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw, predicate);
     quote! {
         if #condition {
             let __qubit_redact_serialized_0 = #value;
@@ -207,16 +211,28 @@ fn named_struct_body(
             .serde_attributes()
             .rename()
             .map_or_else(|| container_attributes.rename_struct_field(&raw_name), str::to_owned);
-        let raw = if legacy_nested {
+        let raw_member = if legacy_nested {
             quote_spanned!(field.span()=> &self.#identifier)
         } else {
             quote_spanned!(field.span()=> self.#identifier)
         };
+        let predicate = projected_predicate(raw_member.clone(), parsed.serde_attributes(), legacy_nested);
+        let raw = projected_raw(raw_member, parsed.serde_attributes(), legacy_nested);
         let key_raw = match parsed.attributes().mode() {
             FieldMode::KeyedBy(key) if legacy_nested => Some(quote_spanned!(field.span()=> &self.#key)),
             FieldMode::KeyedBy(key) => Some(quote_spanned!(field.span()=> self.#key)),
             _ => None,
         };
+        let key_raw = key_raw.map(|raw| {
+            let FieldMode::KeyedBy(key) = parsed.attributes().mode() else {
+                unreachable!()
+            };
+            let key_field = fields
+                .iter()
+                .find(|candidate| candidate.identifier() == key)
+                .expect("keyed_by sibling was validated");
+            projected_raw(raw, key_field.serde_attributes(), legacy_nested)
+        });
         let context = field_context(None, None, &raw_name);
         let carrier = format_ident!("__qubit_redact_serialized_{position}");
         let value = serialized_carrier(
@@ -232,7 +248,7 @@ fn named_struct_body(
             },
             legacy_nested,
         );
-        let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw);
+        let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw, predicate);
         setups.push(quote_spanned! {field.span()=>
             let #carrier = if #condition {
                 ::core::option::Option::Some(#value)
@@ -317,11 +333,13 @@ fn newtype_struct_body(
     let field = parsed.field();
     let index = parsed.index();
     let projection_field = format_ident!("__qubit_redact_field_{}", index.index, span = field.span());
-    let raw = if legacy_nested {
+    let raw_member = if legacy_nested {
         quote_spanned!(field.span()=> &self.#index)
     } else {
         quote_spanned!(field.span()=> self.#projection_field)
     };
+    let predicate = projected_predicate(raw_member.clone(), parsed.serde_attributes(), legacy_nested);
+    let raw = projected_raw(raw_member, parsed.serde_attributes(), legacy_nested);
     let context = field_context(None, None, &index.index.to_string());
     let value = serialized_carrier(
         type_name,
@@ -336,7 +354,7 @@ fn newtype_struct_body(
         },
         legacy_nested,
     );
-    let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw);
+    let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw, predicate);
     quote! {
         if #condition {
             let __qubit_redact_serialized_0 = #value;
@@ -388,11 +406,13 @@ fn tuple_struct_body(
         let field = parsed.field();
         let index = parsed.index();
         let projection_field = format_ident!("__qubit_redact_field_{}", index.index, span = field.span());
-        let raw = if legacy_nested {
+        let raw_member = if legacy_nested {
             quote_spanned!(field.span()=> &self.#index)
         } else {
             quote_spanned!(field.span()=> self.#projection_field)
         };
+        let predicate = projected_predicate(raw_member.clone(), parsed.serde_attributes(), legacy_nested);
+        let raw = projected_raw(raw_member, parsed.serde_attributes(), legacy_nested);
         let context = field_context(None, None, &index.index.to_string());
         let carrier = format_ident!("__qubit_redact_serialized_{position}");
         let value = serialized_carrier(
@@ -408,7 +428,7 @@ fn tuple_struct_body(
             },
             legacy_nested,
         );
-        let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw);
+        let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw, predicate);
         setups.push(quote_spanned! {field.span()=>
             let #carrier = if #condition {
                 ::core::option::Option::Some(#value)

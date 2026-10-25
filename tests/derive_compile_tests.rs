@@ -30,6 +30,7 @@ fn test_pass_fixtures() {
     tests.pass("tests/fixtures/pass/adapter_with_skip_predicate.rs");
     tests.pass("tests/fixtures/pass/generic_keyed_by.rs");
     tests.pass("tests/fixtures/pass/generic_borrowed_source.rs");
+    tests.pass("tests/fixtures/pass/concrete_text_only_skip_predicate.rs");
     tests.pass("tests/fixtures/pass/disabled_fields.rs");
     tests.pass("tests/fixtures/pass/serde_wire_shape.rs");
     tests.pass("tests/fixtures/pass/generic_grouped_bounds.rs");
@@ -69,6 +70,8 @@ fn test_compile_fail_fixtures() {
     tests.compile_fail("tests/fixtures/fail/nested_without_redact_serialize.rs");
     #[cfg(feature = "json")]
     tests.compile_fail("tests/fixtures/fail/projection_without_serialize.rs");
+    #[cfg(feature = "json")]
+    tests.compile_fail("tests/fixtures/fail/concrete_text_only_json_projection.rs");
     tests.compile_fail("tests/fixtures/fail/union.rs");
     tests.compile_fail("tests/fixtures/fail/unknown_attribute.rs");
     tests.compile_fail("tests/fixtures/fail/unknown_level.rs");

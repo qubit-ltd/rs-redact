@@ -573,8 +573,8 @@ fn projection_declaration(
                     .zip(parameters)
                     .map(|(field, parameter)| {
                         let name = field.identifier();
-                        let ty = projection_field_type(field.field(), field.serde_attributes(), parameter);
-                        quote!(#name: &#lifetime #ty)
+                        let ty = projection_member_type(field.field(), field.serde_attributes(), parameter, lifetime);
+                        quote!(#name: #ty)
                     })
                     .collect::<Vec<_>>(),
                 FieldsData::Unnamed(fields) => fields
@@ -582,8 +582,8 @@ fn projection_declaration(
                     .zip(parameters)
                     .map(|(field, parameter)| {
                         let name = format_ident!("__qubit_redact_field_{}", field.index().index);
-                        let ty = projection_field_type(field.field(), field.serde_attributes(), parameter);
-                        quote!(#name: &#lifetime #ty)
+                        let ty = projection_member_type(field.field(), field.serde_attributes(), parameter, lifetime);
+                        quote!(#name: #ty)
                     })
                     .collect::<Vec<_>>(),
                 FieldsData::Unit => Vec::new(),
@@ -606,12 +606,13 @@ fn projection_declaration(
                         let start = offset;
                         let members = fields.iter().enumerate().map(|(index, field)| {
                             let name = field.identifier();
-                            let parameter = projection_field_type(
+                            let parameter = projection_member_type(
                                 field.field(),
                                 field.serde_attributes(),
                                 &parameters[start + index],
+                                lifetime,
                             );
-                            quote!(#name: &#lifetime #parameter)
+                            quote!(#name: #parameter)
                         });
                         offset += fields.len();
                         quote!({ #(#members),* })
@@ -619,12 +620,13 @@ fn projection_declaration(
                     FieldsData::Unnamed(fields) => {
                         let start = offset;
                         let members = fields.iter().enumerate().map(|(index, field)| {
-                            let parameter = projection_field_type(
+                            let parameter = projection_member_type(
                                 field.field(),
                                 field.serde_attributes(),
                                 &parameters[start + index],
+                                lifetime,
                             );
-                            quote!(&#lifetime #parameter)
+                            quote!(#parameter)
                         });
                         offset += fields.len();
                         quote!(( #(#members),* ))
@@ -661,12 +663,33 @@ fn projection_declaration(
 /// generated parameter that keeps serialization bounds conditional.
 #[must_use]
 fn projection_field_type(field: &Field, attributes: &SerdeAttributes, parameter: &Ident) -> TokenStream {
-    if attributes.skip_serializing_if().is_some() || attributes.serialize_with().is_some() {
+    if attributes.serialize_with().is_some() {
         let ty = &field.ty;
         quote!(#ty)
     } else {
         quote!(#parameter)
     }
+}
+
+/// Builds one borrowed projection member, retaining a callable Serde predicate
+/// without making the concrete source field type part of its declaration.
+fn projection_member_type(
+    field: &Field,
+    attributes: &SerdeAttributes,
+    parameter: &Ident,
+    lifetime: &Lifetime,
+) -> TokenStream {
+    let ty = projection_field_type(field, attributes, parameter);
+    if projection_uses_saved_predicate(attributes) {
+        quote!((& #lifetime #ty, fn(&#ty) -> bool))
+    } else {
+        quote!(& #lifetime #ty)
+    }
+}
+
+/// Returns whether a field predicate is stored in the borrowed projection.
+fn projection_uses_saved_predicate(attributes: &SerdeAttributes) -> bool {
+    !attributes.skip() && attributes.skip_serializing_if().is_some() && attributes.serialize_with().is_none()
 }
 
 /// Builds a borrowed projection from the source value.
@@ -691,7 +714,8 @@ fn projection_constructor(name: &Ident, projection: &Ident, model: &ContainerDat
                     .iter()
                     .map(|field| {
                         let name = field.identifier();
-                        quote!(#name: &self.#name)
+                        let value = projection_member_value(field.serde_attributes(), quote!(&self.#name));
+                        quote!(#name: #value)
                     })
                     .collect::<Vec<_>>(),
                 FieldsData::Unnamed(fields) => fields
@@ -699,7 +723,8 @@ fn projection_constructor(name: &Ident, projection: &Ident, model: &ContainerDat
                     .map(|field| {
                         let index = field.index();
                         let name = format_ident!("__qubit_redact_field_{}", index.index);
-                        quote!(#name: &self.#index)
+                        let value = projection_member_value(field.serde_attributes(), quote!(&self.#index));
+                        quote!(#name: #value)
                     })
                     .collect::<Vec<_>>(),
                 FieldsData::Unit => Vec::new(),
@@ -715,7 +740,12 @@ fn projection_constructor(name: &Ident, projection: &Ident, model: &ContainerDat
                 match variant.fields() {
                     FieldsData::Named(fields) => {
                         let names = fields.iter().map(|field| field.identifier()).collect::<Vec<_>>();
-                        quote!(#name::#variant_name { #(#names),* } => #projection::#variant_name { #(#names),* })
+                        let values = fields.iter().map(|field| {
+                            let name = field.identifier();
+                            let value = projection_member_value(field.serde_attributes(), quote!(#name));
+                            quote!(#name: #value)
+                        });
+                        quote!(#name::#variant_name { #(#names),* } => #projection::#variant_name { #(#values),* })
                     }
                     FieldsData::Unnamed(fields) => {
                         let names = fields
@@ -725,13 +755,27 @@ fn projection_constructor(name: &Ident, projection: &Ident, model: &ContainerDat
                                 format_ident!("__qubit_redact_projection_{index}", span = field.field().span())
                             })
                             .collect::<Vec<_>>();
-                        quote!(#name::#variant_name(#(#names),*) => #projection::#variant_name(#(#names),*))
+                        let values = fields
+                            .iter()
+                            .zip(&names)
+                            .map(|(field, name)| projection_member_value(field.serde_attributes(), quote!(#name)));
+                        quote!(#name::#variant_name(#(#names),*) => #projection::#variant_name(#(#values),*))
                     }
                     FieldsData::Unit => quote!(#name::#variant_name => #projection::#variant_name),
                 }
             });
             quote!(match self { #(#arms),* })
         }
+    }
+}
+
+/// Builds a borrowed field value and, when needed, saves its Serde predicate.
+fn projection_member_value(attributes: &SerdeAttributes, raw: TokenStream) -> TokenStream {
+    if projection_uses_saved_predicate(attributes) {
+        let predicate = attributes.skip_serializing_if().expect("saved predicate was checked");
+        quote!((#raw, #predicate))
+    } else {
+        raw
     }
 }
 
