@@ -193,8 +193,10 @@ fn main() {
 }
 ```
 
-Each `finish()` starts from a fresh budget. Reusing the same `Redactor` is fine; reusing an old
-output buffer is not—the library never mutates a finalized `RedactionTextOutput`.
+Creating a composer starts an independent transaction budget; appended operations consume that
+budget cumulatively. `finish(self)` consumes and publishes the transaction without resetting its
+budget. Reuse a `Redactor` to create new composers. Finalized `RedactionTextOutput` or `RedactedText`
+values can be cached and displayed repeatedly without running redaction again.
 
 ## Composer vs Batch
 
@@ -419,10 +421,22 @@ Medium retains one trailing character; High emits `****`; Secret emits `<redacte
 For example, `abcdef` becomes `ab****ef` at Low and `*******f` at Medium.
 Business types choose the correct level; strict policy does not override explicit declarations.
 
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::MaskingPolicy;
+use qubit_redact::Sensitivity;
+
+fn main() {
+    let masking = MaskingPolicy::default();
+    assert_eq!(masking.mask(Sensitivity::Low, "ab"), "****");
+    assert_eq!(masking.mask(Sensitivity::Low, "abcdef"), "ab****ef");
+}
+```
+
 | Level | Example value | Masked output |
 | --- | --- | --- |
 | Low | `abcdef` | `ab****ef` |
-| Low | `ab` | `<redacted>` (short strings fully hidden) |
+| Low | `ab` | `****` (short strings fully hidden) |
 | Medium | `abcdef` | `*******f` |
 | High | any | `****` |
 | Secret | any | `<redacted>` |

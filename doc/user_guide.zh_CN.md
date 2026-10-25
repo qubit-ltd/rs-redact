@@ -183,8 +183,9 @@ fn main() {
 }
 ```
 
-每次 `finish()` 都会从新的预算账本开始。可以复用同一个 `Redactor`，但不要复用已 finalize
-的 `RedactionTextOutput`——库不会回头修改它。
+创建 composer 时会建立独立的事务预算；追加操作累计消耗这份预算。`finish(self)` 会消费并发布
+该事务，但不会重置预算。可以复用同一个 `Redactor` 创建新的 composer。最终的
+`RedactionTextOutput` 或 `RedactedText` 可以缓存并重复展示，不会再次执行脱敏。
 
 ## Composer 与 batch 的分工
 
@@ -399,10 +400,22 @@ fn main() {
 High 输出 `****`；Secret 输出 `<redacted>`。例如 `abcdef` 的 Low 为 `ab****ef`，
 Medium 为 `*******f`。业务类型负责选择正确等级，strict 不覆盖显式声明。
 
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::MaskingPolicy;
+use qubit_redact::Sensitivity;
+
+fn main() {
+    let masking = MaskingPolicy::default();
+    assert_eq!(masking.mask(Sensitivity::Low, "ab"), "****");
+    assert_eq!(masking.mask(Sensitivity::Low, "abcdef"), "ab****ef");
+}
+```
+
 | 等级 | 示例值 | 掩码结果 |
 | --- | --- | --- |
 | Low | `abcdef` | `ab****ef` |
-| Low | `ab` | `<redacted>`（短串全部隐藏） |
+| Low | `ab` | `****`（短串全部隐藏） |
 | Medium | `abcdef` | `*******f` |
 | High | 任意 | `****` |
 | Secret | 任意 | `<redacted>` |
