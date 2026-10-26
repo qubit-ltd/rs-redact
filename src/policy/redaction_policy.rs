@@ -92,7 +92,7 @@ static STRICT_POLICY: LazyLock<RedactionPolicy> = LazyLock::new(|| {
         #[cfg(feature = "uri")]
         {
             let mut uri = crate::formats::uri::UriPolicyBuilder::new();
-            uri.path_policy_mut(crate::formats::uri::UriPathPolicy::Redact);
+            uri.path_policy(crate::formats::uri::UriPathPolicy::Redact);
             uri.build().expect("the built-in URI policy must be valid")
         },
         #[cfg(feature = "json")]
