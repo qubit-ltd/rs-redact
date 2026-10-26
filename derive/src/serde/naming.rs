@@ -33,7 +33,8 @@ pub(super) fn serialized_variant_name(
     variant: &VariantData<'_>,
     container_attributes: &SerdeContainerAttributes,
 ) -> String {
-    let default_name = container_attributes.rename_variant(&variant.variant().ident.unraw().to_string());
+    let default_name =
+        container_attributes.rename_variant(&variant.variant().ident.unraw().to_string());
     variant.serde_attributes().rename_variant(default_name)
 }
 
@@ -42,6 +43,7 @@ pub(super) fn serialized_variant_name(
 /// # Parameters
 ///
 /// * `variant_name` - Variant owning the generated proxy.
+/// * `serialized_name` - Effective Serde name used for its content struct.
 /// * `runtime` - Resolved path to the redaction runtime.
 /// * `serde` - Resolved path to Serde.
 /// * `names` - Serialized field names in carrier order.
@@ -53,6 +55,7 @@ pub(super) fn serialized_variant_name(
 #[must_use]
 pub(super) fn named_content_proxy(
     variant_name: &Ident,
+    serialized_name: &str,
     runtime: &Path,
     serde: &Path,
     names: &[String],
@@ -60,7 +63,7 @@ pub(super) fn named_content_proxy(
 ) -> (TokenStream, TokenStream) {
     let unraw_variant_name = variant_name.unraw();
     let proxy = format_ident!("__QubitRedactAdjacent{unraw_variant_name}Content");
-    let serialized_variant_name = LitStr::new(&unraw_variant_name.to_string(), unraw_variant_name.span());
+    let serialized_variant_name = LitStr::new(serialized_name, unraw_variant_name.span());
     if carriers.is_empty() {
         let definition = quote! {
             struct #proxy;

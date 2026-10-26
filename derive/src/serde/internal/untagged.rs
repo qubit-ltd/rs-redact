@@ -18,7 +18,6 @@ use super::variant_fields::enum_unnamed_parts;
 use crate::attributes::SerdeContainerAttributes;
 use crate::model::FieldsData;
 use crate::model::VariantData;
-use crate::serde::naming::serialized_variant_name;
 /// Generates one untagged variant arm.
 ///
 /// # Parameters
@@ -46,7 +45,7 @@ pub(in crate::serde) fn untagged_variant_arm(
     legacy_nested: bool,
 ) -> Result<TokenStream> {
     let rust_name = &variant.variant().ident;
-    let variant_name = serialized_variant_name(variant, container_attributes);
+    let enum_name = container_attributes.name();
     let arm = match variant.fields() {
         FieldsData::Named(fields) => {
             let (pattern, setups, conditions, names, carriers) = enum_named_parts(
@@ -86,7 +85,7 @@ pub(in crate::serde) fn untagged_variant_arm(
                     #runtime::domain::internal::admit_serializer_items(&serializer, field_count)?;
                     let mut state = #serde::Serializer::serialize_struct(
                         serializer,
-                        #variant_name,
+                        #enum_name,
                         field_count,
                     )?;
                     #(#calls)*

@@ -67,6 +67,17 @@ pub(super) fn struct_body(
         FieldsData::Named(fields) => {
             named_struct_body(type_name, fields, runtime, serde, container_attributes, legacy_nested)
         }
+        FieldsData::Unnamed(fields) if fields.len() == 1 && container_attributes.transparent() => {
+            newtype_struct_body(
+                type_name,
+                &fields[0],
+                runtime,
+                serde,
+                container_attributes,
+                legacy_nested,
+                true,
+            )
+        }
         FieldsData::Unnamed(fields) if fields.len() == 1 => newtype_struct_body(
             type_name,
             &fields[0],
@@ -74,10 +85,16 @@ pub(super) fn struct_body(
             serde,
             container_attributes,
             legacy_nested,
+            false,
         ),
-        FieldsData::Unnamed(fields) => {
-            tuple_struct_body(type_name, fields, runtime, serde, container_attributes, legacy_nested)
-        }
+        FieldsData::Unnamed(fields) => tuple_struct_body(
+            type_name,
+            fields,
+            runtime,
+            serde,
+            container_attributes,
+            legacy_nested,
+        ),
         FieldsData::Unit => {
             let serialized_name = container_attributes.name();
             quote! {
@@ -105,7 +122,7 @@ pub(super) fn struct_body(
 ///
 /// # Returns
 ///
-/// A newtype serializer expression, or a unit-struct expression when omitted.
+/// A direct serializer expression, or a unit-struct expression when omitted.
 ///
 /// # Panics
 ///
@@ -158,11 +175,7 @@ fn transparent_named_struct_body(
     quote! {
         if #condition {
             let __qubit_redact_serialized_0 = #value;
-            #serde::Serializer::serialize_newtype_struct(
-                serializer,
-                #serialized_name,
-                &__qubit_redact_serialized_0,
-            )
+            #serde::Serialize::serialize(&__qubit_redact_serialized_0, serializer)
         } else {
             #serde::Serializer::serialize_unit_struct(serializer, #serialized_name)
         }
@@ -309,7 +322,7 @@ fn named_struct_body(
 ///
 /// # Returns
 ///
-/// A newtype serializer expression, or a unit-struct expression when omitted.
+/// A direct transparent value or a newtype serializer expression, or a unit struct when omitted.
 ///
 /// # Panics
 ///
@@ -323,6 +336,7 @@ fn newtype_struct_body(
     serde: &Path,
     container_attributes: &SerdeContainerAttributes,
     legacy_nested: bool,
+    transparent: bool,
 ) -> TokenStream {
     let serialized_name = container_attributes.name();
     if field_is_skipped(parsed.serde_attributes()) {
@@ -355,16 +369,27 @@ fn newtype_struct_body(
         legacy_nested,
     );
     let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw, predicate);
-    quote! {
-        if #condition {
-            let __qubit_redact_serialized_0 = #value;
-            #serde::Serializer::serialize_newtype_struct(
-                serializer,
-                #serialized_name,
-                &__qubit_redact_serialized_0,
-            )
-        } else {
-            #serde::Serializer::serialize_unit_struct(serializer, #serialized_name)
+    if transparent {
+        quote! {
+            if #condition {
+                let __qubit_redact_serialized_0 = #value;
+                #serde::Serialize::serialize(&__qubit_redact_serialized_0, serializer)
+            } else {
+                #serde::Serializer::serialize_unit_struct(serializer, #serialized_name)
+            }
+        }
+    } else {
+        quote! {
+            if #condition {
+                let __qubit_redact_serialized_0 = #value;
+                #serde::Serializer::serialize_newtype_struct(
+                    serializer,
+                    #serialized_name,
+                    &__qubit_redact_serialized_0,
+                )
+            } else {
+                #serde::Serializer::serialize_unit_struct(serializer, #serialized_name)
+            }
         }
     }
 }

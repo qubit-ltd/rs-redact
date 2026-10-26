@@ -197,7 +197,10 @@ mod serde {
                 len: 2,
             },
             Token::Str("kind"),
-            Token::Str("type"),
+            Token::UnitVariant {
+                name: "RawAdjacentVariant",
+                variant: "type",
+            },
             Token::Str("payload"),
             Token::Str("visible"),
             Token::StructEnd,
@@ -215,7 +218,10 @@ mod serde {
                     len: 2,
                 },
                 Token::Str("kind"),
-                Token::Str("type"),
+                Token::UnitVariant {
+                    name: "RawAdjacentNamedVariant",
+                    variant: "type",
+                },
                 Token::Str("payload"),
                 Token::Struct { name: "type", len: 1 },
                 Token::Str("value"),
