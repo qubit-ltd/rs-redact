@@ -133,25 +133,31 @@ fn test_multipart_auxiliary_allocations_do_not_scale_with_unadmitted_parts() {
             "N={part_count} body_bytes={size} limit={limit} operation={operation} allocated={allocated} bytes"
         );
     }
-    for operation in ["inspection", "rendering"] {
-        let small_zero = measurements
-            .iter()
-            .find(|(part_count, _, limit, measured_operation, _)| {
-                *part_count == 4_096 && *limit == 0 && *measured_operation == operation
-            })
-            .expect("small zero-limit measurement exists")
-            .4;
-        let large_zero = measurements
-            .iter()
-            .find(|(part_count, _, limit, measured_operation, _)| {
-                *part_count == 32_768 && *limit == 0 && *measured_operation == operation
-            })
-            .expect("large zero-limit measurement exists")
-            .4;
-        assert!(
-            large_zero <= small_zero.saturating_add(8_192),
-            "{operation}: N=4096 {small_zero}, N=32768 {large_zero}"
-        );
+    for collection_limit in [0, 1] {
+        for operation in ["inspection", "rendering"] {
+            let small = measurements
+                .iter()
+                .find(|(part_count, _, limit, measured_operation, _)| {
+                    *part_count == 4_096
+                        && *limit == collection_limit
+                        && *measured_operation == operation
+                })
+                .expect("small allocation measurement exists")
+                .4;
+            let large = measurements
+                .iter()
+                .find(|(part_count, _, limit, measured_operation, _)| {
+                    *part_count == 32_768
+                        && *limit == collection_limit
+                        && *measured_operation == operation
+                })
+                .expect("large allocation measurement exists")
+                .4;
+            assert!(
+                large <= small.saturating_add(8_192),
+                "limit={collection_limit} operation={operation}: N=4096 {small}, N=32768 {large}"
+            );
+        }
     }
     eprintln!("multipart allocator bytes: {measurements:?}");
 }
