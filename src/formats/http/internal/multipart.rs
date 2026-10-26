@@ -140,14 +140,15 @@ pub(in crate::formats::http) fn admit_structure(
             }
             Some(value) if content_type::is_ndjson(value) => {
                 let text = std::str::from_utf8(body).map_err(|_| JsonAdmissionError::Invalid)?;
-                let mut lines = Vec::new();
-                for line in text.lines().filter(|line| !json::is_blank_ndjson_line(line)) {
-                    lines.push(Some(admit_json_text_value_at_depth(session, line, 3)?));
+                let mut lines = super::AdmittedNdjson::new(text.ends_with('\n'));
+                for line in text.lines() {
+                    if json::is_blank_ndjson_line(line) {
+                        lines.push_blank();
+                    } else {
+                        lines.push_value(admit_json_text_value_at_depth(session, line, 3)?);
+                    }
                 }
-                Some(AdmittedMultipartBody::Ndjson {
-                    lines,
-                    trailing_newline: text.ends_with('\n'),
-                })
+                Some(AdmittedMultipartBody::Ndjson(lines))
             }
             Some(value) if content_type::is_form(value) => {
                 if !admit_form_fields(session, body, 3) {
@@ -392,18 +393,13 @@ fn redact_non_sensitive_part(
             json::serialize_bounded(&value, max_output_bytes).map(|(text, truncated)| (text, passed, truncated))
         }
         Some(value) if content_type::is_ndjson(value) => {
-            let AdmittedMultipartBody::Ndjson {
-                lines,
-                trailing_newline,
-            } = admitted??
-            else {
+            let AdmittedMultipartBody::Ndjson(lines) = admitted?? else {
                 return None;
             };
             let mut lines = lines.clone();
             json::redact_ndjson_values(
                 redactor,
                 &mut lines,
-                *trailing_newline,
                 policy.unkeyed_json_value_policy(),
                 max_output_bytes,
             )

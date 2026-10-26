@@ -361,16 +361,16 @@ pub(crate) fn admit_body_structure(
         let Ok(text) = std::str::from_utf8(capture.bytes()) else {
             return session.admit_format_node(1).then_some(AdmittedBody::InvalidNdjson);
         };
-        let mut lines = Vec::new();
+        let mut lines = super::internal::AdmittedNdjson::new(text.ends_with('\n'));
         let mut admitted_any = false;
         for line in text.lines() {
             if super::internal::json::is_blank_ndjson_line(line) {
-                lines.push(None);
+                lines.push_blank();
                 continue;
             }
             admitted_any = true;
             match crate::formats::json::admit_json_text_value(session, line) {
-                Ok(value) => lines.push(Some(value)),
+                Ok(value) => lines.push_value(value),
                 Err(crate::formats::json::JsonAdmissionError::Invalid) => {
                     return Some(AdmittedBody::InvalidNdjson);
                 }
@@ -382,10 +382,7 @@ pub(crate) fn admit_body_structure(
         if !admitted_any && !session.admit_format_node(1) {
             return None;
         }
-        return Some(AdmittedBody::Ndjson {
-            lines,
-            trailing_newline: text.ends_with('\n'),
-        });
+        return Some(AdmittedBody::Ndjson(lines));
     }
     if !session.admit_format_node(1) {
         return None;

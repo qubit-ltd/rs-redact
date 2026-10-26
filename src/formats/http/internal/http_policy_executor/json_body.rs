@@ -115,8 +115,7 @@ impl HttpPolicyExecutor<'_> {
     #[must_use]
     pub(super) fn redact_ndjson_values(
         &self,
-        lines: &mut [Option<Value>],
-        trailing_newline: bool,
+        lines: &mut super::super::AdmittedNdjson,
         truncated: bool,
         output_limit: usize,
     ) -> ParsedBody {
@@ -130,7 +129,6 @@ impl HttpPolicyExecutor<'_> {
         match json::redact_ndjson_values(
             &self.body_field_redactor(),
             lines,
-            trailing_newline,
             self.policy.unkeyed_json_value_policy(),
             output_limit,
         ) {

@@ -12,6 +12,7 @@ use std::io::Write;
 use serde_json::Value;
 use serde_json::to_writer;
 
+use super::AdmittedNdjson;
 use super::BoundedBodyWriter;
 use super::markers::UNKEYED_JSON;
 use crate::UnkeyedJsonValuePolicy;
@@ -85,8 +86,8 @@ pub(in crate::formats::http) fn serialize_bounded(value: &Value, max_output_byte
 /// # Parameters
 ///
 /// * `redactor` - Structured-body field redactor.
-/// * `lines` - Parsed values and empty records in source-line order.
-/// * `trailing_newline` - Whether the source ended with a newline.
+/// * `lines` - Parsed values with their source-line indices and blank-line
+///   count.
 /// * `unkeyed` - Policy for unkeyed scalar values.
 /// * `max_output_bytes` - Maximum final rendered NDJSON bytes.
 ///
@@ -96,24 +97,36 @@ pub(in crate::formats::http) fn serialize_bounded(value: &Value, max_output_byte
 /// `None` if the bounded writer cannot produce UTF-8 text.
 pub(in crate::formats::http) fn redact_ndjson_values(
     redactor: &FieldRedactor<'_>,
-    lines: &mut [Option<Value>],
-    trailing_newline: bool,
+    lines: &mut AdmittedNdjson,
     unkeyed: UnkeyedJsonValuePolicy,
     max_output_bytes: usize,
 ) -> Option<(String, bool, bool)> {
     let mut output = BoundedBodyWriter::new(max_output_bytes);
     let mut passed = false;
-    for (index, line) in lines.iter_mut().enumerate() {
-        if index > 0 && output.write_all(b"\n").is_err() {
-            return output.into_string().map(|text| (text, passed, true));
+    let line_count = lines.line_count();
+    let trailing_newline = lines.trailing_newline();
+    let mut cursor = 0;
+    for (source_index, value) in lines.records_mut() {
+        while cursor < *source_index {
+            if cursor > 0 && output.write_all(b"\n").is_err() {
+                return output.into_string().map(|text| (text, passed, true));
+            }
+            cursor += 1;
         }
-        let Some(value) = line else {
-            continue;
+        if cursor > 0 && output.write_all(b"\n").is_err() {
+            return output.into_string().map(|text| (text, passed, true));
         };
         passed |= redact(redactor, value, unkeyed);
         if to_writer(&mut output, value).is_err() {
             return output.into_string().map(|text| (text, passed, true));
         }
+        cursor += 1;
+    }
+    while cursor < line_count {
+        if cursor > 0 && output.write_all(b"\n").is_err() {
+            return output.into_string().map(|text| (text, passed, true));
+        }
+        cursor += 1;
     }
     if trailing_newline && output.write_all(b"\n").is_err() {
         return output.into_string().map(|text| (text, passed, true));

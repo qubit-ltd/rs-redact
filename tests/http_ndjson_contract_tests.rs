@@ -133,6 +133,65 @@ fn test_multipart_ndjson_blank_records_agree_between_inspection_and_rendering() 
 }
 
 #[test]
+fn test_rr2_multipart_ndjson_preserves_source_line_positions() {
+    let payload = "{\"id\":1}\n\n{\"id\":2}\n";
+    let multipart = format!(
+        "--boundary\r\nContent-Disposition: form-data; name=\"events\"\r\n\
+         Content-Type: application/x-ndjson\r\n\r\n{payload}\r\n--boundary--\r\n"
+    );
+    let redactor = Redactor::standard();
+    let direct = redactor.redact_http_body_with_content_type_text(
+        BodyCapture::complete(payload.as_bytes()),
+        Some("application/x-ndjson"),
+    );
+    let nested = redactor.redact_http_body_with_content_type_text(
+        BodyCapture::complete(multipart.as_bytes()),
+        Some("multipart/form-data; boundary=boundary"),
+    );
+    let expected = r#"{"id":1}\n\n{"id":2}\n"#;
+    assert_eq!(direct.text().as_str(), expected);
+    assert!(nested.text().as_str().contains(&format!("events={expected}")));
+    assert_eq!(direct.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(nested.summary().completion(), RedactionCompletion::Complete);
+
+    let secret_payload = "{\"password\":\"raw-secret\"}\n\n{}\n";
+    let secret_multipart = multipart.replace(payload, secret_payload);
+    let direct = redactor.redact_http_body_with_content_type_text(
+        BodyCapture::complete(secret_payload.as_bytes()),
+        Some("application/x-ndjson"),
+    );
+    let nested = redactor.redact_http_body_with_content_type_text(
+        BodyCapture::complete(secret_multipart.as_bytes()),
+        Some("multipart/form-data; boundary=boundary"),
+    );
+    assert!(!direct.text().as_str().contains("raw-secret"));
+    assert!(!nested.text().as_str().contains("raw-secret"));
+}
+
+#[test]
+fn test_rr2_blank_ndjson_small_output_keeps_structural_budget() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_input_bytes(65_536).max_nodes(1).max_output_bytes(1);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let redactor = Redactor::new(policy);
+    let body = "\n".repeat(65_000);
+    let capture = BodyCapture::complete(body.as_bytes());
+    let inspection = redactor
+        .inspect_http_body_with_content_type_text(capture, Some("application/x-ndjson"))
+        .expect("blank lines do not add JSON nodes");
+    assert_eq!(inspection.usage().visited_nodes(), 1);
+    let output = redactor.redact_http_body_with_content_type_text(capture, Some("application/x-ndjson"));
+    assert!(output.text().as_str().len() <= 1);
+    assert_ne!(output.summary().completion(), RedactionCompletion::Complete);
+    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert!(!output.summary().reasons().contains(RedactionReason::InvalidJson));
+}
+
+#[test]
 fn test_nested_http_output_rejection_closes_later_batch_items() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {

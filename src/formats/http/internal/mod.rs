@@ -10,6 +10,7 @@
 mod admitted_body;
 mod admitted_multipart;
 mod admitted_multipart_body;
+mod admitted_ndjson;
 mod bounded_body_writer;
 mod bounded_log_writer;
 pub(super) mod content_type;
@@ -29,6 +30,7 @@ mod parsed_body;
 pub(super) use admitted_body::AdmittedBody;
 pub(super) use admitted_multipart::AdmittedMultipart;
 pub(super) use admitted_multipart_body::AdmittedMultipartBody;
+pub(super) use admitted_ndjson::AdmittedNdjson;
 pub(super) use bounded_body_writer::BoundedBodyWriter;
 pub(super) use bounded_log_writer::BoundedLogWriter;
 pub(super) use http_policy_parts::HttpPolicyParts;

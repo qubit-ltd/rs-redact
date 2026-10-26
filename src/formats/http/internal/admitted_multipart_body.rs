@@ -9,6 +9,8 @@
 
 use serde_json::Value;
 
+use super::AdmittedNdjson;
+
 /// One nested structured multipart body retained by admission.
 pub(in crate::formats::http) enum AdmittedMultipartBody {
     /// One complete JSON value.
@@ -16,11 +18,6 @@ pub(in crate::formats::http) enum AdmittedMultipartBody {
         /// Parsed nested tree reused by rendering without another parse.
         Value,
     ),
-    /// NDJSON records preserving empty lines and final newline state.
-    Ndjson {
-        /// Parsed source records in order.
-        lines: Vec<Option<Value>>,
-        /// Whether the source ended with a newline.
-        trailing_newline: bool,
-    },
+    /// NDJSON records preserving source line positions.
+    Ndjson(AdmittedNdjson),
 }

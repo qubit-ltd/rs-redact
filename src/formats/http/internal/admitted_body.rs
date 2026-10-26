@@ -10,6 +10,7 @@
 use serde_json::Value;
 
 use super::AdmittedMultipart;
+use super::AdmittedNdjson;
 
 /// Structured body state retained between admission and rendering.
 pub(in crate::formats::http) enum AdmittedBody {
@@ -25,12 +26,7 @@ pub(in crate::formats::http) enum AdmittedBody {
     /// A multipart JSON or NDJSON part failed syntactic validation.
     InvalidMultipartJson,
     /// Non-empty NDJSON lines admitted under the shared budgets.
-    Ndjson {
-        /// Parsed values and empty records in source-line order.
-        lines: Vec<Option<Value>>,
-        /// Whether the complete source ended with a newline.
-        trailing_newline: bool,
-    },
+    Ndjson(AdmittedNdjson),
     /// A body selected as NDJSON contained an invalid non-empty line.
     InvalidNdjson,
     /// A multipart body whose nested structured parts were admitted once.
