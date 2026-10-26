@@ -12,7 +12,7 @@ use std::fmt;
 use super::scalar_failure::ScalarFailure;
 
 /// Retains only admitted chunks while measuring every submitted byte.
-pub(in crate::runtime) struct InputCapture {
+pub(crate) struct InputCapture {
     /// Admitted raw text, discarded by the caller on any formatting failure.
     text: String,
     /// Maximum admitted UTF-8 bytes.
@@ -35,7 +35,7 @@ impl InputCapture {
     /// An empty capture with no rejection recorded.
     #[must_use]
     #[inline(always)]
-    pub(in crate::runtime) fn new(maximum: usize) -> Self {
+    pub(crate) fn new(maximum: usize) -> Self {
         Self {
             text: String::new(),
             maximum,
@@ -53,7 +53,7 @@ impl InputCapture {
     /// fails.
     #[must_use]
     #[inline(always)]
-    pub(in crate::runtime) fn usage(&self) -> (usize, usize) {
+    pub(crate) fn usage(&self) -> (usize, usize) {
         (self.presented, self.text.len())
     }
 
@@ -72,7 +72,7 @@ impl InputCapture {
     ///
     /// Returns `InputLimit` after any rejected chunk, including when the
     /// formatter ignores its error; otherwise propagates a formatter failure.
-    pub(in crate::runtime) fn finish(self, result: fmt::Result) -> Result<String, ScalarFailure> {
+    pub(crate) fn finish(self, result: fmt::Result) -> Result<String, ScalarFailure> {
         if self.overflowed {
             Err(ScalarFailure::InputLimit)
         } else if result.is_err() {

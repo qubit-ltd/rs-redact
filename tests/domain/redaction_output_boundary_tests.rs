@@ -14,8 +14,125 @@ use std::fmt;
 use qubit_redact::Redact;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionReason;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
+
+struct Rr2Record;
+
+impl Redact for Rr2Record {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("X", |fields| {
+            fields.unredacted("a", || 1);
+        });
+    }
+}
+
+#[test]
+fn test_rr2_record_exact_output_boundaries() {
+    for maximum in [4, 7, 10, 11] {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_output_bytes(maximum);
+            })
+            .expect("limits")
+            .build()
+            .expect("policy");
+        let output = Redactor::new(policy).redact_text(&Rr2Record);
+        assert!(output.text().as_str().len() <= maximum);
+        assert_eq!(output.summary().usage().output_bytes(), output.text().as_str().len());
+        if maximum >= 10 {
+            assert_eq!(output.text().as_str(), "X { a: 1 }");
+            assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+        } else {
+            assert_ne!(output.summary().completion(), RedactionCompletion::Complete);
+            assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+            assert!(output.complete_text().is_err());
+        }
+    }
+}
+
+#[test]
+fn test_rr2_structures_never_publish_incomplete_as_complete() {
+    #[derive(Clone, Copy)]
+    enum Shape {
+        Record,
+        Tuple,
+        Sequence,
+        Map,
+        EmptyRecord,
+        EmptySequence,
+        EmptyMap,
+        Nested,
+        Transparent,
+        Variant,
+    }
+
+    impl Redact for Shape {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            match self {
+                Self::Record => writer.record("Record", |fields| {
+                    fields.unredacted("value", || "café\n");
+                }),
+                Self::Tuple => writer.tuple("Tuple", |fields| {
+                    fields.unredacted("value", || "café\n");
+                }),
+                Self::Sequence => writer.sequence(|items| {
+                    items.unredacted_item(|| "café\n");
+                }),
+                Self::Map => writer.map(|entries| {
+                    entries.unredacted_entry("value", || "café\n");
+                }),
+                Self::EmptyRecord => writer.record("Empty", |_| {}),
+                Self::EmptySequence => writer.sequence(|_| {}),
+                Self::EmptyMap => writer.map(|_| {}),
+                Self::Nested => writer.record("Outer", |fields| {
+                    fields.nested("child", &Rr2Record);
+                }),
+                Self::Transparent => writer.transparent(|fields| {
+                    fields.unredacted("value", || "café\n");
+                }),
+                Self::Variant => writer.variant("Event", "Value", |fields| {
+                    fields.unredacted("value", || "café\n");
+                }),
+            }
+        }
+    }
+
+    for shape in [
+        Shape::Record,
+        Shape::Tuple,
+        Shape::Sequence,
+        Shape::Map,
+        Shape::EmptyRecord,
+        Shape::EmptySequence,
+        Shape::EmptyMap,
+        Shape::Nested,
+        Shape::Transparent,
+        Shape::Variant,
+    ] {
+        let baseline = Redactor::standard().redact_text(&shape);
+        let complete_text = baseline.text().as_str();
+        assert_eq!(baseline.summary().completion(), RedactionCompletion::Complete);
+
+        for maximum in 0..=complete_text.len() + 3 {
+            let policy = RedactionPolicy::builder()
+                .limits(|limits| {
+                    limits.max_output_bytes(maximum);
+                })
+                .expect("output limit should be valid")
+                .build()
+                .expect("policy should build");
+            let output = Redactor::new(policy).redact_text(&shape);
+            assert!(output.text().as_str().len() <= maximum);
+            if output.summary().completion() == RedactionCompletion::Complete {
+                assert_eq!(output.text().as_str(), complete_text);
+            } else {
+                assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+            }
+        }
+    }
+}
 
 struct DebugCalls<'counter>(&'counter Cell<usize>);
 

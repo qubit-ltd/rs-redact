@@ -42,6 +42,8 @@ pub(crate) use batch_publication::BatchPublication;
 pub(crate) use batch_session::BatchSession;
 pub(crate) use format_admission::collect_flat_format_items;
 pub(crate) use inspection_session::InspectionSession;
+pub(crate) use internal::input_capture::InputCapture;
+pub(crate) use internal::scalar_failure::ScalarFailure;
 #[cfg(feature = "json")]
 pub(crate) use json_structure_admission::JsonStructureAdmission;
 #[cfg(any(feature = "json", feature = "http"))]

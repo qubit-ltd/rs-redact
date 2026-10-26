@@ -110,7 +110,14 @@ fn test_disabled_domain_field_sensitive_is_admitted_once() {
         let sensitive = redactor.redact_text(&SingleDisabledField::Sensitive);
 
         assert_eq!(sensitive.text().as_str(), baseline.text().as_str());
-        assert_eq!(sensitive.summary(), baseline.summary());
+        assert_eq!(
+            sensitive.summary().usage().visited_nodes(),
+            baseline.summary().usage().visited_nodes(),
+        );
+        assert_eq!(
+            sensitive.summary().usage().presented_input_bytes(),
+            if maximum == 1 { 0 } else { 12 },
+        );
         if maximum == 2 {
             assert!(sensitive.text().as_str().contains("raw-secret"));
         }

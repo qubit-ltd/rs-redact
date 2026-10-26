@@ -17,11 +17,53 @@ use qubit_redact::MaskPolicy;
 use qubit_redact::Redact;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
-#[cfg(feature = "json")]
 use qubit_redact::RedactionReason;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
+
+struct Rr2Nested<'counter>(&'counter Cell<usize>);
+
+impl Redact for Rr2Nested<'_> {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        self.0.set(self.0.get() + 1);
+        writer.literal("child");
+    }
+}
+
+struct Rr2NestedParent<'counter>(&'counter Cell<usize>);
+
+impl Redact for Rr2NestedParent<'_> {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("P", |fields| {
+            fields.nested("long_field_name_that_cannot_fit", &Rr2Nested(self.0));
+        });
+    }
+}
+
+#[test]
+fn test_rr2_nested_prefix_stops_child_for_both_policies() {
+    for base in [RedactionPolicy::standard(), RedactionPolicy::disabled()] {
+        let calls = Cell::new(0);
+        let policy = base
+            .to_builder()
+            .limits(|limits| {
+                limits.max_output_bytes(16);
+            })
+            .expect("limits")
+            .build()
+            .expect("policy");
+        let output = Redactor::new(policy).redact_text(&Rr2NestedParent(&calls));
+        assert_eq!(calls.get(), 0);
+        assert_ne!(output.summary().completion(), RedactionCompletion::Complete);
+        assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+
+        calls.set(0);
+        let output = Redactor::new(base).redact_text(&Rr2NestedParent(&calls));
+        assert_eq!(calls.get(), 1);
+        assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    }
+}
 
 /// A counted key detects work performed before collection admission.
 #[derive(Eq, PartialEq, Ord, PartialOrd)]

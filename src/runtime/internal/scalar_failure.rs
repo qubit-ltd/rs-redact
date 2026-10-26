@@ -11,7 +11,7 @@ use crate::RedactionReason;
 
 /// Distinguishes a rejected capture write from a formatter's own error.
 #[must_use]
-pub(in crate::runtime) enum ScalarFailure {
+pub(crate) enum ScalarFailure {
     /// A submitted UTF-8 chunk did not fit the remaining input allowance.
     InputLimit,
     /// Formatting returned an error without any rejected capture write.
@@ -27,7 +27,7 @@ impl ScalarFailure {
     /// The input-limit or formatting-failure reason represented by this value.
     #[must_use]
     #[inline(always)]
-    pub(in crate::runtime) const fn reason(&self) -> RedactionReason {
+    pub(crate) const fn reason(&self) -> RedactionReason {
         match self {
             Self::InputLimit => RedactionReason::InputLimitReached,
             Self::FormatterFailure => RedactionReason::FormattingFailed,

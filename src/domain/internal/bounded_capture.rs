@@ -37,6 +37,7 @@ use std::fmt::Write as _;
 /// Returns [`fmt::Error`] when the formatter fails without a capacity
 /// rejection. Capacity rejection takes precedence and is reported by the
 /// truncation flag.
+#[allow(dead_code)]
 pub(in crate::domain) fn bounded_debug<T>(value: &T, maximum: usize) -> Result<(String, bool), fmt::Error>
 where
     T: Debug + ?Sized,
@@ -52,6 +53,7 @@ where
 }
 
 /// Collects complete debug-output fragments up to a byte limit.
+#[allow(dead_code)]
 struct BoundedCapture {
     /// Complete UTF-8 fragments accepted so far.
     output: String,
@@ -61,6 +63,7 @@ struct BoundedCapture {
     truncated: bool,
 }
 
+#[allow(dead_code)]
 impl BoundedCapture {
     /// Creates an empty capture with `maximum` admitted bytes.
     ///

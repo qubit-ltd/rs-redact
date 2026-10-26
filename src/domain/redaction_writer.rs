@@ -14,8 +14,9 @@ use crate::Sensitivity;
 use crate::domain::RedactionEntries;
 use crate::domain::RedactionFields;
 use crate::domain::RedactionItems;
-use crate::domain::internal::bounded_capture::bounded_debug;
 use crate::domain::internal::bounded_debug_writer::BoundedDebugWriter;
+use crate::runtime::InputCapture;
+use crate::runtime::ScalarFailure;
 use crate::runtime::runtime_session::RuntimeSession;
 
 /// Restricted writer for one redaction operation.
@@ -492,11 +493,14 @@ impl<'session> RedactionWriter<'session> {
             self.write_debug(&masked);
             return;
         }
-        let raw_limit = self.remaining_output_bytes();
         let checkpoint = self.session.domain_frame_checkpoint();
-        let (raw, raw_truncated) = match bounded_debug(value, raw_limit) {
-            Ok(captured) => captured,
-            Err(_) => {
+        let raw = match self.capture_level_debug(value) {
+            Ok(raw) => raw,
+            Err(ScalarFailure::InputLimit) => {
+                self.truncate_without_output_limit();
+                return;
+            }
+            Err(ScalarFailure::FormatterFailure) => {
                 self.session.fail_domain_formatting(checkpoint.0, checkpoint.1);
                 return;
             }
@@ -507,9 +511,41 @@ impl<'session> RedactionWriter<'session> {
                 .masking()
                 .mask_bounded_with_truncation(level, &raw, self.remaining_output_bytes());
         self.write_debug(masked.as_ref());
-        if raw_truncated || mask_truncated {
+        if mask_truncated {
             self.truncate_for_output_limit();
         }
+    }
+
+    /// Captures one explicit-level scalar under the shared input allowance.
+    ///
+    /// The capture is measured and charged even when formatting fails. The
+    /// returned string is available only when the complete value was captured.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Possibly unsized value rendered with `Debug`.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Borrowed scalar whose debug representation is captured once.
+    ///
+    /// # Returns
+    ///
+    /// The complete captured representation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InputLimit` if a submitted chunk exceeds the remaining input
+    /// allowance, or `FormatterFailure` if the formatter fails independently.
+    fn capture_level_debug<T>(&mut self, value: &T) -> Result<String, ScalarFailure>
+    where
+        T: Debug + ?Sized,
+    {
+        let mut capture = InputCapture::new(self.session.remaining_input_bytes());
+        let result = write!(&mut capture, "{value:?}");
+        let (presented, inspected) = capture.usage();
+        self.session.record_input_usage(presented, inspected);
+        capture.finish(result)
     }
 
     /// Writes a scalar using the supplied sensitivity level.
@@ -527,8 +563,23 @@ impl<'session> RedactionWriter<'session> {
     where
         T: Debug + ?Sized,
     {
+        if self.session.is_inspection() {
+            if !self.session.policy().is_disabled() {
+                self.session.observe_sensitivity(level);
+            }
+            return;
+        }
         if self.session.policy().is_disabled() {
-            self.write_debug(value);
+            let checkpoint = self.session.domain_frame_checkpoint();
+            match self.capture_level_debug(value) {
+                Ok(raw) => {
+                    self.write_fragment(&raw);
+                }
+                Err(ScalarFailure::InputLimit) => self.truncate_without_output_limit(),
+                Err(ScalarFailure::FormatterFailure) => {
+                    self.session.fail_domain_formatting(checkpoint.0, checkpoint.1);
+                }
+            }
         } else {
             self.write_masked_debug(level, value);
         }
@@ -587,7 +638,7 @@ impl<'session> RedactionWriter<'session> {
             };
             configure(&mut fields);
         }
-        if self.can_write() {
+        if !self.session.domain_frame_is_truncated() {
             self.trim_trailing_separator();
             self.write_fragment(closing);
         }
@@ -628,7 +679,7 @@ impl<'session> RedactionWriter<'session> {
                 admitted_item: false,
             });
         }
-        if self.can_write() {
+        if !self.session.domain_frame_is_truncated() {
             self.trim_trailing_separator();
             self.write_fragment(closing);
         }
@@ -669,7 +720,7 @@ impl<'session> RedactionWriter<'session> {
                 admitted_entry: false,
             });
         }
-        if self.can_write() {
+        if !self.session.domain_frame_is_truncated() {
             self.trim_trailing_separator();
             self.write_fragment(closing);
         }

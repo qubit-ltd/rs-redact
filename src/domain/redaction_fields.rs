@@ -13,7 +13,6 @@ use crate::Sensitivity;
 use crate::domain::Redact;
 use crate::domain::RedactLevelValue;
 use crate::domain::RedactionWriter;
-use crate::domain::internal::bounded_capture::bounded_debug;
 use crate::domain::internal::resolve_keyed_field;
 use crate::policy::ResolvedField;
 
@@ -130,7 +129,16 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
             return self;
         }
         if self.writer.session.policy().is_disabled() {
-            return self.write_admitted_unredacted(name, access);
+            if self.writer.session.is_inspection() {
+                return self;
+            }
+            self.write_prefix(name);
+            if !self.writer.can_write() {
+                return self;
+            }
+            self.writer.write_level_scalar(level, &access());
+            self.writer.write_fragment(", ");
+            return self;
         }
         let effective_level = self
             .writer
@@ -155,24 +163,7 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
                 .mask_opaque_bounded(effective_level, self.writer.remaining_output_bytes());
             self.writer.write_debug(&value);
         } else {
-            let raw_limit = self.writer.remaining_output_bytes();
-            let checkpoint = self.writer.session.domain_frame_checkpoint();
-            let (raw, raw_truncated) = match bounded_debug(&access(), raw_limit) {
-                Ok(captured) => captured,
-                Err(_) => {
-                    self.writer.session.fail_domain_formatting(checkpoint.0, checkpoint.1);
-                    return self;
-                }
-            };
-            let (value, mask_truncated) = self.writer.session.policy().masking().mask_bounded_with_truncation(
-                effective_level,
-                &raw,
-                self.writer.remaining_output_bytes(),
-            );
-            self.writer.write_debug(value.as_ref());
-            if raw_truncated || mask_truncated {
-                self.writer.truncate_for_output_limit();
-            }
+            self.writer.write_masked_debug(effective_level, &access());
         }
         self.writer.write_fragment(", ");
         self
@@ -261,12 +252,6 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     {
         if !self.admit_field(name) {
             self.write_field_truncated();
-            return self;
-        }
-        if self.writer.session.policy().is_disabled() {
-            self.write_prefix(name);
-            value.write_redacted(self.writer);
-            self.writer.write_fragment(", ");
             return self;
         }
         self.write_prefix(name);
