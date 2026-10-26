@@ -14,6 +14,7 @@ Business developers classify fields; complex objects delegate their internal rul
 
 Prefer the runtime re-export; a separate derive dependency is unnecessary:
 
+<!-- redact-example: kind=cargo features=derive,serde,json -->
 ```toml
 [dependencies]
 qubit-redact = { version = "0.10", features = ["derive", "serde", "json"] }
@@ -23,7 +24,9 @@ serde_json = "1"
 
 ## Quick Start
 
+<!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
+fn main() {
 use qubit_redact::{Redact, Redactor};
 
 #[derive(Redact)]
@@ -44,6 +47,7 @@ assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
 assert!(!serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
 let output = redactor.redact_text(&login);
 assert!(!output.text().as_str().contains("raw-secret"));
+}
 ```
 
 ## Field and Container Attributes
@@ -62,10 +66,10 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | `json` | JSON `String`/`str`/`Cow<str>`, parsed `serde_json::Value`, references and `Option`; requires `json`. |
 
 Container attributes: `debug`, `display`, `serde`, `transparent`, and `crate = path`.
-When using the macro through `qubit-redact`'s `derive` feature, the runtime path is resolved
-automatically and `crate = path` is usually unnecessary. Specify it only when depending on
-`qubit-redact-derive` directly, renaming the runtime dependency, or re-exporting the macro from
-a wrapper crate.
+Cargo metadata resolves the `qubit-redact` runtime path, including when its dependency is
+renamed or when `qubit-redact-derive` is a direct dependency. Use `crate = path` only when the
+runtime cannot be discovered from Cargo metadata or a wrapper re-exports the macro with a different
+runtime path.
 The runtime `serde` feature generates structured redaction for `redact_view()` for every
 derived type. `#[redact(serde)]` additionally makes the source type's ordinary `Serialize`
 use that redacted representation. Without it, a separately derived ordinary `Serialize`
@@ -79,7 +83,9 @@ Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` to
 
 ## Scalar Value Objects
 
+<!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
+fn main() {
 use qubit_redact::{Redact, RedactScalar, Redactor};
 
 #[derive(RedactScalar)]
@@ -100,6 +106,7 @@ struct Account {
 let account = Account { id: Id(42), user_id: UserId { value: "raw-id".into() } };
 assert_eq!(Redactor::standard().to_json(&account).expect("account JSON"),
     r#"{"id":"<redacted>","user_id":"<redacted>"}"#);
+}
 ```
 
 `RedactScalar` requires exactly one scalar field and supports named/tuple structs and nested

@@ -190,8 +190,9 @@ OperationSink 负责安全替代和最终状态。输入拒绝或 formatter 错�
 `RenderedOperation` 独立保存 output_closed，merge 合并该事实、原因和完成状态。
 发布层不从泛化失败推断输出超限，也不丢弃前序安全文本。Exhausted 在构造边界必有输出原因。
 
-输入失败项允许后项在剩余预算内继续，aggregate summary 仍不完整；真实输出拒绝或恰好
-用尽额度关闭后续输入访问。发布后的调用方 marker 会转义，但不计入原事务输出额度。
+输入失败项允许后项在剩余预算内继续，aggregate summary 仍不完整；空失败 batch item 使用不占结果
+槽位的 rejected handle，整批摘要仍累计每次拒绝的原因和用量。真实输出拒绝或恰好用尽额度关闭
+后续输入访问。发布后的调用方 marker 会转义，但不计入原事务输出额度。
 
 ### 6.2 Serde 载荷与最终编码
 
@@ -200,8 +201,10 @@ OperationSink 负责安全替代和最终状态。输入拒绝或 formatter 错�
 载荷沿 Serde 事件计量：字符串/字符 UTF-8、bytes 切片、数字/bool 标量表示，none/unit 为 0，
 动态 map key 和标量形式的 unit variant 名称计入，静态字段名、标点、转义及 framing 不计入。
 
-直接 Serialize(view/source) 使用结构、输入和逻辑载荷额度；最终编码由调用方 serializer/writer
-控制。`to_json` 使用相同字段投影并通过独立 BoundedJsonWriter 限制全部最终编码字节，
+旧式 `RedactSerialize` hook 在根调用时使用显式传入的策略，嵌套调用则加入活动 scope。裸的
+`RedactSerializeSource` 投影只借用字段、不保存策略；缺少活动 scope 时序列化会返回不含原值的
+serializer 错误。普通调用方应使用 `redact_view()` 或 `to_json()`。直接序列化 view/source
+使用结构、输入和逻辑载荷额度；最终编码由调用方 serializer/writer 控制。`to_json` 使用相同字段投影并通过独立 BoundedJsonWriter 限制全部最终编码字节，
 包括标签、转义、引号、标点和掩码。它一次遍历，只有完整编码成功才返回 String；原有
 Result<String, serde_json::Error> 保留。结构降级可以产生合法安全替代，故成功不代表完整。
 同一源状态且两者均成功时，to_json 与直接序列化 view 输出一致；成功条件不等价。
@@ -235,7 +238,7 @@ Serde shape 返回明确错误而不是猜测表示。
 
 HTTP body 内部实现按职责拆分：
 
-- `redaction/body.rs`：准入结果分派和最终 publication；
+- `src/formats/http/internal/http_policy_executor/body.rs`：准入结果分派和最终 publication；
 - `json_body.rs`：JSON 与 NDJSON；
 - `form_body.rs`：`application/x-www-form-urlencoded`；
 - `multipart_body.rs`：multipart part、嵌套 content type 和文件内容；
@@ -243,6 +246,10 @@ HTTP body 内部实现按职责拆分：
 - `url.rs`：URL、nested URL 和 query；
 - `headers.rs`：header；
 - `diagnostics.rs`：有界诊断文本与完成状态。
+
+native `HeaderValue` 与文本 Content-Type inspection 都先原子准入 body capture 和 metadata 字节，
+之后才解码或检查 metadata。输入被拒绝时只记录真实准入原因，不报告 `InvalidContentType`；
+准入成功但 native header 非法时，先计费再记录该原因。
 
 这些模块共享私有 `HttpPolicyExecutor`，它只借用父 session 的 policy，不拥有 session，也不产生
 公开 HTTP result。无效 content type、缺失 multipart boundary、非法 JSON/NDJSON 和截断输入均
@@ -256,8 +263,25 @@ part 内的 form 字段在 inspection 与渲染中都使用深度 3。已准入�
 NDJSON 只保存非空值及其源行索引，空行单独计数，使连续空行的辅助空间保持常量；渲染通过有界 writer
 恢复换行，multipart NDJSON 也保留源行位置。
 
+### 8.4 URL 解析基准结论
+
+基准输入在计时外构造，分别测量 one-shot 和单项 batch。Criterion 每项使用 30 个样本、1 秒预热、
+2 秒测量；环境为 Linux x86_64、Rust/Cargo 1.94.0。每轮命令为
+`cargo bench --bench http_uri_bench --features http,uri -- --save-baseline rr04-before-N --sample-size 30 --warm-up-time 1 --measurement-time 2`。
+下表各数值为均值点估计及 95% 置信区间，单位微秒，按第 1/2/3 轮排列。
+
+| 场景 | One-shot 第 1 / 2 / 3 轮 | 单项 batch 第 1 / 2 / 3 轮 |
+| --- | --- | --- |
+| 短 URL | 28.92 [23.37, 34.82] / 43.63 [31.46, 57.88] / 39.09 [31.75, 47.10] | 26.75 [22.86, 31.06] / 29.85 [23.45, 36.37] / 53.58 [42.27, 65.48] |
+| 128 项 query | 484.35 [374.84, 623.90] / 1040.61 [926.06, 1169.31] / 3605.74 [2812.33, 4453.14] | 1803.58 [1648.05, 1957.43] / 701.74 [535.35, 885.03] / 2967.35 [1593.08, 4852.11] |
+| 三层嵌套 URL | 104.33 [88.78, 120.71] / 75.57 [58.85, 93.35] / 208.09 [165.37, 254.83] | 142.44 [115.09, 172.99] / 89.06 [63.23, 126.42] / 170.58 [123.05, 223.77] |
+
+轮次间波动远大于预设的 5% 收益门槛，区间无法支撑稳定的优化前基线，因此没有测量或保留根 URL
+复用候选。RR-04 以“核查完成，不做生产优化”闭环；基准保留，供后续受控对比使用。
+
 来源截断元数据只由 `BodyCapture` 持有。当已捕获 body 超过父 runtime 的剩余输入额度时，父事务
-会原子拒绝整段 body；renderer 不再维护第二套“部分输入”状态。已解析的来源截断 body 会保留
+会原子拒绝整段 body；renderer 不再维护第二套“部分输入”状态。native 与文本 inspection 的
+Content-Type 字节也与 body 一起原子准入。已解析的来源截断 body 会保留
 `SourceTruncated`；若输出也无法容纳，则同时报告 `OutputLimitReached`。URL 和 form
 渲染发生输出截断时报告 `OutputLimitReached`，不会标为 `Complete`。
 

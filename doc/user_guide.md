@@ -129,7 +129,10 @@ from the previous mask. It supports Display/Debug. Structured view serialization
 `RedactSerializeSource` projection capability, which borrows data for the current call; callers
 need not implement hidden traits. `#[redact(serde)]` separately keeps the source type’s ordinary
 `Serialize` path redacted through the legacy `RedactSerialize` bridge, whose bounds are not the
-same as the view projection. It never falls back to a Debug string. Interior-mutable sources can change
+same as the view projection. It never falls back to a Debug string. The legacy hook uses its
+explicit policy for a root call, while a bare `RedactSerializeSource` projection does not retain a
+policy and returns a value-free serializer error when no scope is active. Use `redact_view()` or
+`to_json()` for the normal scoped path. Interior-mutable sources can change
 between uses; the policy remains fixed at view creation.
 
 `redact_text()` produces `output.text()` that can be displayed without another redaction pass.
@@ -209,7 +212,10 @@ Both share one policy snapshot and one transaction budget, but they answer diffe
 
 Batch handles are valid only for the batch that created them. Resolving a handle from an earlier
 batch through a later `finish_with_marker` returns the escaped fallback marker, not the original
-text. Composers do not expose handles; the entire message succeeds or degrades as one unit.
+text. Composers do not expose handles; the entire message succeeds or degrades as one unit. An empty
+failed item may share a rejected handle with other failures instead of storing a result slot. The
+batch summary still records every rejection reason and its usage, and a rejected item does not prevent
+later work while budget remains.
 
 Environment variables follow the same split: compose inline assignments with `.env(...)`, or add
 `redact_env(name, value)` items to a batch when each name may need separate inspection later.

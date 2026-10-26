@@ -219,7 +219,8 @@ Publication neither infers output exhaustion from generic failure nor discards e
 Exhausted always has an output reason at its construction boundary.
 
 An input-failing item allows later admitted work within the remaining budget; the aggregate
-summary stays incomplete. Actual output rejection or exact capacity closes subsequent input
+summary stays incomplete. Empty failed batch items use a shared rejected handle without allocating
+a result slot; the batch summary still accumulates each rejection reason and usage. Actual output rejection or exact capacity closes subsequent input
 access. Caller-supplied post-publication markers are escaped but outside transaction output limits.
 
 ### 6.2 Serde payload and final encoding
@@ -298,7 +299,7 @@ the new event layout does not automatically decode the old layout.
 
 HTTP body implementation is split by responsibility:
 
-- `redaction/body.rs`: admission dispatch and final publication;
+- `src/formats/http/internal/http_policy_executor/body.rs`: admission dispatch and final publication;
 - `json_body.rs`: JSON and NDJSON;
 - `form_body.rs`: `application/x-www-form-urlencoded`;
 - `multipart_body.rs`: multipart parts, nested content types, and file data;
@@ -306,6 +307,8 @@ HTTP body implementation is split by responsibility:
 - `url.rs`: URL, nested URL, and query processing;
 - `headers.rs`: header rendering;
 - `diagnostics.rs`: bounded diagnostic text and completion.
+
+Native `HeaderValue` and text Content-Type inspection atomically admit the captured body and metadata bytes before decoding or inspecting metadata. A rejected input records its admission reason without reporting `InvalidContentType`; an admitted but invalid native header is charged before that reason is recorded.
 
 These modules share a private `HttpPolicyExecutor`. It borrows the parent
 session policy, owns no session, and produces no public HTTP result. Invalid
@@ -326,9 +329,29 @@ and counts blank lines separately, keeping auxiliary storage constant for blank
 runs. Rendering restores line breaks through the bounded output writer, including
 for multipart NDJSON.
 
+### 8.4 URL parsing benchmark decision
+
+The URL benchmark constructs inputs outside the timed loop and measures one-shot and single-item
+batch calls separately. It uses Criterion with 30 samples, a 1-second warm-up, and a 2-second
+measurement window per case on Linux x86_64 with Rust/Cargo 1.94.0. The command for each round was
+`cargo bench --bench http_uri_bench --features http,uri -- --save-baseline rr04-before-N --sample-size 30 --warm-up-time 1 --measurement-time 2`.
+Each cell below is the mean point estimate and 95% confidence interval in microseconds for rounds 1/2/3.
+
+| Workload | One-shot rounds 1 / 2 / 3 | Single-item batch rounds 1 / 2 / 3 |
+| --- | --- | --- |
+| Short URL | 28.92 [23.37, 34.82] / 43.63 [31.46, 57.88] / 39.09 [31.75, 47.10] | 26.75 [22.86, 31.06] / 29.85 [23.45, 36.37] / 53.58 [42.27, 65.48] |
+| 128-item query | 484.35 [374.84, 623.90] / 1040.61 [926.06, 1169.31] / 3605.74 [2812.33, 4453.14] | 1803.58 [1648.05, 1957.43] / 701.74 [535.35, 885.03] / 2967.35 [1593.08, 4852.11] |
+| Three-level nested URL | 104.33 [88.78, 120.71] / 75.57 [58.85, 93.35] / 208.09 [165.37, 254.83] | 142.44 [115.09, 172.99] / 89.06 [63.23, 126.42] / 170.58 [123.05, 223.77] |
+
+The run-to-run spread is larger than the proposed 5% improvement threshold, and the intervals do not
+support a stable before estimate. No candidate root-URL reuse was measured or retained; RR-04 closes
+as a completed investigation with no production optimization. The benchmark remains for a future
+controlled comparison.
+
 `BodyCapture` alone owns source-truncation metadata. The parent runtime rejects
 an HTTP body atomically when its captured bytes exceed the remaining input
-allowance; renderers therefore do not model a second partial-input state.
+allowance; renderers therefore do not model a second partial-input state. Content-Type bytes share
+that atomic admission in both native and text inspection paths.
 
 ## 9. Features and compatibility
 

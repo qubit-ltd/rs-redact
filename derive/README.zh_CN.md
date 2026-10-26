@@ -14,6 +14,7 @@
 
 推荐通过 runtime 重导出使用宏，无需再单独声明 derive crate：
 
+<!-- redact-example: kind=cargo features=derive,serde,json -->
 ```toml
 [dependencies]
 qubit-redact = { version = "0.10", features = ["derive", "serde", "json"] }
@@ -23,7 +24,9 @@ serde_json = "1"
 
 ## 快速开始
 
+<!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
+fn main() {
 use qubit_redact::{Redact, Redactor};
 
 #[derive(Redact)]
@@ -44,6 +47,7 @@ assert_eq!(json, r#"{"user":"ada","password":"<redacted>"}"#);
 assert!(!serde_json::to_string(&login).expect("business JSON").contains("raw-secret"));
 let output = redactor.redact_text(&login);
 assert!(!output.text().as_str().contains("raw-secret"));
+}
 ```
 
 ## 字段与容器属性
@@ -62,9 +66,9 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | `json` | 支持 JSON `String`/`str`/`Cow<str>`、已解析 `serde_json::Value`、引用和 `Option`；需要 `json` feature。 |
 
 容器属性包括 `debug`、`display`、`serde`、`transparent` 和 `crate = path`。
-通过 `qubit-redact` 的 `derive` feature 使用时，runtime 路径会自动解析，通常无需显式指定
-`crate = path`；仅在直接依赖 `qubit-redact-derive`、重命名 runtime 依赖或在 wrapper crate
-中 re-export 宏时才需要。
+derive 会通过 Cargo metadata 查找 `qubit-redact` runtime；直接依赖 `qubit-redact-derive`
+或重命名 runtime 依赖本身都不需要额外配置。只有 Cargo metadata 无法发现 runtime，或
+wrapper crate 需要指向与自动解析结果不同的 runtime 路径时，才使用 `crate = path`。
 runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的结构化脱敏能力。
 `#[redact(serde)]` 额外让源对象自身的普通 `Serialize` 输出脱敏；未标注时，单独派生的普通
 `Serialize` 保持原有行为。源对象本身不必可序列化，view 与 `to_json()` 只要求其脱敏投影
@@ -76,7 +80,9 @@ derive 生成的 Serde 输出遵循 transparent 类型及 tagged/untagged enum �
 
 ## 标量值对象
 
+<!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
+fn main() {
 use qubit_redact::{Redact, RedactScalar, Redactor};
 
 #[derive(RedactScalar)]
@@ -97,6 +103,7 @@ struct Account {
 let account = Account { id: Id(42), user_id: UserId { value: "raw-id".into() } };
 assert_eq!(Redactor::standard().to_json(&account).expect("account JSON"),
     r#"{"id":"<redacted>","user_id":"<redacted>"}"#);
+}
 ```
 
 `RedactScalar` 要求恰好一个标量字段，支持具名和 tuple struct、多层标量包装。

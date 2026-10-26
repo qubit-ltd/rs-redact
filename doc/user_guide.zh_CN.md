@@ -122,7 +122,9 @@ fn main() {
 它支持 Display/Debug。view 的结构化序列化使用 derive 生成的 `RedactSerializeSource` 投影能力，
 在当前调用中借用数据，普通调用方无需手写隐藏 trait，也不会退化成 Debug 字符串。
 `#[redact(serde)]` 则通过旧的 `RedactSerialize` 桥单独脱敏源对象的普通 `Serialize` 路径；
-其能力边界与 view 投影不同。
+其能力边界与 view 投影不同。旧 hook 根调用使用显式传入的策略；裸的
+`RedactSerializeSource` 投影不保存策略，缺少活动 scope 时会返回不含原值的 serializer 错误。
+普通调用请使用 `redact_view()` 或 `to_json()`。
 源对象具有内部可变状态时，后续使用可能观察到新值；策略仍保持创建时快照。
 
 `redact_text()` 的 `output.text()` 可以直接展示，不再次脱敏。
@@ -198,6 +200,8 @@ fn main() {
 
 batch 句柄只对创建它的 batch 有效。在后续 batch 的 `finish_with_marker` 中解析旧句柄，
 会得到已转义的降级 marker，而不是原文。composer 不提供句柄；整条消息作为一个整体成功或降级。
+空失败项可能共用 rejected handle，不会各自占用结果槽位；整批摘要仍累计每次拒绝的原因和用量。
+只要预算仍有余量，失败项不会阻止后续操作。
 
 环境变量同样如此：行内展示用 `.env(...)`，需要逐项检查时用 batch 的 `redact_env(name, value)`。
 

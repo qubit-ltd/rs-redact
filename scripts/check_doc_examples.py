@@ -19,7 +19,7 @@ import tempfile
 import tomllib
 
 ANNOTATION = re.compile(r"<!-- redact-example: kind=(run|cargo) features=([a-z,]+) -->")
-DOCUMENTS = ("README.md", "README.zh_CN.md", "doc/user_guide.md", "doc/user_guide.zh_CN.md")
+DOCUMENTS = ("README.md", "README.zh_CN.md", "doc/user_guide.md", "doc/user_guide.zh_CN.md", "derive/README.md", "derive/README.zh_CN.md")
 VALID_FEATURES = frozenset({"derive", "serde", "bigdecimal", "json", "http", "uri"})
 
 

@@ -19,6 +19,18 @@ class ExampleContractTests(unittest.TestCase):
             path.write_text(text, encoding="utf-8")
             return MODULE.extract(path)
 
+    def test_derive_documents_are_checked(self):
+        expected = {
+            "README.md", "README.zh_CN.md", "doc/user_guide.md",
+            "doc/user_guide.zh_CN.md", "derive/README.md", "derive/README.zh_CN.md",
+        }
+        self.assertEqual(set(MODULE.DOCUMENTS), expected)
+        root = Path(__file__).resolve().parents[1]
+        for name in ("derive/README.md", "derive/README.zh_CN.md"):
+            examples = MODULE.extract(root / name)
+            self.assertTrue(any(item["kind"] == "cargo" for item in examples))
+            self.assertGreaterEqual(sum(item["kind"] == "run" for item in examples), 2)
+
     def test_unannotated_rust_is_rejected_with_location(self):
         with self.assertRaisesRegex(ValueError, r"guide.zh_CN.md:1.*annotation"):
             self.parse("```rust\nfn main() {}\n```\n")
