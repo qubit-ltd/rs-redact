@@ -345,7 +345,12 @@ fn main() {
 
 Serde names use their effective field and variant names, including `rename`/`rename_all`; raw Rust identifiers are normalized before matching, while an explicit Serde rename preserves its chosen wire name. Enum tag/content/untagged, transparent, skip, skip_serializing, and skip_serializing_if are supported. with/serialize_with work on ordinary or skipped fields, not on sensitive
 modes observing raw field state. flatten is unsupported. JSON text fields retain their string
-wire type; parsed Value fields retain JSON structure.
+wire type; parsed Value fields retain JSON structure. Generated Serde adapters follow Serde's
+representation events and effective names: transparent types forward the field event, adjacent
+tags report the enum name, variant index, and effective variant name, and untagged named variants
+report the effective container name. JSON shape is unchanged. Non-JSON serializers can observe
+these corrected event sequences; applications that persisted the previous event stream should
+keep its decoder or distinguish stored format versions while migrating.
 
 ### Scalar Newtypes
 
@@ -781,7 +786,12 @@ fn main() {
 
 Strict mode can classify runtime fields such as `redact_field`, JSON keys, and
 HTTP URL query parameters. Form fields in `application/x-www-form-urlencoded`
-bodies use the HTTP body rules instead.
+bodies use the HTTP body rules instead. A form field nested inside a multipart part
+uses depth 3, so a policy must allow at least that depth; inspection and rendering
+use the same boundary and do not raise the configured limit. Multipart framing is
+validated before processing, while auxiliary segment storage grows with admitted
+parts rather than every segment. Admitted JSON and NDJSON parts are parsed once and
+their parsed structure is reused during rendering.
 
 ## Advanced Usage
 
@@ -1058,6 +1068,7 @@ be capped separately from logical Serde payload limits.
 From the repository root, run `python3 -B scripts/check_doc_examples.py` to compile
 and execute every annotated Rust/Cargo block in both README and guide languages.
 The checker uses this checkout as a path dependency and builds temporary consumer crates. It runs `cargo run --quiet`; Cargo may access the registry to resolve or download uncached dependencies. Provide registry access when needed; the checker does not force offline resolution.
+The project CI hook runs its wiring tests, the checker tests, and this annotated-example runner.
 
 To validate a local checkout with the full CI matrix:
 

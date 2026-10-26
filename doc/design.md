@@ -268,6 +268,11 @@ uses `serialize_some`, slices serialize as sequences, fixed arrays remain tuples
 destination serializer's human-readable preference. JSON output retains its
 existing shape while non-JSON serializers receive the intended option, tuple,
 and representation events.
+Derived transparent, adjacent-tagged, and untagged representations also use
+Serde's effective events and names. Adjacent tags retain the enum name, variant
+index, and serialized variant name. These corrections preserve JSON shape but
+change event streams observed by non-JSON serializers; persisted data written
+with the earlier events may require its prior decoder or an explicit format version.
 
 ## 8. Format layer
 
@@ -302,6 +307,12 @@ Nested multipart JSON/NDJSON parsing failures retain `InvalidJson`, while
 resource admission failures retain their limit reason. Nested URL rendering
 accumulates `InvalidUri` and `DepthLimitReached` reasons from child operations
 into the parent result.
+Multipart framing is validated in a complete pass through a borrowed segment
+cursor before the segments are consumed. Auxiliary segment state does not scale
+with the raw segment count; admitted slots grow only for admitted parts. Top-level
+form fields use depth 2, while form fields inside multipart parts use depth 3 in
+both inspection and rendering. Admitted JSON and NDJSON structures are parsed
+once and reused.
 
 `BodyCapture` alone owns source-truncation metadata. The parent runtime rejects
 an HTTP body atomically when its captured bytes exceed the remaining input

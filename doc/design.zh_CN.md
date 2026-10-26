@@ -96,6 +96,9 @@ derive 显式 level 由领域类型定义，在 strict 下保持固定。手写
 脱敏序列化保留源 Serde 事件形状：`Option::Some` 使用 `serialize_some`，slice 使用 sequence，固定数组仍为
 tuple，包装器透传目标 serializer 的 human-readable 选择。JSON 输出形状保持不变，非 JSON
 serializer 则收到预期的 Option、tuple 和表示方式事件。
+derive 生成的 transparent、adjacent-tagged 与 untagged 表示也遵循 Serde 生效后的事件和名称。
+adjacent tag 保留枚举名、变体索引和序列化变体名。这些修正不改变 JSON 结构，但非 JSON serializer
+观察到的事件流会变化；使用旧事件写入的持久化数据可能需要旧 decoder 或显式格式版本。
 
 文本 RuntimeCore 与同步 Serde scope 生命周期不同，分别拥有账本。Serde scope 使用
 PolicyFrame 的 Arc 快照和线程局部 guard；嵌套及普通 serializer 复用活动预算，错误或
@@ -241,6 +244,9 @@ HTTP body 内部实现按职责拆分：
 
 Multipart 内嵌 JSON/NDJSON 的解析失败保留 `InvalidJson`，资源准入失败保留对应 limit reason。
 嵌套 URL 渲染则把子操作的 `InvalidUri` 和 `DepthLimitReached` 原因合并到父结果。
+Multipart framing 会先由借用的 segment 游标完整校验，再逐段消费。辅助 segment 状态不随原始
+segment 数量增长；admitted slot 只为通过准入的 part 增长。顶层 form 字段使用深度 2，multipart
+part 内的 form 字段在 inspection 与渲染中都使用深度 3。已准入的 JSON 与 NDJSON 结构只解析一次并复用。
 
 来源截断元数据只由 `BodyCapture` 持有。当已捕获 body 超过父 runtime 的剩余输入额度时，父事务
 会原子拒绝整段 body；renderer 不再维护第二套“部分输入”状态。已解析的来源截断 body 会保留
@@ -277,6 +283,7 @@ Cargo 从发布清单移除这条本地依赖，保持先 derive、后 runtime �
 矩阵覆盖 derive-only、derive 与 Serde/JSON/HTTP/URI 的组合、BigDecimal 单独启用及与
 derive 组合，以及全部 feature；展开隐式依赖后覆盖全部 28 种 runtime feature 集。每组执行编译、测试（含 doctest）、rustdoc 和 Clippy；
 文档示例按真实依赖设置 feature gate。
+项目 CI hook 还会依次运行接线测试、校验脚本测试和两种语言文档中的带注解示例。
 
 下游负向编译测试读取 Cargo JSON compiler message。只有在 fixture 源码具有 primary span、
 且匹配预期 API 或 trait 的 rustc error 才算预期拒绝；指定错误码时还必须精确匹配。

@@ -74,6 +74,7 @@ require a direct Serde dependency. Add `serde` when your own code uses its trait
 The source need not implement `Serialize`: view serialization and `to_json()` require only
 a serializable redacted projection.
 `transparent` requires exactly one field and delegates its representation; it does not declare scalar capability.
+Derived Serde output follows Serde's effective representation events and names for transparent types and tagged or untagged enums; JSON shape remains unchanged.
 Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` together with `serde`.
 
 ## Scalar Value Objects

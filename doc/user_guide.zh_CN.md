@@ -326,7 +326,11 @@ fn main() {
 
 Serde 名称遵循其生效后的字段和 variant 名称，包括 `rename`/`rename_all`；匹配前会规范化 Rust raw identifier，显式 Serde rename 可保持指定 wire 名。枚举 tag/content/untagged、transparent、skip、skip_serializing、
 skip_serializing_if。支持普通或 skip 字段上的 with/serialize_with；不能与观察原值的敏感模式组合。
-flatten 不受支持。JSON 文本字段序列化后仍是字符串，已解析 Value 字段保留 JSON 结构。
+flatten 不受支持。JSON 文本字段序列化后仍是字符串，已解析 Value 字段保留 JSON 结构。生成的 Serde
+adapter 也遵循 Serde 表示事件和生效后的名称：transparent 类型直接转发字段事件，adjacent tag
+使用枚举名、变体索引和生效后的变体名，untagged 具名变体使用生效后的容器名。JSON 结构形状保持
+不变。非 JSON serializer 会观察到修正后的事件序列；若应用曾持久化旧事件流，迁移时应保留旧
+decoder 或区分存储格式版本。
 
 ### 标量 newtype
 
@@ -741,7 +745,10 @@ fn main() {
 ```
 
 strict 可以分类 `redact_field`、JSON key 和 HTTP URL query 参数等运行时字段。
-`application/x-www-form-urlencoded` body 中的 form 字段则使用 HTTP body 规则。
+`application/x-www-form-urlencoded` body 中的 form 字段则使用 HTTP body 规则。multipart part
+内嵌 form 的字段位于深度 3，因此策略至少要允许该深度；inspection 与渲染使用相同边界，不会
+自动提高配置值。处理 segment 前会验证完整 framing，辅助 segment 存储随准入 part 增长，而不随
+所有 segment 增长。已准入的 JSON 与 NDJSON part 只解析一次，渲染时复用解析结构。
 
 ## 进阶用法
 
@@ -991,6 +998,7 @@ composer、batch 和 inspection 会话默认不应跨线程共享；每个诊断
 在仓库根目录运行 `python3 -B scripts/check_doc_examples.py`，可以编译并执行两种语言的 README
 与用户手册中所有带注解的 Rust/Cargo 代码块。校验脚本以本仓库为 path 依赖，在临时 consumer
 crate 中执行 `cargo run --quiet`。Cargo 可能访问 registry 解析或下载未缓存依赖，需要时应提供相应网络条件；校验脚本不强制离线解析。
+项目 CI hook 会依次运行接线测试、校验脚本测试和这些带注解示例。
 
 验证本地检出与完整 CI 矩阵：
 
