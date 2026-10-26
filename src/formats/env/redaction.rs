@@ -51,7 +51,8 @@ where
         let (pair, truncated) = redact_os_pair_bounded_with_policy(policy, name, value, max_output_bytes);
         locally_truncated |= truncated;
         let separator_len = usize::from(has_item) * 2;
-        let rendered_len = format!("{pair:?}").len();
+        let rendered = format!("{pair:?}");
+        let rendered_len = rendered.len();
         if writer
             .len()
             .saturating_add(separator_len)
@@ -62,7 +63,11 @@ where
             locally_truncated = true;
             break;
         }
-        write_debug_item(&mut writer, &mut has_item, &pair);
+        if has_item {
+            writer.push_str(", ");
+        }
+        writer.push_str(&rendered);
+        has_item = true;
     }
     if locally_truncated {
         const FALLBACK: &str = "<truncated>";
@@ -177,21 +182,6 @@ pub(super) fn redact_os_pair_bounded_with_policy(
 #[must_use]
 fn log_safe_owned(value: String) -> String {
     escape_log_control_characters(Cow::Owned(value)).into_owned()
-}
-
-/// Appends one redacted assignment to a bounded debug-style list.
-///
-/// # Parameters
-///
-/// * `writer` - Escaped bounded output destination.
-/// * `has_item` - Whether a preceding list item has already been rendered.
-/// * `item` - Redacted assignment safe to format.
-pub(super) fn write_debug_item(writer: &mut String, has_item: &mut bool, item: &str) {
-    if *has_item {
-        writer.push_str(", ");
-    }
-    writer.push_str(&format!("{item:?}"));
-    *has_item = true;
 }
 
 #[cfg(test)]
