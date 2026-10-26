@@ -338,6 +338,9 @@ pub(crate) trait RuntimeSession {
     /// In debug builds, panics if called on a rendering session.
     fn inspect_field(&mut self, field: &str, value: &str) {
         debug_assert!(self.is_inspection());
+        if !self.admit_format_node(1) || !self.admit_domain_key(field) {
+            return;
+        }
         if !self.admit_input(field.len().saturating_add(value.len())) {
             return;
         }
