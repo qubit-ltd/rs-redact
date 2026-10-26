@@ -263,8 +263,10 @@ Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` to
 ### Choosing the serialization boundary
 
 With the runtime `serde` feature, `Redact` always generates the redacted projection used by
-`redact_view()` and `to_json()`. Nested projections and Option/Vec/slice adapters borrow through
-`RedactSerializeSource` for the active call; slices serialize as sequences and fixed arrays as tuples. The source type does not need to implement `Serialize` for
+`redact_view()` and `to_json()`. Nested projections use `RedactSerializeSource` for supported
+containers such as Option, Vec, fixed arrays, and tuples. Slice support belongs to explicit level
+redaction; it does not provide nested slice projections. Admitted fixed arrays serialize as tuples,
+while slices in level mode serialize as sequences. The source type does not need to implement `Serialize` for
 that projection to be usable. Its fields must only satisfy the requirements of their redaction
 mode: an unmarked field normally needs `Serialize`, while `level = "...", display` needs
 `Display` and emits a redacted string.
@@ -348,9 +350,11 @@ modes observing raw field state. flatten is unsupported. JSON text fields retain
 wire type; parsed Value fields retain JSON structure. Generated Serde adapters follow Serde's
 representation events and effective names: transparent types forward the field event, adjacent
 tags report the enum name, variant index, and effective variant name, and untagged named variants
-report the effective container name. JSON shape is unchanged. Non-JSON serializers can observe
-these corrected event sequences; applications that persisted the previous event stream should
-keep its decoder or distinguish stored format versions while migrating.
+report the effective container name. JSON shape is unchanged. The corrected `Some` and fixed-array
+Tuple events apply to direct source serialization enabled by `#[redact(serde)]` and borrowed views.
+Non-JSON serializers can observe these event changes, so stored data may need its old decoder or an
+explicit format version. When migrating, read old data with the old implementation and re-encode it
+with the corrected one; do not assume the new event layout decodes old data automatically.
 
 ### Scalar Newtypes
 

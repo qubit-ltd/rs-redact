@@ -93,12 +93,14 @@ derive 显式 level 由领域类型定义，在 strict 下保持固定。手写
 该路径有自己的能力边界，不等同于 view 投影。缺少 view 所需能力时在请求序列化处报错，
 纯文本派生仍然有效。
 
-脱敏序列化保留源 Serde 事件形状：`Option::Some` 使用 `serialize_some`，slice 使用 sequence，固定数组仍为
+脱敏序列化保留源 Serde 事件形状：`Option::Some` 使用 `serialize_some`，level 模式切片使用 sequence，通过准入的固定数组使用
 tuple，包装器透传目标 serializer 的 human-readable 选择。JSON 输出形状保持不变，非 JSON
 serializer 则收到预期的 Option、tuple 和表示方式事件。
 derive 生成的 transparent、adjacent-tagged 与 untagged 表示也遵循 Serde 生效后的事件和名称。
-adjacent tag 保留枚举名、变体索引和序列化变体名。这些修正不改变 JSON 结构，但非 JSON serializer
-观察到的事件流会变化；使用旧事件写入的持久化数据可能需要旧 decoder 或显式格式版本。
+adjacent tag 保留枚举名、变体索引和序列化变体名。本次修正的 `Some` 与固定数组 Tuple 事件同时适用于
+`#[redact(serde)]` 启用的源对象序列化和借用 view。这些修正不改变 JSON 结构，但非 JSON serializer
+观察到的事件流会变化；使用旧事件写入的持久化数据可能需要旧 decoder 或显式格式版本。迁移时应由旧实现
+读取旧数据，再用修正后的实现重编码；不能假设新事件布局能直接解码旧数据。
 
 文本 RuntimeCore 与同步 Serde scope 生命周期不同，分别拥有账本。Serde scope 使用
 PolicyFrame 的 Arc 快照和线程局部 guard；嵌套及普通 serializer 复用活动预算，错误或
@@ -214,7 +216,9 @@ map、嵌套对象、按敏感等级写入、按运行时 key 分类、JSON 值�
 `derive` feature 导出 `#[derive(Redact)]` 和 `#[derive(RedactScalar)]`；生成的序列化适配还需要 `serde` feature。隐藏的支撑
 trait 与借用 adapter 覆盖标量、可选值、引用、常用容器、tuple、map 和 JSON ownership 形态。
 这些符号保持公开只是因为生成代码会在下游 crate 中展开，并不是另一套面向用户的序列化 API。
-根 adapter 建立或复用 thread-local 结构预算。借用字段投影（包括 Option、Vec 和 slice）要求已有
+根 adapter 建立或复用 thread-local 结构预算。借用字段投影通过 `RedactSerializeSource` 支持
+Option、Vec、固定数组和 tuple 等已有容器；切片不支持 nested 投影。切片能力属于显式 level
+脱敏，level 模式切片序列化为 sequence，通过准入的固定数组序列化为 tuple。投影要求已有
 scope；缺少 scope 时，即使容器为空，也返回不含原值的 serializer 错误。因此直接构造
 不能跳过集合、深度、节点和输入准入。internally tagged serializer 只接受能够保持目标结构的 map/struct 形态，不支持的
 Serde shape 返回明确错误而不是猜测表示。

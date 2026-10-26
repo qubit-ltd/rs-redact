@@ -249,8 +249,9 @@ runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的�
 ### 选择序列化边界
 
 启用 runtime 的 `serde` feature 后，`Redact` 总会生成供 `redact_view()` 和 `to_json()`
-使用的脱敏投影。嵌套投影及 Option、Vec、slice adapter 通过 `RedactSerializeSource` 在当前
-调用中借用数据；slice 序列化为 sequence，固定数组则为 tuple。源类型本身不必实现 `Serialize`，投影即可使用。字段只需满足其脱敏模式的
+使用的脱敏投影。嵌套投影通过 `RedactSerializeSource` 支持 Option、Vec、固定数组和 tuple
+等已有容器。切片支持属于显式 level 脱敏，不代表支持 nested 切片投影。通过准入的固定数组
+序列化为 tuple，level 模式切片序列化为 sequence。源类型本身不必实现 `Serialize`，投影即可使用。字段只需满足其脱敏模式的
 要求：未标注字段通常需要 `Serialize`；`level = "...", display` 只需 `Display`，并输出脱敏
 字符串。
 
@@ -329,8 +330,9 @@ skip_serializing_if。支持普通或 skip 字段上的 with/serialize_with；�
 flatten 不受支持。JSON 文本字段序列化后仍是字符串，已解析 Value 字段保留 JSON 结构。生成的 Serde
 adapter 也遵循 Serde 表示事件和生效后的名称：transparent 类型直接转发字段事件，adjacent tag
 使用枚举名、变体索引和生效后的变体名，untagged 具名变体使用生效后的容器名。JSON 结构形状保持
-不变。非 JSON serializer 会观察到修正后的事件序列；若应用曾持久化旧事件流，迁移时应保留旧
-decoder 或区分存储格式版本。
+不变。本次修正的 `Some` 与固定数组 Tuple 事件同时适用于 `#[redact(serde)]` 启用的源对象序列化
+和借用 view。非 JSON serializer 会观察到这些事件变化，已存储数据可能需要旧 decoder 或明确的
+格式版本。迁移时应由旧实现读取旧数据，再用修正后的实现重编码；不能假设新事件布局能直接解码旧数据。
 
 ### 标量 newtype
 

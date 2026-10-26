@@ -256,7 +256,9 @@ adapters cover scalars, options, references, common containers, tuples, maps,
 and JSON ownership forms. They are public only because generated code expands
 in downstream crates; they are not an alternative user-facing serialization
 API. Root adapters establish or reuse the thread-local structural budget. Borrowed
-field projections, including Option, Vec, and slices, use `RedactSerializeSource`, require
+field projections use `RedactSerializeSource` for supported containers such as Option, Vec,
+fixed arrays, and tuples; slices are not supported for nested projections. Slice support belongs to
+explicit level redaction, where slices serialize as sequences, while admitted fixed arrays serialize as tuples. These projections require
 an existing scope, and return a value-free serializer error when it is absent, even for empty containers. Direct
 construction therefore cannot skip collection, depth, node, or input admission.
 The internally tagged serializer accepts only map and struct shapes that
@@ -264,15 +266,19 @@ preserve the intended structure; unsupported Serde shapes return explicit
 errors.
 
 Redacted serialization preserves the source Serde event shape: `Option::Some`
-uses `serialize_some`, slices serialize as sequences, fixed arrays remain tuples, and wrappers forward the
+uses `serialize_some`, level slices serialize as sequences, fixed arrays serialize as tuples, and wrappers forward the
 destination serializer's human-readable preference. JSON output retains its
 existing shape while non-JSON serializers receive the intended option, tuple,
 and representation events.
 Derived transparent, adjacent-tagged, and untagged representations also use
 Serde's effective events and names. Adjacent tags retain the enum name, variant
-index, and serialized variant name. These corrections preserve JSON shape but
-change event streams observed by non-JSON serializers; persisted data written
-with the earlier events may require its prior decoder or an explicit format version.
+index, and serialized variant name. The corrected `Some` and fixed-array Tuple
+events apply to direct source serialization enabled by `#[redact(serde)]` and
+borrowed views. These corrections preserve JSON shape but change event streams
+observed by non-JSON serializers; persisted data written with earlier events may
+require its prior decoder or an explicit format version. Migration should read
+old data with the old implementation and re-encode it with the corrected one;
+the new event layout does not automatically decode the old layout.
 
 ## 8. Format layer
 
