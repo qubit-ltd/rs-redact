@@ -5,122 +5,72 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Stateful JSON redaction after transaction-owned structural admission.
+//! Borrowed policy and observation state for one admitted JSON tree.
 
-use serde_json::Value;
+use std::cell::Cell;
 
+#[cfg(any(feature = "http", test))]
 use super::JsonRedactionOutcome;
 use super::JsonUnkeyedValuePolicy;
+use super::RedactedValue;
 use crate::MaskingPolicy;
 use crate::RedactionRules;
-use crate::Sensitivity;
-use crate::policy::ResolvedField;
 
-/// Mutable state shared by one already-admitted JSON tree traversal.
+/// Rules and observation state shared by one borrowed JSON serialization.
 pub(crate) struct JsonRedactionState<'policy, 'marker> {
     /// Immutable base field rules.
-    base_rules: &'policy RedactionRules,
+    pub(crate) base_rules: &'policy RedactionRules,
     /// Context-specific field enhancements.
-    context_rules: &'policy RedactionRules,
+    pub(crate) context_rules: &'policy RedactionRules,
     /// Single mask table used for every sensitivity level.
-    masking: &'policy MaskingPolicy,
+    pub(crate) masking: &'policy MaskingPolicy,
     /// Handling for scalars without an object-key context.
-    unkeyed: JsonUnkeyedValuePolicy<'marker>,
-    /// Whether an unkeyed scalar remained visible during traversal.
-    passed_unkeyed: bool,
+    pub(crate) unkeyed: JsonUnkeyedValuePolicy<'marker>,
+    /// Whether field rules are active for this operation.
+    pub(crate) enabled: bool,
+    /// Whether an unkeyed scalar remained visible during serialization.
+    passed_unkeyed: Cell<bool>,
 }
 
 impl<'policy, 'marker> JsonRedactionState<'policy, 'marker> {
-    /// Creates traversal state for one JSON document.
-    #[inline(always)]
+    /// Creates traversal state for one already-admitted JSON document.
+    #[inline]
     pub(crate) const fn new(
         base_rules: &'policy RedactionRules,
         context_rules: &'policy RedactionRules,
         masking: &'policy MaskingPolicy,
         unkeyed: JsonUnkeyedValuePolicy<'marker>,
+        enabled: bool,
     ) -> Self {
         Self {
             base_rules,
             context_rules,
             masking,
             unkeyed,
-            passed_unkeyed: false,
+            enabled,
+            passed_unkeyed: Cell::new(false),
         }
     }
 
-    /// Redacts one complete tree whose nodes, collections, and depth were
-    /// already admitted by the owning transaction.
-    pub(crate) fn redact(&mut self, value: &mut Value) -> JsonRedactionOutcome {
-        self.passed_unkeyed = false;
-        self.redact_unkeyed(value);
+    /// Creates a borrowed serializer and resets the pass-through observation.
+    pub(crate) fn redact<'value, 'state>(
+        &'state self,
+        value: &'value serde_json::Value,
+    ) -> RedactedValue<'value, 'policy, 'marker, 'state> {
+        self.passed_unkeyed.set(false);
+        RedactedValue::with_state(value, self)
+    }
+
+    /// Returns whether serialization passed through an unkeyed scalar.
+    #[cfg(any(feature = "http", test))]
+    pub(crate) fn outcome(&self) -> JsonRedactionOutcome {
         JsonRedactionOutcome::Complete {
-            passed_unkeyed: self.passed_unkeyed,
+            passed_unkeyed: self.passed_unkeyed.get(),
         }
     }
 
-    /// Redacts a root or array value.
-    fn redact_unkeyed(&mut self, value: &mut Value) {
-        match value {
-            Value::Array(values) => {
-                for value in values {
-                    self.redact_unkeyed(value);
-                }
-            }
-            Value::Object(entries) => {
-                for (key, value) in entries {
-                    self.redact_keyed(key, value);
-                }
-            }
-            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
-                self.redact_unkeyed_scalar(value);
-            }
-        }
-    }
-
-    /// Applies the resolved rule to one object value.
-    fn redact_keyed(&mut self, key: &str, value: &mut Value) {
-        match self.resolve_field(key) {
-            ResolvedField::Sensitive { sensitivity } => self.mask_keyed_value(value, sensitivity),
-            ResolvedField::PassThrough => match value {
-                Value::Array(values) => {
-                    for value in values {
-                        self.redact_unkeyed(value);
-                    }
-                }
-                Value::Object(entries) => {
-                    for (key, value) in entries {
-                        self.redact_keyed(key, value);
-                    }
-                }
-                Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
-            },
-        }
-    }
-
-    /// Applies the configured policy to one root or array scalar.
-    fn redact_unkeyed_scalar(&mut self, value: &mut Value) {
-        match self.unkeyed {
-            JsonUnkeyedValuePolicy::PassThrough => self.passed_unkeyed = true,
-            JsonUnkeyedValuePolicy::Redact { marker, .. } => {
-                *value = Value::String(marker.to_owned());
-            }
-        }
-    }
-
-    /// Resolves one field against base and context rules monotonically.
-    fn resolve_field(&self, key: &str) -> ResolvedField {
-        self.base_rules
-            .resolve_field(key)
-            .stronger(self.context_rules.resolve_field(key))
-    }
-
-    /// Replaces one keyed sensitive value with its configured mask.
-    fn mask_keyed_value(&self, value: &mut Value, level: Sensitivity) {
-        let masked = if let Value::String(text) = value {
-            self.masking.mask(level, text).into_owned()
-        } else {
-            self.masking.mask_opaque(level).to_owned()
-        };
-        *value = Value::String(masked);
+    /// Records an unkeyed scalar that policy allowed to remain visible.
+    pub(crate) fn observe_unkeyed_passthrough(&self) {
+        self.passed_unkeyed.set(true);
     }
 }

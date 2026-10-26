@@ -11,7 +11,8 @@ use serde::Serialize;
 use serde::Serializer;
 use serde_json::Value;
 
-use super::internal::RedactedValue;
+use super::internal::JsonRedactionState;
+use super::internal::JsonUnkeyedValuePolicy;
 use crate::RedactionPolicy;
 use crate::domain::internal::BudgetSerialize;
 
@@ -45,5 +46,18 @@ pub(crate) fn serialize_redacted_value<S: Serializer>(
     serializer: S,
     policy: &RedactionPolicy,
 ) -> Result<S::Ok, S::Error> {
-    BudgetSerialize::new(RedactedValue::root(value, policy)).serialize(serializer)
+    let unkeyed = match policy.unkeyed_json_value_policy() {
+        crate::UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
+        crate::UnkeyedJsonValuePolicy::Redact => JsonUnkeyedValuePolicy::Redact {
+            marker: policy.masking().mask_opaque(crate::Sensitivity::Secret),
+        },
+    };
+    let state = JsonRedactionState::new(
+        policy.rules(),
+        policy.rules(),
+        policy.masking(),
+        unkeyed,
+        !policy.is_disabled(),
+    );
+    BudgetSerialize::new(state.redact(value)).serialize(serializer)
 }

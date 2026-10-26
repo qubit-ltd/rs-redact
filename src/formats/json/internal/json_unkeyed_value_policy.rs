@@ -13,8 +13,7 @@
 pub(crate) enum JsonUnkeyedValuePolicy<'a> {
     /// Leaves the scalar visible and reports the pass-through.
     PassThrough,
-    /// Replaces the scalar with a diagnostic marker before final bounded
-    /// serialization by the transaction caller.
+    /// Emits the selected diagnostic marker in place of the scalar.
     Redact {
         /// Marker selected by the enclosing format policy.
         marker: &'a str,

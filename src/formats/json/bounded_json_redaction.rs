@@ -10,7 +10,8 @@
 use serde_json::Value;
 use serde_json::to_writer;
 
-use super::internal::RedactedValue;
+use super::internal::JsonRedactionState;
+use super::internal::JsonUnkeyedValuePolicy;
 use crate::RedactionPolicy;
 use crate::runtime::OperationByteSink;
 
@@ -53,7 +54,20 @@ pub(super) fn redacted_json_value_bounded(
     max_output: usize,
 ) -> BoundedJsonRedaction {
     let mut writer = OperationByteSink::new(max_output);
-    let redacted = RedactedValue::root(value, policy);
+    let unkeyed = match policy.unkeyed_json_value_policy() {
+        crate::UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
+        crate::UnkeyedJsonValuePolicy::Redact => JsonUnkeyedValuePolicy::Redact {
+            marker: policy.masking().mask_opaque(crate::Sensitivity::Secret),
+        },
+    };
+    let state = JsonRedactionState::new(
+        policy.rules(),
+        policy.rules(),
+        policy.masking(),
+        unkeyed,
+        !policy.is_disabled(),
+    );
+    let redacted = state.redact(value);
     if to_writer(&mut writer, &redacted).is_err() {
         return BoundedJsonRedaction::Truncated("<truncated>".to_owned());
     }
