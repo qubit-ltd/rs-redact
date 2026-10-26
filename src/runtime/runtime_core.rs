@@ -404,11 +404,12 @@ impl RuntimeCore {
     #[must_use]
     #[inline]
     pub(super) fn admit_json_value(&mut self, value: &Value) -> bool {
-        if self.budget.admit_json_value(value) {
-            true
-        } else {
-            self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
-            false
+        match self.budget.admit_json_value(value) {
+            Ok(()) => true,
+            Err(reason) => {
+                self.record_summary(RedactionSummary::truncated(reason));
+                false
+            }
         }
     }
 

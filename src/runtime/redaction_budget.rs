@@ -24,6 +24,8 @@ use super::StructuralBudget;
 #[cfg(feature = "json")]
 use super::structural_entry::StructuralEntry;
 use crate::RedactionLimits;
+#[cfg(feature = "json")]
+use crate::RedactionReason;
 use crate::RedactionUsage;
 
 /// The single mutable budget ledger for an active transaction.
@@ -246,9 +248,8 @@ impl RedactionBudget {
     /// Whether complete tree accounting and its budget transaction both
     /// succeeded.
     #[cfg(feature = "json")]
-    #[must_use]
     #[inline]
-    pub(super) fn admit_json_value(&mut self, root: &Value) -> bool {
+    pub(super) fn admit_json_value(&mut self, root: &Value) -> Result<(), RedactionReason> {
         let Self {
             structural,
             usage,
@@ -262,11 +263,15 @@ impl RedactionBudget {
             active_operation_usage,
         };
         let mut transaction = json_budget.transaction();
-        let admitted = JsonTreeReader::new(&mut transaction)
-            .process(root, &mut visitor)
-            .is_ok();
+        let admitted = JsonTreeReader::new(&mut transaction).process(root, &mut visitor);
         let committed = transaction.commit().is_ok();
-        admitted && committed
+        match admitted {
+            Ok(()) if committed => Ok(()),
+            Ok(()) | Err(qubit_json::value::traverse::JsonTreeProcessError::Budget(_)) => {
+                Err(RedactionReason::TraversalLimitReached)
+            }
+            Err(qubit_json::value::traverse::JsonTreeProcessError::Visitor(reason)) => Err(reason),
+        }
     }
 }
 
@@ -279,23 +284,22 @@ struct JsonUsageVisitor<'a> {
 
 #[cfg(feature = "json")]
 impl JsonTreeVisitor for JsonUsageVisitor<'_> {
-    type Error = ();
+    type Error = RedactionReason;
 
     fn enter(&mut self, _value: &Value, context: JsonTreeContext<'_>) -> Result<(), Self::Error> {
         if !matches!(context.location, JsonTreeLocation::Root) {
             if !self.structural.admit_collection_item() {
-                return Err(());
+                return Err(RedactionReason::TraversalLimitReached);
             }
             *self.usage = self.usage.with_collection_item();
             if let Some(usage) = self.active_operation_usage.as_mut() {
                 *usage = usage.with_collection_item();
             }
         }
-        if !matches!(
-            self.structural.admit_format_node(context.depth),
-            StructuralEntry::Entered
-        ) {
-            return Err(());
+        match self.structural.admit_format_node(context.depth) {
+            StructuralEntry::Entered => {}
+            StructuralEntry::DepthLimitReached => return Err(RedactionReason::DepthLimitReached),
+            StructuralEntry::TraversalLimitReached => return Err(RedactionReason::TraversalLimitReached),
         }
         *self.usage = self.usage.with_domain_node(context.depth);
         if let Some(usage) = self.active_operation_usage.as_mut() {
