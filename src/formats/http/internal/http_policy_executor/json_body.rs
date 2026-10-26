@@ -53,7 +53,7 @@ impl HttpPolicyExecutor<'_> {
     ///
     /// - `bounded`: Original admitted JSON source used for the root-array size
     ///   check.
-    /// - `value`: Parsed tree transformed in place under the body policy.
+    /// - `value`: Parsed tree borrowed under the body policy.
     /// - `truncated`: Whether ingress omitted source bytes.
     /// - `output_limit`: Remaining output-byte ceiling.
     ///
@@ -81,13 +81,13 @@ impl HttpPolicyExecutor<'_> {
         if matches!(value, Value::Array(_)) && bounded.len() > output_limit {
             return ParsedBody::new(markers::TRUNCATED.to_string(), BodyRenderStatus::Structured, true);
         }
-        let passed = json::redact(
+        match json::redact_and_serialize_bounded(
             &self.body_field_redactor(),
             value,
             self.policy.unkeyed_json_value_policy(),
-        );
-        match json::serialize_bounded(value, output_limit) {
-            Some((text, rendered_truncated)) => ParsedBody::new(
+            output_limit,
+        ) {
+            Some((text, passed, rendered_truncated)) => ParsedBody::new(
                 text,
                 if passed {
                     BodyRenderStatus::PassedThrough

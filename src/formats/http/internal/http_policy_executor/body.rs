@@ -76,6 +76,7 @@ impl HttpPolicyExecutor<'_> {
         } else {
             match &mut admitted {
                 AdmittedBody::Json(value) => self.redact_json_value(bounded, value, truncated, output_limit),
+                AdmittedBody::InvalidContentType => Self::invalid_content_type_body(),
                 AdmittedBody::InvalidJson => Self::invalid_json_body(),
                 AdmittedBody::InvalidMultipartJson => Self::invalid_json_body(),
                 AdmittedBody::Ndjson(lines) => self.redact_ndjson_values(lines, truncated, output_limit),
@@ -113,9 +114,6 @@ impl HttpPolicyExecutor<'_> {
         output_limit: usize,
         admitted: Option<&mut crate::formats::http::internal::AdmittedMultipart>,
     ) -> ParsedBody {
-        if bounded.is_empty() {
-            return ParsedBody::new(String::new(), BodyRenderStatus::Empty, false);
-        }
         let content_type = match content_type {
             Some(value) => match content_type::parse(value) {
                 Some(value) => Some(value),
@@ -123,6 +121,9 @@ impl HttpPolicyExecutor<'_> {
             },
             None => None,
         };
+        if bounded.is_empty() {
+            return ParsedBody::new(String::new(), BodyRenderStatus::Empty, false);
+        }
         if let Some(content_type::ContentType::Multipart {
             boundary,
             require_form_data,

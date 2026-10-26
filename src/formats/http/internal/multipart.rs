@@ -61,7 +61,7 @@ pub(in crate::formats::http) fn redact(
     {
         return None;
     }
-    let mut admitted_parts = admitted.map(|admitted| admitted.parts.iter());
+    let mut admitted_parts = admitted.map(|admitted| admitted.parts.iter_mut());
     let mut output = BoundedBodyWriter::new(max_output_bytes);
     if output.write_all(b"<multipart>\n").is_err() {
         return Some((output.into_string()?, false, true));
@@ -74,7 +74,7 @@ pub(in crate::formats::http) fn redact(
         }
         has_parts = true;
         let parsed = match &mut admitted_parts {
-            Some(admitted_parts) => Some(admitted_parts.next()?.as_ref()),
+            Some(admitted_parts) => Some(admitted_parts.next()?.as_mut()),
             None => None,
         };
         let (line, part_passed, part_truncated) =
@@ -305,7 +305,7 @@ fn redact_part(
     policy: &RedactionPolicy,
     require_form_data: bool,
     max_output_bytes: usize,
-    admitted: Option<Option<&AdmittedMultipartBody>>,
+    admitted: Option<Option<&mut AdmittedMultipartBody>>,
 ) -> Option<(String, bool, bool)> {
     let (metadata, body) = parse_part(segment, require_form_data)?;
     let name = metadata.name().unwrap_or(markers::MULTIPART_UNNAMED);
@@ -380,29 +380,22 @@ fn redact_non_sensitive_part(
     policy: &RedactionPolicy,
     part_type: Option<&str>,
     max_output_bytes: usize,
-    admitted: Option<Option<&AdmittedMultipartBody>>,
+    admitted: Option<Option<&mut AdmittedMultipartBody>>,
 ) -> Option<(String, bool, bool)> {
     let text = std::str::from_utf8(body).ok()?;
     match part_type {
         Some(value) if content_type::is_json(value) => {
-            let mut value = match admitted? {
-                Some(AdmittedMultipartBody::Json(value)) => value.clone(),
+            let value = match admitted? {
+                Some(AdmittedMultipartBody::Json(value)) => value,
                 _ => return None,
             };
-            let passed = json::redact(redactor, &mut value, policy.unkeyed_json_value_policy());
-            json::serialize_bounded(&value, max_output_bytes).map(|(text, truncated)| (text, passed, truncated))
+            json::redact_and_serialize_bounded(redactor, value, policy.unkeyed_json_value_policy(), max_output_bytes)
         }
         Some(value) if content_type::is_ndjson(value) => {
             let AdmittedMultipartBody::Ndjson(lines) = admitted?? else {
                 return None;
             };
-            let mut lines = lines.clone();
-            json::redact_ndjson_values(
-                redactor,
-                &mut lines,
-                policy.unkeyed_json_value_policy(),
-                max_output_bytes,
-            )
+            json::redact_ndjson_values(redactor, lines, policy.unkeyed_json_value_policy(), max_output_bytes)
         }
         Some(value) if content_type::is_form(value) => form::is_valid(body).then(|| {
             let value = form::redact_bounded(redactor, body, max_output_bytes);

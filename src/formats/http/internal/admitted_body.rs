@@ -16,6 +16,8 @@ use super::AdmittedNdjson;
 pub(in crate::formats::http) enum AdmittedBody {
     /// The body is not one complete top-level JSON document.
     Other,
+    /// The supplied Content-Type metadata was not valid text or syntax.
+    InvalidContentType,
     /// One top-level JSON document admitted under the shared budgets.
     Json(
         /// Parsed tree retained so rendering does not parse the input again.

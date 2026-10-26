@@ -326,10 +326,18 @@ pub(crate) fn admit_body_structure(
     if session.policy().is_disabled() {
         return session.admit_format_node(1).then_some(AdmittedBody::Other);
     }
-    let has_content_type = content_type.is_some();
-    let content_type = content_type
-        .and_then(|value| std::str::from_utf8(value).ok())
-        .and_then(super::internal::content_type::parse);
+    let (has_content_type, content_type) = match content_type {
+        Some(value) => match std::str::from_utf8(value)
+            .ok()
+            .and_then(super::internal::content_type::parse)
+        {
+            Some(content_type) => (true, Some(content_type)),
+            None => {
+                return session.admit_format_node(1).then_some(AdmittedBody::InvalidContentType);
+            }
+        },
+        None => (false, None),
+    };
     let inferred_json = !has_content_type
         && matches!(
             capture.bytes().iter().copied().find(|byte| !byte.is_ascii_whitespace()),

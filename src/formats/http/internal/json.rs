@@ -21,75 +21,32 @@ use crate::formats::json::internal::JsonRedactionState;
 use crate::formats::json::internal::JsonUnkeyedValuePolicy;
 
 /// Reports whether an NDJSON line contains only Unicode whitespace.
-///
-/// Blank lines are separators and must not be parsed as JSON records.
 #[must_use]
 #[inline]
 pub(in crate::formats::http) fn is_blank_ndjson_line(line: &str) -> bool {
     line.trim().is_empty()
 }
 
-/// Redacts a JSON tree and reports whether an unkeyed scalar passed through.
+/// Redacts one admitted JSON value directly into a bounded writer.
 ///
-/// # Parameters
-///
-/// * `redactor` - Structured-body field redactor.
-/// * `value` - JSON tree to mutate.
-/// * `unkeyed` - Policy for scalars without an object-field context.
 /// # Returns
 ///
-/// `true` when at least one unkeyed scalar passed through.
-#[must_use]
-pub(in crate::formats::http) fn redact(
+/// The borrowed output's pass-through and truncation status.
+pub(in crate::formats::http) fn redact_and_serialize_bounded(
     redactor: &FieldRedactor<'_>,
-    value: &mut Value,
+    value: &Value,
     unkeyed: UnkeyedJsonValuePolicy,
-) -> bool {
-    let unkeyed = match unkeyed {
-        UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
-        UnkeyedJsonValuePolicy::Redact => JsonUnkeyedValuePolicy::Redact { marker: UNKEYED_JSON },
-    };
-    let outcome = JsonRedactionState::new(
-        redactor.base_rules(),
-        redactor.context_rules(),
-        redactor.masking(),
-        unkeyed,
-    )
-    .redact(value);
-    match outcome {
-        crate::formats::json::internal::JsonRedactionOutcome::Complete { passed_unkeyed } => passed_unkeyed,
-    }
-}
-
-/// Serializes a redacted JSON value without exceeding the rendered-body limit.
-///
-/// # Parameters
-///
-/// * `value` - Redacted JSON tree to serialize.
-/// * `max_output_bytes` - Maximum rendered JSON bytes to retain.
-///
-/// # Returns
-///
-/// `Some((text, false))` for complete JSON, `Some((prefix, true))` when
-/// serialization exceeded the output budget, or `None` for UTF-8 errors.
-pub(in crate::formats::http) fn serialize_bounded(value: &Value, max_output_bytes: usize) -> Option<(String, bool)> {
-    let mut writer = BoundedBodyWriter::new(max_output_bytes);
-    if to_writer(&mut writer, value).is_err() {
-        return writer.into_string().map(|text| (text, true));
-    }
-    writer.flush().ok()?;
-    writer.into_string().map(|text| (text, false))
+    max_output_bytes: usize,
+) -> Option<(String, bool, bool)> {
+    let mut output = BoundedBodyWriter::new(max_output_bytes);
+    let state = state(redactor, unkeyed);
+    let failed = to_writer(&mut output, &state.redact(value)).is_err();
+    output.flush().ok()?;
+    let text = output.into_string()?;
+    Some((text, passed(&state), failed))
 }
 
 /// Redacts already admitted NDJSON values without parsing their source again.
-///
-/// # Parameters
-///
-/// * `redactor` - Structured-body field redactor.
-/// * `lines` - Parsed values with their source-line indices and blank-line
-///   count.
-/// * `unkeyed` - Policy for unkeyed scalar values.
-/// * `max_output_bytes` - Maximum final rendered NDJSON bytes.
 ///
 /// # Returns
 ///
@@ -102,34 +59,55 @@ pub(in crate::formats::http) fn redact_ndjson_values(
     max_output_bytes: usize,
 ) -> Option<(String, bool, bool)> {
     let mut output = BoundedBodyWriter::new(max_output_bytes);
-    let mut passed = false;
+    let mut passed_any = false;
     let line_count = lines.line_count();
     let trailing_newline = lines.trailing_newline();
     let mut cursor = 0;
     for (source_index, value) in lines.records_mut() {
         while cursor < *source_index {
             if cursor > 0 && output.write_all(b"\n").is_err() {
-                return output.into_string().map(|text| (text, passed, true));
+                return Some((output.into_string()?, passed_any, true));
             }
             cursor += 1;
         }
         if cursor > 0 && output.write_all(b"\n").is_err() {
-            return output.into_string().map(|text| (text, passed, true));
-        };
-        passed |= redact(redactor, value, unkeyed);
-        if to_writer(&mut output, value).is_err() {
-            return output.into_string().map(|text| (text, passed, true));
+            return Some((output.into_string()?, passed_any, true));
         }
+        let state = state(redactor, unkeyed);
+        if to_writer(&mut output, &state.redact(value)).is_err() {
+            return Some((output.into_string()?, passed_any | passed(&state), true));
+        }
+        passed_any |= passed(&state);
         cursor += 1;
     }
     while cursor < line_count {
         if cursor > 0 && output.write_all(b"\n").is_err() {
-            return output.into_string().map(|text| (text, passed, true));
+            return Some((output.into_string()?, passed_any, true));
         }
         cursor += 1;
     }
     if trailing_newline && output.write_all(b"\n").is_err() {
-        return output.into_string().map(|text| (text, passed, true));
+        return Some((output.into_string()?, passed_any, true));
     }
-    output.into_string().map(|text| (text, passed, false))
+    Some((output.into_string()?, passed_any, false))
+}
+
+fn state<'a>(redactor: &'a FieldRedactor<'_>, unkeyed: UnkeyedJsonValuePolicy) -> JsonRedactionState<'a, 'static> {
+    let unkeyed = match unkeyed {
+        UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
+        UnkeyedJsonValuePolicy::Redact => JsonUnkeyedValuePolicy::Redact { marker: UNKEYED_JSON },
+    };
+    JsonRedactionState::new(
+        redactor.base_rules(),
+        redactor.context_rules(),
+        redactor.masking(),
+        unkeyed,
+        true,
+    )
+}
+
+fn passed(state: &JsonRedactionState<'_, '_>) -> bool {
+    match state.outcome() {
+        crate::formats::json::internal::JsonRedactionOutcome::Complete { passed_unkeyed } => passed_unkeyed,
+    }
 }
