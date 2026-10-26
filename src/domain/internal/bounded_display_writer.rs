@@ -43,6 +43,13 @@ impl BoundedDisplayWriter {
         }
     }
 
+    /// Returns the number of UTF-8 bytes accepted so far.
+    #[must_use]
+    #[inline(always)]
+    pub(super) fn accepted_bytes(&self) -> usize {
+        self.output.len()
+    }
+
     /// Returns `Some` with all accepted fragments if no write was rejected.
     ///
     /// Returns `None` after any rejected write. The caller must separately

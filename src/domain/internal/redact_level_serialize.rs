@@ -234,14 +234,13 @@ where
     T: Display + ?Sized,
 {
     let mut writer = BoundedDisplayWriter::new(remaining_input_bytes());
-    if fmt::write(&mut writer, format_args!("{value}")).is_err() {
+    let result = fmt::write(&mut writer, format_args!("{value}"));
+    let accepted = writer.accepted_bytes();
+    let admitted = admit_input(accepted);
+    if !admitted || result.is_err() {
         return None;
     }
-    let raw = writer.finish()?;
-    if !admit_input(raw.len()) {
-        return None;
-    }
-    Some(raw)
+    writer.finish()
 }
 
 scalar_level_serialize!(
