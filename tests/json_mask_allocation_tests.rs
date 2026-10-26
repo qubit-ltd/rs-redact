@@ -65,8 +65,8 @@ fn measure<T>(operation: impl FnOnce() -> T) -> (usize, T) {
     (MAX_REQUEST.with(Cell::get), result)
 }
 
-fn fixture() -> (Redactor, Value, String) {
-    let mask = "M".repeat(128 * 1024);
+fn fixture_with_mask_size(mask_size: usize) -> (Redactor, Value, String) {
+    let mask = "M".repeat(mask_size);
     let policy = RedactionPolicy::builder()
         .fields(|fields| {
             fields
@@ -96,6 +96,10 @@ fn fixture() -> (Redactor, Value, String) {
     .expect("JSON fixture should parse");
     let text = serde_json::to_string(&value).expect("JSON fixture should serialize");
     (redactor, value, text)
+}
+
+fn fixture() -> (Redactor, Value, String) {
+    fixture_with_mask_size(128 * 1024)
 }
 
 fn assert_bounded_redaction(max_request: usize, output: &qubit_redact::RedactionTextOutput) {
@@ -130,6 +134,19 @@ fn test_json_text_masking_does_not_allocate_the_full_mask() {
     let _ = redactor.redact_json(&text);
     let (max_request, output) = measure(|| redactor.redact_json(&text));
     assert_bounded_redaction(max_request, &output);
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_invalid_json_masking_does_not_allocate_the_full_mask() {
+    for mask_size in [128 * 1024, 1024 * 1024] {
+        let (redactor, _, _) = fixture_with_mask_size(mask_size);
+        let _ = redactor.redact_json("{");
+        let (max_request, output) = measure(|| redactor.redact_json("{"));
+        assert_bounded_redaction(max_request, &output);
+        assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
+        assert_eq!(output.text().as_str(), "<truncated>");
+    }
 }
 
 #[cfg(feature = "http")]

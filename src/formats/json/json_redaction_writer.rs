@@ -7,6 +7,8 @@
 // =============================================================================
 //! Mutable JSON façade over one diagnostic redaction session.
 
+use std::io::Write;
+
 use qubit_budget::json::JsonDecodeSession;
 use qubit_json::decode::JsonDecodeErrorKind;
 use qubit_json::decode::JsonDecoder;
@@ -16,7 +18,9 @@ use super::JsonAdmissionError;
 use super::bounded_json_redaction::BoundedJsonRedaction;
 use super::bounded_json_redaction::redacted_json_value_bounded;
 use super::internal::JsonStructureSeed;
+use crate::output::log_escape::encode_log_safe_character;
 use crate::output::log_escape::escape_log_control_characters;
+use crate::runtime::OperationByteSink;
 use crate::runtime::OperationSink;
 use crate::runtime::RenderedOperation;
 use crate::runtime::TextSession;
@@ -319,10 +323,28 @@ pub(crate) fn redact_json_value_with_limit(
 /// An unpublished operation containing the bounded opaque mask and invalid-JSON
 /// provenance.
 pub(crate) fn invalid_json_output(policy: &crate::RedactionPolicy, max_output_bytes: usize) -> RenderedOperation {
-    json_output_from_bounded(
-        BoundedJsonRedaction::Invalid(policy.masking().mask_opaque(crate::Sensitivity::Secret).to_owned()),
-        max_output_bytes,
-    )
+    let rejected = || {
+        let sink = if "<truncated>".len() <= max_output_bytes {
+            OperationSink::truncated("<truncated>", crate::RedactionReason::OutputLimitReached)
+        } else {
+            OperationSink::exhausted(String::new()).with_reason(crate::RedactionReason::OutputLimitReached)
+        };
+        sink.with_reason(crate::RedactionReason::InvalidJson).finish()
+    };
+    let mut writer = OperationByteSink::new(max_output_bytes);
+    let mut buffer = [0_u8; 12];
+    for character in policy.masking().mask_opaque(crate::Sensitivity::Secret).chars() {
+        let Ok(piece) = encode_log_safe_character(character, &mut buffer) else {
+            return rejected();
+        };
+        if writer.write_all(piece.as_bytes()).is_err() {
+            return rejected();
+        }
+    }
+    match writer.into_string() {
+        Some(text) => json_output_from_bounded(BoundedJsonRedaction::Invalid(text), max_output_bytes),
+        None => rejected(),
+    }
 }
 
 #[cfg(test)]
