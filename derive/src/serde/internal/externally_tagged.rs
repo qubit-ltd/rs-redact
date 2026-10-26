@@ -39,6 +39,7 @@ use crate::serde::naming::serialized_variant_name;
 /// the representation-dispatch interface.
 pub(in crate::serde) fn external_variant_arm(
     type_name: &Ident,
+    recursive_target: &str,
     variant: &VariantData<'_>,
     runtime: &Path,
     serde: &Path,
@@ -53,6 +54,7 @@ pub(in crate::serde) fn external_variant_arm(
         FieldsData::Named(fields) => {
             let (pattern, setups, conditions, names, carriers) = enum_named_parts(
                 type_name,
+                recursive_target,
                 rust_name,
                 fields,
                 runtime,
@@ -99,8 +101,15 @@ pub(in crate::serde) fn external_variant_arm(
             }
         }
         FieldsData::Unnamed(fields) if fields.len() == 1 => {
-            let (pattern, setups, _conditions, carriers) =
-                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime, legacy_nested);
+            let (pattern, setups, _conditions, carriers) = enum_unnamed_parts(
+                type_name,
+                recursive_target,
+                rust_name,
+                variant.index(),
+                fields,
+                runtime,
+                legacy_nested,
+            );
             if carriers.is_empty() {
                 quote! {
                     Self::#rust_name #pattern => #runtime::domain::internal::serialize_unit_variant(
@@ -136,8 +145,15 @@ pub(in crate::serde) fn external_variant_arm(
             }
         }
         FieldsData::Unnamed(fields) => {
-            let (pattern, setups, conditions, carriers) =
-                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime, legacy_nested);
+            let (pattern, setups, conditions, carriers) = enum_unnamed_parts(
+                type_name,
+                recursive_target,
+                rust_name,
+                variant.index(),
+                fields,
+                runtime,
+                legacy_nested,
+            );
             let count_conditions = &conditions;
             let calls = conditions.iter().zip(&carriers).map(|(_condition, carrier)| {
                 quote! {

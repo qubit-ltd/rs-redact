@@ -49,6 +49,7 @@ use crate::model::UnnamedField;
 #[must_use]
 pub(super) fn struct_body(
     type_name: &Ident,
+    recursive_target: &str,
     fields: &FieldsData<'_>,
     runtime: &Path,
     serde: &Path,
@@ -58,17 +59,25 @@ pub(super) fn struct_body(
     match fields {
         FieldsData::Named(fields) if container_attributes.transparent() => transparent_named_struct_body(
             type_name,
+            recursive_target,
             &fields[0],
             runtime,
             serde,
             container_attributes,
             legacy_nested,
         ),
-        FieldsData::Named(fields) => {
-            named_struct_body(type_name, fields, runtime, serde, container_attributes, legacy_nested)
-        }
+        FieldsData::Named(fields) => named_struct_body(
+            type_name,
+            recursive_target,
+            fields,
+            runtime,
+            serde,
+            container_attributes,
+            legacy_nested,
+        ),
         FieldsData::Unnamed(fields) if fields.len() == 1 && container_attributes.transparent() => newtype_struct_body(
             type_name,
+            recursive_target,
             &fields[0],
             runtime,
             serde,
@@ -78,6 +87,7 @@ pub(super) fn struct_body(
         ),
         FieldsData::Unnamed(fields) if fields.len() == 1 => newtype_struct_body(
             type_name,
+            recursive_target,
             &fields[0],
             runtime,
             serde,
@@ -85,9 +95,15 @@ pub(super) fn struct_body(
             legacy_nested,
             false,
         ),
-        FieldsData::Unnamed(fields) => {
-            tuple_struct_body(type_name, fields, runtime, serde, container_attributes, legacy_nested)
-        }
+        FieldsData::Unnamed(fields) => tuple_struct_body(
+            type_name,
+            recursive_target,
+            fields,
+            runtime,
+            serde,
+            container_attributes,
+            legacy_nested,
+        ),
         FieldsData::Unit => {
             let serialized_name = container_attributes.name();
             quote! {
@@ -123,6 +139,7 @@ pub(super) fn struct_body(
 #[must_use]
 fn transparent_named_struct_body(
     type_name: &Ident,
+    recursive_target: &str,
     parsed: &NamedField<'_>,
     runtime: &Path,
     serde: &Path,
@@ -153,6 +170,7 @@ fn transparent_named_struct_body(
     let context = field_context(None, None, &raw_name);
     let value = serialized_carrier(
         type_name,
+        recursive_target,
         field,
         &context,
         parsed.attributes().mode(),
@@ -195,6 +213,7 @@ fn transparent_named_struct_body(
 #[must_use]
 fn named_struct_body(
     type_name: &Ident,
+    recursive_target: &str,
     fields: &[NamedField<'_>],
     runtime: &Path,
     serde: &Path,
@@ -243,6 +262,7 @@ fn named_struct_body(
         let carrier = format_ident!("__qubit_redact_serialized_{position}");
         let value = serialized_carrier(
             type_name,
+            recursive_target,
             field,
             &context,
             parsed.attributes().mode(),
@@ -323,8 +343,10 @@ fn named_struct_body(
 /// Panics if validation admitted keyed mode on a tuple field or map-level
 /// mode without a key sensitivity.
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 fn newtype_struct_body(
     type_name: &Ident,
+    recursive_target: &str,
     parsed: &UnnamedField<'_>,
     runtime: &Path,
     serde: &Path,
@@ -351,6 +373,7 @@ fn newtype_struct_body(
     let context = field_context(None, None, &index.index.to_string());
     let value = serialized_carrier(
         type_name,
+        recursive_target,
         field,
         &context,
         parsed.attributes().mode(),
@@ -409,6 +432,7 @@ fn newtype_struct_body(
 #[must_use]
 fn tuple_struct_body(
     type_name: &Ident,
+    recursive_target: &str,
     fields: &[UnnamedField<'_>],
     runtime: &Path,
     serde: &Path,
@@ -436,6 +460,7 @@ fn tuple_struct_body(
         let carrier = format_ident!("__qubit_redact_serialized_{position}");
         let value = serialized_carrier(
             type_name,
+            recursive_target,
             field,
             &context,
             parsed.attributes().mode(),

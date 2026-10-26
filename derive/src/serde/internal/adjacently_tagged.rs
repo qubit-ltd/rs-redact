@@ -45,6 +45,7 @@ use crate::serde::naming::tuple_content_proxy;
 #[allow(clippy::too_many_arguments)]
 pub(in crate::serde) fn adjacent_variant_arm(
     type_name: &Ident,
+    recursive_target: &str,
     variant: &VariantData<'_>,
     runtime: &Path,
     serde: &Path,
@@ -61,6 +62,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
         FieldsData::Named(fields) => {
             let (pattern, setups, _conditions, names, carriers) = enum_named_parts(
                 type_name,
+                recursive_target,
                 rust_name,
                 fields,
                 runtime,
@@ -97,8 +99,15 @@ pub(in crate::serde) fn adjacent_variant_arm(
             }
         }
         FieldsData::Unnamed(fields) if fields.len() == 1 => {
-            let (pattern, setups, _conditions, carriers) =
-                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime, legacy_nested);
+            let (pattern, setups, _conditions, carriers) = enum_unnamed_parts(
+                type_name,
+                recursive_target,
+                rust_name,
+                variant.index(),
+                fields,
+                runtime,
+                legacy_nested,
+            );
             if carriers.is_empty() {
                 quote! {
                     Self::#rust_name #pattern => {
@@ -148,8 +157,15 @@ pub(in crate::serde) fn adjacent_variant_arm(
             }
         }
         FieldsData::Unnamed(fields) => {
-            let (pattern, setups, _conditions, carriers) =
-                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime, legacy_nested);
+            let (pattern, setups, _conditions, carriers) = enum_unnamed_parts(
+                type_name,
+                recursive_target,
+                rust_name,
+                variant.index(),
+                fields,
+                runtime,
+                legacy_nested,
+            );
             let (proxy_definition, proxy_value) = tuple_content_proxy(rust_name, runtime, serde, &carriers);
             quote! {
                 Self::#rust_name #pattern => {

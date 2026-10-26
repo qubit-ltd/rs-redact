@@ -19,6 +19,7 @@ use syn::spanned::Spanned;
 use crate::attributes::SerdeAttributes;
 use crate::model::FieldMode;
 use crate::serde::field_access::FieldAccess;
+use crate::serde::recursive_projection;
 
 /// Returns whether Serde unconditionally omits a field.
 ///
@@ -123,6 +124,7 @@ pub(super) fn projected_predicate(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn serialized_carrier(
     type_name: &Ident,
+    recursive_target: &str,
     field: &Field,
     context: &str,
     mode: &FieldMode,
@@ -163,6 +165,8 @@ pub(super) fn serialized_carrier(
                 quote_spanned!(field.span()=>
                     #runtime::domain::internal::RedactedSerializeRef::new(#raw, policy)
                 )
+            } else if let Some(shape) = recursive_projection::shape_for_target(recursive_target, &field.ty) {
+                recursive_projection::carrier_expression(type_name, shape, raw)
             } else {
                 quote_spanned!(field.span()=>
                     #runtime::domain::internal::RedactedProjectionRef::new(#raw, policy)

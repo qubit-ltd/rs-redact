@@ -13,6 +13,7 @@ mod field;
 mod field_access;
 mod internal;
 mod naming;
+mod recursive_projection;
 mod r#struct;
 
 /// Generates the redacted Serde implementation for one derive input.

@@ -30,6 +30,7 @@ use syn::spanned::Spanned;
 use super::r#enum::enum_body;
 use super::field::adapter_helper_name;
 use super::field::field_context;
+use super::recursive_projection;
 use super::r#struct::struct_body;
 use crate::attributes::SerdeAttributes;
 use crate::attributes::SerdeContainerAttributes;
@@ -73,6 +74,12 @@ pub(crate) fn expand(
         return Ok(TokenStream::new());
     };
     let name = &input.ident;
+    let unsupported_recursive_fields = recursive_projection::has_unsupported_recursive_field(input, model);
+    let recursive_target = if unsupported_recursive_fields {
+        String::new()
+    } else {
+        assertions::recursive_target(input)
+    };
     let projection = format_ident!("__QubitRedact{}Fields", name);
     let marker = projection_marker(model);
     let fields = collected_fields(model);
@@ -82,9 +89,18 @@ pub(crate) fn expand(
     let lifetime = assertions::fresh_lifetime(&input.generics);
     let serializer = assertions::fresh_identifier(&input.generics, "__QubitRedactSerializer");
     let body = match model {
-        ContainerData::Struct(fields) => struct_body(name, fields, runtime, serde, container_attributes, false),
+        ContainerData::Struct(fields) => struct_body(
+            name,
+            &recursive_target,
+            fields,
+            runtime,
+            serde,
+            container_attributes,
+            false,
+        ),
         ContainerData::Enum(variants) => enum_body(
             name,
+            &recursive_target,
             variants,
             runtime,
             serde,
@@ -96,9 +112,18 @@ pub(crate) fn expand(
     };
     let legacy_body = if generate_serialize {
         Some(match model {
-            ContainerData::Struct(fields) => struct_body(name, fields, runtime, serde, container_attributes, true),
+            ContainerData::Struct(fields) => struct_body(
+                name,
+                &recursive_target,
+                fields,
+                runtime,
+                serde,
+                container_attributes,
+                true,
+            ),
             ContainerData::Enum(variants) => enum_body(
                 name,
+                &recursive_target,
                 variants,
                 runtime,
                 serde,
@@ -131,11 +156,46 @@ pub(crate) fn expand(
         &projection_generics,
         &marker,
     );
-    let constructor = projection_constructor(name, &projection, model, &marker);
+    let constructor = projection_constructor_for(name, &projection, model, &marker, quote!(self));
+    let recursive_helpers = recursive_projection::expand(input, &projection, model, &marker, serde);
     let actual_types = fields.iter().map(|field| &field.ty).collect::<Vec<_>>();
-    let projection_bounds = projection_bounds(model, &parameters, runtime, serde, &lifetime);
+    let projection_bounds = projection_bounds(input, model, &parameters, runtime, serde, &lifetime);
+    let recursive_source_bounds = if recursive_projection::supports_recursive_projection(input, model) {
+        source_bounds(model, runtime, serde)
+            .into_iter()
+            .flat_map(|bound| {
+                assertions::non_recursive_predicates(
+                    input,
+                    parse2::<WherePredicate>(bound).expect("valid source capability bound"),
+                )
+                .into_iter()
+                .map(|predicate| quote!(#predicate))
+            })
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
     let (source_impl_generics, source_type_generics, source_where_clause) = input.generics.split_for_impl();
     let source_predicates = input.generics.where_clause.iter().flat_map(|clause| &clause.predicates);
+    let projection_serialize_impl = (!unsupported_recursive_fields).then(|| {
+        quote! {
+            impl #projection_impl_generics #serde::Serialize for #projection #projection_type_generics
+            where #(#source_predicates,)* #(#projection_bounds,)* #(#recursive_source_bounds),* {
+                fn serialize<#serializer>(&self, serializer: #serializer) -> ::core::result::Result<#serializer::Ok, #serializer::Error>
+                where #serializer: #serde::Serializer {
+                    let policy_owner = #runtime::domain::internal::current_policy()
+                        .ok_or_else(|| {
+                            <#serializer::Error as #serde::ser::Error>::custom(
+                                "serialization requires an active redaction scope",
+                            )
+                        })?;
+                    let policy = policy_owner.as_ref();
+                    #(#adapters)*
+                    #runtime::domain::internal::serialize_structured(serializer, policy_owner.as_ref(), |serializer| { #body })
+                }
+            }
+        }
+    });
     let source_arguments = input
         .generics
         .params
@@ -191,22 +251,9 @@ pub(crate) fn expand(
     Ok(quote! {
         #runtime::__qubit_redact_serde_optional! {
             #declaration
+            #recursive_helpers
 
-            impl #projection_impl_generics #serde::Serialize for #projection #projection_type_generics
-            where #(#source_predicates,)* #(#projection_bounds),* {
-                fn serialize<#serializer>(&self, serializer: #serializer) -> ::core::result::Result<#serializer::Ok, #serializer::Error>
-                where #serializer: #serde::Serializer {
-                    let policy_owner = #runtime::domain::internal::current_policy()
-                        .ok_or_else(|| {
-                            <#serializer::Error as #serde::ser::Error>::custom(
-                                "serialization requires an active redaction scope",
-                            )
-                        })?;
-                    let policy = policy_owner.as_ref();
-                    #(#adapters)*
-                    #runtime::domain::internal::serialize_structured(serializer, policy_owner.as_ref(), |serializer| { #body })
-                }
-            }
+            #projection_serialize_impl
 
             impl #source_impl_generics #runtime::domain::internal::RedactSerializeSource
                 for #name #source_type_generics #source_where_clause {
@@ -242,6 +289,7 @@ pub(crate) fn expand(
 /// Panics if the generated parameter count does not match the model fields.
 #[must_use]
 fn projection_bounds(
+    input: &DeriveInput,
     model: &ContainerData<'_>,
     parameters: &[Ident],
     runtime: &Path,
@@ -251,9 +299,16 @@ fn projection_bounds(
     let mut result = Vec::new();
     let mut offset = 0usize;
     match model {
-        ContainerData::Struct(fields) => {
-            projection_group_bounds(fields, parameters, &mut offset, runtime, serde, lifetime, &mut result)
-        }
+        ContainerData::Struct(fields) => projection_group_bounds(
+            input,
+            fields,
+            parameters,
+            &mut offset,
+            runtime,
+            serde,
+            lifetime,
+            &mut result,
+        ),
         ContainerData::Enum(variants) => {
             for variant in variants {
                 if variant.serde_attributes().skip() {
@@ -265,6 +320,7 @@ fn projection_bounds(
                     continue;
                 }
                 projection_group_bounds(
+                    input,
                     variant.fields(),
                     parameters,
                     &mut offset,
@@ -294,7 +350,9 @@ fn projection_bounds(
 /// # Panics
 ///
 /// Panics if the parameter slice cannot cover the group at the supplied offset.
+#[allow(clippy::too_many_arguments)]
 fn projection_group_bounds(
+    input: &DeriveInput,
     fields: &FieldsData<'_>,
     parameters: &[Ident],
     offset: &mut usize,
@@ -307,6 +365,11 @@ fn projection_group_bounds(
         FieldsData::Named(fields) => {
             for (index, field) in fields.iter().enumerate() {
                 if field.serde_attributes().skip() {
+                    continue;
+                }
+                if matches!(field.attributes().mode(), FieldMode::Nested)
+                    && recursive_projection::shape(input, &field.field().ty).is_some()
+                {
                     continue;
                 }
                 let parameter =
@@ -351,6 +414,11 @@ fn projection_group_bounds(
         FieldsData::Unnamed(fields) => {
             for (index, field) in fields.iter().enumerate() {
                 if field.serde_attributes().skip() {
+                    continue;
+                }
+                if matches!(field.attributes().mode(), FieldMode::Nested)
+                    && recursive_projection::shape(input, &field.field().ty).is_some()
+                {
                     continue;
                 }
                 let parameter =
@@ -574,7 +642,14 @@ fn projection_declaration(
                     .zip(parameters)
                     .map(|(field, parameter)| {
                         let name = field.identifier();
-                        let ty = projection_member_type(field.field(), field.serde_attributes(), parameter, lifetime);
+                        let ty = projection_member_type(
+                            input,
+                            field.field(),
+                            field.attributes().mode(),
+                            field.serde_attributes(),
+                            parameter,
+                            lifetime,
+                        );
                         quote!(#name: #ty)
                     })
                     .collect::<Vec<_>>(),
@@ -583,7 +658,14 @@ fn projection_declaration(
                     .zip(parameters)
                     .map(|(field, parameter)| {
                         let name = format_ident!("__qubit_redact_field_{}", field.index().index);
-                        let ty = projection_member_type(field.field(), field.serde_attributes(), parameter, lifetime);
+                        let ty = projection_member_type(
+                            input,
+                            field.field(),
+                            field.attributes().mode(),
+                            field.serde_attributes(),
+                            parameter,
+                            lifetime,
+                        );
                         quote!(#name: #ty)
                     })
                     .collect::<Vec<_>>(),
@@ -608,7 +690,9 @@ fn projection_declaration(
                         let members = fields.iter().enumerate().map(|(index, field)| {
                             let name = field.identifier();
                             let parameter = projection_member_type(
+                                input,
                                 field.field(),
+                                field.attributes().mode(),
                                 field.serde_attributes(),
                                 &parameters[start + index],
                                 lifetime,
@@ -622,7 +706,9 @@ fn projection_declaration(
                         let start = offset;
                         let members = fields.iter().enumerate().map(|(index, field)| {
                             let parameter = projection_member_type(
+                                input,
                                 field.field(),
+                                field.attributes().mode(),
                                 field.serde_attributes(),
                                 &parameters[start + index],
                                 lifetime,
@@ -675,12 +761,18 @@ fn projection_field_type(field: &Field, attributes: &SerdeAttributes, parameter:
 /// Builds one borrowed projection member, retaining a callable Serde predicate
 /// without making the concrete source field type part of its declaration.
 fn projection_member_type(
+    input: &DeriveInput,
     field: &Field,
+    mode: &FieldMode,
     attributes: &SerdeAttributes,
     parameter: &Ident,
     lifetime: &Lifetime,
 ) -> TokenStream {
-    let ty = projection_field_type(field, attributes, parameter);
+    let ty = if matches!(mode, FieldMode::Nested) && recursive_projection::shape(input, &field.ty).is_some() {
+        recursive_projection::concrete_field_type(input, &field.ty)
+    } else {
+        projection_field_type(field, attributes, parameter)
+    };
     if projection_uses_saved_predicate(attributes) {
         quote!((& #lifetime #ty, fn(&#ty) -> bool))
     } else {
@@ -707,7 +799,13 @@ fn projection_uses_saved_predicate(attributes: &SerdeAttributes) -> bool {
 /// An expression borrowing the struct fields or matching the selected enum
 /// variant.
 #[must_use]
-fn projection_constructor(name: &Ident, projection: &Ident, model: &ContainerData<'_>, marker: &Ident) -> TokenStream {
+pub(super) fn projection_constructor_for(
+    name: &Ident,
+    projection: &Ident,
+    model: &ContainerData<'_>,
+    marker: &Ident,
+    source: TokenStream,
+) -> TokenStream {
     match model {
         ContainerData::Struct(fields) => {
             let members = match fields {
@@ -715,7 +813,7 @@ fn projection_constructor(name: &Ident, projection: &Ident, model: &ContainerDat
                     .iter()
                     .map(|field| {
                         let name = field.identifier();
-                        let value = projection_member_value(field.serde_attributes(), quote!(&self.#name));
+                        let value = projection_member_value(field.serde_attributes(), quote!(&#source.#name));
                         quote!(#name: #value)
                     })
                     .collect::<Vec<_>>(),
@@ -724,7 +822,7 @@ fn projection_constructor(name: &Ident, projection: &Ident, model: &ContainerDat
                     .map(|field| {
                         let index = field.index();
                         let name = format_ident!("__qubit_redact_field_{}", index.index);
-                        let value = projection_member_value(field.serde_attributes(), quote!(&self.#index));
+                        let value = projection_member_value(field.serde_attributes(), quote!(&#source.#index));
                         quote!(#name: #value)
                     })
                     .collect::<Vec<_>>(),
@@ -734,7 +832,7 @@ fn projection_constructor(name: &Ident, projection: &Ident, model: &ContainerDat
         }
         ContainerData::Enum(variants) => {
             if variants.is_empty() {
-                return quote!(match *self {});
+                return quote!(match *#source {});
             }
             let arms = variants.iter().map(|variant| {
                 let variant_name = &variant.variant().ident;
@@ -765,7 +863,7 @@ fn projection_constructor(name: &Ident, projection: &Ident, model: &ContainerDat
                     FieldsData::Unit => quote!(#name::#variant_name => #projection::#variant_name),
                 }
             });
-            quote!(match self { #(#arms),* })
+            quote!(match #source { #(#arms),* })
         }
     }
 }

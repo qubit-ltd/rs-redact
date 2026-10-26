@@ -528,6 +528,25 @@ fn recursive_types<'a>(ty: &'a Type, target: &str) -> Option<Vec<&'a Type>> {
     found.then_some(bounds)
 }
 
+/// Returns the token-rendered identity of the derive target, including its
+/// declared generic arguments.
+pub(crate) fn recursive_target(input: &DeriveInput) -> String {
+    let name = &input.ident;
+    let (_, arguments, _) = input.generics.split_for_impl();
+    quote!(#name #arguments).to_string()
+}
+
+/// Checks whether a type syntax node names the current derived type or `Self`.
+pub(crate) fn matches_recursive_type(ty: &Type, target: &str) -> bool {
+    matches_recursive_target(ty, target)
+}
+
+/// Reports whether a field type contains the complete derived target through
+/// a storage wrapper recognized by recursive bound expansion.
+pub(crate) fn contains_recursive_type(input: &DeriveInput, ty: &Type) -> bool {
+    recursive_types(ty, &recursive_target(input)).is_some()
+}
+
 /// Reports whether recursion occurs only through runtime-supported nested
 /// storage.
 ///

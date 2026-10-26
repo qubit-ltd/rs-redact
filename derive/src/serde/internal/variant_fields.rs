@@ -49,8 +49,10 @@ use crate::serde::field_access::FieldAccess;
 /// Panics if validated keyed mode has no sibling field or map-level mode has
 /// no key sensitivity.
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 pub(super) fn enum_named_parts(
     type_name: &Ident,
+    recursive_target: &str,
     variant_name: &Ident,
     fields: &[NamedField<'_>],
     runtime: &Path,
@@ -117,6 +119,7 @@ pub(super) fn enum_named_parts(
         let carrier = format_ident!("__qubit_redact_serialized_{position}");
         let value = serialized_carrier(
             type_name,
+            recursive_target,
             field,
             &context,
             parsed.attributes().mode(),
@@ -165,6 +168,7 @@ pub(super) fn enum_named_parts(
 #[must_use]
 pub(super) fn enum_unnamed_parts(
     type_name: &Ident,
+    recursive_target: &str,
     variant_name: &Ident,
     variant_index: u32,
     fields: &[UnnamedField<'_>],
@@ -204,6 +208,7 @@ pub(super) fn enum_unnamed_parts(
         let raw = projected_raw(raw_member, parsed.serde_attributes(), legacy_nested);
         let value = serialized_carrier(
             type_name,
+            recursive_target,
             field,
             &context,
             parsed.attributes().mode(),

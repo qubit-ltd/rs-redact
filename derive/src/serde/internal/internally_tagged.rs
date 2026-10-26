@@ -39,8 +39,10 @@ use crate::serde::naming::serialized_variant_name;
 ///
 /// Returns an error when a named field conflicts with `tag` or when an
 /// internally tagged tuple variant does not contain exactly one field.
+#[allow(clippy::too_many_arguments)]
 pub(in crate::serde) fn internal_variant_arm(
     type_name: &Ident,
+    recursive_target: &str,
     variant: &VariantData<'_>,
     runtime: &Path,
     serde: &Path,
@@ -55,6 +57,7 @@ pub(in crate::serde) fn internal_variant_arm(
         FieldsData::Named(fields) => {
             let (pattern, setups, conditions, names, carriers) = enum_named_parts(
                 type_name,
+                recursive_target,
                 rust_name,
                 fields,
                 runtime,
@@ -112,8 +115,15 @@ pub(in crate::serde) fn internal_variant_arm(
             })
         }
         FieldsData::Unnamed(fields) if fields.len() == 1 => {
-            let (pattern, setups, _conditions, carriers) =
-                enum_unnamed_parts(type_name, rust_name, variant.index(), fields, runtime, legacy_nested);
+            let (pattern, setups, _conditions, carriers) = enum_unnamed_parts(
+                type_name,
+                recursive_target,
+                rust_name,
+                variant.index(),
+                fields,
+                runtime,
+                legacy_nested,
+            );
             if carriers.is_empty() {
                 Ok(quote! {
                     Self::#rust_name #pattern => {

@@ -44,6 +44,7 @@ use crate::model::VariantData;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn enum_body(
     type_name: &Ident,
+    recursive_target: &str,
     variants: &[VariantData<'_>],
     runtime: &Path,
     serde: &Path,
@@ -59,11 +60,18 @@ pub(super) fn enum_body(
                 return Ok(skipped_variant_arm(variant, serde, serializer));
             }
             match container_attributes.representation() {
-                SerdeEnumRepresentation::ExternallyTagged => {
-                    external_variant_arm(type_name, variant, runtime, serde, container_attributes, legacy_nested)
-                }
+                SerdeEnumRepresentation::ExternallyTagged => external_variant_arm(
+                    type_name,
+                    recursive_target,
+                    variant,
+                    runtime,
+                    serde,
+                    container_attributes,
+                    legacy_nested,
+                ),
                 SerdeEnumRepresentation::InternallyTagged { tag } => internal_variant_arm(
                     type_name,
+                    recursive_target,
                     variant,
                     runtime,
                     serde,
@@ -73,6 +81,7 @@ pub(super) fn enum_body(
                 ),
                 SerdeEnumRepresentation::AdjacentlyTagged { tag, content } => adjacent_variant_arm(
                     type_name,
+                    recursive_target,
                     variant,
                     runtime,
                     serde,
@@ -81,9 +90,15 @@ pub(super) fn enum_body(
                     content,
                     legacy_nested,
                 ),
-                SerdeEnumRepresentation::Untagged => {
-                    untagged_variant_arm(type_name, variant, runtime, serde, container_attributes, legacy_nested)
-                }
+                SerdeEnumRepresentation::Untagged => untagged_variant_arm(
+                    type_name,
+                    recursive_target,
+                    variant,
+                    runtime,
+                    serde,
+                    container_attributes,
+                    legacy_nested,
+                ),
             }
         })
         .collect::<Result<Vec<_>>>()?;
