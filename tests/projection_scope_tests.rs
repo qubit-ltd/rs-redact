@@ -12,6 +12,8 @@
 use qubit_redact::Redact;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
+use qubit_redact::domain::internal::RedactSerialize;
+use qubit_redact::domain::internal::RedactSerializeScope;
 use qubit_redact::domain::internal::RedactSerializeSource;
 
 /// A nested value whose source must never appear in a scope error.
@@ -21,6 +23,78 @@ struct Credential {
     /// The sensitive source payload.
     #[redact(level = "secret")]
     password: String,
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+enum CredentialState {
+    Empty,
+    Present {
+        #[redact(level = "secret")]
+        password: String,
+    },
+}
+
+/// The legacy hook installs its explicit policy when called without a scope.
+#[test]
+fn test_legacy_hook_without_scope_uses_its_explicit_policy() {
+    let value = Credential {
+        password: "raw-secret".into(),
+    };
+    let output = value
+        .serialize_redacted(serde_json::value::Serializer, &RedactionPolicy::standard())
+        .expect("direct legacy hook serialization");
+    assert_eq!(output["password"], "<redacted>");
+}
+
+/// The explicit hook policy is scoped for one call and restores the caller's
+/// scope.
+#[test]
+fn test_legacy_hook_policy_overrides_and_restores_outer_scope() {
+    let outer_policy = RedactionPolicy::disabled();
+    let _scope = RedactSerializeScope::new(&outer_policy);
+    let value = Credential {
+        password: "raw-secret".into(),
+    };
+    let standard = value
+        .serialize_redacted(serde_json::value::Serializer, &RedactionPolicy::standard())
+        .expect("explicit standard policy");
+    assert_eq!(standard["password"], "<redacted>");
+
+    let disabled = value
+        .serialize_redacted(serde_json::value::Serializer, &outer_policy)
+        .expect("explicit disabled policy");
+    assert_eq!(disabled["password"], "raw-secret");
+    assert!(
+        qubit_redact::domain::internal::current_policy()
+            .expect("outer policy restored")
+            .is_disabled()
+    );
+}
+
+/// Bare struct, populated enum, and unit enum projections return errors safely.
+#[test]
+fn test_bare_projections_without_scope_return_value_free_errors() {
+    let policy = RedactionPolicy::standard();
+    let credential = Credential {
+        password: "raw-secret".into(),
+    };
+    let struct_error = serde_json::to_string(&credential.redacted_fields(&policy))
+        .expect_err("bare struct projection must require a scope");
+    assert!(struct_error.to_string().contains("active redaction scope"));
+    assert!(!struct_error.to_string().contains("raw-secret"));
+
+    for value in [
+        CredentialState::Empty,
+        CredentialState::Present {
+            password: "raw-secret".into(),
+        },
+    ] {
+        let error = serde_json::to_string(&value.redacted_fields(&policy))
+            .expect_err("bare enum projection must require a scope");
+        assert!(error.to_string().contains("active redaction scope"));
+        assert!(!error.to_string().contains("raw-secret"));
+    }
 }
 
 /// Neither Some nor None can bypass the required policy and budget scope.

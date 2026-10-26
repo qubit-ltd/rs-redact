@@ -14,6 +14,8 @@ use crate::RedactionPolicy;
 /// The associated projection deliberately has no `Serialize` bound. This lets
 /// a `Redact` implementation exist for text-only values; Serde reports a
 /// trait-bound error only when callers request structured serialization.
+/// A projection borrows its source but does not retain the supplied policy;
+/// serializing it directly requires an active redaction scope.
 pub trait RedactSerializeSource {
     /// A borrowed projection of this value's fields.
     ///

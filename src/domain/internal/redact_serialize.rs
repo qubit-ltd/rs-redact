@@ -13,8 +13,10 @@ use crate::RedactionPolicy;
 
 /// Legacy structured-redaction hook for manually implemented container
 /// adapters. Derived domain values use the projection capability instead.
+/// Implementations must serialize under the `policy` passed to the hook;
+/// callers may invoke it directly without an existing serialization scope.
 pub trait RedactSerialize {
-    /// Serializes this value through a caller-supplied policy.
+    /// Serializes this value through a caller-supplied policy and scope.
     ///
     /// # Errors
     ///
@@ -28,7 +30,8 @@ pub trait RedactSerialize {
     ///
     /// - `serializer`: Destination receiving the policy-selected
     ///   representation.
-    /// - `policy`: Immutable policy supplied by the enclosing scoped adapter.
+    /// - `policy`: Immutable policy supplied by the caller. This hook
+    ///   establishes or joins the corresponding serialization scope.
     ///
     /// # Returns
     ///

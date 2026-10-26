@@ -170,9 +170,6 @@ pub(crate) fn expand(
             impl #impl_generics #runtime::domain::internal::RedactSerialize for #name #type_generics #where_clause {
                 fn serialize_redacted<#serializer>(&self, serializer: #serializer, policy: &#runtime::RedactionPolicy) -> ::core::result::Result<#serializer::Ok, #serializer::Error>
                 where #serializer: #serde::Serializer {
-                    let policy_owner = #runtime::domain::internal::current_policy()
-                        .expect("legacy source serialization requires an active redaction scope");
-                    let policy = policy_owner.as_ref();
                     #(#adapters)*
                     #runtime::domain::internal::serialize_structured(serializer, policy, |serializer| {
                         #legacy_body
@@ -200,7 +197,11 @@ pub(crate) fn expand(
                 fn serialize<#serializer>(&self, serializer: #serializer) -> ::core::result::Result<#serializer::Ok, #serializer::Error>
                 where #serializer: #serde::Serializer {
                     let policy_owner = #runtime::domain::internal::current_policy()
-                        .expect("redacted projections require an active serialization scope");
+                        .ok_or_else(|| {
+                            <#serializer::Error as #serde::ser::Error>::custom(
+                                "serialization requires an active redaction scope",
+                            )
+                        })?;
                     let policy = policy_owner.as_ref();
                     #(#adapters)*
                     #runtime::domain::internal::serialize_structured(serializer, policy_owner.as_ref(), |serializer| { #body })
