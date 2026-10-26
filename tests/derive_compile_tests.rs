@@ -17,6 +17,8 @@ fn test_pass_fixtures() {
     tests.pass("tests/fixtures/pass/basic_named_struct.rs");
     tests.pass("tests/fixtures/pass/enum_variants.rs");
     tests.pass("tests/fixtures/pass/level_and_skip.rs");
+    tests.pass("tests/fixtures/pass/generic_skip_bounds.rs");
+    tests.pass("tests/fixtures/pass/map_level_hygiene.rs");
     tests.pass("tests/fixtures/pass/safe_formatting.rs");
     tests.pass("tests/fixtures/pass/serde_coverage_shapes.rs");
     tests.pass("tests/fixtures/pass/serde_deserialize_only.rs");

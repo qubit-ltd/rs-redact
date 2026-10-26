@@ -419,9 +419,9 @@ fn writer_field_call(
                 .as_ref()
                 .map(|level| {
                     let level = level.runtime_tokens(runtime);
-                    quote!(Some(#level))
+                    quote!(::core::option::Option::Some(#level))
                 })
-                .unwrap_or_else(|| quote!(None));
+                .unwrap_or_else(|| quote!(::core::option::Option::None));
             quote! { __fields.map_level_values(#field_name, #value, #key, #value_level); }
         }
         FieldMode::KeyedBy(_) => {

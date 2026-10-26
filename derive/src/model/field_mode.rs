@@ -28,7 +28,8 @@ pub(crate) enum FieldMode {
         /// Fixed sensitivity applied after bounded Display capture.
         Sensitivity,
     ),
-    /// Omits the field name and value without imposing formatting bounds.
+    /// Omits the field while redaction is enabled; disabled redaction formats
+    /// it normally, so generic field types require `Debug` on the impl.
     Skip,
     /// Recursively formats the field through its `Redact` implementation.
     Nested,

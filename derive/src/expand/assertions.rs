@@ -68,7 +68,9 @@ pub(crate) fn add_redact_bounds(generics: &mut Generics, model: &ContainerData<'
         FieldMode::Map => add_trait_bound(generics, field, quote!(#runtime::domain::RedactMapValue)),
         FieldMode::MapLevels { .. } => add_trait_bound(generics, field, quote!(#runtime::domain::RedactMapKeyValue)),
         FieldMode::Json => add_trait_bound(generics, field, quote!(#runtime::domain::RedactJsonValue)),
-        FieldMode::Skip => {}
+        FieldMode::Skip => {
+            add_trait_bound(generics, field, quote!(::core::fmt::Debug));
+        }
     });
     add_keyed_by_key_bounds(generics, model);
 }

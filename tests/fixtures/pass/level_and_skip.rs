@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Pass fixture for explicit level masking and bound-free skipped fields.
+//! Pass fixture for explicit level masking and skipped fields with conditional Debug bounds.
 
 use qubit_redact::Redactor;
 use qubit_redact_derive::Redact;
@@ -29,7 +29,7 @@ struct Record {
     /// Explicitly sensitive text.
     #[redact(level = "secret")]
     password: String,
-    /// Omitted field that must not require a formatting bound.
+    /// Omitted while redaction is enabled; disabled redaction formats it with `Debug`.
     #[redact(skip)]
     cache: NotDebug,
 }
