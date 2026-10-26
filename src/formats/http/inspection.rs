@@ -18,6 +18,7 @@ use super::BodyCapture;
 use super::FieldRedactor;
 use super::TextBodyPolicy;
 use super::UrlPathPolicy;
+use super::http_redaction_writer::admit_body_input;
 use super::http_redaction_writer::admit_parsed_url_structure;
 use super::internal::content_type;
 use super::internal::form;
@@ -77,6 +78,9 @@ pub(crate) fn inspect_body(
     capture: BodyCapture<'_>,
     content_type: Option<&HeaderValue>,
 ) {
+    if !admit_body_input(session, capture, content_type.map(|value| value.as_bytes().len())) {
+        return;
+    }
     let content_type = match content_type {
         Some(value) => match value.to_str() {
             Ok(value) => Some(value),
@@ -87,7 +91,7 @@ pub(crate) fn inspect_body(
         },
         None => None,
     };
-    inspect_body_with_content_type_text(session, capture, content_type);
+    inspect_admitted_body(session, capture, content_type);
 }
 
 /// Completely classifies one body using textual Content-Type metadata.
@@ -96,12 +100,15 @@ pub(crate) fn inspect_body_with_content_type_text(
     capture: BodyCapture<'_>,
     content_type: Option<&str>,
 ) {
-    let content_type_bytes = content_type.map_or(0, str::len);
-    if !session.admit_source_input(capture.total_len(), capture.captured_len())
-        || !session.admit_input(content_type_bytes)
-    {
+    if !admit_body_input(session, capture, content_type.map(str::len)) {
         return;
     }
+    inspect_admitted_body(session, capture, content_type);
+}
+
+/// Inspects a body after its captured bytes and content type have been
+/// admitted.
+fn inspect_admitted_body(session: &mut InspectionSession, capture: BodyCapture<'_>, content_type: Option<&str>) {
     if capture.is_source_truncated() {
         if !session.admit_format_node(1) {
             return;
