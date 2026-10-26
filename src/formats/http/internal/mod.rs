@@ -22,6 +22,7 @@ pub(super) mod json;
 pub(super) mod markers;
 pub(super) mod multipart;
 mod multipart_part_metadata;
+mod multipart_segments;
 pub(super) mod nested_url;
 mod parsed_body;
 
@@ -33,4 +34,5 @@ pub(super) use bounded_log_writer::BoundedLogWriter;
 pub(super) use http_policy_parts::HttpPolicyParts;
 pub(super) use http_rendered::HttpRendered;
 pub(super) use multipart_part_metadata::MultipartPartMetadata;
+pub(super) use multipart_segments::MultipartSegments;
 pub(super) use parsed_body::ParsedBody;
