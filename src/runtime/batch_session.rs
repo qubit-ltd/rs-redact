@@ -110,7 +110,6 @@ impl BatchSession {
         let output_closed = operation.output_closed();
         let (text, completion, reasons) = operation.into_parts();
         let operation_summary = rendered_summary(completion, reasons);
-        let item_index = self.output.len();
         let remaining = self.remaining_output_bytes();
         let (retained, item_summary) =
             if self.runtime.core.phase == TransactionPhase::OutputExhausted || text.len() > remaining {
@@ -157,7 +156,26 @@ impl BatchSession {
                     ),
                 )
             };
-        self.output.push(retained, item_summary);
+        self.store_item(retained, item_summary)
+    }
+
+    /// Stores one completed item unless it is an empty rejected result.
+    ///
+    /// # Parameters
+    ///
+    /// - `text`: Escaped text retained for a successful or partial result.
+    /// - `summary`: Final per-item completion and accounting.
+    ///
+    /// # Returns
+    ///
+    /// A transaction handle; empty non-complete results receive a rejected
+    /// handle without allocating an output slot.
+    #[must_use]
+    fn store_item(&mut self, text: String, summary: crate::RedactionSummary) -> RedactionHandle {
+        if text.is_empty() && summary.completion() != crate::RedactionCompletion::Complete {
+            return RedactionHandle::rejected(self.id);
+        }
+        let item_index = self.output.push(text, summary);
         RedactionHandle::new(self.id, item_index)
     }
 
@@ -224,7 +242,6 @@ impl BatchSession {
     /// A handle to this item without charging domain traversal a second time.
     #[must_use]
     fn stage_domain_item(&mut self, text: String) -> RedactionHandle {
-        let item_index = self.output.len();
         if text.len() > self.remaining_output_bytes() {
             self.runtime.core.phase = TransactionPhase::OutputExhausted;
             let summary = crate::RedactionSummary::exhausted();
@@ -234,16 +251,14 @@ impl BatchSession {
                 .core
                 .active_operation_summary
                 .unwrap_or(SummaryBuilder::from_summary(summary));
-            self.output.push(
-                String::new(),
-                item_summary.build(
-                    self.runtime
-                        .core
-                        .budget
-                        .active_operation_usage()
-                        .unwrap_or_else(crate::RedactionUsage::empty),
-                ),
+            let item_summary = item_summary.build(
+                self.runtime
+                    .core
+                    .budget
+                    .active_operation_usage()
+                    .unwrap_or_else(crate::RedactionUsage::empty),
             );
+            self.store_item(String::new(), item_summary)
         } else {
             self.record_output_bytes(text.len());
             let summary = self
@@ -257,9 +272,8 @@ impl BatchSession {
                 .budget
                 .active_operation_usage()
                 .unwrap_or_else(crate::RedactionUsage::empty);
-            self.output.push(text, summary.build(usage));
+            self.store_item(text, summary.build(usage))
         }
-        RedactionHandle::new(self.id, item_index)
     }
 }
 
@@ -663,5 +677,39 @@ impl ResettableSession for BatchSession {
     fn reset_transaction(&mut self) {
         let policy = Arc::clone(&self.runtime.core.policy);
         *self = Self::new(policy);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::BatchSession;
+    use crate::RedactionPolicy;
+    use crate::RedactionReason;
+
+    #[test]
+    fn test_rejected_empty_items_do_not_allocate_slots() {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_nodes(0);
+            })
+            .expect("valid limits")
+            .build()
+            .expect("valid policy");
+        let mut batch = BatchSession::new(Arc::new(policy));
+        for _ in 0..10_000 {
+            let _ = batch.redact_env("A", "x");
+        }
+
+        assert_eq!(batch.output.len(), 0);
+        let output = batch.finish();
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+        assert_eq!(output.summary().usage().output_bytes(), 0);
     }
 }

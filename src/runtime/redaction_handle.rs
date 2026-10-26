@@ -11,7 +11,8 @@
 ///
 /// Debug output contains only transaction metadata, never item text. The public
 /// [`crate::DiagnosticRedactionHandle`] is created from this private token
-/// before an operation returns to the caller.
+/// before an operation returns to the caller. Rejected empty items share an
+/// invalid item index, so handles are not guaranteed to be unique.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RedactionHandle {
     /// Identity of the batch transaction that created this handle.
@@ -21,6 +22,21 @@ pub struct RedactionHandle {
 }
 
 impl RedactionHandle {
+    /// Creates a handle for an item rejected before any text could be stored.
+    ///
+    /// # Parameters
+    ///
+    /// - `transaction_id`: Identity of the issuing batch.
+    ///
+    /// # Returns
+    ///
+    /// A handle whose item index cannot identify a stored item.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) const fn rejected(transaction_id: u64) -> Self {
+        Self::new(transaction_id, usize::MAX)
+    }
+
     /// Creates a handle for one transaction-owned item.
     ///
     /// # Parameters

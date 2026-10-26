@@ -64,6 +64,102 @@ fn test_batch_resolves_items_only_from_its_own_output() {
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
 }
 
+#[cfg(feature = "json")]
+#[test]
+fn test_invalid_json_batch_items_keep_safe_output_and_allow_later_items() {
+    let mut batch = Redactor::standard().diagnostic_batch();
+    let rejected = batch.redact_json("{");
+    let rejected_again = batch.redact_json("[");
+    let empty_success = batch.redact_field("name", "");
+    let later_success = batch.redact_field("name", "Ada");
+    let output = batch.finish_with_marker("<rejected>");
+
+    assert_eq!(output.text(rejected).as_str(), "<redacted>");
+    assert_eq!(output.text(rejected_again).as_str(), "<redacted>");
+    assert_eq!(output.text(empty_success).as_str(), "");
+    assert_eq!(output.text(later_success).as_str(), "Ada");
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
+}
+
+#[test]
+fn test_rejected_batch_handles_share_marker_without_stopping_later_items() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(0);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let mut batch = Redactor::new(policy).diagnostic_batch();
+    let handles = (0..10_000).map(|_| batch.redact_env("A", "x")).collect::<Vec<_>>();
+    let first = handles[0];
+    let last = handles[handles.len() - 1];
+    assert_eq!(first, last);
+    let output = batch.finish_with_marker("<rejected>");
+
+    assert_eq!(output.text(first).as_str(), "<rejected>");
+    assert_eq!(output.text(last).as_str(), "<rejected>");
+}
+
+#[test]
+fn test_input_rejection_keeps_aggregate_and_allows_empty_success() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_input_bytes(1);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let mut batch = Redactor::new(policy).diagnostic_batch();
+    let rejected = batch.redact_env("A", "x");
+    let empty_success = batch.redact_field("", "");
+    let output = batch.finish_with_marker("<rejected>");
+
+    assert_eq!(output.text(rejected).as_str(), "<rejected>");
+    assert_eq!(output.text(empty_success).as_str(), "");
+    assert!(output.summary().reasons().contains(RedactionReason::InputLimitReached));
+}
+
+#[test]
+fn test_output_exhaustion_keeps_partial_and_one_shared_sentinel() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_output_bytes(1);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let mut batch = Redactor::new(policy).diagnostic_batch();
+    let partial = batch.redact_field("name", "Ada");
+    let exhausted = batch.redact_field("name", "Grace");
+    let exhausted_again = batch.redact_field("name", "Lin");
+    let output = batch.finish_with_marker("<exhausted>");
+
+    assert!(!output.text(partial).as_str().is_empty());
+    assert_eq!(exhausted, exhausted_again);
+    assert_eq!(output.text(exhausted).as_str(), "<exhausted>");
+}
+
+#[test]
+fn test_zero_output_budget_repeatedly_resolves_exhausted_marker() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_output_bytes(0);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let mut batch = Redactor::new(policy).diagnostic_batch();
+    let first = batch.redact_field("name", "Ada");
+    let second = batch.redact_field("name", "Grace");
+    let third = batch.redact_field("name", "Lin");
+    let output = batch.finish_with_marker("<exhausted>");
+
+    assert_eq!(output.text(first).as_str(), "<exhausted>");
+    assert_eq!(second, third);
+    assert_eq!(output.text(second).as_str(), "<exhausted>");
+}
+
 #[test]
 fn test_batch_rejects_handle_from_different_batch() {
     let mut first = Redactor::standard().diagnostic_batch();

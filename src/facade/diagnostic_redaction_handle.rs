@@ -10,6 +10,9 @@
 /// Opaque reference to one unpublished item in a
 /// [`crate::DiagnosticRedactionBatch`].
 ///
+/// Empty rejected items may share a handle, so callers must not rely on every
+/// operation receiving a unique handle.
+///
 /// # Examples
 ///
 /// ```
