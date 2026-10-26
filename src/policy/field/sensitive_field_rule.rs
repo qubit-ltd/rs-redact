@@ -20,13 +20,21 @@ use super::Sensitivity;
 /// ```
 /// use qubit_redact::RedactionPolicy;
 /// use qubit_redact::SensitiveFieldRule;
+/// use qubit_redact::Sensitivity;
 ///
-/// let policy = RedactionPolicy::standard();
-/// if let Some(rule) = policy.application_sensitive_rules().next() {
-///     let rule: SensitiveFieldRule<'_> = rule;
-///     assert!(!rule.field().is_empty());
-///     let _sensitivity = rule.sensitivity();
-/// }
+/// let policy = RedactionPolicy::builder()
+///     .fields(|fields| {
+///         fields.secret_sensitive("session_token");
+///     })
+///     .expect("valid application rule")
+///     .build()
+///     .expect("valid policy");
+/// let rule: SensitiveFieldRule<'_> = policy
+///     .application_sensitive_rules()
+///     .next()
+///     .expect("configured rule exists");
+/// assert_eq!(rule.field(), "sessiontoken");
+/// assert_eq!(rule.sensitivity(), Sensitivity::Secret);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SensitiveFieldRule<'a> {
